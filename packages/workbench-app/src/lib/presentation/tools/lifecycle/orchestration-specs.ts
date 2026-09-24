@@ -124,14 +124,7 @@ function subagentSpec<Name extends AsyncSubagentToolName>(
         primaryArg:
           name === "subagent_list" ? undefined : textArg(source.string("name")),
         body: prompt
-          ? /\r|\n/.test(rawPrompt ?? "") || (rawPrompt?.length ?? 0) > 500
-            ? codeBody(prompt, "text", { force: true, label: "Assignment" })
-            : {
-                kind: "text-summary",
-                text: prompt,
-                label: "Assignment",
-                mono: true,
-              }
+          ? codeBody(prompt, "text", { force: true, label: "Assignment" })
           : undefined,
       });
     },

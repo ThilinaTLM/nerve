@@ -124,7 +124,7 @@ describe("parseToolView subagent tools", () => {
       { name: "ui-tests", prompt: "Write tests" },
       { details: { name: "ui-tests", runId: "run_2", accepted: true } },
     );
-    assert.deepEqual(metaText(presentation.meta), ["assignment started"]);
+    assert.deepEqual(metaText(presentation.meta), []);
   });
 
   it("falls back to the argument name while pending and flags metadata-only records", () => {

@@ -47,8 +47,17 @@ describe("subagent card output", () => {
     );
   });
 
-  it("formats new, prompt and stop as single-line results without repeating prompt input", () => {
-    for (const action of ["new", "prompt", "stop"] as const) {
+  it("omits the redundant prompt result but keeps new and stop results", () => {
+    assert.equal(
+      subagentOutput(
+        view({
+          action: "prompt",
+          teammates: [{ name: "startup-gate", state: "running" }],
+        }),
+      ),
+      undefined,
+    );
+    for (const action of ["new", "stop"] as const) {
       assert.equal(
         subagentOutput(view({ action })),
         "startup-gate · completed",

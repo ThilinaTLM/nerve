@@ -103,10 +103,11 @@ describe("tool lifecycle registry", () => {
       "completed",
     );
     assert.deepEqual(short.body, {
-      kind: "text-summary",
+      kind: "code",
       text: "Fix the test",
+      language: "text",
       label: "Assignment",
-      mono: true,
+      tail: true,
     });
     assert.equal(
       presentToolArguments(

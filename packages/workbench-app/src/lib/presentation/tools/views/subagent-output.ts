@@ -5,7 +5,7 @@ type SubagentView = Extract<ToolView, { kind: "subagent" }>;
 
 /** One result body for the compact card and the formatted details view. */
 export function subagentOutput(view: SubagentView): string | undefined {
-  if (view.previewUnavailable) return undefined;
+  if (view.previewUnavailable || view.action === "prompt") return undefined;
   if (view.action === "list") {
     return view.teammates.length
       ? view.teammates

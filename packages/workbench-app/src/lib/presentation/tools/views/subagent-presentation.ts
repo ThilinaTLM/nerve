@@ -17,8 +17,6 @@ export function subagentPresentation(
 ): ToolPresentation {
   const meta: MetaItem[] = [];
   const teammate = view.teammates[0];
-  if (view.action === "prompt" && toolCall.status === "completed" && view.runId)
-    meta.push({ text: "assignment started", tone: "success" });
   if (view.action === "list") {
     const running = view.teammates.filter(
       (candidate) => candidate.state === "running",
