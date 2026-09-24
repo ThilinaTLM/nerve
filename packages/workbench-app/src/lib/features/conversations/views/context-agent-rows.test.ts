@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { AgentRecord } from "$lib/api";
 import {
+  agentAttention,
   agentDetailFields,
+  agentRole,
   agentRoleLabel,
   agentRowLabel,
+  agentStatusBadge,
   agentStatusLabel,
-  sortAgents,
-  visibleAgents,
+  exploreFoldSummary,
+  groupAgents,
 } from "./context-agent-rows";
 
 function agent(overrides: Partial<AgentRecord> & { id: string }): AgentRecord {
@@ -32,48 +35,192 @@ function ids(agents: readonly AgentRecord[]): string[] {
   return agents.map((entry) => entry.id);
 }
 
-describe("sortAgents", () => {
-  it("puts the main agent first, then selected, live, and recent agents", () => {
-    const sorted = sortAgents(
-      [
+describe("agentRole", () => {
+  it("classifies lead, teammates, and explore agents including older records", () => {
+    assert.equal(agentRole(agent({ id: "agent_root" })), "lead");
+    assert.equal(
+      agentRole(
         agent({
-          id: "stale",
+          id: "mate",
           parentAgentId: "agent_root",
-          updatedAt: "2026-01-01T00:00:00.000Z",
+          executionKind: "async_developer",
         }),
-        agent({
-          id: "recent",
-          parentAgentId: "agent_root",
-          updatedAt: "2026-01-01T05:00:00.000Z",
-        }),
-        agent({
-          id: "live",
-          parentAgentId: "agent_root",
-          status: "running",
-          updatedAt: "2026-01-01T01:00:00.000Z",
-        }),
-        agent({ id: "selected", parentAgentId: "agent_root" }),
-        agent({ id: "agent_root" }),
-      ],
-      "selected",
+      ),
+      "teammate",
     );
+    assert.equal(
+      agentRole(
+        agent({
+          id: "new",
+          parentAgentId: "agent_root",
+          executionKind: "explore",
+        }),
+      ),
+      "explore",
+    );
+    assert.equal(
+      agentRole(agent({ id: "legacy", parentAgentId: "agent_root" })),
+      "explore",
+    );
+  });
+});
 
-    assert.deepEqual(ids(sorted), [
-      "agent_root",
-      "selected",
-      "live",
-      "recent",
-      "stale",
+describe("groupAgents", () => {
+  const child = (overrides: Partial<AgentRecord> & { id: string }) =>
+    agent({ parentAgentId: "agent_root", ...overrides });
+
+  it("splits roles and orders teammates by attention then recency", () => {
+    const groups = groupAgents([
+      child({ id: "explore_done", updatedAt: "2026-01-01T09:00:00.000Z" }),
+      child({
+        id: "mate_idle",
+        executionKind: "async_developer",
+        updatedAt: "2026-01-01T09:00:00.000Z",
+      }),
+      child({
+        id: "mate_running",
+        executionKind: "async_developer",
+        status: "running",
+      }),
+      child({
+        id: "mate_waiting",
+        executionKind: "async_developer",
+        status: "awaiting_user",
+      }),
+      child({ id: "explore_running", status: "running" }),
+      agent({ id: "agent_root" }),
     ]);
+
+    assert.equal(groups.lead?.id, "agent_root");
+    assert.deepEqual(ids(groups.teammates), [
+      "mate_waiting",
+      "mate_running",
+      "mate_idle",
+    ]);
+    assert.deepEqual(ids(groups.exploreLive), ["explore_running"]);
+    assert.deepEqual(ids(groups.exploreDone), ["explore_done"]);
+  });
+
+  it("folds settled explore agents newest first and keeps live ones visible", () => {
+    const groups = groupAgents([
+      child({ id: "old", updatedAt: "2026-01-01T01:00:00.000Z" }),
+      child({
+        id: "failed",
+        status: "error",
+        updatedAt: "2026-01-01T03:00:00.000Z",
+      }),
+      child({
+        id: "cancelled",
+        status: "aborted",
+        updatedAt: "2026-01-01T02:00:00.000Z",
+      }),
+      child({ id: "waiting", status: "awaiting_user" }),
+    ]);
+
+    assert.deepEqual(ids(groups.exploreLive), ["waiting"]);
+    assert.deepEqual(ids(groups.exploreDone), ["failed", "cancelled", "old"]);
+  });
+});
+
+describe("agent attention and explore fold", () => {
+  it("counts agents that need the user or are working", () => {
+    assert.deepEqual(
+      agentAttention([
+        agent({ id: "a", status: "running" }),
+        agent({ id: "b", status: "running" }),
+        agent({ id: "c", status: "awaiting_user" }),
+        agent({ id: "d" }),
+      ]),
+      { needsYou: 1, working: 2 },
+    );
+  });
+
+  it("summarizes finished and failed explore agents", () => {
+    assert.equal(
+      exploreFoldSummary([agent({ id: "a" }), agent({ id: "b" })]).label,
+      "2 finished",
+    );
+    assert.deepEqual(
+      exploreFoldSummary([
+        agent({ id: "a" }),
+        agent({ id: "b", status: "error" }),
+        agent({ id: "c", status: "aborted" }),
+      ]),
+      { finished: 1, failed: 2, label: "1 finished · 2 failed" },
+    );
+  });
+
+  it("maps statuses to row badges by role", () => {
+    const explore = agent({
+      id: "e",
+      parentAgentId: "agent_root",
+      status: "running",
+    });
+    assert.deepEqual(agentStatusBadge(explore), {
+      variant: "info",
+      text: "running",
+    });
+    assert.deepEqual(
+      agentStatusBadge(agent({ id: "agent_root", status: "running" })),
+      {
+        variant: "info",
+        text: "working",
+      },
+    );
+    assert.deepEqual(
+      agentStatusBadge(agent({ id: "agent_root", status: "awaiting_user" })),
+      { variant: "warning", text: "needs you" },
+    );
+    assert.deepEqual(agentStatusBadge({ ...explore, status: "error" }), {
+      variant: "destructive",
+      text: "failed",
+    });
+    assert.equal(agentStatusBadge({ ...explore, status: "idle" }), undefined);
   });
 });
 
 describe("agentRowLabel", () => {
   it("names the root agent by role", () => {
-    assert.equal(agentRowLabel(agent({ id: "agent_root" })), "Main agent");
+    assert.equal(agentRowLabel(agent({ id: "agent_root" })), "Lead agent");
   });
 
-  it("uses the first non-empty task line for subagents", () => {
+  it("prefers the persisted explore label", () => {
+    assert.equal(
+      agentRowLabel(
+        agent({
+          id: "child",
+          parentAgentId: "agent_root",
+          executionKind: "explore",
+          name: "Settings schema defaults",
+          task: "Research settings schemas, defaults, and patches in depth",
+        }),
+      ),
+      "Settings schema defaults",
+    );
+  });
+
+  it("shortens older explore prompts into a name", () => {
+    const label = (task: string) =>
+      agentRowLabel(agent({ id: "child", parentAgentId: "agent_root", task }));
+    assert.equal(
+      label(
+        "Research async child creation, active agent model, and transport replay for children",
+      ),
+      "Async child creation",
+    );
+    assert.equal(
+      label("Investigate: how explore.tools.ts validates labels. Then report."),
+      "How explore.tools.ts validates labels",
+    );
+    assert.equal(
+      label(
+        "look into the settings page configure dialog patterns used across tool settings",
+      ),
+      "The settings page configure dialog patterns…",
+    );
+  });
+
+  it("uses the first non-empty task line for older explore prompts", () => {
     assert.equal(
       agentRowLabel(
         agent({
@@ -82,7 +229,7 @@ describe("agentRowLabel", () => {
           task: "\n  Trace tool result projection  \nmore detail",
         }),
       ),
-      "Trace tool result projection",
+      "Tool result projection",
     );
   });
 
@@ -102,83 +249,17 @@ describe("agentRowLabel", () => {
       agentRowLabel(
         agent({ id: "child", parentAgentId: "agent_root", task: "   \n " }),
       ),
-      "Subagent",
+      "Explore agent",
     );
-  });
-});
-
-describe("visibleAgents", () => {
-  const many = sortAgents(
-    [
-      agent({ id: "agent_root" }),
-      ...Array.from({ length: 10 }, (_, index) =>
-        agent({
-          id: `child_${index}`,
-          parentAgentId: "agent_root",
-          updatedAt: `2026-01-01T0${index}:00:00.000Z`,
-        }),
-      ),
-    ],
-    undefined,
-  );
-
-  it("caps the collapsed list and reports what is hidden", () => {
-    const { rows, hiddenCount } = visibleAgents(many, { limit: 4 });
-    assert.equal(rows.length, 4);
-    assert.equal(hiddenCount, many.length - 4);
-    assert.equal(rows[0]?.id, "agent_root");
-  });
-
-  it("keeps the main, live, and selected agents even past the limit", () => {
-    const agents = sortAgents(
-      [
-        agent({ id: "agent_root" }),
-        agent({ id: "live_a", parentAgentId: "agent_root", status: "running" }),
-        agent({
-          id: "live_b",
-          parentAgentId: "agent_root",
-          status: "awaiting_user",
-        }),
-        agent({
-          id: "selected",
-          parentAgentId: "agent_root",
-          updatedAt: "2025-01-01T00:00:00.000Z",
-        }),
-        agent({ id: "old", parentAgentId: "agent_root" }),
-      ],
-      "selected",
-    );
-
-    const { rows, hiddenCount } = visibleAgents(agents, {
-      activeAgentId: "selected",
-      limit: 2,
-    });
-
-    assert.deepEqual(ids(rows).sort(), [
-      "agent_root",
-      "live_a",
-      "live_b",
-      "selected",
-    ]);
-    assert.equal(hiddenCount, 1);
-  });
-
-  it("returns everything when expanded", () => {
-    const { rows, hiddenCount } = visibleAgents(many, {
-      expanded: true,
-      limit: 2,
-    });
-    assert.equal(rows.length, many.length);
-    assert.equal(hiddenCount, 0);
   });
 });
 
 describe("agent detail", () => {
   it("titles the popover by role and reads the status as words", () => {
-    assert.equal(agentRoleLabel(agent({ id: "agent_root" })), "Main agent");
+    assert.equal(agentRoleLabel(agent({ id: "agent_root" })), "Lead agent");
     assert.equal(
       agentRoleLabel(agent({ id: "child", parentAgentId: "agent_root" })),
-      "Subagent",
+      "Explore agent",
     );
     assert.equal(
       agentStatusLabel(agent({ id: "child", status: "awaiting_user" })),

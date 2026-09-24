@@ -55,7 +55,7 @@ describe("read-only tool availability and permissions", () => {
       evaluateRuntimeToolPermission(
         "explore",
         {
-          tasks: [{ task: "Inspect the codebase" }],
+          tasks: [{ task: "Inspect the codebase", label: "Codebase" }],
           context:
             "Inspect the relevant code paths and report how the implementation currently behaves.",
         },

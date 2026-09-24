@@ -6,9 +6,6 @@ import {
 } from "@nervekit/ui-kit/display/time";
 import { permissionRuleSetLabel, shortAgentId } from "./context-session-fields";
 
-/** Rows shown before the list collapses behind "Show all". */
-export const COLLAPSED_AGENT_ROWS = 6;
-
 /** Compact thinking-level suffix rendered next to the model. */
 const THINKING_SHORT: Record<string, string> = {
   minimal: "min",
@@ -19,13 +16,33 @@ const THINKING_SHORT: Record<string, string> = {
   max: "max",
 };
 
+/** Maximum words kept when deriving an explore name from its task text. */
+const SHORT_TASK_WORDS = 6;
+
+const TASK_VERB_PREFIX =
+  /^(?:research|investigate|explore|find|look\s+into|trace|map|inspect|review)\b\s*:?\s*/i;
+
+/** Clause boundaries; `.` only before whitespace so file names stay whole. */
+const TASK_CLAUSE_BREAK = /[,:;]|\.(?:\s|$)|\s[—–-]\s|\s\(/;
+
+export type AgentRole = "lead" | "teammate" | "explore";
+
+/**
+ * Conversation role. Only the explore tool spawns non-teammate children, so a
+ * child without `executionKind` (older records) is an explore agent.
+ */
+export function agentRole(agent: AgentRecord): AgentRole {
+  if (!agent.parentAgentId) return "lead";
+  if (agent.executionKind === "async_developer") return "teammate";
+  return "explore";
+}
+
 export function isAgentLive(agent: AgentRecord): boolean {
   return agent.status === "running" || agent.status === "awaiting_user";
 }
 
-/** Persistent developer teammate owned by a lead (async subagent). */
-export function isAsyncTeammate(agent: AgentRecord): boolean {
-  return agent.executionKind === "async_developer";
+function isAgentFailed(agent: AgentRecord): boolean {
+  return agent.status === "error" || agent.status === "aborted";
 }
 
 export function agentRuleSetId(agent: AgentRecord): string {
@@ -41,94 +58,124 @@ export function agentModelLabel(agent: AgentRecord): string {
   return thinking ? `${model} (${thinking})` : model;
 }
 
-/**
- * First-view row text: what the agent is doing. The main agent has no task, so
- * it identifies itself by role instead.
- */
-export function agentRowLabel(agent: AgentRecord): string {
-  if (!agent.parentAgentId) return "Main agent";
-  if (agent.name) return agent.name;
-  const firstLine = agent.task
+function firstTaskLine(task: string | undefined): string | undefined {
+  return task
     ?.split("\n")
     .map((line) => line.trim())
     .find((line) => line.length > 0);
-  return firstLine ?? "Subagent";
 }
-
-export function sortAgents(
-  agents: readonly AgentRecord[],
-  activeAgentId?: string,
-): AgentRecord[] {
-  return [...agents].sort((a, b) => {
-    const aMain = a.parentAgentId ? 0 : 1;
-    const bMain = b.parentAgentId ? 0 : 1;
-    if (aMain !== bMain) return bMain - aMain;
-
-    const aSelected = a.id === activeAgentId ? 1 : 0;
-    const bSelected = b.id === activeAgentId ? 1 : 0;
-    if (aSelected !== bSelected) return bSelected - aSelected;
-
-    const aLive = isAgentLive(a) ? 1 : 0;
-    const bLive = isAgentLive(b) ? 1 : 0;
-    if (aLive !== bLive) return bLive - aLive;
-
-    const aUpdated = new Date(a.updatedAt).getTime();
-    const bUpdated = new Date(b.updatedAt).getTime();
-    if (aUpdated !== bUpdated) return bUpdated - aUpdated;
-
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
-}
-
-export type VisibleAgents = {
-  rows: AgentRecord[];
-  hiddenCount: number;
-};
 
 /**
- * Collapsed view keeps the agents a reader still needs — the main agent, live
- * agents, and the selected one — and fills the rest of the budget with the most
- * recent rows in sort order.
+ * Short display name for explore agents recorded before explore labels were
+ * persisted: drops a leading research verb, keeps the first clause, and caps
+ * the word count.
  */
-export function visibleAgents(
-  sorted: readonly AgentRecord[],
-  options: {
-    activeAgentId?: string;
-    expanded?: boolean;
-    limit?: number;
-  } = {},
-): VisibleAgents {
-  const {
-    activeAgentId,
-    expanded = false,
-    limit = COLLAPSED_AGENT_ROWS,
-  } = options;
-  if (expanded) return { rows: [...sorted], hiddenCount: 0 };
-
-  const pinned = new Set(
-    sorted
-      .filter(
-        (agent) =>
-          !agent.parentAgentId ||
-          isAgentLive(agent) ||
-          agent.id === activeAgentId,
-      )
-      .map((agent) => agent.id),
-  );
-
-  let budget = Math.max(limit - pinned.size, 0);
-  const rows = sorted.filter((agent) => {
-    if (pinned.has(agent.id)) return true;
-    if (budget === 0) return false;
-    budget -= 1;
-    return true;
-  });
-
-  return { rows, hiddenCount: sorted.length - rows.length };
+export function shortTaskLabel(task: string | undefined): string | undefined {
+  const line = firstTaskLine(task);
+  if (!line) return undefined;
+  const clause = line.replace(TASK_VERB_PREFIX, "").split(TASK_CLAUSE_BREAK)[0];
+  const words = clause?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (words.length === 0) return undefined;
+  const kept = words.slice(0, SHORT_TASK_WORDS).join(" ");
+  const label = words.length > SHORT_TASK_WORDS ? `${kept}…` : kept;
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function liveAgentCount(agents: readonly AgentRecord[]): number {
-  return agents.filter(isAgentLive).length;
+/** First-view row text: the lead by role, subagents by a short name. */
+export function agentRowLabel(agent: AgentRecord): string {
+  const role = agentRole(agent);
+  if (role === "lead") return "Lead agent";
+  if (agent.name) return agent.name;
+  if (role === "explore") return shortTaskLabel(agent.task) ?? "Explore agent";
+  return firstTaskLine(agent.task) ?? "Subagent";
+}
+
+function byRecency(a: AgentRecord, b: AgentRecord): number {
+  const updated = Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+  if (updated !== 0) return updated;
+  return Date.parse(b.createdAt) - Date.parse(a.createdAt);
+}
+
+function attentionRank(agent: AgentRecord): number {
+  if (agent.status === "awaiting_user") return 0;
+  if (agent.status === "running") return 1;
+  return 2;
+}
+
+function byAttentionThenRecency(a: AgentRecord, b: AgentRecord): number {
+  return attentionRank(a) - attentionRank(b) || byRecency(a, b);
+}
+
+export type AgentGroups = {
+  lead?: AgentRecord;
+  teammates: AgentRecord[];
+  /** Running or waiting explore agents, always shown as rows. */
+  exploreLive: AgentRecord[];
+  /** Settled explore agents, folded behind one summary row. */
+  exploreDone: AgentRecord[];
+};
+
+export function groupAgents(
+  agents: readonly AgentRecord[],
+  activeAgentId?: string,
+): AgentGroups {
+  const leads = agents.filter((agent) => agentRole(agent) === "lead");
+  const explore = agents.filter((agent) => agentRole(agent) === "explore");
+  return {
+    lead: leads.find((agent) => agent.id === activeAgentId) ?? leads[0],
+    teammates: agents
+      .filter((agent) => agentRole(agent) === "teammate")
+      .sort(byAttentionThenRecency),
+    exploreLive: explore.filter(isAgentLive).sort(byAttentionThenRecency),
+    exploreDone: explore.filter((agent) => !isAgentLive(agent)).sort(byRecency),
+  };
+}
+
+export type AgentAttention = { needsYou: number; working: number };
+
+export function agentAttention(agents: readonly AgentRecord[]): AgentAttention {
+  return {
+    needsYou: agents.filter((agent) => agent.status === "awaiting_user").length,
+    working: agents.filter((agent) => agent.status === "running").length,
+  };
+}
+
+export type ExploreFoldSummary = {
+  finished: number;
+  failed: number;
+  label: string;
+};
+
+export function exploreFoldSummary(
+  done: readonly AgentRecord[],
+): ExploreFoldSummary {
+  const failed = done.filter(isAgentFailed).length;
+  const finished = done.length - failed;
+  const parts = [
+    finished > 0 ? `${finished} finished` : undefined,
+    failed > 0 ? `${failed} failed` : undefined,
+  ].filter(Boolean);
+  return { finished, failed, label: parts.join(" · ") };
+}
+
+export type AgentStatusBadge = {
+  variant: "info" | "warning" | "destructive";
+  text: string;
+};
+
+export function agentStatusBadge(
+  agent: AgentRecord,
+): AgentStatusBadge | undefined {
+  if (agent.status === "awaiting_user")
+    return { variant: "warning", text: "needs you" };
+  if (agent.status === "running")
+    return {
+      variant: "info",
+      text: agentRole(agent) === "explore" ? "running" : "working",
+    };
+  if (agent.status === "error")
+    return { variant: "destructive", text: "failed" };
+  return undefined;
 }
 
 export type AgentDetailField = {
@@ -140,8 +187,9 @@ export type AgentDetailField = {
 
 /** Role word used as the detail popover's title. */
 export function agentRoleLabel(agent: AgentRecord): string {
-  if (isAsyncTeammate(agent)) return "Teammate";
-  return agent.parentAgentId ? "Subagent" : "Main agent";
+  const role = agentRole(agent);
+  if (role === "lead") return "Lead agent";
+  return role === "teammate" ? "Teammate" : "Explore agent";
 }
 
 export function agentStatusLabel(agent: AgentRecord): string {

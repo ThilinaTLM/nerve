@@ -8,9 +8,12 @@ const exploreTaskParameters = Type.Object(
       description: "Specific independent codebase exploration task",
       minLength: 15,
     }),
-    label: Type.Optional(
-      Type.String({ description: "Short label for this exploration task" }),
-    ),
+    label: Type.String({
+      minLength: 3,
+      maxLength: 40,
+      description:
+        'Required 2–5 word noun phrase shown as this explore agent\'s name in the UI, e.g. "Settings schema defaults". Do not start with a verb like Research/Investigate.',
+    }),
     context: Type.Optional(
       Type.String({
         description:
