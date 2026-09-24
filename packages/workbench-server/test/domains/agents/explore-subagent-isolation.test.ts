@@ -57,6 +57,7 @@ describe("explore subagent transcript isolation", () => {
           tasks: [
             {
               task: "Inspect the temporary project and summarize its contents.",
+              label: "Temporary  project contents",
               context:
                 "Verify that relative ls paths start from the project root.",
             },
@@ -76,6 +77,8 @@ describe("explore subagent transcript isolation", () => {
         .listAgents()
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
+      assert.equal(child.executionKind, "explore");
+      assert.equal(child.name, "Temporary project contents");
       assert.deepEqual(child.model, parent.model);
       assert.equal(child.status, "idle");
       assert.ok((child.systemPrompt ?? "").includes(project.dir));

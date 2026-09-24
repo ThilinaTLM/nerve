@@ -253,7 +253,7 @@ describe("shared tool runtime contract", () => {
     });
     await explore.explore?.(
       {
-        tasks: [{ task: " inspect adapters " }],
+        tasks: [{ task: " inspect adapters ", label: "Adapters" }],
         context:
           "Parent inspected the orchestration adapters and needs focused follow-up evidence.",
       },

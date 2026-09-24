@@ -80,7 +80,7 @@ import {
 export type SubagentHistoryMode = "fresh" | "copy_parent";
 
 export interface SubagentRunSpec {
-  kind: string;
+  kind: "explore";
   parent: AgentRecord;
   projectId: string;
   projectDir: string;
@@ -119,7 +119,7 @@ export type ExploreMode = "single" | "parallel";
 
 export interface ExploreTask {
   task: string;
-  label?: string;
+  label: string;
   context?: string;
 }
 
@@ -378,6 +378,8 @@ export class SubagentRunner {
         projectId: spec.projectId,
         projectDir: spec.projectDir,
         parentAgentId: spec.parent.id,
+        executionKind: spec.kind,
+        name: spec.label,
         task: spec.task ?? spec.prompt,
         mode: spec.mode,
         permissionLevel: spec.permissionLevel,

@@ -110,7 +110,9 @@ test("built-in coding rule sets implement their complete behavior", () => {
   assert.equal(decision("read_only", "write", { path: "x" }).decision, "deny");
   assert.equal(
     decision("read_only", "explore", {
-      tasks: [{ task: "Inspect permission handling" }],
+      tasks: [
+        { task: "Inspect permission handling", label: "Permission handling" },
+      ],
       context:
         "Inspect the current permission policy implementation and identify the relevant files.",
     }).decision,
@@ -231,7 +233,7 @@ test("planning separates research, prompted analysis, and mutations", () => {
   );
   assert.equal(
     decision("planning", "explore", {
-      tasks: [{ task: "Research the implementation" }],
+      tasks: [{ task: "Research the implementation", label: "Implementation" }],
       context:
         "Research the current implementation paths and report the relevant code relationships.",
     }).decision,

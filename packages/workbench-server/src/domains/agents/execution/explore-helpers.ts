@@ -57,9 +57,15 @@ export function exploreRunPlanArg(
     const task = optionalString(record.task);
     if (!task) throw new Error(`Explore task ${index + 1} requires 'task'.`);
     validateExploreTask(task, `Task ${index + 1}`);
+    const label = optionalString(record.label)?.replace(/\s+/g, " ");
+    if (!label) {
+      throw new Error(
+        `Explore task ${index + 1} requires 'label' (a short 2–5 word name).`,
+      );
+    }
     return {
       task,
-      label: optionalString(record.label),
+      label,
       context: optionalExploreTaskContext(record.context, index),
     };
   });

@@ -5,6 +5,7 @@ import { parseExploreRequest } from "../../src/runtime/orchestration/args.js";
 function tasks(count: number) {
   return Array.from({ length: count }, (_, index) => ({
     task: `Investigate independent subsystem number ${index + 1}`,
+    label: `Subsystem ${index + 1}`,
   }));
 }
 
@@ -18,6 +19,18 @@ describe("Explore argument validation", () => {
     });
 
     assert.equal(request.tasks.length, 8);
+  });
+
+  it("requires a short label for every task", () => {
+    assert.throws(
+      () =>
+        parseExploreRequest({
+          tasks: [{ task: "Investigate the settings patch persistence flow" }],
+          context:
+            "The parent completed an initial source lookup for this work.",
+        }),
+      /tasks\[0\]\.label must be a non-empty string/,
+    );
   });
 
   it("gives actionable guidance when one call contains too many tasks", () => {

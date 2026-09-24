@@ -1,4 +1,4 @@
-export const CANONICAL_SCHEMA_VERSION = 5;
+export const CANONICAL_SCHEMA_VERSION = 6;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -334,6 +334,54 @@ FROM conversation_records
 WHERE kind = 'run'
 ON CONFLICT(run_id) DO NOTHING;`;
 
+/**
+ * Explore children created before explore labels were persisted carry only
+ * their full prompt. Recover each child's short label from the parent's
+ * `explore` tool-call arguments (children store the trimmed task text
+ * verbatim) and mark them with their execution kind.
+ */
+const EXPLORE_AGENT_NAMES_V6_SQL = `WITH agent_docs AS (
+  SELECT document_id,
+    json_extract(CAST(data AS TEXT), '$.conversationId') AS conversation_id,
+    json_extract(CAST(data AS TEXT), '$.parentAgentId') AS parent_id,
+    json_extract(CAST(data AS TEXT), '$.task') AS task
+  FROM domain_documents
+  WHERE namespace = 'agent' AND scope_id = 'global'
+    AND json_extract(CAST(data AS TEXT), '$.parentAgentId') IS NOT NULL
+    AND json_extract(CAST(data AS TEXT), '$.executionKind') IS NULL
+    AND json_extract(CAST(data AS TEXT), '$.name') IS NULL
+),
+explore_labels AS (
+  SELECT agent_docs.document_id,
+    substr(trim(json_extract(task.value, '$.label')), 1, 80) AS label,
+    row_number() OVER (
+      PARTITION BY agent_docs.document_id ORDER BY records.sequence DESC
+    ) AS rank
+  FROM agent_docs
+  JOIN conversation_records AS records
+    ON records.kind = 'tool_call'
+    AND records.conversation_id = agent_docs.conversation_id
+    AND json_extract(CAST(records.data AS TEXT), '$.toolName') = 'explore'
+    AND json_extract(CAST(records.data AS TEXT), '$.agentId') = agent_docs.parent_id
+  JOIN json_each(CAST(records.data AS TEXT), '$.args.tasks') AS task
+    ON trim(json_extract(task.value, '$.task')) = agent_docs.task
+  WHERE json_type(task.value, '$.label') = 'text'
+    AND length(trim(json_extract(task.value, '$.label'))) > 0
+)
+UPDATE domain_documents
+SET data = CAST(json_set(
+      CAST(data AS TEXT),
+      '$.executionKind', 'explore',
+      '$.name', (
+        SELECT label FROM explore_labels
+        WHERE explore_labels.document_id = domain_documents.document_id
+          AND rank = 1
+      )
+    ) AS BLOB),
+  revision = revision + 1
+WHERE namespace = 'agent' AND scope_id = 'global'
+  AND document_id IN (SELECT document_id FROM explore_labels WHERE rank = 1);`;
+
 export interface CanonicalMigration {
   version: number;
   name: string;
@@ -378,5 +426,12 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
 ) STRICT;
 CREATE INDEX subagent_completions_pending ON subagent_completions(lead_id, pending);
 CREATE INDEX subagent_completions_conversation ON subagent_completions(conversation_id);`,
+  },
+  {
+    version: 6,
+    name: "explore-agent-names-v6",
+    checksum:
+      "528f1bee3430ce1cd1159e9f42656ff5f8ef7f41033477058f85cdf8b24398f4",
+    sql: EXPLORE_AGENT_NAMES_V6_SQL,
   },
 ];

@@ -65,7 +65,10 @@ export function parseExploreRequest(args: Record<string, unknown>) {
     const record = item as Record<string, unknown>;
     return {
       task: requiredString(record.task, `tasks[${index}].task`),
-      label: optionalString(record.label),
+      label: requiredString(record.label, `tasks[${index}].label`).replace(
+        /\s+/g,
+        " ",
+      ),
       context: optionalExploreTaskContext(
         record.context,
         `tasks[${index}].context`,
