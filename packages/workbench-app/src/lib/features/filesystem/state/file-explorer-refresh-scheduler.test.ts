@@ -129,6 +129,33 @@ test("keeps one trailing refresh without overlapping in-flight work", async () =
   assert.equal(refreshes, 2);
 });
 
+test("stopping during an in-flight refresh drops queued work", async () => {
+  let refreshes = 0;
+  let resolveRefresh!: () => void;
+  const harness = schedulerHarness(
+    () =>
+      new Promise<void>((resolve) => {
+        refreshes += 1;
+        resolveRefresh = resolve;
+      }),
+  );
+
+  harness.scheduler.requestRefresh();
+  await flushRefreshes();
+  assert.equal(refreshes, 1);
+  harness.scheduler.requestRefresh();
+  harness.advance(1_000);
+  harness.scheduler.stop();
+  resolveRefresh();
+  await flushRefreshes();
+
+  assert.equal(refreshes, 1);
+  harness.scheduler.requestRefresh();
+  harness.runInterval();
+  await flushRefreshes();
+  assert.equal(refreshes, 1);
+});
+
 test("ignores hidden triggers, recovers from rejection, and cleans up", async () => {
   let refreshes = 0;
   const harness = schedulerHarness(() => {

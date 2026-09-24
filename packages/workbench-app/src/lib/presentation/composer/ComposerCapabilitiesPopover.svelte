@@ -34,10 +34,11 @@ import {
   showCapabilitySearch,
   type CapabilityDecisionOrigin,
 } from "./capability-list";
-import { capabilityToolLabels } from "./capability-tool-labels";
+import { capabilityToolGroupsFor } from "./capability-tool-labels";
 type Row = {
   key: string;
   label: string;
+  searchText?: string;
   enabled: boolean;
   overridden: boolean;
   origin: CapabilityDecisionOrigin;
@@ -115,16 +116,21 @@ function toolEnabled(name: CapabilityToolName): boolean {
 }
 
 const conversation = $derived(configuration?.conversation);
+const toolGroups = $derived(capabilityToolGroupsFor(tools));
 const overrideCount = $derived(
   conversation
-    ? Object.keys(conversation.tools).length +
+    ? toolGroups.filter((group) =>
+        group.names.some((name) => conversation.tools[name] !== undefined),
+      ).length +
         Object.keys(conversation.skills.file).length +
         Object.keys(conversation.skills.nerve).length +
         Object.keys(conversation.skills.agentBrowser).length
     : 0,
 );
 const enabledTools = $derived(
-  configuration ? tools.filter((name) => toolEnabled(name)).length : 0,
+  configuration
+    ? toolGroups.filter((group) => group.names.every(toolEnabled)).length
+    : 0,
 );
 const enabledSkills = $derived(
   configuration ? skills.filter((skill) => skill.enabled).length : 0,
@@ -134,30 +140,41 @@ const triggerTitle = $derived(
     ? "Tools and skills: loading"
     : error
       ? `Tools and skills unavailable: ${error}`
-      : `Tools and skills: ${enabledTools} of ${tools.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
+      : `Tools and skills: ${enabledTools} of ${toolGroups.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
 );
 
 const trustedProject = $derived(
   configuration?.trust.status === "trusted" ? configuration.project : undefined,
 );
 const toolRows = $derived<Row[]>(
-  tools.map((name) => {
+  toolGroups.map((group) => {
     const origin = capabilityDecisionOrigin(
-      conversation?.tools[name],
-      trustedProject?.tools[name],
+      group.names.some((name) => conversation?.tools[name] !== undefined)
+        ? true
+        : undefined,
+      group.names.some((name) => trustedProject?.tools[name] !== undefined)
+        ? true
+        : undefined,
     );
     return {
-      key: name,
-      label: capabilityToolLabels[name],
-      enabled: toolEnabled(name),
+      key: group.key,
+      label: group.label,
+      searchText: group.searchText,
+      enabled: group.names.every(toolEnabled),
       overridden: origin === "conversation",
       origin,
       detail:
         origin === "conversation"
           ? "Set for this conversation"
           : `Inherited from ${origin} settings`,
-      toggle: (enabled: boolean) => onPatch?.({ tools: { [name]: enabled } }),
-      reset: () => onPatch?.({ tools: { [name]: null } }),
+      toggle: (enabled: boolean) =>
+        onPatch?.({
+          tools: Object.fromEntries(group.names.map((name) => [name, enabled])),
+        }),
+      reset: () =>
+        onPatch?.({
+          tools: Object.fromEntries(group.names.map((name) => [name, null])),
+        }),
     };
   }),
 );
@@ -268,7 +285,7 @@ function openSettings(): void {
     >
       <ToggleGroup.Item value="tools" class="flex-none">
         Tools
-        <span data-slot="toggle-count">{enabledTools}/{tools.length}</span>
+        <span data-slot="toggle-count">{enabledTools}/{toolGroups.length}</span>
       </ToggleGroup.Item>
       <ToggleGroup.Item value="skills" class="flex-none">
         Skills

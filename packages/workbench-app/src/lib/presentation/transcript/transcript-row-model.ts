@@ -34,6 +34,7 @@ export function entranceEligible(node: TranscriptDisplayNode): boolean {
   // System notices arrive mid-run, so they animate in like live content.
   if (
     node.kind === "task_event" ||
+    node.kind === "system_event" ||
     node.kind === "run_status" ||
     node.kind === "compaction"
   ) {
@@ -46,6 +47,7 @@ export interface TranscriptMeasurementContext {
   readonly approvalsByToolCallId: ReadonlyMap<string, ApprovalWithToolCall>;
   readonly questionsByToolCallId: ReadonlyMap<string, UserQuestionRecord>;
   readonly reviewsByToolCallId: ReadonlyMap<string, PlanReviewRecord>;
+  readonly outcomeUnknownToolCallIds?: ReadonlySet<string>;
   readonly active: boolean;
 }
 
@@ -116,6 +118,9 @@ export function measurementVersionForRow(
       approval ? `${approval.id}:${approval.status}` : "no-approval",
       question ? `${question.id}:${question.status}` : "no-question",
       plan ? `${plan.id}:${plan.status}` : "no-plan",
+      context.outcomeUnknownToolCallIds?.has(toolCallId)
+        ? "outcome-unknown"
+        : "outcome-known",
     ].join(":");
   }
   if (node.kind === "task_event") {
@@ -132,6 +137,14 @@ export function measurementVersionForRow(
       notice.command?.length ?? 0,
       notice.output?.length ?? 0,
       notice.taskId ? "actionable" : "static",
+    ].join(":");
+  }
+  if (node.kind === "system_event") {
+    return [
+      "system",
+      node.notice.kind,
+      node.notice.summary?.length ?? 0,
+      node.notice.text.length,
     ].join(":");
   }
   if (node.kind === "run_status") {

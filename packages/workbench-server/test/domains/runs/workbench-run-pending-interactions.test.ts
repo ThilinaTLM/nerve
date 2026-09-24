@@ -5,7 +5,7 @@ import { WorkbenchRunService } from "../../../src/domains/runs/application/workb
 function state(input: {
   runId: string;
   conversationId: string;
-  status: "waiting" | "running";
+  status: "waiting" | "running" | "executing_tools";
   interactionKind: "approval" | "user_input";
   interactionStatus: "pending" | "resolved";
 }) {
@@ -63,7 +63,7 @@ test("starts a fresh continuation run when harness input wakes an idle agent", a
   ]);
 });
 
-test("pending approval recovery candidates are active and conversation scoped", async () => {
+test("approval checkpoint candidates are active, released or awaiting, and conversation scoped", async () => {
   const wanted = state({
     runId: "wanted",
     conversationId: "conv_target",
@@ -99,6 +99,13 @@ test("pending approval recovery candidates are active and conversation scoped", 
           interactionStatus: "resolved",
         }),
         state({
+          runId: "released",
+          conversationId: "conv_target",
+          status: "executing_tools",
+          interactionKind: "approval",
+          interactionStatus: "resolved",
+        }),
+        state({
           runId: "not_waiting",
           conversationId: "conv_target",
           status: "running",
@@ -110,11 +117,10 @@ test("pending approval recovery candidates are active and conversation scoped", 
     {} as never,
   );
 
-  const interactions =
-    await service.listPendingApprovalInteractions("conv_target");
+  const states = await service.listApprovalCheckpointRuns("conv_target");
 
   assert.deepEqual(
-    interactions.map((interaction) => interaction.id),
-    [wanted.interactions[0]?.id],
+    states.map((candidate) => candidate.run.runId),
+    ["wanted", "released"],
   );
 });

@@ -81,6 +81,8 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
     }
 
     runtime.startRun({
+      background:
+        this.state.agents.get(run.agentId)?.executionKind === "async_developer",
       conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,
@@ -90,6 +92,10 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
 
     if (run.status === "retrying") {
       runtime.projectStatus(run.runId, "retrying", retry);
+      return;
+    }
+    if (run.status === "executing_tools") {
+      runtime.projectStatus(run.runId, "executing_tools");
       return;
     }
     if (run.status === "waiting" || run.status === "suspended") {
@@ -130,9 +136,13 @@ export function agentStatusForRun(
   status: RunRecord["status"],
 ): AgentRecord["status"] {
   if (
-    ["starting", "running", "retrying", "cancellation_requested"].includes(
-      status,
-    )
+    [
+      "starting",
+      "running",
+      "retrying",
+      "executing_tools",
+      "cancellation_requested",
+    ].includes(status)
   ) {
     return "running";
   }

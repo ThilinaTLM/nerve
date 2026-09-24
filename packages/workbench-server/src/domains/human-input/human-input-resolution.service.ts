@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
+import { createId } from "@nervekit/contracts";
 import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
@@ -23,10 +24,8 @@ import type {
 } from "@nervekit/contracts/tools";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
-import type {
-  AppendEntryInput,
-  AppendEntryOptions,
-} from "../conversations/append-entry-contracts.js";
+import type { AppendEntryInput } from "../conversations/append-entry-contracts.js";
+import type { GuardedAppendEntryOptions } from "../conversations/conversation-lifecycle.service.js";
 import type { RunLifecycleService } from "../runs/application/run-lifecycle.service.js";
 import type { WorkbenchRunService } from "../runs/application/workbench-run.service.js";
 import { agentMessageText } from "../agents/execution/index.js";
@@ -35,7 +34,14 @@ import type { PlanService } from "../plans/plan-service.js";
 import { toolCallResultForModel } from "../tools/orchestration/agent-tool-adapter.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
 import { toToolCallTranscriptRecord } from "../tools/artifacts/tool-call-transcript-preview.js";
-import { ApprovalBatchResolutionService } from "./approval-batch-resolution.js";
+import {
+  ApprovalCheckpointService,
+  type ApprovalCheckpointWorkStore,
+  type ApprovalDecisionReceipt,
+  type ApprovalDecisionRequest,
+} from "./approval-checkpoint.service.js";
+import type { LifecycleWork } from "@nervekit/contracts/runs";
+import type { LifecycleWorkExecutionResult } from "../runs/runtime/lifecycle-work-executor.js";
 import {
   acceptedPlanFollowUp,
   acceptedPlanInNewChatInstruction,
@@ -72,12 +78,15 @@ export interface HumanInputResolutionDeps {
   ): Promise<void>;
   appendEntry(
     input: AppendEntryInput,
-    options?: AppendEntryOptions,
+    options?: GuardedAppendEntryOptions,
   ): Promise<ConversationEntry>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   harnessStorage: ConversationHarnessStorage;
   logger: ApplicationLogger;
-  lifecycle?: RunLifecycleService;
+  lifecycle: RunLifecycleService;
+  lifecycleWork: ApprovalCheckpointWorkStore;
+  /** Non-blocking dispatcher hint. */
+  notifyLifecycleWork(): void;
   compactPlanConversation(input: {
     conversationId: string;
     agentId: string;
@@ -87,16 +96,26 @@ export interface HumanInputResolutionDeps {
 }
 
 export class HumanInputResolutionService {
-  private readonly approvalBatches: ApprovalBatchResolutionService;
+  private readonly approvals: ApprovalCheckpointService;
 
   constructor(private readonly deps: HumanInputResolutionDeps) {
-    this.approvalBatches = new ApprovalBatchResolutionService({
+    this.approvals = new ApprovalCheckpointService({
       tools: deps.tools,
       runs: deps.runs,
       logger: deps.logger,
       lifecycle: deps.lifecycle,
-      appendToolResult: (toolCall, isError) =>
-        this.appendToolResultForToolCall(toolCall, isError),
+      work: deps.lifecycleWork,
+      notifyWork: () => deps.notifyLifecycleWork(),
+      appendToolResult: (
+        toolCall,
+        isError,
+        expectedActiveBranchParentEntryId?: string | null,
+      ) =>
+        this.appendToolResultForToolCall(
+          toolCall,
+          isError,
+          expectedActiveBranchParentEntryId,
+        ),
       existingToolResultEntry: async (toolCall) =>
         (await deps.getConversationEntries(toolCall.conversationId)).find(
           (entry) => {
@@ -313,31 +332,30 @@ export class HumanInputResolutionService {
     }
   }
 
+  /** Records one approval decision and returns once it is durable. */
   resolveApproval(
-    approvalId: string,
-    decision: "allow" | "deny",
-    note?: string,
-    resolutionRequestId?: string,
-    scope?:
-      | "single_call"
-      | "same_tool_same_args"
-      | "run"
-      | "always"
-      | "always_conversation"
-      | "always_project"
-      | "always_user",
-  ): Promise<ToolCallRecord> {
-    return this.approvalBatches.resolve(
-      approvalId,
-      decision,
-      note,
-      resolutionRequestId,
-      scope,
-    );
+    request: ApprovalDecisionRequest,
+  ): Promise<ApprovalDecisionReceipt> {
+    return this.approvals.decide(request);
   }
 
-  recoverReadyApprovalBatches(conversationId?: string): Promise<number> {
-    return this.approvalBatches.recoverReadyBatches(conversationId);
+  /** The execute_tool lifecycle work handler. */
+  executeApprovedToolWork(
+    work: LifecycleWork,
+  ): Promise<LifecycleWorkExecutionResult> {
+    return this.approvals.executeWork(work);
+  }
+
+  reconcileApprovalCheckpoints(conversationId?: string): Promise<number> {
+    return this.approvals.reconcileAll(conversationId);
+  }
+
+  resolveBlockedApprovalCheckpoint(runId: string): Promise<void> {
+    return this.approvals.resolveBlockedCheckpoint(runId);
+  }
+
+  backfillLegacyApprovalCheckpoints(): Promise<number> {
+    return this.approvals.backfillLegacyCheckpoints();
   }
 
   async recoverAcceptedPlanReviews(conversationId?: string): Promise<number> {
@@ -525,7 +543,6 @@ export class HumanInputResolutionService {
     implementation?: PlanImplementationSelection,
   ): Promise<void> {
     const lifecycle = this.deps.lifecycle;
-    if (!lifecycle) return;
     const toolCall = this.deps.tools.getToolCall(review.toolCallId);
     const interaction = toolCall.interactions.find(
       (candidate) =>
@@ -591,14 +608,11 @@ export class HumanInputResolutionService {
     action: "answer" | "dismiss",
     resolution: Record<string, unknown>,
     resolutionRequestId?: string,
-  ):
-    | ((
-        next: ToolCallRecord,
-        events: ConversationJournalEvent[],
-      ) => Promise<void>)
-    | undefined {
+  ): (
+    next: ToolCallRecord,
+    events: ConversationJournalEvent[],
+  ) => Promise<void> {
     const lifecycle = this.deps.lifecycle;
-    if (!lifecycle) return undefined;
     const requestId =
       resolutionRequestId ?? `question:${question.id}:${action}`;
     const inputHash = `sha256:${createHash("sha256")
@@ -1036,6 +1050,7 @@ export class HumanInputResolutionService {
   private async appendToolResultForToolCall(
     toolCall: ToolCallRecord,
     isError: boolean,
+    expectedActiveBranchParentEntryId?: string | null,
   ): Promise<ConversationEntry> {
     const agent = this.deps.getAgent(toolCall.agentId);
     const result = toolCallResultForModel(toolCall);
@@ -1050,10 +1065,16 @@ export class HumanInputResolutionService {
       isError,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessStorage.appendAgentMessage(
-      agent,
-      message,
-    );
+    // A guarded append must not write model context before branch validation.
+    // The journal commits the transcript and model-context message together,
+    // so a crash cannot leave either side missing.
+    const guarded = expectedActiveBranchParentEntryId !== undefined;
+    const appended = guarded
+      ? {
+          id: createId("entry"),
+          timestamp: new Date(message.timestamp).toISOString(),
+        }
+      : await this.deps.harnessStorage.appendAgentMessage(agent, message);
     return this.deps.appendEntry(
       {
         id: appended.id,
@@ -1062,6 +1083,7 @@ export class HumanInputResolutionService {
         runId: toolCall.runId,
         turnId: toolCall.turnId,
         role: "system",
+        kind: "tool_result",
         text: agentMessageText(message),
         details: {
           toolCallId: message.toolCallId,
@@ -1072,7 +1094,12 @@ export class HumanInputResolutionService {
         },
         createdAt: appended.timestamp,
       },
-      { mirrorToHarness: false },
+      {
+        mirrorToHarness: false,
+        ...(guarded
+          ? { expectedActiveBranchParentEntryId, guardedModelMessage: message }
+          : {}),
+      },
     );
   }
 
@@ -1105,6 +1132,7 @@ export class HumanInputResolutionService {
         conversationId: agent.conversationId,
         agentId: agent.id,
         role: "system",
+        kind: "tool_result",
         text: agentMessageText(message),
         details: {
           toolCallId: message.toolCallId,

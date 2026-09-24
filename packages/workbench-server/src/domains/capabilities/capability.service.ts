@@ -1,3 +1,4 @@
+import { capabilityToolsFromDisabledNames } from "@nervekit/contracts/capabilities";
 import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -210,7 +211,7 @@ export class CapabilityService {
   private availableTools(): CapabilityToolName[] {
     const tools = this.storage.settings.tools;
     return [
-      ...userConfigurableToolNames,
+      ...capabilityToolsFromDisabledNames(userConfigurableToolNames),
       ...(tools.jira.profileId ? (["jira"] as const) : []),
       ...(tools.confluence.profileId ? (["confluence"] as const) : []),
     ];
@@ -220,7 +221,7 @@ export class CapabilityService {
     const tools = this.storage.settings.tools;
     return {
       disabledTools: [
-        ...tools.disabled,
+        ...capabilityToolsFromDisabledNames(tools.disabled),
         ...(tools.jira.enabled ? [] : (["jira"] as const)),
         ...(tools.confluence.enabled ? [] : (["confluence"] as const)),
       ],

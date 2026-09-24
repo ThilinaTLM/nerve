@@ -39,6 +39,8 @@ type Props = {
   exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
   systemPromptUrl?: () => string | undefined;
   onSelectAgent?: (agent: AgentRecord) => void;
+  /** Opens a read-only live transcript of a subagent row. */
+  onOpenTranscript?: (agent: AgentRecord) => void;
   onCompact?: () => void;
 };
 
@@ -55,6 +57,7 @@ let {
   exportUrl,
   systemPromptUrl,
   onSelectAgent,
+  onOpenTranscript,
   onCompact,
 }: Props = $props();
 
@@ -124,6 +127,7 @@ async function copySession(): Promise<void> {
         {conversationAgents}
         {activeAgent}
         {onSelectAgent}
+        {onOpenTranscript}
       />
     </div>
   {/if}

@@ -37,7 +37,11 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     }
     const run = runState.run;
     const conversation = this.state.getConversation(run.conversationId);
-    const storage = await this.harnessStorage.openStorage(conversation);
+    const agent = this.state.getAgent(run.agentId);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.harnessStorage.openAgentStorage(agent)
+        : await this.harnessStorage.openStorage(conversation);
     const leafId = await storage.getLeafId();
     const entryIds = checkpointTranscriptEntryIds(runState.transitions);
     return {
@@ -58,14 +62,18 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     if (!runState) return false;
     const run = runState.run;
     const conversation = this.state.getConversation(run.conversationId);
-    const storage = await this.harnessStorage.openStorage(conversation);
+    const agent = this.state.getAgent(run.agentId);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.harnessStorage.openAgentStorage(agent)
+        : await this.harnessStorage.openStorage(conversation);
     try {
       const path = await storage.getPathToRoot(input.toLeafId);
       const notificationEntryIds = path.flatMap((entry) => {
         if (
           entry.type !== "message" ||
           entry.message.role !== "harness" ||
-          entry.message.eventType !== "task_event"
+          !["task_event", "subagent_event"].includes(entry.message.eventType)
         ) {
           return [];
         }
@@ -152,7 +160,7 @@ export function isAuthorizedTaskEventAdvance(
     if (
       entry.type !== "message" ||
       entry.message.role !== "harness" ||
-      entry.message.eventType !== "task_event"
+      !["task_event", "subagent_event"].includes(entry.message.eventType)
     ) {
       return false;
     }
@@ -166,8 +174,11 @@ export function isAuthorizedTaskEventAdvance(
       projection.agentId === run.agentId &&
       projection.runId === run.runId &&
       projection.role === "system" &&
-      projection.kind === "task_event" &&
-      projectionDetails?.type === "task_event" &&
+      (entry.message.eventType === "task_event"
+        ? projection.kind === "task_event"
+        : projection.kind === "subagent_run_event" ||
+          projection.kind === "message") &&
+      projectionDetails?.type === entry.message.eventType &&
       projectionDetails.source === "harness" &&
       projectionDetails.notificationEntryId === notificationEntryId
     );

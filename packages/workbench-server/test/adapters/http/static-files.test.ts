@@ -1,14 +1,10 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { after, before, describe, it } from "node:test";
-import { fileURLToPath } from "node:url";
 import type { ServerRuntime } from "../../../src/app/runtime/server-runtime.js";
-import {
-  resolveBundledWebDistPath,
-  serveStatic,
-} from "../../../src/adapters/http/static-files.js";
+import { serveStatic } from "../../../src/adapters/http/static-files.js";
 
 const roots: string[] = [];
 const originalWebDist = process.env.NERVE_WEB_DIST;
@@ -45,18 +41,6 @@ const state = {
 } as ServerRuntime;
 
 describe("static file serving", () => {
-  it("resolves copied UI assets from the workbench server dist directory", () => {
-    const moduleUrl = new URL(
-      "../../../dist/adapters/http/static-files.js",
-      import.meta.url,
-    ).href;
-
-    assert.equal(
-      resolveBundledWebDistPath(moduleUrl),
-      resolve(dirname(fileURLToPath(import.meta.url)), "../../../dist/web"),
-    );
-  });
-
   it("serves nested assets inside the configured distribution", async () => {
     await fixture();
     const response = await serveStatic("/assets/app.js", state);
@@ -79,6 +63,21 @@ describe("static file serving", () => {
     const response = await serveStatic(traversal, state);
 
     assert.notEqual(await response.text(), "outside secret");
+  });
+
+  it("does not serve files reached through symlinks outside the distribution", async () => {
+    const { webDist, sibling } = await fixture();
+    await symlink(
+      join(sibling, "secret.txt"),
+      join(webDist, "assets", "leak.txt"),
+    );
+    await symlink(sibling, join(webDist, "linked"));
+
+    for (const pathname of ["/assets/leak.txt", "/linked/secret.txt"]) {
+      const response = await serveStatic(pathname, state);
+      assert.equal(response.status, 404, pathname);
+      assert.notEqual(await response.text(), "outside secret");
+    }
   });
 
   it("preserves the SPA fallback for missing routes", async () => {

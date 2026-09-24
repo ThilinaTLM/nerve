@@ -12,6 +12,8 @@ const ASYNC_TASK_GUIDELINE =
   "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.";
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
+  subagents:
+    "Developer teammates share your working directory and worktree: assign non-overlapping work and do not revert each other's changes. Each final response completes its assignment; the teammate then remains available for follow-ups. Prompt only idle teammates; running/stopping teammates cannot queue prompts, so stop and wait for idle before replacing an assignment. Do not poll after delegation: continue independent work or finish your turn. Completion notifications wake you with the teammate's response; you do not need to call subagent_status to retrieve it. Use subagent_status only when you need the teammate's current state or a fresh status check. Teammates needing clarification finish with a normal response for you to resolve.",
   jira: "Keep Jira queries narrow and mutate Jira only when explicitly requested.",
   confluence:
     "Use storage XML or JSONL as the editable Confluence source of truth, treat markdown as read-only, and mutate Confluence only when explicitly requested.",
@@ -19,6 +21,7 @@ const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
 
 export function promptGuidelinesForTools(
   activeToolNames: readonly string[],
+  options: { foregroundOnlyBash?: boolean } = {},
 ): string[] {
   const active = new Set(activeToolNames);
   const guidelines: string[] = [];
@@ -36,7 +39,10 @@ export function promptGuidelinesForTools(
   ) {
     add("Prefer dedicated file tools over bash for inspection and search.");
   }
-  if (active.has("bash") || active.has("task_start")) {
+  if (
+    (active.has("bash") && !options.foregroundOnlyBash) ||
+    active.has("task_start")
+  ) {
     add(ASYNC_TASK_GUIDELINE);
   }
 

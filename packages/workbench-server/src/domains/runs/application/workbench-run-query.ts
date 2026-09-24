@@ -32,6 +32,8 @@ export class WorkbenchRunQuery {
       .filter(
         (candidate) =>
           candidate.run.conversationId === conversationId &&
+          this.state.agents.get(candidate.run.agentId)?.executionKind !==
+            "async_developer" &&
           ACTIVE_STATUSES.has(candidate.run.status),
       )
       .sort((a, b) => b.run.updatedAt.localeCompare(a.run.updatedAt))[0];
@@ -59,13 +61,15 @@ export class WorkbenchRunQuery {
         ? "retrying"
         : canonical.run.status === "waiting"
           ? "waiting"
-          : canonical.run.status === "interrupted"
-            ? "interrupted"
-            : canonical.run.status === "cancellation_failed"
-              ? "retrying"
-              : canonical.run.status === "cancellation_requested"
-                ? "aborting"
-                : "running",
+          : canonical.run.status === "executing_tools"
+            ? "executing_tools"
+            : canonical.run.status === "interrupted"
+              ? "interrupted"
+              : canonical.run.status === "cancellation_failed"
+                ? "retrying"
+                : canonical.run.status === "cancellation_requested"
+                  ? "aborting"
+                  : "running",
       startedAt: canonical.run.startedAt ?? canonical.run.createdAt,
       turns: transient?.turns ?? [],
       toolOutputsByToolCallId: transient?.toolOutputsByToolCallId ?? {},

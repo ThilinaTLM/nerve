@@ -6,6 +6,14 @@ export function executeCanonicalCommand(
   command: CanonicalCommand,
 ): unknown {
   switch (command.kind) {
+    case "put_subagent_completion":
+      return database.subagentCompletions.put(command.record);
+    case "list_subagent_completions":
+      return database.subagentCompletions.list(command.leadId);
+    case "remove_subagent_completions":
+      return database.subagentCompletions.removeConversation(
+        command.conversationId,
+      );
     case "initialize":
       database.initialize();
       return undefined;
@@ -19,6 +27,10 @@ export function executeCanonicalCommand(
       return database.lifecycle.listDue(command.now, command.limit);
     case "list_expired_lifecycle_work":
       return database.lifecycle.listExpired(command.now, command.limit);
+    case "list_lifecycle_work_for_run":
+      return database.lifecycle.listForRun(command.runId);
+    case "fence_cancelled_run_tool_work":
+      return database.lifecycle.fenceCancelledRunToolWork(command.input);
     case "claim_lifecycle_work":
       return database.lifecycle.claim(command.input);
     case "renew_lifecycle_work":

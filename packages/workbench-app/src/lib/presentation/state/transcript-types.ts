@@ -79,6 +79,16 @@ export type TaskEventNotice = {
   createdAt?: string;
 };
 
+export type SystemEventNotice = {
+  entryId: string;
+  kind: ConversationEntry["kind"];
+  text: string;
+  summary?: string;
+  fromEntryId?: string;
+  details?: unknown;
+  createdAt: string;
+};
+
 export type TranscriptItem = {
   id?: string;
   runId?: string;
@@ -108,6 +118,7 @@ export type TranscriptItem = {
   runStatus?: RunStatusNotice;
   compaction?: CompactionNotice;
   taskEvent?: TaskEventNotice;
+  systemEvent?: SystemEventNotice;
 };
 
 /**

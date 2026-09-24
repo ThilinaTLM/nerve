@@ -1,3 +1,8 @@
+import {
+  asyncSubagentToolNames,
+  isDeveloperChildToolAllowed,
+  normalizeAsyncSubagentTools,
+} from "@nervekit/contracts/agents";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import {
   type AgentTool,
@@ -108,7 +113,24 @@ export function activeToolNamesForAgent(
     unavailable.push("generate_image");
   }
 
-  const disabled = new Set<ToolName>(options.disabledToolNames ?? []);
+  const disabled = new Set<ToolName>(
+    normalizeAsyncSubagentTools(
+      options.disabledToolNames ?? [...asyncSubagentToolNames],
+    ),
+  );
+  if (agent.executionKind === "async_developer") {
+    for (const definition of allToolDefinitions) {
+      if (!isDeveloperChildToolAllowed(definition.name))
+        disabled.add(definition.name);
+    }
+  }
+  if (
+    agent.parentAgentId ||
+    agent.mode === "planning" ||
+    agent.permissionLevel === "read_only"
+  ) {
+    for (const name of asyncSubagentToolNames) disabled.add(name);
+  }
   if (agent.mode === "planning") {
     for (const name of ["task_start", "task_control"] as ToolName[]) {
       disabled.add(name);

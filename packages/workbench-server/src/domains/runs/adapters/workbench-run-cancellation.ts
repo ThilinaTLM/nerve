@@ -7,6 +7,7 @@ import type { ToolService } from "../../tools/execution/tool-service.js";
 import type { WorkbenchLiveExecutions } from "../application/run-live-executions.js";
 import type { WorkbenchRunUnitOfWork } from "../persistence/run-transition.repository.js";
 import { RUN_CANCELLED_TOOL_OUTCOME } from "../../tools/execution/tool-termination.js";
+import type { CanonicalStore } from "../../../infrastructure/persistence/canonical-sqlite/canonical-store.js";
 
 type Evidence = "confirmed" | "not_running";
 
@@ -17,6 +18,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
     private readonly tasks: WorkbenchTaskService,
     private readonly subagents: WorkbenchSubagentExecutions,
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
+    private readonly work: Pick<CanonicalStore, "fenceCancelledRunToolWork">,
   ) {}
 
   async cancelModel(run: RunRecord): Promise<Evidence> {
@@ -38,11 +40,28 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
         (toolCall) =>
           toolCall.runId === run.runId && isRunning(toolCall.status),
       );
-    if (active.length === 0) return "not_running";
-    await this.tools.terminateNonTerminalToolCallsForRun(
-      run.runId,
-      RUN_CANCELLED_TOOL_OUTCOME,
-    );
+    if (active.length > 0) {
+      await this.tools.terminateNonTerminalToolCallsForRun(
+        run.runId,
+        RUN_CANCELLED_TOOL_OUTCOME,
+      );
+    }
+    // Always fence ready work, including on retries after tools have already
+    // become terminal. A leased worker is handled by its claim/recovery path.
+    const unknownProposalIds = this.tools
+      .listToolCalls()
+      .filter(
+        (toolCall) =>
+          toolCall.runId === run.runId &&
+          toolCall.status === "cancelled" &&
+          toolCall.errorDetails?.code === "TOOL_OUTCOME_UNKNOWN",
+      )
+      .map((toolCall) => toolCall.id);
+    const fenced = await this.work.fenceCancelledRunToolWork({
+      runId: run.runId,
+      now: new Date().toISOString(),
+      unknownProposalIds,
+    });
     const remaining = this.tools
       .listToolCalls()
       .some(
@@ -50,7 +69,7 @@ export class WorkbenchRunCancellation implements RunCancellationPort {
           toolCall.runId === run.runId && isRunning(toolCall.status),
       );
     if (remaining) throw new Error("Tool cancellation was not confirmed");
-    return "confirmed";
+    return active.length > 0 || fenced.length > 0 ? "confirmed" : "not_running";
   }
 
   async cancelTasks(run: RunRecord): Promise<Evidence> {

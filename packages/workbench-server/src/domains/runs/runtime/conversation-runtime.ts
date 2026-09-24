@@ -42,6 +42,7 @@ const defaultDependencies: ConversationRuntimeDependencies = {
 };
 
 export interface StartRunInput {
+  background?: boolean;
   conversationId: string;
   agentId: string;
   projectId: string;
@@ -99,7 +100,11 @@ export class ConversationRuntime {
     const conversationRunId = this.runIdByConversationId.get(
       input.conversationId,
     );
-    if (conversationRunId && conversationRunId !== input.runId) {
+    if (
+      !input.background &&
+      conversationRunId &&
+      conversationRunId !== input.runId
+    ) {
       throw new Error(
         `Conversation '${input.conversationId}' already has an active run`,
       );
@@ -118,7 +123,8 @@ export class ConversationRuntime {
     };
     this.runsByRunId.set(input.runId, run);
     this.runIdByAgentId.set(input.agentId, input.runId);
-    this.runIdByConversationId.set(input.conversationId, input.runId);
+    if (!input.background)
+      this.runIdByConversationId.set(input.conversationId, input.runId);
     return cloneRun(run);
   }
 
@@ -194,7 +200,8 @@ export class ConversationRuntime {
     }
     this.runsByRunId.delete(runId);
     this.runIdByAgentId.delete(run.agentId);
-    this.runIdByConversationId.delete(run.conversationId);
+    if (this.runIdByConversationId.get(run.conversationId) === runId)
+      this.runIdByConversationId.delete(run.conversationId);
     for (const turn of run.turns) {
       this.turnStatuses.delete(turn.turnId);
       for (const message of turn.messages) {
@@ -586,6 +593,13 @@ export class ConversationRuntime {
     conversationId: string,
   ): ConversationActiveRunSnapshot | undefined {
     const runId = this.runIdByConversationId.get(conversationId);
+    const run = runId ? this.runsByRunId.get(runId) : undefined;
+    return run ? cloneRun(run) : undefined;
+  }
+
+  /** Active run of one agent, including background (async teammate) runs. */
+  snapshotForAgent(agentId: string): ConversationActiveRunSnapshot | undefined {
+    const runId = this.runIdByAgentId.get(agentId);
     const run = runId ? this.runsByRunId.get(runId) : undefined;
     return run ? cloneRun(run) : undefined;
   }

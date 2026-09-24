@@ -105,6 +105,7 @@ const scroll = createConversationScrollController({
           approvals={model.approvals}
           pendingUserQuestions={model.pendingUserQuestions}
           pendingPlanReviews={model.pendingPlanReviews}
+          outcomeUnknownToolCallIds={model.outcomeUnknownToolCallIds}
           {active}
           planReviewModels={model.planReviewModels}
           planReviewModelKey={model.planReviewModelKey}

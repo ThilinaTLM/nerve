@@ -12,6 +12,8 @@ import {
 } from "@nervekit/tools/execution";
 import {
   createExploreHandlers,
+  createSubagentHandlers,
+  type SubagentToolPort,
   createInteractionHandlers,
   createPlanHandlers,
   createTaskHandlers,
@@ -93,6 +95,7 @@ export interface OrchestrationToolDispatcherDeps {
   startTask: TaskStarter;
   getAgent(agentId: string): AgentRecord;
   runExplore: ExploreRunner;
+  subagents?: SubagentToolPort;
   getApiKey(provider: string): Promise<string | undefined>;
   explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
   generateImage(request: ImageGenerateRequest): Promise<ImageGenerateResponse>;
@@ -231,6 +234,14 @@ export class OrchestrationToolDispatcher {
     const result = (value: Promise<unknown>) =>
       value as Promise<ToolExecutionResult>;
     return {
+      ...createSubagentHandlers((name, args) => {
+        if (!this.deps.subagents)
+          throw new CodedToolError(
+            "TOOL_UNAVAILABLE",
+            "Async subagents are unavailable.",
+          );
+        return this.deps.subagents(name, args, toolCall);
+      }),
       ...createInteractionHandlers({
         resolve: async () =>
           this.deps.interactionSessions.resolvedUserQuestion(toolCall.id),
@@ -334,6 +345,9 @@ export class OrchestrationToolDispatcher {
       if (options.useForegroundBash !== false) {
         const autoPromotion =
           this.deps.storage.settings.tools.bash.autoPromotion;
+        const foregroundOnly =
+          this.deps.getAgent(toolCall.agentId).executionKind ===
+          "async_developer";
         const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
           command: stringArg(args, "command"),
           cwd,
@@ -341,9 +355,11 @@ export class OrchestrationToolDispatcher {
           conversationId: toolCall.conversationId,
           agentId: toolCall.agentId,
           timeoutMs: bashTimeoutMs(args.timeout),
-          autoPromoteAfterMs: autoPromotion.enabled
-            ? autoPromotion.afterMs
-            : undefined,
+          autoPromoteAfterMs:
+            autoPromotion.enabled && !foregroundOnly
+              ? autoPromotion.afterMs
+              : undefined,
+          foregroundOnly,
           signal: options.signal,
           artifactDir: executionContext.artifactDir,
           onOutput: executionContext.onUpdate,

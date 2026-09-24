@@ -6,6 +6,7 @@ import {
   filterCapabilityRows,
   showCapabilitySearch,
 } from "./capability-list";
+import { capabilityToolGroupsFor } from "./capability-tool-labels";
 
 describe("capabilityDecisionOrigin", () => {
   it("uses conversation, then project, then user precedence", () => {
@@ -48,9 +49,28 @@ describe("capabilityBodyHeight", () => {
   });
 });
 
+describe("capabilityToolGroupsFor", () => {
+  it("presents web search and fetch as one Web access capability", () => {
+    assert.deepEqual(capabilityToolGroupsFor(["web_search", "web_fetch"]), [
+      {
+        key: "web",
+        label: "Web access",
+        names: ["web_search", "web_fetch"],
+        searchText: "Web search Web fetch",
+      },
+    ]);
+  });
+
+  it("keeps the group when only one web tool is available", () => {
+    assert.deepEqual(capabilityToolGroupsFor(["web_fetch"])[0]?.names, [
+      "web_fetch",
+    ]);
+  });
+});
+
 describe("filterCapabilityRows", () => {
   const rows = [
-    { label: "Web search" },
+    { label: "Web access", searchText: "Web search Web fetch" },
     { label: "Image explanation" },
     { label: "nerve-data-debugging" },
   ];
@@ -60,8 +80,9 @@ describe("filterCapabilityRows", () => {
     assert.deepEqual(filterCapabilityRows(rows, "   "), rows);
   });
 
-  it("matches case-insensitively on any part of the label", () => {
+  it("matches case-insensitively on labels and grouped tool names", () => {
     assert.deepEqual(filterCapabilityRows(rows, "SEARCH"), [rows[0]]);
+    assert.deepEqual(filterCapabilityRows(rows, "fetch"), [rows[0]]);
     assert.deepEqual(filterCapabilityRows(rows, " debug "), [rows[2]]);
   });
 

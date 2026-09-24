@@ -1,4 +1,5 @@
 <script lang="ts">
+import { capabilityToolsFromDisabledNames } from "@nervekit/contracts/capabilities";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import type {
   CapabilityConfiguration,
@@ -70,7 +71,7 @@ function catalogRow(group: ToolGroupDef): ToolRow {
     label: group.label,
     description: group.description,
     tools: group.tools,
-    names: group.configurableTools,
+    names: capabilityToolsFromDisabledNames(group.configurableTools),
   };
 }
 
@@ -95,7 +96,9 @@ const thirdPartyRows = $derived([
 function userEnabled(name: CapabilityToolName): boolean {
   if (name === "jira") return settingsDraft.tools.jira.enabled;
   if (name === "confluence") return settingsDraft.tools.confluence.enabled;
-  return !settingsDraft.tools.disabled.includes(name);
+  return !capabilityToolsFromDisabledNames(
+    settingsDraft.tools.disabled,
+  ).includes(name);
 }
 
 function rowEnabled(row: ToolRow): boolean {

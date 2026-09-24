@@ -89,8 +89,10 @@ export function statusDot(
     case "cancelled":
       return { tone: "warning", pulse: false };
     case "running":
-    case "committed":
       return { tone: "info", pulse: true };
+    case "committed":
+      // Approved but not dispatched: no executing motion.
+      return { tone: "info", pulse: false };
     case "waiting":
       return { tone: "warning", pulse: true };
     default:

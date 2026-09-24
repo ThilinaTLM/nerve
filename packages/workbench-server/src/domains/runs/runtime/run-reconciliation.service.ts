@@ -17,7 +17,8 @@ interface ReconciliationOperation {
 
 export interface RunReconciliationDependencies {
   humanInput: {
-    recoverReadyApprovalBatches(conversationId?: string): Promise<number>;
+    reconcileApprovalCheckpoints(conversationId?: string): Promise<number>;
+    backfillLegacyApprovalCheckpoints(): Promise<number>;
     recoverAcceptedPlanReviews(conversationId?: string): Promise<number>;
     recoverResolvedUserQuestions(conversationId?: string): Promise<number>;
   };
@@ -25,8 +26,10 @@ export interface RunReconciliationDependencies {
     getToolCallDetails(toolCallId: string): Promise<{
       status: string;
       risk?: string;
+      errorDetails?: { code?: string };
       execution?: { hostHandle?: string };
     }>;
+    settleUnknownOutcome(toolCallId: string, message: string): Promise<unknown>;
     listToolCallPreviews(query: {
       conversationId: string;
       status: "waiting";
@@ -62,9 +65,10 @@ export interface RunReconciliationDependencies {
       workId: string;
       expectedGeneration: number;
       leaseOwner: string;
-      state: "succeeded" | "outcome_unknown";
+      state: "succeeded" | "failed" | "cancelled" | "outcome_unknown";
       now: string;
       lastError?: string;
+      failurePhase?: LifecycleWork["failurePhase"];
     }): Promise<LifecycleWork | undefined>;
   };
   operations: {
@@ -108,6 +112,7 @@ export class RunReconciliationService {
   }
 
   async reconcileStartup(): Promise<void> {
+    await this.deps.humanInput.backfillLegacyApprovalCheckpoints();
     await this.reconcileScope(undefined, undefined, true);
   }
 
@@ -163,16 +168,18 @@ export class RunReconciliationService {
     operationId?: string,
     distrustExistingLeases = false,
   ): Promise<ReconcileConversationResult | undefined> {
-    const repairedApprovals =
-      await this.deps.humanInput.recoverReadyApprovalBatches(conversationId);
-    const repairedQuestions =
-      await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
-    const repairedPlans =
-      await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
+    // Classify expired execution first, so checkpoints whose members are now
+    // proven terminal settle in the same pass.
     const classified = await this.classifyExpiredToolWork(
       conversationId,
       distrustExistingLeases,
     );
+    const repairedApprovals =
+      await this.deps.humanInput.reconcileApprovalCheckpoints(conversationId);
+    const repairedQuestions =
+      await this.deps.humanInput.recoverResolvedUserQuestions(conversationId);
+    const repairedPlans =
+      await this.deps.humanInput.recoverAcceptedPlanReviews(conversationId);
     if (!conversationId || !operationId) return;
     const recoveryIssues =
       await this.deps.work.listRecoveryIssues(conversationId);
@@ -231,6 +238,8 @@ export class RunReconciliationService {
       }
       let proven = false;
       let safeReplay = false;
+      let interruptedRead = false;
+      let cancelledBeforeDispatch = false;
       if (work.kind === "execute_tool" && work.proposalId) {
         const toolCall = await this.deps.tools.getToolCallDetails(
           work.proposalId,
@@ -238,12 +247,42 @@ export class RunReconciliationService {
         proven = ["completed", "failed", "denied", "cancelled"].includes(
           toolCall.status,
         );
-        safeReplay = toolCall.risk === "read";
+        if (toolCall.errorDetails?.code === "TOOL_OUTCOME_UNKNOWN") {
+          proven = false;
+        }
+        cancelledBeforeDispatch =
+          toolCall.status === "cancelled" &&
+          toolCall.errorDetails?.code !== "TOOL_OUTCOME_UNKNOWN";
+        // `committed` proves the durable dispatch claim was never taken, so the
+        // work can run again whatever the tool's risk. A `running` claim may
+        // have dispatched; only read-only tools are then safe to repeat, and
+        // repeating requires the claim, so they stay unknown as well.
+        safeReplay = toolCall.status === "committed";
+        interruptedRead =
+          toolCall.status === "running" && toolCall.risk === "read";
       } else if (work.kind === "continue_model" && work.runId) {
         const runStatus = await this.deps.runs.getRunStatus(work.runId);
         proven = ["waiting", "completed", "failed", "cancelled"].includes(
           runStatus ?? "",
         );
+      }
+      if (interruptedRead && work.proposalId) {
+        // A read-only tool has no external effect to protect, so report the
+        // interruption to the model instead of blocking the checkpoint.
+        await this.deps.tools.settleUnknownOutcome(
+          work.proposalId,
+          "Read-only tool execution was interrupted before its result was recorded.",
+        );
+        await this.deps.work.settleLifecycleWork({
+          workId: work.id,
+          expectedGeneration: work.generation,
+          leaseOwner: work.leaseOwner,
+          state: "failed",
+          now,
+          lastError: "Read-only tool execution was interrupted.",
+          failurePhase: "post_dispatch",
+        });
+        continue;
       }
       if (!proven && safeReplay) {
         const requeued = await this.deps.work.requeueLifecycleWork({
@@ -259,11 +298,16 @@ export class RunReconciliationService {
         workId: work.id,
         expectedGeneration: work.generation,
         leaseOwner: work.leaseOwner,
-        state: proven ? "succeeded" : "outcome_unknown",
+        state: proven
+          ? cancelledBeforeDispatch
+            ? "cancelled"
+            : "succeeded"
+          : "outcome_unknown",
         now,
         ...(!proven
           ? {
               lastError: "Execution ownership expired without a proven result.",
+              failurePhase: "post_dispatch" as const,
             }
           : {}),
       });
@@ -273,12 +317,18 @@ export class RunReconciliationService {
           conversationId: work.conversationId,
           ...(work.runId ? { runId: work.runId } : {}),
           workId: work.id,
+          ...(work.kind === "execute_tool" && work.proposalId
+            ? { proposalId: work.proposalId }
+            : {}),
           code: "outcome_unknown",
           message:
             work.kind === "execute_tool"
               ? "Tool execution may have produced an external side effect, but no terminal result was proven."
               : "A provider request may have been sent, but no durable response was proven.",
-          actions: ["inspect", "cancel_run", "authorize_retry"],
+          actions:
+            work.kind === "execute_tool"
+              ? ["inspect"]
+              : ["inspect", "cancel_run", "authorize_retry"],
           createdAt: now,
         };
         await this.deps.work.persistRecoveryIssue(issue);

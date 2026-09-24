@@ -1,3 +1,7 @@
+import {
+  asyncSubagentToolNames,
+  normalizeAsyncSubagentTools,
+} from "../agents/async-subagents.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
@@ -220,7 +224,9 @@ export type ImageGenerationToolSettings = z.infer<
 >;
 
 const toolSettingsSchema = z.object({
-  disabled: z.array(userConfigurableToolNameSchema),
+  disabled: z
+    .array(userConfigurableToolNameSchema)
+    .transform(normalizeAsyncSubagentTools),
   bash: bashToolSettingsSchema,
   jira: jiraToolSettingsSchema,
   confluence: confluenceToolSettingsSchema,
@@ -284,6 +290,23 @@ export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
 >;
 
+export const asyncSubagentCompactionProfileSchema = z.union([
+  z.literal("inherit"),
+  compactionProfileSchema,
+]);
+export const asyncSubagentSettingsSchema = z.object({
+  model: modelSelectionSchema.optional(),
+  compactionProfile: asyncSubagentCompactionProfileSchema,
+  customTriggerPercent: z.number().int().min(60).max(90),
+  customKeepRecentPercent: z.number().int().min(5).max(40),
+});
+export type AsyncSubagentSettings = z.infer<typeof asyncSubagentSettingsSchema>;
+export const defaultAsyncSubagentSettings: AsyncSubagentSettings = {
+  compactionProfile: "inherit",
+  customTriggerPercent: 80,
+  customKeepRecentPercent: 15,
+};
+
 export const transcriptionModelSchema = z.enum([
   "gpt-transcribe",
   "gpt-4o-transcribe",
@@ -320,6 +343,7 @@ export const settingsSchema = z.object({
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema,
   }),
+  asyncSubagent: asyncSubagentSettingsSchema,
   application: applicationSettingsSchema,
   ui: z.object({
     theme: colorThemeSchema,
@@ -374,6 +398,7 @@ export const defaultSettings: Settings = {
   exploreAgent: {
     thinkingLevel: "off",
   },
+  asyncSubagent: defaultAsyncSubagentSettings,
   application: defaultApplicationSettings,
   ui: {
     theme: "nerve",
@@ -414,7 +439,7 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: ["explain_image", "generate_image"],
+    disabled: ["explain_image", "generate_image", ...asyncSubagentToolNames],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
@@ -454,6 +479,10 @@ export const updateSettingsRequestSchema = z.object({
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
     })
+    .optional(),
+  asyncSubagent: asyncSubagentSettingsSchema
+    .partial()
+    .extend({ model: modelSelectionSchema.nullable().optional() })
     .optional(),
   application: applicationSettingsPatchSchema.optional(),
   ui: z

@@ -1,3 +1,4 @@
+import { SubagentCompletionDatabase } from "./subagent-completion-database.js";
 /* eslint-disable max-lines -- CanonicalDatabase keeps transaction ownership and validated SQLite query families in one auditable adapter. */
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -97,6 +98,7 @@ export interface CanonicalDocument<T = unknown> {
 export class CanonicalDatabase {
   private readonly database: DatabaseSync;
   readonly lifecycle: CanonicalLifecycleDatabase;
+  readonly subagentCompletions: SubagentCompletionDatabase;
 
   constructor(
     readonly path: string,
@@ -106,6 +108,7 @@ export class CanonicalDatabase {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
     this.lifecycle = new CanonicalLifecycleDatabase(this.database);
+    this.subagentCompletions = new SubagentCompletionDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {

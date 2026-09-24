@@ -21,7 +21,10 @@ export async function decideRunRecovery(
 ): Promise<RunRecoveryDecision> {
   if (
     state.run.status === "waiting" ||
+    // Durable execute_tool work, not a live model turn, owns this progress.
+    state.run.status === "executing_tools" ||
     state.run.status === "suspended" ||
+    state.run.status === "cancellation_failed" ||
     TERMINAL_STATUSES.has(state.run.status)
   ) {
     return { run: state.run, interrupted: false };

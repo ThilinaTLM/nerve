@@ -11,6 +11,7 @@ import {
 } from "@nervekit/contracts/tools";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ApprovalCheckpointAcknowledgement } from "@nervekit/contracts/runs";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 import { interactionAddress } from "../state/tool-interaction-projections";
 import type { PlanReviewResolveOptions } from "../../../presentation/state/tool-types.js";
@@ -58,6 +59,8 @@ export async function resolveToolInteraction(
     conversation: ConversationRecord;
     agent: AgentRecord;
   };
+  /** Decision receipt; approved tools may still be queued for execution. */
+  checkpoint?: ApprovalCheckpointAcknowledgement;
 }> {
   const { toolCallId, ordinal } = interactionAddress(interactionId);
   const current = await getToolCall(toolCallId);

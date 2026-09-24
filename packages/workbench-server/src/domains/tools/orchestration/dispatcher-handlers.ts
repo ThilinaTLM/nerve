@@ -143,10 +143,16 @@ export function tasksInScope(
   this: OrchestrationToolDispatcher,
   toolCall: ToolCallRecord,
 ): TaskRecord[] {
-  const projectRoot = this.deps.getAgent(toolCall.agentId).projectDir;
+  const agent = this.deps.getAgent(toolCall.agentId);
+  const projectRoot = agent.projectDir;
   return this.deps.tasks
     .listTasks()
-    .filter((task) => isPathInDirectoryTree(projectRoot, task.cwd));
+    .filter(
+      (task) =>
+        isPathInDirectoryTree(projectRoot, task.cwd) &&
+        (agent.executionKind !== "async_developer" ||
+          task.agentId === agent.id),
+    );
 }
 
 export function resolveTaskReference(
@@ -155,7 +161,8 @@ export function resolveTaskReference(
   toolCall: ToolCallRecord,
 ): TaskRecord {
   const trimmed = ref.trim();
-  const projectRoot = this.deps.getAgent(toolCall.agentId).projectDir;
+  const agent = this.deps.getAgent(toolCall.agentId);
+  const projectRoot = agent.projectDir;
   if (trimmed.startsWith("task_")) {
     let task: TaskRecord;
     try {
@@ -167,7 +174,10 @@ export function resolveTaskReference(
         { ref: trimmed, taskId: trimmed },
       );
     }
-    if (!isPathInDirectoryTree(projectRoot, task.cwd)) {
+    if (
+      !isPathInDirectoryTree(projectRoot, task.cwd) ||
+      (agent.executionKind === "async_developer" && task.agentId !== agent.id)
+    ) {
       throw new CodedToolError(
         "TASK_OUT_OF_SCOPE",
         "Task is outside this agent's working-directory scope.",

@@ -86,6 +86,17 @@ describe("agentRowLabel", () => {
     );
   });
 
+  it("labels async teammates by name and role", () => {
+    const teammate = agent({
+      id: "child",
+      parentAgentId: "agent_root",
+      executionKind: "async_developer",
+      name: "server-tests",
+    });
+    assert.equal(agentRowLabel(teammate), "server-tests");
+    assert.equal(agentRoleLabel(teammate), "Teammate");
+  });
+
   it("falls back to a role label when the task is blank", () => {
     assert.equal(
       agentRowLabel(

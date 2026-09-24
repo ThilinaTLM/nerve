@@ -5,6 +5,7 @@ import type {
   ToolCallRecord,
   ToolInteractionResolution,
 } from "$lib/api";
+import type { ApprovalCheckpointAcknowledgement } from "@nervekit/contracts/runs";
 
 export interface InteractionRequests {
   resolve(
@@ -17,6 +18,8 @@ export interface InteractionRequests {
       conversation: ConversationRecord;
       agent: AgentRecord;
     };
+    /** Decision receipt; approved tools may still be queued for execution. */
+    checkpoint?: ApprovalCheckpointAcknowledgement;
   }>;
 }
 export interface InteractionReconcilers {

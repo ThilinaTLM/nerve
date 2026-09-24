@@ -84,7 +84,7 @@ describe("buildConversationTimeline status and compaction", () => {
       }),
     );
 
-    assert.deepEqual(keys(timeline), ["entry_user", "run-status:run_retry"]);
+    assert.deepEqual(keys(timeline), ["entry_user", "entry_status"]);
     assert.equal(
       timeline.filter((item) => item.kind === "run_status").length,
       1,

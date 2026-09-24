@@ -81,7 +81,11 @@ export function conversationActivityForRecord(input: {
     (!input.agent?.updatedAt ||
       input.agent.updatedAt <= input.runtimeStatusClearedAt),
   );
-  const waiting = input.view?.activeRun?.status === "waiting";
+  const runStatus = input.view?.activeRun?.status;
+  const waiting = runStatus === "waiting";
+  // Every approval is decided and approved tools execute as durable work: the
+  // model is idle, but the run is neither awaiting the user nor stale.
+  const executingTools = runStatus === "executing_tools";
   const failed =
     input.view?.activeRun?.status === "interrupted" ||
     input.agent?.status === "error";
@@ -98,6 +102,21 @@ export function conversationActivityForRecord(input: {
       clearableFailure: true,
     };
   }
+  // Stale pending-input projections must not flip a released checkpoint back
+  // to needs-user.
+  if (executingTools) {
+    return {
+      indicator: "running",
+      tone: agentRunningTone(input.agent?.mode ?? input.mode),
+      pulse: true,
+      label: "Running tools",
+      busy: true,
+      needsUser: false,
+      source: "live-view",
+      clearableFailure: false,
+    };
+  }
+
   if (pending) {
     return {
       indicator: "needs-user",

@@ -5,6 +5,7 @@ import {
   ConversationContextPanel,
   conversationSelectors,
 } from "$lib/features/conversations";
+import { agentRowLabel } from "$lib/features/conversations/views/context-agent-rows";
 import {
   exportUrl,
   selection,
@@ -13,6 +14,12 @@ import {
 } from "$lib/application/workspace";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
+import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
+import SubagentTranscriptDialog from "$lib/presentation/tools/tool-call/SubagentTranscriptDialog.svelte";
+import { workbenchConversationUiCapabilities } from "../conversations/conversation-capabilities.svelte";
+
+// The transcript dialog renders tool cards that read conversation capabilities.
+setConversationUiCapabilities(workbenchConversationUiCapabilities());
 
 const status = $derived(workspaceSelectors.status);
 const activeProject = $derived(workspaceSelectors.activeProject);
@@ -26,11 +33,20 @@ const conversationUsage = $derived(
 );
 const contextWindow = $derived(conversationSelectors.activeContextWindow);
 
+let transcriptAgent = $state<AgentRecord>();
+let transcriptOpen = $state(false);
+
 function selectAgent(agent: AgentRecord) {
   selection.agentId = agent.id;
   selection.projectId = agent.projectId;
   selection.conversationId = agent.conversationId;
   revealPanelView("context", responsive.isCompact);
+}
+
+function openTranscript(agent: AgentRecord) {
+  if (!agent.parentAgentId) return;
+  transcriptAgent = agent;
+  transcriptOpen = true;
 }
 </script>
 
@@ -47,5 +63,15 @@ function selectAgent(agent: AgentRecord) {
   {exportUrl}
   {systemPromptUrl}
   onSelectAgent={selectAgent}
+  onOpenTranscript={openTranscript}
   onCompact={() => void compactActiveConversation()}
 />
+
+{#if transcriptAgent}
+  <SubagentTranscriptDialog
+    bind:open={transcriptOpen}
+    parentAgentId={transcriptAgent.parentAgentId}
+    childAgentId={transcriptAgent.id}
+    label={agentRowLabel(transcriptAgent)}
+  />
+{/if}

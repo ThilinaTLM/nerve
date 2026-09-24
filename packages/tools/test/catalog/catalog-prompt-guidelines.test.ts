@@ -25,6 +25,15 @@ describe("tool prompt guidelines", () => {
     ]);
   });
 
+  it("does not promise Bash promotion to foreground-only teammates", () => {
+    const guidelines = promptGuidelinesForTools(["bash", "read"], {
+      foregroundOnlyBash: true,
+    });
+    assert.deepEqual(guidelines, [
+      "Prefer dedicated file tools over bash for inspection and search.",
+    ]);
+  });
+
   it("emits shared group guidance once", () => {
     const guidelines = promptGuidelinesForTools([
       "jira_search_issues",

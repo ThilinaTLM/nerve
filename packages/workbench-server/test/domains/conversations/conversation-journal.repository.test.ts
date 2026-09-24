@@ -9,7 +9,11 @@ import type {
   ConversationRecord,
 } from "@nervekit/contracts/conversations";
 import { PerformanceMetricsCollector } from "../../../src/infrastructure/diagnostics/performance-metrics.js";
-import { ConversationJournalRepository as CanonicalConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
+import {
+  ConversationBranchConflictError,
+  ConversationJournalRepository as CanonicalConversationJournalRepository,
+} from "../../../src/domains/conversations/conversation-journal.repository.js";
+import { EntryRepository } from "../../../src/domains/conversations/entry.repository.js";
 
 const repositories: ConversationJournalRepository[] = [];
 class ConversationJournalRepository extends CanonicalConversationJournalRepository {
@@ -42,6 +46,75 @@ function conversation(title: string): ConversationRecord {
     updatedAt: now,
   };
 }
+
+test("guarded result append serializes with branch movement and cannot attach to the new branch", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-journal-branch-guard-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const journal = new ConversationJournalRepository({ paths: { home } });
+  const entries = new EntryRepository(journal);
+  const root: ConversationEntry = {
+    id: "entry_root",
+    conversationId,
+    role: "user",
+    kind: "message",
+    text: "original",
+    createdAt: now,
+  };
+  const branch: ConversationEntry = {
+    ...root,
+    id: "entry_new_branch",
+    parentEntryId: root.id,
+    text: "new branch",
+  };
+  const result: ConversationEntry = {
+    ...root,
+    id: "entry_result",
+    role: "system",
+    parentEntryId: root.id,
+    text: "tool result",
+  };
+  await journal.commit(conversationId, {
+    kind: "conversation.created",
+    events: [
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: { ...conversation("Guarded"), activeEntryId: root.id },
+      },
+      { kind: "conversation.entry_appended", conversationId, entry: root },
+    ],
+  });
+  const moveBranch = journal.commit(conversationId, {
+    kind: "conversation.branch_changed",
+    events: [
+      { kind: "conversation.entry_appended", conversationId, entry: branch },
+      {
+        kind: "conversation.upserted",
+        conversationId,
+        conversation: { ...conversation("Guarded"), activeEntryId: branch.id },
+      },
+    ],
+  });
+  const appendResult = entries.appendOnActiveBranch(result, root.id);
+  await moveBranch;
+  await assert.rejects(appendResult, ConversationBranchConflictError);
+  const persisted = await journal.loadFresh(conversationId);
+  assert.equal(persisted.conversation?.activeEntryId, branch.id);
+  assert.equal(persisted.entryById.has(result.id), false);
+
+  const nextResult = {
+    ...result,
+    id: "entry_next_result",
+    parentEntryId: branch.id,
+  };
+  await entries.appendOnActiveBranch(nextResult, branch.id);
+  const committed = await journal.loadFresh(conversationId);
+  assert.equal(committed.conversation?.activeEntryId, nextResult.id);
+  assert.equal(
+    committed.entryById.get(nextResult.id)?.parentEntryId,
+    branch.id,
+  );
+});
 
 test("conversation journal single-flights concurrent aggregate loads", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-journal-single-flight-"));

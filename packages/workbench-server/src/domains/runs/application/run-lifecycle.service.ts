@@ -61,8 +61,8 @@ export interface RunLifecycleServiceDependencies {
       requestId: string,
     ): Promise<{ inputHash: string; outcome: unknown } | undefined>;
   };
-  wakeWork(): Promise<void> | void;
-  onWakeError?(error: unknown): void;
+  /** Non-blocking dispatcher hint. Committed work is recovered by polling. */
+  notifyWork(): void;
 }
 
 /** The sole command boundary for new run-scoped lifecycle journal writes. */
@@ -107,11 +107,7 @@ export class RunLifecycleService {
       );
     }
     this.assertMatchingInput(command, persisted.inputHash);
-    try {
-      await this.deps.wakeWork();
-    } catch (error) {
-      this.deps.onWakeError?.(error);
-    }
+    if (command.work.length > 0) this.deps.notifyWork();
     return { replayed: false, outcome: persisted.outcome, commit };
   }
 

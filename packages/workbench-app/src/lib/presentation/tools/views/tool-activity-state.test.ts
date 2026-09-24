@@ -5,9 +5,12 @@ import type {
 } from "@nervekit/contracts/tools";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { toolLifecycleRegistry } from "../lifecycle/registry";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
+  outcomeUnknownToolCallIds,
+  toolLifecycleStageIndicator,
 } from "./tool-activity-state";
 
 function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
@@ -58,12 +61,14 @@ describe("deriveToolLifecycleVisualStage", () => {
       }),
       "interaction",
     );
-    for (const status of ["committed", "running"] as const) {
-      assert.equal(
-        deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
-        "executing",
-      );
-    }
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("committed") }),
+      "queued",
+    );
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("running") }),
+      "executing",
+    );
     assert.equal(
       deriveToolLifecycleVisualStage({ toolCall: toolCall("completed") }),
       "completed",
@@ -77,7 +82,83 @@ describe("deriveToolLifecycleVisualStage", () => {
   });
 });
 
+describe("approved-tool checkpoint stages", () => {
+  it("presents a committed call as queued without executing motion", () => {
+    const indicator = toolLifecycleStageIndicator(
+      deriveToolLifecycleVisualStage({ toolCall: toolCall("committed") }),
+    );
+    assert.deepEqual(indicator, {
+      tone: "info",
+      pulse: false,
+      glyph: "pending",
+      label: "Approved · queued",
+    });
+    assert.equal(toolLifecycleStageIndicator("executing"), undefined);
+
+    const sections = deriveToolActivitySections({
+      toolCall: toolCall("committed"),
+      argumentRegion: "persistent",
+      hasArgumentBody: true,
+      resultPlaceholder: { variant: "text", rows: 2 },
+      bodyHydrated: true,
+    });
+    assert.equal(sections.resultMode, "none");
+    assert.equal(sections.argumentVisible, true);
+  });
+
+  it("marks a call named by an outcome_unknown recovery issue whatever its status", () => {
+    const ids = outcomeUnknownToolCallIds([
+      { code: "outcome_unknown", proposalId: "tool_a" },
+      { code: "outcome_unknown" },
+      { code: "stale_branch", proposalId: "tool_b" },
+    ]);
+    assert.deepEqual([...ids], ["tool_a"]);
+
+    for (const status of ["committed", "running", "completed"] as const) {
+      const stage = deriveToolLifecycleVisualStage({
+        toolCall: toolCall(status),
+        outcomeUnknown: true,
+      });
+      assert.equal(stage, "outcome_unknown");
+      assert.deepEqual(toolLifecycleStageIndicator(stage), {
+        tone: "warning",
+        pulse: false,
+        label: "Outcome unknown",
+      });
+    }
+
+    const sections = deriveToolActivitySections({
+      toolCall: toolCall("running"),
+      argumentRegion: "persistent",
+      hasArgumentBody: true,
+      resultPlaceholder: { variant: "text", rows: 2 },
+      bodyHydrated: true,
+      outcomeUnknown: true,
+    });
+    assert.equal(sections.resultMode, "none");
+  });
+});
+
 describe("deriveToolActivitySections", () => {
+  it("keeps a prompt assignment mounted without a pending result placeholder", () => {
+    const spec = toolLifecycleRegistry.subagent_prompt;
+    for (const [status, resultMode] of [
+      ["running", "none"],
+      ["completed", "output"],
+      ["failed", "none"],
+    ] as const) {
+      const sections = deriveToolActivitySections({
+        toolCall: toolCall(status),
+        argumentRegion: spec.argumentRegion,
+        hasArgumentBody: true,
+        bodyHydrated: true,
+        resultPlaceholder: spec.resultPlaceholder,
+      });
+      assert.equal(sections.argumentVisible, true, status);
+      assert.equal(sections.resultMode, resultMode, status);
+    }
+  });
+
   it("keeps persistent arguments visible on failure alongside the error", () => {
     const failed = deriveToolActivitySections({
       toolCall: toolCall("failed", "boom"),

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { agentRecordSchema } from "../agents/agent.js";
 import { conversationRecordSchema } from "../conversations/conversation-state.js";
 import { defineOperation } from "../../operations/definition.js";
+import { approvalCheckpointAcknowledgementSchema } from "../runs/run-lifecycle.js";
 import {
   toolCallRecordSchema,
   toolCallStatusSchema,
@@ -202,6 +203,8 @@ export const toolsOperationDefinitions = [
     z.object({
       toolCall: toolCallRecordSchema,
       effect: resolutionEffectSchema.optional(),
+      /** Durable decision receipt; the tool may not have executed yet. */
+      checkpoint: approvalCheckpointAcknowledgementSchema.optional(),
     }),
     "mutation",
     "recommended",

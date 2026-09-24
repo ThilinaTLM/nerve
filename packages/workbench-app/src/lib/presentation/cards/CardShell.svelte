@@ -55,10 +55,13 @@ let {
   children,
 }: Props = $props();
 
-const lifecycle = $derived.by<"running" | "complete" | "error" | "idle">(() => {
+const lifecycle = $derived.by<
+  "queued" | "running" | "complete" | "error" | "idle"
+>(() => {
   if (draftPhase) return "running";
   switch (status) {
     case "committed":
+      return "queued";
     case "waiting":
     case "running":
       return "running";
@@ -79,6 +82,7 @@ const toolStatusLabel = $derived.by(() => {
     case "waiting":
       return "Needs approval";
     case "committed":
+      return "Approved · queued";
     case "running":
       return "Executing tool call";
     case "completed":

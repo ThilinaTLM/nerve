@@ -153,6 +153,7 @@ export function settingsFromConfiguration(
     rememberLastAgentSelection: harness.rememberLastSelection,
     lastAgentSelection: harness.lastSelection,
     exploreAgent: harness.exploreAgent,
+    asyncSubagent: harness.asyncSubagent,
     application: {
       network: daemon.network,
       diagnostics: daemon.diagnostics,
@@ -217,7 +218,7 @@ export function configurationWithSettings(
       electron: parsed.application.electron,
     },
     harness: {
-      version: 1,
+      version: 2,
       defaults: {
         // New agents always start in coding mode; planning is a per-agent choice.
         mode: "coding",
@@ -229,6 +230,7 @@ export function configurationWithSettings(
       rememberLastSelection: parsed.rememberLastAgentSelection,
       lastSelection: parsed.lastAgentSelection,
       exploreAgent: parsed.exploreAgent,
+      asyncSubagent: parsed.asyncSubagent,
       compaction: parsed.compaction,
       retry: parsed.retry,
       execution: parsed.runtime,

@@ -77,6 +77,17 @@ export type GroupedMatches = {
   matches: GrepMatchView[];
 };
 
+export type SubagentToolAction = "new" | "prompt" | "list" | "status" | "stop";
+
+/** One async teammate row; `state` is unknown until the tool settles. */
+export type SubagentTeammateView = {
+  agentId?: string;
+  name: string;
+  state?: "idle" | "running" | "stopping";
+  outcome?: "completed" | "cancelled" | "failed" | "interrupted";
+  runId?: string;
+};
+
 export type ExploreProgressView = {
   type: "explore_progress";
   timestamp: string;
@@ -298,6 +309,17 @@ export type ToolView =
       eventCount: number;
       nextCursor?: number;
       mode?: string;
+      previewUnavailable: boolean;
+    }
+  | {
+      kind: "subagent";
+      action: SubagentToolAction;
+      teammates: SubagentTeammateView[];
+      response?: { text: string; complete: boolean; runId: string };
+      /** Preview truncation reported by the record's `previewOverflow`. */
+      hidden?: { count: number; noun: "lines" | "characters" | "teammates" };
+      runId?: string;
+      hasMore: boolean;
       previewUnavailable: boolean;
     }
   | {

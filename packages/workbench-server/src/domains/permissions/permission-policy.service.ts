@@ -75,7 +75,9 @@ export class PermissionPolicyService {
     const project = this.getProject(agent.projectId);
     const subagent = Boolean(agent.parentAgentId);
     const selectedId = subagent
-      ? "read_only"
+      ? agent.executionKind === "async_developer"
+        ? "autonomous"
+        : "read_only"
       : agent.mode === "planning"
         ? "planning"
         : (agent.permissionRuleSetId ?? agent.permissionLevel);

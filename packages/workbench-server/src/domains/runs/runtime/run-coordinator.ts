@@ -29,7 +29,11 @@ import {
 } from "./run-errors.js";
 import { KeyedSerialLock } from "./run-locks.js";
 import { RunPromptCoordinator } from "./run-prompts.js";
-import { RunInteractionCoordinator } from "./run-interaction-coordinator.js";
+import {
+  RunInteractionCoordinator,
+  type ApprovalDecisionCommand,
+  type ApprovalDecisionOutcome,
+} from "./run-interaction-coordinator.js";
 import { decideRunRecovery } from "./run-recovery.js";
 import { completeExecution } from "./run-settlement.js";
 import { buildRunStatusEntry } from "./run-status-entry.js";
@@ -91,7 +95,8 @@ export interface RunCoordinatorPorts {
   retryPolicy?: RunRetryPolicyPort;
   retryDelay?(delayMs: number, signal: AbortSignal): Promise<void>;
   transitionObserver?: RunTransitionObserverPort;
-  wakeLifecycleWork?(): Promise<void>;
+  /** Non-blocking hint that durable work is ready; never awaits execution. */
+  notifyLifecycleWork?(): void;
   durableContinuation?: boolean;
 }
 
@@ -540,15 +545,26 @@ export class RunCoordinator {
     return this.interactions.resolveInteraction(runId, command, accompanying);
   }
 
-  async resolveInteractionBatch(
+  /** Records one approval decision; the final one releases execution work. */
+  async recordApprovalDecision(
     runId: string,
-    commands: readonly ResolveInteractionCommand[],
+    command: ApprovalDecisionCommand,
+  ): Promise<ApprovalDecisionOutcome> {
+    return this.interactions.recordApprovalDecision(runId, command);
+  }
+
+  /** Moves a released checkpoint whose members are all terminal to continuation. */
+  async settleApprovalCheckpoint(
+    runId: string,
+    checkpointId: string,
     accompanying: Pick<TransitionChanges, "entries" | "toolCalls"> = {},
-  ): Promise<readonly RunInteractionRecord[]> {
-    return this.interactions.resolveInteractionBatch(
+    assertContext?: (state: RunHydratedState) => Promise<void>,
+  ): Promise<boolean> {
+    return this.interactions.settleApprovalCheckpoint(
       runId,
-      commands,
+      checkpointId,
       accompanying,
+      assertContext,
     );
   }
 
@@ -691,16 +707,47 @@ export class RunCoordinator {
     });
   }
 
-  async recover(): Promise<readonly RunRecord[]> {
+  async recover(
+    options: { canResumeCheckpoint?: (run: RunRecord) => boolean } = {},
+  ): Promise<readonly RunRecord[]> {
     const recovered: RunRecord[] = [];
     // Terminal runs cannot require recovery, so only active runs are scanned.
     for (const state of await this.ports.unitOfWork.listActive()) {
+      if (state.run.status === "cancellation_requested") {
+        // A crash between recording the request and fencing tool work must
+        // complete cancellation, never reclassify this run as resumable.
+        recovered.push(
+          await this.finishRunCancellation(
+            state.run,
+            "Cancellation resumed after host restart",
+          ),
+        );
+        continue;
+      }
       const decision = await decideRunRecovery(
         state,
         this.ports.references,
         this.ports.integrity,
         () => this.now(),
       );
+      if (options.canResumeCheckpoint?.(state.run) === false) {
+        decision.run = {
+          ...decision.run,
+          revision: state.run.revision + 1,
+          updatedAt: this.now(),
+          status: "failed",
+          recoverability: "none",
+          terminalAt: this.now(),
+          failure: {
+            code: "RUN_INTERRUPTED_NO_RESUME",
+            message:
+              "Execution was interrupted; automatic checkpoint resumption is disabled for this agent.",
+            retryable: false,
+          },
+        };
+        decision.transitionKind = "interrupted_without_checkpoint";
+        decision.interrupted = false;
+      }
       if (decision.transitionKind) {
         const statusEntry = buildRunStatusEntry({
           previous: state,
@@ -1117,15 +1164,10 @@ export class RunCoordinator {
         expectedRevision,
         transition,
         changes.lifecycleWork,
+        changes.toolProjections,
       );
       if (changes.lifecycleWork?.length) {
-        void this.ports.wakeLifecycleWork?.().catch((error) => {
-          this.ports.diagnostics?.warn("lifecycle work wake deferred", {
-            runId: run.runId,
-            revision: transition.revision,
-            error: errorMessage(error),
-          });
-        });
+        this.ports.notifyLifecycleWork?.();
       }
       try {
         await this.ports.transitionObserver?.committed(transition);

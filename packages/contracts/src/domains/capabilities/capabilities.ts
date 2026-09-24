@@ -1,12 +1,20 @@
 import { z } from "zod";
-import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
+import {
+  asyncSubagentToolNames,
+  isAsyncSubagentTool,
+} from "../agents/async-subagents.js";
+import {
+  userConfigurableToolNameSchema,
+  type UserConfigurableToolName,
+} from "../tools/tool-name.js";
 
 /**
  * Tools that can be pinned per project or conversation. Integration families
  * are toggled as a whole because their credentials stay user-owned.
  */
 export const capabilityToolNameSchema = z.enum([
-  ...userConfigurableToolNameSchema.options,
+  ...userConfigurableToolNameSchema.exclude(asyncSubagentToolNames).options,
+  "subagents",
   "jira",
   "confluence",
 ]);
@@ -26,7 +34,12 @@ const skillOverridesSchema = z
 export const capabilityOverridesDocumentSchema = z
   .object({
     schemaVersion: z.literal(1),
-    tools: z.partialRecord(capabilityToolNameSchema, z.boolean()).default({}),
+    tools: z
+      .preprocess(
+        migrateSubagentOverrides,
+        z.partialRecord(capabilityToolNameSchema, z.boolean()),
+      )
+      .default({}),
     skills: z
       .object({
         file: skillOverridesSchema.default({}),
@@ -166,4 +179,50 @@ export function resolveCapabilitySelection(input: {
     enabledNerveSkills: [...enabledNerveSkills],
     enabledAgentBrowserSkills: [...enabledAgentBrowserSkills],
   });
+}
+
+/** Collapse concrete tool settings into independently selectable capability groups. */
+export function capabilityToolsFromDisabledNames(
+  names: readonly UserConfigurableToolName[],
+): CapabilityToolName[] {
+  return [
+    ...names.filter(
+      (
+        name,
+      ): name is Exclude<
+        UserConfigurableToolName,
+        (typeof asyncSubagentToolNames)[number]
+      > => !isAsyncSubagentTool(name),
+    ),
+    ...(names.some(isAsyncSubagentTool) ? ["subagents" as const] : []),
+  ];
+}
+
+/** Expand groups only at the harness tool-advertisement boundary. */
+export function disabledToolNamesForCapabilities(
+  names: readonly CapabilityToolName[],
+): UserConfigurableToolName[] {
+  return names.flatMap((name) =>
+    name === "subagents"
+      ? [...asyncSubagentToolNames]
+      : name === "jira" || name === "confluence"
+        ? []
+        : [name],
+  );
+}
+
+function migrateSubagentOverrides(value: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const tools = { ...value } as Record<string, unknown>;
+  const previous = asyncSubagentToolNames
+    .filter((name) => Object.hasOwn(tools, name))
+    .map((name) => tools[name]);
+  if (!previous.length) return value;
+  if (previous.some((enabled) => typeof enabled !== "boolean")) return value;
+  if (!Object.hasOwn(tools, "subagents"))
+    tools.subagents =
+      previous.length === asyncSubagentToolNames.length &&
+      previous.every((enabled) => enabled === true);
+  for (const name of asyncSubagentToolNames) delete tools[name];
+  return tools;
 }

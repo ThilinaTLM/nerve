@@ -60,6 +60,48 @@ describe("harness queued user message coalescing", () => {
     assert.equal(groups[0]?.entries.length, 2);
   });
 
+  it("does not drain a harness event or following user prompts with leading user prompts", () => {
+    const first = userEntry("first");
+    const queue = [first, harnessEntry("done"), userEntry("second")];
+
+    assert.deepEqual(takeQueuedMessageEntries(queue, "one-at-a-time"), [first]);
+    assert.equal(queue.length, 2);
+    assert.equal(textOf(queue[0]!.message), "done");
+    assert.equal(textOf(queue[1]!.message), "second");
+  });
+
+  it("preserves images and the original timestamp when combining queued prompts", () => {
+    const first = userEntry("first");
+    const second = userEntry("second");
+    const firstImage = {
+      type: "image" as const,
+      data: "first-image",
+      mimeType: "image/png",
+    };
+    const secondImage = {
+      type: "image" as const,
+      data: "second-image",
+      mimeType: "image/png",
+    };
+    const firstMessage = createUserMessage("first", [firstImage]);
+    const secondMessage = createUserMessage("second", [secondImage]);
+    firstMessage.timestamp = 123;
+    secondMessage.timestamp = 456;
+    first.message = firstMessage;
+    second.message = secondMessage;
+
+    const [group] = coalesceQueuedUserEntries([first, second]);
+    assert.equal(group?.message.role, "user");
+    if (group?.message.role !== "user") return;
+    assert.equal(group.message.timestamp, 123);
+    assert.deepEqual(group.message.content, [
+      { type: "text", text: "first\n\nsecond" },
+      firstImage,
+      secondImage,
+    ]);
+    assert.deepEqual(group.entries, [first, second]);
+  });
+
   it("keeps harness messages as boundaries while coalescing all drained entries", () => {
     const drained = [
       userEntry("first"),

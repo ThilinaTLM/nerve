@@ -7,6 +7,9 @@ import BellRing from "@lucide/svelte/icons/bell-ring";
 import Circle from "@lucide/svelte/icons/circle";
 import ClockFading from "@lucide/svelte/icons/clock-fading";
 import Layers from "@lucide/svelte/icons/layers";
+import GitBranch from "@lucide/svelte/icons/git-branch";
+import Users from "@lucide/svelte/icons/users";
+import Info from "@lucide/svelte/icons/info";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleQuestionMark from "@lucide/svelte/icons/circle-question-mark";
@@ -72,6 +75,9 @@ const glyphIcon = {
   "bell-dot": BellDot,
   retry: RefreshCw,
   compaction: Layers,
+  branch: GitBranch,
+  subagent: Users,
+  system: Info,
 } satisfies Record<CardGlyph, Component>;
 
 const Icon = $derived(

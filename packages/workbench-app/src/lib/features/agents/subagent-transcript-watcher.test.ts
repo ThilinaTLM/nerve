@@ -50,6 +50,38 @@ function event(
   };
 }
 
+function canonical(
+  seq: number,
+  type: string,
+  agentId: string,
+  extra: Record<string, unknown> = {},
+): EventEnvelope<Record<string, unknown>> {
+  return {
+    seq,
+    id: `evt_${seq}`,
+    ts,
+    type,
+    data: { conversationId: "conv_test", agentId, runId: "run_x", ...extra },
+  };
+}
+
+function entryAppended(
+  seq: number,
+  agentId: string,
+): EventEnvelope<Record<string, unknown>> {
+  // Entry events carry no projectId; ownership comes from the entry agent.
+  return {
+    seq,
+    id: `evt_${seq}`,
+    ts,
+    type: "conversation.entry.appended",
+    data: {
+      conversationId: "conv_test",
+      entry: { id: `entry_${seq}`, agentId, role: "assistant", text: "hi" },
+    },
+  };
+}
+
 const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 describe("subagent transcript watcher", () => {
@@ -132,6 +164,58 @@ describe("subagent transcript watcher", () => {
     resolveRecovery?.(snapshot(3));
     await tick();
     assert.deepEqual(reconciled, [1, 3]);
+    stop();
+  });
+
+  it("delivers only canonical child events from the shared stream, in order", async () => {
+    let handler: WorkbenchEventHandler | undefined;
+    let fetchCount = 0;
+    const watch = createSubagentTranscriptWatcher({
+      subscribe: (next) => {
+        handler = next;
+        return () => undefined;
+      },
+      fetch: async () => (fetchCount++ === 0 ? snapshot(1) : snapshot(20)),
+    });
+    const received: Array<[number, string]> = [];
+    const stop = watch("agent_parent", "agent_child", {
+      snapshot: () => undefined,
+      event: (next) => {
+        received.push([next.seq, next.type]);
+        return true;
+      },
+      error: assert.fail,
+    });
+    await tick();
+    const interleaved = [
+      canonical(2, "run.started", "agent_child", { projectId: "proj_test" }),
+      canonical(3, "conversation.live.turn.started", "agent_parent"),
+      canonical(4, "conversation.live.content.delta", "agent_child"),
+      canonical(5, "conversation.live.content.delta", "agent_sibling"),
+      entryAppended(6, "agent_parent"),
+      entryAppended(7, "agent_child"),
+      canonical(8, "toolCall.updated", "agent_sibling"),
+      canonical(9, "conversation.context.updated", "agent_child"),
+      canonical(10, "conversation.live.content.delta", "agent_child", {
+        conversationId: "conv_other",
+      }),
+      canonical(11, "run.completed", "agent_parent"),
+    ];
+    for (const next of interleaved) await handler?.(next);
+    assert.deepEqual(received, [
+      [2, "run.started"],
+      [4, "conversation.live.content.delta"],
+      [7, "conversation.entry.appended"],
+    ]);
+    assert.equal(fetchCount, 1, "no gap or terminal reconcile for others");
+
+    await handler?.(canonical(12, "run.completed", "agent_child"));
+    await tick();
+    assert.equal(fetchCount, 2, "canonical child completion reconciles once");
+    await handler?.(canonical(21, "run.started", "agent_child"));
+    await handler?.(canonical(22, "run.failed", "agent_child"));
+    await tick();
+    assert.equal(fetchCount, 3, "a later teammate run reconciles again");
     stop();
   });
 });

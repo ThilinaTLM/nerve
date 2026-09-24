@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
-import type { AgentRecord } from "@nervekit/contracts/agents";
+import {
+  isDeveloperChildToolAllowed,
+  type AgentRecord,
+} from "@nervekit/contracts/agents";
 import type {
   PermissionException,
   LegacyPermissionRule,
@@ -59,6 +62,34 @@ export function evaluateWorkbenchToolPermission(
   context: WorkbenchPermissionContext,
 ): WorkbenchPermissionEvaluation {
   const request = toolRequestContext(agent, args);
+  if (
+    agent.executionKind === "async_developer" &&
+    !isDeveloperChildToolAllowed(toolName)
+  ) {
+    const reason =
+      "Developer teammates cannot use human-input, planning, or delegation tools.";
+    const risk = legacyRisk(permissionMetadataForTool(toolName).baseRisk);
+    return {
+      decision: "deny",
+      risk,
+      reason,
+      normalizedArgs: request.normalizedArgs,
+      cwd: request.cwd,
+      suggestedExceptions: [],
+      supervision: {
+        version: 1,
+        decision: "deny",
+        effectiveRisk: risk,
+        reason,
+        normalizedArgs: request.normalizedArgs,
+        normalizedTargets: [],
+        matchedRuleIds: [],
+        policySnapshotHash: `sha256:${createHash("sha256").update(reason).digest("hex")}`,
+        suggestedRules: [],
+      },
+    };
+  }
+
   if (context.policy && context.roots) {
     try {
       const normalizedRequest = normalizePermissionRequest({

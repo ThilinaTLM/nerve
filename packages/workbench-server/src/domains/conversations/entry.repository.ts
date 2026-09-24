@@ -1,4 +1,5 @@
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
+import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
   ConversationEntry,
   ConversationRecord,
@@ -33,10 +34,40 @@ export class EntryRepository {
     );
   }
 
+  async appendOnActiveBranch(
+    entry: ConversationEntry,
+    expectedParentEntryId: string | null,
+    model?: { message: AgentMessage; ownerAgentId?: string },
+  ): Promise<{ entry: ConversationEntry; conversation: ConversationRecord }> {
+    const commit = await this.journal.commit(entry.conversationId, {
+      kind: "conversation.entry_appended",
+      idempotencyKey: `conversation-entry:${entry.id}`,
+      expectedActiveBranchParentEntryId: expectedParentEntryId,
+      ...(model ? { guardedModelMessage: model } : {}),
+      events: [
+        {
+          kind: "conversation.entry_appended",
+          conversationId: entry.conversationId,
+          entry,
+        },
+      ],
+    });
+    const conversation = commit.events.find(
+      (event) => event.kind === "conversation.upserted",
+    );
+    if (!conversation || conversation.kind !== "conversation.upserted") {
+      throw new Error(
+        "Guarded entry commit did not advance the active branch.",
+      );
+    }
+    return { entry, conversation: conversation.conversation };
+  }
+
   async appendCompaction(input: {
     entry: ConversationEntry;
     modelEntry: ConversationTreeEntry;
     conversation: ConversationRecord;
+    ownerAgentId?: string;
   }): Promise<void> {
     await this.journal.commit(input.entry.conversationId, {
       kind: "compaction.completed",
@@ -47,18 +78,24 @@ export class EntryRepository {
           conversationId: input.entry.conversationId,
           entry: input.entry,
         },
-        {
-          kind: "conversation.upserted",
-          conversationId: input.entry.conversationId,
-          conversation: input.conversation,
-        },
+        ...(input.ownerAgentId
+          ? []
+          : [
+              {
+                kind: "conversation.upserted" as const,
+                conversationId: input.entry.conversationId,
+                conversation: input.conversation,
+              },
+            ]),
         {
           kind: "model_context.entry_appended",
+          ownerAgentId: input.ownerAgentId,
           conversationId: input.entry.conversationId,
           entry: input.modelEntry as never,
         },
         {
           kind: "model_context.leaf_changed",
+          ownerAgentId: input.ownerAgentId,
           conversationId: input.entry.conversationId,
           entryId: input.modelEntry.id,
         },

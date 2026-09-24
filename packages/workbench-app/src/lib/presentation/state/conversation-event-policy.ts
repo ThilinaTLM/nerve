@@ -1,4 +1,6 @@
 export type ApplyConversationEventOptions = {
+  /** Advance durable stream watermarks without projecting an event from another agent scope. */
+  consumeOnly?: boolean;
   onGap?: (reason: {
     conversationId?: string;
     runId?: string;

@@ -31,6 +31,24 @@ function runRow(notice: Record<string, unknown>): TranscriptRowItem {
 }
 
 describe("transcript row model", () => {
+  it("animates new system notices and remeasures changed summary content", () => {
+    const node = {
+      kind: "system_event" as const,
+      key: "entry_1",
+      notice: {
+        entryId: "entry_1",
+        kind: "branch_summary" as const,
+        text: "Short",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      },
+    };
+    assert.equal(entranceEligible(node), true);
+    const row: TranscriptRowItem = { kind: "timeline", key: node.key, node };
+    const first = measurementVersionForRow(row, measurementContext);
+    node.notice.text = "Longer summary";
+    assert.notEqual(measurementVersionForRow(row, measurementContext), first);
+  });
+
   it("disambiguates duplicate virtualizer keys", () => {
     const seen = new Map<string, number>();
     assert.equal(uniqueRowKey("entry", seen), "entry");

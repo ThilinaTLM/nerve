@@ -1,4 +1,4 @@
-export const CANONICAL_SCHEMA_VERSION = 4;
+export const CANONICAL_SCHEMA_VERSION = 5;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -362,5 +362,21 @@ export const CANONICAL_MIGRATIONS: readonly CanonicalMigration[] = [
     checksum:
       "496cd5027ff354aee6aed213f19bb6c6771d5c847cc799d85e1cc4fd5781b28a",
     sql: LIFECYCLE_RUN_CONVERSION_V4_SQL,
+  },
+  {
+    version: 5,
+    name: "async-subagent-completions-v5",
+    checksum:
+      "e5a8afe2e1e8e3ca3c5447a89842f13f74b2d53018dc87ed3142e80c7d44e8e1",
+    sql: `CREATE TABLE subagent_completions (
+  run_id TEXT PRIMARY KEY,
+  child_id TEXT NOT NULL,
+  lead_id TEXT NOT NULL,
+  conversation_id TEXT NOT NULL,
+  pending INTEGER NOT NULL CHECK(pending IN (0,1)),
+  data BLOB NOT NULL
+) STRICT;
+CREATE INDEX subagent_completions_pending ON subagent_completions(lead_id, pending);
+CREATE INDEX subagent_completions_conversation ON subagent_completions(conversation_id);`,
   },
 ];

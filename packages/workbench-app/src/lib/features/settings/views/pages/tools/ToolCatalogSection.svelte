@@ -23,6 +23,8 @@ import {
 } from "$lib/presentation/utils/model";
 import SingleModelSelectionDialog from "../../shared/SingleModelSelectionDialog.svelte";
 import type { SettingsChange } from "../settings-change";
+import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
+import { asyncSubagentProfileLabel } from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
@@ -57,6 +59,7 @@ let {
   category = "core",
 }: Props = $props();
 
+let asyncSubagentDialogOpen = $state(false);
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
@@ -102,6 +105,15 @@ const imageGenerationReady = $derived(
     ),
 );
 const usableExploreModels = $derived(usableModelOptions(models, authProviders));
+const configuredAsyncSubagentModel = $derived(
+  settingsDraft.asyncSubagent.model
+    ? usableExploreModels.find(
+        (model) =>
+          modelKey(model) ===
+          modelKey(settingsDraft.asyncSubagent.model as ModelSelection),
+      )
+    : undefined,
+);
 const configuredExploreModel = $derived(
   settingsDraft.exploreAgent.model
     ? usableExploreModels.find(
@@ -205,7 +217,12 @@ function setTavilyProfile(profileId?: string): void {
     tools={group.tools}
   >
     {#snippet actions()}
-      {#if group.id === "shell"}
+      {#if group.id === "subagents"}
+        <ToolConfigureButton
+          label="Configure Async Subagents"
+          onclick={() => (asyncSubagentDialogOpen = true)}
+        />
+      {:else if group.id === "shell"}
         <ToolConfigureButton
           label="Configure Shell"
           onclick={() => (bashDialogOpen = true)}
@@ -269,7 +286,32 @@ function setTavilyProfile(profileId?: string): void {
       {/if}
     {/snippet}
     {#snippet extra()}
-      {#if group.id === "shell"}
+      {#if group.id === "subagents"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={configuredAsyncSubagentModel
+            ? modelDisplayName(configuredAsyncSubagentModel)
+            : settingsDraft.asyncSubagent.model
+              ? `${settingsDraft.asyncSubagent.model.provider}/${settingsDraft.asyncSubagent.model.modelId}`
+              : "Lead agent model"}
+          status={settingsDraft.asyncSubagent.model
+            ? configuredAsyncSubagentModel
+              ? "ok"
+              : "warning"
+            : "muted"}
+        >
+          {#snippet meta()}
+            {#if settingsDraft.asyncSubagent.model && !configuredAsyncSubagentModel}
+              Model unavailable ·
+            {/if}
+            {asyncSubagentProfileLabel(
+              settingsDraft.asyncSubagent.compactionProfile,
+            )}{settingsDraft.asyncSubagent.compactionProfile === "custom"
+              ? ` · ${settingsDraft.asyncSubagent.customTriggerPercent}% trigger, ${settingsDraft.asyncSubagent.customKeepRecentPercent}% recent`
+              : ""}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "shell"}
         <SettingsSummaryRow
           class="mt-1"
           title="Automatic backgrounding"
@@ -379,6 +421,14 @@ function setTavilyProfile(profileId?: string): void {
     {/snippet}
   </ToolGroupItem>
 {/each}
+
+<AsyncSubagentToolDialog
+  bind:open={asyncSubagentDialogOpen}
+  {settingsDraft}
+  {models}
+  {authProviders}
+  {onSettingsChange}
+/>
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 

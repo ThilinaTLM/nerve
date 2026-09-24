@@ -9,7 +9,7 @@ import { WorkbenchRunUnitOfWork } from "../../../src/domains/runs/persistence/ru
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 
-test("startup settles a completed approved tool without executing it again", async () => {
+test("startup converts a legacy tool-only decision and settles its completed tool once", async () => {
   const provider = "nerve-scripted-completed-approval-recovery";
   const root = await mkdtemp(join(tmpdir(), "nerve-completed-approval-"));
   const home = join(root, "home");
@@ -58,9 +58,25 @@ test("startup settles a completed approved tool without executing it again", asy
         .find((candidate) => candidate.conversationId === conversation.id),
     );
 
-    await runtime.services.tools.decideApproval(approval.id, "allow");
-    const completed = await runtime.services.tools.finalizeDecidedApproval(
-      approval.id,
+    // The previous implementation recorded decisions only on the tool record
+    // and executed synchronously, leaving the run interaction pending.
+    const journal = runtime.services.conversationJournal;
+    await runtime.services.tools.projectApprovalDecision(
+      {
+        toolCallId: approval.toolCallId,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "legacy_request",
+      },
+      async (next, events) => {
+        await journal.commit(next.conversationId, {
+          kind: "tool_call.revised",
+          events,
+        });
+      },
+    );
+    const completed = await runtime.services.tools.executeClaimed(
+      await runtime.services.tools.claimApprovedExecution(approval.toolCallId),
     );
     assert.equal(completed.status, "completed");
     assert.equal(await access(marker).then(() => true), true);
@@ -71,7 +87,19 @@ test("startup settles a completed approved tool without executing it again", asy
       "127.0.0.1",
       0,
     );
-    await runtime.lifecycle.hydrate();
+    // Suppress polling: recovered continuation must start from the startup
+    // scan, after the hydrator has finished rebuilding projections.
+    const milestones: string[] = [];
+    const dispatcher = runtime.services.lifecycleDispatcher;
+    const start = dispatcher.start.bind(dispatcher);
+    dispatcher.start = () => {
+      milestones.push("dispatcher-start");
+      start(60_000);
+    };
+    await runtime.lifecycle.hydrate((stage) => milestones.push(stage));
+    assert.ok(
+      milestones.indexOf("core-ready") < milestones.indexOf("dispatcher-start"),
+    );
     await waitForValue(
       () => {
         const current = runtime.services.agentLifecycle.getAgent(agent.id);
@@ -84,6 +112,7 @@ test("startup settles a completed approved tool without executing it again", asy
           agent: runtime.services.agentLifecycle.getAgent(agent.id),
           approvals: runtime.services.tools.listApprovals(),
           tools: runtime.services.tools.listToolCalls(),
+          milestones,
         }),
     );
     const state = (await new WorkbenchRunUnitOfWork(home, 0).list()).find(

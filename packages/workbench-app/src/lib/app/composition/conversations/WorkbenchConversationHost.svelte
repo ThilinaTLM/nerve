@@ -14,6 +14,7 @@ import {
   selectVisibleCommitted,
 } from "$lib/presentation/state";
 import { ConversationPane } from "$lib/presentation/conversations";
+import { outcomeUnknownToolCallIds } from "$lib/presentation/tools/views/tool-activity-state";
 import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import WorkbenchComposerAdapter from "./WorkbenchComposerAdapter.svelte";
 import { workbenchConversationUiCapabilities } from "./conversation-capabilities.svelte";
@@ -46,6 +47,7 @@ let {
   queuedPrompts = [],
   recoveryIssues = [],
   sending = false,
+  teamRunning = false,
   stopping: stoppingRequested = false,
   composerText = "",
   models = [],
@@ -179,6 +181,7 @@ const visibleCommitted = $derived(
 const timeline = $derived({ prefix: visibleCommitted, tail: liveItems });
 const combinedTimeline = $derived([...visibleCommitted, ...liveItems]);
 const compacting = $derived(transient?.compaction?.state === "running");
+const outcomeUnknownIds = $derived(outcomeUnknownToolCallIds(recoveryIssues));
 const stopping = $derived(
   stoppingRequested || activeRun?.status === "aborting",
 );
@@ -253,6 +256,7 @@ function menuForTranscript(
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,
     pendingPlanReviews: rendered.pendingPlanReviews,
+    outcomeUnknownToolCallIds: outcomeUnknownIds,
     activeProject,
     activeProjectLabel,
     planReviewModels,
@@ -262,7 +266,7 @@ function menuForTranscript(
       ? {
           tone: "warning",
           title: "Recovery needs review",
-          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript, then cancel or explicitly authorize another attempt.`,
+          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript${recoveryIssues.some((issue) => issue.actions.includes("authorize_retry")) ? ", then cancel or explicitly authorize another attempt" : " before taking any further action"}.`,
         }
       : undefined,
     emptyTitle: "Open a conversation or start a new one.",
@@ -326,6 +330,7 @@ function menuForTranscript(
       interactive={active}
       {sending}
       {stopping}
+      {teamRunning}
       {compacting}
       {models}
       {selectedModelKey}

@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { activeBranchEndsWithCheckpoint } from "../../../src/domains/runs/application/workbench-run.service.js";
+import {
+  activeBranchEndsWithCheckpoint,
+  activeBranchEndsWithCheckpointResults,
+} from "../../../src/domains/runs/application/workbench-run.service.js";
 
 test("approval checkpoint matches the run-local suffix of an existing conversation", () => {
   assert.equal(
@@ -25,6 +28,46 @@ test("approval checkpoint permits durable transcript entries interleaved outside
       ["entry_user", "entry_tool_call", "entry_approval_call"],
     ),
     true,
+  );
+});
+
+test("recovery permits only checkpoint member results after the saved tip", () => {
+  const checkpoint = ["entry_user", "entry_approval"];
+  const result = {
+    id: "entry_result",
+    runId: "run_test",
+    details: { toolRecordId: "tool_allowed" },
+  } as never;
+  const entries = [result];
+  assert.equal(
+    activeBranchEndsWithCheckpointResults(
+      [...checkpoint, "entry_result"],
+      checkpoint,
+      entries,
+      "run_test",
+      ["tool_allowed"],
+    ),
+    true,
+  );
+  assert.equal(
+    activeBranchEndsWithCheckpointResults(
+      [...checkpoint, "entry_other_user", "entry_result"],
+      checkpoint,
+      entries,
+      "run_test",
+      ["tool_allowed"],
+    ),
+    false,
+  );
+  assert.equal(
+    activeBranchEndsWithCheckpointResults(
+      [...checkpoint, "entry_result"],
+      checkpoint,
+      entries,
+      "run_different",
+      ["tool_allowed"],
+    ),
+    false,
   );
 });
 

@@ -72,6 +72,10 @@ function cancelledPreview(record: ToolCallRecord): string {
   );
 }
 
+/**
+ * Executes through the real executor after a local stand-in for ToolService's
+ * durable claim (committed -> running), which owns approval checks.
+ */
 function createExecutor(input: {
   record: ToolCallRecord;
   execute: () => Promise<unknown>;
@@ -79,9 +83,9 @@ function createExecutor(input: {
   storageHome?: string;
   publish?: (record: ToolCallRecord) => Promise<void>;
   terminalBeforeSettlement?: (record: ToolCallRecord) => ToolCallRecord;
-}): ToolExecutorService {
+}) {
   let record = input.record;
-  return new ToolExecutorService({
+  const executor = new ToolExecutorService({
     getToolCall: () => record,
     updateToolCall: async (_id, patch) => {
       if (input.terminalBeforeSettlement) {
@@ -96,21 +100,33 @@ function createExecutor(input: {
       return record;
     },
     publishToolCallUpdated: input.publish ?? (async () => undefined),
-    claimExecution: async (_id, expectedRevision, patch) => {
-      assert.equal(record.revision, expectedRevision);
-      record = {
-        ...record,
-        ...patch,
-        revision: record.revision + 1,
-        updatedAt: "2026-01-02T03:04:06.000Z",
-      };
-      input.onUpdate?.(record);
-      return record;
-    },
-    assertExecutionBoundary: async () => undefined,
     storageHome: input.storageHome ?? "/tmp/nerve-test",
     dispatcher: { execute: input.execute },
   } as never);
+  return {
+    executor,
+    executeAllowedTool(
+      _id: string,
+      options?: Parameters<ToolExecutorService["executeClaimed"]>[1],
+    ) {
+      assert.equal(record.status, "committed");
+      record = {
+        ...record,
+        status: "running",
+        phase: "executing",
+        revision: record.revision + 1,
+        execution: {
+          kind: "local",
+          status: "running",
+          executionId: "exec_test",
+          startedAt: "2026-01-02T03:04:06.000Z",
+        },
+        updatedAt: "2026-01-02T03:04:06.000Z",
+      } as ToolCallRecord;
+      input.onUpdate?.(record);
+      return executor.executeClaimed(record, options);
+    },
+  };
 }
 
 describe("ToolExecutorService structured errors", () => {
@@ -340,24 +356,20 @@ describe("ToolExecutorService structured errors", () => {
     assert.match(raw, new RegExp(`"content": "${"x".repeat(100)}`));
   });
 
-  it("CAS-claims one approved draft before dispatch", async () => {
+  it("refuses to dispatch without a durable running claim", async () => {
     let executions = 0;
-    const executor = createExecutor({
+    const { executor } = createExecutor({
       record: toolCall(),
       execute: async () => {
         executions += 1;
         return { ok: true };
       },
     });
-    const outcomes = await Promise.allSettled([
-      executor.executeAllowedTool("tool_test"),
-      executor.executeAllowedTool("tool_test"),
-    ]);
-    assert.equal(
-      outcomes.filter((outcome) => outcome.status === "fulfilled").length,
-      1,
+    await assert.rejects(
+      executor.executeClaimed(toolCall()),
+      /durable running claim/,
     );
-    assert.equal(executions, 1);
+    assert.equal(executions, 0);
   });
 
   it("settles an aborted generic execution as cancelled", async () => {
@@ -375,9 +387,9 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(terminal.errorDetails?.code, "cancelled");
-    assert.equal(terminal.error, "Tool execution was cancelled.");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.match(terminal.error ?? "", /external outcome is unknown/);
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(terminal.agentProjection?.profile, "terminal_outcome");
     assert.equal(
       JSON.stringify(terminal).includes("Python execution aborted"),
@@ -400,7 +412,7 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
   });
 
@@ -419,8 +431,8 @@ describe("ToolExecutorService structured errors", () => {
     });
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(terminal.errorDetails?.code, "cancelled");
-    assert.match(cancelledPreview(terminal), /^Tool execution was cancelled\./);
+    assert.equal(terminal.errorDetails?.code, "TOOL_OUTCOME_UNKNOWN");
+    assert.match(cancelledPreview(terminal), /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("late success"), false);
     assert.deepEqual(lifecycleStatuses, ["running"]);
   });
@@ -437,10 +449,7 @@ describe("ToolExecutorService structured errors", () => {
     const terminal = await executor.executeAllowedTool("tool_test");
 
     assert.equal(terminal.status, "cancelled");
-    assert.equal(
-      terminal.error,
-      "Tool execution was cancelled because the run was cancelled.",
-    );
+    assert.match(terminal.error ?? "", /external outcome is unknown/);
     assert.equal(JSON.stringify(terminal).includes("immutable"), false);
   });
 

@@ -179,6 +179,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     expectedRevision: number,
     transition: RunTransitionRecord,
     lifecycleWork: readonly import("@nervekit/contracts/runs").LifecycleWork[] = [],
+    toolProjections: readonly ToolCallRecord[] = [],
   ): Promise<RunHydratedState> {
     const parsed = runTransitionRecordSchema.parse(
       JSON.parse(JSON.stringify(transition)) as unknown,
@@ -192,7 +193,20 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
         );
       }
       const next = applyRunTransition(current, parsed);
+      // Tool records revised by this same transition (approval decisions) are
+      // committed atomically with it; normalized interaction and suspension
+      // events must describe those revisions, not the journal's prior ones.
+      const projected = new Map(
+        toolProjections.map((toolCall) => [toolCall.id, toolCall] as const),
+      );
       const events: ConversationJournalEvent[] = [
+        ...toolProjections.map(
+          (toolCall): ConversationJournalEvent => ({
+            kind: "tool_call.upserted",
+            conversationId: toolCall.conversationId,
+            toolCall,
+          }),
+        ),
         {
           kind: "run.transition_committed",
           conversationId: parsed.run.conversationId,
@@ -205,9 +219,9 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
             entry,
           }),
         ),
-        ...(await this.normalizedInteractionEvents(next, parsed)),
+        ...(await this.normalizedInteractionEvents(next, parsed, projected)),
       ];
-      const aggregate = await this.lifecycleAggregate(next, parsed);
+      const aggregate = await this.lifecycleAggregate(next, parsed, projected);
       await this.journal.commit(parsed.run.conversationId, {
         kind: `run.${parsed.kind}`,
         committedAt: parsed.committedAt,
@@ -315,6 +329,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private async lifecycleAggregate(
     state: RunHydratedState,
     transition: RunTransitionRecord,
+    projected: ReadonlyMap<string, ToolCallRecord>,
   ): Promise<{
     run: RunLifecycleRecord;
     proposals: ToolProposal[];
@@ -327,7 +342,9 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     const interactions: LifecycleInteraction[] = [];
     const attempts: ExecutionAttempt[] = [];
     for (const interaction of state.interactions) {
-      const toolCall = journalState.toolCalls.get(interaction.toolCallId);
+      const toolCall =
+        projected.get(interaction.toolCallId) ??
+        journalState.toolCalls.get(interaction.toolCallId);
       const toolInteraction =
         toolCall?.interactions[interaction.interactionOrdinal];
       if (!toolCall || !toolInteraction) continue;
@@ -425,6 +442,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
   private async normalizedInteractionEvents(
     state: RunHydratedState,
     transition: RunTransitionRecord,
+    projected: ReadonlyMap<string, ToolCallRecord>,
   ): Promise<ConversationJournalEvent[]> {
     if (transition.interactions.length === 0) return [];
     const journalState = await this.journal.load(state.run.conversationId);
@@ -432,8 +450,10 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     const checkpointIds = new Set(
       transition.interactions.map((interaction) => interaction.checkpointId),
     );
+    const toolCallFor = (toolCallId: string) =>
+      projected.get(toolCallId) ?? journalState.toolCalls.get(toolCallId);
     for (const runInteraction of transition.interactions) {
-      const toolCall = journalState.toolCalls.get(runInteraction.toolCallId);
+      const toolCall = toolCallFor(runInteraction.toolCallId);
       const toolInteraction =
         toolCall?.interactions[runInteraction.interactionOrdinal];
       if (!toolCall || !toolInteraction) {
@@ -490,7 +510,7 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
             interactionId: interaction.id,
             toolCallId: interaction.toolCallId,
             toolCallRevision:
-              journalState.toolCalls.get(interaction.toolCallId)?.revision ??
+              toolCallFor(interaction.toolCallId)?.revision ??
               interaction.toolCallRevision,
             kind: interaction.kind,
           })),

@@ -17,6 +17,7 @@ function fixture(resolve?: InteractionActionDeps["requests"]["resolve"]) {
   const calls: Array<{ id: string; action: string }> = [];
   const notifications: Array<{ kind: string; title: string }> = [];
   const reconciled: string[] = [];
+  const reconciledStatuses: string[] = [];
   const deps: InteractionActionDeps = {
     requests: {
       resolve:
@@ -27,7 +28,10 @@ function fixture(resolve?: InteractionActionDeps["requests"]["resolve"]) {
         }),
     },
     reconcile: {
-      upsertToolCall: (value) => reconciled.push(value.id),
+      upsertToolCall: (value) => {
+        reconciled.push(value.id);
+        reconciledStatuses.push(value.status);
+      },
       upsertConversation: () => undefined,
       upsertAgent: () => undefined,
     },
@@ -43,6 +47,7 @@ function fixture(resolve?: InteractionActionDeps["requests"]["resolve"]) {
     calls,
     notifications,
     reconciled,
+    reconciledStatuses,
   };
 }
 
@@ -55,6 +60,31 @@ describe("canonical tool interaction actions", () => {
     assert.deepEqual(reconciled, []);
     assert.deepEqual(notifications, [
       { kind: "error", title: "Could not deny approval" },
+    ]);
+  });
+
+  it("settles an approval on the decision receipt with the tool still queued", async () => {
+    const queued = {
+      ...toolCall,
+      status: "committed",
+    } as unknown as ToolCallRecord;
+    const { actions, notifications, reconciledStatuses } = fixture(
+      async () => ({
+        toolCall: queued,
+        checkpoint: {
+          runId: "run_1",
+          checkpointId: "checkpoint_1",
+          runRevision: 7,
+          phase: "executing",
+        },
+      }),
+    );
+    // The RPC acknowledges the durable decision before execution; the action
+    // settles immediately and reconciles the queued (committed) record.
+    await actions.grantApproval("approval_tool_1_0");
+    assert.deepEqual(reconciledStatuses, ["committed"]);
+    assert.deepEqual(notifications, [
+      { kind: "success", title: "Approval granted" },
     ]);
   });
 

@@ -1,3 +1,4 @@
+import { disabledToolNamesForCapabilities } from "@nervekit/contracts/capabilities";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
   type AgentCustomModel,
@@ -26,11 +27,7 @@ import { type ContextUsage } from "@nervekit/contracts/models";
 import { type ConversationRecord } from "@nervekit/contracts/conversations";
 import { type RunRecord } from "@nervekit/contracts/runs";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
-import {
-  type ToolCallRecord,
-  type ToolName,
-  type UserConfigurableToolName,
-} from "@nervekit/contracts/tools";
+import { type ToolCallRecord, type ToolName } from "@nervekit/contracts/tools";
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
@@ -57,6 +54,7 @@ import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
+import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
 import type { AppendEntryFn, MessageMirror } from "./message-mirror.js";
 import { type ExploreReport, SubagentRunner } from "./subagent-runner.js";
@@ -173,10 +171,9 @@ export class WorkbenchAgentMechanics {
       );
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
-      disabledToolNames: (disabledToolNames ?? settings.tools.disabled).filter(
-        (name): name is UserConfigurableToolName =>
-          name !== "jira" && name !== "confluence",
-      ),
+      disabledToolNames: disabledToolNames
+        ? disabledToolNamesForCapabilities(disabledToolNames)
+        : settings.tools.disabled,
       jiraEnabled: integrationToolEnabled({
         name: "jira",
         settings: settings.tools.jira,
@@ -250,7 +247,7 @@ export class WorkbenchAgentMechanics {
   }): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
     const inline =
-      input.command === "start"
+      input.command === "start" && agent.executionKind !== "async_developer"
         ? parseInlineCommandPrompt(input.prompt ?? "")
         : undefined;
     if (inline) {
@@ -341,8 +338,10 @@ export class WorkbenchAgentMechanics {
     const failedParentId = leaf.parentId;
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
-      (await resolveProjectSettings(this.deps.storage, input.agent.projectDir))
-        .compaction,
+      compactionSettingsForAgent(
+        await resolveProjectSettings(this.deps.storage, input.agent.projectDir),
+        input.agent,
+      ),
     );
     try {
       await input.conversation.moveTo(failedParentId);

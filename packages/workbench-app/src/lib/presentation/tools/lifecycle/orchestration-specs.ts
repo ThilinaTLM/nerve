@@ -1,3 +1,4 @@
+import type { AsyncSubagentToolName } from "@nervekit/contracts/agents";
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
@@ -104,7 +105,39 @@ function taskStartPresentation(
   });
 }
 
+/**
+ * Teammates are addressed by name. The assignment prompt stays visible after
+ * completion; the result view renders a separate compact output block below it.
+ */
+function subagentSpec<Name extends AsyncSubagentToolName>(
+  name: Name,
+): ToolLifecycleSpec<Name> {
+  return spec({
+    name,
+    argumentRegion: name === "subagent_prompt" ? "persistent" : "until-result",
+    completedView: "subagent",
+    present: (source) => {
+      const rawPrompt =
+        name === "subagent_prompt" ? source.string("prompt") : undefined;
+      const prompt = boundedText(rawPrompt);
+      return argumentPresentation({
+        primaryArg:
+          name === "subagent_list" ? undefined : textArg(source.string("name")),
+        body: prompt
+          ? codeBody(prompt, "text", { force: true, label: "Assignment" })
+          : undefined,
+      });
+    },
+  });
+}
+
 export const orchestrationToolLifecycleSpecs = {
+  subagent_new: subagentSpec("subagent_new"),
+  subagent_prompt: subagentSpec("subagent_prompt"),
+  subagent_list: subagentSpec("subagent_list"),
+  subagent_status: subagentSpec("subagent_status"),
+  subagent_stop: subagentSpec("subagent_stop"),
+
   task_start: spec({
     name: "task_start",
     argumentRegion: "until-result",

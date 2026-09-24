@@ -32,7 +32,7 @@ export type ToolArgumentBody =
       kind: "checklist";
       items: Array<{ text: string; done: boolean }>;
     }
-  | { kind: "text-summary"; text: string; label?: string }
+  | { kind: "text-summary"; text: string; label?: string; mono?: boolean }
   | { kind: "atlassian-summary"; text: string }
   | {
       kind: "atlassian-draft";
@@ -87,6 +87,7 @@ export type CompletedViewFamily =
   | "task_status"
   | "task_logs"
   | "explore"
+  | "subagent"
   | "plan_mode"
   | "jira"
   | "confluence"

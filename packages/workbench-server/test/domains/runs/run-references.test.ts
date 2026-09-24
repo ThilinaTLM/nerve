@@ -116,6 +116,55 @@ test("authorizes only a descendant chain of projected harness task events", () =
   );
 });
 
+test("authorizes typed and legacy subagent notifications but never run-status projections", () => {
+  const path = [
+    checkpointEntry(),
+    {
+      ...taskEntry("entry_child", "entry_checkpoint", "entry_notice"),
+      message: {
+        role: "harness" as const,
+        eventType: "subagent_event",
+        content: "Child completed",
+        details: { notificationEntryId: "entry_notice" },
+        timestamp: 1,
+      },
+    },
+  ];
+  const typed = {
+    ...projection("entry_notice"),
+    kind: "subagent_run_event" as const,
+    details: {
+      type: "subagent_event",
+      source: "harness",
+      notificationEntryId: "entry_notice",
+    },
+  };
+  for (const kind of ["subagent_run_event", "message"] as const) {
+    assert.equal(
+      isAuthorizedTaskEventAdvance(path, "entry_checkpoint", run, () => ({
+        ...typed,
+        kind,
+      })),
+      true,
+    );
+  }
+  assert.equal(
+    isAuthorizedTaskEventAdvance(path, "entry_checkpoint", run, () => ({
+      ...typed,
+      kind: "run_status",
+    })),
+    false,
+  );
+  assert.deepEqual(
+    checkpointTranscriptEntryIds([
+      {
+        entries: [typed, { ...typed, kind: "run_status", id: "entry_status" }],
+      },
+    ]),
+    [typed.id],
+  );
+});
+
 test("rejects an unrelated branch or untyped harness descendant", () => {
   const projected = projection("entry_notice");
   const untypedHarness = taskEntry(

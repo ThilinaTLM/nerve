@@ -62,7 +62,10 @@ export class ConversationHarnessStorage {
     message: AgentMessage,
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const storage = await this.openStorage(conversation);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.openAgentStorage(agent)
+        : await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     const id = await harnessConversation.appendMessage(message);
     const entry = await storage.getEntry(id);
@@ -79,7 +82,10 @@ export class ConversationHarnessStorage {
     timestamp = new Date().toISOString(),
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const storage = await this.openStorage(conversation);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.openAgentStorage(agent)
+        : await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     await harnessConversation.appendMessageWithId(id, message, timestamp);
     const entry = await storage.getEntry(id);
@@ -93,7 +99,10 @@ export class ConversationHarnessStorage {
     timestamp = new Date().toISOString(),
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
-    const storage = await this.openStorage(conversation);
+    const storage =
+      agent.executionKind === "async_developer"
+        ? await this.openAgentStorage(agent)
+        : await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
     await harnessConversation.appendHarnessMessageWithId(
       id,

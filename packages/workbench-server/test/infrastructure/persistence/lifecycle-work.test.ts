@@ -105,6 +105,107 @@ test("lifecycle work uses fenced claims and terminal settlement", async (t) => {
   await store.close();
 });
 
+test("cancelled run fences only ready tool work and records a leased claimed outcome once", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-lifecycle-cancel-fence-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const store = new CanonicalStore(join(home, "nerve.sqlite"));
+  await store.initialize();
+  const ready = { ...work, id: "work_ready", proposalId: "proposal_ready" };
+  const ambiguousReady = {
+    ...work,
+    id: "work_ambiguous_ready",
+    proposalId: "proposal_ambiguous_ready",
+    deduplicationKey: "run_test:execute:proposal_ambiguous_ready",
+  };
+  const leased = {
+    ...work,
+    id: "work_leased",
+    proposalId: "proposal_leased",
+    deduplicationKey: "run_test:execute:proposal_leased",
+  };
+  const other = {
+    ...work,
+    id: "work_other",
+    runId: "run_other",
+    proposalId: "proposal_other",
+    deduplicationKey: "run_other:execute:proposal_other",
+  };
+  await store.insertLifecycleWork(ready);
+  await store.insertLifecycleWork(ambiguousReady);
+  await store.insertLifecycleWork(leased);
+  await store.insertLifecycleWork(other);
+  const claim = await store.claimLifecycleWork({
+    workId: leased.id,
+    expectedGeneration: 0,
+    leaseOwner: "boot_one",
+    leaseDeadline: "2026-01-01T00:00:30.000Z",
+    now,
+  });
+  assert.equal(claim?.state, "leased");
+  await store.persistRecoveryIssue({
+    id: "recovery_leased",
+    conversationId: work.conversationId,
+    workId: leased.id,
+    proposalId: "proposal_leased",
+    code: "outcome_unknown",
+    message: "Ownership expired.",
+    actions: ["inspect", "authorize_retry"],
+    createdAt: now,
+  });
+  const input = {
+    runId: "run_test",
+    now: "2026-01-01T00:00:01.000Z",
+    unknownProposalIds: ["proposal_leased", "proposal_ambiguous_ready"],
+  };
+  const fenced = await store.fenceCancelledRunToolWork(input);
+  assert.deepEqual(
+    fenced.map((item) => item.id),
+    [ambiguousReady.id, ready.id].sort(),
+  );
+  assert.equal(
+    fenced.find((item) => item.id === ready.id)?.failurePhase,
+    "pre_dispatch",
+  );
+  assert.equal(
+    fenced.find((item) => item.id === ambiguousReady.id)?.failurePhase,
+    "post_dispatch",
+  );
+  assert.equal(
+    (await store.readLifecycleWork(ambiguousReady.id))?.state,
+    "outcome_unknown",
+  );
+  assert.equal((await store.readLifecycleWork(ready.id))?.state, "cancelled");
+  assert.equal((await store.readLifecycleWork(leased.id))?.state, "leased");
+  assert.equal((await store.readLifecycleWork(other.id))?.state, "ready");
+  assert.equal(
+    await store.claimLifecycleWork({
+      workId: ready.id,
+      expectedGeneration: 0,
+      leaseOwner: "boot_two",
+      leaseDeadline: "2026-01-01T00:00:30.000Z",
+      now: input.now,
+    }),
+    undefined,
+  );
+  assert.deepEqual(await store.fenceCancelledRunToolWork(input), []);
+  const issues = await store.listRecoveryIssues(work.conversationId);
+  assert.equal(issues.length, 2);
+  assert.deepEqual(issues.map((issue) => issue.proposalId).sort(), [
+    "proposal_ambiguous_ready",
+    "proposal_leased",
+  ]);
+  assert.ok(issues.every((issue) => issue.actions.join() === "inspect"));
+  assert.equal(
+    issues.find((issue) => issue.proposalId === "proposal_leased")?.createdAt,
+    now,
+  );
+  assert.ok(
+    issues.every((issue) => /external outcome is unknown/.test(issue.message)),
+  );
+  assert.equal((await store.listRecoveryIssues(work.conversationId)).length, 2);
+  await store.close();
+});
+
 test("safe replay recovery can fenced-requeue an abandoned lease", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-lifecycle-requeue-"));
   t.after(() => rm(home, { recursive: true, force: true }));

@@ -20,6 +20,7 @@ import { EncryptedFileSecretProvider } from "../../../src/infrastructure/secrets
 import {
   initializeStorage,
   inspectNerveHome,
+  writeSettings,
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 async function temporaryHome(prefix: string) {
@@ -146,8 +147,9 @@ test("loads older home configuration with missing additive defaults", async (t) 
 
   const harness = JSON.parse(
     await readFile(initial.paths.harnessConfigPath, "utf8"),
-  ) as { skills: { nerve?: unknown } };
+  ) as { skills: { nerve?: unknown }; asyncSubagent?: unknown };
   delete harness.skills.nerve;
+  delete harness.asyncSubagent;
   await writeFile(
     initial.paths.harnessConfigPath,
     `${JSON.stringify(harness, null, 2)}\n`,
@@ -163,6 +165,58 @@ test("loads older home configuration with missing additive defaults", async (t) 
     enabled: [],
   });
   assert.deepEqual(reopened.settings.skills.nerve, { enabled: [] });
+  assert.deepEqual(
+    reopened.configuration.harness.asyncSubagent,
+    defaultSettings.asyncSubagent,
+  );
+  assert.deepEqual(
+    reopened.settings.asyncSubagent,
+    defaultSettings.asyncSubagent,
+  );
+});
+
+test("persists async teammate settings and clears the model without resetting its profile", async (t) => {
+  const home = await temporaryHome("nerve-home-async-settings-");
+  const storage = await initializeStorage(home);
+  t.after(async () => {
+    await storage.canonicalStore.close();
+    await rm(home, { recursive: true, force: true });
+  });
+  const model = { provider: "openai", modelId: "gpt-5" };
+  await writeSettings(storage, {
+    asyncSubagent: {
+      model,
+      compactionProfile: "custom",
+      customTriggerPercent: 87,
+      customKeepRecentPercent: 9,
+    },
+  });
+  assert.deepEqual(
+    storage.configuration.harness.asyncSubagent,
+    storage.settings.asyncSubagent,
+  );
+  assert.deepEqual(storage.settings.asyncSubagent, {
+    model,
+    compactionProfile: "custom",
+    customTriggerPercent: 87,
+    customKeepRecentPercent: 9,
+  });
+  await writeSettings(storage, {
+    asyncSubagent: { model: null, customKeepRecentPercent: 12 },
+  });
+  const persisted = JSON.parse(
+    await readFile(storage.paths.harnessConfigPath, "utf8"),
+  ) as { asyncSubagent: Record<string, unknown> };
+  assert.deepEqual(persisted.asyncSubagent, {
+    compactionProfile: "custom",
+    customTriggerPercent: 87,
+    customKeepRecentPercent: 12,
+  });
+  assert.equal(storage.settings.asyncSubagent.model, undefined);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(storage.settings.asyncSubagent)),
+    persisted.asyncSubagent,
+  );
 });
 
 test("encrypts secrets and resolves project configuration precedence", async (t) => {
@@ -190,7 +244,7 @@ test("encrypts secrets and resolves project configuration precedence", async (t)
   await mkdir(configDir, { recursive: true });
   await writeFile(
     join(configDir, "harness.json"),
-    `${JSON.stringify({ version: 1, defaults: { thinkingLevel: "low" } })}\n`,
+    `${JSON.stringify({ version: 1, defaults: { thinkingLevel: "low" }, asyncSubagent: { model: { provider: "openai", modelId: "gpt-5" }, compactionProfile: "custom", customTriggerPercent: 90 } })}\n`,
   );
   const projectSettings = await resolveProjectSettings(storage, project, {
     env: { NERVE_DEFAULT_PERMISSION_LEVEL: "read_only" },
@@ -199,6 +253,16 @@ test("encrypts secrets and resolves project configuration precedence", async (t)
   // Arguments win over environment, which wins over the project harness file.
   assert.equal(projectSettings.defaultPermissionLevel, "supervised");
   assert.equal(projectSettings.defaultThinkingLevel, "low");
+  assert.deepEqual(projectSettings.asyncSubagent, {
+    model: { provider: "openai", modelId: "gpt-5" },
+    compactionProfile: "custom",
+    customTriggerPercent: 90,
+    customKeepRecentPercent: 15,
+  });
+  assert.deepEqual(
+    storage.settings.asyncSubagent,
+    defaultSettings.asyncSubagent,
+  );
   assert.notEqual(
     projectSettings.defaultPermissionLevel,
     defaultSettings.defaultPermissionLevel,

@@ -146,6 +146,26 @@ describe("conversation event reducer", () => {
     );
   });
 
+  it("consumes child-run events without replacing the lead's active run", () => {
+    const state = applyConversationEvent(
+      emptyConversationRenderState("conv_test"),
+      startRun(),
+    );
+    const childStart = evt(2, "run.started", {
+      conversationId: "conv_test",
+      agentId: "agent_child",
+      runId: "run_child",
+      projectId: "proj_test",
+      startedAt: new Date().toISOString(),
+    });
+    const next = applyConversationEvent(state, childStart, {
+      consumeOnly: true,
+    });
+    assert.equal(next.cursorSeq, 2);
+    assert.equal(next.activeRun, state.activeRun);
+    assert.equal(next.entries, state.entries);
+  });
+
   it("consumed render-neutral events retain every nested reference", () => {
     const state = applyConversationEvent(
       emptyConversationRenderState("conv_test"),

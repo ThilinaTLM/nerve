@@ -1,3 +1,5 @@
+import { textCandidate } from "../candidates/text.js";
+import { policy } from "./define-policy.js";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { AgentResultPolicy } from "../types.js";
 import {
@@ -41,7 +43,15 @@ import {
 } from "./web.js";
 import { exploreAgentResultPolicy } from "./explore.js";
 
+const subagentPolicy = policy("lifecycle_state", "item_aware", textCandidate);
+
 const map: Record<ToolName, AgentResultPolicy> = {
+  subagent_new: subagentPolicy,
+  subagent_prompt: subagentPolicy,
+  subagent_list: subagentPolicy,
+  subagent_status: subagentPolicy,
+  subagent_stop: subagentPolicy,
+
   read: readAgentResultPolicy,
   edit: editAgentResultPolicy,
   write: writeAgentResultPolicy,

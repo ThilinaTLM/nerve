@@ -118,6 +118,12 @@ function targetDetails(
         id: target.notice.taskId ?? target.notice.entryId,
         idLabel: target.notice.taskId ? "task id" : "entry id",
       };
+    case "system_event":
+      return {
+        content: joinDetails([target.notice.summary, target.notice.text]),
+        id: target.notice.entryId,
+        idLabel: "entry id",
+      };
     case "queued_prompt":
       return {
         content: target.prompt.text,

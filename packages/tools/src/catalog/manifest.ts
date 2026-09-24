@@ -1,3 +1,4 @@
+import { subagentToolDefinitions } from "./definitions/orchestration/subagent.tools.js";
 import {
   type ToolGroupName,
   type ToolName,
@@ -51,6 +52,7 @@ export const orchestrationToolDefinitions: readonly ToolDefinition[] =
   Object.freeze(
     [
       ...taskToolDefinitions,
+      ...subagentToolDefinitions,
       ...exploreToolDefinitions,
       ...planModeToolDefinitions,
     ].map(withAgentResultPolicy),

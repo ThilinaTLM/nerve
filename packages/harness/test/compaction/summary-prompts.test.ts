@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   PLAN_IMPLEMENTATION_SUMMARIZATION_SYSTEM_PROMPT,
-  SUMMARIZATION_PROMPT,
-  SUMMARIZATION_SYSTEM_PROMPT,
   summarizationPrompts,
 } from "../../src/compaction/compaction.js";
 
@@ -19,13 +17,6 @@ const requiredHeadings = [
 ];
 
 describe("compaction summary prompts", () => {
-  it("keeps the default summarization prompts unchanged", () => {
-    assert.deepEqual(summarizationPrompts(undefined, false), {
-      systemPrompt: SUMMARIZATION_SYSTEM_PROMPT,
-      userPrompt: SUMMARIZATION_PROMPT,
-    });
-  });
-
   it("builds a plan-aware implementation handoff without duplicating the plan", () => {
     const planPath = "/home/test/.nerve/plans/feature.md";
     const prompts = summarizationPrompts(

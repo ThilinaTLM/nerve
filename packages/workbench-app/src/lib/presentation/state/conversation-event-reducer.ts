@@ -157,6 +157,7 @@ export function applyConversationEvent(
   };
   if (
     !handled ||
+    options.consumeOnly ||
     (eventRevision !== undefined &&
       currentRevision !== undefined &&
       eventRevision < currentRevision)

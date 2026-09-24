@@ -83,7 +83,11 @@ let {
       <p class="m-0 text-xs font-medium text-muted-foreground">{body.label}</p>
     {/if}
     <p
-      class="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
+      class="m-0 whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
+      class:font-mono={body.kind === "text-summary" && body.mono}
+      class:text-xs={body.kind === "text-summary" && body.mono}
+      class:text-sm={body.kind !== "text-summary" || !body.mono}
+      class:leading-relaxed={body.kind !== "text-summary" || !body.mono}
     >
       {body.text}
     </p>

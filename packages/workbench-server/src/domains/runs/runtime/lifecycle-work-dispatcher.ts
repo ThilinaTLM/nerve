@@ -49,22 +49,29 @@ type ActiveExecution = {
 export class LifecycleWorkDispatcher {
   private draining?: Promise<void>;
   private pendingWake = false;
+  private started = false;
+  private stopped = false;
   private readonly wakeWaiters = new Set<() => void>();
   private pollTimer?: NodeJS.Timeout;
+  private dueTimer?: NodeJS.Timeout;
+  private dueAt = Infinity;
   private readonly executor: LifecycleWorkExecutor;
 
   constructor(private readonly options: LifecycleWorkDispatcherOptions) {
     this.executor = new LifecycleWorkExecutor(options);
   }
 
-  /** Starts recovery work without making daemon readiness depend on its duration. */
+  /** Opens the recovery gate after hydration and projector rebuilding. */
   start(intervalMs = 5_000): void {
+    if (this.started || this.stopped) return;
+    this.started = true;
     this.startPolling(intervalMs);
+    // Always scan durable work, even if no notification survived process exit.
     this.trigger();
   }
 
-  startPolling(intervalMs = 5_000): void {
-    if (this.pollTimer) return;
+  private startPolling(intervalMs: number): void {
+    if (this.pollTimer || !this.started || this.stopped) return;
     this.pollTimer = setInterval(() => this.trigger(), intervalMs);
     this.pollTimer.unref();
   }
@@ -72,6 +79,18 @@ export class LifecycleWorkDispatcher {
   /** Requests a drain and reports infrastructure failures without an unhandled rejection. */
   trigger(): void {
     void this.wake().catch((error) => this.options.onDrainError?.(error));
+  }
+
+  /** Closes the gate permanently; already running handlers may finish. */
+  stop(): void {
+    this.stopped = true;
+    this.started = false;
+    this.pendingWake = false;
+    this.stopPolling();
+    if (this.dueTimer) clearTimeout(this.dueTimer);
+    this.dueTimer = undefined;
+    for (const notify of this.wakeWaiters) notify();
+    this.wakeWaiters.clear();
   }
 
   stopPolling(): void {
@@ -85,12 +104,17 @@ export class LifecycleWorkDispatcher {
   }
 
   wake(): Promise<void> {
+    if (this.stopped) return Promise.resolve();
     this.pendingWake = true;
+    if (!this.started) return Promise.resolve();
     for (const notify of this.wakeWaiters) notify();
     this.wakeWaiters.clear();
     if (!this.draining) {
       this.draining = this.drainUntilStable().finally(() => {
         this.draining = undefined;
+        // A wake can arrive after drain's last check but before this finalizer.
+        // Hand it to a successor instead of waiting for the polling fallback.
+        if (this.pendingWake && this.started && !this.stopped) this.trigger();
       });
     }
     return this.draining;
@@ -99,7 +123,7 @@ export class LifecycleWorkDispatcher {
   private async drainUntilStable(): Promise<void> {
     do {
       await this.drain();
-    } while (this.pendingWake);
+    } while (this.started && !this.stopped && this.pendingWake);
   }
 
   private async drain(): Promise<void> {
@@ -107,6 +131,10 @@ export class LifecycleWorkDispatcher {
     const pending = new Map<string, LifecycleWork>();
 
     while (true) {
+      if (this.stopped) {
+        await Promise.all([...active.values()].map(({ promise }) => promise));
+        return;
+      }
       if (this.pendingWake) {
         this.pendingWake = false;
         const now = (this.options.now ?? (() => new Date()))();
@@ -114,13 +142,18 @@ export class LifecycleWorkDispatcher {
           now.toISOString(),
           100,
         );
+        if (this.stopped) continue;
         for (const work of due) {
           if (!active.has(work.id) && !pending.has(work.id)) {
             pending.set(work.id, work);
           }
         }
+        // Recovery may commit a notBefore a few milliseconds after the
+        // startup scan. Schedule that boundary rather than waiting for poll.
+        if (due.length === 0) await this.scheduleNextDue(now);
       }
 
+      if (this.stopped) continue;
       this.launchAvailable(pending, active);
 
       if (active.size === 0) {
@@ -133,6 +166,32 @@ export class LifecycleWorkDispatcher {
       // A completion may expose more persisted work beyond the last page.
       this.pendingWake = true;
     }
+  }
+
+  private async scheduleNextDue(now: Date): Promise<void> {
+    const future = await this.options.store.listDueLifecycleWork(
+      new Date(now.getTime() + 5_000).toISOString(),
+      100,
+    );
+    if (this.stopped) return;
+    const next = Math.min(
+      ...future
+        .filter((work) => work.state === "ready")
+        .map((work) => Date.parse(work.notBefore))
+        .filter((time) => time > now.getTime()),
+    );
+    if (!Number.isFinite(next) || next >= this.dueAt) return;
+    if (this.dueTimer) clearTimeout(this.dueTimer);
+    this.dueAt = next;
+    this.dueTimer = setTimeout(
+      () => {
+        this.dueTimer = undefined;
+        this.dueAt = Infinity;
+        this.trigger();
+      },
+      Math.max(1, next - now.getTime()),
+    );
+    this.dueTimer.unref();
   }
 
   private launchAvailable(

@@ -53,6 +53,7 @@ export const runAcceptedResultSchema = z.object({
       "queued",
       "running",
       "retrying",
+      "executing_tools",
       "suspended",
       "waiting",
       "completed",

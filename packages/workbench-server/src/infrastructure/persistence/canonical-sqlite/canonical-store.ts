@@ -1,3 +1,4 @@
+import type { AsyncSubagentCompletion } from "@nervekit/contracts/agents";
 import type {
   ConversationDeletionChunk,
   ConversationDeletionCursor,
@@ -12,6 +13,7 @@ import type {
 } from "@nervekit/contracts/runs";
 import type {
   ClaimLifecycleWorkInput,
+  FenceCancelledRunToolWorkInput,
   LifecycleAtomicCommitInput,
   LifecycleAtomicCommitResult,
   ReconciliationOperationRecord,
@@ -145,6 +147,21 @@ export class CanonicalStore {
     return this.writer.request<T>(command, transferList);
   }
 
+  putSubagentCompletion(record: AsyncSubagentCompletion): Promise<void> {
+    return this.request({ kind: "put_subagent_completion", record });
+  }
+
+  listSubagentCompletions(leadId?: string): Promise<AsyncSubagentCompletion[]> {
+    return this.request({ kind: "list_subagent_completions", leadId }, true);
+  }
+
+  removeSubagentCompletions(conversationId: string): Promise<void> {
+    return this.request({
+      kind: "remove_subagent_completions",
+      conversationId,
+    });
+  }
+
   persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {
     return this.request<LifecycleAtomicCommitResult>(
       { kind: "persist_lifecycle_atomic_commit", input },
@@ -177,6 +194,18 @@ export class CanonicalStore {
       now,
       limit,
     });
+  }
+  listLifecycleWorkForRun(runId: string) {
+    return this.request<LifecycleWork[]>({
+      kind: "list_lifecycle_work_for_run",
+      runId,
+    });
+  }
+  fenceCancelledRunToolWork(input: FenceCancelledRunToolWorkInput) {
+    return this.request<LifecycleWork[]>(
+      { kind: "fence_cancelled_run_tool_work", input },
+      true,
+    );
   }
   claimLifecycleWork(input: ClaimLifecycleWorkInput) {
     return this.request<LifecycleWork | undefined>(

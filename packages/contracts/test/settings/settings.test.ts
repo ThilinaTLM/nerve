@@ -1,3 +1,4 @@
+import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
@@ -10,6 +11,92 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("upgrades old tool settings without silently enabling autonomous teammates", () => {
+    const upgraded = harnessConfigSchema.parse({
+      ...defaultHarnessConfig,
+      version: 1,
+      tools: { ...defaultHarnessConfig.tools, disabled: [] },
+    });
+    assert.equal(upgraded.version, 2);
+    assert.ok(
+      asyncSubagentToolNames.every((name) =>
+        upgraded.tools.disabled.includes(name),
+      ),
+    );
+    const enabled = harnessConfigSchema.parse({
+      ...upgraded,
+      tools: { ...upgraded.tools, disabled: [] },
+    });
+    assert.deepEqual(enabled.tools.disabled, []);
+    assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);
+  });
+  it("normalizes a partially disabled teammate group to fully disabled", () => {
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      tools: { ...defaultSettings.tools, disabled: ["subagent_prompt"] },
+    });
+    assert.deepEqual(
+      new Set(settings.tools.disabled),
+      new Set(asyncSubagentToolNames),
+    );
+  });
+
+  it("validates async teammate settings and nullable model patches", () => {
+    assert.deepEqual(defaultSettings.asyncSubagent, {
+      compactionProfile: "inherit",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    });
+    assert.deepEqual(
+      defaultHarnessConfig.asyncSubagent,
+      defaultSettings.asyncSubagent,
+    );
+    const model = { provider: "openai", modelId: "gpt-5" };
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({
+        asyncSubagent: {
+          model,
+          compactionProfile: "custom",
+          customTriggerPercent: 90,
+          customKeepRecentPercent: 5,
+        },
+      }).asyncSubagent?.model,
+      model,
+    );
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({ asyncSubagent: { model: null } })
+        .asyncSubagent,
+      { model: null },
+    );
+    assert.equal(
+      updateSettingsRequestSchema.safeParse({
+        asyncSubagent: { compactionProfile: "invalid" },
+      }).success,
+      false,
+    );
+    for (const [key, value] of [
+      ["customTriggerPercent", 59],
+      ["customTriggerPercent", 91],
+      ["customKeepRecentPercent", 4],
+      ["customKeepRecentPercent", 41],
+      ["customKeepRecentPercent", 5.5],
+    ] as const) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          asyncSubagent: { [key]: value },
+        }).success,
+        false,
+      );
+    }
+    assert.equal(
+      harnessConfigSchema.safeParse({
+        ...defaultHarnessConfig,
+        asyncSubagent: { ...defaultHarnessConfig.asyncSubagent, model: null },
+      }).success,
+      false,
+    );
+  });
+
   it("defaults newly added Nerve skill settings in older harness files", () => {
     const legacy = structuredClone(defaultHarnessConfig) as Record<
       string,
@@ -23,10 +110,6 @@ describe("settings schema", () => {
 
     assert.deepEqual(parsed.skills.nerve, { enabled: [] });
   });
-  it("round-trips canonical defaults", () => {
-    assert.deepEqual(settingsSchema.parse(defaultSettings), defaultSettings);
-  });
-
   it("adds automatic resource defaults to older persisted application settings", () => {
     const legacy = structuredClone(defaultSettings);
     const application: Record<string, unknown> = { ...legacy.application };

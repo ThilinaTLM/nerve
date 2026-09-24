@@ -10,11 +10,10 @@ it("uses the selected model context window for threshold compaction", async () =
     "openai",
     "gpt-5.6-sol",
   );
-  const selected = agentRecord(
-    "agent_selected_small_window",
-    "xai",
-    "grok-4.5",
-  );
+  const selected = {
+    ...agentRecord("agent_selected_small_window", "xai", "grok-4.5"),
+    executionKind: "async_developer" as const,
+  };
   const timestamp = "2026-07-18T00:00:00.000Z";
   const branch = [
     {
@@ -72,6 +71,11 @@ it("uses the selected model context window for threshold compaction", async () =
           customTriggerPercent: 80,
           customKeepRecentPercent: 15,
         },
+        asyncSubagent: {
+          compactionProfile: "aggressive",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
       },
     },
     harnessStorage: {
@@ -108,8 +112,8 @@ it("uses the selected model context window for threshold compaction", async () =
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
   assert.equal(compactions[0]?.contextWindow, 500_000);
-  assert.equal(compactions[0]?.thresholdTokens, 400_000);
-  assert.equal(compactions[0]?.keepRecentTokens, 75_000);
+  assert.equal(compactions[0]?.thresholdTokens, 350_000);
+  assert.equal(compactions[0]?.keepRecentTokens, 50_000);
   assert.equal(compactions[0]?.activeConversation, activeConversation);
 });
 
@@ -163,6 +167,11 @@ it("compacts projected prompt usage before the first provider iteration", async 
         compaction: {
           auto: true,
           profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+        asyncSubagent: {
+          compactionProfile: "inherit",
           customTriggerPercent: 80,
           customKeepRecentPercent: 15,
         },

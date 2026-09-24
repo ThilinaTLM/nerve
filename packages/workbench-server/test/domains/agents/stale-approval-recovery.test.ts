@@ -77,7 +77,12 @@ test("a stale decided approval is cancelled durably across restarts without tool
       text: "Move the active branch after the approval checkpoint.",
     });
     await assert.rejects(
-      runtime.services.humanInput.resolveApproval(approval.id, "allow"),
+      runtime.services.humanInput.resolveApproval({
+        toolCallId,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "request_stale",
+      }),
       (error: unknown) =>
         error instanceof Error &&
         "code" in error &&

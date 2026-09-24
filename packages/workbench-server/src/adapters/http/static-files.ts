@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import {
   dirname,
   extname,
@@ -69,6 +69,10 @@ export async function serveStatic(
     : join(webDist, "index.html");
 
   try {
+    // A path inside the distribution can still be a symlink to a file outside it.
+    if (!isPathInside(await realpath(webDist), await realpath(finalPath))) {
+      return new Response("Not found", { status: 404 });
+    }
     const contents = await readFile(finalPath);
     return new Response(contents, {
       headers: staticResponseHeaders(

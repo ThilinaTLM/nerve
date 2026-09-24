@@ -246,6 +246,12 @@ export async function writeSettings(
         ...(patch.exploreAgent.model === null ? { model: undefined } : {}),
       }
     : undefined;
+  const asyncSubagentPatch = patch.asyncSubagent
+    ? {
+        ...patch.asyncSubagent,
+        ...(patch.asyncSubagent.model === null ? { model: undefined } : {}),
+      }
+    : undefined;
   const runtimePatch = patch.runtime
     ? {
         ...patch.runtime,
@@ -406,6 +412,10 @@ export async function writeSettings(
     exploreAgent: {
       ...storage.settings.exploreAgent,
       ...(exploreAgentPatch ?? {}),
+    },
+    asyncSubagent: {
+      ...storage.settings.asyncSubagent,
+      ...(asyncSubagentPatch ?? {}),
     },
     compaction: {
       ...storage.settings.compaction,

@@ -43,11 +43,12 @@ export function capabilityBodyHeight(
   return `${rows * CAPABILITY_ROW_REM + CAPABILITY_BODY_PADDING_REM}rem`;
 }
 
-export function filterCapabilityRows<T extends { label: string }>(
-  rows: T[],
-  query: string,
-): T[] {
+export function filterCapabilityRows<
+  T extends { label: string; searchText?: string },
+>(rows: T[], query: string): T[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return rows;
-  return rows.filter((row) => row.label.toLowerCase().includes(needle));
+  return rows.filter((row) =>
+    `${row.label} ${row.searchText ?? ""}`.toLowerCase().includes(needle),
+  );
 }
