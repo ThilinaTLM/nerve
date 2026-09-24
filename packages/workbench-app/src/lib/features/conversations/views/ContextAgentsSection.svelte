@@ -90,7 +90,7 @@ function idleLabel(agent: AgentRecord): string {
     title={rowTitle(agent)}
     class="min-h-6 py-0.5"
     selected={agent.id === activeAgent?.id}
-    alwaysShowActions={openDetailAgentId === agent.id}
+    alwaysShowActions
     onclick={() => activateRow(agent)}
   >
     {#snippet leading()}
@@ -212,6 +212,10 @@ function idleLabel(agent: AgentRecord): string {
                   ></span>
                 {/each}
               </span>
+            {/snippet}
+            {#snippet actions()}
+              <!-- Reserves the detail-trigger column so the strip aligns with row badges. -->
+              <span class="size-5" aria-hidden="true"></span>
             {/snippet}
           </PanelRow>
           {#if exploreOpen}
