@@ -1,10 +1,9 @@
 /**
- * Synthetic multi-repository workspace for website screenshots.
+ * Synthetic multi-project workspaces for website screenshots.
  *
- * Everything here is invented: "Aurora" is not a real product, the author is
- * not a real person, and no path, host, or account outside the throwaway
- * capture directory is referenced. Commits use fixed timestamps so repeated
- * seeds produce the same history.
+ * Everything here is invented: the projects and author are not real, and no
+ * path, host, or account outside the throwaway capture directory is referenced.
+ * Commits use fixed timestamps so repeated seeds produce the same history.
  */
 
 import { execFile } from "node:child_process";
@@ -20,6 +19,14 @@ const AUTHOR_EMAIL = "demo@aurora.example";
 /** Fixed clock so seeded history does not drift between captures. */
 const BASE_TIME = Date.parse("2026-03-02T09:00:00.000Z");
 
+export interface DemoProject {
+  /** Stable directory and storage identifier. */
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly repositories: readonly DemoRepo[];
+}
+
 export interface DemoRepo {
   readonly name: string;
   readonly description: string;
@@ -32,7 +39,7 @@ export interface DemoRepo {
   readonly staged?: Readonly<Record<string, string>>;
 }
 
-export const DEMO_REPOS: readonly DemoRepo[] = [
+const AURORA_REPOS: readonly DemoRepo[] = [
   {
     name: "aurora-api",
     description: "Booking API service",
@@ -273,6 +280,188 @@ Field staff app for the Aurora demo workspace.
   },
 ];
 
+const NORTHSTAR_REPOS: readonly DemoRepo[] = [
+  {
+    name: "northstar-journal",
+    description: "Offline-first garden journal",
+    branches: ["main", "feat/season-summary"],
+    files: {
+      "package.json": `{
+  "name": "northstar-journal",
+  "version": "0.5.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "test": "vitest run"
+  }
+}
+`,
+      "src/entries.ts": `export interface GardenEntry {
+  plantedOn: string;
+  crop: string;
+  notes: string;
+}
+
+export function entriesForMonth(entries: GardenEntry[], month: string) {
+  return entries.filter((entry) => entry.plantedOn.startsWith(month));
+}
+`,
+      "src/storage.ts": `import type { GardenEntry } from "./entries.js";
+
+const STORAGE_KEY = "northstar.entries";
+
+export function saveEntries(entries: GardenEntry[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+}
+
+export function loadEntries(): GardenEntry[] {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
+}
+`,
+      "src/season-summary.ts": `import type { GardenEntry } from "./entries.js";
+
+export function cropTotals(entries: GardenEntry[]) {
+  return Map.groupBy(entries, (entry) => entry.crop);
+}
+`,
+      "test/entries.test.ts": `import { expect, test } from "vitest";
+import { entriesForMonth } from "../src/entries.js";
+
+test("selects entries in the requested month", () => {
+  const entries = [
+    { plantedOn: "2026-03-08", crop: "peas", notes: "north bed" },
+    { plantedOn: "2026-04-02", crop: "chard", notes: "two rows" },
+  ];
+  expect(entriesForMonth(entries, "2026-03")).toHaveLength(1);
+});
+`,
+      "README.md": `# Northstar Journal
+
+A small offline garden journal for tracking plantings through the season.
+`,
+    },
+    commits: [
+      { message: "Store journal entries in the browser" },
+      { message: "Filter planting notes by month" },
+      { message: "Cover monthly entry filtering" },
+      { message: "Draft crop totals for the season summary" },
+    ],
+    dirty: {
+      "src/season-summary.ts": `import type { GardenEntry } from "./entries.js";
+
+export function cropTotals(entries: GardenEntry[]) {
+  return Array.from(
+    Map.groupBy(entries, (entry) => entry.crop),
+    ([crop, cropEntries]) => ({ crop, count: cropEntries.length }),
+  ).sort((left, right) => left.crop.localeCompare(right.crop));
+}
+`,
+    },
+  },
+];
+
+const RELAYBOARD_REPOS: readonly DemoRepo[] = [
+  {
+    name: "relayboard-cli",
+    description: "Command-line shift handoff notebook",
+    branches: ["main", "feat/json-export"],
+    files: {
+      "package.json": `{
+  "name": "relayboard-cli",
+  "version": "0.3.1",
+  "type": "module",
+  "bin": { "relayboard": "src/cli.js" },
+  "scripts": { "test": "node --test" }
+}
+`,
+      "src/cli.js": `import { readFile } from "node:fs/promises";
+import { formatHandoff } from "./format.js";
+
+const file = process.argv[2] ?? "handoff.json";
+const handoff = JSON.parse(await readFile(file, "utf8"));
+console.log(formatHandoff(handoff));
+`,
+      "src/format.js": `export function formatHandoff({ shift, owner, items }) {
+  const heading = \`# \${shift} handoff — \${owner}\`;
+  const checklist = items.map((item) => \`- [ ] \${item}\`).join("\\n");
+  return \`\${heading}\\n\\n\${checklist}\`;
+}
+`,
+      "test/format.test.js": `import assert from "node:assert/strict";
+import test from "node:test";
+import { formatHandoff } from "../src/format.js";
+
+test("formats handoff items as a checklist", () => {
+  const result = formatHandoff({
+    shift: "evening",
+    owner: "Sam",
+    items: ["Review queue"],
+  });
+  assert.match(result, /- \\[ \\] Review queue/);
+});
+`,
+      "examples/handoff.json": `{
+  "shift": "morning",
+  "owner": "Morgan",
+  "items": ["Check overnight alerts", "Confirm delivery window"]
+}
+`,
+      "README.md": `# Relayboard CLI
+
+A tiny local tool that turns shift notes into a consistent handoff checklist.
+`,
+    },
+    commits: [
+      { message: "Format handoff notes as a checklist" },
+      { message: "Accept a handoff file from the command line" },
+      { message: "Add a representative morning shift example" },
+    ],
+    staged: {
+      "src/export.js": `export function exportHandoff(handoff) {
+  return JSON.stringify(handoff, null, 2) + "\\n";
+}
+`,
+    },
+    dirty: {
+      "src/cli.js": `import { readFile } from "node:fs/promises";
+import { formatHandoff } from "./format.js";
+
+const file = process.argv[2] ?? "handoff.json";
+const handoff = JSON.parse(await readFile(file, "utf8"));
+const output = process.argv.includes("--json")
+  ? JSON.stringify(handoff, null, 2)
+  : formatHandoff(handoff);
+console.log(output);
+`,
+    },
+  },
+];
+
+const AURORA_PROJECT: DemoProject = {
+  id: "aurora",
+  name: "Aurora",
+  description:
+    "Venue booking platform spanning web, API, mobile, and infrastructure",
+  repositories: AURORA_REPOS,
+};
+
+/** Synthetic projects available to the demo-home seeder. */
+export const DEMO_PROJECTS: readonly DemoProject[] = [
+  AURORA_PROJECT,
+  {
+    id: "northstar",
+    name: "Northstar Journal",
+    description: "Offline-first garden journal",
+    repositories: NORTHSTAR_REPOS,
+  },
+  {
+    id: "relayboard",
+    name: "Relayboard",
+    description: "Lightweight shift handoff tooling",
+    repositories: RELAYBOARD_REPOS,
+  },
+];
+
 async function git(
   cwd: string,
   args: string[],
@@ -308,11 +497,14 @@ async function writeTree(
  * Creates the demo workspace on disk. Returns the workspace root that should
  * be opened as the Nerve project.
  */
-export async function createDemoWorkspace(root: string): Promise<string> {
+export async function createDemoWorkspace(
+  root: string,
+  project: DemoProject,
+): Promise<string> {
   await rm(root, { recursive: true, force: true });
   await mkdir(root, { recursive: true });
 
-  for (const repo of DEMO_REPOS) {
+  for (const repo of project.repositories) {
     const repoRoot = join(root, repo.name);
     await mkdir(repoRoot, { recursive: true });
     await git(repoRoot, ["init", "--initial-branch", "main"]);

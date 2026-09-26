@@ -15,7 +15,7 @@ Everything else — conversations, context, permissions, Git, pull requests, and
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/conversation-dark.webp">
-  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a coding conversation with the agent's reasoning, tool calls and their output, and the composer controls">
+  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a coding conversation with file edits, a background verification task, retained output, and the composer controls">
 </picture>
 
 > [!NOTE]

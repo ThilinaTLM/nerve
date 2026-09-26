@@ -73,6 +73,7 @@ if (!values["skip-seed"]) {
         ...process.env,
         NERVE_HOME: home,
         NERVE_DEMO_WORKSPACE: workspace,
+        NERVE_DEMO_GITHUB: values.github ? "1" : "0",
       },
     },
   );
@@ -90,6 +91,12 @@ const daemon = spawn("node", ["packages/workbench-server/dist/main.js"], {
     NERVE_HOME: home,
     NERVE_HOST: "127.0.0.1",
     NERVE_PORT: values.port,
+    /* The capture daemon is a short-lived local fixture, not the desktop
+     * daemon's delegated systemd scope. Do not inherit desktop containment
+     * variables from the shell that launched the refresh. */
+    NERVE_LINUX_DELEGATED_CGROUP: "0",
+    NERVE_CGROUP_ROOT: "",
+    NERVE_ALLOW_UNCONTAINED_PROCESSES: "1",
   },
 });
 

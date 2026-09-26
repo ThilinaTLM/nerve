@@ -15,10 +15,21 @@ export const DESKTOP_SCALE = 2;
 export const MOBILE_VIEWPORT = { width: 390, height: 844 };
 export const MOBILE_SCALE = 3;
 
+const DEMO_PROJECT = "Aurora";
 const RATE_LIMIT_CONVERSATION = "Add rate limiting to the booking API";
 const DEPLOY_CONVERSATION = "Investigate flaky staging deploys";
 
+async function selectProject(page, name = DEMO_PROJECT) {
+  await page.getByRole("button", { name: "Switch project" }).click();
+  const option = page.getByRole("option", {
+    name: new RegExp(`^${name}(?:, current project)?$`),
+  });
+  await option.click();
+  await page.waitForTimeout(500);
+}
+
 async function openConversation(page, title) {
+  await selectProject(page);
   await page.getByRole("tab", { name: "Conversations" }).first().click();
   await page.getByText(title, { exact: false }).first().click();
   await page.waitForTimeout(600);
@@ -35,8 +46,18 @@ async function openRightPanel(page, name) {
 
 export const DESKTOP_SCENES = [
   {
+    id: "projects",
+    alt: "The Nerve project switcher showing three active local projects and their workspace paths",
+    async drive(page) {
+      await selectProject(page);
+      await page.getByRole("button", { name: "Switch project" }).click();
+      await page.getByPlaceholder("Search projects").focus();
+      await page.waitForTimeout(400);
+    },
+  },
+  {
     id: "conversation",
-    alt: "A Nerve conversation showing the prompt, the agent's reasoning, tool calls with their bounded output, and the composer",
+    alt: "A Nerve conversation showing file edits, a background verification task, retained output, and the composer",
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page.mouse.wheel(0, 1200);
@@ -107,6 +128,7 @@ export const DESKTOP_SCENES = [
     requiresGitHub: true,
     alt: "A Nerve pull request view with the summary, mergeability, checks, and changed files beside the list of open pull requests",
     async drive(page) {
+      await selectProject(page);
       await openRightPanel(page, "Pull requests");
       /* The PR scene uses the cloned public repository, not the synthetic
        * ones, which have no remote. */
@@ -130,17 +152,12 @@ export const DESKTOP_SCENES = [
   },
 ];
 
-/* Phone width opens on the workspace start screen, so every mobile scene has
- * to pick a conversation out of the left sheet first. */
+/* Phone width uses a tabbed root with conversations under Chats. Opening one
+ * pushes the transcript as a full-screen detail view. */
 async function openMobileConversation(page, title = RATE_LIMIT_CONVERSATION) {
-  const entry = page.getByText(title, { exact: false }).first();
-  /* The sheet remembers its open state between scenes, so only toggle it when
-   * the conversation list is not already showing. */
-  if (!(await entry.isVisible().catch(() => false))) {
-    await page.getByRole("button", { name: "Toggle left panel" }).click();
-    await page.waitForTimeout(600);
-  }
-  await entry.click();
+  await page.getByRole("button", { name: "Chats" }).click();
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
   await page.waitForTimeout(1200);
 }
 
@@ -159,21 +176,22 @@ export const MOBILE_SCENES = [
     alt: "The Nerve model and reasoning-effort picker open at phone width",
     async drive(page) {
       await openMobileConversation(page);
-      await page
-        .getByRole("button", { name: "Model and thinking level" })
-        .first()
-        .click();
+      /* The phone transcript opens at its saved reading position. Bring the
+       * fixed composer controls into the rendered viewport before opening the
+       * picker. */
+      await page.mouse.wheel(0, 900);
+      await page.waitForTimeout(500);
+      await page.locator('[data-tour-id="composer-model"]:visible').click();
       await page.waitForTimeout(500);
     },
   },
   {
     id: "right-sheet",
-    alt: "The Nerve Git panel open as a sheet over the conversation at phone width",
+    alt: "The Nerve Git Changes screen opened from the phone workspace tab",
     async drive(page) {
-      await openMobileConversation(page);
-      await page.getByRole("button", { name: "Toggle right panel" }).click();
-      await page.waitForTimeout(600);
-      await page.getByRole("tab", { name: "Git" }).first().click();
+      await page.getByRole("button", { name: "Workspace" }).click();
+      await page.waitForTimeout(500);
+      await page.getByRole("button", { name: /^Git Changes/ }).click();
       await page.waitForTimeout(800);
     },
   },

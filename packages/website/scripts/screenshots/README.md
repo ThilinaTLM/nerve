@@ -11,8 +11,9 @@ pnpm --filter @nervekit/website screenshots
 That runs, in order:
 
 1. **Seed** — `packages/workbench-server/scripts/seed-demo-home.ts` builds a
-   throwaway home at `$TMPDIR/nerve-demo-home` and a four-repository demo
-   workspace at `$TMPDIR/nerve-demo-workspace/aurora`.
+   throwaway home at `$TMPDIR/nerve-demo-home` and three synthetic projects
+   under `$TMPDIR/nerve-demo-workspace`, with realistic repositories,
+   conversations, file edits, branches, and background-task history.
 2. **Build** — `pnpm build:workbench-runtime`, so the daemon serves the current
    workbench rather than a stale bundle.
 3. **Daemon** — started on `127.0.0.1:3847` against the demo home.
@@ -31,8 +32,8 @@ That runs, in order:
 - The seed script **refuses** any `NERVE_HOME` or workspace outside the system
   temp directory. It will never touch `~/.nerve`.
 - The daemon runs on port `3847`, never the default `3747`.
-- All demo content is invented. "Aurora" is not a real product and
-  `demo@aurora.example` is not a real person.
+- All demo content is invented. Aurora, Northstar Journal, and Relayboard are
+  not real products, and `demo@aurora.example` is not a real person.
 
 ## One-time setup
 
@@ -73,9 +74,9 @@ before publishing.
 1. Add an entry to `DESKTOP_SCENES` or `MOBILE_SCENES` in `scenes.mjs` with an
    `id`, descriptive `alt`, and a `drive(page)` that leaves the UI in the exact
    state to capture. Prefer accessible names and `data-view-id` over CSS paths.
-2. If the scene needs new demo content, extend
-   `packages/workbench-server/scripts/demo-data/conversations.ts` rather than
-   staging state through the UI.
+2. If the scene needs new demo content, extend the declarative project data in
+   `packages/workbench-server/scripts/demo-data/` rather than staging state
+   through the UI.
 3. Run the pipeline, review both frames, then import the new pair in the
    consuming component or MDX page.
 

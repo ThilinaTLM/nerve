@@ -47,6 +47,6 @@ The site is static and must not call a local Nerve daemon. GitHub Pages deployme
 
 ## Product screenshots
 
-Landing-page captures come from the live loopback workbench at desktop and phone viewports. The current approved set covers conversation, Git, pull requests, tasks, conversation history, model control, and dock sheets. Before committing a frame, select only the public `nerve` project, hide unrelated project shortcuts, avoid authentication/settings panes, and inspect the image for tokens, private paths, account details, or other project names.
+Landing-page captures come from the live loopback workbench at desktop and phone viewports. The approved set covers projects, conversations, Git, pull requests, tasks, conversation history, model control, and phone workspace tools. Generate it only through `scripts/screenshots/run.mjs`, which seeds three synthetic projects in throwaway directories and scans captured text for credentials, private paths, account details, and unexpected project data before publishing.
 
 Optimized WebP sources live in `src/assets/screenshots/{desktop,mobile}/`; Astro generates responsive variants at build time. Documentation pages use `src/components/docs/DocsScreenshot.astro` for theme-aware responsive pairs. Every use needs descriptive alt text and a short “What to notice” caption so the image teaches a workflow rather than serving as decoration.

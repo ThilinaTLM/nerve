@@ -57,9 +57,17 @@ test("rejects absolute paths outside the throwaway capture directories", () => {
   assert.match(violations[0], /^path:/);
 });
 
-test("allows only the demo and project repository names", () => {
-  assert.ok(isAllowedProjectName("aurora"));
-  assert.ok(isAllowedProjectName("aurora-api"));
-  assert.ok(isAllowedProjectName("nerve"));
+test("allows only the synthetic demo project and repository names", () => {
+  for (const name of [
+    "Aurora",
+    "aurora-api",
+    "Northstar Journal",
+    "northstar-journal",
+    "Relayboard",
+    "relayboard-cli",
+    "nerve",
+  ]) {
+    assert.ok(isAllowedProjectName(name), name);
+  }
   assert.ok(!isAllowedProjectName("acme-internal"));
 });

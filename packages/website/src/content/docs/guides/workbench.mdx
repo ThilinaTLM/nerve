@@ -45,15 +45,15 @@ Conversation search is a separate modal and filters the selected project's conve
 
 ## Compact layouts
 
-Below 1024px, Nerve switches to a single center column. Left dock views move into a left sheet; right and bottom views share a second sheet. Below 640px, controls use phone-oriented density. This is a functional layout, not merely a scaled desktop screenshot.
+Below 1024px, Nerve switches to a single center column and moves dock views into sheets. Below 640px, a phone-native shell replaces the desktop docks: **Inbox**, **Chats**, **Workspace**, and **More** stay in the thumb-zone tab bar, while conversations and workspace tools open as focused detail screens. This is a functional layout, not merely a scaled desktop screenshot.
 
 Layout and active-tab preferences are browser-local. A different browser profile or cleared site storage starts with defaults even though server-side projects and conversations remain.
 
 <DocsScreenshot
   light={rightSheetLight}
   dark={rightSheetDark}
-  alt="The Nerve phone layout with the Git panel open as a sheet over the active conversation"
-  caption="On narrow screens, dock content becomes a sheet while the conversation remains the primary surface underneath."
+  alt="The Nerve phone layout with the Git Changes detail screen opened from the Workspace tab"
+  caption="At phone width, the Workspace tab keeps Git, pull requests, files, tasks, context, and notes reachable without compressing the conversation."
   widths={[390, 585, 780, 1170]}
   sizes="min(24rem, calc(100vw - 3rem))"
   variant="phone"
