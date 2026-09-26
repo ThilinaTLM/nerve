@@ -10,7 +10,15 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** Project and repository names the demo seed is allowed to show. */
-const ALLOWED_NAMES = [/^aurora(-[a-z]+)?$/, /^nerve$/];
+const ALLOWED_NAMES = [
+  /^Aurora$/,
+  /^aurora(?:-[a-z]+)?$/,
+  /^Northstar Journal$/,
+  /^northstar(?:-journal)?$/,
+  /^Relayboard$/,
+  /^relayboard(?:-cli)?$/,
+  /^nerve$/,
+];
 
 const RULES = [
   {

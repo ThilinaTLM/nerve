@@ -29,7 +29,17 @@ export type DemoStep =
     }
   | { readonly type: "compaction"; readonly text: string }
   | { readonly type: "explore_report"; readonly text: string }
-  | { readonly type: "task_event"; readonly text: string };
+  | {
+      readonly type: "task_event";
+      readonly text: string;
+      readonly taskName: string;
+      readonly event: "ready" | "completed" | "failed";
+      readonly status: "running" | "completed" | "failed";
+      readonly commandPreview: string;
+      readonly command?: string;
+      readonly output?: string;
+      readonly exitCode?: number;
+    };
 
 export interface DemoBranch {
   /** Index into `steps` the branch continues from. */
@@ -153,20 +163,28 @@ const rateLimiting: DemoConversation = {
       },
     },
     {
-      type: "tool",
-      toolName: "bash",
-      risk: "command",
-      repo: "aurora-api",
-      args: { command: "pnpm test" },
-      result: {
-        content:
-          "✔ rate limit allows traffic under the window (4.1ms)\n✔ rate limit rejects past the burst allowance (2.8ms)\n✔ booking creation still succeeds when unthrottled (6.3ms)\n\n# tests 42\n# pass 42\n# fail 0\n",
-        details: { exitCode: 0, signal: null },
-      },
+      type: "task_event",
+      text: "Started the API verification suite in the background.",
+      taskName: "aurora-api tests",
+      event: "ready",
+      status: "running",
+      commandPreview: "pnpm test",
+    },
+    {
+      type: "task_event",
+      text: "The background verification suite completed successfully.",
+      taskName: "aurora-api tests",
+      event: "completed",
+      status: "completed",
+      commandPreview: "pnpm test",
+      command: "pnpm test",
+      output:
+        "✔ rate limit allows traffic under the window\n✔ rate limit rejects past the burst allowance\n✔ booking creation still succeeds when unthrottled\n\n42 tests passed in 3.8s",
+      exitCode: 0,
     },
     {
       type: "assistant",
-      text: "Rate limiting is in place on POST /bookings: a 60 second sliding window, 120 sustained requests per client key, and a 160 request burst allowance. The middleware already tracked per-key hits, so the change was a burst option plus wiring — 42 tests pass.\n\nThe limiter is in-process, so it counts per API replica rather than across the fleet. If festival on-sales need a fleet-wide cap, that needs shared state and is worth a separate change.",
+      text: "Rate limiting is in place on POST /bookings: a 60 second sliding window, 120 sustained requests per client key, and a 160 request burst allowance. The middleware already tracked per-key hits, so the change was a burst option plus wiring — all 42 tests pass in the background suite.\n\nThe limiter is in-process, so it counts per API replica rather than across the fleet. If festival on-sales need a fleet-wide cap, that needs shared state and is worth a separate change.",
     },
   ],
 };
@@ -300,7 +318,14 @@ const flakyDeploy: DemoConversation = {
         },
         {
           type: "task_event",
-          text: "Background task `staging-smoke` completed: 18 checks passed in 42s.",
+          text: "The staging smoke task completed successfully.",
+          taskName: "staging smoke",
+          event: "completed",
+          status: "completed",
+          commandPreview: "pnpm smoke --env staging",
+          command: "pnpm smoke --env staging --runs 3",
+          output: "18 checks passed in 42s\nno rollbacks across 3 deploys",
+          exitCode: 0,
         },
         {
           type: "assistant",
@@ -507,10 +532,181 @@ const shortConversations: readonly DemoConversation[] = [
   },
 ];
 
-export const DEMO_CONVERSATIONS: readonly DemoConversation[] = [
-  rateLimiting,
-  flakyDeploy,
-  planning,
-  designTokens,
-  ...shortConversations,
+const northstarConversations: readonly DemoConversation[] = [
+  {
+    title: "Finish the seasonal crop summary",
+    mode: "coding",
+    permissionLevel: "supervised",
+    ageHours: 14,
+    pinned: true,
+    steps: [
+      {
+        type: "user",
+        text: "Finish the seasonal summary. I need stable alphabetical rows and a total for each crop, without changing how entries are stored.",
+      },
+      {
+        type: "assistant",
+        text: "I will inspect the draft summary and its entry model, then keep the change inside the projection function.",
+        thinking:
+          "The workspace already has a Map.groupBy draft. Returning a sorted array is friendlier to rendering and avoids coupling storage order to presentation order.",
+      },
+      {
+        type: "tool",
+        toolName: "read",
+        risk: "read",
+        repo: "northstar-journal",
+        args: { path: "src/season-summary.ts" },
+        result: {
+          path: "src/season-summary.ts",
+          content:
+            'import type { GardenEntry } from "./entries.js";\n\nexport function cropTotals(entries: GardenEntry[]) {\n  return Map.groupBy(entries, (entry) => entry.crop);\n}\n',
+          lines: 5,
+        },
+      },
+      {
+        type: "tool",
+        toolName: "edit",
+        risk: "workspace_write",
+        repo: "northstar-journal",
+        args: {
+          path: "src/season-summary.ts",
+          edits: [
+            {
+              oldText: "return Map.groupBy(entries, (entry) => entry.crop);",
+              newText:
+                "return Array.from(\n    Map.groupBy(entries, (entry) => entry.crop),\n    ([crop, cropEntries]) => ({ crop, count: cropEntries.length }),\n  ).sort((left, right) => left.crop.localeCompare(right.crop));",
+            },
+          ],
+        },
+        result: {
+          path: "src/season-summary.ts",
+          details: {
+            diff: "@@ -1,5 +1,8 @@\n export function cropTotals(entries: GardenEntry[]) {\n-  return Map.groupBy(entries, (entry) => entry.crop);\n+  return Array.from(\n+    Map.groupBy(entries, (entry) => entry.crop),\n+    ([crop, cropEntries]) => ({ crop, count: cropEntries.length }),\n+  ).sort((left, right) => left.crop.localeCompare(right.crop));\n }",
+            operationCount: 1,
+            dryRun: false,
+          },
+        },
+      },
+      {
+        type: "assistant",
+        text: "The summary now returns render-ready rows sorted by crop name, with an explicit count for each crop. Entry persistence is unchanged.",
+      },
+    ],
+  },
+  {
+    title: "Review offline journal recovery",
+    mode: "planning",
+    permissionLevel: "read_only",
+    ageHours: 70,
+    steps: [
+      {
+        type: "user",
+        text: "Review the local storage path and propose how to recover from a malformed journal without silently losing entries.",
+      },
+      {
+        type: "assistant",
+        text: "The loader parses directly, so one malformed value prevents the journal from opening. I would preserve the raw value, surface a recovery prompt, validate entries individually, and only replace storage after the user exports or accepts the recovered set.",
+      },
+    ],
+  },
 ];
+
+const relayboardConversations: readonly DemoConversation[] = [
+  {
+    title: "Add machine-readable handoff export",
+    mode: "coding",
+    permissionLevel: "supervised",
+    ageHours: 9,
+    pinned: true,
+    steps: [
+      {
+        type: "user",
+        text: "Add a --json option for automation, but keep the Markdown handoff as the default output.",
+      },
+      {
+        type: "assistant",
+        text: "I will separate serialization from argument handling, then cover both output modes at the CLI boundary.",
+      },
+      {
+        type: "tool",
+        toolName: "grep",
+        risk: "read",
+        repo: "relayboard-cli",
+        args: { pattern: "formatHandoff", glob: "{src,test}/**/*.js" },
+        result: {
+          matches: [
+            {
+              path: "src/cli.js",
+              line: 2,
+              text: 'import { formatHandoff } from "./format.js";',
+            },
+            {
+              path: "src/format.js",
+              line: 1,
+              text: "export function formatHandoff({ shift, owner, items }) {",
+            },
+          ],
+        },
+      },
+      {
+        type: "tool",
+        toolName: "edit",
+        risk: "workspace_write",
+        repo: "relayboard-cli",
+        args: {
+          path: "src/cli.js",
+          edits: [
+            {
+              oldText: "console.log(formatHandoff(handoff));",
+              newText:
+                'const output = process.argv.includes("--json")\n  ? JSON.stringify(handoff, null, 2)\n  : formatHandoff(handoff);\nconsole.log(output);',
+            },
+          ],
+        },
+        result: {
+          path: "src/cli.js",
+          details: {
+            diff: '@@ -4,4 +4,7 @@\n const file = process.argv[2] ?? "handoff.json";\n const handoff = JSON.parse(await readFile(file, "utf8"));\n-console.log(formatHandoff(handoff));\n+const output = process.argv.includes("--json")\n+  ? JSON.stringify(handoff, null, 2)\n+  : formatHandoff(handoff);\n+console.log(output);',
+            operationCount: 1,
+            dryRun: false,
+          },
+        },
+      },
+      {
+        type: "assistant",
+        text: "Relayboard now emits formatted JSON when --json is present and keeps the existing Markdown checklist as its default.",
+      },
+    ],
+  },
+  {
+    title: "Make empty handoffs explicit",
+    mode: "coding",
+    permissionLevel: "read_only",
+    ageHours: 81,
+    completed: true,
+    steps: [
+      {
+        type: "user",
+        text: "What does the CLI print when there are no handoff items?",
+      },
+      {
+        type: "assistant",
+        text: "It prints the heading followed by a blank checklist. An explicit “No open handoff items” line would distinguish a clear shift from malformed input.",
+      },
+    ],
+  },
+];
+
+export const DEMO_PROJECT_CONVERSATIONS: Readonly<
+  Record<string, readonly DemoConversation[]>
+> = {
+  aurora: [
+    rateLimiting,
+    flakyDeploy,
+    planning,
+    designTokens,
+    ...shortConversations,
+  ],
+  northstar: northstarConversations,
+  relayboard: relayboardConversations,
+};

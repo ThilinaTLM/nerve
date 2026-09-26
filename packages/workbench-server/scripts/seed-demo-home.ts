@@ -30,14 +30,14 @@ import { ToolCallRepository } from "../src/domains/tools/artifacts/tool-call.rep
 import { TaskRepository } from "../src/domains/tasks/persistence/task.repository.js";
 import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts/tasks";
 import {
-  DEMO_CONVERSATIONS,
+  DEMO_PROJECT_CONVERSATIONS,
   type DemoConversation,
   type DemoStep,
 } from "./demo-data/conversations.js";
 import {
   addPublicPullRequestRepo,
   createDemoWorkspace,
-  DEMO_REPOS,
+  DEMO_PROJECTS,
 } from "./demo-data/workspace.js";
 
 /**
@@ -164,6 +164,29 @@ async function appendStep(
     createdAt,
     tokensBefore: options.tokensBefore,
   };
+
+  if (step.type === "task_event") {
+    /* The seed builds an explicit active branch. Use a mirrored anchor so the
+     * notice participates in that branch; transcript projection still renders
+     * `task_event` entries as system notices, matching a live notification. */
+    const entry = await services.conversationLifecycle.appendEntry({
+      ...shared,
+      role: "assistant",
+      kind: "task_event",
+      text: step.text,
+      details: {
+        type: "task_event",
+        taskName: step.taskName,
+        event: step.event,
+        status: step.status,
+        commandPreview: step.commandPreview,
+        command: step.command,
+        output: step.output,
+        exitCode: step.exitCode,
+      },
+    });
+    return { entryId: entry.id, lineage: true };
+  }
 
   if (step.type === "user") {
     const entry = await services.conversationLifecycle.appendEntry({
@@ -335,8 +358,9 @@ async function seedTasks(
 ): Promise<void> {
   const { services, projectId, workspace } = context;
   const repository = new TaskRepository(storage);
-  const conversationId =
-    services.conversationLifecycle.listConversations()[0]?.id;
+  const conversationId = services.conversationLifecycle
+    .listConversations()
+    .find((conversation) => conversation.projectId === projectId)?.id;
 
   const definitions = [
     {
@@ -425,11 +449,23 @@ async function main(): Promise<void> {
   console.log(`Seeding workspace  ${workspaceRoot}`);
 
   await rm(home, { recursive: true, force: true });
-  const workspace = await createDemoWorkspace(`${workspaceRoot}/aurora`);
-  console.log(`Created ${DEMO_REPOS.length} repositories under ${workspace}`);
+  const workspaces = new Map<string, string>();
+  for (const demoProject of DEMO_PROJECTS) {
+    const workspace = await createDemoWorkspace(
+      `${workspaceRoot}/${demoProject.id}`,
+      demoProject,
+    );
+    workspaces.set(demoProject.id, workspace);
+    console.log(
+      `Created ${demoProject.repositories.length} repositories for ${demoProject.name} under ${workspace}`,
+    );
+  }
 
+  const auroraWorkspace = workspaces.get("aurora");
+  if (!auroraWorkspace)
+    throw new Error("Aurora demo workspace was not created");
   if (process.env.NERVE_DEMO_GITHUB === "1") {
-    await addPublicPullRequestRepo(workspace);
+    await addPublicPullRequestRepo(auroraWorkspace);
     console.log("Cloned the public Nerve repository for the PR scene");
   }
 
@@ -438,10 +474,6 @@ async function main(): Promise<void> {
   await fixture.lifecycle.hydrate();
 
   try {
-    const project = await fixture.services.projectLifecycle.createProject({
-      dir: workspace,
-      name: "aurora",
-    });
     /* A placeholder credential so the composer resolves a real model name
      * instead of prompting to select one. Nothing is ever sent: the seed only
      * writes records, and `setApiKey` performs no provider call. */
@@ -449,22 +481,47 @@ async function main(): Promise<void> {
       DEMO_MODEL.provider,
       "sk-ant-demo-screenshot-fixture-key",
     );
-    await writeTaskDefinitions(workspace);
 
-    const context: SeedContext = {
-      services: fixture.services,
-      toolCalls: new ToolCallRepository(fixture.services.conversationJournal),
-      projectId: project.id,
-      workspace,
-    };
+    const toolCalls = new ToolCallRepository(
+      fixture.services.conversationJournal,
+    );
+    /* Create Aurora last so narrow layouts, which intentionally hide the
+     * title-bar project switcher, open on the project used by mobile scenes. */
+    for (const demoProject of [...DEMO_PROJECTS].reverse()) {
+      const workspace = workspaces.get(demoProject.id);
+      if (!workspace) {
+        throw new Error(`Missing demo workspace for ${demoProject.id}`);
+      }
+      const project = await fixture.services.projectLifecycle.createProject({
+        dir: workspace,
+        name: demoProject.name,
+      });
+      /* Project fallback selection sorts by millisecond timestamps. Keep the
+       * intended mobile default deterministic even on a fast filesystem. */
+      await new Promise((fulfil) => setTimeout(fulfil, 2));
+      const context: SeedContext = {
+        services: fixture.services,
+        toolCalls,
+        projectId: project.id,
+        workspace,
+      };
 
-    for (const demo of DEMO_CONVERSATIONS) {
-      await seedConversation(context, demo);
-      console.log(`Seeded conversation  ${demo.title}`);
+      const conversations = DEMO_PROJECT_CONVERSATIONS[demoProject.id];
+      if (!conversations?.length) {
+        throw new Error(`Missing demo conversations for ${demoProject.id}`);
+      }
+      for (const demo of conversations) {
+        await seedConversation(context, demo);
+        console.log(`Seeded ${demoProject.name} conversation  ${demo.title}`);
+      }
+
+      if (demoProject.id === "aurora") {
+        await writeTaskDefinitions(workspace);
+        await seedTasks(context, storage);
+      }
     }
-    await seedTasks(context, storage);
 
-    console.log("Demo home ready.");
+    console.log(`Demo home ready with ${DEMO_PROJECTS.length} projects.`);
   } finally {
     await shutdownServerRuntime(fixture.runtime);
   }
