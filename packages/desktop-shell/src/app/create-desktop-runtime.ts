@@ -49,6 +49,7 @@ const ipcChannels = [
   "desktop.daemon.restart",
   "desktop.clipboard.readText",
   "desktop.clipboard.writeText",
+  "desktop.startup.retry",
   "desktop.startup.rendererCoreReady",
 ] as const;
 

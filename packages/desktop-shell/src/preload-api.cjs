@@ -22,6 +22,7 @@ function createDesktopPreloadApi({ ipcRenderer, webUtils, platform }) {
         ),
     },
     app: {
+      retryStartup: () => ipcRenderer.invoke("desktop.startup.retry"),
       reportRendererCoreReady: () =>
         ipcRenderer.invoke("desktop.startup.rendererCoreReady"),
       onQuitStarted: (listener) =>

@@ -16,6 +16,7 @@ export function registerDesktopIpc(options: {
   showDesktopNotification: (payload: unknown) => { shown: boolean };
   getDaemonCapability: () => DaemonCapability;
   restartDaemon: () => Promise<void>;
+  retryStartup: () => boolean;
   reportRendererCoreReady: () => void;
 }): void {
   registerWindowIpc(options);
@@ -24,5 +25,5 @@ export function registerDesktopIpc(options: {
   registerNotificationsIpc(options.showDesktopNotification);
   registerClipboardIpc();
   registerFilesIpc();
-  registerStartupIpc(options.reportRendererCoreReady);
+  registerStartupIpc(options);
 }

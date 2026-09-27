@@ -87,6 +87,107 @@ describe("DesktopRuntime", () => {
     assert.equal(calls.includes("create-window"), false);
   });
 
+  it("retries a failed startup in the same window and keeps retries single-flight", async () => {
+    let ipcOptions:
+      | Parameters<DesktopRuntimePorts["registerIpc"]>[0]
+      | undefined;
+    let acquireCount = 0;
+    const secondAcquire = Promise.withResolvers<ManagedDaemon>();
+    const errorShown = Promise.withResolvers<void>();
+    const daemonShown = Promise.withResolvers<void>();
+    const daemon: ManagedDaemon = {
+      url: "http://127.0.0.1:4801",
+      owned: false,
+      mode: "local",
+      getStatus: () => "ready",
+      onStatusChange: () => () => undefined,
+      restart: async () => undefined,
+      stop: async () => undefined,
+    };
+    const window = fakeWindow();
+    window.loadURL = async (url) => {
+      if (
+        url.startsWith("data:") &&
+        decodeURIComponent(url).includes("startup-retry")
+      ) {
+        errorShown.resolve();
+      }
+      if (url.startsWith(daemon.url)) daemonShown.resolve();
+    };
+    const ports = {
+      application: {
+        whenReady: async () => undefined,
+        onSecondInstance: () => () => undefined,
+        onActivate: () => () => undefined,
+        onWindowAllClosed: () => () => undefined,
+        onChildProcessGone: () => () => undefined,
+        onBeforeQuit: () => () => undefined,
+        quit: () => undefined,
+        getAppMetrics: () => [],
+        platform: "linux",
+        architecture: "x64",
+      },
+      signals: { onSignal: () => () => undefined },
+      windows: {
+        getAllWindows: () => [window],
+        createMainWindow: () => window,
+      },
+      nativeTheme: { onUpdated: () => () => undefined },
+      prepareDataDirectory: async () => ({ status: "ready" }),
+      readCurrentSettings: async () => defaultSettings,
+      configureNetworkSession: async () => undefined,
+      acquireDaemon: async () => {
+        acquireCount += 1;
+        if (acquireCount === 1) throw new Error("daemon unavailable");
+        return secondAcquire.promise;
+      },
+      installDaemonCookie: async () => undefined,
+      refreshDesktopSettings: async () => defaultSettings,
+      registerIpc: (options) => {
+        ipcOptions = options;
+        return () => undefined;
+      },
+      showDesktopNotification: () => ({ shown: true }),
+      createTray: () => ({
+        ensureTray: () => undefined,
+        hasTray: () => true,
+        updateTrayMenu: () => undefined,
+        updateTrayIcon: () => undefined,
+        dispose: () => undefined,
+      }),
+      installPerformanceMonitor: () => ({ stop: () => undefined }),
+      packagedWebDistPath: () => undefined,
+      now: Date.now,
+    } as unknown as DesktopRuntimePorts;
+    const configuration = {
+      values: { startupTimeoutMs: 100, maxOldSpaceMb: 512 },
+    };
+    const runtime = new DesktopRuntime(
+      {
+        desktopOptions: { mode: "local" },
+        desktopDataDir: "/tmp/nerve-desktop-retry-test",
+        desktopConfigurationController: {
+          resolve: () => configuration,
+          apply: () => undefined,
+        },
+        desktopConfiguration: configuration,
+      } as unknown as DesktopRuntimeOptions,
+      ports,
+    );
+
+    runtime.start();
+    await errorShown.promise;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(ipcOptions?.retryStartup(), true);
+    assert.equal(ipcOptions?.retryStartup(), false);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(acquireCount, 2);
+    secondAcquire.resolve(daemon);
+    await daemonShown.promise;
+    assert.equal(acquireCount, 2);
+    await runtime.dispose();
+  });
+
   it("stops an owned daemon once across before-quit and disposal", async () => {
     const listeners = new Map<string, (...args: unknown[]) => void>();
     const register = (

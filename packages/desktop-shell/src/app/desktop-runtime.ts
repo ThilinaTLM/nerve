@@ -57,6 +57,8 @@ export class DesktopRuntime {
   #unsubscribeDaemonStatus: (() => void) | undefined;
   #desktopNetworkReady: Promise<void> = Promise.resolve();
   #desktopPerformanceMonitor: DesktopPerformanceMonitor | undefined;
+  #startupAttempt: Promise<void> | undefined;
+  #startupErrorVisible = false;
   #trayController!: TrayController;
   #shellPageUrls = new ShellPageUrlRegistry();
   #desktopConfiguration: DesktopRuntimeOptions["desktopConfiguration"];
@@ -171,6 +173,19 @@ export class DesktopRuntime {
           );
         }
         await runtime.#managedDaemon.restart();
+      },
+      retryStartup: () => {
+        const window = runtime.#mainWindow;
+        if (
+          !runtime.#startupErrorVisible ||
+          !window ||
+          window.isDestroyed() ||
+          runtime.#startupAttempt
+        ) {
+          return false;
+        }
+        void startMainWindow(window);
+        return true;
       },
       reportRendererCoreReady: () => {
         if (rendererCoreReadyReported) return;
@@ -346,6 +361,22 @@ export class DesktopRuntime {
         if (runtime.#mainWindow === window) runtime.#mainWindow = undefined;
       });
 
+      await startMainWindow(window);
+    }
+
+    function startMainWindow(window: BrowserWindowType): Promise<void> {
+      runtime.#startupAttempt ??= performMainWindowStartup(window).finally(
+        () => {
+          runtime.#startupAttempt = undefined;
+        },
+      );
+      return runtime.#startupAttempt;
+    }
+
+    async function performMainWindowStartup(
+      window: BrowserWindowType,
+    ): Promise<void> {
+      runtime.#startupErrorVisible = false;
       const startupStartedAt = ports.now();
       let initialZoomLevel: number | undefined;
       let splashShownAt: number | undefined;
@@ -425,6 +456,7 @@ export class DesktopRuntime {
           ...result.timings,
           navigated: result.navigated,
         });
+        runtime.#startupErrorVisible = false;
         runtime.#desktopPerformanceMonitor ??= ports.installPerformanceMonitor({
           enabled:
             desktopOptions.mode !== "remote" &&
@@ -458,10 +490,17 @@ export class DesktopRuntime {
           durationMs: ports.now() - startupStartedAt,
         });
         console.error(error);
-        if (!window.isDestroyed())
+        if (!window.isDestroyed()) {
+          runtime.#startupErrorVisible = true;
           await window.loadURL(
-            runtime.#shellPageUrls.create(errorHtml(error, desktopDataDir)),
+            runtime.#shellPageUrls.create(
+              errorHtml(error, desktopDataDir, {
+                retry: true,
+                title: "Nerve couldn't start",
+              }),
+            ),
           );
+        }
       }
     }
 

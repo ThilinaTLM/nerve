@@ -1,5 +1,8 @@
 import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
-import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
+import {
+  DAEMON_LEASE_CONFLICT_CODE,
+  type DaemonStartupProgress,
+} from "@nervekit/contracts/storage";
 import { daemonStartupError, formatExit, OutputBuffer } from "./diagnostics.js";
 import { DaemonStartupProgressDecoder } from "./startup-progress.js";
 import {
@@ -290,6 +293,17 @@ export class DaemonSupervisor {
       }
       if (child.exit) {
         const message = `Nerve daemon exited before it became ready${formatExit(child.exit)}.`;
+        if (output.tail().includes(DAEMON_LEASE_CONFLICT_CODE)) {
+          this.ports.logger.log(
+            "info",
+            "Another local daemon won the startup lease",
+          );
+          throw daemonStartupError(message, output, {
+            dataDir: paths.home,
+            readinessTimeoutMs,
+            effectiveMaxOldSpaceMb: this.config.effectiveMaxOldSpaceMb,
+          });
+        }
         const crashReportPath = this.writeOwnedCrashReport(
           "startupExit",
           message,

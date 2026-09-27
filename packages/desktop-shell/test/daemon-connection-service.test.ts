@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import { ensureDaemonConnection } from "../src/daemon/connection.ts";
 import { fakeDaemonWorld, healthyDaemon } from "./support/fake-daemon-ports.ts";
 
@@ -106,6 +107,63 @@ describe("daemon connection service", () => {
       ),
     );
     await daemon.stop();
+  });
+
+  it("adopts a daemon that wins the discovery-to-launch race", async () => {
+    const world = fakeDaemonWorld({
+      discovery: [undefined, undefined, healthyDaemon()],
+    });
+    const startup = ensureDaemonConnection({}, world.ports);
+    await new Promise((resolve) => setImmediate(resolve));
+    world.children[0]?.emitOutput(
+      "stderr",
+      `[${DAEMON_LEASE_CONFLICT_CODE}] another daemon owns daemon.json\n`,
+    );
+    world.children[0]?.exit(1);
+    await world.scheduler.advance(200);
+
+    const daemon = await startup;
+    assert.equal(daemon.owned, false);
+    assert.equal(world.launches.length, 1);
+    assert.equal(world.crashReports.length, 0);
+    assert.ok(
+      world.logs.some((entry) => entry.message.includes("Adopted competing")),
+    );
+    await daemon.stop();
+  });
+
+  it("reapplies compatibility checks to a daemon adopted after a lease race", async () => {
+    const world = fakeDaemonWorld({
+      discovery: [undefined, undefined, healthyDaemon({ host: "127.0.0.1" })],
+    });
+    const startup = ensureDaemonConnection({ allowRemote: true }, world.ports);
+    await new Promise((resolve) => setImmediate(resolve));
+    world.children[0]?.emitOutput(
+      "stderr",
+      `[${DAEMON_LEASE_CONFLICT_CODE}] another daemon owns daemon.json\n`,
+    );
+    world.children[0]?.exit(1);
+    const rejected = assert.rejects(startup, /cannot accept LAN clients/);
+    await world.scheduler.advance(200);
+    await rejected;
+  });
+
+  it("fails clearly when a competing daemon never becomes healthy", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    const startup = ensureDaemonConnection(
+      { startupTimeoutMs: 1_000 },
+      world.ports,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    world.children[0]?.emitOutput(
+      "stderr",
+      `[${DAEMON_LEASE_CONFLICT_CODE}] another daemon owns daemon.json\n`,
+    );
+    world.children[0]?.exit(1);
+    const rejected = assert.rejects(startup, /did not become ready within/);
+    await world.scheduler.advance(1_000);
+    await rejected;
+    assert.equal(world.crashReports.length, 0);
   });
 
   it("launches an owned daemon when no existing daemon is found", async () => {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 export const DAEMON_STARTUP_PROGRESS_PREFIX = "NERVE_STARTUP_PROGRESS ";
+export const DAEMON_LEASE_CONFLICT_CODE = "DAEMON_LEASE_CONFLICT";
 
 export const daemonStartupProgressSchema = z.object({
   type: z.literal("nerve.startup.progress"),

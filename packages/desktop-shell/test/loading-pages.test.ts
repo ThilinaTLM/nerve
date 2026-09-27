@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  errorHtml,
   loadingHtml,
   loadingStageScript,
   loadingStatusScript,
@@ -22,6 +23,30 @@ describe("loadingHtml", () => {
       loadingHtml({ status: "Reconnecting", playIntro: false }),
       /<html lang="en" data-splash-intro="settled">/,
     );
+  });
+});
+
+describe("errorHtml", () => {
+  it("renders concise retry guidance with escaped collapsed diagnostics", () => {
+    const html = errorHtml(
+      new Error(`failed <script>alert("x")</script>`),
+      "/tmp/<nerve>",
+      { retry: true },
+    );
+    assert.match(html, /Nerve is unavailable/);
+    assert.match(html, /Try again/);
+    assert.match(html, /Technical details/);
+    assert.match(html, /retryStartup/);
+    assert.match(html, /failed &lt;script&gt;/);
+    assert.match(html, /\/tmp\/&lt;nerve&gt;\/logs/);
+    assert.doesNotMatch(html, /failed <script>/);
+    assert.doesNotMatch(html, /Restart Daemon/);
+  });
+
+  it("omits retry scripting when retry is unavailable", () => {
+    const html = errorHtml(new Error("offline"));
+    assert.doesNotMatch(html, /startup-retry/);
+    assert.doesNotMatch(html, /script-src/);
   });
 });
 
