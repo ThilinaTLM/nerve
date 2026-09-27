@@ -58,66 +58,150 @@ export const startOAuthFlowRequestSchema = z.object({
 });
 export type StartOAuthFlowRequest = z.infer<typeof startOAuthFlowRequestSchema>;
 
-export const oauthFlowStatusSchema = z.enum([
-  "starting",
-  "select",
-  "auth_url",
-  "device_code",
-  "prompt",
-  "progress",
+export const oauthFlowStateSchema = z.enum([
+  "active",
   "succeeded",
   "failed",
   "cancelled",
 ]);
-export type OAuthFlowStatus = z.infer<typeof oauthFlowStatusSchema>;
+export type OAuthFlowState = z.infer<typeof oauthFlowStateSchema>;
 
-export const oauthFlowInfoSchema = z.object({
-  flowId: z.string().startsWith("authflow_"),
-  provider: z.string().min(1),
-  providerName: z.string().min(1),
-  status: oauthFlowStatusSchema,
-  promptId: z.string().optional(),
-  message: z.string().optional(),
-  authUrl: z.string().optional(),
-  instructions: z.string().optional(),
-  options: z
-    .array(
-      z.object({
-        id: z.string(),
-        label: z.string(),
-        description: z.string().optional(),
-      }),
-    )
-    .optional(),
-  links: z
-    .array(
-      z.object({
-        url: z.string().url(),
-        label: z.string().optional(),
-      }),
-    )
-    .optional(),
-  deviceCode: z
+export const oauthChoiceOptionSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().min(1),
+    description: z.string().min(1).optional(),
+  })
+  .strict();
+export type OAuthChoiceOption = z.infer<typeof oauthChoiceOptionSchema>;
+
+export const oauthInteractionLinkSchema = z
+  .object({
+    url: z.string().url(),
+    label: z.string().min(1).optional(),
+  })
+  .strict();
+export type OAuthInteractionLink = z.infer<typeof oauthInteractionLinkSchema>;
+
+export const oauthBrowserManualEntrySchema = z
+  .object({
+    interactionId: z.string().min(1),
+    label: z.string().min(1),
+    placeholder: z.string().min(1),
+    acceptedInput: z.enum(["redirect_url", "authorization_input"]),
+  })
+  .strict();
+export type OAuthBrowserManualEntry = z.infer<
+  typeof oauthBrowserManualEntrySchema
+>;
+
+export const oauthInteractionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("starting") }).strict(),
+  z
     .object({
-      userCode: z.string(),
-      verificationUri: z.string(),
-      intervalSeconds: z.number().optional(),
-      expiresInSeconds: z.number().optional(),
+      type: z.literal("choice"),
+      interactionId: z.string().min(1),
+      message: z.string().min(1),
+      options: z.array(oauthChoiceOptionSchema).min(1),
     })
-    .optional(),
-  placeholder: z.string().optional(),
-  allowEmpty: z.boolean().optional(),
-  error: z.string().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
+    .strict(),
+  z
+    .object({
+      type: z.literal("browser"),
+      authorizationUrl: z.string().url(),
+      instructions: z.string().min(1),
+      manualEntry: oauthBrowserManualEntrySchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("device_code"),
+      verificationUrl: z.string().url(),
+      userCode: z.string().min(1),
+      expiresAt: z.string().datetime().optional(),
+      intervalSeconds: z.number().positive().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("text_input"),
+      interactionId: z.string().min(1),
+      message: z.string().min(1),
+      placeholder: z.string().optional(),
+      inputKind: z.enum(["text", "secret", "authorization"]),
+      allowEmpty: z.boolean(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("progress"),
+      message: z.string().min(1),
+      links: z.array(oauthInteractionLinkSchema).optional(),
+    })
+    .strict(),
+]);
+export type OAuthInteraction = z.infer<typeof oauthInteractionSchema>;
+
+export const oauthFailureSchema = z
+  .object({
+    message: z.string().min(1),
+    detail: z.string().min(1).optional(),
+  })
+  .strict();
+export type OAuthFailure = z.infer<typeof oauthFailureSchema>;
+
+const oauthFlowIdentitySchema = z
+  .object({
+    flowId: z.string().startsWith("authflow_"),
+    provider: z.string().min(1),
+    providerName: z.string().min(1),
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+  })
+  .strict();
+
+export const oauthFlowInfoSchema = z.discriminatedUnion("state", [
+  oauthFlowIdentitySchema.extend({
+    state: z.literal("active"),
+    interaction: oauthInteractionSchema,
+  }),
+  oauthFlowIdentitySchema.extend({
+    state: z.literal("succeeded"),
+    successMessage: z.string().min(1),
+  }),
+  oauthFlowIdentitySchema.extend({
+    state: z.literal("failed"),
+    failure: oauthFailureSchema,
+  }),
+  oauthFlowIdentitySchema.extend({
+    state: z.literal("cancelled"),
+  }),
+]);
 export type OAuthFlowInfo = z.infer<typeof oauthFlowInfoSchema>;
 
-export const respondOAuthFlowRequestSchema = z.object({
-  promptId: z.string().min(1),
-  value: z.string().optional(),
-  selectedId: z.string().optional(),
-});
+export const respondOAuthFlowRequestSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("select"),
+      interactionId: z.string().min(1),
+      selectedId: z.string().min(1),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("text"),
+      interactionId: z.string().min(1),
+      value: z.string(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("manual_redirect"),
+      interactionId: z.string().min(1),
+      value: z.string().min(1),
+    })
+    .strict(),
+]);
 export type RespondOAuthFlowRequest = z.infer<
   typeof respondOAuthFlowRequestSchema
 >;
