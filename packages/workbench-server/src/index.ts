@@ -9,6 +9,10 @@ export * from "./infrastructure/network/index.js";
 export * from "./infrastructure/configuration/index.js";
 export * from "./infrastructure/migrations/index.js";
 export {
+  applyStorageMigrationPlan,
+  inspectStorageMigrationPlan,
+} from "./infrastructure/storage-migrations/public-api.js";
+export {
   inspectNerveHome,
   initializeStorage,
   readCurrentSettingsForBootstrap,

@@ -35,7 +35,12 @@ export interface StoragePaths {
   crashesPath: string;
   migrationsPath: string;
   migrationLedgerPath: string;
+  migrationWorkPath: string;
+  migrationPromotionJournalPath: string;
+  migrationFailureReportPath: string;
   backupsPath: string;
+  storageBackupsPath: string;
+  quarantineFilesPath: string;
 }
 
 export function resolveDataDir(explicitHome = process.env.NERVE_HOME): string {
@@ -84,6 +89,11 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     crashesPath: join(home, "crashes"),
     migrationsPath,
     migrationLedgerPath: join(migrationsPath, "ledger.json"),
+    migrationWorkPath: join(migrationsPath, "work"),
+    migrationPromotionJournalPath: join(migrationsPath, "promotion.json"),
+    migrationFailureReportPath: join(migrationsPath, "last-failure.json"),
     backupsPath: join(home, "backups"),
+    storageBackupsPath: join(home, "backups", "storage"),
+    quarantineFilesPath: join(dataPath, "quarantine", "files"),
   };
 }

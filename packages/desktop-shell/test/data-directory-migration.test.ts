@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { MessageBoxOptions } from "electron";
-import { prepareDesktopDataDirectory } from "../src/app/data-directory-migration.ts";
+import {
+  prepareDesktopDataDirectory,
+  resolveUnifiedMigrationServerAdapter,
+} from "../src/app/data-directory-migration.ts";
 
 function dialogRecorder() {
   const dialogs: MessageBoxOptions[] = [];
@@ -13,6 +16,42 @@ function dialogRecorder() {
     },
   };
 }
+
+describe("unified migration server adapter", () => {
+  it("uses the runner exports only when inspect and apply are both available", async () => {
+    const calls: string[] = [];
+    const adapter = resolveUnifiedMigrationServerAdapter({
+      inspectStorageMigrationPlan: async (home: string) => {
+        calls.push(`inspect:${home}`);
+        return { outcome: "current" };
+      },
+      applyStorageMigrationPlan: async (home: string) => {
+        calls.push(`apply:${home}`);
+        return { outcome: "migrated" };
+      },
+    });
+    assert.ok(adapter);
+    await adapter.inspect("/tmp/nerve");
+    await adapter.apply("/tmp/nerve", {} as never, {
+      fingerprint: "a".repeat(64),
+      approvedQuarantineIds: [],
+    });
+    assert.deepEqual(calls, ["inspect:/tmp/nerve", "apply:/tmp/nerve"]);
+
+    assert.equal(
+      resolveUnifiedMigrationServerAdapter({
+        inspectStorageMigrationPlan: async () => undefined,
+      }),
+      undefined,
+    );
+    assert.equal(
+      resolveUnifiedMigrationServerAdapter({
+        applyStorageMigrationPlan: async () => undefined,
+      }),
+      undefined,
+    );
+  });
+});
 
 describe("desktop data-directory preparation", () => {
   it("strictly initializes local storage and closes its bootstrap handle", async () => {
@@ -219,6 +258,176 @@ describe("desktop data-directory preparation", () => {
     assert.equal(dialog.dialogs.length, 1);
     assert.deepEqual(dialog.dialogs[0]?.buttons, ["Quit"]);
     assert.match(dialog.dialogs[0]?.detail ?? "", /Database is corrupt/);
+  });
+
+  it("handles unified quarantine approval without offering restore", async () => {
+    const dialog = dialogRecorder();
+    const fingerprint = "c".repeat(64);
+    let approvedIds: string[] = [];
+    const quarantine = {
+      entries: [
+        {
+          id: "quarantine-1",
+          sourceStep: "sweep:conversation",
+          unit: "conversation" as const,
+          recordClass: "user-content" as const,
+          source: "domain_documents",
+          sourceKey: "conv_bad",
+          conversationId: "conv_bad",
+          reason: "Invalid historical record.",
+          affectedRecords: 2,
+          affectedBytes: 128,
+          requiresApproval: true,
+        },
+      ],
+      total: 1,
+      derived: 0,
+      userContent: 1,
+      affectedRecords: 2,
+      affectedBytes: 128,
+      requiresApproval: true,
+    };
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({ kind: "current", manifest: {} })) as never,
+        inspectUnifiedMigrations: async () => ({
+          format: "nerve-home-migration-plan",
+          version: 1,
+          fingerprint,
+          outcome: "pending",
+          homeClass: "standard",
+          buildId: "0.32.0+abc",
+          steps: [],
+          quarantine,
+        }),
+        applyUnifiedMigrations: async (_home, _plan, approval) => {
+          approvedIds = approval.approvedQuarantineIds;
+          return {
+            format: "nerve-home-migration-result",
+            version: 1,
+            runId: "run-1",
+            planFingerprint: fingerprint,
+            outcome: "migrated",
+            startedAt: "2026-09-27T00:00:00.000Z",
+            completedAt: "2026-09-27T00:00:01.000Z",
+            steps: [],
+            quarantine,
+            snapshotPath: "/home/test/.nerve/backups/storage/snapshot",
+          };
+        },
+        initialize: (async () => ({
+          canonicalStore: { close: async () => undefined },
+        })) as never,
+      },
+    );
+
+    assert.deepEqual(result, { status: "ready" });
+    assert.deepEqual(approvedIds, ["quarantine-1"]);
+    assert.deepEqual(dialog.dialogs[0]?.buttons, [
+      "Quarantine affected data and continue",
+      "Quit",
+    ]);
+    assert.equal(
+      dialog.dialogs.some((entry) =>
+        entry.buttons?.some((button) => /restore/i.test(button)),
+      ),
+      false,
+    );
+    assert.match(dialog.dialogs[1]?.detail ?? "", /backups\/storage/);
+  });
+
+  it("shows safe structured planner failures without a restore action", async () => {
+    const dialog = dialogRecorder();
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({ kind: "current", manifest: {} })) as never,
+        inspectUnifiedMigrations: async () => ({
+          format: "nerve-home-migration-plan",
+          version: 1,
+          fingerprint: "d".repeat(64),
+          outcome: "corrupt",
+          homeClass: "standard",
+          buildId: "0.32.0+abc",
+          steps: [],
+          failure: {
+            code: "MIGRATION_CHECKSUM_MISMATCH",
+            phase: "plan",
+            message: "A migration checksum does not match.",
+            retryable: false,
+            stepId: "0010-example",
+            cause: "secret internal cause",
+            path: "/private/record/path",
+          },
+        }),
+      },
+    );
+
+    assert.deepEqual(result, { status: "quit" });
+    assert.deepEqual(dialog.dialogs[0]?.buttons, ["Quit"]);
+    assert.match(
+      dialog.dialogs[0]?.detail ?? "",
+      /MIGRATION_CHECKSUM_MISMATCH/,
+    );
+    assert.match(dialog.dialogs[0]?.detail ?? "", /0010-example/);
+    assert.doesNotMatch(dialog.dialogs[0]?.detail ?? "", /secret internal/);
+    assert.doesNotMatch(dialog.dialogs[0]?.detail ?? "", /private\/record/);
+    assert.doesNotMatch(
+      dialog.dialogs[0]?.buttons?.join(" ") ?? "",
+      /restore/i,
+    );
+  });
+
+  it("retries retryable unified planning failures only after confirmation", async () => {
+    const dialog = dialogRecorder();
+    let attempts = 0;
+    const result = await prepareDesktopDataDirectory(
+      { home: "/home/test/.nerve" },
+      {
+        ...dialog,
+        inspect: (async () => ({ kind: "current", manifest: {} })) as never,
+        inspectUnifiedMigrations: async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            return {
+              format: "nerve-home-migration-plan",
+              version: 1,
+              fingerprint: "e".repeat(64),
+              outcome: "invalid",
+              homeClass: "standard",
+              buildId: "0.32.0+abc",
+              steps: [],
+              failure: {
+                code: "MIGRATION_HOME_LOCKED",
+                phase: "lock",
+                message: "The home is temporarily locked.",
+                retryable: true,
+              },
+            };
+          }
+          return {
+            format: "nerve-home-migration-plan",
+            version: 1,
+            fingerprint: "f".repeat(64),
+            outcome: "current",
+            homeClass: "standard",
+            buildId: "0.32.0+abc",
+            steps: [],
+          };
+        },
+        initialize: (async () => ({
+          canonicalStore: { close: async () => undefined },
+        })) as never,
+      },
+    );
+
+    assert.deepEqual(result, { status: "ready" });
+    assert.equal(attempts, 2);
+    assert.deepEqual(dialog.dialogs[0]?.buttons, ["Try again", "Quit"]);
+    assert.equal(dialog.dialogs[0]?.defaultId, 1);
   });
 
   it("fails closed and shows one error for unsupported storage", async () => {

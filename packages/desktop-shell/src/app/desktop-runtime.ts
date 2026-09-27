@@ -29,6 +29,7 @@ import {
   loadingStageScript,
   loadingStatusScript,
   ShellPageUrlRegistry,
+  startupErrorRetryable,
 } from "../window/loading-pages.js";
 import { withInitialZoomLevel } from "../window/initial-zoom.js";
 import { withSplashElapsed } from "../window/splash-handoff.js";
@@ -495,7 +496,7 @@ export class DesktopRuntime {
           await window.loadURL(
             runtime.#shellPageUrls.create(
               errorHtml(error, desktopDataDir, {
-                retry: true,
+                retry: startupErrorRetryable(error),
                 title: "Nerve couldn't start",
               }),
             ),

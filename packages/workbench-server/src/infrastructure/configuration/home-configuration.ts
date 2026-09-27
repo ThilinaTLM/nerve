@@ -1,18 +1,11 @@
 import { chmod, mkdir } from "node:fs/promises";
 import {
-  defaultPermissionsConfig,
   defaultUserConfiguration,
   type IntegrationsConfig,
   type Settings,
   settingsSchema,
   type UserConfiguration,
-  userConfigurationSchema,
-  daemonConfigSchema,
-  harnessConfigSchema,
   integrationsConfigSchema,
-  permissionsConfigSchema,
-  providersConfigSchema,
-  uiConfigSchema,
 } from "@nervekit/contracts/settings";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
 import {
@@ -20,6 +13,11 @@ import {
   pathExists,
   readJsonFile,
 } from "../storage-bootstrap/json.js";
+import { mergePreservingUnknown } from "../persistence/payloads/merge.js";
+import {
+  HOME_CONFIGURATION_CODECS,
+  type HomeConfigurationDocumentId,
+} from "./home-configuration-codecs.js";
 
 const CONFIG_MODE = 0o600;
 
@@ -42,48 +40,21 @@ export async function readHomeConfiguration(
 ): Promise<UserConfiguration> {
   const [daemon, harness, ui, permissions, providers, integrations] =
     await Promise.all([
-      readConfig(
-        paths.daemonConfigPath,
-        daemonConfigSchema,
-        defaultUserConfiguration.daemon,
-      ),
-      readConfig(
-        paths.harnessConfigPath,
-        harnessConfigSchema,
-        defaultUserConfiguration.harness,
-      ),
-      readConfig(
-        paths.uiConfigPath,
-        uiConfigSchema,
-        defaultUserConfiguration.ui,
-      ),
-      readPermissionConfig(paths.permissionsConfigPath),
-      readConfig(
-        paths.providersConfigPath,
-        providersConfigSchema,
-        defaultUserConfiguration.providers,
-      ),
-      readConfig(
-        paths.integrationsConfigPath,
-        integrationsConfigSchema,
-        defaultUserConfiguration.integrations,
-      ),
+      readConfigDocument("daemon", paths.daemonConfigPath),
+      readConfigDocument("harness", paths.harnessConfigPath),
+      readConfigDocument("ui", paths.uiConfigPath),
+      readConfigDocument("permissions", paths.permissionsConfigPath),
+      readConfigDocument("providers", paths.providersConfigPath),
+      readConfigDocument("integrations", paths.integrationsConfigPath),
     ]);
-  return userConfigurationSchema.parse({
-    daemon,
-    harness,
-    ui,
-    permissions,
-    providers,
-    integrations,
-  });
+  return { daemon, harness, ui, permissions, providers, integrations };
 }
 
 export async function writeHomeConfiguration(
   paths: StoragePaths,
   configuration: UserConfiguration,
 ): Promise<UserConfiguration> {
-  const parsed = userConfigurationSchema.parse(configuration);
+  const parsed = decodeConfiguration(configuration);
   for (const document of configDocuments(paths, parsed)) {
     if (document.path === paths.permissionsConfigPath) continue;
     await atomicWriteJson(document.path, document.value, CONFIG_MODE);
@@ -92,38 +63,49 @@ export async function writeHomeConfiguration(
   return parsed;
 }
 
-async function readConfig<T>(
+export class HomeConfigurationDocumentError extends Error {
+  constructor(
+    readonly documentId: HomeConfigurationDocumentId,
+    readonly path: string,
+    cause: unknown,
+  ) {
+    super(`Nerve ${documentId} configuration at ${path} is invalid.`, {
+      cause,
+    });
+    this.name = "HomeConfigurationDocumentError";
+  }
+}
+
+async function readConfigDocument<K extends HomeConfigurationDocumentId>(
+  documentId: K,
   path: string,
-  schema: { parse(value: unknown): T },
-  defaults: T,
-): Promise<T> {
+): Promise<UserConfiguration[K]> {
   try {
-    const value = await readJsonFile<unknown>(path);
-    return schema.parse(mergeMissingDefaults(defaults, value));
+    return HOME_CONFIGURATION_CODECS[documentId].decode(
+      await readJsonFile<unknown>(path),
+    );
   } catch (cause) {
-    throw new Error(`Nerve configuration at ${path} is invalid.`, { cause });
+    throw new HomeConfigurationDocumentError(documentId, path, cause);
   }
 }
 
-/**
- * Home configuration files are durable user data. Additive fields inherit the
- * current defaults so an application upgrade never rejects an older document
- * merely because a newly introduced property is absent. Explicit values and
- * unknown properties are preserved for schema validation.
- */
-function mergeMissingDefaults(defaults: unknown, value: unknown): unknown {
-  if (!isRecord(defaults) || !isRecord(value)) return value;
-  const merged: Record<string, unknown> = { ...defaults };
-  for (const [key, child] of Object.entries(value)) {
-    merged[key] = Object.hasOwn(defaults, key)
-      ? mergeMissingDefaults(defaults[key], child)
-      : child;
-  }
-  return merged;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+function decodeConfiguration(
+  configuration: UserConfiguration,
+): UserConfiguration {
+  return {
+    daemon: HOME_CONFIGURATION_CODECS.daemon.decode(configuration.daemon),
+    harness: HOME_CONFIGURATION_CODECS.harness.decode(configuration.harness),
+    ui: HOME_CONFIGURATION_CODECS.ui.decode(configuration.ui),
+    permissions: HOME_CONFIGURATION_CODECS.permissions.decode(
+      configuration.permissions,
+    ),
+    providers: HOME_CONFIGURATION_CODECS.providers.decode(
+      configuration.providers,
+    ),
+    integrations: HOME_CONFIGURATION_CODECS.integrations.decode(
+      configuration.integrations,
+    ),
+  };
 }
 
 function configDocuments(
@@ -203,56 +185,70 @@ export function configurationWithSettings(
 ): UserConfiguration {
   const parsed = settingsSchema.parse(settings);
   const integrations = integrationsFromSettings(current.integrations, parsed);
-  return userConfigurationSchema.parse({
-    ...current,
-    daemon: {
-      version: 1,
-      network: parsed.application.network,
-      diagnostics: {
-        loggingEnabled: parsed.application.diagnostics.loggingEnabled,
-        performanceEnabled:
-          parsed.application.diagnostics.performanceEnabled ?? false,
+  return decodeConfiguration(
+    preserveConfigurationExtensions(current, {
+      ...current,
+      daemon: {
+        version: 1,
+        network: parsed.application.network,
+        diagnostics: {
+          loggingEnabled: parsed.application.diagnostics.loggingEnabled,
+          performanceEnabled:
+            parsed.application.diagnostics.performanceEnabled ?? false,
+        },
+        process: parsed.application.daemon,
+        logging: parsed.logging,
+        electron: parsed.application.electron,
       },
-      process: parsed.application.daemon,
-      logging: parsed.logging,
-      electron: parsed.application.electron,
-    },
-    harness: {
-      version: 2,
-      defaults: {
-        // New agents always start in coding mode; planning is a per-agent choice.
-        mode: "coding",
-        permissionLevel: parsed.defaultPermissionLevel,
-        permissionRuleSetId: parsed.defaultPermissionRuleSetId,
-        model: parsed.defaultModel,
-        thinkingLevel: parsed.defaultThinkingLevel,
+      harness: {
+        version: 2,
+        defaults: {
+          // New agents always start in coding mode; planning is a per-agent choice.
+          mode: "coding",
+          permissionLevel: parsed.defaultPermissionLevel,
+          permissionRuleSetId: parsed.defaultPermissionRuleSetId,
+          model: parsed.defaultModel,
+          thinkingLevel: parsed.defaultThinkingLevel,
+        },
+        rememberLastSelection: parsed.rememberLastAgentSelection,
+        lastSelection: parsed.lastAgentSelection,
+        exploreAgent: parsed.exploreAgent,
+        asyncSubagent: parsed.asyncSubagent,
+        compaction: parsed.compaction,
+        retry: parsed.retry,
+        execution: parsed.runtime,
+        tools: {
+          disabled: parsed.tools.disabled,
+          bash: parsed.tools.bash,
+          imageExplanation: parsed.tools.imageExplanation,
+          imageGeneration: parsed.tools.imageGeneration,
+        },
+        skills: parsed.skills,
+        scopedModels: parsed.scopedModels,
       },
-      rememberLastSelection: parsed.rememberLastAgentSelection,
-      lastSelection: parsed.lastAgentSelection,
-      exploreAgent: parsed.exploreAgent,
-      asyncSubagent: parsed.asyncSubagent,
-      compaction: parsed.compaction,
-      retry: parsed.retry,
-      execution: parsed.runtime,
-      tools: {
-        disabled: parsed.tools.disabled,
-        bash: parsed.tools.bash,
-        imageExplanation: parsed.tools.imageExplanation,
-        imageGeneration: parsed.tools.imageGeneration,
+      ui: {
+        version: 1,
+        appearance: parsed.ui,
+        desktop: parsed.desktop,
+        notifications: parsed.notifications,
+        transcription: parsed.transcription,
       },
-      skills: parsed.skills,
-      scopedModels: parsed.scopedModels,
-    },
-    ui: {
-      version: 1,
-      appearance: parsed.ui,
-      desktop: parsed.desktop,
-      notifications: parsed.notifications,
-      transcription: parsed.transcription,
-    },
-    permissions: current.permissions,
-    integrations,
-  });
+      permissions: current.permissions,
+      integrations,
+    }),
+  );
+}
+
+function preserveConfigurationExtensions(
+  current: UserConfiguration,
+  next: UserConfiguration,
+): UserConfiguration {
+  return Object.fromEntries(
+    (Object.keys(next) as HomeConfigurationDocumentId[]).map((documentId) => [
+      documentId,
+      mergePreservingUnknown(current[documentId], next[documentId]),
+    ]),
+  ) as unknown as UserConfiguration;
 }
 
 function integrationsFromSettings(
@@ -287,14 +283,4 @@ function integrationsFromSettings(
       web: settings.tools.web,
     },
   });
-}
-
-async function readPermissionConfig(path: string) {
-  try {
-    return permissionsConfigSchema.parse(await readJsonFile<unknown>(path));
-  } catch {
-    // Permission sources are validated and diagnosed by PermissionPolicyService.
-    // An invalid overlay must not prevent Nerve from starting.
-    return defaultPermissionsConfig;
-  }
 }

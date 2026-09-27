@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "tools": {
+    "disabled": ["explore"],
+    "futureToolOption": true
+  },
+  "futureHarnessOption": {
+    "enabled": true
+  }
+}

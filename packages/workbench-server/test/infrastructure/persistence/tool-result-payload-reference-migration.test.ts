@@ -29,6 +29,11 @@ import {
   initializeStorage,
   storagePaths,
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
+import {
+  CANONICAL_BASELINE_CHECKSUM,
+  CANONICAL_BASELINE_NAME,
+  CANONICAL_MIGRATIONS,
+} from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 
 const conversationId = "conv_payload_migration";
 const now = "2026-09-03T00:00:00.000Z";
@@ -154,13 +159,14 @@ async function legacyFixture(): Promise<{
   downgradeDatabase(database);
   database.close();
 
-  const ledger = JSON.parse(
-    await readFile(paths.migrationLedgerPath, "utf8"),
-  ) as { entries: Array<{ id: string }> };
-  ledger.entries = ledger.entries.filter(
-    (entry) => entry.id !== "tool-result-payload-reference-v2",
+  await writeFile(
+    paths.migrationLedgerPath,
+    `${JSON.stringify({
+      format: "nerve-home-migrations",
+      version: 1,
+      entries: [{ id: "nerve-home-v1", appliedAt: now }],
+    })}\n`,
   );
-  await writeFile(paths.migrationLedgerPath, `${JSON.stringify(ledger)}\n`);
 
   return {
     home,
@@ -222,28 +228,24 @@ test("migrates legacy payload references and rechains conversation journals", as
   });
   cleanup.storage = storage;
 
-  assert.deepEqual(progress, ["storage-check", "storage-migration"]);
+  assert.equal(progress[0], "storage-check");
+  assert.ok(progress.slice(1).every((phase) => phase === "storage-migration"));
   assert.ok(storage.timings.sqliteMigrationApplyMs >= 0);
-  const ledger = JSON.parse(
-    await readFile(storage.paths.migrationLedgerPath, "utf8"),
-  ) as {
-    entries: Array<{
-      id: string;
-      counts?: Record<string, number>;
-    }>;
-  };
-  const entry = ledger.entries.find(
-    (candidate) => candidate.id === "tool-result-payload-reference-v2",
-  );
-  assert.deepEqual(entry?.counts, {
-    conversations: 1,
-    journalCommits: 2,
-    snapshots: 1,
-    durableEvents: 2,
-    conversationRecords: 2,
-    fileAssets: 1,
-    rpcIdempotencyEntries: 0,
+  const migrated = new DatabaseSync(storage.paths.sqlitePath, {
+    readOnly: true,
   });
+  assert.equal(
+    (
+      migrated
+        .prepare(
+          `SELECT origin FROM storage_migrations
+           WHERE id = '0008-tool-result-payload-reference'`,
+        )
+        .get() as { origin: string }
+    ).origin,
+    "applied",
+  );
+  migrated.close();
 
   const repository = new ConversationJournalRepository(storage);
   const state = await repository.load(conversationId);
@@ -311,11 +313,12 @@ test("migrates legacy payload references and rechains conversation journals", as
     reportStartupProgress: (event) => progress.push(event.phase),
   });
   await repeated.canonicalStore.close();
-  assert.deepEqual(progress, [
-    "storage-check",
-    "storage-migration",
-    "storage-check",
-  ]);
+  assert.equal(progress.filter((phase) => phase === "storage-check").length, 2);
+  assert.ok(
+    progress.every(
+      (phase) => phase === "storage-check" || phase === "storage-migration",
+    ),
+  );
 });
 
 test("migrates imported snapshots that have no journal head", async (t) => {
@@ -452,16 +455,6 @@ test("discards legacy RPC idempotency outcomes during migration", async (t) => {
     .get() as { count: number };
   database.close();
   assert.equal(count.count, 0);
-
-  const ledger = JSON.parse(
-    await readFile(storage.paths.migrationLedgerPath, "utf8"),
-  ) as { entries: Array<{ id: string; counts?: Record<string, number> }> };
-  assert.equal(
-    ledger.entries.find(
-      (entry) => entry.id === "tool-result-payload-reference-v2",
-    )?.counts?.rpcIdempotencyEntries,
-    2,
-  );
 });
 
 test("resumes when legacy and current payload files are identical", async (t) => {
@@ -653,6 +646,23 @@ function downgradeDatabase(database: DatabaseSync): void {
       digest,
       payload.byteLength,
     );
+
+  // Recreate the pre-framework ownership state this fixture represents.
+  database.prepare("DELETE FROM schema_migrations").run();
+  const insertMigration = database.prepare(
+    `INSERT INTO schema_migrations (
+       version, name, checksum, applied_at_ms, duration_ms
+     ) VALUES (?, ?, ?, 1, 0)`,
+  );
+  insertMigration.run(1, CANONICAL_BASELINE_NAME, CANONICAL_BASELINE_CHECKSUM);
+  for (const migration of CANONICAL_MIGRATIONS) {
+    insertMigration.run(migration.version, migration.name, migration.checksum);
+  }
+  database.exec(`
+    DROP TABLE storage_read_sweeps;
+    DROP TABLE storage_quarantine;
+    DROP TABLE storage_migrations;
+  `);
 }
 
 function downgradeToolCall(record: ToolCallRecord): ToolCallRecord {

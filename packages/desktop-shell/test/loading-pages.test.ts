@@ -48,6 +48,37 @@ describe("errorHtml", () => {
     assert.doesNotMatch(html, /startup-retry/);
     assert.doesNotMatch(html, /script-src/);
   });
+
+  it("renders only safe structured migration failure details", () => {
+    const html = errorHtml({
+      failure: {
+        code: "MIGRATION_STEP_FAILED",
+        phase: "apply",
+        message: "Storage migration failed.",
+        retryable: false,
+        stepId: "0010-example",
+        cause: "token=secret",
+        path: "/private/data/record.json",
+      },
+    });
+    assert.match(html, /MIGRATION_STEP_FAILED/);
+    assert.match(html, /0010-example/);
+    assert.doesNotMatch(html, /token=secret/);
+    assert.doesNotMatch(html, /private\/data/);
+    assert.doesNotMatch(html, /startup-retry/);
+  });
+
+  it("offers retry for retryable structured migration failures", () => {
+    const html = errorHtml({
+      failure: {
+        code: "MIGRATION_HOME_LOCKED",
+        phase: "lock",
+        message: "Storage is temporarily locked.",
+        retryable: true,
+      },
+    });
+    assert.match(html, /startup-retry/);
+  });
 });
 
 describe("loading status scripts", () => {

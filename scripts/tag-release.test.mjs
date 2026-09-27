@@ -4,8 +4,11 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { versionLockedPackages } from "./lib/workspace-packages.mjs";
+import { storageMigrationChecksum } from "./lib/storage-migration-policy.mjs";
+import { renderRuntimeRegistry } from "./storage-migrations/release-lifecycle.mjs";
 
 const scriptPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -27,7 +30,7 @@ function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
 }
 
-async function createFixture() {
+async function createFixture({ migrationStage = "final" } = {}) {
   const root = await mkdtemp(join(tmpdir(), "nerve-tag-release-"));
   const repo = join(root, "repo");
   const origin = join(root, "origin.git");
@@ -68,6 +71,63 @@ async function createFixture() {
     join(repo, "Cargo.lock"),
     '# Generated fixture\nversion = 4\n\n[[package]]\nname = "nerve-native"\nversion = "1.0.0"\n',
   );
+
+  const migrationsRoot = join(
+    repo,
+    "packages/workbench-server/src/infrastructure/storage-migrations",
+  );
+  const stepRoot = join(migrationsRoot, "steps/0001-fixture");
+  await mkdir(stepRoot, { recursive: true });
+  await writeFile(join(stepRoot, "step.ts"), "export default {};\n");
+  await writeFile(join(stepRoot, "step.test.ts"), "// fixture\n");
+  await writeFile(
+    join(migrationsRoot, "steps/index.ts"),
+    'import step0001 from "./0001-fixture/step.js";\nexport const STORAGE_MIGRATION_STEPS = [step0001];\n',
+  );
+  const migrationEntries = [
+    {
+      id: "0001-fixture",
+      kind: "schema",
+      checksum: storageMigrationChecksum(stepRoot),
+      stage: migrationStage,
+      releasedIn: null,
+      acceptedChecksums: [],
+    },
+  ];
+  await writeFile(
+    join(migrationsRoot, "migrations.lock.json"),
+    `${JSON.stringify(
+      {
+        format: "nerve-storage-migrations-lock",
+        version: 1,
+        steps: migrationEntries,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  await writeFile(
+    join(migrationsRoot, "steps/registry-metadata.ts"),
+    renderRuntimeRegistry(migrationEntries),
+  );
+  for (const version of ["1.1.0", "1.2.0"]) {
+    const releaseFixture = join(
+      repo,
+      "packages/workbench-server/test/fixtures/storage/releases",
+      version,
+    );
+    await mkdir(join(releaseFixture, "data"), { recursive: true });
+    await mkdir(join(releaseFixture, "config"), { recursive: true });
+    await writeFile(
+      join(releaseFixture, "manifest.json"),
+      `${JSON.stringify({
+        format: "nerve-home",
+        version: 2,
+        homeClass: "standard",
+      })}\n`,
+    );
+    new DatabaseSync(join(releaseFixture, "data/nerve.sqlite")).close();
+  }
 
   git(repo, "add", ".");
   git(repo, "commit", "-m", "initial");
@@ -129,6 +189,23 @@ test(
       "tag",
     );
     assert.match(git(fixture.repo, "cat-file", "commit", "HEAD"), /^gpgsig /m);
+    const releasedLock = JSON.parse(
+      git(
+        fixture.repo,
+        "show",
+        "HEAD:packages/workbench-server/src/infrastructure/storage-migrations/migrations.lock.json",
+      ),
+    );
+    assert.equal(releasedLock.steps[0].stage, "released");
+    assert.equal(releasedLock.steps[0].releasedIn, "1.1.0");
+    assert.match(
+      git(
+        fixture.repo,
+        "show",
+        "HEAD:packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts",
+      ),
+      /"stage": "released"/,
+    );
     assert.equal(
       spawnSync(
         "git",
@@ -180,6 +257,71 @@ test(
         "refs/heads/main",
       ),
       fixture.initialCommit,
+    );
+  },
+);
+
+test(
+  "rejects draft, checksum-dirty, and desynchronized migration metadata before version changes",
+  { skip: missingTool && `requires ${missingTool}` },
+  async (context) => {
+    const draft = await createFixture({ migrationStage: "draft" });
+    const drifted = await createFixture();
+    const desynchronized = await createFixture();
+    context.after(() =>
+      Promise.all(
+        [draft.root, drifted.root, desynchronized.root].map((root) =>
+          rm(root, { recursive: true, force: true }),
+        ),
+      ),
+    );
+
+    const draftResult = runRelease(draft.repo, "1.1.0");
+    assert.notEqual(draftResult.status, 0);
+    assert.match(draftResult.stderr, /draft migrations cannot be released/);
+    assert.match(
+      git(draft.repo, "show", "HEAD:package.json"),
+      /"version": "1.0.0"/,
+    );
+
+    const stepPath = join(
+      drifted.repo,
+      "packages/workbench-server/src/infrastructure/storage-migrations/steps/0001-fixture/step.ts",
+    );
+    await writeFile(stepPath, "export default { changed: true };\n");
+    git(drifted.repo, "add", stepPath);
+    git(drifted.repo, "commit", "-m", "drift migration metadata");
+    const driftedResult = runRelease(drifted.repo, "1.1.0");
+    assert.notEqual(driftedResult.status, 0);
+    assert.match(driftedResult.stderr, /migration step checksum is dirty/);
+    assert.match(
+      git(drifted.repo, "show", "HEAD:package.json"),
+      /"version": "1.0.0"/,
+    );
+
+    const registryPath = join(
+      desynchronized.repo,
+      "packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts",
+    );
+    await writeFile(
+      registryPath,
+      renderRuntimeRegistry([
+        {
+          id: "0001-fixture",
+          kind: "schema",
+          checksum: "f".repeat(64),
+          stage: "final",
+          acceptedChecksums: [],
+        },
+      ]),
+    );
+    git(desynchronized.repo, "add", registryPath);
+    git(desynchronized.repo, "commit", "-m", "desynchronize runtime metadata");
+    const desynchronizedResult = runRelease(desynchronized.repo, "1.1.0");
+    assert.notEqual(desynchronizedResult.status, 0);
+    assert.match(
+      desynchronizedResult.stderr,
+      /runtime migration registry metadata is out of sync/,
     );
   },
 );
