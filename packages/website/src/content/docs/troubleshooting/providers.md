@@ -7,13 +7,17 @@ sidebar:
 
 ## API key fails
 
-Verify the provider, key scope, endpoint, and whether a custom provider expects different headers or compatibility settings. Saving a key replaces OAuth for that provider. Reauthenticate rather than placing a key in prompts or logs.
+Verify the provider, key scope, endpoint, and whether a custom provider expects different headers or compatibility settings. An API key uses the provider's developer API and billing; it is not the same as signing in to a subscription. Saving a key replaces OAuth for that provider. Reauthenticate rather than placing a key in prompts or logs.
 
 ## OAuth cannot complete
 
-Only one callback-server flow can run at a time for selected providers. Cancel the active flow and restart. Corporate TLS/proxy failures can invalidate a PKCE-bound code; do not reuse it. Follow [install/proxy guidance](/troubleshooting/install-and-proxy/) and begin a fresh flow.
+For a browser login, keep the Nerve prompt open until the callback completes. If the callback page fails, copy its final redirect URL from the browser address bar and paste it into the prompt. Pasted callback URLs must use a loopback host such as `localhost` or `127.0.0.1`; do not replace that host with a LAN or public daemon address.
 
-Anthropic subscription authentication may use paid extra usage outside plan limits. This warning is expected, not an authentication error.
+When the browser and daemon run on different machines—for example over SSH or in a container—`localhost` in the browser points to the browser's machine. Prefer device-code login when the provider offers it. Otherwise, paste the failed final loopback redirect URL into the active prompt so Nerve can finish the exchange.
+
+Only one active flow can use a given local callback address at a time. Cancel a stale conflicting flow before restarting. Authorization codes can be one-time and PKCE-bound. If a login is cancelled or fails during callback, TLS, proxy, or token exchange, start a fresh login; do not reuse a code or redirect URL. Follow [install/proxy guidance](/troubleshooting/install-and-proxy/) for certificate or proxy failures.
+
+Subscription OAuth and API-key billing are separate. Anthropic subscription authentication may use paid extra usage outside plan limits; this warning is expected, not an authentication error.
 
 ## Expected model is missing
 

@@ -1,18 +1,24 @@
 <script lang="ts">
 import { onDestroy } from "svelte";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import Check from "@lucide/svelte/icons/check";
+import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { AddProviderFlow } from "./add-provider-flow.svelte";
+import {
+  isProviderAvailableForDialog,
+  type ProviderDialogKind,
+} from "./provider-auth-routing";
 
 type Props = {
   open?: boolean;
   authProviders?: AuthProviderMetadata[];
-  kind?: "oauth" | "api_key" | "all";
+  kind?: ProviderDialogKind;
   excludeProviders?: string[];
 };
 
@@ -23,40 +29,37 @@ let {
   excludeProviders = [],
 }: Props = $props();
 
-const flowController = new AddProviderFlow(() => {
-  open = false;
-});
-
+const flowController = new AddProviderFlow(() => (open = false));
 const excluded = $derived(new Set(excludeProviders));
 const available = $derived(
   [...authProviders]
-    .filter((provider) => {
-      if (
-        provider.configured ||
-        excluded.has(provider.provider) ||
-        provider.provider.startsWith("atlassian:") ||
-        provider.provider.startsWith("tavily:")
-      )
-        return false;
-      if (kind === "oauth") return provider.supportsOAuth;
-      if (kind === "api_key")
-        return provider.supportsApiKey && !provider.supportsOAuth;
-      return provider.supportsOAuth || provider.supportsApiKey;
-    })
+    .filter(
+      (provider) =>
+        isProviderAvailableForDialog(provider, kind) &&
+        !excluded.has(provider.provider) &&
+        !provider.provider.startsWith("atlassian:") &&
+        !provider.provider.startsWith("tavily:"),
+    )
     .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+);
+const activeInteraction = $derived(
+  flowController.flow?.state === "active"
+    ? flowController.flow.interaction
+    : undefined,
+);
+const responseDisabled = $derived(
+  flowController.busy ||
+    (!(
+      activeInteraction?.type === "text_input" && activeInteraction.allowEmpty
+    ) &&
+      flowController.responseValue.trim().length === 0),
 );
 
 function handleOpenChange(next: boolean) {
-  if (!next) {
-    void flowController.close();
-  }
+  if (!next) void flowController.close();
 }
 
-// Navigating away (e.g. switching auth tabs) must cancel an in-flight OAuth
-// flow and stop its polling timer, not just clicking Close.
-onDestroy(() => {
-  void flowController.dispose();
-});
+onDestroy(() => void flowController.dispose());
 </script>
 
 <Dialog
@@ -98,7 +101,7 @@ onDestroy(() => {
                 data-tour-id={provider.provider === "openai-codex"
                   ? "setup-auth-openai-codex-choice"
                   : undefined}
-                onclick={() => flowController.chooseProvider(provider)}
+                onclick={() => flowController.chooseProvider(provider, kind)}
               >
                 <span class="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
                   <span class="truncate">{provider.displayName}</span>
@@ -111,6 +114,31 @@ onDestroy(() => {
           {/each}
         </ul>
       {/if}
+    {:else if flowController.step === "method"}
+      <div class="grid gap-2">
+        <Button
+          variant="outline"
+          onclick={() => flowController.chooseMethod("oauth")}
+        >
+          <span class="grid text-left">
+            <span>Connect subscription</span>
+            <span class="text-xs font-normal text-muted-foreground">
+              Sign in with an account plan supported by this provider.
+            </span>
+          </span>
+        </Button>
+        <Button
+          variant="outline"
+          onclick={() => flowController.chooseMethod("api-key")}
+        >
+          <span class="grid text-left">
+            <span>Use API key</span>
+            <span class="text-xs font-normal text-muted-foreground">
+              Authenticate with developer API billing.
+            </span>
+          </span>
+        </Button>
+      </div>
     {:else if flowController.step === "api-key"}
       <form
         class="grid gap-2"
@@ -119,6 +147,12 @@ onDestroy(() => {
           void flowController.submitApiKey();
         }}
       >
+        {#if flowController.selected?.credentialType === "oauth"}
+          <p class="text-xs text-warning">
+            Saving an API key will replace the connected subscription for this
+            provider.
+          </p>
+        {/if}
         <label
           class="flex items-center justify-between gap-2 text-sm font-medium"
           for="add-provider-api-key"
@@ -142,142 +176,184 @@ onDestroy(() => {
       </form>
     {:else if flowController.step === "oauth"}
       <div class="grid gap-3" aria-live="polite">
-        {#if flowController.flow}
-          {#if flowController.flow.message}
-            <p class="text-sm text-foreground">{flowController.flow.message}</p>
-          {/if}
-
-          {#if flowController.flow.links?.length}
+        {#if flowController.selected?.credentialType === "api_key"}
+          <p class="text-xs text-warning">
+            Connecting the subscription will replace the API key for this
+            provider.
+          </p>
+        {/if}
+        {#if flowController.flow?.state === "active"}
+          {@const interaction = flowController.flow.interaction}
+          {#if interaction.type === "starting"}
+            <p class="flex items-center gap-2 text-sm text-muted-foreground">
+              <Spinner /> Starting login…
+            </p>
+          {:else if interaction.type === "choice"}
+            <p class="text-sm text-foreground">{interaction.message}</p>
             <div class="grid gap-2">
-              {#each flowController.flow.links as link (link.url)}
-                <Button
-                  variant="outline"
-                  onclick={() => flowController.openExternal(link.url)}
-                >
-                  <ExternalLink size={15} strokeWidth={2} />
-                  {link.label ?? "Open link"}
-                </Button>
-              {/each}
-            </div>
-          {/if}
-
-          {#if flowController.flow.status === "auth_url" && flowController.flow.authUrl}
-            <Button
-              variant="outline"
-              onclick={() =>
-                flowController.flow?.authUrl &&
-                flowController.openExternal(flowController.flow.authUrl)}
-            >
-              <ExternalLink size={15} strokeWidth={2} />
-              Open login page
-            </Button>
-            {#if flowController.flow.instructions}
-              <p class="text-xs text-muted-foreground">
-                {flowController.flow.instructions}
-              </p>
-            {/if}
-          {:else if flowController.flow.status === "device_code" && flowController.flow.deviceCode}
-            <div class="grid justify-items-start gap-2">
-              <Button
-                variant="outline"
-                onclick={() =>
-                  flowController.flow?.deviceCode &&
-                  flowController.openExternal(
-                    flowController.flow.deviceCode.verificationUri,
-                  )}
-              >
-                <ExternalLink size={15} strokeWidth={2} />
-                Open verification page
-              </Button>
-              <p class="text-xs text-muted-foreground">Enter this code:</p>
-              <code
-                class="rounded-md border border-border/60 bg-muted px-2 py-1 font-mono text-base tracking-widest text-foreground"
-                >{flowController.flow.deviceCode.userCode}</code
-              >
-            </div>
-          {:else if flowController.flow.status === "select" && flowController.flow.options}
-            <div class="grid gap-2">
-              {#each flowController.flow.options as option (option.id)}
+              {#each interaction.options as option (option.id)}
                 <Button
                   variant="outline"
                   disabled={flowController.busy}
                   onclick={() => void flowController.selectOption(option.id)}
                 >
-                  {option.label}
+                  <span class="grid text-left">
+                    <span>{option.label}</span>
+                    {#if option.description}<span
+                        class="text-xs font-normal text-muted-foreground"
+                        >{option.description}</span
+                      >{/if}
+                  </span>
                 </Button>
               {/each}
             </div>
-          {:else if flowController.flow.status === "prompt"}
+          {:else if interaction.type === "browser"}
+            <div class="grid gap-2 sm:grid-cols-2">
+              <Button
+                variant="outline"
+                onclick={() =>
+                  flowController.openExternal(interaction.authorizationUrl)}
+              >
+                <ExternalLink size={15} strokeWidth={2} /> Open login page
+              </Button>
+              <Button
+                variant="outline"
+                onclick={() => void flowController.copyLoginUrl()}
+              >
+                {#if flowController.copiedLoginUrl}
+                  <Check size={15} strokeWidth={2} /> Copied login URL
+                {:else}
+                  <Copy size={15} strokeWidth={2} /> Copy login URL
+                {/if}
+              </Button>
+            </div>
+            <p class="text-xs text-muted-foreground">
+              {interaction.instructions}
+            </p>
+            {#if interaction.manualEntry}
+              <form
+                class="grid gap-2"
+                onsubmit={(event) => {
+                  event.preventDefault();
+                  void flowController.submitResponse();
+                }}
+              >
+                <label class="text-sm font-medium" for="oauth-manual-redirect"
+                  >{interaction.manualEntry.label}</label
+                >
+                <Input
+                  size="xs"
+                  id="oauth-manual-redirect"
+                  type="text"
+                  autocomplete="off"
+                  placeholder={interaction.manualEntry.placeholder}
+                  bind:value={flowController.responseValue}
+                  disabled={flowController.busy}
+                />
+              </form>
+            {/if}
+          {:else if interaction.type === "device_code"}
+            <Button
+              variant="outline"
+              onclick={() =>
+                flowController.openExternal(interaction.verificationUrl)}
+            >
+              <ExternalLink size={15} strokeWidth={2} /> Open verification page
+            </Button>
+            <div class="grid justify-items-start gap-2">
+              <p class="text-xs text-muted-foreground">Enter this code:</p>
+              <Button
+                variant="outline"
+                onclick={() => void flowController.copyDeviceCode()}
+                aria-label="Copy device code"
+              >
+                <code class="font-mono text-base tracking-widest"
+                  >{interaction.userCode}</code
+                >
+                {#if flowController.copiedDeviceCode}<Check
+                    size={15}
+                    strokeWidth={2}
+                  />{:else}<Copy size={15} strokeWidth={2} />{/if}
+              </Button>
+              {#if flowController.deviceCodeSecondsRemaining !== undefined}
+                <p class="text-xs text-muted-foreground">
+                  {flowController.deviceCodeSecondsRemaining === 0
+                    ? "Code expired. Waiting for the provider…"
+                    : `Expires in ${flowController.deviceCodeSecondsRemaining}s`}
+                </p>
+              {/if}
+            </div>
+          {:else if interaction.type === "text_input"}
+            <p class="text-sm text-foreground">{interaction.message}</p>
             <form
               class="grid gap-2"
               onsubmit={(event) => {
                 event.preventDefault();
-                void flowController.submitPrompt();
+                void flowController.submitResponse();
               }}
             >
-              {#if flowController.flow.authUrl}
-                <Button
-                  variant="outline"
-                  onclick={() =>
-                    flowController.flow?.authUrl &&
-                    flowController.openExternal(flowController.flow.authUrl)}
-                >
-                  <ExternalLink size={15} strokeWidth={2} />
-                  Open login page
-                </Button>
-              {/if}
-              {#if flowController.flow.instructions}
-                <p class="text-xs text-muted-foreground">
-                  {flowController.flow.instructions}
-                </p>
-              {/if}
               <Input
                 size="xs"
-                type="text"
+                type={interaction.inputKind === "secret" ? "password" : "text"}
                 autocomplete="off"
-                placeholder={flowController.flow.placeholder ??
-                  "Paste the code or redirect URL"}
-                bind:value={flowController.promptValue}
+                placeholder={interaction.placeholder ?? "Enter a response"}
+                bind:value={flowController.responseValue}
                 disabled={flowController.busy}
               />
             </form>
-          {:else if flowController.flow.status === "failed"}
-            <div class="grid gap-2">
-              <p class="text-sm text-destructive">
-                The login attempt ended before credentials were saved.
-              </p>
-              <p class="text-xs text-muted-foreground">
-                Fix any proxy or certificate settings, then start a fresh login.
-                Authorization codes are one-time and may be tied to the ended
-                login attempt.
-                {#if flowController.flow.provider === "openai-codex"}
-                  If local redirects are blocked, choose device-code login when
-                  prompted.
-                {/if}
-              </p>
-              <Button
-                variant="outline"
-                disabled={flowController.busy}
-                onclick={() => void flowController.restartOAuth()}
-              >
-                Start a fresh login
-              </Button>
-            </div>
-          {:else if flowController.flow.status === "succeeded"}
-            <p class="text-sm font-medium text-success">
-              Connected to {flowController.flow.providerName}.
-            </p>
-          {:else}
+          {:else if interaction.type === "progress"}
             <p class="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner />
-              Working…
+              {interaction.message}
             </p>
+            {#if interaction.links?.length}
+              <div class="grid gap-2">
+                {#each interaction.links as link (link.url)}
+                  <Button
+                    variant="outline"
+                    onclick={() => flowController.openExternal(link.url)}
+                  >
+                    <ExternalLink size={15} strokeWidth={2} />
+                    {link.label ?? "Open link"}
+                  </Button>
+                {/each}
+              </div>
+            {/if}
           {/if}
-        {:else}
-          <p class="flex items-center gap-2 text-sm text-muted-foreground">
-            <Spinner />
-            Starting login…
+        {:else if flowController.flow?.state === "failed"}
+          <p class="text-sm text-destructive">
+            {flowController.flow.failure.message}
           </p>
+          {#if flowController.flow.failure.detail}<p
+              class="text-xs text-muted-foreground"
+            >
+              {flowController.flow.failure.detail}
+            </p>{/if}
+          <Button
+            variant="outline"
+            disabled={flowController.busy}
+            onclick={() => void flowController.restartOAuth()}>Try again</Button
+          >
+        {:else if flowController.flow?.state === "succeeded"}
+          <p class="text-sm font-medium text-success">
+            {flowController.flow.successMessage}
+          </p>
+        {:else if flowController.flow?.state === "cancelled"}
+          <p class="text-sm text-muted-foreground">Login was cancelled.</p>
+          <Button
+            variant="outline"
+            disabled={flowController.busy}
+            onclick={() => void flowController.restartOAuth()}>Try again</Button
+          >
+        {:else if flowController.busy}
+          <p class="flex items-center gap-2 text-sm text-muted-foreground">
+            <Spinner /> Starting login…
+          </p>
+        {:else}
+          <Button
+            variant="outline"
+            onclick={() => void flowController.restartOAuth()}>Try again</Button
+          >
         {/if}
       </div>
     {/if}
@@ -291,30 +367,31 @@ onDestroy(() => {
   </div>
 
   {#snippet footer()}
-    <Button
-      size="sm"
-      variant="ghost"
-      onclick={() => void flowController.close()}>Cancel</Button
-    >
-    {#if flowController.step === "api-key"}
+    {#if flowController.flow?.state === "succeeded"}
+      <Button size="sm" onclick={() => void flowController.close()}>Done</Button
+      >
+    {:else}
       <Button
         size="sm"
-        onclick={() => void flowController.submitApiKey()}
-        disabled={flowController.busy ||
-          flowController.apiKey.trim().length === 0}
+        variant="ghost"
+        onclick={() => void flowController.close()}>Cancel</Button
       >
-        {flowController.busy ? "Saving…" : "Save API key"}
-      </Button>
-    {:else if flowController.step === "oauth" && flowController.flow?.status === "prompt"}
-      <Button
-        size="sm"
-        onclick={() => void flowController.submitPrompt()}
-        disabled={flowController.busy ||
-          (!flowController.flow.allowEmpty &&
-            flowController.promptValue.trim().length === 0)}
-      >
-        Submit
-      </Button>
+      {#if flowController.step === "api-key"}
+        <Button
+          size="sm"
+          onclick={() => void flowController.submitApiKey()}
+          disabled={flowController.busy ||
+            flowController.apiKey.trim().length === 0}
+        >
+          {flowController.busy ? "Saving…" : "Save API key"}
+        </Button>
+      {:else if flowController.step === "oauth" && (activeInteraction?.type === "text_input" || (activeInteraction?.type === "browser" && activeInteraction.manualEntry))}
+        <Button
+          size="sm"
+          onclick={() => void flowController.submitResponse()}
+          disabled={responseDisabled}>Submit</Button
+        >
+      {/if}
     {/if}
   {/snippet}
 </Dialog>
