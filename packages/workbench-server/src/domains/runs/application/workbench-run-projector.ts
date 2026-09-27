@@ -1,4 +1,3 @@
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationRunRetrySnapshot } from "@nervekit/contracts/conversations";
 import {
   runFailureCategorySchema,
@@ -13,13 +12,7 @@ import {
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 
 export class WorkbenchRunProjector implements RunTransitionObserverPort {
-  constructor(
-    private readonly state: RuntimeState,
-    private readonly update: (
-      agent: AgentRecord,
-      status: AgentRecord["status"],
-    ) => Promise<void>,
-  ) {}
+  constructor(private readonly state: RuntimeState) {}
 
   async committed(transition: RunTransitionRecord): Promise<void> {
     const entries = transition.entries ?? [];
@@ -27,13 +20,12 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
       this.state.appendConversationEntry(entry);
     }
     this.projectConversationRuntime(transition.run, retrySnapshot(transition));
-    await this.projectAgentStatus(transition.run);
   }
 
   async rebuild(input: {
     /** Full hydrated states of currently-active runs only. */
     readonly activeStates: readonly RunHydratedState[];
-    /** Lightweight records (metadata) for every run, incl. terminal history. */
+    /** Lightweight records remain available to callers for other rebuilders. */
     readonly runRecords: readonly RunRecord[];
   }): Promise<void> {
     this.state.conversationRuntime.reset();
@@ -44,21 +36,6 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
           retrySnapshotFromState(state),
         );
       }
-    }
-
-    const latestByAgent = new Map<string, RunRecord>();
-    for (const run of input.runRecords) {
-      const current = latestByAgent.get(run.agentId);
-      if (
-        !current ||
-        current.updatedAt < run.updatedAt ||
-        (current.updatedAt === run.updatedAt && current.revision < run.revision)
-      ) {
-        latestByAgent.set(run.agentId, run);
-      }
-    }
-    for (const run of latestByAgent.values()) {
-      await this.projectAgentStatus(run, { preserveNewerAgentStatus: true });
     }
   }
 
@@ -116,42 +93,6 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
     }
     runtime.projectStatus(run.runId, "running");
   }
-
-  private async projectAgentStatus(
-    run: RunRecord,
-    options: { preserveNewerAgentStatus?: boolean } = {},
-  ): Promise<void> {
-    const agent = this.state.agents.get(run.agentId);
-    if (!agent) return;
-    if (options.preserveNewerAgentStatus && agent.updatedAt > run.updatedAt) {
-      return;
-    }
-    const status = agentStatusForRun(run.status);
-    if (agent.status === status) return;
-    await this.update(agent, status);
-  }
-}
-
-export function agentStatusForRun(
-  status: RunRecord["status"],
-): AgentRecord["status"] {
-  if (
-    [
-      "starting",
-      "running",
-      "retrying",
-      "executing_tools",
-      "cancellation_requested",
-    ].includes(status)
-  ) {
-    return "running";
-  }
-  if (status === "waiting" || status === "suspended") {
-    return "awaiting_user";
-  }
-  if (status === "completed") return "idle";
-  if (status === "cancelled") return "aborted";
-  return "error";
 }
 
 function isActiveRun(run: RunRecord): boolean {

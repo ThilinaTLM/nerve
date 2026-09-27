@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentAsyncObligationSchema } from "../agents/agent-obligation.js";
 import {
   runEventDeliveryRecordSchema,
   runTransitionRecordSchema,
@@ -106,6 +107,10 @@ export const conversationJournalEventSchema = z.discriminatedUnion("kind", [
   identitySchema.extend({
     kind: z.literal("suspension.upserted"),
     suspension: conversationSuspensionRecordSchema,
+  }),
+  identitySchema.extend({
+    kind: z.literal("agent_obligation.upserted"),
+    obligation: agentAsyncObligationSchema,
   }),
 ]);
 export type ConversationJournalEvent = z.infer<

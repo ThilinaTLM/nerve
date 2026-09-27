@@ -40,6 +40,8 @@ Host retries are enabled by default for retryable failures: three retries with a
 
 After daemon restart, active runs with valid checkpoints become interrupted and can be continued. Invalid checkpoints fail. Manual continuation verifies the run belongs to the agent and resumes from recoverable persisted state.
 
+Awaited asynchronous work is recovered separately from model execution. Auto-promoted Bash work and asynchronous subagents create durable obligations; explicit `task_start` work does not. Result delivery uses stable identities and monotonic progress, so recovery can retry without duplicating the transcript notice. Because a process, model, and SQLite cannot share one transaction, delivery is idempotent and recoverable rather than exactly once across those boundaries. An agent can be execution-idle while still shown as **waiting for background work** until its obligations are consumed.
+
 ## Next steps
 
 - [Task recovery](/troubleshooting/tasks-and-recovery/)

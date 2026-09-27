@@ -1,4 +1,5 @@
 <script lang="ts">
+import Hourglass from "@lucide/svelte/icons/hourglass";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import MessageCircleMore from "@lucide/svelte/icons/message-circle-more";
 import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question";
@@ -25,6 +26,9 @@ const waitingLabel = $derived(
 const failedLabel = $derived(
   `${countLabel(item.activity.failed, "conversation")} failed`,
 );
+const awaitingAsyncLabel = $derived(
+  `${countLabel(item.activity.awaitingAsync, "conversation")} waiting for background work`,
+);
 const taskLabel = $derived(
   `${countLabel(item.tasks.running, "background task")} running`,
 );
@@ -32,6 +36,7 @@ const taskLabel = $derived(
 // every quiet row turns the exception (real activity) into background noise.
 const hasActivity = $derived(
   item.activity.running > 0 ||
+    item.activity.awaitingAsync > 0 ||
     item.activity.needsUser > 0 ||
     item.activity.failed > 0 ||
     item.tasks.running > 0,
@@ -103,6 +108,27 @@ const hasActivity = $derived(
           {/snippet}
         </Tooltip.Trigger>
         <Tooltip.Content sideOffset={5}>{runningLabel}</Tooltip.Content>
+      </Tooltip.Root>
+    {/if}
+
+    {#if item.activity.awaitingAsync}
+      <Tooltip.Root>
+        <Tooltip.Trigger>
+          {#snippet child({ props })}
+            <button
+              {...props}
+              type="button"
+              class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-accent px-1.5 py-0.5 text-accent-foreground"
+              aria-label={awaitingAsyncLabel}
+              onclick={(event) => event.stopPropagation()}
+              onkeydown={(event) => event.stopPropagation()}
+            >
+              <Hourglass class="size-3.5" aria-hidden="true" />
+              <span>{item.activity.awaitingAsync}</span>
+            </button>
+          {/snippet}
+        </Tooltip.Trigger>
+        <Tooltip.Content sideOffset={5}>{awaitingAsyncLabel}</Tooltip.Content>
       </Tooltip.Root>
     {/if}
 

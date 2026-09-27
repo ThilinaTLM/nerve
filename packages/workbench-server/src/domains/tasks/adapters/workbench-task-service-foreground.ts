@@ -163,16 +163,17 @@ export async function runForegroundBashWithPromotion(
 
   const latestManaged = this.managed.get(task.id);
   if (latestManaged) latestManaged.onOutput = undefined;
+  const awaited = input.continueAfterPromotion !== false;
   const promoted = await this.backgroundActiveTask(task.id, {
     visibility: "background",
     completion: {
-      inject: input.continueAfterPromotion !== false,
+      inject: false,
       outputTailLineCount: 80,
     },
     notifications: {
       enabled: true,
       ready: true,
-      terminal: true,
+      terminal: !awaited,
       outputTailLineCount: 80,
     },
   });
@@ -184,6 +185,7 @@ export async function runForegroundBashWithPromotion(
     await this.removeTask(promoted.id).catch(() => undefined);
     return { kind: "completed_foreground", result };
   }
+  if (awaited) await this.onPromotedTask?.(promoted);
   await this.events.publish("task.promoted", { task: promoted });
   const elapsedMs = Date.now() - startedAt;
   const logs = await this.queryLogs(promoted.id, {

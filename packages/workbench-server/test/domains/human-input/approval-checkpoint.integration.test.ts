@@ -111,12 +111,13 @@ test("concurrent approvals return on persistence while unrelated model work neve
     }
 
     await waitFor(
-      () =>
-        services.agentLifecycle.getAgent(agent.id).status === "idle"
+      async () =>
+        (await services.agentActivity.activityForAgent(agent.id)).state ===
+        "idle"
           ? true
           : undefined,
       () => ({
-        agent: services.agentLifecycle.getAgent(agent.id).status,
+        agent: services.agentLifecycle.getAgent(agent.id),
         tools: services.tools
           .listToolCalls()
           .map((toolCall) => [toolCall.id, toolCall.status, toolCall.error]),
@@ -156,7 +157,7 @@ test("concurrent approvals return on persistence while unrelated model work neve
       );
     assert.equal(resultEntries.length, 3);
     assert.equal(
-      services.agentLifecycle.getAgent(blockedAgent.id).status,
+      (await services.agentActivity.activityForAgent(blockedAgent.id)).state,
       "running",
     );
   } finally {
@@ -174,12 +175,12 @@ test("concurrent approvals return on persistence while unrelated model work neve
 });
 
 async function waitFor<T>(
-  read: () => T | undefined,
+  read: () => T | undefined | Promise<T | undefined>,
   diagnostics: () => unknown = () => "",
 ): Promise<T> {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    const value = read();
+    const value = await read();
     if (value !== undefined) return value;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }

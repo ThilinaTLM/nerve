@@ -29,7 +29,6 @@ function agent(
     workspaceScope: { roots: ["/workspace"] },
     budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
-    status: "idle",
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
   };

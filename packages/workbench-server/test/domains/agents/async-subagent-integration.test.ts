@@ -84,20 +84,18 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
     const receipt = prompted.toolCall.result?.details as { runId: string };
     assert.ok(receipt.runId);
     const deadline = Date.now() + 15_000;
+    const obligationId = `async_subagent:${receipt.runId}:0`;
     while (Date.now() < deadline) {
-      const notices = await storage.canonicalStore.listSubagentCompletions(
-        lead.id,
-      );
-      if (notices.some((record) => record.consumedAt)) break;
+      const obligation =
+        await storage.canonicalStore.readAgentObligation(obligationId);
+      if (obligation?.consumedAt) break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    const notices = await storage.canonicalStore.listSubagentCompletions(
-      lead.id,
-    );
-    assert.equal(notices.length, 1);
+    const obligation =
+      await storage.canonicalStore.readAgentObligation(obligationId);
     assert.ok(
-      notices[0]?.consumedAt,
-      "lead must consume the durable completion notification",
+      obligation?.consumedAt,
+      "lead must consume the durable completion obligation",
     );
     assert.equal(
       await readFile(join(root, "component.txt"), "utf8"),
@@ -161,24 +159,23 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
         !tools.includes("explore") &&
         !tools.some((name) => name.startsWith("task_")),
     );
-    await runtime.services.asyncSubagents.prompt(
+    const followUp = await runtime.services.asyncSubagents.prompt(
       lead.id,
       "API",
       "Review your previous implementation.",
     );
+    const followUpObligationId = `async_subagent:${followUp.runId}:0`;
     const followUpDeadline = Date.now() + 15_000;
     while (Date.now() < followUpDeadline) {
-      const records = await storage.canonicalStore.listSubagentCompletions(
-        lead.id,
-      );
-      if (records.filter((record) => record.consumedAt).length === 2) break;
+      const followUpObligation =
+        await storage.canonicalStore.readAgentObligation(followUpObligationId);
+      if (followUpObligation?.consumedAt) break;
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    assert.equal(
-      (await storage.canonicalStore.listSubagentCompletions(lead.id)).filter(
-        (record) => record.consumedAt,
-      ).length,
-      2,
+    assert.ok(
+      (await storage.canonicalStore.readAgentObligation(followUpObligationId))
+        ?.consumedAt,
+      "lead must consume the follow-up completion obligation",
     );
     const history = await runtime.services.harnessStorage.openAgentStorage(
       runtime.services.agentLifecycle.getAgent(child.id),
@@ -225,10 +222,14 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
         .getConversationTree(conversation.id)
         .nodes.every((node) => node.entry.agentId !== child.id),
     );
-    await runtime.services.asyncSubagentNotifications.recover();
-    assert.equal(
-      (await storage.canonicalStore.listSubagentCompletions(lead.id)).length,
-      2,
+    await runtime.services.asyncObligations.recover();
+    assert.ok(
+      (await storage.canonicalStore.readAgentObligation(obligationId))
+        ?.consumedAt,
+    );
+    assert.ok(
+      (await storage.canonicalStore.readAgentObligation(followUpObligationId))
+        ?.consumedAt,
     );
   } finally {
     await shutdownServerRuntime(runtime.runtime);

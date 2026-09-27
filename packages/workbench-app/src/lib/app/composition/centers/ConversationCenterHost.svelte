@@ -501,7 +501,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
     (agent) =>
       agent.parentAgentId === activeAgent?.id &&
       agent.executionKind === "async_developer" &&
-      (agent.status === "running" ||
+      (workspaceState.agentActivities[agent.id]?.state === "running" ||
         taskSelectors.tasks.some(
           (task) =>
             task.agentId === agent.id &&

@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
+import Hourglass from "@lucide/svelte/icons/hourglass";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import MobileListRow from "./MobileListRow.svelte";
@@ -23,7 +24,9 @@ let {
 } = $props();
 
 const empty = $derived(
-  model.needsYou.length === 0 && model.running.length === 0,
+  model.needsYou.length === 0 &&
+    model.running.length === 0 &&
+    model.awaitingAsync.length === 0,
 );
 
 // The row meta line answers "where and when" in one glance.
@@ -34,7 +37,12 @@ function rowMeta(item: MobileInboxItem): string {
 
 // Errors and runs already read as a state; only requests need naming.
 function rowDetail(item: MobileInboxItem): string {
-  if (item.kind === "error" || item.kind === "running") return item.detail;
+  if (
+    item.kind === "error" ||
+    item.kind === "running" ||
+    item.kind === "awaiting-async"
+  )
+    return item.detail;
   return `${item.kindLabel} · ${item.detail}`;
 }
 </script>
@@ -54,6 +62,31 @@ function rowDetail(item: MobileInboxItem): string {
         menuTitle={item.title}
         onclick={() => onOpen(item)}
       />
+    {/each}
+  </MobileSection>
+{/if}
+
+{#if model.awaitingAsync.length}
+  <MobileSection
+    title="Waiting for background work"
+    meta={`${model.awaitingAsync.length}`}
+  >
+    {#each model.awaitingAsync as item (item.id)}
+      <MobileListRow
+        title={item.title}
+        detail={item.detail}
+        meta={rowMeta(item)}
+        menuItems={menuItems?.(item)}
+        menuTitle={item.title}
+        onclick={() => onOpen(item)}
+      >
+        {#snippet leading()}
+          <Hourglass
+            class="mt-1 size-3.5 flex-none text-accent-foreground"
+            aria-label="Waiting for background work"
+          />
+        {/snippet}
+      </MobileListRow>
     {/each}
   </MobileSection>
 {/if}

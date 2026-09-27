@@ -72,10 +72,6 @@ export interface HumanInputResolutionDeps {
     agentId: string,
     request: UpdateAgentRequest,
   ): Promise<AgentRecord>;
-  setAgentStatus(
-    agent: AgentRecord,
-    status: AgentRecord["status"],
-  ): Promise<void>;
   appendEntry(
     input: AppendEntryInput,
     options?: GuardedAppendEntryOptions,
@@ -239,13 +235,11 @@ export class HumanInputResolutionService {
           finalSuspensionStatus: "cancelled",
         },
       );
-      await this.setRejectedPlanAgentIdle(review);
       return review;
     }
 
     if (source.state === "terminal") {
       await this.reconcileTerminalPlanReview(review);
-      await this.setRejectedPlanAgentIdle(review);
       return review;
     }
 
@@ -264,7 +258,6 @@ export class HumanInputResolutionService {
       if (latest.state !== "terminal") throw error;
       await this.reconcileTerminalPlanReview(review);
     }
-    await this.setRejectedPlanAgentIdle(review);
     return review;
   }
 
@@ -926,14 +919,6 @@ export class HumanInputResolutionService {
         toolCall.id
       );
     });
-  }
-
-  private async setRejectedPlanAgentIdle(
-    review: PlanReviewRecord,
-  ): Promise<void> {
-    const agent = this.deps.getAgent(review.agentId);
-    if (agent.status === "idle") return;
-    await this.deps.setAgentStatus(agent, "idle");
   }
 
   private async resolveSuspensionForToolCall(

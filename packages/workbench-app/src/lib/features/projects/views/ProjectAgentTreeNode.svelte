@@ -2,7 +2,7 @@
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { PanelRow, PanelRowCard } from "$lib/presentation/panels";
 import type { ConversationActivityState } from "$lib/domain/conversations/activity";
-import { conversationActivityForRecord } from "$lib/domain/conversations/activity";
+import { idleConversationActivity } from "$lib/domain/conversations/activity";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
@@ -28,17 +28,7 @@ let {
   onOpenConversation,
 }: Props = $props();
 
-const status = $derived(row.agent?.status ?? "idle");
-const dotActivity = $derived(
-  activity ??
-    conversationActivityForRecord({
-      conversationId: row.conversation.id,
-      agent: row.agent,
-      mode: row.agent?.mode ?? row.conversation.mode,
-      completedAt: row.conversation.completedAt,
-      runtimeStatusClearedAt: row.conversation.runtimeStatusClearedAt,
-    }),
-);
+const dotActivity = $derived(activity ?? idleConversationActivity);
 const mode = $derived(row.agent?.mode ?? row.conversation.mode);
 const permission = $derived(
   row.agent?.permissionRuleSetId ??
@@ -48,7 +38,7 @@ const permission = $derived(
 const tooltip = $derived(
   [
     row.conversation.title,
-    `status: ${dotActivity.label ?? status}`,
+    `status: ${dotActivity.label ?? "idle"}`,
     `mode: ${mode} · rule set: ${permissionRuleSetDisplayName(permission)}`,
     `model: ${shortAgentModel(row.agent)}`,
     row.conversation.id,

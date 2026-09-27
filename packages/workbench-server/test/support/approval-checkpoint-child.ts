@@ -192,7 +192,7 @@ async function main() {
       services.conversationLifecycle.getConversationEntries(conversationId);
     const effects = await readFile(marker, "utf8").catch(() => "");
     return {
-      agent: services.agentLifecycle.getAgent(agentId).status,
+      agent: (await services.agentActivity.activityForAgent(agentId)).state,
       run: state?.run.status,
       interactions: state?.interactions.map((item) => item.status),
       transitions: state?.transitions.map((item) => item.kind),

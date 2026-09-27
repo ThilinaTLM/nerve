@@ -5,6 +5,7 @@ import {
   SUBAGENT_TRANSCRIPT_MAX_TEXT_CHARS,
   SUBAGENT_TRANSCRIPT_MAX_THINKING_BLOCKS,
   SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS,
+  type AgentActivitySnapshot,
   type AgentRecord,
   type SubagentTranscriptEntry,
   type SubagentTranscriptSnapshot,
@@ -29,6 +30,7 @@ export interface SubagentTranscriptServiceDeps {
   activeRun: (
     childAgentId: string,
   ) => ConversationActiveRunSnapshot | undefined;
+  activityForAgent(agentId: string): Promise<AgentActivitySnapshot>;
 }
 
 function modelLabel(agent: AgentRecord): string | undefined {
@@ -207,8 +209,10 @@ export class SubagentTranscriptService {
           -SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS,
         );
         const entries = boundedTail(projected);
+        const activity = await this.deps.activityForAgent(child.id);
         const updatedAt = [
           child.updatedAt,
+          activity.updatedAt,
           entries.at(-1)?.createdAt,
           toolCalls.at(-1)?.updatedAt,
         ]
@@ -222,7 +226,7 @@ export class SubagentTranscriptService {
           conversationId: child.conversationId,
           projectId: child.projectId,
           activeRun: this.deps.activeRun(child.id),
-          status: child.status,
+          status: activity.state,
           model: modelLabel(child),
           thinkingLevel: child.thinkingLevel,
           entries,

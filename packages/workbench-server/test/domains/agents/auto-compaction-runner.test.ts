@@ -225,7 +225,6 @@ function agentRecord(
     conversationId: "conv_regression",
     projectId: "proj_regression",
     projectDir: "/tmp/project",
-    status: "idle",
     mode: "coding",
     permissionLevel: "supervised",
     workspaceScope: "project",

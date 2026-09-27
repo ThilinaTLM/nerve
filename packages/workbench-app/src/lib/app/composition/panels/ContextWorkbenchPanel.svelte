@@ -26,6 +26,7 @@ const activeProject = $derived(workspaceSelectors.activeProject);
 const activeConversation = $derived(conversationSelectors.activeConversation);
 const activeAgent = $derived(conversationSelectors.activeAgent);
 const conversationAgents = $derived(conversationSelectors.conversationAgents);
+const agentActivities = $derived(workspaceSelectors.agentActivities);
 const compacting = $derived(conversationSelectors.compacting);
 const contextUsage = $derived(conversationSelectors.activeContextUsage);
 const conversationUsage = $derived(
@@ -59,6 +60,7 @@ function openTranscript(agent: AgentRecord) {
   {activeConversation}
   {activeAgent}
   {conversationAgents}
+  {agentActivities}
   {compacting}
   {exportUrl}
   {systemPromptUrl}

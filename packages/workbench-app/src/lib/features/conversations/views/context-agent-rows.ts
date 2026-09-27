@@ -1,4 +1,4 @@
-import type { AgentRecord } from "$lib/api";
+import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import {
   relativeTimeLabel,
@@ -37,12 +37,20 @@ export function agentRole(agent: AgentRecord): AgentRole {
   return "explore";
 }
 
-export function isAgentLive(agent: AgentRecord): boolean {
-  return agent.status === "running" || agent.status === "awaiting_user";
+export function isAgentLive(
+  agent: AgentRecord,
+  activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
+): boolean {
+  const state = activityById[agent.id]?.state;
+  return state === "running" || state === "awaiting_user";
 }
 
-function isAgentFailed(agent: AgentRecord): boolean {
-  return agent.status === "error" || agent.status === "aborted";
+function isAgentFailed(
+  agent: AgentRecord,
+  activityById: Readonly<Record<string, AgentActivitySnapshot>>,
+): boolean {
+  const state = activityById[agent.id]?.state;
+  return state === "error" || state === "aborted";
 }
 
 export function agentRuleSetId(agent: AgentRecord): string {
@@ -96,14 +104,15 @@ function byRecency(a: AgentRecord, b: AgentRecord): number {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 }
 
-function attentionRank(agent: AgentRecord): number {
-  if (agent.status === "awaiting_user") return 0;
-  if (agent.status === "running") return 1;
-  return 2;
-}
-
-function byAttentionThenRecency(a: AgentRecord, b: AgentRecord): number {
-  return attentionRank(a) - attentionRank(b) || byRecency(a, b);
+function attentionRank(
+  agent: AgentRecord,
+  activityById: Readonly<Record<string, AgentActivitySnapshot>>,
+): number {
+  const state = activityById[agent.id]?.state;
+  if (state === "awaiting_user") return 0;
+  if (state === "running") return 1;
+  if (state === "awaiting_async") return 2;
+  return 3;
 }
 
 export type AgentGroups = {
@@ -118,6 +127,7 @@ export type AgentGroups = {
 export function groupAgents(
   agents: readonly AgentRecord[],
   activeAgentId?: string,
+  activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
 ): AgentGroups {
   const leads = agents.filter((agent) => agentRole(agent) === "lead");
   const explore = agents.filter((agent) => agentRole(agent) === "explore");
@@ -125,18 +135,37 @@ export function groupAgents(
     lead: leads.find((agent) => agent.id === activeAgentId) ?? leads[0],
     teammates: agents
       .filter((agent) => agentRole(agent) === "teammate")
-      .sort(byAttentionThenRecency),
-    exploreLive: explore.filter(isAgentLive).sort(byAttentionThenRecency),
-    exploreDone: explore.filter((agent) => !isAgentLive(agent)).sort(byRecency),
+      .sort(
+        (a, b) =>
+          attentionRank(a, activityById) - attentionRank(b, activityById) ||
+          byRecency(a, b),
+      ),
+    exploreLive: explore
+      .filter((agent) => isAgentLive(agent, activityById))
+      .sort(
+        (a, b) =>
+          attentionRank(a, activityById) - attentionRank(b, activityById) ||
+          byRecency(a, b),
+      ),
+    exploreDone: explore
+      .filter((agent) => !isAgentLive(agent, activityById))
+      .sort(byRecency),
   };
 }
 
 export type AgentAttention = { needsYou: number; working: number };
 
-export function agentAttention(agents: readonly AgentRecord[]): AgentAttention {
+export function agentAttention(
+  agents: readonly AgentRecord[],
+  activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
+): AgentAttention {
   return {
-    needsYou: agents.filter((agent) => agent.status === "awaiting_user").length,
-    working: agents.filter((agent) => agent.status === "running").length,
+    needsYou: agents.filter(
+      (agent) => activityById[agent.id]?.state === "awaiting_user",
+    ).length,
+    working: agents.filter(
+      (agent) => activityById[agent.id]?.state === "running",
+    ).length,
   };
 }
 
@@ -148,8 +177,11 @@ export type ExploreFoldSummary = {
 
 export function exploreFoldSummary(
   done: readonly AgentRecord[],
+  activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
 ): ExploreFoldSummary {
-  const failed = done.filter(isAgentFailed).length;
+  const failed = done.filter((agent) =>
+    isAgentFailed(agent, activityById),
+  ).length;
   const finished = done.length - failed;
   const parts = [
     finished > 0 ? `${finished} finished` : undefined,
@@ -159,21 +191,24 @@ export function exploreFoldSummary(
 }
 
 export type AgentStatusBadge = {
-  variant: "info" | "warning" | "destructive";
+  variant: "accent" | "info" | "warning" | "destructive";
   text: string;
 };
 
 export function agentStatusBadge(
   agent: AgentRecord,
+  activity?: AgentActivitySnapshot,
 ): AgentStatusBadge | undefined {
-  if (agent.status === "awaiting_user")
+  if (activity?.state === "awaiting_user")
     return { variant: "warning", text: "needs you" };
-  if (agent.status === "running")
+  if (activity?.state === "running")
     return {
       variant: "info",
       text: agentRole(agent) === "explore" ? "running" : "working",
     };
-  if (agent.status === "error")
+  if (activity?.state === "awaiting_async")
+    return { variant: "accent", text: "background work" };
+  if (activity?.state === "error")
     return { variant: "destructive", text: "failed" };
   return undefined;
 }
@@ -192,8 +227,8 @@ export function agentRoleLabel(agent: AgentRecord): string {
   return role === "teammate" ? "Teammate" : "Explore agent";
 }
 
-export function agentStatusLabel(agent: AgentRecord): string {
-  return agent.status.replaceAll("_", " ");
+export function agentStatusLabel(activity?: AgentActivitySnapshot): string {
+  return (activity?.state ?? "idle").replaceAll("_", " ");
 }
 
 /**

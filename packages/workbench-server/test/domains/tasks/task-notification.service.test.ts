@@ -545,7 +545,6 @@ function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
     workspaceScope: { roots: ["/tmp/project"] },
     budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
-    status: "idle",
     createdAt: now,
     updatedAt: now,
     ...overrides,

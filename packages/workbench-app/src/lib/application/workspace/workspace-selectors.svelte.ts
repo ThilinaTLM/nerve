@@ -84,11 +84,8 @@ function isActiveTaskStatus(status: string): boolean {
 const conversationActivityById = $derived.by(() =>
   buildConversationActivityById({
     conversations: workspaceState.conversations,
-    agents: workspaceState.agents,
+    activities: workspaceState.conversationActivities,
     views: workspaceFeaturePorts().conversations.read.conversationViews,
-    approvals: pendingApprovals(workspaceState.pendingToolCalls),
-    userQuestions: pendingUserQuestions(workspaceState.pendingToolCalls),
-    planReviews: pendingPlanReviews(workspaceState.pendingToolCalls),
   }),
 );
 
@@ -137,6 +134,9 @@ export const workspaceSelectors = {
   },
   get agents() {
     return workspaceState.agents;
+  },
+  get agentActivities() {
+    return workspaceState.agentActivities;
   },
   get approvals() {
     return pendingApprovals(workspaceState.pendingToolCalls);
@@ -245,7 +245,7 @@ export const workspaceSelectors = {
         activity,
         error:
           view?.error ??
-          (agent?.status === "error" ? "Agent error" : undefined),
+          (activity.indicator === "error" ? "Agent error" : undefined),
       });
     }
     return tabs;
@@ -278,7 +278,7 @@ export const workspaceSelectors = {
               label: "Agent running",
               busy: true,
               needsUser: false,
-              source: "live-view",
+              source: "local-overlay",
             }
           : idleConversationActivity,
         error: pending.error,

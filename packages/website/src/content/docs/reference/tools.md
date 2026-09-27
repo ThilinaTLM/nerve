@@ -45,7 +45,7 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 - `task_start`, `task_status`, `task_logs`, `task_control`
 
-Task start accepts a project-relative `cwd`, an optional discriminated `ready` object (`url`, `detected_url`, or `pattern`), encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the project scope. `task_status` selects IDs/names with `tasks`; `task_logs` selects one `task` and uses one mode-specific `cursor`; `task_control` selects one `task` for stop or restart. Logs are bounded and agents receive asynchronous updates rather than polling. A still-running Bash call may be promoted automatically. Terminal updates from promoted Bash and explicit agent `task_start` calls restart the agent after an idle turn.
+Task start accepts a project-relative `cwd`, an optional discriminated `ready` object (`url`, `detected_url`, or `pattern`), encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the project scope. `task_status` selects IDs/names with `tasks`; `task_logs` selects one `task` and uses one mode-specific `cursor`; `task_control` selects one `task` for stop or restart. Logs are bounded and agents receive asynchronous updates rather than polling. A still-running Bash call may be promoted automatically; that promoted work is awaited and can continue the agent after an idle turn. Explicit `task_start` is detached supervised work, so its terminal update does not restart the agent.
 
 ## Delegation, Explore, and planning
 

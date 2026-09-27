@@ -17,7 +17,8 @@ export type MobileInboxKind =
   | "question"
   | "plan"
   | "error"
-  | "running";
+  | "running"
+  | "awaiting-async";
 
 export type MobileInboxItem = {
   id: string;
@@ -45,7 +46,14 @@ const HIGH_RISK = new Set<ApprovalRecord["risk"]>([
 ]);
 
 type ActivityLike = {
-  indicator: "idle" | "running" | "needs-user" | "error" | "completed";
+  indicator:
+    | "idle"
+    | "running"
+    | "needs-user"
+    | "awaiting-async"
+    | "error"
+    | "aborted"
+    | "completed";
   tone: StatusTone;
   label?: string;
   busy: boolean;
@@ -63,6 +71,7 @@ export type MobileInboxInput = {
 export type MobileInboxModel = {
   needsYou: MobileInboxItem[];
   running: MobileInboxItem[];
+  awaitingAsync: MobileInboxItem[];
 };
 
 export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
@@ -139,6 +148,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
   }
 
   const running: MobileInboxItem[] = [];
+  const awaitingAsync: MobileInboxItem[] = [];
   for (const conversation of input.conversations) {
     const activity = input.activityById?.[conversation.id];
     if (!activity) continue;
@@ -154,6 +164,24 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
         projectLabel,
         detail: activity.label ?? "Needs attention",
         tone: activity.tone,
+        pulse: false,
+        at: conversation.updatedAt,
+      });
+      continue;
+    }
+    if (
+      activity.indicator === "awaiting-async" &&
+      !claimed.has(conversation.id)
+    ) {
+      awaitingAsync.push({
+        id: `awaiting-async:${conversation.id}`,
+        kind: "awaiting-async",
+        kindLabel: "Background work",
+        conversationId: conversation.id,
+        title: conversation.title,
+        projectLabel,
+        detail: activity.label ?? "Waiting for background work",
+        tone: "accent",
         pulse: false,
         at: conversation.updatedAt,
       });
@@ -176,7 +204,8 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
 
   needsYou.sort(byRecency);
   running.sort(byRecency);
-  return { needsYou, running };
+  awaitingAsync.sort(byRecency);
+  return { needsYou, running, awaitingAsync };
 }
 
 function byRecency(left: MobileInboxItem, right: MobileInboxItem): number {

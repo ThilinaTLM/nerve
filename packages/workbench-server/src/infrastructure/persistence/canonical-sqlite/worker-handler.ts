@@ -6,14 +6,16 @@ export function executeCanonicalCommand(
   command: CanonicalCommand,
 ): unknown {
   switch (command.kind) {
-    case "put_subagent_completion":
-      return database.subagentCompletions.put(command.record);
-    case "list_subagent_completions":
-      return database.subagentCompletions.list(command.leadId);
-    case "remove_subagent_completions":
-      return database.subagentCompletions.removeConversation(
+    case "read_agent_obligation":
+      return database.agentObligations.read(command.obligationId);
+    case "list_pending_obligations_by_owner":
+      return database.agentObligations.listPendingByOwner(command.ownerAgentId);
+    case "list_pending_obligations_by_conversation":
+      return database.agentObligations.listPendingByConversation(
         command.conversationId,
       );
+    case "scan_obligations_for_reconciliation":
+      return database.agentObligations.scanForReconciliation(command.limit);
     case "initialize":
       database.initialize();
       return undefined;

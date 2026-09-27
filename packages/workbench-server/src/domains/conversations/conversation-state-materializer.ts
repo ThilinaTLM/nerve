@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import type { AgentAsyncObligation } from "@nervekit/contracts/agents";
 import type {
   ConversationEntry,
   ConversationInteractionRecord,
@@ -32,6 +33,7 @@ export interface SerializedConversationState {
   runProjections: Array<[string, ConversationRunProjection]>;
   interactions: Array<[string, ConversationInteractionRecord]>;
   suspensions: Array<[string, ConversationSuspensionRecord]>;
+  obligations?: Array<[string, AgentAsyncObligation]>;
   idempotencyKeys: Array<[string, ConversationJournalCommit]>;
   intentConversationRevisions: Array<[string, number]>;
 }
@@ -53,6 +55,7 @@ export function serializeState(
     runProjections: [...state.runProjections],
     interactions: [...state.interactions],
     suspensions: [...state.suspensions],
+    obligations: [...state.obligations],
     idempotencyKeys: [...state.idempotencyKeys],
     intentConversationRevisions: [...state.intentConversationRevisions],
   };
@@ -92,6 +95,7 @@ export function deserializeState(
     runProjections: new Map(state.runProjections),
     interactions,
     suspensions: new Map(state.suspensions),
+    obligations: new Map(state.obligations ?? []),
     idempotencyKeys: new Map(state.idempotencyKeys),
     intentConversationRevisions: new Map(state.intentConversationRevisions),
     entryById: new Map(state.entries.map((entry) => [entry.id, entry])),
@@ -207,6 +211,7 @@ export interface ConversationPersistenceDelta {
   conversation?: ConversationRecord;
   records: MaterializedConversationRecord[];
   leaves: ConversationLeafDelta[];
+  obligations: AgentAsyncObligation[];
 }
 
 /** Builds only the relational records named by one journal commit. */
@@ -223,6 +228,7 @@ export function prepareConversationPersistenceDelta(
   const toolCalls = new Map<string, ToolCallRecord>();
   const affectedIds = new Set<string>();
   const leaves = new Map<string, ConversationLeafDelta>();
+  const obligations = new Map<string, AgentAsyncObligation>();
   let conversation: ConversationRecord | undefined;
 
   for (const event of commit.events) {
@@ -272,6 +278,9 @@ export function prepareConversationPersistenceDelta(
       case "run.event_delivered":
         affectedIds.add(event.delivery.runId);
         break;
+      case "agent_obligation.upserted":
+        obligations.set(event.obligation.id, event.obligation);
+        break;
     }
   }
 
@@ -302,6 +311,7 @@ export function prepareConversationPersistenceDelta(
     conversation,
     records,
     leaves: [...leaves.values()],
+    obligations: [...obligations.values()],
   };
 }
 

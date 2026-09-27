@@ -7,18 +7,11 @@ import {
 } from "$lib/application/events/event-bus";
 import { removeEventStream } from "$lib/application/event-routing/stream-cursors.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import {
-  applyEntityEvent,
-  patchKnownAgentStatus,
-  upsertAgentRecordFresh,
-} from "./entity-reducers";
+import { applyEntityEvent, upsertAgentRecordFresh } from "./entity-reducers";
 import { loadWorkspaceState } from "./workspace-actions.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { removeTabsFromAllSessions } from "./workspace-tab-sessions";
-import {
-  runtimeAgentStatusFromEvent,
-  shouldRefreshWorkspace,
-} from "./workspace-event-policy";
+import { shouldRefreshWorkspace } from "./workspace-event-policy";
 
 const WORKSPACE_REFRESH_DEBOUNCE_MS = 150;
 let workspaceRefreshTimer: ReturnType<typeof setTimeout> | undefined;
@@ -28,10 +21,7 @@ export function registerWorkspaceEventHandlers(): () => void {
 }
 
 function handleWorkspaceEvent(event: WorkbenchEvent): void {
-  if (isSequencedEvent(event)) {
-    applyEntityEvent(event);
-    patchRuntimeAgentStatus(event);
-  }
+  if (isSequencedEvent(event)) applyEntityEvent(event);
 
   if (event.type === "conversation.deleted") {
     const conversationId = stringValue(event.data?.conversationId);
@@ -75,8 +65,7 @@ function isAgentRecordEvent(type: string): boolean {
   return (
     type === "agent.created" ||
     type === "agent.configured" ||
-    type === "agent.mode_changed" ||
-    type === "agent.status_changed"
+    type === "agent.mode_changed"
   );
 }
 
@@ -87,10 +76,4 @@ function agentRecordFromEvent(value: unknown): AgentRecord | undefined {
     typeof candidate.updatedAt === "string"
     ? (candidate as AgentRecord)
     : undefined;
-}
-
-function patchRuntimeAgentStatus(event: WorkbenchEvent): void {
-  const status = runtimeAgentStatusFromEvent(event.type, event.data);
-  if (!status) return;
-  patchKnownAgentStatus(stringValue(event.data?.agentId), status, event.ts);
 }

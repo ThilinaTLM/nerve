@@ -1,4 +1,3 @@
-import type { AsyncSubagentCompletion } from "@nervekit/contracts/agents";
 import type { ConversationDeletionCursor } from "./conversation-deletion.js";
 import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import type { LifecycleWork, RecoveryIssue } from "@nervekit/contracts/runs";
@@ -17,9 +16,13 @@ import type {
 } from "../../../domains/conversations/conversation-state-materializer.js";
 
 export type CanonicalCommand =
-  | { kind: "put_subagent_completion"; record: AsyncSubagentCompletion }
-  | { kind: "list_subagent_completions"; leadId?: string }
-  | { kind: "remove_subagent_completions"; conversationId: string }
+  | { kind: "read_agent_obligation"; obligationId: string }
+  | { kind: "list_pending_obligations_by_owner"; ownerAgentId: string }
+  | {
+      kind: "list_pending_obligations_by_conversation";
+      conversationId: string;
+    }
+  | { kind: "scan_obligations_for_reconciliation"; limit: number }
   | { kind: "initialize" }
   | {
       kind: "persist_lifecycle_atomic_commit";
@@ -199,6 +202,10 @@ export type CanonicalWorkerResponse =
     };
 
 export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
+  "read_agent_obligation",
+  "list_pending_obligations_by_owner",
+  "list_pending_obligations_by_conversation",
+  "scan_obligations_for_reconciliation",
   "read_lifecycle_work",
   "list_due_lifecycle_work",
   "list_expired_lifecycle_work",

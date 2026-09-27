@@ -2,7 +2,16 @@ import { AsyncSubagentService } from "../../domains/agents/async-subagent.servic
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import { subagentToolResult } from "../../domains/agents/async-subagent-tool-result.js";
 import { AsyncSubagentRepository } from "../../domains/agents/async-subagent.repository.js";
-import { AsyncSubagentNotificationService } from "../../domains/agents/async-subagent-notification.service.js";
+import { AgentActivityService } from "../../domains/agents/agent-activity.service.js";
+import { AgentActivityPublisher } from "../../domains/agents/agent-activity.publisher.js";
+import { JournalAgentAsyncObligationRepository } from "../../domains/agents/agent-async-obligation.repository.js";
+import { AgentAsyncObligationService } from "../../domains/agents/agent-async-obligation.service.js";
+import { AgentAsyncObligationRuntime } from "../../domains/agents/agent-async-obligation-runtime.js";
+import {
+  AsyncSubagentObligationAdapter,
+  PromotedTaskObligationAdapter,
+} from "../../domains/agents/async-obligation-source-adapters.js";
+import { agentAsyncObligationEntryId } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { isActiveTaskStatus } from "../../domains/tasks/index.js";
 /* eslint-disable max-lines -- The composition root keeps the complete runtime dependency graph explicit while focused sub-composers are introduced. */
@@ -353,6 +362,24 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     events,
   });
   const taskLaunchConfigs = new SecretTaskLaunchConfigStore(secrets);
+  const obligationRepository = new JournalAgentAsyncObligationRepository(
+    conversationJournal,
+    storage.canonicalStore,
+    events,
+    (agentId) =>
+      getAgent(agentId).executionKind === "async_developer"
+        ? agentId
+        : undefined,
+    (entry, conversation) => {
+      if (!state.getConversationEntry(entry.conversationId, entry.id)) {
+        state.appendConversationEntry(entry);
+      }
+      if (conversation) {
+        state.conversations.set(conversation.id, conversation);
+        queryCache.upsertConversation(conversation);
+      }
+    },
+  );
   const tasks = new WorkbenchTaskService(
     storage,
     events,
@@ -363,6 +390,27 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       diagnostics: performanceDiagnostics.enabled
         ? performanceDiagnostics
         : undefined,
+      onPromotedTask: async (task) => {
+        if (!task.conversationId || !task.agentId) return;
+        const timestamp = new Date().toISOString();
+        const generation = task.restartGeneration ?? 0;
+        await obligationRepository.register({
+          id: `promoted_task:${task.id}:${generation}`,
+          conversationId: task.conversationId,
+          ownerAgentId: task.agentId,
+          sourceKind: "promoted_task",
+          sourceId: task.id,
+          state: "pending",
+          notificationEntryId: agentAsyncObligationEntryId(
+            "promoted_task",
+            task.id,
+            generation,
+          ),
+          generation,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+      },
     },
   );
   const pythonRuntime = new PythonRuntimeService(storage);
@@ -393,6 +441,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
       capabilities,
     );
+  let agentActivityService: AgentActivityService | undefined;
   const conversationQuery: ConversationQueryService =
     new ConversationQueryService({
       events,
@@ -411,6 +460,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         tools.listToolCallPreviews({ conversationId, limit: 1_000 }),
       getActiveRun: (conversationId, activeEntryIds) =>
         runQuery.activeForConversation(conversationId, activeEntryIds),
+      getActivity: (conversationId) => {
+        if (!agentActivityService)
+          throw new Error("Agent activity service is not initialized.");
+        return agentActivityService.activityForConversation(conversationId);
+      },
     });
   const agentLifecycle: AgentLifecycleService = new AgentLifecycleService(
     storage,
@@ -474,6 +528,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       listProjects,
       getConversation,
       getAgent,
+      activityForAgent: (agentId) => {
+        if (!agentActivityService)
+          throw new Error("Agent activity service is not initialized.");
+        return agentActivityService.activityForAgent(agentId);
+      },
     });
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(auth, () =>
@@ -607,6 +666,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       activeRun: (childAgentId) =>
         subagentTranscriptLive.snapshot(childAgentId) ??
         state.conversationRuntime.snapshotForAgent(childAgentId),
+      activityForAgent: (agentId) => {
+        if (!agentActivityService)
+          throw new Error("Agent activity service is not initialized.");
+        return agentActivityService.activityForAgent(agentId);
+      },
     });
   const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
@@ -622,8 +686,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     compactionService: compactionService,
     state,
     createAgent,
-    setAgentStatus: (agent, status) =>
-      agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
     updateConversation,
     messageMirror: messageMirror,
@@ -682,8 +744,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         return storage.settings.retry.baseDelayMs;
       },
     },
-    setAgentStatus: (agent, status) =>
-      agentLifecycle.setAgentStatus(agent, status),
     logger: logger.child({ component: "run-coordinator" }),
   });
   const runQuery = new WorkbenchRunQuery(runRuntime.unitOfWork, state);
@@ -729,6 +789,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           task.status === "recovery_unknown" ||
           task.status === "orphaned"),
     );
+  let publishObligationActivity = (): void => {};
+  let recoverAsyncObligations = async (): Promise<void> => {};
   const asyncSubagents = new AsyncSubagentService({
     getAgent,
     listAgents,
@@ -748,6 +810,19 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     writeControl: (control) => asyncSubagentRepository.writeControl(control),
     reserveAssignment: (assignment) =>
       asyncSubagentRepository.reserveAssignment(assignment),
+    registerObligation: async (obligation) => {
+      await obligationRepository.register(obligation);
+      publishObligationActivity();
+    },
+    readyObligation: async (id, outcome) => {
+      await obligationRepository.transition(id, ["pending"], {
+        state: "ready",
+        outcome,
+        updatedAt: new Date().toISOString(),
+      });
+      publishObligationActivity();
+      await recoverAsyncObligations();
+    },
     activeRun: async (agent) =>
       (
         await runRuntime.unitOfWork.findActive(
@@ -792,22 +867,77 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     entries: (agent) =>
       conversationLifecycle.ensureConversationEntries(agent.conversationId),
   });
-  const asyncSubagentNotifications = new AsyncSubagentNotificationService({
-    repository: asyncSubagentRepository,
-    runs: runRuntime.unitOfWork,
-    live: runRuntime.live,
-    events,
-    harnessStorage,
+  const agentActivity = (agentActivityService = new AgentActivityService({
+    listAgents,
+    listConversations,
+    listActiveRuns: () => runRuntime.unitOfWork.listActive(),
+    listRunMetadata: () => runRuntime.unitOfWork.listMetadata(),
+    listObligations: () =>
+      storage.canonicalStore.scanObligationsForReconciliation(10_000),
+  }));
+  const asyncObligations = new AgentAsyncObligationService({
+    repository: obligationRepository,
+    adapters: [
+      new PromotedTaskObligationAdapter({
+        getTask: (id) => tasks.getTask(id),
+        queryLogs: (id) => tasks.queryLogs(id, { mode: "recent", limit: 80 }),
+      }),
+      new AsyncSubagentObligationAdapter({
+        getAgent,
+        entries: (id) => conversationLifecycle.ensureConversationEntries(id),
+        enabled: asyncSubagentsEnabled,
+        generation: (id) => asyncSubagentRepository.control(id),
+      }),
+    ],
     getAgent,
-    appendEntry,
     entries: (id) => conversationLifecycle.ensureConversationEntries(id),
-    enabled: asyncSubagentsEnabled,
+    activeRunId: async (conversationId, agentId) =>
+      (await runRuntime.unitOfWork.findActive(`${conversationId}:${agentId}`))
+        ?.run.runId,
+    enqueue: async (runId, obligation, notice) => {
+      const live = runRuntime.live.get(runId);
+      if (!live?.enqueueHarnessMessage) return false;
+      await live.enqueueHarnessMessage({
+        id: obligation.notificationEntryId,
+        message: notice.message,
+        timestamp: notice.entry.createdAt,
+        delivery: { pendingNotificationId: obligation.notificationEntryId },
+      });
+      return true;
+    },
     wake: (id) => workbenchRun.wakeAgentFromHarness(id),
-    reconcile: () => asyncSubagents.reconcile(),
-    warn: (error) => {
-      void logger.warn("Async subagent notification failed", { error });
+    changed: () => publishObligationActivity(),
+    warn: (error, obligation) => {
+      void logger.warn("Agent async obligation delivery failed", {
+        error,
+        context: { obligationId: obligation.id },
+      });
     },
   });
+  recoverAsyncObligations = () => asyncObligations.recover();
+  const asyncObligationRuntime = new AgentAsyncObligationRuntime({
+    service: asyncObligations,
+    repository: obligationRepository,
+    events,
+    getTask: (id) => tasks.getTask(id),
+    listTasks: () => tasks.listTasks(),
+    getRun: async (id) => (await runRuntime.unitOfWork.load(id))?.run,
+    listAssignments: () => asyncSubagentRepository.assignments(),
+    getAgent,
+    warn: (error) => {
+      void logger.warn("Agent async obligation recovery failed", { error });
+    },
+  });
+  const agentActivityPublisher = new AgentActivityPublisher({
+    activity: agentActivity,
+    events,
+    warn: (error) => {
+      void logger.warn("Agent activity publication failed", { error });
+    },
+  });
+  publishObligationActivity = () => {
+    void agentActivityPublisher.refresh();
+  };
   const taskNotifications: TaskNotificationService =
     new TaskNotificationService({
       tasks: tasks,
@@ -820,6 +950,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
       allowNotification: async (task) => {
+        // Awaited Bash promotions are delivered exclusively by the durable
+        // obligation runtime; explicit task_start processes remain detached.
+        if (task.completion?.inject) return false;
         if (!task.agentId) return true;
         const agent = state.agents.get(task.agentId);
         if (agent?.executionKind !== "async_developer") return true;
@@ -863,8 +996,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getAgent,
     configureAgent: (agentId, request) =>
       agentLifecycle.configureAgent(agentId, request),
-    setAgentStatus: (agent, status) =>
-      agentLifecycle.setAgentStatus(agent, status),
     appendEntry,
     getConversationEntries: (conversationId) =>
       conversationLifecycle.ensureConversationEntries(conversationId),
@@ -935,6 +1066,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       getProject,
       listConversations,
       agents: state.agents,
+      workspaceActivity: () => agentActivity.workspaceActivity(),
       tasks: tasks,
       tools: tools,
       plans: plans,
@@ -948,8 +1080,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     maintenanceScopes,
     tasks,
     taskNotifications,
+    asyncObligations,
+    asyncObligationRuntime,
     asyncSubagents,
-    asyncSubagentNotifications,
     pythonRuntime,
     plans,
     tools,
@@ -981,6 +1114,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     projectLifecycle,
     conversationLifecycle,
     conversationQuery,
+    agentActivity,
+    agentActivityPublisher,
     agentLifecycle,
     subagentTranscriptLive,
     subagentTranscripts,

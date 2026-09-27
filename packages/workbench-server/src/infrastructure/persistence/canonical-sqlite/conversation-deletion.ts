@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 const phases = [
   "events",
   "subagent_completions",
+  "agent_obligations",
   "leaves",
   "parent_links",
   "record_projections",
@@ -75,6 +76,7 @@ export function deleteConversationChunk(
   } else if (phase !== "complete") {
     const tables = {
       subagent_completions: "subagent_completions",
+      agent_obligations: "agent_async_obligations",
       events: "durable_events",
       leaves: "agent_context_leaves",
       record_projections: "conversation_record_projections",
@@ -87,6 +89,7 @@ export function deleteConversationChunk(
     } as const;
     if (
       phase === "subagent_completions" ||
+      phase === "agent_obligations" ||
       phase === "events" ||
       phase === "leaves" ||
       phase === "record_projections" ||

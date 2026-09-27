@@ -1,38 +1,28 @@
+import type {
+  AgentActivitySnapshot,
+  ConversationActivitySnapshot,
+} from "@nervekit/contracts/agents";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import {
   agentRunningTone,
   type StatusTone,
 } from "@nervekit/ui-kit/display/status";
-import type { AgentRecord } from "@nervekit/contracts/agents";
-import type {
-  ApprovalRecord,
-  ToolCallTranscriptRecord,
-  UserQuestionRecord,
-} from "@nervekit/contracts/tools";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
-import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import { conversationViewKey } from "$lib/domain/navigation/view-keys";
 
-type ApprovalWithToolCall = ApprovalRecord & {
-  toolCall?: ToolCallTranscriptRecord;
-};
-
-type ConversationLiveActivity = {
-  activeRun?: { status: string };
+export type ConversationLiveActivity = {
   transient?: { compaction?: { state: string } };
   sending?: boolean;
 };
 
-export type ConversationActivitySource =
-  | "pending-input"
-  | "agent"
-  | "live-view"
-  | "none";
+export type ConversationActivitySource = "server" | "local-overlay" | "none";
 
 export type ConversationActivityIndicator =
   | "idle"
   | "running"
   | "needs-user"
+  | "awaiting-async"
   | "error"
+  | "aborted"
   | "completed";
 
 export type ConversationActivityState = {
@@ -50,197 +40,130 @@ export const idleConversationActivity: ConversationActivityState = {
   indicator: "idle",
   tone: "neutral",
   pulse: false,
+  label: "Idle",
   busy: false,
   needsUser: false,
   source: "none",
   clearableFailure: false,
 };
 
-export function agentForConversation(
-  conversation: ConversationRecord,
-  agents: AgentRecord[],
-): AgentRecord | undefined {
-  return (
-    agents.find((agent) => agent.id === conversation.activeAgentId) ??
-    agents.find((agent) => agent.conversationId === conversation.id)
-  );
-}
+type ActivitySnapshot = AgentActivitySnapshot | ConversationActivitySnapshot;
+type AgentMode = AgentRecord["mode"];
 
-export function conversationActivityForRecord(input: {
-  conversationId: string;
-  agent?: AgentRecord;
-  mode?: AgentRecord["mode"];
-  view?: ConversationLiveActivity;
-  hasPendingHumanInput?: boolean;
-  completedAt?: string;
-  runtimeStatusClearedAt?: string;
-}): ConversationActivityState {
-  const pending = Boolean(input.hasPendingHumanInput);
-  const failureCleared = Boolean(
-    input.runtimeStatusClearedAt &&
-    (!input.agent?.updatedAt ||
-      input.agent.updatedAt <= input.runtimeStatusClearedAt),
-  );
-  const runStatus = input.view?.activeRun?.status;
-  const waiting = runStatus === "waiting";
-  // Every approval is decided and approved tools execute as durable work: the
-  // model is idle, but the run is neither awaiting the user nor stale.
-  const executingTools = runStatus === "executing_tools";
-  const failed =
-    input.view?.activeRun?.status === "interrupted" ||
-    input.agent?.status === "error";
-  if (failed && !failureCleared) {
-    return {
-      indicator: "error",
-      tone: "destructive",
-      pulse: false,
-      label: "Agent error",
-      busy: false,
-      needsUser: false,
-      source:
-        input.view?.activeRun?.status === "interrupted" ? "live-view" : "agent",
-      clearableFailure: true,
-    };
-  }
-  // Stale pending-input projections must not flip a released checkpoint back
-  // to needs-user.
-  if (executingTools) {
-    return {
-      indicator: "running",
-      tone: agentRunningTone(input.agent?.mode ?? input.mode),
-      pulse: true,
-      label: "Running tools",
-      busy: true,
-      needsUser: false,
-      source: "live-view",
-      clearableFailure: false,
-    };
-  }
+/** Maps the server-owned activity projection to product presentation. */
+export function activityForSnapshot(
+  snapshot: ActivitySnapshot | undefined,
+  mode: AgentMode = "coding",
+  view?: ConversationLiveActivity,
+): ConversationActivityState {
+  const state = snapshot?.state ?? "idle";
 
-  if (pending) {
-    return {
-      indicator: "needs-user",
-      tone: "warning",
-      pulse: false,
-      label: "Needs user action",
-      busy: false,
-      needsUser: true,
-      source: "pending-input",
-      clearableFailure: false,
-    };
-  }
-
-  if (waiting || input.agent?.status === "awaiting_user") {
-    return {
-      indicator: "error",
-      tone: "warning",
-      pulse: false,
-      label: "Refresh required",
-      busy: false,
-      needsUser: false,
-      source: waiting ? "live-view" : "agent",
-      clearableFailure: false,
-    };
-  }
-
-  if (input.view?.transient?.compaction?.state === "running") {
-    return {
-      indicator: "running",
-      tone: "info",
-      pulse: true,
-      label: "Compacting context",
-      busy: true,
-      needsUser: false,
-      source: "live-view",
-      clearableFailure: false,
-    };
-  }
-
+  // Unsaved work exists only between the local action and its canonical event.
+  // It may overlay settled server states, but never hides canonical attention.
   if (
-    input.agent?.status === "running" ||
-    input.view?.sending ||
-    (input.view?.activeRun && input.view.activeRun.status !== "interrupted")
+    (view?.sending || view?.transient?.compaction?.state === "running") &&
+    (state === "idle" || state === "completed" || state === "aborted")
   ) {
+    const compacting = view?.transient?.compaction?.state === "running";
     return {
       indicator: "running",
-      tone: agentRunningTone(input.agent?.mode ?? input.mode),
+      tone: compacting ? "info" : agentRunningTone(mode),
       pulse: true,
-      label: "Agent running",
+      label: compacting ? "Compacting context" : "Agent starting",
       busy: true,
       needsUser: false,
-      source: input.agent?.status === "running" ? "agent" : "live-view",
+      source: "local-overlay",
       clearableFailure: false,
     };
   }
 
-  if (input.completedAt) {
-    return {
-      indicator: "completed",
-      tone: "neutral",
-      pulse: false,
-      label: "Completed",
-      busy: false,
-      needsUser: false,
-      source: "none",
-      clearableFailure: false,
-    };
+  switch (state) {
+    case "running":
+      return {
+        indicator: "running",
+        tone: agentRunningTone(mode),
+        pulse: true,
+        label: "Agent running",
+        busy: true,
+        needsUser: false,
+        source: "server",
+        clearableFailure: false,
+      };
+    case "awaiting_user":
+      return {
+        indicator: "needs-user",
+        tone: "warning",
+        pulse: false,
+        label: "Needs user action",
+        busy: false,
+        needsUser: true,
+        source: "server",
+        clearableFailure: false,
+      };
+    case "awaiting_async":
+      return {
+        indicator: "awaiting-async",
+        tone: "accent",
+        pulse: false,
+        label: "Waiting for background work",
+        busy: false,
+        needsUser: false,
+        source: "server",
+        clearableFailure: false,
+      };
+    case "error":
+      return {
+        indicator: "error",
+        tone: "destructive",
+        pulse: false,
+        label: "Agent error",
+        busy: false,
+        needsUser: false,
+        source: "server",
+        clearableFailure: true,
+      };
+    case "aborted":
+      return {
+        indicator: "aborted",
+        tone: "neutral",
+        pulse: false,
+        label: "Stopped",
+        busy: false,
+        needsUser: false,
+        source: "server",
+        clearableFailure: false,
+      };
+    case "completed":
+      return {
+        indicator: "completed",
+        tone: "neutral",
+        pulse: false,
+        label: "Completed",
+        busy: false,
+        needsUser: false,
+        source: "server",
+        clearableFailure: false,
+      };
+    default:
+      return snapshot
+        ? { ...idleConversationActivity, source: "server" }
+        : idleConversationActivity;
   }
-
-  return idleConversationActivity;
 }
 
 export function buildConversationActivityById(input: {
-  conversations: ConversationRecord[];
-  agents: AgentRecord[];
-  views: Record<string, ConversationLiveActivity>;
-  approvals: ApprovalWithToolCall[];
-  userQuestions: UserQuestionRecord[];
-  planReviews: PlanReviewRecord[];
+  conversations: readonly { id: string; mode: AgentMode }[];
+  activities: Readonly<Record<string, ConversationActivitySnapshot>>;
+  views: Readonly<Record<string, ConversationLiveActivity>>;
 }): Record<string, ConversationActivityState> {
-  const agentsById = new Map<string, AgentRecord>();
-  const agentsByConversationId = new Map<string, AgentRecord>();
-  for (const agent of input.agents) {
-    agentsById.set(agent.id, agent);
-    if (
-      agent.conversationId &&
-      !agentsByConversationId.has(agent.conversationId)
-    ) {
-      agentsByConversationId.set(agent.conversationId, agent);
-    }
-  }
-
-  const pendingConversationIds = new Set<string>();
-  for (const approval of input.approvals) {
-    if (approval.status === "pending") {
-      pendingConversationIds.add(approval.conversationId);
-    }
-  }
-  for (const question of input.userQuestions) {
-    if (question.status === "pending") {
-      pendingConversationIds.add(question.conversationId);
-    }
-  }
-  for (const review of input.planReviews) {
-    if (review.status === "pending") {
-      pendingConversationIds.add(review.conversationId);
-    }
-  }
-
-  const result: Record<string, ConversationActivityState> = Object.create(null);
-  for (const conversation of input.conversations) {
-    const agent =
-      (conversation.activeAgentId
-        ? agentsById.get(conversation.activeAgentId)
-        : undefined) ?? agentsByConversationId.get(conversation.id);
-    result[conversation.id] = conversationActivityForRecord({
-      conversationId: conversation.id,
-      agent,
-      mode: agent?.mode ?? conversation.mode,
-      view: input.views[conversationViewKey(conversation.id)],
-      hasPendingHumanInput: pendingConversationIds.has(conversation.id),
-      completedAt: conversation.completedAt,
-      runtimeStatusClearedAt: conversation.runtimeStatusClearedAt,
-    });
-  }
-  return result;
+  return Object.fromEntries(
+    input.conversations.map((conversation) => [
+      conversation.id,
+      activityForSnapshot(
+        input.activities[conversation.id],
+        conversation.mode,
+        input.views[conversationViewKey(conversation.id)],
+      ),
+    ]),
+  );
 }

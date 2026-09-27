@@ -52,6 +52,7 @@ export interface WorkbenchTaskServiceOptions {
   supervisor?: TaskSupervisor;
   launchConfigs?: TaskLaunchConfigStore;
   diagnostics?: PerformanceDiagnosticsPort;
+  onPromotedTask?(task: TaskRecord): Promise<void>;
 }
 
 export type ForegroundBashPromotionInput = {
@@ -110,6 +111,7 @@ export class WorkbenchTaskService extends TaskService {
   readonly taskLogs: TaskLogService;
   readonly supervisor: TaskSupervisor;
   readonly launchConfigs: TaskLaunchConfigStore;
+  readonly onPromotedTask?: (task: TaskRecord) => Promise<void>;
 
   constructor(
     readonly storage: InitializedStorage,
@@ -132,6 +134,7 @@ export class WorkbenchTaskService extends TaskService {
     this.launchConfigs = resources.launchConfigs;
     this.taskRepository = resources.repository;
     this.taskLogs = resources.logs;
+    this.onPromotedTask = options.onPromotedTask;
   }
 
   async hydrate(): Promise<void> {

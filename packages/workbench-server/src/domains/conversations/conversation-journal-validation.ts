@@ -1,3 +1,7 @@
+import {
+  assertAgentAsyncObligationReplacement,
+  type AgentAsyncObligation,
+} from "@nervekit/contracts/agents";
 import type {
   ConversationInteractionRecord,
   ConversationJournalEvent,
@@ -23,6 +27,7 @@ export function validateCommitEvents(
   const interactions = new Map<string, ConversationInteractionRecord>();
   const runProjections = new Map<string, ConversationRunProjection>();
   const modelEntries = new Map<string, ConversationTreeEntry>();
+  const obligations = new Map<string, AgentAsyncObligation>();
 
   const toolCall = (id: string) => toolCalls.get(id) ?? state.toolCalls.get(id);
   const interaction = (id: string) =>
@@ -104,6 +109,16 @@ export function validateCommitEvents(
           }
         }
         break;
+      case "agent_obligation.upserted": {
+        const previous =
+          obligations.get(event.obligation.id) ??
+          state.obligations.get(event.obligation.id);
+        if (previous) {
+          assertAgentAsyncObligationReplacement(previous, event.obligation);
+        }
+        obligations.set(event.obligation.id, event.obligation);
+        break;
+      }
       case "run.transition_committed": {
         const previous = runProjection(event.transition.runId);
         if (
@@ -161,7 +176,9 @@ function validateEventIdentity(
     (event.kind === "suspension.upserted" &&
       event.suspension.conversationId !== conversationId) ||
     (event.kind === "run.transition_committed" &&
-      event.transition.run.conversationId !== conversationId)
+      event.transition.run.conversationId !== conversationId) ||
+    (event.kind === "agent_obligation.upserted" &&
+      event.obligation.conversationId !== conversationId)
   ) {
     throw new Error("Conversation journal record identity mismatch.");
   }

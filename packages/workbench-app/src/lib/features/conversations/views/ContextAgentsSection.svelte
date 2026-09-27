@@ -4,6 +4,7 @@ import Bot from "@lucide/svelte/icons/bot";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Crown from "@lucide/svelte/icons/crown";
 import Hammer from "@lucide/svelte/icons/hammer";
+import Hourglass from "@lucide/svelte/icons/hourglass";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { cn } from "@nervekit/ui-kit/utils";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
@@ -13,7 +14,7 @@ import {
   PanelRow,
   PanelSectionHeader,
 } from "$lib/presentation/panels";
-import type { AgentRecord } from "$lib/api";
+import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
 import ContextAgentDetailPopover from "./ContextAgentDetailPopover.svelte";
 import {
   agentAttention,
@@ -29,11 +30,13 @@ import {
 let {
   conversationAgents = [],
   activeAgent,
+  agentActivities = {},
   onSelectAgent,
   onOpenTranscript,
 }: {
   conversationAgents?: AgentRecord[];
   activeAgent?: AgentRecord;
+  agentActivities?: Readonly<Record<string, AgentActivitySnapshot>>;
   onSelectAgent?: (agent: AgentRecord) => void;
   /** Subagent rows open their live transcript instead of selecting the agent. */
   onOpenTranscript?: (agent: AgentRecord) => void;
@@ -51,9 +54,13 @@ const ROLE_ICON: Record<AgentRole, typeof Crown> = {
 let openDetailAgentId = $state<string | undefined>(undefined);
 let exploreOpen = $state(false);
 
-const groups = $derived(groupAgents(conversationAgents, activeAgent?.id));
-const attention = $derived(agentAttention(conversationAgents));
-const foldSummary = $derived(exploreFoldSummary(groups.exploreDone));
+const groups = $derived(
+  groupAgents(conversationAgents, activeAgent?.id, agentActivities),
+);
+const attention = $derived(agentAttention(conversationAgents, agentActivities));
+const foldSummary = $derived(
+  exploreFoldSummary(groups.exploreDone, agentActivities),
+);
 const exploreCount = $derived(
   groups.exploreLive.length + groups.exploreDone.length,
 );
@@ -69,9 +76,10 @@ function rowTitle(agent: AgentRecord): string {
 }
 
 function statusDotClass(agent: AgentRecord): string | undefined {
-  if (agent.status === "running") return "bg-info status-pulse";
-  if (agent.status === "awaiting_user") return "bg-warning";
-  if (agent.status === "error") return "bg-destructive";
+  const state = agentActivities[agent.id]?.state;
+  if (state === "running") return "bg-info status-pulse";
+  if (state === "awaiting_user") return "bg-warning";
+  if (state === "error") return "bg-destructive";
   return undefined;
 }
 
@@ -83,7 +91,8 @@ function idleLabel(agent: AgentRecord): string {
 
 {#snippet agentRow(agent: AgentRecord)}
   {@const RoleIcon = ROLE_ICON[agentRole(agent)]}
-  {@const badge = agentStatusBadge(agent)}
+  {@const activity = agentActivities[agent.id]}
+  {@const badge = agentStatusBadge(agent, activity)}
   {@const dot = statusDotClass(agent)}
   <PanelRow
     label={agentRowLabel(agent)}
@@ -101,7 +110,12 @@ function idleLabel(agent: AgentRecord): string {
         )}
       >
         <RoleIcon class="size-3.5" aria-hidden="true" />
-        {#if dot}
+        {#if activity?.state === "awaiting_async"}
+          <Hourglass
+            class="absolute -right-1 -bottom-1 size-2.5 text-accent-foreground"
+            aria-label="Waiting for background work"
+          />
+        {:else if dot}
           <span
             class={cn(
               "absolute -right-0.5 -bottom-0.5 size-1.5 rounded-full ring-1 ring-card",
@@ -124,6 +138,7 @@ function idleLabel(agent: AgentRecord): string {
     {#snippet actions()}
       <ContextAgentDetailPopover
         {agent}
+        {activity}
         bind:open={
           () => openDetailAgentId === agent.id,
           (value) => (openDetailAgentId = value ? agent.id : undefined)
@@ -205,7 +220,8 @@ function idleLabel(agent: AgentRecord): string {
                   <span
                     class={cn(
                       "size-1.5 rounded-[2px]",
-                      agent.status === "error" || agent.status === "aborted"
+                      agentActivities[agent.id]?.state === "error" ||
+                        agentActivities[agent.id]?.state === "aborted"
                         ? "bg-destructive"
                         : "bg-success",
                     )}

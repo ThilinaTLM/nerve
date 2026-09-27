@@ -23,6 +23,7 @@ import {
   validateCommitEvents,
 } from "./conversation-journal-validation.js";
 import type { AgentMessage } from "@nervekit/harness/agent";
+import type { AgentAsyncObligation } from "@nervekit/contracts/agents";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
@@ -72,6 +73,7 @@ export interface ConversationJournalState {
   runProjections: Map<string, ConversationRunProjection>;
   interactions: Map<string, ConversationInteractionRecord>;
   suspensions: Map<string, ConversationSuspensionRecord>;
+  obligations: Map<string, AgentAsyncObligation>;
   idempotencyKeys: Map<string, ConversationJournalCommit>;
   intentConversationRevisions: Map<string, number>;
   /** Non-serialized indexes maintained with the resident projection. */
@@ -836,6 +838,9 @@ function applyEvent(
     case "suspension.upserted":
       state.suspensions.set(event.suspension.id, event.suspension);
       return;
+    case "agent_obligation.upserted":
+      state.obligations.set(event.obligation.id, event.obligation);
+      return;
     case "run.event_delivered": {
       const projection = state.runProjections.get(event.delivery.runId);
       if (!projection) {
@@ -864,6 +869,7 @@ function emptyState(conversationId: string): ConversationJournalState {
     runProjections: new Map(),
     interactions: new Map(),
     suspensions: new Map(),
+    obligations: new Map(),
     idempotencyKeys: new Map(),
     intentConversationRevisions: new Map(),
     entryById: new Map(),

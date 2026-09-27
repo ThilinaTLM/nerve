@@ -13,6 +13,7 @@ export type ProjectActivitySummary = {
   needsUser: number;
   failed: number;
   running: number;
+  awaitingAsync: number;
 };
 
 export type ProjectTaskSummary = {
@@ -39,20 +40,22 @@ export function summarizeProjectActivity(
     needsUser: 0,
     failed: 0,
     running: 0,
+    awaitingAsync: 0,
   };
   for (const conversation of conversations) {
-    if (conversation.completedAt) continue;
     const activity = activityById[conversation.id];
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
     else if (activity.tone === "destructive") summary.failed += 1;
+    else if (activity.indicator === "awaiting-async")
+      summary.awaitingAsync += 1;
     else if (activity.busy) summary.running += 1;
   }
   return summary;
 }
 
 export type ProjectActivitySignal = {
-  tone: Extract<StatusTone, "warning" | "destructive" | "info">;
+  tone: Extract<StatusTone, "warning" | "destructive" | "info" | "accent">;
   count: number;
   /** Human-readable breakdown of current actionable activity. */
   summary: string;
@@ -68,6 +71,9 @@ export function projectActivitySignal(
     activity.running
       ? `${activity.running} conversation${activity.running === 1 ? "" : "s"} running`
       : "",
+    activity.awaitingAsync
+      ? `${activity.awaitingAsync} waiting for background work`
+      : "",
     tasks.running
       ? `${tasks.running} background task${tasks.running === 1 ? "" : "s"} running`
       : "",
@@ -77,11 +83,17 @@ export function projectActivitySignal(
     ? "warning"
     : activity.failed
       ? "destructive"
-      : "info";
+      : activity.running || tasks.running
+        ? "info"
+        : "accent";
   return {
     tone,
     count:
-      activity.needsUser + activity.failed + activity.running + tasks.running,
+      activity.needsUser +
+      activity.failed +
+      activity.running +
+      activity.awaitingAsync +
+      tasks.running,
     summary: parts.join(", "),
   };
 }

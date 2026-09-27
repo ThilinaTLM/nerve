@@ -1,5 +1,7 @@
 import type {
+  AgentActivitySnapshot,
   AgentRecord,
+  ConversationActivitySnapshot,
   ConversationEntry,
   ConversationRecord,
   EventEnvelope,
@@ -7,6 +9,7 @@ import type {
 } from "$lib/api";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { upsertAgentByUpdatedAt } from "./agent-freshness";
+import { freshestActivity } from "./activity-freshness";
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -71,6 +74,16 @@ export function removeConversationRecord(conversationId: string): void {
   workspaceState.conversations = workspaceState.conversations.filter(
     (conversation) => conversation.id !== conversationId,
   );
+  workspaceState.conversationActivities = Object.fromEntries(
+    Object.entries(workspaceState.conversationActivities).filter(
+      ([id]) => id !== conversationId,
+    ),
+  );
+  workspaceState.agentActivities = Object.fromEntries(
+    Object.entries(workspaceState.agentActivities).filter(
+      ([, activity]) => activity.conversationId !== conversationId,
+    ),
+  );
 }
 
 export function patchConversationForEntry(entry: ConversationEntry): void {
@@ -101,15 +114,27 @@ export function upsertAgentRecordFresh(agent: AgentRecord): void {
   workspaceState.agents = upsertAgentByUpdatedAt(agent, workspaceState.agents);
 }
 
-export function patchKnownAgentStatus(
-  agentId: string | undefined,
-  status: AgentRecord["status"],
-  updatedAt: string,
+export function upsertAgentActivity(activity: AgentActivitySnapshot): void {
+  const current = workspaceState.agentActivities[activity.agentId];
+  const freshest = freshestActivity(current, activity);
+  if (freshest === current) return;
+  workspaceState.agentActivities = {
+    ...workspaceState.agentActivities,
+    [activity.agentId]: freshest,
+  };
+}
+
+export function upsertConversationActivity(
+  activity: ConversationActivitySnapshot,
 ): void {
-  if (!agentId) return;
-  const existing = workspaceState.agents.find((agent) => agent.id === agentId);
-  if (!existing || existing.updatedAt > updatedAt) return;
-  upsertAgentRecordFresh({ ...existing, status, updatedAt });
+  const current =
+    workspaceState.conversationActivities[activity.conversationId];
+  const freshest = freshestActivity(current, activity);
+  if (freshest === current) return;
+  workspaceState.conversationActivities = {
+    ...workspaceState.conversationActivities,
+    [activity.conversationId]: freshest,
+  };
 }
 
 export function upsertPendingToolCall(
@@ -149,6 +174,7 @@ export function applyEntityEvent(
   const conversation = recordValue(data.conversation);
   const entry = recordValue(data.entry);
   const toolCall = recordValue(data.toolCall);
+  const activity = recordValue(data.activity);
 
   if (isConversationRecord(conversation))
     upsertConversationRecord(conversation);
@@ -166,4 +192,24 @@ export function applyEntityEvent(
   if (isAgentRecord(agent)) upsertAgentRecordFresh(agent);
 
   if (isToolCallRecord(toolCall)) upsertPendingToolCall(toolCall);
+
+  if (
+    event.type === "agent.activity_changed" &&
+    activity &&
+    typeof activity.agentId === "string" &&
+    typeof activity.conversationId === "string" &&
+    typeof activity.state === "string" &&
+    typeof activity.updatedAt === "string"
+  ) {
+    upsertAgentActivity(activity as AgentActivitySnapshot);
+  }
+  if (
+    event.type === "conversation.activity_changed" &&
+    activity &&
+    typeof activity.conversationId === "string" &&
+    typeof activity.state === "string" &&
+    typeof activity.updatedAt === "string"
+  ) {
+    upsertConversationActivity(activity as ConversationActivitySnapshot);
+  }
 }

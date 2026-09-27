@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { agentRecordSchema } from "../domains/agents/agent.js";
+import {
+  agentActivitySnapshotSchema,
+  conversationActivitySnapshotSchema,
+} from "../domains/agents/agent-obligation.js";
 import { conversationRecordSchema } from "../domains/conversations/conversation-state.js";
 import { conversationSnapshotSchema } from "../domains/conversations/live-state.js";
 import { projectRecordSchema } from "../domains/projects/project.js";
@@ -26,6 +30,8 @@ export const workspaceSnapshotSchema = z.object({
   projects: z.array(projectRecordSchema),
   conversations: z.array(conversationRecordSchema),
   agents: z.array(agentRecordSchema),
+  agentActivities: z.array(agentActivitySnapshotSchema),
+  conversationActivities: z.array(conversationActivitySnapshotSchema),
   tasks: z.array(taskRecordSchema),
   pendingToolCalls: z.array(toolCallTranscriptRecordSchema),
 });

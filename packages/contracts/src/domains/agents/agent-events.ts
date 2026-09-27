@@ -10,7 +10,11 @@ import { definePublicEvent } from "../../events/definition.js";
 import { modeSchema } from "../settings/settings.js";
 import { agentSuspensionRecordSchema } from "../suspensions/suspension.js";
 import { exploreReportSummarySchema } from "../tools/tool-results.js";
-import { agentRecordSchema, agentStatusSchema } from "./agent.js";
+import { agentRecordSchema } from "./agent.js";
+import {
+  agentActivitySnapshotSchema,
+  conversationActivitySnapshotSchema,
+} from "./agent-obligation.js";
 
 const workbenchRoles = ["workbench_server"] as const;
 const agentIdSchema = z.string().startsWith("agent_");
@@ -42,6 +46,19 @@ const subagentTranscriptEvent = (name: string, schema: z.ZodType) =>
 
 export const agentEventDefinitions = [
   definePublicEvent(
+    "agent.activity_changed",
+    z.object({ activity: agentActivitySnapshotSchema }).strict(),
+    { allowedSourceRoles: workbenchRoles, scope: ["activity.agentId"] },
+  ),
+  definePublicEvent(
+    "conversation.activity_changed",
+    z.object({ activity: conversationActivitySnapshotSchema }).strict(),
+    {
+      allowedSourceRoles: workbenchRoles,
+      scope: ["activity.conversationId"],
+    },
+  ),
+  definePublicEvent(
     "agent.created",
     z.object({
       agent: agentRecordSchema,
@@ -53,15 +70,6 @@ export const agentEventDefinitions = [
     "agent.configured",
     z.object({ agent: agentRecordSchema }),
     { allowedSourceRoles: workbenchRoles, scope: ["agent.id"] },
-  ),
-  definePublicEvent(
-    "agent.status_changed",
-    z.object({
-      agent: agentRecordSchema,
-      agentId: agentIdSchema,
-      status: agentStatusSchema,
-    }),
-    { allowedSourceRoles: workbenchRoles, scope: ["agentId"] },
   ),
   definePublicEvent(
     "agent.mode_changed",

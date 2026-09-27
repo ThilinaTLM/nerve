@@ -14,7 +14,16 @@ describe("task manager foreground bash auto-promotion", () => {
   it("promotes a still-running foreground bash task with agent scope", async () => {
     const child = fakeChild();
     const { supervisor } = fakeSupervisor({ child });
-    const { manager, storage, events } = await createManager(supervisor);
+    const registered: string[] = [];
+    const { manager, storage, events } = await createManager(
+      supervisor,
+      undefined,
+      {
+        onPromotedTask: async (task) => {
+          registered.push(task.id);
+        },
+      },
+    );
     const updates: Array<{ stream: string; chunk: string }> = [];
     const startedEvent = waitForTaskEvent(events, "task.started");
 
@@ -40,8 +49,9 @@ describe("task manager foreground bash auto-promotion", () => {
     assert.equal(result.task.agentId, "agent_test");
     assert.equal(result.task.visibility, "background");
     assert.equal(result.task.notifications?.enabled, true);
-    assert.equal(result.task.notifications?.terminal, true);
-    assert.equal(result.task.completion?.inject, true);
+    assert.equal(result.task.notifications?.terminal, false);
+    assert.equal(result.task.completion?.inject, false);
+    assert.deepEqual(registered, [result.task.id]);
     assert.match(result.result.content ?? "", /was backgrounded/);
     assert.deepEqual(
       (result.result.details as { execution?: unknown }).execution,

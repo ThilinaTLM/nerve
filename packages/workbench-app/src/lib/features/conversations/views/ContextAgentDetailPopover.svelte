@@ -9,7 +9,7 @@ import Popover, {
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { statusTone } from "@nervekit/ui-kit/display/status";
-import type { AgentRecord } from "$lib/api";
+import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
 import {
   agentDetailFields,
   agentRoleLabel,
@@ -18,9 +18,11 @@ import {
 
 let {
   agent,
+  activity,
   open = $bindable(false),
 }: {
   agent: AgentRecord;
+  activity?: AgentActivitySnapshot;
   open?: boolean;
 } = $props();
 
@@ -44,7 +46,8 @@ const task = $derived(agent.task?.trim());
 
   <PopoverHeader title={agentRoleLabel(agent)}>
     {#snippet actions()}
-      <Badge variant={statusTone(agent.status)}>{agentStatusLabel(agent)}</Badge
+      <Badge variant={statusTone(activity?.state ?? "idle")}
+        >{agentStatusLabel(activity)}</Badge
       >
     {/snippet}
   </PopoverHeader>

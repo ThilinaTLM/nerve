@@ -55,6 +55,7 @@ export function createServerAdapterContexts(
     projectLifecycle: services.projectLifecycle,
     conversationLifecycle: services.conversationLifecycle,
     conversationQuery: services.conversationQuery,
+    agentActivity: services.agentActivity,
     humanInput: services.humanInput,
     agentLifecycle: services.agentLifecycle,
     tasks: services.tasks,

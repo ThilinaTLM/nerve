@@ -80,7 +80,10 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(child.executionKind, "explore");
       assert.equal(child.name, "Temporary project contents");
       assert.deepEqual(child.model, parent.model);
-      assert.equal(child.status, "idle");
+      assert.equal(
+        orchestrator.services.subagentTranscriptLive.snapshot(child.id),
+        undefined,
+      );
       assert.ok((child.systemPrompt ?? "").includes(project.dir));
       assert.match(
         child.systemPrompt ?? "",
@@ -334,7 +337,11 @@ describe("explore subagent transcript isolation", () => {
           .filter((agent) => agent.parentAgentId === parent.id);
         return (
           children.length === 2 &&
-          children.every((agent) => agent.status === "running")
+          children.every((agent) =>
+            Boolean(
+              orchestrator.services.subagentTranscriptLive.snapshot(agent.id),
+            ),
+          )
         );
       });
       assert.equal(
@@ -349,7 +356,13 @@ describe("explore subagent transcript isolation", () => {
         .listAgents()
         .filter((agent) => agent.parentAgentId === parent.id);
       assert.equal(children.length, 2);
-      assert.ok(children.every((agent) => agent.status === "aborted"));
+      assert.ok(
+        children.every(
+          (agent) =>
+            orchestrator.services.subagentTranscriptLive.snapshot(agent.id) ===
+            undefined,
+        ),
+      );
       const [run] = (
         await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()
       ).filter((state) => state.run.agentId === parent.id);

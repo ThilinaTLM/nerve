@@ -33,7 +33,7 @@ Quitting the desktop application immediately terminates active local task proces
 
 ## Agent run recovery is separate
 
-Conversation runs use durable checkpoints, retry policy, and manual continuation. A background process being recovered does not automatically mean the model run is resumable, and vice versa.
+Conversation runs use durable checkpoints, retry policy, and manual continuation. A background process being recovered does not automatically mean the model run is resumable, and vice versa. Explicit `task_start` runs are detached and never restart the agent when they terminate. Only awaited work—such as a Bash command automatically promoted from the foreground or an asynchronous subagent—creates a recoverable follow-up obligation.
 
 ## Next steps
 

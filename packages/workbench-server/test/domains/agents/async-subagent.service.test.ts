@@ -24,7 +24,6 @@ function setup() {
     mode: "coding",
     permissionLevel: "autonomous",
     workspaceScope: { roots: ["/tmp/nerve-team-test"] },
-    status: "idle",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
@@ -38,6 +37,7 @@ function setup() {
     | undefined;
   let cancelGate: Promise<void> | undefined;
   let starts = 0;
+  const obligations: Array<{ sourceId: string; ownerAgentId: string }> = [];
   const ports: AsyncSubagentPorts = {
     getAgent: (id) => {
       const agent = agents.get(id);
@@ -72,6 +72,12 @@ function setup() {
     },
     latestRun: async (agent) => runs.get(agent.id),
     reserveAssignment: async () => {},
+    registerObligation: async (obligation) => {
+      obligations.push({
+        sourceId: obligation.sourceId,
+        ownerAgentId: obligation.ownerAgentId,
+      });
+    },
     start: async (agent, runId) => {
       starts++;
       const run: RunRecord = {
@@ -102,6 +108,7 @@ function setup() {
     controls,
     runs,
     entries,
+    obligations,
     setEnabled: (value: boolean) => {
       enabled = value;
     },
@@ -171,6 +178,8 @@ describe("persistent autonomous developer teammates", () => {
       1,
     );
     assert.equal(f.starts(), 1);
+    assert.equal(f.obligations.length, 1);
+    assert.equal(f.obligations[0]?.ownerAgentId, f.lead.id);
     assert.equal(
       (await f.service.status(f.lead.id, "API")).response,
       undefined,

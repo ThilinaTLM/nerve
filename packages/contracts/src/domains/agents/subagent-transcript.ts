@@ -9,7 +9,10 @@ import {
   type ToolCallTranscriptRecord,
   toolCallTranscriptRecordSchema,
 } from "../tools/records.js";
-import { type AgentStatus, agentStatusSchema } from "./agent.js";
+import {
+  type AgentActivityState,
+  agentActivityStateSchema,
+} from "./agent-obligation.js";
 
 export const SUBAGENT_TRANSCRIPT_MAX_ENTRIES = 500;
 export const SUBAGENT_TRANSCRIPT_MAX_TOOL_CALLS = 500;
@@ -73,7 +76,7 @@ export interface SubagentTranscriptSnapshot {
   projectId: string;
   cursorSeq: number;
   activeRun?: ConversationActiveRunSnapshot;
-  status: AgentStatus;
+  status: AgentActivityState;
   model?: string;
   thinkingLevel?: ThinkingLevel;
   entries: SubagentTranscriptEntry[];
@@ -94,7 +97,7 @@ export const subagentTranscriptSnapshotSchema: z.ZodType<SubagentTranscriptSnaps
       projectId: z.string().startsWith("proj_"),
       cursorSeq: z.number().int().nonnegative(),
       activeRun: conversationActiveRunSnapshotSchema.optional(),
-      status: agentStatusSchema,
+      status: agentActivityStateSchema,
       model: z.string().max(256).optional(),
       thinkingLevel: thinkingLevelSchema.optional(),
       entries: z

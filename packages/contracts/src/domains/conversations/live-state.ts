@@ -2,6 +2,10 @@
 import { z } from "zod";
 import { boundedPublicObjectSchema } from "../../events/bounded-public-data.js";
 import {
+  type ConversationActivitySnapshot,
+  conversationActivitySnapshotSchema,
+} from "../agents/agent-obligation.js";
+import {
   type QueuedPromptRecord,
   queuedPromptRecordSchema,
 } from "../agents/prompt.js";
@@ -305,6 +309,7 @@ export interface ConversationActiveRunSnapshot {
 
 export interface ConversationSnapshot {
   conversation: ConversationRecord;
+  activity: ConversationActivitySnapshot;
   conversationRevision: number;
   entries: ConversationEntry[];
   activeEntryIds: string[];
@@ -442,6 +447,7 @@ export const conversationActiveRunSnapshotSchema = z.object({
 
 export const conversationSnapshotSchema = z.object({
   conversation: conversationRecordSchema,
+  activity: conversationActivitySnapshotSchema,
   conversationRevision: z.number().int().nonnegative(),
   entries: z.array(conversationEntrySchema),
   activeEntryIds: z.array(z.string().startsWith("entry_")),

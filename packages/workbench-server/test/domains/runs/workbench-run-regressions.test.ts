@@ -10,63 +10,12 @@ import { RuntimeState } from "../../../src/app/runtime/runtime-projections.js";
 import { ApplicationError } from "../../../src/core/application-error.js";
 import { HumanInputResolutionService } from "../../../src/domains/human-input/human-input-resolution.service.js";
 import { WorkbenchRunQuery } from "../../../src/domains/runs/application/workbench-run-query.js";
-import {
-  agentStatusForRun,
-  WorkbenchRunProjector,
-} from "../../../src/domains/runs/application/workbench-run-projector.js";
+import { WorkbenchRunProjector } from "../../../src/domains/runs/application/workbench-run-projector.js";
 
 describe("workbench coordinator behavior regressions", () => {
-  it("projects every canonical run status into workbench state", async () => {
-    assert.equal(agentStatusForRun("starting"), "running");
-    assert.equal(agentStatusForRun("running"), "running");
-    assert.equal(agentStatusForRun("retrying"), "running");
-    assert.equal(agentStatusForRun("waiting"), "awaiting_user");
-    assert.equal(agentStatusForRun("suspended"), "awaiting_user");
-    assert.equal(agentStatusForRun("completed"), "idle");
-    assert.equal(agentStatusForRun("cancelled"), "aborted");
-    assert.equal(agentStatusForRun("failed"), "error");
-    assert.equal(agentStatusForRun("interrupted"), "error");
-    assert.equal(agentStatusForRun("cancellation_failed"), "error");
-
-    const state = new RuntimeState();
-    const agent = agentRecord();
-    state.agents.set(agent.id, agent);
-    const projected: AgentRecord["status"][] = [];
-    const projector = new WorkbenchRunProjector(
-      state,
-      async (current, status) => {
-        projected.push(status);
-        state.agents.set(current.id, { ...current, status });
-      },
-    );
-    const activeRun = runRecord("running", 1);
-    await projector.committed({ run: activeRun, events: [] } as never);
-    assert.equal(state.agents.get(agent.id)?.status, "running");
-    await projector.committed({
-      run: { ...runRecord("waiting", 2), runId: activeRun.runId },
-      events: [],
-    } as never);
-    assert.equal(state.agents.get(agent.id)?.status, "awaiting_user");
-    await projector.rebuild({
-      activeStates: [
-        {
-          run: runRecord("completed", 3),
-          transitions: [],
-          prompts: [],
-          interactions: [],
-          checkpoints: [],
-          deliveries: [],
-        },
-      ],
-      runRecords: [runRecord("completed", 3)],
-    });
-    assert.deepEqual(projected, ["running", "awaiting_user", "idle"]);
-    assert.equal(state.agents.get(agent.id)?.status, "idle");
-  });
-
   it("clears terminal ownership before a second run in the same conversation", async () => {
     const state = new RuntimeState();
-    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const projector = new WorkbenchRunProjector(state);
     const first = runRecord("running", 1);
 
     await projector.committed({ run: first, events: [] } as never);
@@ -100,7 +49,7 @@ describe("workbench coordinator behavior regressions", () => {
 
   it("retains live ownership through retry, wait, and cancellation states", async () => {
     const state = new RuntimeState();
-    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const projector = new WorkbenchRunProjector(state);
     const run = runRecord("running", 1);
     const project = async (
       status: RunRecord["status"],
@@ -164,7 +113,7 @@ describe("workbench coordinator behavior regressions", () => {
 
   it("rebuilds only active conversation runtime projections", async () => {
     const state = new RuntimeState();
-    const projector = new WorkbenchRunProjector(state, async () => undefined);
+    const projector = new WorkbenchRunProjector(state);
     const stale = runRecord("running", 1);
     state.conversationRuntime.startRun(stale);
 
@@ -207,51 +156,6 @@ describe("workbench coordinator behavior regressions", () => {
       )?.status,
       "interrupted",
     );
-  });
-
-  it("preserves newer persisted agent status during startup rebuild", async () => {
-    const state = new RuntimeState();
-    const newerAgent = {
-      ...agentRecord(),
-      status: "idle" as const,
-      updatedAt: "2026-07-13T00:00:10.000Z",
-    };
-    state.agents.set(newerAgent.id, newerAgent);
-    const projected: AgentRecord["status"][] = [];
-    const projector = new WorkbenchRunProjector(
-      state,
-      async (current, status) => {
-        projected.push(status);
-        state.agents.set(current.id, { ...current, status });
-      },
-    );
-    const failedRun = runRecord("failed", 5);
-    const hydrated = {
-      run: failedRun,
-      transitions: [],
-      prompts: [],
-      interactions: [],
-      checkpoints: [],
-      deliveries: [],
-    };
-
-    await projector.rebuild({
-      activeStates: [hydrated],
-      runRecords: [hydrated.run],
-    });
-    assert.deepEqual(projected, []);
-    assert.equal(state.agents.get(newerAgent.id)?.status, "idle");
-
-    state.agents.set(newerAgent.id, {
-      ...newerAgent,
-      updatedAt: "2026-07-13T00:00:04.000Z",
-    });
-    await projector.rebuild({
-      activeStates: [hydrated],
-      runRecords: [hydrated.run],
-    });
-    assert.deepEqual(projected, ["error"]);
-    assert.equal(state.agents.get(newerAgent.id)?.status, "error");
   });
 
   it("projects HITL resumes as running and real retries from durable metadata", async () => {
@@ -596,7 +500,6 @@ describe("workbench coordinator behavior regressions", () => {
       createAgent: async () => ({}),
       getAgent: () => ({}) as never,
       configureAgent: async () => ({}) as never,
-      setAgentStatus: async () => undefined,
       appendEntry: async (input: Record<string, unknown>) => ({ ...input }),
       getConversationEntries: () => [],
       harnessStorage: {},
@@ -731,7 +634,6 @@ describe("workbench coordinator behavior regressions", () => {
       getAgent: (agentId: string) =>
         agentId === created.id ? created : source,
       configureAgent: async () => source,
-      setAgentStatus: async () => undefined,
       continueAgent: async () => undefined,
       appendEntry: async (input: Record<string, unknown>) => ({
         ...input,
@@ -787,8 +689,6 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resolutions[0]?.completeRun, true);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
-    assert.equal(fixture.source.status, "idle");
-    assert.deepEqual(fixture.statusUpdates, []);
   });
 
   it("settles a detached rejected plan to idle", async () => {
@@ -801,8 +701,6 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 0);
-    assert.equal(fixture.source.status, "idle");
-    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("reconciles when the source run becomes terminal during rejection", async () => {
@@ -815,8 +713,6 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
-    assert.equal(fixture.source.status, "idle");
-    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("reconciles an orphaned plan review whose source run is terminal", async () => {
@@ -832,8 +728,6 @@ describe("workbench coordinator behavior regressions", () => {
     assert.equal(fixture.resumedToolCalls.length, 1);
     assert.equal(fixture.completedToolCalls.length, 1);
     assert.equal(fixture.appendedEntries.length, 1);
-    assert.equal(fixture.source.status, "idle");
-    assert.deepEqual(fixture.statusUpdates, ["idle"]);
   });
 
   it("bounds automatic same-run continuations at three and resets on run finish", () => {
@@ -860,7 +754,6 @@ function agentRecord(): AgentRecord {
     conversationId: "conv_regression",
     projectId: "proj_regression",
     projectDir: "/tmp/project",
-    status: "idle",
     mode: "coding",
     permissionLevel: "supervised",
     workspaceScope: "project",
@@ -983,7 +876,6 @@ function acceptanceFixture(
       lifecycle.push("configure");
       return source;
     },
-    setAgentStatus: async () => undefined,
     continueAgent: async () => undefined,
     createConversation: async () => ({
       id: createdAgent.conversationId,
@@ -1033,7 +925,7 @@ function acceptanceFixture(
 function rejectionFixture(
   sourceState: "detached" | "pending" | "terminal" | "terminal_race",
 ) {
-  let source: AgentRecord = {
+  const source: AgentRecord = {
     ...agentRecord(),
     mode: "planning",
     status: sourceState === "pending" ? "awaiting_user" : "error",
@@ -1043,7 +935,6 @@ function rejectionFixture(
   const resumedToolCalls: unknown[] = [];
   const completedToolCalls: unknown[] = [];
   const appendedEntries: Array<Record<string, unknown>> = [];
-  const statusUpdates: AgentRecord["status"][] = [];
   const pendingToolCall = {
     id: review.toolCallId,
     agentId: source.id,
@@ -1106,18 +997,10 @@ function rejectionFixture(
         if (sourceState === "terminal_race") {
           throw new Error("run became terminal");
         }
-        source = { ...source, status: "idle" };
       },
     },
     getAgent: () => source,
     configureAgent: async () => source,
-    setAgentStatus: async (
-      agent: AgentRecord,
-      status: AgentRecord["status"],
-    ) => {
-      statusUpdates.push(status);
-      source = { ...agent, status };
-    },
     continueAgent: async () => undefined,
     createConversation: async () => {
       throw new Error("not used");
@@ -1147,7 +1030,6 @@ function rejectionFixture(
     resumedToolCalls,
     completedToolCalls,
     appendedEntries,
-    statusUpdates,
   };
 }
 

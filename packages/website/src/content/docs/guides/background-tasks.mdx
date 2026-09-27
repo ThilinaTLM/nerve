@@ -14,13 +14,13 @@ Nerve separates a durable **task definition** from immutable **task runs**. A de
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
 
-Use finite Bash for commands that should finish. Use `task_start` for a known server or watcher. Nerve can automatically promote a Bash command that remains active. The agent can continue independent work or finish its turn instead of polling. Agent-started tasks subscribe the agent to terminal completion: when one terminates, Nerve adds a `task_event` and starts a fresh agent turn to inspect it. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
+Use finite Bash for commands that should finish. Use `task_start` for a known server or watcher. An explicit `task_start` is detached supervised work: status can appear in the task UI and transcript, but terminal completion does not restart the agent. By contrast, when a finite Bash call outlives its wait and Nerve automatically promotes it, that promoted command remains awaited work for the originating agent. Nerve delivers its result and can continue the agent after the foreground turn settles. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
 
 Before starting a server or watcher, the agent checks active tasks once unless it already knows the current task state. A successful start reports the new task and any other active tasks in the workspace scope, allowing the agent to notice possible overlap without heuristic duplicate detection.
 
 ## Agent tool contract
 
-`task_start` accepts one command and an optional project-relative `cwd`; absolute paths and traversal outside the project are rejected. Readiness is one `ready` object with `kind: "url"`, `"detected_url"`, or `"pattern"`. Agent-started tasks always publish asynchronous updates.
+`task_start` accepts one command and an optional project-relative `cwd`; absolute paths and traversal outside the project are rejected. Readiness is one `ready` object with `kind: "url"`, `"detected_url"`, or `"pattern"`. Agent-started tasks publish asynchronous status updates, but the explicit tool remains detached from agent continuation.
 
 Use `task_status({ tasks: [idOrName] })` for selected tasks, or omit `tasks` to list active tasks. Use `task_logs({ task, mode, cursor })`; `cursor` pages backward in recent/error/warning modes and forward in `since_cursor` mode. Use `task_control({ task, action })` to stop or restart through Nerve's safe process-tree policy.
 
@@ -59,7 +59,7 @@ The Tasks panel and task-output tab let you switch between sibling runs, restart
 
 ## Agent notifications
 
-Task terminal changes become deduplicated `task_event` system entries in the conversation. Both auto-promoted Bash commands and explicit agent `task_start` processes subscribe the originating agent, so a terminal event starts a fresh continuation turn if the originating run already finished. Tasks started outside an agent conversation remain notification-only. This is separate from desktop/browser toast notifications.
+Task terminal changes can become deduplicated `task_event` system entries in the conversation. Auto-promoted Bash commands create an awaited obligation for the originating agent; delivery is durable and idempotent, and a settled foreground turn can be continued when the result is ready. Explicit `task_start` processes are detached: their updates remain visible, but terminal completion does not create an obligation or start a fresh agent turn. This is separate from desktop/browser toast notifications.
 
 ## Next steps
 

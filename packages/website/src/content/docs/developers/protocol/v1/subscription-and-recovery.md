@@ -26,7 +26,7 @@ The client validates dense continuity even after the server accepted a subscript
 
 ## Snapshots
 
-For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes. Transient `conversation.live.*` notifications are intentionally absent from replay: active turns, draft progress, and bounded output come from the conversation snapshot, while partial state is discarded after a server crash.
+For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes. Workspace snapshots include complete agent and conversation activity projections; conversation snapshots include the selected conversation activity. `agent.activity_changed` and `conversation.activity_changed` events also carry complete replacement snapshots, so clients do not infer lifecycle transitions from run or tool events. Transient `conversation.live.*` notifications are intentionally absent from replay: active turns, draft progress, and bounded output come from the conversation snapshot, while partial state is discarded after a server crash.
 
 Reducer lifecycle violations use the same recovery boundary: mark state corrupted, remove or suspend the affected stream, load a fresh snapshot, then subscribe from that snapshot cursor.
 

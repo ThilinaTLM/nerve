@@ -85,6 +85,7 @@ export async function closeServer(server: Server): Promise<void> {
 export async function createManager(
   supervisor: TaskSupervisor,
   launchConfigs = new MemoryTaskLaunchConfigStore(),
+  options: { onPromotedTask?(task: TaskRecord): Promise<void> } = {},
 ): Promise<{
   manager: WorkbenchTaskService;
   storage: InitializedStorage;
@@ -101,6 +102,7 @@ export async function createManager(
     manager: new WorkbenchTaskService(storage, events, queryCache, undefined, {
       supervisor,
       launchConfigs,
+      ...options,
     }),
     storage,
     events,

@@ -19,12 +19,13 @@ function baseAgent(): Record<string, unknown> {
 }
 
 describe("agent record schema", () => {
-  it("round-trips an optional subagent task", () => {
+  it("round-trips configuration while removing legacy persisted status", () => {
     const agent = agentRecordSchema.parse({
       ...baseAgent(),
       parentAgentId: "agent_01H00000000000000000000001",
       task: "Explore the repo for auth patterns",
     });
     assert.equal(agent.task, "Explore the repo for auth patterns");
+    assert.equal("status" in agent, false);
   });
 });

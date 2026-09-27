@@ -79,10 +79,6 @@ export interface WorkbenchAgentMechanicsDeps {
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
   ) => Promise<AgentRecord>;
-  setAgentStatus: (
-    agent: AgentRecord,
-    status: AgentRecord["status"],
-  ) => Promise<void>;
   appendEntry: AppendEntryFn;
   updateConversation: (conversation: ConversationRecord) => Promise<void>;
   messageMirror: MessageMirror;
@@ -111,7 +107,6 @@ export class WorkbenchAgentMechanics {
       tools: deps.tools,
       harnessStorage: deps.harnessStorage,
       createAgent: deps.createAgent,
-      setAgentStatus: deps.setAgentStatus,
       subscriptionUsage: deps.subscriptionUsage,
       logger: deps.logger.child({ component: "subagent-runner" }),
       executions: deps.subagentExecutions,

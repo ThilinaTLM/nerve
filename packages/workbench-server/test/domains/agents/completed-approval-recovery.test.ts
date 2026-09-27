@@ -101,9 +101,11 @@ test("startup converts a legacy tool-only decision and settles its completed too
       milestones.indexOf("core-ready") < milestones.indexOf("dispatcher-start"),
     );
     await waitForValue(
-      () => {
-        const current = runtime.services.agentLifecycle.getAgent(agent.id);
-        return current.status === "idle" || current.status === "error"
+      async () => {
+        const current = await runtime.services.agentActivity.activityForAgent(
+          agent.id,
+        );
+        return current.state === "idle" || current.state === "error"
           ? current
           : undefined;
       },
@@ -143,12 +145,12 @@ test("startup converts a legacy tool-only decision and settles its completed too
 });
 
 async function waitForValue<T>(
-  read: () => T | undefined,
+  read: () => T | undefined | Promise<T | undefined>,
   diagnostics: () => string = () => "unavailable",
 ): Promise<T> {
   const deadline = Date.now() + 10_000;
   while (Date.now() < deadline) {
-    const value = read();
+    const value = await read();
     if (value !== undefined) return value;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
