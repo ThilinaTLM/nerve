@@ -97,24 +97,78 @@ export function loadingStageScript(stage: LoadingStage): string {
   })()`;
 }
 
-export function errorHtml(error: unknown, dataDir = "~/.nerve"): string {
+export interface ErrorPageOptions {
+  retry?: boolean;
+  title?: string;
+  summary?: string;
+}
+
+export function errorHtml(
+  error: unknown,
+  dataDir = "~/.nerve",
+  options: ErrorPageOptions = {},
+): string {
   const message = error instanceof Error ? error.message : String(error);
+  const daemonOutput =
+    error !== null &&
+    typeof error === "object" &&
+    "daemonOutput" in error &&
+    typeof error.daemonOutput === "string"
+      ? error.daemonOutput
+      : undefined;
+  const diagnostics =
+    daemonOutput && !message.includes(daemonOutput)
+      ? `${message}\n\nDaemon output:\n${daemonOutput}`
+      : message;
+  const retry = options.retry ?? false;
+  const title = options.title ?? "Nerve is unavailable";
+  const summary =
+    options.summary ??
+    (retry
+      ? "Nerve could not connect to its local service. You can try again without closing the app."
+      : "Nerve lost its connection to the local service. Technical details are available below.");
   const escapedDataDir = escapeHtml(dataDir);
+  const retryMarkup = retry
+    ? `<button id="startup-retry" type="button">Try again</button>`
+    : "";
+  const retryScript = retry
+    ? `<script>
+      document.getElementById("startup-retry")?.addEventListener("click", () => {
+        const button = document.getElementById("startup-retry");
+        if (button instanceof HTMLButtonElement) button.disabled = true;
+        const status = document.getElementById("startup-error-status");
+        if (status) status.textContent = "Trying again…";
+        const reset = () => {
+          if (button instanceof HTMLButtonElement) button.disabled = false;
+          if (status) status.textContent = "Retry could not be started. Please try again.";
+        };
+        Promise.resolve(window.nerveDesktop?.app.retryStartup())
+          .then((result) => { if (!result?.accepted) reset(); })
+          .catch(reset);
+      });
+    </script>`
+    : "";
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${retry ? "script-src 'unsafe-inline'; " : ""}style-src 'unsafe-inline'; img-src data:" />
     <title>Nerve startup error</title>
     <style>${shellStyles()}</style>
   </head>
   <body>
     <main class="error">
-      <h1 class="error-title">Daemon unavailable</h1>
-      <p class="status">Could not start or load the local daemon. Use the Nerve tray menu → “Restart Daemon” to try again. Logs are in ${escapedDataDir}/logs and crash reports are in ${escapedDataDir}/crashes. In corporate proxy environments, ensure Electron was rebuilt through the proxy and NO_PROXY includes localhost,127.0.0.1,::1.</p>
-      <pre>${escapeHtml(message)}</pre>
+      <h1 class="error-title">${escapeHtml(title)}</h1>
+      <p id="startup-error-status" class="status">${escapeHtml(summary)}</p>
+      ${retryMarkup}
+      <details>
+        <summary>Technical details</summary>
+        <p class="diagnostic-location">Logs: ${escapedDataDir}/logs</p>
+        <pre>${escapeHtml(diagnostics)}</pre>
+      </details>
     </main>
+    ${retryScript}
   </body>
 </html>`;
 }
@@ -193,6 +247,30 @@ function shellStyles(): string {
     .error {
       gap: 1rem;
     }
+    button {
+      min-height: 2rem;
+      border: 0;
+      border-radius: var(--radius);
+      padding: 0.375rem 0.875rem;
+      background: var(--primary);
+      color: var(--background);
+      font: inherit;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      cursor: pointer;
+      -webkit-app-region: no-drag;
+    }
+    button:disabled { opacity: 0.6; cursor: default; }
+    details {
+      width: 100%;
+      color: var(--muted-foreground);
+      font-size: var(--text-xs);
+      text-align: left;
+      user-select: text;
+      -webkit-app-region: no-drag;
+    }
+    summary { cursor: pointer; text-align: center; }
+    .diagnostic-location { margin: 0.75rem 0 0; }
     pre {
       width: 100%;
       max-height: 17.5rem;

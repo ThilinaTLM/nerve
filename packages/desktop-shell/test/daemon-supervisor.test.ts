@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import {
   DaemonStartupError,
   isDaemonStartupErrorCode,
@@ -48,6 +49,27 @@ function recordStatuses(daemon: ManagedDaemon) {
 }
 
 describe("daemon supervisor", () => {
+  it("classifies a lost startup lease without reporting it as a crash", async () => {
+    const world = fakeDaemonWorld({ discovery: [undefined] });
+    const startup = ownedSupervisor(world).startOwned();
+    world.children[0]?.emitOutput(
+      "stderr",
+      `DaemonLeaseConflictError: [${DAEMON_LEASE_CONFLICT_CODE}] another daemon owns the lease\n`,
+    );
+    world.children[0]?.exit(1);
+    const rejected = assert.rejects(startup, (error) => {
+      assert.ok(error instanceof DaemonStartupError);
+      assert.equal(
+        isDaemonStartupErrorCode(error, DAEMON_LEASE_CONFLICT_CODE),
+        true,
+      );
+      return true;
+    });
+    await world.scheduler.advance(1_000);
+    await rejected;
+    assert.equal(world.crashReports.length, 0);
+  });
+
   it("preserves classified daemon output when a child exits during startup", async () => {
     const world = fakeDaemonWorld({ discovery: [undefined] });
     const startup = ownedSupervisor(world).startOwned();

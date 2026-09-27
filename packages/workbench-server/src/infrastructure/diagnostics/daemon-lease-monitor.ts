@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { type DaemonFile, daemonFileSchema } from "@nervekit/contracts/status";
+import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import { writeCrashReportSync } from "./crash-reports.js";
 
 interface LegacyRuntimeMarker {
@@ -18,6 +19,29 @@ interface LegacyRuntimeMarker {
   cleanShutdown?: boolean;
   crashReportedAt?: string;
   [key: string]: unknown;
+}
+
+export class DaemonLeaseConflictError extends Error {
+  readonly code = DAEMON_LEASE_CONFLICT_CODE;
+
+  constructor() {
+    super(
+      `[${DAEMON_LEASE_CONFLICT_CODE}] A live Nerve daemon already owns daemon.json.`,
+    );
+    this.name = "DaemonLeaseConflictError";
+  }
+}
+
+export function isDaemonLeaseConflictError(
+  error: unknown,
+): error is DaemonLeaseConflictError {
+  return (
+    error instanceof DaemonLeaseConflictError ||
+    (error !== null &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === DAEMON_LEASE_CONFLICT_CODE)
+  );
 }
 
 export interface DaemonLeaseMonitor {
@@ -38,7 +62,7 @@ export async function createDaemonLeaseMonitor(
   const now = options.now ?? (() => new Date());
   const alive = options.isProcessAlive ?? isProcessAlive;
   if (inspectPreviousLease(dataDir, path, alive)) {
-    throw new Error("A live Nerve daemon already owns daemon.json.");
+    throw new DaemonLeaseConflictError();
   }
   inspectLegacyMarker(dataDir, alive);
   rmSync(path, { force: true });

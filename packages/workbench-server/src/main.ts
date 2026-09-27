@@ -26,6 +26,7 @@ import {
   createDaemonLeaseMonitor,
   installDaemonPerformanceMonitor,
   installNodeDiagnosticReports,
+  isDaemonLeaseConflictError,
   pruneCrashReports,
   serializeCrashError,
   writeCrashReportSync,
@@ -598,6 +599,10 @@ function formatHostForUrl(host: string): string {
 
 main().catch((error) => {
   console.error(error);
+  if (isDaemonLeaseConflictError(error)) {
+    process.exit(1);
+    return;
+  }
   const dataDir = resolveDataDir();
   installNodeDiagnosticReports(dataDir);
   const crashReportPath = writeCrashReportSync(dataDir, {

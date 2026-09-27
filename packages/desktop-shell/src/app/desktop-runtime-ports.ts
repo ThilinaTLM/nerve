@@ -85,6 +85,7 @@ export interface DesktopRuntimePorts {
       canRestart: boolean;
     };
     restartDaemon: () => Promise<void>;
+    retryStartup: () => boolean;
     reportRendererCoreReady: () => void;
   }): () => void;
   showDesktopNotification(

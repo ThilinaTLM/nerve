@@ -12,7 +12,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { DaemonFile } from "@nervekit/contracts/status";
-import { createDaemonLeaseMonitor } from "../../../src/infrastructure/diagnostics/daemon-lease-monitor.js";
+import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
+import {
+  createDaemonLeaseMonitor,
+  isDaemonLeaseConflictError,
+} from "../../../src/infrastructure/diagnostics/daemon-lease-monitor.js";
 
 async function home(t: test.TestContext) {
   const path = await mkdtemp(join(tmpdir(), "nerve-daemon-lease-"));
@@ -76,7 +80,15 @@ test("reports a dead stale lease once and refuses a live owner", async (t) => {
   await writeFile(path, JSON.stringify({ ...daemon(dataDir), pid: 123 }));
   await assert.rejects(
     createDaemonLeaseMonitor(dataDir, { isProcessAlive: () => true }),
-    /already owns daemon.json/,
+    (error) => {
+      assert.equal(isDaemonLeaseConflictError(error), true);
+      assert.equal(
+        (error as { code?: string }).code,
+        DAEMON_LEASE_CONFLICT_CODE,
+      );
+      assert.match(String(error), /already owns daemon.json/);
+      return true;
+    },
   );
 });
 
