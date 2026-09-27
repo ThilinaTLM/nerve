@@ -82,7 +82,7 @@ test("summarizes canonical activity even when conversation metadata is completed
       running: activity({ tone: "info", busy: true }),
       background: activity({
         indicator: "awaiting-async",
-        tone: "accent",
+        tone: "warning",
       }),
       "completed-error": activity({ tone: "destructive", busy: true }),
       "completed-waiting": activity({ tone: "warning", needsUser: true }),
@@ -140,7 +140,7 @@ test("combines project activity and background tasks into one priority signal", 
       { running: 0 },
     ),
     {
-      tone: "accent",
+      tone: "warning",
       count: 2,
       summary: "2 waiting for background work",
     },

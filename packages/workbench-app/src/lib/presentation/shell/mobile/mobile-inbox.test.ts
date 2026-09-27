@@ -172,7 +172,7 @@ describe("buildMobileInbox", () => {
         activityById: {
           conv_a: {
             indicator: "awaiting-async",
-            tone: "accent",
+            tone: "warning",
             label: "Waiting for background work",
             busy: false,
           },
@@ -181,6 +181,7 @@ describe("buildMobileInbox", () => {
     );
     assert.equal(model.running.length, 0);
     assert.equal(model.awaitingAsync[0]?.kind, "awaiting-async");
+    assert.equal(model.awaitingAsync[0]?.tone, "warning");
     assert.equal(model.awaitingAsync[0]?.pulse, false);
   });
 

@@ -78,7 +78,6 @@ function conversationSignalClass(tone: ProjectActivitySignal["tone"]): string {
   if (tone === "warning") return "bg-warning text-warning-foreground";
   if (tone === "destructive")
     return "bg-destructive-solid text-destructive-solid-foreground";
-  if (tone === "accent") return "bg-accent text-accent-foreground";
   return "bg-info text-info-foreground";
 }
 

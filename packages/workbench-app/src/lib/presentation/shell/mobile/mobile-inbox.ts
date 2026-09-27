@@ -181,7 +181,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
         title: conversation.title,
         projectLabel,
         detail: activity.label ?? "Waiting for background work",
-        tone: "accent",
+        tone: "warning",
         pulse: false,
         at: conversation.updatedAt,
       });

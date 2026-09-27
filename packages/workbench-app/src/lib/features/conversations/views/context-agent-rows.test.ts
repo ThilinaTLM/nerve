@@ -117,7 +117,7 @@ describe("context agent rows", () => {
     });
     assert.deepEqual(
       agentStatusBadge(lead, activity("lead", "awaiting_async")),
-      { variant: "accent", text: "background work" },
+      { variant: "warning", text: "background work" },
     );
     assert.equal(
       agentStatusLabel(activity("lead", "awaiting_user")),

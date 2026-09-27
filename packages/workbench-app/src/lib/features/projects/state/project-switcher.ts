@@ -55,7 +55,7 @@ export function summarizeProjectActivity(
 }
 
 export type ProjectActivitySignal = {
-  tone: Extract<StatusTone, "warning" | "destructive" | "info" | "accent">;
+  tone: Extract<StatusTone, "warning" | "destructive" | "info">;
   count: number;
   /** Human-readable breakdown of current actionable activity. */
   summary: string;
@@ -85,7 +85,7 @@ export function projectActivitySignal(
       ? "destructive"
       : activity.running || tasks.running
         ? "info"
-        : "accent";
+        : "warning";
   return {
     tone,
     count:

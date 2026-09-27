@@ -103,7 +103,7 @@ export function activityForSnapshot(
     case "awaiting_async":
       return {
         indicator: "awaiting-async",
-        tone: "accent",
+        tone: "warning",
         pulse: false,
         label: "Waiting for background work",
         busy: false,

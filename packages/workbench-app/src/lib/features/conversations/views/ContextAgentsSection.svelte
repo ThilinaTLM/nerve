@@ -112,7 +112,7 @@ function idleLabel(agent: AgentRecord): string {
         <RoleIcon class="size-3.5" aria-hidden="true" />
         {#if activity?.state === "awaiting_async"}
           <Hourglass
-            class="absolute -right-1 -bottom-1 size-2.5 text-accent-foreground"
+            class="absolute -right-1 -bottom-1 size-2.5 text-warning"
             aria-label="Waiting for background work"
           />
         {:else if dot}

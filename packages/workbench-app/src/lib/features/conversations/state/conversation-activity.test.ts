@@ -60,9 +60,9 @@ describe("conversation activity presentation", () => {
     );
   });
 
-  it("renders awaiting async as a static accent and does not mark it busy", () => {
+  it("renders awaiting async as a static warning and does not mark it busy", () => {
     const presented = activityForSnapshot(activity("awaiting_async"));
-    assert.equal(presented.tone, "accent");
+    assert.equal(presented.tone, "warning");
     assert.equal(presented.label, "Waiting for background work");
     assert.equal(presented.pulse, false);
     assert.equal(presented.busy, false);

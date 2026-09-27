@@ -118,7 +118,7 @@ const hasActivity = $derived(
             <button
               {...props}
               type="button"
-              class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-accent px-1.5 py-0.5 text-accent-foreground"
+              class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-warning/10 px-1.5 py-0.5 text-warning"
               aria-label={awaitingAsyncLabel}
               onclick={(event) => event.stopPropagation()}
               onkeydown={(event) => event.stopPropagation()}

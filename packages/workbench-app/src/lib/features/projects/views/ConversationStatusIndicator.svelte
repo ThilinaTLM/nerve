@@ -24,7 +24,7 @@ let {
   {#if activity.indicator === "needs-user"}
     <Bell class="size-3 text-warning" />
   {:else if activity.indicator === "awaiting-async"}
-    <Hourglass class="size-3 text-accent-foreground" />
+    <Hourglass class="size-3 text-warning" />
   {:else if activity.indicator === "error"}
     <TriangleAlert class="size-3 text-destructive" />
   {:else if activity.indicator === "aborted"}

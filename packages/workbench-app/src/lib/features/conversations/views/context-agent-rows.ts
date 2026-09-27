@@ -191,7 +191,7 @@ export function exploreFoldSummary(
 }
 
 export type AgentStatusBadge = {
-  variant: "accent" | "info" | "warning" | "destructive";
+  variant: "info" | "warning" | "destructive";
   text: string;
 };
 
@@ -207,7 +207,7 @@ export function agentStatusBadge(
       text: agentRole(agent) === "explore" ? "running" : "working",
     };
   if (activity?.state === "awaiting_async")
-    return { variant: "accent", text: "background work" };
+    return { variant: "warning", text: "background work" };
   if (activity?.state === "error")
     return { variant: "destructive", text: "failed" };
   return undefined;

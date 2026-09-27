@@ -82,7 +82,7 @@ function rowDetail(item: MobileInboxItem): string {
       >
         {#snippet leading()}
           <Hourglass
-            class="mt-1 size-3.5 flex-none text-accent-foreground"
+            class="mt-1 size-3.5 flex-none text-warning"
             aria-label="Waiting for background work"
           />
         {/snippet}
