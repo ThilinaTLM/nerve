@@ -59,7 +59,7 @@ describe("orchestration task tools", () => {
     assert.equal(startInput?.readyTimeoutMs, 1_500);
     assert.equal(startInput?.notify, true);
     assert.deepEqual(startInput?.completion, {
-      inject: true,
+      inject: false,
       outputTailLineCount: 80,
     });
     await assert.rejects(

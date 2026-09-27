@@ -2,12 +2,41 @@ import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import {
+  agentAsyncObligationEntryId,
+  agentAsyncObligationId,
+  type AgentRecord,
+} from "@nervekit/contracts/agents";
 import { pathExists } from "../../../src/infrastructure/storage-bootstrap/index.js";
 import {
   addTaskRecord,
   ageConversation,
   createState,
 } from "../../helpers/conversation-runtime.js";
+
+async function registerPendingWork(
+  state: Awaited<ReturnType<typeof createState>>,
+  agent: AgentRecord,
+): Promise<void> {
+  const timestamp = new Date().toISOString();
+  const sourceId = `task_${agent.id}`;
+  await state.services.asyncObligations.register({
+    id: agentAsyncObligationId("promoted_task", sourceId, 0),
+    conversationId: agent.conversationId,
+    ownerAgentId: agent.id,
+    sourceKind: "promoted_task",
+    sourceId,
+    state: "pending",
+    notificationEntryId: agentAsyncObligationEntryId(
+      "promoted_task",
+      sourceId,
+      0,
+    ),
+    generation: 0,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
 
 describe("RuntimeLifecycle conversation pruning", () => {
   it("prunes old inactive project conversations and associated data", async () => {
@@ -163,10 +192,7 @@ describe("RuntimeLifecycle conversation pruning", () => {
         projectId: project.id,
         conversationId: activeAgentConversation.id,
       });
-      await state.services.agentLifecycle.updateAgent({
-        ...activeAgent,
-        status: "running",
-      });
+      await registerPendingWork(state, activeAgent);
       const activeTaskConversation =
         await state.services.conversationLifecycle.createConversation({
           projectId: project.id,
@@ -368,10 +394,7 @@ it("rechecks newly active conversations before removing their related data", asy
         { strategy: "olderThanDays", olderThanDays: 7 },
         {
           onDiscovered: async () => {
-            await state.services.agentLifecycle.updateAgent({
-              ...agent,
-              status: "running",
-            });
+            await registerPendingWork(state, agent);
           },
         },
       );

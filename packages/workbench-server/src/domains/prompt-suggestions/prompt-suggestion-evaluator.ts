@@ -121,7 +121,7 @@ export function buildEnableContext(
           id: input.agent.id,
           mode: input.agent.mode,
           permissionLevel: input.agent.permissionLevel,
-          status: input.agent.status,
+          status: input.agentActivity?.state ?? "idle",
           thinkingLevel: input.agent.thinkingLevel,
         }
       : undefined,

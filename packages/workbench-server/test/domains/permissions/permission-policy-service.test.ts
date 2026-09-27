@@ -46,7 +46,6 @@ async function setup() {
     workspaceScope: { roots: [project.dir] },
     budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
-    status: "idle",
     createdAt: now,
     updatedAt: now,
   };

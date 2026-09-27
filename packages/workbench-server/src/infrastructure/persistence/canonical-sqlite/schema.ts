@@ -1,4 +1,4 @@
-export const CANONICAL_SCHEMA_VERSION = 6;
+export const CANONICAL_SCHEMA_VERSION = 7;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -340,6 +340,29 @@ ON CONFLICT(run_id) DO NOTHING;`;
  * `explore` tool-call arguments (children store the trimmed task text
  * verbatim) and mark them with their execution kind.
  */
+const AGENT_ASYNC_OBLIGATIONS_V7_SQL = `CREATE TABLE agent_async_obligations (
+  id TEXT PRIMARY KEY,
+  conversation_id TEXT NOT NULL,
+  owner_agent_id TEXT NOT NULL,
+  source_kind TEXT NOT NULL CHECK(source_kind IN ('promoted_task','async_subagent')),
+  source_id TEXT NOT NULL,
+  source_agent_id TEXT,
+  state TEXT NOT NULL CHECK(state IN ('pending','ready','delivered','consumed','cancelled','suppressed')),
+  notification_entry_id TEXT NOT NULL,
+  generation INTEGER NOT NULL CHECK(generation >= 0),
+  payload_version INTEGER NOT NULL CHECK(payload_version > 0),
+  data BLOB NOT NULL,
+  created_at_ms INTEGER NOT NULL,
+  updated_at_ms INTEGER NOT NULL,
+  UNIQUE(source_kind, source_id, generation)
+) STRICT;
+CREATE INDEX agent_async_obligations_owner_state
+  ON agent_async_obligations(owner_agent_id, state);
+CREATE INDEX agent_async_obligations_conversation_state
+  ON agent_async_obligations(conversation_id, state);
+CREATE INDEX agent_async_obligations_notification_entry
+  ON agent_async_obligations(notification_entry_id);`;
+
 const EXPLORE_AGENT_NAMES_V6_SQL = `WITH agent_docs AS (
   SELECT document_id,
     json_extract(CAST(data AS TEXT), '$.conversationId') AS conversation_id,
@@ -433,5 +456,12 @@ CREATE INDEX subagent_completions_conversation ON subagent_completions(conversat
     checksum:
       "528f1bee3430ce1cd1159e9f42656ff5f8ef7f41033477058f85cdf8b24398f4",
     sql: EXPLORE_AGENT_NAMES_V6_SQL,
+  },
+  {
+    version: 7,
+    name: "agent-async-obligations-v7",
+    checksum:
+      "6155dbcfcb6479fd5e223909fca39ecfd157a8eef2afdf793bf883b09e0e0c57",
+    sql: AGENT_ASYNC_OBLIGATIONS_V7_SQL,
   },
 ];

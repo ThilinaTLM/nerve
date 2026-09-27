@@ -1,4 +1,7 @@
-import type { AgentRecord } from "@nervekit/contracts/agents";
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+} from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
   GitDiscoveryResponse,
@@ -64,14 +67,15 @@ export type PromptSuggestionEnableContext = {
   >;
   agent?: Pick<
     AgentRecord,
-    "id" | "mode" | "permissionLevel" | "status" | "thinkingLevel"
-  >;
+    "id" | "mode" | "permissionLevel" | "thinkingLevel"
+  > & { status: AgentActivitySnapshot["state"] };
 };
 
 export type PromptSuggestionEvaluationInput = {
   project: ProjectRecord;
   conversation?: ConversationRecord;
   agent?: AgentRecord;
+  agentActivity?: AgentActivitySnapshot;
   git: GitDiscoveryResponse & {
     github?: Pick<GithubStatusResponse, "available" | "authenticated">;
   };

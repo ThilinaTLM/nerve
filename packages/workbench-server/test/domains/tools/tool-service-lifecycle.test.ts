@@ -718,7 +718,6 @@ function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
     permissionLevel,
     workspaceScope: { roots: ["/tmp/project"] },
     budget: { depth: 0, maxDepth: 3 },
-    status: "idle",
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };

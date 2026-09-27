@@ -128,7 +128,7 @@ export const taskToolDefinitions = [
     classifyRisk: classifyTaskStartRisk,
     label: "task_start",
     description:
-      "Start one durable, queryable process for a server, watcher, or other long-lived command. Updates arrive asynchronously, and terminal completion restarts the agent; polling is unnecessary.",
+      "Start one detached, durable, queryable process for a server, watcher, or other long-lived command. Updates remain visible without restarting the agent; use Bash for finite commands that should resume the agent after automatic promotion.",
     parameters: taskStartParameters,
     executionMode: "sequential",
   },

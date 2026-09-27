@@ -1,7 +1,9 @@
 import { SvelteMap } from "svelte/reactivity";
 import type {
+  AgentActivitySnapshot,
   AgentRecord,
   ClientConfig,
+  ConversationActivitySnapshot,
   ConversationRecord,
   ProjectRecord,
   StatusResponse,
@@ -36,6 +38,8 @@ export const workspaceState = $state({
   projects: [] as ProjectRecord[],
   conversations: [] as ConversationRecord[],
   agents: [] as AgentRecord[],
+  agentActivities: {} as Record<string, AgentActivitySnapshot>,
+  conversationActivities: {} as Record<string, ConversationActivitySnapshot>,
   pendingToolCalls: [] as ToolCallTranscriptRecord[],
   selectedProjectId: undefined as string | undefined,
   selectedProjectKey: undefined as string | undefined,

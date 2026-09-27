@@ -43,7 +43,6 @@ function agent(id: string, createdAt = now): AgentRecord {
     workspaceScope: { roots: ["/tmp/proj_a"] },
     budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
-    status: "idle",
     createdAt,
     updatedAt: createdAt,
   };

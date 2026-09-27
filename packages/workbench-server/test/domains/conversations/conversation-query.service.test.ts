@@ -65,6 +65,13 @@ describe("ConversationQueryService", () => {
           nodes: [],
         }) as never,
       getContextUsage: async () => undefined as never,
+      getActivity: async () => ({
+        conversationId: "conv_test",
+        state: "idle",
+        pendingInteractionCount: 0,
+        pendingAsyncCount: 0,
+        updatedAt: timestamp,
+      }),
       listToolCallPreviews: () => tools,
       getActiveRun: async (_conversationId, activeEntryIds) => {
         assert.deepEqual(activeEntryIds, [

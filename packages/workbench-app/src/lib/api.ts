@@ -1,6 +1,8 @@
 export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 export type {
+  AgentActivitySnapshot,
   AgentRecord,
+  ConversationActivitySnapshot,
   QueuedPromptRecord,
 } from "@nervekit/contracts/agents";
 export type {

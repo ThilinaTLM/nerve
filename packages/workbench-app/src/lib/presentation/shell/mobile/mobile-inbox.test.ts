@@ -165,6 +165,26 @@ describe("buildMobileInbox", () => {
     );
   });
 
+  it("separates conversations waiting for background work from running", () => {
+    const model = buildMobileInbox(
+      input({
+        conversations: [conversation("conv_a")],
+        activityById: {
+          conv_a: {
+            indicator: "awaiting-async",
+            tone: "warning",
+            label: "Waiting for background work",
+            busy: false,
+          },
+        },
+      }),
+    );
+    assert.equal(model.running.length, 0);
+    assert.equal(model.awaitingAsync[0]?.kind, "awaiting-async");
+    assert.equal(model.awaitingAsync[0]?.tone, "warning");
+    assert.equal(model.awaitingAsync[0]?.pulse, false);
+  });
+
   it("promotes errored conversations into the needs-you list", () => {
     const model = buildMobileInbox(
       input({

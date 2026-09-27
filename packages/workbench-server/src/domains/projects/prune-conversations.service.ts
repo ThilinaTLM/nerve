@@ -2,7 +2,11 @@ import type {
   ConversationRemovalOptions,
   ConversationRemovalProgress,
 } from "../conversations/conversation-deletion-progress.js";
-import type { AgentRecord } from "@nervekit/contracts/agents";
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+  ConversationActivitySnapshot,
+} from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
   ProjectRecord,
@@ -64,6 +68,10 @@ export interface PruneProjectConversationsServiceDeps {
   getProject: (projectId: string) => ProjectRecord;
   listConversations: () => ConversationRecord[];
   agents: Map<string, AgentRecord>;
+  workspaceActivity(): Promise<{
+    agentActivities: AgentActivitySnapshot[];
+    conversationActivities: ConversationActivitySnapshot[];
+  }>;
   tasks: PruneConversationsTaskPort;
   tools: PruneConversationsToolPort;
   plans: PruneConversationsPlanPort;
@@ -111,7 +119,9 @@ export class PruneProjectConversationsService {
         .map((task) => task.conversationId)
         .filter((id): id is string => Boolean(id)),
     );
-    const agentsByConversationId = this.agentsByConversation(candidateIds);
+    const activeConversationIds = activeConversationIdsFrom(
+      (await this.deps.workspaceActivity()).conversationActivities,
+    );
     const pruned: ConversationRecord[] = [];
     const skippedByProject = new Map<
       string,
@@ -119,14 +129,8 @@ export class PruneProjectConversationsService {
     >();
 
     for (const conversation of candidates) {
-      const agents = agentsByConversationId.get(conversation.id) ?? [];
       const skipped = skippedByProject.get(conversation.projectId) ?? [];
-      if (
-        agents.some(
-          (agent) =>
-            agent.status === "running" || agent.status === "awaiting_user",
-        )
-      ) {
+      if (activeConversationIds.has(conversation.id)) {
         skipped.push({
           conversationId: conversation.id,
           reason: "active_agent",
@@ -171,10 +175,10 @@ export class PruneProjectConversationsService {
       // before deleting any of its task, tool, or review data.
       const agents =
         this.agentsByConversation([conversation.id]).get(conversation.id) ?? [];
-      const reason = agents.some(
-        (agent) =>
-          agent.status === "running" || agent.status === "awaiting_user",
-      )
+      const currentlyActive = activeConversationIdsFrom(
+        (await this.deps.workspaceActivity()).conversationActivities,
+      ).has(conversation.id);
+      const reason = currentlyActive
         ? ("active_agent" as const)
         : this.deps.tasks.activeTasksForConversations([conversation.id])
               .length > 0
@@ -304,4 +308,16 @@ export class PruneProjectConversationsService {
     }
     return result;
   }
+}
+
+function activeConversationIdsFrom(
+  activities: readonly ConversationActivitySnapshot[],
+): Set<string> {
+  return new Set(
+    activities
+      .filter((activity) =>
+        ["running", "awaiting_user", "awaiting_async"].includes(activity.state),
+      )
+      .map((activity) => activity.conversationId),
+  );
 }

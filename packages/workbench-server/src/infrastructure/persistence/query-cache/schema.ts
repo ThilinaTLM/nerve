@@ -31,7 +31,6 @@ export const QUERY_CACHE_SCHEMA_SQL = `
     root_agent_id TEXT NOT NULL,
     mode TEXT NOT NULL,
     permission_level TEXT NOT NULL,
-    status TEXT NOT NULL,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     json TEXT NOT NULL

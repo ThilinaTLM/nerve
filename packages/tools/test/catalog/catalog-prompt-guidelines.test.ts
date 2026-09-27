@@ -13,7 +13,7 @@ describe("tool prompt guidelines", () => {
 
     assert.deepEqual(guidelines, [
       "Prefer dedicated file tools over bash for inspection and search.",
-      "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.",
+      "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.",
       'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
       "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known.",
     ]);
@@ -21,7 +21,7 @@ describe("tool prompt guidelines", () => {
 
   it("keeps asynchronous task guidance when no dedicated file tool is active", () => {
     assert.deepEqual(promptGuidelinesForTools(["bash"]), [
-      "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.",
+      "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.",
     ]);
   });
 

@@ -1,6 +1,8 @@
 import { createId } from "@nervekit/contracts";
 import {
+  agentAsyncObligationEntryId,
   asyncSubagentNameSchema,
+  type AgentAsyncObligation,
   type AgentRecord,
   type AsyncSubagentControl,
   type AsyncSubagentListDetails,
@@ -39,6 +41,8 @@ export interface AsyncSubagentPorts {
     generation: number;
     childGeneration: number;
   }): Promise<void>;
+  registerObligation?(obligation: AgentAsyncObligation): Promise<void>;
+  readyObligation?(id: string, outcome: string): Promise<void>;
   start(agent: AgentRecord, runId: string, prompt?: string): Promise<RunRecord>;
   cancel(agent: AgentRecord): Promise<void>;
   activeTaskCount(agent: AgentRecord): number;
@@ -315,6 +319,25 @@ export class AsyncSubagentService {
       generation: team.generation,
       childGeneration: control.generation,
     });
+    const timestamp = new Date().toISOString();
+    const obligationId = `async_subagent:${runId}:${team.generation}`;
+    await this.ports.registerObligation?.({
+      id: obligationId,
+      conversationId: this.ports.getAgent(child.parentAgentId!).conversationId,
+      ownerAgentId: child.parentAgentId!,
+      sourceKind: "async_subagent",
+      sourceId: runId,
+      sourceAgentId: child.id,
+      state: "pending",
+      notificationEntryId: agentAsyncObligationEntryId(
+        "async_subagent",
+        runId,
+        team.generation,
+      ),
+      generation: team.generation,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
     await this.ports.writeControl({ ...control, reservedRunId: runId });
     try {
       const run = await this.ports.start(child, runId, prompt);
@@ -323,6 +346,10 @@ export class AsyncSubagentService {
     } catch (error) {
       // The canonical active run, if committed, still prevents another admission.
       await this.ports.writeControl({ ...control, reservedRunId: undefined });
+      await this.ports.readyObligation?.(
+        obligationId,
+        `launch_failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
       throw error;
     }
   }

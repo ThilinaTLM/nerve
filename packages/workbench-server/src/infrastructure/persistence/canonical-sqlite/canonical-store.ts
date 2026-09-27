@@ -1,4 +1,4 @@
-import type { AsyncSubagentCompletion } from "@nervekit/contracts/agents";
+import type { AgentAsyncObligation } from "@nervekit/contracts/agents";
 import type {
   ConversationDeletionChunk,
   ConversationDeletionCursor,
@@ -147,19 +147,35 @@ export class CanonicalStore {
     return this.writer.request<T>(command, transferList);
   }
 
-  putSubagentCompletion(record: AsyncSubagentCompletion): Promise<void> {
-    return this.request({ kind: "put_subagent_completion", record });
+  readAgentObligation(id: string): Promise<AgentAsyncObligation | undefined> {
+    return this.request(
+      { kind: "read_agent_obligation", obligationId: id },
+      true,
+    );
   }
 
-  listSubagentCompletions(leadId?: string): Promise<AsyncSubagentCompletion[]> {
-    return this.request({ kind: "list_subagent_completions", leadId }, true);
-  }
-
-  removeSubagentCompletions(conversationId: string): Promise<void> {
+  listPendingObligationsByOwner(
+    ownerAgentId: string,
+  ): Promise<AgentAsyncObligation[]> {
     return this.request({
-      kind: "remove_subagent_completions",
+      kind: "list_pending_obligations_by_owner",
+      ownerAgentId,
+    });
+  }
+
+  listPendingObligationsByConversation(
+    conversationId: string,
+  ): Promise<AgentAsyncObligation[]> {
+    return this.request({
+      kind: "list_pending_obligations_by_conversation",
       conversationId,
     });
+  }
+
+  scanObligationsForReconciliation(
+    limit = 100,
+  ): Promise<AgentAsyncObligation[]> {
+    return this.request({ kind: "scan_obligations_for_reconciliation", limit });
   }
 
   persistLifecycleAtomicCommit(input: LifecycleAtomicCommitInput) {

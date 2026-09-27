@@ -124,6 +124,14 @@ describe("conversation render projection", () => {
         updatedAt: ts,
       },
       conversationRevision: 1,
+      activity: {
+        conversationId: "conv_workbench",
+        activeAgentId: "agent_workbench",
+        state: "running",
+        pendingInteractionCount: 0,
+        pendingAsyncCount: 0,
+        updatedAt: ts,
+      },
       tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
       entries: [
         {

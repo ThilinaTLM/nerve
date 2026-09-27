@@ -4,7 +4,7 @@ import { shouldRefreshWorkspace } from "./workspace-event-policy";
 
 describe("workspace run lifecycle events", () => {
   it("does not schedule snapshot refreshes for locally-projected events", () => {
-    // Run lifecycle events project agent status locally.
+    // Run lifecycle events are followed by complete activity projections.
     for (const type of [
       "run.started",
       "run.waiting",
@@ -21,8 +21,9 @@ describe("workspace run lifecycle events", () => {
     for (const type of [
       "toolCall.updated",
       "agent.configured",
-      "agent.status_changed",
       "agent.mode_changed",
+      "agent.activity_changed",
+      "conversation.activity_changed",
     ]) {
       assert.equal(shouldRefreshWorkspace(type), false, type);
     }

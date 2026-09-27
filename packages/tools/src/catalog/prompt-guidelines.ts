@@ -9,7 +9,7 @@ const TOOL_GUIDELINES: Partial<Record<ToolName, string>> = {
 };
 
 const ASYNC_TASK_GUIDELINE =
-  "Long-running Bash calls may be promoted to background tasks. After launch or promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Updates arrive asynchronously, and terminal completion of agent-started tasks will restart you.";
+  "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.";
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
   subagents:

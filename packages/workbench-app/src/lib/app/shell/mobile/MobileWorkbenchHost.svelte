@@ -51,7 +51,7 @@ const tabs = $derived<MobileTabModel[]>([
     label: "Inbox",
     icon: Inbox,
     badge: inbox.needsYou.length,
-    dot: inbox.running.length > 0,
+    dot: inbox.running.length > 0 || inbox.awaitingAsync.length > 0,
   },
   { id: "chats", label: "Chats", icon: MessagesSquare },
   // "Workspace", not "Project": the project is what the switcher selects; this

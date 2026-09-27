@@ -1,4 +1,4 @@
-import { SubagentCompletionDatabase } from "./subagent-completion-database.js";
+import { AgentObligationDatabase } from "./agent-obligation-database.js";
 /* eslint-disable max-lines -- CanonicalDatabase keeps transaction ownership and validated SQLite query families in one auditable adapter. */
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -62,6 +62,7 @@ import {
 } from "./canonical-tool-call-queries.js";
 import { CanonicalLifecycleDatabase } from "./lifecycle-work-database.js";
 import { applyCanonicalMigrations } from "./canonical-migrations.js";
+import { migrateLegacyAgentObligations } from "./agent-obligation-migration.js";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -98,7 +99,7 @@ export interface CanonicalDocument<T = unknown> {
 export class CanonicalDatabase {
   private readonly database: DatabaseSync;
   readonly lifecycle: CanonicalLifecycleDatabase;
-  readonly subagentCompletions: SubagentCompletionDatabase;
+  readonly agentObligations: AgentObligationDatabase;
 
   constructor(
     readonly path: string,
@@ -108,7 +109,7 @@ export class CanonicalDatabase {
       mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
     this.lifecycle = new CanonicalLifecycleDatabase(this.database);
-    this.subagentCompletions = new SubagentCompletionDatabase(this.database);
+    this.agentObligations = new AgentObligationDatabase(this.database);
     this.database.exec("PRAGMA foreign_keys = ON");
     this.database.exec("PRAGMA busy_timeout = 5000");
     if (options.queryOnly) {
@@ -150,6 +151,7 @@ export class CanonicalDatabase {
     }
 
     applyCanonicalMigrations(this.database);
+    migrateLegacyAgentObligations(this.database);
     this.assertSchemaCompatible();
     this.transaction(repairCanonicalDeletionIndexes);
   }
@@ -819,6 +821,9 @@ export class CanonicalDatabase {
           );
       }
       materializeConversationRecords(database, state, commit);
+      for (const obligation of state.obligations.values()) {
+        this.agentObligations.upsert(obligation);
+      }
       if (commit) {
         appendDurableEventInTransaction(database, {
           stream: `internal/conv/${state.conversationId}`,

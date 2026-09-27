@@ -29,6 +29,7 @@ import {
   type CenterTabIdentity,
 } from "$lib/application/workspace/workspace-state.svelte";
 import { mergeAgentsByUpdatedAt } from "./agent-freshness";
+import { mergeActivitySnapshots } from "./activity-freshness";
 import { upsertConversationRecord } from "./entity-reducers";
 import { projectForNewConversation } from "./new-conversation-project";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
@@ -82,6 +83,16 @@ async function applyWorkspaceSnapshot(
   workspaceState.projects = snapshot.snapshot.projects;
   workspaceState.conversations = snapshot.snapshot.conversations;
   workspaceState.agents = agents;
+  workspaceState.agentActivities = mergeActivitySnapshots(
+    snapshot.snapshot.agentActivities,
+    workspaceState.agentActivities,
+    (activity) => activity.agentId,
+  );
+  workspaceState.conversationActivities = mergeActivitySnapshots(
+    snapshot.snapshot.conversationActivities,
+    workspaceState.conversationActivities,
+    (activity) => activity.conversationId,
+  );
   workspaceFeaturePorts().tasks.commands.setTasks(snapshot.snapshot.tasks);
   let desiredTab = hydrateWorkspaceTabSessions(
     {

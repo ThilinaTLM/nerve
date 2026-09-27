@@ -10,6 +10,7 @@ import {
   upsertToolCallProjection,
 } from "../../../domains/conversations/conversation-state-materializer.js";
 import { decode, encode } from "./payload-codecs.js";
+import { AgentObligationDatabase } from "./agent-obligation-database.js";
 
 export interface JournalHead {
   revision: number;
@@ -142,6 +143,10 @@ export function persistConversationCommitInTransaction(
     upsertConversationDocument(database, delta.conversation);
   }
   materializeConversationDelta(database, delta);
+  const obligationDatabase = new AgentObligationDatabase(database);
+  for (const obligation of delta.obligations ?? []) {
+    obligationDatabase.upsert(obligation);
+  }
   appendDurableEvent({
     stream: `internal/conv/${delta.conversationId}`,
     conversationId: delta.conversationId,

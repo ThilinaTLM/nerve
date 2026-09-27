@@ -73,7 +73,8 @@ describe("workbench coordinator-owned provider retry", () => {
         1,
       );
       assert.equal(
-        orchestrator.services.agentLifecycle.getAgent(agent.id)?.status,
+        (await orchestrator.services.agentActivity.activityForAgent(agent.id))
+          .state,
         "idle",
       );
     } finally {

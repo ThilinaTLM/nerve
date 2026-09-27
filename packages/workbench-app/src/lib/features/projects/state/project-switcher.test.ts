@@ -64,12 +64,13 @@ function activity(
   };
 }
 
-test("summarizes active conversations and ignores completed activity", () => {
+test("summarizes canonical activity even when conversation metadata is completed", () => {
   const completedAt = "2026-01-04";
   const conversations = [
     conversation("error", "p", "2026-01-01"),
     conversation("waiting", "p", "2026-01-02"),
     conversation("running", "p", "2026-01-03"),
+    conversation("background", "p", "2026-01-03"),
     conversation("completed-error", "p", completedAt, { completedAt }),
     conversation("completed-waiting", "p", completedAt, { completedAt }),
     conversation("completed-running", "p", completedAt, { completedAt }),
@@ -79,25 +80,29 @@ test("summarizes active conversations and ignores completed activity", () => {
       error: activity({ tone: "destructive", busy: true }),
       waiting: activity({ tone: "warning", needsUser: true }),
       running: activity({ tone: "info", busy: true }),
+      background: activity({
+        indicator: "awaiting-async",
+        tone: "warning",
+      }),
       "completed-error": activity({ tone: "destructive", busy: true }),
       "completed-waiting": activity({ tone: "warning", needsUser: true }),
       "completed-running": activity({ tone: "info", busy: true }),
     }),
-    { needsUser: 1, failed: 1, running: 1 },
+    { needsUser: 2, failed: 2, running: 2, awaitingAsync: 1 },
   );
 });
 
 test("combines project activity and background tasks into one priority signal", () => {
   assert.equal(
     projectActivitySignal(
-      { needsUser: 0, failed: 0, running: 0 },
+      { needsUser: 0, failed: 0, running: 0, awaitingAsync: 0 },
       { running: 0 },
     ),
     undefined,
   );
   assert.deepEqual(
     projectActivitySignal(
-      { needsUser: 1, failed: 2, running: 3 },
+      { needsUser: 1, failed: 2, running: 3, awaitingAsync: 0 },
       { running: 4 },
     ),
     {
@@ -109,7 +114,7 @@ test("combines project activity and background tasks into one priority signal", 
   );
   assert.deepEqual(
     projectActivitySignal(
-      { needsUser: 0, failed: 1, running: 2 },
+      { needsUser: 0, failed: 1, running: 2, awaitingAsync: 0 },
       { running: 0 },
     ),
     {
@@ -120,13 +125,24 @@ test("combines project activity and background tasks into one priority signal", 
   );
   assert.deepEqual(
     projectActivitySignal(
-      { needsUser: 0, failed: 0, running: 1 },
+      { needsUser: 0, failed: 0, running: 1, awaitingAsync: 0 },
       { running: 1 },
     ),
     {
       tone: "info",
       count: 2,
       summary: "1 conversation running, 1 background task running",
+    },
+  );
+  assert.deepEqual(
+    projectActivitySignal(
+      { needsUser: 0, failed: 0, running: 0, awaitingAsync: 2 },
+      { running: 0 },
+    ),
+    {
+      tone: "warning",
+      count: 2,
+      summary: "2 waiting for background work",
     },
   );
 });

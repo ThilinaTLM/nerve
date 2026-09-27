@@ -162,8 +162,6 @@ export class RuntimeLifecycle {
       }),
       recoverTaskNotifications: async () => {
         await this.services.asyncSubagents.reconcile();
-        this.services.asyncSubagentNotifications.start();
-        await this.services.asyncSubagentNotifications.recover();
         await this.services.taskNotifications.recoverPendingNotifications();
       },
       rebuildIndex: () => this.rebuildIndex(),
@@ -188,7 +186,8 @@ export class RuntimeLifecycle {
   private async performShutdown(): Promise<void> {
     this.services.lifecycleDispatcher.stop();
     this.services.taskNotifications.stop();
-    await this.services.asyncSubagentNotifications.stop();
+    await this.services.agentActivityPublisher.stop();
+    await this.services.asyncObligationRuntime.stop();
     for (const agent of this.services.agentLifecycle
       .listAgents()
       .filter((agent) => !agent.parentAgentId)) {
@@ -221,12 +220,16 @@ export class RuntimeLifecycle {
     this.services.taskNotifications.start();
     try {
       const timings = await this.hydrator.hydrate(reportStage);
+      await this.services.agentActivityPublisher.start();
+      await this.services.asyncObligationRuntime.start();
       // Provider and tool work can be arbitrarily long-running. Start its drain
       // only after canonical hydration, and never gate daemon readiness on it.
       if (!this.shuttingDown) this.services.lifecycleDispatcher.start();
       return timings;
     } catch (error) {
       this.services.taskNotifications.stop();
+      await this.services.agentActivityPublisher.stop();
+      await this.services.asyncObligationRuntime.stop();
       this.services.lifecycleDispatcher.stop();
       throw error;
     }

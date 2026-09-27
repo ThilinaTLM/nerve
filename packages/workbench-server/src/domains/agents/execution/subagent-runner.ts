@@ -159,10 +159,6 @@ export interface SubagentRunnerDeps {
     request: CreateAgentRequest,
     options?: { allowChildAuthorityExceed?: boolean },
   ) => Promise<AgentRecord>;
-  setAgentStatus: (
-    agent: AgentRecord,
-    status: AgentRecord["status"],
-  ) => Promise<void>;
   subscriptionUsage: SubscriptionUsageService;
   logger: ApplicationLogger;
   executions: WorkbenchSubagentExecutions;
@@ -443,7 +439,6 @@ export class SubagentRunner {
       : undefined;
     try {
       throwIfAborted(signal);
-      await this.deps.setAgentStatus(child, "running");
       const storage = await this.openChildStorage(child, spec.historyMode);
       const conversation = new Conversation(storage);
       const settings = await resolveProjectSettings(
@@ -546,7 +541,6 @@ export class SubagentRunner {
         );
       }
       if (!report) throw new Error("Explore agent completed without a report.");
-      await this.deps.setAgentStatus(child, "idle");
       await this.deps.transcriptLive.complete(child.id, "completed");
       await this.deps.events.publish("agent.subagent_completed", {
         parentAgentId: spec.parent.id,
@@ -571,9 +565,6 @@ export class SubagentRunner {
         error instanceof Error ? error.message : String(error);
       await this.deps.transcriptLive
         .complete(child.id, aborted ? "aborted" : "failed", terminalMessage)
-        .catch(() => undefined);
-      await this.deps
-        .setAgentStatus(child, aborted ? "aborted" : "error")
         .catch(() => undefined);
       publishExploreProgress(spec.onProgress, {
         agentId: child.id,

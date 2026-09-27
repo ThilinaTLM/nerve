@@ -172,8 +172,8 @@ export class RuntimeQueryCache {
         .prepare(
           `INSERT INTO agents (
              id, conversation_id, project_id, parent_agent_id, root_agent_id,
-             mode, permission_level, status, created_at, updated_at, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             mode, permission_level, created_at, updated_at, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              conversation_id = excluded.conversation_id,
              project_id = excluded.project_id,
@@ -181,7 +181,6 @@ export class RuntimeQueryCache {
              root_agent_id = excluded.root_agent_id,
              mode = excluded.mode,
              permission_level = excluded.permission_level,
-             status = excluded.status,
              updated_at = excluded.updated_at,
              json = excluded.json`,
         )
@@ -193,7 +192,6 @@ export class RuntimeQueryCache {
           agent.rootAgentId,
           agent.mode,
           agent.permissionLevel,
-          agent.status,
           agent.createdAt,
           agent.updatedAt,
           JSON.stringify(agent),
@@ -442,8 +440,8 @@ export class RuntimeQueryCache {
         const upsertAgent = this.db.prepare(
           `INSERT INTO agents (
              id, conversation_id, project_id, parent_agent_id, root_agent_id,
-             mode, permission_level, status, created_at, updated_at, json
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             mode, permission_level, created_at, updated_at, json
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(id) DO UPDATE SET
              conversation_id = excluded.conversation_id,
              project_id = excluded.project_id,
@@ -451,7 +449,6 @@ export class RuntimeQueryCache {
              root_agent_id = excluded.root_agent_id,
              mode = excluded.mode,
              permission_level = excluded.permission_level,
-             status = excluded.status,
              updated_at = excluded.updated_at,
              json = excluded.json`,
         );
@@ -504,7 +501,6 @@ export class RuntimeQueryCache {
             agent.rootAgentId,
             agent.mode,
             agent.permissionLevel,
-            agent.status,
             agent.createdAt,
             agent.updatedAt,
             JSON.stringify(agent),
@@ -609,7 +605,7 @@ export class RuntimeQueryCache {
             .get() as { value?: string } | undefined
         )?.value
       : undefined;
-    if (tables.length > 0 && version !== "2") {
+    if (tables.length > 0 && version !== "4") {
       this.db.close();
       for (const suffix of ["", "-wal", "-shm"]) {
         rmSync(`${this.path}${suffix}`, { force: true });
@@ -619,7 +615,7 @@ export class RuntimeQueryCache {
     this.db.exec(QUERY_CACHE_SCHEMA_SQL);
     this.db
       .prepare(
-        "INSERT OR REPLACE INTO query_cache_meta (key, value) VALUES ('schema_version', '2')",
+        "INSERT OR REPLACE INTO query_cache_meta (key, value) VALUES ('schema_version', '4')",
       )
       .run();
   }

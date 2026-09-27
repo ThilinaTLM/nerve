@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-Conversations belong to a project and persist under `NERVE_HOME`. The navigator shows recent conversations, open/activity state, and bounded lists with **See more** for larger histories.
+Conversations belong to a project and persist under `NERVE_HOME`. The navigator shows recent conversations, open/activity state, and bounded lists with **See more** for larger histories. Activity is a server-derived snapshot: running, waiting for you, waiting for background work, error, stopped, idle, or completed. Coding and planning are modes that change presentation and policy, not lifecycle states.
 
 ## Create and find
 
@@ -25,11 +25,11 @@ The virtualized transcript can show:
 - compaction and branch summaries;
 - retry, interruption, failure, and continuation states.
 
-Thinking is only visible when a provider returns it. Nerve does not reconstruct private reasoning a provider withholds.
+Thinking is only visible when a provider returns it. Nerve does not reconstruct private reasoning a provider withholds. Transcript entries are durable history and model context; the current activity indicator is a rebuildable projection rather than another transcript state machine.
 
 ## Delete carefully
 
-Removing a project first removes its Nerve conversations and associated state; it does not mean “delete the source directory.” Conversation pruning protects conversations with running/awaiting agents or active tasks and can remove related inactive task/tool/log/index records.
+Removing a project first removes its Nerve conversations and associated state; it does not mean “delete the source directory.” Conversation pruning protects conversations with active runs, pending human input, awaited asynchronous work, or active tasks and can remove related inactive task/tool/log/index records.
 
 ## Next steps
 

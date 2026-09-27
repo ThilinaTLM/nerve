@@ -1,7 +1,10 @@
 import { mkdir, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { GitService } from "@nervekit/tools/git";
-import type { AgentRecord } from "@nervekit/contracts/agents";
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+} from "@nervekit/contracts/agents";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type {
   CreatePromptSuggestionRequest,
@@ -36,6 +39,7 @@ export type PromptSuggestionServiceDeps = {
   listProjects: () => ProjectRecord[];
   getConversation: (conversationId: string) => ConversationRecord;
   getAgent: (agentId: string) => AgentRecord;
+  activityForAgent(agentId: string): Promise<AgentActivitySnapshot>;
 };
 
 export class PromptSuggestionService {
@@ -61,8 +65,18 @@ export class PromptSuggestionService {
     const agent = options.agentId
       ? safeGet(() => this.deps.getAgent(options.agentId!))
       : undefined;
+    const agentActivity = agent
+      ? await this.deps.activityForAgent(agent.id)
+      : undefined;
     const evaluated = evaluatePromptSuggestions(
-      { project, conversation, agent, git, definitions: effective },
+      {
+        project,
+        conversation,
+        agent,
+        agentActivity,
+        git,
+        definitions: effective,
+      },
       trustRecords,
     );
     return {

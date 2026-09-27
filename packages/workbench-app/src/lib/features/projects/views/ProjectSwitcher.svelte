@@ -216,7 +216,10 @@ function handleSubmit(event: Event) {
     {#each items as item (item.key)}
       {@const signal = projectActivitySignal(item.activity, item.tasks)}
       {@const conversationActivityCount =
-        item.activity.needsUser + item.activity.failed + item.activity.running}
+        item.activity.needsUser +
+        item.activity.failed +
+        item.activity.running +
+        item.activity.awaitingAsync}
       {@const combinedSignals =
         conversationActivityCount > 0 && item.tasks.running > 0}
       {@const active = item.key === activeKey}

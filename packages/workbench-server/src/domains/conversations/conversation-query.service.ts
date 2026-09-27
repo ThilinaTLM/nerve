@@ -1,4 +1,5 @@
 import { conversationStream } from "@nervekit/contracts/events";
+import type { ConversationActivitySnapshot } from "@nervekit/contracts/agents";
 import { type ContextUsage } from "@nervekit/contracts/models";
 import {
   ConversationActiveRunSnapshot,
@@ -55,6 +56,7 @@ export interface ConversationQueryServiceDeps {
     conversationId: string,
     activeEntryIds: readonly string[],
   ) => Promise<ConversationActiveRunSnapshot | undefined>;
+  getActivity(conversationId: string): Promise<ConversationActivitySnapshot>;
 }
 
 export class ConversationQueryService {
@@ -63,9 +65,10 @@ export class ConversationQueryService {
   async getConversationSnapshot(
     conversationId: string,
   ): Promise<ConversationSnapshot> {
-    const [cursorSeq, conversationRevision] = await Promise.all([
+    const [cursorSeq, conversationRevision, activity] = await Promise.all([
       this.deps.events.latestSeq(conversationStream(conversationId)),
       this.deps.getConversationRevision(conversationId),
+      this.deps.getActivity(conversationId),
     ]);
     const contextUsage = await this.deps
       .getContextUsage(conversationId)
@@ -78,6 +81,7 @@ export class ConversationQueryService {
     );
     return {
       conversation: this.deps.state.getConversation(conversationId),
+      activity,
       conversationRevision,
       entries,
       activeEntryIds,

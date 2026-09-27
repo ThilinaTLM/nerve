@@ -14,6 +14,7 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
+import { upsertConversationActivity } from "$lib/application/workspace/entity-reducers";
 import { KeyedSingleFlight } from "$lib/features/conversations/state/keyed-single-flight";
 import {
   replaceOpenCenterTabs,
@@ -143,6 +144,7 @@ export function refreshConversationView(conversationId: string): Promise<void> {
         (candidate) =>
           candidate.id === conversationId ? snapshot.conversation : candidate,
       );
+      upsertConversationActivity(snapshot.activity);
       view.sending = canonical.sending ?? false;
       installEventCursors(response.cursor.streams);
       if (selection.conversationId === conversationId) {

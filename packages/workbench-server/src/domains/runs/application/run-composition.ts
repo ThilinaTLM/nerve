@@ -5,7 +5,6 @@ import {
   type RunEventDeliveryService,
 } from "../runtime/index.js";
 import type { DiagnosticPort } from "../../../core/ports/diagnostics.js";
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
@@ -63,10 +62,6 @@ export function createWorkbenchRunRuntime(input: {
     readonly maxRetries: number;
     readonly baseDelayMs: number;
   };
-  setAgentStatus(
-    agent: AgentRecord,
-    status: AgentRecord["status"],
-  ): Promise<void>;
 }): WorkbenchRunRuntime {
   const unitOfWork = new WorkbenchRunUnitOfWork(input.journal);
   const integrity = new WorkbenchRunIntegrity();
@@ -96,10 +91,7 @@ export function createWorkbenchRunRuntime(input: {
     live,
     input.exploreAdmission,
   );
-  const projector = new WorkbenchRunProjector(
-    input.state,
-    input.setAgentStatus,
-  );
+  const projector = new WorkbenchRunProjector(input.state);
   const { coordinator, delivery } = createRunRuntime({
     sourceRole: "workbench_server",
     unitOfWork,

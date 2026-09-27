@@ -13,12 +13,10 @@ import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-c
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import type { RuntimeState } from "../../app/runtime/runtime-projections.js";
-import type { AgentStatus } from "./agent-status.js";
 import type { ConversationService } from "../conversations/conversation-service.js";
 import type { AgentRepository } from "./agent.repository.js";
 import { assertChildAuthority } from "./agent-authority.js";
 import { agentBudget } from "./agent-budget.js";
-import { setAgentStatus as setAgentStatusHelper } from "./agent-status.js";
 
 function isModeOnlyUpdate(
   request: UpdateAgentRequest,
@@ -164,7 +162,6 @@ export class AgentLifecycleService {
       budget: agentBudget(parent, request.budget),
       model,
       thinkingLevel: clampAgentThinkingLevel(model, thinkingLevel),
-      status: "idle",
       createdAt: now,
       updatedAt: now,
     };
@@ -319,15 +316,6 @@ export class AgentLifecycleService {
     return updated;
   }
 
-  async setAgentStatus(agent: AgentRecord, status: AgentStatus): Promise<void> {
-    await setAgentStatusHelper(
-      agent,
-      status,
-      (updated) => this.updateAgent(updated),
-      this.events,
-    );
-  }
-
   async updateAgent(agent: AgentRecord): Promise<void> {
     this.state.agents.set(agent.id, agent);
     this.queryCache.upsertAgent(agent);
@@ -335,18 +323,9 @@ export class AgentLifecycleService {
   }
 
   async loadAgents(): Promise<void> {
-    for (const parsedAgent of await this.agentRepository.loadAll()) {
-      const needsStatusRecovery = parsedAgent.status === "running";
-      const agent: AgentRecord = needsStatusRecovery
-        ? {
-            ...parsedAgent,
-            status: "error",
-            updatedAt: new Date().toISOString(),
-          }
-        : parsedAgent;
+    for (const agent of await this.agentRepository.loadAll()) {
       this.state.agents.set(agent.id, agent);
       this.queryCache.upsertAgent(agent);
-      if (needsStatusRecovery) await this.writeAgent(agent);
     }
     await this.repairActiveAgentReferences();
   }

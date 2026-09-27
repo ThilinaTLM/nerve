@@ -19,15 +19,6 @@ export const updateAgentRequestSchema = z.object({
 });
 export type UpdateAgentRequest = z.infer<typeof updateAgentRequestSchema>;
 
-export const agentStatusSchema = z.enum([
-  "idle",
-  "running",
-  "awaiting_user",
-  "aborted",
-  "error",
-]);
-export type AgentStatus = z.infer<typeof agentStatusSchema>;
-
 export const agentBudgetSchema = z.object({
   depth: z.number().int().nonnegative().default(0),
   maxDepth: z.number().int().positive().max(8).default(3),
@@ -61,7 +52,6 @@ export const agentRecordSchema = z.object({
   }),
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema.default("off"),
-  status: agentStatusSchema,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
 });

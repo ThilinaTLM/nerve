@@ -36,7 +36,6 @@ describe("RuntimeLifecycle conversation branches", () => {
             permissionLevel: "supervised",
             workspaceScope: { roots: [state.runtime.storage.paths.home] },
             budget: { depth: 0, maxDepth: 3 },
-            status: "idle",
             createdAt,
             updatedAt: createdAt,
           },

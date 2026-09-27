@@ -20,6 +20,8 @@ const subtitle = $derived.by(() => {
   const parts: string[] = [];
   if (model.needsYou.length) parts.push(`${model.needsYou.length} waiting`);
   if (model.running.length) parts.push(`${model.running.length} running`);
+  if (model.awaitingAsync.length)
+    parts.push(`${model.awaitingAsync.length} waiting for background work`);
   return parts.length ? parts.join(" · ") : "All caught up";
 });
 

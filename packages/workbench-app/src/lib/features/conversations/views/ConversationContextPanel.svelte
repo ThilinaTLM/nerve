@@ -11,6 +11,7 @@ import {
 } from "$lib/presentation/panels";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import type {
+  AgentActivitySnapshot,
   AgentRecord,
   ConversationRecord,
   ProjectRecord,
@@ -35,6 +36,7 @@ type Props = {
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
   conversationAgents?: AgentRecord[];
+  agentActivities?: Readonly<Record<string, AgentActivitySnapshot>>;
   compacting?: boolean;
   exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
   systemPromptUrl?: () => string | undefined;
@@ -53,6 +55,7 @@ let {
   activeConversation,
   activeAgent,
   conversationAgents = [],
+  agentActivities = {},
   compacting = false,
   exportUrl,
   systemPromptUrl,
@@ -126,6 +129,7 @@ async function copySession(): Promise<void> {
       <ContextAgentsSection
         {conversationAgents}
         {activeAgent}
+        {agentActivities}
         {onSelectAgent}
         {onOpenTranscript}
       />
