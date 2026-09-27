@@ -90,8 +90,15 @@ export function migrateLegacyAgentObligations(database: DatabaseSync): void {
       const completion = task.completion;
       if (!task.conversationId || !task.agentId || !completion) continue;
       const generation = task.restartGeneration ?? 0;
-      const consumedAt = completion.injectedAt;
-      const deliveredAt = task.notifications?.terminalDeliveredAt ?? consumedAt;
+      // Older restart records copied delivery state from the previous task.
+      // Ignore timestamps (and their entry identities) from before this task
+      // started so the replacement receives its own completion notification.
+      const consumedAt = atOrAfter(completion.injectedAt, task.startedAt);
+      const terminalDeliveredAt = atOrAfter(
+        task.notifications?.terminalDeliveredAt,
+        task.startedAt,
+      );
+      const deliveredAt = terminalDeliveredAt ?? consumedAt;
       const state = consumedAt
         ? "consumed"
         : deliveredAt
@@ -99,6 +106,16 @@ export function migrateLegacyAgentObligations(database: DatabaseSync): void {
           : terminalTaskStates.has(task.status)
             ? "ready"
             : "pending";
+      const defaultEntryId = `entry_task_${task.id.slice("task_".length)}_completion`;
+      const notificationEntryId = consumedAt
+        ? (completion.entryId ??
+          (terminalDeliveredAt
+            ? task.notifications?.terminalEntryId
+            : undefined) ??
+          defaultEntryId)
+        : terminalDeliveredAt
+          ? (task.notifications?.terminalEntryId ?? defaultEntryId)
+          : defaultEntryId;
       const obligation: AgentAsyncObligation = agentAsyncObligationSchema.parse(
         {
           id: `promoted_task:${task.id}:${generation}`,
@@ -107,16 +124,17 @@ export function migrateLegacyAgentObligations(database: DatabaseSync): void {
           sourceKind: "promoted_task",
           sourceId: task.id,
           state,
-          notificationEntryId:
-            task.notifications?.terminalEntryId ??
-            completion.entryId ??
-            `entry_task_${task.id.slice("task_".length)}_completion`,
+          notificationEntryId,
           generation,
           outcome: terminalTaskStates.has(task.status)
             ? task.status
             : undefined,
           createdAt: task.startedAt,
-          updatedAt: consumedAt ?? deliveredAt ?? task.updatedAt,
+          updatedAt:
+            consumedAt ??
+            deliveredAt ??
+            atOrAfter(task.updatedAt, task.startedAt) ??
+            task.startedAt,
           deliveredAt,
           consumedAt,
         },
@@ -147,6 +165,15 @@ export function migrateLegacyAgentObligations(database: DatabaseSync): void {
     }
     throw error;
   }
+}
+
+function atOrAfter(
+  candidate: string | undefined,
+  floor: string,
+): string | undefined {
+  return candidate && Date.parse(candidate) >= Date.parse(floor)
+    ? candidate
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

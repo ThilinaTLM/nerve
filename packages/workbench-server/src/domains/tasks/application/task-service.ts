@@ -512,8 +512,20 @@ export class TaskService {
       readyTimeoutMs: previous.readiness.timeoutMs,
       origin: previous.origin,
       visibility: previous.visibility,
-      completion: previous.completion,
-      notifications: previous.notifications,
+      completion: previous.completion
+        ? {
+            inject: previous.completion.inject,
+            outputTailLineCount: previous.completion.outputTailLineCount,
+          }
+        : undefined,
+      notifications: previous.notifications
+        ? {
+            enabled: previous.notifications.enabled,
+            ready: previous.notifications.ready,
+            terminal: previous.notifications.terminal,
+            outputTailLineCount: previous.notifications.outputTailLineCount,
+          }
+        : undefined,
       restartedFromTaskId: previous.id,
       restartRootTaskId: previous.restartRootTaskId ?? previous.id,
       restartGeneration: (previous.restartGeneration ?? 0) + 1,

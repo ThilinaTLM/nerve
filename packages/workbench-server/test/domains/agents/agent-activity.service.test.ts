@@ -177,12 +177,16 @@ describe("AgentActivityService", () => {
     const clearedConversation = conversation({
       runtimeStatusClearedAt: "2026-01-01T00:01:00.000Z",
       completedAt: "2026-01-01T00:02:00.000Z",
-      updatedAt: "2026-01-01T00:02:00.000Z",
+      // Metadata-only state updates deliberately preserve list activity time.
+      updatedAt: now,
     });
     const cleared = service({
       latest: failed,
       conversation: clearedConversation,
     });
+    const clearedAgent = await cleared.activityForAgent("agent_test");
+    assert.equal(clearedAgent.state, "idle");
+    assert.equal(clearedAgent.updatedAt, "2026-01-01T00:01:00.000Z");
     assert.equal(
       (await cleared.activityForConversation("conv_test")).state,
       "completed",

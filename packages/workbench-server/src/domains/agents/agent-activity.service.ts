@@ -159,6 +159,10 @@ function projectAgentActivity(input: {
   const updatedAt = latestTimestamp([
     agent.updatedAt,
     conversation?.updatedAt,
+    // Metadata actions intentionally do not reorder conversations by updating
+    // ConversationRecord.updatedAt. The clear marker still has to advance the
+    // activity projection so clients accept the idle replacement.
+    clearedAt,
     active?.run.updatedAt,
     latest?.updatedAt,
     ...obligations.map((obligation) => obligation.updatedAt),

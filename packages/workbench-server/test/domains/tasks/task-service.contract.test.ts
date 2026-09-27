@@ -385,6 +385,58 @@ test("task working directories normalize absolute and project-relative paths", a
   );
 });
 
+test("restarting a task preserves notification configuration but resets delivery state", async () => {
+  const records = new Map<string, TaskRecord>();
+  const events: DomainEventIntent[] = [];
+  records.set("task_previous", {
+    id: "task_previous",
+    conversationId: "conv_test",
+    agentId: "agent_test",
+    cwd: "/workspace",
+    command: "pnpm dev",
+    status: "completed",
+    readiness: { outcome: "ready" },
+    stdoutPath: "tasks/task_previous/stdout.txt",
+    stderrPath: "tasks/task_previous/stderr.txt",
+    logsPath: "tasks/task_previous/events.jsonl",
+    startedAt: "2026-07-10T23:00:00.000Z",
+    updatedAt: "2026-07-10T23:01:00.000Z",
+    finishedAt: "2026-07-10T23:01:00.000Z",
+    origin: { kind: "api" },
+    completion: {
+      inject: true,
+      entryId: "entry_previous_completion",
+      injectedAt: "2026-07-10T23:01:00.000Z",
+      outputTailLineCount: 40,
+    },
+    notifications: {
+      enabled: true,
+      ready: true,
+      terminal: true,
+      readyEntryId: "entry_previous_ready",
+      terminalEntryId: "entry_previous_completion",
+      readyDeliveredAt: "2026-07-10T23:00:01.000Z",
+      terminalDeliveredAt: "2026-07-10T23:01:00.000Z",
+      outputTailLineCount: 60,
+    },
+    visibility: "background",
+  });
+  const service = new TaskService(servicePortsForRecords(records, events));
+
+  const restarted = await service.restart("task_previous");
+
+  assert.deepEqual(restarted.completion, {
+    inject: true,
+    outputTailLineCount: 40,
+  });
+  assert.deepEqual(restarted.notifications, {
+    enabled: true,
+    ready: true,
+    terminal: true,
+    outputTailLineCount: 60,
+  });
+});
+
 test("launch environments are not reported persisted without storage", async () => {
   const { service, records } = fixture();
   await service.start({

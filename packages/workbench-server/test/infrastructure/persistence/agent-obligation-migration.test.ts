@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { migrateLegacyAgentObligations } from "../../../src/infrastructure/persistence/canonical-sqlite/agent-obligation-migration.js";
-import { encode } from "../../../src/infrastructure/persistence/canonical-sqlite/payload-codecs.js";
+import {
+  decode,
+  encode,
+} from "../../../src/infrastructure/persistence/canonical-sqlite/payload-codecs.js";
 import {
   CANONICAL_MIGRATIONS,
   CANONICAL_SCHEMA_SQL,
@@ -143,5 +146,71 @@ test("encoded promoted-task documents migrate after decode and filtering", () =>
       },
     ],
   );
+  database.close();
+});
+
+test("historical restarted tasks discard inherited delivery state", () => {
+  const database = databaseForMigration();
+  const task = {
+    id: "task_restarted",
+    conversationId: "conv_1",
+    agentId: "agent_lead",
+    cwd: "/tmp",
+    command: "serve",
+    status: "cancelled",
+    readiness: { outcome: "ready" },
+    stdoutPath: "tasks/task_restarted/stdout.txt",
+    stderrPath: "tasks/task_restarted/stderr.txt",
+    logsPath: "tasks/task_restarted/events.jsonl",
+    startedAt: "2026-09-27T10:01:00.000Z",
+    updatedAt: "2026-09-27T10:02:00.000Z",
+    finishedAt: "2026-09-27T10:02:00.000Z",
+    restartedFromTaskId: "task_original",
+    restartGeneration: 1,
+    origin: { kind: "api" },
+    completion: {
+      inject: true,
+      entryId: "entry_original_completion",
+      injectedAt: "2026-09-27T10:00:30.000Z",
+      outputTailLineCount: 80,
+    },
+    notifications: {
+      enabled: true,
+      ready: true,
+      terminal: true,
+      terminalEntryId: "entry_original_completion",
+      terminalDeliveredAt: "2026-09-27T10:00:30.000Z",
+      outputTailLineCount: 80,
+    },
+    visibility: "background",
+  };
+  database
+    .prepare(
+      `INSERT INTO domain_documents
+       (namespace, scope_id, document_id, revision, payload_version, data,
+        created_at_ms, updated_at_ms)
+       VALUES ('task', 'global', ?, 1, 1, ?, 0, 0)`,
+    )
+    .run(task.id, encode(task));
+
+  migrateLegacyAgentObligations(database);
+
+  const row = database
+    .prepare(
+      `SELECT state, notification_entry_id, data
+       FROM agent_async_obligations`,
+    )
+    .get() as {
+    state: string;
+    notification_entry_id: string;
+    data: Uint8Array;
+  };
+  const obligation = decode(row.data) as Record<string, unknown>;
+  assert.equal(row.state, "ready");
+  assert.equal(row.notification_entry_id, "entry_task_restarted_completion");
+  assert.equal(obligation.createdAt, task.startedAt);
+  assert.equal(obligation.updatedAt, task.updatedAt);
+  assert.equal("deliveredAt" in obligation, false);
+  assert.equal("consumedAt" in obligation, false);
   database.close();
 });
