@@ -15,6 +15,7 @@ import {
   fileToBase64,
 } from "$lib/platform/http/api-client";
 import { protocolRequest } from "@nervekit/protocol/adapters";
+import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(
@@ -44,22 +45,15 @@ export async function listProjectEntries(
     .result;
 }
 
-export async function syncProjectMonitor(
+export function syncProjectMonitor(
   projectId: string,
   directories: string[],
-) {
-  return (
-    await protocolRequest("filesystem.project.monitor.sync", {
-      projectId,
-      directories,
-    })
-  ).result;
+): Promise<void> {
+  return workspaceMonitorDemand.syncProject(projectId, directories);
 }
 
-export async function clearProjectMonitor(projectId: string) {
-  return (
-    await protocolRequest("filesystem.project.monitor.clear", { projectId })
-  ).result;
+export function clearProjectMonitor(projectId: string): Promise<void> {
+  return workspaceMonitorDemand.clearProject(projectId);
 }
 
 export async function createProjectEntry(

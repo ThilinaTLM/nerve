@@ -82,6 +82,50 @@ test("unions project demand and removes the scope after the final owner", async 
   }
 });
 
+test("one owner can clear one resource without releasing its other resources", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-workspace-owner-monitor-"));
+  const projectOne = join(root, "project-one");
+  const projectTwo = join(root, "project-two");
+  const repoOne = join(root, "repo-one");
+  const repoTwo = join(root, "repo-two");
+  await Promise.all(
+    [projectOne, projectTwo, repoOne, repoTwo].map((path) =>
+      mkdir(path, { recursive: true }),
+    ),
+  );
+  const native = new FakeMonitor();
+  const monitor = new WorkspaceMonitor(
+    { publishBestEffort() {} },
+    { monitor: native },
+  );
+  try {
+    await monitor.syncProject("owner", "proj_one", projectOne, []);
+    await monitor.syncProject("owner", "proj_two", projectTwo, []);
+    await monitor.syncRepository("owner", "proj_one", ".", repoOne, true);
+    await monitor.syncRepository("owner", "proj_two", ".", repoTwo, true);
+
+    await monitor.clearProject("owner", "proj_one");
+    await monitor.clearRepository("owner", "proj_one", ".");
+    assert.deepEqual(native.removed.sort(), [
+      'git:["proj_one","."]',
+      "project:proj_one",
+    ]);
+    assert.equal(native.directoryScopes.at(-1)?.id, "project:proj_two");
+    assert.equal(native.gitScopes.at(-1)?.id, 'git:["proj_two","."]');
+
+    await monitor.releaseOwner("owner");
+    assert.deepEqual(native.removed.sort(), [
+      'git:["proj_one","."]',
+      'git:["proj_two","."]',
+      "project:proj_one",
+      "project:proj_two",
+    ]);
+  } finally {
+    await monitor.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("reference-counts repository demand and sequences manual refresh", async () => {
   const root = await mkdtemp(join(tmpdir(), "nerve-repository-monitor-"));
   const native = new FakeMonitor();

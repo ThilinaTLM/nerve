@@ -211,6 +211,7 @@ export function workbenchWebSocketRpcDispatcher(
     handlers: workbenchOperationHandlers(state, monitorOwner),
     idempotency: workbenchIdempotencyStore(state),
     acceptedCapabilities,
+    sessionContext: true,
     translateError,
   });
 }
@@ -256,6 +257,8 @@ function messageId(raw: unknown): string | undefined {
 
 function protocolStatus(code: NerveErrorCode): number {
   switch (code) {
+    case "SESSION_REQUIRED":
+      return 400;
     case "AUTH_REQUIRED":
     case "AUTH_INVALID":
       return 401;

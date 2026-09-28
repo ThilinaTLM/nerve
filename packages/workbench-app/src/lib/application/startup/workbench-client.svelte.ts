@@ -11,6 +11,7 @@ import {
   protocolInstanceId,
 } from "@nervekit/protocol/adapters";
 import { parseConversationStream } from "@nervekit/contracts/events";
+import { operationDefinition } from "@nervekit/contracts/operations";
 import {
   STREAM_SUBSCRIPTION_CAPABILITY,
   type PeerDescriptor,
@@ -71,18 +72,31 @@ import {
   stopWorkbenchStartup,
   transitionWorkbenchStartup,
 } from "$lib/application/startup/workbench-startup-state.svelte";
+import { installLiveProtocolRequester } from "$lib/application/protocol/live-protocol-client";
+import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
+const MONITOR_OPERATION_METHODS = [
+  "filesystem.project.monitor.sync",
+  "filesystem.project.monitor.clear",
+  "git.repository.monitor.sync",
+  "git.repository.monitor.clear",
+] as const;
+const MONITOR_OPERATION_CAPABILITIES = MONITOR_OPERATION_METHODS.map(
+  (method) => operationDefinition(method).requiredCapability,
+);
 const PROTOCOL_CAPABILITIES = [
   "encoding.json",
   "event.batch",
   "event.notify",
   STREAM_SUBSCRIPTION_CAPABILITY,
   "snapshot.workspace",
+  ...MONITOR_OPERATION_CAPABILITIES,
 ];
 const STARTUP_RETRY_DELAYS_MS = [250, 500, 1_000, 1_500, 2_500, 4_000, 5_000];
 const SUBSCRIPTION_USAGE_POLL_MS = 10_000;
 const protocolTarget: PeerDescriptor = { role: "workbench_server" };
 let connection: ProtocolClientConnection | undefined;
+let uninstallLiveProtocolRequester: (() => void) | undefined;
 let unbindSubscriptionSync: (() => void) | undefined;
 let intentionallyDisconnected = false;
 let workspaceSnapshotLoaded = false;
@@ -153,6 +167,8 @@ async function connectWebsocket(
   wsUrl: string,
 ): Promise<CenterTabIdentity | undefined> {
   await connection?.close();
+  uninstallLiveProtocolRequester?.();
+  uninstallLiveProtocolRequester = undefined;
   unbindSubscriptionSync?.();
   const messages = createMessageFactory({
     source: protocolSource(),
@@ -201,6 +217,16 @@ async function connectWebsocket(
           }
           workspaceState.connection = "live";
           requestSubscriptionSync();
+          void workspaceMonitorDemand.reconcile().catch((error) => {
+            clientLog(
+              "warn",
+              "websocket",
+              "Could not restore workspace monitors",
+              {
+                error,
+              },
+            );
+          });
           resolveInitialReady(desiredTab);
         },
         onSnapshotRequired: async (stream) => {
@@ -243,6 +269,12 @@ async function connectWebsocket(
           },
         },
       }),
+  });
+  const liveConnection = connection;
+  uninstallLiveProtocolRequester = installLiveProtocolRequester({
+    isReady: () => liveConnection.session.state === "ready",
+    request: (method, params, options) =>
+      liveConnection.request(method, params, options),
   });
   unbindSubscriptionSync = bindSubscriptionSync(async (cursors) => {
     const session = connection?.session;
@@ -323,6 +355,9 @@ export function disconnectWorkbench(): void {
   flushNotifyEvents();
   unbindSubscriptionSync?.();
   unbindSubscriptionSync = undefined;
+  uninstallLiveProtocolRequester?.();
+  uninstallLiveProtocolRequester = undefined;
+  workspaceMonitorDemand.reset();
   void connection?.close();
   connection = undefined;
   workspaceState.protocolSessionId = undefined;

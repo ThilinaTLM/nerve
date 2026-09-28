@@ -40,6 +40,7 @@ export const filesystemOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.filesystem.project.monitor.sync",
+    { invocationScope: "session" },
   ),
   defineOperation(
     "filesystem.project.monitor.clear",
@@ -49,6 +50,7 @@ export const filesystemOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.filesystem.project.monitor.clear",
+    { invocationScope: "session" },
   ),
   defineOperation(
     "filesystem.project.refresh",

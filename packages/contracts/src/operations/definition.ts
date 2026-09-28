@@ -3,6 +3,7 @@ import type { PeerRole } from "../wire/envelope.js";
 
 export type OperationKind = "read" | "mutation" | "accepted_async";
 export type OperationIdempotency = "none" | "recommended" | "required";
+export type OperationInvocationScope = "stateless" | "session";
 
 export interface OperationDefinition<
   Method extends string = string,
@@ -17,6 +18,7 @@ export interface OperationDefinition<
   readonly idempotency: Idempotency;
   readonly allowedTargetRoles: readonly PeerRole[];
   readonly requiredCapability: string;
+  readonly invocationScope: OperationInvocationScope;
 }
 
 export function defineOperation<
@@ -32,6 +34,7 @@ export function defineOperation<
   idempotency: Idempotency,
   allowedTargetRoles: readonly PeerRole[],
   requiredCapability: string,
+  options: { readonly invocationScope?: OperationInvocationScope } = {},
 ): OperationDefinition<Method, ParamsSchema, ResultSchema, Idempotency> {
   return {
     method,
@@ -41,5 +44,6 @@ export function defineOperation<
     idempotency,
     allowedTargetRoles,
     requiredCapability,
+    invocationScope: options.invocationScope ?? "stateless",
   };
 }

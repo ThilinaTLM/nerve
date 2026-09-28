@@ -23,6 +23,7 @@ export interface RpcDispatcherOptions {
   readonly handlers: Partial<OperationHandlerRegistry>;
   readonly idempotency?: IdempotencyStorePort;
   readonly acceptedCapabilities?: readonly string[] | (() => readonly string[]);
+  readonly sessionContext?: boolean;
   readonly translateError?: (error: unknown) => ProtocolErrorData;
 }
 
@@ -62,6 +63,15 @@ export class RpcDispatcher {
       return failure("VALIDATION_FAILED", "Invalid request data");
     const { method, params, idempotencyKey } = parsedRequest.data;
     const operation = operationDefinition(method);
+    if (
+      operation.invocationScope === "session" &&
+      !this.options.sessionContext
+    ) {
+      return failure(
+        "SESSION_REQUIRED",
+        `Operation ${method} requires a live protocol session`,
+      );
+    }
     if (
       operation.allowedTargetRoles &&
       !operation.allowedTargetRoles.includes(request.target.role)

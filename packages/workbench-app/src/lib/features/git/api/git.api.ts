@@ -25,6 +25,7 @@ import type {
   GitStashArea,
 } from "@nervekit/contracts/git";
 import { protocolRequest } from "@nervekit/protocol/adapters";
+import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
 export async function discoverGitRepos(
   projectId: string,
@@ -36,27 +37,19 @@ export async function discoverGitRepos(
   ).result;
 }
 
-export async function syncGitRepositoryMonitor(
+export function syncGitRepositoryMonitor(
   projectId: string,
   repo: string,
   active: boolean,
-) {
-  return (
-    await protocolRequest("git.repository.monitor.sync", {
-      projectId,
-      repo,
-      active,
-    })
-  ).result;
+): Promise<void> {
+  return workspaceMonitorDemand.syncRepository(projectId, repo, active);
 }
 
-export async function clearGitRepositoryMonitor(
+export function clearGitRepositoryMonitor(
   projectId: string,
   repo: string,
-) {
-  return (
-    await protocolRequest("git.repository.monitor.clear", { projectId, repo })
-  ).result;
+): Promise<void> {
+  return workspaceMonitorDemand.clearRepository(projectId, repo);
 }
 
 export async function requestGitRepositoryRefresh(
