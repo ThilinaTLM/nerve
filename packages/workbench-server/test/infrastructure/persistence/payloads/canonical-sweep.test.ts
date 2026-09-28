@@ -13,6 +13,8 @@ import {
   CANONICAL_MIGRATIONS,
   CANONICAL_SCHEMA_SQL,
 } from "../../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
+import { canonicalPayloadSweepDescriptors } from "../../../../src/infrastructure/storage-migrations/runner/payload-sweep.js";
+import { sweepStorageReadability } from "../../../../src/infrastructure/storage-migrations/runner/sweep.js";
 
 const testCodec = createJsonPayloadCodec({
   currentVersion: 1,
@@ -77,6 +79,52 @@ describe("canonical payload sweep adapter", () => {
   it("covers every non-null canonical payload BLOB in the current schema", () => {
     const database = currentCanonicalDatabase();
     try {
+      assert.doesNotThrow(() => assertPayloadDescriptorCoverage(database));
+      assert.deepEqual(
+        sweepStorageReadability(database, canonicalPayloadSweepDescriptors())
+          .failures,
+        [],
+      );
+    } finally {
+      database.close();
+    }
+  });
+
+  it("accepts registered additive payload owners when installed", () => {
+    const database = currentCanonicalDatabase();
+    try {
+      database.exec(`
+        CREATE TABLE artifact_manifests (
+          manifest_id TEXT PRIMARY KEY,
+          schema_version INTEGER NOT NULL,
+          data BLOB NOT NULL
+        ) STRICT;
+        CREATE TABLE exact_call_authorizations (
+          authorization_id TEXT PRIMARY KEY,
+          data BLOB NOT NULL
+        ) STRICT;
+        CREATE TABLE restore_promotions (
+          restore_id TEXT PRIMARY KEY,
+          data BLOB NOT NULL
+        ) STRICT;
+        CREATE TABLE transcript_projection_rows (
+          conversation_id TEXT NOT NULL,
+          source_revision INTEGER NOT NULL,
+          entry_id TEXT NOT NULL,
+          visibility_key TEXT NOT NULL,
+          payload_version INTEGER NOT NULL,
+          data BLOB NOT NULL,
+          PRIMARY KEY(conversation_id, source_revision, entry_id, visibility_key)
+        ) STRICT;
+      `);
+      database
+        .prepare(
+          `INSERT INTO domain_documents
+            (namespace, scope_id, document_id, revision, payload_version, data, created_at_ms, updated_at_ms)
+           VALUES ('approval_settlement', 'global', 'one', 1, 1, ?, 0, 0)`,
+        )
+        .run(Buffer.from("{}"));
+
       assert.doesNotThrow(() => assertPayloadDescriptorCoverage(database));
     } finally {
       database.close();

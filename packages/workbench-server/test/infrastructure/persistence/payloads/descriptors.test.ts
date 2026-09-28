@@ -33,10 +33,12 @@ describe("payload descriptor registry", () => {
     );
     assert.deepEqual([...canonicalLocations].sort(), [
       "agent_async_obligations.data",
+      "artifact_manifests.data",
       "conversation_record_projections.data",
       "conversation_records.data",
       "domain_documents.data",
       "durable_events.data",
+      "exact_call_authorizations.data",
       "lifecycle_command_receipts.data",
       "lifecycle_execution_attempts.data",
       "lifecycle_interactions.data",
@@ -44,9 +46,11 @@ describe("payload descriptor registry", () => {
       "lifecycle_tool_proposals.data",
       "lifecycle_work.data",
       "reconciliation_operations.data",
+      "restore_promotions.data",
       "rpc_idempotency.outcome",
       "run_lifecycle_records.data",
       "subagent_completions.data",
+      "transcript_projection_rows.data",
     ]);
 
     const registeredNamespaces = PAYLOAD_DESCRIPTORS.flatMap(({ location }) =>

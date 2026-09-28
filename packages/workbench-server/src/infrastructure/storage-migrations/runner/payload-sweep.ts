@@ -31,11 +31,21 @@ function toSweepDescriptor(
   };
 }
 
-function readRows(
+function* readRows(
   database: DatabaseSync,
   descriptor: PayloadDescriptor,
-): SweepRecord[] {
+): IterableIterator<SweepRecord> {
   const { location } = descriptor;
+  if (
+    descriptor.optional &&
+    !database
+      .prepare(
+        `SELECT 1 FROM sqlite_master
+         WHERE type = 'table' AND name = ?`,
+      )
+      .get(location.table)
+  )
+    return;
   const selected = [
     ...descriptor.keyColumns.map(
       (column, index) => `${column} AS key_${index}`,
@@ -58,20 +68,22 @@ function readRows(
   const sql = `SELECT ${selected.join(", ")} FROM ${location.table}${
     conditions.length ? ` WHERE ${conditions.join(" AND ")}` : ""
   } ORDER BY ${descriptor.keyColumns.join(", ")}`;
-  const rows = database.prepare(sql).all(...parameters) as unknown as Array<
+  const rows = database.prepare(sql).iterate(...parameters) as Iterable<
     Record<string, unknown> & {
       encoded: Uint8Array | string;
       payload_version: number;
     }
   >;
-  return rows.map((row) => ({
-    sourceKey: descriptor.keyColumns
-      .map((_column, index) => String(row[`key_${index}`]))
-      .join("/"),
-    bytes:
-      typeof row.encoded === "string"
-        ? Buffer.byteLength(row.encoded)
-        : row.encoded.byteLength,
-    value: { encoded: row.encoded, version: row.payload_version },
-  }));
+  for (const row of rows) {
+    yield {
+      sourceKey: descriptor.keyColumns
+        .map((_column, index) => String(row[`key_${index}`]))
+        .join("/"),
+      bytes:
+        typeof row.encoded === "string"
+          ? Buffer.byteLength(row.encoded)
+          : row.encoded.byteLength,
+      value: { encoded: row.encoded, version: row.payload_version },
+    };
+  }
 }

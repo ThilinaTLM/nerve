@@ -31,6 +31,11 @@ export function* iterateCanonicalPayloadRecords(
 ): IterableIterator<CanonicalPayloadRecord> {
   for (const descriptor of descriptors) {
     if (descriptor.location.database !== "canonical") continue;
+    if (
+      descriptor.optional &&
+      !tableExists(database, descriptor.location.table)
+    )
+      continue;
     yield* iterateDescriptorRows(database, descriptor);
   }
 }
@@ -79,7 +84,8 @@ export function inspectPayloadDescriptorCoverage(
 
   const invalidDescriptors = canonical.flatMap((descriptor) => {
     const columns = tables.get(descriptor.location.table);
-    if (!columns) return [`${descriptor.id}: missing table`];
+    if (!columns)
+      return descriptor.optional ? [] : [`${descriptor.id}: missing table`];
     const names = new Set(columns.map(({ name }) => name));
     const referenced = [
       descriptor.location.column,
@@ -176,6 +182,17 @@ export function assertPayloadDescriptorCoverage(
   if (issues.length > 0) {
     throw new Error(`Payload descriptor coverage failed: ${issues.join("; ")}`);
   }
+}
+
+function tableExists(database: DatabaseSync, table: string): boolean {
+  return Boolean(
+    database
+      .prepare(
+        `SELECT 1 FROM sqlite_master
+         WHERE type = 'table' AND name = ?`,
+      )
+      .get(table),
+  );
 }
 
 const NAMESPACE_REFERENCE_PATTERNS = [

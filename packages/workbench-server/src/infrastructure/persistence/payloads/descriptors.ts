@@ -33,6 +33,8 @@ export interface PayloadDescriptor<T = unknown> {
   readonly codec: PayloadCodec<T>;
   /** Whether the codec has a current persisted read schema or only JSON framing. */
   readonly validation: "read-schema" | "json-only";
+  /** Independently installed additive storage that may be absent on older homes. */
+  readonly optional?: boolean;
 }
 
 const jsonV1Codec = createJsonPayloadCodec({
@@ -74,6 +76,7 @@ function canonicalDescriptor(
     discriminator?: PayloadLocation["discriminator"];
     codec?: PayloadCodec;
     validation?: PayloadDescriptor["validation"];
+    optional?: boolean;
   } = {},
 ): PayloadDescriptor {
   return {
@@ -92,6 +95,7 @@ function canonicalDescriptor(
     version: options.version ?? versionColumn,
     codec: options.codec ?? jsonV1Codec,
     validation: options.validation ?? "json-only",
+    ...(options.optional ? { optional: true } : {}),
   };
 }
 
@@ -119,6 +123,7 @@ function domainDocumentDescriptor(
 /** Namespaces written by current repositories and canonical journal storage. */
 export const DOMAIN_DOCUMENT_NAMESPACES = [
   "agent",
+  "approval_settlement",
   "async-subagent-assignment",
   "async-subagent-control",
   "canonical_data_migration",
@@ -142,6 +147,7 @@ export type DomainDocumentNamespace =
 
 const userDocumentNamespaces = new Set<DomainDocumentNamespace>([
   "agent",
+  "approval_settlement",
   "conversation",
   "conversation_journal_commit",
   "conversation_state",
@@ -242,6 +248,38 @@ const canonicalPayloadDescriptors: readonly PayloadDescriptor[] = [
   canonicalDescriptor("agent-async-obligation", "agent_async_obligations", [
     "id",
   ]),
+  canonicalDescriptor(
+    "artifact-manifest",
+    "artifact_manifests",
+    ["manifest_id"],
+    {
+      recordClass: "user-content",
+      version: { kind: "column", column: "schema_version" },
+      optional: true,
+    },
+  ),
+  canonicalDescriptor(
+    "exact-call-authorization",
+    "exact_call_authorizations",
+    ["authorization_id"],
+    { version: versionOne, optional: true },
+  ),
+  canonicalDescriptor(
+    "restore-promotion",
+    "restore_promotions",
+    ["restore_id"],
+    {
+      recordClass: "user-content",
+      version: versionOne,
+      optional: true,
+    },
+  ),
+  canonicalDescriptor(
+    "transcript-projection-row",
+    "transcript_projection_rows",
+    ["conversation_id", "source_revision", "entry_id", "visibility_key"],
+    { optional: true },
+  ),
   canonicalDescriptor(
     "subagent-completion",
     "subagent_completions",
