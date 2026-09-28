@@ -25,7 +25,7 @@ function commandExists(command) {
   );
 }
 
-const missingTool = ["bash", "git", "ssh-keygen", "script"].find(
+const missingTool = ["bash", "git", "pnpm", "ssh-keygen", "script"].find(
   (command) => !commandExists(command),
 );
 
@@ -267,6 +267,36 @@ test(
         { stdio: "ignore" },
       ).status,
       128,
+    );
+  },
+);
+
+test(
+  "generates and commits a missing release storage fixture",
+  { skip: missingTool && `requires ${missingTool}` },
+  async (context) => {
+    const fixture = await createFixture();
+    context.after(() => rm(fixture.root, { recursive: true, force: true }));
+
+    const result = runRelease(fixture.repo, "1.2.3");
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /Generated sanitized release storage fixture/);
+    const fixtureRoot =
+      "packages/workbench-server/test/fixtures/storage/releases/1.2.3";
+    assert.equal(
+      git(fixture.repo, "show", `HEAD:${fixtureRoot}/manifest.json`).includes(
+        '"homeClass": "standard"',
+      ),
+      true,
+    );
+    assert.equal(
+      git(
+        fixture.repo,
+        "cat-file",
+        "-e",
+        `HEAD:${fixtureRoot}/data/nerve.sqlite`,
+      ),
+      "",
     );
   },
 );
