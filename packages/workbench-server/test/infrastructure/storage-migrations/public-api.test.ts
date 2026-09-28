@@ -7,6 +7,7 @@ import {
   applyStorageMigrationPlan,
   inspectStorageMigrationPlan,
 } from "../../../src/infrastructure/storage-migrations/public-api.js";
+import { runStorageMigrationWorker } from "../../../src/infrastructure/storage-migrations/worker-client.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/initialize.js";
 
 test("public migration adapters fingerprint and revalidate a current home", async (t) => {
@@ -29,6 +30,96 @@ test("public migration adapters fingerprint and revalidate a current home", asyn
   assert.equal(result.planFingerprint, plan.fingerprint);
 });
 
+test("worker heartbeat continues during one blocking migration operation", async () => {
+  const messages: string[] = [];
+  const workerUrl = moduleDataUrl(`
+    import { parentPort } from "node:worker_threads";
+    const until = Date.now() + 80;
+    while (Date.now() < until) {}
+    parentPort.postMessage({
+      type: "success",
+      result: { operation: "inspect", value: {} }
+    });
+  `);
+
+  await runStorageMigrationWorker(
+    { operation: "inspect", home: "/unused" },
+    {
+      workerUrl,
+      reportProgress: (progress) => messages.push(progress.message),
+      heartbeat: { delayMs: 0, intervalMs: 10 },
+    },
+  );
+
+  assert.ok(messages.length >= 2);
+  assert.ok(
+    messages.every((message) =>
+      /^Storage upgrade planning is still running \(\d+s\)$/.test(message),
+    ),
+  );
+  const settledCount = messages.length;
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(messages.length, settledCount);
+});
+
+test("worker failures reject the migration operation", async () => {
+  const workerUrl = moduleDataUrl(`throw new Error("worker exploded");`);
+  await assert.rejects(
+    runStorageMigrationWorker(
+      { operation: "inspect", home: "/unused" },
+      { workerUrl },
+    ),
+    /worker exploded/,
+  );
+});
+
+test("public migration worker keeps reporting while an operation is outstanding", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-migration-progress-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const storage = await initializeStorage(home);
+  await storage.canonicalStore.close();
+
+  const messages: string[] = [];
+  const plan = await inspectStorageMigrationPlan(home, {
+    reportProgress: (progress) => messages.push(progress.message),
+    heartbeat: { delayMs: 0, intervalMs: 10 },
+  });
+
+  assert.equal(plan.outcome, "current");
+  assert.ok(messages.includes("Inspecting local storage"));
+  assert.ok(messages.includes("Storage upgrade plan is ready"));
+  assert.ok(
+    messages.some((message) =>
+      /^Storage upgrade planning is still running \(\d+s\)$/.test(message),
+    ),
+  );
+  const settledCount = messages.length;
+  await new Promise((resolve) => setTimeout(resolve, 25));
+  assert.equal(messages.length, settledCount);
+});
+
+test("public migration apply forwards worker progress", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-migration-apply-progress-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const storage = await initializeStorage(home);
+  await storage.canonicalStore.close();
+  const plan = await inspectStorageMigrationPlan(home);
+  const messages: string[] = [];
+
+  await applyStorageMigrationPlan(
+    home,
+    plan,
+    { fingerprint: plan.fingerprint, approvedQuarantineIds: [] },
+    { reportProgress: (progress) => messages.push(progress.message) },
+  );
+
+  assert.deepEqual(messages, [
+    "Revalidating storage upgrade plan",
+    "Planning storage upgrade",
+    "Storage upgrade is complete",
+  ]);
+});
+
 test("public migration apply rejects a stale fingerprint before mutation", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-migration-stale-"));
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -44,3 +135,7 @@ test("public migration apply rejects a stale fingerprint before mutation", async
     /plan changed/,
   );
 });
+
+function moduleDataUrl(source: string): URL {
+  return new URL(`data:text/javascript,${encodeURIComponent(source)}`);
+}

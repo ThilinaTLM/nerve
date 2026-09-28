@@ -1,4 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
+import type { HomeMigrationProgress } from "@nervekit/contracts/storage";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -37,6 +38,8 @@ export async function executeStorageMigrations(input: {
   gitSha?: string;
   now?: () => number;
   steps?: readonly MigrationStepV1[];
+  report?: (progress: HomeMigrationProgress) => void;
+  progressMode?: "preview" | "apply";
 }): Promise<StorageMigrationExecutionResult> {
   const now = input.now ?? Date.now;
   const steps = input.steps ?? STORAGE_MIGRATION_STEPS;
@@ -92,9 +95,19 @@ export async function executeStorageMigrations(input: {
       home: input.paths.home,
       staging: input.workspace.filesPath,
     });
-    for (const step of steps) {
-      if (applied.has(step.id)) continue;
+    const pendingSteps = steps.filter((step) => !applied.has(step.id));
+    const progressVerb =
+      input.progressMode === "preview" ? "Previewing" : "Applying";
+    const completedVerb =
+      input.progressMode === "preview" ? "Previewed" : "Applied";
+    for (const [index, step] of pendingSteps.entries()) {
       const metadata = metadataFor(input.registry, step.id);
+      input.report?.({
+        phase: "apply",
+        message: `${progressVerb} storage migration ${index + 1} of ${pendingSteps.length}: ${step.description}`,
+        completed: index,
+        total: pendingSteps.length,
+      });
       const startedAt = now();
       const before = quarantined.size;
       let inputRecords = 0;
@@ -168,7 +181,20 @@ export async function executeStorageMigrations(input: {
         }
       }
       result.appliedIds.push(step.id);
+      input.report?.({
+        phase: "apply",
+        message: `${completedVerb} storage migration ${index + 1} of ${pendingSteps.length}: ${step.description}`,
+        completed: index + 1,
+        total: pendingSteps.length,
+      });
     }
+    input.report?.({
+      phase: "validate",
+      message:
+        input.progressMode === "preview"
+          ? "Verifying storage upgrade preview"
+          : "Verifying upgraded storage",
+    });
     assertPayloadDescriptorCoverage(database);
     assertStorageDatabaseValid(database);
     const sweep = sweepStorageReadability(

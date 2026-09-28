@@ -11,6 +11,7 @@ export * from "./infrastructure/migrations/index.js";
 export {
   applyStorageMigrationPlan,
   inspectStorageMigrationPlan,
+  type StorageMigrationOperationOptions,
 } from "./infrastructure/storage-migrations/public-api.js";
 export {
   inspectNerveHome,

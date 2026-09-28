@@ -317,18 +317,28 @@ describe("desktop data-directory preparation", () => {
       {
         ...dialog,
         inspect: (async () => ({ kind: "current", manifest: {} })) as never,
-        inspectUnifiedMigrations: async () => ({
-          format: "nerve-home-migration-plan",
-          version: 1,
-          fingerprint,
-          outcome: "pending",
-          homeClass: "standard",
-          buildId: "0.32.0+abc",
-          steps: [],
-          quarantine,
-        }),
-        applyUnifiedMigrations: async (_home, _plan, approval) => {
+        inspectUnifiedMigrations: async (_home, options) => {
+          options?.reportProgress?.({
+            phase: "preflight",
+            message: "Preparing a storage upgrade preview",
+          });
+          return {
+            format: "nerve-home-migration-plan",
+            version: 1,
+            fingerprint,
+            outcome: "pending",
+            homeClass: "standard",
+            buildId: "0.32.0+abc",
+            steps: [],
+            quarantine,
+          };
+        },
+        applyUnifiedMigrations: async (_home, _plan, approval, options) => {
           approvedIds = approval.approvedQuarantineIds;
+          options?.reportProgress?.({
+            phase: "preflight",
+            message: "Preparing a verified storage copy",
+          });
           return {
             format: "nerve-home-migration-result",
             version: 1,
@@ -353,7 +363,9 @@ describe("desktop data-directory preparation", () => {
     assert.deepEqual(progress, [
       "Checking local storage",
       "Planning storage upgrade",
+      "Preparing a storage upgrade preview",
       "Applying storage upgrade",
+      "Preparing a verified storage copy",
       "Verifying local storage",
       "Local storage is ready",
     ]);

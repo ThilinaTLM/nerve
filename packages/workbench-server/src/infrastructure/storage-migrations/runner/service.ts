@@ -1,6 +1,7 @@
 import { mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import type { HomeMigrationProgress } from "@nervekit/contracts/storage";
 import {
   CANONICAL_BASELINE_CHECKSUM,
   CANONICAL_BASELINE_NAME,
@@ -51,7 +52,7 @@ export async function prepareExistingStorage(input: {
   buildId: string;
   appVersion: string;
   gitSha?: string;
-  report?: (phase: string, message: string) => void;
+  report?: (progress: HomeMigrationProgress) => void;
   approval?: {
     fingerprint: string;
     approvedQuarantineIds: readonly string[];
@@ -61,7 +62,7 @@ export async function prepareExistingStorage(input: {
   await recoverStoragePromotion(input.paths);
   await discardAbandonedWorkspaces(input.paths);
   const homeClass = await readStorageHomeClass(input.paths.manifestPath);
-  input.report?.("plan", "Planning storage upgrade");
+  input.report?.({ phase: "plan", message: "Planning storage upgrade" });
   const plan = planStorageMigration({
     sqlitePath: input.paths.sqlitePath,
     registry,
@@ -80,7 +81,10 @@ export async function prepareExistingStorage(input: {
     return { plan, migrated: false, swept: false };
   }
   if (plan.outcome === "sweep") {
-    input.report?.("sweep", "Checking stored records for readability");
+    input.report?.({
+      phase: "sweep",
+      message: "Checking stored records for readability",
+    });
     const database = new DatabaseSync(input.paths.sqlitePath, {
       readOnly: true,
     });
@@ -112,7 +116,10 @@ export async function prepareExistingStorage(input: {
     return { plan, migrated: false, swept: true };
   }
 
-  input.report?.("preflight", "Preparing a verified storage copy");
+  input.report?.({
+    phase: "preflight",
+    message: "Preparing a verified storage copy",
+  });
   const workspace = await createStorageMigrationWorkspace(input.paths);
   try {
     const execution = await executeStorageMigrations({
@@ -121,6 +128,7 @@ export async function prepareExistingStorage(input: {
       registry,
       appVersion: input.appVersion,
       ...(input.gitSha ? { gitSha: input.gitSha } : {}),
+      report: input.report,
     });
     if (execution.approvalRequiredIds.length > 0) {
       if (!input.planFingerprint) {
@@ -144,7 +152,10 @@ export async function prepareExistingStorage(input: {
     } finally {
       writer.close();
     }
-    input.report?.("promote", "Installing verified storage");
+    input.report?.({
+      phase: "promote",
+      message: "Installing verified storage",
+    });
     const promoted = await promoteStorageMigrationWorkspace(
       input.paths,
       workspace,

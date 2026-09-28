@@ -3,6 +3,7 @@ import type {
   HomeMigrationApproval,
   HomeMigrationFailure,
   HomeMigrationPlan,
+  HomeMigrationProgress,
   HomeMigrationResult,
 } from "@nervekit/contracts/storage";
 import type { MessageBoxOptions, MessageBoxReturnValue } from "electron";
@@ -21,11 +22,19 @@ export type DesktopDataDirectoryPreparation =
   | { status: "ready" }
   | { status: "quit" };
 
-type InspectUnifiedMigrations = (home: string) => Promise<HomeMigrationPlan>;
+interface UnifiedMigrationProgressOptions {
+  reportProgress?: (progress: HomeMigrationProgress) => void;
+}
+
+type InspectUnifiedMigrations = (
+  home: string,
+  options?: UnifiedMigrationProgressOptions,
+) => Promise<HomeMigrationPlan>;
 type ApplyUnifiedMigrations = (
   home: string,
   plan: HomeMigrationPlan,
   approval: HomeMigrationApproval,
+  options?: UnifiedMigrationProgressOptions,
 ) => Promise<HomeMigrationResult>;
 
 export interface UnifiedMigrationServerAdapter {
@@ -124,7 +133,9 @@ export async function prepareDesktopDataDirectory(
           legacyMigrationPlan.migrationIds.length === 0 &&
           legacyMigrationPlan.issues.length === 0
         ) {
-          const migrationPlan = await inspectUnifiedMigrations(input.home);
+          const migrationPlan = await inspectUnifiedMigrations(input.home, {
+            reportProgress: (progress) => input.onProgress?.(progress.message),
+          });
           await prepareUnifiedHomeMigration(input.home, migrationPlan, {
             reportProgress: input.onProgress,
             ...dependencies,
@@ -316,10 +327,18 @@ async function prepareUnifiedHomeMigration(
   }
 
   dependencies.reportProgress?.("Applying storage upgrade");
-  const result = await dependencies.applyUnifiedMigrations(home, plan, {
-    fingerprint: plan.fingerprint,
-    approvedQuarantineIds,
-  });
+  const result = await dependencies.applyUnifiedMigrations(
+    home,
+    plan,
+    {
+      fingerprint: plan.fingerprint,
+      approvedQuarantineIds,
+    },
+    {
+      reportProgress: (progress) =>
+        dependencies.reportProgress?.(progress.message),
+    },
+  );
   if (result.quarantine.total > 0) {
     await dependencies.showMessageBox({
       type: "warning",

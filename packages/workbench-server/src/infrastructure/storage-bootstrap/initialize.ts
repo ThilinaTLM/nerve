@@ -122,15 +122,15 @@ export async function initializeStorage(
     }
     const sqliteMigrationCheckStartedAt = performance.now();
     const identity = storageBuildIdentity();
-    const reportMigration = (_phase: string, message: string) =>
+    const reportMigration = (progress: { message: string }) =>
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
         phase: "storage-migration",
-        message,
+        message: progress.message,
       });
     try {
       if (fresh) {
-        reportMigration("stage", "Creating verified storage");
+        reportMigration({ message: "Creating verified storage" });
         await createFreshStorage({ paths, ...identity });
       } else {
         await prepareExistingStorage({
