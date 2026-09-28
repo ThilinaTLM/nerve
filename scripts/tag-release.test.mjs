@@ -252,7 +252,7 @@ test(
         "show",
         "HEAD:packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts",
       ),
-      /"stage": "released"/,
+      /stage: "released"/,
     );
     assert.equal(
       spawnSync(
