@@ -201,7 +201,10 @@ test("rejects drafts specifically when CI targets main", (t) => {
       acceptedChecksums: [],
     },
   ]);
-  assert.deepEqual(storageMigrationPolicyViolations(root), []);
+  assert.deepEqual(
+    storageMigrationPolicyViolations(root, { baseRef: "feature-branch" }),
+    [],
+  );
   assert.ok(
     storageMigrationPolicyViolations(root, { baseRef: "main" }).some(
       (message) => message.includes("may not merge to main"),
