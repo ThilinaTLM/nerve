@@ -148,9 +148,14 @@ test("loads older home configuration with missing additive defaults", async (t) 
 
   const harness = JSON.parse(
     await readFile(initial.paths.harnessConfigPath, "utf8"),
-  ) as { skills: { nerve?: unknown }; asyncSubagent?: unknown };
+  ) as {
+    skills: { nerve?: unknown };
+    asyncSubagent?: unknown;
+    tools: { imageGeneration?: unknown };
+  };
   delete harness.skills.nerve;
   delete harness.asyncSubagent;
+  delete harness.tools.imageGeneration;
   await writeFile(
     initial.paths.harnessConfigPath,
     `${JSON.stringify(harness, null, 2)}\n`,
@@ -173,6 +178,14 @@ test("loads older home configuration with missing additive defaults", async (t) 
   assert.deepEqual(
     reopened.settings.asyncSubagent,
     defaultSettings.asyncSubagent,
+  );
+  assert.deepEqual(
+    reopened.configuration.harness.tools.imageGeneration,
+    defaultSettings.tools.imageGeneration,
+  );
+  assert.deepEqual(
+    reopened.settings.tools.imageGeneration,
+    defaultSettings.tools.imageGeneration,
   );
 });
 

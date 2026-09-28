@@ -172,7 +172,7 @@ export function healthyDaemon(
       url: "http://127.0.0.1:3747",
       startedAt: "2026-07-17T00:00:00.000Z",
       dataDir: "/home/test/.nerve",
-      version: "0.8.0",
+      version: "0.32.0",
       ...overrides,
     } as HealthyDaemon["daemon"],
     url: "http://127.0.0.1:3747",
@@ -208,6 +208,7 @@ export function fakeDaemonWorld(
   overrides: Partial<{
     env: NodeJS.ProcessEnv;
     serverMainExists: boolean;
+    bundledDaemonVersion: string;
     /** Discovery results consumed in order; the last value repeats. */
     discovery: Array<HealthyDaemon | undefined>;
   }> = {},
@@ -234,6 +235,7 @@ export function fakeDaemonWorld(
 
   const ports: DaemonConnectionPorts = {
     env: overrides.env ?? {},
+    bundledDaemonVersion: overrides.bundledDaemonVersion ?? "0.32.0",
     health: {
       check: async (url, token) => {
         healthChecks.push({ url, token });

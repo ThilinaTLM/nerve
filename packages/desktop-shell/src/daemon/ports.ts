@@ -106,6 +106,8 @@ export interface DaemonRuntimePorts {
 }
 
 export interface DaemonConnectionPorts extends DaemonRuntimePorts {
+  /** Version of the workbench server bundled with this desktop build. */
+  readonly bundledDaemonVersion: string;
   /** Resolves the workbench-server main entry path. */
   resolveServerMain(): string;
   fileExists(path: string): Promise<boolean>;

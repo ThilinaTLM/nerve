@@ -84,7 +84,11 @@ class DesktopMigrationError extends Error {
 
 /** Strictly initialize a Nerve home, or explicitly migrate supported older homes. */
 export async function prepareDesktopDataDirectory(
-  input: { home: string; mode?: DaemonMode },
+  input: {
+    home: string;
+    mode?: DaemonMode;
+    onProgress?: (message: string) => void;
+  },
   dependencies: DesktopDataDirectoryMigrationDependencies,
 ): Promise<DesktopDataDirectoryPreparation> {
   if (input.mode === "remote") return { status: "ready" };
@@ -98,9 +102,11 @@ export async function prepareDesktopDataDirectory(
     dependencies.applyUnifiedMigrations ??
     defaultUnifiedMigrationAdapter?.apply;
   try {
+    input.onProgress?.("Checking local storage");
     const current = await inspect(input.home);
     if (current.kind !== "unsupported") {
       if (current.kind === "current") {
+        input.onProgress?.("Planning storage upgrade");
         const legacyMigrationPlan = dependencies.inspectUnifiedMigrations
           ? {
               format: "nerve-current-home-migration-plan" as const,
@@ -120,6 +126,7 @@ export async function prepareDesktopDataDirectory(
         ) {
           const migrationPlan = await inspectUnifiedMigrations(input.home);
           await prepareUnifiedHomeMigration(input.home, migrationPlan, {
+            reportProgress: input.onProgress,
             ...dependencies,
             applyUnifiedMigrations,
           });
@@ -156,6 +163,7 @@ export async function prepareDesktopDataDirectory(
             approvedIssueIds = skippable.map((issue) => issue.id);
           }
           if (migrationPlan.migrationIds.length > 0) {
+            input.onProgress?.("Applying storage upgrade");
             const report = await (
               dependencies.applyCurrentMigrations ?? applyHomeMigrationPlan
             )(input.home, migrationPlan, {
@@ -184,11 +192,18 @@ export async function prepareDesktopDataDirectory(
           }
         }
       }
+      input.onProgress?.(
+        current.kind === "missing" || current.kind === "empty"
+          ? "Creating local storage"
+          : "Verifying local storage",
+      );
       const storage = await initialize(input.home);
       await storage.canonicalStore.close();
+      input.onProgress?.("Local storage is ready");
       return { status: "ready" };
     }
 
+    input.onProgress?.("Checking previous storage format");
     const legacy = await inspectLegacy(input.home);
     if (legacy.kind !== "legacy-v2") throw new Error(current.reason);
     const consent = await dependencies.showMessageBox({
@@ -207,6 +222,7 @@ export async function prepareDesktopDataDirectory(
     });
     if (consent.response !== 0) return { status: "quit" };
 
+    input.onProgress?.("Migrating previous Nerve data");
     const report = await (dependencies.migrate ?? migrateLegacyV2Home)(
       input.home,
     );
@@ -224,6 +240,7 @@ export async function prepareDesktopDataDirectory(
       cancelId: 0,
       noLink: true,
     });
+    input.onProgress?.("Local storage is ready");
     return { status: "ready" };
   } catch (error) {
     if (error instanceof DesktopMigrationDeclined) return { status: "quit" };
@@ -249,7 +266,9 @@ export async function prepareDesktopDataDirectory(
 async function prepareUnifiedHomeMigration(
   home: string,
   plan: HomeMigrationPlan,
-  dependencies: DesktopDataDirectoryMigrationDependencies,
+  dependencies: DesktopDataDirectoryMigrationDependencies & {
+    reportProgress?: (message: string) => void;
+  },
 ): Promise<void> {
   if (["ahead", "invalid", "corrupt", "drift"].includes(plan.outcome)) {
     throw new DesktopMigrationError(
@@ -296,6 +315,7 @@ async function prepareUnifiedHomeMigration(
     approvedQuarantineIds = approvalEntries.map((entry) => entry.id);
   }
 
+  dependencies.reportProgress?.("Applying storage upgrade");
   const result = await dependencies.applyUnifiedMigrations(home, plan, {
     fingerprint: plan.fingerprint,
     approvedQuarantineIds,
