@@ -2,7 +2,7 @@
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Card, CardContent } from "@nervekit/ui-kit/components/ui/card";
 import type { DiscoverAction } from "../content/entries.js";
-import type { ResolvedNewsEntry } from "../policy.js";
+import { discoverReleaseLabel, type ResolvedNewsEntry } from "../policy.js";
 import DiscoverActionButton from "./DiscoverActionButton.svelte";
 import DiscoverNewsArtwork from "./DiscoverNewsArtwork.svelte";
 
@@ -20,7 +20,8 @@ let { entry, onAction }: Props = $props();
   >
     <div class="grid min-w-0 gap-2">
       <div class="flex flex-wrap items-center gap-1.5">
-        <Badge variant="outline">{entry.releasedIn}</Badge>
+        <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge
+        >
         {#if entry.unread}
           <Badge variant="info">New</Badge>
         {/if}

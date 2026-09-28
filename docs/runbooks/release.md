@@ -53,7 +53,7 @@ Start from a clean checkout on the branch that should contain the release commit
 scripts/tag-release.sh X.Y.Z
 ```
 
-The script updates every workspace `package.json`, the native `Cargo.toml`, and the `nerve-native` entry in `Cargo.lock`. It then creates the signed `chore(release): bump version to vX.Y.Z` commit and an annotated `vX.Y.Z` tag. It never pushes the current branch. Put the release commit onto the protected default branch through the repository's normal branch and pull-request process.
+The script updates every workspace `package.json`, the native `Cargo.toml`, and the `nerve-native` entry in `Cargo.lock`. It also stamps Discover announcements authored with `releasedIn: "next"` with the release version. It then creates the signed `chore(release): bump version to vX.Y.Z` commit and an annotated `vX.Y.Z` tag. It never pushes the current branch. Put the release commit onto the protected default branch through the repository's normal branch and pull-request process.
 
 The final prompt offers to push only the tag. Confirm only when the release commit is ready to publish: pushing the tag immediately starts the **Publish Release** workflow. If the prompt is declined or no interactive terminal is available, push it later with `git push origin refs/tags/vX.Y.Z`.
 

@@ -2,6 +2,8 @@ import type { ResolvedGuide } from "./guides/catalog-policy.js";
 import type { DiscoverNewsEntry, DiscoverTipEntry } from "./content/entries.js";
 import type { DiscoverSeenVersions } from "./progress.js";
 
+export const PENDING_DISCOVER_RELEASE = "next";
+
 export type ResolvedNewsEntry = DiscoverNewsEntry & { unread: boolean };
 
 export type DiscoverNewsSection = {
@@ -47,9 +49,9 @@ export function resolveNews(
 }
 
 /**
- * News for the running version stays in the main list; anything tagged with a
- * different release drops into the archive so the page keeps one release in
- * focus. Without a known app version every entry is treated as current.
+ * News for the running version and pending release stays in the main list;
+ * anything tagged with a different released version drops into the archive.
+ * Without a known app version every entry is treated as current.
  */
 export function buildDiscoverSections(input: {
   guides: readonly ResolvedGuide[];
@@ -68,6 +70,7 @@ export function buildDiscoverSections(input: {
   const completed = setupGuides.filter((guide) => guide.completed);
 
   const isCurrent = (entry: ResolvedNewsEntry) =>
+    entry.releasedIn === PENDING_DISCOVER_RELEASE ||
     !input.appVersion ||
     entry.releasedIn === normalizeVersion(input.appVersion);
   const current = input.news.filter(isCurrent);
@@ -94,6 +97,19 @@ export function buildDiscoverSections(input: {
 
 export function unreadNewsCount(news: readonly ResolvedNewsEntry[]): number {
   return news.filter((entry) => entry.unread).length;
+}
+
+/** Pending announcements are previewable but must not trigger release auto-open. */
+export function unreadReleasedNewsCount(
+  news: readonly ResolvedNewsEntry[],
+): number {
+  return news.filter(
+    (entry) => entry.unread && entry.releasedIn !== PENDING_DISCOVER_RELEASE,
+  ).length;
+}
+
+export function discoverReleaseLabel(releasedIn: string): string {
+  return releasedIn === PENDING_DISCOVER_RELEASE ? "Next release" : releasedIn;
 }
 
 /**

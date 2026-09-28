@@ -71,6 +71,15 @@ async function createFixture({ migrationStage = "final" } = {}) {
     join(repo, "Cargo.lock"),
     '# Generated fixture\nversion = 4\n\n[[package]]\nname = "nerve-native"\nversion = "1.0.0"\n',
   );
+  const discoverNewsPath = join(
+    repo,
+    "packages/workbench-app/src/lib/app/discover/content/news.ts",
+  );
+  await mkdir(dirname(discoverNewsPath), { recursive: true });
+  await writeFile(
+    discoverNewsPath,
+    'export const news = [{ releasedIn: "next" }];\n',
+  );
 
   const migrationsRoot = join(
     repo,
@@ -198,6 +207,13 @@ test(
     );
     assert.equal(releasedLock.steps[0].stage, "released");
     assert.equal(releasedLock.steps[0].releasedIn, "1.1.0");
+    const releasedNews = git(
+      fixture.repo,
+      "show",
+      "HEAD:packages/workbench-app/src/lib/app/discover/content/news.ts",
+    );
+    assert.match(releasedNews, /releasedIn: "1\.1\.0"/);
+    assert.doesNotMatch(releasedNews, /releasedIn: "next"/);
     assert.match(
       git(
         fixture.repo,
