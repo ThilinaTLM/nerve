@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "network": {
+    "host": "127.0.0.1",
+    "port": 3747,
+    "allowRemote": false,
+    "mobileHttps": false,
+    "httpsPort": 3748
+  },
+  "diagnostics": {
+    "loggingEnabled": false,
+    "performanceEnabled": false
+  },
+  "process": {
+    "startupTimeoutMs": 60000,
+    "maxOldSpaceMb": 4096
+  },
+  "logging": {
+    "level": "info",
+    "retentionDays": 14,
+    "maxBufferedLogs": 2000
+  },
+  "electron": {
+    "ozonePlatform": "auto",
+    "fontRenderHinting": "slight"
+  }
+}

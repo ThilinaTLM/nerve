@@ -96,7 +96,9 @@ export function validateReleaseStorageFixture(repoRoot, version) {
     throw new Error(
       `Release storage fixture ${version} has an invalid manifest.`,
     );
-  const database = new DatabaseSync(sqlitePath, { readOnly: true });
+  const sqliteUrl = pathToFileURL(sqlitePath);
+  sqliteUrl.searchParams.set("immutable", "1");
+  const database = new DatabaseSync(sqliteUrl, { readOnly: true });
   try {
     const row = database.prepare("PRAGMA quick_check").get();
     if (row?.quick_check !== "ok")

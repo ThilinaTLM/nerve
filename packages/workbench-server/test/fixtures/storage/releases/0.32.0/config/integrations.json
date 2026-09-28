@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "profiles": {
+    "atlassian": [],
+    "tavily": []
+  },
+  "tools": {
+    "jira": {
+      "enabled": false
+    },
+    "confluence": {
+      "enabled": false
+    },
+    "web": {}
+  }
+}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,10 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { versionLockedPackages } from "./lib/workspace-packages.mjs";
 import { storageMigrationChecksum } from "./lib/storage-migration-policy.mjs";
-import { renderRuntimeRegistry } from "./storage-migrations/release-lifecycle.mjs";
+import {
+  renderRuntimeRegistry,
+  validateReleaseStorageFixture,
+} from "./storage-migrations/release-lifecycle.mjs";
 
 const scriptPath = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -170,6 +173,35 @@ function runRelease(repo, version, input = "") {
 function shellQuote(value) {
   return `'${value.replaceAll("'", `'"'"'`)}'`;
 }
+
+test("validates a WAL release fixture without creating SQLite sidecars", async (context) => {
+  const repo = await mkdtemp(join(tmpdir(), "nerve-release-fixture-"));
+  context.after(() => rm(repo, { recursive: true, force: true }));
+  const fixture = join(
+    repo,
+    "packages/workbench-server/test/fixtures/storage/releases/1.2.3",
+  );
+  const data = join(fixture, "data");
+  await mkdir(join(fixture, "config"), { recursive: true });
+  await mkdir(data, { recursive: true });
+  await writeFile(
+    join(fixture, "manifest.json"),
+    `${JSON.stringify({
+      format: "nerve-home",
+      version: 2,
+      homeClass: "standard",
+    })}\n`,
+  );
+  const database = new DatabaseSync(join(data, "nerve.sqlite"));
+  database.exec(
+    "PRAGMA journal_mode = WAL; CREATE TABLE fixture (id INTEGER);",
+  );
+  database.close();
+
+  validateReleaseStorageFixture(repo, "1.2.3");
+
+  assert.deepEqual(await readdir(data), ["nerve.sqlite"]);
+});
 
 test(
   "creates a signed release commit and local annotated tag without pushing non-interactively",
