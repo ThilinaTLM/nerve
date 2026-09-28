@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/skills",
-  "version": "0.32.0",
+  "version": "0.32.1",
   "private": true,
   "description": "Official bundled Nerve skill catalog.",
   "author": "ThilinaTLM",
