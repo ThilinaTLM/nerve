@@ -141,9 +141,10 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         params.directories,
       );
     },
-    "filesystem.project.monitor.clear": async (state, _params, invocation) => {
+    "filesystem.project.monitor.clear": async (state, params, invocation) => {
       await state.workspaceMonitor.clearProject(
         monitorOwner(invocation.monitorOwner),
+        params.projectId,
       );
       return { active: false, degraded: false, watchedDirectoryCount: 0 };
     },

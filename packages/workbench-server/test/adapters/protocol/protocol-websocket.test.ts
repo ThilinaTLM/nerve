@@ -291,6 +291,24 @@ test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispa
     (response.data.result as { snapshot: unknown }).snapshot,
   );
 
+  const monitorRequest = messages("request", {
+    method: "filesystem.project.monitor.sync",
+    params: { projectId: "proj_session_required", directories: [""] },
+  });
+  const monitorHttp = await fetch(`${host.httpUrl}/api/protocol/v1`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${host.token}`,
+      "content-type": "application/vnd.nerve.protocol.v1+json",
+    },
+    body: JSON.stringify(monitorRequest),
+  });
+  assert.equal(monitorHttp.status, 400);
+  const monitorError = codec.decode(await monitorHttp.text());
+  assert.equal(monitorError.kind, "error");
+  assert.equal(monitorError.data.code, "SESSION_REQUIRED");
+  assert.equal(monitorError.data.retryable, false);
+
   const serverSession = [...host.sessions][0];
   assert.ok(serverSession);
   peer.socket.close();

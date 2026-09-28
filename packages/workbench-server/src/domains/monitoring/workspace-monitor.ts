@@ -54,8 +54,11 @@ type ProjectResource = {
 type RepositoryResource = RepositoryDemand & { owners: Set<string> };
 
 export class WorkspaceMonitor {
-  readonly #projectsByOwner = new Map<string, ProjectDemand>();
-  readonly #repositoriesByOwner = new Map<string, RepositoryDemand>();
+  readonly #projectsByOwner = new Map<string, Map<string, ProjectDemand>>();
+  readonly #repositoriesByOwner = new Map<
+    string,
+    Map<string, RepositoryDemand>
+  >();
   readonly #projects = new Map<string, ProjectResource>();
   readonly #repositories = new Map<string, RepositoryResource>();
   #monitor?: NativeChangeMonitorPort;
@@ -107,11 +110,13 @@ export class WorkspaceMonitor {
   }> {
     this.#assertOpen();
     const normalized = await normalizeDirectories(projectDir, directories);
-    this.#projectsByOwner.set(owner, {
+    const demands = this.#projectsByOwner.get(owner) ?? new Map();
+    demands.set(projectId, {
       projectId,
       projectDir: normalized.root,
       directories: normalized.directories,
     });
+    this.#projectsByOwner.set(owner, demands);
     const states = await this.#rebuildProjects();
     const resource = this.#projects.get(projectId);
     const state = states.get(projectId);
@@ -122,12 +127,14 @@ export class WorkspaceMonitor {
     };
   }
 
-  clearProject(owner: string): Promise<void> {
-    return this.#enqueue(() => this.#clearProject(owner));
+  clearProject(owner: string, projectId: string): Promise<void> {
+    return this.#enqueue(() => this.#clearProject(owner, projectId));
   }
 
-  async #clearProject(owner: string): Promise<void> {
-    if (!this.#projectsByOwner.delete(owner)) return;
+  async #clearProject(owner: string, projectId: string): Promise<void> {
+    const demands = this.#projectsByOwner.get(owner);
+    if (!demands?.delete(projectId)) return;
+    if (demands.size === 0) this.#projectsByOwner.delete(owner);
     await this.#rebuildProjects();
   }
 
@@ -152,15 +159,17 @@ export class WorkspaceMonitor {
   ): Promise<{ active: boolean; degraded: boolean }> {
     this.#assertOpen();
     if (!active) {
-      await this.#clearRepository(owner);
+      await this.#clearRepository(owner, projectId, repo);
       return { active: false, degraded: false };
     }
     const canonical = await realpath(repoDir);
-    this.#repositoriesByOwner.set(owner, {
+    const demands = this.#repositoriesByOwner.get(owner) ?? new Map();
+    demands.set(repositoryKey(projectId, repo), {
       projectId,
       repo,
       repoDir: canonical,
     });
+    this.#repositoriesByOwner.set(owner, demands);
     const states = await this.#rebuildRepositories();
     const resource = this.#repositories.get(repositoryKey(projectId, repo));
     if (!resource) return { active: false, degraded: false };
@@ -169,12 +178,22 @@ export class WorkspaceMonitor {
     return { active: true, degraded: state.degraded };
   }
 
-  clearRepository(owner: string): Promise<void> {
-    return this.#enqueue(() => this.#clearRepository(owner));
+  clearRepository(
+    owner: string,
+    projectId: string,
+    repo: string,
+  ): Promise<void> {
+    return this.#enqueue(() => this.#clearRepository(owner, projectId, repo));
   }
 
-  async #clearRepository(owner: string): Promise<void> {
-    if (!this.#repositoriesByOwner.delete(owner)) return;
+  async #clearRepository(
+    owner: string,
+    projectId: string,
+    repo: string,
+  ): Promise<void> {
+    const demands = this.#repositoriesByOwner.get(owner);
+    if (!demands?.delete(repositoryKey(projectId, repo))) return;
+    if (demands.size === 0) this.#repositoriesByOwner.delete(owner);
     await this.#rebuildRepositories();
   }
 
@@ -220,18 +239,20 @@ export class WorkspaceMonitor {
   async #rebuildProjects(): Promise<Map<string, MonitorScopeState>> {
     const previous = new Set(this.#projects.keys());
     this.#projects.clear();
-    for (const [owner, demand] of this.#projectsByOwner) {
-      const resource = this.#projects.get(demand.projectId) ?? {
-        projectId: demand.projectId,
-        projectDir: demand.projectDir,
-        owners: new Set<string>(),
-        directories: new Set<string>(),
-      };
-      resource.owners.add(owner);
-      for (const directory of demand.directories)
-        resource.directories.add(directory);
-      this.#projects.set(demand.projectId, resource);
-      previous.delete(demand.projectId);
+    for (const [owner, demands] of this.#projectsByOwner) {
+      for (const demand of demands.values()) {
+        const resource = this.#projects.get(demand.projectId) ?? {
+          projectId: demand.projectId,
+          projectDir: demand.projectDir,
+          owners: new Set<string>(),
+          directories: new Set<string>(),
+        };
+        resource.owners.add(owner);
+        for (const directory of demand.directories)
+          resource.directories.add(directory);
+        this.#projects.set(demand.projectId, resource);
+        previous.delete(demand.projectId);
+      }
     }
     for (const projectId of previous)
       await this.#native().remove(projectScopeId(projectId));
@@ -253,15 +274,17 @@ export class WorkspaceMonitor {
   async #rebuildRepositories(): Promise<Map<string, MonitorScopeState>> {
     const previous = new Set(this.#repositories.keys());
     this.#repositories.clear();
-    for (const [owner, demand] of this.#repositoriesByOwner) {
-      const key = repositoryKey(demand.projectId, demand.repo);
-      const resource = this.#repositories.get(key) ?? {
-        ...demand,
-        owners: new Set<string>(),
-      };
-      resource.owners.add(owner);
-      this.#repositories.set(key, resource);
-      previous.delete(key);
+    for (const [owner, demands] of this.#repositoriesByOwner) {
+      for (const demand of demands.values()) {
+        const key = repositoryKey(demand.projectId, demand.repo);
+        const resource = this.#repositories.get(key) ?? {
+          ...demand,
+          owners: new Set<string>(),
+        };
+        resource.owners.add(owner);
+        this.#repositories.set(key, resource);
+        previous.delete(key);
+      }
     }
     for (const key of previous) {
       const [projectId, repo] = JSON.parse(key) as [string, string];

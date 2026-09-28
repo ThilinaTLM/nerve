@@ -18,7 +18,11 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
     "git.repository.monitor.sync": async (state, params, invocation) => {
       const owner = monitorOwner(invocation.monitorOwner);
       if (!params.active) {
-        await state.workspaceMonitor.clearRepository(owner);
+        await state.workspaceMonitor.clearRepository(
+          owner,
+          params.projectId,
+          repo(params),
+        );
         return { active: false, degraded: false };
       }
       return state.workspaceMonitor.syncRepository(
@@ -29,9 +33,11 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
         true,
       );
     },
-    "git.repository.monitor.clear": async (state, _params, invocation) => {
+    "git.repository.monitor.clear": async (state, params, invocation) => {
       await state.workspaceMonitor.clearRepository(
         monitorOwner(invocation.monitorOwner),
+        params.projectId,
+        repo(params),
       );
       return { active: false, degraded: false };
     },

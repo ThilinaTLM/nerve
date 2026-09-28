@@ -110,6 +110,7 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.git.repository.monitor.sync",
+    { invocationScope: "session" },
   ),
   defineOperation(
     "git.repository.monitor.clear",
@@ -119,6 +120,7 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.git.repository.monitor.clear",
+    { invocationScope: "session" },
   ),
   defineOperation(
     "git.repository.refresh",
