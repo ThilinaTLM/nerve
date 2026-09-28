@@ -4,7 +4,11 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { DiscoverAction } from "../content/entries.js";
-import type { DiscoverNewsSection, ResolvedNewsEntry } from "../policy.js";
+import {
+  discoverReleaseLabel,
+  type DiscoverNewsSection,
+  type ResolvedNewsEntry,
+} from "../policy.js";
 import DiscoverActionButton from "./DiscoverActionButton.svelte";
 import DiscoverFeaturedNews from "./DiscoverFeaturedNews.svelte";
 import DiscoverList from "./DiscoverList.svelte";
@@ -31,7 +35,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
     unread={entry.unread}
   >
     {#snippet meta()}
-      <Badge variant="outline">{entry.releasedIn}</Badge>
+      <Badge variant="outline">{discoverReleaseLabel(entry.releasedIn)}</Badge>
     {/snippet}
     {#snippet actions()}
       {#if entry.action}

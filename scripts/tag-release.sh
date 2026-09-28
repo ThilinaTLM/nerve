@@ -63,25 +63,41 @@ node --input-type=module - \
   "${repo_root}" \
   "${version}" \
   "${script_dir}/lib/release-version.mjs" \
-  "${script_dir}/lib/workspace-packages.mjs" <<'NODE'
+  "${script_dir}/lib/workspace-packages.mjs" \
+  "${script_dir}/lib/discover-release.mjs" <<'NODE'
 import { pathToFileURL } from "node:url";
 
-const [repoRoot, version, releaseVersionPath, workspacePackagesPath] =
-  process.argv.slice(2);
-const [{ setWorkspaceVersion }, { assertWorkspaceVersionsMatch }] =
-  await Promise.all([
-    import(pathToFileURL(releaseVersionPath)),
-    import(pathToFileURL(workspacePackagesPath)),
-  ]);
+const [
+  repoRoot,
+  version,
+  releaseVersionPath,
+  workspacePackagesPath,
+  discoverReleasePath,
+] = process.argv.slice(2);
+const [
+  { setWorkspaceVersion },
+  { assertWorkspaceVersionsMatch },
+  { stampPendingDiscoverRelease },
+] = await Promise.all([
+  import(pathToFileURL(releaseVersionPath)),
+  import(pathToFileURL(workspacePackagesPath)),
+  import(pathToFileURL(discoverReleasePath)),
+]);
 
 const changedPaths = await setWorkspaceVersion(repoRoot, version);
 if (changedPaths.length === 0) {
   throw new Error(`Workspace manifests already use version ${version}.`);
 }
 await assertWorkspaceVersionsMatch(repoRoot);
+const discover = await stampPendingDiscoverRelease(repoRoot, version);
 
 console.log(`Updated workspace manifests to version ${version}:`);
 for (const path of changedPaths) console.log(`  ${path}`);
+if (discover.changedPath) {
+  console.log(
+    `Stamped ${discover.count} pending Discover announcement(s) in ${discover.changedPath}.`,
+  );
+}
 NODE
 
 node "${migration_release_tool}" stamp "${version}"
@@ -89,6 +105,7 @@ node "${migration_release_tool}" stamp "${version}"
 git add -- \
   package.json \
   packages/*/package.json \
+  packages/workbench-app/src/lib/app/discover/content/news.ts \
   packages/native/native/Cargo.toml \
   packages/workbench-server/src/infrastructure/storage-migrations/migrations.lock.json \
   packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts \

@@ -12,6 +12,7 @@ import {
   exhaustAutoOpen,
   resolveNews,
   unreadNewsCount,
+  unreadReleasedNewsCount,
   type DiscoverBadge,
   type DiscoverSections,
 } from "./policy.js";
@@ -125,10 +126,11 @@ export function considerAutomaticDiscover(): void {
     alreadyConsidered: discoverState.consideredGeneration === generation,
     firstRun: discoverState.firstRun,
     appVersion: appVersion(),
-    unreadForCurrentVersion: [
-      sections.news.featured,
-      ...sections.news.current,
-    ].filter((entry) => entry?.unread).length,
+    unreadForCurrentVersion: unreadReleasedNewsCount(
+      [sections.news.featured, ...sections.news.current].filter(
+        (entry) => entry !== undefined,
+      ),
+    ),
     autoOpen: discoverState.progress.autoOpen,
   });
   discoverState.consideredGeneration = generation;

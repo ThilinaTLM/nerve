@@ -7,6 +7,28 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "async-subagents",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "workbench",
+    title: "Delegate coding work to persistent teammates",
+    summary:
+      "Async Subagents let the lead assign autonomous implementation work while it continues with its own tasks.",
+    details: [
+      "Enable Async Subagents in Settings → Tools → Core, or for the current conversation from Tools and skills beside the composer.",
+      "Named teammates share the project worktree, retain their own context for follow-up assignments, and appear in the Context panel.",
+      "Teammates do not automatically receive the lead transcript, so assignments should include relevant findings, paths, and constraints.",
+      "Up to four teammate assignments can run at once. Completion is delivered durably and can wake the lead.",
+    ],
+    action: {
+      kind: "settings",
+      pageId: "tools",
+      sectionId: "core",
+      label: "Configure Async Subagents",
+    },
+  },
+  {
     id: "composer-power-tools",
     version: 2,
     releasedIn: "0.31.0",

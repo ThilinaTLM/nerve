@@ -9,9 +9,11 @@ import {
   countAutoOpen,
   decideDiscoverAutoOpen,
   discoverBadge,
+  discoverReleaseLabel,
   exhaustAutoOpen,
   resolveNews,
   unreadNewsCount,
+  unreadReleasedNewsCount,
   type DiscoverAutoOpenState,
 } from "./policy.js";
 import { guideCatalog } from "./guides/catalog.js";
@@ -82,6 +84,33 @@ describe("Discover sections", () => {
     const sections = sectionsFor({}, undefined);
     assert.equal(sections.news.archive.length, 0);
     assert.equal(sections.news.current.length, 2);
+  });
+
+  it("previews pending announcements without treating them as released", () => {
+    const pending = resolveNews(
+      [
+        {
+          id: "pending",
+          version: 1,
+          releasedIn: "next",
+          featured: true,
+          title: "Pending",
+          summary: "Pending summary",
+        },
+      ],
+      {},
+    );
+    const sections = buildDiscoverSections({
+      guides: [],
+      news: pending,
+      tips: [],
+      appVersion: "0.29.0",
+    });
+
+    assert.equal(sections.news.featured?.id, "pending");
+    assert.equal(discoverReleaseLabel("next"), "Next release");
+    assert.equal(unreadNewsCount(pending), 1);
+    assert.equal(unreadReleasedNewsCount(pending), 0);
   });
 
   it("marks entries read once the stored version catches up", () => {
@@ -242,7 +271,7 @@ describe("Discover news catalog", () => {
     for (const entry of discoverNewsCatalog) {
       assert.equal(ids.has(entry.id), false, `duplicate id ${entry.id}`);
       ids.add(entry.id);
-      assert.match(entry.releasedIn, /^\d+\.\d+\.\d+/);
+      assert.match(entry.releasedIn, /^(?:next|\d+\.\d+\.\d+)/);
       assert.equal(entry.summary.includes("\n"), false);
       assert.equal(entry.summary.length <= 110, true, entry.id);
       if (!entry.featured) continue;
