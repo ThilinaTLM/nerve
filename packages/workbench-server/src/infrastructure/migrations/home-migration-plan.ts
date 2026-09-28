@@ -1,3 +1,5 @@
+import { runStorageMigrationWorker } from "../storage-migrations/worker-client.js";
+import type { StorageMigrationOperationOptions } from "../storage-migrations/public-api.js";
 import { createHash } from "node:crypto";
 import type {
   CurrentHomeMigrationPlan,
@@ -20,6 +22,19 @@ export class HomeMigrationBlockedError extends Error {
 }
 
 export async function inspectPendingHomeMigrations(
+  home: string,
+  options: StorageMigrationOperationOptions = {},
+): Promise<CurrentHomeMigrationPlan> {
+  const result = await runStorageMigrationWorker(
+    { operation: "inspect-current", home },
+    options,
+  );
+  if (result.operation !== "inspect-current")
+    throw new Error("Unexpected storage migration result.");
+  return result.value;
+}
+
+export async function inspectPendingHomeMigrationsCore(
   home: string,
 ): Promise<CurrentHomeMigrationPlan> {
   const paths = storagePaths(home);

@@ -1,34 +1,12 @@
-import {
-  daemonConfigSchema,
-  harnessConfigSchema,
-  integrationsConfigSchema,
-  nerveHomeManifestSchema,
-  providersConfigSchema,
-  uiConfigSchema,
-} from "@nervekit/contracts/settings";
+import { nerveHomeManifestSchema } from "@nervekit/contracts/settings";
+import { readHomeConfiguration } from "../configuration/home-configuration.js";
 import { CanonicalDatabase } from "../persistence/canonical-sqlite/canonical-database.js";
 import { readJsonFile } from "./json.js";
 import type { StoragePaths } from "./paths.js";
 
 export async function assertCurrentStorage(paths: StoragePaths): Promise<void> {
   nerveHomeManifestSchema.parse(await readJsonFile(paths.manifestPath));
-  await Promise.all([
-    readJsonFile(paths.daemonConfigPath).then((value) =>
-      daemonConfigSchema.parse(value),
-    ),
-    readJsonFile(paths.harnessConfigPath).then((value) =>
-      harnessConfigSchema.parse(value),
-    ),
-    readJsonFile(paths.uiConfigPath).then((value) =>
-      uiConfigSchema.parse(value),
-    ),
-    readJsonFile(paths.providersConfigPath).then((value) =>
-      providersConfigSchema.parse(value),
-    ),
-    readJsonFile(paths.integrationsConfigPath).then((value) =>
-      integrationsConfigSchema.parse(value),
-    ),
-  ]);
+  await readHomeConfiguration(paths);
   const database = new CanonicalDatabase(paths.sqlitePath, { queryOnly: true });
   try {
     database.assertSchemaCompatible();

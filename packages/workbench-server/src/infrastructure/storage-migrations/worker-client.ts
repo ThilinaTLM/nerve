@@ -35,11 +35,10 @@ export async function runStorageMigrationWorker(
   const reportHeartbeat = () => {
     const elapsedMs = Date.now() - startedAt;
     options.reportProgress?.({
-      phase: request.operation === "inspect" ? "inspect" : "apply",
-      message:
-        request.operation === "inspect"
-          ? `Storage upgrade planning is still running (${formatElapsed(elapsedMs)})`
-          : `Storage upgrade is still running (${formatElapsed(elapsedMs)})`,
+      phase: request.operation.startsWith("inspect") ? "inspect" : "apply",
+      message: request.operation.startsWith("inspect")
+        ? `Storage upgrade planning is still running (${formatElapsed(elapsedMs)})`
+        : `Storage upgrade is still running (${formatElapsed(elapsedMs)})`,
     });
   };
   const heartbeatDelay = setTimeout(() => {

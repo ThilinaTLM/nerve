@@ -1,3 +1,6 @@
+import { runStorageMigrationWorker } from "../storage-migrations/worker-client.js";
+import type { StorageMigrationOperationOptions } from "../storage-migrations/public-api.js";
+import { readHomeConfiguration } from "../configuration/home-configuration.js";
 import { cp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import type {
@@ -20,7 +23,7 @@ import {
 import { storagePaths } from "../storage-bootstrap/paths.js";
 import { assertCurrentStorage } from "../storage-bootstrap/storage-postconditions.js";
 import { acquireStorageStartupLock } from "../storage-bootstrap/startup-lock.js";
-import { inspectPendingHomeMigrations } from "./home-migration-plan.js";
+import { inspectPendingHomeMigrationsCore } from "./home-migration-plan.js";
 
 type PromotionPhase = "staged" | "source-renamed" | "promoted";
 type PromotionJournal = {
@@ -35,13 +38,34 @@ export async function applyHomeMigrationPlan(
   home: string,
   plan: CurrentHomeMigrationPlan,
   approval?: CurrentHomeMigrationApproval,
+  options: StorageMigrationOperationOptions = {},
+): Promise<CurrentHomeMigrationReport> {
+  const result = await runStorageMigrationWorker(
+    { operation: "apply-current", home, plan, approval },
+    options,
+  );
+  if (result.operation !== "apply-current")
+    throw new Error("Unexpected storage migration result.");
+  return result.value;
+}
+
+export async function applyHomeMigrationPlanCore(
+  home: string,
+  plan: CurrentHomeMigrationPlan,
+  approval?: CurrentHomeMigrationApproval,
+  options: StorageMigrationOperationOptions = {},
 ): Promise<CurrentHomeMigrationReport> {
   const resolvedHome = resolve(home);
   const lock = await acquireStorageStartupLock(resolvedHome, 15_000);
   const journalPath = `${resolvedHome}.current-migration.json`;
   try {
     await recoverPromotion(journalPath);
-    const current = await inspectPendingHomeMigrations(resolvedHome);
+    options.reportProgress?.({
+      phase: "configuration",
+      message: "Checking older home configuration",
+    });
+    await readHomeConfiguration(storagePaths(resolvedHome));
+    const current = await inspectPendingHomeMigrationsCore(resolvedHome);
     if (current.fingerprint !== plan.fingerprint) {
       throw new Error(
         "Storage migration plan changed; inspect and confirm it again.",
@@ -92,6 +116,10 @@ export async function applyHomeMigrationPlan(
       finalBackup,
       phase: "staged",
     });
+    options.reportProgress?.({
+      phase: "stage",
+      message: "Copying previous storage to a migration workspace",
+    });
     await cp(resolvedHome, staging, {
       recursive: true,
       verbatimSymlinks: true,
@@ -137,11 +165,22 @@ export async function applyHomeMigrationPlan(
     }
     await removeQueryCache(stagingPaths.queryCachePath);
 
-    const storage = await initializeStorage(staging);
+    const storage = await initializeStorage(staging, {
+      reportStartupProgress: (progress) =>
+        options.reportProgress?.({ phase: "apply", message: progress.message }),
+    });
     await storage.canonicalStore.close();
+    options.reportProgress?.({
+      phase: "verify",
+      message: "Verifying migrated storage and configuration",
+    });
     await assertCurrentStorage(stagingPaths);
     await recordSkippedConversations(stagingPaths.migrationLedgerPath, current);
 
+    options.reportProgress?.({
+      phase: "promote",
+      message: "Installing migrated storage",
+    });
     await rename(resolvedHome, backupSibling);
     await writePromotionJournal(journalPath, {
       home: resolvedHome,

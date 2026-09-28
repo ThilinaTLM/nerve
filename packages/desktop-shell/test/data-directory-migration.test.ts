@@ -211,13 +211,27 @@ describe("desktop data-directory preparation", () => {
         },
       ],
     };
+    const messages: string[] = [];
     const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve" },
+      {
+        home: "/home/test/.nerve",
+        onProgress: (message) => messages.push(message),
+      },
       {
         ...dialog,
         inspect: (async () => ({ kind: "current", manifest: {} })) as never,
-        inspectCurrentMigrations: async () => plan,
-        applyCurrentMigrations: (async (_home, _plan, approval) => {
+        inspectCurrentMigrations: async (_home, options) => {
+          options?.reportProgress?.({
+            phase: "inspect",
+            message: "Inspecting older home",
+          });
+          return plan;
+        },
+        applyCurrentMigrations: async (_home, _plan, approval, options) => {
+          options?.reportProgress?.({
+            phase: "stage",
+            message: "Copying previous storage to a migration workspace",
+          });
           approved = approval?.approvedIssueIds ?? [];
           return {
             format: "nerve-current-home-migration",
@@ -233,7 +247,7 @@ describe("desktop data-directory preparation", () => {
             ],
             backupPath: "/home/test/.nerve/backups/current-home",
           };
-        }) as never,
+        },
         initialize: (async () => ({
           canonicalStore: { close: async () => undefined },
         })) as never,
@@ -242,6 +256,10 @@ describe("desktop data-directory preparation", () => {
 
     assert.deepEqual(result, { status: "ready" });
     assert.deepEqual(approved, ["issue-1"]);
+    assert.ok(messages.includes("Inspecting older home"));
+    assert.ok(
+      messages.includes("Copying previous storage to a migration workspace"),
+    );
     assert.deepEqual(dialog.dialogs[0]?.buttons, [
       "Skip affected conversations and continue",
       "Quit",

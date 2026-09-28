@@ -387,6 +387,13 @@ test("skips an explicitly approved corrupt conversation and retains the original
   const fixture = await legacyFixture();
   t.after(() => rm(fixture.home, { recursive: true, force: true }));
   fixture.corruptLatestChecksum();
+  // Older homes legitimately omit additive settings. Post-migration validation
+  // must use the same defaults-aware reader as normal startup.
+  const harnessPath = join(fixture.home, "config", "harness.json");
+  const harness = JSON.parse(await readFile(harnessPath, "utf8"));
+  delete harness.asyncSubagent;
+  delete harness.tools.imageGeneration;
+  await writeFile(harnessPath, JSON.stringify(harness));
   const plan = await inspectPendingHomeMigrations(fixture.home);
   const issue = plan.issues[0];
   assert.ok(issue?.conversationId);
@@ -402,10 +409,29 @@ test("skips an explicitly approved corrupt conversation and retains the original
     /plan changed/,
   );
 
-  const report = await applyHomeMigrationPlan(fixture.home, plan, {
-    fingerprint: plan.fingerprint,
-    approvedIssueIds: [issue.id],
-  });
+  const messages: string[] = [];
+  const report = await applyHomeMigrationPlan(
+    fixture.home,
+    plan,
+    {
+      fingerprint: plan.fingerprint,
+      approvedIssueIds: [issue.id],
+    },
+    {
+      reportProgress: (progress) => messages.push(progress.message),
+      heartbeat: { delayMs: 0, intervalMs: 10 },
+    },
+  );
+  assert.ok(messages.includes("Checking older home configuration"));
+  assert.ok(
+    messages.includes("Copying previous storage to a migration workspace"),
+  );
+  assert.ok(messages.includes("Verifying migrated storage and configuration"));
+  assert.ok(
+    messages.some((message) =>
+      message.startsWith("Storage upgrade is still running"),
+    ),
+  );
 
   assert.equal(report.skippedConversations[0]?.conversationId, conversationId);
   assert.ok(report.backupPath);
