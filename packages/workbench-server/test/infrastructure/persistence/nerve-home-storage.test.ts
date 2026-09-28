@@ -27,7 +27,7 @@ async function temporaryHome(prefix: string) {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-test("initializes the required v1 home and keeps optional directories lazy", async (t) => {
+test("initializes the current home through the storage migration chain", async (t) => {
   const home = await temporaryHome("nerve-home-v1-");
   const progress: string[] = [];
   const storage = await initializeStorage(home, {
@@ -44,22 +44,8 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
     JSON.parse(await readFile(storage.paths.manifestPath, "utf8")),
     {
       format: "nerve-home",
-      version: 1,
-    },
-  );
-  const migrationLedger = JSON.parse(
-    await readFile(storage.paths.migrationLedgerPath, "utf8"),
-  ) as { format: string; version: number; entries: Array<{ id: string }> };
-  assert.deepEqual(
-    {
-      format: migrationLedger.format,
-      version: migrationLedger.version,
-      entries: migrationLedger.entries.map((entry) => entry.id),
-    },
-    {
-      format: "nerve-home-migrations",
-      version: 1,
-      entries: ["nerve-home-v1", "tool-result-payload-reference-v2"],
+      version: 2,
+      homeClass: "standard",
     },
   );
   for (const path of [
@@ -73,7 +59,6 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
     storage.paths.credentialsPath,
     storage.paths.localTokenPath,
     storage.paths.sqlitePath,
-    storage.paths.migrationLedgerPath,
   ]) {
     assert.equal((await stat(path)).isFile(), true, path);
   }
@@ -85,8 +70,8 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
       0o600,
     );
   }
-  assert.deepEqual(progress, ["storage-check"]);
-  assert.equal(storage.timings.sqliteMigrationApplyMs, 0);
+  assert.deepEqual(progress, ["storage-check", "storage-migration"]);
+  assert.ok(storage.timings.sqliteMigrationApplyMs >= 0);
   assert.ok(storage.timings.canonicalOpenMs >= 0);
   assert.equal((await stat(storage.paths.tasksPath)).isDirectory(), true);
   assert.equal(
@@ -116,6 +101,22 @@ test("initializes the required v1 home and keeps optional directories lazy", asy
     .map((row) => String((row as { name: unknown }).name));
   assert.equal(tables.includes("settings_store"), false);
   assert.equal(tables.includes("file_assets"), true);
+  const migrationIds = resources.database
+    .prepare("SELECT id FROM storage_migrations ORDER BY ordinal")
+    .all()
+    .map((row) => String((row as { id: unknown }).id));
+  assert.deepEqual(migrationIds, [
+    "0001-nerve-home-v1",
+    "0002-atomic-run-lifecycle-work",
+    "0003-authoritative-run-lifecycle",
+    "0004-convert-run-lifecycle",
+    "0005-async-subagent-completions",
+    "0006-explore-agent-names",
+    "0007-agent-async-obligations",
+    "0008-tool-result-payload-reference",
+    "0009-agent-async-obligations-backfill",
+    "0010-deletion-indexes",
+  ]);
 });
 
 test("fails closed on every non-empty unmanifested or unsupported home", async (t) => {

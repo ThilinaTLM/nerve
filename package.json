@@ -21,7 +21,13 @@
     "test:browser": "pnpm build:native && pnpm build:workbench-runtime && playwright test",
     "dev": "pnpm build:native && pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/skills --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --filter @nervekit/workbench-app dev",
-    "desktop": "pnpm --filter @nervekit/desktop-shell dev --"
+    "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
+    "migrations:new": "node scripts/storage-migrations/new.mjs",
+    "migrations:finalize": "node scripts/storage-migrations/finalize.mjs",
+    "migrations:check-release-fixture": "node scripts/storage-migrations/release-lifecycle.mjs check-fixture",
+    "home:clone": "tsx scripts/storage-migrations/home-clone.ts",
+    "home:migrate": "tsx scripts/storage-migrations/home-migrate.ts",
+    "home:restore": "tsx scripts/storage-migrations/home-restore.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

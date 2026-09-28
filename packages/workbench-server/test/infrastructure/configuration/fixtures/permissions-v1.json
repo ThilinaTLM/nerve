@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "rules": [
+    {
+      "id": "fixture-read",
+      "enabled": true,
+      "priority": 0,
+      "enforcement": "overridable",
+      "when": {
+        "toolNames": ["read"]
+      },
+      "decision": "allow"
+    }
+  ],
+  "futurePermissionOption": true
+}

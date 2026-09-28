@@ -38,17 +38,38 @@ import {
   electronOzonePlatformSchema,
 } from "./application-configuration.js";
 
-export const nerveHomeManifestSchema = z
+export const nerveHomeManifestV1Schema = z
   .object({
     format: z.literal("nerve-home"),
     version: z.literal(1),
   })
   .strict();
+export type NerveHomeManifestV1 = z.infer<typeof nerveHomeManifestV1Schema>;
+
+export const nerveHomeClassSchema = z.enum(["standard", "disposable"]);
+export type NerveHomeClass = z.infer<typeof nerveHomeClassSchema>;
+
+export const nerveHomeManifestV2Schema = z
+  .object({
+    format: z.literal("nerve-home"),
+    version: z.literal(2),
+    homeClass: nerveHomeClassSchema,
+  })
+  .strict();
+export type NerveHomeManifestV2 = z.infer<typeof nerveHomeManifestV2Schema>;
+
+/** Accepts both the original manifest and the current manifest on read. */
+export const nerveHomeManifestSchema = z.discriminatedUnion("version", [
+  nerveHomeManifestV1Schema,
+  nerveHomeManifestV2Schema,
+]);
 export type NerveHomeManifest = z.infer<typeof nerveHomeManifestSchema>;
 
-export const NERVE_HOME_MANIFEST: NerveHomeManifest = {
+/** Manifest written for a newly initialized home. */
+export const NERVE_HOME_MANIFEST: NerveHomeManifestV2 = {
   format: "nerve-home",
-  version: 1,
+  version: 2,
+  homeClass: "standard",
 };
 
 const agentSelectionConfigSchema = z

@@ -22,6 +22,7 @@ import {
   preflightLegacyPayloadFiles,
 } from "./tool-result-payload-files-v2.js";
 import type { StoragePaths } from "../storage-bootstrap/paths.js";
+import { hasFrameworkStorageMigration } from "./framework-migration-state.js";
 
 export const TOOL_RESULT_PAYLOAD_REFERENCE_V2_MIGRATION =
   "tool-result-payload-reference-v2";
@@ -80,6 +81,14 @@ export interface ToolResultPayloadReferenceMigrationResult {
 export async function inspectToolResultPayloadReferenceMigration(
   paths: StoragePaths,
 ): Promise<ToolResultPayloadReferenceMigrationInspection> {
+  if (
+    hasFrameworkStorageMigration(
+      paths.sqlitePath,
+      "0008-tool-result-payload-reference",
+    )
+  ) {
+    return { required: false, issues: [] };
+  }
   const ledger = await readMigrationLedger(paths.migrationLedgerPath);
   if (hasMigration(ledger)) return { required: false, issues: [] };
 
@@ -131,6 +140,13 @@ export async function migrateToolResultPayloadReferences(
   paths: StoragePaths,
   options: { onStart?: () => void } = {},
 ): Promise<ToolResultPayloadReferenceMigrationResult> {
+  if (
+    hasFrameworkStorageMigration(
+      paths.sqlitePath,
+      "0008-tool-result-payload-reference",
+    )
+  )
+    return emptyResult(false);
   const ledger = await readMigrationLedger(paths.migrationLedgerPath);
   if (hasMigration(ledger)) return emptyResult(false);
   options.onStart?.();

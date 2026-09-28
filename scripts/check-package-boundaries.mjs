@@ -9,6 +9,7 @@ import { validatePackageExportSurfaces } from "./lib/package-export-surfaces.mjs
 import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.mjs";
 import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
 import { sourceNamingPolicyViolation } from "./lib/source-naming-policy.mjs";
+import { storageMigrationPolicyViolations } from "./lib/storage-migration-policy.mjs";
 
 export function checkRepositoryBoundaries(repoRoot) {
   const inventory = createRepositorySourceInventory(repoRoot);
@@ -29,6 +30,8 @@ export function checkRepositoryBoundaries(repoRoot) {
   checkRetiredSurfaces(inventory, fail);
   checkWorkbenchBoundaries(inventory, fail);
   checkUiStyles(inventory, fail);
+  for (const violation of storageMigrationPolicyViolations(repoRoot))
+    fail("storage migrations", violation);
   return failures.sort();
 }
 

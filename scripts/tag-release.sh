@@ -55,6 +55,10 @@ else
   fi
 fi
 
+migration_release_tool="${script_dir}/storage-migrations/release-lifecycle.mjs"
+node "${migration_release_tool}" check
+node "${migration_release_tool}" check-fixture "${version}"
+
 node --input-type=module - \
   "${repo_root}" \
   "${version}" \
@@ -80,10 +84,14 @@ console.log(`Updated workspace manifests to version ${version}:`);
 for (const path of changedPaths) console.log(`  ${path}`);
 NODE
 
+node "${migration_release_tool}" stamp "${version}"
+
 git add -- \
   package.json \
   packages/*/package.json \
   packages/native/native/Cargo.toml \
+  packages/workbench-server/src/infrastructure/storage-migrations/migrations.lock.json \
+  packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts \
   Cargo.lock
 
 if git diff --cached --quiet; then

@@ -103,12 +103,29 @@ export interface ErrorPageOptions {
   summary?: string;
 }
 
+export function startupErrorRetryable(error: unknown): boolean {
+  const failure = structuredStartupFailure(error);
+  return failure ? failure.retryable : true;
+}
+
 export function errorHtml(
   error: unknown,
   dataDir = "~/.nerve",
   options: ErrorPageOptions = {},
 ): string {
-  const message = error instanceof Error ? error.message : String(error);
+  const failure = structuredStartupFailure(error);
+  const message = failure
+    ? [
+        failure.message,
+        `Code: ${failure.code}`,
+        `Phase: ${failure.phase}`,
+        failure.stepId ? `Step: ${failure.stepId}` : undefined,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : error instanceof Error
+      ? error.message
+      : String(error);
   const daemonOutput =
     error !== null &&
     typeof error === "object" &&
@@ -120,7 +137,7 @@ export function errorHtml(
     daemonOutput && !message.includes(daemonOutput)
       ? `${message}\n\nDaemon output:\n${daemonOutput}`
       : message;
-  const retry = options.retry ?? false;
+  const retry = options.retry ?? failure?.retryable ?? false;
   const title = options.title ?? "Nerve is unavailable";
   const summary =
     options.summary ??
@@ -171,6 +188,47 @@ export function errorHtml(
     ${retryScript}
   </body>
 </html>`;
+}
+
+interface StructuredStartupFailure {
+  code: string;
+  phase: string;
+  message: string;
+  retryable: boolean;
+  stepId?: string;
+}
+
+function structuredStartupFailure(
+  error: unknown,
+): StructuredStartupFailure | undefined {
+  if (error === null || typeof error !== "object" || !("failure" in error)) {
+    return undefined;
+  }
+  const failure = error.failure;
+  if (
+    failure === null ||
+    typeof failure !== "object" ||
+    !("code" in failure) ||
+    typeof failure.code !== "string" ||
+    !("phase" in failure) ||
+    typeof failure.phase !== "string" ||
+    !("message" in failure) ||
+    typeof failure.message !== "string" ||
+    !("retryable" in failure) ||
+    typeof failure.retryable !== "boolean"
+  ) {
+    return undefined;
+  }
+  return {
+    code: failure.code,
+    phase: failure.phase,
+    message: failure.message,
+    retryable: failure.retryable,
+    stepId:
+      "stepId" in failure && typeof failure.stepId === "string"
+        ? failure.stepId
+        : undefined,
+  };
 }
 
 function shellStyles(): string {

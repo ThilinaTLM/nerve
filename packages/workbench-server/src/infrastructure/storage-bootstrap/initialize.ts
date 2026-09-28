@@ -11,10 +11,7 @@ import {
 } from "@nervekit/contracts/settings";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import {
-  CanonicalStore,
-  inspectCanonicalSchema,
-} from "../persistence/canonical-sqlite/index.js";
+import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
 import {
   configurationWithSettings,
   initializeHomeConfiguration,
@@ -25,14 +22,11 @@ import {
 import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import { writeStorageMigrationFailureReport } from "../storage-migrations/runner/failure-report.js";
 import {
-  currentHomeMigrationEntries,
-  migrateToolResultPayloadReferences,
-} from "../migrations/tool-result-payload-reference-v2.js";
-import {
-  HomeMigrationBlockedError,
-  inspectPendingHomeMigrations,
-} from "../migrations/home-migration-plan.js";
+  createFreshStorage,
+  prepareExistingStorage,
+} from "../storage-migrations/runner/service.js";
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -127,60 +121,54 @@ export async function initializeStorage(
       await secretProvider.validate();
     }
     const sqliteMigrationCheckStartedAt = performance.now();
-    const schemaInspection = fresh
-      ? { kind: "uninitialized" as const }
-      : inspectCanonicalSchema(paths.sqlitePath);
-    const sqliteMigrationCheckMs = Math.round(
-      performance.now() - sqliteMigrationCheckStartedAt,
-    );
-    if (!fresh) {
-      const migrationPlan = await inspectPendingHomeMigrations(home);
-      if (migrationPlan.issues.length > 0) {
-        throw new HomeMigrationBlockedError(migrationPlan);
-      }
-    }
-    if (schemaInspection.kind === "migration-required") {
+    const identity = storageBuildIdentity();
+    const reportMigration = (_phase: string, message: string) =>
       options.reportStartupProgress?.({
         type: "nerve.startup.progress",
         phase: "storage-migration",
-        message: "Updating storage format",
+        message,
       });
-    }
-    const dataMigrationStartedAt = performance.now();
-    const dataMigration = fresh
-      ? undefined
-      : await migrateToolResultPayloadReferences(paths, {
-          onStart: () =>
-            options.reportStartupProgress?.({
-              type: "nerve.startup.progress",
-              phase: "storage-migration",
-              message: "Updating stored tool results",
-            }),
+    try {
+      if (fresh) {
+        reportMigration("stage", "Creating verified storage");
+        await createFreshStorage({ paths, ...identity });
+      } else {
+        await prepareExistingStorage({
+          paths,
+          ...identity,
+          report: reportMigration,
         });
-    const dataMigrationMs = Math.round(
-      performance.now() - dataMigrationStartedAt,
+      }
+    } catch (error) {
+      await writeStorageMigrationFailureReport(
+        paths.migrationFailureReportPath,
+        {
+          runId: crypto.randomUUID(),
+          failedAt: new Date(),
+          failure: {
+            code:
+              error instanceof Error ? error.name : "STORAGE_MIGRATION_ERROR",
+            phase: "apply",
+            message: error instanceof Error ? error.message : String(error),
+            retryable: true,
+            appVersion: identity.appVersion,
+            ...(identity.gitSha ? { gitSha: identity.gitSha } : {}),
+          },
+          steps: [],
+        },
+      ).catch(() => undefined);
+      throw error;
+    }
+    const sqliteMigrationApplyMs = Math.round(
+      performance.now() - sqliteMigrationCheckStartedAt,
     );
+    const sqliteMigrationCheckMs = 0;
     const canonicalOpenStartedAt = performance.now();
     const canonicalStore = new CanonicalStore(paths.sqlitePath);
     await canonicalStore.initialize();
     const canonicalOpenMs = Math.round(
       performance.now() - canonicalOpenStartedAt,
     );
-    const sqliteMigrationApplyMs =
-      (schemaInspection.kind === "migration-required" ? canonicalOpenMs : 0) +
-      (dataMigration?.applied ? dataMigrationMs : 0);
-    if (fresh) {
-      const appliedAt = new Date().toISOString();
-      await atomicWriteJson(
-        paths.migrationLedgerPath,
-        {
-          format: "nerve-home-migrations",
-          version: 1,
-          entries: currentHomeMigrationEntries(appliedAt),
-        },
-        0o600,
-      );
-    }
     const settings = settingsFromConfiguration(configuration);
 
     if (!(await pathExists(paths.localTokenPath))) {
@@ -220,6 +208,21 @@ export async function initializeStorage(
   } finally {
     await startupLock.release();
   }
+}
+
+function storageBuildIdentity(): {
+  buildId: string;
+  appVersion: string;
+  gitSha?: string;
+} {
+  const appVersion = process.env.npm_package_version ?? "0.31.1";
+  const gitSha = process.env.NERVE_GIT_SHA?.trim() || undefined;
+  const developmentMarker = process.env.NODE_ENV === "production" ? "" : ":dev";
+  return {
+    appVersion,
+    ...(gitSha ? { gitSha } : {}),
+    buildId: `${appVersion}:${gitSha ?? "source"}${developmentMarker}`,
+  };
 }
 
 export async function writeSettings(

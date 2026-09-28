@@ -40,7 +40,7 @@ The path inventory is owned by [`storage-bootstrap/paths.ts`](../../packages/wor
 └── backups/
 ```
 
-`manifest.json` identifies the current `nerve-home` format version `1`. Optional directories are created lazily. Electron's `userData` profile is outside `NERVE_HOME` and must be isolated separately in desktop tests that require full browser-state isolation.
+`manifest.json` version 2 identifies the home as `standard` or `disposable`. Version-1 manifests remain valid and are classified as standard without being rewritten. A disposable marker is never accepted at the default `~/.nerve` path. Optional directories are created lazily. Electron's `userData` profile is outside `NERVE_HOME` and must be isolated separately in desktop tests that require full browser-state isolation.
 
 ### Ownership
 
@@ -61,7 +61,10 @@ The physical schema is owned by [`canonical-sqlite/schema.ts`](../../packages/wo
 
 | Table                                              | Role                                                                                |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `schema_migrations`                                | Canonical schema baseline and migration identity.                                   |
+| `storage_migrations`                               | Unified ordered schema/data/file/config migration ledger.                           |
+| `storage_read_sweeps`                              | Build identities already verified by the current read path.                         |
+| `storage_quarantine`                               | Retained originals and visibility flags for isolated malformed records.             |
+| `schema_migrations`                                | Read-only compatibility evidence for pre-framework homes during rollout.            |
 | `conversation_records`                             | Ordered, versioned messages, summaries, runs, tool calls, and tool batches.         |
 | `conversation_record_projections`                  | Query projections for message, summary, and run records.                            |
 | `tool_call_projections`                            | Queryable tool-call status, interaction, and ownership fields.                      |
@@ -75,18 +78,12 @@ Projects, conversations, agents, settings, tasks, and other domain state use rep
 
 ### Additive deletion access paths
 
-Startup validates the immutable v1 migration ledger, then transactionally installs
+Unified step `0010-deletion-indexes` installs and verifies
 `durable_events_record(record_id)` and
 `agent_context_leaves_active_record(active_record_id)`. These indexes prevent
 foreign-key checks from scanning unrelated history for every deleted record.
-Existing index definitions are validated; an incorrectly named index fails startup
-rather than being silently accepted. The baseline SQL and migration ledger do not
-change, and initialization never rebuilds, vacuums, or replaces the database.
-
-The first updated startup can take longer on a large home and requires temporary
-additional disk space for index construction. Requests are not accepted until the
-storage check finishes. A failed index transaction preserves canonical data and
-can be retried on a later startup after resolving the reported error.
+Existing definitions are adopted only when they match exactly; an incompatible
+index fails planning before the active database is replaced.
 
 Conversation deletion uses bounded writer commands and yields between them. A
 `conversation_deletion` document records committed deletion intent before the
@@ -125,9 +122,15 @@ Task output is byte-faithful and append-heavy, so bundles live beneath `data/tas
 
 ## Migration boundary
 
-Ordinary startup fails closed for malformed, unknown, or future homes. The one legacy import path accepts only the released `nerve-workbench-state` version `2` layout with its checksummed ledger through `0012-remove-workers`. It migrates directly into a staged `nerve-home` v1 and canonical schema-v1 baseline, validates the result, atomically promotes it, and retains the original tree under `backups/`.
+Ordinary startup acquires one PID-aware home lock, recovers any interrupted promotion, and plans against SQLite read-only. Schema, data, managed-file, and cross-document configuration changes share the ordered registry and `storage_migrations` ledger under [`infrastructure/storage-migrations/`](../../packages/workbench-server/src/infrastructure/storage-migrations/).
 
-Development-only intermediate homes are not accepted. Logs, caches, task runtime state, daemon metadata, TLS identity, and generated diagnostics are regenerated rather than imported. The implementation is owned by [`infrastructure/migrations/`](../../packages/workbench-server/src/infrastructure/migrations/) and storage-bootstrap tests.
+Pending work runs against `migrations/work/<run-id>/nerve.sqlite`, created with `VACUUM INTO`, plus staged configuration and additive managed files. Verification runs SQLite integrity/foreign-key checks, step invariants, descriptor coverage, and the current payload readers. Promotion is journaled; the replaced database and configuration become `backups/storage/<timestamp>-before-<step>/`. A pre-commit failure discards the workspace and leaves active storage unchanged.
+
+Every persisted JSON/BLOB location is registered by [`persistence/payloads/descriptors.ts`](../../packages/workbench-server/src/infrastructure/persistence/payloads/descriptors.ts). Versioned codecs upgrade old payloads on read and preserve unknown fields through known-field updates. Build sweeps decode registered records once per build. Isolated malformed derived records can be quarantined; user content and configuration require exact fingerprinted approval, and impact thresholds stop unexpectedly broad quarantine.
+
+Released/final steps are immutable. Draft steps run only on explicitly disposable homes. Homes upgraded by unknown newer steps fail closed. Standard-home restore is an explicit CLI action with export and confirmation, not an automatic startup fallback.
+
+The one offline legacy import path remains separate: it accepts only the released `nerve-workbench-state` version `2` layout with its checksummed ledger through `0012-remove-workers`, imports into staging, validates, promotes, and retains the original tree under `backups/`. Logs, caches, task runtime state, daemon metadata, TLS identity, and generated diagnostics are regenerated rather than imported.
 
 ## Public guidance
 

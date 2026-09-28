@@ -144,7 +144,36 @@ export async function migrateLegacyV2Home(
       format: string;
       version: number;
       entries: Array<Record<string, unknown>>;
-    }>(storage.paths.migrationLedgerPath);
+    }>(storage.paths.migrationLedgerPath).catch(
+      (
+        error,
+      ): {
+        format: string;
+        version: number;
+        entries: Array<Record<string, unknown>>;
+      } => {
+        if (
+          !error ||
+          typeof error !== "object" ||
+          !("code" in error) ||
+          error.code !== "ENOENT"
+        )
+          throw error;
+        // Compatibility record for the explicitly separate legacy-v2 importer.
+        // The unified SQLite ledger remains authoritative.
+        return {
+          format: "nerve-home-migrations",
+          version: 1,
+          entries: [
+            { id: "nerve-home-v1", appliedAt: startedAt.toISOString() },
+            {
+              id: "tool-result-payload-reference-v2",
+              appliedAt: startedAt.toISOString(),
+            },
+          ],
+        };
+      },
+    );
     ledger.entries.push({
       id: "legacy-v2-to-nerve-home-v1",
       appliedAt: now().toISOString(),

@@ -42,21 +42,26 @@ export async function inspectPendingHomeMigrations(
   } else {
     if (schema.kind === "migration-required") {
       migrationIds.push(`canonical-schema-after-v${schema.version}`);
-    }
-    const toolResult = await inspectToolResultPayloadReferenceMigration(paths);
-    if (toolResult.required) {
-      migrationIds.push(TOOL_RESULT_PAYLOAD_REFERENCE_V2_MIGRATION);
-      for (const found of toolResult.issues) {
-        issues.push(
-          issue({
-            migrationId: TOOL_RESULT_PAYLOAD_REFERENCE_V2_MIGRATION,
-            scope: found.conversationId ? "conversation" : "global",
-            disposition: found.conversationId ? "skippable" : "required",
-            code: found.code,
-            reason: found.reason,
-            conversationId: found.conversationId,
-          }),
-        );
+      // The unified runner orders schema steps before payload conversion in a
+      // workspace. Inspecting the legacy conversion against an older schema
+      // would incorrectly require the latest schema and block the safe path.
+    } else {
+      const toolResult =
+        await inspectToolResultPayloadReferenceMigration(paths);
+      if (toolResult.required) {
+        migrationIds.push(TOOL_RESULT_PAYLOAD_REFERENCE_V2_MIGRATION);
+        for (const found of toolResult.issues) {
+          issues.push(
+            issue({
+              migrationId: TOOL_RESULT_PAYLOAD_REFERENCE_V2_MIGRATION,
+              scope: found.conversationId ? "conversation" : "global",
+              disposition: found.conversationId ? "skippable" : "required",
+              code: found.code,
+              reason: found.reason,
+              conversationId: found.conversationId,
+            }),
+          );
+        }
       }
     }
   }

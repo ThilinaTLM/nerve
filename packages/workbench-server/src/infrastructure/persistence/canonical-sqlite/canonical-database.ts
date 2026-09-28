@@ -121,6 +121,17 @@ export class CanonicalDatabase {
   }
 
   initialize(): void {
+    const frameworkLedger = this.database
+      .prepare(
+        `SELECT 1 AS present FROM sqlite_master
+         WHERE type = 'table' AND name = 'storage_migrations'`,
+      )
+      .get();
+    if (frameworkLedger) {
+      // Unified storage migrations already verified the promoted database.
+      // Runtime startup must not invoke any of the retired migration owners.
+      return;
+    }
     const ledgerValue = this.database
       .prepare(
         `SELECT 1 AS present FROM sqlite_master
