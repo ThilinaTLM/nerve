@@ -59,6 +59,7 @@ migration_release_tool="${script_dir}/storage-migrations/release-lifecycle.mjs"
 release_fixture="packages/workbench-server/test/fixtures/storage/releases/${version}"
 node "${migration_release_tool}" check
 if [[ ! -e "${release_fixture}" ]]; then
+  pnpm --dir "${script_dir}/.." --filter @nervekit/contracts exec tsc -b --force
   pnpm --dir "${script_dir}/.." exec tsx \
     "${script_dir}/storage-migrations/generate-release-fixture.ts" \
     "${repo_root}" \
