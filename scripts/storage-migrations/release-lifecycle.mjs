@@ -35,9 +35,9 @@ export function checkStorageMigrationReleaseState(repoRoot) {
       failures.push(`${entry.id}: migration step checksum is dirty`);
     }
   }
-  const expected = runtimeEntries(state.entries);
-  const actual = readRuntimeRegistry(resolve(repoRoot, registryFile));
-  if (JSON.stringify(actual) !== JSON.stringify(expected))
+  const expected = renderRuntimeRegistry(state.entries);
+  const actual = readFileSync(resolve(repoRoot, registryFile), "utf8");
+  if (actual !== expected)
     failures.push(
       "runtime migration registry metadata is out of sync with the lock",
     );
@@ -112,7 +112,42 @@ export function validateReleaseStorageFixture(repoRoot, version) {
 }
 
 export function renderRuntimeRegistry(entries) {
-  return `import type { MigrationStepKindV1 } from "../kit/define-step/v1.js";\n\nexport type StorageMigrationStage = "draft" | "final" | "released";\n\nexport interface StorageMigrationRegistryMetadata {\n  readonly id: string;\n  readonly ordinal: number;\n  readonly kind: MigrationStepKindV1;\n  readonly checksum: string;\n  readonly stage: StorageMigrationStage;\n  readonly acceptedChecksums: readonly string[];\n  /** Legacy raw-SQL checksums used only while adopting pre-framework ledgers. */\n  readonly legacyAdoptionChecksums?: readonly string[];\n}\n\n/**\n * Generated from migrations.lock.json by the release lifecycle tooling.\n * The JSON lock remains the tooling/review authority.\n */\nexport const STORAGE_MIGRATION_REGISTRY_METADATA = ${JSON.stringify(runtimeEntries(entries), null, 2)} as const satisfies readonly StorageMigrationRegistryMetadata[];\n`;
+  const registry = runtimeEntries(entries)
+    .map((entry) => renderRuntimeEntry(entry))
+    .join("\n");
+  return `import type { MigrationStepKindV1 } from "../kit/define-step/v1.js";\n\nexport type StorageMigrationStage = "draft" | "final" | "released";\n\nexport interface StorageMigrationRegistryMetadata {\n  readonly id: string;\n  readonly ordinal: number;\n  readonly kind: MigrationStepKindV1;\n  readonly checksum: string;\n  readonly stage: StorageMigrationStage;\n  readonly acceptedChecksums: readonly string[];\n  /** Legacy raw-SQL checksums used only while adopting pre-framework ledgers. */\n  readonly legacyAdoptionChecksums?: readonly string[];\n}\n\n/**\n * Generated from migrations.lock.json by the release lifecycle tooling.\n * The JSON lock remains the tooling/review authority.\n */\nexport const STORAGE_MIGRATION_REGISTRY_METADATA = [\n${registry}\n] as const satisfies readonly StorageMigrationRegistryMetadata[];\n`;
+}
+
+function renderRuntimeEntry(entry) {
+  const lines = [
+    "  {",
+    `    id: ${JSON.stringify(entry.id)},`,
+    `    ordinal: ${entry.ordinal},`,
+    `    kind: ${JSON.stringify(entry.kind)},`,
+    "    checksum:",
+    `      ${JSON.stringify(entry.checksum)},`,
+    `    stage: ${JSON.stringify(entry.stage)},`,
+    ...renderStringArray("acceptedChecksums", entry.acceptedChecksums),
+  ];
+  if (entry.legacyAdoptionChecksums) {
+    lines.push(
+      ...renderStringArray(
+        "legacyAdoptionChecksums",
+        entry.legacyAdoptionChecksums,
+      ),
+    );
+  }
+  lines.push("  },");
+  return lines.join("\n");
+}
+
+function renderStringArray(name, values) {
+  if (values.length === 0) return [`    ${name}: [],`];
+  return [
+    `    ${name}: [`,
+    ...values.map((value) => `      ${JSON.stringify(value)},`),
+    "    ],",
+  ];
 }
 
 function runtimeEntries(entries) {
@@ -127,17 +162,6 @@ function runtimeEntries(entries) {
       ? { legacyAdoptionChecksums: entry.legacyAdoptionChecksums }
       : {}),
   }));
-}
-
-function readRuntimeRegistry(file) {
-  const source = readFileSync(file, "utf8");
-  const match =
-    /export const STORAGE_MIGRATION_REGISTRY_METADATA = (\[[\s\S]*\]) as const satisfies/.exec(
-      source,
-    );
-  if (!match)
-    throw new Error("Runtime migration registry metadata is unreadable.");
-  return Function(`"use strict"; return (${match[1]});`)();
 }
 
 async function main() {
