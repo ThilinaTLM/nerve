@@ -49,8 +49,8 @@
     {
       "id": "0005-async-subagent-completions",
       "checksum": "db5718b27b138a3d65bff588e99a71a583dc3c8959b4cfda4a814e88272e4164",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "schema",
       "legacyAdoptionChecksums": [
@@ -60,8 +60,8 @@
     {
       "id": "0006-explore-agent-names",
       "checksum": "37e11647467095bb1a041add6de6eac73f5ad4b833ceb65f2c2ceaa15d6302ee",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "schema",
       "legacyAdoptionChecksums": [
@@ -71,8 +71,8 @@
     {
       "id": "0007-agent-async-obligations",
       "checksum": "2aded6ed904895a3b4fd92aa9711e6b9303a980209d99bf6af4410e5116026e8",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "schema",
       "legacyAdoptionChecksums": [
@@ -82,24 +82,24 @@
     {
       "id": "0008-tool-result-payload-reference",
       "checksum": "5f3365c02b33f177346ee716c7855248ff1fd668e50fe3839671641c1605d33e",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "files"
     },
     {
       "id": "0009-agent-async-obligations-backfill",
       "checksum": "cb865a299879b725ec6d323612b36e7231c40800a4a42ae11f07370c267f5b6d",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "data"
     },
     {
       "id": "0010-deletion-indexes",
       "checksum": "ae373fd2dccfb7ef1ca810c7c147fd7e943bf1cc81051465cac47b562ec9d417",
-      "stage": "final",
-      "releasedIn": null,
+      "stage": "released",
+      "releasedIn": "0.32.0",
       "acceptedChecksums": [],
       "kind": "schema"
     }

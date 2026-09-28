@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "async-subagents",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.32.0",
     featured: true,
     artwork: "workbench",
     title: "Delegate coding work to persistent teammates",
