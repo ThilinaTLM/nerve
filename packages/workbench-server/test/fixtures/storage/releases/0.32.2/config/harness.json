@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "defaults": {
+    "mode": "coding",
+    "permissionLevel": "autonomous",
+    "permissionRuleSetId": "autonomous",
+    "thinkingLevel": "off"
+  },
+  "rememberLastSelection": false,
+  "lastSelection": {
+    "mode": "coding",
+    "permissionLevel": "autonomous",
+    "permissionRuleSetId": "autonomous",
+    "thinkingLevel": "off"
+  },
+  "exploreAgent": {
+    "thinkingLevel": "off"
+  },
+  "asyncSubagent": {
+    "compactionProfile": "inherit",
+    "customTriggerPercent": 80,
+    "customKeepRecentPercent": 15
+  },
+  "compaction": {
+    "auto": true,
+    "profile": "balanced",
+    "customTriggerPercent": 80,
+    "customKeepRecentPercent": 15
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
+  "execution": {},
+  "tools": {
+    "disabled": [
+      "explain_image",
+      "generate_image",
+      "subagent_new",
+      "subagent_prompt",
+      "subagent_list",
+      "subagent_status",
+      "subagent_stop"
+    ],
+    "bash": {
+      "autoPromotion": {
+        "enabled": true,
+        "afterMs": 120000
+      }
+    },
+    "imageExplanation": {
+      "thinkingLevel": "off"
+    },
+    "imageGeneration": {
+      "provider": "openai-codex",
+      "model": "gpt-image-2.5-flare",
+      "options": {
+        "quality": "auto",
+        "size": "auto",
+        "background": "auto"
+      }
+    }
+  },
+  "skills": {
+    "disabled": [],
+    "nerve": {
+      "enabled": []
+    },
+    "agentBrowser": {
+      "enabled": []
+    }
+  },
+  "scopedModels": []
+}
