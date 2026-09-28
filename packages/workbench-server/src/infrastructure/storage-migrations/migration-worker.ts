@@ -1,3 +1,5 @@
+import { inspectPendingHomeMigrationsCore } from "../migrations/home-migration-plan.js";
+import { applyHomeMigrationPlanCore } from "../migrations/current-home-migration.js";
 import { parentPort, workerData } from "node:worker_threads";
 import {
   applyStorageMigrationPlanCore,
@@ -10,6 +12,9 @@ import type {
 
 const port = parentPort;
 if (!port) throw new Error("Storage migration worker requires a parent port.");
+// Bootstrap may await test-unreferenced SQLite workers; keep this operation
+// alive until all nested storage handles and locks have been closed.
+port.ref();
 
 const request = workerData as StorageMigrationWorkerRequest;
 const send = (response: StorageMigrationWorkerResponse): void => {
@@ -23,7 +28,18 @@ try {
       { type: "progress" }
     >["progress"],
   ) => send({ type: "progress", progress });
-  if (request.operation === "inspect") {
+  if (request.operation === "inspect-current") {
+    const value = await inspectPendingHomeMigrationsCore(request.home);
+    send({ type: "success", result: { operation: "inspect-current", value } });
+  } else if (request.operation === "apply-current") {
+    const value = await applyHomeMigrationPlanCore(
+      request.home,
+      request.plan,
+      request.approval,
+      { reportProgress: report },
+    );
+    send({ type: "success", result: { operation: "apply-current", value } });
+  } else if (request.operation === "inspect") {
     const value = await inspectStorageMigrationPlanCore(request.home, report);
     send({ type: "success", result: { operation: "inspect", value } });
   } else {
@@ -54,4 +70,6 @@ try {
         : {}),
     },
   });
+} finally {
+  port.close();
 }

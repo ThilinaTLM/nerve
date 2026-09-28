@@ -127,7 +127,10 @@ export async function prepareDesktopDataDirectory(
           : await (
               dependencies.inspectCurrentMigrations ??
               inspectPendingHomeMigrations
-            )(input.home);
+            )(input.home, {
+              reportProgress: (progress) =>
+                input.onProgress?.(progress.message),
+            });
         if (
           inspectUnifiedMigrations &&
           legacyMigrationPlan.migrationIds.length === 0 &&
@@ -177,10 +180,18 @@ export async function prepareDesktopDataDirectory(
             input.onProgress?.("Applying storage upgrade");
             const report = await (
               dependencies.applyCurrentMigrations ?? applyHomeMigrationPlan
-            )(input.home, migrationPlan, {
-              fingerprint: migrationPlan.fingerprint,
-              approvedIssueIds,
-            });
+            )(
+              input.home,
+              migrationPlan,
+              {
+                fingerprint: migrationPlan.fingerprint,
+                approvedIssueIds,
+              },
+              {
+                reportProgress: (progress) =>
+                  input.onProgress?.(progress.message),
+              },
+            );
             if (report.skippedConversations.length > 0) {
               await dependencies.showMessageBox({
                 type: "warning",

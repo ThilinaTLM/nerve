@@ -1,4 +1,7 @@
 import type {
+  CurrentHomeMigrationPlan,
+  CurrentHomeMigrationApproval,
+  CurrentHomeMigrationReport,
   HomeMigrationApproval,
   HomeMigrationPlan,
   HomeMigrationProgress,
@@ -6,6 +9,13 @@ import type {
 } from "@nervekit/contracts/storage";
 
 export type StorageMigrationWorkerRequest =
+  | { operation: "inspect-current"; home: string }
+  | {
+      operation: "apply-current";
+      home: string;
+      plan: CurrentHomeMigrationPlan;
+      approval?: CurrentHomeMigrationApproval;
+    }
   | { operation: "inspect"; home: string }
   | {
       operation: "apply";
@@ -15,6 +25,8 @@ export type StorageMigrationWorkerRequest =
     };
 
 export type StorageMigrationWorkerResult =
+  | { operation: "inspect-current"; value: CurrentHomeMigrationPlan }
+  | { operation: "apply-current"; value: CurrentHomeMigrationReport }
   | { operation: "inspect"; value: HomeMigrationPlan }
   | { operation: "apply"; value: HomeMigrationResult };
 
