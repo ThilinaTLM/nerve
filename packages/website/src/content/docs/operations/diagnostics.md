@@ -13,6 +13,8 @@ Desktop and daemon application logs are JSONL under `<NERVE_HOME>/logs`, includi
 
 Task tabs have separate streaming/backfilled terminal output and retention/truncation indicators. Task logs are not controlled by `NERVE_LOGGING_ENABLED`.
 
+Desktop launches show sanitized startup stages in the loading window and, when launched from `pnpm`, `npx`, or a terminal-installed command, on stderr. These stages cover storage checks and upgrades without exposing record contents or paths. If startup reports that a different local daemon version is already running, quit the existing Nerve desktop or daemon and launch the new version again; the desktop will not attach to an incompatible local daemon or terminate a process it does not own.
+
 ## Crash diagnostics
 
 Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes` and remain enabled independently of application logging. The **Diagnostic retention** period under **Settings → System → Diagnostics** prunes old reports at daemon startup, and **Settings → Storage → Clean up** can remove all retained reports on demand.

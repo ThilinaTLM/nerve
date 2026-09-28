@@ -67,7 +67,9 @@ export interface DesktopRuntimePorts {
   prepareDataDirectory(input: {
     home: string;
     mode?: "local" | "remote";
+    onProgress?: (message: string) => void;
   }): Promise<{ status: "ready" | "quit" }>;
+  reportStartupProgress(message: string): void;
   readCurrentSettings(dataDir: string): Promise<Settings>;
   configureNetworkSession(): Promise<void>;
   acquireDaemon(options: EnsureDaemonOptions): Promise<ManagedDaemon>;

@@ -1,6 +1,7 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { defaultSettings } from "@nervekit/contracts/settings";
+import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
 import type { DesktopCliOptions } from "./cli-options.js";
 import { createDesktopConfigurationController } from "./desktop-configuration.js";
 import { startRunRuntime } from "./runtime-recovery.js";
@@ -43,6 +44,17 @@ export interface DesktopRuntimeOptions {
   desktopConfiguration: ReturnType<
     ReturnType<typeof createDesktopConfigurationController>["resolve"]
   >;
+}
+
+function daemonStartupStatus(progress: DaemonStartupProgress): string {
+  switch (progress.phase) {
+    case "storage-check":
+      return "Checking local storage";
+    case "storage-migration":
+      return "Preparing local storage";
+    case "runtime-hydration":
+      return "Starting runtime services";
+  }
 }
 
 export class DesktopRuntime {
@@ -133,6 +145,7 @@ export class DesktopRuntime {
       }
     }
     let rendererCoreReadyReported = false;
+    let lastReportedStartupStatus: string | undefined;
     // Nested lifecycle callbacks deliberately capture the owning instance.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const runtime = this;
@@ -218,9 +231,21 @@ export class DesktopRuntime {
     ports.application
       .whenReady()
       .then(async () => {
+        const window = createMainWindow();
+        if (!window) return;
+        const splashShownAt = ports.now();
+        const initialStatus =
+          desktopOptions.mode === "remote"
+            ? "Preparing desktop"
+            : "Checking local storage";
+        reportStartupToTerminal(initialStatus);
+        await window.loadURL(
+          runtime.#shellPageUrls.create(loadingHtml({ status: initialStatus })),
+        );
         const preparation = await ports.prepareDataDirectory({
           home: desktopDataDir,
           mode: desktopOptions.mode,
+          onProgress: (message) => reportStartupStatus(window, message),
         });
         if (preparation.status === "quit") {
           runtime.#appQuitting = true;
@@ -254,7 +279,7 @@ export class DesktopRuntime {
         runtime.#listenerDisposers.push(
           ports.nativeTheme.onUpdated(runtime.#trayController.updateTrayIcon),
         );
-        await openMainWindow();
+        await startMainWindow(window, splashShownAt);
       })
       .catch((error: unknown) => {
         if (runtime.#disposed) return;
@@ -342,12 +367,9 @@ export class DesktopRuntime {
       ),
     );
 
-    async function openMainWindow(): Promise<void> {
-      if (runtime.#disposed) return;
-      if (runtime.#mainWindow) {
-        showWindow(runtime.#mainWindow);
-        return;
-      }
+    function createMainWindow(): BrowserWindowType | undefined {
+      if (runtime.#disposed) return undefined;
+      if (runtime.#mainWindow) return runtime.#mainWindow;
 
       const window = ports.windows.createMainWindow({
         daemonUrl: () => runtime.#managedDaemon?.url,
@@ -361,29 +383,45 @@ export class DesktopRuntime {
       window.on("closed", () => {
         if (runtime.#mainWindow === window) runtime.#mainWindow = undefined;
       });
+      return window;
+    }
 
+    async function openMainWindow(): Promise<void> {
+      const existing = runtime.#mainWindow;
+      const window = createMainWindow();
+      if (!window) return;
+      if (existing) {
+        showWindow(window);
+        return;
+      }
       await startMainWindow(window);
     }
 
-    function startMainWindow(window: BrowserWindowType): Promise<void> {
-      runtime.#startupAttempt ??= performMainWindowStartup(window).finally(
-        () => {
-          runtime.#startupAttempt = undefined;
-        },
-      );
+    function startMainWindow(
+      window: BrowserWindowType,
+      splashAlreadyShownAt?: number,
+    ): Promise<void> {
+      runtime.#startupAttempt ??= performMainWindowStartup(
+        window,
+        splashAlreadyShownAt,
+      ).finally(() => {
+        runtime.#startupAttempt = undefined;
+      });
       return runtime.#startupAttempt;
     }
 
     async function performMainWindowStartup(
       window: BrowserWindowType,
+      splashAlreadyShownAt?: number,
     ): Promise<void> {
       runtime.#startupErrorVisible = false;
       const startupStartedAt = ports.now();
       let initialZoomLevel: number | undefined;
-      let splashShownAt: number | undefined;
+      let splashShownAt = splashAlreadyShownAt;
       try {
         const result = await runStartupSequence({
           showLoadingWindow: () => {
+            if (splashShownAt !== undefined) return Promise.resolve();
             splashShownAt = ports.now();
             return window.loadURL(runtime.#shellPageUrls.create(loadingHtml()));
           },
@@ -398,7 +436,7 @@ export class DesktopRuntime {
                     runtime.#desktopConfiguration.values.maxOldSpaceMb,
                   ...desktopOptions,
                   onStartupProgress: (progress) => {
-                    void updateLoadingStatus(window, progress.message);
+                    reportStartupStatus(window, daemonStartupStatus(progress));
                   },
                 }),
               );
@@ -503,6 +541,21 @@ export class DesktopRuntime {
           );
         }
       }
+    }
+
+    function reportStartupToTerminal(message: string): boolean {
+      if (message === lastReportedStartupStatus) return false;
+      lastReportedStartupStatus = message;
+      ports.reportStartupProgress(message);
+      return true;
+    }
+
+    function reportStartupStatus(
+      window: BrowserWindowType,
+      message: string,
+    ): void {
+      reportStartupToTerminal(message);
+      void updateLoadingStatus(window, message);
     }
 
     async function updateLoadingStatus(

@@ -1,6 +1,7 @@
 import { access } from "node:fs/promises";
 import { networkInterfaces } from "node:os";
 import { fileURLToPath } from "node:url";
+import { version as bundledDaemonVersion } from "@nervekit/workbench-server";
 import {
   serializeCrashError,
   writeCrashReportSync,
@@ -17,6 +18,7 @@ import { resolveDaemonLaunch } from "./systemd-scope.js";
 export function createNodeDaemonPorts(): DaemonConnectionPorts {
   return {
     env: process.env,
+    bundledDaemonVersion,
     health: { check: checkHealth },
     discovery: { findHealthyDaemon },
     launcher: {

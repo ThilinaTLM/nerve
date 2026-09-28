@@ -58,6 +58,18 @@ describe("daemon connection service", () => {
     await daemon.stop();
   });
 
+  it("rejects an existing local daemon from a different desktop version", async () => {
+    const world = fakeDaemonWorld({
+      bundledDaemonVersion: "0.32.0",
+      discovery: [healthyDaemon({ version: "0.31.1" })],
+    });
+    await assert.rejects(
+      ensureDaemonConnection({}, world.ports),
+      /daemon from version 0\.31\.1.*requires version 0\.32\.0.*Quit the existing Nerve process/,
+    );
+    assert.equal(world.launches.length, 0);
+  });
+
   it("rejects an existing loopback daemon when LAN access is requested", async () => {
     const world = fakeDaemonWorld({
       discovery: [healthyDaemon({ host: "127.0.0.1" })],
@@ -132,18 +144,21 @@ describe("daemon connection service", () => {
     await daemon.stop();
   });
 
-  it("reapplies compatibility checks to a daemon adopted after a lease race", async () => {
+  it("reapplies version checks to a daemon adopted after a lease race", async () => {
     const world = fakeDaemonWorld({
-      discovery: [undefined, undefined, healthyDaemon({ host: "127.0.0.1" })],
+      discovery: [undefined, undefined, healthyDaemon({ version: "0.31.1" })],
     });
-    const startup = ensureDaemonConnection({ allowRemote: true }, world.ports);
+    const startup = ensureDaemonConnection({}, world.ports);
     await new Promise((resolve) => setImmediate(resolve));
     world.children[0]?.emitOutput(
       "stderr",
       `[${DAEMON_LEASE_CONFLICT_CODE}] another daemon owns daemon.json\n`,
     );
     world.children[0]?.exit(1);
-    const rejected = assert.rejects(startup, /cannot accept LAN clients/);
+    const rejected = assert.rejects(
+      startup,
+      /daemon from version 0\.31\.1.*requires version 0\.32\.0/,
+    );
     await world.scheduler.advance(200);
     await rejected;
   });

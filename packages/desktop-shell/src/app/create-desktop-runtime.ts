@@ -123,6 +123,9 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
       prepareDesktopDataDirectory(input, {
         showMessageBox: (message) => dialog.showMessageBox(message),
       }),
+    reportStartupProgress: (message) => {
+      process.stderr.write(`[nerve] ${message}\n`);
+    },
     readCurrentSettings: readCurrentSettingsForBootstrap,
     configureNetworkSession: () =>
       configureDesktopNetworkSession(session.defaultSession, desktopLog),

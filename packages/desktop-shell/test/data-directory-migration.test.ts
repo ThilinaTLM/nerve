@@ -58,8 +58,13 @@ describe("desktop data-directory preparation", () => {
     const dialog = dialogRecorder();
     let initializedHome: string | undefined;
     let closed = false;
+    const progress: string[] = [];
     const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve", mode: "local" },
+      {
+        home: "/home/test/.nerve",
+        mode: "local",
+        onProgress: (message) => progress.push(message),
+      },
       {
         ...dialog,
         initialize: (async (home: string) => {
@@ -78,6 +83,11 @@ describe("desktop data-directory preparation", () => {
     assert.equal(initializedHome, "/home/test/.nerve");
     assert.equal(closed, true);
     assert.deepEqual(dialog.dialogs, []);
+    assert.deepEqual(progress, [
+      "Checking local storage",
+      "Creating local storage",
+      "Local storage is ready",
+    ]);
   });
 
   it("does not access local Nerve home storage in remote mode", async () => {
@@ -126,8 +136,13 @@ describe("desktop data-directory preparation", () => {
   it("migrates an exact legacy v2 home only after explicit consent", async () => {
     const dialog = dialogRecorder();
     let migrated = false;
+    const progress: string[] = [];
     const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve", mode: "local" },
+      {
+        home: "/home/test/.nerve",
+        mode: "local",
+        onProgress: (message) => progress.push(message),
+      },
       {
         ...dialog,
         inspect: (async () => ({
@@ -162,6 +177,12 @@ describe("desktop data-directory preparation", () => {
     );
     assert.deepEqual(result, { status: "ready" });
     assert.equal(migrated, true);
+    assert.deepEqual(progress, [
+      "Checking local storage",
+      "Checking previous storage format",
+      "Migrating previous Nerve data",
+      "Local storage is ready",
+    ]);
     assert.deepEqual(dialog.dialogs[0]?.buttons, [
       "Migrate and continue",
       "Quit",
@@ -264,6 +285,7 @@ describe("desktop data-directory preparation", () => {
     const dialog = dialogRecorder();
     const fingerprint = "c".repeat(64);
     let approvedIds: string[] = [];
+    const progress: string[] = [];
     const quarantine = {
       entries: [
         {
@@ -288,7 +310,10 @@ describe("desktop data-directory preparation", () => {
       requiresApproval: true,
     };
     const result = await prepareDesktopDataDirectory(
-      { home: "/home/test/.nerve" },
+      {
+        home: "/home/test/.nerve",
+        onProgress: (message) => progress.push(message),
+      },
       {
         ...dialog,
         inspect: (async () => ({ kind: "current", manifest: {} })) as never,
@@ -325,6 +350,13 @@ describe("desktop data-directory preparation", () => {
 
     assert.deepEqual(result, { status: "ready" });
     assert.deepEqual(approvedIds, ["quarantine-1"]);
+    assert.deepEqual(progress, [
+      "Checking local storage",
+      "Planning storage upgrade",
+      "Applying storage upgrade",
+      "Verifying local storage",
+      "Local storage is ready",
+    ]);
     assert.deepEqual(dialog.dialogs[0]?.buttons, [
       "Quarantine affected data and continue",
       "Quit",

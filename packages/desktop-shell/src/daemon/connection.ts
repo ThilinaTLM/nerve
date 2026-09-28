@@ -80,7 +80,12 @@ async function ensureLocalDaemon(
   );
   const existing = await ports.discovery.findHealthyDaemon(paths);
   if (existing) {
-    validateExistingDaemon(existing, options, ports.env);
+    validateExistingDaemon(
+      existing,
+      options,
+      ports.env,
+      ports.bundledDaemonVersion,
+    );
     return monitorExistingDaemon(existing, paths, readinessTimeoutMs, ports);
   }
 
@@ -134,7 +139,12 @@ async function ensureLocalDaemon(
     do {
       const recovered = await ports.discovery.findHealthyDaemon(paths);
       if (recovered) {
-        validateExistingDaemon(recovered, options, ports.env);
+        validateExistingDaemon(
+          recovered,
+          options,
+          ports.env,
+          ports.bundledDaemonVersion,
+        );
         ports.logger.log("info", "Adopted competing local daemon", {
           context: { url: recovered.url },
         });
@@ -163,7 +173,13 @@ function validateExistingDaemon(
   existing: HealthyDaemon,
   options: EnsureDaemonOptions,
   env: NodeJS.ProcessEnv,
+  bundledDaemonVersion: string,
 ): void {
+  if (existing.daemon.version !== bundledDaemonVersion) {
+    throw new Error(
+      `A Nerve daemon from version ${existing.daemon.version} is already running for this home, but this desktop requires version ${bundledDaemonVersion}. Quit the existing Nerve process, then try again.`,
+    );
+  }
   if (wantsLanAccess(options, env) && isLoopbackHost(existing.daemon.host)) {
     throw new Error(
       `A Nerve daemon is already running at ${existing.url}, but it is bound to ${existing.daemon.host} and cannot accept LAN clients. Stop the existing daemon, then run pnpm desktop again.`,
