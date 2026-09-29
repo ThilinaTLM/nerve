@@ -9,6 +9,7 @@ import {
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
+import { version } from "../../app/version.js";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
@@ -23,6 +24,8 @@ import { inspectNerveHome } from "./state-layout.js";
 import { acquireStorageStartupLock } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { writeStorageMigrationFailureReport } from "../storage-migrations/runner/failure-report.js";
+import { legacyReadCompatibilityReleases } from "../storage-migrations/read-compatibility-evidence.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "../storage-migrations/read-compatibility.js";
 import {
   createFreshStorage,
   prepareExistingStorage,
@@ -212,16 +215,22 @@ export async function initializeStorage(
 
 function storageBuildIdentity(): {
   buildId: string;
+  readCompatibilityId: string;
+  legacyReadCompatibilityReleases: readonly string[];
   appVersion: string;
   gitSha?: string;
 } {
-  const appVersion = process.env.npm_package_version ?? "0.31.1";
+  const appVersion = version;
   const gitSha = process.env.NERVE_GIT_SHA?.trim() || undefined;
   const developmentMarker = process.env.NODE_ENV === "production" ? "" : ":dev";
   return {
     appVersion,
     ...(gitSha ? { gitSha } : {}),
     buildId: `${appVersion}:${gitSha ?? "source"}${developmentMarker}`,
+    readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
+    legacyReadCompatibilityReleases: legacyReadCompatibilityReleases(
+      STORAGE_READ_COMPATIBILITY_ID,
+    ),
   };
 }
 

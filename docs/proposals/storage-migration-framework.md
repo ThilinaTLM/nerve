@@ -30,7 +30,7 @@ The failures come from a few structural causes, not one-off bugs.
 4. **Expect hostile data.** A record that can't be converted or read is set aside (quarantined) atomically. Aborting is reserved for structural failures and for quarantine volumes that point to a bug.
 5. **Upgrade old JSON on read.** Additive changes need nothing. Breaking shape changes bump `payload_version` and add a pure upgrader.
 6. **Merged means immutable.** Steps change freely only as drafts, and drafts run only on disposable homes. Homes with real data are always fixed forward, never by restoring.
-7. **Verify with the real reader.** After every upgrade and every new build, stored data is checked against the current read path before the daemon serves requests.
+7. **Verify with the real reader.** After every upgrade and whenever the persisted-reader compatibility identity changes, stored data is checked against the current read path before the daemon serves requests.
 
 ## Trust model
 
@@ -167,7 +167,7 @@ CREATE TABLE storage_migrations (
 ) STRICT;
 
 CREATE TABLE storage_read_sweeps (
-  build_id TEXT PRIMARY KEY,      -- app version + git SHA (+ dirty marker)
+  build_id TEXT PRIMARY KEY,      -- historical name; stores a reader compatibility id
   swept_at_ms INTEGER NOT NULL,
   quarantined INTEGER NOT NULL
 ) STRICT;
@@ -183,7 +183,7 @@ Planning, in order:
 | A `draft` ledger row on a standard home                                      | `invalid`: fail closed. Drafts belong only on disposable homes.                         |
 | A checksum differs from the registry and from the step's `acceptedChecksums` | Draft on a disposable home: `drift`. Otherwise: `corrupt`, fail closed naming the step. |
 | Pending steps                                                                | `pending`. Refused on a standard home if any pending step is a draft.                   |
-| Everything applied, but the current build hasn't swept this home             | `sweep`; see [Readability sweep](#readability-sweep).                                   |
+| Everything applied, but the current reader identity hasn't swept this home   | `sweep`; see [Readability sweep](#readability-sweep).                                   |
 | Otherwise                                                                    | `current`.                                                                              |
 
 ## Upgrade pipeline
@@ -195,7 +195,7 @@ flowchart TD
   I -->|ahead / invalid / corrupt| F[Fail closed with guidance]
   I -->|drift, disposable home| D[Confirm, snapshot current,<br/>restore pre-step snapshot] --> I
   I -->|sweep| RS[Read-only sweep]
-  RS -->|all readable| RC[Record build id] --> O
+  RS -->|all readable| RC[Record reader compatibility id] --> O
   RS -->|unreadable records| W
   I -->|pending| W[Preflight space<br/>VACUUM INTO workspace]
   W --> E[Apply pending steps]
@@ -217,13 +217,13 @@ flowchart TD
 
 ### Readability sweep
 
-Most shape changes ship as an upgrader with no migration step. Dependency upgrades such as `zod` can change decoding too. So every new build verifies the home once, whether or not steps ran:
+Most shape changes ship as an upgrader with no migration step. Dependency upgrades such as `zod` can change decoding too. A generated compatibility identity hashes the persisted-reader source graph and validator versions, so reader changes verify the home once while unrelated releases reuse existing evidence:
 
 1. **Read-only pass.** Decode every record of every kind in [`descriptors.ts`](#quarantine) through the current read path, plus every config document. Nothing is written, and the startup screen shows progress.
-2. **All readable (the common case).** Insert the build id into `storage_read_sweeps`. This single metadata write is the only in-place write the framework makes. If it's interrupted, the sweep simply repeats.
+2. **All readable (the common case).** Insert the reader compatibility id into `storage_read_sweeps`. This single metadata write is the only in-place write the framework makes. If it's interrupted, the sweep simply repeats.
 3. **Unreadable records.** Run the workspace pipeline with no steps: preflight, copy, sweep with quarantine, approval if needed, promotion.
 
-When steps ran, the verification sweep inside the workspace covers this, and the build id is recorded with promotion. Development builds get a new build id per build, so developers' disposable homes are swept often, which is intentional.
+When steps ran, the verification sweep inside the workspace covers this, and the reader compatibility id is recorded with promotion. Build version and Git SHA remain diagnostic metadata but do not invalidate readability evidence. During the 0.32.3 transition, successful production sweeps from 0.32.0–0.32.2 are accepted as equivalent evidence and adopted with one metadata write; this includes the stale `0.31.1` label emitted by packaged 0.32 startup when `npm_package_version` was absent. Development sweep ids are not accepted.
 
 At runtime, repositories still treat a decode failure as an isolated, reported error for that record, never a crash.
 
@@ -316,7 +316,7 @@ CI fails when:
 
 `acceptedChecksums` is for edits that can't change the outcome where the old version already succeeded. Example: JSON guards that only affect inputs that would have aborted. Anything else is a corrective step.
 
-Dependency upgrades (e.g. `zod`) are reviewed changes like any other. They're gated by the release-matrix and hostile-fixture tests, and the next start runs a readability sweep because the build id changed.
+Dependency upgrades (e.g. `zod`) are reviewed changes like any other. They're gated by the release-matrix and hostile-fixture tests, and relevant validator-version changes alter the generated reader identity so the next start runs a readability sweep.
 
 ## Development workflow
 

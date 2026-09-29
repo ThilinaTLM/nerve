@@ -59,6 +59,43 @@ describe("payload codec", () => {
     );
   });
 
+  it("validates through the same upgrader and read-schema failures", () => {
+    const codec = createJsonPayloadCodec({
+      currentVersion: 2,
+      upgraders: { 1: (value) => ({ ...(value as object), upgraded: true }) },
+      read: (value) => {
+        const input = value as { required?: unknown; upgraded?: unknown };
+        if (input.required !== "yes" || input.upgraded !== true) {
+          throw new Error("invalid persisted payload");
+        }
+        return input;
+      },
+    });
+
+    assert.doesNotThrow(() =>
+      codec.validate(JSON.stringify({ required: "yes" }), 1),
+    );
+    assert.throws(
+      () => codec.validate(JSON.stringify({ required: "no" }), 1),
+      /invalid persisted payload/,
+    );
+    assert.throws(
+      () => codec.validate("{}", 3),
+      UnsupportedPayloadVersionError,
+    );
+    assert.throws(() => codec.validate("not-json", 2), SyntaxError);
+  });
+
+  it("validation does not reconstruct a preserved decoded value", () => {
+    const codec = createJsonPayloadCodec({
+      currentVersion: 1,
+      read: () => ({ nonCloneable: () => undefined }),
+    });
+
+    assert.doesNotThrow(() => codec.validate("{}", 1));
+    assert.throws(() => codec.decode("{}", 1), /could not be cloned/);
+  });
+
   it("rejects unknown future versions and gaps in the chain", () => {
     const codec = createJsonPayloadCodec({
       currentVersion: 2,

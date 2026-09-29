@@ -1,5 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
-import { hasReadSweep, readStorageMigrationLedger } from "./ledger.js";
+import {
+  hasReadSweep,
+  readStorageMigrationLedger,
+  readStorageReadSweepIds,
+} from "./ledger.js";
 import type { StorageMigrationKind, StorageMigrationStage } from "./ledger.js";
 
 export interface RegisteredStorageMigration {
@@ -14,7 +18,8 @@ export interface RegisteredStorageMigration {
 
 export type StorageMigrationPlan =
   | { outcome: "current" }
-  | { outcome: "sweep"; buildId: string }
+  | { outcome: "sweep"; readCompatibilityId: string }
+  | { outcome: "adopt-read-compatibility"; readCompatibilityId: string }
   | {
       outcome: "pending";
       adoptionRequired: boolean;
@@ -28,7 +33,8 @@ export type StorageMigrationPlan =
 export function planStorageMigration(input: {
   sqlitePath: string;
   registry: readonly RegisteredStorageMigration[];
-  buildId: string;
+  readCompatibilityId: string;
+  legacyReadCompatibilityReleases?: readonly string[];
   homeClass: "standard" | "disposable";
 }): StorageMigrationPlan {
   validateRegistry(input.registry);
@@ -101,12 +107,43 @@ export function planStorageMigration(input: {
     if (pending.length > 0) {
       return { outcome: "pending", adoptionRequired: false, steps: pending };
     }
-    return hasReadSweep(database, input.buildId)
-      ? { outcome: "current" }
-      : { outcome: "sweep", buildId: input.buildId };
+    if (hasReadSweep(database, input.readCompatibilityId)) {
+      return { outcome: "current" };
+    }
+    if (
+      readStorageReadSweepIds(database).some((id) =>
+        isAcceptedReleasedBuildId(
+          id,
+          input.legacyReadCompatibilityReleases ?? [],
+        ),
+      )
+    ) {
+      return {
+        outcome: "adopt-read-compatibility",
+        readCompatibilityId: input.readCompatibilityId,
+      };
+    }
+    return {
+      outcome: "sweep",
+      readCompatibilityId: input.readCompatibilityId,
+    };
   } finally {
     database.close();
   }
+}
+
+function isAcceptedReleasedBuildId(
+  id: string,
+  releases: readonly string[],
+): boolean {
+  const separator = id.indexOf(":");
+  if (separator < 1) return false;
+  const release = id.slice(0, separator);
+  const source = id.slice(separator + 1);
+  return (
+    releases.includes(release) &&
+    (source === "source" || /^[a-f0-9]{7,64}$/.test(source))
+  );
 }
 
 function hasLegacyCanonicalLedger(database: DatabaseSync): boolean {

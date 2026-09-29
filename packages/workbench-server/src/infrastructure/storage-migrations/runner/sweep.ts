@@ -12,7 +12,7 @@ export interface StorageSweepDescriptor {
   recordClass: "derived" | "user-content";
   quarantineUnit: "record" | "conversation" | "config" | "file";
   read(database: DatabaseSync): Iterable<SweepRecord>;
-  decode(record: SweepRecord): unknown;
+  validate(record: SweepRecord): void;
 }
 
 export interface StorageSweepFailure {
@@ -42,7 +42,7 @@ export function sweepStorageReadability(
       result.records += 1;
       result.bytes += record.bytes;
       try {
-        descriptor.decode(record);
+        descriptor.validate(record);
       } catch (error) {
         result.failures.push({
           descriptorId: descriptor.id,

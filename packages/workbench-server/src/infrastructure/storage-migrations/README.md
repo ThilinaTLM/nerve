@@ -25,3 +25,9 @@ This directory is immutable storage history. `steps/index.ts` is the single orde
 `0006` intentionally differs from its legacy SQL by guarding every JSON input. Legacy raw-SQL hashes live in `legacyAdoptionChecksums`; they are evidence for adopting the old ledger, never accepted checksum drift for a framework step. `acceptedChecksums` is reserved for checksums of previously finalized framework step folders. Steps `0008` and `0009` own frozen minimal shapes rather than importing current application contracts. Step `0010` verifies the exact non-unique, non-partial, one-column deletion indexes.
 
 `migrations.lock.json` is the review and tooling authority. `steps/registry-metadata.ts` mirrors its runtime fields because package builds do not copy the JSON lock into `dist`; its consistency test must be updated with every lock change.
+
+## Persisted-reader compatibility
+
+Readability sweeps are keyed by the generated identity in `read-compatibility.ts`, not by the application release. Changes to payload descriptors, codecs, upgraders, reachable persisted contract schemas, sweep dispatch, or runtime validator versions must refresh it with `pnpm migrations:update-read-compatibility`. Repository policy rejects stale generated metadata. Unrelated release-version changes do not invalidate a completed sweep.
+
+Released migration steps remain immutable. On a direct 0.31.1 upgrade, the 0.32.0 steps 0005–0010 are resolved once through checksummed legacy adoption or application; 0.32.1 and 0.32.2 added no migration steps. Successful production readability evidence from those releases is adopted only for the specifically reviewed compatibility identity in `read-compatibility-evidence.ts`; that evidence also recognizes the stale `0.31.1` build label emitted by packaged 0.32 startup when `npm_package_version` was absent.

@@ -10,6 +10,7 @@ import { contractsSourcePolicyViolations } from "./lib/contracts-source-policy.m
 import { serverTestRuntimePolicyViolations } from "./lib/server-test-runtime-policy.mjs";
 import { sourceNamingPolicyViolation } from "./lib/source-naming-policy.mjs";
 import { storageMigrationPolicyViolations } from "./lib/storage-migration-policy.mjs";
+import { storageReadCompatibilityPolicyViolations } from "./lib/storage-read-compatibility.mjs";
 
 export function checkRepositoryBoundaries(repoRoot) {
   const inventory = createRepositorySourceInventory(repoRoot);
@@ -32,6 +33,8 @@ export function checkRepositoryBoundaries(repoRoot) {
   checkUiStyles(inventory, fail);
   for (const violation of storageMigrationPolicyViolations(repoRoot))
     fail("storage migrations", violation);
+  for (const violation of storageReadCompatibilityPolicyViolations(repoRoot))
+    fail("storage reader compatibility", violation);
   return failures.sort();
 }
 

@@ -11,6 +11,8 @@ import type {
 } from "@nervekit/contracts/storage";
 import { version } from "../../app/version.js";
 import { storagePaths } from "../storage-bootstrap/paths.js";
+import { legacyReadCompatibilityReleases } from "./read-compatibility-evidence.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "./read-compatibility.js";
 import { executeStorageMigrations } from "./runner/executor.js";
 import { readStorageHomeClass } from "./runner/home-class.js";
 import { acquireStorageHomeLock } from "./runner/home-lock.js";
@@ -104,7 +106,8 @@ async function inspectUnlocked(
   const plan = planStorageMigration({
     sqlitePath: paths.sqlitePath,
     registry: STORAGE_MIGRATION_REGISTRY_METADATA,
-    buildId: identity.buildId,
+    readCompatibilityId: identity.readCompatibilityId,
+    legacyReadCompatibilityReleases: identity.legacyReadCompatibilityReleases,
     homeClass,
   });
   const applied = readApplied(paths.sqlitePath);
@@ -134,7 +137,8 @@ async function inspectUnlocked(
       await workspace.discard();
     }
   }
-  const outcome = plan.outcome;
+  const outcome =
+    plan.outcome === "adopt-read-compatibility" ? "current" : plan.outcome;
   const withoutFingerprint = {
     format: "nerve-home-migration-plan" as const,
     version: 1 as const,
@@ -265,6 +269,8 @@ function readQuarantine(
 
 function buildIdentity(): {
   buildId: string;
+  readCompatibilityId: string;
+  legacyReadCompatibilityReleases: readonly string[];
   appVersion: string;
   gitSha?: string;
 } {
@@ -274,5 +280,9 @@ function buildIdentity(): {
     appVersion: version,
     ...(gitSha ? { gitSha } : {}),
     buildId: `${version}:${gitSha ?? "source"}${developmentMarker}`,
+    readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
+    legacyReadCompatibilityReleases: legacyReadCompatibilityReleases(
+      STORAGE_READ_COMPATIBILITY_ID,
+    ),
   };
 }

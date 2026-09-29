@@ -7,6 +7,7 @@ import { NERVE_HOME_MANIFEST } from "../../packages/contracts/src/domains/settin
 import { initializeHomeConfiguration } from "../../packages/workbench-server/src/infrastructure/configuration/home-configuration.js";
 import { atomicWriteJson } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/json.js";
 import { storagePaths } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "../../packages/workbench-server/src/infrastructure/storage-migrations/read-compatibility.js";
 import { createFreshStorage } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/service.js";
 
 export async function generateReleaseStorageFixture(
@@ -32,7 +33,7 @@ export async function generateReleaseStorageFixture(
     await createFreshStorage({
       paths,
       appVersion: version,
-      buildId: `${version}:release-fixture`,
+      readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
     });
 
     await mkdir(resolve(fixtureRoot, "data"), { recursive: true });

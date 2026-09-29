@@ -56,6 +56,12 @@ const toolCallEnvelopeCodec = createJsonPayloadCodec({
       ),
     };
   },
+  validate: (value) => {
+    if (!isJsonObject(value) || !("toolCall" in value)) {
+      throw new Error("Stored tool-call record must contain toolCall.");
+    }
+    toolCallPayloadCodec.validateValue(value.toolCall, 1);
+  },
 });
 
 const versionColumn = {

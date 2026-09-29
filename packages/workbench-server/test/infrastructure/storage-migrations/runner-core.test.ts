@@ -69,7 +69,7 @@ test("planner detects pending, checksum corruption, sweep, and current", async (
       planStorageMigration({
         sqlitePath,
         registry,
-        buildId: "build-a",
+        readCompatibilityId: "reader-a",
         homeClass: "standard",
       }),
       { outcome: "pending", adoptionRequired: false, steps: registry },
@@ -89,13 +89,13 @@ test("planner detects pending, checksum corruption, sweep, and current", async (
       planStorageMigration({
         sqlitePath,
         registry,
-        buildId: "build-a",
+        readCompatibilityId: "reader-a",
         homeClass: "standard",
       }),
-      { outcome: "sweep", buildId: "build-a" },
+      { outcome: "sweep", readCompatibilityId: "reader-a" },
     );
     recordReadSweep(database, {
-      buildId: "build-a",
+      readCompatibilityId: "reader-a",
       sweptAtMs: 1,
       quarantined: 0,
     });
@@ -103,7 +103,7 @@ test("planner detects pending, checksum corruption, sweep, and current", async (
       planStorageMigration({
         sqlitePath,
         registry,
-        buildId: "build-a",
+        readCompatibilityId: "reader-a",
         homeClass: "standard",
       }),
       { outcome: "current" },
@@ -117,13 +117,64 @@ test("planner detects pending, checksum corruption, sweep, and current", async (
       planStorageMigration({
         sqlitePath,
         registry,
-        buildId: "build-a",
+        readCompatibilityId: "reader-a",
         homeClass: "standard",
       }).outcome,
       "corrupt",
     );
   } finally {
     database.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("planner adopts only released 0.32 readability evidence", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-storage-read-adoption-"));
+  try {
+    for (const [legacyId, expected] of [
+      ["0.31.1:source", "adopt-read-compatibility"],
+      ["0.32.0:source", "adopt-read-compatibility"],
+      ["0.32.1:abcdef0", "adopt-read-compatibility"],
+      ["0.32.2:source:dev", "sweep"],
+      ["0.32.3:source", "sweep"],
+      ["arbitrary", "sweep"],
+    ] as const) {
+      const sqlitePath = join(root, `${legacyId.replaceAll(":", "-")}.sqlite`);
+      const database = new DatabaseSync(sqlitePath);
+      initializeStorageMigrationLedger(database);
+      for (const step of registry) {
+        recordStorageMigration(database, {
+          ...step,
+          appVersion: "test",
+          appliedAtMs: 1,
+          durationMs: 0,
+          quarantined: 0,
+          origin: "applied",
+        });
+      }
+      recordReadSweep(database, {
+        readCompatibilityId: legacyId,
+        sweptAtMs: 1,
+        quarantined: 0,
+      });
+      database.close();
+      assert.equal(
+        planStorageMigration({
+          sqlitePath,
+          registry,
+          readCompatibilityId: "reader-current",
+          legacyReadCompatibilityReleases: [
+            "0.31.1",
+            "0.32.0",
+            "0.32.1",
+            "0.32.2",
+          ],
+          homeClass: "standard",
+        }).outcome,
+        expected,
+      );
+    }
+  } finally {
     await rm(root, { recursive: true, force: true });
   }
 });

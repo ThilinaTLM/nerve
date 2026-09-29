@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   stat,
   writeFile,
@@ -34,6 +35,7 @@ import {
   CANONICAL_BASELINE_NAME,
   CANONICAL_MIGRATIONS,
 } from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "../../../src/infrastructure/storage-migrations/read-compatibility.js";
 
 const conversationId = "conv_payload_migration";
 const now = "2026-09-03T00:00:00.000Z";
@@ -223,8 +225,12 @@ test("migrates legacy payload references and rechains conversation journals", as
   });
 
   const progress: string[] = [];
+  const messages: string[] = [];
   const storage = await initializeStorage(fixture.home, {
-    reportStartupProgress: (event) => progress.push(event.phase),
+    reportStartupProgress: (event) => {
+      progress.push(event.phase);
+      messages.push(event.message);
+    },
   });
   cleanup.storage = storage;
 
@@ -234,18 +240,45 @@ test("migrates legacy payload references and rechains conversation journals", as
   const migrated = new DatabaseSync(storage.paths.sqlitePath, {
     readOnly: true,
   });
+  assert.deepEqual(
+    migrated
+      .prepare("SELECT id, origin FROM storage_migrations ORDER BY ordinal")
+      .all()
+      .map((row) => ({
+        id: String(row.id),
+        origin: String(row.origin),
+      })),
+    [
+      "0001-nerve-home-v1",
+      "0002-atomic-run-lifecycle-work",
+      "0003-authoritative-run-lifecycle",
+      "0004-convert-run-lifecycle",
+      "0005-async-subagent-completions",
+      "0006-explore-agent-names",
+      "0007-agent-async-obligations",
+      "0008-tool-result-payload-reference",
+      "0009-agent-async-obligations-backfill",
+      "0010-deletion-indexes",
+    ].map((id) => ({
+      id,
+      origin:
+        id === "0008-tool-result-payload-reference" ? "applied" : "adopted",
+    })),
+  );
   assert.equal(
-    (
-      migrated
-        .prepare(
-          `SELECT origin FROM storage_migrations
-           WHERE id = '0008-tool-result-payload-reference'`,
-        )
-        .get() as { origin: string }
-    ).origin,
-    "applied",
+    Number(
+      (
+        migrated
+          .prepare(
+            "SELECT count(*) AS count FROM storage_read_sweeps WHERE build_id = ?",
+          )
+          .get(STORAGE_READ_COMPATIBILITY_ID) as { count: number }
+      ).count,
+    ),
+    1,
   );
   migrated.close();
+  assert.equal((await readdir(storage.paths.storageBackupsPath)).length, 1);
 
   const repository = new ConversationJournalRepository(storage);
   const state = await repository.load(conversationId);
@@ -310,7 +343,10 @@ test("migrates legacy payload references and rechains conversation journals", as
   );
 
   const repeated = await initializeStorage(fixture.home, {
-    reportStartupProgress: (event) => progress.push(event.phase),
+    reportStartupProgress: (event) => {
+      progress.push(event.phase);
+      messages.push(event.message);
+    },
   });
   await repeated.canonicalStore.close();
   assert.equal(progress.filter((phase) => phase === "storage-check").length, 2);
@@ -319,6 +355,19 @@ test("migrates legacy payload references and rechains conversation journals", as
       (phase) => phase === "storage-check" || phase === "storage-migration",
     ),
   );
+  assert.equal(
+    messages.filter(
+      (message) => message === "Preparing a verified storage copy",
+    ).length,
+    1,
+  );
+  assert.equal(
+    messages.filter(
+      (message) => message === "Checking stored records for readability",
+    ).length,
+    0,
+  );
+  assert.equal((await readdir(storage.paths.storageBackupsPath)).length, 1);
 });
 
 test("migrates imported snapshots that have no journal head", async (t) => {

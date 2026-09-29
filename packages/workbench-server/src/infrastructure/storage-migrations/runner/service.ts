@@ -49,7 +49,8 @@ export interface StorageMigrationRunResult {
 
 export async function prepareExistingStorage(input: {
   paths: StoragePaths;
-  buildId: string;
+  readCompatibilityId: string;
+  legacyReadCompatibilityReleases?: readonly string[];
   appVersion: string;
   gitSha?: string;
   report?: (progress: HomeMigrationProgress) => void;
@@ -66,7 +67,8 @@ export async function prepareExistingStorage(input: {
   const plan = planStorageMigration({
     sqlitePath: input.paths.sqlitePath,
     registry,
-    buildId: input.buildId,
+    readCompatibilityId: input.readCompatibilityId,
+    legacyReadCompatibilityReleases: input.legacyReadCompatibilityReleases,
     homeClass,
   });
   if (
@@ -78,6 +80,19 @@ export async function prepareExistingStorage(input: {
     throw new Error(planMessage(plan));
   }
   if (plan.outcome === "current") {
+    return { plan, migrated: false, swept: false };
+  }
+  if (plan.outcome === "adopt-read-compatibility") {
+    const writer = new DatabaseSync(input.paths.sqlitePath);
+    try {
+      recordReadSweep(writer, {
+        readCompatibilityId: input.readCompatibilityId,
+        sweptAtMs: Date.now(),
+        quarantined: 0,
+      });
+    } finally {
+      writer.close();
+    }
     return { plan, migrated: false, swept: false };
   }
   if (plan.outcome === "sweep") {
@@ -106,7 +121,7 @@ export async function prepareExistingStorage(input: {
     const writer = new DatabaseSync(input.paths.sqlitePath);
     try {
       recordReadSweep(writer, {
-        buildId: input.buildId,
+        readCompatibilityId: input.readCompatibilityId,
         sweptAtMs: Date.now(),
         quarantined: 0,
       });
@@ -145,7 +160,7 @@ export async function prepareExistingStorage(input: {
     const writer = new DatabaseSync(workspace.sqlitePath);
     try {
       recordReadSweep(writer, {
-        buildId: input.buildId,
+        readCompatibilityId: input.readCompatibilityId,
         sweptAtMs: Date.now(),
         quarantined: execution.quarantinedIds.length,
       });
@@ -183,7 +198,7 @@ export async function prepareExistingStorage(input: {
 
 export async function createFreshStorage(input: {
   paths: StoragePaths;
-  buildId: string;
+  readCompatibilityId: string;
   appVersion: string;
   gitSha?: string;
 }): Promise<void> {
@@ -205,7 +220,7 @@ export async function createFreshStorage(input: {
     try {
       recordLegacyCompatibilityRows(writer);
       recordReadSweep(writer, {
-        buildId: input.buildId,
+        readCompatibilityId: input.readCompatibilityId,
         sweptAtMs: Date.now(),
         quarantined: 0,
       });

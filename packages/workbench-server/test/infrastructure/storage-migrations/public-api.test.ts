@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import {
   applyStorageMigrationPlan,
@@ -9,6 +10,7 @@ import {
 } from "../../../src/infrastructure/storage-migrations/public-api.js";
 import { runStorageMigrationWorker } from "../../../src/infrastructure/storage-migrations/worker-client.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/initialize.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "../../../src/infrastructure/storage-migrations/read-compatibility.js";
 
 test("public migration adapters fingerprint and revalidate a current home", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-migration-api-"));
@@ -28,6 +30,52 @@ test("public migration adapters fingerprint and revalidate a current home", asyn
   });
   assert.equal(result.outcome, "current");
   assert.equal(result.planFingerprint, plan.fingerprint);
+});
+
+test("released 0.32 homes adopt reader compatibility without sweeping", async (t) => {
+  const root = await mkdtemp(
+    join(tmpdir(), "nerve-migration-release-adoption-"),
+  );
+  t.after(() => rm(root, { recursive: true, force: true }));
+
+  for (const version of ["0.32.0", "0.32.1", "0.32.2"]) {
+    const home = join(root, version);
+    await cp(resolve("test/fixtures/storage/releases", version), home, {
+      recursive: true,
+    });
+    const sqlitePath = join(home, "data", "nerve.sqlite");
+    const database = new DatabaseSync(sqlitePath);
+    database.exec("DELETE FROM storage_read_sweeps");
+    database
+      .prepare(
+        "INSERT INTO storage_read_sweeps (build_id, swept_at_ms, quarantined) VALUES (?, 1, 0)",
+      )
+      .run(`${version}:source`);
+    database.close();
+
+    const messages: string[] = [];
+    const plan = await inspectStorageMigrationPlan(home);
+    assert.equal(plan.outcome, "current");
+    const result = await applyStorageMigrationPlan(
+      home,
+      plan,
+      { fingerprint: plan.fingerprint, approvedQuarantineIds: [] },
+      { reportProgress: (progress) => messages.push(progress.message) },
+    );
+    assert.equal(result.outcome, "current");
+    assert.equal(
+      messages.includes("Checking stored records for readability"),
+      false,
+    );
+
+    const verified = new DatabaseSync(sqlitePath, { readOnly: true });
+    assert.ok(
+      verified
+        .prepare("SELECT 1 FROM storage_read_sweeps WHERE build_id = ?")
+        .get(STORAGE_READ_COMPATIBILITY_ID),
+    );
+    verified.close();
+  }
 });
 
 test("worker heartbeat continues during one blocking migration operation", async () => {

@@ -62,7 +62,7 @@ The physical schema is owned by [`canonical-sqlite/schema.ts`](../../packages/wo
 | Table                                              | Role                                                                                |
 | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `storage_migrations`                               | Unified ordered schema/data/file/config migration ledger.                           |
-| `storage_read_sweeps`                              | Build identities already verified by the current read path.                         |
+| `storage_read_sweeps`                              | Persisted-reader compatibility identities already verified against this home.       |
 | `storage_quarantine`                               | Retained originals and visibility flags for isolated malformed records.             |
 | `schema_migrations`                                | Read-only compatibility evidence for pre-framework homes during rollout.            |
 | `conversation_records`                             | Ordered, versioned messages, summaries, runs, tool calls, and tool batches.         |
