@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Build cache research</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page theme="editorial-warm">
+      <header>
+        <h1>Build cache research</h1>
+        <p>An illustrative evaluation of local and shared caching.</p>
+      </header>
+      <rd-callout type="tldr"
+        ><p>
+          Start with a local cache. A shared cache is worth evaluating only
+          after measuring duplicate work across machines.
+        </p></rd-callout
+      >
+      <rd-toc></rd-toc>
+      <section id="method">
+        <h2>Method</h2>
+        <p>
+          Compare cold builds, warm builds and invalidation behavior. Record the
+          environment and use repeated measurements, not a single best-case run.
+        </p>
+        <p>
+          This example uses synthetic data; it does not claim real performance
+          results.
+        </p>
+      </section>
+      <section>
+        <h2>Observations</h2>
+        <table>
+          <caption>
+            Illustrative build times
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Scenario</th>
+              <th scope="col">Seconds</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Cold build</th>
+              <td>90</td>
+            </tr>
+            <tr>
+              <th scope="row">Warm local cache</th>
+              <td>24</td>
+            </tr>
+            <tr>
+              <th scope="row">Shared cache hit</th>
+              <td>18</td>
+            </tr>
+          </tbody>
+        </table>
+        <rd-callout type="warning"
+          ><p>
+            Cache keys must include toolchain versions and relevant inputs. A
+            faster incorrect build is not a useful optimization.
+          </p></rd-callout
+        >
+      </section>
+      <section>
+        <h2>Recommendation</h2>
+        <p>
+          Instrument local caching first, then revisit the shared-cache
+          hypothesis using the same <a href="#method">method</a>.
+        </p>
+        <details>
+          <summary>Evidence to collect next</summary>
+          <ul>
+            <li>Cache hit rates by project</li>
+            <li>Transfer and storage costs</li>
+            <li>Invalidation failures</li>
+          </ul>
+        </details>
+      </section>
+      <section>
+        <h2>References</h2>
+        <ol>
+          <li id="ref-1">
+            <a href="https://en.wikipedia.org/wiki/Cache_(computing)"
+              >Caching background</a
+            >; contextual reading, not experimental evidence.
+          </li>
+        </ol>
+      </section>
+    </rd-page>
+  </body>
+</html>

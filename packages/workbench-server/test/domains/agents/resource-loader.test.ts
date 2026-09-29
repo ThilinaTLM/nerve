@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { loadNerveSkills } from "@nervekit/skills";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -132,6 +133,35 @@ describe("Workbench skill resources", () => {
         enabled.skills.find((skill) => skill.name === "skill-creator")
           ?.filePath,
         nerveSkillCreator.filePath,
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps every packaged builtin disabled until explicitly selected", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-builtin-defaults-"));
+    try {
+      const nerveSkills = await loadNerveSkills();
+      const options = { nerveSkills, storageHome: join(root, "home") };
+      const available = await listAvailableSkills(root, options);
+      assert.ok(
+        available.skills.some(
+          (skill) => skill.name === "richdoc" && skill.source === "nerve",
+        ),
+      );
+      const disabled = await loadHarnessResources(root, options);
+      for (const skill of nerveSkills)
+        assert.ok(
+          !disabled.skills.some((entry) => entry.filePath === skill.filePath),
+        );
+      const enabled = await loadHarnessResources(root, {
+        ...options,
+        enabledNerveSkillNames: ["richdoc"],
+      });
+      assert.ok(enabled.skills.some((skill) => skill.name === "richdoc"));
+      assert.ok(
+        !enabled.skills.some((skill) => skill.name === "skill-creator"),
       );
     } finally {
       await rm(root, { recursive: true, force: true });

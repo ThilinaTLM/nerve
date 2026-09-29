@@ -193,6 +193,26 @@ function verifyContents(tarball, entries, version, filename, nativePrebuilds) {
   requireEntry(
     entries,
     "package/node_modules/@nervekit/skills/dist/builtin/skill-creator/SKILL.md",
+    ...[
+      "SKILL.md",
+      "LICENSE",
+      "scripts/richdoc.mjs",
+      "assets/richdoc.js",
+      "assets/richdoc.css",
+      "assets/manifest.json",
+      "assets/vendor/code.js",
+      "assets/vendor/math.js",
+      "assets/vendor/math.css",
+      "assets/vendor/diagram.js",
+      "assets/vendor/chart.js",
+      "assets/vendor/icon.js",
+      "assets/fonts/KaTeX_Main-Regular.woff2",
+      "references/elements.md",
+      "THIRD_PARTY_NOTICES.md",
+    ].map(
+      (path) =>
+        `package/node_modules/@nervekit/skills/dist/builtin/richdoc/${path}`,
+    ),
     filename,
   );
   requireEntry(

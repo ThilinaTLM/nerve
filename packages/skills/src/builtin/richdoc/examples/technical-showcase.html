@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Technical blocks</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page width="wide">
+      <header>
+        <h1>Technical blocks</h1>
+        <p>Small offline rendering examples with synthetic data.</p>
+      </header>
+      <rd-toc></rd-toc>
+      <section>
+        <h2>Source</h2>
+        <!-- prettier-ignore -->
+        <rd-code lang="typescript" title="Bounded value">const clamp = (value: number) =&gt; Math.min(100, Math.max(0, value));</rd-code>
+        <!-- prettier-ignore -->
+        <rd-code format="diff" title="Configuration diff">-limit: 10
++limit: 20</rd-code>
+      </section>
+      <section>
+        <h2>Math and flow</h2>
+        <rd-math display="block">\sum_{i=1}^{n} x_i</rd-math>
+        <p>Energy: <rd-math display="inline">E = mc^2</rd-math>.</p>
+        <!-- prettier-ignore -->
+        <rd-diagram lang="mermaid" caption="Offline validation flow">graph TD
+  Document --> Validator
+  Validator --> Diagnostics</rd-diagram>
+      </section>
+      <section>
+        <h2>Charts</h2>
+        <rd-cols n="2">
+          <rd-chart kind="bar" x="name" y="value" title="Bar chart"
+            >[{"name":"A","value":12},{"name":"B","value":9}]</rd-chart
+          >
+          <rd-chart kind="line" x="step" y="value" title="Line chart"
+            >[{"step":1,"value":3},{"step":2,"value":8},{"step":3,"value":6}]</rd-chart
+          >
+          <rd-chart kind="area" x="step" y="value" title="Area chart"
+            >[{"step":1,"value":3},{"step":2,"value":8},{"step":3,"value":6}]</rd-chart
+          >
+          <rd-chart kind="donut" x="name" y="value" title="Donut chart"
+            >[{"name":"A","value":12},{"name":"B","value":9}]</rd-chart
+          >
+          <rd-chart kind="scatter" x="step" y="value" title="Scatter chart"
+            >[{"step":1,"value":3},{"step":2,"value":8},{"step":3,"value":6}]</rd-chart
+          >
+          <rd-chart
+            kind="heatmap"
+            x="day"
+            y="value"
+            series="team"
+            title="Heatmap"
+            >[{"day":"Mon","team":"A","value":3},{"day":"Tue","team":"A","value":8},{"day":"Mon","team":"B","value":6}]</rd-chart
+          > </rd-cols
+        ><rd-stat value="8" label="Latest sample"
+          ><rd-chart
+            variant="sparkline"
+            kind="line"
+            x="step"
+            y="value"
+            title="Sample trend"
+            >[{"step":1,"value":3},{"step":2,"value":8}]</rd-chart
+          ></rd-stat
+        >
+      </section>
+      <section>
+        <h2>Icons and native structures</h2>
+        <p>
+          <rd-icon name="circle-check" label="Passed"></rd-icon> Offline
+          rendering check.
+        </p>
+        <figure>
+          <blockquote>Keep the format small and the content clear.</blockquote>
+          <figcaption>Illustrative editorial principle</figcaption>
+        </figure>
+        <details>
+          <summary>Notes</summary>
+          <p>Renderers load only from the accompanying asset folder.</p>
+        </details>
+      </section>
+    </rd-page>
+  </body>
+</html>

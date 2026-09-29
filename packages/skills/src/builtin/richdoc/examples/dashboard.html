@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delivery dashboard</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page theme="graphite-modern" width="wide">
+      <header>
+        <h1>Delivery dashboard</h1>
+        <p>Synthetic weekly data for a static report.</p>
+      </header>
+      <rd-cols n="3"
+        ><rd-stat
+          value="42"
+          label="Completed items"
+          delta="+8 from last week"
+          tone="positive"
+        ></rd-stat
+        ><rd-stat value="6" label="Open issues"></rd-stat
+        ><rd-stat value="98%" label="Successful checks"></rd-stat
+      ></rd-cols>
+      <section>
+        <h2>Trend</h2>
+        <rd-chart kind="line" x="week" y="completed" title="Weekly completions"
+          >[{"week":1,"completed":20},{"week":2,"completed":27},{"week":3,"completed":34},{"week":4,"completed":42}]</rd-chart
+        >
+      </section>
+      <section>
+        <h2>Capacity</h2>
+        <label for="capacity">Allocated capacity: 65%</label
+        ><progress id="capacity" value="65" max="100">65%</progress
+        ><rd-callout type="info"
+          ><p>
+            These are illustrative values. Static documents are snapshots, not
+            live monitoring systems.
+          </p></rd-callout
+        >
+      </section>
+      <section>
+        <h2>Next actions</h2>
+        <ul>
+          <li>
+            <label
+              ><input type="checkbox" checked /> Verify the reported data</label
+            >
+          </li>
+          <li>
+            <label><input type="checkbox" /> Review the remaining issues</label>
+          </li>
+        </ul>
+        <p>
+          <rd-icon name="calendar" label="Reporting date"></rd-icon> Updated
+          <time datetime="2026-09-30">30 September 2026</time>.
+        </p>
+      </section>
+    </rd-page>
+  </body>
+</html>

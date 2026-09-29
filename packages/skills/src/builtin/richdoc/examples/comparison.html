@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Storage options</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page theme="graphite-modern">
+      <header>
+        <h1>Storage options</h1>
+        <p>An illustrative decision memo, not a benchmark.</p>
+      </header>
+      <rd-callout type="tldr"
+        ><p>
+          Choose local storage for single-device use. Consider object storage
+          when cross-device delivery becomes a requirement.
+        </p></rd-callout
+      >
+      <section>
+        <h2>Comparison</h2>
+        <table>
+          <caption>
+            Operational trade-offs
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Criterion</th>
+              <th scope="col">Local files</th>
+              <th scope="col">Object storage</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Offline access</th>
+              <td>Native</td>
+              <td>Requires a local copy</td>
+            </tr>
+            <tr>
+              <th scope="row">Operations</th>
+              <td>Low complexity</td>
+              <td>Credentials, network and lifecycle policy</td>
+            </tr>
+            <tr>
+              <th scope="row">Multi-device</th>
+              <td>Manual sharing</td>
+              <td>Shared endpoint</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <section>
+        <h2>Trade-offs</h2>
+        <rd-cols
+          ><rd-card title="Local files" accent="success"
+            ><ul>
+              <li>Simple to inspect and back up</li>
+              <li>Works without network access</li>
+              <li>Sharing needs an explicit process</li>
+            </ul></rd-card
+          ><rd-card title="Object storage" accent="info"
+            ><ul>
+              <li>Accessible across devices</li>
+              <li>Central retention policy</li>
+              <li>More operational dependencies</li>
+            </ul></rd-card
+          ></rd-cols
+        >
+      </section>
+      <section>
+        <h2>Decision</h2>
+        <p>
+          <rd-badge variant="success">Accepted for this example</rd-badge> Start
+          with local files and document the trigger for revisiting the decision.
+        </p>
+        <dl>
+          <dt>Revisit when</dt>
+          <dd>Cross-device distribution becomes mandatory.</dd>
+          <dt>Evidence required</dt>
+          <dd>Usage, retention needs and confidentiality constraints.</dd>
+        </dl>
+      </section>
+    </rd-page>
+  </body>
+</html>

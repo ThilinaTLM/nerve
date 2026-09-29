@@ -1,0 +1,479 @@
+/* Standalone document styles, deliberately scoped; no app-global utilities. */
+rd-page {
+  --rd-background: #fbf8f1;
+  --rd-card: #fffdf8;
+  --rd-panel: #eee9df;
+  --rd-well: #e7e1d6;
+  --rd-foreground: #292722;
+  --rd-muted: #69645b;
+  --rd-border: #d5cec1;
+  --rd-info: #145b9a;
+  --rd-success: #22663b;
+  --rd-warning: #875706;
+  --rd-destructive: #a32935;
+  --rd-link: #1b5c8d;
+  --rd-radius: 0.65rem;
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  color-scheme: light;
+  background: var(--rd-background);
+  color: var(--rd-foreground);
+  max-width: 80rem;
+  margin: 1.5rem auto;
+  padding: clamp(1.2rem, 4vw, 3.5rem);
+  font:
+    1rem/1.65 system-ui,
+    -apple-system,
+    sans-serif;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--rd-border);
+  border-radius: var(--rd-radius);
+  container-type: inline-size;
+}
+rd-page[theme="graphite-modern"] {
+  --rd-background: #f8fafc;
+  --rd-card: #fff;
+  --rd-panel: #f1f5f9;
+  --rd-well: #e2e8f0;
+  --rd-foreground: #18212f;
+  --rd-muted: #526171;
+  --rd-border: #cbd5e1;
+}
+rd-page[mode="dark"] {
+  --rd-background: #191b20;
+  --rd-card: #252830;
+  --rd-panel: #20232a;
+  --rd-well: #15171c;
+  --rd-foreground: #edf0f4;
+  --rd-muted: #b4bdca;
+  --rd-border: #414956;
+  --rd-info: #93c5fd;
+  --rd-success: #86efac;
+  --rd-warning: #fcd34d;
+  --rd-destructive: #fda4af;
+  --rd-link: #93c5fd;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  rd-page:not([mode="light"]):not([mode="dark"]) {
+    --rd-background: #191b20;
+    --rd-card: #252830;
+    --rd-panel: #20232a;
+    --rd-well: #15171c;
+    --rd-foreground: #edf0f4;
+    --rd-muted: #b4bdca;
+    --rd-border: #414956;
+    --rd-info: #93c5fd;
+    --rd-success: #86efac;
+    --rd-warning: #fcd34d;
+    --rd-destructive: #fda4af;
+    --rd-link: #93c5fd;
+    color-scheme: dark;
+  }
+}
+rd-page[width="narrow"] {
+  max-width: 50rem;
+}
+rd-page[width="wide"] {
+  max-width: 100rem;
+}
+rd-page[width="full"] {
+  max-width: none;
+}
+rd-page *,
+rd-page *::before,
+rd-page *::after {
+  box-sizing: border-box;
+}
+rd-page :is(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.2;
+  text-wrap: balance;
+  scroll-margin-top: 1rem;
+}
+rd-page h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  letter-spacing: -0.04em;
+  margin: 0 0 1rem;
+}
+rd-page[theme="editorial-warm"] :is(h1, h2) {
+  font-family: Georgia, serif;
+}
+rd-page h2 {
+  font-size: 1.6rem;
+  margin: 2.5rem 0 1rem;
+}
+rd-page h3 {
+  font-size: 1.2rem;
+  margin: 1.8rem 0 0.8rem;
+}
+rd-page :is(p, ul, ol, dl, blockquote, figure) {
+  margin: 0.8rem 0;
+}
+rd-page :is(header, section, article) + :is(section, article) {
+  margin-top: 2rem;
+}
+rd-page header {
+  border-bottom: 1px solid var(--rd-border);
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+}
+rd-page header > p {
+  color: var(--rd-muted);
+  font-size: 1.15rem;
+}
+rd-page a {
+  color: var(--rd-link);
+  text-underline-offset: 0.2em;
+}
+rd-page :focus-visible {
+  outline: 2px solid var(--rd-info);
+  outline-offset: 3px;
+}
+rd-page blockquote {
+  border-left: 3px solid var(--rd-border);
+  padding: 0.5rem 1rem;
+  color: var(--rd-muted);
+}
+rd-page hr {
+  border: 0;
+  border-top: 1px solid var(--rd-border);
+  margin: 2rem 0;
+}
+rd-page :is(code, pre, kbd, samp) {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.9em;
+}
+rd-page :not(pre) > code {
+  background: var(--rd-panel);
+  padding: 0.1rem 0.3rem;
+  border-radius: 0.2rem;
+}
+rd-page pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 1rem;
+  background: var(--rd-well);
+  border-radius: var(--rd-radius);
+}
+rd-page table {
+  border-collapse: collapse;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+  margin: 1rem 0;
+}
+rd-page :is(th, td) {
+  border-bottom: 1px solid var(--rd-border);
+  padding: 0.6rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+}
+rd-page th {
+  background: var(--rd-panel);
+  font-weight: 600;
+}
+rd-page caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+}
+rd-page dl {
+  display: grid;
+  grid-template-columns: minmax(6rem, 1fr) 3fr;
+  gap: 0.5rem 1rem;
+}
+rd-page dt {
+  font-weight: 600;
+}
+rd-page dd {
+  margin: 0;
+}
+rd-page img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.3rem;
+}
+rd-page figure {
+  margin-inline: 0;
+}
+rd-page figcaption {
+  color: var(--rd-muted);
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+rd-page details {
+  border: 1px solid var(--rd-border);
+  border-radius: var(--rd-radius);
+  padding: 0.6rem 1rem;
+  margin: 0.8rem 0;
+  background: var(--rd-card);
+}
+rd-page summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+rd-page progress {
+  width: 100%;
+  accent-color: var(--rd-success);
+}
+rd-page input[type="checkbox"] {
+  accent-color: var(--rd-success);
+  margin-right: 0.5rem;
+}
+rd-page :is(button, select) {
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--rd-foreground);
+  background: var(--rd-card);
+  border: 1px solid var(--rd-border);
+  border-radius: 0.35rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.6rem;
+}
+rd-page button {
+  cursor: pointer;
+}
+rd-page rd-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+  align-items: start;
+}
+rd-page rd-cols[n="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+rd-page rd-cols[n="4"] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+rd-page :is(rd-card, rd-callout, rd-stat) {
+  display: block;
+  min-width: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rd-border);
+  border-radius: var(--rd-radius);
+  background: var(--rd-card);
+  margin: 1rem 0;
+}
+rd-page rd-cols > :is(rd-card, rd-stat, rd-callout) {
+  margin: 0;
+}
+rd-page :is(rd-card, rd-callout):not([data-ready])::before {
+  content: attr(title);
+  display: block;
+  font-weight: 600;
+}
+rd-page [data-rd-title] {
+  font-weight: 600;
+  margin-top: 0;
+}
+rd-page rd-callout {
+  border-left: 4px solid var(--rd-info);
+  background: color-mix(in srgb, var(--rd-info) 7%, var(--rd-card));
+}
+rd-page :is(rd-callout[type="success"], rd-card[accent="success"]) {
+  border-left-color: var(--rd-success);
+}
+rd-page :is(rd-callout[type="warning"], rd-card[accent="warning"]) {
+  border-left-color: var(--rd-warning);
+}
+rd-page :is(rd-callout[type="destructive"], rd-card[accent="destructive"]) {
+  border-left-color: var(--rd-destructive);
+}
+rd-page rd-card[accent] {
+  border-left-width: 4px;
+}
+rd-page rd-badge {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border-radius: 1rem;
+  color: var(--rd-info);
+  background: color-mix(in srgb, var(--rd-info) 12%, var(--rd-card));
+}
+rd-page rd-badge[variant="success"] {
+  color: var(--rd-success);
+  background: color-mix(in srgb, var(--rd-success) 12%, var(--rd-card));
+}
+rd-page rd-badge[variant="warning"] {
+  color: var(--rd-warning);
+  background: color-mix(in srgb, var(--rd-warning) 12%, var(--rd-card));
+}
+rd-page rd-badge[variant="destructive"] {
+  color: var(--rd-destructive);
+  background: color-mix(in srgb, var(--rd-destructive) 12%, var(--rd-card));
+}
+rd-page rd-badge[variant="muted"] {
+  color: var(--rd-muted);
+  background: var(--rd-panel);
+}
+rd-page rd-stat {
+  font-variant-numeric: tabular-nums;
+}
+rd-page rd-stat [data-rd-value],
+rd-page rd-stat:not([data-ready])::before {
+  display: block;
+  font-size: 2.2rem;
+  line-height: 1.2;
+  font-weight: 700;
+  content: attr(value);
+}
+rd-page rd-stat [data-rd-label],
+rd-page rd-stat:not([data-ready])::after {
+  display: block;
+  color: var(--rd-muted);
+  content: attr(label);
+}
+rd-page [data-rd-delta] {
+  display: block;
+  color: var(--rd-muted);
+}
+rd-page rd-stat[tone="positive"] [data-rd-delta] {
+  color: var(--rd-success);
+}
+rd-page rd-stat[tone="negative"] [data-rd-delta] {
+  color: var(--rd-destructive);
+}
+rd-page :is(rd-code, rd-diagram, rd-chart, rd-math) {
+  display: block;
+  margin: 1rem 0;
+  min-width: 0;
+  white-space: pre-wrap;
+}
+rd-page :is(rd-code, rd-diagram, rd-chart)[data-state="ready"],
+rd-page rd-math[data-state="ready"] {
+  white-space: normal;
+}
+rd-page rd-code {
+  border-radius: var(--rd-radius);
+  background: #151923;
+  color: #f1f5f9;
+  overflow: hidden;
+}
+rd-page rd-code pre {
+  background: transparent !important;
+  margin: 0;
+  color: #f1f5f9;
+}
+rd-page [data-rd-toolbar] {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid #414956;
+  font-size: 0.875rem;
+}
+rd-page :is(rd-diagram, rd-chart) svg {
+  max-width: 100%;
+  height: auto;
+}
+rd-page rd-chart[data-state="ready"] svg {
+  color: var(--rd-foreground);
+}
+rd-page rd-chart[variant="sparkline"] figcaption {
+  font-size: 0.8rem;
+}
+rd-page rd-math[display="inline"] {
+  display: inline;
+  margin: 0;
+}
+rd-page rd-math .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.5rem;
+}
+rd-page rd-toc {
+  display: block;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--rd-border);
+  background: var(--rd-panel);
+  border-radius: var(--rd-radius);
+}
+rd-page rd-toc:empty {
+  display: none;
+}
+rd-page rd-toc ol {
+  list-style: none;
+  padding: 0;
+}
+rd-page rd-toc [data-rd-subheading] {
+  padding-left: 1rem;
+}
+rd-page rd-icon {
+  display: inline-flex;
+  width: 1.2em;
+  height: 1.2em;
+  vertical-align: -0.2em;
+  align-items: center;
+}
+rd-page [data-rd-controls] {
+  position: relative;
+  margin-top: 2rem;
+  background: var(--rd-panel);
+}
+rd-page [data-rd-controls] > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.6rem;
+}
+rd-page [data-rd-controls] label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.875rem;
+}
+@container (min-width: 65rem) {
+  rd-page[toc="left"] rd-toc {
+    float: left;
+    width: 15rem;
+    margin: 0 1.5rem 1rem 0;
+  }
+  rd-page[toc="right"] rd-toc,
+  rd-page[toc="auto"] rd-toc {
+    float: right;
+    width: 15rem;
+    margin: 0 0 1rem 1.5rem;
+  }
+}
+@container (max-width: 40rem) {
+  rd-page rd-cols,
+  rd-page rd-cols[n] {
+    grid-template-columns: 1fr;
+  }
+  rd-page dl {
+    grid-template-columns: 1fr;
+  }
+  rd-page dd {
+    padding-bottom: 0.5rem;
+  }
+  rd-page :is(th, td) {
+    padding: 0.35rem;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  rd-page :is(a, button, select) {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+}
+@media print {
+  rd-page {
+    margin: 0;
+    border: 0;
+    max-width: none;
+    background: white;
+    color: black;
+  }
+  rd-page [data-rd-controls],
+  rd-page [data-rd-toolbar] button {
+    display: none;
+  }
+  rd-page :is(rd-card, rd-callout, figure) {
+    break-inside: avoid;
+  }
+}

@@ -26,6 +26,7 @@ export default tseslint.config(
       "packages/workbench-app/src/**",
       "packages/ui-kit/src/**",
       "packages/website/src/**",
+      "packages/skills/src/builtin/richdoc/src/browser/**",
     ],
     languageOptions: {
       globals: globals.browser,
@@ -40,6 +41,7 @@ export default tseslint.config(
       "packages/workbench-app/src/**",
       "packages/ui-kit/src/**",
       "packages/website/src/**",
+      "packages/skills/src/builtin/richdoc/src/browser/**",
     ],
     languageOptions: {
       globals: globals.node,

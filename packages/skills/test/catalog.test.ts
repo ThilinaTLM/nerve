@@ -10,9 +10,13 @@ test("loads the complete validated built-in Nerve skill catalog", async () => {
     [...expectedNerveSkillNames],
   );
   assert.equal(new Set(skills.map((skill) => skill.name)).size, skills.length);
-  assert.match(skills[0]?.description ?? "", /Create or improve/);
-  assert.match(skills[0]?.content ?? "", /Establish the destination/);
-  assert.match(skills[0]?.filePath ?? "", /skill-creator[/\\]SKILL\.md$/);
+  const creator = skills.find((skill) => skill.name === "skill-creator");
+  assert.match(creator?.description ?? "", /Create or improve/);
+  assert.match(creator?.content ?? "", /Establish the destination/);
+  assert.match(creator?.filePath ?? "", /skill-creator[/\\]SKILL\.md$/);
+  const richdoc = skills.find((skill) => skill.name === "richdoc");
+  assert.match(richdoc?.description ?? "", /browser-readable HTML/);
+  assert.match(richdoc?.content ?? "", /scripts\/richdoc\.mjs/);
   assert.equal(Object.isFrozen(skills), true);
 });
 

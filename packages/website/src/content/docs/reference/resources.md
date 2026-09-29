@@ -28,6 +28,14 @@ Built-in Nerve and Agent Browser skills are disabled by default. A disabled skil
 
 Project definitions therefore take precedence over global, built-in, and Agent Browser definitions with the same name. Built-in Nerve skills take precedence over same-named Agent Browser guidance. Inspect the Settings Skills view to see discovered scope and effective state.
 
+## Richdoc builtin
+
+The optional `richdoc` skill produces polished, browser-readable HTML documents using semantic HTML and a small component vocabulary. Like every builtin, it is disabled by default; enable it explicitly in Settings Skills.
+
+Richdoc is self-contained: its instructions, bundled Node CLI, rendering assets and examples ship together. The agent invokes its absolute `scripts/richdoc.mjs` path through the normal shell tool. Node 24+ is required; Python, uv, npm installation and a global CLI are not. Its commands prepare local assets, validate documents and describe components.
+
+Documents open directly in a browser with their accompanying asset directory. Diagrams (Mermaid), math, code highlighting, charts and curated icons render locally without external requests. There are no export commands, book framework or embedded trusted-app HTML preview. Validation checks authoring correctness, not security isolation.
+
 ## Unsupported legacy paths
 
 Legacy `.pi` directories are not loaded. Move Nerve-specific files into `.nerve/` and portable skills into `.agents/skills/`.

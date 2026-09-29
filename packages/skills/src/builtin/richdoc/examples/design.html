@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Offline report delivery</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page>
+      <header>
+        <h1>Offline report delivery</h1>
+        <p>A small design proposal for portable document folders.</p>
+      </header>
+      <dl>
+        <dt>Status</dt>
+        <dd><rd-badge variant="info">Proposed</rd-badge></dd>
+        <dt>Owner</dt>
+        <dd>Documentation team</dd>
+      </dl>
+      <rd-callout type="tldr"
+        ><p>
+          Ship HTML and versioned assets together. Readers should not need a
+          build tool, account or network connection.
+        </p></rd-callout
+      >
+      <section>
+        <h2>Problem</h2>
+        <p>
+          Remote dependencies make confidential reports less predictable. An
+          offline folder makes the rendering contract explicit.
+        </p>
+      </section>
+      <section>
+        <h2>Design</h2>
+        <rd-cols n="2"
+          ><rd-card title="Authoring"
+            ><p>
+              The author prepares local assets, writes semantic HTML and
+              validates the result.
+            </p></rd-card
+          ><rd-card title="Reading"
+            ><p>
+              The reader opens the HTML file directly. Source remains readable
+              if JavaScript is disabled.
+            </p></rd-card
+          ></rd-cols
+        >
+        <!-- prettier-ignore -->
+        <rd-diagram lang="mermaid" caption="Document delivery lifecycle">graph LR
+  Prepare --> Author
+  Author --> Validate
+  Validate --> Deliver</rd-diagram>
+      </section>
+      <section>
+        <h2>Implementation</h2>
+        <ol>
+          <li>Define the document vocabulary.</li>
+          <li>Bundle local rendering dependencies.</li>
+          <li>Validate references and structure.</li>
+          <li>Test an isolated copy of the output.</li>
+        </ol>
+      </section>
+      <section>
+        <h2>Risks</h2>
+        <rd-callout type="warning"
+          ><p>
+            HTML is active content. Validation is not a security sandbox and the
+            document must not share a trusted app origin.
+          </p></rd-callout
+        >
+        <details>
+          <summary>Out of scope</summary>
+          <p>No editor, export pipeline or server-side publishing service.</p>
+        </details>
+      </section>
+    </rd-page>
+  </body>
+</html>

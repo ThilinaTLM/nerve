@@ -26,14 +26,32 @@
   "scripts": {
     "build": "tsc -b && node ../../scripts/copy-skills-assets.mjs",
     "check": "tsc -b --pretty false",
+    "build:richdoc": "node src/builtin/richdoc/build/build.mjs",
+    "check:richdoc": "node src/builtin/richdoc/build/build.mjs --check",
+    "test:richdoc:browser": "node src/builtin/richdoc/build/browser-check.mjs",
     "pretest": "node ../../scripts/copy-skills-assets.mjs",
-    "test": "tsx --test \"test/**/*.test.ts\""
+    "test": "tsx --test \"test/**/*.test.ts\" \"src/builtin/richdoc/test/**/*.test.ts\""
   },
   "dependencies": {
     "@nervekit/harness": "workspace:*"
   },
   "devDependencies": {
+    "@lucide/svelte": "1.24.0",
+    "@observablehq/plot": "0.6.17",
+    "@playwright/test": "1.63.0",
+    "@shikijs/core": "4.1.0",
+    "@shikijs/engine-javascript": "4.1.0",
+    "@shikijs/langs": "4.1.0",
+    "@types/d3": "7.4.3",
+    "@types/katex": "0.16.8",
     "@types/node": "24.10.1",
+    "d3": "7.9.0",
+    "dompurify": "3.4.13",
+    "esbuild": "0.27.4",
+    "katex": "0.16.47",
+    "mermaid": "11.16.1",
+    "parse5": "8.0.0",
+    "svelte": "5.56.3",
     "tsx": "4.22.4",
     "typescript": "5.9.3"
   },
