@@ -2,13 +2,18 @@
 import type { Snippet } from "svelte";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import Hourglass from "@lucide/svelte/icons/hourglass";
+import MessageSquare from "@lucide/svelte/icons/message-square";
+import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import MobileListRow from "./MobileListRow.svelte";
 import MobileSection from "./MobileSection.svelte";
 import type { MobileInboxItem, MobileInboxModel } from "./mobile-inbox.js";
 
-/** Triage screen body: what wants a human, then what is still moving. */
+/**
+ * Triage screen body: what wants a human, then what is still moving, then the
+ * latest quiet conversations so picking a thread back up is one tap.
+ */
 let {
   model,
   onOpen,
@@ -23,7 +28,7 @@ let {
   summary?: Snippet;
 } = $props();
 
-const empty = $derived(
+const caughtUp = $derived(
   model.needsYou.length === 0 &&
     model.running.length === 0 &&
     model.awaitingAsync.length === 0,
@@ -40,7 +45,8 @@ function rowDetail(item: MobileInboxItem): string {
   if (
     item.kind === "error" ||
     item.kind === "running" ||
-    item.kind === "awaiting-async"
+    item.kind === "awaiting-async" ||
+    item.kind === "recent"
   )
     return item.detail;
   return `${item.kindLabel} · ${item.detail}`;
@@ -108,12 +114,31 @@ function rowDetail(item: MobileInboxItem): string {
   </MobileSection>
 {/if}
 
-{#if empty}
-  <div class="grid justify-items-center gap-2 px-6 py-12 text-center">
-    <CircleCheck class="text-success" size={28} strokeWidth={1.6} />
-    <p class="text-sm text-foreground">Nothing needs you</p>
-    <p class="text-xs text-muted-foreground">
-      Approvals, questions, plan reviews and agent errors land here.
-    </p>
-  </div>
+{#if caughtUp}
+  <Empty.Root class="px-6 py-10">
+    <Empty.Header>
+      <Empty.Media class="text-success">
+        <CircleCheck size={28} strokeWidth={1.6} />
+      </Empty.Media>
+      <Empty.Title class="text-sm">Nothing needs you</Empty.Title>
+      <Empty.Description class="text-xs">
+        Approvals, questions, plan reviews and agent errors land here.
+      </Empty.Description>
+    </Empty.Header>
+  </Empty.Root>
+{/if}
+
+{#if model.recent.length}
+  <MobileSection title="Recent">
+    {#each model.recent as item (item.id)}
+      <MobileListRow
+        title={item.title}
+        meta={rowMeta(item)}
+        icon={MessageSquare}
+        menuItems={menuItems?.(item)}
+        menuTitle={item.title}
+        onclick={() => onOpen(item)}
+      />
+    {/each}
+  </MobileSection>
 {/if}

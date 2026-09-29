@@ -197,16 +197,36 @@ export class WorkspaceMonitor {
     await this.#rebuildRepositories();
   }
 
-  requestProjectRefresh(projectId: string): Promise<number> {
-    return this.#enqueue(() =>
-      this.#native().requestRefresh(projectScopeId(projectId)),
-    );
+  /** Re-scan a monitored project; reports inactive instead of failing when no client monitors it. */
+  requestProjectRefresh(projectId: string): Promise<MonitorRefreshOutcome> {
+    return this.#enqueue(async () => {
+      this.#assertOpen();
+      if (!this.#projects.has(projectId)) return inactiveRefresh();
+      return {
+        active: true,
+        generation: await this.#native().requestRefresh(
+          projectScopeId(projectId),
+        ),
+      };
+    });
   }
 
-  requestRepositoryRefresh(projectId: string, repo: string): Promise<number> {
-    return this.#enqueue(() =>
-      this.#native().requestRefresh(repositoryScopeId(projectId, repo)),
-    );
+  /** Re-scan a monitored repository; reports inactive instead of failing when no client monitors it. */
+  requestRepositoryRefresh(
+    projectId: string,
+    repo: string,
+  ): Promise<MonitorRefreshOutcome> {
+    return this.#enqueue(async () => {
+      this.#assertOpen();
+      if (!this.#repositories.has(repositoryKey(projectId, repo)))
+        return inactiveRefresh();
+      return {
+        active: true,
+        generation: await this.#native().requestRefresh(
+          repositoryScopeId(projectId, repo),
+        ),
+      };
+    });
   }
 
   releaseOwner(owner: string): Promise<void> {
@@ -439,6 +459,15 @@ function projectScopeId(projectId: string): string {
 
 function repositoryScopeId(projectId: string, repo: string): string {
   return `git:${repositoryKey(projectId, repo)}`;
+}
+
+interface MonitorRefreshOutcome {
+  active: boolean;
+  generation: number;
+}
+
+function inactiveRefresh(): MonitorRefreshOutcome {
+  return { active: false, generation: 0 };
 }
 
 function repositoryKey(projectId: string, repo: string): string {

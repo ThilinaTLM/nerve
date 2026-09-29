@@ -10,6 +10,10 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
+import {
+  isValidTaskPort,
+  taskDefinitionRequest,
+} from "./task-panel-controller";
 import type { TaskPanelDefinition } from "./task-panel-types";
 
 type Props = {
@@ -65,22 +69,15 @@ const dialogDescription = $derived(
 const dialogSubmitLabel = $derived(
   submitLabel ?? (definition ? "Save task" : "Create task"),
 );
-const portValid = $derived(
-  port === undefined || (Number.isInteger(port) && port >= 1 && port <= 65_535),
+const portValid = $derived(isValidTaskPort(port));
+const request = $derived(
+  taskDefinitionRequest({ label, command: commandText, cwd, port, runPolicy }),
 );
-const canSave = $derived(!saving && commandText.trim().length > 0 && portValid);
+const canSave = $derived(!saving && request !== undefined);
 
 function submit() {
-  if (!canSave) return;
-  const nextLabel = label.trim();
-  const nextCwd = cwd.trim();
-  onSave?.({
-    command: commandText.trim(),
-    ...(nextLabel.length > 0 ? { label: nextLabel } : {}),
-    ...(nextCwd.length > 0 ? { cwd: nextCwd } : {}),
-    ...(port === undefined ? {} : { port }),
-    runPolicy,
-  });
+  if (!canSave || !request) return;
+  onSave?.(request);
 }
 </script>
 

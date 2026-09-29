@@ -117,6 +117,32 @@ function branchTimestamp(branch: GitBranchSummary): number {
   return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
+/**
+ * A light client-side guard so create stays disabled for obviously invalid
+ * names; git check-ref-format performs the authoritative validation.
+ */
+export function isPlausibleBranchName(name: string): boolean {
+  const trimmed = name.trim();
+  return (
+    trimmed.length > 0 &&
+    !/\s/.test(trimmed) &&
+    !trimmed.startsWith("-") &&
+    !trimmed.startsWith("/") &&
+    !trimmed.endsWith("/") &&
+    !trimmed.includes("..") &&
+    // eslint-disable-next-line no-control-regex
+    !/[\u0000-\u001f~^:?*[\\]/.test(trimmed)
+  );
+}
+
+/** Only local branches that are neither checked out nor the base can go. */
+export function canDeleteBranch(
+  branch: Pick<GitBranchSummary, "name" | "remote" | "current">,
+  baseBranch: string | undefined,
+): boolean {
+  return !branch.remote && !branch.current && branch.name !== baseBranch;
+}
+
 export function formatBranchUpdatedLabel(
   updatedAt: string | null,
   now = Date.now(),

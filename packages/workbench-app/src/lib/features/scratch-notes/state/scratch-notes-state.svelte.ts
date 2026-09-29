@@ -112,17 +112,22 @@ export function loadScratchNotes(
   return promise;
 }
 
-export async function createScratchNote(projectId: string): Promise<void> {
+/** Resolves the new note's id, or undefined when nothing was created. */
+export async function createScratchNote(
+  projectId: string,
+): Promise<string | undefined> {
   const project = ensureScratchNotesProject(projectId);
-  if (project.creating) return;
+  if (project.creating) return undefined;
   project.creating = true;
   try {
     await loadScratchNotes(projectId);
     const note = await createScratchNoteRequest(projectId);
     project.notes.push(toEntry(note));
     project.loadStatus = "loaded";
+    return note.id;
   } catch {
     notify.error("Could not create scratch note");
+    return undefined;
   } finally {
     project.creating = false;
   }

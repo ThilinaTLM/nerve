@@ -14,6 +14,7 @@ class FakeMonitor implements NativeChangeMonitorPort {
   gitScopes: Array<{ id: string; repository: string }> = [];
   removed: string[] = [];
   generation = 0;
+  refreshRequests = 0;
 
   async syncDirectories(input: { id: string; paths: string[] }) {
     this.directoryScopes.push(input);
@@ -26,6 +27,7 @@ class FakeMonitor implements NativeChangeMonitorPort {
   }
 
   async requestRefresh(): Promise<number> {
+    this.refreshRequests += 1;
     return ++this.generation;
   }
 
@@ -137,11 +139,64 @@ test("reference-counts repository demand and sequences manual refresh", async ()
     await monitor.syncRepository("one", "proj_one", ".", root, true);
     await monitor.syncRepository("two", "proj_one", ".", root, true);
     assert.equal(native.gitScopes.at(-1)?.repository, root);
-    assert.equal(await monitor.requestRepositoryRefresh("proj_one", "."), 1);
+    assert.deepEqual(await monitor.requestRepositoryRefresh("proj_one", "."), {
+      active: true,
+      generation: 1,
+    });
     await monitor.releaseOwner("one");
     assert.equal(native.removed.length, 0);
     await monitor.releaseOwner("two");
     assert.deepEqual(native.removed, ['git:["proj_one","."]']);
+  } finally {
+    await monitor.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("refreshing an unmonitored repository reports inactive without a native refresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-repository-refresh-"));
+  const native = new FakeMonitor();
+  const monitor = new WorkspaceMonitor(
+    { publishBestEffort() {} },
+    { monitor: native },
+  );
+  try {
+    const inactive = { active: false, generation: 0 };
+    assert.deepEqual(
+      await monitor.requestRepositoryRefresh("proj_one", "."),
+      inactive,
+    );
+    await monitor.syncRepository("one", "proj_one", ".", root, true);
+    await monitor.releaseOwner("one");
+    assert.deepEqual(
+      await monitor.requestRepositoryRefresh("proj_one", "."),
+      inactive,
+    );
+    assert.equal(native.refreshRequests, 0);
+  } finally {
+    await monitor.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("refreshing an unmonitored project reports inactive without a native refresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-project-refresh-"));
+  const native = new FakeMonitor();
+  const monitor = new WorkspaceMonitor(
+    { publishBestEffort() {} },
+    { monitor: native },
+  );
+  try {
+    const inactive = { active: false, generation: 0 };
+    assert.deepEqual(await monitor.requestProjectRefresh("proj_one"), inactive);
+    await monitor.syncProject("one", "proj_one", root, []);
+    assert.deepEqual(await monitor.requestProjectRefresh("proj_one"), {
+      active: true,
+      generation: 1,
+    });
+    await monitor.releaseOwner("one");
+    assert.deepEqual(await monitor.requestProjectRefresh("proj_one"), inactive);
+    assert.equal(native.refreshRequests, 1);
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

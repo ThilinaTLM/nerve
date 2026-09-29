@@ -11,7 +11,6 @@ import EditorTabStrip from "./EditorTabStrip.svelte";
 let {
   tabs = [],
   contentVisible,
-  hideTabStrip = false,
   content,
   empty,
   tabStrip,
@@ -27,8 +26,6 @@ let {
 }: {
   tabs?: WorkbenchTabModel[];
   contentVisible?: boolean;
-  /** Phone detail screens carry their own header, so the strip is dropped. */
-  hideTabStrip?: boolean;
   content: Snippet;
   empty?: Snippet;
   tabStrip?: Snippet;
@@ -44,14 +41,8 @@ let {
 } = $props();
 </script>
 
-<div
-  class={hideTabStrip
-    ? "grid h-full min-h-0 grid-rows-[minmax(0,1fr)]"
-    : "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]"}
->
-  {#if hideTabStrip}
-    <!-- The phone detail header replaces the strip; no row is reserved. -->
-  {:else if tabStrip}
+<div class="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]">
+  {#if tabStrip}
     {@render tabStrip()}
   {:else}
     <EditorTabStrip

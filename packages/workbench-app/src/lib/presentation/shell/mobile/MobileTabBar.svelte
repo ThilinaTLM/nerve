@@ -1,10 +1,9 @@
 <script lang="ts">
 import { cn } from "@nervekit/ui-kit/utils";
 import type { PanelViewIcon } from "../shell-types.js";
-import type { MobileTabId } from "./mobile-navigation.js";
 
 export type MobileTabModel = {
-  id: MobileTabId;
+  id: string;
   label: string;
   icon: PanelViewIcon;
   /** Count shown as a pill; omitted or 0 renders nothing. */
@@ -19,8 +18,8 @@ let {
   onSelect,
 }: {
   tabs: readonly MobileTabModel[];
-  activeTab: MobileTabId;
-  onSelect: (tab: MobileTabId) => void;
+  activeTab: string;
+  onSelect: (tab: string) => void;
 } = $props();
 </script>
 

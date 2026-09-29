@@ -1,49 +1,60 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import LayoutGrid from "@lucide/svelte/icons/layout-grid";
+import { untrack } from "svelte";
+import { SvelteSet } from "svelte/reactivity";
+import Activity from "@lucide/svelte/icons/activity";
+import FolderKanban from "@lucide/svelte/icons/folder-kanban";
 import Inbox from "@lucide/svelte/icons/inbox";
-import MessagesSquare from "@lucide/svelte/icons/messages-square";
-import Menu from "@lucide/svelte/icons/menu";
 import {
-  MobileScreen,
+  MobileLayer,
   MobileShell,
-  type MobileTabId,
   type MobileTabModel,
 } from "$lib/presentation/shell";
-import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
-import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
+import { taskSelectors } from "$lib/features/tasks";
 import { workspaceSelectors } from "$lib/application/workspace";
-import { discoverTitlebarBadge } from "$lib/app/discover";
-import MobileCenterHost from "./MobileCenterHost.svelte";
-import MobileChatsHost from "./MobileChatsHost.svelte";
-import MobileCodeHost from "./MobileCodeHost.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import MobileActivityHost from "./MobileActivityHost.svelte";
 import MobileConversationDialogs from "./MobileConversationDialogs.svelte";
 import MobileInboxHost from "./MobileInboxHost.svelte";
-import MobileMoreHost from "./MobileMoreHost.svelte";
 import MobileProjectsHost from "./MobileProjectsHost.svelte";
+import MobileRouteHost from "./MobileRouteHost.svelte";
+import { LIVE_TASK_STATUSES } from "./mobile-activity";
+import { followMobileHistory } from "./mobile-history.svelte";
 import { mobileInboxModel } from "./mobile-inbox-model.svelte";
 import {
-  backFromMobileDetail,
+  activateMobileRoute,
+  followMobileCenterTab,
+} from "./mobile-route-activation.svelte";
+import {
+  MOBILE_TAB_IDS,
+  isMobileTabId,
+  mobileRouteKey,
+  type MobileTabId,
+} from "./mobile-routes";
+import {
   mobileNav,
+  pruneMobileNav,
   selectMobileTabId,
-  showMobileCenter,
 } from "./mobile-shell.svelte";
 
+/**
+ * The phone workbench: three root tabs, each with its own stack of full-screen
+ * routes. Every route stays mounted while it is in a stack so going back keeps
+ * scroll position and live conversation state; only the top route of the
+ * active tab is visible.
+ */
 let { overlays }: { overlays?: Snippet } = $props();
 
-const inbox = $derived(mobileInboxModel());
-const discoverBadge = $derived(discoverTitlebarBadge());
+followMobileCenterTab();
+followMobileHistory();
 
-// Git data backs the Code tab summary as well as its panels, so it stays
-// enabled while that tab is the one on screen.
-const codeTabActive = $derived(mobileNav.tab === "code");
-const gitPanel = createWorkbenchGitPanelAdapter(
-  () => workspaceSelectors.activeProject,
-  () => codeTabActive,
-  () => codeTabActive,
+const inbox = $derived(mobileInboxModel());
+const anythingRunning = $derived(
+  Object.values(workspaceSelectors.conversationActivityById).some(
+    (activity) => activity?.busy,
+  ) || taskSelectors.tasks.some((task) => LIVE_TASK_STATUSES.has(task.status)),
 );
-const prCount = $derived(gitPanel.model.pullRequests.length);
 
 const tabs = $derived<MobileTabModel[]>([
   {
@@ -51,93 +62,90 @@ const tabs = $derived<MobileTabModel[]>([
     label: "Inbox",
     icon: Inbox,
     badge: inbox.needsYou.length,
-    dot: inbox.running.length > 0 || inbox.awaitingAsync.length > 0,
   },
-  { id: "chats", label: "Chats", icon: MessagesSquare },
-  // "Workspace", not "Project": the project is what the switcher selects; this
-  // tab is the tooling inside the selected one.
-  { id: "code", label: "Workspace", icon: LayoutGrid },
-  {
-    id: "more",
-    label: "More",
-    icon: Menu,
-    dot: discoverBadge.kind !== "none",
-  },
+  { id: "projects", label: "Projects", icon: FolderKanban },
+  { id: "activity", label: "Activity", icon: Activity, dot: anythingRunning },
 ]);
 
-const panelViewId = $derived(mobileNav.panelViewId);
-// Panels render their own titled header, so the detail bar carries the project
-// instead of repeating the panel name.
-const panelTitle = $derived(
-  workspaceSelectors.activeProject?.name ??
-    panelViewDescriptors.find((descriptor) => descriptor.id === panelViewId)
-      ?.title ??
-    "Panel",
+// Root screens mount on first visit and stay mounted.
+const visited = new SvelteSet<MobileTabId>();
+$effect(() => {
+  visited.add(mobileNav.tab);
+});
+
+// Git data backs the project home summary and the repository screens, so it
+// only polls while one of those is on screen.
+const gitVisible = $derived(
+  ["project", "git", "pull-requests", "branches"].includes(
+    mobileNav.top?.kind ?? "",
+  ),
+);
+const gitPanel = createWorkbenchGitPanelAdapter(
+  () => workspaceSelectors.activeProject,
+  () => gitVisible,
+  () => gitVisible,
 );
 
-// Opening anything that lands in the center stack — a conversation from the
-// inbox, a plan, settings from More — navigates to the detail screen.
-let lastCenterKey: string | undefined;
-let centerKeyInitialized = false;
+// A stack restored after a reload may point at projects or conversations that
+// were deleted meanwhile; drop those routes once the workspace has loaded.
+let restoredStackPruned = $state(false);
 $effect(() => {
-  const active = workspaceSelectors.activeCenterTab;
-  const key = active ? `${active.kind}:${active.id}` : undefined;
-  if (!centerKeyInitialized) {
-    centerKeyInitialized = true;
-    lastCenterKey = key;
-    return;
-  }
-  if (key === lastCenterKey) return;
-  lastCenterKey = key;
-  if (key) showMobileCenter();
+  const loaded =
+    workbenchStartupState.coreReady || workbenchStartupState.phase === "failed";
+  if (restoredStackPruned || !loaded) return;
+  untrack(() => {
+    pruneMobileNav({
+      projectIds: new Set(workspaceSelectors.projects.map((p) => p.id)),
+      conversationIds: new Set(
+        workspaceSelectors.conversations.map((c) => c.id),
+      ),
+    });
+    restoredStackPruned = true;
+  });
 });
+
+// Whichever route surfaces — pushed, popped back to, or revealed by a tab
+// switch — owns the shared project and center-tab selection.
+const topKey = $derived(mobileNav.top ? mobileRouteKey(mobileNav.top) : "");
+$effect(() => {
+  if (!topKey || !restoredStackPruned) return;
+  const route = untrack(() => mobileNav.top);
+  if (route) void activateMobileRoute(route);
+});
+
+function selectTab(tab: string) {
+  if (isMobileTabId(tab)) selectMobileTabId(tab);
+}
 </script>
 
 <MobileShell
   {tabs}
   activeTab={mobileNav.tab}
-  onSelectTab={selectMobileTabId}
-  centerVisible={mobileNav.centerVisible}
-  panelVisible={Boolean(panelViewId)}
-  projectsVisible={mobileNav.projectsVisible}
+  onSelectTab={selectTab}
+  tabBarVisible={mobileNav.stack.length === 0}
   {overlays}
 >
-  {#snippet root(tab: MobileTabId)}
-    {#if tab === "inbox"}
-      <MobileInboxHost />
-    {:else if tab === "chats"}
-      <MobileChatsHost />
-    {:else if tab === "code"}
-      <MobileCodeHost {prCount} />
-    {:else}
-      <MobileMoreHost />
+  {#each MOBILE_TAB_IDS as tab (tab)}
+    {#if visited.has(tab)}
+      {@const stack = mobileNav.state.stacks[tab]}
+      {@const tabActive = tab === mobileNav.tab}
+      <MobileLayer hidden={!tabActive || stack.length > 0}>
+        {#if tab === "inbox"}
+          <MobileInboxHost />
+        {:else if tab === "projects"}
+          <MobileProjectsHost />
+        {:else}
+          <MobileActivityHost />
+        {/if}
+      </MobileLayer>
+      {#each stack as route, index (mobileRouteKey(route))}
+        {@const visible = tabActive && index === stack.length - 1}
+        <MobileLayer hidden={!visible}>
+          <MobileRouteHost {route} {visible} {gitPanel} />
+        </MobileLayer>
+      {/each}
     {/if}
-  {/snippet}
-
-  {#snippet center()}
-    <MobileCenterHost />
-  {/snippet}
-
-  {#snippet projects()}
-    <MobileProjectsHost />
-  {/snippet}
-
-  {#snippet panel()}
-    {#if panelViewId}
-      <MobileScreen
-        title={panelTitle}
-        onBack={backFromMobileDetail}
-        backLabel="Back to project"
-        scroll={false}
-      >
-        <WorkbenchPanelHost
-          viewId={panelViewId}
-          gitModel={gitPanel.model}
-          gitActions={gitPanel.actions}
-        />
-      </MobileScreen>
-    {/if}
-  {/snippet}
+  {/each}
 </MobileShell>
 
 <MobileConversationDialogs />

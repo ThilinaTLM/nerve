@@ -1,40 +1,64 @@
+import { tick } from "svelte";
 import {
-  activeMobileDetail,
-  closeMobileDetail,
   initialMobileNavState,
-  openMobileCenterDetail,
-  openMobilePanelDetail,
-  openMobileProjectsDetail,
-  retainSingleCenterDetail,
+  parseMobileNav,
+  popMobileRoute,
+  pruneMissingRoutes,
+  popMobileRouteTo,
+  pushMobileRoute,
+  replaceTopMobileRoute,
   selectMobileTab,
-  type MobileDetail,
+  serializeMobileNav,
+  topMobileRoute,
   type MobileNavState,
+  type MobileRoute,
   type MobileTabId,
-} from "$lib/presentation/shell";
+} from "./mobile-routes";
 
 /**
- * Phone navigation state. Ephemeral by design: the shell is a monitoring
- * surface, so a reload starts at the inbox rather than restoring a stale
- * screen.
+ * Phone navigation state. It survives a reload of this browser tab through
+ * session storage (never shared across tabs or devices); a new tab starts at
+ * the inbox. Routes to projects or conversations that no longer exist are
+ * pruned once the workspace has loaded.
  */
-let nav = $state<MobileNavState>(initialMobileNavState());
+const NAV_STORAGE_KEY = "nerve.mobileNav.v1";
+
+function readStoredNav(): MobileNavState {
+  if (typeof window === "undefined") return initialMobileNavState();
+  try {
+    return parseMobileNav(window.sessionStorage.getItem(NAV_STORAGE_KEY));
+  } catch {
+    return initialMobileNavState();
+  }
+}
+
+let nav = $state<MobileNavState>(readStoredNav());
+
+if (typeof window !== "undefined") {
+  $effect.root(() => {
+    $effect(() => {
+      const serialized = serializeMobileNav(nav);
+      try {
+        window.sessionStorage.setItem(NAV_STORAGE_KEY, serialized);
+      } catch {
+        // Storage can be full or disabled; navigation still works in memory.
+      }
+    });
+  });
+}
 
 export const mobileNav = {
+  get state(): MobileNavState {
+    return nav;
+  },
   get tab(): MobileTabId {
     return nav.tab;
   },
-  get detail(): MobileDetail | undefined {
-    return activeMobileDetail(nav);
+  get stack(): readonly MobileRoute[] {
+    return nav.stacks[nav.tab];
   },
-  get centerVisible(): boolean {
-    return activeMobileDetail(nav)?.kind === "center";
-  },
-  get panelViewId(): string | undefined {
-    const detail = activeMobileDetail(nav);
-    return detail?.kind === "panel" ? detail.viewId : undefined;
-  },
-  get projectsVisible(): boolean {
-    return activeMobileDetail(nav)?.kind === "projects";
+  get top(): MobileRoute | undefined {
+    return topMobileRoute(nav);
   },
 };
 
@@ -42,23 +66,55 @@ export function selectMobileTabId(tab: MobileTabId): void {
   nav = selectMobileTab(nav, tab);
 }
 
-/** Show the center stack (conversation, plan, settings, …) on the active tab. */
-export function showMobileCenter(tab?: MobileTabId): void {
-  nav = retainSingleCenterDetail(openMobileCenterDetail(nav, tab));
+export function pushMobileScreen(route: MobileRoute, tab?: MobileTabId): void {
+  nav = pushMobileRoute(nav, route, tab);
 }
 
-export function showMobilePanel(viewId: string): void {
-  nav = openMobilePanelDetail(nav, viewId);
+export function replaceMobileScreen(route: MobileRoute): void {
+  nav = replaceTopMobileRoute(nav, route);
 }
 
-export function showMobileProjects(): void {
-  nav = openMobileProjectsDetail(nav);
+export function backFromMobileScreen(): void {
+  nav = popMobileRoute(nav);
 }
 
-export function backFromMobileDetail(): void {
-  nav = closeMobileDetail(nav);
+export function popMobileScreenTo(index: number): void {
+  nav = popMobileRouteTo(nav, index);
+}
+
+export function pruneMobileNav(existing: {
+  projectIds: ReadonlySet<string>;
+  conversationIds: ReadonlySet<string>;
+}): void {
+  nav = pruneMissingRoutes(nav, existing);
 }
 
 export function resetMobileNav(): void {
   nav = initialMobileNavState();
+}
+
+/*
+ * While the phone shell itself changes workspace selection (restoring a
+ * route's project or center tab, or opening something it already pushed), the
+ * center follower must not treat the resulting active-tab changes as
+ * app-initiated navigation. Deliberately not reactive: reading it inside the
+ * follower effect must not subscribe to it.
+ */
+let suppressed = 0;
+
+export function mobileFollowerSuppressed(): boolean {
+  return suppressed > 0;
+}
+
+export async function suppressMobileFollower<T>(
+  run: () => T | Promise<T>,
+): Promise<T> {
+  suppressed += 1;
+  try {
+    return await run();
+  } finally {
+    // Let effects scheduled by the last state change observe the suppression.
+    await tick();
+    suppressed -= 1;
+  }
 }

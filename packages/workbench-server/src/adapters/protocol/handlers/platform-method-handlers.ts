@@ -148,11 +148,8 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
       );
       return { active: false, degraded: false, watchedDirectoryCount: 0 };
     },
-    "filesystem.project.refresh": async (state, params) => ({
-      generation: await state.workspaceMonitor.requestProjectRefresh(
-        params.projectId,
-      ),
-    }),
+    "filesystem.project.refresh": (state, params) =>
+      state.workspaceMonitor.requestProjectRefresh(params.projectId),
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,

@@ -52,12 +52,12 @@ export function clearGitRepositoryMonitor(
   return workspaceMonitorDemand.clearRepository(projectId, repo);
 }
 
-export async function requestGitRepositoryRefresh(
+/** Re-scan the repository monitor after this client's own sync for it lands. */
+export function requestGitRepositoryRefresh(
   projectId: string,
   repo: string,
-) {
-  return (await protocolRequest("git.repository.refresh", { projectId, repo }))
-    .result;
+): Promise<boolean> {
+  return workspaceMonitorDemand.refreshRepository(projectId, repo);
 }
 
 export async function getGitOverview(

@@ -18,7 +18,14 @@ export type MobileInboxKind =
   | "plan"
   | "error"
   | "running"
-  | "awaiting-async";
+  | "awaiting-async"
+  | "recent";
+
+/** The pending request behind a needs-you row, resolvable by id. */
+export type MobileInboxInteraction = {
+  kind: "approval" | "question" | "plan";
+  id: string;
+};
 
 export type MobileInboxItem = {
   id: string;
@@ -32,6 +39,7 @@ export type MobileInboxItem = {
   tone: StatusTone;
   pulse: boolean;
   at?: string;
+  interaction?: MobileInboxInteraction;
 };
 
 type ApprovalWithToolCall = ApprovalRecord & {
@@ -66,13 +74,19 @@ export type MobileInboxInput = {
   conversations: readonly ConversationRecord[];
   projectNameById?: Readonly<Record<string, string>>;
   activityById?: Readonly<Record<string, ActivityLike>>;
+  /** How many quiet conversations to offer under "Recent". Defaults to 8. */
+  recentLimit?: number;
 };
 
 export type MobileInboxModel = {
   needsYou: MobileInboxItem[];
   running: MobileInboxItem[];
   awaitingAsync: MobileInboxItem[];
+  /** Latest conversations that are not already listed above. */
+  recent: MobileInboxItem[];
 };
+
+const DEFAULT_RECENT_LIMIT = 8;
 
 export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
   const conversationsById = new Map(
@@ -106,6 +120,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
       tone: HIGH_RISK.has(approval.risk) ? "destructive" : "warning",
       pulse: false,
       at: approval.requestedAt,
+      interaction: { kind: "approval", id: approval.id },
     });
   }
 
@@ -124,6 +139,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
       tone: "warning",
       pulse: false,
       at: question.requestedAt,
+      interaction: { kind: "question", id: question.id },
     });
   }
 
@@ -144,6 +160,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
       tone: "info",
       pulse: false,
       at: plan.requestedAt,
+      interaction: { kind: "plan", id: plan.id },
     });
   }
 
@@ -173,6 +190,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
       activity.indicator === "awaiting-async" &&
       !claimed.has(conversation.id)
     ) {
+      claimed.add(conversation.id);
       awaitingAsync.push({
         id: `awaiting-async:${conversation.id}`,
         kind: "awaiting-async",
@@ -188,6 +206,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
       continue;
     }
     if (!activity.busy || claimed.has(conversation.id)) continue;
+    claimed.add(conversation.id);
     running.push({
       id: `running:${conversation.id}`,
       kind: "running",
@@ -202,10 +221,32 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
     });
   }
 
+  const recent = input.conversations
+    .filter(
+      (conversation) =>
+        !claimed.has(conversation.id) && !conversation.completedAt,
+    )
+    .map(
+      (conversation): MobileInboxItem => ({
+        id: `recent:${conversation.id}`,
+        kind: "recent",
+        kindLabel: "Recent",
+        conversationId: conversation.id,
+        title: conversation.title,
+        projectLabel: input.projectNameById?.[conversation.projectId],
+        detail: "",
+        tone: "neutral",
+        pulse: false,
+        at: conversation.lastUserMessageAt ?? conversation.createdAt,
+      }),
+    )
+    .sort(byRecency)
+    .slice(0, Math.max(0, input.recentLimit ?? DEFAULT_RECENT_LIMIT));
+
   needsYou.sort(byRecency);
   running.sort(byRecency);
   awaitingAsync.sort(byRecency);
-  return { needsYou, running, awaitingAsync };
+  return { needsYou, running, awaitingAsync, recent };
 }
 
 function byRecency(left: MobileInboxItem, right: MobileInboxItem): number {

@@ -41,12 +41,11 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       );
       return { active: false, degraded: false };
     },
-    "git.repository.refresh": async (state, params) => ({
-      generation: await state.workspaceMonitor.requestRepositoryRefresh(
+    "git.repository.refresh": (state, params) =>
+      state.workspaceMonitor.requestRepositoryRefresh(
         params.projectId,
         repo(params),
       ),
-    }),
     "git.project.files.status.get": (state, params) =>
       state.git.projectFileStatus(params.projectId),
     "git.branches.list": (state, params) =>

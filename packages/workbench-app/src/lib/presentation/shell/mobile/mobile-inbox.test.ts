@@ -202,4 +202,64 @@ describe("buildMobileInbox", () => {
     assert.equal(model.needsYou[0]?.kind, "error");
     assert.equal(model.needsYou[0]?.detail, "Agent error");
   });
+
+  it("carries the interaction id so rows can resolve requests inline", () => {
+    const model = buildMobileInbox(
+      input({
+        conversations: [conversation("conv_a")],
+        approvals: [
+          {
+            id: "approval_1",
+            conversationId: "conv_a",
+            projectId: "proj_1",
+            risk: "command",
+            status: "pending",
+            requestedAt: "2026-01-02T00:00:00.000Z",
+          } as never,
+        ],
+      }),
+    );
+    assert.deepEqual(model.needsYou[0]?.interaction, {
+      kind: "approval",
+      id: "approval_1",
+    });
+  });
+
+  it("offers recent quiet conversations, newest prompt first", () => {
+    const model = buildMobileInbox(
+      input({
+        recentLimit: 2,
+        conversations: [
+          conversation("conv_old", {
+            lastUserMessageAt: "2026-01-02T00:00:00.000Z",
+          }),
+          conversation("conv_new", {
+            lastUserMessageAt: "2026-01-05T00:00:00.000Z",
+          }),
+          conversation("conv_mid", {
+            lastUserMessageAt: "2026-01-04T00:00:00.000Z",
+          }),
+          conversation("conv_done", {
+            lastUserMessageAt: "2026-01-09T00:00:00.000Z",
+            completedAt: "2026-01-09T00:00:00.000Z",
+          }),
+          conversation("conv_busy", {
+            lastUserMessageAt: "2026-01-08T00:00:00.000Z",
+          }),
+        ],
+        activityById: {
+          conv_busy: {
+            indicator: "running",
+            tone: "info",
+            busy: true,
+          },
+        },
+      }),
+    );
+    assert.deepEqual(
+      model.recent.map((item) => item.conversationId),
+      ["conv_new", "conv_mid"],
+    );
+    assert.equal(model.running[0]?.conversationId, "conv_busy");
+  });
 });
