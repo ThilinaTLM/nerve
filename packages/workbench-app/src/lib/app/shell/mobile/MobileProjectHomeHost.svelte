@@ -17,7 +17,7 @@ import { taskSelectors } from "$lib/features/tasks";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import { workspaceSelectors } from "$lib/application/workspace";
 import MobileRootActions from "./MobileRootActions.svelte";
-import { LIVE_TASK_STATUSES, taskProject } from "./mobile-activity";
+import { LIVE_TASK_STATUSES, tasksInProject } from "./mobile-activity";
 import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
 import { buildMobileProjectHome } from "./mobile-project-home";
 import { openMobileConversation } from "./mobile-route-activation.svelte";
@@ -50,12 +50,11 @@ const model = $derived(
       projectIds.includes(conversation.projectId),
     ),
     activityById: workspaceSelectors.conversationActivityById,
-    liveTaskCount: taskSelectors.tasks.filter(
-      (task) =>
-        LIVE_TASK_STATUSES.has(task.status) &&
-        project !== undefined &&
-        taskProject(task, [project])?.id === projectId,
-    ).length,
+    liveTaskCount: tasksInProject(
+      taskSelectors.tasks,
+      workspaceSelectors.projects,
+      projectId,
+    ).filter((task) => LIVE_TASK_STATUSES.has(task.status)).length,
     git: gitStatus
       ? { changeCount: gitStatus.changeCount, branch: gitStatus.branch }
       : undefined,

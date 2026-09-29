@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
-import { buildMobileActivity, taskProject } from "./mobile-activity.js";
+import {
+  buildMobileActivity,
+  taskProject,
+  tasksInProject,
+} from "./mobile-activity.js";
 
 const NOW = Date.parse("2026-01-10T12:00:00.000Z");
 
@@ -125,6 +129,21 @@ describe("buildMobileActivity", () => {
     assert.equal(
       taskProject(task("task_y", { cwd: "/elsewhere" }), projects),
       undefined,
+    );
+  });
+
+  it("gives a nested project's legacy tasks to the child only", () => {
+    const tasks = [
+      task("task_parent", { cwd: "/work/app/src" }),
+      task("task_child", { cwd: "/work/app/web/src" }),
+    ];
+    assert.deepEqual(
+      tasksInProject(tasks, projects, "proj_a").map((item) => item.id),
+      ["task_parent"],
+    );
+    assert.deepEqual(
+      tasksInProject(tasks, projects, "proj_b").map((item) => item.id),
+      ["task_child"],
     );
   });
 });

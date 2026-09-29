@@ -93,6 +93,18 @@ export function taskProject<P extends ProjectLike>(
     .sort((left, right) => right.dir.length - left.dir.length)[0];
 }
 
+/**
+ * Tasks owned by one project. Ownership is resolved against every project so
+ * a task under a nested project belongs to the child, never the parent too.
+ */
+export function tasksInProject<P extends ProjectLike>(
+  tasks: readonly TaskRecord[],
+  projects: readonly P[],
+  projectId: string,
+): TaskRecord[] {
+  return tasks.filter((task) => taskProject(task, projects)?.id === projectId);
+}
+
 export function buildMobileActivity(
   input: MobileActivityInput,
 ): MobileActivityModel {

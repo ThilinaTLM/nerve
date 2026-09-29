@@ -77,3 +77,18 @@ export function taskStatusLabel(task: TaskRecord): string {
       : "";
   return `${status.charAt(0).toUpperCase()}${status.slice(1)}${exit}`;
 }
+
+/**
+ * Finished runs shown on one project's Tasks screen, both ad-hoc and those of
+ * saved tasks. Clearing is scoped to these ids because the server-side prune
+ * spans every project.
+ */
+export function finishedRunIds(view: {
+  readonly definitions: readonly Pick<TaskDefinitionEntry, "runs">[];
+  readonly runs: readonly TaskRunEntry[];
+}): string[] {
+  return [
+    ...view.runs,
+    ...view.definitions.flatMap((entry) => entry.runs),
+  ].flatMap((entry) => (entry.isRemovable ? [entry.run.id] : []));
+}

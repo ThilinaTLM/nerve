@@ -49,14 +49,8 @@ function preview(content: string): string | undefined {
 }
 
 async function create() {
-  const before = new Set(entry?.notes.map((note) => note.id));
-  await createScratchNote(projectId);
-  const created = scratchNotesUi.projects[projectId]?.notes.find(
-    (note) => !before.has(note.id),
-  );
-  if (created) {
-    pushMobileScreen({ kind: "note", projectId, noteId: created.id });
-  }
+  const noteId = await createScratchNote(projectId);
+  if (noteId) pushMobileScreen({ kind: "note", projectId, noteId });
 }
 </script>
 

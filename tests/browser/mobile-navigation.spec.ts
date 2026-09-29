@@ -45,6 +45,29 @@ test.describe("phone shell", () => {
     expect(pageErrors).toEqual([]);
   });
 
+  test("browser forward restores routes popped by back", async ({ page }) => {
+    await page.goto("/");
+    await primaryTabs(page).getByRole("button", { name: "Activity" }).click();
+    await page.getByRole("button", { name: "Settings" }).first().click();
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await page.locator(".mobile-row-main:visible").first().click();
+    const title = page.locator("h1:visible");
+    await expect(title).not.toHaveText("Settings");
+    const pageTitle = await title.innerText();
+
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await page.goForward();
+    await expect(
+      page.getByRole("heading", { name: pageTitle, exact: true }),
+    ).toBeVisible();
+
+    await page.goBack();
+    await page.goBack();
+    await expect(page.getByRole("heading", { name: "Activity" })).toBeVisible();
+    await expect(primaryTabs(page)).toBeVisible();
+  });
+
   test("restores the route stack after a reload and back still pops it", async ({
     page,
   }) => {

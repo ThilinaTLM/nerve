@@ -332,3 +332,40 @@ export function pruneMissingRoutes(
   }
   return changed ? { ...state, stacks } : state;
 }
+
+/** Routes popped by the system back gesture, kept so Forward can restore them. */
+export type MobileForwardRoutes = { tab: MobileTabId; routes: MobileRoute[] };
+
+export type MobileHistoryPop =
+  /** Landed on the entry the shell already shows, e.g. its own rewind. */
+  | { kind: "ignore" }
+  /** Back (possibly several entries from the long-press history menu). */
+  | { kind: "back"; count: number }
+  /** Forward onto routes popped earlier; push them again in order. */
+  | { kind: "forward"; routes: MobileRoute[]; remaining: MobileRoute[] }
+  /** Forward onto entries whose routes are gone; step history back. */
+  | { kind: "rewind"; count: number };
+
+/**
+ * Decide what a history pop means from the depth the shell owns and the depth
+ * recorded on the entry the browser landed on.
+ */
+export function resolveMobileHistoryPop(input: {
+  depth: number;
+  reached: number;
+  tab: MobileTabId;
+  forward?: MobileForwardRoutes;
+}): MobileHistoryPop {
+  const { depth, reached, tab, forward } = input;
+  if (reached === depth) return { kind: "ignore" };
+  if (reached < depth) return { kind: "back", count: depth - reached };
+  const count = reached - depth;
+  if (forward?.tab === tab && forward.routes.length >= count) {
+    return {
+      kind: "forward",
+      routes: forward.routes.slice(0, count),
+      remaining: forward.routes.slice(count),
+    };
+  }
+  return { kind: "rewind", count };
+}

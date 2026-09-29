@@ -25,7 +25,6 @@ import {
   cancelSelectedTask,
   cleanupTaskRuns,
   projectTaskPanel,
-  pruneFinishedTasks,
   removeTask,
   restartSelectedTask,
   runTaskCommand,
@@ -38,13 +37,17 @@ import {
 } from "$lib/features/tasks";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
-import { taskProject, taskTitle } from "$lib/app/shell/mobile/mobile-activity";
+import {
+  tasksInProject,
+  taskTitle,
+} from "$lib/app/shell/mobile/mobile-activity";
 import { openMobileTaskOutput } from "$lib/app/shell/mobile/mobile-route-activation.svelte";
 import { backFromMobileScreen } from "$lib/app/shell/mobile/mobile-shell.svelte";
 import MobileTaskDefinitionSheet from "./MobileTaskDefinitionSheet.svelte";
 import type { MobileScreenProps } from "./mobile-screen-registry";
 import {
   definitionRowDetail,
+  finishedRunIds,
   definitionRowSignal,
   splitRunEntries,
   taskRunSignal,
@@ -64,11 +67,11 @@ const project = $derived(
   ),
 );
 const projectTasks = $derived(
-  project
-    ? taskSelectors.tasks.filter(
-        (task) => taskProject(task, [project])?.id === project.id,
-      )
-    : [],
+  tasksInProject(
+    taskSelectors.tasks,
+    workspaceSelectors.projects,
+    route.projectId,
+  ),
 );
 
 const panel = createWorkbenchTaskPanelAdapter(
@@ -81,7 +84,6 @@ const panel = createWorkbenchTaskPanelAdapter(
     restartTask: (id) => void restartSelectedTask(id),
     removeTask: (id) => void removeTask(id),
     cleanupRuns: (ids) => void cleanupTaskRuns(ids),
-    pruneTasks: () => void pruneFinishedTasks(),
     // Saved tasks launch through the `start` capability, which the adapter
     // enables only for hosts that can run commands. The phone exposes no
     // free-form command entry, so this is reachable only via saved tasks.
@@ -94,10 +96,7 @@ const view = $derived(projectTaskPanel(model.definitions, projectTasks));
 const runs = $derived(splitRunEntries(view.runs));
 const canManage = $derived(model.capabilities.manageDefinitions.enabled);
 const canStart = $derived(model.capabilities.start.enabled);
-const hasFinished = $derived(
-  view.runs.some((entry) => entry.isRemovable) ||
-    view.definitions.some((entry) => entry.runs.some((run) => run.isRemovable)),
-);
+const finishedIds = $derived(finishedRunIds(view));
 
 type TaskForm = {
   key: number;
@@ -117,6 +116,7 @@ let form = $state<TaskForm>();
 let formKey = 0;
 let deleting = $state<TaskPanelDefinition>();
 let screenMenuOpen = $state(false);
+let clearOpen = $state(false);
 
 function openCreate() {
   form = {
@@ -243,8 +243,8 @@ const screenMenu = $derived<ContextMenuItem[]>([
   {
     label: "Clear finished runs",
     icon: Eraser,
-    disabled: !hasFinished,
-    onSelect: () => void taskActions.pruneTasks(),
+    disabled: !finishedIds.length || !model.capabilities.remove.enabled,
+    onSelect: () => (clearOpen = true),
   },
 ]);
 </script>
@@ -396,6 +396,15 @@ const screenMenu = $derived<ContextMenuItem[]>([
   onOpenChange={(open) => {
     if (!open) deleting = undefined;
   }}
+/>
+
+<ConfirmDialog
+  bind:open={clearOpen}
+  destructive
+  title="Clear finished runs?"
+  description={`Removes ${finishedIds.length === 1 ? "1 finished run" : `${finishedIds.length} finished runs`} in ${project?.name ?? "this project"} and their captured logs. Saved tasks are kept.`}
+  confirmLabel="Clear"
+  onConfirm={() => void taskActions.cleanupRuns(finishedIds)}
 />
 
 <ConfirmDialog

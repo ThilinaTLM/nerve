@@ -1,9 +1,17 @@
-import { mobileHistoryDepth } from "./mobile-routes";
-import { backFromMobileScreen, mobileNav } from "./mobile-shell.svelte";
+import {
+  mobileHistoryDepth,
+  resolveMobileHistoryPop,
+  type MobileForwardRoutes,
+} from "./mobile-routes";
+import {
+  mobileNav,
+  popMobileScreenTo,
+  pushMobileScreen,
+} from "./mobile-shell.svelte";
 
 type EntryState = { nerveMobileDepth: number };
 
-/** Entries the shell pushed before a reload are still in the session history. */
+/** The stack depth recorded on the current history entry; 0 outside the shell. */
 function currentEntryDepth(): number {
   const state = history.state as Partial<EntryState> | null;
   const depth = state?.nerveMobileDepth;
@@ -13,36 +21,55 @@ function currentEntryDepth(): number {
 }
 
 /**
- * Route the system back gesture (Android back, iOS edge swipe in a browser,
- * the browser back button) into the phone route stack.
+ * Route the system back and forward gestures (Android back, iOS edge swipes,
+ * the browser buttons) into the phone route stack.
  *
- * The shell owns one history entry per route in the active tab's stack, so
- * rapid repeated back gestures pop routes one by one and never leave the app
- * early. In-app navigation that shortens the stack rewinds the owned entries
- * silently. Must be called during component initialisation so it only exists
- * while the phone shell is mounted.
+ * The shell owns one history entry per route in the active tab's stack, each
+ * stamped with its depth, so a pop is resolved from where the browser landed
+ * rather than assumed to be Back. Routes popped by Back are kept so Forward
+ * restores them; any in-app navigation discards them, as the browser does its
+ * forward entries. Must be called during component initialisation so it only
+ * exists while the phone shell is mounted.
  */
 export function followMobileHistory(): void {
   // After a reload the restored stack reuses the entries already in history.
   let depth = currentEntryDepth();
-  let ignoredPops = 0;
-
-  function rewind(count: number) {
-    if (count <= 0) return;
-    depth -= count;
-    ignoredPops += 1;
-    history.go(-count);
-  }
+  let forward: MobileForwardRoutes | undefined;
 
   $effect(() => {
     const onPopState = () => {
-      if (ignoredPops > 0) {
-        ignoredPops -= 1;
-        return;
+      const pop = resolveMobileHistoryPop({
+        depth,
+        reached: currentEntryDepth(),
+        tab: mobileNav.tab,
+        forward,
+      });
+      switch (pop.kind) {
+        case "ignore":
+          return;
+        case "back": {
+          const stack = mobileNav.stack;
+          const keep = Math.max(0, stack.length - pop.count);
+          forward = {
+            tab: mobileNav.tab,
+            routes: [
+              ...stack.slice(keep),
+              ...(forward?.tab === mobileNav.tab ? forward.routes : []),
+            ],
+          };
+          // Update depth first so the sync effect sees nothing to do.
+          depth -= pop.count;
+          popMobileScreenTo(keep - 1);
+          return;
+        }
+        case "forward":
+          depth += pop.routes.length;
+          forward = { tab: mobileNav.tab, routes: pop.remaining };
+          for (const route of pop.routes) pushMobileScreen(route);
+          return;
+        case "rewind":
+          history.go(-pop.count);
       }
-      if (depth === 0) return;
-      depth -= 1;
-      backFromMobileScreen();
     };
     window.addEventListener("popstate", onPopState);
     return () => {
@@ -54,13 +81,19 @@ export function followMobileHistory(): void {
 
   $effect(() => {
     const target = mobileHistoryDepth(mobileNav.state);
+    if (target === depth) return;
+    // In-app navigation; the browser drops its forward entries on push too.
+    forward = undefined;
     if (target > depth) {
       while (depth < target) {
         depth += 1;
         history.pushState({ nerveMobileDepth: depth } satisfies EntryState, "");
       }
-    } else if (target < depth) {
-      rewind(depth - target);
+    } else {
+      const count = depth - target;
+      depth = target;
+      // The resulting pop lands on `depth` and is ignored.
+      history.go(-count);
     }
   });
 }

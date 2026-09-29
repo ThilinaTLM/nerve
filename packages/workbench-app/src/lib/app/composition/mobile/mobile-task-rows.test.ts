@@ -5,6 +5,7 @@ import type { TaskRunEntry } from "$lib/features/tasks/views/task-panel-types";
 import {
   definitionRowDetail,
   definitionRowSignal,
+  finishedRunIds,
   splitRunEntries,
   taskRunSignal,
 } from "./mobile-task-rows.js";
@@ -80,5 +81,19 @@ test("splits ad-hoc runs into running and recent", () => {
   assert.deepEqual(
     split.recent.map((item) => item.key),
     ["b"],
+  );
+});
+
+test("collects this screen's finished runs across saved tasks and ad-hoc runs", () => {
+  const entry = (id: string, isRemovable: boolean) =>
+    ({ run: { id }, isRemovable }) as TaskRunEntry;
+  assert.deepEqual(
+    finishedRunIds({
+      runs: [entry("adhoc-done", true), entry("adhoc-live", false)],
+      definitions: [
+        { runs: [entry("saved-done", true), entry("saved-live", false)] },
+      ],
+    }),
+    ["adhoc-done", "saved-done"],
   );
 });

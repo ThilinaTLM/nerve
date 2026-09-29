@@ -12,6 +12,7 @@ import {
   pruneMissingRoutes,
   pushMobileRoute,
   replaceTopMobileRoute,
+  resolveMobileHistoryPop,
   selectMobileTab,
   serializeMobileNav,
   topMobileRoute,
@@ -248,5 +249,51 @@ describe("mobile navigation persistence", () => {
       conversationIds: new Set(["c1"]),
     });
     assert.equal(unchanged, state);
+  });
+});
+
+describe("mobile history pops", () => {
+  const settings: MobileRoute = { kind: "settings" };
+
+  it("ignores pops that land on the shown depth", () => {
+    assert.deepEqual(
+      resolveMobileHistoryPop({ depth: 2, reached: 2, tab: "inbox" }),
+      { kind: "ignore" },
+    );
+  });
+
+  it("pops as many routes as history entries went back", () => {
+    assert.deepEqual(
+      resolveMobileHistoryPop({ depth: 3, reached: 1, tab: "inbox" }),
+      { kind: "back", count: 2 },
+    );
+  });
+
+  it("restores routes popped by back when going forward", () => {
+    assert.deepEqual(
+      resolveMobileHistoryPop({
+        depth: 1,
+        reached: 2,
+        tab: "inbox",
+        forward: { tab: "inbox", routes: [conversations, chat] },
+      }),
+      { kind: "forward", routes: [conversations], remaining: [chat] },
+    );
+  });
+
+  it("steps back over forward entries it cannot restore", () => {
+    assert.deepEqual(
+      resolveMobileHistoryPop({ depth: 1, reached: 2, tab: "inbox" }),
+      { kind: "rewind", count: 1 },
+    );
+    assert.deepEqual(
+      resolveMobileHistoryPop({
+        depth: 0,
+        reached: 1,
+        tab: "inbox",
+        forward: { tab: "activity", routes: [settings] },
+      }),
+      { kind: "rewind", count: 1 },
+    );
   });
 });
