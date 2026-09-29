@@ -87,6 +87,7 @@ describe("AuthManager", () => {
       "github-copilot",
       "kimi-coding",
       "meta",
+      "openai",
       "openai-codex",
       "openrouter",
       "radius",
