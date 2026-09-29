@@ -21,12 +21,12 @@ function toSweepDescriptor(
     read(database) {
       return readRows(database, descriptor);
     },
-    decode(record) {
+    validate(record) {
       const wrapped = record.value as {
         encoded: Uint8Array | string;
         version: number;
       };
-      return descriptor.codec.decode(wrapped.encoded, wrapped.version);
+      descriptor.codec.validate(wrapped.encoded, wrapped.version);
     },
   };
 }

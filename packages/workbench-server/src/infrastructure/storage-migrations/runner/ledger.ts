@@ -56,7 +56,7 @@ export interface StorageMigrationLedgerRow {
 }
 
 export interface StorageReadSweepRow {
-  buildId: string;
+  readCompatibilityId: string;
   sweptAtMs: number;
   quarantined: number;
 }
@@ -140,13 +140,28 @@ export function recordStorageMigration(
     );
 }
 
-export function hasReadSweep(database: DatabaseSync, buildId: string): boolean {
+export function hasReadSweep(
+  database: DatabaseSync,
+  readCompatibilityId: string,
+): boolean {
   if (!hasStorageMigrationLedger(database)) return false;
   return Boolean(
     database
       .prepare("SELECT 1 FROM storage_read_sweeps WHERE build_id = ?")
-      .get(buildId),
+      .get(readCompatibilityId),
   );
+}
+
+/** The historical build_id column stores opaque readability evidence keys. */
+export function readStorageReadSweepIds(database: DatabaseSync): string[] {
+  if (!hasStorageMigrationLedger(database)) return [];
+  return (
+    database
+      .prepare("SELECT build_id FROM storage_read_sweeps")
+      .all() as Array<{
+      build_id: string;
+    }>
+  ).map((row) => row.build_id);
 }
 
 export function recordReadSweep(
@@ -161,5 +176,5 @@ export function recordReadSweep(
          swept_at_ms = excluded.swept_at_ms,
          quarantined = excluded.quarantined`,
     )
-    .run(row.buildId, row.sweptAtMs, row.quarantined);
+    .run(row.readCompatibilityId, row.sweptAtMs, row.quarantined);
 }

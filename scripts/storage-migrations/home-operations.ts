@@ -24,6 +24,7 @@ import {
 } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/home-class.js";
 import { executeStorageMigrations } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/executor.js";
 import { canonicalPayloadSweepDescriptors } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/payload-sweep.js";
+import { STORAGE_READ_COMPATIBILITY_ID } from "../../packages/workbench-server/src/infrastructure/storage-migrations/read-compatibility.js";
 import { planStorageMigration } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/planner.js";
 import { promoteStorageMigrationWorkspace } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/promotion.js";
 import { sweepStorageReadability } from "../../packages/workbench-server/src/infrastructure/storage-migrations/runner/sweep.js";
@@ -107,7 +108,6 @@ export async function cloneNerveHome(input: {
 export async function dryRunNerveHomeMigration(input: {
   home: string;
   appVersion: string;
-  buildId?: string;
   gitSha?: string;
   report?: (message: string) => void;
 }): Promise<DryRunResult> {
@@ -128,7 +128,7 @@ export async function dryRunNerveHomeMigration(input: {
     const plan = planStorageMigration({
       sqlitePath: paths.sqlitePath,
       registry,
-      buildId: input.buildId ?? `home-migrate-dry-run:${input.appVersion}`,
+      readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
       homeClass: "disposable",
     });
     input.report?.(`plan: ${plan.outcome}`);
