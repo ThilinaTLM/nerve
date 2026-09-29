@@ -7,7 +7,10 @@ import type { GitBranchSummary } from "@nervekit/contracts/git";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import type { GitBranchDialogRow } from "./git-panel-controller";
+import {
+  canDeleteBranch,
+  type GitBranchDialogRow,
+} from "./git-panel-controller";
 
 type Props = {
   row: GitBranchDialogRow;
@@ -33,9 +36,7 @@ let {
 
 const branch = $derived(row.branch);
 const isBase = $derived(!branch.remote && branch.name === baseBranch);
-const canDelete = $derived(
-  enabled && !branch.remote && !branch.current && !isBase,
-);
+const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
 </script>
 
 <div

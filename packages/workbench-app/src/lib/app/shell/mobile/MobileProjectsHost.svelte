@@ -8,17 +8,14 @@ import {
 } from "$lib/presentation/shell";
 import { ProjectIcon, type ProjectSwitcherItem } from "$lib/features/projects";
 import { tildePath } from "$lib/domain/filesystem/project-path";
-import {
-  selectProject,
-  workspaceSelectors,
-  workspaceState,
-} from "$lib/application/workspace";
-import { backFromMobileDetail } from "./mobile-shell.svelte";
+import { workspaceSelectors, workspaceState } from "$lib/application/workspace";
+import MobileRootActions from "./MobileRootActions.svelte";
+import { pushMobileScreen } from "./mobile-shell.svelte";
 
 /**
- * Project picker as a page. On a phone the project is a top-level destination,
- * not a popover anchored to a corner, so it gets a full screen with large rows
- * and a per-project activity summary.
+ * Projects tab root. On a phone the project is a top-level destination, not a
+ * popover anchored to a corner: large rows with a per-project activity summary,
+ * each opening that project's home screen.
  */
 let query = $state("");
 
@@ -56,23 +53,20 @@ function activityTone(item: ProjectSwitcherItem) {
 }
 
 function choose(item: ProjectSwitcherItem) {
-  backFromMobileDetail();
-  void selectProject(item.project.id);
+  // Route activation selects the project once its home screen is on top.
+  pushMobileScreen({ kind: "project", projectId: item.project.id });
 }
 
 function browse() {
-  backFromMobileDetail();
   workspaceState.projectPickerMode = "browse";
   workspaceState.projectPickerOpen = true;
 }
 </script>
 
-<MobileScreen
-  title="Projects"
-  subtitle={`${items.length} known`}
-  onBack={backFromMobileDetail}
-  backLabel="Close projects"
->
+<MobileScreen title="Projects" subtitle={`${items.length} known`}>
+  {#snippet actions()}
+    <MobileRootActions />
+  {/snippet}
   <div class="px-3 pt-2">
     <SearchInput
       bind:value={query}
@@ -93,7 +87,6 @@ function browse() {
           tone={activityTone(item)}
           pulse={Boolean(item.activity.running || item.tasks.running)}
           selected={item.key === workspaceState.selectedProjectKey}
-          chevron={false}
           onclick={() => choose(item)}
         >
           {#snippet leading()}

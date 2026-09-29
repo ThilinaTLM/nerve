@@ -8,12 +8,14 @@ import type {
 } from "@nervekit/contracts/git";
 import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
 import {
+  canDeleteBranch,
   gitChangeTreeFolderKey,
   gitRepoChipSplit,
   gitExpandedGroupIds,
   gitFilesInScope,
   gitPathspecs,
   groupBranchesForDialog,
+  isPlausibleBranchName,
   shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
 
@@ -274,4 +276,38 @@ test("repository chips always keep the selected repository visible", () => {
     split.overflow.map((repo) => repo.relativePath),
     ["c", "d"],
   );
+});
+
+test("accepts plausible branch names and rejects obviously invalid ones", () => {
+  for (const name of ["feature/login", "  fix-1  ", "release-2.0"]) {
+    assert.equal(isPlausibleBranchName(name), true, name);
+  }
+  for (const name of [
+    "",
+    "   ",
+    "has space",
+    "-leading",
+    "/leading",
+    "trailing/",
+    "a..b",
+    "bell\u0007",
+    "tilde~1",
+    "caret^",
+    "co:lon",
+    "what?",
+    "star*",
+    "br[acket",
+    "back\\slash",
+  ]) {
+    assert.equal(isPlausibleBranchName(name), false, JSON.stringify(name));
+  }
+});
+
+test("allows deleting only local branches that are not current or the base", () => {
+  const branch = { name: "feature", remote: false, current: false };
+  assert.equal(canDeleteBranch(branch, "main"), true);
+  assert.equal(canDeleteBranch(branch, undefined), true);
+  assert.equal(canDeleteBranch({ ...branch, remote: true }, "main"), false);
+  assert.equal(canDeleteBranch({ ...branch, current: true }, "main"), false);
+  assert.equal(canDeleteBranch({ ...branch, name: "main" }, "main"), false);
 });

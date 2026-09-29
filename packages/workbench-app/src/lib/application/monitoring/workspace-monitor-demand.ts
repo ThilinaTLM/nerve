@@ -71,6 +71,39 @@ export class WorkspaceMonitorDemandCoordinator {
     return this.#deliverRepository(key, revision, this.#epoch);
   }
 
+  /**
+   * Ask the server to re-scan a monitored repository. Runs on the repository's
+   * delivery queue, so it always follows this client's own sync for it.
+   * Resolves false without a request when this client has no demand for the
+   * repository or the live session is not ready (reconcile re-syncs later).
+   */
+  refreshRepository(projectId: string, repo: string): Promise<boolean> {
+    const key = repositoryKey(projectId, repo);
+    const epoch = this.#epoch;
+    return this.#enqueue(`repository:${key}`, async () => {
+      if (epoch !== this.#epoch || !this.#isReady()) return false;
+      if (!this.#repositories.has(key)) return false;
+      const result = await this.#request("git.repository.refresh", {
+        projectId,
+        repo,
+      });
+      return result.active;
+    });
+  }
+
+  /** Project counterpart of {@link refreshRepository}. */
+  refreshProject(projectId: string): Promise<boolean> {
+    const epoch = this.#epoch;
+    return this.#enqueue(`project:${projectId}`, async () => {
+      if (epoch !== this.#epoch || !this.#isReady()) return false;
+      if (!this.#projects.has(projectId)) return false;
+      const result = await this.#request("filesystem.project.refresh", {
+        projectId,
+      });
+      return result.active;
+    });
+  }
+
   async reconcile(): Promise<void> {
     const epoch = this.#epoch;
     const deliveries = [
@@ -141,10 +174,13 @@ export class WorkspaceMonitorDemandCoordinator {
     });
   }
 
-  #enqueue(key: string, operation: () => Promise<void>): Promise<void> {
+  #enqueue<T>(key: string, operation: () => Promise<T>): Promise<T> {
     const previous = this.#tails.get(key) ?? Promise.resolve();
     const result = previous.catch(() => undefined).then(operation);
-    const tail = result.catch(() => undefined);
+    const tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
     this.#tails.set(key, tail);
     void tail.finally(() => {
       if (this.#tails.get(key) === tail) this.#tails.delete(key);

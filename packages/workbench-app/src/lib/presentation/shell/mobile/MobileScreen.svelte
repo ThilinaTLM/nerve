@@ -77,9 +77,7 @@ let {
       </button>
     {:else}
       <span class="grid min-w-0 flex-1">
-        <span class="truncate text-sm font-semibold text-foreground"
-          >{title}</span
-        >
+        <h1 class="truncate text-sm font-semibold text-foreground">{title}</h1>
         {#if subtitle}
           <span class="truncate text-xs text-muted-foreground">{subtitle}</span>
         {/if}

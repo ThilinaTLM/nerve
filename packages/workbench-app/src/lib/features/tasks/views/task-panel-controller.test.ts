@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import {
+  isValidTaskPort,
   projectTaskPanel,
+  siblingTaskRuns,
+  taskDefinitionRequest,
   taskDefinitionLabel,
   taskPanelActiveItemKey,
   taskRunLabel,
@@ -268,4 +271,57 @@ test("labels definitions by their label and runs by display name, then command",
     text: "pnpm dev",
     isCommand: true,
   });
+});
+
+test("builds saved-task requests only from a command and a valid port", () => {
+  const base = {
+    label: "",
+    command: "pnpm dev",
+    cwd: "",
+    port: undefined,
+    runPolicy: "single" as const,
+  };
+  assert.equal(taskDefinitionRequest({ ...base, command: "   " }), undefined);
+  for (const port of [0, 65_536, 1.5]) {
+    assert.equal(isValidTaskPort(port), false);
+    assert.equal(taskDefinitionRequest({ ...base, port }), undefined);
+  }
+  assert.deepEqual(taskDefinitionRequest(base), {
+    command: "pnpm dev",
+    runPolicy: "single",
+  });
+  assert.deepEqual(
+    taskDefinitionRequest({
+      label: "  web  ",
+      command: " pnpm dev ",
+      cwd: " apps/web ",
+      port: 3000,
+      runPolicy: "concurrent",
+    }),
+    {
+      command: "pnpm dev",
+      label: "web",
+      cwd: "apps/web",
+      port: 3000,
+      runPolicy: "concurrent",
+    },
+  );
+});
+
+test("groups sibling runs by their center-tab entry, newest first", () => {
+  const tasks = [
+    run("t1", { definitionId: "d1", startedAt: "2026-01-01T00:00:00Z" }),
+    run("t2", { definitionId: "d1", startedAt: "2026-01-02T00:00:00Z" }),
+    run("t3", { startedAt: "2026-01-03T00:00:00Z" }),
+    run("t4", { restartRootTaskId: "t3", startedAt: "2026-01-04T00:00:00Z" }),
+  ];
+  assert.deepEqual(
+    siblingTaskRuns(tasks, "t1").map((task) => task.id),
+    ["t2", "t1"],
+  );
+  assert.deepEqual(
+    siblingTaskRuns(tasks, "t3").map((task) => task.id),
+    ["t4", "t3"],
+  );
+  assert.deepEqual(siblingTaskRuns(tasks, "missing"), []);
 });

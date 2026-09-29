@@ -11,7 +11,10 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import GitBranchRow from "./GitBranchRow.svelte";
-import type { GitBranchDialogGroups } from "./git-panel-controller";
+import {
+  isPlausibleBranchName,
+  type GitBranchDialogGroups,
+} from "./git-panel-controller";
 
 type Props = {
   open?: boolean;
@@ -71,19 +74,8 @@ const visibleBranches = $derived(
 );
 const resultCount = $derived(visibleBranches.length);
 
-// A light client-side guard so the Create button stays disabled for obviously
-// invalid names; git check-ref-format performs the authoritative validation.
 const trimmedName = $derived(newBranchName.trim());
-const isValidName = $derived(
-  trimmedName.length > 0 &&
-    !/\s/.test(trimmedName) &&
-    !trimmedName.startsWith("-") &&
-    !trimmedName.startsWith("/") &&
-    !trimmedName.endsWith("/") &&
-    !trimmedName.includes("..") &&
-    // eslint-disable-next-line no-control-regex
-    !/[\u0000-\u001f~^:?*[\\]/.test(trimmedName),
-);
+const isValidName = $derived(isPlausibleBranchName(newBranchName));
 const showNameError = $derived(trimmedName.length > 0 && !isValidName);
 const dialogTitle = $derived(
   view === "switch" ? "Switch branch" : "Create branch",

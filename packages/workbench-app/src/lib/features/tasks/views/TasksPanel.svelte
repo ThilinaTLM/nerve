@@ -32,6 +32,7 @@ import TaskRunsDialog from "./TaskRunsDialog.svelte";
 import {
   projectTaskPanel,
   taskPanelActiveItemKey,
+  taskPortConflictDescription,
 } from "./task-panel-controller.js";
 import type {
   TaskEntryCapabilities,
@@ -81,19 +82,9 @@ let runsDialogOpen = $state(false);
 // The wide bottom dock can host the run output next to the list.
 const SPLIT_MIN_WIDTH = 720;
 const splitLayout = $derived(panelWidth >= SPLIT_MIN_WIDTH);
-const portConflictDescription = $derived.by(() => {
-  const conflict = model.portConflict;
-  if (!conflict) return "";
-  const processes = [
-    ...new Map(
-      conflict.listeners.map((listener) => [
-        `${listener.pid}|${listener.identity}`,
-        `${listener.processName ?? "Process"} (PID ${listener.pid})`,
-      ]),
-    ).values(),
-  ];
-  return `${processes.join(", ")} is listening on TCP port ${conflict.port}. Terminate ${processes.length === 1 ? "it" : "them"} and run this task?`;
-});
+const portConflictDescription = $derived(
+  taskPortConflictDescription(model.portConflict),
+);
 const prunableRuns = $derived(
   projected.runs.filter((entry) => entry.isRemovable).length,
 );

@@ -1,4 +1,7 @@
-import type { TaskDefinition } from "@nervekit/contracts/task-definitions";
+import type {
+  TaskDefinition,
+  UpdateTaskDefinitionRequest,
+} from "@nervekit/contracts/task-definitions";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type {
   TaskDefinitionEntry,
@@ -80,6 +83,72 @@ export function normalizeTaskDefinition(
 }
 
 /** Maps the selected log stream to the single visual item that owns it. */
+/** A saved task port is optional; when present it must be a TCP port. */
+export function isValidTaskPort(port: number | undefined): boolean {
+  return (
+    port === undefined ||
+    (Number.isInteger(port) && port >= 1 && port <= 65_535)
+  );
+}
+
+/**
+ * Builds the saved-task request from raw form fields, trimming text and
+ * omitting empty optionals. Undefined when the form cannot be saved.
+ */
+export function taskDefinitionRequest(input: {
+  readonly label: string;
+  readonly command: string;
+  readonly cwd: string;
+  readonly port: number | undefined;
+  readonly runPolicy: "single" | "concurrent";
+}): UpdateTaskDefinitionRequest | undefined {
+  const command = input.command.trim();
+  if (command.length === 0 || !isValidTaskPort(input.port)) return undefined;
+  const label = input.label.trim();
+  const cwd = input.cwd.trim();
+  return {
+    command,
+    ...(label.length > 0 ? { label } : {}),
+    ...(cwd.length > 0 ? { cwd } : {}),
+    ...(input.port === undefined ? {} : { port: input.port }),
+    runPolicy: input.runPolicy,
+  };
+}
+
+/** Names the processes holding a saved task's port for the confirm prompt. */
+export function taskPortConflictDescription(
+  conflict: TaskPanelModel["portConflict"],
+): string {
+  if (!conflict) return "";
+  const processes = [
+    ...new Map(
+      conflict.listeners.map((listener) => [
+        `${listener.pid}|${listener.identity}`,
+        `${listener.processName ?? "Process"} (PID ${listener.pid})`,
+      ]),
+    ).values(),
+  ];
+  return `${processes.join(", ")} is listening on TCP port ${conflict.port}. Terminate ${processes.length === 1 ? "it" : "them"} and run this task?`;
+}
+
+/** The center tab a run belongs to: its definition, restart chain, or itself. */
+export function taskEntryId(task: TaskRecord): string {
+  return task.definitionId ?? task.restartRootTaskId ?? task.id;
+}
+
+/** Every run sharing `taskId`'s center-tab entry, newest first. */
+export function siblingTaskRuns(
+  tasks: readonly TaskRecord[],
+  taskId: string,
+): TaskRecord[] {
+  const current = tasks.find((task) => task.id === taskId);
+  if (!current) return [];
+  const entryId = taskEntryId(current);
+  return tasks
+    .filter((task) => taskEntryId(task) === entryId)
+    .toSorted((left, right) => right.startedAt.localeCompare(left.startedAt));
+}
+
 export function taskPanelActiveItemKey(
   task: TaskRecord | undefined,
 ): string | undefined {
@@ -219,7 +288,8 @@ function sortDefinitionEntries(
   );
 }
 
-function toRunEntry(
+/** Status-derived row facts for one run. */
+export function toRunEntry(
   run: TaskRecord,
   definition?: TaskPanelDefinition,
 ): TaskRunEntry {

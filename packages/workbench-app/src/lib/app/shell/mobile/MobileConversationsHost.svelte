@@ -12,34 +12,45 @@ import {
   buildConversationSections,
   conversationLastUserPromptAt,
 } from "$lib/domain/projects/project-tree";
-import {
-  conversationSelectors,
-  openConversation,
-} from "$lib/features/conversations";
+import { conversationSelectors } from "$lib/features/conversations";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
-import {
-  newConversation,
-  workspaceSelectors,
-} from "$lib/application/workspace";
+import { workspaceSelectors } from "$lib/application/workspace";
 import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
-import { showMobileProjects } from "./mobile-shell.svelte";
+import {
+  openMobileConversation,
+  startMobileConversation,
+} from "./mobile-route-activation.svelte";
+import { backFromMobileScreen } from "./mobile-shell.svelte";
 
 /**
- * Project conversation list at phone scale: full-width rows with the last
- * prompt time, a status dot, and the same actions the desktop context menu
- * offers.
+ * One project's full conversation list at phone scale: full-width rows with
+ * the last prompt time, a status dot, and the same actions the desktop context
+ * menu offers.
  */
+let { projectId }: { projectId: string } = $props();
+
 let query = $state("");
 
-const activeProject = $derived(workspaceSelectors.activeProject);
-const conversations = $derived(workspaceSelectors.selectedProjectConversations);
+const project = $derived(
+  workspaceSelectors.projects.find((candidate) => candidate.id === projectId),
+);
+const projectIds = $derived(
+  workspaceSelectors.projectSwitcherItems.find(
+    (item) => item.project.id === projectId,
+  )?.projectIds ?? [projectId],
+);
+const conversations = $derived(
+  workspaceSelectors.conversations.filter((conversation) =>
+    projectIds.includes(conversation.projectId),
+  ),
+);
 const activityById = $derived(conversationSelectors.conversationActivityById);
 const sections = $derived(
   buildConversationSections({
     conversations,
     agents: workspaceSelectors.agents,
-    projectIds: workspaceSelectors.selectedProjectIds,
+    projectIds,
     filter: query,
     hideCompleted: conversationListPreferences.hideCompleted,
   }),
@@ -50,17 +61,23 @@ const total = $derived(
 </script>
 
 <MobileScreen
-  title={activeProject?.name ?? "Select a project"}
-  subtitle={total === 1 ? "1 conversation" : `${total} conversations`}
-  onTitleSelect={showMobileProjects}
-  titleLabel="Switch project"
+  title="Conversations"
+  subtitle={[
+    project?.name,
+    total === 1 ? "1 conversation" : `${total} conversations`,
+  ]
+    .filter(Boolean)
+    .join(" · ")}
+  onBack={backFromMobileScreen}
+  backLabel="Back to project"
 >
   {#snippet actions()}
     <Button
       variant="ghost"
       size="icon-sm"
       ariaLabel="New chat"
-      onclick={() => void newConversation()}
+      disabled={!project}
+      onclick={() => project && void startMobileConversation(project)}
     >
       <Plus size={18} strokeWidth={2.1} />
     </Button>
@@ -88,7 +105,7 @@ const total = $derived(
           pulse={activity?.pulse ?? false}
           selected={selection.conversationId === row.conversation.id}
           menuItems={mobileConversationMenu(row.conversation)}
-          onclick={() => void openConversation(row.conversation.id)}
+          onclick={() => void openMobileConversation(row.conversation.id)}
         />
       {/each}
     </MobileSection>

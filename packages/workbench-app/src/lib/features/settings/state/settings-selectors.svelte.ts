@@ -10,4 +10,7 @@ export const settingsSelectors = {
   get settingsMessage() {
     return settingsState.settingsMessage;
   },
+  get activePageId() {
+    return settingsState.activePageId;
+  },
 };

@@ -73,6 +73,9 @@ export const gitRepositoryMonitorStateSchema = z.object({
 });
 
 export const gitRepositoryRefreshResponseSchema = z.object({
+  /** False when no live client is monitoring this scope; nothing was refreshed. */
+  active: z.boolean(),
+  /** Monitor generation after the refresh; 0 when inactive. */
   generation: z.number().int().nonnegative(),
 });
 

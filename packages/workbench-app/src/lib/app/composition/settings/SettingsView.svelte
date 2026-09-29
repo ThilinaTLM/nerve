@@ -1,9 +1,5 @@
 <script lang="ts">
 import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
-import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
   AvailableSkill,
@@ -21,46 +17,17 @@ import {
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
 import { settingsPages } from "$lib/features/settings/registry/settings-pages";
-import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { parseModelKey } from "$lib/presentation/utils/model";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
   sourcesForScope,
 } from "$lib/domain/skills/skill-catalog";
-import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
-import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
-import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
-import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
-import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
-import { PermissionsPageState } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
-import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import SettingsPageActions from "./SettingsPageActions.svelte";
+import SettingsPageContent from "./SettingsPageContent.svelte";
 import {
-  getPermissionPolicyConfiguration,
-  updatePermissionOverlay,
-  updateProjectPermissionTrust,
-  getCapabilityConfiguration,
-  updateCapabilities,
-  updateCapabilityTrust,
-} from "$lib/features/projects/api/projects.api";
-import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
-import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
-import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
-import StoragePageActions from "$lib/features/settings/views/pages/storage/StoragePageActions.svelte";
-import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
-import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
-import SuggestionsPageActions from "./suggestions/SuggestionsPageActions.svelte";
-import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
-import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
-import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
-import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
-import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
-import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
-import { SettingsEmptyState } from "$lib/presentation/settings";
-import UserCog from "@lucide/svelte/icons/user-cog";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+  createSettingsPageControllers,
+  type SettingsScope,
+} from "./settings-page-controllers.svelte";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -123,109 +90,10 @@ let {
   onSkillsRetry,
 }: Props = $props();
 
-let settingsScope = $state<"user" | "project">("user");
-let capabilityConfiguration = $state<CapabilityConfiguration>();
-let capabilityLoading = $state(false);
-let capabilityError = $state<string>();
-let capabilityRequest = 0;
-
-async function loadProjectCapabilities(): Promise<void> {
-  const projectId = activeProject?.id;
-  const request = ++capabilityRequest;
-  capabilityError = undefined;
-  if (!projectId) {
-    capabilityConfiguration = undefined;
-    return;
-  }
-  capabilityLoading = true;
-  try {
-    const configuration = await getCapabilityConfiguration(projectId);
-    if (request === capabilityRequest) capabilityConfiguration = configuration;
-  } catch (error) {
-    if (request === capabilityRequest)
-      capabilityError = error instanceof Error ? error.message : String(error);
-  } finally {
-    if (request === capabilityRequest) capabilityLoading = false;
-  }
-}
-
-$effect(() => {
-  const projectId = activeProject?.id;
-  const scope = settingsScope;
-  if (scope === "project" && projectId) void loadProjectCapabilities();
-});
-
-/** Mutations are serialized so each one sends the digest the server just echoed. */
-const capabilityMutations = createCapabilityMutationQueue();
-
-async function runCapabilityMutation(
-  mutation: () => Promise<CapabilityConfiguration | void>,
-): Promise<void> {
-  await capabilityMutations.run(async () => {
-    try {
-      const configuration = await mutation();
-      if (configuration) capabilityConfiguration = configuration;
-      else await loadProjectCapabilities();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      await loadProjectCapabilities();
-      capabilityError = message;
-    }
-  });
-}
-
-async function patchProjectCapabilities(patch: CapabilityPatch): Promise<void> {
-  const project = activeProject;
-  if (!project || !capabilityConfiguration) return;
-  // The digest is read when the mutation runs, after any queued write applied.
-  await runCapabilityMutation(() =>
-    updateCapabilities({
-      projectId: project.id,
-      origin: "project",
-      patch,
-      expectedDigest: capabilityConfiguration?.projectDigest,
-    }),
-  );
-}
-
-async function resetProjectCapabilities(): Promise<void> {
-  const project = activeProject;
-  if (!project || !capabilityConfiguration) return;
-  await runCapabilityMutation(() =>
-    updateCapabilities({
-      projectId: project.id,
-      origin: "project",
-      replace: {
-        schemaVersion: 1,
-        tools: {},
-        skills: { file: {}, nerve: {}, agentBrowser: {} },
-      },
-      expectedDigest: capabilityConfiguration?.projectDigest,
-    }),
-  );
-}
-
-async function setProjectCapabilityTrust(trusted: boolean): Promise<void> {
-  const project = activeProject;
-  if (!project || !capabilityConfiguration) return;
-  await runCapabilityMutation(async () => {
-    await updateCapabilityTrust(
-      project.id,
-      trusted,
-      capabilityConfiguration?.projectDigest,
-    );
-  });
-}
-
-const permissionsPageState = new PermissionsPageState({
-  getConfiguration: getPermissionPolicyConfiguration,
-  updateOverlay: updatePermissionOverlay,
-  updateTrust: async (projectId, trusted) => {
-    await updateProjectPermissionTrust(projectId, trusted);
-  },
-  onConfigurationLoaded: (projectId, configuration) => {
-    permissionRuleSetCatalog.install(projectId, configuration.ruleSets);
-  },
+let settingsScope = $state<SettingsScope>("user");
+const controllers = createSettingsPageControllers({
+  activeProject: () => activeProject,
+  scope: () => settingsScope,
 });
 
 /** Skills sections mirror the sources the current scope actually renders. */
@@ -267,21 +135,6 @@ const pages = $derived(
   }),
 );
 
-const suggestionsPageState = new SuggestionsPageState();
-const storageController = new StoragePageController();
-
-/** The composer's live selection is what "remember my last selection" saves. */
-function readComposerSelection(): Settings["lastAgentSelection"] {
-  const model = parseModelKey(conversationState.selectedModelKey);
-  return {
-    mode: conversationState.selectedMode,
-    permissionLevel: conversationState.selectedPermissionLevel,
-    permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
-    ...(model ? { model } : {}),
-    thinkingLevel: conversationState.selectedThinkingLevel,
-  };
-}
-
 function statusText(): string {
   if (settingsMessage) return settingsMessage;
   if (settingsSaveStatus === "saving") return "Saving…";
@@ -309,143 +162,37 @@ function statusText(): string {
   {/snippet}
 
   {#snippet pageActions(page)}
-    {#if settingsDraft}
-      {#if page.id === "models"}
-        <ModelsPageActions {settingsDraft} {onSettingsChange} />
-      {:else if page.id === "suggestions"}
-        <SuggestionsPageActions pageState={suggestionsPageState} />
-      {:else if page.id === "storage"}
-        <StoragePageActions controller={storageController} />
-      {/if}
-    {/if}
+    <SettingsPageActions
+      {page}
+      {controllers}
+      {settingsDraft}
+      {onSettingsChange}
+    />
   {/snippet}
 
   {#snippet children(page)}
-    {#if settingsDraft}
-      {#if settingsScope === "project" && page.id === "tools"}
-        <ProjectToolsSettingsPage
-          configuration={capabilityConfiguration}
-          {settingsDraft}
-          loading={capabilityLoading}
-          error={capabilityError}
-          onPatch={(patch) => void patchProjectCapabilities(patch)}
-          onReset={() => void resetProjectCapabilities()}
-          onTrust={(trusted) => void setProjectCapabilityTrust(trusted)}
-          onRetry={() => void loadProjectCapabilities()}
-        />
-      {:else if settingsScope === "project" && page.id === "skills"}
-        <SkillsSettingsPage
-          scope="project"
-          configuration={capabilityConfiguration}
-          {settingsDraft}
-          {skills}
-          loading={capabilityLoading || skillsLoading}
-          error={capabilityError ?? skillsError}
-          onPatch={(patch) => void patchProjectCapabilities(patch)}
-          onReset={() => void resetProjectCapabilities()}
-          onTrust={(trusted) => void setProjectCapabilityTrust(trusted)}
-          onRetry={() => {
-            onSkillsRetry?.();
-            void loadProjectCapabilities();
-          }}
-        />
-      {:else if settingsScope === "project" && page.id !== "permissions"}
-        <SettingsEmptyState
-          variant="card"
-          icon={UserCog}
-          title={`${page.label} is configured per user`}
-          description={`${page.label} applies to every project on this machine.`}
-        >
-          {#snippet actions()}
-            <Button
-              size="xs"
-              variant="outline"
-              onclick={() => (settingsScope = "user")}
-            >
-              Open user settings
-            </Button>
-          {/snippet}
-        </SettingsEmptyState>
-      {:else if page.id === "workbench"}
-        <WorkbenchSettingsPage
-          {settingsDraft}
-          {onColorThemeChange}
-          {onColorModeChange}
-          {onSettingsChange}
-        />
-      {:else if page.id === "notifications"}
-        <NotificationsSettingsPage {settingsDraft} {onSettingsChange} />
-      {:else if page.id === "transcription"}
-        <TranscriptionSettingsPage {settingsDraft} {onSettingsChange} />
-      {:else if page.id === "shortcuts"}
-        <ShortcutsSettingsPage />
-      {:else if page.id === "compaction"}
-        <CompactionSettingsPage {settingsDraft} {onSettingsChange} />
-      {:else if page.id === "suggestions"}
-        <SuggestionsSettingsPage
-          pageState={suggestionsPageState}
-          {activeProject}
-        />
-      {:else if page.id === "models"}
-        <ModelsSettingsPage
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {readComposerSelection}
-          {onSettingsChange}
-        />
-      {:else if page.id === "providers"}
-        <ProvidersSettingsPage
-          {settingsDraft}
-          {models}
-          {authProviders}
-          {onSettingsChange}
-        />
-      {:else if page.id === "permissions"}
-        <PermissionsSettingsPage
-          scope={settingsScope}
-          {settingsDraft}
-          {activeProject}
-          controller={permissionsPageState}
-          {onSettingsChange}
-        />
-      {:else if page.id === "tools"}
-        <ToolsSettingsPage
-          {settingsDraft}
-          {status}
-          {authProviders}
-          {models}
-          {onSettingsChange}
-        />
-      {:else if page.id === "skills"}
-        <SkillsSettingsPage
-          scope="user"
-          {settingsDraft}
-          {skills}
-          loading={skillsLoading}
-          error={skillsError}
-          onRetry={onSkillsRetry}
-          {onSettingsChange}
-        />
-      {:else if page.id === "storage"}
-        <StorageSettingsPage controller={storageController} />
-      {:else if page.id === "system"}
-        <SystemSettingsPage
-          configuration={applicationConfiguration}
-          {status}
-          {daemonCapability}
-          {daemonRestarting}
-          onConfigurationChange={onApplicationConfigurationChange}
-          {onRestartDaemon}
-        />
-      {/if}
-    {:else}
-      <div class="grid gap-1 py-12 text-center">
-        <strong class="text-sm text-foreground">Settings are loading</strong>
-        <span class="text-xs text-muted-foreground"
-          >Fetching the current configuration from the daemon.</span
-        >
-      </div>
-    {/if}
+    <SettingsPageContent
+      {page}
+      scope={settingsScope}
+      onScopeChange={(scope) => (settingsScope = scope)}
+      {controllers}
+      {status}
+      {settingsDraft}
+      {applicationConfiguration}
+      {daemonCapability}
+      {daemonRestarting}
+      {models}
+      {authProviders}
+      {activeProject}
+      {skills}
+      {skillsLoading}
+      {skillsError}
+      {onSettingsChange}
+      {onApplicationConfigurationChange}
+      {onRestartDaemon}
+      {onColorThemeChange}
+      {onColorModeChange}
+      {onSkillsRetry}
+    />
   {/snippet}
 </SettingsShell>

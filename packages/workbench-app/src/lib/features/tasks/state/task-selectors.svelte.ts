@@ -20,7 +20,7 @@ export function registerTaskSelectorWorkspaceReadModel(
       workspaceReadModel = unregisteredWorkspaceReadModel;
   };
 }
-import { taskEntryId } from "./task-tabs.svelte";
+import { taskEntryId } from "$lib/features/tasks/views/task-panel-controller";
 import { taskState } from "./task-state.svelte";
 
 export const taskSelectors = {
