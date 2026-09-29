@@ -43,34 +43,6 @@ export const configurableToolOrder: ConfigurableToolName[] = [
 
 export const toolGroups: ToolGroupDef[] = [
   {
-    id: "subagents",
-    category: "core",
-    label: "Async Subagents",
-    description:
-      "Persistent autonomous teammates share your working directory. The lead coordinates file ownership; a final response completes each assignment. Disabling stops teammate assignments.",
-    configurableTools: [...asyncSubagentToolNames],
-    tools: [
-      { name: "subagent_new", description: "Create a persistent teammate." },
-      {
-        name: "subagent_prompt",
-        description:
-          "Assign only an idle teammate; running assignments cannot queue prompts.",
-      },
-      {
-        name: "subagent_list",
-        description: "List teammates and lifecycle states.",
-      },
-      {
-        name: "subagent_status",
-        description: "Retrieve an idle teammate’s last response.",
-      },
-      {
-        name: "subagent_stop",
-        description: "Stop work while retaining conversation history.",
-      },
-    ],
-  },
-  {
     id: "file-inspection",
     category: "core",
     label: "File inspection",
@@ -118,51 +90,16 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
-    id: "plan-mode",
+    id: "shell",
     category: "core",
-    label: "Plan mode",
+    label: "Shell",
     description:
-      "Research, draft, and present implementation plans before workspace changes.",
+      "Run finite shell commands for checks, tests, builds, and project scripts.",
     configurableTools: [],
     tools: [
       {
-        name: "plan_mode_enter",
-        description: "Enter review-first planning before design-heavy edits.",
-      },
-      {
-        name: "plan_mode_present",
-        description: "Present a completed plan for user approval.",
-      },
-      {
-        name: "plan_mode_force_exit",
-        description: "Exit plan mode after approval or cancellation.",
-      },
-    ],
-  },
-  {
-    id: "todos",
-    category: "core",
-    label: "Todos",
-    description:
-      "Track multi-step work with a lightweight checklist for the current task.",
-    configurableTools: [],
-    tools: [
-      { name: "todos_set", description: "Set the current task checklist." },
-      { name: "todos_get", description: "Read the current task checklist." },
-    ],
-  },
-  {
-    id: "explore",
-    category: "core",
-    label: "Explore",
-    description:
-      "Delegate focused, read-only codebase research to child agents.",
-    configurableTools: ["explore"],
-    tools: [
-      {
-        name: "explore",
-        description:
-          "Launch one or more read-only agents to investigate independent tasks.",
+        name: "bash",
+        description: "Run finite checks, tests, builds, and shell commands.",
       },
     ],
   },
@@ -195,6 +132,97 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
+    id: "python",
+    category: "core",
+    label: "Python",
+    description:
+      "Run short Python scripts or files for data processing and analysis.",
+    configurableTools: ["python_exec"],
+    tools: [
+      {
+        name: "python_exec",
+        description: "Run short Python scripts or files for data work.",
+      },
+    ],
+  },
+  {
+    id: "todos",
+    category: "core",
+    label: "Todos",
+    description:
+      "Track multi-step work with a lightweight checklist for the current task.",
+    configurableTools: [],
+    tools: [
+      { name: "todos_set", description: "Set the current task checklist." },
+      { name: "todos_get", description: "Read the current task checklist." },
+    ],
+  },
+  {
+    id: "plan-mode",
+    category: "core",
+    label: "Plan mode",
+    description:
+      "Research, draft, and present implementation plans before workspace changes.",
+    configurableTools: [],
+    tools: [
+      {
+        name: "plan_mode_enter",
+        description: "Enter review-first planning before design-heavy edits.",
+      },
+      {
+        name: "plan_mode_present",
+        description: "Present a completed plan for user approval.",
+      },
+      {
+        name: "plan_mode_force_exit",
+        description: "Exit plan mode after approval or cancellation.",
+      },
+    ],
+  },
+  {
+    id: "explore",
+    category: "core",
+    label: "Explore",
+    description:
+      "Delegate focused, read-only codebase research to child agents.",
+    configurableTools: ["explore"],
+    tools: [
+      {
+        name: "explore",
+        description:
+          "Launch one or more read-only agents to investigate independent tasks.",
+      },
+    ],
+  },
+  {
+    id: "subagents",
+    category: "core",
+    label: "Async Subagents",
+    description:
+      "Persistent autonomous teammates share your working directory. The lead coordinates file ownership; a final response completes each assignment. Disabling stops teammate assignments.",
+    configurableTools: [...asyncSubagentToolNames],
+    tools: [
+      { name: "subagent_new", description: "Create a persistent teammate." },
+      {
+        name: "subagent_prompt",
+        description:
+          "Assign only an idle teammate; running assignments cannot queue prompts.",
+      },
+      {
+        name: "subagent_list",
+        description: "List teammates and lifecycle states.",
+      },
+      {
+        name: "subagent_status",
+        description: "Retrieve an idle teammate’s last response.",
+      },
+      {
+        name: "subagent_stop",
+        description: "Stop work while retaining conversation history.",
+      },
+    ],
+  },
+  {
     id: "web",
     category: "third-party",
     label: "Web access",
@@ -208,20 +236,6 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "web_fetch",
         description: "Fetch a URL and convert HTML to readable markdown.",
-      },
-    ],
-  },
-  {
-    id: "image-generation",
-    category: "third-party",
-    label: "Image generation",
-    description: "Generate images through the provider configured in Settings.",
-    configurableTools: ["generate_image"],
-    tools: [
-      {
-        name: "generate_image",
-        description:
-          "Generate one image from a text prompt using user-configured settings.",
       },
     ],
   },
@@ -241,30 +255,16 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
-    id: "shell",
-    category: "core",
-    label: "Shell",
-    description:
-      "Run finite shell commands for checks, tests, builds, and project scripts.",
-    configurableTools: [],
+    id: "image-generation",
+    category: "third-party",
+    label: "Image generation",
+    description: "Generate images through the provider configured in Settings.",
+    configurableTools: ["generate_image"],
     tools: [
       {
-        name: "bash",
-        description: "Run finite checks, tests, builds, and shell commands.",
-      },
-    ],
-  },
-  {
-    id: "python",
-    category: "core",
-    label: "Python",
-    description:
-      "Run short Python scripts or files for data processing and analysis.",
-    configurableTools: ["python_exec"],
-    tools: [
-      {
-        name: "python_exec",
-        description: "Run short Python scripts or files for data work.",
+        name: "generate_image",
+        description:
+          "Generate one image from a text prompt using user-configured settings.",
       },
     ],
   },
