@@ -43,7 +43,8 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
         ? await this.harnessStorage.openAgentStorage(agent)
         : await this.harnessStorage.openStorage(conversation);
     const leafId = await storage.getLeafId();
-    const entryIds = checkpointTranscriptEntryIds(runState.transitions);
+    const path = leafId ? await storage.getPathToRoot(leafId) : [];
+    const entryIds = checkpointTranscriptEntryIds(runState.transitions, path);
     return {
       cursor: entryIds.length,
       entryIds,
@@ -136,12 +137,28 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
 
 export function checkpointTranscriptEntryIds(
   transitions: readonly { entries: readonly ConversationEntry[] }[],
+  path: readonly ConversationTreeEntry[],
 ): string[] {
-  return transitions.flatMap((transition) =>
-    transition.entries
-      .filter((entry) => entry.kind !== "run_status")
-      .map((entry) => entry.id),
+  // Transitions retain abandoned retry branches as audit history. Only entries
+  // on the captured harness path can describe this checkpoint's transcript.
+  const eligible = new Set(
+    transitions.flatMap((transition) =>
+      transition.entries
+        .filter((entry) => entry.kind !== "run_status")
+        .map((entry) => entry.id),
+    ),
   );
+  const selected = new Set<string>();
+  for (const entry of path) {
+    if (entry.type !== "message") continue;
+    const id =
+      entry.message.role === "harness" &&
+      ["task_event", "subagent_event"].includes(entry.message.eventType)
+        ? stringValue(asRecord(entry.message.details)?.notificationEntryId)
+        : entry.id;
+    if (id && eligible.has(id)) selected.add(id);
+  }
+  return [...selected];
 }
 
 export function isAuthorizedTaskEventAdvance(

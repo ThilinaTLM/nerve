@@ -92,7 +92,10 @@ test("excludes run-status projections from checkpoint transcript references", ()
   };
 
   assert.deepEqual(
-    checkpointTranscriptEntryIds([{ entries: [message, status] }]),
+    checkpointTranscriptEntryIds(
+      [{ entries: [message, status] }],
+      [checkpointEntry(message.id), checkpointEntry(status.id)],
+    ),
     [message.id],
   );
 });
@@ -156,11 +159,17 @@ test("authorizes typed and legacy subagent notifications but never run-status pr
     false,
   );
   assert.deepEqual(
-    checkpointTranscriptEntryIds([
-      {
-        entries: [typed, { ...typed, kind: "run_status", id: "entry_status" }],
-      },
-    ]),
+    checkpointTranscriptEntryIds(
+      [
+        {
+          entries: [
+            typed,
+            { ...typed, kind: "run_status", id: "entry_status" },
+          ],
+        },
+      ],
+      path,
+    ),
     [typed.id],
   );
 });
@@ -212,5 +221,67 @@ test("rejects task projections owned by another run", () => {
       projection("entry_notice", "run_other"),
     ),
     false,
+  );
+});
+
+test("checkpoint references follow branch order without abandoning durable history", () => {
+  const prompt = { ...projection("prompt"), kind: "message" as const };
+  const error = {
+    ...prompt,
+    id: "provider_error",
+    details: { stopReason: "error", errorMessage: "overloaded" },
+  };
+  const retry = { ...prompt, id: "retry" };
+  const transitions = [
+    { entries: [error, prompt] },
+    { entries: [retry, prompt] },
+  ];
+  assert.deepEqual(
+    checkpointTranscriptEntryIds(transitions, [
+      checkpointEntry(prompt.id),
+      checkpointEntry(retry.id),
+    ]),
+    [prompt.id, retry.id],
+  );
+  assert.deepEqual(
+    checkpointTranscriptEntryIds(transitions, [
+      checkpointEntry(prompt.id),
+      checkpointEntry(error.id),
+    ]),
+    [prompt.id, error.id],
+  );
+  assert.equal(transitions[0].entries[0], error);
+  assert.deepEqual(checkpointTranscriptEntryIds(transitions, []), []);
+});
+
+test("checkpoint references map notifications and exclude unrelated and metadata nodes", () => {
+  const task = projection("task_projection");
+  const child = {
+    ...projection("child_projection"),
+    kind: "subagent_run_event" as const,
+  };
+  const taskNode = taskEntry("task_harness", "old_run", task.id);
+  const childNode = taskEntry("child_harness", taskNode.id, child.id);
+  if (childNode.type === "message" && childNode.message.role === "harness") {
+    childNode.message.eventType = "subagent_event";
+  }
+  const config: ConversationTreeEntry = {
+    type: "model_change",
+    id: "config",
+    parentId: childNode.id,
+    timestamp: run.updatedAt,
+    provider: "test",
+    modelId: "test",
+  };
+  assert.deepEqual(
+    checkpointTranscriptEntryIds(
+      [
+        {
+          entries: [child, task, { ...projection(config.id), kind: "message" }],
+        },
+      ],
+      [checkpointEntry("old_run"), taskNode, childNode, config, taskNode],
+    ),
+    [task.id, child.id],
   );
 });
