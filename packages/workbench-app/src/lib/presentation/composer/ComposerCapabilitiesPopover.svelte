@@ -2,6 +2,7 @@
 import Blocks from "@lucide/svelte/icons/blocks";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
+import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
@@ -20,7 +21,6 @@ import Popover, {
   PopoverSearch,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -324,7 +324,7 @@ function openSettings(): void {
       {#each visibleRows as row (row.key)}
         {@const Icon = row.icon}
         <div
-          class="flex min-h-7 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+          class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
         >
           {#if Icon}
             <Icon
@@ -336,7 +336,14 @@ function openSettings(): void {
             {row.label}
           </span>
           {#if row.origin === "conversation"}
-            <Badge variant="neutral">Conversation</Badge>
+            <span
+              class="inline-flex flex-none text-primary"
+              role="img"
+              aria-label="Conversation override"
+              title="Set for this conversation"
+            >
+              <MessagesSquare class="size-3.5" aria-hidden="true" />
+            </span>
           {/if}
           {#if row.overridden}
             <IconAction
