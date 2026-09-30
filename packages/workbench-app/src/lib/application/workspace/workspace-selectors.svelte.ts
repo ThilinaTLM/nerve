@@ -84,6 +84,7 @@ function isActiveTaskStatus(status: string): boolean {
 const conversationActivityById = $derived.by(() =>
   buildConversationActivityById({
     conversations: workspaceState.conversations,
+    agents: workspaceState.agents,
     activities: workspaceState.conversationActivities,
     views: workspaceFeaturePorts().conversations.read.conversationViews,
   }),

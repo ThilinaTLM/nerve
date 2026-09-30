@@ -87,9 +87,97 @@ describe("conversation activity presentation", () => {
     assert.equal(awaiting.indicator, "awaiting-async");
   });
 
+  it("switches from green to blue when approval changes only the active agent mode", () => {
+    const input: Parameters<typeof buildConversationActivityById>[0] = {
+      conversations: [
+        { id: "conv_1", mode: "planning", activeAgentId: "agent_active" },
+      ],
+      agents: [
+        { id: "agent_active", conversationId: "conv_1", mode: "planning" },
+      ],
+      activities: { conv_1: activity("running") },
+      views: {},
+    };
+    assert.equal(buildConversationActivityById(input).conv_1?.tone, "success");
+    const approved = buildConversationActivityById({
+      ...input,
+      agents: [{ ...input.agents[0]!, mode: "coding" }],
+    });
+    assert.equal(approved.conv_1?.tone, "info");
+    assert.equal(approved.conv_1?.indicator, "running");
+  });
+
+  it("uses the exact active agent instead of the conversation default or other branches", () => {
+    const result = buildConversationActivityById({
+      conversations: [
+        { id: "conv_1", mode: "coding", activeAgentId: "agent_active" },
+      ],
+      agents: [
+        { id: "agent_other_branch", conversationId: "conv_1", mode: "coding" },
+        { id: "agent_other", conversationId: "conv_2", mode: "coding" },
+        { id: "agent_active", conversationId: "conv_1", mode: "planning" },
+      ],
+      activities: { conv_1: activity("running") },
+      views: {},
+    });
+    assert.equal(result.conv_1?.tone, "success");
+  });
+
+  it("falls back to conversation mode when the active agent is absent or invalid", () => {
+    for (const activeAgentId of [undefined, "missing", "wrong_conversation"]) {
+      const result = buildConversationActivityById({
+        conversations: [{ id: "conv_1", mode: "planning", activeAgentId }],
+        agents: [
+          {
+            id: "wrong_conversation",
+            conversationId: "conv_2",
+            mode: "coding",
+          },
+          { id: "other_branch", conversationId: "conv_1", mode: "coding" },
+        ],
+        activities: { conv_1: activity("running") },
+        views: {},
+      });
+      assert.equal(result.conv_1?.tone, "success");
+    }
+  });
+
+  it("uses active mode for starting overlays without changing attention or compaction tones", () => {
+    const input: Parameters<typeof buildConversationActivityById>[0] = {
+      conversations: [
+        { id: "conv_1", mode: "coding", activeAgentId: "agent_active" },
+      ],
+      agents: [
+        { id: "agent_active", conversationId: "conv_1", mode: "planning" },
+      ],
+      activities: { conv_1: activity("idle") },
+      views: { [conversationViewKey("conv_1")]: { sending: true } },
+    };
+    assert.equal(buildConversationActivityById(input).conv_1?.tone, "success");
+    assert.equal(
+      buildConversationActivityById({
+        ...input,
+        activities: { conv_1: activity("awaiting_user") },
+      }).conv_1?.tone,
+      "warning",
+    );
+    assert.equal(
+      buildConversationActivityById({
+        ...input,
+        views: {
+          [conversationViewKey("conv_1")]: {
+            transient: { compaction: { state: "running" } },
+          },
+        },
+      }).conv_1?.tone,
+      "info",
+    );
+  });
+
   it("builds the map from server snapshots and view overlays", () => {
     const result = buildConversationActivityById({
       conversations: [{ id: "conv_1", mode: "coding" }],
+      agents: [],
       activities: { conv_1: activity("idle") },
       views: {
         [conversationViewKey("conv_1")]: { sending: true },
