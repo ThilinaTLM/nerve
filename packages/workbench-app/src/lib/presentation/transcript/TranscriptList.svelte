@@ -20,7 +20,9 @@ import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/me
 import ConversationSignal from "../conversations/ConversationSignal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
-import WorkingIndicator from "./WorkingIndicator.svelte";
+import RunActivitySlot from "./activity/RunActivitySlot.svelte";
+import { createRunActivityTracker } from "./activity/run-activity-tracker.svelte";
+import type { ConversationRunActivityModel } from "../conversations/conversation-view-contracts.js";
 import { groupConsecutiveThinking } from "./transcript-presentation";
 import {
   entranceEligible,
@@ -48,7 +50,7 @@ type Props = {
   timelineTail: TimelineItem[];
   streamingText: string;
   sending: boolean;
-  hasActiveTurnOutput: boolean;
+  runActivity: ConversationRunActivityModel;
   queuedPrompts: QueuedPromptRecord[];
   followBottom?: boolean;
   activeProject?: ProjectRecord;
@@ -111,7 +113,7 @@ let {
   timelineTail,
   streamingText,
   sending,
-  hasActiveTurnOutput,
+  runActivity,
   queuedPrompts,
   followBottom = true,
   activeProject,
@@ -180,6 +182,15 @@ const tailCompactionRunning = $derived(
 const compactionRunning = $derived(
   prefixCompactionRunning || tailCompactionRunning,
 );
+const runActivityTracker = createRunActivityTracker(() => ({
+  sending,
+  activeRun: runActivity.activeRun,
+  lastRunOutcome: runActivity.lastRunOutcome,
+  stopping: runActivity.stopping,
+  compactionRunning,
+  tail: timelineTail.at(-1) ?? timelinePrefix.at(-1),
+}));
+const activityMounted = $derived(runActivityTracker.view.mounted);
 
 let motionProjectionKey: string | undefined;
 let projectedEntranceMotions: ReadonlyMap<string, TranscriptEntranceMotion> =
@@ -241,10 +252,10 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
       entranceMotion: projectedEntranceMotions.get(row.key),
     })),
   ];
-  // This is a per-turn pre-output row. Turn-scoped output stays true across
-  // the live-to-durable handoff, so it cannot reappear after the final message.
-  if (sending && !hasActiveTurnOutput && !compactionRunning) {
-    result.push({ kind: "waiting", key: "__waiting__" });
+  // One persistent run-activity row for the whole run (and its brief
+  // completion cue); its content changes in place, never its identity.
+  if (activityMounted) {
+    result.push({ kind: "activity", key: "__activity__" });
   }
   for (const prompt of queuedPrompts) {
     result.push({ kind: "queued", key: `__queued__:${prompt.id}`, prompt });
@@ -263,9 +274,7 @@ const reviewsByToolCallId = $derived(
 const structureVersion = $derived(
   `${prefixRows.revision}\0${tailDisplayNodes
     .map((node) => node.key)
-    .join(
-      "|",
-    )}\0${sending && !hasActiveTurnOutput && !compactionRunning ? "waiting" : ""}\0${queuedPrompts
+    .join("|")}\0${activityMounted ? "activity" : ""}\0${queuedPrompts
     .map((prompt) => prompt.id)
     .join("|")}`,
 );
@@ -379,10 +388,8 @@ $effect(() => {
             {onContinueFromFailure}
             {transcriptMenu}
           />
-        {:else if item.kind === "waiting"}
-          <article class="waiting-entry">
-            <WorkingIndicator />
-          </article>
+        {:else if item.kind === "activity"}
+          <RunActivitySlot view={runActivityTracker.view} />
         {:else}
           <QueuedPromptRow
             prompt={item.prompt}
@@ -406,16 +413,3 @@ $effect(() => {
     ></div>
   </div>
 {/if}
-
-<style>
-.waiting-entry {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  padding: 0.75rem;
-  /* Delay avoids flashing the activity line for responses that begin almost
-     * immediately. The row still owns a stable one-line virtual height. */
-  animation: transcript-live-enter var(--motion-enter-duration)
-    var(--motion-enter-easing) 120ms both;
-}
-</style>

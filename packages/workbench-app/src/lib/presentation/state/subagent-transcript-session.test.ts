@@ -111,7 +111,6 @@ describe("subagent transcript session", () => {
     );
     const projection = buildConversationRenderProjection(state);
     assert.equal(projection.streamingText, "Streaming now");
-    assert.equal(projection.hasActiveTurnOutput, true);
   });
 
   it("retains hidden child tools only with the explicit reducer option", () => {

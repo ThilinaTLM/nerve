@@ -22,13 +22,14 @@ import {
 } from "../../transcript/transcript-presentation";
 import ThinkingGroup from "../../transcript/ThinkingGroup.svelte";
 import UserMessageContent from "../../transcript/UserMessageContent.svelte";
-import WorkingIndicator from "../../transcript/WorkingIndicator.svelte";
+import RunActivitySlot from "../../transcript/activity/RunActivitySlot.svelte";
+import { createRunActivityTracker } from "../../transcript/activity/run-activity-tracker.svelte";
 import ToolCallCard from "../ToolCallCard.svelte";
 import ToolResultErrorCard from "./ToolResultErrorCard.svelte";
 
 type DialogRow =
   | { kind: "timeline"; key: string; node: TranscriptDisplayNode }
-  | { kind: "waiting"; key: string };
+  | { kind: "activity"; key: string };
 
 let {
   open = $bindable(false),
@@ -52,12 +53,21 @@ let error = $state<string>();
 let retryKey = $state(0);
 
 const projection = $derived(buildConversationRenderProjection(renderState));
+const activity = createRunActivityTracker(() => ({
+  sending: Boolean(renderState?.sending),
+  activeRun: renderState?.activeRun,
+  lastRunOutcome: renderState?.lastRunOutcome,
+  stopping: false,
+  compactionRunning: false,
+  tail: projection.timeline.at(-1),
+}));
+const activityMounted = $derived(activity.view.mounted);
 const rows = $derived.by(() => {
   const timeline = groupConsecutiveThinking(projection.timeline).map(
     (node): DialogRow => ({ kind: "timeline", key: node.key, node }),
   );
-  if (renderState?.sending && !projection.hasActiveTurnOutput) {
-    timeline.push({ kind: "waiting", key: "__waiting__" });
+  if (activityMounted) {
+    timeline.push({ kind: "activity", key: "__activity__" });
   }
   return timeline;
 });
@@ -73,7 +83,7 @@ const scroll = createConversationScrollController({
 });
 
 function measurementVersion(row: DialogRow): string {
-  if (row.kind === "waiting") return "waiting";
+  if (row.kind === "activity") return "activity";
   const node = row.node;
   if (node.kind === "thinking_group") {
     return node.items
@@ -218,10 +228,8 @@ function handleOpenChange(next: boolean) {
             viewportClass="h-full px-3"
           >
             {#snippet row({ item: row })}
-              {#if row.kind === "waiting"}
-                <article class="relative w-full min-w-0 p-3 text-sm">
-                  <WorkingIndicator />
-                </article>
+              {#if row.kind === "activity"}
+                <RunActivitySlot view={activity.view} />
               {:else if row.node.kind === "tool" && row.node.toolCall}
                 <div class="min-w-0 px-3">
                   <ToolCallCard

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { mount, tick, unmount, untrack } from "svelte";
+import { prefersReducedMotion } from "svelte/motion";
 import { writeClipboardText } from "@nervekit/ui-kit/browser/clipboard";
 import {
   decorateMarkdownHtml,
@@ -19,6 +20,10 @@ import {
 } from "@nervekit/ui-kit/renderers/markdown/streaming-markdown";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import {
+  StreamingRevealPacer,
+  revealBoundary,
+} from "@nervekit/ui-kit/scheduling/streaming-reveal";
+import {
   parseLocalFileHref,
   resolveDisplayPath,
   splitPathLineSuffix,
@@ -33,6 +38,10 @@ type Props = {
   preserveLineBreaks?: boolean;
   /** Bound streaming work while deferring Shiki until completion. */
   streaming?: boolean;
+  /** Pace streaming text into view per frame instead of in bursts. */
+  reveal?: boolean;
+  /** Show a live caret at the end of streaming text. */
+  caret?: boolean;
   linkBasePath?: string;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock) => void;
@@ -51,6 +60,8 @@ let {
   trimCodeBlocks = true,
   preserveLineBreaks = false,
   streaming = false,
+  reveal = false,
+  caret = false,
   linkBasePath,
   onOpenFile,
   onOpenMermaid,
@@ -316,6 +327,73 @@ const streamingScheduler = new LatestPresentationScheduler<StreamingValue>(
   commitStreaming,
 );
 
+// Paced reveal: the pacer decides how much of the latest streaming source is
+// visible each frame. Text already present at mount is never replayed.
+const revealPacer = new StreamingRevealPacer(untrack(() => text.length));
+let revealTarget: StreamingValue | undefined;
+let revealedLength = untrack(() => text.length);
+/** Final (non-streaming) render deferred until the reveal drains. */
+let revealFinal: StreamingValue | undefined;
+let revealFrame: number | undefined;
+let revealLastTs: number | undefined;
+
+const revealing = $derived(reveal && !prefersReducedMotion.current);
+
+function showRevealed(value: StreamingValue, length: number) {
+  const revealed = value.source.slice(0, length);
+  const appended = revealed.slice(Math.min(revealedLength, revealed.length));
+  const tailOnly =
+    length >= revealedLength &&
+    !appended.includes("\n") &&
+    value.trim === streamingPrefixTrim &&
+    value.preserveLineBreaks === streamingPrefixPreserveLineBreaks &&
+    revealed.startsWith(streamingPrefixSource) &&
+    showingStreaming;
+  revealedLength = length;
+  if (tailOnly) {
+    // Hot path: only the escaped plain-text tail grows between newlines.
+    streamingTail = revealed.slice(streamingPrefixSource.length);
+    return;
+  }
+  commitStreaming({ ...value, source: revealed });
+}
+
+function finishReveal(value: StreamingValue) {
+  revealFinal = undefined;
+  showingStreaming = false;
+  revealedLength = value.source.length;
+  renderWithHighlight(value.source, value.trim, value.preserveLineBreaks);
+}
+
+function revealStep(ts: number) {
+  revealFrame = undefined;
+  const value = revealTarget;
+  if (!value) return;
+  const dt = revealLastTs === undefined ? 1000 / 60 : ts - revealLastTs;
+  revealLastTs = ts;
+  const length = revealBoundary(value.source, revealPacer.advance(dt));
+  if (length !== revealedLength) showRevealed(value, length);
+  if (!revealPacer.settled) {
+    revealFrame = requestAnimationFrame(revealStep);
+    return;
+  }
+  revealLastTs = undefined;
+  if (revealFinal) finishReveal(revealFinal);
+}
+
+function ensureRevealLoop() {
+  if (revealFrame !== undefined || revealPacer.settled) return;
+  revealFrame = requestAnimationFrame(revealStep);
+}
+
+function stopReveal() {
+  if (revealFrame !== undefined) cancelAnimationFrame(revealFrame);
+  revealFrame = undefined;
+  revealLastTs = undefined;
+  revealTarget = undefined;
+  revealFinal = undefined;
+}
+
 /** Full render + async Shiki highlight. Used only for finalized content. */
 function renderWithHighlight(
   source: string,
@@ -351,6 +429,40 @@ $effect(() => {
   const source = text;
   const trim = trimCodeBlocks;
   const preserveBreaks = preserveLineBreaks;
+  const paced = revealing;
+  const value = { source, trim, preserveLineBreaks: preserveBreaks };
+  const wasStreaming = untrack(() => showingStreaming);
+  if (paced && (streaming || wasStreaming)) {
+    revealPacer.setTarget(source.length, { done: !streaming });
+    revealTarget = value;
+    lastEnqueuedSource = source;
+    lastEnqueuedTrim = trim;
+    lastEnqueuedPreserveLineBreaks = preserveBreaks;
+    if (!wasStreaming) {
+      // First streaming frame renders whatever is already revealed.
+      untrack(() =>
+        showRevealed(value, revealBoundary(source, revealPacer.shownLength)),
+      );
+    }
+    if (streaming) {
+      revealFinal = undefined;
+      ensureRevealLoop();
+      return;
+    }
+    if (!revealPacer.settled) {
+      // The source completed: drain the backlog, then render the final form.
+      revealFinal = value;
+      ensureRevealLoop();
+      return;
+    }
+    stopReveal();
+    untrack(() => finishReveal(value));
+    return;
+  }
+  if (revealTarget) stopReveal();
+  revealPacer.setTarget(source.length);
+  revealPacer.snap();
+  revealedLength = source.length;
   if (!streaming) {
     if (showingStreaming) {
       streamingScheduler.flushNow({
@@ -381,7 +493,10 @@ $effect(() => {
   );
 });
 
-$effect(() => () => streamingScheduler.destroy());
+$effect(() => () => {
+  streamingScheduler.destroy();
+  stopReveal();
+});
 </script>
 
 {#if showingStreaming}
@@ -400,6 +515,12 @@ $effect(() => () => streamingScheduler.destroy());
     {#if streamingTail}
       <span class="whitespace-pre-wrap break-words">{streamingTail}</span>
     {/if}
+    {#if caret}
+      <span
+        class="stream-caret ml-[0.3em] inline-block size-[0.42em] rounded-full bg-primary align-[0.1em]"
+        aria-hidden="true"
+      ></span>
+    {/if}
   </div>
 {:else}
   <div
@@ -412,6 +533,17 @@ $effect(() => () => streamingScheduler.destroy());
   </div>
 {/if}
 <style>
+.stream-caret {
+  animation: stream-caret-breathe 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-caret {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
 .markdown {
   min-width: 0;
   max-width: 100%;

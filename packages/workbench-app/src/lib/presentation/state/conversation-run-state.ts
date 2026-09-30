@@ -1,5 +1,8 @@
 import { type ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
-import type { ConversationRenderState } from "./conversation-render-state.js";
+import type {
+  ConversationRenderState,
+  ConversationRunOutcome,
+} from "./conversation-render-state.js";
 
 export function ensureActiveRun(
   state: ConversationRenderState,
@@ -24,6 +27,26 @@ export function ensureActiveRun(
     queuedPrompts: state.queuedPrompts ?? [],
   };
   return state.activeRun;
+}
+
+/**
+ * Record the terminal outcome of the current active run. Call before clearing
+ * `activeRun`; events for a different (stale) run leave the outcome untouched.
+ */
+export function recordRunOutcome(
+  state: Pick<ConversationRenderState, "activeRun" | "lastRunOutcome">,
+  runId: string | undefined,
+  outcome: ConversationRunOutcome["outcome"],
+  endedAt: string,
+): void {
+  const activeRun = state.activeRun;
+  if (!activeRun || !runMatches(activeRun.runId, runId)) return;
+  state.lastRunOutcome = {
+    runId: activeRun.runId,
+    outcome,
+    startedAt: activeRun.startedAt,
+    endedAt,
+  };
 }
 
 export function runMatches(

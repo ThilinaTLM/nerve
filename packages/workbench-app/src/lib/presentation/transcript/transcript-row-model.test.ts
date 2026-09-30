@@ -136,11 +136,11 @@ describe("transcript row model", () => {
     );
   });
 
-  it("keeps waiting and queued measurement revisions local", () => {
+  it("keeps activity and queued measurement revisions local", () => {
     const context = measurementContext;
     assert.equal(
-      measurementVersionForRow({ kind: "waiting", key: "waiting" }, context),
-      "waiting",
+      measurementVersionForRow({ kind: "activity", key: "activity" }, context),
+      "activity",
     );
     assert.equal(
       measurementVersionForRow(

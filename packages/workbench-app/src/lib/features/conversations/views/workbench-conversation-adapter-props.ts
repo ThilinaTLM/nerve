@@ -19,6 +19,7 @@ import type {
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
 import type { RecoveryIssue } from "@nervekit/contracts/runs";
 import type {
+  ConversationRunOutcome,
   ConversationTransientState,
   PendingConversationState,
   TranscriptItem,
@@ -42,6 +43,7 @@ export type WorkbenchConversationAdapterProps = {
   toolCalls?: ToolCallTranscriptRecord[];
   treeNodes?: ConversationTreeNode[];
   activeRun?: ConversationActiveRunSnapshot;
+  lastRunOutcome?: ConversationRunOutcome;
   transient?: ConversationTransientState;
   queuedPrompts?: QueuedPromptRecord[];
   recoveryIssues?: RecoveryIssue[];

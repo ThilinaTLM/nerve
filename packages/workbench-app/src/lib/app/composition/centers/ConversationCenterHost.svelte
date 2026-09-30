@@ -493,6 +493,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   toolCalls={view?.toolCalls ?? []}
   treeNodes={view?.treeNodes ?? []}
   activeRun={view?.activeRun}
+  lastRunOutcome={view?.lastRunOutcome}
   transient={view?.transient}
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}

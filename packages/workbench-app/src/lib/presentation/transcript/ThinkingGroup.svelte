@@ -26,17 +26,13 @@ let { items }: Props = $props();
             Provider returned redacted thinking.
           </p>
         {:else}
-          <div class="step-markdown" class:live-caret={itemLive}>
-            <Markdown
-              text={item.text}
-              streaming={itemLive}
-              onCopy={notifyCopyResult}
-            />
-            {#if itemLive && !item.text}<span
-                class="stream-caret"
-                aria-hidden="true"
-              ></span>{/if}
-          </div>
+          <Markdown
+            text={item.text}
+            streaming={itemLive}
+            reveal
+            caret={itemLive}
+            onCopy={notifyCopyResult}
+          />
         {/if}
       </div>
     {/each}
@@ -76,18 +72,23 @@ let { items }: Props = $props();
   font-weight: inherit;
 }
 
-.step-markdown.live-caret :global(.markdown > :last-child)::after,
-.redacted.live-caret::after,
-.stream-caret {
+.redacted.live-caret::after {
   content: "";
   display: inline-block;
-  width: 0.42rem;
-  height: 1em;
-  margin-left: 0.3rem;
-  margin-top: 0.18rem;
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.3em;
+  border-radius: 9999px;
   background: var(--primary);
-  vertical-align: text-bottom;
-  animation: pulse 1s steps(2, start) infinite;
+  vertical-align: 0.1em;
+  animation: stream-caret-breathe 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .redacted.live-caret::after {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 .redacted {

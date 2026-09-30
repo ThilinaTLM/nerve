@@ -12,17 +12,6 @@ type Props = {
 
 let { notice, isLast, sending, onContinueFromFailure }: Props = $props();
 
-let now = $state(Date.now());
-
-$effect(() => {
-  if (notice.state !== "retrying" || !notice.retryAt) return;
-  now = Date.now();
-  const interval = setInterval(() => {
-    now = Date.now();
-  }, 250);
-  return () => clearInterval(interval);
-});
-
 const canContinue = $derived(
   notice.state !== "retrying" &&
     isLast &&
@@ -34,7 +23,6 @@ const canContinue = $derived(
 
 const model = $derived(
   runStatusNoticeModel(notice, {
-    nowMs: now,
     onContinue:
       canContinue && notice.runId
         ? () => onContinueFromFailure?.(notice.runId!)

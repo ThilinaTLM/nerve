@@ -6,24 +6,8 @@ import type { RunStatusNotice } from "../../state/transcript-types";
 import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 
 export type RunStatusNoticeOptions = {
-  /** Clock reading used for the retry countdown; injected so this stays pure. */
-  nowMs: number;
   onContinue?: () => void;
 };
-
-function retrySeconds(
-  notice: RunStatusNotice,
-  nowMs: number,
-): number | undefined {
-  const retryAtMs = notice.retryAt ? Date.parse(notice.retryAt) : Number.NaN;
-  if (Number.isFinite(retryAtMs)) {
-    return Math.max(0, Math.ceil((retryAtMs - nowMs) / 1000));
-  }
-  if (typeof notice.delayMs === "number" && notice.delayMs > 0) {
-    return Math.ceil(notice.delayMs / 1000);
-  }
-  return undefined;
-}
 
 function attemptChip(notice: RunStatusNotice): NoticeChip | undefined {
   if (typeof notice.attempt !== "number") return undefined;
@@ -74,7 +58,7 @@ function httpChip(httpStatus?: number): NoticeChip | undefined {
 
 export function runStatusNoticeModel(
   notice: RunStatusNotice,
-  options: RunStatusNoticeOptions,
+  options: RunStatusNoticeOptions = {},
 ): TranscriptNoticeModel {
   const failure = failurePresentation(notice);
   const primaryAction = options.onContinue
@@ -85,20 +69,10 @@ export function runStatusNoticeModel(
       }
     : undefined;
 
+  // The live countdown belongs to the transcript's run activity slot; the
+  // notice is the durable record of why the request was retried.
   if (notice.state === "retrying") {
-    const seconds = retrySeconds(notice, options.nowMs);
-    const chips: NoticeChip[] = [
-      { text: "UI-only", tone: "neutral" },
-      {
-        text:
-          seconds === undefined
-            ? "retrying soon"
-            : seconds > 0
-              ? `retry in ${seconds}s`
-              : "retrying now",
-        tone: "info",
-      },
-    ];
+    const chips: NoticeChip[] = [{ text: "UI-only", tone: "neutral" }];
     const attempt = attemptChip(notice);
     if (attempt) chips.push(attempt);
     const status = httpChip(failure.httpStatus);
@@ -107,10 +81,10 @@ export function runStatusNoticeModel(
       kind: "run",
       tone: "info",
       glyph: "retry",
-      busy: true,
+      busy: false,
       badge: "run_retrying",
       arg: failure.label,
-      statusLabel: "Retrying the model request",
+      statusLabel: "Retried the model request",
       summary: failure.message,
       chips,
     };

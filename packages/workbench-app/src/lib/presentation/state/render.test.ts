@@ -109,7 +109,6 @@ describe("conversation render projection", () => {
         "live:msg_workbench:text:2",
       ],
     );
-    assert.equal(render.hasActiveTurnOutput, true);
   });
 
   it("excludes active-run live messages once the durable entry exists", () => {
@@ -195,111 +194,6 @@ describe("conversation render projection", () => {
       ["entry_assistant"],
     );
     assert.equal(render.streamingText, "");
-    assert.equal(render.hasActiveTurnOutput, true);
-  });
-
-  it("scopes waiting state to the latest turn through materialization", () => {
-    const firstMessage = {
-      liveMessageId: "msg_first",
-      messageOrdinal: 0,
-      startedAt: ts,
-      blocks: [
-        {
-          kind: "text" as const,
-          contentBlockId: "block_first",
-          contentIndex: 0,
-          text: "I will use a tool.",
-          done: true,
-        },
-      ],
-    };
-    const baseState: ConversationRenderState = {
-      conversationId: "conv_workbench",
-      entries: [],
-      activeEntryIds: [],
-      toolCalls: [],
-      activeRun: {
-        runId: "run_workbench",
-        agentId: "agent_workbench",
-        projectId: "proj_workbench",
-        conversationId: "conv_workbench",
-        status: "running",
-        startedAt: ts,
-        turns: [
-          { turnId: "turn_first", ordinal: 0, messages: [firstMessage] },
-          { turnId: "turn_second", ordinal: 1, messages: [] },
-        ],
-        toolOutputsByToolCallId: {},
-        queuedPrompts: [],
-      },
-      cursorSeq: 0,
-    };
-
-    assert.equal(
-      buildConversationRenderProjection(baseState).hasActiveTurnOutput,
-      false,
-      "prior output must not hide a second-turn wait",
-    );
-
-    const withSecondTurnOutput: ConversationRenderState = {
-      ...baseState,
-      activeRun: {
-        ...baseState.activeRun!,
-        turns: [
-          baseState.activeRun!.turns[0],
-          {
-            turnId: "turn_second",
-            ordinal: 1,
-            messages: [
-              {
-                liveMessageId: "msg_second",
-                messageOrdinal: 0,
-                startedAt: ts,
-                blocks: [
-                  {
-                    kind: "text",
-                    contentBlockId: "block_second",
-                    contentIndex: 0,
-                    text: "Final answer",
-                    done: true,
-                  },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    };
-    assert.equal(
-      buildConversationRenderProjection(withSecondTurnOutput)
-        .hasActiveTurnOutput,
-      true,
-    );
-
-    const materialized: ConversationRenderState = {
-      ...baseState,
-      entries: [
-        {
-          id: "entry_second",
-          conversationId: "conv_workbench",
-          agentId: "agent_workbench",
-          runId: "run_workbench",
-          turnId: "turn_second",
-          liveMessageId: "msg_second",
-          messageOrdinal: 0,
-          role: "assistant",
-          kind: "message",
-          text: "Final answer",
-          createdAt: ts,
-        },
-      ],
-      activeEntryIds: ["entry_second"],
-    };
-    assert.equal(
-      buildConversationRenderProjection(materialized).hasActiveTurnOutput,
-      true,
-      "durable final output must prevent a completion-time waiting flash",
-    );
   });
 
   it("keeps terminal tool calls visible at their durable transcript anchor", () => {

@@ -17,7 +17,7 @@ export type TimelineRowItem = {
 
 export type TranscriptRowItem =
   | TimelineRowItem
-  | { kind: "waiting"; key: string }
+  | { kind: "activity"; key: string }
   | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
 
 export function uniqueRowKey(key: string, seen: Map<string, number>): string {
@@ -55,7 +55,7 @@ export function measurementVersionForRow(
   row: TranscriptRowItem,
   context: TranscriptMeasurementContext,
 ): string {
-  if (row.kind === "waiting") return "waiting";
+  if (row.kind === "activity") return "activity";
   if (row.kind === "queued") {
     return `${row.prompt.status}:${row.prompt.updatedAt}`;
   }

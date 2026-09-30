@@ -63,6 +63,29 @@ describe("abort active run", () => {
     assert.deepEqual(calls, [{ agentId: "agent_1", runId: "run_1" }]);
   });
 
+  it("records a stopped outcome when the local terminal fallback clears the run", async () => {
+    const view: AbortableConversationView = {
+      conversationId: "conv_1",
+      sending: true,
+      stopping: false,
+      activeRun: activeRun(),
+      queuedPrompts: [],
+    };
+    const abort = createAbortActiveRun({
+      agentId: () => "agent_1",
+      view: () => view,
+      cancelRun: async () => undefined,
+      notifyError: () => undefined,
+    });
+
+    await abort();
+
+    assert.equal(view.activeRun, undefined);
+    assert.equal(view.lastRunOutcome?.outcome, "stopped");
+    assert.equal(view.lastRunOutcome?.runId, "run_1");
+    assert.equal(view.lastRunOutcome?.startedAt, "2026-01-01T00:00:00.000Z");
+  });
+
   it("suppresses duplicate Stop clicks while cancellation is in flight", async () => {
     const cancellation = deferred<void>();
     let calls = 0;

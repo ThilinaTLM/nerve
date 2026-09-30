@@ -6,13 +6,13 @@ export {
 } from "./conversation-event-reducer.js";
 export { fromConversationSnapshot } from "./conversation-snapshot.js";
 export { capLiveOutput } from "./conversation-live-reducer.js";
+export { recordRunOutcome } from "./conversation-run-state.js";
 export type { ApplyConversationEventOptions } from "./conversation-event-policy.js";
 export * from "./conversation-view.js";
 export * from "./render.js";
 export * from "./subagent-transcript-session.js";
 export * from "./thinking-levels.js";
 export * from "./timeline.js";
-export * from "./timeline-output.js";
 export * from "./timeline-projection.js";
 export * from "./tool-types.js";
 export * from "./transcript.js";
