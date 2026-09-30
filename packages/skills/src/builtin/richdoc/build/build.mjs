@@ -12,7 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dirname, "..");
@@ -115,13 +115,49 @@ export async function generate(destination) {
   await cp(join(katexRoot, "dist/fonts"), join(destination, "assets/fonts"), {
     recursive: true,
   });
+  let fontCss = "";
+  for (const [name, family, styles] of [
+    ["fraunces", "Fraunces", ["full.css", "full-italic.css"]],
+    ["geist", "Geist", ["index.css"]],
+    ["fira-code", "Fira Code", ["index.css"]],
+    ["space-grotesk", "Space Grotesk", ["index.css"]],
+    ["inter", "Inter", ["index.css"]],
+    ["jetbrains-mono", "JetBrains Mono", ["index.css"]],
+  ]) {
+    const fontRoot = await packageRoot(
+      require.resolve(`@fontsource-variable/${name}`),
+    );
+    for (const style of styles) {
+      const cssPath = join(fontRoot, style);
+      inputs.add(cssPath);
+      let css = await readFile(cssPath, "utf8");
+      for (const [, file] of css.matchAll(/url\(\.\/files\/([^)]*)\)/g)) {
+        await mkdir(join(destination, "assets/fonts/typography"), {
+          recursive: true,
+        });
+        await cp(
+          join(fontRoot, "files", file),
+          join(destination, "assets/fonts/typography", file),
+        );
+      }
+      css = css
+        .replace(/url\(\.\/files\//g, "url(./fonts/typography/")
+        .replace(/font-family:\s*'[^']*'/g, `font-family: '${family}'`);
+      fontCss += css;
+    }
+  }
+  const documentCss = await Promise.all(
+    ["tokens.css", "richdoc.css", "components.css"].map((name) =>
+      readFile(join(root, "src/styles", name), "utf8"),
+    ),
+  );
   await writeFile(
     join(destination, "assets/richdoc.css"),
     (
-      await transform(
-        await readFile(join(root, "src/styles/richdoc.css"), "utf8"),
-        { loader: "css", minify: true },
-      )
+      await transform(fontCss + documentCss.join("\n"), {
+        loader: "css",
+        minify: true,
+      })
     ).code,
   );
   const schemaFile = join(destination, "schema.mjs");
@@ -134,14 +170,6 @@ export async function generate(destination) {
   });
   const { ELEMENTS, VERSION } = await import(pathToFileURL(schemaFile).href);
   const manifest = { version: VERSION, files: {} };
-  for (const name of await files(join(destination, "assets"))) {
-    const data = await readFile(join(destination, "assets", name));
-    manifest.files[name] = { sha256: hash(data), bytes: data.length };
-  }
-  await writeFile(
-    join(destination, "assets/manifest.json"),
-    JSON.stringify(manifest, null, 2) + "\n",
-  );
   await mkdir(join(destination, "references"), { recursive: true });
   const reference = [
     "# Richdoc element reference",
@@ -186,7 +214,7 @@ export async function generate(destination) {
   const notice = [
     "# Bundled dependency notices",
     "",
-    "Original skill source is Apache-2.0. The following notices cover dependencies embedded in the executable and browser assets, including their transitive dependencies.",
+    "This implementation's authored sources are Apache-2.0. The following notices cover dependencies embedded in the executable and browser assets, including their transitive dependencies. Keep this file with shared document assets.",
     "",
   ];
   for (const [name, metadata] of [...packages].sort(([a], [b]) =>
@@ -202,9 +230,18 @@ export async function generate(destination) {
       "```",
       "",
     );
+  await Promise.all(
+    ["THIRD_PARTY_NOTICES.md", "assets/THIRD_PARTY_NOTICES.md"].map((name) =>
+      writeFile(join(destination, name), notice.join("\n")),
+    ),
+  );
+  for (const name of await files(join(destination, "assets"))) {
+    const data = await readFile(join(destination, "assets", name));
+    manifest.files[name] = { sha256: hash(data), bytes: data.length };
+  }
   await writeFile(
-    join(destination, "THIRD_PARTY_NOTICES.md"),
-    notice.join("\n"),
+    join(destination, "assets/manifest.json"),
+    JSON.stringify(manifest, null, 2) + "\n",
   );
   await rm(schemaFile);
   return Object.values(manifest.files).reduce(
@@ -237,6 +274,8 @@ if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
       await cp(root, staging, {
         recursive: true,
         filter: (path) =>
+          path !== join(root, "test") &&
+          !path.startsWith(join(root, "test") + sep) &&
           !path
             .split(/[\\/]/)
             .some((part) =>

@@ -37,6 +37,33 @@ test(
       ...Object.keys(manifest.files).map((name) => `assets/${name}`),
     ])
       assert.ok(paths.has(prefix + path), `Missing packed file: ${path}`);
+    const notices = await readFile(
+      resolve(packageRoot, prefix, "THIRD_PARTY_NOTICES.md"),
+      "utf8",
+    );
+    for (const family of [
+      "fraunces",
+      "geist",
+      "fira-code",
+      "space-grotesk",
+      "inter",
+      "jetbrains-mono",
+    ]) {
+      assert.match(
+        notices,
+        new RegExp(`@fontsource-variable/${family}@5\\.3\\.0`),
+      );
+      assert.ok(
+        Object.keys(manifest.files).some((path) =>
+          path.startsWith(`fonts/typography/${family}-`),
+        ),
+        `Missing locally redistributable typography: ${family}`,
+      );
+    }
+    assert.ok(
+      ![...paths].some((path) => path.startsWith(prefix + "test/")),
+      "Review screenshots and tests must not ship as document assets.",
+    );
     assert.ok(
       !paths.has(prefix + ".gitignore"),
       "A source .gitignore would make npm omit generated runtime files.",

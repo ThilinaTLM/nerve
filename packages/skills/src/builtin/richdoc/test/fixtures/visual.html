@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Richdoc visual reference</title>
+    <link rel="stylesheet" href="./richdoc-assets/richdoc.css" />
+    <script src="./richdoc-assets/richdoc.js" defer></script>
+  </head>
+  <body>
+    <rd-page prefs="off">
+      <header>
+        <p>Research · 30 September 2026</p>
+        <h1>A document, not a dashboard.</h1>
+        <p>
+          Clear ideas deserve a distinctive reading experience. Keep the
+          editorial character, without losing portability.
+        </p>
+      </header>
+      <rd-callout type="tldr"
+        ><p>
+          Use semantic HTML for structure, a small vocabulary for richer
+          content, and local assets for a predictable reading experience.
+        </p></rd-callout
+      >
+      <section>
+        <h2>Designed for reading</h2>
+        <rd-cols
+          ><rd-card title="Editorial character" accent="success"
+            ><p>
+              Expressive typography, confident accents and purposeful
+              whitespace.
+            </p>
+            <rd-badge variant="success">Preserved</rd-badge></rd-card
+          ><rd-card title="Local by design" accent="info"
+            ><p>
+              No remote fonts, public rendering endpoints or runtime
+              installation.
+            </p>
+            <rd-badge variant="info">Offline</rd-badge></rd-card
+          ></rd-cols
+        >
+        <rd-callout type="note" title="A useful constraint"
+          ><p>
+            Keep the vocabulary small; do not flatten its visual language.
+          </p></rd-callout
+        >
+      </section>
+      <section>
+        <h2>Evidence and next steps</h2>
+        <rd-cols n="3"
+          ><rd-stat value="12" label="Public elements"></rd-stat
+          ><rd-stat value="2" label="Distinct themes"></rd-stat
+          ><rd-stat value="0" label="External requests"></rd-stat
+        ></rd-cols>
+        <table>
+          <caption>
+            What we preserve
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Theme</th>
+              <th scope="col">Display</th>
+              <th scope="col">Body</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Editorial Warm</th>
+              <td>Fraunces</td>
+              <td>Geist</td>
+            </tr>
+            <tr>
+              <th scope="row">Graphite Modern</th>
+              <td>Space Grotesk</td>
+              <td>Inter</td>
+            </tr>
+          </tbody>
+        </table>
+        <details>
+          <summary>Review checklist</summary>
+          <p>
+            Check light and dark canvas continuity, responsive layouts, local
+            font loading and reader preferences.
+          </p>
+        </details>
+      </section>
+    </rd-page>
+  </body>
+</html>

@@ -24,6 +24,7 @@ import {
   Link,
   ExternalLink,
   Copy,
+  Settings,
 } from "@lucide/svelte";
 const icons = {
   "arrow-right": ArrowRight,
@@ -51,6 +52,9 @@ const icons = {
   "external-link": ExternalLink,
   copy: Copy,
 };
+export function settings(target: HTMLElement) {
+  mount(Settings, { target, props: { size: 18, "aria-hidden": "true" } });
+}
 export function render(target: HTMLElement, name: string) {
   const component = icons[name as keyof typeof icons];
   if (!component) throw new Error(`Unsupported icon: ${name}`);

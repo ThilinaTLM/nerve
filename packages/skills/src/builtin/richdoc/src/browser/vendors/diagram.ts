@@ -4,7 +4,9 @@ import { checkDiagram } from "../../schema/diagram.js";
 mermaid.initialize({
   startOnLoad: false,
   securityLevel: "strict",
+  htmlLabels: false,
   theme: "neutral",
+  themeVariables: { fontFamily: "var(--rd-font-body)" },
   suppressErrorRendering: true,
   maxTextSize: 262144,
   maxEdges: 500,

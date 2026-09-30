@@ -207,6 +207,12 @@ function verifyContents(tarball, entries, version, filename, nativePrebuilds) {
       "assets/vendor/chart.js",
       "assets/vendor/icon.js",
       "assets/fonts/KaTeX_Main-Regular.woff2",
+      "assets/fonts/typography/fraunces-latin-full-normal.woff2",
+      "assets/fonts/typography/fraunces-latin-full-italic.woff2",
+      ...["geist", "fira-code", "space-grotesk", "inter", "jetbrains-mono"].map(
+        (font) => `assets/fonts/typography/${font}-latin-wght-normal.woff2`,
+      ),
+      "assets/THIRD_PARTY_NOTICES.md",
       "references/elements.md",
       "THIRD_PARTY_NOTICES.md",
     ].map(

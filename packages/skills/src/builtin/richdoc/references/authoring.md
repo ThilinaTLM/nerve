@@ -64,6 +64,6 @@ Link inline citations to explicitly authored IDs, for example `<a href="#ref-1">
 
 ## Presentation
 
-`rd-page` supports `theme="editorial-warm|graphite-modern"`, `mode="light|dark|auto"`, `width="narrow|standard|wide|full"`, `toc="auto|left|right|top"`, and `prefs="off"`. Reader controls can override settings for that document; storage is optional. Themes use system fonts and never download typography.
+`rd-page` supports `theme="editorial-warm|graphite-modern"`, `mode="light|dark|auto"`, `width="narrow|standard|wide|full"`, `toc="auto|left|right|top"`, and `prefs="off"`. Reader controls can override settings for that document; storage is optional. Typography is local: Editorial Warm uses Fraunces/Geist/Fira Code, and Graphite Modern uses Space Grotesk/Inter/JetBrains Mono. No font request leaves the document directory. Native `<header><p>Eyebrow</p><h1>Title</h1><p>Lede</p></header>` supplies the editorial hero; direct `<section><h2>…</h2>…</section>` children supply numbered section headings. Existing document assets can be refreshed with `prepare <directory> --replace-assets` without changing HTML.
 
 Native tables, figures, details, definition lists and progress bars are styled by the same document tokens. Use custom CSS only when a genuinely unsupported need is established; validation warns about inline overrides. There is no arbitrary grid-template attribute or application build system.

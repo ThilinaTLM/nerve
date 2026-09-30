@@ -36,18 +36,36 @@ export function render(
     });
     return svg;
   }
-  const common = { x, y, ...(series ? { stroke: series, z: series } : {}) };
+  const common = {
+    x,
+    y,
+    stroke: series ?? "var(--rd-accent)",
+    ...(series ? { z: series } : {}),
+  };
   const marks =
     kind === "bar"
-      ? [Plot.barY(rows, { x, y, ...(series ? { fill: series } : {}) })]
+      ? [Plot.barY(rows, { x, y, fill: series ?? "var(--rd-accent)" })]
       : kind === "area"
-        ? [Plot.areaY(rows, common), Plot.lineY(rows, common)]
+        ? [
+            Plot.areaY(rows, {
+              ...common,
+              fill: series ?? "var(--rd-accent)",
+              fillOpacity: 0.2,
+            }),
+            Plot.lineY(rows, common),
+          ]
         : kind === "scatter"
-          ? [Plot.dot(rows, { ...common, ...(series ? { fill: series } : {}) })]
+          ? [Plot.dot(rows, { ...common, fill: series ?? "var(--rd-accent)" })]
           : kind === "heatmap"
             ? [Plot.cell(rows, { x, y: series ?? x, fill: y })]
             : [Plot.lineY(rows, common)];
   return Plot.plot({
+    style: {
+      fontFamily: "var(--rd-font-body)",
+      fontSize: "12px",
+      color: "var(--rd-foreground)",
+      background: "transparent",
+    },
     width: Math.max(180, Math.min(width, 1200)),
     height: sparkline ? 70 : 300,
     marginLeft: sparkline ? 0 : 50,

@@ -1,5 +1,5 @@
 import { cp, mkdir, mkdtemp, rename, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   generate,
@@ -16,6 +16,8 @@ try {
     recursive: true,
     // Source ignores would otherwise cause npm to omit the generated runtime.
     filter: (path) =>
+      path !== join(source, "richdoc", "test") &&
+      !path.startsWith(join(source, "richdoc", "test") + sep) &&
       !path
         .split(/[\\/]/)
         .some((part) =>

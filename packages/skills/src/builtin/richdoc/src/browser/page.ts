@@ -1,4 +1,4 @@
-import { element } from "./load.js";
+import { element, load } from "./load.js";
 export class Page extends HTMLElement {
   connectedCallback() {
     if (this.dataset.ready) return;
@@ -13,14 +13,37 @@ export class Page extends HTMLElement {
     const key = `richdoc:${location.pathname}`;
     let saved: Record<string, string> = {};
     try {
-      saved = JSON.parse(localStorage.getItem(key) ?? "{}");
+      const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "{}");
+      if (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      )
+        saved = parsed as Record<string, string>;
     } catch {
       /* Settings are optional when storage is unavailable. */
     }
     const panel = element("details");
     panel.dataset.rdControls = "true";
     const summary = element("summary", "Reader settings");
+    summary.setAttribute("aria-label", "Reader settings");
+    summary.title = "Reader settings";
     panel.append(summary);
+    panel.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        panel.open = false;
+        summary.focus();
+      }
+    });
+    void load("icon")
+      .then((renderer) => {
+        summary.replaceChildren();
+        renderer.settings(summary);
+        summary.dataset.rdSettingsIcon = "true";
+      })
+      .catch(() => {
+        summary.textContent = "Reader settings";
+      });
     const form = element("div");
     for (const [name, values] of Object.entries(fields)) {
       const label = element("label", name[0].toUpperCase() + name.slice(1));
@@ -33,7 +56,12 @@ export class Page extends HTMLElement {
       const value = values.includes(saved[name])
         ? saved[name]
         : this.getAttribute(name);
-      select.value = value && values.includes(value) ? value : values[0];
+      select.value =
+        value && values.includes(value)
+          ? value
+          : name === "width"
+            ? "standard"
+            : values[0];
       this.setAttribute(name, select.value);
       select.addEventListener("change", () => {
         this.setAttribute(name, select.value);
@@ -54,11 +82,61 @@ export class Page extends HTMLElement {
 export class Card extends HTMLElement {
   connectedCallback() {
     if (this.dataset.ready) return;
-    if (this.hasAttribute("title")) {
-      const title = element("p", this.getAttribute("title")!);
-      title.dataset.rdTitle = "true";
-      this.prepend(title);
+    const title = this.getAttribute("title"),
+      accent = this.getAttribute("accent");
+    if (title || (accent && accent !== "muted")) {
+      const header = element("div");
+      header.dataset.rdCardHeader = "true";
+      if (accent && accent !== "muted") {
+        const kicker = element(
+          "span",
+          accent === "destructive" ? "Danger" : accent,
+        );
+        kicker.dataset.rdKicker = "true";
+        header.append(kicker);
+      }
+      if (title) {
+        const label = element("p", title);
+        label.dataset.rdTitle = "true";
+        header.append(label);
+      }
+      this.prepend(header);
     }
+    this.dataset.ready = "true";
+  }
+}
+export class Callout extends HTMLElement {
+  connectedCallback() {
+    if (this.dataset.ready) return;
+    const body = element("div");
+    body.dataset.rdBody = "true";
+    body.append(...Array.from(this.childNodes));
+    const type = this.getAttribute("type") ?? "info";
+    const title =
+      this.getAttribute("title") ??
+      (type === "tldr"
+        ? "TL;DR"
+        : type === "destructive"
+          ? "Danger"
+          : type[0].toUpperCase() + type.slice(1));
+    const label = element("p");
+    label.dataset.rdTitle = "true";
+    if (type !== "tldr") {
+      const icon = document.createElement("rd-icon");
+      const icons: Record<string, string> = {
+        info: "info",
+        success: "circle-check",
+        warning: "triangle-alert",
+        destructive: "circle-x",
+        note: "lightbulb",
+      };
+      icon.setAttribute("name", icons[type] ?? "info");
+      icon.setAttribute("aria-hidden", "true");
+      label.append(icon);
+    }
+    label.append(element("span", title));
+    this.append(label);
+    this.append(body);
     this.dataset.ready = "true";
   }
 }
@@ -69,11 +147,11 @@ export class Stat extends HTMLElement {
       label = element("span", this.getAttribute("label") ?? "");
     value.dataset.rdValue = "true";
     label.dataset.rdLabel = "true";
-    this.prepend(value, label);
+    this.prepend(label, value);
     if (this.hasAttribute("delta")) {
       const delta = element("small", this.getAttribute("delta")!);
       delta.dataset.rdDelta = "true";
-      this.append(delta);
+      this.insertBefore(delta, value.nextSibling);
     }
     this.dataset.ready = "true";
   }

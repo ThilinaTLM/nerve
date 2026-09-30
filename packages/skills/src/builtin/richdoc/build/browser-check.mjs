@@ -2,13 +2,17 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
-import { cp, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, extname } from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium } from "@playwright/test";
 const skill = resolve(import.meta.dirname, "../../../../dist/builtin/richdoc");
 const root = await mkdtemp(join(await realpath(tmpdir()), "richdoc-browser-"));
+const screenshotDir = process.argv
+  .find((arg) => arg.startsWith("--screenshots="))
+  ?.slice("--screenshots=".length);
+if (screenshotDir) await mkdir(screenshotDir, { recursive: true });
 let browser, server;
 try {
   const copied = join(root, "copied skill");
@@ -88,6 +92,7 @@ try {
           ),
         { timeout: 60_000 },
       );
+      await page.evaluate(() => document.fonts.ready);
       const failures = await page
         .locator('[data-state="error"]')
         .allTextContents();
@@ -110,12 +115,43 @@ try {
           ).includes(" "),
           `${name}: columns should stack`,
         );
+      if (screenshotDir && transport === "file")
+        await page.screenshot({
+          path: join(screenshotDir, `${name}-mobile.png`),
+          fullPage: true,
+        });
       await page.setViewportSize({ width: 1440, height: 1000 });
+      if (screenshotDir && transport === "file") {
+        await page.screenshot({
+          path: join(screenshotDir, `${name}-desktop.png`),
+          fullPage: true,
+        });
+        const mode = await page.locator("rd-page").getAttribute("mode");
+        await page
+          .locator("rd-page")
+          .evaluate((node) => node.setAttribute("mode", "dark"));
+        await page.screenshot({
+          path: join(screenshotDir, `${name}-dark.png`),
+          fullPage: true,
+        });
+        await page.locator("rd-page").evaluate((node, mode) => {
+          if (mode === null) node.removeAttribute("mode");
+          else node.setAttribute("mode", mode);
+        }, mode);
+      }
       if (name === "technical-showcase") {
         assert.equal(await page.locator("rd-chart:has(svg)").count(), 7);
         assert.equal(await page.locator("rd-chart table").count(), 7);
         assert.equal(await page.locator("rd-math .katex").count(), 2);
         assert.equal(await page.locator("rd-diagram svg").count(), 1);
+        for (const label of ["Document", "Validator", "Diagnostics"])
+          assert.ok(
+            (await page.locator("rd-diagram svg").textContent()).includes(
+              label,
+            ),
+            `Sanitized diagram must preserve its visible label: ${label}`,
+          );
+        assert.equal(await page.locator("rd-diagram foreignObject").count(), 0);
         assert.equal(await page.locator("rd-icon svg").count(), 1);
         const toc = page.locator("rd-toc a").first();
         await toc.focus();
@@ -123,7 +159,30 @@ try {
         assert.ok(new URL(page.url()).hash);
         await page.locator("[data-rd-controls] summary").click();
         const mode = page.locator("[data-rd-controls] select").nth(1);
+        await mode.selectOption("light");
+        const lightCode = await page
+          .locator('[data-rd-token="keyword"]')
+          .first()
+          .evaluate((node) => getComputedStyle(node).color);
         await mode.selectOption("dark");
+        const darkCode = await page
+          .locator('[data-rd-token="keyword"]')
+          .first()
+          .evaluate((node) => getComputedStyle(node).color);
+        assert.notEqual(
+          darkCode,
+          lightCode,
+          "Syntax colours must follow reader mode without rerendering.",
+        );
+        const canvas = await page.evaluate(() => [
+          getComputedStyle(document.documentElement).backgroundColor,
+          getComputedStyle(document.body).backgroundColor,
+        ]);
+        assert.equal(
+          canvas[0],
+          canvas[1],
+          "Reader mode must update the surrounding canvas as well as the document.",
+        );
         assert.equal(
           await page.locator("rd-page").getAttribute("mode"),
           "dark",
@@ -133,6 +192,11 @@ try {
           await page.locator("rd-page").getAttribute("mode"),
           "light",
         );
+        await page.keyboard.press("Escape");
+        assert.equal(
+          await page.locator("[data-rd-controls]").getAttribute("open"),
+          null,
+        );
         await page.locator('[aria-label="Copy code"]').first().click();
         await page.waitForFunction(
           () =>
@@ -141,6 +205,28 @@ try {
         );
       }
     }
+    await page.evaluate(() => {
+      const code = document.createElement("rd-code");
+      code.setAttribute("lang", "html");
+      code.textContent =
+        '<img src="https://unexpected.invalid/code.png"><script>alert(1)</script>';
+      code.dataset.rdEscapingTest = "true";
+      document.querySelector("rd-page").append(code);
+    });
+    await page.waitForFunction(
+      () =>
+        document.querySelector("[data-rd-escaping-test]").dataset.state ===
+        "ready",
+    );
+    assert.equal(
+      await page.locator("[data-rd-escaping-test] :is(img,script)").count(),
+      0,
+    );
+    assert.ok(
+      (
+        await page.locator("[data-rd-escaping-test] code").textContent()
+      ).includes("<script>alert(1)</script>"),
+    );
     await page.evaluate(() => {
       const diagram = document.createElement("rd-diagram");
       diagram.setAttribute("caption", "Rejected external image");

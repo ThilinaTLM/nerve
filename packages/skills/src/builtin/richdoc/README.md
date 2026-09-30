@@ -18,7 +18,7 @@ Preparation refuses asset conflicts unless `--replace-assets` is supplied, and n
 
 ## Scope
 
-Twelve custom elements complement native semantic HTML. Mermaid diagrams, math, highlighting, charts and curated icons are bundled locally. Browser settings persist best-effort. Source/data remains readable when JavaScript or a renderer is unavailable. Remote images/resources are not supported; outbound ordinary hyperlinks are allowed.
+Twelve custom elements complement native semantic HTML. Mermaid diagrams, math, highlighting, charts, curated icons and variable fonts are bundled locally. Editorial Warm uses Fraunces, Geist and Fira Code; Graphite Modern uses Space Grotesk, Inter and JetBrains Mono. Their OFL-1.1 licenses and copyright notices ship in the generated dependency notices. Both themes retain their own light/dark palette and continuous page canvas. Browser settings persist best-effort. Source/data remains readable when JavaScript or a renderer is unavailable. Remote images/resources are not supported; outbound ordinary hyperlinks are allowed.
 
 This is a reduced, independently implemented document system informed by richdoc's feature set, **not an upstream compatibility port**. It has no exports, Confluence integration, book framework, editor, arbitrary scripting or embedded Nerve preview. Validation does not make arbitrary HTML trustworthy; do not serve generated documents under an authenticated application origin.
 
@@ -30,12 +30,15 @@ From the Nerve checkout, install its pinned development dependencies and run:
 pnpm --filter @nervekit/skills build:richdoc
 pnpm --filter @nervekit/skills check:richdoc
 pnpm --filter @nervekit/skills test:richdoc:browser
+pnpm --filter @nervekit/skills test:richdoc:visual
 ```
 
-TypeScript sources, document styles, schema and build helpers are all inside this skill. Git tracks authored sources only: the bundled CLI, assets, component reference and dependency notices are generated into `packages/skills/dist/builtin/richdoc/`, never committed. Normal skills builds and pretests generate them; desktop development and release builds already build the skills dependency. The packaged directory is self-contained, but a raw source copy needs a maintainer build first.
+TypeScript sources, document styles, schema and build helpers are all inside this skill. Git tracks authored sources and reviewed visual-test baselines only: the bundled CLI, assets, component reference and dependency notices are generated into `packages/skills/dist/builtin/richdoc/`, never committed. Normal skills builds and pretests generate them; desktop development and release builds already build the skills dependency. The packaged directory is self-contained, but a raw source copy needs a maintainer build first.
 
 `check:richdoc` rebuilds into a temporary directory and compares the packaged bytes without changing source. The measured asset-size budget lives in `build/budget.json`; changes above 10% require an explicit justified baseline update using `--update-budget`.
 
-Browser acceptance requires the Playwright Chromium binary (`pnpm exec playwright install chromium`). Browser checks use temporary document folders and isolated loopback ports, not the live Nerve daemon.
+Browser acceptance requires the Playwright Chromium binary (`pnpm exec playwright install chromium`). Browser checks use temporary document folders and isolated loopback ports, not the live Nerve daemon. Visual tests cover both themes, light/dark modes and desktop/mobile widths, verify local font loading and canvas continuity, and check automatic mode changes and no-JS rendering. Reviewed PNG baselines live in `test/visual/`; tests and screenshots are excluded from the packaged skill. Update snapshots deliberately with `pnpm --filter @nervekit/skills test:richdoc:visual --update-snapshots` and inspect the resulting images before committing.
 
-Original source is Apache-2.0; see [LICENSE](LICENSE) and [bundled dependency notices](THIRD_PARTY_NOTICES.md).
+The typography restoration raised the asset baseline from 6.06 MB to approximately 7.34 MB: the six locally bundled font families (including Fraunces optical sizing/italic and the packages' supported script subsets) replace remote font requests, rather than silently substituting system typography. Dependency notices are also installed inside `richdoc-assets/` so their licenses accompany shared document fonts. No original project source or font binaries are committed to this repository.
+
+This implementation's authored sources are Apache-2.0; see [LICENSE](LICENSE) and [bundled dependency notices](THIRD_PARTY_NOTICES.md).

@@ -110,10 +110,9 @@ export class Chart extends Technical {
     });
     chart.setAttribute("role", "img");
     chart.setAttribute("aria-label", title);
-    figure.append(
-      chart,
-      element("figcaption", this.getAttribute("caption") ?? title),
-    );
+    figure.append(chart);
+    if (this.hasAttribute("caption"))
+      figure.append(element("figcaption", this.getAttribute("caption")!));
     const details = element("details");
     details.append(element("summary", "Chart data"));
     const table = element("table"),
@@ -138,7 +137,13 @@ export class Chart extends Technical {
     });
     table.append(body);
     details.append(table);
-    this.replaceChildren(figure, details);
+    const heading = element("p", title);
+    heading.dataset.rdChartTitle = "true";
+    this.replaceChildren(
+      ...(this.getAttribute("variant") === "sparkline" ? [] : [heading]),
+      figure,
+      details,
+    );
   }
 }
 export class Icon extends Technical {
