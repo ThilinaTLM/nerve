@@ -152,18 +152,34 @@ export function activityForSnapshot(
 }
 
 export function buildConversationActivityById(input: {
-  conversations: readonly { id: string; mode: AgentMode }[];
+  conversations: readonly {
+    id: string;
+    mode: AgentMode;
+    activeAgentId?: string;
+  }[];
+  agents: readonly Pick<AgentRecord, "id" | "conversationId" | "mode">[];
   activities: Readonly<Record<string, ConversationActivitySnapshot>>;
   views: Readonly<Record<string, ConversationLiveActivity>>;
 }): Record<string, ConversationActivityState> {
+  const agentsById = new Map(input.agents.map((agent) => [agent.id, agent]));
   return Object.fromEntries(
-    input.conversations.map((conversation) => [
-      conversation.id,
-      activityForSnapshot(
-        input.activities[conversation.id],
-        conversation.mode,
-        input.views[conversationViewKey(conversation.id)],
-      ),
-    ]),
+    input.conversations.map((conversation) => {
+      const agent = conversation.activeAgentId
+        ? agentsById.get(conversation.activeAgentId)
+        : undefined;
+      // Conversation mode is a default; mode changes belong to the active agent.
+      const mode =
+        agent?.conversationId === conversation.id
+          ? agent.mode
+          : conversation.mode;
+      return [
+        conversation.id,
+        activityForSnapshot(
+          input.activities[conversation.id],
+          mode,
+          input.views[conversationViewKey(conversation.id)],
+        ),
+      ];
+    }),
   );
 }
