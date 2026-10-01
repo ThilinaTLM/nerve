@@ -1,4 +1,5 @@
 import { confluenceRequest, normalizeSiteUrl } from "../confluence/client.js";
+import { trimTrailingSlashes } from "./site-url.js";
 import { jiraRequest } from "../jira/client.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 
@@ -34,7 +35,7 @@ export async function checkAtlassianConnection(
     if (service === "jira") {
       await jiraRequest(
         {
-          siteUrl: connection.siteUrl.trim().replace(/\/+$/, ""),
+          siteUrl: trimTrailingSlashes(connection.siteUrl.trim()),
           email: connection.email.trim(),
           token: connection.token,
         },

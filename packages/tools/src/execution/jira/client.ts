@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
@@ -46,7 +47,7 @@ export async function requireJiraConnection(
     | undefined;
   const siteUrl =
     typeof rawConfig?.siteUrl === "string"
-      ? rawConfig.siteUrl.trim().replace(/\/+$/, "")
+      ? trimTrailingSlashes(rawConfig.siteUrl.trim())
       : "";
   const email =
     typeof rawConfig?.email === "string" ? rawConfig.email.trim() : "";

@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
 import { withTimeoutSignal } from "../process/abort.js";
 import { safeAtlassianError } from "../atlassian/atlassian-error.js";
@@ -73,9 +74,9 @@ export async function requireConfluenceConnection(
 }
 
 export function normalizeSiteUrl(value: string): string {
-  let siteUrl = value.trim().replace(/\/+$/, "");
+  let siteUrl = trimTrailingSlashes(value.trim());
   if (siteUrl.endsWith("/wiki")) siteUrl = siteUrl.slice(0, -5);
-  return siteUrl.replace(/\/+$/, "");
+  return trimTrailingSlashes(siteUrl);
 }
 
 export async function confluenceRequest<T = unknown>(

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -525,7 +526,7 @@ export function pageWebUrl(siteUrl: string, page: unknown): string | undefined {
   if (!webui) return undefined;
   if (/^https?:\/\//i.test(webui)) return webui;
 
-  const baseUrl = siteUrl.replace(/\/+$/, "").replace(/\/wiki$/i, "");
+  const baseUrl = trimTrailingSlashes(siteUrl).replace(/\/wiki$/i, "");
   const path = webui.startsWith("/") ? webui : `/${webui}`;
   const wikiPath =
     path === "/wiki" || path.startsWith("/wiki/") ? path : `/wiki${path}`;
