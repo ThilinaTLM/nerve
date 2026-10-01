@@ -100,6 +100,21 @@ export type ToolLifecycleStageIndicator = {
   label: string;
 };
 
+/** A call must stay queued this long before the queued indicator appears. */
+export const QUEUED_INDICATOR_DELAY_MS = 400;
+
+/**
+ * Auto-approved calls pass through `committed` within a frame or two. Present
+ * them as executing until the queue wait is long enough to be meaningful, so
+ * the queued chip does not flash and shift the footer.
+ */
+export function visibleLifecycleStage(
+  stage: ToolLifecycleVisualStage,
+  queuedVisible: boolean,
+): ToolLifecycleVisualStage {
+  return stage === "queued" && !queuedVisible ? "executing" : stage;
+}
+
 /**
  * Header/footer overrides for stages whose meaning is not carried by the tool
  * status presentation: a queued call must not look like it is executing, and an

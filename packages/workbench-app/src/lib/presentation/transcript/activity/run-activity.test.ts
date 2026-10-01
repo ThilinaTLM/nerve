@@ -10,6 +10,7 @@ import {
   LONG_WAIT_MS,
   MIN_VISIBLE_MS,
   SHOW_DELAY_MS,
+  WAITING_SPINNER_RATE,
   deriveRunActivity,
   runActivitySignature,
   stabilizeRunActivity,
@@ -144,13 +145,13 @@ describe("deriveRunActivity", () => {
     assert.equal(view.spinnerRate, 0.5);
   });
 
-  it("shows a quiet waiting label without a clock while the run awaits the user", () => {
+  it("shows a quiet waiting label with a slow spinner and no clock while the run awaits the user", () => {
     const view = deriveRunActivity(
       input({ tail: tool("waiting"), nowMs: T0 + 60 * 60_000 }),
     );
     assert.equal(view.label, "Waiting for you");
     assert.equal(view.elapsedLabel, undefined);
-    assert.equal(view.spinnerRate, 0);
+    assert.equal(view.spinnerRate, WAITING_SPINNER_RATE);
     assert.equal(
       deriveRunActivity(input({ activeRun: run({ status: "waiting" }) })).kind,
       "quiet",

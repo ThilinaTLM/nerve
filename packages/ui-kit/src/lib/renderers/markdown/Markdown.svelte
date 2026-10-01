@@ -19,10 +19,8 @@ import {
   splitStreamingMarkdown,
 } from "@nervekit/ui-kit/renderers/markdown/streaming-markdown";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
-import {
-  StreamingRevealPacer,
-  revealBoundary,
-} from "@nervekit/ui-kit/scheduling/streaming-reveal";
+import { revealBoundary } from "@nervekit/ui-kit/scheduling/streaming-reveal";
+import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
 import {
   parseLocalFileHref,
   resolveDisplayPath,
@@ -329,13 +327,24 @@ const streamingScheduler = new LatestPresentationScheduler<StreamingValue>(
 
 // Paced reveal: the pacer decides how much of the latest streaming source is
 // visible each frame. Text already present at mount is never replayed.
-const revealPacer = new StreamingRevealPacer(untrack(() => text.length));
 let revealTarget: StreamingValue | undefined;
 let revealedLength = untrack(() => text.length);
 /** Final (non-streaming) render deferred until the reveal drains. */
 let revealFinal: StreamingValue | undefined;
-let revealFrame: number | undefined;
-let revealLastTs: number | undefined;
+const revealLoop = new StreamingRevealLoop(
+  untrack(() => text.length),
+  {
+    onReveal(shown) {
+      const value = revealTarget;
+      if (!value) return;
+      const length = revealBoundary(value.source, shown);
+      if (length !== revealedLength) showRevealed(value, length);
+    },
+    onSettled() {
+      if (revealFinal) finishReveal(revealFinal);
+    },
+  },
+);
 
 const revealing = $derived(reveal && !prefersReducedMotion.current);
 
@@ -365,31 +374,8 @@ function finishReveal(value: StreamingValue) {
   renderWithHighlight(value.source, value.trim, value.preserveLineBreaks);
 }
 
-function revealStep(ts: number) {
-  revealFrame = undefined;
-  const value = revealTarget;
-  if (!value) return;
-  const dt = revealLastTs === undefined ? 1000 / 60 : ts - revealLastTs;
-  revealLastTs = ts;
-  const length = revealBoundary(value.source, revealPacer.advance(dt));
-  if (length !== revealedLength) showRevealed(value, length);
-  if (!revealPacer.settled) {
-    revealFrame = requestAnimationFrame(revealStep);
-    return;
-  }
-  revealLastTs = undefined;
-  if (revealFinal) finishReveal(revealFinal);
-}
-
-function ensureRevealLoop() {
-  if (revealFrame !== undefined || revealPacer.settled) return;
-  revealFrame = requestAnimationFrame(revealStep);
-}
-
 function stopReveal() {
-  if (revealFrame !== undefined) cancelAnimationFrame(revealFrame);
-  revealFrame = undefined;
-  revealLastTs = undefined;
+  revealLoop.stop();
   revealTarget = undefined;
   revealFinal = undefined;
 }
@@ -433,7 +419,6 @@ $effect(() => {
   const value = { source, trim, preserveLineBreaks: preserveBreaks };
   const wasStreaming = untrack(() => showingStreaming);
   if (paced && (streaming || wasStreaming)) {
-    revealPacer.setTarget(source.length, { done: !streaming });
     revealTarget = value;
     lastEnqueuedSource = source;
     lastEnqueuedTrim = trim;
@@ -441,27 +426,22 @@ $effect(() => {
     if (!wasStreaming) {
       // First streaming frame renders whatever is already revealed.
       untrack(() =>
-        showRevealed(value, revealBoundary(source, revealPacer.shownLength)),
+        showRevealed(value, revealBoundary(source, revealLoop.shownLength)),
       );
     }
-    if (streaming) {
-      revealFinal = undefined;
-      ensureRevealLoop();
-      return;
-    }
-    if (!revealPacer.settled) {
-      // The source completed: drain the backlog, then render the final form.
-      revealFinal = value;
-      ensureRevealLoop();
-      return;
-    }
+    // Set the deferred final render before the target: a loop without a
+    // frame source settles synchronously and must see the current intent.
+    revealFinal = streaming ? undefined : value;
+    untrack(() => revealLoop.setTarget(source.length, { done: !streaming }));
+    if (streaming) return;
+    // The source completed: drain the backlog, then render the final form.
+    if (!revealLoop.settled) return;
     stopReveal();
     untrack(() => finishReveal(value));
     return;
   }
   if (revealTarget) stopReveal();
-  revealPacer.setTarget(source.length);
-  revealPacer.snap();
+  untrack(() => revealLoop.snap(source.length));
   revealedLength = source.length;
   if (!streaming) {
     if (showingStreaming) {
@@ -496,6 +476,7 @@ $effect(() => {
 $effect(() => () => {
   streamingScheduler.destroy();
   stopReveal();
+  revealLoop.destroy();
 });
 </script>
 

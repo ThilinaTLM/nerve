@@ -26,6 +26,9 @@ export type RunActivityTone = Extract<
   "neutral" | "warning" | "success"
 >;
 
+/** Slow spinner turn while the run waits on the user. */
+export const WAITING_SPINNER_RATE = 0.4;
+
 export type RunActivityView = {
   /** Whether the transcript should render the slot row at all. */
   mounted: boolean;
@@ -39,7 +42,7 @@ export type RunActivityView = {
   /** Remaining retry delay as a 0..1 fraction. */
   countdownFraction?: number;
   elapsedLabel?: string;
-  /** Spinner playback rate; 0 pauses it (nothing is being worked on). */
+  /** Spinner playback rate; 0 pauses it. */
   spinnerRate: number;
 };
 
@@ -215,12 +218,13 @@ export function deriveRunActivity(input: RunActivityInput): RunActivityView {
 
   const phase = tailPhase(input.tail);
   if (run?.status === "waiting" || phase === "awaiting_user") {
-    // Human time is open-ended: no ticking clock and no busy spinner while
-    // the run is parked on an approval, question, or plan review.
+    // Human time is open-ended, so no ticking clock while the run is parked
+    // on an approval, question, or plan review. The spinner keeps a slow,
+    // calm turn so the run still reads as alive rather than frozen.
     return {
       ...quiet("Waiting for you"),
       elapsedLabel: undefined,
-      spinnerRate: 0,
+      spinnerRate: WAITING_SPINNER_RATE,
     };
   }
   if (phase === "tool") return quiet();
