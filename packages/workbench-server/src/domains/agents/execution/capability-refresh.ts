@@ -9,12 +9,21 @@ const sameNames = (
   return right.every((name) => remaining.delete(name));
 };
 
+const sameToolProfiles = (
+  left: CapabilitySelection,
+  right: CapabilitySelection,
+): boolean =>
+  left.toolProfiles.jira === right.toolProfiles.jira &&
+  left.toolProfiles.confluence === right.toolProfiles.confluence &&
+  left.toolProfiles.web_search === right.toolProfiles.web_search;
+
 export function sameCapabilitySelection(
   left: CapabilitySelection,
   right: CapabilitySelection,
 ): boolean {
   return (
     sameNames(left.disabledTools, right.disabledTools) &&
+    sameToolProfiles(left, right) &&
     sameNames(left.disabledFileSkills, right.disabledFileSkills) &&
     sameNames(left.enabledNerveSkills, right.enabledNerveSkills) &&
     sameNames(left.enabledAgentBrowserSkills, right.enabledAgentBrowserSkills)
@@ -47,7 +56,12 @@ export function createCapabilityRefresher<TResources>(deps: {
     if (sameCapabilitySelection(selection, next)) return;
     const previous = selection;
     selection = next;
-    if (!sameNames(previous.disabledTools, next.disabledTools))
+    // A profile switch can make an integration (un)available, so it also
+    // re-derives the advertised tools.
+    if (
+      !sameNames(previous.disabledTools, next.disabledTools) ||
+      !sameToolProfiles(previous, next)
+    )
       await deps.applyToolNames(next);
     if (
       sameNames(previous.disabledFileSkills, next.disabledFileSkills) &&

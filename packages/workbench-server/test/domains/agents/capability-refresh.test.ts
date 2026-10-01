@@ -7,6 +7,7 @@ const selection = (
   overrides: Partial<CapabilitySelection> = {},
 ): CapabilitySelection => ({
   disabledTools: [],
+  toolProfiles: {},
   disabledFileSkills: [],
   enabledNerveSkills: [],
   enabledAgentBrowserSkills: [],
@@ -108,5 +109,16 @@ describe("createCapabilityRefresher", () => {
     assert.equal(errors.length, 1);
     await refresher.refresh();
     assert.equal(errors.length, 1);
+  });
+  it("re-derives active tools when an integration profile changes", async () => {
+    const { refresher, loaded, appliedTools } = harness([
+      selection({ toolProfiles: { jira: "ner" } }),
+      selection({ toolProfiles: { jira: "pplied" } }),
+    ]);
+
+    await refresher.refresh();
+
+    assert.equal(appliedTools.length, 1);
+    assert.deepEqual(loaded, []);
   });
 });

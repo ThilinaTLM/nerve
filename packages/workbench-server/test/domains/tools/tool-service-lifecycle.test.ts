@@ -54,6 +54,9 @@ describe("tool service lifecycle", () => {
         throw new Error("not used");
       },
       getApiKey: async () => undefined,
+      resolveIntegrations: async () => {
+        throw new Error("Integrations are not used by this test.");
+      },
       explainImage: {} as never,
       generateImage: {} as never,
       storage,
@@ -684,6 +687,9 @@ function buildToolService(
       throw new Error("not used");
     },
     getApiKey: async () => undefined,
+    resolveIntegrations: async () => {
+      throw new Error("Integrations are not used by this test.");
+    },
     explainImage: {} as never,
     generateImage: {} as never,
     storage,

@@ -55,7 +55,9 @@ import type { InteractionSessionService } from "./interaction-session.service.js
 import {
   integrationCredentialProvider,
   integrationProviderConfig,
+  type EffectiveIntegrations,
 } from "../execution/integration-profile-resolution.js";
+import type { AtlassianProfile } from "@nervekit/contracts/settings";
 import { LiveToolOutputPublisher } from "../execution/live-tool-output-publisher.js";
 import {
   enterPlanMode as enterPlanModeImpl,
@@ -77,7 +79,7 @@ import {
   stringArg,
   stringRecordArg,
 } from "../execution/tool-arguments.js";
-import { CodedToolError } from "../execution/tool-errors.js";
+import { CodedToolError, toolErrorDetails } from "../execution/tool-errors.js";
 import type {
   ExploreProgressUpdate,
   ExploreRunner,
@@ -86,6 +88,18 @@ import type {
 } from "../execution/tool-service.js";
 
 const MAX_BASH_TIMEOUT_MS = 86_400_000;
+
+function isIntegrationProvider(provider: string): boolean {
+  return (
+    provider === "jira" || provider === "confluence" || provider === "tavily"
+  );
+}
+
+function atlassianService(toolName: string): "jira" | "confluence" | undefined {
+  if (toolName.startsWith("jira_")) return "jira";
+  if (toolName.startsWith("confluence_")) return "confluence";
+  return undefined;
+}
 
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
@@ -97,6 +111,18 @@ export interface OrchestrationToolDispatcherDeps {
   runExplore: ExploreRunner;
   subagents?: SubagentToolPort;
   getApiKey(provider: string): Promise<string | undefined>;
+  /** Integration settings resolved for the tool call's project and conversation. */
+  resolveIntegrations(
+    projectId: string,
+    conversationId: string,
+  ): Promise<EffectiveIntegrations>;
+  /** Evidence from a finished Jira/Confluence call about its profile's credentials. */
+  recordIntegrationOutcome?(input: {
+    profile: AtlassianProfile;
+    service: "jira" | "confluence";
+    errorCode?: string;
+    message?: string;
+  }): Promise<void>;
   explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
   generateImage(request: ImageGenerateRequest): Promise<ImageGenerateResponse>;
   plans: PlanService;
@@ -171,6 +197,8 @@ function taskReadinessArgs(value: unknown): {
 export class OrchestrationToolDispatcher {
   private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
   readonly liveOutput: LiveToolOutputPublisher;
+  /** Integration resolution per in-flight tool call, shared by its credential and config lookups. */
+  readonly #integrations = new Map<string, Promise<EffectiveIntegrations>>();
 
   constructor(readonly deps: OrchestrationToolDispatcherDeps) {
     this.liveOutput = new LiveToolOutputPublisher(
@@ -212,8 +240,9 @@ export class OrchestrationToolDispatcher {
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
   ): Promise<unknown> {
+    const service = atlassianService(toolCall.toolName);
     try {
-      return await this.hostTools.execute(
+      const result = await this.hostTools.execute(
         {
           toolName: toolCall.toolName as ToolName,
           toolCall,
@@ -222,8 +251,52 @@ export class OrchestrationToolDispatcher {
         },
         args,
       );
+      if (service) await this.recordIntegrationOutcome(toolCall, service);
+      return result;
+    } catch (error) {
+      if (service)
+        await this.recordIntegrationOutcome(toolCall, service, error);
+      throw error;
     } finally {
+      this.#integrations.delete(toolCall.id);
       await this.liveOutput.drain(toolCall.id);
+    }
+  }
+
+  private integrationsFor(
+    toolCall: ToolCallRecord,
+  ): Promise<EffectiveIntegrations> {
+    let integrations = this.#integrations.get(toolCall.id);
+    if (!integrations) {
+      integrations = this.deps.resolveIntegrations(
+        toolCall.projectId,
+        toolCall.conversationId,
+      );
+      this.#integrations.set(toolCall.id, integrations);
+    }
+    return integrations;
+  }
+
+  /** Health evidence never changes the tool result; failures are swallowed. */
+  private async recordIntegrationOutcome(
+    toolCall: ToolCallRecord,
+    service: "jira" | "confluence",
+    error?: unknown,
+  ): Promise<void> {
+    const integrations = this.#integrations.get(toolCall.id);
+    if (!integrations || !this.deps.recordIntegrationOutcome) return;
+    try {
+      const profile = (await integrations)[service].profile;
+      if (!profile) return;
+      const details = error === undefined ? undefined : toolErrorDetails(error);
+      await this.deps.recordIntegrationOutcome({
+        profile,
+        service,
+        errorCode: details?.code,
+        message: details?.message,
+      });
+    } catch {
+      // Connection health is advisory.
     }
   }
 
@@ -316,10 +389,12 @@ export class OrchestrationToolDispatcher {
       artifactDir: this.toolArtifactDir(toolCall),
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: async (provider) => {
-        const credentialProvider = integrationCredentialProvider(
-          this.deps.storage.settings,
-          provider,
-        );
+        const credentialProvider = isIntegrationProvider(provider)
+          ? integrationCredentialProvider(
+              await this.integrationsFor(toolCall),
+              provider,
+            )
+          : provider;
         return credentialProvider
           ? this.deps.getApiKey(credentialProvider)
           : undefined;
@@ -328,7 +403,12 @@ export class OrchestrationToolDispatcher {
       generateImage: this.deps.generateImage,
       kroki: this.deps.storage.settings.tools.kroki,
       getProviderConfig: async (provider) =>
-        integrationProviderConfig(this.deps.storage.settings, provider),
+        isIntegrationProvider(provider)
+          ? integrationProviderConfig(
+              await this.integrationsFor(toolCall),
+              provider,
+            )
+          : undefined,
       onUpdate: (update) =>
         this.publishToolExecutionUpdate(toolCall, update, options.runId),
     };

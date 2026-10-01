@@ -1,3 +1,4 @@
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
@@ -107,6 +108,8 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
+  /** Connection status of Atlassian profiles shown when picking a profile. */
+  capabilityProfileHealth?: AtlassianProfileHealth[];
 };
 
 export type ConversationTimelineSections = {

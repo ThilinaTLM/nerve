@@ -41,6 +41,7 @@ import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generati
 import { WorkbenchExploreAdmission } from "../../domains/agents/execution/workbench-explore-admission.js";
 import { WorkbenchSubagentExecutions } from "../../domains/agents/execution/workbench-subagent-executions.js";
 import { CapabilityService } from "../../domains/capabilities/capability.service.js";
+import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import { FileCompletionService } from "../../domains/completions/index.js";
 import { ConversationService } from "../../domains/conversations/conversation-service.js";
 import { ConversationHarnessStorage } from "../../domains/conversations/conversation-harness-storage.js";
@@ -226,6 +227,14 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getConversation,
     events,
   );
+  const integrationHealth = new IntegrationHealthService({
+    store: storage.canonicalStore,
+    profiles: () => storage.settings.providers.atlassianProfiles,
+    getToken: (profileId) => auth.getApiKey(`atlassian:${profileId}`),
+    publish: async (profileId) => {
+      await events.publish("auth.integration_health_changed", { profileId });
+    },
+  });
   const taskDefinitions = new TaskDefinitionService(
     new TaskDefinitionRepository(storage),
     getProject,
@@ -579,6 +588,10 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     runExplore: (parent, args, options) =>
       workbenchRun.runExplore(parent, args, options),
     getApiKey: (provider) => auth.getApiKey(provider),
+    resolveIntegrations: (projectId, conversationId) =>
+      capabilities.integrations(projectId, conversationId),
+    recordIntegrationOutcome: (input) =>
+      integrationHealth.recordToolOutcome(input),
     explainImage: async (request) => {
       const selection = storage.settings.tools.imageExplanation.model;
       if (!selection) {
@@ -1077,6 +1090,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     });
 
   return {
+    integrationHealth,
     maintenanceScopes,
     tasks,
     taskNotifications,

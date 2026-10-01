@@ -4,7 +4,8 @@ import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { uploadClipboardImage } from "$lib/api";
+import { listIntegrationHealth, uploadClipboardImage } from "$lib/api";
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -117,6 +118,15 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
+let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
+
+function refreshProfileHealth(): void {
+  void listIntegrationHealth()
+    .then((profiles) => {
+      capabilityProfileHealth = profiles;
+    })
+    .catch(() => undefined);
+}
 
 $effect(() => {
   const progressive = workbenchStartupState.progressiveActive;
@@ -170,6 +180,7 @@ $effect(() => {
     onEvent("settings.updated", () => {
       void capabilityController.refresh();
     }),
+    onEvent("auth.integration_health_changed", refreshProfileHealth),
   ];
   return () => {
     for (const unsubscribe of unsubscribes) unsubscribe();
@@ -492,6 +503,7 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilitySkills,
     capabilityLoading,
     capabilityError,
+    capabilityProfileHealth,
     capabilities: {
       voice: true,
       imagePaste: true,
@@ -517,7 +529,10 @@ function handleMicContextMenu(event: MouseEvent) {
     onOpenCapabilitySettings,
     onCapabilityPatch: (patch) => void patchCapabilities(patch),
     onResetCapabilities: () => void resetCapabilities(),
-    onRefreshCapabilities: () => void capabilityController.refresh(),
+    onRefreshCapabilities: () => {
+      void capabilityController.refresh();
+      refreshProfileHealth();
+    },
     onPasteImage: pasteImage,
     onDropFiles: fileDropSupported ? dropFiles : undefined,
     onReadClipboardText: readClipboardText,

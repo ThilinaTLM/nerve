@@ -164,6 +164,52 @@ test("rechecks released 0.32 readability evidence after reader contract changes"
   }
 });
 
+test("adopts an equivalent prior reader sweep without another sweep", async (t) => {
+  const home = await temporaryHome("nerve-home-read-adoption-");
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const initial = await initializeStorage(home);
+  await initial.canonicalStore.close();
+
+  const database = new DatabaseSync(initial.paths.sqlitePath);
+  database.exec("DELETE FROM storage_read_sweeps");
+  database
+    .prepare(
+      "INSERT INTO storage_read_sweeps (build_id, swept_at_ms, quarantined) VALUES (?, 1, 0)",
+    )
+    .run(
+      "reader:e757c9731dce7f48cde69d3cd4ff53ec73ca04d2d58fd70e31261415a29a366c",
+    );
+  database.close();
+
+  const messages: string[] = [];
+  const reopened = await initializeStorage(home, {
+    reportStartupProgress: (event) => messages.push(event.message),
+  });
+  await reopened.canonicalStore.close();
+
+  assert.equal(
+    messages.includes("Checking stored records for readability"),
+    false,
+  );
+  const verified = new DatabaseSync(initial.paths.sqlitePath, {
+    readOnly: true,
+  });
+  try {
+    assert.equal(
+      Number(
+        verified
+          .prepare(
+            "SELECT count(*) AS count FROM storage_read_sweeps WHERE build_id = ?",
+          )
+          .get(STORAGE_READ_COMPATIBILITY_ID)?.count,
+      ),
+      1,
+    );
+  } finally {
+    verified.close();
+  }
+});
+
 test("fails closed on every non-empty unmanifested or unsupported home", async (t) => {
   const home = await temporaryHome("nerve-home-unsupported-");
   t.after(() => rm(home, { recursive: true, force: true }));
@@ -372,6 +418,33 @@ test("encrypts secrets and resolves project configuration precedence", async (t)
   assert.notEqual(
     projectSettings.defaultPermissionLevel,
     defaultSettings.defaultPermissionLevel,
+  );
+
+  // Project integrations contribute profiles only; tool selection belongs in
+  // capabilities.json.
+  const profile = {
+    id: "team",
+    name: "Team",
+    siteUrl: "https://team.atlassian.net",
+    email: "dev@example.com",
+    credential: "atlassian:team",
+  };
+  await writeFile(
+    join(configDir, "integrations.json"),
+    `${JSON.stringify({ version: 1, profiles: { atlassian: [profile] } })}\n`,
+  );
+  const withProfiles = await resolveProjectSettings(storage, project);
+  assert.deepEqual(
+    withProfiles.providers.atlassianProfiles.map((item) => item.id),
+    ["team"],
+  );
+  await writeFile(
+    join(configDir, "integrations.json"),
+    `${JSON.stringify({ version: 1, tools: { jira: { enabled: true, profileId: "team" } } })}\n`,
+  );
+  await assert.rejects(
+    resolveProjectSettings(storage, project),
+    /must move to \.nerve\/config\/capabilities\.json/,
   );
 });
 

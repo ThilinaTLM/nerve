@@ -7,7 +7,9 @@ import { defaultSettings } from "@nervekit/contracts/settings";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { CapabilityService } from "../../../src/domains/capabilities/capability.service.js";
 
-async function fixture() {
+async function fixture(
+  providers: typeof defaultSettings.providers = defaultSettings.providers,
+) {
   const root = await mkdtemp(join(tmpdir(), "nerve-capabilities-"));
   const project: ProjectRecord = {
     id: "proj_test",
@@ -38,6 +40,7 @@ async function fixture() {
     paths: { conversationsPath: join(root, "conversations") },
     settings: {
       ...defaultSettings,
+      providers,
       tools: { ...defaultSettings.tools, disabled: ["python_exec"] },
       skills: {
         disabled: ["release"],
@@ -115,7 +118,7 @@ test("conversation overrides win and stale writes are rejected", async () => {
     projectId: project.id,
     conversationId: "conv_test",
     origin: "conversation",
-    patch: { tools: { python_exec: true } },
+    patch: { tools: { python_exec: { enabled: true } } },
     expectedDigest: configuration.conversationDigest,
   });
   assert.deepEqual(configuration.effective.disabledTools, [
@@ -128,9 +131,90 @@ test("conversation overrides win and stale writes are rejected", async () => {
       projectId: project.id,
       conversationId: "conv_test",
       origin: "conversation",
-      patch: { tools: { explore: false } },
+      patch: { tools: { explore: { enabled: false } } },
       expectedDigest: "missing",
     }),
     /changed since it was loaded/,
   );
+});
+
+const atlassianProviders = {
+  atlassianProfiles: [
+    {
+      id: "ner",
+      name: "NER",
+      siteUrl: "https://ner.atlassian.net",
+      email: "dev@example.com",
+    },
+    { id: "pplied", name: "Pplied" },
+  ],
+  tavilyProfiles: [{ id: "search", name: "Search" }],
+};
+
+test("integrations are offered once a profile exists and expose profile options", async () => {
+  const empty = await fixture();
+  assert.ok(
+    !(
+      await empty.service.configuration(empty.project.id)
+    ).availableTools.includes("jira"),
+  );
+
+  const { project, service } = await fixture(atlassianProviders);
+  const configuration = await service.configuration(project.id);
+  assert.ok(configuration.availableTools.includes("jira"));
+  assert.ok(configuration.availableTools.includes("confluence"));
+  assert.deepEqual(configuration.toolProfileOptions.jira, [
+    { id: "ner", name: "NER", detail: "https://ner.atlassian.net" },
+    { id: "pplied", name: "Pplied" },
+  ]);
+  assert.deepEqual(configuration.toolProfileOptions.web_search, [
+    { id: "search", name: "Search" },
+  ]);
+});
+
+test("conversation integration overrides drive execution settings and prune inherited values", async () => {
+  const { project, service } = await fixture(atlassianProviders);
+  let configuration = await service.configuration(project.id, "conv_test");
+  assert.equal(configuration.inherited.disabledTools.includes("jira"), true);
+
+  configuration = await service.update({
+    projectId: project.id,
+    conversationId: "conv_test",
+    origin: "conversation",
+    patch: { tools: { jira: { enabled: true, profileId: "pplied" } } },
+  });
+  assert.deepEqual(configuration.conversation?.tools, {
+    jira: { enabled: true, profileId: "pplied" },
+  });
+  const integrations = await service.integrations(project.id, "conv_test");
+  assert.equal(integrations.jira.enabled, true);
+  assert.equal(integrations.jira.profile?.id, "pplied");
+  assert.equal(integrations.confluence.enabled, false);
+
+  configuration = await service.update({
+    projectId: project.id,
+    conversationId: "conv_test",
+    origin: "conversation",
+    patch: { tools: { jira: { enabled: false } } },
+  });
+  assert.deepEqual(configuration.conversation?.tools, {
+    jira: { profileId: "pplied" },
+  });
+});
+
+test("conversation inheritance includes only a trusted project", async () => {
+  const { project, service } = await fixture(atlassianProviders);
+  await service.update({
+    projectId: project.id,
+    origin: "project",
+    patch: { tools: { jira: { enabled: true, profileId: "ner" } } },
+  });
+  const trusted = await service.configuration(project.id, "conv_test");
+  assert.equal(trusted.inherited.disabledTools.includes("jira"), false);
+  assert.equal(trusted.inherited.toolProfiles.jira, "ner");
+
+  await service.updateTrust(project.id, false);
+  const untrusted = await service.configuration(project.id, "conv_test");
+  assert.equal(untrusted.inherited.disabledTools.includes("jira"), true);
+  assert.equal(untrusted.inherited.toolProfiles.jira, undefined);
 });

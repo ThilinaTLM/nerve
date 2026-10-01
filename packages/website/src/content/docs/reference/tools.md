@@ -23,7 +23,7 @@ Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, u
 - Confluence reads: `confluence_search_spaces`, `confluence_search_pages`, `confluence_get_page`, `confluence_download_page`
 - Confluence writes: `confluence_create_page`, `confluence_update_page`, `confluence_manage_comment`, `confluence_manage_page`, `confluence_manage_label`, `confluence_manage_restriction`, `confluence_manage_attachment`
 
-Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence require enabled modules and credentials. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
+Web search/fetch, image explanation, and Python are individual global tool toggles. Search requires Tavily. Jira/Confluence are enabled and assigned an Atlassian profile per user, project, or conversation; Web search uses the selected Tavily profile. Atlassian responses and mutation reports are always saved as managed raw artifacts while the agent receives a bounded semantic preview. Related Jira/Confluence data is selected with each read tool's compact `include` array.
 
 ## Images
 

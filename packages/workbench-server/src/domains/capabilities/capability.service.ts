@@ -1,4 +1,5 @@
 import { capabilityToolsFromDisabledNames } from "@nervekit/contracts/capabilities";
+import type { Settings } from "@nervekit/contracts/settings";
 import { createHash } from "node:crypto";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -13,7 +14,9 @@ import {
   type CapabilityOverridesDocument,
   type CapabilityPatch,
   type CapabilitySelection,
+  type CapabilityProfileOption,
   type CapabilityToolName,
+  type CapabilityToolProfileOptions,
   type CapabilityTrust,
 } from "@nervekit/contracts/capabilities";
 import { userConfigurableToolNameSchema } from "@nervekit/contracts/tools";
@@ -25,6 +28,12 @@ import {
   managedOwnerPathSegment,
   type InitializedStorage,
 } from "../../infrastructure/storage-bootstrap/index.js";
+import { resolveProjectSettings } from "../../infrastructure/configuration/project-configuration.js";
+import {
+  effectiveIntegrations,
+  type EffectiveIntegrations,
+} from "../tools/execution/integration-profile-resolution.js";
+import { userCapabilitySelection } from "./user-capability-selection.js";
 
 const userConfigurableToolNames = userConfigurableToolNameSchema.options;
 const TRUST_NAMESPACE = "project-capability-trust";
@@ -62,33 +71,7 @@ export class CapabilityService {
     projectId: string,
     conversationId?: string,
   ): Promise<CapabilityConfiguration> {
-    const project = this.getProject(projectId);
-    if (conversationId) this.assertConversation(projectId, conversationId);
-    const projectRead = await this.readProject(project);
-    const conversationRead = conversationId
-      ? await this.readDocument(this.conversationPath(conversationId), true)
-      : undefined;
-    const trustedProject =
-      projectRead.trust.status === "trusted" ? projectRead.document : undefined;
-    // Protocol results are persisted for idempotent replay, and that store
-    // rejects `undefined` property values, so optional fields are omitted.
-    return {
-      project: projectRead.document ?? emptyCapabilityOverrides(),
-      ...(conversationRead?.document
-        ? { conversation: conversationRead.document }
-        : {}),
-      effective: resolveCapabilitySelection({
-        user: this.userSelection(),
-        project: trustedProject,
-        conversation: conversationRead?.document,
-      }),
-      availableTools: this.availableTools(),
-      trust: projectRead.trust,
-      projectDigest: projectRead.digest ?? "missing",
-      ...(conversationId
-        ? { conversationDigest: conversationRead?.digest ?? "missing" }
-        : {}),
-    };
+    return (await this.#read(projectId, conversationId)).configuration;
   }
 
   async resolve(
@@ -96,6 +79,60 @@ export class CapabilityService {
     conversationId?: string,
   ): Promise<CapabilitySelection> {
     return (await this.configuration(projectId, conversationId)).effective;
+  }
+
+  /** Effective integration profiles for tool execution in this scope. */
+  async integrations(
+    projectId: string,
+    conversationId?: string,
+  ): Promise<EffectiveIntegrations> {
+    const { settings, configuration } = await this.#read(
+      projectId,
+      conversationId,
+    );
+    return effectiveIntegrations(settings, configuration.effective);
+  }
+
+  async #read(
+    projectId: string,
+    conversationId?: string,
+  ): Promise<{ settings: Settings; configuration: CapabilityConfiguration }> {
+    const project = this.getProject(projectId);
+    if (conversationId) this.assertConversation(projectId, conversationId);
+    const [settings, projectRead, conversationRead] = await Promise.all([
+      resolveProjectSettings(this.storage, project.dir),
+      this.readProject(project),
+      conversationId
+        ? this.readDocument(this.conversationPath(conversationId), true)
+        : undefined,
+    ]);
+    const trustedProject =
+      projectRead.trust.status === "trusted" ? projectRead.document : undefined;
+    const user = userCapabilitySelection(settings);
+    // Protocol results are persisted for idempotent replay, and that store
+    // rejects `undefined` property values, so optional fields are omitted.
+    const configuration: CapabilityConfiguration = {
+      project: projectRead.document ?? emptyCapabilityOverrides(),
+      ...(conversationRead?.document
+        ? { conversation: conversationRead.document }
+        : {}),
+      inherited: conversationId
+        ? resolveCapabilitySelection({ user, project: trustedProject })
+        : user,
+      effective: resolveCapabilitySelection({
+        user,
+        project: trustedProject,
+        conversation: conversationRead?.document,
+      }),
+      availableTools: availableTools(settings),
+      toolProfileOptions: toolProfileOptions(settings),
+      trust: projectRead.trust,
+      projectDigest: projectRead.digest ?? "missing",
+      ...(conversationId
+        ? { conversationDigest: conversationRead?.digest ?? "missing" }
+        : {}),
+    };
+    return { settings, configuration };
   }
 
   async update(input: {
@@ -145,6 +182,12 @@ export class CapabilityService {
         : applyCapabilityPatch(
             current.document ?? emptyCapabilityOverrides(),
             input.patch ?? {},
+            (
+              await this.#read(
+                input.projectId,
+                input.origin === "conversation" ? owner : undefined,
+              )
+            ).configuration.inherited,
           );
       await atomicWriteJson(path, next, 0o600);
       if (input.origin === "project")
@@ -202,34 +245,6 @@ export class CapabilityService {
 
   async removeConversation(conversationId: string): Promise<void> {
     await rm(this.conversationPath(conversationId), { force: true });
-  }
-
-  /**
-   * Integration tools are only offered once their provider profile is picked,
-   * because a project cannot supply the credentials behind them.
-   */
-  private availableTools(): CapabilityToolName[] {
-    const tools = this.storage.settings.tools;
-    return [
-      ...capabilityToolsFromDisabledNames(userConfigurableToolNames),
-      ...(tools.jira.profileId ? (["jira"] as const) : []),
-      ...(tools.confluence.profileId ? (["confluence"] as const) : []),
-    ];
-  }
-
-  private userSelection(): CapabilitySelection {
-    const tools = this.storage.settings.tools;
-    return {
-      disabledTools: [
-        ...capabilityToolsFromDisabledNames(tools.disabled),
-        ...(tools.jira.enabled ? [] : (["jira"] as const)),
-        ...(tools.confluence.enabled ? [] : (["confluence"] as const)),
-      ],
-      disabledFileSkills: this.storage.settings.skills.disabled,
-      enabledNerveSkills: this.storage.settings.skills.nerve.enabled,
-      enabledAgentBrowserSkills:
-        this.storage.settings.skills.agentBrowser.enabled,
-    };
   }
 
   private assertConversation(projectId: string, conversationId: string): void {
@@ -361,6 +376,36 @@ export class CapabilityService {
       if (this.#queues.get(key) === tail) this.#queues.delete(key);
     });
   }
+}
+
+/**
+ * Integration tools are offered once any profile exists, because each level
+ * can choose which profile a conversation uses; credentials stay user-owned.
+ */
+function availableTools(settings: Settings): CapabilityToolName[] {
+  const hasAtlassianProfile = settings.providers.atlassianProfiles.length > 0;
+  return [
+    ...capabilityToolsFromDisabledNames(userConfigurableToolNames),
+    ...(hasAtlassianProfile ? (["jira", "confluence"] as const) : []),
+  ];
+}
+
+function toolProfileOptions(settings: Settings): CapabilityToolProfileOptions {
+  const atlassian = settings.providers.atlassianProfiles.map(
+    (profile): CapabilityProfileOption => ({
+      id: profile.id,
+      name: profile.name,
+      ...(profile.siteUrl ? { detail: profile.siteUrl } : {}),
+    }),
+  );
+  return {
+    jira: atlassian,
+    confluence: atlassian,
+    web_search: settings.providers.tavilyProfiles.map((profile) => ({
+      id: profile.id,
+      name: profile.name,
+    })),
+  };
 }
 
 function digestContent(content: string): string {

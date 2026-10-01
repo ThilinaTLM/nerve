@@ -5,7 +5,9 @@ sidebar:
   order: 3
 ---
 
-Jira tools are absent until the Jira module is enabled and configured in Settings. Configure the Atlassian endpoint and credentials for the account and site you intend the agent to use.
+Jira tools are offered once an Atlassian profile exists and Jira is enabled with a selected profile. Add profiles (site, email, API token) in **Settings → Providers → Atlassian profiles**. Enable Jira and choose its profile in your tool settings, per project in `.nerve/config/capabilities.json`, or per conversation from the composer's tools menu (the configure button beside Jira). The agent sees Jira only when the resolved settings name a profile that exists, and tool calls use that same profile.
+
+Each Atlassian profile shows its connection status for Jira and Confluence: verified, credentials rejected, access restricted, not on this site, or couldn't check. Use **Test connection** to check now; Nerve also re-checks stale results when the page opens and updates the status when a Jira call succeeds or is refused with 401.
 
 Nerve exposes Jira operations for users, issues, projects, boards, sprints, backlogs, attachments, comments, worklogs, and issue links. Read operations are network reads and can run in parallel. Mutations are sequential write-capable calls and pass the active permission/approval policy.
 

@@ -6,6 +6,8 @@ import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
+import Settings2 from "@lucide/svelte/icons/settings-2";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
 import type {
@@ -26,10 +28,21 @@ import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import type { SkillSource } from "@nervekit/contracts/skills";
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
+import {
+  atlassianHealthBadge,
+  type HealthBadge,
+} from "$lib/presentation/integrations/atlassian-health";
+import CapabilityToolSettings from "./CapabilityToolSettings.svelte";
+import {
+  capabilityOriginLabel,
+  capabilityResetPatch,
+  capabilityTogglePatch,
+  capabilityToolState,
+} from "./capability-origin";
 import type { CapabilitySkillRow } from "./capability-skill-row";
 import {
   capabilityBodyHeight,
-  capabilityDecisionOrigin,
   filterCapabilityRows,
   showCapabilitySearch,
   type CapabilityDecisionOrigin,
@@ -43,6 +56,10 @@ type Row = {
   overridden: boolean;
   origin: CapabilityDecisionOrigin;
   detail: string;
+  /** Explains why an enabled tool cannot run yet. */
+  warning?: string;
+  /** Opens the tool's settings, for tools with more than an on/off switch. */
+  configure?: () => void;
   /** Marks the row's family when a list mixes more than one. */
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
   toggle: (enabled: boolean) => void;
@@ -73,6 +90,8 @@ type Props = {
   onReset?: () => void;
   onRefresh?: () => void;
   onOpenSettings?: (page: "tools" | "skills") => void;
+  /** Connection status of Atlassian profiles, when known. */
+  profileHealth?: AtlassianProfileHealth[];
 };
 let {
   configuration,
@@ -84,16 +103,31 @@ let {
   onReset,
   onRefresh,
   onOpenSettings,
+  profileHealth = [],
 }: Props = $props();
+
+function profileStatus(
+  service: "jira" | "confluence",
+): (profileId: string) => HealthBadge | undefined {
+  return (profileId) => {
+    const result = profileHealth.find((item) => item.profileId === profileId)?.[
+      service
+    ];
+    return result ? atlassianHealthBadge(result) : undefined;
+  };
+}
 
 let open = $state(false);
 let tab = $state<"tools" | "skills">("tools");
 let query = $state("");
+/** Tool group whose settings are shown instead of the list. */
+let detailKey = $state<string | undefined>();
 
 function handleOpenChange(next: boolean): void {
   open = disabled ? false : next;
   if (open) {
     query = "";
+    detailKey = undefined;
     onRefresh?.();
   }
 }
@@ -101,6 +135,7 @@ function handleOpenChange(next: boolean): void {
 function selectTab(next: "tools" | "skills"): void {
   tab = next;
   query = "";
+  detailKey = undefined;
 }
 
 $effect(() => {
@@ -143,40 +178,72 @@ const triggerTitle = $derived(
       : `Tools and skills: ${enabledTools} of ${toolGroups.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
 );
 
-const trustedProject = $derived(
-  configuration?.trust.status === "trusted" ? configuration.project : undefined,
+const toolStates = $derived(
+  configuration
+    ? new Map(
+        toolGroups.map((group) => [
+          group.key,
+          capabilityToolState({
+            configuration,
+            level: "conversation",
+            names: group.names,
+          }),
+        ]),
+      )
+    : new Map(),
 );
+
 const toolRows = $derived<Row[]>(
-  toolGroups.map((group) => {
-    const origin = capabilityDecisionOrigin(
-      group.names.some((name) => conversation?.tools[name] !== undefined)
-        ? true
-        : undefined,
-      group.names.some((name) => trustedProject?.tools[name] !== undefined)
-        ? true
-        : undefined,
+  toolGroups.flatMap((group) => {
+    const state = toolStates.get(group.key);
+    if (!state) return [];
+    const configurable = Boolean(
+      state.profileTool && state.profileOptions.length > 0,
     );
-    return {
-      key: group.key,
-      label: group.label,
-      searchText: group.searchText,
-      enabled: group.names.every(toolEnabled),
-      overridden: origin === "conversation",
-      origin,
-      detail:
-        origin === "conversation"
-          ? "Set for this conversation"
-          : `Inherited from ${origin} settings`,
-      toggle: (enabled: boolean) =>
-        onPatch?.({
-          tools: Object.fromEntries(group.names.map((name) => [name, enabled])),
-        }),
-      reset: () =>
-        onPatch?.({
-          tools: Object.fromEntries(group.names.map((name) => [name, null])),
-        }),
-    };
+    return [
+      {
+        key: group.key,
+        label: group.label,
+        searchText: group.searchText,
+        enabled: state.enabled,
+        overridden: state.stored,
+        origin: state.stored ? "conversation" : state.inheritedFrom,
+        detail: state.originLabel,
+        warning: state.profileMissing
+          ? "Profile not found on this machine"
+          : state.needsProfile
+            ? "Choose a profile"
+            : undefined,
+        configure: configurable
+          ? () => {
+              detailKey = group.key;
+            }
+          : undefined,
+        toggle: (enabled: boolean) => {
+          onPatch?.({
+            tools: capabilityTogglePatch(state, group.names, enabled),
+          });
+          // Several profiles and none chosen: ask which one to use.
+          if (
+            enabled &&
+            configurable &&
+            (!state.profileId || state.profileMissing) &&
+            state.profileOptions.length > 1 &&
+            (state.profileTool === "jira" || state.profileTool === "confluence")
+          )
+            detailKey = group.key;
+        },
+        reset: () => onPatch?.({ tools: capabilityResetPatch(group.names) }),
+      } satisfies Row,
+    ];
   }),
+);
+
+const detailGroup = $derived(
+  detailKey ? toolGroups.find((group) => group.key === detailKey) : undefined,
+);
+const detailState = $derived(
+  detailGroup ? toolStates.get(detailGroup.key) : undefined,
 );
 
 const skillRows = $derived<Row[]>(
@@ -187,13 +254,12 @@ const skillRows = $derived<Row[]>(
     overridden: skill.overridden,
     origin: skill.overridden ? "conversation" : skill.inheritedFrom,
     icon: skillSourceIcons[skill.source],
-    detail: `${skillSourceItemLabels[skill.source]} · ${
-      skill.overridden
-        ? "set for this conversation"
-        : skill.inheritedFrom === "project"
-          ? "inherited from project settings"
-          : "inherited from your settings"
-    }`,
+    detail: `${skillSourceItemLabels[skill.source]} · ${capabilityOriginLabel({
+      level: "conversation",
+      stored: skill.overridden,
+      matchesInherited: skill.matchesInherited,
+      inheritedFrom: skill.inheritedFrom,
+    })}`,
     toggle: (enabled: boolean) =>
       onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
     reset: () =>
@@ -310,6 +376,42 @@ function openSettings(): void {
         <Skeleton class="h-7 w-full" />
         <Skeleton class="h-7 w-full" />
       </div>
+    {:else if tab === "tools" && detailGroup && detailState}
+      <CapabilityToolSettings
+        label={detailGroup.label}
+        enabled={detailState.enabled}
+        disabled={disabled || loading}
+        originLabel={detailState.originLabel}
+        stored={detailState.stored}
+        resetLabel={detailState.inheritedFrom === "project"
+          ? "Reset to project"
+          : "Reset to your settings"}
+        profileOptions={detailState.profileOptions}
+        profileId={detailState.profileId}
+        profileMissing={detailState.profileMissing}
+        needsProfile={detailState.needsProfile}
+        profileStatus={detailState.profileTool === "jira" ||
+        detailState.profileTool === "confluence"
+          ? profileStatus(detailState.profileTool)
+          : undefined}
+        onBack={() => (detailKey = undefined)}
+        onToggle={(enabled) =>
+          onPatch?.({
+            tools: capabilityTogglePatch(
+              detailState,
+              detailGroup.names,
+              enabled,
+            ),
+          })}
+        onProfile={(profileId) => {
+          if (detailState.profileTool)
+            onPatch?.({
+              tools: { [detailState.profileTool]: { profileId } },
+            });
+        }}
+        onReset={() =>
+          onPatch?.({ tools: capabilityResetPatch(detailGroup.names) })}
+      />
     {:else if rows.length === 0}
       <p class="px-1.5 text-muted-foreground">
         {tab === "skills"
@@ -335,12 +437,22 @@ function openSettings(): void {
           <span class="min-w-0 flex-1 truncate" title={row.detail}>
             {row.label}
           </span>
+          {#if row.warning}
+            <span
+              class="inline-flex flex-none text-warning"
+              role="img"
+              aria-label={row.warning}
+              title={row.warning}
+            >
+              <TriangleAlert class="size-3.5" aria-hidden="true" />
+            </span>
+          {/if}
           {#if row.origin === "conversation"}
             <span
               class="inline-flex flex-none text-primary"
               role="img"
               aria-label="Conversation override"
-              title="Set for this conversation"
+              title={row.detail}
             >
               <MessagesSquare class="size-3.5" aria-hidden="true" />
             </span>
@@ -351,6 +463,14 @@ function openSettings(): void {
               size="xs"
               label={`Reset ${row.label} to the inherited setting`}
               onclick={row.reset}
+            />
+          {/if}
+          {#if row.configure}
+            <IconAction
+              icon={Settings2}
+              size="xs"
+              label={`Configure ${row.label}`}
+              onclick={row.configure}
             />
           {/if}
           <Switch
@@ -368,8 +488,8 @@ function openSettings(): void {
   <PopoverFooter>
     <span class="px-1 text-muted-foreground">
       {overrideCount > 0
-        ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · next run. Reset to inherit.`
-        : "Switches override project and user settings for the next run."}
+        ? `${overrideCount} conversation override${overrideCount === 1 ? "" : "s"} · applies from the next run.`
+        : "Changes apply to this conversation."}
     </span>
   </PopoverFooter>
 </Popover>

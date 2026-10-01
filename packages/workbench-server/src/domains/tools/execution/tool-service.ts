@@ -70,7 +70,10 @@ import { TodoStateService } from "../orchestration/todo-state.service.js";
 import type { ToolCallRepository } from "../artifacts/tool-call.repository.js";
 import { InteractionSessionService } from "../orchestration/interaction-session.service.js";
 import type { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
-import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
+import {
+  OrchestrationToolDispatcher,
+  type OrchestrationToolDispatcherDeps,
+} from "../orchestration/dispatcher.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 import { prepareTerminalProjection } from "../artifacts/tool-result-preparation.js";
@@ -263,6 +266,8 @@ export interface ToolServiceDependencies {
   readonly runExplore: ExploreRunner;
   readonly subagents?: SubagentToolPort;
   readonly getApiKey: (provider: string) => Promise<string | undefined>;
+  readonly resolveIntegrations: OrchestrationToolDispatcherDeps["resolveIntegrations"];
+  readonly recordIntegrationOutcome?: OrchestrationToolDispatcherDeps["recordIntegrationOutcome"];
   readonly explainImage: (
     request: ExplainImageRequest,
   ) => Promise<ExplainImageResponse>;
@@ -318,6 +323,8 @@ export class ToolService {
       runExplore: this.dependencies.runExplore,
       subagents: this.dependencies.subagents,
       getApiKey: this.dependencies.getApiKey,
+      resolveIntegrations: this.dependencies.resolveIntegrations,
+      recordIntegrationOutcome: this.dependencies.recordIntegrationOutcome,
       explainImage: this.dependencies.explainImage,
       generateImage: this.dependencies.generateImage,
       plans: this.dependencies.plans,

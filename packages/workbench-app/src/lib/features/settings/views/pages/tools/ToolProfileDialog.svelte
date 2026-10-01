@@ -13,6 +13,8 @@ type Props = {
   selectedProfileId?: string;
   providerSection: "tavily-profiles" | "atlassian-profiles";
   selectionTourId?: string;
+  /** Label for clearing the selection; projects use it to inherit. */
+  noneLabel?: string;
   onSave: (profileId: string | undefined) => void;
 };
 
@@ -24,6 +26,7 @@ let {
   selectedProfileId,
   providerSection,
   selectionTourId,
+  noneLabel = "No profile",
   onSave,
 }: Props = $props();
 
@@ -49,7 +52,7 @@ function manageProfiles(): void {
 <Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-2" data-tour-id={selectionTourId}>
     <SelectRow
-      label="No profile"
+      label={noneLabel}
       selected={draftProfileId === ""}
       onclick={() => (draftProfileId = "")}
     />

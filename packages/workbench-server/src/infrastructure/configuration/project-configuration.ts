@@ -32,6 +32,7 @@ export async function resolveProjectConfiguration(
     optionalJson(join(root, "integrations.json")),
   ]);
   assertNoLegacyCapabilitySelection(harnessRaw);
+  assertNoProjectIntegrationToolSelection(integrationsRaw);
   const user = storage.configuration;
   let harness = HOME_CONFIGURATION_CODECS.harness.decode(
     deepMerge(user.harness, harnessRaw),
@@ -78,6 +79,17 @@ function assertNoLegacyCapabilitySelection(
   ) {
     throw new Error(
       "Project tool and skill selections in .nerve/config/harness.json must be migrated to .nerve/config/capabilities.json.",
+    );
+  }
+}
+
+/** Project tool enablement and profile selection live in capabilities.json. */
+function assertNoProjectIntegrationToolSelection(
+  integrations: Record<string, unknown>,
+): void {
+  if (Object.hasOwn(integrations, "tools")) {
+    throw new Error(
+      "Project Jira, Confluence, and Web profile selections in .nerve/config/integrations.json must move to .nerve/config/capabilities.json.",
     );
   }
 }
@@ -164,7 +176,9 @@ function mergeIntegrations(
   base: UserConfiguration["integrations"],
   override: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged = deepMerge(base, override) as Record<string, unknown>;
+  // Projects contribute profile definitions only; tool selection is layered
+  // through capabilities.json so advertising and execution share one source.
+  const merged: Record<string, unknown> = { ...base };
   const baseProfiles = asRecord(base.profiles);
   const overrideProfiles = override.profiles ? asRecord(override.profiles) : {};
   merged.profiles = {

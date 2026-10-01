@@ -36,7 +36,7 @@ export async function createRunCapabilityResources(deps: {
   ) => Promise<LoadedHarnessResources>;
   resolveActiveToolNames: (
     agent: AgentRecord,
-    disabledTools: CapabilitySelection["disabledTools"],
+    selection: CapabilitySelection,
   ) => Promise<ToolName[]>;
   latestAgent: () => AgentRecord;
   onError?: (error: unknown) => void;
@@ -45,7 +45,7 @@ export async function createRunCapabilityResources(deps: {
   let resources = await deps.loadResources(selection);
   let activeToolNames = await deps.resolveActiveToolNames(
     deps.latestAgent(),
-    selection.disabledTools,
+    selection,
   );
   let harness: HarnessMutations | undefined;
 
@@ -69,10 +69,7 @@ export async function createRunCapabilityResources(deps: {
     applyToolNames: async (next) => {
       selection = next;
       await applyToolNames(
-        await deps.resolveActiveToolNames(
-          deps.latestAgent(),
-          next.disabledTools,
-        ),
+        await deps.resolveActiveToolNames(deps.latestAgent(), next),
       );
     },
     onError: deps.onError,
@@ -87,9 +84,7 @@ export async function createRunCapabilityResources(deps: {
     },
     refresh: () => refresher.refresh(),
     refreshActiveTools: async (agent) => {
-      await applyToolNames(
-        await deps.resolveActiveToolNames(agent, selection.disabledTools),
-      );
+      await applyToolNames(await deps.resolveActiveToolNames(agent, selection));
     },
   };
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
@@ -74,6 +75,7 @@ type Props = {
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityDisabled?: boolean;
+  capabilityProfileHealth?: AtlassianProfileHealth[];
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
@@ -119,6 +121,7 @@ let {
   capabilityLoading = false,
   capabilityError,
   capabilityDisabled = controlsDisabled,
+  capabilityProfileHealth,
   onCapabilityPatch,
   onResetCapabilities,
   onRefreshCapabilities,
@@ -300,6 +303,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       loading={capabilityLoading}
       error={capabilityError}
       disabled={capabilityDisabled}
+      profileHealth={capabilityProfileHealth}
       onPatch={onCapabilityPatch}
       onReset={onResetCapabilities}
       onRefresh={onRefreshCapabilities}

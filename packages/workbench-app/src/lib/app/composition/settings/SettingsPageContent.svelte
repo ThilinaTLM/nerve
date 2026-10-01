@@ -101,7 +101,6 @@ let {
   {#if scope === "project" && page.id === "tools"}
     <ProjectToolsSettingsPage
       configuration={controllers.capabilityConfiguration}
-      {settingsDraft}
       loading={controllers.capabilityLoading}
       error={controllers.capabilityError}
       onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}

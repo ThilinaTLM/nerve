@@ -1,6 +1,7 @@
 <script lang="ts">
 import { capabilityToolsFromDisabledNames } from "@nervekit/contracts/capabilities";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
@@ -12,7 +13,12 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import type { Settings } from "$lib/api";
+import {
+  capabilityResetPatch,
+  capabilityTogglePatch,
+  capabilityToolState,
+  type CapabilityToolState,
+} from "$lib/presentation/composer/capability-origin";
 import {
   SettingsGroup,
   SettingsInlineMessage,
@@ -22,13 +28,14 @@ import {
 } from "$lib/presentation/settings";
 import { providerToolGroups } from "../tools/provider-tool-catalog";
 import { toolGroups, type ToolGroupDef } from "../tools/tool-catalog";
+import ToolConfigureButton from "../tools/ToolConfigureButton.svelte";
 import ToolGroupItem from "../tools/ToolGroupItem.svelte";
+import ToolProfileDialog from "../tools/ToolProfileDialog.svelte";
 import ProjectCapabilityTrustNotice from "./ProjectCapabilityTrustNotice.svelte";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
 
 type Props = {
   configuration?: CapabilityConfiguration;
-  settingsDraft: Settings;
   loading?: boolean;
   error?: string;
   onPatch?: (patch: CapabilityPatch) => void;
@@ -39,7 +46,6 @@ type Props = {
 
 let {
   configuration,
-  settingsDraft,
   loading = false,
   error,
   onPatch,
@@ -64,6 +70,9 @@ const locked = $derived(
     configuration?.trust.status === "invalid",
 );
 const overrideCount = $derived(Object.keys(overrides).length);
+
+let profileDialogOpen = $state(false);
+let profileDialogRow = $state<ToolRow | undefined>();
 
 function catalogRow(group: ToolGroupDef): ToolRow {
   return {
@@ -93,36 +102,33 @@ const thirdPartyRows = $derived([
     })),
 ]);
 
-function userEnabled(name: CapabilityToolName): boolean {
-  if (name === "jira") return settingsDraft.tools.jira.enabled;
-  if (name === "confluence") return settingsDraft.tools.confluence.enabled;
-  return !capabilityToolsFromDisabledNames(
-    settingsDraft.tools.disabled,
-  ).includes(name);
+function rowState(row: ToolRow): CapabilityToolState | undefined {
+  return configuration && row.names.length > 0
+    ? capabilityToolState({ configuration, level: "project", names: row.names })
+    : undefined;
 }
 
-function rowEnabled(row: ToolRow): boolean {
-  return row.names.every((name) => overrides[name] ?? userEnabled(name));
-}
-
-function rowOverridden(row: ToolRow): boolean {
-  return row.names.some((name) => overrides[name] !== undefined);
-}
-
-function inheritedLabel(row: ToolRow): string {
-  return row.names.every((name) => userEnabled(name)) ? "On" : "Off";
-}
-
-function setRow(row: ToolRow, enabled: boolean): void {
-  const tools: Record<string, boolean> = {};
-  for (const name of row.names) tools[name] = enabled;
-  onPatch?.({ tools });
+function setRow(row: ToolRow, state: CapabilityToolState, enabled: boolean) {
+  onPatch?.({ tools: capabilityTogglePatch(state, row.names, enabled) });
 }
 
 function resetRow(row: ToolRow): void {
-  const tools: Record<string, null> = {};
-  for (const name of row.names) tools[name] = null;
-  onPatch?.({ tools });
+  onPatch?.({ tools: capabilityResetPatch(row.names) });
+}
+
+function openProfiles(row: ToolRow): void {
+  profileDialogRow = row;
+  profileDialogOpen = true;
+}
+
+const dialogState = $derived(
+  profileDialogRow ? rowState(profileDialogRow) : undefined,
+);
+
+function saveProfile(profileId: string | undefined): void {
+  const tool = dialogState?.profileTool;
+  // No selection returns the tool to the profile from your settings.
+  if (tool) onPatch?.({ tools: { [tool]: { profileId: profileId ?? null } } });
 }
 
 const sections = $derived([
@@ -206,25 +212,49 @@ const sections = $derived([
                   </Tooltip.Root>
                 </Tooltip.Provider>
               {:else}
-                {#if rowOverridden(row)}
-                  <Badge variant="neutral">Project</Badge>
-                  <IconAction
-                    icon={RotateCcw}
-                    label={`Reset ${row.label} to your user setting`}
-                    onclick={() => resetRow(row)}
+                {@const state = rowState(row)}
+                {#if state}
+                  {#if state.profileMissing || state.needsProfile}
+                    <span
+                      class="inline-flex text-warning"
+                      role="img"
+                      aria-label={state.profileMissing
+                        ? "Profile not found on this machine"
+                        : "Choose a profile"}
+                      title={state.profileMissing
+                        ? "Profile not found on this machine"
+                        : "Choose a profile"}
+                    >
+                      <TriangleAlert class="size-3.5" aria-hidden="true" />
+                    </span>
+                  {/if}
+                  {#if state.stored}
+                    <Badge variant="neutral">Project</Badge>
+                    <IconAction
+                      icon={RotateCcw}
+                      label={`Reset ${row.label} to your user setting`}
+                      onclick={() => resetRow(row)}
+                    />
+                  {:else}
+                    <span class="text-xs text-muted-foreground"
+                      >User · {state.enabled ? "On" : "Off"}</span
+                    >
+                  {/if}
+                  {#if state.profileTool && state.profileOptions.length > 0}
+                    <ToolConfigureButton
+                      label={`Configure ${row.label} for this project`}
+                      onclick={() => openProfiles(row)}
+                    />
+                  {/if}
+                  <Switch
+                    size="settings"
+                    checked={state.enabled}
+                    disabled={locked || loading}
+                    aria-label={`Enable ${row.label} tools for this project`}
+                    title={state.originLabel}
+                    onCheckedChange={(checked) => setRow(row, state, checked)}
                   />
-                {:else}
-                  <span class="text-xs text-muted-foreground"
-                    >User · {inheritedLabel(row)}</span
-                  >
                 {/if}
-                <Switch
-                  size="settings"
-                  checked={rowEnabled(row)}
-                  disabled={locked || loading}
-                  aria-label={`Enable ${row.label} tools for this project`}
-                  onCheckedChange={(checked) => setRow(row, checked)}
-                />
               {/if}
             {/snippet}
           </ToolGroupItem>
@@ -236,5 +266,21 @@ const sections = $derived([
   <SettingsInlineMessage
     tone="neutral"
     text="Select a project to configure project tool overrides."
+  />
+{/if}
+
+{#if profileDialogRow && dialogState}
+  <ToolProfileDialog
+    bind:open={profileDialogOpen}
+    title={`Configure ${profileDialogRow.label} for this project`}
+    description={`${dialogState.originLabel}. Credentials stay in your settings.`}
+    profiles={dialogState.profileOptions}
+    selectedProfileId={configuration?.project.tools[dialogState.profileTool!]
+      ?.profileId}
+    noneLabel="Use the profile from your settings"
+    providerSection={dialogState.profileTool === "web_search"
+      ? "tavily-profiles"
+      : "atlassian-profiles"}
+    onSave={saveProfile}
   />
 {/if}

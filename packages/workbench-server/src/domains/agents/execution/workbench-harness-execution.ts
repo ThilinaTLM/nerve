@@ -111,8 +111,8 @@ export async function executeWorkbenchHarness(
           enabledAgentBrowserSkillNames: selection.enabledAgentBrowserSkills,
           agentBrowserSkills: this.deps.agentBrowserSkills.skills,
         }),
-      resolveActiveToolNames: (current, disabledTools) =>
-        this.activeToolNamesFor(current, disabledTools),
+      resolveActiveToolNames: (current, selection) =>
+        this.activeToolNamesFor(current, selection),
       latestAgent,
       onError: (error) =>
         void this.deps.logger.warn("Capability refresh failed", {

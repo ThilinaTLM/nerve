@@ -1,13 +1,14 @@
+/**
+ * Readability evidence that the current reader accepts without a new sweep:
+ * released build IDs (`<version>:<source>`) by version, and exact prior reader
+ * IDs whose persisted read schemas are semantically equivalent.
+ */
 const RELEASES_BY_READER: Readonly<Record<string, readonly string[]>> = {
-  // The 0.32.0–0.32.2 persisted reader is semantically equivalent to the
-  // validation-only reader introduced for 0.32.3. Packaged startup used the
-  // stale 0.31.1 fallback when npm_package_version was absent, so that value is
-  // accepted only after the complete framework ledger has already matched.
-  "reader:dc386ff3135953598cb8a2dc9f8bdc8c28a52f345edfbba40c716049651d0769": [
-    "0.31.1",
-    "0.32.0",
-    "0.32.1",
-    "0.32.2",
+  // The layered-capabilities reader differs from the post-Kroki reader only
+  // in the capability override schema used by conversation creation requests,
+  // which no persisted payload reads. Pre-Kroki evidence still needs a sweep.
+  "reader:d6d9ca12247c34c4009249690a60fff6f22948c6f21bbe5b9503732bd8cc0fea": [
+    "reader:e757c9731dce7f48cde69d3cd4ff53ec73ca04d2d58fd70e31261415a29a366c",
   ],
 };
 

@@ -1,4 +1,5 @@
 import type {
+  AtlassianProfileHealth,
   AuthProviderMetadata,
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
@@ -75,4 +76,23 @@ export async function cancelOAuthFlow(flowId: string): Promise<OAuthFlowInfo> {
       {},
     )
   ).flow;
+}
+
+export async function listIntegrationHealth(): Promise<
+  AtlassianProfileHealth[]
+> {
+  return (await protocolRequest("auth.integrationHealth.list", {})).result
+    .profiles;
+}
+
+export async function checkIntegrationHealth(
+  profileId: string,
+): Promise<AtlassianProfileHealth> {
+  return (
+    await protocolRequest(
+      "auth.integrationHealth.check",
+      { profileId },
+      { idempotencyKey: crypto.randomUUID() },
+    )
+  ).result.health;
 }

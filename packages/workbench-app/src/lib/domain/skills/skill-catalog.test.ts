@@ -41,7 +41,7 @@ const sets = {
 const overrides = (
   document: Partial<CapabilityOverridesDocument["skills"]>,
 ): CapabilityOverridesDocument => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
   tools: {},
   skills: { file: {}, nerve: {}, agentBrowser: {}, ...document },
 });
@@ -215,13 +215,18 @@ describe("bulkSkillSets", () => {
 describe("composerSkillRows", () => {
   const selection: CapabilitySelection = {
     disabledTools: [],
+    toolProfiles: {},
     disabledFileSkills: ["review"],
     enabledNerveSkills: [],
     enabledAgentBrowserSkills: ["core"],
   };
 
   it("keeps opt-in Nerve skills disabled until selected", () => {
-    const disabled = composerSkillRows({ skills, selection });
+    const disabled = composerSkillRows({
+      skills,
+      selection,
+      inherited: selection,
+    });
     assert.equal(
       disabled.find((row) => row.key === "nerve:skill-creator")?.enabled,
       false,
@@ -229,6 +234,7 @@ describe("composerSkillRows", () => {
 
     const enabled = composerSkillRows({
       skills,
+      inherited: selection,
       selection: {
         ...selection,
         enabledNerveSkills: ["skill-creator"],
@@ -243,6 +249,7 @@ describe("composerSkillRows", () => {
   it("keeps same-named file and agent browser skills as separate rows", () => {
     const rows = composerSkillRows({
       skills: [skill("core", "project"), skill("core", "agentBrowser")],
+      inherited: selection,
       selection,
     });
     assert.deepEqual(
@@ -255,7 +262,7 @@ describe("composerSkillRows", () => {
   });
 
   it("collapses file skills project-over-user like the runtime does", () => {
-    const rows = composerSkillRows({ skills, selection });
+    const rows = composerSkillRows({ skills, selection, inherited: selection });
     assert.deepEqual(
       rows.map((row) => `${row.source}:${row.name}`),
       [
@@ -273,12 +280,14 @@ describe("composerSkillRows", () => {
   it("reports conversation overrides and the inherited origin", () => {
     const rows = composerSkillRows({
       skills,
+      inherited: selection,
       selection,
       project: overrides({ file: { deploy: false } }),
       conversation: overrides({ agentBrowser: { dogfood: true } }),
     });
     const byName = new Map(rows.map((row) => [row.name, row]));
     assert.equal(byName.get("dogfood")?.overridden, true);
+    assert.equal(byName.get("dogfood")?.matchesInherited, true);
     assert.equal(byName.get("deploy")?.inheritedFrom, "project");
     assert.equal(byName.get("review")?.inheritedFrom, "user");
   });
