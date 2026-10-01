@@ -13,6 +13,8 @@ type Props = {
   collapsedLines?: number;
   expanded?: boolean;
   terminal?: boolean;
+  /** Output is still arriving: animate the collapsed box as it grows. */
+  live?: boolean;
   /** Clip collapsed output instead of letting wrapped rows scroll. */
   overflow?: "auto" | "hidden";
   onActivate?: () => void;
@@ -25,6 +27,7 @@ let {
   collapsedLines = COLLAPSED_LINES,
   expanded = false,
   terminal = false,
+  live = false,
   overflow = "auto",
   onActivate,
   activateLabel,
@@ -44,6 +47,7 @@ const visible = $derived.by(() => {
   {language}
   trim={false}
   {terminal}
+  live={live && !expanded}
   overflow={expanded ? "auto" : overflow}
   fixedRows={expanded ? undefined : collapsedLines}
   tail={!expanded && direction === "tail"}

@@ -22,6 +22,10 @@ type Props = {
   overflow?: "auto" | "hidden";
   terminal?: boolean;
   tail?: boolean;
+  /** Content is still growing: animate fixed-row height growth. */
+  live?: boolean;
+  /** Show a streaming caret after the last character. */
+  caret?: boolean;
   onActivate?: () => void;
   activateLabel?: string;
 };
@@ -40,6 +44,8 @@ let {
   overflow = "auto",
   terminal = false,
   tail = false,
+  live = false,
+  caret = false,
   onActivate,
   activateLabel,
 }: Props = $props();
@@ -71,6 +77,15 @@ const logicalRowCount = $derived.by(() => {
 });
 
 let maxVisibleRows = $state(0);
+// Growth animates only after the first measurement, so mounts, history, and
+// remounts never animate from an estimated height.
+let measuredOnce = $state(false);
+const growAnimated = $derived(live && measuredOnce);
+// Live blocks bottom-align only once full. While they still grow, new rows must
+// appear below existing text instead of pushing it up before the measurement.
+const tailAligned = $derived(
+  tail && (!live || !hasFixedRows || maxVisibleRows >= (fixedRows as number)),
+);
 
 function diffLineTone(line: string): DiffLineTone {
   if (line.startsWith("@@")) return "hunk";
@@ -137,6 +152,7 @@ function measureVisualRows(): void {
   updateVisibleRows(
     visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPixels),
   );
+  if (!measuredOnce) measuredOnce = true;
 }
 
 function handleActivationKey(event: KeyboardEvent): void {
@@ -273,7 +289,8 @@ $effect(() => {
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    data-tail={tail ? "true" : undefined}
+    data-tail={tailAligned ? "true" : undefined}
+    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -303,7 +320,8 @@ $effect(() => {
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    data-tail={tail ? "true" : undefined}
+    data-tail={tailAligned ? "true" : undefined}
+    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -316,7 +334,10 @@ $effect(() => {
         bind:this={contentEl}
         class="code-block__content code-block__content--diff">{#each diffLines as line, index (`${index}:${line.text}`)}<span
             class="diff-line"
-            data-tone={line.tone}>{line.text}</span
+            data-tone={line.tone}
+            >{line.text}{#if caret && index === diffLines.length - 1}<span
+                class="code-caret"
+                aria-hidden="true"></span>{/if}</span
           >{/each}</pre>
     </div>
   </div>
@@ -334,7 +355,8 @@ $effect(() => {
     data-wrap={wrap ? "true" : "false"}
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
-    data-tail={tail ? "true" : undefined}
+    data-tail={tailAligned ? "true" : undefined}
+    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -348,7 +370,9 @@ $effect(() => {
           <!-- eslint-disable-next-line svelte/no-at-html-tags -- Shiki serializes source code into controlled highlighted markup. -->
           {@html html}
         {:else}
-          <pre>{preview.text}</pre>
+          <pre>{preview.text}{#if caret}<span
+                class="code-caret"
+                aria-hidden="true"></span>{/if}</pre>
         {/if}
       </div>
     </div>
@@ -434,6 +458,33 @@ $effect(() => {
     (var(--code-block-fixed-rows) * 1lh) + (var(--code-block-padding-y) * 2) +
       var(--code-block-border-y)
   );
+}
+
+.code-block[data-fixed-rows="true"][data-grow="animate"] {
+  transition: height 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-block[data-fixed-rows="true"][data-grow="animate"] {
+    transition: none;
+  }
+}
+
+.code-caret {
+  display: inline-block;
+  width: 0.42em;
+  height: 0.42em;
+  margin-left: 0.3em;
+  border-radius: 9999px;
+  background: var(--primary);
+  vertical-align: 0.1em;
+  animation: stream-caret-breathe 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .code-caret {
+    animation: none;
+  }
 }
 
 .code-block[data-fixed-rows="true"] .code-block__viewport {

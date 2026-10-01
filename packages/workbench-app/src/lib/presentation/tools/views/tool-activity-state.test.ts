@@ -11,6 +11,7 @@ import {
   deriveToolLifecycleVisualStage,
   outcomeUnknownToolCallIds,
   toolLifecycleStageIndicator,
+  visibleLifecycleStage,
 } from "./tool-activity-state";
 
 function draft(done = false): ConversationLiveToolDraftBlockSnapshot {
@@ -78,6 +79,16 @@ describe("deriveToolLifecycleVisualStage", () => {
         deriveToolLifecycleVisualStage({ toolCall: toolCall(status) }),
         "failed",
       );
+    }
+  });
+});
+
+describe("visibleLifecycleStage", () => {
+  it("hides a brief queue wait behind the executing presentation", () => {
+    assert.equal(visibleLifecycleStage("queued", false), "executing");
+    assert.equal(visibleLifecycleStage("queued", true), "queued");
+    for (const stage of ["drafting", "approval", "completed"] as const) {
+      assert.equal(visibleLifecycleStage(stage, false), stage);
     }
   });
 });

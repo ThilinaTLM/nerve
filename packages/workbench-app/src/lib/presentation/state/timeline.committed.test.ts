@@ -166,6 +166,29 @@ describe("buildConversationTimeline committed transcript", () => {
     }
   });
 
+  it("keeps assistant text that shares a message with a single tool call", () => {
+    const transcript: TranscriptItem[] = [
+      {
+        id: "entry_call",
+        role: "assistant",
+        text: "I will write the plan now.",
+        toolCallId: "provider_call_1",
+      },
+    ];
+    const toolCalls = [
+      toolCall(
+        "tool_01",
+        "2026-01-01T00:00:01.000Z",
+        "write",
+        "provider_call_1",
+      ),
+    ];
+
+    const timeline = buildConversationTimeline(transcript, toolCalls);
+
+    assert.deepEqual(keys(timeline), ["entry_call", "tool:tool_01"]);
+  });
+
   it("anchors errored validation tool cards at matching tool-result entries", () => {
     const transcript: TranscriptItem[] = [
       { id: "entry_user", role: "user", text: "Edit file" },

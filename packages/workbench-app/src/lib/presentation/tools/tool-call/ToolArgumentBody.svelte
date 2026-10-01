@@ -35,6 +35,8 @@ let {
       overflow="hidden"
       tail={body.tail}
       {fixedRows}
+      live={streaming}
+      caret={streaming}
     />
   </div>
 {:else if body.kind === "diff"}
@@ -51,6 +53,8 @@ let {
       overflow="hidden"
       tail={body.tail}
       {fixedRows}
+      live={streaming}
+      caret={streaming}
     />
   </div>
 {:else if body.kind === "key-values"}

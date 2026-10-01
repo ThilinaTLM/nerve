@@ -26,6 +26,7 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
         text={view.output}
         direction="tail"
         {expanded}
+        live={toolCall.status === "running"}
         terminal
       />
     </section>

@@ -28,6 +28,7 @@ const inlineCodeIsMultiline = $derived(
         text={view.output}
         direction="tail"
         {expanded}
+        live={toolCall.status === "running"}
         terminal
       />
     </section>

@@ -301,6 +301,11 @@ export function buildCommittedTimeline(
         ? toolCallsByProviderId.get(item.toolCallId)
         : undefined;
     if (toolCall) {
+      // A single-call assistant message is paired with its tool, but any
+      // visible text it carried (e.g. commentary before the call) must stay.
+      if (item.role === "assistant" && item.text.trim()) {
+        items.push({ kind: "message", key: item.id ?? `msg-${index}`, item });
+      }
       if (consumedToolCallIds.has(toolCall.id)) return;
       items.push({
         kind: "tool",

@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import { prefersReducedMotion } from "svelte/motion";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -36,8 +37,12 @@ import { isInputValidationFailure } from "./lifecycle/failure-context";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
+  QUEUED_INDICATOR_DELAY_MS,
   toolLifecycleStageIndicator,
+  visibleLifecycleStage,
 } from "./views/tool-activity-state";
+import { pacedDraftBlock } from "./views/tool-argument-reveal";
+import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
 import { getConversationUiCapabilities } from "../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
@@ -167,8 +172,65 @@ const presentation = $derived.by(() =>
 const ToolView = $derived.by(() =>
   view ? toolViewComponent(view.kind) : undefined,
 );
+// Paced argument reveal. Streamed argument text is revealed at the same
+// even cadence as assistant text, upstream of every tool-specific parser, so
+// previews and counters advance smoothly. `applyToolDraftDone` clears
+// `argsText`, so the last streamed text is retained for the drain.
+let retainedArgsText = untrack(() => draft?.block.argsText ?? "");
+const sourceArgsText = $derived.by(() => {
+  const text = draft?.block.argsText;
+  if (text) retainedArgsText = text;
+  return retainedArgsText;
+});
+const argsSourceDone = $derived(
+  !draft || draft.block.done || Boolean(toolCall),
+);
+// Starts fully revealed so remounts and virtual-row re-entry never replay.
+let revealedArgsLength = $state(untrack(() => retainedArgsText.length));
+const argsReveal = new StreamingRevealLoop(
+  untrack(() => retainedArgsText.length),
+  {
+    onReveal: (length) => {
+      revealedArgsLength = length;
+    },
+  },
+);
+const pacingArgs = $derived(
+  Boolean(draft) && shouldHydrateBody && !prefersReducedMotion.current,
+);
+$effect(() => {
+  const length = sourceArgsText.length;
+  const done = argsSourceDone;
+  if (!pacingArgs) {
+    argsReveal.snap(length);
+    revealedArgsLength = length;
+    return;
+  }
+  argsReveal.setTarget(length, { done });
+});
+$effect(() => () => argsReveal.destroy());
+const revealSettled = $derived(
+  argsSourceDone && revealedArgsLength >= sourceArgsText.length,
+);
+const presentedDraftBlock = $derived(
+  draft
+    ? pacedDraftBlock(
+        draft.block,
+        sourceArgsText,
+        revealedArgsLength,
+        revealSettled,
+      )
+    : undefined,
+);
+// The durable record takes over presentation only after the reveal drains
+// (bounded by the pacer's lag and flush limits), so nothing pops in.
+const presentedToolCall = $derived(
+  draft && !revealSettled ? undefined : toolCall,
+);
 const draftSummary = $derived.by(() =>
-  draft ? summarizeToolDraft(draft.block, cwd) : undefined,
+  presentedDraftBlock
+    ? summarizeToolDraft(presentedDraftBlock, cwd)
+    : undefined,
 );
 const meaningfulDraftBody = $derived(
   draftSummary ? hasMeaningfulToolDraftBody(draftSummary) : false,
@@ -263,9 +325,11 @@ function argumentLifecycleStage(): ToolLifecycleStage {
   // section uses the same presentation before and after the decision.
   return "executing";
 }
+// Drafts already carry the drafting presentation through `draftSummary`;
+// computing it again here would re-parse partial JSON on every delta.
 const lifecycleArgumentPresentation = $derived.by(() => {
-  const toolName = toolCall?.toolName ?? draft?.block.toolName;
-  if (!toolName) return undefined;
+  if (!toolCall) return undefined;
+  const toolName = toolCall.toolName;
   return presentToolArguments(
     toolName,
     argumentInput,
@@ -274,19 +338,23 @@ const lifecycleArgumentPresentation = $derived.by(() => {
   );
 });
 const argumentBody = $derived.by(() => {
-  if (!toolCall) return draftSummary?.argumentBody;
-  if (isInputValidationFailure(toolCall)) return undefined;
+  if (!presentedToolCall) return draftSummary?.argumentBody;
+  if (isInputValidationFailure(presentedToolCall)) return undefined;
   return lifecycleArgumentPresentation?.body;
 });
 const hasArgumentBody = $derived(
-  toolCall
+  presentedToolCall
     ? Boolean(argumentBody && argumentBody.kind !== "none")
     : meaningfulDraftBody,
 );
 const approvalPresentation = $derived.by(() => {
-  const toolName = toolCall?.toolName ?? draft?.block.toolName;
-  if (!toolName) return undefined;
-  return presentToolArguments(toolName, argumentInput, "approval", cwd);
+  if (!toolApproval || !toolCall) return undefined;
+  return presentToolArguments(
+    toolCall.toolName,
+    argumentInput,
+    "approval",
+    cwd,
+  );
 });
 const isExplore = $derived(
   (toolCall?.toolName ?? draft?.block.toolName) === "explore",
@@ -332,12 +400,26 @@ const elapsedMeta = $derived.by<MetaItem[]>(() => {
   if (elapsed < 2000) return [];
   return [{ text: formatElapsed(elapsed) }];
 });
-const visualStage = $derived(
+const lifecycleStage = $derived(
   deriveToolLifecycleVisualStage({
-    draft: draft?.block,
-    toolCall,
+    draft: presentedDraftBlock,
+    toolCall: presentedToolCall,
     outcomeUnknown,
   }),
+);
+let queuedVisible = $state(false);
+$effect(() => {
+  if (lifecycleStage !== "queued") {
+    queuedVisible = false;
+    return;
+  }
+  const timer = setTimeout(() => {
+    queuedVisible = true;
+  }, QUEUED_INDICATOR_DELAY_MS);
+  return () => clearTimeout(timer);
+});
+const visualStage = $derived(
+  visibleLifecycleStage(lifecycleStage, queuedVisible),
 );
 const stageIndicator = $derived(toolLifecycleStageIndicator(visualStage));
 const stageMeta = $derived<MetaItem[]>(
@@ -346,7 +428,7 @@ const stageMeta = $derived<MetaItem[]>(
     : [],
 );
 const activityMeta = $derived.by(() => {
-  if (!toolCall) return draftSummary?.meta ?? [];
+  if (!presentedToolCall || !toolCall) return draftSummary?.meta ?? [];
   if (toolCall.status === "completed")
     return mergeMetaItems(stageMeta, presentation?.meta ?? []);
   return mergeMetaItems(
@@ -359,8 +441,8 @@ const activityMeta = $derived.by(() => {
 });
 const activitySections = $derived.by(() =>
   deriveToolActivitySections({
-    draft: draft?.block,
-    toolCall,
+    draft: presentedDraftBlock,
+    toolCall: presentedToolCall,
     argumentRegion: lifecycleSpec.argumentRegion,
     hasArgumentBody,
     hasDurableBodyContent,
@@ -509,8 +591,8 @@ async function openDetails() {
 </script>
 
 <CardShell
-  status={toolCall?.status}
-  draftPhase={toolCall
+  status={presentedToolCall?.status}
+  draftPhase={presentedToolCall
     ? undefined
     : activitySections.phase === "prepared"
       ? "prepared"
@@ -542,8 +624,8 @@ async function openDetails() {
   {:else if activitySections.argumentVisible && argumentBody}
     <ToolArgumentBody
       body={argumentBody}
-      highlight={Boolean(toolCall || draft?.block.done)}
-      streaming={!toolCall && !draft?.block.done}
+      highlight={revealSettled && Boolean(toolCall || draft?.block.done)}
+      streaming={!revealSettled || (!toolCall && !draft?.block.done)}
     />
   {/if}
 
