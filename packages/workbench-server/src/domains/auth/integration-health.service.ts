@@ -103,11 +103,14 @@ export class IntegrationHealthService {
    * Record evidence from a finished Jira/Confluence tool call. Only outcomes
    * that say something about the credentials change the status: success and
    * refused credentials (401). Permission, not-found, rate-limit, and server
-   * failures are usually specific to one request and are ignored.
+   * failures are usually specific to one request and are ignored. `token` is
+   * the credential the call actually used, so a token replaced mid-call never
+   * inherits the old token's outcome.
    */
   async recordToolOutcome(input: {
     profile: AtlassianProfile;
     service: AtlassianService;
+    token: string;
     errorCode?: string;
     message?: string;
   }): Promise<void> {
@@ -119,18 +122,16 @@ export class IntegrationHealthService {
           ? "rejected"
           : undefined;
     if (!status || !input.profile.siteUrl || !input.profile.email) return;
-    const token = await this.deps.getToken(input.profile.id);
-    if (!token) return;
     const previous = (await this.#read(input.profile.id))?.[input.service];
     // Avoid a store write and event for every successful call.
     if (
       previous?.status === status &&
-      previous.credentialDigest === digest(token) &&
+      previous.credentialDigest === digest(input.token) &&
       previous.siteUrl === input.profile.siteUrl &&
       previous.email === input.profile.email
     )
       return;
-    await this.#write(input.profile, token, input.service, {
+    await this.#write(input.profile, input.token, input.service, {
       status,
       source: "tool",
       message: status === "verified" ? undefined : input.message,

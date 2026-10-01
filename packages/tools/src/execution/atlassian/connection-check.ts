@@ -48,7 +48,8 @@ export async function checkAtlassianConnection(
           email: connection.email.trim(),
           token: connection.token,
         },
-        { path: "/user/current", signal: combined },
+        // The current-user endpoint exists only in the v1 REST API.
+        { api: "v1", path: "/user/current", signal: combined },
       );
     }
     return { status: "verified" };

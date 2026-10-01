@@ -120,6 +120,8 @@ export interface OrchestrationToolDispatcherDeps {
   recordIntegrationOutcome?(input: {
     profile: AtlassianProfile;
     service: "jira" | "confluence";
+    /** The credential the call actually used. */
+    token: string;
     errorCode?: string;
     message?: string;
   }): Promise<void>;
@@ -199,6 +201,8 @@ export class OrchestrationToolDispatcher {
   readonly liveOutput: LiveToolOutputPublisher;
   /** Integration resolution per in-flight tool call, shared by its credential and config lookups. */
   readonly #integrations = new Map<string, Promise<EffectiveIntegrations>>();
+  /** Atlassian token handed to each in-flight tool call, for health evidence. */
+  readonly #atlassianTokens = new Map<string, string>();
 
   constructor(readonly deps: OrchestrationToolDispatcherDeps) {
     this.liveOutput = new LiveToolOutputPublisher(
@@ -259,6 +263,7 @@ export class OrchestrationToolDispatcher {
       throw error;
     } finally {
       this.#integrations.delete(toolCall.id);
+      this.#atlassianTokens.delete(toolCall.id);
       await this.liveOutput.drain(toolCall.id);
     }
   }
@@ -284,7 +289,8 @@ export class OrchestrationToolDispatcher {
     error?: unknown,
   ): Promise<void> {
     const integrations = this.#integrations.get(toolCall.id);
-    if (!integrations || !this.deps.recordIntegrationOutcome) return;
+    const token = this.#atlassianTokens.get(toolCall.id);
+    if (!integrations || !token || !this.deps.recordIntegrationOutcome) return;
     try {
       const profile = (await integrations)[service].profile;
       if (!profile) return;
@@ -292,6 +298,7 @@ export class OrchestrationToolDispatcher {
       await this.deps.recordIntegrationOutcome({
         profile,
         service,
+        token,
         errorCode: details?.code,
         message: details?.message,
       });
@@ -395,9 +402,11 @@ export class OrchestrationToolDispatcher {
               provider,
             )
           : provider;
-        return credentialProvider
-          ? this.deps.getApiKey(credentialProvider)
-          : undefined;
+        if (!credentialProvider) return undefined;
+        const key = await this.deps.getApiKey(credentialProvider);
+        if (key && (provider === "jira" || provider === "confluence"))
+          this.#atlassianTokens.set(toolCall.id, key);
+        return key;
       },
       explainImage: this.deps.explainImage,
       generateImage: this.deps.generateImage,

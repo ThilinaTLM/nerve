@@ -79,11 +79,13 @@ describe("IntegrationHealthService", () => {
     await service.recordToolOutcome({
       profile,
       service: "jira",
+      token: "token-1",
       errorCode: "JIRA_RATE_LIMITED",
     });
     await service.recordToolOutcome({
       profile,
       service: "jira",
+      token: "token-1",
       errorCode: "JIRA_FORBIDDEN",
     });
     assert.deepEqual(await service.list(), [{ profileId: "ner" }]);
@@ -91,6 +93,7 @@ describe("IntegrationHealthService", () => {
     await service.recordToolOutcome({
       profile,
       service: "jira",
+      token: "token-1",
       errorCode: "JIRA_UNAUTHORIZED",
       message: "Unauthorized",
     });
@@ -98,10 +101,34 @@ describe("IntegrationHealthService", () => {
     assert.equal(rejected?.jira?.status, "rejected");
     assert.equal(rejected?.jira?.source, "tool");
 
-    await service.recordToolOutcome({ profile, service: "jira" });
-    await service.recordToolOutcome({ profile, service: "jira" });
+    await service.recordToolOutcome({
+      profile,
+      service: "jira",
+      token: "token-1",
+    });
+    await service.recordToolOutcome({
+      profile,
+      service: "jira",
+      token: "token-1",
+    });
     assert.equal((await service.list())[0]?.jira?.status, "verified");
     // The repeated success does not publish again.
     assert.deepEqual(published, ["ner", "ner"]);
+  });
+
+  it("attributes tool evidence to the token that made the call", async () => {
+    const { service, profiles, tokens } = fixture();
+    // The call ran with token-1, which was replaced before it finished.
+    tokens.set("ner", "token-2");
+    await service.recordToolOutcome({
+      profile: profiles[0],
+      service: "jira",
+      token: "token-1",
+      errorCode: "JIRA_UNAUTHORIZED",
+    });
+    assert.deepEqual(await service.list(), [{ profileId: "ner" }]);
+
+    tokens.set("ner", "token-1");
+    assert.equal((await service.list())[0]?.jira?.status, "rejected");
   });
 });

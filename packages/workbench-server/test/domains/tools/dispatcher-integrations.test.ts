@@ -111,6 +111,7 @@ describe("dispatcher integration resolution", () => {
     assert.equal(outcomes.length, 1);
     assert.equal(outcomes[0]?.errorCode, "JIRA_UNAUTHORIZED");
     assert.equal(outcomes[0]?.profile.id, "pplied");
+    assert.equal(outcomes[0]?.token, "token");
 
     globalThis.fetch = async () =>
       Response.json({ key: "NER-1", fields: { summary: "Ok" } });

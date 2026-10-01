@@ -28,7 +28,7 @@ describe("checkAtlassianConnection", () => {
     });
     assert.deepEqual(urls, [
       "https://example.atlassian.net/rest/api/3/myself",
-      "https://example.atlassian.net/wiki/api/v2/user/current",
+      "https://example.atlassian.net/wiki/rest/api/user/current",
     ]);
   });
 
