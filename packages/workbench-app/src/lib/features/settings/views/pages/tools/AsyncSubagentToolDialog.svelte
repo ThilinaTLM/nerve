@@ -5,7 +5,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import { SettingsChoiceCards } from "$lib/presentation/settings";
+import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import ModelSelectionField from "../../shared/model-picker/ModelSelectionField.svelte";
 import type { AuthProviderMetadata } from "$lib/api";
@@ -31,7 +31,7 @@ let {
   models = [],
   authProviders = [],
   title = "Configure Async Subagents",
-  description = "Choose the model and reasoning level for new teammates and the compaction profile for their runs.",
+  description = "Model and compaction for new teammates.",
   onSave,
 }: Props = $props();
 
@@ -56,8 +56,8 @@ const validKeepRecent = $derived(
 const profileOptions = [
   {
     value: "inherit",
-    label: "Inherit",
-    detail: "Use the lead's effective project or user compaction settings",
+    label: "Same as lead",
+    detail: "Use the lead's compaction settings",
   },
   ...compactionProfileItems,
 ];
@@ -89,7 +89,7 @@ function save(): void {
 }
 </script>
 
-<Dialog bind:open size="md" {title} {description}>
+<Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-4">
     <ModelSelectionField
       label="Teammate model"
@@ -98,26 +98,21 @@ function save(): void {
       bind:thinkingLevel={thinkingDraft}
       bind:inherit={inheritDraft}
       inheritOption={{
-        label: "Use the lead agent's model",
+        label: "Lead agent's model",
         description:
           "Teammates start with the lead's model and reasoning level.",
       }}
-      hint="Model and reasoning changes apply only when a new teammate is created."
     />
 
     <div class="grid gap-1.5">
-      <Label>Compaction profile</Label>
-      <SettingsChoiceCards
+      <Label>Compaction</Label>
+      <SelectField
         items={profileOptions}
-        variant="radio"
         value={profileDraft}
         ariaLabel="Teammate compaction profile"
         onValueChange={(next) =>
           (profileDraft = next as AsyncSubagentSettings["compactionProfile"])}
       />
-      <p class="text-xs text-muted-foreground">
-        The global or project auto-compaction switch still applies to teammates.
-      </p>
     </div>
 
     {#if profileDraft === "custom"}

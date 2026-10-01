@@ -12,8 +12,9 @@ type Props = {
   triggerAriaKeyShortcuts?: string;
   class?: string;
   triggerClass?: string;
-  /** Panel width preset: sm 16rem, md 20rem, lg 24rem. */
-  size?: "sm" | "md" | "lg";
+  /** Panel width preset: sm 16rem, md 20rem, lg 24rem, anchor matches the
+   * trigger (at least 20rem). */
+  size?: "sm" | "md" | "lg" | "anchor";
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
   sideOffset?: number;

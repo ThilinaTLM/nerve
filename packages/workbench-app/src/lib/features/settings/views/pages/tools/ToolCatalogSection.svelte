@@ -509,7 +509,7 @@ function setTavilyProfile(profileId?: string): void {
 <ToolModelDialog
   bind:open={visionModelDialogOpen}
   title="Configure Image explanation"
-  description="Choose the vision model that describes images for text-only agents."
+  description="Vision model that describes images for text-only agents."
   label="Image explanation model"
   models={usableModels}
   selectedModel={configuredVisionSelection}
@@ -522,13 +522,13 @@ function setTavilyProfile(profileId?: string): void {
 <ToolModelDialog
   bind:open={exploreDialogOpen}
   title="Configure Explore"
-  description="Explore agents run read-only research in coding mode with a fresh history."
+  description="Model for read-only research agents."
   label="Explore model"
   models={usableModels}
   selectedModel={settingsDraft.exploreAgent.model}
   selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
   inheritOption={{
-    label: "Use the parent agent's model",
+    label: "Parent agent's model",
     description:
       "Explore agents run on the model of the agent that started them.",
   }}

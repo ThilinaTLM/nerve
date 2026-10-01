@@ -61,7 +61,7 @@ const usableModels = $derived(
 const title = $derived(group ? `Configure ${group.label}` : "");
 const scopeNote = $derived(
   toolState
-    ? `${toolState.originLabel}. Changes apply only to this conversation.`
+    ? `${toolState.originLabel}. Applies only to this conversation.`
     : "",
 );
 
@@ -95,7 +95,7 @@ function profileStatus(profileId: string) {
     <ToolProfileDialog
       bind:open
       {title}
-      description={`${tool === "web_search" ? "Select the Tavily profile used for web search." : "Select the Atlassian profile this tool uses."} ${scopeNote}`}
+      description={scopeNote}
       profiles={toolState.profileOptions}
       selectedProfileId={conversationProfileId(configuration, tool)}
       providerSection={tool === "web_search"
@@ -119,13 +119,13 @@ function profileStatus(profileId: string) {
     <ToolModelDialog
       bind:open
       {title}
-      description={`Explore agents run read-only research with a fresh history. ${scopeNote}`}
+      description={scopeNote}
       label="Explore model"
       models={usableModels}
       selectedModel={toolSettings.explore.model}
       selectedThinkingLevel={toolSettings.explore.thinkingLevel}
       inheritOption={{
-        label: "Use the parent agent's model",
+        label: "Parent agent's model",
         description:
           "Explore agents run on the model of the agent that started them.",
       }}
@@ -136,7 +136,7 @@ function profileStatus(profileId: string) {
     <ToolModelDialog
       bind:open
       {title}
-      description={`Choose the vision model that describes images for text-only agents. ${scopeNote}`}
+      description={scopeNote}
       label="Image explanation model"
       models={usableModels}
       selectedModel={toolSettings.explain_image.model}
@@ -150,7 +150,7 @@ function profileStatus(profileId: string) {
     <ImageGenerationToolDialog
       bind:open
       {title}
-      description={`Choose the model and output defaults for generated images. ${scopeNote}`}
+      description={scopeNote}
       value={toolSettings.generate_image}
       onSave={(value) => onPatch({ toolSettings: { generate_image: value } })}
     />
@@ -158,7 +158,7 @@ function profileStatus(profileId: string) {
     <KrokiToolDialog
       bind:open
       {title}
-      description={`Choose the Kroki server used to export diagrams. ${scopeNote}`}
+      description={scopeNote}
       value={toolSettings.kroki_export}
       onSave={(value) => onPatch({ toolSettings: { kroki_export: value } })}
     />
@@ -166,7 +166,7 @@ function profileStatus(profileId: string) {
     <AsyncSubagentToolDialog
       bind:open
       {title}
-      description={`Choose the model for new teammates and the compaction profile for their runs. ${scopeNote}`}
+      description={scopeNote}
       value={toolSettings.subagents}
       models={settingsState.models}
       authProviders={settingsState.authProviders}

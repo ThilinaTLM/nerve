@@ -36,6 +36,7 @@ import {
 import ModelCatalogFilters from "./ModelCatalogFilters.svelte";
 import ModelCatalogRow from "./ModelCatalogRow.svelte";
 import {
+  INHERIT_PICKER_KEY,
   pickerListItems,
   resolvePickerValue,
   type PickerListItem,
@@ -61,6 +62,11 @@ type Props = {
   tourId?: string;
   emptyMessage?: string;
   disabled?: boolean;
+  /** Offers a first row that defers to the parent agent's model. */
+  inheritOption?: { label: string; description: string };
+  /** The parent's model is in use; `value` keeps the last explicit choice. */
+  inherit?: boolean;
+  onInherit?: () => void;
 };
 
 let {
@@ -76,6 +82,9 @@ let {
   tourId,
   emptyMessage = "Authenticate a provider before choosing a model.",
   disabled = false,
+  inheritOption,
+  inherit = false,
+  onInherit,
 }: Props = $props();
 
 const uid = $props.id();
@@ -95,7 +104,10 @@ const catalog = $derived(
     new Set(requiredCapabilities),
   ),
 );
-const resolved = $derived(resolvePickerValue(catalog, value));
+const inheriting = $derived(Boolean(inheritOption) && inherit);
+const resolved = $derived(
+  resolvePickerValue(catalog, inheriting ? undefined : value),
+);
 const items = $derived(
   pickerListItems({
     entries: catalog,
@@ -103,17 +115,20 @@ const items = $derived(
     provider,
     capabilities: new Set(capabilities),
     resolved,
+    offerInherit: Boolean(inheritOption),
   }),
 );
 const modelCount = $derived(
   items.filter((item) => item.kind === "model").length,
 );
 const selectedKey = $derived(
-  resolved.kind === "available"
-    ? resolved.entry.key
-    : resolved.kind === "unavailable"
-      ? items.find((item) => item.kind === "unavailable")?.key
-      : undefined,
+  inheriting
+    ? INHERIT_PICKER_KEY
+    : resolved.kind === "available"
+      ? resolved.entry.key
+      : resolved.kind === "unavailable"
+        ? items.find((item) => item.kind === "unavailable")?.key
+        : undefined,
 );
 const selectedModel = $derived(
   resolved.kind === "available" ? resolved.entry.model : undefined,
@@ -137,11 +152,13 @@ const showLevel = $derived(
 );
 
 const triggerTitle = $derived(
-  resolved.kind === "available"
-    ? `${label}: ${resolved.entry.displayName} · ${resolved.entry.providerLabel}${showLevel ? ` · ${thinkingLevel} reasoning` : ""}`
-    : resolved.kind === "unavailable"
-      ? `${label}: ${resolved.selection.provider}/${resolved.selection.modelId} is unavailable`
-      : label,
+  inheriting && inheritOption
+    ? `${label}: ${inheritOption.label}`
+    : resolved.kind === "available"
+      ? `${label}: ${resolved.entry.displayName} · ${resolved.entry.providerLabel}${showLevel ? ` · ${thinkingLevel} reasoning` : ""}`
+      : resolved.kind === "unavailable"
+        ? `${label}: ${resolved.selection.provider}/${resolved.selection.modelId} is unavailable`
+        : label,
 );
 
 const navigation = createListNavigation({
@@ -187,6 +204,11 @@ function handleOpenChange(next: boolean): void {
 }
 
 function choose(item: PickerListItem, close = false): void {
+  if (item.kind === "inherit") {
+    if (!inheriting) onInherit?.();
+    open = false;
+    return;
+  }
   if (item.kind === "model" && item.key !== selectedKey) {
     onChange({
       model: {
@@ -223,8 +245,8 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 <Popover
   {open}
   onOpenChange={handleOpenChange}
-  size="lg"
-  align="end"
+  size="anchor"
+  align="start"
   ariaLabel={label}
   {triggerTitle}
   triggerClass={cn(
@@ -239,7 +261,9 @@ function handleSearchKeydown(event: KeyboardEvent): void {
       class="flex min-w-0 flex-1 items-baseline gap-1.5"
       data-tour-id={tourId}
     >
-      {#if resolved.kind === "available"}
+      {#if inheriting && inheritOption}
+        <span class="truncate text-foreground">{inheritOption.label}</span>
+      {:else if resolved.kind === "available"}
         <span class="truncate text-foreground"
           >{resolved.entry.contextualLabel}</span
         >
@@ -281,10 +305,10 @@ function handleSearchKeydown(event: KeyboardEvent): void {
 
   <PopoverBody>
     <Tooltip.Provider delayDuration={300} disableHoverableContent>
-      {#if catalog.length === 0 && resolved.kind !== "unavailable"}
-        <p class="px-1.5 text-muted-foreground">{emptyMessage}</p>
-      {:else if items.length === 0}
-        <p class="px-1.5 text-muted-foreground">No models match.</p>
+      {#if items.length === 0}
+        <p class="px-1.5 text-muted-foreground">
+          {catalog.length === 0 ? emptyMessage : "No models match."}
+        </p>
       {:else}
         <div id={listId} role="listbox" aria-label={label}>
           <VirtualScroller
@@ -296,7 +320,16 @@ function handleSearchKeydown(event: KeyboardEvent): void {
             viewportClass="max-h-[min(50vh,20rem)]"
           >
             {#snippet row({ item, index })}
-              {#if item.kind === "unavailable"}
+              {#if item.kind === "inherit"}
+                <ModelCatalogRow
+                  id={rowId(item)}
+                  label={inheritOption?.label ?? ""}
+                  title={inheritOption?.description}
+                  selected={inheriting}
+                  active={navigation.isActive(index)}
+                  onclick={() => choose(item)}
+                />
+              {:else if item.kind === "unavailable"}
                 <ModelCatalogRow
                   id={rowId(item)}
                   label={`${item.selection.provider}/${item.selection.modelId}`}
@@ -325,6 +358,9 @@ function handleSearchKeydown(event: KeyboardEvent): void {
             {/snippet}
           </VirtualScroller>
         </div>
+        {#if catalog.length === 0}
+          <p class="px-1.5 pt-1 text-muted-foreground">{emptyMessage}</p>
+        {/if}
       {/if}
     </Tooltip.Provider>
   </PopoverBody>
