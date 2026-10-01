@@ -45,7 +45,13 @@ describe("model-facing tool schema compatibility", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
         generate_image: ["prompt"],
-        kroki_export: ["diagram_type", "source", "output_format"],
+        kroki_export: [
+          "diagram_type",
+          "source_path",
+          "source",
+          "output_path",
+          "output_format",
+        ],
         jira_search_users: [
           "query",
           "project_key",

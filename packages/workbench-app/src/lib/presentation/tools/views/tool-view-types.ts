@@ -174,6 +174,8 @@ export type ToolView =
     }
   | {
       kind: "kroki_export";
+      /** Footer tag such as "mermaid → SVG". */
+      conversion: string;
       path?: string;
       bytes?: number;
     }

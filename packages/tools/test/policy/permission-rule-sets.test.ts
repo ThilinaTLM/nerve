@@ -193,6 +193,42 @@ test("blank singleton search paths target the current project directory", () => 
   }
 });
 
+test("kroki exports target their source file for read and output file for write", () => {
+  const request = normalizePermissionRequest({
+    toolName: "kroki_export",
+    args: {
+      diagram_type: "mermaid",
+      source_path: "docs/flow.mmd",
+      output_path: "/tmp/flow.svg",
+    },
+    roots,
+    conversationId: "conv_test",
+  });
+  assert.deepEqual(request.targets, [
+    {
+      kind: "path",
+      access: "read",
+      scope: "exact",
+      root: "project",
+      relativePath: "docs/flow.mmd",
+    },
+    {
+      kind: "path",
+      access: "write",
+      scope: "exact",
+      absolutePath: "/tmp/flow.svg",
+    },
+  ]);
+  assert.equal(request.primaryArgument, "docs/flow.mmd");
+  const inline = normalizePermissionRequest({
+    toolName: "kroki_export",
+    args: { diagram_type: "mermaid", source: "graph TD" },
+    roots,
+    conversationId: "conv_test",
+  });
+  assert.deepEqual(inline.targets, [{ kind: "whole_tool" }]);
+});
+
 test("an empty grep paths collection does not default to the project", () => {
   assert.throws(
     () =>

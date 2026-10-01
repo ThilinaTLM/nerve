@@ -309,6 +309,13 @@ function extractTargets(
     ];
   }
   if (toolName === "explore") return [{ kind: "agent", agentId: "explore" }];
+  if (toolName === "kroki_export") {
+    const targets = [
+      ...stringPathTargets(args.source_path, "read", "exact", roots, cwd),
+      ...stringPathTargets(args.output_path, "write", "exact", roots, cwd),
+    ];
+    return targets.length > 0 ? targets : [{ kind: "whole_tool" }];
+  }
 
   const fileArguments =
     toolName === "jira_manage_attachment" ||

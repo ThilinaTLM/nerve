@@ -281,7 +281,7 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "kroki_export",
         description:
-          "Send diagram source to Kroki and save the rendered file as a tool-call artifact.",
+          "Send diagram source (from a file or inline) to Kroki and save the rendered file to a chosen path or as a tool-call artifact.",
       },
     ],
   },

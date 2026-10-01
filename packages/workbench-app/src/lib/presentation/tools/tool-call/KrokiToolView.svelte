@@ -17,14 +17,19 @@ let {
 } = $props();
 </script>
 
+<!-- The source block comes from the persistent argument region above. -->
 {#if view.path}
-  <ToolOutputBlock
-    text={view.path}
-    collapsedLines={1}
-    {expanded}
-    onActivate={() => view.path && onOpenFile?.(view.path)}
-    activateLabel="Open exported diagram in a file tab"
-  />
+  <section class="grid gap-1" aria-label="Exported diagram">
+    <ToolOutputBlock
+      text={view.path}
+      collapsedLines={1}
+      {expanded}
+      onActivate={() => view.path && onOpenFile?.(view.path)}
+      activateLabel="Open exported diagram in a file tab"
+    />
+  </section>
 {:else if toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No diagram file returned.</p>
+  <section class="grid gap-1" aria-label="Exported diagram">
+    <p class="m-0 text-xs text-muted-foreground">No diagram file returned.</p>
+  </section>
 {/if}

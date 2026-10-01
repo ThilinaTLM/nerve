@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join } from "node:path";
 import { krokiToolSettingsSchema } from "@nervekit/contracts/settings";
 import {
   krokiDiagramTypeSchema,
@@ -13,6 +13,12 @@ import type {
 import { withTimeoutSignal } from "../process/abort.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { detectSupportedImageMimeType } from "../filesystem/read.js";
+import {
+  isErrnoException,
+  pathNotFoundMessage,
+  resolveReadPath,
+  resolveToCwd,
+} from "../filesystem/path.js";
 import { startsWithSvgRoot } from "./svg-header.js";
 
 const MAX_SOURCE_BYTES = 128 * 1024;
@@ -59,23 +65,83 @@ async function readBounded(
   }
 }
 
+async function readDiagramSource(
+  args: Record<string, unknown>,
+  cwd: string,
+): Promise<string> {
+  const hasPath = args.source_path !== undefined;
+  if (hasPath === (args.source !== undefined))
+    throw new Error("Provide exactly one of source_path or source.");
+  let source = args.source;
+  if (hasPath) {
+    if (typeof args.source_path !== "string" || !args.source_path.trim())
+      throw new Error("source_path must be a non-empty string.");
+    const path = await resolveReadPath(cwd, args.source_path);
+    const info = await stat(path).catch((error: unknown) => {
+      if (isErrnoException(error) && error.code === "ENOENT")
+        throw new Error(
+          pathNotFoundMessage("kroki_export", args.source_path, path),
+        );
+      throw error;
+    });
+    if (!info.isFile())
+      throw new Error(`source_path must be a regular file: ${path}`);
+    if (info.size > MAX_SOURCE_BYTES)
+      throw new Error(
+        `source_path must not exceed ${MAX_SOURCE_BYTES} bytes (${info.size} bytes).`,
+      );
+    source = await readFile(path, "utf8");
+  }
+  const label = hasPath ? "source_path file" : "source";
+  if (typeof source !== "string" || !source.trim())
+    throw new Error(`${label} must be non-empty.`);
+  if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES)
+    throw new Error(
+      `${label} must not exceed ${MAX_SOURCE_BYTES} UTF-8 bytes.`,
+    );
+  return source;
+}
+
+/** Explicit format wins; otherwise the output extension decides; SVG last. */
+function resolveOutput(
+  args: Record<string, unknown>,
+  cwd: string,
+): { path?: string; format: "svg" | "png" } {
+  const explicit =
+    args.output_format === undefined
+      ? undefined
+      : krokiOutputFormatSchema.parse(args.output_format);
+  if (args.output_path === undefined) return { format: explicit ?? "svg" };
+  if (typeof args.output_path !== "string" || !args.output_path.trim())
+    throw new Error("output_path must be a non-empty string.");
+  const path = resolveToCwd(cwd, args.output_path);
+  const extension = extname(path).slice(1).toLowerCase();
+  if (extension !== "svg" && extension !== "png")
+    throw new Error("output_path must end in .svg or .png.");
+  if (explicit && explicit !== extension)
+    throw new Error(
+      `output_format ${explicit} does not match output_path extension .${extension}.`,
+    );
+  return { path, format: extension };
+}
+
 export async function executeKrokiExport(
   args: Record<string, unknown>,
   context: KrokiExecutionContext,
 ): Promise<ToolExecutionResult> {
   if (!context.kroki) throw new Error("Kroki is not configured in Settings.");
-  if (!context.artifactDir)
-    throw new Error("Kroki export requires an artifact output directory.");
   const { url } = krokiToolSettingsSchema.parse(context.kroki);
   const diagramType = krokiDiagramTypeSchema.parse(args.diagram_type);
-  const outputFormat = krokiOutputFormatSchema.parse(
-    args.output_format ?? "svg",
-  );
-  const source = args.source;
-  if (typeof source !== "string" || !source.trim())
-    throw new Error("source must be a non-empty string.");
-  if (Buffer.byteLength(source, "utf8") > MAX_SOURCE_BYTES)
-    throw new Error(`source must not exceed ${MAX_SOURCE_BYTES} UTF-8 bytes.`);
+  const output = resolveOutput(args, context.cwd);
+  const outputFormat = output.format;
+  const managed = !output.path;
+  const path =
+    output.path ??
+    (context.artifactDir &&
+      join(context.artifactDir, `diagram.${outputFormat}`));
+  if (!path)
+    throw new Error("Kroki export requires an artifact output directory.");
+  const source = await readDiagramSource(args, context.cwd);
   const mediaType = outputFormat === "svg" ? "image/svg+xml" : "image/png";
   const signal = withTimeoutSignal(context.signal, 60_000);
   signal.throwIfAborted();
@@ -133,33 +199,39 @@ export async function executeKrokiExport(
       `Kroki returned invalid ${outputFormat.toUpperCase()} data.`,
     );
   signal.throwIfAborted();
-  await mkdir(context.artifactDir, { recursive: true });
+  await mkdir(dirname(path), { recursive: true });
   signal.throwIfAborted();
-  const filename = `diagram.${outputFormat}`;
-  const path = join(context.artifactDir, filename);
   await writeFile(path, data, { signal });
   signal.throwIfAborted();
   const details: KrokiExportResultDetails = {
     diagramType,
     outputFormat,
     path,
-    filename,
+    filename: basename(path),
     mediaType,
     bytes: data.byteLength,
-    outputLimits: {
-      artifacts: [
-        {
-          role: "primary_result",
-          path,
-          format: { kind: "image", mediaType },
-          bytes: data.byteLength,
-          label: "Exported diagram",
-          recommendedTools:
-            outputFormat === "png" ? ["read", "explain_image"] : ["read"],
-        },
-      ],
-    },
+    // Only managed files are claimed: artifact validation rejects any path
+    // outside the tool-call directory, and the agent chose output_path anyway.
+    ...(managed
+      ? {
+          outputLimits: {
+            artifacts: [
+              {
+                role: "primary_result" as const,
+                path,
+                format: { kind: "image" as const, mediaType },
+                bytes: data.byteLength,
+                label: "Exported diagram",
+                recommendedTools:
+                  outputFormat === "png"
+                    ? ["read" as const, "explain_image" as const]
+                    : ["read" as const],
+              },
+            ],
+          },
+        }
+      : {}),
   };
-  const content = `Exported ${diagramType} diagram as ${outputFormat.toUpperCase()}.`;
+  const content = `Exported ${diagramType} diagram as ${outputFormat.toUpperCase()}: ${path}`;
   return { content, contentBlocks: [{ type: "text", text: content }], details };
 }

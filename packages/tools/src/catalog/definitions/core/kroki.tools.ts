@@ -12,22 +12,37 @@ export const krokiToolDefinitions = [
     executor: executeKrokiExport,
     label: "Export Diagram",
     description:
-      "Export diagram source as SVG or PNG using the Kroki server configured in Settings. Saves a managed artifact and returns its path. Sends diagram source to that server; supported engines/formats depend on its deployment.",
+      "Render a diagram to SVG/PNG via the Kroki server configured in Settings (source is sent to it). Prefer source_path so fixes can be targeted edits. Returns the output path.",
     parameters: Type.Object(
       {
         diagram_type: Type.String({
-          description:
-            "Kroki engine, e.g. mermaid, plantuml, graphviz, d2, c4plantuml, or structurizr",
-          pattern: "^[a-z][a-z0-9-]{0,63}$",
+          description: "Kroki engine, e.g. mermaid, plantuml, graphviz, d2",
         }),
-        source: Type.String({
-          description: "Complete diagram source (maximum 128 KiB UTF-8)",
-          minLength: 1,
-          maxLength: 131_072,
-        }),
+        source_path: Type.Optional(
+          Type.String({
+            description:
+              "Diagram source file (max 128 KiB), absolute or cwd-relative. Preferred over source",
+            minLength: 1,
+          }),
+        ),
+        source: Type.Optional(
+          Type.String({
+            description:
+              "Inline diagram source (max 128 KiB) when no file exists",
+            minLength: 1,
+            maxLength: 131_072,
+          }),
+        ),
+        output_path: Type.Optional(
+          Type.String({
+            description:
+              "Output .svg/.png file, absolute or cwd-relative; overwrites. Default: managed artifact",
+            minLength: 1,
+          }),
+        ),
         output_format: Type.Optional(
           Type.Union([Type.Literal("svg"), Type.Literal("png")], {
-            description: "Output format (default: svg)",
+            description: "Default: output_path extension, else svg",
           }),
         ),
       },

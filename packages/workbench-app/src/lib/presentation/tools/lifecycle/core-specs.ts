@@ -6,6 +6,7 @@ import type { CoreToolName } from "@nervekit/contracts/tools";
 import type { MetaItem, PrimaryArg } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
 import { COLLAPSED_LINES } from "../views/tool-view-helpers";
+import { krokiConversion } from "../views/kroki-result-view";
 import {
   argumentPresentation,
   type ToolArgumentBody,
@@ -31,6 +32,13 @@ function boundedText(text: string | undefined): string | undefined {
   return lineBounded.length > BODY_CHARS
     ? lineBounded.slice(-BODY_CHARS)
     : lineBounded;
+}
+
+/** Leading lines: a diagram's first line names its type and direction. */
+function boundedHead(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  return lines.slice(0, BODY_LINES).join("\n").slice(0, BODY_CHARS);
 }
 
 function lineCount(text: string | undefined): number | undefined {
@@ -77,9 +85,9 @@ function urlArg(url: string | undefined): PrimaryArg | undefined {
 function codeBody(
   text: string | undefined,
   language: "bash" | "python" | "text",
-  options: { force?: boolean; label?: string } = {},
+  options: { force?: boolean; label?: string; head?: boolean } = {},
 ): ToolArgumentBody {
-  const bounded = boundedText(text);
+  const bounded = options.head ? boundedHead(text) : boundedText(text);
   if (!bounded || (!options.force && !bounded.includes("\n")))
     return { kind: "none" };
   return {
@@ -87,7 +95,7 @@ function codeBody(
     text: bounded,
     language,
     label: options.label,
-    tail: true,
+    tail: !options.head,
   };
 }
 
@@ -314,6 +322,49 @@ function editPresentation(
   });
 }
 
+function krokiPresentation(
+  source: ToolArgumentSource,
+  _stage: ToolLifecycleStage,
+  cwd?: string,
+) {
+  const inline = source.string("source");
+  const outputPath = source.string("output_path");
+  const secondary: MetaItem[] = [
+    {
+      text: krokiConversion({
+        diagram_type: source.string("diagram_type"),
+        output_format: source.string("output_format"),
+        output_path: outputPath,
+      }),
+    },
+  ];
+  if (outputPath) {
+    secondary.push({
+      text: `→ ${(cwd && relativePathForDisplay(outputPath, cwd)) || outputPath}`,
+      mono: true,
+    });
+  }
+  return argumentPresentation({
+    // A source file is the preferred input; inline source is the fallback.
+    primaryArg: source.string("source_path")
+      ? pathArg(source, cwd, "source_path")
+      : textArg(inline ? "inline" : undefined, "Diagram"),
+    secondary,
+    // Stage-independent so the block never appears/disappears mid-lifecycle.
+    body: codeBody(inline, "text", {
+      force: true,
+      head: true,
+      label: "Source",
+    }),
+    safetyNotes: [
+      "Sends diagram source to the Kroki server configured in Settings.",
+      ...(outputPath
+        ? ["Creates the output file or overwrites it if it already exists."]
+        : []),
+    ],
+  });
+}
+
 export const coreToolLifecycleSpecs = {
   read: defineToolLifecycleSpec({
     name: "read",
@@ -526,28 +577,11 @@ export const coreToolLifecycleSpecs = {
   }),
   kroki_export: defineToolLifecycleSpec({
     name: "kroki_export",
-    argumentRegion: "none",
+    argumentRegion: "persistent",
     completedView: "kroki_export",
     resultPlaceholder: { variant: "text", rows: 1 },
     emptyResult: "No diagram returned",
-    present: (source, stage) => {
-      const diagramType = source.string("diagram_type");
-      const format = (source.string("output_format") ?? "svg").toUpperCase();
-      return argumentPresentation({
-        primaryArg: textArg(`${diagramType ?? "Diagram"} → ${format}`),
-        body:
-          stage === "approval"
-            ? keyValues([
-                ["Diagram type", diagramType],
-                ["Format", format],
-                ["Source", boundedText(source.string("source")), true],
-              ])
-            : undefined,
-        safetyNotes: [
-          "Sends diagram source to the Kroki server configured in Settings.",
-        ],
-      });
-    },
+    present: krokiPresentation,
   }),
   generate_image: defineToolLifecycleSpec({
     name: "generate_image",

@@ -36,7 +36,10 @@ export function summarizeExploreToolCall(
     case "generate_image":
       return activity("Generating image", stringValue(args.prompt));
     case "kroki_export":
-      return activity("Exporting diagram", stringValue(args.diagram_type));
+      return activity(
+        "Exporting diagram",
+        stringValue(args.source_path) ?? stringValue(args.diagram_type),
+      );
     case "ask_user":
       return "Requesting user input";
     case "todos_set":

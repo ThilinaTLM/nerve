@@ -24,12 +24,16 @@ describe("Kroki tool presentation", () => {
     const view = parseToolView(record);
     assert.deepEqual(view, {
       kind: "kroki_export",
+      conversion: "mermaid → SVG",
       path: "/tmp/diagram.svg",
       bytes: 2048,
     });
     const presentation = toolPresentation(view, record);
-    assert.equal(presentation.primaryArg?.text, "mermaid → SVG");
-    assert.deepEqual(presentation.meta, [{ text: "2.0 KB", tone: "success" }]);
+    assert.equal(presentation.primaryArg?.text, "inline");
+    assert.deepEqual(presentation.meta, [
+      { text: "mermaid → SVG" },
+      { text: "2.0 KB", tone: "success" },
+    ]);
   });
   it("renders the same output from durable transcript previews", () => {
     const record = transcriptToolCall(
@@ -40,10 +44,9 @@ describe("Kroki tool presentation", () => {
     const view = parseToolView(record);
     assert.equal(view.kind, "kroki_export");
     if (view.kind === "kroki_export") assert.equal(view.path, details.path);
-    assert.equal(
-      toolPresentation(view, record).primaryArg?.text,
-      "mermaid → SVG",
-    );
+    assert.deepEqual(toolPresentation(view, record).meta[0], {
+      text: "mermaid → SVG",
+    });
   });
   it("handles missing and malformed results without showing fake artifact links", () => {
     for (const result of [
@@ -61,13 +64,49 @@ describe("Kroki tool presentation", () => {
       assert.equal(view.kind, "kroki_export");
       if (view.kind !== "kroki_export") continue;
       assert.equal(view.path, undefined);
-      assert.equal(
-        toolPresentation(view, record).primaryArg?.text,
-        "graphviz → PNG",
-      );
-      assert.deepEqual(toolPresentation(view, record).meta, []);
+      assert.deepEqual(toolPresentation(view, record).meta, [
+        { text: "graphviz → PNG" },
+      ]);
     }
   });
+  it("prefers the source file as the header and shows the leading source lines", () => {
+    const fileRecord = toolCall(
+      "kroki_export",
+      {
+        diagram_type: "d2",
+        source_path: "docs/flow.d2",
+        output_path: "docs/flow.png",
+      },
+      undefined,
+    );
+    const filePresentation = presentToolArguments(
+      "kroki_export",
+      fileRecord,
+      "approval",
+    );
+    assert.equal(filePresentation.primaryArg?.text, "docs/flow.d2");
+    assert.deepEqual(filePresentation.body, { kind: "none" });
+    assert.deepEqual(
+      filePresentation.secondary.map((item) => item.text),
+      ["d2 → PNG", "→ docs/flow.png"],
+    );
+    assert.match(JSON.stringify(filePresentation), /overwrites/);
+
+    const source = Array.from({ length: 10 }, (_, i) => `line ${i}`).join("\n");
+    const inline = presentToolArguments(
+      "kroki_export",
+      toolCall("kroki_export", { diagram_type: "mermaid", source }, undefined),
+      "executing",
+    );
+    assert.equal(inline.primaryArg?.text, "inline");
+    assert.ok(inline.body.kind === "code");
+    if (inline.body.kind === "code") {
+      assert.equal(inline.body.text.split("\n")[0], "line 0");
+      assert.equal(inline.body.text.split("\n").length, 6);
+      assert.equal(inline.body.tail, false);
+    }
+  });
+
   it("bounds approval source and warns that it leaves the machine", () => {
     const record = toolCall(
       "kroki_export",

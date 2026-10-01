@@ -62,9 +62,9 @@ const metadata = {
     "network",
     "diagramExport",
     "network",
-    ["diagram_type", "output_format"],
-    ["whole_tool"],
-    true,
+    ["source_path", "diagram_type"],
+    ["path", "whole_tool"],
+    false,
   ),
   jira_search_users: m(
     "integration",

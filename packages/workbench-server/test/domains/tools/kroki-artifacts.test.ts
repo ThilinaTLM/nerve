@@ -81,3 +81,38 @@ it("validates and projects Kroki artifacts and opens SVG/PNG through the existin
     assert.equal(file.mimeType, mediaType);
   }
 });
+
+it("reports output_path exports to the agent without an artifact claim", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-kroki-output-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async () =>
+      new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
+        headers: { "content-type": "image/svg+xml" },
+      }),
+  );
+  const args = {
+    diagram_type: "mermaid",
+    source: "graph TD; A-->B",
+    output_path: "docs/flow.svg",
+  };
+  const result = await executeTool("kroki_export", args, {
+    cwd: home,
+    kroki: { url: "http://127.0.0.1:9080/" },
+  });
+  const path = join(home, "docs", "flow.svg");
+  const projection = projectAgentResult(
+    {
+      toolName: "kroki_export",
+      args,
+      result,
+      status: "completed",
+      phase: "completed",
+      validatedArtifacts: [],
+    },
+    agentResultPolicyForTool("kroki_export"),
+  );
+  assert.ok(JSON.stringify(projection.blocks).includes(path));
+});

@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it, type TestContext } from "node:test";
@@ -105,8 +112,14 @@ describe("Kroki export", () => {
         kroki: { url: "https://user:pass@example.org" },
       }),
     );
+    await writeFile(join(context.cwd, "big.mmd"), "x".repeat(131_073));
     for (const override of [
       { source: " " },
+      { source_path: "graph.mmd" },
+      { source_path: "missing.mmd", source: undefined },
+      { source_path: "big.mmd", source: undefined },
+      { output_path: "out.pdf" },
+      { output_path: "out.svg", output_format: "png" },
       { source: "é".repeat(65_537) },
       { output_format: "pdf" },
       { diagram_type: "../mermaid" },
@@ -116,6 +129,38 @@ describe("Kroki export", () => {
       );
     }
     assert.equal(fetchMock.mock.callCount(), 0);
+  });
+
+  it("reads source_path and writes output_path relative to cwd without claiming an artifact", async (t) => {
+    const context = await setup(t);
+    await mkdir(join(context.cwd, "docs"));
+    await writeFile(join(context.cwd, "docs", "graph.dot"), args.source);
+    const fetchMock = t.mock.method(
+      globalThis,
+      "fetch",
+      async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body));
+        assert.equal(body.diagram_source, args.source);
+        assert.equal(body.output_format, "png");
+        return response(png, "image/png");
+      },
+    );
+    const result = await executeKrokiExport(
+      {
+        diagram_type: "graphviz",
+        source_path: "docs/graph.dot",
+        output_path: "out/graph.png",
+      },
+      context,
+    );
+    const details = krokiExportResultDetailsSchema.parse(result.details);
+    assert.equal(fetchMock.mock.callCount(), 1);
+    assert.equal(details.path, join(context.cwd, "out", "graph.png"));
+    assert.equal(details.filename, "graph.png");
+    assert.equal(details.outputFormat, "png");
+    assert.equal(details.outputLimits, undefined);
+    assert.deepEqual(await readFile(details.path), png);
+    assert.ok(result.content.includes(details.path));
   });
 
   it("rejects redirects rather than forwarding diagram source", async (t) => {

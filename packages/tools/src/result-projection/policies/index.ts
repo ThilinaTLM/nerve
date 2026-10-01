@@ -1,5 +1,5 @@
 import { textCandidate } from "../candidates/text.js";
-import { primaryFileCandidate } from "../candidates/primary-file.js";
+import { krokiCandidate } from "../candidates/kroki.js";
 import { policy } from "./define-policy.js";
 import type { ToolName } from "@nervekit/contracts/tools";
 import type { AgentResultPolicy } from "../types.js";
@@ -65,11 +65,7 @@ const map: Record<ToolName, AgentResultPolicy> = {
   web_fetch: webFetchAgentResultPolicy,
   explain_image: explainImageAgentResultPolicy,
   generate_image: generateImageAgentResultPolicy,
-  kroki_export: policy(
-    "primary_file_result",
-    "artifact_index",
-    primaryFileCandidate,
-  ),
+  kroki_export: policy("primary_file_result", "artifact_index", krokiCandidate),
   ask_user: askUserAgentResultPolicy,
   todos_set: todosAgentResultPolicy,
   todos_get: todosAgentResultPolicy,
