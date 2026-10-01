@@ -135,4 +135,24 @@ describe("AuthManager", () => {
     assert.equal(tavily.configured, true);
     assert.equal(tavily.envVar, undefined);
   });
+  it("passes a stable installation device ID to OAuth login flows", async () => {
+    const home = await tempHome();
+    const deviceIds: string[] = [];
+    const loginWith = (auth: AuthManager) => {
+      auth.models.login = async (_provider, _type, _interaction, options) => {
+        deviceIds.push(options?.getDeviceId?.() ?? "");
+        return { type: "oauth", access: "a", refresh: "r", expires: 0 };
+      };
+      auth.models.refresh = async () => {};
+      return auth.loginOAuth("openai", {
+        signal: new AbortController().signal,
+      } as Parameters<AuthManager["loginOAuth"]>[1]);
+    };
+
+    await loginWith(new AuthManager(new EncryptedFileSecretProvider(home)));
+    await loginWith(new AuthManager(new EncryptedFileSecretProvider(home)));
+
+    assert.match(deviceIds[0] ?? "", /^[0-9a-f-]{36}$/);
+    assert.equal(deviceIds[1], deviceIds[0]);
+  });
 });
