@@ -56,6 +56,16 @@ export interface ConversationLiveTurnStartedData {
   ordinal: number;
 }
 
+export type ConversationLiveMessageDiscardedData = Pick<
+  ConversationLiveMessageStartedData,
+  | "conversationId"
+  | "agentId"
+  | "projectId"
+  | "runId"
+  | "turnId"
+  | "liveMessageId"
+>;
+
 export interface ConversationLiveMessageStartedData {
   conversationId: string;
   agentId: string;

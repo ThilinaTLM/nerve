@@ -65,7 +65,10 @@ function liveEventCoalescing(name: string) {
 function conversationEventScope(name: string): readonly string[] {
   const run = ["projectId", "conversationId", "agentId", "runId"];
   if (name === "conversation.live.turn.started") return [...run, "turnId"];
-  if (name === "conversation.live.message.started") {
+  if (
+    name === "conversation.live.message.started" ||
+    name === "conversation.live.message.discarded"
+  ) {
     return [...run, "turnId", "liveMessageId"];
   }
   if (

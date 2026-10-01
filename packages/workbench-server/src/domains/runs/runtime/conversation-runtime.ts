@@ -11,6 +11,7 @@ import {
   type ConversationActiveRunSnapshot,
   type ConversationLiveContentDeltaData,
   type ConversationLiveContentDoneData,
+  type ConversationLiveMessageDiscardedData,
   type ConversationLiveMessageSnapshot,
   type ConversationLiveMessageStartedData,
   type ConversationLiveTextBlockSnapshot,
@@ -127,7 +128,6 @@ export class ConversationRuntime {
       this.runIdByConversationId.set(input.conversationId, input.runId);
     return cloneRun(run);
   }
-
   projectStatus(
     runId: string,
     status: ConversationActiveRunSnapshot["status"],
@@ -139,7 +139,6 @@ export class ConversationRuntime {
     run.retry = retry ? { ...retry } : undefined;
     return cloneRun(run);
   }
-
   queuePrompt(
     runId: string,
     queuedPrompt: QueuedPromptRecord,
@@ -153,7 +152,6 @@ export class ConversationRuntime {
     else run.queuedPrompts[index] = queuedPrompt;
     return cloneRun(run);
   }
-
   removeQueuedPrompt(
     runId: string | undefined,
     queuedPromptId: string,
@@ -166,25 +164,20 @@ export class ConversationRuntime {
     );
     return cloneRun(run);
   }
-
   reset(): void {
     for (const runId of [...this.runsByRunId.keys()]) {
       this.finishRun(runId, "failed");
     }
   }
-
   completeRun(runId: string): void {
     this.finishRun(runId, "completed");
   }
-
   failRun(runId: string): void {
     this.finishRun(runId, "failed");
   }
-
   cancelRun(runId: string): void {
     this.finishRun(runId, "failed");
   }
-
   private finishRun(runId: string, terminal: "completed" | "failed"): void {
     const run = this.runsByRunId.get(runId);
     if (!run) return;
@@ -216,7 +209,6 @@ export class ConversationRuntime {
       }
     }
   }
-
   startTurn(runId: string): ConversationLiveTurnSnapshot {
     const run = this.requireRun(runId);
     const turn: MutableTurn = {
@@ -228,17 +220,14 @@ export class ConversationRuntime {
     this.turnStatuses.set(turn.turnId, "started");
     return cloneTurn(turn);
   }
-
   completeTurn(runId: string, turnId: string): void {
     this.requireTurn(this.requireRun(runId), turnId);
     this.transitionTurn(turnId, "completed", runId);
   }
-
   failTurn(runId: string, turnId: string): void {
     this.requireTurn(this.requireRun(runId), turnId);
     this.transitionTurn(turnId, "failed", runId);
   }
-
   /**
    * Mark a live assistant message as materialized (persisted as an entry).
    * The message stays in the mutable run so message ordinals remain unique.
@@ -258,13 +247,11 @@ export class ConversationRuntime {
     );
     if (message) message.materialized = true;
   }
-
   currentTurn(runId: string): ConversationLiveTurnSnapshot | undefined {
     const run = this.runsByRunId.get(runId);
     const turn = run?.turns.at(-1);
     return turn ? cloneTurn(turn) : undefined;
   }
-
   startAssistantMessage(
     runId: string,
     turnId: string,
@@ -291,7 +278,6 @@ export class ConversationRuntime {
       startedAt,
     };
   }
-
   completeAssistantMessage(
     runId: string,
     turnId: string,
@@ -300,7 +286,6 @@ export class ConversationRuntime {
     this.requireMessage({ runId, turnId, liveMessageId });
     this.transitionLiveMessage(liveMessageId, "completed", runId);
   }
-
   failAssistantMessage(
     runId: string,
     turnId: string,
@@ -309,7 +294,40 @@ export class ConversationRuntime {
     this.requireMessage({ runId, turnId, liveMessageId });
     this.transitionLiveMessage(liveMessageId, "failed", runId);
   }
-
+  abandonAssistantMessage(
+    runId: string,
+    turnId: string,
+    liveMessageId: string,
+  ): ConversationLiveMessageDiscardedData | undefined {
+    const run = this.runsByRunId.get(runId);
+    const turn = run?.turns.find((turn) => turn.turnId === turnId);
+    const message = turn?.messages.find(
+      (message) => message.liveMessageId === liveMessageId,
+    );
+    if (
+      !run ||
+      !turn ||
+      !message ||
+      this.liveMessageStatuses.get(liveMessageId) !== "started"
+    )
+      return;
+    this.failAssistantMessage(runId, turnId, liveMessageId);
+    for (const block of message.blocks) {
+      if (block.kind === "tool_call_draft" && block.providerToolCallId)
+        this.draftAnchorByProviderToolCallId.delete(block.providerToolCallId);
+    }
+    turn.messages = turn.messages.filter(
+      (message) => message.liveMessageId !== liveMessageId,
+    );
+    return {
+      conversationId: run.conversationId,
+      agentId: run.agentId,
+      projectId: run.projectId,
+      runId,
+      turnId,
+      liveMessageId,
+    };
+  }
   applyContentDelta(input: {
     runId: string;
     turnId: string;
@@ -336,7 +354,6 @@ export class ConversationRuntime {
       delta: input.delta,
     };
   }
-
   finishContent(input: {
     runId: string;
     turnId: string;
@@ -364,7 +381,6 @@ export class ConversationRuntime {
       redacted: input.redacted,
     };
   }
-
   startToolDraft(input: {
     runId: string;
     turnId: string;
@@ -393,7 +409,6 @@ export class ConversationRuntime {
       toolName: block.toolName,
     };
   }
-
   applyToolDraftDelta(input: {
     runId: string;
     turnId: string;
@@ -427,7 +442,6 @@ export class ConversationRuntime {
       delta: input.delta,
     };
   }
-
   finishToolDraft(input: {
     runId: string;
     turnId: string;
@@ -459,7 +473,6 @@ export class ConversationRuntime {
       args: input.args,
     };
   }
-
   applyToolDraftProgress(input: {
     runId: string;
     turnId: string;
@@ -526,14 +539,12 @@ export class ConversationRuntime {
       reason: input.reason,
     };
   }
-
   toolOutputOffset(runId: string | undefined, toolCallId: string): number {
     const existing = runId
       ? this.runsByRunId.get(runId)?.toolOutputsByToolCallId[toolCallId]
       : undefined;
     return existing?.outputLimits?.totalChars ?? existing?.text.length ?? 0;
   }
-
   applyToolOutputDelta(input: {
     conversationId: string;
     agentId: string;
@@ -588,7 +599,6 @@ export class ConversationRuntime {
       delta: input.delta,
     };
   }
-
   snapshotForConversation(
     conversationId: string,
   ): ConversationActiveRunSnapshot | undefined {
@@ -596,14 +606,12 @@ export class ConversationRuntime {
     const run = runId ? this.runsByRunId.get(runId) : undefined;
     return run ? cloneRun(run) : undefined;
   }
-
   /** Active run of one agent, including background (async teammate) runs. */
   snapshotForAgent(agentId: string): ConversationActiveRunSnapshot | undefined {
     const runId = this.runIdByAgentId.get(agentId);
     const run = runId ? this.runsByRunId.get(runId) : undefined;
     return run ? cloneRun(run) : undefined;
   }
-
   resolveToolAnchor(
     runId: string,
     providerToolCallId: string,
@@ -611,7 +619,6 @@ export class ConversationRuntime {
     const anchor = this.draftAnchorByProviderToolCallId.get(providerToolCallId);
     return anchor && anchor.runId === runId ? { ...anchor } : undefined;
   }
-
   private rememberToolAnchor(
     input: {
       runId: string;
@@ -629,7 +636,6 @@ export class ConversationRuntime {
       providerToolCallId,
     });
   }
-
   private transitionTurn(
     turnId: string,
     to: "completed" | "failed",
@@ -641,7 +647,6 @@ export class ConversationRuntime {
     assertTransition(turnTransitions, from, to, `turn ${turnId} in ${context}`);
     this.turnStatuses.set(turnId, to);
   }
-
   private transitionLiveMessage(
     liveMessageId: string,
     to: "completed" | "failed",
@@ -658,19 +663,16 @@ export class ConversationRuntime {
     );
     this.liveMessageStatuses.set(liveMessageId, to);
   }
-
   private requireRun(runId: string): MutableRun {
     const run = this.runsByRunId.get(runId);
     if (!run) throw new Error(`Active conversation run not found: ${runId}`);
     return run;
   }
-
   private requireTurn(run: MutableRun, turnId: string): MutableTurn {
     const turn = run.turns.find((candidate) => candidate.turnId === turnId);
     if (!turn) throw new Error(`Active conversation turn not found: ${turnId}`);
     return turn;
   }
-
   private requireMessage(input: {
     runId: string;
     turnId: string;
@@ -686,7 +688,6 @@ export class ConversationRuntime {
     }
     return { run, turn, message };
   }
-
   private ensureTextBlock(
     message: MutableMessage,
     contentIndex: number,
@@ -708,7 +709,6 @@ export class ConversationRuntime {
     message.blocks.sort((a, b) => a.contentIndex - b.contentIndex);
     return block;
   }
-
   private ensureToolDraftBlock(
     message: MutableMessage,
     contentIndex: number,

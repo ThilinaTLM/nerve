@@ -107,7 +107,7 @@ export class RunEventFactory {
   resumed(
     run: RunRecord,
     now: string,
-    resumeKind: "interaction" | "manual",
+    resumeKind: "interaction" | "manual" | "retry",
   ): RunPublicEventIntent {
     return this.intent(run, "run.resumed", now, {
       conversationId: run.conversationId,

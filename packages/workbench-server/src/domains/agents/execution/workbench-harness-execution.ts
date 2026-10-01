@@ -48,7 +48,6 @@ import {
   shouldPublishToolDraftProgress,
   shouldStreamToolDraftArguments,
 } from "./tool-draft-streaming.js";
-
 export async function executeWorkbenchHarness(
   this: WorkbenchAgentMechanics,
   agent: AgentRecord,
@@ -79,6 +78,21 @@ export async function executeWorkbenchHarness(
     string,
     { toolName: string; args: Record<string, unknown> }
   >();
+  const liveToolDraftReconciler = new LiveToolDraftReconciler({
+    conversationRuntime: this.deps.state.conversationRuntime,
+    publish: (type, data) =>
+      this.deps.events.publishBestEffort(type, data, type),
+    runId,
+    getTurnId: () => currentTurnId,
+    getLiveMessageId: () => currentLiveMessageId,
+  });
+  let clearDraftProgress = () => {};
+  const abandonMessage = () => {
+    clearDraftProgress();
+    liveToolDraftReconciler.abandon();
+    currentLiveMessageId = undefined;
+    liveToolDrafts.clear();
+  };
   try {
     await this.deps.logger.info("Agent run preparing", {
       agentId: agent.id,
@@ -139,16 +153,6 @@ export async function executeWorkbenchHarness(
         { planDir: planDirForStorageHome(this.deps.storage.paths.home) },
       );
     };
-    const liveToolDraftReconciler = new LiveToolDraftReconciler({
-      conversationRuntime: this.deps.state.conversationRuntime,
-      publish: (type, data) => {
-        this.deps.events.publishBestEffort(type, data, type);
-        return Promise.resolve();
-      },
-      runId,
-      getTurnId: () => currentTurnId,
-      getLiveMessageId: () => currentLiveMessageId,
-    });
     const toolDraftProgressScheduler = new ToolDraftProgressScheduler(
       liveToolDraftProgress,
       (contentIndex, progress) => {
@@ -172,6 +176,7 @@ export async function executeWorkbenchHarness(
         );
       },
     );
+    clearDraftProgress = () => toolDraftProgressScheduler.clear();
     let currentProviderForResponse: string | undefined;
     const harnessFactory = new HostHarnessFactory({
       resolveModel: async () => model,
@@ -327,6 +332,7 @@ export async function executeWorkbenchHarness(
         event.type === "message_start" &&
         event.message.role === "assistant"
       ) {
+        abandonMessage();
         const turnId = currentTurnId ?? (await startLiveTurn());
         const started =
           this.deps.state.conversationRuntime.startAssistantMessage(
@@ -686,7 +692,6 @@ export async function executeWorkbenchHarness(
           delivery: input.delivery,
         }),
     };
-
     const promptRequest = await expandBlocks(request.text, request.images);
     let continueAttempt = options.continue === true;
     let handledForcePushGeneration = 0;
@@ -789,6 +794,7 @@ export async function executeWorkbenchHarness(
           },
         };
   } finally {
+    abandonMessage();
     this.finishAutoCompactionRun?.(runId);
   }
 }

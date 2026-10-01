@@ -93,6 +93,7 @@ export interface RunIntegrityPort {
 }
 
 interface LiveExecution {
+  readonly executionId: string;
   readonly execution: RunExecution;
   readonly abort: AbortController;
   readonly promise: Promise<void>;

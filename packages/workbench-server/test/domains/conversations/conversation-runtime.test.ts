@@ -16,6 +16,74 @@ function start(runtime: ConversationRuntime) {
 }
 
 describe("ConversationRuntime", () => {
+  for (const materialized of [false, true]) {
+    it(`abandons unfinished messages and anchors (materialized=${materialized})`, () => {
+      const runtime = new ConversationRuntime();
+      const { run, turn, message } = start(runtime);
+      const identity = {
+        runId: run.runId,
+        turnId: turn.turnId,
+        liveMessageId: message.liveMessageId,
+      };
+      runtime.applyContentDelta({
+        ...identity,
+        contentIndex: 0,
+        kind: "text",
+        delta: "partial",
+      });
+      runtime.startToolDraft({
+        ...identity,
+        contentIndex: 1,
+        providerToolCallId: "provider_partial",
+        toolName: "write",
+      });
+      if (materialized)
+        runtime.markMessageMaterialized(
+          run.runId,
+          turn.turnId,
+          message.liveMessageId,
+        );
+      const next = runtime.startAssistantMessage(run.runId, turn.turnId);
+      runtime.completeAssistantMessage(
+        run.runId,
+        turn.turnId,
+        next.liveMessageId,
+      );
+      const discarded = runtime.abandonAssistantMessage(
+        run.runId,
+        turn.turnId,
+        message.liveMessageId,
+      );
+      assert.equal(discarded?.liveMessageId, message.liveMessageId);
+      assert.equal(
+        runtime.resolveToolAnchor(run.runId, "provider_partial"),
+        undefined,
+      );
+      assert.deepEqual(
+        runtime
+          .snapshotForConversation("conv_test")
+          ?.turns[0]?.messages.map((m) => m.liveMessageId),
+        [next.liveMessageId],
+      );
+      assert.equal(
+        runtime.abandonAssistantMessage(
+          run.runId,
+          turn.turnId,
+          message.liveMessageId,
+        ),
+        undefined,
+      );
+      assert.equal(
+        runtime.abandonAssistantMessage(
+          run.runId,
+          turn.turnId,
+          next.liveMessageId,
+        ),
+        undefined,
+      );
+    });
+  }
+
   it("finds background runs by agent but not by conversation", () => {
     const runtime = new ConversationRuntime();
     start(runtime);
