@@ -31,14 +31,21 @@ The **User** scope supplies defaults for every project. The **Project** scope wr
 
 Project capability files are locally trusted by exact content digest. A new or externally changed file remains visible for review but inactive until trusted. Conversation overrides are local to the conversation and take precedence over trusted project values. Capability changes apply when the next agent run is prepared.
 
+Values resolve field by field in the order user → project → conversation. Tool settings (models, image output defaults, the Kroki server, and teammate settings) resolve per tool instead: the nearest level that sets a tool's settings supplies all of them. A level stores only values set on that level; setting a value back to what the level would inherit removes the override. Later changes to user or project settings never rewrite a conversation's own values: they stay until you reset them, and the tools menu marks them as set in the conversation even when they currently match the project.
+
 ## Capability file format
 
 A project capability file contains only values the project pins:
 
 ```json
 {
-  "schemaVersion": 1,
-  "tools": { "web_search": true, "python_exec": false },
+  "schemaVersion": 2,
+  "tools": {
+    "web_search": { "enabled": true, "profileId": "team-search" },
+    "python_exec": { "enabled": false },
+    "jira": { "enabled": true, "profileId": "team-atlassian" },
+    "confluence": { "profileId": "team-atlassian" }
+  },
   "skills": {
     "file": { "release": false },
     "nerve": { "skill-creator": true },
@@ -47,7 +54,7 @@ A project capability file contains only values the project pins:
 }
 ```
 
-Missing entries inherit. Unknown tool names are rejected; skill names unavailable on one machine remain dormant so a shared project remains portable. Tool and skill selection fields formerly placed in project `.nerve/config/harness.json` must be moved to `capabilities.json`; unrelated harness settings remain in `harness.json`.
+Missing entries and missing fields inherit. `profileId` is accepted only for `jira`, `confluence` (Atlassian profiles), and `web_search` (Tavily profiles). Profiles and their credentials stay in user settings; a profile ID that does not exist on a machine is reported as not found and the tool is not offered there. Version 1 files with boolean tool values are still read and are rewritten as version 2 on the next edit. Unknown tool names are rejected; skill names unavailable on one machine remain dormant so a shared project remains portable. Tool and skill selection fields formerly placed in project `.nerve/config/harness.json` must be moved to `capabilities.json`; unrelated harness settings remain in `harness.json`. Likewise, Jira, Confluence, and Web profile selections (`tools`) in project `.nerve/config/integrations.json` must move to `capabilities.json`; that file keeps only profile definitions.
 
 ## Trust
 

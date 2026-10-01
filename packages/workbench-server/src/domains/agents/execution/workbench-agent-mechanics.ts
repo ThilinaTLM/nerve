@@ -28,7 +28,7 @@ import { type ConversationRecord } from "@nervekit/contracts/conversations";
 import { type RunRecord } from "@nervekit/contracts/runs";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { type ToolCallRecord, type ToolName } from "@nervekit/contracts/tools";
-import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
+import type { CapabilitySelection } from "@nervekit/contracts/capabilities";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
@@ -44,7 +44,7 @@ import type { PlanService } from "../../plans/plan-service.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import type { CapabilityService } from "../../capabilities/capability.service.js";
 import { activeToolNamesForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
-import { integrationToolEnabled } from "../../tools/orchestration/integration-tool-availability.js";
+import { effectiveIntegrations } from "../../tools/execution/integration-profile-resolution.js";
 import type {
   ExploreProgressUpdate,
   ToolService,
@@ -130,10 +130,21 @@ export class WorkbenchAgentMechanics {
     return resolveProjectSettings(this.deps.storage, projectDir);
   }
 
+  /**
+   * Tools advertised to an agent under its resolved capability selection.
+   * Integrations use the same resolution as tool execution, so an advertised
+   * Jira/Confluence tool always has an enabled, existing profile behind it.
+   */
   async activeToolNamesFor(
     agent: AgentRecord,
-    disabledToolNames?: readonly CapabilityToolName[],
+    selection?: CapabilitySelection,
   ): Promise<ToolName[]> {
+    const resolved =
+      selection ??
+      (await this.deps.capabilities.resolve(
+        agent.projectId,
+        agent.conversationId,
+      ));
     const pythonAvailable = await this.deps.pythonRuntime.isAvailableForProject(
       agent.projectDir,
     );
@@ -143,7 +154,7 @@ export class WorkbenchAgentMechanics {
     );
     const customModels = await this.customModels(agent.projectDir);
     const primaryModel = resolveAgentModel(agent.model, customModels);
-    const imageExplanationSelection = settings.tools.imageExplanation.model;
+    const imageExplanationSelection = resolved.toolSettings.explain_image.model;
     const imageExplanationModel = imageExplanationSelection
       ? resolveAgentModel(imageExplanationSelection, customModels)
       : undefined;
@@ -162,23 +173,16 @@ export class WorkbenchAgentMechanics {
     );
     const imageGenerationAvailable =
       await this.deps.imageGeneration.isAvailable(
-        settings.tools.imageGeneration,
+        resolved.toolSettings.generate_image,
       );
+    const integrations = effectiveIntegrations(settings, resolved);
     return activeToolNamesForAgent(agent, {
       pythonAvailable,
-      disabledToolNames: disabledToolNames
-        ? disabledToolNamesForCapabilities(disabledToolNames)
-        : settings.tools.disabled,
-      jiraEnabled: integrationToolEnabled({
-        name: "jira",
-        settings: settings.tools.jira,
-        disabledToolNames,
-      }),
-      confluenceEnabled: integrationToolEnabled({
-        name: "confluence",
-        settings: settings.tools.confluence,
-        disabledToolNames,
-      }),
+      disabledToolNames: disabledToolNamesForCapabilities(
+        resolved.disabledTools,
+      ),
+      jiraEnabled: integrations.jira.enabled,
+      confluenceEnabled: integrations.confluence.enabled,
       imageExplanationAvailable,
       imageGenerationAvailable,
       primaryModelSupportsImages: (primaryModel.input ?? ["text"]).includes(
@@ -334,7 +338,10 @@ export class WorkbenchAgentMechanics {
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
       compactionSettingsForAgent(
-        await resolveProjectSettings(this.deps.storage, input.agent.projectDir),
+        await this.deps.capabilities.settings(
+          input.agent.projectId,
+          input.agent.conversationId,
+        ),
         input.agent,
       ),
     );

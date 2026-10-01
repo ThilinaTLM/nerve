@@ -18,12 +18,6 @@ import {
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
-import {
-  type ExplainImageRequest,
-  type ExplainImageResponse,
-  type ImageGenerateRequest,
-  type ImageGenerateResponse,
-} from "@nervekit/tools/execution";
 import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
@@ -70,7 +64,10 @@ import { TodoStateService } from "../orchestration/todo-state.service.js";
 import type { ToolCallRepository } from "../artifacts/tool-call.repository.js";
 import { InteractionSessionService } from "../orchestration/interaction-session.service.js";
 import type { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
-import { OrchestrationToolDispatcher } from "../orchestration/dispatcher.js";
+import {
+  OrchestrationToolDispatcher,
+  type OrchestrationToolDispatcherDeps,
+} from "../orchestration/dispatcher.js";
 import { toToolCallTranscriptRecord } from "../artifacts/tool-call-transcript-preview.js";
 import { ToolExecutorService } from "./tool-executor.service.js";
 import { prepareTerminalProjection } from "../artifacts/tool-result-preparation.js";
@@ -263,12 +260,10 @@ export interface ToolServiceDependencies {
   readonly runExplore: ExploreRunner;
   readonly subagents?: SubagentToolPort;
   readonly getApiKey: (provider: string) => Promise<string | undefined>;
-  readonly explainImage: (
-    request: ExplainImageRequest,
-  ) => Promise<ExplainImageResponse>;
-  readonly generateImage: (
-    request: ImageGenerateRequest,
-  ) => Promise<ImageGenerateResponse>;
+  readonly resolveToolScope: OrchestrationToolDispatcherDeps["resolveToolScope"];
+  readonly recordIntegrationOutcome?: OrchestrationToolDispatcherDeps["recordIntegrationOutcome"];
+  readonly explainImage: OrchestrationToolDispatcherDeps["explainImage"];
+  readonly generateImage: OrchestrationToolDispatcherDeps["generateImage"];
   readonly plans: PlanService;
   readonly setAgentMode: (
     agentId: string,
@@ -318,6 +313,8 @@ export class ToolService {
       runExplore: this.dependencies.runExplore,
       subagents: this.dependencies.subagents,
       getApiKey: this.dependencies.getApiKey,
+      resolveToolScope: this.dependencies.resolveToolScope,
+      recordIntegrationOutcome: this.dependencies.recordIntegrationOutcome,
       explainImage: this.dependencies.explainImage,
       generateImage: this.dependencies.generateImage,
       plans: this.dependencies.plans,

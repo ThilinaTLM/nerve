@@ -207,9 +207,9 @@ export class SubagentRunner {
           ? "Starting 1 explore agent."
           : `Starting ${tasks.length} parallel explore agents.`,
     });
-    const settings = await resolveProjectSettings(
-      this.deps.storage,
-      parent.projectDir,
+    const settings = await this.deps.capabilities.settings(
+      parent.projectId,
+      parent.conversationId,
     );
     let settledReports: PromiseSettledResult<ExploreReport>[];
     try {

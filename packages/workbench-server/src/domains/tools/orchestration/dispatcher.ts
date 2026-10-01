@@ -56,6 +56,12 @@ import {
   integrationCredentialProvider,
   integrationProviderConfig,
 } from "../execution/integration-profile-resolution.js";
+import type {
+  AtlassianProfile,
+  ImageExplanationToolSettings,
+  ImageGenerationToolSettings,
+} from "@nervekit/contracts/settings";
+import type { CapabilityToolScope } from "../../capabilities/capability.service.js";
 import { LiveToolOutputPublisher } from "../execution/live-tool-output-publisher.js";
 import {
   enterPlanMode as enterPlanModeImpl,
@@ -77,7 +83,7 @@ import {
   stringArg,
   stringRecordArg,
 } from "../execution/tool-arguments.js";
-import { CodedToolError } from "../execution/tool-errors.js";
+import { CodedToolError, toolErrorDetails } from "../execution/tool-errors.js";
 import type {
   ExploreProgressUpdate,
   ExploreRunner,
@@ -86,6 +92,18 @@ import type {
 } from "../execution/tool-service.js";
 
 const MAX_BASH_TIMEOUT_MS = 86_400_000;
+
+function isIntegrationProvider(provider: string): boolean {
+  return (
+    provider === "jira" || provider === "confluence" || provider === "tavily"
+  );
+}
+
+function atlassianService(toolName: string): "jira" | "confluence" | undefined {
+  if (toolName.startsWith("jira_")) return "jira";
+  if (toolName.startsWith("confluence_")) return "confluence";
+  return undefined;
+}
 
 export interface OrchestrationToolDispatcherDeps {
   storage: InitializedStorage;
@@ -97,8 +115,28 @@ export interface OrchestrationToolDispatcherDeps {
   runExplore: ExploreRunner;
   subagents?: SubagentToolPort;
   getApiKey(provider: string): Promise<string | undefined>;
-  explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
-  generateImage(request: ImageGenerateRequest): Promise<ImageGenerateResponse>;
+  /** Integration profiles and tool settings for the tool call's project and conversation. */
+  resolveToolScope(
+    projectId: string,
+    conversationId: string,
+  ): Promise<CapabilityToolScope>;
+  /** Evidence from a finished Jira/Confluence call about its profile's credentials. */
+  recordIntegrationOutcome?(input: {
+    profile: AtlassianProfile;
+    service: "jira" | "confluence";
+    /** The credential the call actually used. */
+    token: string;
+    errorCode?: string;
+    message?: string;
+  }): Promise<void>;
+  explainImage(
+    request: ExplainImageRequest,
+    settings: ImageExplanationToolSettings,
+  ): Promise<ExplainImageResponse>;
+  generateImage(
+    request: ImageGenerateRequest,
+    settings: ImageGenerationToolSettings,
+  ): Promise<ImageGenerateResponse>;
   plans: PlanService;
   setAgentMode(
     agentId: string,
@@ -171,6 +209,10 @@ function taskReadinessArgs(value: unknown): {
 export class OrchestrationToolDispatcher {
   private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
   readonly liveOutput: LiveToolOutputPublisher;
+  /** Scope resolution per in-flight tool call, shared by its credential, config, and settings lookups. */
+  readonly #scopes = new Map<string, Promise<CapabilityToolScope>>();
+  /** Atlassian token handed to each in-flight tool call, for health evidence. */
+  readonly #atlassianTokens = new Map<string, string>();
 
   constructor(readonly deps: OrchestrationToolDispatcherDeps) {
     this.liveOutput = new LiveToolOutputPublisher(
@@ -179,8 +221,17 @@ export class OrchestrationToolDispatcher {
     );
     this.hostTools = createHostToolFactory<WorkbenchToolExecution>({
       execution: {
-        context: (request) =>
-          this.executionContext(request.toolCall, request.options),
+        context: async (request) => {
+          const context = this.executionContext(
+            request.toolCall,
+            request.options,
+          );
+          if (request.toolCall.toolName === "kroki_export")
+            context.kroki = (
+              await this.scopeFor(request.toolCall)
+            ).toolSettings.kroki_export;
+          return context;
+        },
       },
       handlers: {
         forExecution: (request) =>
@@ -212,8 +263,9 @@ export class OrchestrationToolDispatcher {
     args: Record<string, unknown>,
     options: ToolRequestOptions = {},
   ): Promise<unknown> {
+    const service = atlassianService(toolCall.toolName);
     try {
-      return await this.hostTools.execute(
+      const result = await this.hostTools.execute(
         {
           toolName: toolCall.toolName as ToolName,
           toolCall,
@@ -222,8 +274,53 @@ export class OrchestrationToolDispatcher {
         },
         args,
       );
+      if (service) await this.recordIntegrationOutcome(toolCall, service);
+      return result;
+    } catch (error) {
+      if (service)
+        await this.recordIntegrationOutcome(toolCall, service, error);
+      throw error;
     } finally {
+      this.#scopes.delete(toolCall.id);
+      this.#atlassianTokens.delete(toolCall.id);
       await this.liveOutput.drain(toolCall.id);
+    }
+  }
+
+  private scopeFor(toolCall: ToolCallRecord): Promise<CapabilityToolScope> {
+    let scope = this.#scopes.get(toolCall.id);
+    if (!scope) {
+      scope = this.deps.resolveToolScope(
+        toolCall.projectId,
+        toolCall.conversationId,
+      );
+      this.#scopes.set(toolCall.id, scope);
+    }
+    return scope;
+  }
+
+  /** Health evidence never changes the tool result; failures are swallowed. */
+  private async recordIntegrationOutcome(
+    toolCall: ToolCallRecord,
+    service: "jira" | "confluence",
+    error?: unknown,
+  ): Promise<void> {
+    const scope = this.#scopes.get(toolCall.id);
+    const token = this.#atlassianTokens.get(toolCall.id);
+    if (!scope || !token || !this.deps.recordIntegrationOutcome) return;
+    try {
+      const profile = (await scope).integrations[service].profile;
+      if (!profile) return;
+      const details = error === undefined ? undefined : toolErrorDetails(error);
+      await this.deps.recordIntegrationOutcome({
+        profile,
+        service,
+        token,
+        errorCode: details?.code,
+        message: details?.message,
+      });
+    } catch {
+      // Connection health is advisory.
     }
   }
 
@@ -316,19 +413,35 @@ export class OrchestrationToolDispatcher {
       artifactDir: this.toolArtifactDir(toolCall),
       shellPath: this.deps.storage.settings.runtime.shellPath,
       getApiKey: async (provider) => {
-        const credentialProvider = integrationCredentialProvider(
-          this.deps.storage.settings,
-          provider,
-        );
-        return credentialProvider
-          ? this.deps.getApiKey(credentialProvider)
-          : undefined;
+        const credentialProvider = isIntegrationProvider(provider)
+          ? integrationCredentialProvider(
+              (await this.scopeFor(toolCall)).integrations,
+              provider,
+            )
+          : provider;
+        if (!credentialProvider) return undefined;
+        const key = await this.deps.getApiKey(credentialProvider);
+        if (key && (provider === "jira" || provider === "confluence"))
+          this.#atlassianTokens.set(toolCall.id, key);
+        return key;
       },
-      explainImage: this.deps.explainImage,
-      generateImage: this.deps.generateImage,
-      kroki: this.deps.storage.settings.tools.kroki,
+      explainImage: async (request) =>
+        this.deps.explainImage(
+          request,
+          (await this.scopeFor(toolCall)).toolSettings.explain_image,
+        ),
+      generateImage: async (request) =>
+        this.deps.generateImage(
+          request,
+          (await this.scopeFor(toolCall)).toolSettings.generate_image,
+        ),
       getProviderConfig: async (provider) =>
-        integrationProviderConfig(this.deps.storage.settings, provider),
+        isIntegrationProvider(provider)
+          ? integrationProviderConfig(
+              (await this.scopeFor(toolCall)).integrations,
+              provider,
+            )
+          : undefined,
       onUpdate: (update) =>
         this.publishToolExecutionUpdate(toolCall, update, options.runId),
     };

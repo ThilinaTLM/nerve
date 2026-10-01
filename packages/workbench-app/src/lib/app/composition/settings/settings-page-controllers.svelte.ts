@@ -1,3 +1,4 @@
+import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
@@ -106,11 +107,7 @@ export function createSettingsPageControllers(deps: {
       updateCapabilities({
         projectId: project.id,
         origin: "project",
-        replace: {
-          schemaVersion: 1,
-          tools: {},
-          skills: { file: {}, nerve: {}, agentBrowser: {} },
-        },
+        replace: emptyCapabilityOverrides(),
         expectedDigest: capabilityConfiguration?.projectDigest,
       }),
     );

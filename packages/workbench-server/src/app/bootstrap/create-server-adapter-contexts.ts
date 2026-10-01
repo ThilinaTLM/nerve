@@ -80,6 +80,7 @@ export function createServerAdapterContexts(
       fileCompletions: services.fileCompletions,
       workspaceMonitor: services.workspaceMonitor,
       pythonRuntime: services.pythonRuntime,
+      integrationHealth: services.integrationHealth,
     },
     interactions: {
       tools: services.tools,

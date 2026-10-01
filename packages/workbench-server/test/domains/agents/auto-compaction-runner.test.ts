@@ -53,6 +53,19 @@ it("uses the selected model context window for threshold compaction", async () =
     [active.id, active],
     [selected.id, selected],
   ]);
+  const settings = {
+    compaction: {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    },
+    asyncSubagent: {
+      compactionProfile: "aggressive",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    },
+  };
   const runner = new AutoCompactionRunner({
     state: {
       getConversation: () => ({
@@ -63,21 +76,8 @@ it("uses the selected model context window for threshold compaction", async () =
       getProject: () => ({ id: selected.projectId, dir: "/tmp/project" }),
       agents,
     },
-    storage: {
-      settings: {
-        compaction: {
-          auto: true,
-          profile: "balanced",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        },
-        asyncSubagent: {
-          compactionProfile: "aggressive",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        },
-      },
-    },
+    storage: { settings },
+    capabilities: { settings: async () => settings },
     harnessStorage: {
       openStorage: async () => ({
         getLeafId: async () => "entry_context_usage",
@@ -152,6 +152,19 @@ it("compacts projected prompt usage before the first provider iteration", async 
     },
   ];
   const compactions: Array<Record<string, unknown>> = [];
+  const settings = {
+    compaction: {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    },
+    asyncSubagent: {
+      compactionProfile: "inherit",
+      customTriggerPercent: 80,
+      customKeepRecentPercent: 15,
+    },
+  };
   const runner = new AutoCompactionRunner({
     state: {
       getConversation: () => ({
@@ -162,21 +175,8 @@ it("compacts projected prompt usage before the first provider iteration", async 
       getProject: () => ({ id: agent.projectId, dir: "/tmp/project" }),
       agents: new Map([[agent.id, agent]]),
     },
-    storage: {
-      settings: {
-        compaction: {
-          auto: true,
-          profile: "balanced",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        },
-        asyncSubagent: {
-          compactionProfile: "inherit",
-          customTriggerPercent: 80,
-          customKeepRecentPercent: 15,
-        },
-      },
-    },
+    storage: { settings },
+    capabilities: { settings: async () => settings },
     harnessStorage: {
       openStorage: async () => ({
         getLeafId: async () => "entry_preflight_usage",

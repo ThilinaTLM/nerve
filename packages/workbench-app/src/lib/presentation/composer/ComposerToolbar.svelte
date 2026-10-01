@@ -31,6 +31,7 @@ import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
+import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
 
 type Props = {
@@ -75,6 +76,7 @@ type Props = {
   capabilityError?: string;
   capabilityDisabled?: boolean;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
@@ -120,6 +122,7 @@ let {
   capabilityError,
   capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
+  onConfigureCapabilityTool,
   onResetCapabilities,
   onRefreshCapabilities,
   onOpenCapabilitySettings,
@@ -301,6 +304,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       error={capabilityError}
       disabled={capabilityDisabled}
       onPatch={onCapabilityPatch}
+      onConfigureTool={onConfigureCapabilityTool}
       onReset={onResetCapabilities}
       onRefresh={onRefreshCapabilities}
       onOpenSettings={onOpenCapabilitySettings}

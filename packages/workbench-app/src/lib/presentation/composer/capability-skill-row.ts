@@ -10,5 +10,7 @@ export type CapabilitySkillRow = {
   enabled: boolean;
   /** Set on this conversation rather than inherited. */
   overridden: boolean;
+  /** The effective value equals what the conversation would inherit. */
+  matchesInherited: boolean;
   inheritedFrom: "project" | "user";
 };

@@ -12,3 +12,4 @@ export * from "./python/runtime.js";
 export * from "./shell/bash.js";
 export * from "./shell/project-environment.js";
 export * from "./shell/shell-config.js";
+export * from "./atlassian/connection-check.js";

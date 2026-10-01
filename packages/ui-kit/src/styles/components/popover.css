@@ -37,6 +37,8 @@
       inset 0 1px 0 var(--overlay-highlight);
   }
 
+  /* Above dialogs (50) so panels open from a dialog; tooltips (80) stay above
+   * panels so their actions remain labelled. */
   .popover-content {
     z-index: 70;
     display: flex;
@@ -75,5 +77,14 @@
 
   .popover-content.popover-lg {
     width: min(24rem, calc(100vw - 1.5rem));
+  }
+
+  /* Field-like triggers (pickers) open a panel as wide as the field, so the
+   * panel reads as the field's dropdown rather than a detached card. */
+  .popover-content.popover-anchor {
+    width: min(
+      max(var(--bits-popover-anchor-width, 20rem), 20rem),
+      calc(100vw - 1.5rem)
+    );
   }
 }

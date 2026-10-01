@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
   type CapabilityConfiguration,
   type CapabilityOverridesDocument,
 } from "@nervekit/contracts/capabilities";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   ComposerCapabilityController,
   type ComposerCapabilityState,
@@ -16,16 +18,21 @@ function configuration(
     disabledTools?: CapabilityConfiguration["effective"]["disabledTools"];
   } = {},
 ): CapabilityConfiguration {
+  const selection = {
+    disabledTools: options.disabledTools ?? [],
+    toolProfiles: {},
+    toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
+    disabledFileSkills: [],
+    enabledNerveSkills: [],
+    enabledAgentBrowserSkills: [],
+  };
   return {
     project: emptyCapabilityOverrides(),
     conversation: emptyCapabilityOverrides(),
-    effective: {
-      disabledTools: options.disabledTools ?? [],
-      disabledFileSkills: [],
-      enabledNerveSkills: [],
-      enabledAgentBrowserSkills: [],
-    },
+    inherited: { ...selection, disabledTools: [] },
+    effective: selection,
     availableTools: ["web_search"],
+    toolProfileOptions: { jira: [], confluence: [], web_search: [] },
     trust: { status: "missing" },
     projectDigest: "project",
     conversationDigest: digest,
@@ -73,7 +80,9 @@ describe("ComposerCapabilityController", () => {
     await controller.refresh();
     assert.equal(reads, 1);
 
-    const mutation = controller.patch({ tools: { web_search: false } });
+    const mutation = controller.patch({
+      tools: { web_search: { enabled: false } },
+    });
     const refresh = controller.refresh();
     await turn();
     assert.equal(reads, 1);
@@ -107,8 +116,12 @@ describe("ComposerCapabilityController", () => {
       conversationId: "a",
     });
     await controller.refresh();
-    const disable = controller.patch({ tools: { web_search: false } });
-    const enable = controller.patch({ tools: { web_search: true } });
+    const disable = controller.patch({
+      tools: { web_search: { enabled: false } },
+    });
+    const enable = controller.patch({
+      tools: { web_search: { enabled: true } },
+    });
     await turn();
     assert.deepEqual(digests, ["d0"]);
 
@@ -170,7 +183,9 @@ describe("ComposerCapabilityController", () => {
       conversationId: "old",
     });
     await controller.refresh();
-    const mutation = controller.patch({ tools: { web_search: false } });
+    const mutation = controller.patch({
+      tools: { web_search: { enabled: false } },
+    });
     await turn();
     controller.setScope({
       kind: "conversation",
@@ -213,7 +228,7 @@ describe("ComposerCapabilityController", () => {
       conversationId: "a",
     });
     await controller.refresh();
-    await controller.patch({ tools: { web_search: false } });
+    await controller.patch({ tools: { web_search: { enabled: false } } });
 
     assert.equal(states.at(-1)?.error, "digest conflict");
     assert.deepEqual(states.at(-1)?.configuration?.effective.disabledTools, [
@@ -221,7 +236,7 @@ describe("ComposerCapabilityController", () => {
     ]);
     assert.equal(states.at(-1)?.mutating, false);
 
-    await controller.patch({ tools: { web_search: true } });
+    await controller.patch({ tools: { web_search: { enabled: true } } });
     assert.equal(writes, 2);
     assert.equal(states.at(-1)?.error, undefined);
   });
@@ -253,13 +268,18 @@ describe("ComposerCapabilityController", () => {
       },
     });
     await controller.refresh();
-    await controller.patch({ tools: { web_search: false } });
+    await controller.patch({ tools: { web_search: { enabled: false } } });
 
     assert.equal(reads, 1);
-    assert.equal(saved?.tools.web_search, false);
+    assert.deepEqual(saved?.tools.web_search, { enabled: false });
     assert.deepEqual(states.at(-1)?.configuration?.effective.disabledTools, [
       "web_search",
     ]);
+
+    // Setting the inherited value again removes the pending override.
+    await controller.patch({ tools: { web_search: { enabled: true } } });
+    assert.deepEqual(saved?.tools, {});
+    await controller.patch({ tools: { web_search: { enabled: false } } });
 
     await controller.reset();
     assert.equal(reads, 1);

@@ -140,11 +140,15 @@ export class ComposerCapabilityController {
     const context = this.#context;
     if (!context) return Promise.resolve();
     if (context.scope.kind === "pending") {
+      // A pending conversation inherits the full resolved project selection.
+      const inherited = context.baseConfiguration?.effective;
+      if (!inherited) return Promise.resolve();
       this.#setPendingOverrides(
         context,
         applyCapabilityPatch(
           context.scope.overrides ?? emptyCapabilityOverrides(),
           patch,
+          inherited,
         ),
       );
       return Promise.resolve();
@@ -249,6 +253,7 @@ export class ComposerCapabilityController {
     return composerSkillRows({
       skills: context.availableSkills,
       selection: configuration.effective,
+      inherited: configuration.inherited,
       project:
         configuration.trust.status === "trusted"
           ? configuration.project
@@ -284,9 +289,10 @@ function configurationWithPendingOverrides(
   base: CapabilityConfiguration,
   overrides: CapabilityOverridesDocument | undefined,
 ): CapabilityConfiguration {
-  if (!overrides) return base;
+  const pending = { ...base, inherited: base.effective };
+  if (!overrides) return pending;
   return {
-    ...base,
+    ...pending,
     conversation: overrides,
     effective: resolveCapabilitySelection({
       user: base.effective,

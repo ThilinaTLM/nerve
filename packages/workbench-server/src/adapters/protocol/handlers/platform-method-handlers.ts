@@ -58,6 +58,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         state.providerCatalog.providerDisplayNames(),
       ),
     }),
+    "auth.integrationHealth.list": async (state) => ({
+      profiles: await state.integrationHealth.list(),
+    }),
+    "auth.integrationHealth.check": async (state, params) => ({
+      health: await state.integrationHealth.check(params.profileId),
+    }),
     "providerCatalog.get": async (state) => {
       await state.providerCatalog.ensureLoaded();
       return state.providerCatalog.catalog;

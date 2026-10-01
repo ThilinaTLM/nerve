@@ -3,6 +3,8 @@ import { openSettingsPane } from "$lib/application/settings";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { SelectRow } from "@nervekit/ui-kit/components/composites/select-row";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 type Profile = { id: string; name: string; detail?: string };
 type Props = {
@@ -13,6 +15,14 @@ type Props = {
   selectedProfileId?: string;
   providerSection: "tavily-profiles" | "atlassian-profiles";
   selectionTourId?: string;
+  /** Label for clearing the selection; projects use it to inherit. */
+  noneLabel?: string;
+  /** Explains why the current selection cannot be used. */
+  warning?: string;
+  /** Optional per-profile connection status shown beside each option. */
+  profileStatus?: (
+    profileId: string,
+  ) => { label: string; tone: StatusTone } | undefined;
   onSave: (profileId: string | undefined) => void;
 };
 
@@ -24,6 +34,9 @@ let {
   selectedProfileId,
   providerSection,
   selectionTourId,
+  noneLabel = "No profile",
+  warning,
+  profileStatus,
   onSave,
 }: Props = $props();
 
@@ -48,18 +61,28 @@ function manageProfiles(): void {
 
 <Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-2" data-tour-id={selectionTourId}>
+    {#if warning}
+      <p class="text-xs text-warning" role="alert">{warning}</p>
+    {/if}
     <SelectRow
-      label="No profile"
+      label={noneLabel}
       selected={draftProfileId === ""}
       onclick={() => (draftProfileId = "")}
     />
     {#each profiles as profile (profile.id)}
+      {@const status = profileStatus?.(profile.id)}
       <SelectRow
         label={profile.name}
         detail={profile.detail}
         selected={draftProfileId === profile.id}
         onclick={() => (draftProfileId = profile.id)}
-      />
+      >
+        {#snippet trailing()}
+          {#if status}
+            <Badge variant={status.tone}>{status.label}</Badge>
+          {/if}
+        {/snippet}
+      </SelectRow>
     {/each}
     {#if profiles.length === 0}
       <p class="text-xs text-muted-foreground">

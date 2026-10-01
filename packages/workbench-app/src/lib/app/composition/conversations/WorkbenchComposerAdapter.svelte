@@ -4,7 +4,8 @@ import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { uploadClipboardImage } from "$lib/api";
+import { listIntegrationHealth, uploadClipboardImage } from "$lib/api";
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -39,6 +40,8 @@ import {
   ComposerCapabilityController,
   type ComposerCapabilityState,
 } from "./composer-capability-controller";
+import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
+import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 
 let {
   text = "",
@@ -117,12 +120,25 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
+let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
+/** Tool group whose conversation-level settings dialog is open. */
+let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
+
+function refreshProfileHealth(): void {
+  void listIntegrationHealth()
+    .then((profiles) => {
+      capabilityProfileHealth = profiles;
+    })
+    .catch(() => undefined);
+}
 
 $effect(() => {
   const progressive = workbenchStartupState.progressiveActive;
   const project = activeProject;
   const conversation = activeConversation;
   const pending = activePendingConversation;
+  // A settings dialog belongs to the conversation it was opened for.
+  configuringToolGroup = undefined;
   if (!progressive || !project) {
     capabilityController.setScope(undefined);
   } else if (conversation) {
@@ -170,6 +186,7 @@ $effect(() => {
     onEvent("settings.updated", () => {
       void capabilityController.refresh();
     }),
+    onEvent("auth.integration_health_changed", refreshProfileHealth),
   ];
   return () => {
     for (const unsubscribe of unsubscribes) unsubscribe();
@@ -516,6 +533,10 @@ function handleMicContextMenu(event: MouseEvent) {
     onOpenPermissionSettings,
     onOpenCapabilitySettings,
     onCapabilityPatch: (patch) => void patchCapabilities(patch),
+    onConfigureCapabilityTool: (group) => {
+      configuringToolGroup = group;
+      refreshProfileHealth();
+    },
     onResetCapabilities: () => void resetCapabilities(),
     onRefreshCapabilities: () => void capabilityController.refresh(),
     onPasteImage: pasteImage,
@@ -575,3 +596,11 @@ function handleMicContextMenu(event: MouseEvent) {
 </AgentComposer>
 
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
+
+<ConversationToolSettingsDialog
+  configuration={capabilityConfiguration}
+  group={configuringToolGroup}
+  profileHealth={capabilityProfileHealth}
+  onPatch={(patch) => void patchCapabilities(patch)}
+  onClose={() => (configuringToolGroup = undefined)}
+/>

@@ -136,6 +136,8 @@ function isAcceptedReleasedBuildId(
   id: string,
   releases: readonly string[],
 ): boolean {
+  // Exact prior reader IDs are listed when their read schemas are equivalent.
+  if (releases.includes(id)) return true;
   const separator = id.indexOf(":");
   if (separator < 1) return false;
   const release = id.slice(0, separator);

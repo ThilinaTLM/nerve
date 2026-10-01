@@ -280,6 +280,8 @@ export type ComposerSkillRow = {
   kind: "file" | "nerve" | "agentBrowser";
   enabled: boolean;
   overridden: boolean;
+  /** The effective value equals what the conversation would inherit. */
+  matchesInherited: boolean;
   /** Where the effective value comes from when not set on the conversation. */
   inheritedFrom: "project" | "user";
 };
@@ -291,9 +293,21 @@ export type ComposerSkillRow = {
 export function composerSkillRows(input: {
   skills: AvailableSkill[];
   selection: CapabilitySelection;
+  /** Selection the conversation inherits from user and project settings. */
+  inherited: CapabilitySelection;
   project?: CapabilityOverridesDocument;
   conversation?: CapabilityOverridesDocument;
 }): ComposerSkillRow[] {
+  const enabledIn = (
+    selection: CapabilitySelection,
+    kind: ComposerSkillRow["kind"],
+    name: string,
+  ): boolean =>
+    kind === "agentBrowser"
+      ? selection.enabledAgentBrowserSkills.includes(name)
+      : kind === "nerve"
+        ? selection.enabledNerveSkills.includes(name)
+        : !selection.disabledFileSkills.includes(name);
   const winners = new Map<string, AvailableSkill>();
   for (const skill of input.skills) {
     const key = `${skillOverrideKind(skill.source)}:${skill.name}`;
@@ -316,18 +330,16 @@ export function composerSkillRows(input: {
     .map((skill) => {
       const kind = skillOverrideKind(skill.source);
       const own = overrideValue(input.conversation, skill);
+      const enabled = enabledIn(input.selection, kind, skill.name);
       return {
         key: `${kind}:${skill.name}`,
         name: skill.name,
         source: skill.source,
         kind,
-        enabled:
-          kind === "agentBrowser"
-            ? input.selection.enabledAgentBrowserSkills.includes(skill.name)
-            : kind === "nerve"
-              ? input.selection.enabledNerveSkills.includes(skill.name)
-              : !input.selection.disabledFileSkills.includes(skill.name),
+        enabled,
         overridden: own !== undefined,
+        matchesInherited:
+          enabled === enabledIn(input.inherited, kind, skill.name),
         inheritedFrom:
           overrideValue(input.project, skill) !== undefined
             ? "project"

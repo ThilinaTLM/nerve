@@ -23,7 +23,6 @@ type Props = {
   inheritOption?: { label: string; description: string };
   requiredCapabilities?: ModelCapability[];
   emptyMessage?: string;
-  hint?: string;
   tourId?: string;
   onSave: (selection: Selection) => void;
 };
@@ -39,7 +38,6 @@ let {
   inheritOption,
   requiredCapabilities,
   emptyMessage,
-  hint,
   tourId,
   onSave,
 }: Props = $props();
@@ -72,7 +70,7 @@ function save(): void {
 }
 </script>
 
-<Dialog bind:open {title} {description} size="md">
+<Dialog bind:open {title} {description} size="sm">
   <ModelSelectionField
     {label}
     {models}
@@ -82,7 +80,6 @@ function save(): void {
     {inheritOption}
     {requiredCapabilities}
     {emptyMessage}
-    {hint}
     {tourId}
   />
 

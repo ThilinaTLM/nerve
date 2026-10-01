@@ -1,6 +1,11 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
 import type {
+  AsyncSubagentSettings,
+  ImageGenerationToolSettings,
+  KrokiToolSettings,
+} from "@nervekit/contracts/settings";
+import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
@@ -24,7 +29,10 @@ import {
 import ToolModelDialog from "./ToolModelDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
-import { asyncSubagentProfileLabel } from "./async-subagent-options";
+import {
+  asyncSubagentProfileLabel,
+  asyncSubagentSettingsPatch,
+} from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import KrokiToolDialog from "./KrokiToolDialog.svelte";
@@ -194,6 +202,25 @@ function saveVisionModel(selection: {
     { immediate: true },
   );
   if (!model) setToolsEnabled(["explain_image"], false);
+}
+
+function saveAsyncSubagent(asyncSubagent: AsyncSubagentSettings): void {
+  settingsDraft.asyncSubagent = asyncSubagent;
+  onSettingsChange?.(asyncSubagentSettingsPatch(asyncSubagent), {
+    immediate: true,
+  });
+}
+
+function saveImageGeneration(
+  imageGeneration: ImageGenerationToolSettings,
+): void {
+  settingsDraft.tools.imageGeneration = imageGeneration;
+  onSettingsChange?.({ tools: { imageGeneration } }, { immediate: true });
+}
+
+function saveKroki(kroki: KrokiToolSettings): void {
+  settingsDraft.tools.kroki = kroki;
+  onSettingsChange?.({ tools: { kroki } }, { immediate: true });
 }
 
 function setTavilyProfile(profileId?: string): void {
@@ -449,24 +476,24 @@ function setTavilyProfile(profileId?: string): void {
 
 <AsyncSubagentToolDialog
   bind:open={asyncSubagentDialogOpen}
-  {settingsDraft}
+  value={settingsDraft.asyncSubagent}
   {models}
   {authProviders}
-  {onSettingsChange}
+  onSave={saveAsyncSubagent}
 />
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
 <ImageGenerationToolDialog
   bind:open={imageGenerationDialogOpen}
-  {settingsDraft}
-  {onSettingsChange}
+  value={settingsDraft.tools.imageGeneration}
+  onSave={saveImageGeneration}
 />
 
 <KrokiToolDialog
   bind:open={krokiDialogOpen}
-  {settingsDraft}
-  {onSettingsChange}
+  value={settingsDraft.tools.kroki}
+  onSave={saveKroki}
 />
 
 <ToolProfileDialog
@@ -482,7 +509,7 @@ function setTavilyProfile(profileId?: string): void {
 <ToolModelDialog
   bind:open={visionModelDialogOpen}
   title="Configure Image explanation"
-  description="Choose the vision model that describes images for text-only agents."
+  description="Vision model that describes images for text-only agents."
   label="Image explanation model"
   models={usableModels}
   selectedModel={configuredVisionSelection}
@@ -495,13 +522,13 @@ function setTavilyProfile(profileId?: string): void {
 <ToolModelDialog
   bind:open={exploreDialogOpen}
   title="Configure Explore"
-  description="Explore agents run read-only research in coding mode with a fresh history."
+  description="Model for read-only research agents."
   label="Explore model"
   models={usableModels}
   selectedModel={settingsDraft.exploreAgent.model}
   selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
   inheritOption={{
-    label: "Use the parent agent's model",
+    label: "Parent agent's model",
     description:
       "Explore agents run on the model of the agent that started them.",
   }}

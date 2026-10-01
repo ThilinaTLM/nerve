@@ -145,10 +145,20 @@ const bashToolSettingsSchema = z.object({
   autoPromotion: bashAutoPromotionSettingsSchema,
 });
 
-const imageExplanationToolSettingsSchema = z.object({
+export const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema,
 });
+export type ImageExplanationToolSettings = z.infer<
+  typeof imageExplanationToolSettingsSchema
+>;
+
+/** Explore runs on the parent's model unless a model is chosen. */
+export const exploreAgentSettingsSchema = z.object({
+  model: modelSelectionSchema.optional(),
+  thinkingLevel: thinkingLevelSchema,
+});
+export type ExploreAgentSettings = z.infer<typeof exploreAgentSettingsSchema>;
 
 export const imageGenerationProviderSchema = z.enum(["openai-codex"]);
 export type ImageGenerationProvider = z.infer<
@@ -383,10 +393,7 @@ export const settingsSchema = z.object({
   defaultThinkingLevel: thinkingLevelSchema,
   rememberLastAgentSelection: z.boolean(),
   lastAgentSelection: agentSelectionSettingsSchema,
-  exploreAgent: z.object({
-    model: modelSelectionSchema.optional(),
-    thinkingLevel: thinkingLevelSchema,
-  }),
+  exploreAgent: exploreAgentSettingsSchema,
   asyncSubagent: asyncSubagentSettingsSchema,
   application: applicationSettingsSchema,
   ui: z.object({

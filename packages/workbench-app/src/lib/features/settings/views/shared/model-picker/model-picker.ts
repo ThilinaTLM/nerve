@@ -11,7 +11,11 @@ export type ResolvedPickerValue =
   | { kind: "available"; entry: ModelCatalogEntry }
   | { kind: "unavailable"; selection: ModelSelection };
 
+/** Key of the row that defers to the parent agent's model. */
+export const INHERIT_PICKER_KEY = "inherit";
+
 export type PickerListItem =
+  | { kind: "inherit"; key: typeof INHERIT_PICKER_KEY }
   | { kind: "unavailable"; key: string; selection: ModelSelection }
   | { kind: "model"; key: string; entry: ModelCatalogEntry };
 
@@ -34,15 +38,19 @@ export function resolvePickerValue(
     : { kind: "unavailable", selection: value };
 }
 
-/** Rows of the single-model popover: a pinned unavailable selection, then
- * the filtered catalog. */
+/** Rows of the single-model popover: the optional "use the parent's model"
+ * row while not searching, a pinned unavailable selection, then the filtered
+ * catalog. */
 export function pickerListItems(
   options: CatalogFilter & {
     entries: ModelCatalogEntry[];
     resolved: ResolvedPickerValue;
+    offerInherit?: boolean;
   },
 ): PickerListItem[] {
   const items: PickerListItem[] = [];
+  if (options.offerInherit && !options.query.trim())
+    items.push({ kind: "inherit", key: INHERIT_PICKER_KEY });
   if (options.resolved.kind === "unavailable") {
     items.push({
       kind: "unavailable",

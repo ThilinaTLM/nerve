@@ -10,7 +10,6 @@ import { type Conversation } from "@nervekit/harness/conversation";
 import { getModelContextWindow } from "@nervekit/harness/models";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ContextUsage } from "@nervekit/contracts/models";
-import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import type { WorkbenchAgentMechanicsDeps } from "./workbench-agent-mechanics.js";
 import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 
@@ -115,7 +114,10 @@ export class AutoCompactionRunner {
     const conversation = this.deps.state.getConversation(input.conversationId);
     const agent = this.resolveAgent(conversation.activeAgentId, input.agentId);
     const effectiveSettings = agent
-      ? await resolveProjectSettings(this.deps.storage, agent.projectDir)
+      ? await this.deps.capabilities.settings(
+          agent.projectId,
+          agent.conversationId,
+        )
       : this.deps.storage.settings;
     const settings = compactionSettingsForAgent(effectiveSettings, agent);
     if (!settings.auto) return false;

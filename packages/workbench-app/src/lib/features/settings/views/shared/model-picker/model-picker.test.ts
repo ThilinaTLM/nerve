@@ -61,6 +61,30 @@ describe("settings model picker", () => {
     );
   });
 
+  it("offers the parent's model first until the user searches", () => {
+    const offered = pickerListItems({
+      ...noFilter,
+      entries,
+      resolved: resolvePickerValue(entries, undefined),
+      offerInherit: true,
+    });
+    assert.deepEqual(
+      offered.map((item) => item.key),
+      ["inherit", "anthropic:sonnet", "openai:gpt"],
+    );
+    const searching = pickerListItems({
+      ...noFilter,
+      query: "gpt",
+      entries,
+      resolved: resolvePickerValue(entries, undefined),
+      offerInherit: true,
+    });
+    assert.deepEqual(
+      searching.map((item) => item.key),
+      ["openai:gpt"],
+    );
+  });
+
   it("lists stale scoped models first in the scoped view and only available models in the all view", () => {
     const scoped = [{ provider: "openai", modelId: "gpt" }, stale];
     const scopedRows = scopedCatalogRows({

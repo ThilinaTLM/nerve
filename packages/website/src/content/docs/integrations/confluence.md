@@ -5,7 +5,7 @@ sidebar:
   order: 4
 ---
 
-Confluence tools become available after its Settings module and credentials are enabled. Reads include space/page lookup, search, and a single-page download. Mutations include page create/update, comments, supported page lifecycle actions, labels, restrictions, and attachments.
+Confluence tools are offered once Confluence is enabled with an existing Atlassian profile, at the user, project, or conversation level — the same layered selection and connection status described for [Jira](/integrations/jira/). Reads include space/page lookup, search, and a single-page download. Mutations include page create/update, comments, supported page lifecycle actions, labels, restrictions, and attachments.
 
 The tool surface is single-target: there is no subtree/space download or multi-page publishing tool. `confluence_download_page` downloads exactly one page into editable JSON/storage XML artifacts, and `confluence_update_page` is the only file-backed publishing path. Related resource mutations use an explicit `action`; labels and restriction subjects are changed one at a time.
 

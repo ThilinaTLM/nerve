@@ -2,45 +2,41 @@
 import {
   defaultKrokiToolSettings,
   krokiToolSettingsSchema,
+  type KrokiToolSettings,
 } from "@nervekit/contracts/settings";
-import type { Settings } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import type { SettingsChange } from "../settings-change";
 
 let {
   open = $bindable(false),
-  settingsDraft,
-  onSettingsChange,
+  value,
+  title = "Configure diagram export",
+  description = "Choose the Kroki server used to export SVG and PNG diagrams.",
+  onSave,
 }: {
   open?: boolean;
-  settingsDraft: Settings;
-  onSettingsChange?: SettingsChange;
+  value: KrokiToolSettings;
+  title?: string;
+  description?: string;
+  onSave: (value: KrokiToolSettings) => void;
 } = $props();
 let urlDraft = $state("");
 let lastOpen = false;
 $effect(() => {
-  if (open && !lastOpen) urlDraft = settingsDraft.tools.kroki.url;
+  if (open && !lastOpen) urlDraft = value.url;
   lastOpen = open;
 });
 const parsed = $derived(krokiToolSettingsSchema.safeParse({ url: urlDraft }));
 function save(): void {
   if (!parsed.success) return;
-  const kroki = parsed.data;
-  settingsDraft.tools.kroki = kroki;
-  onSettingsChange?.({ tools: { kroki } }, { immediate: true });
+  onSave(parsed.data);
   open = false;
 }
 </script>
 
-<Dialog
-  bind:open
-  size="sm"
-  title="Configure diagram export"
-  description="Choose the Kroki server used to export SVG and PNG diagrams."
->
+<Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label for="tools-kroki-url">Kroki URL</Label>
