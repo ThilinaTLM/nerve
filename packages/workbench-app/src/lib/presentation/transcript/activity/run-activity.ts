@@ -39,6 +39,7 @@ export type RunActivityView = {
   /** Remaining retry delay as a 0..1 fraction. */
   countdownFraction?: number;
   elapsedLabel?: string;
+  /** Spinner playback rate; 0 pauses it (nothing is being worked on). */
   spinnerRate: number;
 };
 
@@ -214,7 +215,13 @@ export function deriveRunActivity(input: RunActivityInput): RunActivityView {
 
   const phase = tailPhase(input.tail);
   if (run?.status === "waiting" || phase === "awaiting_user") {
-    return quiet("Waiting for you");
+    // Human time is open-ended: no ticking clock and no busy spinner while
+    // the run is parked on an approval, question, or plan review.
+    return {
+      ...quiet("Waiting for you"),
+      elapsedLabel: undefined,
+      spinnerRate: 0,
+    };
   }
   if (phase === "tool") return quiet();
 
