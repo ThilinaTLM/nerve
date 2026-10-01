@@ -30,6 +30,22 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 **Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 
+### Diagram export
+
+**Settings → Tools → Third party → Diagram export** configures `kroki_export`, which renders diagrams through a Kroki server. It is disabled by default, including after upgrading an existing home. Configure the Kroki URL (default `https://kroki.io/`), then enable the tool separately. The summary row marks the public `kroki.io` service with a warning while the tool is enabled, because diagram source leaves your machine. Local/self-hosted HTTP(S) servers and reverse-proxy path prefixes are supported; URL credentials, query parameters, and fragments are not. The agent reads diagram source from a file (`source_path`, preferred) or inline, and writes to a chosen `output_path` or to a managed tool-call artifact; both paths are subject to the active permission rules.
+
+```json
+{
+  "diagram_type": "mermaid",
+  "source": "graph TD; A-->B",
+  "output_format": "svg"
+}
+```
+
+SVG is the default; PNG is also supported. Available engines and formats depend on your Kroki deployment. Exports are retained under the tool call’s managed artifact directory and linked from its normal transcript card. Click the path to preview the image in a file tab; saving into the project is a separate filesystem action. PDF, renderer options, custom authentication, and dedicated browser downloads are not currently supported. Diagram source is limited to 128 KiB, output to 5 MiB, and requests to 60 seconds.
+
+**Privacy:** diagram source is sent to the configured server when the tool runs. Use a trusted self-hosted instance for private diagrams, with updated Kroki and secure renderer safe modes. Nerve does not contact Kroki while configuring the URL or while the tool is disabled, and it does not follow redirects when exporting. Project capability overrides can refine enablement; the execution endpoint remains the user-configured URL.
+
 ## Storage
 
 **Storage** shows an ownership and retention breakdown of readable files under `NERVE_HOME` and provides cancellable cleanup. It distinguishes the authoritative database at `data/nerve.sqlite`, the rebuildable query cache at `cache/query-cache.sqlite`, and other disposable cache data. Depending on the selected targets, cleanup can remove old conversations and logs, Explore reports, crash and Node reports, non-query cache and temporary data, or rebuild the query cache from canonical records. Cleanup is asynchronous and reports progress; it never treats the canonical database, migrations, or backups as cleanup targets.

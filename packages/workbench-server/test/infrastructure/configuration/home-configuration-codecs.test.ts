@@ -8,6 +8,7 @@ import { defaultHarnessConfig } from "@nervekit/contracts/settings";
 import {
   HOME_CONFIGURATION_CODECS,
   upgradeHarnessV1ToV2,
+  upgradeHarnessV2ToV3,
   upgradePermissionsV1ToV2,
 } from "../../../src/infrastructure/configuration/home-configuration-codecs.js";
 import {
@@ -31,6 +32,54 @@ describe("home configuration upgraders", () => {
     assert.equal(tools.futureToolOption, true);
     assert.deepEqual(tools.disabled, ["explore", ...asyncSubagentToolNames]);
     assert.equal((fixture as { version: number }).version, 1);
+  });
+
+  it("adds disabled Kroki to v2 documents and preserves explicit enablement in v3", () => {
+    const legacy = {
+      ...structuredClone(defaultHarnessConfig),
+      version: 2,
+      tools: { ...defaultHarnessConfig.tools, disabled: ["explore"] },
+      futureHarnessOption: { retained: true },
+    };
+    const upgraded = upgradeHarnessV2ToV3(legacy) as typeof legacy;
+    assert.equal(legacy.version, 2);
+    assert.equal(upgraded.version, 3);
+    assert.deepEqual(upgraded.tools.disabled, ["explore", "kroki_export"]);
+    assert.deepEqual(upgraded.futureHarnessOption, { retained: true });
+    assert.deepEqual(upgradeHarnessV2ToV3(upgraded), upgraded);
+    const enabled = HOME_CONFIGURATION_CODECS.harness.decode({
+      ...upgraded,
+      tools: {
+        ...upgraded.tools,
+        kroki: { url: "http://127.0.0.1:9080/kroki" },
+        disabled: [],
+      },
+    });
+    assert.deepEqual(enabled.tools.disabled, []);
+    assert.equal(enabled.tools.kroki.url, "http://127.0.0.1:9080/kroki/");
+    assert.deepEqual(
+      HOME_CONFIGURATION_CODECS.harness.decode(enabled),
+      enabled,
+    );
+  });
+
+  it("chains v1 upgrades while preserving teammate and Kroki disabled defaults", () => {
+    const legacy = structuredClone(defaultHarnessConfig) as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 1;
+    legacy.tools = { disabled: [], futureToolOption: true };
+    const decoded = HOME_CONFIGURATION_CODECS.harness.decode(legacy);
+    assert.deepEqual(
+      new Set(decoded.tools.disabled),
+      new Set([...asyncSubagentToolNames, "kroki_export"]),
+    );
+    assert.deepEqual(decoded.tools.kroki, defaultHarnessConfig.tools.kroki);
+    assert.equal(
+      (decoded.tools as unknown as Record<string, unknown>).futureToolOption,
+      true,
+    );
   });
 
   it("upgrades the permissions v1 fixture into the baseline overlay", async () => {
@@ -94,7 +143,7 @@ describe("home configuration document codecs", () => {
       string,
       unknown
     >;
-    assert.equal(configuration.harness.version, 2);
+    assert.equal(configuration.harness.version, 3);
     assert.deepEqual(decodedHarness.futureHarnessOption, { enabled: true });
     assert.deepEqual(decodedDaemon.futureDaemonOption, { retained: true });
     assert.equal(
@@ -143,7 +192,7 @@ describe("home configuration document codecs", () => {
           ...defaultHarnessConfig,
           version: 99,
         }),
-      /newer than supported version 2/,
+      /newer than supported version 3/,
     );
   });
 });

@@ -20,6 +20,8 @@ import {
 } from "./tool-result-view";
 import { presentToolArguments } from "../lifecycle/registry";
 import { subagentPresentation } from "./subagent-presentation";
+import { krokiPresentation } from "./kroki-presentation";
+import { generateImagePresentation } from "./generate-image-presentation";
 
 export type {
   DetailsActionInfo,
@@ -405,20 +407,11 @@ export function toolPresentation(
       };
     }
 
+    case "kroki_export":
+      return krokiPresentation(view, base);
+
     case "generate_image":
-      return {
-        ...base,
-        primaryArg: view.prompt ? { text: view.prompt } : base.primaryArg,
-        meta:
-          view.paths.length > 0
-            ? [
-                {
-                  text: `${view.paths.length} image${view.paths.length === 1 ? "" : "s"}`,
-                  tone: "success",
-                },
-              ]
-            : [],
-      };
+      return generateImagePresentation(view, base);
 
     case "explain_image": {
       const content = view.live ? view.liveExplanation : view.explanation;

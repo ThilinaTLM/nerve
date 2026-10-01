@@ -326,6 +326,7 @@ export class OrchestrationToolDispatcher {
       },
       explainImage: this.deps.explainImage,
       generateImage: this.deps.generateImage,
+      kroki: this.deps.storage.settings.tools.kroki,
       getProviderConfig: async (provider) =>
         integrationProviderConfig(this.deps.storage.settings, provider),
       onUpdate: (update) =>

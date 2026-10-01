@@ -11,21 +11,15 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
-  it("upgrades old tool settings without silently enabling autonomous teammates", () => {
-    const upgraded = harnessConfigSchema.parse({
-      ...defaultHarnessConfig,
-      version: 1,
-      tools: { ...defaultHarnessConfig.tools, disabled: [] },
-    });
-    assert.equal(upgraded.version, 2);
-    assert.ok(
-      asyncSubagentToolNames.every((name) =>
-        upgraded.tools.disabled.includes(name),
-      ),
+  it("validates only the current harness version and preserves explicit enablement", () => {
+    assert.equal(
+      harnessConfigSchema.safeParse({ ...defaultHarnessConfig, version: 2 })
+        .success,
+      false,
     );
     const enabled = harnessConfigSchema.parse({
-      ...upgraded,
-      tools: { ...upgraded.tools, disabled: [] },
+      ...defaultHarnessConfig,
+      tools: { ...defaultHarnessConfig.tools, disabled: [] },
     });
     assert.deepEqual(enabled.tools.disabled, []);
     assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);

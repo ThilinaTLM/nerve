@@ -216,6 +216,8 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
       return Boolean(view.content?.length);
     case "generate_image":
       return view.paths.length > 0;
+    case "kroki_export":
+      return Boolean(view.path);
     case "explain_image":
       return Boolean(
         view.explanation?.length ||

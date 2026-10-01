@@ -32,7 +32,7 @@ test("public migration adapters fingerprint and revalidate a current home", asyn
   assert.equal(result.planFingerprint, plan.fingerprint);
 });
 
-test("released 0.32 homes adopt reader compatibility without sweeping", async (t) => {
+test("released 0.32 homes are revalidated after reader contract changes", async (t) => {
   const root = await mkdtemp(
     join(tmpdir(), "nerve-migration-release-adoption-"),
   );
@@ -55,17 +55,17 @@ test("released 0.32 homes adopt reader compatibility without sweeping", async (t
 
     const messages: string[] = [];
     const plan = await inspectStorageMigrationPlan(home);
-    assert.equal(plan.outcome, "current");
+    assert.equal(plan.outcome, "sweep");
     const result = await applyStorageMigrationPlan(
       home,
       plan,
       { fingerprint: plan.fingerprint, approvedQuarantineIds: [] },
       { reportProgress: (progress) => messages.push(progress.message) },
     );
-    assert.equal(result.outcome, "current");
+    assert.equal(result.outcome, "swept");
     assert.equal(
       messages.includes("Checking stored records for readability"),
-      false,
+      true,
     );
 
     const verified = new DatabaseSync(sqlitePath, { readOnly: true });

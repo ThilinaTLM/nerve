@@ -173,6 +173,7 @@ export function settingsFromConfiguration(
       web: integrations.tools.web,
       imageExplanation: harness.tools.imageExplanation,
       imageGeneration: harness.tools.imageGeneration,
+      kroki: harness.tools.kroki,
     },
     skills: harness.skills,
     scopedModels: harness.scopedModels,
@@ -201,7 +202,7 @@ export function configurationWithSettings(
         electron: parsed.application.electron,
       },
       harness: {
-        version: 2,
+        version: 3,
         defaults: {
           // New agents always start in coding mode; planning is a per-agent choice.
           mode: "coding",
@@ -222,6 +223,7 @@ export function configurationWithSettings(
           bash: parsed.tools.bash,
           imageExplanation: parsed.tools.imageExplanation,
           imageGeneration: parsed.tools.imageGeneration,
+          kroki: parsed.tools.kroki,
         },
         skills: parsed.skills,
         scopedModels: parsed.scopedModels,

@@ -327,6 +327,9 @@ export async function writeSettings(
   const toolsPatch = patch.tools
     ? {
         ...patch.tools,
+        ...(patch.tools.kroki
+          ? { kroki: { ...storage.settings.tools.kroki, ...patch.tools.kroki } }
+          : {}),
         ...(bashPatch
           ? { bash: { ...storage.settings.tools.bash, ...bashPatch } }
           : {}),

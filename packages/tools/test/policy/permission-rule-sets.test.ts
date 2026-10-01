@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   permissionOverlayForOriginSchema,
   type PermissionOverlay,
@@ -82,7 +83,7 @@ function overlay(
 }
 
 test("catalog has complete static policy metadata", () => {
-  assert.equal(toolManifest.length, 56);
+  assert.equal(toolManifest.length, toolNameSchema.options.length);
   for (const definition of toolManifest) {
     const metadata = permissionMetadataForTool(definition.name);
     assert.ok(metadata.kind);
@@ -190,6 +191,42 @@ test("blank singleton search paths target the current project directory", () => 
     ]);
     assert.equal(decision("read_only", toolName, args).decision, "allow");
   }
+});
+
+test("kroki exports target their source file for read and output file for write", () => {
+  const request = normalizePermissionRequest({
+    toolName: "kroki_export",
+    args: {
+      diagram_type: "mermaid",
+      source_path: "docs/flow.mmd",
+      output_path: "/tmp/flow.svg",
+    },
+    roots,
+    conversationId: "conv_test",
+  });
+  assert.deepEqual(request.targets, [
+    {
+      kind: "path",
+      access: "read",
+      scope: "exact",
+      root: "project",
+      relativePath: "docs/flow.mmd",
+    },
+    {
+      kind: "path",
+      access: "write",
+      scope: "exact",
+      absolutePath: resolve("/tmp/flow.svg"),
+    },
+  ]);
+  assert.equal(request.primaryArgument, "docs/flow.mmd");
+  const inline = normalizePermissionRequest({
+    toolName: "kroki_export",
+    args: { diagram_type: "mermaid", source: "graph TD" },
+    roots,
+    conversationId: "conv_test",
+  });
+  assert.deepEqual(inline.targets, [{ kind: "whole_tool" }]);
 });
 
 test("an empty grep paths collection does not default to the project", () => {

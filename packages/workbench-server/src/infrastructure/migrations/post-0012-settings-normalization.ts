@@ -117,6 +117,27 @@ function migrateImageGenerationTool(value: unknown): {
   };
 }
 
+function migrateKrokiTool(value: unknown): {
+  value: unknown;
+  changed: boolean;
+} {
+  const settings = objectRecord(value);
+  const tools = objectRecord(settings?.tools);
+  if (!settings || !tools || "kroki" in tools) return { value, changed: false };
+  const disabled = Array.isArray(tools.disabled) ? tools.disabled : [];
+  return {
+    value: {
+      ...settings,
+      tools: {
+        ...tools,
+        kroki: defaultSettings.tools.kroki,
+        disabled: [...new Set([...disabled, "kroki_export"])],
+      },
+    },
+    changed: true,
+  };
+}
+
 const removedNotificationToneIds = new Set([
   "kenney-click-1",
   "kenney-click-2",
@@ -205,6 +226,7 @@ export function normalizeSettings(value: unknown): {
     migrateLegacyPermissionSettings,
     migrateImageExplanationTool,
     migrateImageGenerationTool,
+    migrateKrokiTool,
     migrateRemovedNotificationTones,
   ];
   let current = value;

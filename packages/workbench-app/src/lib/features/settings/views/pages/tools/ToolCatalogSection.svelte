@@ -27,6 +27,8 @@ import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
 import { asyncSubagentProfileLabel } from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
+import KrokiToolDialog from "./KrokiToolDialog.svelte";
+import { isPublicKrokiUrl } from "./kroki-server";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
 import ToolGroupItem from "./ToolGroupItem.svelte";
@@ -63,6 +65,7 @@ let asyncSubagentDialogOpen = $state(false);
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let imageGenerationDialogOpen = $state(false);
+let krokiDialogOpen = $state(false);
 let webDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
 let exploreDialogOpen = $state(false);
@@ -105,6 +108,7 @@ const imageGenerationReady = $derived(
         provider.credentialType === "oauth",
     ),
 );
+const krokiPublic = $derived(isPublicKrokiUrl(settingsDraft.tools.kroki.url));
 const configuredExploreModel = $derived(
   settingsDraft.exploreAgent.model
     ? usableModels.find(
@@ -242,6 +246,11 @@ function setTavilyProfile(profileId?: string): void {
           label="Configure image generation"
           onclick={() => (imageGenerationDialogOpen = true)}
         />
+      {:else if group.id === "diagram-export"}
+        <ToolConfigureButton
+          label="Configure diagram export"
+          onclick={() => (krokiDialogOpen = true)}
+        />
       {:else if group.id === "python"}
         <ToolConfigureButton
           label="Configure Python"
@@ -356,6 +365,18 @@ function setTavilyProfile(profileId?: string): void {
             {/if}
           {/snippet}
         </SettingsSummaryRow>
+      {:else if group.id === "diagram-export"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={krokiPublic ? "Public Kroki server" : "Custom Kroki server"}
+          status={enabled ? (krokiPublic ? "warning" : "ok") : "muted"}
+        >
+          {#snippet meta()}
+            {settingsDraft.tools.kroki.url}{krokiPublic
+              ? " · Diagram source leaves this machine"
+              : ""}
+          {/snippet}
+        </SettingsSummaryRow>
       {:else if group.id === "vision"}
         <SettingsSummaryRow
           class="mt-1"
@@ -438,6 +459,12 @@ function setTavilyProfile(profileId?: string): void {
 
 <ImageGenerationToolDialog
   bind:open={imageGenerationDialogOpen}
+  {settingsDraft}
+  {onSettingsChange}
+/>
+
+<KrokiToolDialog
+  bind:open={krokiDialogOpen}
   {settingsDraft}
   {onSettingsChange}
 />

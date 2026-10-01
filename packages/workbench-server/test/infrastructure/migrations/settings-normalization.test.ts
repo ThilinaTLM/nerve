@@ -4,6 +4,19 @@ import { defaultSettings } from "@nervekit/contracts/settings";
 import { normalizeSettings } from "../../../src/infrastructure/migrations/post-0012-settings-normalization.js";
 
 describe("settings normalization", () => {
+  it("introduces disabled Kroki for legacy settings and preserves subsequent explicit enablement", () => {
+    const legacy = structuredClone(defaultSettings) as unknown as {
+      tools: Record<string, unknown>;
+    };
+    delete legacy.tools.kroki;
+    legacy.tools.disabled = [];
+    const { settings } = normalizeSettings(legacy);
+    assert.ok(settings.tools.disabled.includes("kroki_export"));
+    assert.deepEqual(settings.tools.kroki, defaultSettings.tools.kroki);
+    settings.tools.disabled = [];
+    settings.tools.kroki = { url: "http://127.0.0.1:9080/" };
+    assert.deepEqual(normalizeSettings(settings), { settings, changed: false });
+  });
   it("moves retired color themes to their successor instead of resetting", () => {
     for (const [retired, successor] of [
       ["ocean", "solar"],

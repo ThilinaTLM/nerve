@@ -173,6 +173,13 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
+      kind: "kroki_export";
+      /** Footer tag such as "mermaid → SVG". */
+      conversion: string;
+      path?: string;
+      bytes?: number;
+    }
+  | {
       kind: "generate_image";
       prompt?: string;
       paths: string[];

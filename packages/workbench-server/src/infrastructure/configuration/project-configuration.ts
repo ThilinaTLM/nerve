@@ -11,6 +11,7 @@ import {
 import type { InitializedStorage } from "../storage-bootstrap/initialize.js";
 import { readJsonFile } from "../storage-bootstrap/json.js";
 import { settingsFromConfiguration } from "./home-configuration.js";
+import { HOME_CONFIGURATION_CODECS } from "./home-configuration-codecs.js";
 
 export interface ConfigurationResolutionInput {
   env?: NodeJS.ProcessEnv;
@@ -32,7 +33,9 @@ export async function resolveProjectConfiguration(
   ]);
   assertNoLegacyCapabilitySelection(harnessRaw);
   const user = storage.configuration;
-  let harness = harnessConfigSchema.parse(deepMerge(user.harness, harnessRaw));
+  let harness = HOME_CONFIGURATION_CODECS.harness.decode(
+    deepMerge(user.harness, harnessRaw),
+  );
   harness = applyHarnessEnvironment(harness, input.env ?? process.env);
   harness = applyHarnessArguments(harness, input.argv ?? process.argv.slice(2));
   return userConfigurationSchema.parse({

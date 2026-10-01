@@ -24,6 +24,7 @@ import {
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseExploreProgressLog } from "./explore-progress";
 import { parseGenerateImageView } from "./generate-image-result-view";
+import { parseKrokiView } from "./kroki-result-view";
 import { parseJiraView } from "./jira-result-view";
 import { parseSubagentResult } from "./subagent-result-parser";
 import {
@@ -261,6 +262,8 @@ export function parseToolView(
 
     case "generate_image":
       return parseGenerateImageView(rawArgs, rawResult);
+    case "kroki_export":
+      return parseKrokiView(args, rawResult);
 
     case "bash": {
       const command = stringField(args.command);

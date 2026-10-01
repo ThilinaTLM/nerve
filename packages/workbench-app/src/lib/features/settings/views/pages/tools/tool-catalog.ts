@@ -17,6 +17,7 @@ export type ToolGroupId =
   | "web"
   | "vision"
   | "image-generation"
+  | "diagram-export"
   | "tasks"
   | "shell"
   | "python";
@@ -38,6 +39,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
   "web_fetch",
   "explain_image",
   "generate_image",
+  "kroki_export",
   "python_exec",
 ];
 
@@ -265,6 +267,21 @@ export const toolGroups: ToolGroupDef[] = [
         name: "generate_image",
         description:
           "Generate one image from a text prompt using user-configured settings.",
+      },
+    ],
+  },
+  {
+    id: "diagram-export",
+    category: "third-party",
+    label: "Diagram export",
+    description:
+      "Export diagram source as SVG or PNG through the configured Kroki server.",
+    configurableTools: ["kroki_export"],
+    tools: [
+      {
+        name: "kroki_export",
+        description:
+          "Send diagram source (from a file or inline) to Kroki and save the rendered file to a chosen path or as a tool-call artifact.",
       },
     ],
   },

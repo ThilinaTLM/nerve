@@ -31,6 +31,11 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
     label: "Generate Image",
     names: ["generate_image"],
   },
+  {
+    key: "kroki_export",
+    label: "Diagram export",
+    names: ["kroki_export"],
+  },
   { key: "python_exec", label: "Python", names: ["python_exec"] },
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },

@@ -43,6 +43,22 @@ export function upgradeHarnessV1ToV2(value: unknown): unknown {
   });
 }
 
+/** Introduce diagram export without enabling network access in existing homes. */
+export function upgradeHarnessV2ToV3(value: unknown): unknown {
+  if (!isJsonObject(value) || value.version !== 2) return value;
+  const tools = isJsonObject(value.tools) ? value.tools : undefined;
+  const disabled = Array.isArray(tools?.disabled)
+    ? tools.disabled
+    : defaultHarnessConfig.tools.disabled;
+  return mergePreservingUnknown(value, {
+    version: 3,
+    tools: {
+      kroki: tools?.kroki ?? defaultHarnessConfig.tools.kroki,
+      disabled: [...new Set([...disabled, "kroki_export"])],
+    },
+  });
+}
+
 /** Pure conversion of the schemaVersion 1 overlay envelope. */
 export function upgradePermissionsV1ToV2(value: unknown): unknown {
   if (
@@ -60,6 +76,7 @@ export function upgradePermissionsV1ToV2(value: unknown): unknown {
 
 const harnessUpgraders = {
   1: upgradeHarnessV1ToV2,
+  2: upgradeHarnessV2ToV3,
 } satisfies PayloadUpgraderChain;
 const permissionsUpgraders = {
   1: upgradePermissionsV1ToV2,
@@ -77,7 +94,7 @@ export const HOME_CONFIGURATION_CODECS: {
     read: (value) => daemonConfigSchema.parse(value),
   }),
   harness: createConfigurationCodec({
-    currentVersion: 2,
+    currentVersion: 3,
     defaults: defaultHarnessConfig,
     version: versionField("version"),
     upgraders: harnessUpgraders,

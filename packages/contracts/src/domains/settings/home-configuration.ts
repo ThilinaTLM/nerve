@@ -29,6 +29,8 @@ import {
   compactionProfileSchema,
   headerTypeSchema,
   imageGenerationToolSettingsSchema,
+  krokiToolSettingsSchema,
+  defaultKrokiToolSettings,
   modeSchema,
   notificationToneSchema,
   transcriptionModelSchema,
@@ -140,7 +142,7 @@ export const defaultDaemonConfig: DaemonConfig = {
 
 export const harnessConfigSchema = z
   .object({
-    version: z.union([z.literal(1), z.literal(2)]),
+    version: z.literal(3),
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
     lastSelection: agentSelectionConfigSchema,
@@ -192,6 +194,7 @@ export const harnessConfigSchema = z
           })
           .strict(),
         imageGeneration: imageGenerationToolSettingsSchema,
+        kroki: krokiToolSettingsSchema,
       })
       .strict(),
     skills: z
@@ -211,20 +214,15 @@ export const harnessConfigSchema = z
   .strict()
   .transform((value) => ({
     ...value,
-    version: 2 as const,
     tools: {
       ...value.tools,
-      disabled: normalizeAsyncSubagentTools(
-        value.version === 1
-          ? [...value.tools.disabled, ...asyncSubagentToolNames]
-          : value.tools.disabled,
-      ),
+      disabled: normalizeAsyncSubagentTools(value.tools.disabled),
     },
   }));
 export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 
 export const defaultHarnessConfig: HarnessConfig = {
-  version: 2,
+  version: 3,
   defaults: {
     mode: "coding",
     permissionLevel: "autonomous",
@@ -249,8 +247,14 @@ export const defaultHarnessConfig: HarnessConfig = {
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
   execution: {},
   tools: {
-    disabled: ["explain_image", "generate_image", ...asyncSubagentToolNames],
+    disabled: [
+      "explain_image",
+      "generate_image",
+      "kroki_export",
+      ...asyncSubagentToolNames,
+    ],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
+    kroki: defaultKrokiToolSettings,
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {
       provider: "openai-codex",
