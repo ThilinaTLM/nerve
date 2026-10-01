@@ -17,6 +17,7 @@ export type {
   CompactionNotice,
   CompactionNoticeState,
   ConversationRenderState,
+  ConversationRunOutcome,
   ConversationTransientState,
   RunStatusNotice,
   TaskEventNotice,

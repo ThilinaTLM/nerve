@@ -68,7 +68,11 @@ import {
   applyToolDraftDiscarded,
   applyToolOutputDelta,
 } from "./conversation-live-reducer.js";
-import { ensureActiveRun, runMatches } from "./conversation-run-state.js";
+import {
+  ensureActiveRun,
+  recordRunOutcome,
+  runMatches,
+} from "./conversation-run-state.js";
 
 const conversationEventTypeSet = new Set<string>(conversationEventTypes);
 
@@ -353,6 +357,7 @@ function applyRunStarted(
     toolOutputsByToolCallId: {},
     queuedPrompts: [],
   };
+  state.lastRunOutcome = undefined;
   clearTransientCompaction(state);
   state.queuedPrompts = [];
   state.sending = true;
@@ -523,8 +528,10 @@ function applyRunSuspended(
   state: ConversationRenderState,
   data: ConversationRunSuspendedData,
 ): void {
-  if (runMatches(state.activeRun?.runId, data.runId))
+  if (runMatches(state.activeRun?.runId, data.runId)) {
     state.activeRun = undefined;
+    state.lastRunOutcome = undefined;
+  }
   state.sending = false;
 }
 
@@ -532,6 +539,7 @@ function applyRunCompleted(
   state: ConversationRenderState,
   data: ConversationRunCompletedData,
 ): void {
+  recordRunOutcome(state, data.runId, "completed", data.completedAt);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
   state.queuedPrompts = [];
@@ -543,6 +551,7 @@ function applyRunCancelled(
   state: ConversationRenderState,
   data: ConversationRunCancelledData,
 ): void {
+  recordRunOutcome(state, data.runId, "stopped", data.cancelledAt);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
   state.queuedPrompts = [];
@@ -554,6 +563,12 @@ function applyRunFailed(
   state: ConversationRenderState,
   data: ConversationRunFailedData,
 ): void {
+  recordRunOutcome(
+    state,
+    data.runId,
+    data.aborted ? "stopped" : "failed",
+    data.failedAt,
+  );
   const continuableInterruption =
     data.interrupted === true && data.continuable === true;
   const targetsCurrentRun =

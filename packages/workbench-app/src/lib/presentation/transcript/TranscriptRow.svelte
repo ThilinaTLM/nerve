@@ -307,6 +307,8 @@ $effect(() => {
                   text={node.item.text}
                   trimCodeBlocks={node.item.role !== "assistant"}
                   streaming={Boolean(node.item.live && !node.item.done)}
+                  reveal={node.item.role === "assistant"}
+                  caret={Boolean(node.item.live && !node.item.done)}
                   linkBasePath={activeProject?.dir}
                   {onOpenFile}
                   onOpenMermaid={node.item.role === "assistant" && onOpenMermaid
@@ -315,10 +317,6 @@ $effect(() => {
                   onCopy={notifyCopyResult}
                 />
               {/if}
-              {#if node.item.live && !node.item.done}<span
-                  class="stream-caret"
-                  aria-hidden="true"
-                ></span>{/if}
             </div>
           {/if}
           {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
@@ -376,15 +374,5 @@ $effect(() => {
 
 .transcript-entry.user .message-content {
   color: var(--foreground);
-}
-
-.stream-caret {
-  display: inline-block;
-  width: 0.42rem;
-  height: 1em;
-  margin-left: 0.15rem;
-  margin-top: 0.18rem;
-  background: var(--primary);
-  animation: pulse 1s steps(2, start) infinite;
 }
 </style>

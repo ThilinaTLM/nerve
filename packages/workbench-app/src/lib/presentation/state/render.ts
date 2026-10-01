@@ -6,14 +6,12 @@ import {
   selectVisibleCommitted,
   type TimelineItem,
 } from "./timeline.js";
-import { hasActiveTurnTimelineOutput } from "./timeline-output.js";
 import { entriesToTranscript } from "./transcript.js";
 import type { ConversationRenderState } from "./conversation-render-state.js";
 
 export type ConversationRenderProjection = {
   timeline: TimelineItem[];
   streamingText: string;
-  hasActiveTurnOutput: boolean;
   queuedPrompts: QueuedPromptRecord[];
 };
 
@@ -29,7 +27,6 @@ export function buildConversationRenderProjection(
     return {
       timeline: [],
       streamingText: "",
-      hasActiveTurnOutput: false,
       queuedPrompts: [],
     };
   }
@@ -58,7 +55,6 @@ export function buildConversationRenderProjection(
   return {
     timeline,
     streamingText: activeRunStreamingText(state.activeRun),
-    hasActiveTurnOutput: hasActiveTurnTimelineOutput(timeline, state.activeRun),
     queuedPrompts: state.queuedPrompts ?? state.activeRun?.queuedPrompts ?? [],
   };
 }

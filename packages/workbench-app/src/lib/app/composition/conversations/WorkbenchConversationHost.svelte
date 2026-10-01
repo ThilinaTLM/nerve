@@ -10,7 +10,6 @@ import {
   buildActiveRunTimeline,
   CommittedTimelineProjection,
   currentTodosForAgent,
-  hasActiveTurnTimelineOutput,
   selectVisibleCommitted,
 } from "$lib/presentation/state";
 import { ConversationPane } from "$lib/presentation/conversations";
@@ -43,6 +42,7 @@ let {
   toolCalls = [],
   treeNodes = [],
   activeRun,
+  lastRunOutcome,
   transient,
   queuedPrompts = [],
   recoveryIssues = [],
@@ -179,7 +179,6 @@ const visibleCommitted = $derived(
   ),
 );
 const timeline = $derived({ prefix: visibleCommitted, tail: liveItems });
-const combinedTimeline = $derived([...visibleCommitted, ...liveItems]);
 const compacting = $derived(transient?.compaction?.state === "running");
 const outcomeUnknownIds = $derived(outcomeUnknownToolCallIds(recoveryIssues));
 const stopping = $derived(
@@ -188,11 +187,6 @@ const stopping = $derived(
 const streamingText = $derived(activeRunStreamingText(rendered.activeRun));
 const treeEntriesById = $derived(
   new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
-);
-// Latest-turn output remains true when a live row materializes into its durable
-// entry, while a newly started empty turn re-enables the waiting indicator.
-const hasActiveTurnOutput = $derived(
-  hasActiveTurnTimelineOutput(combinedTimeline, rendered.activeRun),
 );
 
 async function copyText(text: string, label = "message") {
@@ -251,7 +245,11 @@ function menuForTranscript(
     timeline,
     streamingText,
     sending: rendered.sending,
-    hasActiveTurnOutput,
+    runActivity: {
+      activeRun: rendered.activeRun,
+      lastRunOutcome,
+      stopping,
+    },
     queuedPrompts: rendered.queuedPrompts,
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,

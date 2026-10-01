@@ -2,12 +2,17 @@ import type {
   ConversationActiveRunSnapshot,
   QueuedPromptRecord,
 } from "$lib/api";
+import {
+  recordRunOutcome,
+  type ConversationRunOutcome,
+} from "$lib/presentation/state";
 
 export interface AbortableConversationView {
   conversationId: string;
   sending: boolean;
   stopping: boolean;
   activeRun?: ConversationActiveRunSnapshot;
+  lastRunOutcome?: ConversationRunOutcome;
   queuedPrompts: QueuedPromptRecord[];
 }
 
@@ -105,6 +110,12 @@ export function createAbortActiveRun(
     // the canonical convergence mechanism.
     current.sending = false;
     current.stopping = false;
+    recordRunOutcome(
+      current,
+      current.activeRun?.runId,
+      "stopped",
+      new Date().toISOString(),
+    );
     current.activeRun = undefined;
     current.queuedPrompts = [];
   };

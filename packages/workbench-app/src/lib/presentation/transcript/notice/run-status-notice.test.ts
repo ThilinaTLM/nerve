@@ -3,14 +3,12 @@ import { describe, it } from "node:test";
 import type { RunStatusNotice } from "../../state/transcript-types";
 import { runStatusNoticeModel } from "./run-status-notice";
 
-const nowMs = Date.parse("2026-01-01T00:00:00.000Z");
-
 function notice(overrides: Partial<RunStatusNotice> = {}): RunStatusNotice {
   return { state: "failed", runId: "run_1", ...overrides };
 }
 
 describe("run status notice model", () => {
-  it("counts down a pending retry in chips and formats its failure", () => {
+  it("records a retry without a competing countdown and formats its failure", () => {
     const model = runStatusNoticeModel(
       notice({
         state: "retrying",
@@ -21,25 +19,16 @@ describe("run status notice model", () => {
         failureCategory: "provider",
         httpStatus: 503,
       }),
-      { nowMs },
     );
     assert.equal(model.badge, "run_retrying");
     assert.equal(model.tone, "info");
-    assert.equal(model.busy, true);
+    assert.equal(model.busy, false);
     assert.equal(model.arg, "API error");
     assert.equal(model.summary, "503 overloaded");
     assert.deepEqual(
       model.chips?.map((chip) => chip.text),
-      ["UI-only", "retry in 3s", "retry 2/5", "HTTP 503"],
+      ["UI-only", "retry 2/5", "HTTP 503"],
     );
-  });
-
-  it("collapses an elapsed retry deadline to 'retrying now'", () => {
-    const model = runStatusNoticeModel(
-      notice({ state: "retrying", retryAt: "2025-12-31T23:59:59.000Z" }),
-      { nowMs },
-    );
-    assert.equal(model.chips?.[1]?.text, "retrying now");
   });
 
   it("formats a provider payload and wires Continue as the primary action", () => {
@@ -51,7 +40,6 @@ describe("run status notice model", () => {
           '429 {"error":{"type":"rate_limit_error","message":"Try again later."}}',
       }),
       {
-        nowMs,
         onContinue: () => {
           continued += 1;
         },
@@ -77,7 +65,6 @@ describe("run status notice model", () => {
         errorMessage: "Hook failed",
         failureCategory: "harness",
       }),
-      { nowMs },
     );
     assert.equal(staticModel.tone, "destructive");
     assert.equal(staticModel.badge, "run_interrupted");
@@ -89,7 +76,7 @@ describe("run status notice model", () => {
 
     const actionableModel = runStatusNoticeModel(
       notice({ state: "interrupted" }),
-      { nowMs, onContinue: () => undefined },
+      { onContinue: () => undefined },
     );
     assert.match(actionableModel.summary ?? "", /Continue/);
     assert.equal(actionableModel.primaryAction?.label, "Continue");

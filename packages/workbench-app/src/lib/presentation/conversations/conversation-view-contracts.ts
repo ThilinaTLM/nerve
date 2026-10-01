@@ -22,7 +22,9 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts/tools";
+import type { ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
 import type { TimelineItem } from "../state/timeline.js";
+import type { ConversationRunOutcome } from "../state/conversation-render-state.js";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import type {
   ApprovalWithToolCall,
@@ -112,6 +114,14 @@ export type ConversationTimelineSections = {
   tail: TimelineItem[];
 };
 
+/** Run state behind the transcript's tail activity slot. */
+export type ConversationRunActivityModel = {
+  activeRun?: ConversationActiveRunSnapshot;
+  lastRunOutcome?: ConversationRunOutcome;
+  /** A local Stop request is in flight or the run is aborting. */
+  stopping: boolean;
+};
+
 export type ConversationPaneModel = {
   conversationId?: string;
   open: boolean;
@@ -119,7 +129,7 @@ export type ConversationPaneModel = {
   timeline: ConversationTimelineSections;
   streamingText: string;
   sending: boolean;
-  hasActiveTurnOutput: boolean;
+  runActivity: ConversationRunActivityModel;
   queuedPrompts: QueuedPromptRecord[];
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];

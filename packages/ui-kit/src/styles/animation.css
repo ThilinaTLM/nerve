@@ -22,15 +22,6 @@
   will-change: transform;
 }
 
-/* Hard blink shared by streaming carets / pending indicators.
- * Components keep their own `animation:` shorthand (timings differ) and only
- * reference this keyframe. */
-@keyframes pulse {
-  50% {
-    opacity: 0;
-  }
-}
-
 /* Status dot pulse (status-dot.svelte). Keep this finite: an infinite paint
  * animation makes an otherwise idle Electron window redraw continuously. */
 .status-pulse {
@@ -166,14 +157,26 @@
   }
 }
 
-/* Compositor-friendly working-label activity (WorkingIndicator.svelte). */
-@keyframes working-label-pulse {
+/* Highlight band sweeping across run activity labels (RunActivitySlot.svelte). */
+@keyframes activity-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+
+/* Soft breathing dot at the tail of streaming Markdown (Markdown.svelte). */
+@keyframes stream-caret-breathe {
   0%,
   100% {
-    opacity: 0.72;
+    opacity: 0.35;
+    transform: scale(0.8);
   }
   50% {
     opacity: 1;
+    transform: scale(1);
   }
 }
 
