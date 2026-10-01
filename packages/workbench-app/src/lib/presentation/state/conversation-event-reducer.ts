@@ -16,6 +16,7 @@ import {
   ConversationEventType,
   ConversationLiveContentDeltaData,
   ConversationLiveContentDoneData,
+  ConversationLiveMessageDiscardedData,
   ConversationLiveMessageStartedData,
   ConversationLiveTurnStartedData,
   ConversationLiveToolDraftDeltaData,
@@ -264,6 +265,19 @@ export function applyConversationEvent(
       const data = event.data as ConversationLiveTurnStartedData;
       draft.ownTurn(data.turnId);
       applyLiveTurnStarted(next, data, event.ts);
+      break;
+    }
+    case "conversation.live.message.discarded": {
+      const data = event.data as ConversationLiveMessageDiscardedData;
+      if (next.activeRun?.runId !== data.runId) break;
+      draft.ownTurn(data.turnId);
+      const turn = next.activeRun.turns.find(
+        (turn) => turn.turnId === data.turnId,
+      );
+      if (turn)
+        turn.messages = turn.messages.filter(
+          (message) => message.liveMessageId !== data.liveMessageId,
+        );
       break;
     }
     case "conversation.live.message.started": {

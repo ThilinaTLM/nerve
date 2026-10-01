@@ -719,6 +719,13 @@ test("automatically retries a valid checkpoint with accurate metadata", async ()
   const state = await harness.coordinator.get(run.runId);
   assert.equal(state?.run.status, "completed");
   assert.equal(state?.run.attempt, 2);
+  assert.equal(harness.executionInputs[1]?.run.status, "running");
+  assert.equal(harness.executionInputs[1]?.run.failure, undefined);
+  assert.equal(
+    state?.transitions.filter((t) => t.kind === "retry_started").length,
+    1,
+  );
+
   assert.notEqual(
     harness.executionInputs[0]?.run.executionId,
     harness.executionInputs[1]?.run.executionId,
@@ -2228,3 +2235,76 @@ async function waitUntil(
   }
   throw new Error("Timed out waiting for coordinator state");
 }
+
+test("durable retry awaits execution and sequential redelivery joins it", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let retryCommitted = false;
+  let releaseCommit!: () => void;
+  const commitGate = new Promise<void>((resolve) => {
+    releaseCommit = resolve;
+  });
+  const harness = fixture({
+    beforeFlushEvents: async (transition) => {
+      if (transition.kind === "retrying") {
+        retryCommitted = true;
+        await commitGate;
+      }
+    },
+    durableContinuation: true,
+    retryPolicy: { enabled: true, maxRetries: 1, baseDelayMs: 0 },
+    execute: async (attempt, _input, sink) => {
+      if (attempt === 1) {
+        await sink.checkpoint({
+          boundary: "before_provider_request",
+          transcriptCursor: 0,
+          entryIds: [],
+          harnessLeafId: null,
+          harnessSavePointId: "save_0",
+          toolCalls: [],
+        });
+        return {
+          status: "failed",
+          failure: {
+            code: "PROVIDER_FAILED",
+            message: "temporary",
+            retryable: true,
+          },
+        };
+      }
+      await gate;
+      return { status: "completed" };
+    },
+  });
+  const run = await start(harness.coordinator);
+  const initial = harness.coordinator.executeModelWork(
+    harness.unitOfWork.lifecycleWork[0]!,
+  );
+  await waitUntil(async () => retryCommitted);
+  const retryWork = harness.unitOfWork.lifecycleWork.at(-1)!;
+  let settled = false;
+  const running = harness.coordinator.executeModelWork(retryWork).then(() => {
+    settled = true;
+  });
+  // Dispatch the successor while the predecessor is still delivering its retry transition.
+  await new Promise((resolve) => setImmediate(resolve));
+  releaseCommit();
+  await initial;
+  await waitUntil(async () => harness.executionInputs.length === 2);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "running",
+  );
+  const redelivered = harness.coordinator.executeModelWork(retryWork);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(harness.executionInputs.length, 2);
+  assert.equal(settled, false);
+  release();
+  await Promise.all([running, redelivered]);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "completed",
+  );
+});

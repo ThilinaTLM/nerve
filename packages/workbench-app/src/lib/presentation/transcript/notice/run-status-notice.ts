@@ -70,7 +70,7 @@ export function runStatusNoticeModel(
     : undefined;
 
   // The live countdown belongs to the transcript's run activity slot; the
-  // notice is the durable record of why the request was retried.
+  // notice describes the current backoff and disappears when execution resumes.
   if (notice.state === "retrying") {
     const chips: NoticeChip[] = [{ text: "UI-only", tone: "neutral" }];
     const attempt = attemptChip(notice);

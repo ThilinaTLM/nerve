@@ -8,6 +8,7 @@ import {
   turnIdSchema,
   type ConversationLiveContentDeltaData,
   type ConversationLiveContentDoneData,
+  type ConversationLiveMessageDiscardedData,
   type ConversationLiveMessageStartedData,
   type ConversationLiveToolDraftDeltaData,
   type ConversationLiveToolDraftDiscardedData,
@@ -108,7 +109,7 @@ export interface ConversationRunResumedData {
   runId: string;
   projectId: string;
   attempt: number;
-  resumeKind: "interaction" | "manual";
+  resumeKind: "interaction" | "manual" | "retry";
   resumedAt: string;
 }
 
@@ -275,6 +276,7 @@ export type ConversationEventData =
   | ConversationContextUpdatedData
   | ConversationToolCallUpdatedData
   | ConversationLiveTurnStartedData
+  | ConversationLiveMessageDiscardedData
   | ConversationLiveMessageStartedData
   | ConversationLiveContentDeltaData
   | ConversationLiveContentDoneData
@@ -354,7 +356,7 @@ const conversationRunResumedDataSchema = z.object({
   runId: runIdSchema,
   projectId: z.string().startsWith("proj_"),
   attempt: z.number().int().positive(),
-  resumeKind: z.enum(["interaction", "manual"]),
+  resumeKind: z.enum(["interaction", "manual", "retry"]),
   resumedAt: z.string().datetime(),
 });
 
@@ -587,6 +589,11 @@ export const conversationEventPayloadSchemas = {
   "conversation.context.updated": conversationContextUpdatedDataSchema,
   "toolCall.updated": conversationToolCallUpdatedDataSchema,
   "conversation.live.turn.started": conversationLiveTurnStartedDataSchema,
+  "conversation.live.message.discarded":
+    conversationLiveMessageStartedDataSchema.omit({
+      messageOrdinal: true,
+      startedAt: true,
+    }),
   "conversation.live.message.started": conversationLiveMessageStartedDataSchema,
   "conversation.live.content.delta": conversationLiveContentDeltaDataSchema,
   "conversation.live.content.done": conversationLiveContentDoneDataSchema,
@@ -631,6 +638,7 @@ export const conversationEventTypes = [
   "toolCall.updated",
   "conversation.live.turn.started",
   "conversation.live.message.started",
+  "conversation.live.message.discarded",
   "conversation.live.content.delta",
   "conversation.live.content.done",
   "conversation.live.tool_draft.started",
@@ -646,6 +654,7 @@ export type ConversationEventType = (typeof conversationEventTypes)[number];
 export const conversationLiveEventTypes = [
   "conversation.live.turn.started",
   "conversation.live.message.started",
+  "conversation.live.message.discarded",
   "conversation.live.content.delta",
   "conversation.live.content.done",
   "conversation.live.tool_draft.started",

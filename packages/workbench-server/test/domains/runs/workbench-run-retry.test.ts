@@ -1,3 +1,4 @@
+import { fauxAssistantMessage, fauxToolCall } from "@earendil-works/pi-ai";
 import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -13,6 +14,115 @@ import {
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 describe("workbench coordinator-owned provider retry", () => {
+  it("drops a thrown stream's partial message before the resumed attempt snapshot", async () => {
+    const registration = registerAgentScriptedProvider({ steps: [] });
+    registration.setResponses([
+      fauxAssistantMessage([
+        { type: "text", text: "Abandoned text" },
+        fauxToolCall(
+          "write",
+          { path: "partial.txt", content: "unfinished" },
+          { id: "call_abandoned" },
+        ),
+      ]),
+      fauxAssistantMessage("Recovered."),
+    ]);
+    const original = registration.provider.streamSimple.bind(
+      registration.provider,
+    );
+    let calls = 0;
+    let resumed = false;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    registration.provider.streamSimple = (...args) => {
+      const stream = original(...args);
+      const iterate = stream[Symbol.asyncIterator].bind(stream);
+      const attempt = ++calls;
+      stream[Symbol.asyncIterator] = async function* () {
+        if (attempt === 2) {
+          resumed = true;
+          await gate;
+        }
+        for await (const event of { [Symbol.asyncIterator]: iterate }) {
+          yield event;
+          if (attempt === 1 && event.type === "toolcall_delta")
+            throw new Error("Connection error: stream disconnected");
+        }
+      };
+      return stream;
+    };
+    const root = await mkdtemp(join(tmpdir(), "nerve-stream-abandon-"));
+    const storage = await initializeStorage(root);
+    await writeSettings(storage, {
+      retry: { enabled: true, maxRetries: 1, baseDelayMs: 1 },
+    });
+    const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
+    try {
+      await orchestrator.lifecycle.hydrate();
+      const project =
+        await orchestrator.services.projectLifecycle.createProject({
+          dir: root,
+        });
+      const conversation =
+        await orchestrator.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const agent = await orchestrator.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: { provider: "nerve-scripted", modelId: "scripted-fast" },
+      });
+      await orchestrator.services.workbenchRun.promptAgent(agent.id, {
+        text: "Recover the interrupted stream",
+      });
+      await waitFor(async () => resumed);
+      const snapshot =
+        await orchestrator.services.runQuery.activeForConversation(
+          conversation.id,
+        );
+      assert.equal(snapshot?.status, "running");
+      assert.equal(snapshot?.retry, undefined);
+      const blocks =
+        snapshot?.turns.flatMap((turn) =>
+          turn.messages.flatMap((message) => message.blocks),
+        ) ?? [];
+      assert.equal(
+        blocks.some(
+          (block) =>
+            block.kind === "tool_call_draft" &&
+            block.providerToolCallId === "call_abandoned",
+        ),
+        false,
+      );
+      assert.equal(
+        blocks.some(
+          (block) =>
+            block.kind === "text" && block.text.includes("Abandoned text"),
+        ),
+        false,
+      );
+      release();
+      await waitFor(
+        async () =>
+          (await orchestrator.services.agentActivity.activityForAgent(agent.id))
+            .state === "idle",
+      );
+      assert.equal(calls, 2);
+    } finally {
+      release();
+      registration.unregister();
+      await shutdownServerRuntime(orchestrator.runtime);
+      await rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 20,
+      });
+    }
+  });
+
   it("retries a valid checkpoint and projects completion back to idle", async () => {
     const registration = registerAgentScriptedProvider({
       steps: [

@@ -432,11 +432,12 @@ export class RunCoordinator {
         );
         return;
       }
-      await this.launch(
+      const launched = await this.launchContinuation(
         continuationState.run,
         continuationExecution,
-        "continue",
       );
+      // Keep durable work claimed and heartbeating until execution settles.
+      await launched?.promise;
       return;
     }
     const state = await this.require(work.runId);
@@ -964,7 +965,12 @@ export class RunCoordinator {
       () => this.pendingExecutions.delete(promise),
       () => this.pendingExecutions.delete(promise),
     );
-    this.live.set(run.runId, { execution, abort, promise });
+    this.live.set(run.runId, {
+      executionId: run.executionId,
+      execution,
+      abort,
+      promise,
+    });
     return promise;
   }
 
@@ -1124,17 +1130,63 @@ export class RunCoordinator {
       );
       return;
     }
-    const launchable = await this.require(runId);
-    if (
-      launchable.run.status !== "retrying" ||
-      launchable.run.executionId !== retryRun.run.executionId
-    ) {
-      await execution.control
-        .cancel("retry was superseded")
-        .catch(() => undefined);
-      return;
-    }
-    void this.launch(retryRun.run, execution, "continue");
+    await this.launchContinuation(retryRun.run, execution, executionId);
+  }
+
+  private async launchContinuation(
+    expected: RunRecord,
+    execution: RunExecution,
+    predecessorExecutionId?: string,
+  ): Promise<{ promise: Promise<void> } | undefined> {
+    return this.exclusive(`run:${expected.runId}`, async () => {
+      const state = await this.require(expected.runId);
+      const live = this.live.get(expected.runId);
+      if (
+        state.run.executionId !== expected.executionId ||
+        (state.run.status !== "running" && state.run.status !== "retrying")
+      ) {
+        await execution.control
+          .cancel("continuation was superseded")
+          .catch(() => undefined);
+        return;
+      }
+      if (live?.executionId === expected.executionId) {
+        await execution.control
+          .cancel("continuation already running")
+          .catch(() => undefined);
+        return { promise: live.promise };
+      }
+      // A durable retry can be dispatched before its failed predecessor unwinds.
+      const retryPredecessor =
+        state.run.status === "retrying"
+          ? [...state.transitions]
+              .reverse()
+              .find(
+                (transition) =>
+                  transition.run.executionId !== expected.executionId,
+              )?.run.executionId
+          : undefined;
+      if (
+        live &&
+        live.executionId !== (predecessorExecutionId ?? retryPredecessor)
+      ) {
+        await execution.control
+          .cancel("another execution owns this run")
+          .catch(() => undefined);
+        return;
+      }
+      let run = state.run;
+      if (run.status === "retrying") {
+        const now = this.now();
+        run = revise(run, { status: "running", failure: undefined }, now);
+        // Automatic retry starts must not reset the manual-continuation retry budget.
+        await this.commit(state, run, "retry_started", {
+          execution: executionRecord(run, "starting", now),
+          events: [this.events.resumed(run, now, "retry")],
+        });
+      }
+      return { promise: this.launch(run, execution, "continue") };
+    });
   }
 
   private async commit(

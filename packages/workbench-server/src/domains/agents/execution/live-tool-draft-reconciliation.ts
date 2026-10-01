@@ -15,7 +15,7 @@ export interface LiveToolDraftState {
 
 export type LiveToolDraftDiscardReason = "abandoned" | "invalid" | "replaced";
 
-type PublishTransient = (type: string, data: unknown) => Promise<void>;
+type PublishTransient = (type: string, data: unknown) => void | Promise<void>;
 
 interface ReconcilerDeps {
   conversationRuntime: ConversationRuntime;
@@ -33,6 +33,19 @@ interface ReconcilerDeps {
  */
 export class LiveToolDraftReconciler {
   constructor(private readonly deps: ReconcilerDeps) {}
+
+  abandon(): void {
+    const turnId = this.deps.getTurnId();
+    const liveMessageId = this.deps.getLiveMessageId();
+    if (!turnId || !liveMessageId) return;
+    const data = this.deps.conversationRuntime.abandonAssistantMessage(
+      this.deps.runId,
+      turnId,
+      liveMessageId,
+    );
+    if (data)
+      void this.deps.publish("conversation.live.message.discarded", data);
+  }
 
   async reconcile(
     message: AssistantMessage,
