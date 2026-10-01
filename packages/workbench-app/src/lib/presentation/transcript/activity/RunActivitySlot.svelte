@@ -19,7 +19,9 @@ const gradientId = `run-activity-comet-${uid}`;
 
 const reduced = $derived(prefersReducedMotion.current);
 const spinning = $derived(
-  !reduced && (view.kind === "active" || view.kind === "quiet"),
+  !reduced &&
+    view.spinnerRate > 0 &&
+    (view.kind === "active" || view.kind === "quiet"),
 );
 const countdownOffset = $derived(
   CIRCUMFERENCE * (1 - (view.countdownFraction ?? 0)),

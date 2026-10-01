@@ -144,11 +144,13 @@ describe("deriveRunActivity", () => {
     assert.equal(view.spinnerRate, 0.5);
   });
 
-  it("shows a quiet waiting label while the run awaits the user", () => {
-    assert.equal(
-      deriveRunActivity(input({ tail: tool("waiting") })).label,
-      "Waiting for you",
+  it("shows a quiet waiting label without a clock while the run awaits the user", () => {
+    const view = deriveRunActivity(
+      input({ tail: tool("waiting"), nowMs: T0 + 60 * 60_000 }),
     );
+    assert.equal(view.label, "Waiting for you");
+    assert.equal(view.elapsedLabel, undefined);
+    assert.equal(view.spinnerRate, 0);
     assert.equal(
       deriveRunActivity(input({ activeRun: run({ status: "waiting" }) })).kind,
       "quiet",
