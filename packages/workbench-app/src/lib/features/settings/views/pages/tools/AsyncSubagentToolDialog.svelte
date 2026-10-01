@@ -1,10 +1,6 @@
 <script lang="ts">
-import type {
-  ModelInfo,
-  ModelSelection,
-  Settings,
-  ThinkingLevel,
-} from "$lib/api";
+import type { AsyncSubagentSettings } from "@nervekit/contracts/settings";
+import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -13,27 +9,30 @@ import { SettingsChoiceCards } from "$lib/presentation/settings";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import ModelSelectionField from "../../shared/model-picker/ModelSelectionField.svelte";
 import type { AuthProviderMetadata } from "$lib/api";
-import type { SettingsChange } from "../settings-change";
 import { compactionProfileItems } from "../compaction/compaction-options";
 import {
-  asyncSubagentPatch,
+  asyncSubagentSettingsFromDraft,
   validAsyncSubagentPercent,
 } from "./async-subagent-options";
 
 type Props = {
   open?: boolean;
-  settingsDraft: Settings;
+  value: AsyncSubagentSettings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  onSettingsChange?: SettingsChange;
+  title?: string;
+  description?: string;
+  onSave: (value: AsyncSubagentSettings) => void;
 };
 
 let {
   open = $bindable(false),
-  settingsDraft,
+  value,
   models = [],
   authProviders = [],
-  onSettingsChange,
+  title = "Configure Async Subagents",
+  description = "Choose the model and reasoning level for new teammates and the compaction profile for their runs.",
+  onSave,
 }: Props = $props();
 
 let modelDraft = $state<ModelSelection | undefined>();
@@ -42,7 +41,7 @@ let modelDraft = $state<ModelSelection | undefined>();
 let thinkingDraft = $state<ThinkingLevel | undefined>();
 let inheritDraft = $state(true);
 let profileDraft =
-  $state<Settings["asyncSubagent"]["compactionProfile"]>("inherit");
+  $state<AsyncSubagentSettings["compactionProfile"]>("inherit");
 let triggerDraft = $state("80");
 let keepRecentDraft = $state("15");
 let lastOpen = false;
@@ -65,7 +64,7 @@ const profileOptions = [
 
 $effect(() => {
   if (open && !lastOpen) {
-    const current = settingsDraft.asyncSubagent;
+    const current = value;
     modelDraft = current.model;
     thinkingDraft = current.thinkingLevel;
     inheritDraft = !current.model;
@@ -77,31 +76,20 @@ $effect(() => {
 });
 
 function save(): void {
-  const patch = asyncSubagentPatch(
+  const settings = asyncSubagentSettingsFromDraft(
     inheritDraft ? undefined : modelDraft,
     thinkingDraft,
     profileDraft,
     triggerDraft,
     keepRecentDraft,
   );
-  if (!patch) return;
-  settingsDraft.asyncSubagent = {
-    ...settingsDraft.asyncSubagent,
-    ...patch.asyncSubagent,
-    model: patch.asyncSubagent.model ?? undefined,
-    thinkingLevel: patch.asyncSubagent.thinkingLevel ?? undefined,
-  };
-  onSettingsChange?.(patch, { immediate: true });
+  if (!settings) return;
+  onSave(settings);
   open = false;
 }
 </script>
 
-<Dialog
-  bind:open
-  size="md"
-  title="Configure Async Subagents"
-  description="Choose the model and reasoning level for new teammates and the compaction profile for their runs."
->
+<Dialog bind:open size="md" {title} {description}>
   <div class="grid gap-4">
     <ModelSelectionField
       label="Teammate model"
@@ -124,9 +112,8 @@ function save(): void {
         variant="radio"
         value={profileDraft}
         ariaLabel="Teammate compaction profile"
-        onValueChange={(value) =>
-          (profileDraft =
-            value as Settings["asyncSubagent"]["compactionProfile"])}
+        onValueChange={(next) =>
+          (profileDraft = next as AsyncSubagentSettings["compactionProfile"])}
       />
       <p class="text-xs text-muted-foreground">
         The global or project auto-compaction switch still applies to teammates.

@@ -1,29 +1,32 @@
 <script lang="ts">
 import { openAiCodexImageSizeSchema } from "$lib/api";
+import type { ImageGenerationToolSettings } from "@nervekit/contracts/settings";
 import type {
   ImageGenerationProvider,
   OpenAiCodexImageBackground,
   OpenAiCodexImageModel,
   OpenAiCodexImageQuality,
-  Settings,
 } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
-import type { SettingsChange } from "../settings-change";
 
 type Props = {
   open?: boolean;
-  settingsDraft: Settings;
-  onSettingsChange?: SettingsChange;
+  value: ImageGenerationToolSettings;
+  title?: string;
+  description?: string;
+  onSave: (value: ImageGenerationToolSettings) => void;
 };
 
 let {
   open = $bindable(false),
-  settingsDraft,
-  onSettingsChange,
+  value,
+  title = "Configure image generation",
+  description = "Choose the provider, model, and output defaults used for every generation.",
+  onSave,
 }: Props = $props();
 
 const providerOptions = [
@@ -66,7 +69,7 @@ let lastOpen = false;
 
 $effect(() => {
   if (open && !lastOpen) {
-    const settings = settingsDraft.tools.imageGeneration;
+    const settings = value;
     providerDraft = settings.provider;
     modelDraft = settings.model;
     qualityDraft = settings.options.quality;
@@ -82,7 +85,7 @@ const validSize = $derived(
 
 function save(): void {
   if (!validSize) return;
-  const imageGeneration = {
+  onSave({
     provider: providerDraft,
     model: modelDraft,
     options: {
@@ -90,19 +93,12 @@ function save(): void {
       size: sizeDraft,
       background: backgroundDraft,
     },
-  } as const;
-  settingsDraft.tools.imageGeneration = imageGeneration;
-  onSettingsChange?.({ tools: { imageGeneration } }, { immediate: true });
+  });
   open = false;
 }
 </script>
 
-<Dialog
-  bind:open
-  size="sm"
-  title="Configure image generation"
-  description="Choose the provider, model, and output defaults used for every generation."
->
+<Dialog bind:open size="sm" {title} {description}>
   <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label>Provider</Label>
@@ -110,8 +106,8 @@ function save(): void {
         items={providerOptions}
         value={providerDraft}
         ariaLabel="Image generation provider"
-        onValueChange={(value) =>
-          (providerDraft = value as ImageGenerationProvider)}
+        onValueChange={(next) =>
+          (providerDraft = next as ImageGenerationProvider)}
       />
     </div>
 
@@ -122,8 +118,7 @@ function save(): void {
           items={modelOptions}
           value={modelDraft}
           ariaLabel="OpenAI image model"
-          onValueChange={(value) =>
-            (modelDraft = value as OpenAiCodexImageModel)}
+          onValueChange={(next) => (modelDraft = next as OpenAiCodexImageModel)}
         />
       </div>
       <div class="grid gap-1.5">
@@ -132,8 +127,8 @@ function save(): void {
           items={qualityOptions}
           value={qualityDraft}
           ariaLabel="OpenAI image quality"
-          onValueChange={(value) =>
-            (qualityDraft = value as OpenAiCodexImageQuality)}
+          onValueChange={(next) =>
+            (qualityDraft = next as OpenAiCodexImageQuality)}
         />
       </div>
       <div class="grid gap-1.5">
@@ -160,8 +155,8 @@ function save(): void {
           items={backgroundOptions}
           value={backgroundDraft}
           ariaLabel="OpenAI image background"
-          onValueChange={(value) =>
-            (backgroundDraft = value as OpenAiCodexImageBackground)}
+          onValueChange={(next) =>
+            (backgroundDraft = next as OpenAiCodexImageBackground)}
         />
       </div>
     {/if}

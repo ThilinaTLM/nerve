@@ -1,10 +1,10 @@
-import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
@@ -108,8 +108,6 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  /** Connection status of Atlassian profiles shown when picking a profile. */
-  capabilityProfileHealth?: AtlassianProfileHealth[];
 };
 
 export type ConversationTimelineSections = {
@@ -165,6 +163,8 @@ export type ConversationPaneActions = {
   onOpenPermissionSettings?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  /** Opens the conversation-level settings dialog for one tool group. */
+  onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onPasteImage?: (file: File) => Promise<string>;

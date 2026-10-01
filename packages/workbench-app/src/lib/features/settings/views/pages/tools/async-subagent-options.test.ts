@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ModelSelection } from "$lib/api";
 import {
-  asyncSubagentPatch,
+  asyncSubagentSettingsFromDraft,
+  asyncSubagentSettingsPatch,
   validAsyncSubagentPercent,
 } from "./async-subagent-options.js";
 
@@ -11,8 +12,13 @@ const unavailable: ModelSelection = { provider: "openai", modelId: "gpt-old" };
 describe("async teammate settings choices", () => {
   it("keeps a chosen model and thinking level, including a retained unavailable model", () => {
     assert.deepEqual(
-      asyncSubagentPatch(unavailable, "high", "inherit", "80", "15")
-        ?.asyncSubagent,
+      asyncSubagentSettingsFromDraft(
+        unavailable,
+        "high",
+        "inherit",
+        "80",
+        "15",
+      ),
       {
         model: unavailable,
         thinkingLevel: "high",
@@ -23,19 +29,28 @@ describe("async teammate settings choices", () => {
     );
   });
 
-  it("clears a model override and its thinking level atomically with profile and custom percentages", () => {
-    assert.deepEqual(
-      asyncSubagentPatch(undefined, "high", "custom", "75", "20"),
-      {
-        asyncSubagent: {
-          model: null,
-          thinkingLevel: null,
-          compactionProfile: "custom",
-          customTriggerPercent: 75,
-          customKeepRecentPercent: 20,
-        },
-      },
+  it("drops the thinking level with the model so teammates follow the lead", () => {
+    const settings = asyncSubagentSettingsFromDraft(
+      undefined,
+      "high",
+      "custom",
+      "75",
+      "20",
     );
+    assert.deepEqual(settings, {
+      compactionProfile: "custom",
+      customTriggerPercent: 75,
+      customKeepRecentPercent: 20,
+    });
+    assert.deepEqual(settings && asyncSubagentSettingsPatch(settings), {
+      asyncSubagent: {
+        model: null,
+        thinkingLevel: null,
+        compactionProfile: "custom",
+        customTriggerPercent: 75,
+        customKeepRecentPercent: 20,
+      },
+    });
   });
 
   it("rejects empty, fractional, and out-of-range custom percentages", () => {
@@ -45,7 +60,7 @@ describe("async teammate settings choices", () => {
     assert.equal(validAsyncSubagentPercent("60", 60, 90), true);
     assert.equal(validAsyncSubagentPercent("40", 5, 40), true);
     assert.equal(
-      asyncSubagentPatch(undefined, "off", "balanced", "80", "41"),
+      asyncSubagentSettingsFromDraft(undefined, "off", "balanced", "80", "41"),
       undefined,
     );
   });

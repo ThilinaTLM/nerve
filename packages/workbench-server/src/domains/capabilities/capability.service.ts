@@ -17,6 +17,7 @@ import {
   type CapabilityProfileOption,
   type CapabilityToolName,
   type CapabilityToolProfileOptions,
+  type CapabilityToolSettings,
   type CapabilityTrust,
 } from "@nervekit/contracts/capabilities";
 import { userConfigurableToolNameSchema } from "@nervekit/contracts/tools";
@@ -33,7 +34,16 @@ import {
   effectiveIntegrations,
   type EffectiveIntegrations,
 } from "../tools/execution/integration-profile-resolution.js";
-import { userCapabilitySelection } from "./user-capability-selection.js";
+import {
+  settingsWithCapabilityToolSettings,
+  userCapabilitySelection,
+} from "./user-capability-selection.js";
+
+/** What one tool call resolves from its project and conversation. */
+export type CapabilityToolScope = {
+  integrations: EffectiveIntegrations;
+  toolSettings: CapabilityToolSettings;
+};
 
 const userConfigurableToolNames = userConfigurableToolNameSchema.options;
 const TRUST_NAMESPACE = "project-capability-trust";
@@ -81,16 +91,34 @@ export class CapabilityService {
     return (await this.configuration(projectId, conversationId)).effective;
   }
 
-  /** Effective integration profiles for tool execution in this scope. */
-  async integrations(
+  /** Integration profiles and tool settings for tool execution in this scope. */
+  async toolScope(
     projectId: string,
     conversationId?: string,
-  ): Promise<EffectiveIntegrations> {
+  ): Promise<CapabilityToolScope> {
     const { settings, configuration } = await this.#read(
       projectId,
       conversationId,
     );
-    return effectiveIntegrations(settings, configuration.effective);
+    return {
+      integrations: effectiveIntegrations(settings, configuration.effective),
+      toolSettings: configuration.effective.toolSettings,
+    };
+  }
+
+  /** Project settings with this scope's tool settings applied. */
+  async settings(
+    projectId: string,
+    conversationId?: string,
+  ): Promise<Settings> {
+    const { settings, configuration } = await this.#read(
+      projectId,
+      conversationId,
+    );
+    return settingsWithCapabilityToolSettings(
+      settings,
+      configuration.effective.toolSettings,
+    );
   }
 
   async #read(

@@ -1,8 +1,10 @@
 import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { defaultSettings } from "../../src/domains/settings/settings.js";
 import {
   applyCapabilityPatch,
+  capabilityToolSettingsFromSettings,
   capabilityToolsFromDisabledNames,
   disabledToolNamesForCapabilities,
   capabilityPatchSchema,
@@ -10,11 +12,16 @@ import {
   emptyCapabilityOverrides,
   resolveCapabilitySelection,
   type CapabilitySelection,
+  type CapabilityToolSettings,
 } from "../../src/domains/capabilities/capabilities.js";
+
+const toolSettings: CapabilityToolSettings =
+  capabilityToolSettingsFromSettings(defaultSettings);
 
 const user: CapabilitySelection = {
   disabledTools: ["python_exec"],
   toolProfiles: {},
+  toolSettings,
   disabledFileSkills: ["release"],
   enabledNerveSkills: [],
   enabledAgentBrowserSkills: ["core"],
@@ -45,6 +52,7 @@ test("capability selection composes user, project, and conversation scopes", () 
     {
       disabledTools: [],
       toolProfiles: {},
+      toolSettings,
       disabledFileSkills: [],
       enabledNerveSkills: [],
       enabledAgentBrowserSkills: [],
@@ -240,4 +248,81 @@ test("a stored override survives when the parent later matches it", () => {
       .disabledTools,
     [],
   );
+});
+
+test("tool settings replace inherited settings per tool across levels", () => {
+  const exploreModel = {
+    provider: "openai",
+    modelId: "gpt-5.1-mini",
+  };
+  const project = applyCapabilityPatch(
+    emptyCapabilityOverrides(),
+    { toolSettings: { kroki_export: { url: "http://127.0.0.1:9080/kroki" } } },
+    user,
+  );
+  // URLs are normalized before storage and before comparison.
+  assert.deepEqual(project.toolSettings, {
+    kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
+  });
+  const inherited = resolveCapabilitySelection({ user, project });
+  const conversation = applyCapabilityPatch(
+    emptyCapabilityOverrides(),
+    {
+      toolSettings: {
+        explore: { model: exploreModel, thinkingLevel: "high" },
+        // Equal to the inherited project value, so nothing is stored.
+        kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
+      },
+    },
+    inherited,
+  );
+  assert.deepEqual(conversation.toolSettings, {
+    explore: { model: exploreModel, thinkingLevel: "high" },
+  });
+  const effective = resolveCapabilitySelection({
+    user,
+    project,
+    conversation,
+  }).toolSettings;
+  assert.deepEqual(effective.explore, {
+    model: exploreModel,
+    thinkingLevel: "high",
+  });
+  assert.equal(effective.kroki_export.url, "http://127.0.0.1:9080/kroki/");
+  assert.deepEqual(effective.generate_image, toolSettings.generate_image);
+
+  const reset = applyCapabilityPatch(
+    conversation,
+    { toolSettings: { explore: null } },
+    inherited,
+  );
+  assert.deepEqual(reset, emptyCapabilityOverrides());
+});
+
+test("tool settings overrides are validated per tool", () => {
+  assert.equal(
+    capabilityPatchSchema.safeParse({
+      toolSettings: { python_exec: { enabled: true } },
+    }).success,
+    false,
+  );
+  assert.throws(() =>
+    capabilityOverridesDocumentSchema.parse({
+      schemaVersion: 2,
+      toolSettings: { kroki_export: { url: "ftp://kroki.example" } },
+    }),
+  );
+  assert.deepEqual(
+    capabilityOverridesDocumentSchema.parse({ schemaVersion: 2 }).toolSettings,
+    {},
+  );
+});
+
+test("settings project to tool settings without undefined fields", () => {
+  const projected = capabilityToolSettingsFromSettings({
+    ...defaultSettings,
+    exploreAgent: { model: undefined, thinkingLevel: "low" },
+  });
+  assert.deepEqual(projected.explore, { thinkingLevel: "low" });
+  assert.equal(Object.hasOwn(projected.explore, "model"), false);
 });

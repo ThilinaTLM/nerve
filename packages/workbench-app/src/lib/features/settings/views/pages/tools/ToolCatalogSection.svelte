@@ -1,6 +1,11 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
 import type {
+  AsyncSubagentSettings,
+  ImageGenerationToolSettings,
+  KrokiToolSettings,
+} from "@nervekit/contracts/settings";
+import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
@@ -24,7 +29,10 @@ import {
 import ToolModelDialog from "./ToolModelDialog.svelte";
 import type { SettingsChange } from "../settings-change";
 import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
-import { asyncSubagentProfileLabel } from "./async-subagent-options";
+import {
+  asyncSubagentProfileLabel,
+  asyncSubagentSettingsPatch,
+} from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import KrokiToolDialog from "./KrokiToolDialog.svelte";
@@ -194,6 +202,25 @@ function saveVisionModel(selection: {
     { immediate: true },
   );
   if (!model) setToolsEnabled(["explain_image"], false);
+}
+
+function saveAsyncSubagent(asyncSubagent: AsyncSubagentSettings): void {
+  settingsDraft.asyncSubagent = asyncSubagent;
+  onSettingsChange?.(asyncSubagentSettingsPatch(asyncSubagent), {
+    immediate: true,
+  });
+}
+
+function saveImageGeneration(
+  imageGeneration: ImageGenerationToolSettings,
+): void {
+  settingsDraft.tools.imageGeneration = imageGeneration;
+  onSettingsChange?.({ tools: { imageGeneration } }, { immediate: true });
+}
+
+function saveKroki(kroki: KrokiToolSettings): void {
+  settingsDraft.tools.kroki = kroki;
+  onSettingsChange?.({ tools: { kroki } }, { immediate: true });
 }
 
 function setTavilyProfile(profileId?: string): void {
@@ -449,24 +476,24 @@ function setTavilyProfile(profileId?: string): void {
 
 <AsyncSubagentToolDialog
   bind:open={asyncSubagentDialogOpen}
-  {settingsDraft}
+  value={settingsDraft.asyncSubagent}
   {models}
   {authProviders}
-  {onSettingsChange}
+  onSave={saveAsyncSubagent}
 />
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
 <ImageGenerationToolDialog
   bind:open={imageGenerationDialogOpen}
-  {settingsDraft}
-  {onSettingsChange}
+  value={settingsDraft.tools.imageGeneration}
+  onSave={saveImageGeneration}
 />
 
 <KrokiToolDialog
   bind:open={krokiDialogOpen}
-  {settingsDraft}
-  {onSettingsChange}
+  value={settingsDraft.tools.kroki}
+  onSave={saveKroki}
 />
 
 <ToolProfileDialog

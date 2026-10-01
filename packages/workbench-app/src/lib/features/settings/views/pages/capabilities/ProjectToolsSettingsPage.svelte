@@ -113,7 +113,7 @@ function setRow(row: ToolRow, state: CapabilityToolState, enabled: boolean) {
 }
 
 function resetRow(row: ToolRow): void {
-  onPatch?.({ tools: capabilityResetPatch(row.names) });
+  onPatch?.(capabilityResetPatch(row.names));
 }
 
 function openProfiles(row: ToolRow): void {

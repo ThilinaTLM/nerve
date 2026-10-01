@@ -1,7 +1,9 @@
 import {
+  capabilityToolSettingsFromSettings,
   capabilityToolsFromDisabledNames,
   type CapabilitySelection,
   type CapabilityToolProfiles,
+  type CapabilityToolSettings,
 } from "@nervekit/contracts/capabilities";
 import type { Settings } from "@nervekit/contracts/settings";
 
@@ -24,8 +26,27 @@ export function userCapabilitySelection(
       ...(tools.confluence.enabled ? [] : (["confluence"] as const)),
     ],
     toolProfiles,
+    toolSettings: capabilityToolSettingsFromSettings(settings),
     disabledFileSkills: settings.skills.disabled,
     enabledNerveSkills: settings.skills.nerve.enabled,
     enabledAgentBrowserSkills: settings.skills.agentBrowser.enabled,
+  };
+}
+
+/** Settings as a tool sees them once a scope's tool settings are applied. */
+export function settingsWithCapabilityToolSettings(
+  settings: Settings,
+  toolSettings: CapabilityToolSettings,
+): Settings {
+  return {
+    ...settings,
+    exploreAgent: toolSettings.explore,
+    asyncSubagent: toolSettings.subagents,
+    tools: {
+      ...settings.tools,
+      imageExplanation: toolSettings.explain_image,
+      imageGeneration: toolSettings.generate_image,
+      kroki: toolSettings.kroki_export,
+    },
   };
 }

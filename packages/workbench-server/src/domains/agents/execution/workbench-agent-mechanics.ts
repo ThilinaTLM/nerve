@@ -154,7 +154,7 @@ export class WorkbenchAgentMechanics {
     );
     const customModels = await this.customModels(agent.projectDir);
     const primaryModel = resolveAgentModel(agent.model, customModels);
-    const imageExplanationSelection = settings.tools.imageExplanation.model;
+    const imageExplanationSelection = resolved.toolSettings.explain_image.model;
     const imageExplanationModel = imageExplanationSelection
       ? resolveAgentModel(imageExplanationSelection, customModels)
       : undefined;
@@ -173,7 +173,7 @@ export class WorkbenchAgentMechanics {
     );
     const imageGenerationAvailable =
       await this.deps.imageGeneration.isAvailable(
-        settings.tools.imageGeneration,
+        resolved.toolSettings.generate_image,
       );
     const integrations = effectiveIntegrations(settings, resolved);
     return activeToolNamesForAgent(agent, {
@@ -338,7 +338,10 @@ export class WorkbenchAgentMechanics {
     const policy = deriveAutoCompactionPolicy(
       contextWindow,
       compactionSettingsForAgent(
-        await resolveProjectSettings(this.deps.storage, input.agent.projectDir),
+        await this.deps.capabilities.settings(
+          input.agent.projectId,
+          input.agent.conversationId,
+        ),
         input.agent,
       ),
     );

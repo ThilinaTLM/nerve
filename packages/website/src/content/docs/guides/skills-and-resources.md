@@ -31,7 +31,7 @@ The **User** scope supplies defaults for every project. The **Project** scope wr
 
 Project capability files are locally trusted by exact content digest. A new or externally changed file remains visible for review but inactive until trusted. Conversation overrides are local to the conversation and take precedence over trusted project values. Capability changes apply when the next agent run is prepared.
 
-Values resolve field by field in the order user → project → conversation. A level stores only values set on that level; setting a value back to what the level would inherit removes the override. Later changes to user or project settings never rewrite a conversation's own values: they stay until you reset them, and the tools menu marks them as set in the conversation even when they currently match the project.
+Values resolve field by field in the order user → project → conversation. Tool settings (models, image output defaults, the Kroki server, and teammate settings) resolve per tool instead: the nearest level that sets a tool's settings supplies all of them. A level stores only values set on that level; setting a value back to what the level would inherit removes the override. Later changes to user or project settings never rewrite a conversation's own values: they stay until you reset them, and the tools menu marks them as set in the conversation even when they currently match the project.
 
 ## Capability file format
 

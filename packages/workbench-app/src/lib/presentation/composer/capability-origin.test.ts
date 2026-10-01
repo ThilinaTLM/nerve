@@ -1,12 +1,15 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
   type CapabilityConfiguration,
   type CapabilitySelection,
 } from "@nervekit/contracts/capabilities";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   capabilityOriginLabel,
+  capabilityResetPatch,
   capabilityTogglePatch,
   capabilityToolState,
 } from "./capability-origin";
@@ -16,6 +19,7 @@ const selection = (
 ): CapabilitySelection => ({
   disabledTools: [],
   toolProfiles: {},
+  toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
   disabledFileSkills: [],
   enabledNerveSkills: [],
   enabledAgentBrowserSkills: [],
@@ -133,6 +137,60 @@ describe("capabilityToolState", () => {
     });
     assert.deepEqual(capabilityTogglePatch(state, ["jira"], false), {
       jira: { enabled: false },
+    });
+  });
+
+  it("treats a conversation's tool settings as an override of that tool", () => {
+    const inherited = selection();
+    const model = { provider: "openai", modelId: "gpt-5.1-mini" };
+    const state = capabilityToolState({
+      configuration: configuration({
+        availableTools: ["explore"],
+        conversation: {
+          ...emptyCapabilityOverrides(),
+          toolSettings: { explore: { model, thinkingLevel: "high" } },
+        },
+        effective: selection({
+          toolSettings: {
+            ...inherited.toolSettings,
+            explore: { model, thinkingLevel: "high" },
+          },
+        }),
+      }),
+      level: "conversation",
+      names: ["explore"],
+    });
+    assert.equal(state.settingsTool, "explore");
+    assert.equal(state.stored, true);
+    assert.equal(state.matchesInherited, false);
+    assert.equal(state.originLabel, "Set in this conversation");
+  });
+
+  it("attributes inherited tool settings to a trusted project", () => {
+    const state = capabilityToolState({
+      configuration: configuration({
+        project: {
+          ...emptyCapabilityOverrides(),
+          toolSettings: { kroki_export: { url: "http://kroki.internal/" } },
+        },
+      }),
+      level: "conversation",
+      names: ["kroki_export"],
+    });
+    assert.equal(state.stored, false);
+    assert.equal(state.inheritedFrom, "project");
+  });
+
+  it("resets enablement, profile, and settings of a tool group together", () => {
+    assert.deepEqual(capabilityResetPatch(["explore"]), {
+      tools: { explore: { enabled: null } },
+      toolSettings: { explore: null },
+    });
+    assert.deepEqual(capabilityResetPatch(["web_search", "web_fetch"]), {
+      tools: {
+        web_search: { enabled: null, profileId: null },
+        web_fetch: { enabled: null },
+      },
     });
   });
 });

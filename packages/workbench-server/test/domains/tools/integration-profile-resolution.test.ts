@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import type { CapabilitySelection } from "@nervekit/contracts/capabilities";
+import { userCapabilitySelection } from "../../../src/domains/capabilities/user-capability-selection.js";
 import {
   effectiveIntegrations,
   integrationCredentialProvider,
@@ -38,6 +39,7 @@ describe("integration profile resolution", () => {
       confluence: "docs-work",
       web_search: "search",
     },
+    toolSettings: userCapabilitySelection(defaultSettings).toolSettings,
     disabledFileSkills: [],
     enabledNerveSkills: [],
     enabledAgentBrowserSkills: [],

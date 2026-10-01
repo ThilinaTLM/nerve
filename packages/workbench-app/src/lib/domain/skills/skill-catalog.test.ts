@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  CapabilityOverridesDocument,
-  CapabilitySelection,
+import {
+  capabilityToolSettingsFromSettings,
+  type CapabilityOverridesDocument,
+  type CapabilitySelection,
 } from "@nervekit/contracts/capabilities";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import type { AvailableSkill, SkillSource } from "@nervekit/contracts/skills";
 import {
   buildSkillEntries,
@@ -43,6 +45,7 @@ const overrides = (
 ): CapabilityOverridesDocument => ({
   schemaVersion: 2,
   tools: {},
+  toolSettings: {},
   skills: { file: {}, nerve: {}, agentBrowser: {}, ...document },
 });
 
@@ -216,6 +219,7 @@ describe("composerSkillRows", () => {
   const selection: CapabilitySelection = {
     disabledTools: [],
     toolProfiles: {},
+    toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
     disabledFileSkills: ["review"],
     enabledNerveSkills: [],
     enabledAgentBrowserSkills: ["core"],

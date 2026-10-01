@@ -8,6 +8,7 @@ import { defaultSettings } from "@nervekit/contracts/settings";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { OrchestrationToolDispatcher } from "../../../src/domains/tools/orchestration/dispatcher.js";
 import { effectiveIntegrations } from "../../../src/domains/tools/execution/integration-profile-resolution.js";
+import { userCapabilitySelection } from "../../../src/domains/capabilities/user-capability-selection.js";
 
 const root = await mkdtemp(join(tmpdir(), "nerve-dispatcher-integrations-"));
 after(() => rm(root, { recursive: true, force: true }));
@@ -32,6 +33,10 @@ const settings = {
 const conversationSelection: CapabilitySelection = {
   disabledTools: ["confluence"],
   toolProfiles: { jira: "pplied" },
+  toolSettings: {
+    ...userCapabilitySelection(defaultSettings).toolSettings,
+    kroki_export: { url: "http://127.0.0.1:9080/conversation/" },
+  },
   disabledFileSkills: [],
   enabledNerveSkills: [],
   enabledAgentBrowserSkills: [],
@@ -39,6 +44,7 @@ const conversationSelection: CapabilitySelection = {
 
 function dispatcher(outcomes: unknown[]) {
   const resolved: string[] = [];
+  const imageSettings: unknown[] = [];
   const instance = new OrchestrationToolDispatcher({
     storage: { paths: { home: root }, settings },
     events: { publish: async () => undefined },
@@ -48,15 +54,22 @@ function dispatcher(outcomes: unknown[]) {
     },
     getApiKey: async (provider: string) =>
       provider === "atlassian:pplied" ? "token" : undefined,
-    resolveIntegrations: async (projectId: string, conversationId: string) => {
+    resolveToolScope: async (projectId: string, conversationId: string) => {
       resolved.push(`${projectId}/${conversationId}`);
-      return effectiveIntegrations(settings, conversationSelection);
+      return {
+        integrations: effectiveIntegrations(settings, conversationSelection),
+        toolSettings: conversationSelection.toolSettings,
+      };
+    },
+    explainImage: async (_request: unknown, toolSettings: unknown) => {
+      imageSettings.push(toolSettings);
+      return { explanation: "ok", model: { provider: "p", modelId: "m" } };
     },
     recordIntegrationOutcome: async (input: unknown) => {
       outcomes.push(input);
     },
   } as never);
-  return { instance, resolved };
+  return { instance, resolved, imageSettings };
 }
 
 function toolCall(toolName: string): ToolCallRecord {
@@ -99,6 +112,40 @@ describe("dispatcher integration resolution", () => {
       false,
     );
     assert.deepEqual(resolved, ["proj_test/conv_test"]);
+  });
+
+  it("passes the conversation's tool settings to image explanation", async () => {
+    const { instance, imageSettings } = dispatcher([]);
+    const context = instance.executionContext(toolCall("explain_image"));
+    await context.explainImage?.({
+      data: new Uint8Array(),
+      mimeType: "image/png",
+      prompt: "describe",
+    } as never);
+    assert.deepEqual(imageSettings, [
+      conversationSelection.toolSettings.explain_image,
+    ]);
+  });
+
+  it("renders Kroki diagrams with the conversation's server", async () => {
+    const { instance } = dispatcher([]);
+    const requested: string[] = [];
+    globalThis.fetch = async (input) => {
+      requested.push(String(input));
+      return new Response('<svg xmlns="http://www.w3.org/2000/svg"></svg>', {
+        headers: { "content-type": "image/svg+xml" },
+      });
+    };
+    await instance
+      .execute(toolCall("kroki_export"), {
+        diagram_type: "mermaid",
+        source: "graph TD; A-->B",
+      })
+      .catch(() => undefined);
+    assert.ok(
+      requested[0]?.startsWith("http://127.0.0.1:9080/conversation/"),
+      requested[0],
+    );
   });
 
   it("reports Jira outcomes with the profile that was used", async () => {

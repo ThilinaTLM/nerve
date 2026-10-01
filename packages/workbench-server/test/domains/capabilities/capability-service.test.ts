@@ -186,7 +186,7 @@ test("conversation integration overrides drive execution settings and prune inhe
   assert.deepEqual(configuration.conversation?.tools, {
     jira: { enabled: true, profileId: "pplied" },
   });
-  const integrations = await service.integrations(project.id, "conv_test");
+  const { integrations } = await service.toolScope(project.id, "conv_test");
   assert.equal(integrations.jira.enabled, true);
   assert.equal(integrations.jira.profile?.id, "pplied");
   assert.equal(integrations.confluence.enabled, false);
@@ -217,4 +217,46 @@ test("conversation inheritance includes only a trusted project", async () => {
   const untrusted = await service.configuration(project.id, "conv_test");
   assert.equal(untrusted.inherited.disabledTools.includes("jira"), true);
   assert.equal(untrusted.inherited.toolProfiles.jira, undefined);
+});
+
+test("conversation tool settings apply to execution settings only in that conversation", async () => {
+  const { project, service } = await fixture();
+  const model = { provider: "openai", modelId: "gpt-5.1-mini" };
+  const configuration = await service.update({
+    projectId: project.id,
+    conversationId: "conv_test",
+    origin: "conversation",
+    patch: {
+      toolSettings: {
+        explore: { model, thinkingLevel: "high" },
+        kroki_export: { url: "http://127.0.0.1:9080/kroki" },
+      },
+    },
+  });
+  assert.deepEqual(configuration.conversation?.toolSettings, {
+    explore: { model, thinkingLevel: "high" },
+    kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
+  });
+
+  const conversationSettings = await service.settings(project.id, "conv_test");
+  assert.deepEqual(conversationSettings.exploreAgent, {
+    model,
+    thinkingLevel: "high",
+  });
+  assert.equal(
+    conversationSettings.tools.kroki.url,
+    "http://127.0.0.1:9080/kroki/",
+  );
+  const scope = await service.toolScope(project.id, "conv_test");
+  assert.equal(
+    scope.toolSettings.kroki_export.url,
+    "http://127.0.0.1:9080/kroki/",
+  );
+
+  const projectSettings = await service.settings(project.id);
+  assert.deepEqual(projectSettings.exploreAgent, defaultSettings.exploreAgent);
+  assert.equal(
+    projectSettings.tools.kroki.url,
+    defaultSettings.tools.kroki.url,
+  );
 });

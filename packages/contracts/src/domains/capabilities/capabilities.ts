@@ -4,6 +4,14 @@ import {
   isAsyncSubagentTool,
 } from "../agents/async-subagents.js";
 import {
+  asyncSubagentSettingsSchema,
+  exploreAgentSettingsSchema,
+  imageExplanationToolSettingsSchema,
+  imageGenerationToolSettingsSchema,
+  krokiToolSettingsSchema,
+  type Settings,
+} from "../settings/settings.js";
+import {
   userConfigurableToolNameSchema,
   type UserConfigurableToolName,
 } from "../tools/tool-name.js";
@@ -38,6 +46,64 @@ export function isProfiledCapabilityTool(
 ): name is ProfiledCapabilityToolName {
   return (profiledCapabilityToolNames as readonly string[]).includes(name);
 }
+
+/**
+ * Tool settings a project or conversation can replace. Each value replaces the
+ * inherited settings for that tool as a whole, so a level never mixes fields
+ * from two sources.
+ */
+export const capabilityToolSettingsSchema = z
+  .object({
+    explore: exploreAgentSettingsSchema,
+    explain_image: imageExplanationToolSettingsSchema,
+    generate_image: imageGenerationToolSettingsSchema,
+    kroki_export: krokiToolSettingsSchema,
+    subagents: asyncSubagentSettingsSchema,
+  })
+  .strict();
+export type CapabilityToolSettings = z.infer<
+  typeof capabilityToolSettingsSchema
+>;
+export type ConfigurableCapabilityToolName = keyof CapabilityToolSettings;
+export const configurableCapabilityToolNames = Object.keys(
+  capabilityToolSettingsSchema.shape,
+) as ConfigurableCapabilityToolName[];
+
+/** The tool settings a settings document (user or project-resolved) defines. */
+export function capabilityToolSettingsFromSettings(
+  settings: Pick<Settings, "exploreAgent" | "asyncSubagent" | "tools">,
+): CapabilityToolSettings {
+  // Optional fields may hold undefined in memory, which protocol results
+  // cannot carry, so the JSON round trip drops them.
+  return capabilityToolSettingsSchema.parse(
+    JSON.parse(
+      JSON.stringify({
+        explore: settings.exploreAgent,
+        explain_image: settings.tools.imageExplanation,
+        generate_image: settings.tools.imageGeneration,
+        kroki_export: settings.tools.kroki,
+        subagents: settings.asyncSubagent,
+      }),
+    ),
+  );
+}
+
+export function isConfigurableCapabilityTool(
+  name: string,
+): name is ConfigurableCapabilityToolName {
+  return (configurableCapabilityToolNames as readonly string[]).includes(name);
+}
+
+const toolSettingsOverridesSchema = capabilityToolSettingsSchema.partial();
+const toolSettingsPatchSchema = z
+  .object({
+    explore: exploreAgentSettingsSchema.nullable().optional(),
+    explain_image: imageExplanationToolSettingsSchema.nullable().optional(),
+    generate_image: imageGenerationToolSettingsSchema.nullable().optional(),
+    kroki_export: krokiToolSettingsSchema.nullable().optional(),
+    subagents: asyncSubagentSettingsSchema.nullable().optional(),
+  })
+  .strict();
 
 const skillNameSchema = z.string().trim().min(1).max(256);
 const profileIdSchema = z.string().trim().min(1).max(256);
@@ -88,6 +154,7 @@ export const capabilityOverridesDocumentSchema = z.preprocess(
     .object({
       schemaVersion: z.literal(2),
       tools: toolOverridesSchema.default({}),
+      toolSettings: toolSettingsOverridesSchema.default({}),
       skills: z
         .object({
           file: skillOverridesSchema.default({}),
@@ -106,6 +173,7 @@ export type CapabilityOverridesDocument = z.infer<
 export const emptyCapabilityOverrides = (): CapabilityOverridesDocument => ({
   schemaVersion: 2,
   tools: {},
+  toolSettings: {},
   skills: { file: {}, nerve: {}, agentBrowser: {} },
 });
 
@@ -125,6 +193,8 @@ export const capabilityPatchSchema = z
     tools: z
       .partialRecord(capabilityToolNameSchema, capabilityToolPatchSchema)
       .optional(),
+    /** A null value returns the tool to its inherited settings. */
+    toolSettings: toolSettingsPatchSchema.optional(),
     skills: z
       .object({
         file: z.record(skillNameSchema, z.boolean().nullable()).optional(),
@@ -172,6 +242,7 @@ export type CapabilityToolProfiles = z.infer<
 export const capabilitySelectionSchema = z.object({
   disabledTools: z.array(capabilityToolNameSchema),
   toolProfiles: capabilityToolProfilesSchema,
+  toolSettings: capabilityToolSettingsSchema,
   disabledFileSkills: z.array(skillNameSchema),
   enabledNerveSkills: z.array(skillNameSchema),
   enabledAgentBrowserSkills: z.array(skillNameSchema),
@@ -260,6 +331,19 @@ export function applyCapabilityPatch(
       delete next.tools[name];
     else next.tools[name] = entry;
   }
+  const toolSettings: Partial<Record<ConfigurableCapabilityToolName, unknown>> =
+    next.toolSettings;
+  for (const [key, value] of Object.entries(patch.toolSettings ?? {})) {
+    if (value === undefined) continue;
+    const name = key as ConfigurableCapabilityToolName;
+    const parsed =
+      value === null
+        ? null
+        : capabilityToolSettingsSchema.shape[name].parse(value);
+    if (parsed === null || sameSettings(parsed, inherited.toolSettings[name]))
+      delete toolSettings[name];
+    else toolSettings[name] = parsed;
+  }
   const inheritedSkill = {
     file: (name: string) => !inherited.disabledFileSkills.includes(name),
     nerve: (name: string) => inherited.enabledNerveSkills.includes(name),
@@ -283,6 +367,7 @@ export function resolveCapabilitySelection(input: {
 }): CapabilitySelection {
   const disabledTools = new Set(input.user.disabledTools);
   const toolProfiles: CapabilityToolProfiles = { ...input.user.toolProfiles };
+  const toolSettings: CapabilityToolSettings = { ...input.user.toolSettings };
   const disabledFileSkills = new Set(input.user.disabledFileSkills);
   const enabledNerveSkills = new Set(input.user.enabledNerveSkills);
   const enabledAgentBrowserSkills = new Set(
@@ -298,6 +383,7 @@ export function resolveCapabilitySelection(input: {
       if (override.profileId !== undefined && isProfiledCapabilityTool(name))
         toolProfiles[name] = override.profileId;
     }
+    Object.assign(toolSettings, document.toolSettings);
     for (const [name, enabled] of Object.entries(document.skills.file)) {
       if (enabled) disabledFileSkills.delete(name);
       else disabledFileSkills.add(name);
@@ -316,10 +402,35 @@ export function resolveCapabilitySelection(input: {
   return capabilitySelectionSchema.parse({
     disabledTools: [...disabledTools],
     toolProfiles,
+    toolSettings,
     disabledFileSkills: [...disabledFileSkills],
     enabledNerveSkills: [...enabledNerveSkills],
     enabledAgentBrowserSkills: [...enabledAgentBrowserSkills],
   });
+}
+
+/**
+ * Whether two tool settings values are equal, independent of key order. Works
+ * for a whole resolved `CapabilityToolSettings` or one tool's settings.
+ */
+export function sameCapabilityToolSettings<T>(left: T, right: T): boolean {
+  return sameSettings(left, right);
+}
+
+/** Structural equality for JSON settings values, independent of key order. */
+function sameSettings(left: unknown, right: unknown): boolean {
+  return canonicalJson(left) === canonicalJson(right);
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (value && typeof value === "object")
+    return `{${Object.entries(value)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+      .join(",")}}`;
+  return JSON.stringify(value) ?? "null";
 }
 
 /** Collapse concrete tool settings into independently selectable capability groups. */

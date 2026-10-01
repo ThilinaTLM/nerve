@@ -1,3 +1,4 @@
+import type { AsyncSubagentSettings } from "@nervekit/contracts/settings";
 import type { ModelSelection, Settings, ThinkingLevel } from "$lib/api";
 import { compactionProfileItems } from "../compaction/compaction-options";
 
@@ -14,39 +15,50 @@ export function validAsyncSubagentPercent(
   );
 }
 
-/** Builds the settings patch. An `undefined` model means "use the lead's
- * model", which also inherits the lead's thinking level. */
-export function asyncSubagentPatch(
+/** Builds teammate settings from the dialog draft. An `undefined` model means
+ * "use the lead's model", which also inherits the lead's thinking level. */
+export function asyncSubagentSettingsFromDraft(
   model: ModelSelection | undefined,
   thinkingLevel: ThinkingLevel | undefined,
-  profile: Settings["asyncSubagent"]["compactionProfile"],
+  profile: AsyncSubagentSettings["compactionProfile"],
   trigger: string,
   keepRecent: string,
-):
-  | {
-      asyncSubagent: {
-        model: ModelSelection | null;
-        thinkingLevel: ThinkingLevel | null;
-        compactionProfile: Settings["asyncSubagent"]["compactionProfile"];
-        customTriggerPercent: number;
-        customKeepRecentPercent: number;
-      };
-    }
-  | undefined {
+): AsyncSubagentSettings | undefined {
   if (
     !validAsyncSubagentPercent(trigger, 60, 90) ||
     !validAsyncSubagentPercent(keepRecent, 5, 40)
   )
     return undefined;
   return {
+    ...(model
+      ? {
+          model: { provider: model.provider, modelId: model.modelId },
+          ...(thinkingLevel ? { thinkingLevel } : {}),
+        }
+      : {}),
+    compactionProfile: profile,
+    customTriggerPercent: Number(trigger),
+    customKeepRecentPercent: Number(keepRecent),
+  };
+}
+
+/** User settings patch that stores teammate settings, clearing unset fields. */
+export function asyncSubagentSettingsPatch(settings: AsyncSubagentSettings): {
+  asyncSubagent: {
+    model: ModelSelection | null;
+    thinkingLevel: ThinkingLevel | null;
+    compactionProfile: AsyncSubagentSettings["compactionProfile"];
+    customTriggerPercent: number;
+    customKeepRecentPercent: number;
+  };
+} {
+  return {
     asyncSubagent: {
-      model: model
-        ? { provider: model.provider, modelId: model.modelId }
-        : null,
-      thinkingLevel: model ? (thinkingLevel ?? null) : null,
-      compactionProfile: profile,
-      customTriggerPercent: Number(trigger),
-      customKeepRecentPercent: Number(keepRecent),
+      model: settings.model ?? null,
+      thinkingLevel: settings.thinkingLevel ?? null,
+      compactionProfile: settings.compactionProfile,
+      customTriggerPercent: settings.customTriggerPercent,
+      customKeepRecentPercent: settings.customKeepRecentPercent,
     },
   };
 }

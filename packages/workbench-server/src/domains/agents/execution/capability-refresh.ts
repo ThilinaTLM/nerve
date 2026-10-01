@@ -1,4 +1,7 @@
-import type { CapabilitySelection } from "@nervekit/contracts/capabilities";
+import {
+  sameCapabilityToolSettings,
+  type CapabilitySelection,
+} from "@nervekit/contracts/capabilities";
 
 const sameNames = (
   left: readonly string[],
@@ -24,6 +27,7 @@ export function sameCapabilitySelection(
   return (
     sameNames(left.disabledTools, right.disabledTools) &&
     sameToolProfiles(left, right) &&
+    sameCapabilityToolSettings(left.toolSettings, right.toolSettings) &&
     sameNames(left.disabledFileSkills, right.disabledFileSkills) &&
     sameNames(left.enabledNerveSkills, right.enabledNerveSkills) &&
     sameNames(left.enabledAgentBrowserSkills, right.enabledAgentBrowserSkills)
@@ -56,11 +60,13 @@ export function createCapabilityRefresher<TResources>(deps: {
     if (sameCapabilitySelection(selection, next)) return;
     const previous = selection;
     selection = next;
-    // A profile switch can make an integration (un)available, so it also
-    // re-derives the advertised tools.
+    // A profile or tool settings switch can make a tool (un)available, for
+    // example image tools whose model changed, so it also re-derives the
+    // advertised tools.
     if (
       !sameNames(previous.disabledTools, next.disabledTools) ||
-      !sameToolProfiles(previous, next)
+      !sameToolProfiles(previous, next) ||
+      !sameCapabilityToolSettings(previous.toolSettings, next.toolSettings)
     )
       await deps.applyToolNames(next);
     if (

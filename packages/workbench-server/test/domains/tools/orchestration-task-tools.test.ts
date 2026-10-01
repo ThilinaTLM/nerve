@@ -470,7 +470,7 @@ async function createDispatcher(
     }),
     runExplore: async () => ({ reports: [] }),
     getApiKey: async () => undefined,
-    resolveIntegrations: async () => {
+    resolveToolScope: async () => {
       throw new Error("Integrations are not used by this test.");
     },
     plans: {},

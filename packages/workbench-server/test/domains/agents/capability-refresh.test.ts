@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { CapabilitySelection } from "@nervekit/contracts/capabilities";
+import { defaultSettings } from "@nervekit/contracts/settings";
+import { userCapabilitySelection } from "../../../src/domains/capabilities/user-capability-selection.js";
 import { createCapabilityRefresher } from "../../../src/domains/agents/execution/capability-refresh.js";
 
 const selection = (
@@ -8,6 +10,7 @@ const selection = (
 ): CapabilitySelection => ({
   disabledTools: [],
   toolProfiles: {},
+  toolSettings: userCapabilitySelection(defaultSettings).toolSettings,
   disabledFileSkills: [],
   enabledNerveSkills: [],
   enabledAgentBrowserSkills: [],
@@ -114,6 +117,27 @@ describe("createCapabilityRefresher", () => {
     const { refresher, loaded, appliedTools } = harness([
       selection({ toolProfiles: { jira: "ner" } }),
       selection({ toolProfiles: { jira: "pplied" } }),
+    ]);
+
+    await refresher.refresh();
+
+    assert.equal(appliedTools.length, 1);
+    assert.deepEqual(loaded, []);
+  });
+
+  it("re-derives active tools when a tool's settings change", async () => {
+    const base = selection();
+    const { refresher, loaded, appliedTools } = harness([
+      base,
+      selection({
+        toolSettings: {
+          ...base.toolSettings,
+          explain_image: {
+            model: { provider: "openai", modelId: "gpt-5.1" },
+            thinkingLevel: "off",
+          },
+        },
+      }),
     ]);
 
     await refresher.refresh();

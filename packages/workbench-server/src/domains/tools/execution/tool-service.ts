@@ -18,12 +18,6 @@ import {
 import { realpath } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
-import {
-  type ExplainImageRequest,
-  type ExplainImageResponse,
-  type ImageGenerateRequest,
-  type ImageGenerateResponse,
-} from "@nervekit/tools/execution";
 import { type PermissionRootPaths } from "@nervekit/tools/policy";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
@@ -266,14 +260,10 @@ export interface ToolServiceDependencies {
   readonly runExplore: ExploreRunner;
   readonly subagents?: SubagentToolPort;
   readonly getApiKey: (provider: string) => Promise<string | undefined>;
-  readonly resolveIntegrations: OrchestrationToolDispatcherDeps["resolveIntegrations"];
+  readonly resolveToolScope: OrchestrationToolDispatcherDeps["resolveToolScope"];
   readonly recordIntegrationOutcome?: OrchestrationToolDispatcherDeps["recordIntegrationOutcome"];
-  readonly explainImage: (
-    request: ExplainImageRequest,
-  ) => Promise<ExplainImageResponse>;
-  readonly generateImage: (
-    request: ImageGenerateRequest,
-  ) => Promise<ImageGenerateResponse>;
+  readonly explainImage: OrchestrationToolDispatcherDeps["explainImage"];
+  readonly generateImage: OrchestrationToolDispatcherDeps["generateImage"];
   readonly plans: PlanService;
   readonly setAgentMode: (
     agentId: string,
@@ -323,7 +313,7 @@ export class ToolService {
       runExplore: this.dependencies.runExplore,
       subagents: this.dependencies.subagents,
       getApiKey: this.dependencies.getApiKey,
-      resolveIntegrations: this.dependencies.resolveIntegrations,
+      resolveToolScope: this.dependencies.resolveToolScope,
       recordIntegrationOutcome: this.dependencies.recordIntegrationOutcome,
       explainImage: this.dependencies.explainImage,
       generateImage: this.dependencies.generateImage,

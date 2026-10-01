@@ -55,9 +55,13 @@ import type { InteractionSessionService } from "./interaction-session.service.js
 import {
   integrationCredentialProvider,
   integrationProviderConfig,
-  type EffectiveIntegrations,
 } from "../execution/integration-profile-resolution.js";
-import type { AtlassianProfile } from "@nervekit/contracts/settings";
+import type {
+  AtlassianProfile,
+  ImageExplanationToolSettings,
+  ImageGenerationToolSettings,
+} from "@nervekit/contracts/settings";
+import type { CapabilityToolScope } from "../../capabilities/capability.service.js";
 import { LiveToolOutputPublisher } from "../execution/live-tool-output-publisher.js";
 import {
   enterPlanMode as enterPlanModeImpl,
@@ -111,11 +115,11 @@ export interface OrchestrationToolDispatcherDeps {
   runExplore: ExploreRunner;
   subagents?: SubagentToolPort;
   getApiKey(provider: string): Promise<string | undefined>;
-  /** Integration settings resolved for the tool call's project and conversation. */
-  resolveIntegrations(
+  /** Integration profiles and tool settings for the tool call's project and conversation. */
+  resolveToolScope(
     projectId: string,
     conversationId: string,
-  ): Promise<EffectiveIntegrations>;
+  ): Promise<CapabilityToolScope>;
   /** Evidence from a finished Jira/Confluence call about its profile's credentials. */
   recordIntegrationOutcome?(input: {
     profile: AtlassianProfile;
@@ -125,8 +129,14 @@ export interface OrchestrationToolDispatcherDeps {
     errorCode?: string;
     message?: string;
   }): Promise<void>;
-  explainImage(request: ExplainImageRequest): Promise<ExplainImageResponse>;
-  generateImage(request: ImageGenerateRequest): Promise<ImageGenerateResponse>;
+  explainImage(
+    request: ExplainImageRequest,
+    settings: ImageExplanationToolSettings,
+  ): Promise<ExplainImageResponse>;
+  generateImage(
+    request: ImageGenerateRequest,
+    settings: ImageGenerationToolSettings,
+  ): Promise<ImageGenerateResponse>;
   plans: PlanService;
   setAgentMode(
     agentId: string,
@@ -199,8 +209,8 @@ function taskReadinessArgs(value: unknown): {
 export class OrchestrationToolDispatcher {
   private readonly hostTools: HostToolFactory<WorkbenchToolExecution>;
   readonly liveOutput: LiveToolOutputPublisher;
-  /** Integration resolution per in-flight tool call, shared by its credential and config lookups. */
-  readonly #integrations = new Map<string, Promise<EffectiveIntegrations>>();
+  /** Scope resolution per in-flight tool call, shared by its credential, config, and settings lookups. */
+  readonly #scopes = new Map<string, Promise<CapabilityToolScope>>();
   /** Atlassian token handed to each in-flight tool call, for health evidence. */
   readonly #atlassianTokens = new Map<string, string>();
 
@@ -211,8 +221,17 @@ export class OrchestrationToolDispatcher {
     );
     this.hostTools = createHostToolFactory<WorkbenchToolExecution>({
       execution: {
-        context: (request) =>
-          this.executionContext(request.toolCall, request.options),
+        context: async (request) => {
+          const context = this.executionContext(
+            request.toolCall,
+            request.options,
+          );
+          if (request.toolCall.toolName === "kroki_export")
+            context.kroki = (
+              await this.scopeFor(request.toolCall)
+            ).toolSettings.kroki_export;
+          return context;
+        },
       },
       handlers: {
         forExecution: (request) =>
@@ -262,24 +281,22 @@ export class OrchestrationToolDispatcher {
         await this.recordIntegrationOutcome(toolCall, service, error);
       throw error;
     } finally {
-      this.#integrations.delete(toolCall.id);
+      this.#scopes.delete(toolCall.id);
       this.#atlassianTokens.delete(toolCall.id);
       await this.liveOutput.drain(toolCall.id);
     }
   }
 
-  private integrationsFor(
-    toolCall: ToolCallRecord,
-  ): Promise<EffectiveIntegrations> {
-    let integrations = this.#integrations.get(toolCall.id);
-    if (!integrations) {
-      integrations = this.deps.resolveIntegrations(
+  private scopeFor(toolCall: ToolCallRecord): Promise<CapabilityToolScope> {
+    let scope = this.#scopes.get(toolCall.id);
+    if (!scope) {
+      scope = this.deps.resolveToolScope(
         toolCall.projectId,
         toolCall.conversationId,
       );
-      this.#integrations.set(toolCall.id, integrations);
+      this.#scopes.set(toolCall.id, scope);
     }
-    return integrations;
+    return scope;
   }
 
   /** Health evidence never changes the tool result; failures are swallowed. */
@@ -288,11 +305,11 @@ export class OrchestrationToolDispatcher {
     service: "jira" | "confluence",
     error?: unknown,
   ): Promise<void> {
-    const integrations = this.#integrations.get(toolCall.id);
+    const scope = this.#scopes.get(toolCall.id);
     const token = this.#atlassianTokens.get(toolCall.id);
-    if (!integrations || !token || !this.deps.recordIntegrationOutcome) return;
+    if (!scope || !token || !this.deps.recordIntegrationOutcome) return;
     try {
-      const profile = (await integrations)[service].profile;
+      const profile = (await scope).integrations[service].profile;
       if (!profile) return;
       const details = error === undefined ? undefined : toolErrorDetails(error);
       await this.deps.recordIntegrationOutcome({
@@ -398,7 +415,7 @@ export class OrchestrationToolDispatcher {
       getApiKey: async (provider) => {
         const credentialProvider = isIntegrationProvider(provider)
           ? integrationCredentialProvider(
-              await this.integrationsFor(toolCall),
+              (await this.scopeFor(toolCall)).integrations,
               provider,
             )
           : provider;
@@ -408,13 +425,20 @@ export class OrchestrationToolDispatcher {
           this.#atlassianTokens.set(toolCall.id, key);
         return key;
       },
-      explainImage: this.deps.explainImage,
-      generateImage: this.deps.generateImage,
-      kroki: this.deps.storage.settings.tools.kroki,
+      explainImage: async (request) =>
+        this.deps.explainImage(
+          request,
+          (await this.scopeFor(toolCall)).toolSettings.explain_image,
+        ),
+      generateImage: async (request) =>
+        this.deps.generateImage(
+          request,
+          (await this.scopeFor(toolCall)).toolSettings.generate_image,
+        ),
       getProviderConfig: async (provider) =>
         isIntegrationProvider(provider)
           ? integrationProviderConfig(
-              await this.integrationsFor(toolCall),
+              (await this.scopeFor(toolCall)).integrations,
               provider,
             )
           : undefined,

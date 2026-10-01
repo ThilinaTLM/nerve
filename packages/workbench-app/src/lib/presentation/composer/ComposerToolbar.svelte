@@ -1,5 +1,4 @@
 <script lang="ts">
-import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
@@ -32,6 +31,7 @@ import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
+import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
 
 type Props = {
@@ -75,8 +75,8 @@ type Props = {
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityDisabled?: boolean;
-  capabilityProfileHealth?: AtlassianProfileHealth[];
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
@@ -121,8 +121,8 @@ let {
   capabilityLoading = false,
   capabilityError,
   capabilityDisabled = controlsDisabled,
-  capabilityProfileHealth,
   onCapabilityPatch,
+  onConfigureCapabilityTool,
   onResetCapabilities,
   onRefreshCapabilities,
   onOpenCapabilitySettings,
@@ -303,8 +303,8 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       loading={capabilityLoading}
       error={capabilityError}
       disabled={capabilityDisabled}
-      profileHealth={capabilityProfileHealth}
       onPatch={onCapabilityPatch}
+      onConfigureTool={onConfigureCapabilityTool}
       onReset={onResetCapabilities}
       onRefresh={onRefreshCapabilities}
       onOpenSettings={onOpenCapabilitySettings}

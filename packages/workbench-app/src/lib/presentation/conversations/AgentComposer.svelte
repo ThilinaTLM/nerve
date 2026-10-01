@@ -137,8 +137,8 @@ function submit(): void {
       capabilityLoading={model.capabilityLoading}
       capabilityDisabled={model.capabilityDisabled ?? controlsDisabled}
       capabilityError={model.capabilityError}
-      capabilityProfileHealth={model.capabilityProfileHealth}
       onCapabilityPatch={actions.onCapabilityPatch}
+      onConfigureCapabilityTool={actions.onConfigureCapabilityTool}
       onResetCapabilities={actions.onResetCapabilities}
       onRefreshCapabilities={actions.onRefreshCapabilities}
     />

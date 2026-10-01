@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
   type CapabilityConfiguration,
   type CapabilityOverridesDocument,
 } from "@nervekit/contracts/capabilities";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   ComposerCapabilityController,
   type ComposerCapabilityState,
@@ -19,6 +21,7 @@ function configuration(
   const selection = {
     disabledTools: options.disabledTools ?? [],
     toolProfiles: {},
+    toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
     disabledFileSkills: [],
     enabledNerveSkills: [],
     enabledAgentBrowserSkills: [],

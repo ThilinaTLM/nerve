@@ -1,11 +1,14 @@
 import {
   capabilityToolEnabled,
+  isConfigurableCapabilityTool,
   isProfiledCapabilityTool,
+  sameCapabilityToolSettings,
   type CapabilityConfiguration,
   type CapabilityOverridesDocument,
   type CapabilityPatch,
   type CapabilityProfileOption,
   type CapabilityToolName,
+  type ConfigurableCapabilityToolName,
   type ProfiledCapabilityToolName,
 } from "@nervekit/contracts/capabilities";
 
@@ -52,6 +55,8 @@ export type CapabilityToolState = {
   profileMissing: boolean;
   /** Enabled, but the integration cannot run without a profile. */
   needsProfile: boolean;
+  /** The tool in this group whose settings (model, server, ...) can be replaced. */
+  settingsTool?: ConfigurableCapabilityToolName;
 };
 
 /** Profiles are mandatory for Atlassian tools; web fetch works without Tavily. */
@@ -85,18 +90,25 @@ export function capabilityToolState(input: {
   const profileOptions = profileTool
     ? configuration.toolProfileOptions[profileTool]
     : [];
+  const settingsTool = names.find(isConfigurableCapabilityTool);
   const enabled = names.every((name) => capabilityToolEnabled(effective, name));
-  const stored = names.some((name) => own?.tools[name] !== undefined);
+  const storesTool = (document?: CapabilityOverridesDocument) =>
+    names.some((name) => document?.tools[name] !== undefined) ||
+    Boolean(settingsTool && document?.toolSettings[settingsTool]);
+  const stored = storesTool(own);
   const matchesInherited =
     names.every(
       (name) =>
         capabilityToolEnabled(effective, name) ===
         capabilityToolEnabled(inherited, name),
     ) &&
-    (!profileTool || profileId === inherited.toolProfiles[profileTool]);
-  const inheritedFrom: CapabilityParentLevel = names.some(
-    (name) => parent?.tools[name] !== undefined,
-  )
+    (!profileTool || profileId === inherited.toolProfiles[profileTool]) &&
+    (!settingsTool ||
+      sameCapabilityToolSettings(
+        effective.toolSettings[settingsTool],
+        inherited.toolSettings[settingsTool],
+      ));
+  const inheritedFrom: CapabilityParentLevel = storesTool(parent)
     ? "project"
     : "user";
   const profileMissing = Boolean(
@@ -121,6 +133,7 @@ export function capabilityToolState(input: {
       enabled &&
       Boolean(profileTool && profileRequired.has(profileTool)) &&
       (!profileId || profileMissing),
+    settingsTool,
   };
 }
 
@@ -154,13 +167,23 @@ export function capabilityTogglePatch(
 /** Patch that removes every stored field of a tool group at the edited level. */
 export function capabilityResetPatch(
   names: readonly CapabilityToolName[],
-): NonNullable<CapabilityPatch["tools"]> {
-  return Object.fromEntries(
-    names.map((name) => [
-      name,
-      isProfiledCapabilityTool(name)
-        ? { enabled: null, profileId: null }
-        : { enabled: null },
-    ]),
-  );
+): CapabilityPatch {
+  const settingsTools = names.filter(isConfigurableCapabilityTool);
+  return {
+    tools: Object.fromEntries(
+      names.map((name) => [
+        name,
+        isProfiledCapabilityTool(name)
+          ? { enabled: null, profileId: null }
+          : { enabled: null },
+      ]),
+    ),
+    ...(settingsTools.length > 0
+      ? {
+          toolSettings: Object.fromEntries(
+            settingsTools.map((name) => [name, null]),
+          ),
+        }
+      : {}),
+  };
 }
