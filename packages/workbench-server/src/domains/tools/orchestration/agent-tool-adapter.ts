@@ -15,6 +15,7 @@ import {
   toolDefinitionsByGroup,
 } from "@nervekit/tools/catalog";
 import { resolveToolAvailability } from "@nervekit/tools/runtime";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
   type ToolCallRecord,
@@ -115,7 +116,7 @@ export function activeToolNamesForAgent(
 
   const disabled = new Set<ToolName>(
     normalizeAsyncSubagentTools(
-      options.disabledToolNames ?? [...asyncSubagentToolNames],
+      options.disabledToolNames ?? defaultSettings.tools.disabled,
     ),
   );
   if (agent.executionKind === "async_developer") {

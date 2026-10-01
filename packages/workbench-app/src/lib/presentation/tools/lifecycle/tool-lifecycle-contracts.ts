@@ -94,7 +94,8 @@ export type CompletedViewFamily =
   | "web_search"
   | "web_fetch"
   | "explain_image"
-  | "generate_image";
+  | "generate_image"
+  | "kroki_export";
 
 export type ToolLifecycleSpec<Name extends ToolName = ToolName> = {
   name: Name;

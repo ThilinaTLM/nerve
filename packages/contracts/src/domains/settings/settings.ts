@@ -223,7 +223,48 @@ export type ImageGenerationToolSettings = z.infer<
   typeof imageGenerationToolSettingsSchema
 >;
 
+export const krokiToolSettingsSchema = z
+  .object({
+    url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2_048)
+      .url()
+      .refine(
+        (value) => {
+          try {
+            const url = new URL(value);
+            return (
+              ["http:", "https:"].includes(url.protocol) &&
+              !url.username &&
+              !url.password &&
+              !url.search &&
+              !url.hash
+            );
+          } catch {
+            return false;
+          }
+        },
+        {
+          message:
+            "Use an HTTP(S) URL without credentials, query parameters, or fragments.",
+        },
+      )
+      .transform((value) => {
+        const url = new URL(value);
+        if (!url.pathname.endsWith("/")) url.pathname += "/";
+        return url.href;
+      }),
+  })
+  .strict();
+export type KrokiToolSettings = z.infer<typeof krokiToolSettingsSchema>;
+export const defaultKrokiToolSettings: KrokiToolSettings = {
+  url: "https://kroki.io/",
+};
+
 const toolSettingsSchema = z.object({
+  kroki: krokiToolSettingsSchema,
   disabled: z
     .array(userConfigurableToolNameSchema)
     .transform(normalizeAsyncSubagentTools),
@@ -442,11 +483,17 @@ export const defaultSettings: Settings = {
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
-    disabled: ["explain_image", "generate_image", ...asyncSubagentToolNames],
+    disabled: [
+      "explain_image",
+      "generate_image",
+      "kroki_export",
+      ...asyncSubagentToolNames,
+    ],
     bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
+    kroki: defaultKrokiToolSettings,
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {
       provider: "openai-codex",
@@ -617,6 +664,7 @@ export const updateSettingsRequestSchema = z.object({
         })
         .optional(),
       imageGeneration: imageGenerationToolSettingsSchema.optional(),
+      kroki: krokiToolSettingsSchema.optional(),
     })
     .optional(),
   scopedModels: z.array(modelSelectionSchema).optional(),

@@ -77,6 +77,10 @@ describe("Explore progress tool summaries", () => {
         code: `print(${JSON.stringify(secret)})`,
         env: { TOKEN: secret },
       }),
+      summarizeExploreToolCall("kroki_export", {
+        diagram_type: "mermaid",
+        source: secret,
+      }),
       summarizeExploreToolCall("edit", {
         path: "src/config.ts",
         patch: secret,
@@ -86,7 +90,7 @@ describe("Explore progress tool summaries", () => {
       }),
     ];
     for (const summary of summaries) assert.ok(!summary.includes(secret));
-    assert.equal(summaries[3], "Fetching web page (https://example.test/docs)");
+    assert.equal(summaries[4], "Fetching web page (https://example.test/docs)");
   });
 
   it("truncates argument-derived detail", () => {

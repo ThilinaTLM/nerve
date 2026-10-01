@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { Check } from "typebox/value";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   allToolDefinitions,
   requireToolDefinition,
@@ -26,21 +27,25 @@ const validActionArguments: Record<string, Record<string, unknown>> = {
 const flattenedActionTools = new Set(Object.keys(validActionArguments));
 
 describe("model-facing tool schema compatibility", () => {
-  it("declares a reviewed agent-result policy for all 56 active tools", () => {
-    assert.equal(allToolDefinitions.length, 56);
+  it("declares a reviewed agent-result policy for every active tool", () => {
+    assert.deepEqual(
+      allToolDefinitions.map((definition) => definition.name).sort(),
+      [...toolNameSchema.options].sort(),
+    );
     assert.deepEqual(
       allToolDefinitions.filter((definition) => !definition.agentResult),
       [],
     );
     assert.equal(
       new Set(allToolDefinitions.map((definition) => definition.name)).size,
-      56,
+      allToolDefinitions.length,
     );
 
     it("locks the simplified model-facing property sets and schema budget", () => {
       const expectedProperties: Record<string, string[]> = {
         edit: ["path", "edits"],
         generate_image: ["prompt"],
+        kroki_export: ["diagram_type", "source", "output_format"],
         jira_search_users: [
           "query",
           "project_key",

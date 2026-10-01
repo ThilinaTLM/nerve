@@ -58,6 +58,14 @@ const metadata = {
     ["whole_tool"],
     true,
   ),
+  kroki_export: m(
+    "network",
+    "kroki",
+    "network",
+    ["diagram_type", "output_format"],
+    ["whole_tool"],
+    true,
+  ),
   jira_search_users: m(
     "integration",
     "jira",

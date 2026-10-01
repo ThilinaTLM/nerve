@@ -524,6 +524,30 @@ export const coreToolLifecycleSpecs = {
         ],
       }),
   }),
+  kroki_export: defineToolLifecycleSpec({
+    name: "kroki_export",
+    argumentRegion: "none",
+    completedView: "kroki_export",
+    resultPlaceholder: { variant: "text", rows: 1 },
+    emptyResult: "No diagram returned",
+    present: (source, stage) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          `${source.string("diagram_type") ?? "Diagram"} → ${(source.string("output_format") ?? "svg").toUpperCase()}`,
+        ),
+        body:
+          stage === "approval"
+            ? keyValues([
+                ["Engine", source.string("diagram_type")],
+                ["Format", source.string("output_format") ?? "svg"],
+                ["Source", boundedText(source.string("source")), true],
+              ])
+            : undefined,
+        safetyNotes: [
+          "Sends diagram source to the Kroki server configured in Settings.",
+        ],
+      }),
+  }),
   generate_image: defineToolLifecycleSpec({
     name: "generate_image",
     argumentRegion: "none",
@@ -606,6 +630,7 @@ export const coreToolLifecycleSpecs = {
     | "web_fetch"
     | "explain_image"
     | "generate_image"
+    | "kroki_export"
   >,
   ToolLifecycleSpec
 >;

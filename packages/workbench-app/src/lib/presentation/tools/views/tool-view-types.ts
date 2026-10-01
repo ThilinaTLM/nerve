@@ -173,6 +173,13 @@ export type ToolView =
       outputArtifacts?: ToolOutputArtifactPayload[];
     }
   | {
+      kind: "kroki_export";
+      diagramType?: string;
+      outputFormat?: "svg" | "png";
+      path?: string;
+      bytes?: number;
+    }
+  | {
       kind: "generate_image";
       prompt?: string;
       paths: string[];

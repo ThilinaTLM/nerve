@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   permissionOverlayForOriginSchema,
   type PermissionOverlay,
@@ -82,7 +83,7 @@ function overlay(
 }
 
 test("catalog has complete static policy metadata", () => {
-  assert.equal(toolManifest.length, 56);
+  assert.equal(toolManifest.length, toolNameSchema.options.length);
   for (const definition of toolManifest) {
     const metadata = permissionMetadataForTool(definition.name);
     assert.ok(metadata.kind);

@@ -17,6 +17,7 @@ export type ToolGroupId =
   | "web"
   | "vision"
   | "image-generation"
+  | "kroki"
   | "tasks"
   | "shell"
   | "python";
@@ -38,6 +39,7 @@ export const configurableToolOrder: ConfigurableToolName[] = [
   "web_fetch",
   "explain_image",
   "generate_image",
+  "kroki_export",
   "python_exec",
 ];
 
@@ -251,6 +253,21 @@ export const toolGroups: ToolGroupDef[] = [
         name: "explain_image",
         description:
           "Return a detailed text explanation from the configured vision model.",
+      },
+    ],
+  },
+  {
+    id: "kroki",
+    category: "third-party",
+    label: "Diagram export (Kroki)",
+    description:
+      "Export diagram source as SVG or PNG through the configured Kroki server.",
+    configurableTools: ["kroki_export"],
+    tools: [
+      {
+        name: "kroki_export",
+        description:
+          "Send diagram source to Kroki and save the rendered file as a tool-call artifact.",
       },
     ],
   },

@@ -10,6 +10,7 @@ import GenericToolView from "../tool-call/GenericToolView.svelte";
 import GrepToolView from "../tool-call/GrepToolView.svelte";
 import GenerateImageToolView from "../tool-call/GenerateImageToolView.svelte";
 import JiraToolView from "../tool-call/JiraToolView.svelte";
+import KrokiToolView from "../tool-call/KrokiToolView.svelte";
 import LsToolView from "../tool-call/LsToolView.svelte";
 import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
@@ -50,6 +51,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   web_fetch: WebFetchToolView,
   explain_image: ExplainImageToolView,
   generate_image: GenerateImageToolView,
+  kroki_export: KrokiToolView,
   generic: GenericToolView,
 };
 

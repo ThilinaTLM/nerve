@@ -27,6 +27,7 @@ import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
 import { asyncSubagentProfileLabel } from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
+import KrokiToolDialog from "./KrokiToolDialog.svelte";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
 import ToolGroupItem from "./ToolGroupItem.svelte";
@@ -63,6 +64,7 @@ let asyncSubagentDialogOpen = $state(false);
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let imageGenerationDialogOpen = $state(false);
+let krokiDialogOpen = $state(false);
 let webDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
 let exploreDialogOpen = $state(false);
@@ -237,6 +239,11 @@ function setTavilyProfile(profileId?: string): void {
           label="Configure Image explanation"
           onclick={() => (visionModelDialogOpen = true)}
         />
+      {:else if group.id === "kroki"}
+        <ToolConfigureButton
+          label="Configure diagram export"
+          onclick={() => (krokiDialogOpen = true)}
+        />
       {:else if group.id === "image-generation"}
         <ToolConfigureButton
           label="Configure image generation"
@@ -339,6 +346,15 @@ function setTavilyProfile(profileId?: string): void {
               : "Select a configured profile to enable web access."}
           {/snippet}
         </SettingsSummaryRow>
+      {:else if group.id === "kroki"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={settingsDraft.tools.kroki.url}
+          status="muted"
+        >
+          {#snippet meta()}Diagram source is sent to this server when the tool
+            is used.{/snippet}
+        </SettingsSummaryRow>
       {:else if group.id === "image-generation"}
         <SettingsSummaryRow
           class="mt-1"
@@ -436,6 +452,11 @@ function setTavilyProfile(profileId?: string): void {
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
+<KrokiToolDialog
+  bind:open={krokiDialogOpen}
+  {settingsDraft}
+  {onSettingsChange}
+/>
 <ImageGenerationToolDialog
   bind:open={imageGenerationDialogOpen}
   {settingsDraft}

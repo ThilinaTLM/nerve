@@ -6,6 +6,7 @@ import type {
   ToolTextContentPayload,
 } from "@nervekit/contracts/tools";
 import type { PythonRuntime } from "./python/runtime.js";
+import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
@@ -72,6 +73,10 @@ export interface ImageGenerationExecutionContext extends BaseExecutionContext {
     request: ImageGenerateRequest,
   ) => Promise<ImageGenerateResponse>;
 }
+export interface KrokiExecutionContext extends BaseExecutionContext {
+  artifactDir?: string;
+  kroki?: KrokiToolSettings;
+}
 export interface IntegrationExecutionContext extends BaseExecutionContext {
   artifactDir?: string;
   getApiKey?: (provider: string) => Promise<string | undefined>;
@@ -85,6 +90,7 @@ export type ToolExecutionContext = FilesystemExecutionContext &
   WebExecutionContext &
   VisionExecutionContext &
   ImageGenerationExecutionContext &
+  KrokiExecutionContext &
   IntegrationExecutionContext;
 
 // Result contracts live in `@nervekit/contracts` (single source of truth shared with the web UI).

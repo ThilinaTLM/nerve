@@ -120,7 +120,7 @@ test("initializes the current home through the storage migration chain", async (
   ]);
 });
 
-test("adopts released 0.32 readability evidence without another sweep", async (t) => {
+test("rechecks released 0.32 readability evidence after reader contract changes", async (t) => {
   const home = await temporaryHome("nerve-home-read-adoption-");
   t.after(() => rm(home, { recursive: true, force: true }));
   const initial = await initializeStorage(home);
@@ -143,7 +143,7 @@ test("adopts released 0.32 readability evidence without another sweep", async (t
 
   assert.equal(
     messages.includes("Checking stored records for readability"),
-    false,
+    true,
   );
   const verified = new DatabaseSync(initial.paths.sqlitePath, {
     readOnly: true,
@@ -232,6 +232,46 @@ test("loads older home configuration with missing additive defaults", async (t) 
     reopened.settings.tools.imageGeneration,
     defaultSettings.tools.imageGeneration,
   );
+});
+
+test("migrates older Kroki defaults and persists URL edits without toggling enablement", async (t) => {
+  const home = await temporaryHome("nerve-home-kroki-");
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const initial = await initializeStorage(home);
+  const harnessPath = initial.paths.harnessConfigPath;
+  await initial.canonicalStore.close();
+  const legacy = JSON.parse(await readFile(harnessPath, "utf8"));
+  legacy.version = 2;
+  delete legacy.tools.kroki;
+  legacy.tools.disabled = ["explore"];
+  await writeFile(harnessPath, JSON.stringify(legacy));
+  const migrated = await initializeStorage(home);
+  try {
+    assert.ok(migrated.settings.tools.disabled.includes("kroki_export"));
+    assert.ok(migrated.settings.tools.disabled.includes("explore"));
+    await writeSettings(migrated, {
+      tools: { kroki: { url: "http://127.0.0.1:9080/kroki" } },
+    });
+    assert.ok(migrated.settings.tools.disabled.includes("kroki_export"));
+    assert.equal(
+      migrated.settings.tools.imageGeneration.model,
+      defaultSettings.tools.imageGeneration.model,
+    );
+    await writeSettings(migrated, { tools: { disabled: ["explore"] } });
+  } finally {
+    await migrated.canonicalStore.close();
+  }
+  const reopened = await initializeStorage(home);
+  try {
+    assert.equal(reopened.configuration.harness.version, 3);
+    assert.equal(
+      reopened.settings.tools.kroki.url,
+      "http://127.0.0.1:9080/kroki/",
+    );
+    assert.deepEqual(reopened.settings.tools.disabled, ["explore"]);
+  } finally {
+    await reopened.canonicalStore.close();
+  }
 });
 
 test("persists async teammate settings and clears the model without resetting its profile", async (t) => {
