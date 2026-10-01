@@ -13,6 +13,7 @@ import type {
 import { withTimeoutSignal } from "../process/abort.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 import { detectSupportedImageMimeType } from "../filesystem/read.js";
+import { startsWithSvgRoot } from "./svg-header.js";
 
 const MAX_SOURCE_BYTES = 128 * 1024;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
@@ -123,16 +124,10 @@ export async function executeKrokiExport(
   }
   const data = await readBounded(response, MAX_RESPONSE_BYTES, signal);
   if (!data.byteLength) throw new Error("Kroki returned an empty diagram.");
-  const svgHeader = data
-    .subarray(0, 512)
-    .toString("utf8")
-    .replace(/^\uFEFF/, "");
   const valid =
     outputFormat === "png"
       ? detectSupportedImageMimeType(data) === "image/png"
-      : /^\s*(?:<\?xml[^?]*\?>\s*)?(?:(?:<!--[\s\S]*?-->|<!DOCTYPE svg[^>]*>)\s*)*<svg(?:\s|>)/i.test(
-          svgHeader,
-        );
+      : startsWithSvgRoot(data.subarray(0, 512).toString("utf8"));
   if (!valid)
     throw new Error(
       `Kroki returned invalid ${outputFormat.toUpperCase()} data.`,
