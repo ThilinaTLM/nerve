@@ -216,7 +216,7 @@ test("kroki exports target their source file for read and output file for write"
       kind: "path",
       access: "write",
       scope: "exact",
-      absolutePath: "/tmp/flow.svg",
+      absolutePath: resolve("/tmp/flow.svg"),
     },
   ]);
   assert.equal(request.primaryArgument, "docs/flow.mmd");
