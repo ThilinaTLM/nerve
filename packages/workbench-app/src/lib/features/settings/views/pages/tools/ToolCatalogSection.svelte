@@ -28,6 +28,7 @@ import { asyncSubagentProfileLabel } from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import KrokiToolDialog from "./KrokiToolDialog.svelte";
+import { isPublicKrokiUrl } from "./kroki-server";
 import PythonRuntimeDialog from "./PythonRuntimeDialog.svelte";
 import ToolConfigureButton from "./ToolConfigureButton.svelte";
 import ToolGroupItem from "./ToolGroupItem.svelte";
@@ -107,6 +108,7 @@ const imageGenerationReady = $derived(
         provider.credentialType === "oauth",
     ),
 );
+const krokiPublic = $derived(isPublicKrokiUrl(settingsDraft.tools.kroki.url));
 const configuredExploreModel = $derived(
   settingsDraft.exploreAgent.model
     ? usableModels.find(
@@ -239,15 +241,15 @@ function setTavilyProfile(profileId?: string): void {
           label="Configure Image explanation"
           onclick={() => (visionModelDialogOpen = true)}
         />
-      {:else if group.id === "kroki"}
-        <ToolConfigureButton
-          label="Configure diagram export"
-          onclick={() => (krokiDialogOpen = true)}
-        />
       {:else if group.id === "image-generation"}
         <ToolConfigureButton
           label="Configure image generation"
           onclick={() => (imageGenerationDialogOpen = true)}
+        />
+      {:else if group.id === "diagram-export"}
+        <ToolConfigureButton
+          label="Configure diagram export"
+          onclick={() => (krokiDialogOpen = true)}
         />
       {:else if group.id === "python"}
         <ToolConfigureButton
@@ -346,15 +348,6 @@ function setTavilyProfile(profileId?: string): void {
               : "Select a configured profile to enable web access."}
           {/snippet}
         </SettingsSummaryRow>
-      {:else if group.id === "kroki"}
-        <SettingsSummaryRow
-          class="mt-1"
-          title={settingsDraft.tools.kroki.url}
-          status="muted"
-        >
-          {#snippet meta()}Diagram source is sent to this server when the tool
-            is used.{/snippet}
-        </SettingsSummaryRow>
       {:else if group.id === "image-generation"}
         <SettingsSummaryRow
           class="mt-1"
@@ -370,6 +363,18 @@ function setTavilyProfile(profileId?: string): void {
             {:else}
               Connect OpenAI Codex OAuth to enable image generation.
             {/if}
+          {/snippet}
+        </SettingsSummaryRow>
+      {:else if group.id === "diagram-export"}
+        <SettingsSummaryRow
+          class="mt-1"
+          title={krokiPublic ? "Public Kroki server" : "Custom Kroki server"}
+          status={enabled ? (krokiPublic ? "warning" : "ok") : "muted"}
+        >
+          {#snippet meta()}
+            {settingsDraft.tools.kroki.url}{krokiPublic
+              ? " · Diagram source leaves this machine"
+              : ""}
           {/snippet}
         </SettingsSummaryRow>
       {:else if group.id === "vision"}
@@ -452,13 +457,14 @@ function setTavilyProfile(profileId?: string): void {
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
-<KrokiToolDialog
-  bind:open={krokiDialogOpen}
+<ImageGenerationToolDialog
+  bind:open={imageGenerationDialogOpen}
   {settingsDraft}
   {onSettingsChange}
 />
-<ImageGenerationToolDialog
-  bind:open={imageGenerationDialogOpen}
+
+<KrokiToolDialog
+  bind:open={krokiDialogOpen}
   {settingsDraft}
   {onSettingsChange}
 />

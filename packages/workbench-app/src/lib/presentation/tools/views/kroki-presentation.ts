@@ -2,23 +2,14 @@ import type { ToolView } from "./tool-view-types";
 import type { ToolPresentation } from "./tool-presentation-types";
 import { formatBytes } from "./tool-presentation-helpers";
 
+/** The header comes from the call arguments; results only add the file size. */
 export function krokiPresentation(
   view: Extract<ToolView, { kind: "kroki_export" }>,
   base: ToolPresentation,
 ): ToolPresentation {
-  const size = formatBytes(view.bytes);
+  const size = view.path ? formatBytes(view.bytes) : undefined;
   return {
     ...base,
-    primaryArg: view.diagramType
-      ? {
-          text: `${view.diagramType} → ${(view.outputFormat ?? "svg").toUpperCase()}`,
-        }
-      : base.primaryArg,
-    meta: view.path
-      ? [
-          { text: (view.outputFormat ?? "svg").toUpperCase() },
-          ...(size ? [{ text: size }] : []),
-        ]
-      : [],
+    meta: size ? [{ text: size, tone: "success" }] : [],
   };
 }

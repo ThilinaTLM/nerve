@@ -24,14 +24,12 @@ describe("Kroki tool presentation", () => {
     const view = parseToolView(record);
     assert.deepEqual(view, {
       kind: "kroki_export",
-      diagramType: "mermaid",
-      outputFormat: "svg",
       path: "/tmp/diagram.svg",
       bytes: 2048,
     });
     const presentation = toolPresentation(view, record);
     assert.equal(presentation.primaryArg?.text, "mermaid → SVG");
-    assert.deepEqual(presentation.meta, [{ text: "SVG" }, { text: "2.0 KB" }]);
+    assert.deepEqual(presentation.meta, [{ text: "2.0 KB", tone: "success" }]);
   });
   it("renders the same output from durable transcript previews", () => {
     const record = transcriptToolCall(
@@ -42,6 +40,10 @@ describe("Kroki tool presentation", () => {
     const view = parseToolView(record);
     assert.equal(view.kind, "kroki_export");
     if (view.kind === "kroki_export") assert.equal(view.path, details.path);
+    assert.equal(
+      toolPresentation(view, record).primaryArg?.text,
+      "mermaid → SVG",
+    );
   });
   it("handles missing and malformed results without showing fake artifact links", () => {
     for (const result of [

@@ -174,8 +174,6 @@ export type ToolView =
     }
   | {
       kind: "kroki_export";
-      diagramType?: string;
-      outputFormat?: "svg" | "png";
       path?: string;
       bytes?: number;
     }

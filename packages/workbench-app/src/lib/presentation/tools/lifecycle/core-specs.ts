@@ -530,23 +530,24 @@ export const coreToolLifecycleSpecs = {
     completedView: "kroki_export",
     resultPlaceholder: { variant: "text", rows: 1 },
     emptyResult: "No diagram returned",
-    present: (source, stage) =>
-      argumentPresentation({
-        primaryArg: textArg(
-          `${source.string("diagram_type") ?? "Diagram"} → ${(source.string("output_format") ?? "svg").toUpperCase()}`,
-        ),
+    present: (source, stage) => {
+      const diagramType = source.string("diagram_type");
+      const format = (source.string("output_format") ?? "svg").toUpperCase();
+      return argumentPresentation({
+        primaryArg: textArg(`${diagramType ?? "Diagram"} → ${format}`),
         body:
           stage === "approval"
             ? keyValues([
-                ["Engine", source.string("diagram_type")],
-                ["Format", source.string("output_format") ?? "svg"],
+                ["Diagram type", diagramType],
+                ["Format", format],
                 ["Source", boundedText(source.string("source")), true],
               ])
             : undefined,
         safetyNotes: [
           "Sends diagram source to the Kroki server configured in Settings.",
         ],
-      }),
+      });
+    },
   }),
   generate_image: defineToolLifecycleSpec({
     name: "generate_image",

@@ -263,7 +263,7 @@ export function parseToolView(
     case "generate_image":
       return parseGenerateImageView(rawArgs, rawResult);
     case "kroki_export":
-      return parseKrokiView(rawArgs, rawResult);
+      return parseKrokiView(rawResult);
 
     case "bash": {
       const command = stringField(args.command);

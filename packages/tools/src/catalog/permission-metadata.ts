@@ -60,7 +60,7 @@ const metadata = {
   ),
   kroki_export: m(
     "network",
-    "kroki",
+    "diagramExport",
     "network",
     ["diagram_type", "output_format"],
     ["whole_tool"],

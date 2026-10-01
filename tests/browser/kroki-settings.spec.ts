@@ -9,12 +9,14 @@ test("Kroki settings validate, cancel, persist and toggle independently", async 
     .getByRole("button", { name: "Tools", exact: true });
   await toolsPage.click();
   const enabled = page.getByRole("switch", {
-    name: "Enable Diagram export (Kroki) tools",
+    name: "Enable Diagram export tools",
   });
   const configure = page.getByRole("button", {
     name: "Configure diagram export",
   });
   await expect(enabled).not.toBeChecked();
+  await page.getByRole("button", { name: /^Diagram export/ }).click();
+  await expect(page.getByText("Public Kroki server")).toBeVisible();
   await configure.click();
   let dialog = page.getByRole("dialog", { name: "Configure diagram export" });
   await expect(dialog.getByRole("textbox", { name: "Kroki URL" })).toHaveValue(
@@ -37,6 +39,7 @@ test("Kroki settings validate, cancel, persist and toggle independently", async 
     .fill("http://127.0.0.1:9080/kroki");
   await dialog.getByRole("button", { name: "Save", exact: true }).click();
   await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("Custom Kroki server")).toBeVisible();
   await expect(enabled).not.toBeChecked();
   await enabled.click();
   await expect(enabled).toBeChecked();

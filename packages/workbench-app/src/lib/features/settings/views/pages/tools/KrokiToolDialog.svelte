@@ -1,5 +1,8 @@
 <script lang="ts">
-import { krokiToolSettingsSchema } from "@nervekit/contracts/settings";
+import {
+  defaultKrokiToolSettings,
+  krokiToolSettingsSchema,
+} from "@nervekit/contracts/settings";
 import type { Settings } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -38,24 +41,24 @@ function save(): void {
   title="Configure diagram export"
   description="Choose the Kroki server used to export SVG and PNG diagrams."
 >
-  <div class="grid gap-3">
+  <div class="grid gap-4">
     <div class="grid gap-1.5">
       <Label for="tools-kroki-url">Kroki URL</Label>
       <Input
         id="tools-kroki-url"
         size="xs"
         bind:value={urlDraft}
-        placeholder="https://kroki.io"
-        ariaLabel="Kroki URL"
+        aria-invalid={parsed.success ? undefined : "true"}
+        placeholder={defaultKrokiToolSettings.url}
       />
       {#if !parsed.success}
-        <p class="m-0 text-xs text-destructive">
+        <p class="text-xs text-destructive">
           Enter an HTTP(S) URL without credentials, query parameters, or
           fragments.
         </p>
       {/if}
     </div>
-    <p class="m-0 text-xs text-muted-foreground">
+    <p class="text-xs text-muted-foreground">
       Diagram source is sent to this server when the tool is used. Use a trusted
       self-hosted server for private diagrams. Saving this URL does not enable
       the tool.

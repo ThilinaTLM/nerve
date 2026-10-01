@@ -17,7 +17,7 @@ export type ToolGroupId =
   | "web"
   | "vision"
   | "image-generation"
-  | "kroki"
+  | "diagram-export"
   | "tasks"
   | "shell"
   | "python";
@@ -257,21 +257,6 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
-    id: "kroki",
-    category: "third-party",
-    label: "Diagram export (Kroki)",
-    description:
-      "Export diagram source as SVG or PNG through the configured Kroki server.",
-    configurableTools: ["kroki_export"],
-    tools: [
-      {
-        name: "kroki_export",
-        description:
-          "Send diagram source to Kroki and save the rendered file as a tool-call artifact.",
-      },
-    ],
-  },
-  {
     id: "image-generation",
     category: "third-party",
     label: "Image generation",
@@ -282,6 +267,21 @@ export const toolGroups: ToolGroupDef[] = [
         name: "generate_image",
         description:
           "Generate one image from a text prompt using user-configured settings.",
+      },
+    ],
+  },
+  {
+    id: "diagram-export",
+    category: "third-party",
+    label: "Diagram export",
+    description:
+      "Export diagram source as SVG or PNG through the configured Kroki server.",
+    configurableTools: ["kroki_export"],
+    tools: [
+      {
+        name: "kroki_export",
+        description:
+          "Send diagram source to Kroki and save the rendered file as a tool-call artifact.",
       },
     ],
   },

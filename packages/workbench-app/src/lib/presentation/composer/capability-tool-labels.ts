@@ -33,7 +33,7 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   },
   {
     key: "kroki_export",
-    label: "Diagram export (Kroki)",
+    label: "Diagram export",
     names: ["kroki_export"],
   },
   { key: "python_exec", label: "Python", names: ["python_exec"] },

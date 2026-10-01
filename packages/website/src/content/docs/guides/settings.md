@@ -30,9 +30,9 @@ Model availability depends on authentication and provider metadata. Changes to d
 
 **Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 
-### Diagram export (Kroki)
+### Diagram export
 
-**Settings → Tools → Third party → Diagram export (Kroki)** configures `kroki_export`. It is disabled by default, including after upgrading an existing home. Configure the Kroki URL (default `https://kroki.io/`), then enable the tool separately. Local/self-hosted HTTP(S) servers and reverse-proxy path prefixes are supported; URL credentials, query parameters, and fragments are not.
+**Settings → Tools → Third party → Diagram export** configures `kroki_export`, which renders diagrams through a Kroki server. It is disabled by default, including after upgrading an existing home. Configure the Kroki URL (default `https://kroki.io/`), then enable the tool separately. The summary row marks the public `kroki.io` service with a warning while the tool is enabled, because diagram source leaves your machine. Local/self-hosted HTTP(S) servers and reverse-proxy path prefixes are supported; URL credentials, query parameters, and fragments are not.
 
 ```json
 {

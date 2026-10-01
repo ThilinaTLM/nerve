@@ -5,7 +5,7 @@ import type { ToolDefinition } from "../../contracts.js";
 export const krokiToolDefinitions = [
   {
     name: "kroki_export",
-    group: "kroki",
+    group: "diagramExport",
     baseRisk: "network",
     traits: [],
     executionKind: "local",
