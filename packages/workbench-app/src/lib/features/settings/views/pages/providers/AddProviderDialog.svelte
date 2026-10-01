@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onDestroy } from "svelte";
+import { SettingsInlineMessage } from "$lib/presentation/settings";
 import Check from "@lucide/svelte/icons/check";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
@@ -83,6 +84,12 @@ onDestroy(() => void flowController.dispose());
   onOpenChange={handleOpenChange}
 >
   <div class="grid gap-4">
+    {#if (flowController.step === "method" || flowController.step === "oauth") && flowController.selected?.warning}
+      <SettingsInlineMessage
+        tone="warning"
+        text={flowController.selected.warning}
+      />
+    {/if}
     {#if flowController.step === "choose"}
       {#if available.length === 0}
         <p class="text-sm text-muted-foreground">
@@ -110,6 +117,9 @@ onDestroy(() => void flowController.dispose());
                   >
                 </span>
               </button>
+              {#if kind !== "api_key" && provider.supportsOAuth && provider.warning}
+                <SettingsInlineMessage tone="warning" text={provider.warning} />
+              {/if}
             </li>
           {/each}
         </ul>

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   type Api,
   type AuthInteraction,
@@ -38,6 +39,11 @@ export interface ModelRequestAuth {
   headers?: Record<string, string>;
   env?: Record<string, string>;
 }
+
+const DEVICE_ID_SECRET_NAME = "installation:deviceId";
+
+const OPENAI_OAUTH_WARNING =
+  "This OpenAI subscription connection currently lacks verified usage reporting and cannot be used for voice input or image generation in Nerve. To use those features, connect the “OpenAI Codex” subscription in Nerve’s Settings → Providers → Subscriptions.";
 
 const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
@@ -155,7 +161,10 @@ export class AuthManager {
     provider: string,
     interaction: AuthInteraction,
   ): Promise<OAuthCredential> {
-    const credential = await this.models.login(provider, "oauth", interaction);
+    const deviceId = await this.deviceId();
+    const credential = await this.models.login(provider, "oauth", interaction, {
+      getDeviceId: () => deviceId,
+    });
     if (credential.type !== "oauth") {
       throw new Error(
         `OAuth login for ${provider} returned a non-OAuth credential`,
@@ -163,6 +172,15 @@ export class AuthManager {
     }
     await this.models.refresh({ force: true, signal: interaction.signal });
     return credential;
+  }
+
+  /** Stable per-installation UUID that some OAuth providers require (e.g. OpenAI agent host ID). */
+  private async deviceId(): Promise<string> {
+    const existing = await this.secrets.get(DEVICE_ID_SECRET_NAME);
+    if (existing) return existing;
+    const created = randomUUID();
+    await this.secrets.set(DEVICE_ID_SECRET_NAME, created);
+    return created;
   }
 
   async deleteCredential(provider: string): Promise<void> {
@@ -250,9 +268,11 @@ export class AuthManager {
               ? providerEnvVarName(providerId)
               : undefined,
           warning:
-            providerId === "anthropic" && credential?.type === "oauth"
-              ? ANTHROPIC_OAUTH_WARNING
-              : undefined,
+            providerId === "openai"
+              ? OPENAI_OAUTH_WARNING
+              : providerId === "anthropic" && credential?.type === "oauth"
+                ? ANTHROPIC_OAUTH_WARNING
+                : undefined,
         } satisfies AuthProviderMetadata;
       }),
     );

@@ -21,6 +21,39 @@ async function tempHome(): Promise<string> {
 }
 
 describe("AuthManager", () => {
+  it("warns about OpenAI subscription limitations before and after connection without disabling either login", async () => {
+    const auth = new AuthManager(
+      new EncryptedFileSecretProvider(await tempHome()),
+    );
+    const before = await auth.listProviderMetadata();
+    const openai = before.find((provider) => provider.provider === "openai");
+    assert.ok(openai?.warning);
+    assert.match(openai.warning, /usage reporting/);
+    assert.match(openai.warning, /voice input or image generation/);
+    assert.match(
+      openai.warning,
+      /connect the “OpenAI Codex” subscription in Nerve’s Settings/,
+    );
+    assert.equal(openai.supportsOAuth, true);
+    assert.equal(openai.supportsApiKey, true);
+    const codex = before.find(
+      (provider) => provider.provider === "openai-codex",
+    );
+    assert.equal(codex?.supportsOAuth, true);
+    assert.equal(codex?.warning, undefined);
+
+    await auth.setOAuth("openai", {
+      access: "test-access",
+      refresh: "test-refresh",
+      expires: Date.now() + 60 * 60_000,
+    });
+    const connected = (await auth.listProviderMetadata()).find(
+      (provider) => provider.provider === "openai",
+    );
+    assert.equal(connected?.configured, true);
+    assert.equal(connected?.credentialType, "oauth");
+    assert.equal(connected?.warning, openai.warning);
+  });
   it("stores OAuth credentials and resolves access tokens for subscription providers", async () => {
     const auth = new AuthManager(
       new EncryptedFileSecretProvider(await tempHome()),
@@ -134,5 +167,25 @@ describe("AuthManager", () => {
     assert.equal(tavily.displayName, "Tavily profile");
     assert.equal(tavily.configured, true);
     assert.equal(tavily.envVar, undefined);
+  });
+  it("passes a stable installation device ID to OAuth login flows", async () => {
+    const home = await tempHome();
+    const deviceIds: string[] = [];
+    const loginWith = (auth: AuthManager) => {
+      auth.models.login = async (_provider, _type, _interaction, options) => {
+        deviceIds.push(options?.getDeviceId?.() ?? "");
+        return { type: "oauth", access: "a", refresh: "r", expires: 0 };
+      };
+      auth.models.refresh = async () => {};
+      return auth.loginOAuth("openai", {
+        signal: new AbortController().signal,
+      } as Parameters<AuthManager["loginOAuth"]>[1]);
+    };
+
+    await loginWith(new AuthManager(new EncryptedFileSecretProvider(home)));
+    await loginWith(new AuthManager(new EncryptedFileSecretProvider(home)));
+
+    assert.match(deviceIds[0] ?? "", /^[0-9a-f-]{36}$/);
+    assert.equal(deviceIds[1], deviceIds[0]);
   });
 });
