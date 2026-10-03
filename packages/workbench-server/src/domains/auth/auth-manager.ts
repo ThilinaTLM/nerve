@@ -43,7 +43,7 @@ export interface ModelRequestAuth {
 const DEVICE_ID_SECRET_NAME = "installation:deviceId";
 
 const OPENAI_OAUTH_WARNING =
-  "This OpenAI subscription connection currently lacks verified usage reporting and cannot be used for voice input or image generation in Nerve. To use those features, connect the “OpenAI Codex” subscription in Nerve’s Settings → Providers → Subscriptions.";
+  "Voice input and image generation aren’t supported. Use the OpenAI Codex option instead.";
 
 const ANTHROPIC_OAUTH_WARNING =
   "Anthropic subscription auth may use paid extra usage outside normal Claude plan limits.";
