@@ -14,6 +14,11 @@ import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown in the bounded transcript preview. */
 export const COLLAPSED_LINES = 6;
+/**
+ * Extra logical lines rendered above a live collapsed tail, clipped by the
+ * box, so the line slide never exposes an empty band.
+ */
+export const SLIDE_OVERSCAN_LINES = 4;
 /** Rich Atlassian result rows shown in a collapsed body. */
 export const ATLASSIAN_COLLAPSED_ITEMS = 3;
 const GREP_MATCH_TEXT_MAX = 260;

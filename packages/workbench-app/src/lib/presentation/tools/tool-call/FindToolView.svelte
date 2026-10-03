@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
+import { getToolMotion, resultRowEnterDelay } from "./tool-motion-context";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -9,6 +10,7 @@ type Props = {
   onOpenFile?: (path: string) => void;
 };
 let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
+const toolMotion = getToolMotion();
 
 const visible = $derived(
   (expanded ? view.paths : view.paths.slice(0, COLLAPSED_LINES)).map(
@@ -26,8 +28,13 @@ const visible = $derived(
   <ul
     class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-snug text-foreground"
   >
-    {#each visible as item (item.path)}
-      <li>
+    {#each visible as item, index (item.path)}
+      <li
+        class:stream-item-enter={toolMotion.enter}
+        style:--stream-item-delay={toolMotion.enter
+          ? resultRowEnterDelay(index)
+          : undefined}
+      >
         <button
           type="button"
           class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"

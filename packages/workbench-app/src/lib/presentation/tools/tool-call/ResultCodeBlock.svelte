@@ -1,5 +1,17 @@
 <script lang="ts">
-import { acquireHighlightCode } from "@nervekit/ui-kit/highlighting/highlight";
+import { untrack } from "svelte";
+import { prefersReducedMotion } from "svelte/motion";
+import { SvelteMap } from "svelte/reactivity";
+import {
+  acquireHighlightCode,
+  type HighlightCodeLease,
+} from "@nervekit/ui-kit/highlighting/highlight";
+import { fadeAge } from "@nervekit/ui-kit/components/composites/streaming-text";
+import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
+import {
+  StreamingFadeTracker,
+  type FadeSegment,
+} from "@nervekit/ui-kit/scheduling/streaming-fade";
 import { ansiToHtml } from "@nervekit/ui-kit/terminal/ansi";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import {
@@ -22,16 +34,25 @@ type Props = {
   overflow?: "auto" | "hidden";
   terminal?: boolean;
   tail?: boolean;
-  /** Content is still growing: animate fixed-row height growth. */
+  /** Content is still growing (tail boxes bottom-align only once full). */
   live?: boolean;
   /** Show a streaming caret after the last character. */
   caret?: boolean;
+  /**
+   * Streaming motion: appended text fades in and, while a live tail box is
+   * full, its lines slide up instead of jumping.
+   */
+  streamMotion?: boolean;
+  /** While not fully highlighted, highlight complete lines one by one. */
+  progressiveHighlight?: boolean;
+  /** Content arrived all at once in this session: fade it in once. */
+  enter?: boolean;
   onActivate?: () => void;
   activateLabel?: string;
 };
 
 type DiffLineTone = "add" | "delete" | "hunk" | "file" | "context";
-type DiffLine = { text: string; tone: DiffLineTone };
+type DiffLine = { text: string; tone: DiffLineTone; start: number };
 
 let {
   code,
@@ -46,6 +67,9 @@ let {
   tail = false,
   live = false,
   caret = false,
+  streamMotion = false,
+  progressiveHighlight = false,
+  enter = false,
   onActivate,
   activateLabel,
 }: Props = $props();
@@ -77,10 +101,8 @@ const logicalRowCount = $derived.by(() => {
 });
 
 let maxVisibleRows = $state(0);
-// Growth animates only after the first measurement, so mounts, history, and
-// remounts never animate from an estimated height.
-let measuredOnce = $state(false);
-const growAnimated = $derived(live && measuredOnce);
+/** Measured line height; drives the line slide distance. */
+let lineHeightPx = 0;
 // Live blocks bottom-align only once full. While they still grow, new rows must
 // appear below existing text instead of pushing it up before the measurement.
 const tailAligned = $derived(
@@ -101,12 +123,19 @@ function diffLineTone(line: string): DiffLineTone {
   return "context";
 }
 
+function normalizeNewlines(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
 function splitDiffLines(text: string): DiffLine[] {
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  return normalized.split("\n").map((line) => ({
-    text: line,
-    tone: diffLineTone(line),
-  }));
+  let start = 0;
+  return normalizeNewlines(text)
+    .split("\n")
+    .map((line) => {
+      const diffLine = { text: line, tone: diffLineTone(line), start };
+      start += line.length + 1;
+      return diffLine;
+    });
 }
 
 function updateVisibleRows(measuredRows?: number): void {
@@ -149,10 +178,10 @@ function measureVisualRows(): void {
     contentStyle.lineHeight,
     contentStyle.fontSize,
   );
+  lineHeightPx = lineHeightPixels;
   updateVisibleRows(
     visualRowsFromScrollHeight(contentEl.scrollHeight, lineHeightPixels),
   );
-  if (!measuredOnce) measuredOnce = true;
 }
 
 function handleActivationKey(event: KeyboardEvent): void {
@@ -272,7 +301,232 @@ $effect(() => {
     lease.release();
   };
 });
+// ---- Streaming motion -----------------------------------------------------
+
+const motionEnabled = $derived(streamMotion && !prefersReducedMotion.current);
+
+// Offsets in the fade tracker refer to the displayed text (diffs normalize
+// newlines). A tail window that drops leading lines keeps its chunks.
+const trackedText = $derived(
+  isDiff ? normalizeNewlines(preview.text) : preview.text,
+);
+const fadeTracker = new StreamingFadeTracker({
+  initialText: untrack(() => trackedText),
+});
+const fadeNow = $derived.by(() => {
+  const now = performance.now();
+  fadeTracker.update(trackedText, now);
+  if (!motionEnabled) fadeTracker.settle();
+  return now;
+});
+
+function segmentsFor(start: number, end: number): FadeSegment[] {
+  return fadeTracker.segments(start, end, fadeNow);
+}
+
+const terminalFadeHtml = $derived.by(() => {
+  if (!terminal) return "";
+  const text = preview.text;
+  const segments = segmentsFor(0, text.length);
+  if (!segments.some((segment) => segment.fresh)) return terminalHtml;
+  // ANSI state that spans a fresh boundary resumes once the line settles.
+  return segments
+    .map((segment) => {
+      const html = ansiToHtml(text.slice(segment.start, segment.end));
+      return segment.fresh
+        ? `<span class="stream-fresh" style="animation-delay:${-Math.round(segment.ageMs)}ms">${html}</span>`
+        : html;
+    })
+    .join("");
+});
+
+// Line slide: while a live tail box is full, appended lines push the content
+// up. A windowed tail often keeps its height (a line drops as one arrives),
+// so the push is derived from the appended text: newlines in the latest
+// append times the measured line height. Each push starts from its offset
+// and settles to zero with an additive animation, so overlapping pushes sum
+// into one movement. Started from an effect, i.e. before the next paint.
+const SLIDE_MS = 170;
+const SLIDE_MAX_LINES = 4;
+const slideActive = $derived(
+  motionEnabled &&
+    live &&
+    tailAligned &&
+    hasFixedRows &&
+    maxVisibleRows >= (fixedRows ?? Infinity),
+);
+let slideStamp: number | undefined;
+$effect(() => {
+  const stamp = fadeNow;
+  const node = contentEl;
+  if (stamp === slideStamp) return;
+  slideStamp = stamp;
+  const appended = fadeTracker.lastAppended;
+  if (!slideActive || !node || !appended || lineHeightPx <= 0) return;
+  let lines = 0;
+  for (let index = appended.start; index < appended.end; index += 1) {
+    if (trackedText.charCodeAt(index) === 10) lines += 1;
+  }
+  if (lines === 0) return;
+  const offset = Math.min(lines, SLIDE_MAX_LINES) * lineHeightPx;
+  node.animate(
+    [{ transform: `translateY(${offset}px)` }, { transform: "translateY(0)" }],
+    {
+      duration: SLIDE_MS,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      composite: "add",
+    },
+  );
+});
+
+// Final highlight cross-fade: when Shiki colours replace plain text that was
+// on screen, they fade in from the plain foreground instead of popping.
+const HIGHLIGHT_ENTER_MS = 450;
+let highlightEnter = $state(false);
+let plainShown = false;
+let highlightEnterTimer: ReturnType<typeof setTimeout> | undefined;
+$effect(() => {
+  const showingHtml = Boolean(highlight && html && htmlSignature === signature);
+  if (!showingHtml) {
+    plainShown = true;
+    return;
+  }
+  if (!plainShown) return;
+  plainShown = false;
+  if (!motionEnabled) return;
+  highlightEnter = true;
+  clearTimeout(highlightEnterTimer);
+  highlightEnterTimer = setTimeout(() => {
+    highlightEnterTimer = undefined;
+    highlightEnter = false;
+  }, HIGHLIGHT_ENTER_MS);
+});
+$effect(() => () => clearTimeout(highlightEnterTimer));
+
+// Progressive highlight: complete lines are highlighted individually (cached
+// by line text) so a shifting tail window never loses its colours. The final
+// full-text highlight corrects multi-line context under the cross-fade.
+type LineHighlight = { html: string; at: number };
+const lineHighlights = new SvelteMap<string, LineHighlight>();
+// Lease bookkeeping only; nothing renders from it.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- non-reactive by design
+const pendingLineLeases = new Map<string, HighlightCodeLease>();
+const NEWLINE = "\n";
+let destroyed = false;
+const progressiveActive = $derived(
+  progressiveHighlight &&
+    !highlight &&
+    !terminal &&
+    !isDiff &&
+    Boolean(language) &&
+    !prefersReducedMotion.current,
+);
+
+function shikiLineInner(highlighted: string): string | undefined {
+  return /<span class="line">([\s\S]*)<\/span><\/code>/.exec(highlighted)?.[1];
+}
+
+function storeLineHighlight(line: string, highlighted: string): void {
+  const inner = shikiLineInner(highlighted);
+  if (inner !== undefined) {
+    lineHighlights.set(line, { html: inner, at: performance.now() });
+  }
+}
+
+function requestLineHighlights(lines: string[]): void {
+  if (destroyed) return;
+  for (const line of lines) {
+    if (!line.trim() || lineHighlights.has(line) || pendingLineLeases.has(line))
+      continue;
+    const lease = acquireHighlightCode(line, language);
+    const result = lease.result;
+    if (typeof result === "string") {
+      storeLineHighlight(line, result);
+      lease.release();
+      continue;
+    }
+    if (!result) {
+      lease.release();
+      continue;
+    }
+    pendingLineLeases.set(line, lease);
+    void result.then((highlighted) => {
+      pendingLineLeases.delete(line);
+      lease.release();
+      if (!destroyed && highlighted) storeLineHighlight(line, highlighted);
+    });
+  }
+}
+
+const lineHighlightScheduler = new LatestPresentationScheduler<string[]>(
+  requestLineHighlights,
+  150,
+);
+
+$effect(() => {
+  if (!progressiveActive) return;
+  const lines = preview.text.split("\n");
+  lines.pop(); // the active line is still streaming
+  lineHighlightScheduler.enqueue(lines);
+});
+
+type ProgressiveLine = {
+  key: string;
+  text: string;
+  start: number;
+  highlighted?: LineHighlight;
+  last: boolean;
+};
+
+const progressiveLines = $derived.by<ProgressiveLine[]>(() => {
+  if (!progressiveActive) return [];
+  const lines = preview.text.split("\n");
+  const seen: Record<string, number> = Object.create(null);
+  let start = 0;
+  return lines.map((text, index) => {
+    const occurrence = seen[text] ?? 0;
+    seen[text] = occurrence + 1;
+    const last = index === lines.length - 1;
+    const line = {
+      key: `${text}\0${occurrence}`,
+      text,
+      start,
+      highlighted: last ? undefined : lineHighlights.get(text),
+      last,
+    };
+    start += text.length + 1;
+    return line;
+  });
+});
+
+/** Sets a line's colour-fade delay once, at mount, from its highlight age. */
+function highlightAge(node: HTMLElement, ageMs: number): void {
+  if (ageMs > 0)
+    node.style.setProperty("--highlight-delay", `${-Math.round(ageMs)}ms`);
+}
+
+$effect(() => () => {
+  destroyed = true;
+  lineHighlightScheduler.destroy();
+  for (const lease of pendingLineLeases.values()) lease.release();
+  pendingLineLeases.clear();
+});
 </script>
+
+{#snippet shikiLine(markup: string)}
+  <!-- eslint-disable-next-line svelte/no-at-html-tags -- the inner markup of one Shiki-serialized line. -->
+  {@html markup}
+{/snippet}
+
+{#snippet fadedText(
+  text: string,
+  start: number,
+  end: number,
+)}{#each segmentsFor(start, end) as segment (segment.start)}{#if segment.fresh}<span
+        class="stream-fresh"
+        use:fadeAge={segment.ageMs}
+        >{text.slice(segment.start, segment.end)}</span
+      >{:else}{text.slice(segment.start, segment.end)}{/if}{/each}{/snippet}
 
 {#if terminal}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -290,7 +544,6 @@ $effect(() => {
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tailAligned ? "true" : undefined}
-    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -299,9 +552,13 @@ $effect(() => {
       class="code-block__viewport"
       style:max-height={hasFixedRows ? undefined : maxHeight}
     >
-      <div bind:this={contentEl} class="code-block__content">
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -- ansiToHtml escapes terminal text and emits only controlled ANSI spans. -->
-        {@html terminalHtml}
+      <div
+        bind:this={contentEl}
+        class="code-block__content"
+        class:stream-item-enter={enter}
+      >
+        <!-- eslint-disable-next-line svelte/no-at-html-tags -- ansiToHtml escapes terminal text and emits only controlled ANSI spans; fade wrappers are fixed markup. -->
+        {@html terminalFadeHtml}
       </div>
     </div>
   </div>
@@ -321,7 +578,6 @@ $effect(() => {
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tailAligned ? "true" : undefined}
-    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -332,10 +588,15 @@ $effect(() => {
     >
       <pre
         bind:this={contentEl}
-        class="code-block__content code-block__content--diff">{#each diffLines as line, index (`${index}:${line.text}`)}<span
+        class="code-block__content code-block__content--diff"
+        class:stream-item-enter={enter}>{#each diffLines as line, index (`${index}:${line.text}`)}<span
             class="diff-line"
             data-tone={line.tone}
-            >{line.text}{#if caret && index === diffLines.length - 1}<span
+            >{@render fadedText(
+              trackedText,
+              line.start,
+              line.start + line.text.length,
+            )}{#if caret && index === diffLines.length - 1}<span
                 class="code-caret"
                 aria-hidden="true"></span>{/if}</span
           >{/each}</pre>
@@ -356,7 +617,6 @@ $effect(() => {
     data-overflow={overflow}
     data-fixed-rows={hasFixedRows ? "true" : undefined}
     data-tail={tailAligned ? "true" : undefined}
-    data-grow={growAnimated ? "animate" : undefined}
     style:--code-block-fixed-rows={fixedRowsVar}
     style:--code-block-visible-rows={visibleRowsVar}
   >
@@ -365,14 +625,35 @@ $effect(() => {
       class="code-block__viewport"
       style:max-height={hasFixedRows ? undefined : maxHeight}
     >
-      <div bind:this={contentEl} class="code-block__content">
+      <div
+        bind:this={contentEl}
+        class="code-block__content"
+        class:stream-item-enter={enter}
+        data-highlight-enter={highlightEnter ? "" : undefined}
+      >
         {#if highlight && html && htmlSignature === signature}
           <!-- eslint-disable-next-line svelte/no-at-html-tags -- Shiki serializes source code into controlled highlighted markup. -->
           {@html html}
-        {:else}
-          <pre>{preview.text}{#if caret}<span
+        {:else if progressiveActive}
+          <pre>{#each progressiveLines as line (line.key)}{#if line.highlighted}<span
+                  class="code-line"
+                  data-highlight-enter=""
+                  use:highlightAge={fadeNow - line.highlighted.at}
+                  >{@render shikiLine(line.highlighted.html)}</span
+                >{:else}{@render fadedText(
+                  preview.text,
+                  line.start,
+                  line.start + line.text.length,
+                )}{/if}{#if !line.last}{NEWLINE}{/if}{/each}{#if caret}<span
                 class="code-caret"
                 aria-hidden="true"></span>{/if}</pre>
+        {:else}
+          <pre>{@render fadedText(
+              preview.text,
+              0,
+              preview.text.length,
+            )}{#if caret}<span class="code-caret" aria-hidden="true"
+              ></span>{/if}</pre>
         {/if}
       </div>
     </div>
@@ -460,13 +741,21 @@ $effect(() => {
   );
 }
 
-.code-block[data-fixed-rows="true"][data-grow="animate"] {
-  transition: height 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+/* Syntax colours fade in from plain text: the full highlight swap, and each
+ * progressively highlighted line (delay set once at mount from its age). */
+.code-block__content[data-highlight-enter] :global(span[style]) {
+  animation: code-token-enter 450ms ease-out both;
+}
+
+.code-line[data-highlight-enter] :global(span) {
+  animation: code-token-enter 450ms ease-out both;
+  animation-delay: var(--highlight-delay, 0ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .code-block[data-fixed-rows="true"][data-grow="animate"] {
-    transition: none;
+  .code-block__content[data-highlight-enter] :global(span[style]),
+  .code-line[data-highlight-enter] :global(span) {
+    animation: none;
   }
 }
 

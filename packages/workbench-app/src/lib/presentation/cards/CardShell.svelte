@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { Snippet } from "svelte";
+import type { ConversationMotionProfile } from "../transcript/conversation-motion-budget";
 
 import type {
   CardAction,
@@ -32,6 +33,8 @@ type Props = {
   footer?: boolean;
   bodyVisible?: boolean;
   layoutRevision?: string;
+  /** Motion profile claimed by the latest lifecycle milestone. */
+  motionProfile?: ConversationMotionProfile;
   onOpenFile?: (path: string, line?: number) => void;
   children?: Snippet;
 };
@@ -51,6 +54,7 @@ let {
   footer = true,
   bodyVisible = false,
   layoutRevision = "static",
+  motionProfile = $bindable("standard"),
   onOpenFile,
   children,
 }: Props = $props();
@@ -107,7 +111,7 @@ const activityVisible = $derived(
 );
 </script>
 
-<LifecycleFrame revision={layoutRevision}>
+<LifecycleFrame revision={layoutRevision} bind:profile={motionProfile}>
   <article class="w-full py-2.5" data-state={draftPhase ?? lifecycle}>
     <CardHeader
       {dotTone}

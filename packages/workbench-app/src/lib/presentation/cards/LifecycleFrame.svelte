@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
+import type { ConversationMotionProfile } from "../transcript/conversation-motion-budget";
 import { getConversationMotionBudget } from "../transcript/conversation-motion-context.svelte";
 import {
   createLifecycleMotion,
@@ -9,50 +10,37 @@ import {
 
 type Props = {
   revision: string;
+  /** Profile claimed by the most recent milestone; `standard` before any. */
+  profile?: ConversationMotionProfile;
   children?: Snippet;
 };
 
-let { revision, children }: Props = $props();
+/* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before later reactive updates. */
+let { revision, profile = $bindable("standard"), children }: Props = $props();
+/* eslint-enable no-useless-assignment */
 
 const motionBudget = getConversationMotionBudget();
-let region: HTMLDivElement | undefined = $state();
 let content: HTMLDivElement | undefined = $state();
 let motion: LifecycleMotionController | undefined;
 let previousRevision: string | undefined;
-let capturedHeight: number | undefined;
 
-function ensureMotion(): LifecycleMotionController | undefined {
-  if (!motion && region && content) {
-    motion = createLifecycleMotion(region, content);
-  }
-  return motion;
-}
-
-// Capture the currently displayed height before Svelte commits a lifecycle
-// milestone. During interruption this is the in-progress visual height.
-$effect.pre(() => {
+// Each lifecycle milestone settles the content in. Height is owned by the
+// transcript row's follower, so nothing is measured here.
+$effect(() => {
   const nextRevision = revision;
-  if (previousRevision === undefined) {
+  if (previousRevision === undefined || nextRevision === previousRevision) {
     previousRevision = nextRevision;
     return;
   }
-  if (nextRevision === previousRevision) return;
-  capturedHeight = region?.getBoundingClientRect().height;
   previousRevision = nextRevision;
-});
-
-$effect(() => {
-  void revision;
-  if (capturedHeight === undefined) return;
-  const fromHeight = capturedHeight;
-  capturedHeight = undefined;
+  if (!content) return;
   const reducedMotion = prefersReducedMotion.current;
-  const visible = Boolean(region?.getClientRects().length);
-  const profile =
-    !reducedMotion && visible
-      ? (motionBudget?.claim() ?? "standard")
-      : "standard";
-  ensureMotion()?.transition(fromHeight, reducedMotion, profile);
+  const claimed = reducedMotion
+    ? "standard"
+    : (motionBudget?.claim() ?? "standard");
+  profile = claimed;
+  motion ??= createLifecycleMotion(content);
+  motion.transition(reducedMotion, claimed);
 });
 
 $effect(() => {
@@ -62,8 +50,6 @@ $effect(() => {
 $effect(() => () => motion?.destroy());
 </script>
 
-<div bind:this={region} class="min-w-0">
-  <div bind:this={content} class="min-w-0">
-    {#if children}{@render children()}{/if}
-  </div>
+<div bind:this={content} class="min-w-0">
+  {#if children}{@render children()}{/if}
 </div>

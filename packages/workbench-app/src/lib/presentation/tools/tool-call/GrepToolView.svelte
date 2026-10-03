@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
+import { getToolMotion, resultRowEnterDelay } from "./tool-motion-context";
 import {
   COLLAPSED_LINES,
   type GroupedMatches,
@@ -13,6 +14,7 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
 };
 let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
+const toolMotion = getToolMotion();
 
 const visibleGroups = $derived.by(() => {
   if (expanded) return view.allMatches;
@@ -30,8 +32,14 @@ const visibleGroups = $derived.by(() => {
 
 {#snippet matchGroups(groups: GroupedMatches[])}
   <div class="matches">
-    {#each groups as group (group.path)}
-      <div class="file">
+    {#each groups as group, groupIndex (group.path)}
+      <div
+        class="file"
+        class:stream-item-enter={toolMotion.enter}
+        style:--stream-item-delay={toolMotion.enter
+          ? resultRowEnterDelay(groupIndex)
+          : undefined}
+      >
         <button
           class="file-path"
           type="button"

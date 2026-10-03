@@ -180,6 +180,47 @@
   }
 }
 
+/* Freshly revealed streaming text (StreamingTail, StreamingText,
+ * ResultCodeBlock). Each chunk sets a negative animation-delay equal to its
+ * age when mounted, so a recreated span continues its fade. Opacity only. */
+.stream-fresh {
+  animation: stream-fade-in var(--motion-stream-fade-duration) ease-out both;
+}
+
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* One-shot entrance for items appearing in streamed or just-arrived content
+ * (todo items, result rows). Stagger with --stream-item-delay. */
+.stream-item-enter {
+  animation: stream-item-enter 240ms var(--motion-enter-easing) both;
+  animation-delay: var(--stream-item-delay, 0ms);
+}
+
+@keyframes stream-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+/* Syntax colours fade in from plain text instead of popping (ResultCodeBlock). */
+@keyframes code-token-enter {
+  from {
+    color: var(--foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stream-fresh,
+  .stream-item-enter {
+    animation: none;
+  }
+}
+
 /* Directory picker skeleton shimmer (directory-picker.css). */
 @keyframes picker-sheen {
   from {

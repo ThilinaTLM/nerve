@@ -90,5 +90,6 @@ export type VirtualScrollerProps<T> = {
   /** Class applied to the inner sized spacer element. */
   class?: string;
   /** Row renderer. */
-  row: Snippet<[{ item: T; index: number }]>;
+  /** `visible` is true while the row is inside the viewport (overscan excluded). */
+  row: Snippet<[{ item: T; index: number; visible: boolean }]>;
 };

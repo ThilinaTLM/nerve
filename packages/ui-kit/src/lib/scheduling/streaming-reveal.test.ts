@@ -64,6 +64,49 @@ describe("StreamingRevealPacer", () => {
     assert.equal(pacer.shownLength, 300);
   });
 
+  it("eases into a burst instead of jumping to the catch-up speed", () => {
+    const pacer = new StreamingRevealPacer(0);
+    pacer.setTarget(5);
+    run(pacer, 500);
+    pacer.setTarget(400);
+    const before = pacer.shownLength;
+    const first = pacer.advance(FRAME_MS) - before;
+    // Unsmoothed, the first frame would reveal backlog / lag * frame (~26).
+    const unsmoothed = ((400 - before) / TARGET_LAG_S) * (FRAME_MS / 1000);
+    assert.ok(first < unsmoothed / 3, `first step ${first} jumped`);
+    const steps: number[] = [];
+    for (let index = 0; index < 20; index += 1) {
+      const start = pacer.shownLength;
+      steps.push(pacer.advance(FRAME_MS) - start);
+    }
+    for (let index = 1; index < steps.length; index += 1) {
+      assert.ok(steps[index]! - steps[index - 1]! <= 3, "speed jumped");
+    }
+  });
+
+  it("resets the eased speed on snap", () => {
+    const pacer = new StreamingRevealPacer(0);
+    pacer.setTarget(1000);
+    run(pacer, 400);
+    assert.ok(pacer.currentRate > MIN_CPS);
+    pacer.snap();
+    assert.equal(pacer.currentRate, MIN_CPS);
+  });
+
+  it("honours a shorter target lag", () => {
+    const lagged = (targetLagS?: number) => {
+      const pacer = new StreamingRevealPacer(0, { targetLagS });
+      let target = 0;
+      for (let burst = 0; burst < 20; burst += 1) {
+        target += 40;
+        pacer.setTarget(target);
+        run(pacer, 200);
+      }
+      return target - pacer.shownLength;
+    };
+    assert.ok(lagged(0.12) < lagged());
+  });
+
   it("follows a shrinking target", () => {
     const pacer = new StreamingRevealPacer(50);
     pacer.setTarget(20);

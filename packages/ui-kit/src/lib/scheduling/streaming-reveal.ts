@@ -6,11 +6,19 @@ export const TARGET_LAG_S = 0.25;
 export const DONE_FLUSH_S = 0.15;
 /** Never hold back more than this many characters; older text snaps in. */
 export const MAX_BACKLOG_CHARS = 1200;
+/** Time constant of the reveal speed's exponential smoothing. */
+export const SMOOTH_TAU_MS = 180;
+
+export type StreamingRevealPacerOptions = {
+  /** Revealed text trails the source by roughly this long (seconds). */
+  targetLagS?: number;
+};
 
 /**
- * Paces how much of a growing streaming text is revealed. The rate adapts to
- * the backlog (exponential catch-up with a floor), so bursty network deltas
- * become an even per-frame reveal without drifting behind the source.
+ * Paces how much of a growing streaming text is revealed. The wanted rate
+ * adapts to the backlog (exponential catch-up with a floor) and the applied
+ * rate eases toward it, so bursty network deltas become an even per-frame
+ * reveal with no speed sawtooth and without drifting behind the source.
  * Pure and clock-free: the caller supplies frame deltas.
  */
 export class StreamingRevealPacer {
@@ -19,11 +27,22 @@ export class StreamingRevealPacer {
   private carry = 0;
   private done = false;
   private doneRate = 0;
+  private rate = MIN_CPS;
+  private readonly targetLagS: number;
 
   /** Starts fully revealed so remounts never replay already-visible text. */
-  constructor(initialLength: number) {
+  constructor(
+    initialLength: number,
+    options: StreamingRevealPacerOptions = {},
+  ) {
     this.shown = initialLength;
     this.target = initialLength;
+    this.targetLagS = options.targetLagS ?? TARGET_LAG_S;
+  }
+
+  /** Characters per second applied on the most recent frame. */
+  get currentRate(): number {
+    return this.rate;
   }
 
   get shownLength(): number {
@@ -53,18 +72,26 @@ export class StreamingRevealPacer {
   snap(): void {
     this.shown = this.target;
     this.carry = 0;
+    this.rate = MIN_CPS;
   }
 
   /** Advance by one frame and return the revealed length. */
   advance(dtMs: number): number {
-    if (this.settled) return this.shown;
+    const dt = Math.max(0, dtMs);
+    const k = 1 - Math.exp(-dt / SMOOTH_TAU_MS);
+    if (this.settled) {
+      this.rate += (MIN_CPS - this.rate) * k;
+      return this.shown;
+    }
     if (this.target - this.shown > MAX_BACKLOG_CHARS) {
       this.shown = this.target - MAX_BACKLOG_CHARS;
     }
     const backlog = this.target - this.shown;
-    let rate = Math.max(MIN_CPS, backlog / TARGET_LAG_S);
+    const wanted = Math.max(MIN_CPS, backlog / this.targetLagS);
+    this.rate = Math.max(MIN_CPS, this.rate + (wanted - this.rate) * k);
+    let rate = this.rate;
     if (this.done) rate = Math.max(rate, this.doneRate);
-    this.carry += (rate * Math.max(0, dtMs)) / 1000;
+    this.carry += (rate * dt) / 1000;
     const step = Math.floor(this.carry);
     this.carry -= step;
     this.shown = Math.min(this.target, this.shown + step);
