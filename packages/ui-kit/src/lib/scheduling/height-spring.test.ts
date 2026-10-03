@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { createSpringDriver, HeightSpring } from "./height-spring.js";
+import {
+  createSpringDriver,
+  HeightSpring,
+  MAX_STEP_MS,
+} from "./height-spring.js";
 
 const FRAME_MS = 1000 / 60;
 
@@ -42,7 +46,18 @@ describe("HeightSpring", () => {
     assert.ok(Math.abs(spring.height - mid - firstStep) < 4);
   });
 
-  it("snaps when the response is zero (minimal profile)", () => {
+  it("never covers more than one capped step on a stalled frame", () => {
+    const stalled = new HeightSpring(0);
+    stalled.retarget(150);
+    stalled.step(200, 120);
+    const capped = new HeightSpring(0);
+    capped.retarget(150);
+    capped.step(MAX_STEP_MS, 120);
+    assert.equal(stalled.height, capped.height);
+    assert.ok(stalled.height < 150 * 0.5, `jumped to ${stalled.height}`);
+  });
+
+  it("snaps when the response is zero", () => {
     const spring = new HeightSpring(10);
     spring.retarget(50);
     assert.equal(spring.step(FRAME_MS, 0), true);

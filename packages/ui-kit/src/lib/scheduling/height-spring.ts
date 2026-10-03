@@ -2,11 +2,15 @@ import type { RevealFrameScheduler } from "./streaming-reveal-loop.js";
 
 export type HeightMotionProfile = "standard" | "compact" | "minimal";
 
-/** Spring response (≈99% settled) per motion profile; minimal never animates. */
+/**
+ * Spring response (≈99% settled) per motion profile. Dense bursts still
+ * animate, just briefly: snapping several rows at once while the transcript
+ * follows its end reads as a jump. The concurrency cap bounds the cost.
+ */
 export const HEIGHT_RESPONSE_MS: Record<HeightMotionProfile, number> = {
   standard: 280,
   compact: 160,
-  minimal: 0,
+  minimal: 120,
 };
 /** At most this many heights animate at once; extra followers snap. */
 export const MAX_ACTIVE_SPRINGS = 6;
@@ -15,7 +19,12 @@ export const MAX_ACTIVE_SPRINGS = 6;
 const RESPONSE_OMEGA_FACTOR = 6.64;
 const SETTLE_DISTANCE_PX = 0.5;
 const SETTLE_VELOCITY_PX_S = 5;
-const MAX_STEP_MS = 50;
+/**
+ * Most time one frame may advance a spring. A stalled frame (for example
+ * several results mounting at once) then continues the motion instead of
+ * covering most of it in a single jump.
+ */
+export const MAX_STEP_MS = 24;
 
 /**
  * Critically damped spring over a height. Retargeting keeps position and
