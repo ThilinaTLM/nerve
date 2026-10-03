@@ -100,8 +100,11 @@ const instance = get(virtualizer);
 let virtualItems = $state(instance.getVirtualItems());
 let totalSize = $state(instance.getTotalSize());
 // Rows inside the viewport proper (overscan excluded), for consumers that
-// should only animate what the reader can see.
+// should only animate what the reader can see. Compared through a plain copy:
+// syncFromVirtualizer runs inside the subscription effect, so reading the
+// rune there would make that effect depend on it and resubscribe forever.
 let visibleRange = $state(instance.range);
+let lastVisibleRange = instance.range;
 const renderedVirtualRows = $derived.by(() => {
   const inRange = virtualItems.filter(
     (virtualRow) => virtualRow.index >= 0 && virtualRow.index < items.length,
@@ -184,10 +187,11 @@ function syncFromVirtualizer() {
   totalSize = instance.getTotalSize();
   const range = instance.range;
   if (
-    range?.startIndex !== visibleRange?.startIndex ||
-    range?.endIndex !== visibleRange?.endIndex
+    range?.startIndex !== lastVisibleRange?.startIndex ||
+    range?.endIndex !== lastVisibleRange?.endIndex
   ) {
-    visibleRange = range ? { ...range } : null;
+    lastVisibleRange = range ? { ...range } : null;
+    visibleRange = lastVisibleRange;
   }
   atEnd = instance.isAtEnd(scrollEndThreshold);
 }
