@@ -28,12 +28,11 @@ describe("AuthManager", () => {
     const before = await auth.listProviderMetadata();
     const openai = before.find((provider) => provider.provider === "openai");
     assert.ok(openai?.warning);
-    assert.match(openai.warning, /usage reporting/);
-    assert.match(openai.warning, /voice input or image generation/);
     assert.match(
       openai.warning,
-      /connect the “OpenAI Codex” subscription in Nerve’s Settings/,
+      /Voice input and image generation aren’t supported/,
     );
+    assert.match(openai.warning, /Use the OpenAI Codex option instead/);
     assert.equal(openai.supportsOAuth, true);
     assert.equal(openai.supportsApiKey, true);
     const codex = before.find(

@@ -7,6 +7,7 @@ import ExternalLink from "@lucide/svelte/icons/external-link";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { AuthProviderMetadata } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -96,33 +97,54 @@ onDestroy(() => void flowController.dispose());
           All known providers are already connected.
         </p>
       {:else}
-        <ul
-          class="grid h-[min(52vh,24rem)] content-start gap-1 overflow-y-auto pr-1"
-          data-tour-id="setup-auth-provider-choices"
-        >
-          {#each available as provider (provider.provider)}
-            <li>
-              <button
-                type="button"
-                class="flex w-full cursor-pointer items-center rounded-md border border-transparent bg-card px-2 py-2 text-left transition-colors hover:bg-accent/50"
-                data-tour-id={provider.provider === "openai-codex"
-                  ? "setup-auth-openai-codex-choice"
-                  : undefined}
-                onclick={() => flowController.chooseProvider(provider, kind)}
-              >
-                <span class="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
-                  <span class="truncate">{provider.displayName}</span>
-                  <span class="truncate font-mono text-xs text-muted-foreground"
-                    >{provider.provider}</span
+        <Tooltip.Provider delayDuration={200} disableHoverableContent>
+          <ul
+            class="grid h-[min(52vh,24rem)] content-start gap-1 overflow-y-auto pr-1"
+            data-tour-id="setup-auth-provider-choices"
+          >
+            {#each available as provider (provider.provider)}
+              <li class="flex items-center gap-1">
+                <button
+                  type="button"
+                  class="flex min-w-0 flex-1 cursor-pointer items-center rounded-md border border-transparent bg-card px-2 py-2 text-left transition-colors hover:bg-accent/50"
+                  data-tour-id={provider.provider === "openai-codex"
+                    ? "setup-auth-openai-codex-choice"
+                    : undefined}
+                  onclick={() => flowController.chooseProvider(provider, kind)}
+                >
+                  <span
+                    class="flex min-w-0 flex-1 items-baseline gap-2 text-sm"
                   >
-                </span>
-              </button>
-              {#if kind !== "api_key" && provider.supportsOAuth && provider.warning}
-                <SettingsInlineMessage tone="warning" text={provider.warning} />
-              {/if}
-            </li>
-          {/each}
-        </ul>
+                    <span class="truncate">{provider.displayName}</span>
+                    <span
+                      class="truncate font-mono text-xs text-muted-foreground"
+                      >{provider.provider}</span
+                    >
+                  </span>
+                </button>
+                {#if kind !== "api_key" && provider.supportsOAuth && provider.warning}
+                  <Tooltip.Root>
+                    <Tooltip.Trigger>
+                      {#snippet child({ props })}
+                        <span
+                          {...props}
+                          role="img"
+                          class="inline-flex shrink-0 cursor-help px-1 text-warning"
+                          aria-label={provider.warning}
+                        >
+                          <TriangleAlert class="size-4" />
+                        </span>
+                      {/snippet}
+                    </Tooltip.Trigger>
+                    <Tooltip.Content sideOffset={5} class="max-w-64"
+                      >{provider.warning}</Tooltip.Content
+                    >
+                  </Tooltip.Root>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </Tooltip.Provider>
       {/if}
     {:else if flowController.step === "method"}
       <div class="grid gap-2">
