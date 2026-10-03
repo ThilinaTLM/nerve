@@ -17,7 +17,9 @@ release/
 # Editor & Agents
 .vscode
 .zed
-.nerve
+# Version project skills, not local Nerve state.
+.nerve/*
+!.nerve/skills/
 .pi
 
 # Terraform
