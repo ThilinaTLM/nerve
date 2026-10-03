@@ -21,6 +21,7 @@ import {
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import { revealBoundary } from "@nervekit/ui-kit/scheduling/streaming-reveal";
 import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
+import { StreamingFadeTracker } from "@nervekit/ui-kit/scheduling/streaming-fade";
 import {
   parseLocalFileHref,
   resolveDisplayPath,
@@ -28,6 +29,7 @@ import {
 } from "@nervekit/ui-kit/display/path-links";
 import { observeMermaidVisibility } from "../mermaid/mermaid-visibility.js";
 import MermaidDiagram from "../mermaid/MermaidDiagram.svelte";
+import StreamingTail from "./StreamingTail.svelte";
 
 type Props = {
   text: string;
@@ -331,6 +333,11 @@ let revealTarget: StreamingValue | undefined;
 let revealedLength = untrack(() => text.length);
 /** Final (non-streaming) render deferred until the reveal drains. */
 let revealFinal: StreamingValue | undefined;
+// Fades freshly revealed tail text. Text visible at mount is settled.
+const fadeTracker = new StreamingFadeTracker({
+  initialText: untrack(() => text),
+});
+let finishTimer: ReturnType<typeof setTimeout> | undefined;
 const revealLoop = new StreamingRevealLoop(
   untrack(() => text.length),
   {
@@ -341,7 +348,7 @@ const revealLoop = new StreamingRevealLoop(
       if (length !== revealedLength) showRevealed(value, length);
     },
     onSettled() {
-      if (revealFinal) finishReveal(revealFinal);
+      if (revealFinal) finishRevealAfterFade(revealFinal);
     },
   },
 );
@@ -350,6 +357,7 @@ const revealing = $derived(reveal && !prefersReducedMotion.current);
 
 function showRevealed(value: StreamingValue, length: number) {
   const revealed = value.source.slice(0, length);
+  fadeTracker.update(revealed, performance.now());
   const appended = revealed.slice(Math.min(revealedLength, revealed.length));
   const tailOnly =
     length >= revealedLength &&
@@ -367,7 +375,30 @@ function showRevealed(value: StreamingValue, length: number) {
   commitStreaming({ ...value, source: revealed });
 }
 
+function clearFinishTimer() {
+  if (finishTimer === undefined) return;
+  clearTimeout(finishTimer);
+  finishTimer = undefined;
+}
+
+/** Swap to the final render only once the youngest fading chunk is opaque. */
+function finishRevealAfterFade(value: StreamingValue) {
+  clearFinishTimer();
+  const remaining = (fadeTracker.settlesAt ?? 0) - performance.now();
+  if (remaining <= 0) {
+    finishReveal(value);
+    return;
+  }
+  revealFinal = value;
+  finishTimer = setTimeout(() => {
+    finishTimer = undefined;
+    finishReveal(value);
+  }, remaining);
+}
+
 function finishReveal(value: StreamingValue) {
+  clearFinishTimer();
+  fadeTracker.settle();
   revealFinal = undefined;
   showingStreaming = false;
   revealedLength = value.source.length;
@@ -375,6 +406,7 @@ function finishReveal(value: StreamingValue) {
 }
 
 function stopReveal() {
+  clearFinishTimer();
   revealLoop.stop();
   revealTarget = undefined;
   revealFinal = undefined;
@@ -419,6 +451,7 @@ $effect(() => {
   const value = { source, trim, preserveLineBreaks: preserveBreaks };
   const wasStreaming = untrack(() => showingStreaming);
   if (paced && (streaming || wasStreaming)) {
+    clearFinishTimer();
     revealTarget = value;
     lastEnqueuedSource = source;
     lastEnqueuedTrim = trim;
@@ -436,11 +469,14 @@ $effect(() => {
     if (streaming) return;
     // The source completed: drain the backlog, then render the final form.
     if (!revealLoop.settled) return;
-    stopReveal();
-    untrack(() => finishReveal(value));
+    revealLoop.stop();
+    revealTarget = undefined;
+    untrack(() => finishRevealAfterFade(value));
     return;
   }
   if (revealTarget) stopReveal();
+  fadeTracker.update(source, 0);
+  fadeTracker.settle();
   untrack(() => revealLoop.snap(source.length));
   revealedLength = source.length;
   if (!streaming) {
@@ -493,14 +529,24 @@ $effect(() => () => {
   >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- the prefix uses the sanitized Markdown pipeline. -->
     {@html streamingPrefixHtml}
-    {#if streamingTail}
-      <span class="whitespace-pre-wrap break-words">{streamingTail}</span>
-    {/if}
-    {#if caret}
-      <span
-        class="stream-caret ml-[0.3em] inline-block size-[0.42em] rounded-full bg-primary align-[0.1em]"
-        aria-hidden="true"
-      ></span>
+    {#if revealing}
+      <StreamingTail
+        source={streamingPrefixSource + streamingTail}
+        from={streamingPrefixSource.length}
+        tracker={fadeTracker}
+        {preserveLineBreaks}
+        {caret}
+      />
+    {:else}
+      {#if streamingTail}
+        <span class="whitespace-pre-wrap break-words">{streamingTail}</span>
+      {/if}
+      {#if caret}
+        <span
+          class="stream-caret ml-[0.3em] inline-block size-[0.42em] rounded-full bg-primary align-[0.1em]"
+          aria-hidden="true"
+        ></span>
+      {/if}
     {/if}
   </div>
 {:else}

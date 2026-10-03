@@ -23,6 +23,8 @@ import ThinkingGroup from "./ThinkingGroup.svelte";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
 import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
 import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
+import { HeightFollow } from "@nervekit/ui-kit/components/composites/height-follow";
+import { getConversationMotionBudget } from "./conversation-motion-context.svelte";
 
 type Props = {
   node: TranscriptDisplayNode;
@@ -33,6 +35,8 @@ type Props = {
   reviewsByToolCallId?: ReadonlyMap<string, PlanReviewRecord>;
   outcomeUnknownToolCallIds?: ReadonlySet<string>;
   hydrateToolBodies?: boolean;
+  /** Row is inside the viewport (overscan excluded); off-screen rows never animate height. */
+  visible?: boolean;
   entranceMotion?: TranscriptEntranceMotion;
   onClaimEntrance?: (token: string) => boolean;
   planReviewModels?: ModelInfo[];
@@ -75,6 +79,7 @@ let {
   reviewsByToolCallId = new Map(),
   outcomeUnknownToolCallIds = new Set(),
   hydrateToolBodies = true,
+  visible = true,
   entranceMotion,
   onClaimEntrance,
   planReviewModels = [],
@@ -124,6 +129,41 @@ function openMessageMermaid(block: MermaidMarkdownBlock): void {
   onOpenMermaid?.(block, node.item.liveMessageId ?? node.item.id ?? node.key);
 }
 
+// Height motion: the row is the single owner. It follows content growth while
+// the row is in flight and for a short window after, so completion milestones
+// (result bodies, footer chips) grow in too. Idle rows resize instantly.
+const ACTIVE_LINGER_MS = 1000;
+const LIVE_TOOL_STATUSES = new Set(["waiting", "committed", "running"]);
+const inFlight = $derived.by(() => {
+  switch (node.kind) {
+    case "tool":
+      return (
+        Boolean(node.draft) ||
+        Boolean(node.liveOutput) ||
+        LIVE_TOOL_STATUSES.has(node.toolCall?.status ?? "")
+      );
+    case "message":
+      return Boolean(node.item.live);
+    case "thinking_group":
+      return node.items.some((member) => member.item.live && !member.item.done);
+    default:
+      return false;
+  }
+});
+let lingering = $state(false);
+let wasInFlight = false;
+$effect(() => {
+  const current = inFlight;
+  const settledNow = wasInFlight && !current;
+  wasInFlight = current;
+  if (!settledNow) return;
+  lingering = true;
+  const timer = setTimeout(() => (lingering = false), ACTIVE_LINGER_MS);
+  return () => clearTimeout(timer);
+});
+const motionBudget = getConversationMotionBudget();
+const readMotionProfile = () => motionBudget?.currentProfile() ?? "standard";
+
 let entering = $state(false);
 let activeEntrance = $state<TranscriptEntranceMotion>();
 let claimedEntranceToken: string | undefined;
@@ -155,178 +195,185 @@ $effect(() => {
     activeEntrance = undefined;
   }}
 >
-  {#if node.kind === "tool"}
-    <div class="relative min-w-0 px-3">
-      <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
+  <HeightFollow
+    active={inFlight || lingering}
+    {visible}
+    profile={readMotionProfile}
+  >
+    {#if node.kind === "tool"}
+      <div class="relative min-w-0 px-3">
+        <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
          (not removed) while only a draft exists, so the handoff to the real
          tool menu causes no layout shift. -->
+        <TranscriptContextMenu
+          target={node.toolCall
+            ? {
+                kind: "tool",
+                anchorEntryId: node.anchorEntryId,
+                toolCall: node.toolCall,
+              }
+            : {
+                kind: "tool_result_error",
+                toolName: node.draft?.block.toolName ?? "tool",
+                error: "",
+              }}
+          menu={transcriptMenu}
+          disabled={!node.toolCall}
+          triggerClass="block min-w-0 select-text"
+        >
+          <ToolCallCard
+            draft={node.draft}
+            toolCall={node.toolCall}
+            liveOutput={node.liveOutput}
+            cwd={activeProject?.dir}
+            pendingApproval={node.toolCall &&
+            approvalsByToolCallId.get(node.toolCall.id)?.status === "pending"
+              ? approvalsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            pendingUserQuestion={node.toolCall
+              ? questionsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            hydrateBody={hydrateToolBodies}
+            outcomeUnknown={node.toolCall
+              ? outcomeUnknownToolCallIds.has(node.toolCall.id)
+              : false}
+            pendingPlanReview={node.toolCall
+              ? reviewsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            {onOpenFile}
+            {onOpenTask}
+            {planReviewModels}
+            {planReviewModelKey}
+            {planReviewThinkingLevel}
+            {onAnswerUserQuestion}
+            {onDismissUserQuestion}
+            {onGrantApproval}
+            {onDenyApproval}
+            {onAcceptPlanReview}
+            {onAcceptPlanReviewInNewChat}
+            {onRejectPlanReview}
+          />
+        </TranscriptContextMenu>
+      </div>
+    {:else if node.kind === "tool_result_error"}
       <TranscriptContextMenu
-        target={node.toolCall
-          ? {
-              kind: "tool",
-              anchorEntryId: node.anchorEntryId,
-              toolCall: node.toolCall,
-            }
-          : {
-              kind: "tool_result_error",
-              toolName: node.draft?.block.toolName ?? "tool",
-              error: "",
-            }}
+        target={{
+          kind: "tool_result_error",
+          toolName: node.toolName,
+          error: node.error,
+        }}
         menu={transcriptMenu}
-        disabled={!node.toolCall}
-        triggerClass="block min-w-0 select-text"
+        triggerClass="block select-text"
       >
-        <ToolCallCard
-          draft={node.draft}
-          toolCall={node.toolCall}
-          liveOutput={node.liveOutput}
-          cwd={activeProject?.dir}
-          pendingApproval={node.toolCall &&
-          approvalsByToolCallId.get(node.toolCall.id)?.status === "pending"
-            ? approvalsByToolCallId.get(node.toolCall.id)
-            : undefined}
-          pendingUserQuestion={node.toolCall
-            ? questionsByToolCallId.get(node.toolCall.id)
-            : undefined}
-          hydrateBody={hydrateToolBodies}
-          outcomeUnknown={node.toolCall
-            ? outcomeUnknownToolCallIds.has(node.toolCall.id)
-            : false}
-          pendingPlanReview={node.toolCall
-            ? reviewsByToolCallId.get(node.toolCall.id)
-            : undefined}
-          {onOpenFile}
-          {onOpenTask}
-          {planReviewModels}
-          {planReviewModelKey}
-          {planReviewThinkingLevel}
-          {onAnswerUserQuestion}
-          {onDismissUserQuestion}
-          {onGrantApproval}
-          {onDenyApproval}
-          {onAcceptPlanReview}
-          {onAcceptPlanReviewInNewChat}
-          {onRejectPlanReview}
-        />
+        <div class="relative min-w-0 px-3">
+          <ToolResultErrorCard toolName={node.toolName} error={node.error} />
+        </div>
       </TranscriptContextMenu>
-    </div>
-  {:else if node.kind === "tool_result_error"}
-    <TranscriptContextMenu
-      target={{
-        kind: "tool_result_error",
-        toolName: node.toolName,
-        error: node.error,
-      }}
-      menu={transcriptMenu}
-      triggerClass="block select-text"
-    >
-      <div class="relative min-w-0 px-3">
-        <ToolResultErrorCard toolName={node.toolName} error={node.error} />
-      </div>
-    </TranscriptContextMenu>
-  {:else if node.kind === "run_status"}
-    <TranscriptContextMenu
-      target={{ kind: "run_status", notice: node.notice }}
-      menu={transcriptMenu}
-      triggerClass="block select-text"
-    >
-      <div class="relative min-w-0 px-3">
-        <RunStatusNoticeCard
-          notice={node.notice}
-          isLast={node.key === lastTimelineKey}
-          {sending}
-          {onContinueFromFailure}
-        />
-      </div>
-    </TranscriptContextMenu>
-  {:else if node.kind === "compaction"}
-    <TranscriptContextMenu
-      target={{ kind: "compaction", notice: node.notice }}
-      menu={transcriptMenu}
-      triggerClass="block select-text"
-    >
-      <div class="relative min-w-0 px-3">
-        <CompactionNoticeCard notice={node.notice} />
-      </div>
-    </TranscriptContextMenu>
-  {:else if node.kind === "task_event"}
-    <TranscriptContextMenu
-      target={{ kind: "task_event", notice: node.notice }}
-      menu={transcriptMenu}
-      triggerClass="block select-text"
-    >
-      <div class="relative min-w-0 px-3">
-        <TaskNoticeCard notice={node.notice} {onOpenTask} />
-      </div>
-    </TranscriptContextMenu>
-  {:else if node.kind === "system_event"}
-    <TranscriptContextMenu
-      target={{ kind: "system_event", notice: node.notice }}
-      menu={transcriptMenu}
-      triggerClass="block select-text"
-    >
-      <div class="relative min-w-0 px-3">
-        <SystemEventNoticeCard notice={node.notice} />
-      </div>
-    </TranscriptContextMenu>
-  {:else if node.kind === "thinking_group" && thinkingMenuTarget}
-    <TranscriptContextMenu
-      target={thinkingMenuTarget}
-      menu={transcriptMenu}
-      triggerClass="select-text"
-    >
-      <article
-        class="transcript-entry assistant thinking-entry"
-        data-state="static"
+    {:else if node.kind === "run_status"}
+      <TranscriptContextMenu
+        target={{ kind: "run_status", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
       >
-        <div class="message-body">
-          <ThinkingGroup items={node.items.map((member) => member.item)} />
+        <div class="relative min-w-0 px-3">
+          <RunStatusNoticeCard
+            notice={node.notice}
+            isLast={node.key === lastTimelineKey}
+            {sending}
+            {onContinueFromFailure}
+          />
         </div>
-      </article>
-    </TranscriptContextMenu>
-  {:else if node.kind === "message"}
-    <TranscriptContextMenu
-      target={{ kind: "message", item: node.item }}
-      menu={transcriptMenu}
-      triggerClass={`select-text ${node.item.role === "user" ? "block" : ""}`}
-    >
-      <article
-        class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
-        data-state={messageState}
+      </TranscriptContextMenu>
+    {:else if node.kind === "compaction"}
+      <TranscriptContextMenu
+        target={{ kind: "compaction", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
       >
-        <div class="message-body">
-          {#if node.item.text}
-            <div class="message-content">
-              {#if node.item.role === "user"}
-                <UserMessageContent
-                  text={node.item.text}
-                  pending={Boolean(node.item.optimistic)}
-                />
-              {:else}
-                <Markdown
-                  text={node.item.text}
-                  trimCodeBlocks={node.item.role !== "assistant"}
-                  streaming={Boolean(node.item.live && !node.item.done)}
-                  reveal={node.item.role === "assistant"}
-                  caret={Boolean(node.item.live && !node.item.done)}
-                  linkBasePath={activeProject?.dir}
-                  {onOpenFile}
-                  onOpenMermaid={node.item.role === "assistant" && onOpenMermaid
-                    ? openMessageMermaid
-                    : undefined}
-                  onCopy={notifyCopyResult}
-                />
-              {/if}
-            </div>
-          {/if}
-          {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
-            <pre
-              class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node.item.errorMessage.trim()}</pre>
-          {/if}
+        <div class="relative min-w-0 px-3">
+          <CompactionNoticeCard notice={node.notice} />
         </div>
-      </article>
-    </TranscriptContextMenu>
-  {/if}
+      </TranscriptContextMenu>
+    {:else if node.kind === "task_event"}
+      <TranscriptContextMenu
+        target={{ kind: "task_event", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <TaskNoticeCard notice={node.notice} {onOpenTask} />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "system_event"}
+      <TranscriptContextMenu
+        target={{ kind: "system_event", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <SystemEventNoticeCard notice={node.notice} />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "thinking_group" && thinkingMenuTarget}
+      <TranscriptContextMenu
+        target={thinkingMenuTarget}
+        menu={transcriptMenu}
+        triggerClass="select-text"
+      >
+        <article
+          class="transcript-entry assistant thinking-entry"
+          data-state="static"
+        >
+          <div class="message-body">
+            <ThinkingGroup items={node.items.map((member) => member.item)} />
+          </div>
+        </article>
+      </TranscriptContextMenu>
+    {:else if node.kind === "message"}
+      <TranscriptContextMenu
+        target={{ kind: "message", item: node.item }}
+        menu={transcriptMenu}
+        triggerClass={`select-text ${node.item.role === "user" ? "block" : ""}`}
+      >
+        <article
+          class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
+          data-state={messageState}
+        >
+          <div class="message-body">
+            {#if node.item.text}
+              <div class="message-content">
+                {#if node.item.role === "user"}
+                  <UserMessageContent
+                    text={node.item.text}
+                    pending={Boolean(node.item.optimistic)}
+                  />
+                {:else}
+                  <Markdown
+                    text={node.item.text}
+                    trimCodeBlocks={node.item.role !== "assistant"}
+                    streaming={Boolean(node.item.live && !node.item.done)}
+                    reveal={node.item.role === "assistant"}
+                    caret={Boolean(node.item.live && !node.item.done)}
+                    linkBasePath={activeProject?.dir}
+                    {onOpenFile}
+                    onOpenMermaid={node.item.role === "assistant" &&
+                    onOpenMermaid
+                      ? openMessageMermaid
+                      : undefined}
+                    onCopy={notifyCopyResult}
+                  />
+                {/if}
+              </div>
+            {/if}
+            {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
+              <pre
+                class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node.item.errorMessage.trim()}</pre>
+            {/if}
+          </div>
+        </article>
+      </TranscriptContextMenu>
+    {/if}
+  </HeightFollow>
 </div>
 
 <style>

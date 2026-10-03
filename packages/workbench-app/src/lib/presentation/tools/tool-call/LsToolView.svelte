@@ -4,6 +4,7 @@ import Folder from "@lucide/svelte/icons/folder";
 import type { FileEntry } from "@nervekit/contracts/tools";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
+import { getToolMotion, resultRowEnterDelay } from "./tool-motion-context";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -12,6 +13,7 @@ type Props = {
   onOpenFile?: (path: string) => void;
 };
 let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
+const toolMotion = getToolMotion();
 
 type FileEntryView = FileEntry & { openPath?: string };
 
@@ -32,8 +34,14 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
   <ul
     class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-normal text-foreground"
   >
-    {#each visible as entry (entry.path)}
-      <li class="flex items-center gap-1.5">
+    {#each visible as entry, index (entry.path)}
+      <li
+        class="flex items-center gap-1.5"
+        class:stream-item-enter={toolMotion.enter}
+        style:--stream-item-delay={toolMotion.enter
+          ? resultRowEnterDelay(index)
+          : undefined}
+      >
         {#if entry.kind === "directory"}<Folder
             size={12}
             strokeWidth={2}

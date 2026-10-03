@@ -4,6 +4,8 @@ import { COLLAPSED_LINES } from "../views/tool-view-helpers";
 import AtlassianDraftBody from "./AtlassianDraftBody.svelte";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 import TodoChecklist from "./TodoChecklist.svelte";
+import { StreamingText } from "@nervekit/ui-kit/components/composites/streaming-text";
+import { getToolMotion } from "./tool-motion-context";
 
 type Props = {
   body: ArgumentBody;
@@ -19,6 +21,9 @@ let {
   highlight = true,
   streaming = false,
 }: Props = $props();
+
+const toolMotion = getToolMotion();
+const streamMotion = $derived(streaming && toolMotion.streamMotion);
 </script>
 
 {#if body.kind === "code"}
@@ -31,12 +36,14 @@ let {
       language={body.language === "text" ? undefined : body.language}
       trim={false}
       highlight={highlight && body.language !== "text"}
+      progressiveHighlight={streamMotion && body.language !== "text"}
       wrap
       overflow="hidden"
       tail={body.tail}
       {fixedRows}
       live={streaming}
       caret={streaming}
+      {streamMotion}
     />
   </div>
 {:else if body.kind === "diff"}
@@ -55,6 +62,7 @@ let {
       {fixedRows}
       live={streaming}
       caret={streaming}
+      {streamMotion}
     />
   </div>
 {:else if body.kind === "key-values"}
@@ -71,13 +79,14 @@ let {
         class:text-success={item.tone === "success"}
         class:text-info={item.tone === "info"}
       >
-        {item.value}
+        <StreamingText text={item.value} fade={streamMotion} />
       </dd>
     {/each}
   </dl>
 {:else if body.kind === "checklist"}
   <TodoChecklist
     items={body.items.map((item) => ({ todo: item.text, done: item.done }))}
+    {streaming}
   />
 {:else if body.kind === "atlassian-draft"}
   <AtlassianDraftBody {body} {streaming} {fixedRows} />
@@ -93,7 +102,7 @@ let {
       class:text-sm={body.kind !== "text-summary" || !body.mono}
       class:leading-relaxed={body.kind !== "text-summary" || !body.mono}
     >
-      {body.text}
+      <StreamingText text={body.text} fade={streamMotion} />
     </p>
   </div>
 {/if}

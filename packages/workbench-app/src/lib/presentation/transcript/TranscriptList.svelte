@@ -358,10 +358,11 @@ $effect(() => {
       viewportAriaLabel={transcriptLabel}
       viewportClass="@container h-full px-3"
     >
-      {#snippet row({ item })}
+      {#snippet row({ item, visible })}
         {#if item.kind === "timeline"}
           <TranscriptRow
             node={item.node}
+            {visible}
             entranceMotion={item.entranceMotion}
             onClaimEntrance={(token) => claimEntrance(item.key, token)}
             {sending}

@@ -99,6 +99,9 @@ const instance = get(virtualizer);
 
 let virtualItems = $state(instance.getVirtualItems());
 let totalSize = $state(instance.getTotalSize());
+// Rows inside the viewport proper (overscan excluded), for consumers that
+// should only animate what the reader can see.
+let visibleRange = $state(instance.range);
 const renderedVirtualRows = $derived.by(() => {
   const inRange = virtualItems.filter(
     (virtualRow) => virtualRow.index >= 0 && virtualRow.index < items.length,
@@ -179,6 +182,13 @@ function scheduleFollowToEnd(settleFrames = FOLLOW_SETTLE_FRAMES) {
 function syncFromVirtualizer() {
   virtualItems = instance.getVirtualItems();
   totalSize = instance.getTotalSize();
+  const range = instance.range;
+  if (
+    range?.startIndex !== visibleRange?.startIndex ||
+    range?.endIndex !== visibleRange?.endIndex
+  ) {
+    visibleRange = range ? { ...range } : null;
+  }
   atEnd = instance.isAtEnd(scrollEndThreshold);
 }
 
@@ -417,7 +427,14 @@ $effect(() => {
             ? `auto ${Math.max(1, Math.round(virtualRow.size))}px`
             : undefined}
         >
-          {@render row({ item, index: virtualRow.index })}
+          {@render row({
+            item,
+            index: virtualRow.index,
+            visible:
+              visibleRange !== null &&
+              virtualRow.index >= visibleRange.startIndex &&
+              virtualRow.index <= visibleRange.endIndex,
+          })}
         </div>
       {/if}
     {/each}

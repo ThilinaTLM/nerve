@@ -1,4 +1,5 @@
 <script lang="ts">
+import { HeightFollow } from "@nervekit/ui-kit/components/composites/height-follow";
 import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
 import type { EventEnvelope } from "@nervekit/contracts/events";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -159,6 +160,8 @@ function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
 }
+
+const LIVE_TOOL_STATUSES = new Set(["waiting", "committed", "running"]);
 </script>
 
 <DialogShell
@@ -227,16 +230,23 @@ function handleOpenChange(next: boolean) {
             viewportAriaLabel={`${label} subagent transcript`}
             viewportClass="h-full px-3"
           >
-            {#snippet row({ item: row })}
+            {#snippet row({ item: row, visible })}
               {#if row.kind === "activity"}
                 <RunActivitySlot view={activity.view} />
               {:else if row.node.kind === "tool" && row.node.toolCall}
-                <div class="min-w-0 px-3">
-                  <ToolCallCard
-                    toolCall={row.node.toolCall}
-                    detailsEnabled={false}
-                  />
-                </div>
+                <!-- Card heights follow lifecycle growth here as in the main
+                     transcript, where TranscriptRow owns this motion. -->
+                <HeightFollow
+                  active={LIVE_TOOL_STATUSES.has(row.node.toolCall.status)}
+                  {visible}
+                >
+                  <div class="min-w-0 px-3">
+                    <ToolCallCard
+                      toolCall={row.node.toolCall}
+                      detailsEnabled={false}
+                    />
+                  </div>
+                </HeightFollow>
               {:else if row.node.kind === "tool_result_error"}
                 <div class="min-w-0 px-3">
                   <ToolResultErrorCard

@@ -22,7 +22,6 @@ export const LIFECYCLE_MOTION = {
 } as const;
 
 export type LifecycleMotionPlan = {
-  animateHeight: boolean;
   animateContent: boolean;
   durationMs: number;
   easing: string;
@@ -32,19 +31,13 @@ export type LifecycleMotionPlan = {
 
 export function resolveLifecycleMotionPlan(input: {
   profile: ConversationMotionProfile;
-  fromHeight: number;
-  targetHeight: number;
   reducedMotion: boolean;
   visible: boolean;
 }): LifecycleMotionPlan {
   const spec = LIFECYCLE_MOTION[input.profile];
   const disabled = input.reducedMotion || !input.visible;
   return {
-    animateHeight:
-      !disabled &&
-      input.profile !== "minimal" &&
-      Math.abs(input.fromHeight - input.targetHeight) > 0.5,
-    animateContent: !disabled && input.targetHeight > 0,
+    animateContent: !disabled,
     durationMs: disabled ? 0 : spec.durationMs,
     easing: spec.easing,
     settleOffsetPx: spec.settleOffsetPx,
@@ -53,118 +46,70 @@ export function resolveLifecycleMotionPlan(input: {
 }
 
 export type LifecycleMotionController = {
-  transition(
-    fromHeight: number,
-    reducedMotion: boolean,
-    profile: ConversationMotionProfile,
-  ): void;
+  transition(reducedMotion: boolean, profile: ConversationMotionProfile): void;
   snap(): void;
   destroy(): void;
 };
 
 /**
- * Owns interruptible full-height geometry and content animations. A superseding
- * transition begins from geometry captured by the caller, cancels prior
- * effects, and always leaves the card at intrinsic height.
+ * Owns the interruptible content settle animation at lifecycle milestones.
+ * Height is not animated here: the transcript row's height follower is the
+ * single owner of height motion, so two animators never compete.
  */
 export function createLifecycleMotion(
-  element: HTMLElement,
   content: HTMLElement,
 ): LifecycleMotionController {
-  let heightAnimation: Animation | undefined;
   let contentAnimation: Animation | undefined;
   let destroyed = false;
 
-  function clearHeightStyles(): void {
-    element.style.removeProperty("overflow");
-    element.style.removeProperty("will-change");
-  }
-
-  function clearContentStyles(): void {
+  function cancelAnimation(): void {
+    contentAnimation?.cancel();
+    contentAnimation = undefined;
     content.style.removeProperty("will-change");
   }
 
-  function cancelAnimations(): void {
-    heightAnimation?.cancel();
-    contentAnimation?.cancel();
-    heightAnimation = undefined;
-    contentAnimation = undefined;
-    clearHeightStyles();
-    clearContentStyles();
-  }
-
-  function snap(): void {
-    if (destroyed) return;
-    cancelAnimations();
-  }
-
   function transition(
-    fromHeight: number,
     reducedMotion: boolean,
     profile: ConversationMotionProfile,
   ): void {
     if (destroyed) return;
-
-    const targetHeight = content.getBoundingClientRect().height;
-    const visible = element.getClientRects().length > 0;
     const plan = resolveLifecycleMotionPlan({
       profile,
-      fromHeight,
-      targetHeight,
       reducedMotion,
-      visible,
+      visible: content.getClientRects().length > 0,
     });
-    cancelAnimations();
+    cancelAnimation();
+    if (!plan.animateContent) return;
 
-    if (plan.animateHeight) {
-      element.style.overflow = "hidden";
-      element.style.willChange = "height";
-      const animation = element.animate(
-        [
-          { height: `${Math.max(0, fromHeight)}px` },
-          { height: `${Math.max(0, targetHeight)}px` },
-        ],
-        { duration: plan.durationMs, easing: plan.easing },
-      );
-      heightAnimation = animation;
-      void animation.finished
-        .then(() => {
-          if (heightAnimation !== animation) return;
-          heightAnimation = undefined;
-          clearHeightStyles();
-        })
-        .catch(() => undefined);
-    }
-
-    if (plan.animateContent) {
-      content.style.willChange = "transform, opacity";
-      const animation = content.animate(
-        [
-          {
-            opacity: plan.fromOpacity,
-            transform: `translateY(${plan.settleOffsetPx}px)`,
-          },
-          { opacity: 1, transform: "translateY(0)" },
-        ],
-        { duration: plan.durationMs, easing: plan.easing },
-      );
-      contentAnimation = animation;
-      void animation.finished
-        .then(() => {
-          if (contentAnimation !== animation) return;
-          contentAnimation = undefined;
-          clearContentStyles();
-        })
-        .catch(() => undefined);
-    }
+    content.style.willChange = "transform, opacity";
+    const animation = content.animate(
+      [
+        {
+          opacity: plan.fromOpacity,
+          transform: `translateY(${plan.settleOffsetPx}px)`,
+        },
+        { opacity: 1, transform: "translateY(0)" },
+      ],
+      { duration: plan.durationMs, easing: plan.easing },
+    );
+    contentAnimation = animation;
+    void animation.finished
+      .then(() => {
+        if (contentAnimation !== animation) return;
+        contentAnimation = undefined;
+        content.style.removeProperty("will-change");
+      })
+      .catch(() => undefined);
   }
 
   return {
     transition,
-    snap,
+    snap() {
+      if (!destroyed) cancelAnimation();
+    },
     destroy() {
       if (destroyed) return;
-      cancelAnimations();
+      cancelAnimation();
       destroyed = true;
     },
   };

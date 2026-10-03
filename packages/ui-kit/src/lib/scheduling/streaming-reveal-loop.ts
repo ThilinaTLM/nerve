@@ -1,4 +1,7 @@
-import { StreamingRevealPacer } from "./streaming-reveal.js";
+import {
+  StreamingRevealPacer,
+  type StreamingRevealPacerOptions,
+} from "./streaming-reveal.js";
 
 export type RevealFrameScheduler<Handle = number> = {
   request: (callback: (timestamp: number) => void) => Handle;
@@ -12,6 +15,8 @@ export type StreamingRevealLoopOptions<Handle = number> = {
   onSettled?: () => void;
   /** Frame source; defaults to requestAnimationFrame when available. */
   frames?: RevealFrameScheduler<Handle>;
+  /** Pacing options forwarded to the pacer. */
+  pacer?: StreamingRevealPacerOptions;
 };
 
 const FALLBACK_FRAME_MS = 1000 / 60;
@@ -41,7 +46,7 @@ export class StreamingRevealLoop<Handle = number> {
     initialLength: number,
     private readonly options: StreamingRevealLoopOptions<Handle>,
   ) {
-    this.pacer = new StreamingRevealPacer(initialLength);
+    this.pacer = new StreamingRevealPacer(initialLength, options.pacer);
     this.emitted = initialLength;
     this.frames =
       options.frames ??

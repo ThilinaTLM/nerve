@@ -59,6 +59,9 @@ import SubagentTranscriptDialog from "./tool-call/SubagentTranscriptDialog.svelt
 import { subagentTranscriptTargets } from "./views/subagent-output";
 import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
 import { resolvePlanReview } from "./tool-call/plan-review-state";
+import { provideToolMotion } from "./tool-call/tool-motion-context";
+import type { ConversationMotionProfile } from "../transcript/conversation-motion-budget";
+import { getConversationMotionBudget } from "../transcript/conversation-motion-context.svelte";
 
 type Props = {
   /** Retained live slot used before and during durable-record handoff. */
@@ -570,6 +573,43 @@ $effect(() => {
   fullToolCallPreviewUpdatedAt = undefined;
 });
 
+// Streaming motion for this card. The profile is the one claimed by the most
+// recent lifecycle milestone, so a burst of quick calls (for example many
+// reads) drops to plain rendering instead of animating every card.
+let motionProfile = $state<ConversationMotionProfile>("standard");
+const motionBudget = getConversationMotionBudget();
+// Results that arrive all at once enter only for these list-like views, only
+// when the result appears live in this session and the moment is calm.
+const RESULT_ENTER_KINDS = new Set(["read", "grep", "find", "ls"]);
+const RESULT_ENTER_MS = 700;
+let resultEnter = $state(false);
+let resultSeen = untrack(() => activitySections.resultMode === "output");
+// Not effect-scoped: later re-runs of the effect must not cancel the reset.
+let resultEnterTimer: ReturnType<typeof setTimeout> | undefined;
+$effect(() => {
+  const output = activitySections.resultMode === "output";
+  if (!output || resultSeen) return;
+  resultSeen = true;
+  const calm =
+    (motionBudget?.currentProfile() ?? "standard") === "standard" &&
+    !prefersReducedMotion.current;
+  if (!calm || !RESULT_ENTER_KINDS.has(view?.kind ?? "")) return;
+  resultEnter = true;
+  resultEnterTimer = setTimeout(() => {
+    resultEnterTimer = undefined;
+    resultEnter = false;
+  }, RESULT_ENTER_MS);
+});
+$effect(() => () => clearTimeout(resultEnterTimer));
+provideToolMotion({
+  get streamMotion() {
+    return motionProfile !== "minimal" && !prefersReducedMotion.current;
+  },
+  get enter() {
+    return resultEnter;
+  },
+});
+
 async function openDetails() {
   if (!toolCall) return;
   detailsOpen = true;
@@ -611,6 +651,7 @@ async function openDetails() {
     activitySections.interactionMode !== "none" ||
     activitySections.resultMode !== "none"}
   {layoutRevision}
+  bind:motionProfile
   {cardActions}
   {onOpenFile}
 >

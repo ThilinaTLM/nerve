@@ -74,6 +74,16 @@ export class ConversationMotionBudget {
     return this.allocateBatch(1).profile;
   }
 
+  /**
+   * The active profile without registering an event. Continuous motion (the
+   * row height follower) reads this so streaming growth never inflates the
+   * burst count; only entrances and lifecycle milestones claim.
+   */
+  currentProfile(): ConversationMotionProfile {
+    this.prepareWindow(this.now());
+    return this.activeProfile;
+  }
+
   reset(): void {
     this.eventTimes.length = 0;
     this.lastEventAt = undefined;

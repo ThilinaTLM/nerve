@@ -11,7 +11,7 @@ import {
   type ToolArgumentBody,
 } from "../lifecycle/registry";
 import { mergeDraftMeta, specializedDraftBody } from "./tool-draft-body";
-import { COLLAPSED_LINES } from "./tool-view-helpers";
+import { COLLAPSED_LINES, SLIDE_OVERSCAN_LINES } from "./tool-view-helpers";
 import type { PrimaryArg } from "../../cards/card-presentation";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
@@ -237,7 +237,12 @@ function completedLinePreviewText(
   return normalized.slice(0, lastNewline);
 }
 
-function tailLinePreview(text: string, maxLines = COLLAPSED_LINES): string {
+// Draft tails stream into collapsed boxes; overscan lines above the window
+// are clipped by the box and keep the line slide gap-free.
+function tailLinePreview(
+  text: string,
+  maxLines = COLLAPSED_LINES + SLIDE_OVERSCAN_LINES,
+): string {
   if (text.length === 0) return "";
   const lines = normalizeLines(text).split("\n");
   if (lines.length <= maxLines) return lines.join("\n");

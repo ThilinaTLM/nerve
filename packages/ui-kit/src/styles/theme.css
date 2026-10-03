@@ -20,6 +20,8 @@
   --motion-enter-compact-duration: 120ms;
   --motion-enter-minimal-duration: 90ms;
   --motion-enter-easing: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Keep in sync with STREAM_FADE_MS (scheduling/streaming-fade.ts). */
+  --motion-stream-fade-duration: 220ms;
 
   --tracking-normal: 0em;
 }
