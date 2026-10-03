@@ -19,6 +19,7 @@ const icons = {
   "Copy selection": Copy,
   "Copy content": Clipboard,
   Quote: TextQuote,
+  "Quote selection": TextQuote,
   "Edit message": Pencil,
   "Edit prompt": Pencil,
   Discard: Trash2,
