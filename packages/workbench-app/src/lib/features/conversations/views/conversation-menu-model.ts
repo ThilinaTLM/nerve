@@ -169,8 +169,8 @@ export function transcriptMenuModel(
   ];
   if (details.quote?.trim()) {
     copyGroup.push({
-      label: "Quote",
-      onSelect: () => context.quoteInComposer(details.quote ?? ""),
+      label: selection ? "Quote selection" : "Quote",
+      onSelect: () => context.quoteInComposer(selection ?? details.quote ?? ""),
     });
   }
 
