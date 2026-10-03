@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { renderMarkdown } from "./markdown-render.js";
+import rehypeSanitize from "rehype-sanitize";
+import remarkGfm from "remark-gfm";
+import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
+import { unified } from "unified";
 import {
   MARK_CODE,
   MARK_EM,
@@ -58,17 +62,44 @@ function normalize(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+// The final render's pipeline (as in markdown-render.ts), stopped at the
+// sanitized HTML tree so text is read from nodes, not by stripping markup.
+const finalPipeline = unified()
+  .use(remarkParse)
+  .use(remarkGfm)
+  .use(remarkRehype)
+  .use(rehypeSanitize);
+
+type TreeNode = {
+  type: string;
+  tagName?: string;
+  value?: string;
+  children?: TreeNode[];
+};
+
+const BLOCK_TAGS = new Set([
+  "p",
+  "li",
+  "ul",
+  "ol",
+  "br",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+]);
+
+function treeText(node: TreeNode): string {
+  if (node.type === "text") return node.value ?? "";
+  const inner = (node.children ?? []).map(treeText).join("");
+  return node.tagName && BLOCK_TAGS.has(node.tagName) ? ` ${inner} ` : inner;
+}
+
 function finalText(source: string): string {
-  return normalize(
-    renderMarkdown(source, { cache: false })
-      .replace(/<\/?(?:p|li|ul|ol|h[1-6]|br)\b[^>]*>/g, " ")
-      .replace(/<[^>]+>/g, "")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#x27;/g, "'")
-      .replace(/&amp;/g, "&"),
-  );
+  const tree = finalPipeline.runSync(finalPipeline.parse(source));
+  return normalize(treeText(tree as TreeNode));
 }
 
 describe("tokenizeStreamingTail", () => {
