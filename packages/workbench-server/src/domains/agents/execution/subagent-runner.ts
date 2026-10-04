@@ -1,3 +1,8 @@
+import { withPromptCompactionAnchor } from "../../conversations/compaction-provenance.js";
+import { installIterationCompaction } from "./iteration-compaction.js";
+import { isContextOverflowAssistantMessage } from "@nervekit/harness/compaction";
+import { getModelContextWindow } from "@nervekit/harness/models";
+import type { CompactionOutcome } from "../../conversations/operations/compaction-service.js";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
 import { resolveProjectSettings } from "../../../infrastructure/configuration/index.js";
 import { join } from "node:path";
@@ -168,6 +173,35 @@ export interface SubagentRunnerDeps {
   capabilities: CapabilityService;
   transcriptLive: SubagentTranscriptLiveService;
   maxParallelToolsPerRun: number;
+  compaction?: {
+    beforePrompt(input: {
+      conversationId: string;
+      agentId: string;
+      runId: string;
+      text: string;
+      conversation: Conversation;
+      signal?: AbortSignal;
+    }): Promise<CompactionOutcome>;
+    iteration(input: {
+      conversationId: string;
+      agentId: string;
+      runId: string;
+      conversation: Conversation;
+      signal?: AbortSignal;
+    }): Promise<CompactionOutcome>;
+    overflow(
+      input: {
+        agent: AgentRecord;
+        runId: string;
+        conversation: Conversation;
+        signal?: AbortSignal;
+      },
+      assistant: AssistantMessage,
+      contextWindow: number,
+    ): Promise<CompactionOutcome>;
+    continuation(runId: string): string | undefined;
+    finish(runId: string): void;
+  };
   customModels?: (projectDir?: string) => Promise<AgentCustomModel[]>;
 }
 
@@ -485,6 +519,24 @@ export class SubagentRunner {
           this.deps.auth.requestAuthForPiModel(requestModel),
         systemPrompt: () => spec.systemPrompt,
       });
+      const compactionInput = {
+        conversationId: child.conversationId,
+        agentId: child.id,
+        runId,
+        conversation,
+        signal,
+      };
+      if (this.deps.compaction) {
+        installIterationCompaction(
+          harness,
+          (eventSignal) =>
+            this.deps.compaction!.iteration({
+              ...compactionInput,
+              signal: eventSignal ?? signal,
+            }),
+          () => this.deps.compaction!.continuation(runId),
+        );
+      }
       harness.subscribe(async (event) => {
         await this.deps.transcriptLive.handleHarnessEvent(child.id, event);
         const update = exploreProgressFromHarnessEvent(event, child, spec);
@@ -523,7 +575,35 @@ export class SubagentRunner {
       };
       signal.addEventListener("abort", onSignalAbort, { once: true });
       throwIfAborted(signal);
-      const assistant = await harness.prompt(spec.prompt);
+      await this.deps.compaction?.beforePrompt({
+        ...compactionInput,
+        text: spec.prompt,
+      });
+      // Abort during preflight finds no running harness to stop; re-check
+      // before starting model work so cancellation is never lost.
+      throwIfAborted(signal);
+      let assistant = await withPromptCompactionAnchor(
+        child,
+        { kind: "assignment" },
+        () => harness!.prompt(spec.prompt),
+      );
+      const contextWindow = getModelContextWindow(
+        child.model,
+        (await this.deps.customModels?.(child.projectDir)) ?? [],
+      );
+      if (
+        this.deps.compaction &&
+        isContextOverflowAssistantMessage(assistant, contextWindow)
+      ) {
+        const outcome = await this.deps.compaction.overflow(
+          { agent: child, runId, conversation, signal },
+          assistant,
+          contextWindow,
+        );
+        throwIfAborted(signal);
+        if (outcome.status === "compacted")
+          assistant = await harness.continue();
+      }
       if (usage.turns === 0) {
         const metadata = exploreAssistantMetadata(assistant);
         if (metadata.usage) usage = addExploreUsage(usage, metadata.usage);
@@ -603,6 +683,7 @@ export class SubagentRunner {
     } finally {
       unregister?.();
       spec.signal?.removeEventListener("abort", abortFromParent);
+      this.deps.compaction?.finish(runId);
       settleRun();
     }
   }

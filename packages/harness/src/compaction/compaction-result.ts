@@ -1,5 +1,7 @@
+import type { CheckpointDetails } from "@nervekit/contracts/conversations";
+
 /** File-operation details stored on generated compaction entries. */
-export interface CompactionDetails {
+export interface CompactionDetails extends CheckpointDetails {
   summaryRepaired?: boolean;
   /** Files read in the compacted history. */
   readFiles: string[];

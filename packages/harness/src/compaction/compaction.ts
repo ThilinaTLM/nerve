@@ -1,3 +1,4 @@
+import type { AnchorOverflow } from "@nervekit/contracts/conversations";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { streamSimpleWithModel } from "../models/model-streaming.js";
 import type {
@@ -18,7 +19,7 @@ import {
   createCustomMessage,
 } from "../messages/messages.js";
 import { err, ok, type Result } from "../result.js";
-import { findCutPoint } from "./cut-points.js";
+import { findCutPoint, type CompactionPlanningOptions } from "./cut-points.js";
 import type {
   CompactionDetails,
   CompactionResult,
@@ -131,6 +132,7 @@ export {
   DEFAULT_AUTO_COMPACTION_SETTINGS,
   DEFAULT_COMPACTION_SETTINGS,
   deriveAutoCompactionPolicy,
+  deriveManualCompactionSettings,
   resolveAutoCompactionPercentages,
   shouldAutoCompact,
   shouldCompact,
@@ -293,6 +295,8 @@ export type GenerateSummaryInput = {
   previousSummary?: string;
   turnPrefixMessages?: AgentMessage[];
   fileReferences?: string[];
+  anchorOverflow?: AnchorOverflow[];
+  abandonedToolCallIds?: readonly string[];
   summaryProfile?: CompactionSummaryProfile;
   thinkingLevel?: ThinkingLevel;
   env?: Record<string, string>;
@@ -312,6 +316,8 @@ export async function generateSummary({
   previousSummary,
   turnPrefixMessages = [],
   fileReferences = [],
+  anchorOverflow = [],
+  abandonedToolCallIds = [],
   summaryProfile,
   thinkingLevel,
   env,
@@ -330,17 +336,21 @@ export async function generateSummary({
     Boolean(previousSummary),
   );
   let basePrompt = prompts.userPrompt;
+  if (anchorOverflow.length)
+    basePrompt += `\nThese binding requirement sources exceed the verbatim anchor budget: ${anchorOverflow.map((a) => a.sourceEntryId).join(", ")}. Carry their binding requirements faithfully in Requirements and Constraints; they will not be anchored verbatim.`;
   if (customInstructions) {
     basePrompt = `${basePrompt}\n\nAdditional focus: ${customInstructions}`;
   }
   const llmMessages = convertToLlm(currentMessages);
-  const conversationText = serializeConversation(llmMessages);
+  const conversationText = serializeConversation(llmMessages, {
+    abandonedToolCallIds,
+  });
   let promptText = `<conversation>\n${conversationText}\n</conversation>\n\n`;
   if (previousSummary) {
     promptText += `<previous-summary>\n${previousSummary}\n</previous-summary>\n\n`;
   }
   if (turnPrefixMessages.length) {
-    promptText += `<removed-turn-prefix>\n${serializeConversation(convertToLlm(turnPrefixMessages))}\n</removed-turn-prefix>\n`;
+    promptText += `<removed-turn-prefix>\n${serializeConversation(convertToLlm(turnPrefixMessages), { abandonedToolCallIds })}\n</removed-turn-prefix>\n`;
   }
   if (fileReferences.length) {
     promptText += `<file-references>\n${fileReferences.join("\n").slice(0, 2_000)}\n</file-references>\n`;
@@ -452,6 +462,7 @@ export async function generateSummary({
 export function prepareCompaction(
   pathEntries: ConversationTreeEntry[],
   settings: CompactionSettings,
+  options: CompactionPlanningOptions = {},
 ): Result<CompactionPreparation | undefined, CompactionError> {
   if (pathEntries.length === 0) {
     return ok(undefined);
@@ -496,11 +507,14 @@ export function prepareCompaction(
       boundaryStart,
       boundaryEnd,
       settings.keepRecentTokens,
+      options,
     );
   } catch (error) {
     if (error instanceof CompactionError) return err(error);
     throw error;
   }
+  if (cutPoint.status === "deferred" || !cutPoint.advances)
+    return ok(undefined);
   const firstKeptEntry = pathEntries[cutPoint.firstKeptEntryIndex];
   if (!firstKeptEntry?.id) {
     return err(
@@ -549,6 +563,7 @@ export function prepareCompaction(
   }
 
   return ok({
+    plan: cutPoint,
     firstKeptEntryId,
     messagesToSummarize,
     turnPrefixMessages,
@@ -603,6 +618,8 @@ export async function compact(
     headers,
     signal,
     customInstructions,
+    anchorOverflow: preparation.plan?.anchorOverflow,
+    abandonedToolCallIds: preparation.plan?.abandonedToolCallIds,
     previousSummary,
     thinkingLevel,
     env,
@@ -616,6 +633,13 @@ export async function compact(
     summary: summaryResult.value,
     firstKeptEntryId,
     tokensBefore,
-    details: { readFiles, modifiedFiles, summaryRepaired: repaired },
+    details: {
+      readFiles,
+      modifiedFiles,
+      summaryRepaired: repaired,
+      anchors: preparation.plan?.anchors,
+      anchorOverflow: preparation.plan?.anchorOverflow,
+      knownToolCallIds: preparation.plan?.knownToolCallIds,
+    },
   });
 }

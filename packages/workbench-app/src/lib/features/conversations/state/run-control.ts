@@ -58,6 +58,13 @@ export async function compactActiveConversation() {
     await openConversation(conversationId);
   } catch (caught) {
     if (compactionCancellationRequested.delete(conversationId)) return;
+    // The terminal event carries the typed warning; do not replace it with
+    // the less informative RPC rejection or emit an error toast for it.
+    if (
+      view.transient?.compaction?.state === "failed" &&
+      view.transient.compaction.code
+    )
+      return;
     const message = caught instanceof Error ? caught.message : String(caught);
     view.transient = {
       ...view.transient,
@@ -90,7 +97,7 @@ export async function cancelActiveCompaction(): Promise<void> {
   view.stopping = true;
   try {
     await Promise.all([
-      cancelConversationCompaction(conversationId),
+      cancelConversationCompaction(conversationId, notice.agentId),
       notice.runId ? abortActiveRun() : Promise.resolve(),
     ]);
   } catch (caught) {

@@ -21,6 +21,14 @@ test("resolved and skipped human-input results keep harness tool messages and ty
   const service = new HumanInputResolutionService({
     getAgent: () => agent,
     harnessStorage: {
+      appendAgentMessageWithId: async (
+        _agent: unknown,
+        id: string,
+        message: (typeof messages)[number]["message"],
+      ) => {
+        messages.push({ id, message });
+        return { id, timestamp: "2026-01-01T00:00:00.000Z" };
+      },
       appendAgentMessage: async (
         _agent: unknown,
         message: (typeof messages)[number]["message"],

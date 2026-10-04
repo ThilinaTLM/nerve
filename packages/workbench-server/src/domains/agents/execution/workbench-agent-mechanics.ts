@@ -1,3 +1,11 @@
+import {
+  foregroundPromptAnchor,
+  withPromptCompactionAnchor,
+} from "../../conversations/compaction-provenance.js";
+import {
+  compactionFailureOutcome,
+  type CompactionOutcome,
+} from "../../conversations/operations/compaction-service.js";
 import { disabledToolNamesForCapabilities } from "@nervekit/contracts/capabilities";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import {
@@ -100,6 +108,7 @@ export class WorkbenchAgentMechanics {
   readonly autoCompaction: AutoCompactionRunner;
 
   constructor(readonly deps: WorkbenchAgentMechanicsDeps) {
+    this.autoCompaction = new AutoCompactionRunner(deps);
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
@@ -116,10 +125,20 @@ export class WorkbenchAgentMechanics {
       capabilities: deps.capabilities,
       transcriptLive: deps.subagentTranscriptLive,
       maxParallelToolsPerRun: deps.maxParallelToolsPerRun,
+      compaction: {
+        beforePrompt: (input) =>
+          this.autoCompaction.maybeCompactBeforePrompt(input),
+        iteration: (input) =>
+          this.autoCompaction.maybeCompactAtIteration(input),
+        overflow: (input, assistant, window) =>
+          this.tryOverflowCompactionRecovery(input, assistant, window),
+        continuation: (runId) =>
+          this.autoCompaction.takeContinuation(runId, true),
+        finish: (runId) => this.autoCompaction.finishRun(runId),
+      },
       customModels: deps.customModels,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
-    this.autoCompaction = new AutoCompactionRunner(deps);
   }
 
   async customModels(projectDir?: string): Promise<AgentCustomModel[]> {
@@ -293,27 +312,26 @@ export class WorkbenchAgentMechanics {
     }
     let assistant = input.continue
       ? await input.harness.continue()
-      : await input.harness.prompt(input.request.text, {
-          images: input.request.images,
-        });
+      : await withPromptCompactionAnchor(
+          input.agent,
+          await foregroundPromptAnchor(input.conversation, input.agent),
+          () =>
+            input.harness.prompt(input.request.text, {
+              images: input.request.images,
+            }),
+        );
     const contextWindow = getModelContextWindow(
       latestAgent().model,
       await this.customModels(input.agent.projectDir),
     );
-    const settings = await resolveProjectSettings(
-      this.deps.storage,
-      input.agent.projectDir,
-    );
-    if (
-      settings.compaction.auto &&
-      isContextOverflowAssistantMessage(assistant, contextWindow)
-    ) {
+    if (isContextOverflowAssistantMessage(assistant, contextWindow)) {
       const recovered = await this.tryOverflowCompactionRecovery(
         input,
         assistant,
         contextWindow,
       );
-      if (recovered) assistant = await input.harness.continue();
+      if (recovered.status === "compacted")
+        assistant = await input.harness.continue();
     }
     return assistant;
   }
@@ -327,26 +345,24 @@ export class WorkbenchAgentMechanics {
     },
     assistant: AssistantMessage,
     contextWindow: number,
-  ): Promise<boolean> {
+  ): Promise<CompactionOutcome> {
     const leafId = await input.conversation.getLeafId();
     const leaf = leafId ? await input.conversation.getEntry(leafId) : undefined;
     if (leaf?.type !== "message" || leaf.message.role !== "assistant") {
-      return false;
+      return { status: "blocked", reason: "invalid_overflow_source" };
     }
     const failedEntryId = leaf.id;
-    const failedParentId = leaf.parentId;
-    const policy = deriveAutoCompactionPolicy(
-      contextWindow,
-      compactionSettingsForAgent(
-        await this.deps.capabilities.settings(
-          input.agent.projectId,
-          input.agent.conversationId,
-        ),
-        input.agent,
+    const settings = compactionSettingsForAgent(
+      await this.deps.capabilities.settings(
+        input.agent.projectId,
+        input.agent.conversationId,
       ),
+      input.agent,
     );
+    if (!settings.auto)
+      return { status: "not_needed", reason: "auto_disabled" };
+    const policy = deriveAutoCompactionPolicy(contextWindow, settings);
     try {
-      await input.conversation.moveTo(failedParentId);
       await this.deps.compactionService.compactConversation(
         input.agent.conversationId,
         {
@@ -382,9 +398,9 @@ export class WorkbenchAgentMechanics {
           context: { failedEntryId, contextWindow: policy.contextWindow },
         },
       );
-      return true;
+      return { status: "compacted", reason: "checkpoint_committed" };
     } catch (error) {
-      await input.conversation.moveTo(failedEntryId).catch(() => undefined);
+      const outcome = compactionFailureOutcome(error, input.signal);
       await this.deps.logger.warn("Context overflow compaction failed", {
         agentId: input.agent.id,
         conversationId: input.agent.conversationId,
@@ -393,7 +409,7 @@ export class WorkbenchAgentMechanics {
         context: { failedEntryId },
         error,
       });
-      return false;
+      return outcome;
     }
   }
 
@@ -420,7 +436,7 @@ export class WorkbenchAgentMechanics {
     runId: string,
     conversation: Conversation,
     signal?: AbortSignal,
-  ): Promise<boolean> {
+  ): Promise<CompactionOutcome> {
     return this.autoCompaction.maybeCompactAtIteration({
       conversationId,
       agentId,
@@ -430,8 +446,11 @@ export class WorkbenchAgentMechanics {
     });
   }
 
-  takeAutoCompactionContinuation(runId: string): string | undefined {
-    return this.autoCompaction.takeContinuation(runId);
+  takeAutoCompactionContinuation(
+    runId: string,
+    child = false,
+  ): string | undefined {
+    return this.autoCompaction.takeContinuation(runId, child);
   }
 
   finishAutoCompactionRun(runId: string): void {

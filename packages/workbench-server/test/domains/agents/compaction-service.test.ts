@@ -83,6 +83,7 @@ describe("CompactionService", () => {
           createdAt: input.createdAt ?? timestamp,
         }) as never,
       {
+        pendingProviderToolCallIds: async () => [],
         openStorage: async () => {
           openedStorage = true;
           return activeStorage;
@@ -100,6 +101,27 @@ describe("CompactionService", () => {
         summaryProfile = input.summaryProfile;
         return { text: structuredSummary(), generatedBy: "model" };
       },
+      {},
+      async (input, modelEntry, guard) => {
+        assert.equal(
+          await activeStorage.getLeafId(),
+          guard.expectedModelLeafId,
+        );
+        await activeStorage.appendEntry(modelEntry);
+        return input as never;
+      },
+      (id) =>
+        ({ id, conversationId: "conv_test", executionKind: "root" }) as never,
+      undefined,
+      async () => ({
+        contextWindow: 100_000,
+        settings: {
+          auto: false,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+      }),
     );
 
     const result = await service.compactConversation(
@@ -145,13 +167,13 @@ describe("CompactionService", () => {
     assert.equal(openedStorage, false);
     assert.equal(appendedHarness.length, 1);
     assert.equal(appendedHarness[0]?.parentId, "entry_recent");
-    assert.equal(activeLeafId, "entry_compaction");
+    assert.equal(activeLeafId, result.entry.id);
     const continuation = {
       id: "entry_continuation",
       parentId: await activeStorage.getLeafId(),
     };
     await activeStorage.appendEntry(continuation);
-    assert.equal(continuation.parentId, "entry_compaction");
+    assert.equal(continuation.parentId, result.entry.id);
     assert.ok(
       events.some((event) => event.type === "conversation.compaction.started"),
     );
@@ -161,7 +183,7 @@ describe("CompactionService", () => {
     assert.ok(compacted);
     assert.equal(
       (compacted.data as { entryId?: string }).entryId,
-      "entry_compaction",
+      result.entry.id,
     );
     assert.equal((compacted.data as { entry?: unknown }).entry, undefined);
   });
@@ -212,7 +234,10 @@ describe("CompactionService", () => {
           kind: input.kind ?? "message",
           createdAt: input.createdAt ?? timestamp,
         }) as never,
-      { openStorage: async () => storage } as never,
+      {
+        pendingProviderToolCallIds: async () => [],
+        openStorage: async () => storage,
+      } as never,
       async () => undefined,
       {
         publish: async (type: string, data: unknown) => {
@@ -221,6 +246,24 @@ describe("CompactionService", () => {
         },
       } as never,
       async () => ({ text: largeSummary, generatedBy: "model" }),
+      {},
+      async (input, modelEntry, guard) => {
+        assert.equal(await storage.getLeafId(), guard.expectedModelLeafId);
+        await storage.appendEntry(modelEntry);
+        return input as never;
+      },
+      (id) =>
+        ({ id, conversationId: "conv_test", executionKind: "root" }) as never,
+      undefined,
+      async () => ({
+        contextWindow: 100_000,
+        settings: {
+          auto: false,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+      }),
     );
 
     await assert.rejects(
@@ -302,7 +345,10 @@ describe("CompactionService", () => {
           kind: input.kind ?? "message",
           createdAt: input.createdAt ?? timestamp,
         }) as never,
-      { openStorage: async () => storage } as never,
+      {
+        pendingProviderToolCallIds: async () => [],
+        openStorage: async () => storage,
+      } as never,
       async () => undefined,
       {
         publish: async (type: string, data: unknown) => {
@@ -317,6 +363,24 @@ describe("CompactionService", () => {
         onProgress?.({ attempt: 2, text: summary });
         return { text: summary, generatedBy: "model" };
       },
+      {},
+      async (input, modelEntry, guard) => {
+        assert.equal(await storage.getLeafId(), guard.expectedModelLeafId);
+        await storage.appendEntry(modelEntry);
+        return input as never;
+      },
+      (id) =>
+        ({ id, conversationId: "conv_test", executionKind: "root" }) as never,
+      undefined,
+      async () => ({
+        contextWindow: 100_000,
+        settings: {
+          auto: false,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+      }),
     );
 
     await service.compactConversation(
@@ -414,7 +478,10 @@ describe("CompactionService", () => {
         appendCalls += 1;
         throw new Error("checkpoint must not be appended");
       },
-      { openStorage: async () => storage } as never,
+      {
+        pendingProviderToolCallIds: async () => [],
+        openStorage: async () => storage,
+      } as never,
       async () => undefined,
       {
         publish: async (type: string, data: unknown) => {
@@ -430,6 +497,24 @@ describe("CompactionService", () => {
         });
         return undefined;
       },
+      {},
+      async (input, modelEntry, guard) => {
+        assert.equal(await storage.getLeafId(), guard.expectedModelLeafId);
+        await storage.appendEntry(modelEntry);
+        return input as never;
+      },
+      (id) =>
+        ({ id, conversationId: "conv_test", executionKind: "root" }) as never,
+      undefined,
+      async () => ({
+        contextWindow: 100_000,
+        settings: {
+          auto: false,
+          profile: "balanced",
+          customTriggerPercent: 80,
+          customKeepRecentPercent: 15,
+        },
+      }),
     );
 
     const compaction = service.compactConversation(

@@ -1,3 +1,13 @@
+import {
+  applyPromptCompactionAnchor,
+  withPromptCompactionAnchor,
+  type PromptAnchor,
+} from "./compaction-provenance.js";
+import { isDeepStrictEqual } from "node:util";
+import {
+  resolveCompactionOwner,
+  compactionOwnerKey,
+} from "./compaction-owner.js";
 import { randomUUID } from "node:crypto";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import { noopPerformanceDiagnostics } from "../../infrastructure/diagnostics/performance-metrics.js";
@@ -48,7 +58,7 @@ export class ConversationHarnessStorage {
       this.conversationRepository,
       conversation.id,
       conversation.createdAt,
-      agent.id,
+      resolveCompactionOwner(conversation.id, agent).ownerAgentId,
       this.diagnostics,
     );
   }
@@ -60,14 +70,18 @@ export class ConversationHarnessStorage {
   async appendAgentMessage(
     agent: AgentRecord,
     message: AgentMessage,
+    anchor?: PromptAnchor,
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
     const storage =
-      agent.executionKind === "async_developer"
+      resolveCompactionOwner(conversation.id, agent).ownerAgentId !== undefined
         ? await this.openAgentStorage(agent)
         : await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
-    const id = await harnessConversation.appendMessage(message);
+    const append = () => harnessConversation.appendMessage(message);
+    const id = await (anchor
+      ? withPromptCompactionAnchor(agent, anchor, append)
+      : append());
     const entry = await storage.getEntry(id);
     return {
       id,
@@ -80,14 +94,31 @@ export class ConversationHarnessStorage {
     id: string,
     message: AgentMessage,
     timestamp = new Date().toISOString(),
+    anchor?: PromptAnchor,
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
     const storage =
-      agent.executionKind === "async_developer"
+      resolveCompactionOwner(conversation.id, agent).ownerAgentId !== undefined
         ? await this.openAgentStorage(agent)
         : await this.openStorage(conversation);
+    const existing = await storage.getEntry(id);
+    if (existing) {
+      if (
+        existing.type !== "message" ||
+        !isDeepStrictEqual(
+          { ...existing.message, timestamp: undefined },
+          { ...message, timestamp: undefined },
+        )
+      )
+        throw new Error("Stable message ID conflicts with existing entry.");
+      return { id, timestamp: existing.timestamp };
+    }
     const harnessConversation = new Conversation(storage);
-    await harnessConversation.appendMessageWithId(id, message, timestamp);
+    const append = () =>
+      harnessConversation.appendMessageWithId(id, message, timestamp);
+    await (anchor
+      ? withPromptCompactionAnchor(agent, anchor, append)
+      : append());
     const entry = await storage.getEntry(id);
     return { id, timestamp: entry?.timestamp ?? timestamp };
   }
@@ -100,7 +131,7 @@ export class ConversationHarnessStorage {
   ): Promise<{ id: string; timestamp: string }> {
     const conversation = this.getConversation(agent.conversationId);
     const storage =
-      agent.executionKind === "async_developer"
+      resolveCompactionOwner(conversation.id, agent).ownerAgentId !== undefined
         ? await this.openAgentStorage(agent)
         : await this.openStorage(conversation);
     const harnessConversation = new Conversation(storage);
@@ -174,6 +205,30 @@ export class ConversationHarnessStorage {
     ).entryById.get(entryId);
   }
 
+  registerQueuedPromptAnchor(
+    conversation: Conversation,
+    id: string,
+    anchor?: PromptAnchor,
+  ): void {
+    const storage = conversation.getStorage();
+    if (!(storage instanceof JournalConversationStorage))
+      throw new Error("Queued prompt provenance requires journal storage.");
+    storage.registerCompactionAnchor(id, anchor);
+  }
+
+  async pendingProviderToolCallIds(
+    conversationId: string,
+    ownerAgentId: string | undefined,
+    getAgent: (agentId: string) => AgentRecord,
+  ): Promise<string[]> {
+    return this.conversationRepository.journal.pendingProviderToolCallIds(
+      conversationId,
+      (agentId) =>
+        resolveCompactionOwner(conversationId, getAgent(agentId))
+          .ownerAgentId === ownerAgentId,
+    );
+  }
+
   async modelEntries(
     conversationId: string,
     ownerAgentId?: string,
@@ -189,6 +244,12 @@ export class ConversationHarnessStorage {
 }
 
 class JournalConversationStorage implements ConversationStorage<ConversationMetadata> {
+  private readonly queuedPromptAnchors = new Map<string, PromptAnchor>();
+
+  registerCompactionAnchor(id: string, anchor?: PromptAnchor): void {
+    if (anchor) this.queuedPromptAnchors.set(id, anchor);
+    else this.queuedPromptAnchors.delete(id);
+  }
   constructor(
     private readonly conversations: ConversationRepository,
     private readonly conversationId: string,
@@ -227,6 +288,19 @@ class JournalConversationStorage implements ConversationStorage<ConversationMeta
   }
 
   async appendEntry(entry: ConversationTreeEntry): Promise<void> {
+    const queuedAnchor = this.queuedPromptAnchors.get(entry.id);
+    entry = applyPromptCompactionAnchor(
+      entry,
+      compactionOwnerKey(this.conversationId, this.ownerAgentId),
+    );
+    if (
+      queuedAnchor &&
+      entry.type === "message" &&
+      entry.message.role === "user"
+    ) {
+      entry = { ...entry, compactionAnchor: queuedAnchor };
+      this.queuedPromptAnchors.delete(entry.id);
+    }
     const tree = await this.tree();
     if (tree.getEntry(entry.id)) {
       throw new Error(`Duplicate model-context entry '${entry.id}'.`);

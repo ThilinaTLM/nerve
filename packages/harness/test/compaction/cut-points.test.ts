@@ -33,7 +33,7 @@ describe("safe compaction suffixes", () => {
     assert.equal(result.firstKeptEntryIndex, 2);
     assert.equal(result.retentionBudgetExceeded, true);
   });
-  it("keeps complete oversized multi-tool groups across metadata and notices", () => {
+  it("keeps complete oversized multi-tool groups across transparent metadata", () => {
     const call = assistant(50);
     call.content.push(
       { type: "toolCall", id: "a", name: "read", arguments: {} },
@@ -59,12 +59,13 @@ describe("safe compaction suffixes", () => {
         label: "metadata",
       },
       result("a"),
-      entry("notice", {
-        role: "harness",
-        eventType: "task_event",
-        content: "done",
-        timestamp: 0,
-      }),
+      {
+        type: "custom" as const,
+        id: "notice",
+        parentId: null,
+        timestamp,
+        customType: "metadata",
+      },
       result("b"),
     ];
     const copy = structuredClone(entries);
@@ -96,7 +97,10 @@ describe("safe compaction suffixes", () => {
       }),
     ];
     assert.throws(
-      () => estimatePostCompactionContext(entries, "notice", "summary"),
+      () =>
+        estimatePostCompactionContext(entries, "notice", "summary", undefined, {
+          protectedToolCallIds: ["pending"],
+        }),
       /splits/,
     );
     entries.push(checkpoint("broken", "missing"));

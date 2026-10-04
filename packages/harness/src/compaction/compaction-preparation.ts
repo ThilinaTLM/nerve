@@ -1,3 +1,4 @@
+import type { CompactionPlan } from "./cut-points.js";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import type { FileOperations } from "./file-operations.js";
 import type { CompactionSettings } from "./compaction-policy.js";
@@ -17,6 +18,8 @@ export interface CutPointResult {
 
 /** Prepared inputs for a compaction run. */
 export interface CompactionPreparation {
+  /** Pure planning/accounting data; persist anchors and known proposal lineage with the checkpoint. */
+  plan?: CompactionPlan;
   /** Entry id where retained history starts. */
   firstKeptEntryId: string;
   /** Messages summarized into the history summary. */

@@ -1,3 +1,6 @@
+import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
+import { userPromptControls } from "./user-prompt-control.js";
+import { installIterationCompaction } from "./iteration-compaction.js";
 import { createWorkbenchAgentHarness } from "./workbench-agent-harness.js";
 import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
 import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
@@ -217,22 +220,23 @@ export async function executeWorkbenchHarness(
       context: undefined,
     });
     capabilities.attach(harness);
-    harness.on("iteration_boundary", async (event) => {
-      const compacted = await this.maybeAutoCompactAtIteration(
-        agent.conversationId,
-        agent.id,
-        runId,
-        harnessConversation,
-        event.signal,
-      );
-      if (!compacted || event.hasMoreToolCalls) return undefined;
-      const hadToolCalls = event.message.content.some(
-        (content) => content.type === "toolCall",
-      );
-      if (hadToolCalls) return undefined;
-      const followUp = this.takeAutoCompactionContinuation(runId);
-      return followUp ? { followUp } : undefined;
-    });
+    installIterationCompaction(
+      harness,
+      (signal) =>
+        this.maybeAutoCompactAtIteration(
+          agent.conversationId,
+          agent.id,
+          runId,
+          harnessConversation,
+          signal,
+        ),
+      () =>
+        this.takeAutoCompactionContinuation(
+          runId,
+          resolveCompactionOwner(agent.conversationId, agent).ownerAgentId !==
+            undefined,
+        ),
+    );
     const startLiveTurn = async () => {
       const turn = this.deps.state.conversationRuntime.startTurn(runId);
       currentTurnId = turn.turnId;
@@ -660,20 +664,12 @@ export async function executeWorkbenchHarness(
         runAbortController.signal,
       );
     const liveControl: WorkbenchLiveExecutionControl = {
-      steer: async (prompt) => {
-        const expanded = await expandBlocks(prompt.text, prompt.images);
-        return harness.steer(expanded.text, {
-          id: prompt.id,
-          images: prompt.images,
-        });
-      },
-      followUp: async (prompt) => {
-        const expanded = await expandBlocks(prompt.text, prompt.images);
-        return harness.followUp(expanded.text, {
-          id: prompt.id,
-          images: prompt.images,
-        });
-      },
+      ...userPromptControls(
+        harness,
+        harnessConversation,
+        this.deps.harnessStorage,
+        expandBlocks,
+      ),
       forcePush: async () => {
         forcePushGeneration += 1;
         toolDraftProgressScheduler.clear();
@@ -681,7 +677,6 @@ export async function executeWorkbenchHarness(
       },
       continue: async () => undefined,
       cancel: abort,
-      removeQueuedPrompt: harness.removeQueuedMessage.bind(harness),
       updateAgentRuntimeConfig,
       appendExternalMessage: (input) => harness.appendExternalMessage(input),
       enqueueHarnessMessage: (input) =>

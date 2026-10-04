@@ -17,7 +17,7 @@ function harness(
     setPhase: (next: string) => {
       phase = next;
     },
-    getModel: () => ({ maxTokens: 16_384 }),
+    getModel: () => ({ maxTokens: 16_384, contextWindow: 128_000 }),
     getThinkingLevel: () => "off",
     getApiKeyAndHeaders: async () => ({ apiKey: "" }),
     emitHook: async () => ({
@@ -61,9 +61,11 @@ describe("direct harness compaction safety", () => {
         entry("old", user("x".repeat(100_000))),
         entry("call", call),
         entry("notice", {
-          role: "harness",
-          eventType: "task_event",
-          content: "pending",
+          role: "toolResult",
+          toolCallId: "pending",
+          toolName: "read",
+          content: [{ type: "text", text: "result" }],
+          isError: false,
           timestamp: 0,
         }),
       ],

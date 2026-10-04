@@ -8,6 +8,7 @@ import {
   generateSummary,
   summaryBudget,
   summaryDefects,
+  type GenerateSummaryInput,
 } from "../../src/compaction/compaction.js";
 import { createFileOps } from "../../src/compaction/file-operations.js";
 import { user, validSummary } from "./compaction-fixtures.js";
@@ -15,6 +16,10 @@ import { user, validSummary } from "./compaction-fixtures.js";
 let sequence = 0;
 async function generate(
   drafts: Array<{ text: string; stopReason?: StopReason }>,
+  options: Pick<
+    GenerateSummaryInput,
+    "anchorOverflow" | "abandonedToolCallIds"
+  > = {},
 ) {
   const registration = registerManagedFauxProvider({
     provider: `summary-test-${++sequence}`,
@@ -33,6 +38,7 @@ async function generate(
   );
   try {
     const result = await generateSummary({
+      ...options,
       messages: [user("Never change the public API. Tests failed.")],
       previousSummary: validSummary,
       model: registration.getModel("summary"),
@@ -67,6 +73,18 @@ describe("bounded checkpoint generation", () => {
     assert.match(prompts[0], /removed-turn-prefix/);
     assert.match(prompts[0], /previous-summary/);
     assert.match(prompts[0], /untrusted source data/);
+  });
+  it("requires faithful summary coverage for overflowing binding requirement sources", async () => {
+    const { result, prompts } = await generate([{ text: validSummary }], {
+      anchorOverflow: [{ sourceEntryId: "huge-request", kind: "request" }],
+    });
+    assert.ok(result.ok);
+    assert.match(prompts[0], /huge-request/);
+    assert.match(
+      prompts[0],
+      /Carry their binding requirements faithfully in Requirements and Constraints/,
+    );
+    assert.match(prompts[0], /will not be anchored verbatim/);
   });
   it("repairs oversize, malformed, empty, and heading-complete truncated drafts once", async () => {
     for (const draft of [

@@ -1,3 +1,4 @@
+import type { PromptAnchor } from "../conversations/compaction-provenance.js";
 /* eslint-disable max-lines -- Human-input resolution centralizes the approval/plan-review suspension lifecycle in one auditable use case. */
 import { createHash } from "node:crypto";
 import { createId } from "@nervekit/contracts";
@@ -88,6 +89,7 @@ export interface HumanInputResolutionDeps {
     agentId: string;
     runId?: string;
     planPath: string;
+    sourceReviewId?: string;
   }): Promise<void>;
 }
 
@@ -134,17 +136,14 @@ export class HumanInputResolutionService {
   ): Promise<PlanReviewRecord> {
     const pendingReview = this.getPendingPlanReviewOrThrow(reviewId);
     const source = await this.planReviewSource(pendingReview);
-    await this.applyImplementationSelectionToSourceAgent(
-      pendingReview.agentId,
-      implementation,
-    );
-    if (implementation?.compactBeforeImplementation) {
-      await this.compactPlanBeforeAcceptance(pendingReview, source.toolCall);
-    }
     await this.persistPlanReviewDecision(
       pendingReview,
       "accept",
       feedback,
+      implementation,
+    );
+    await this.applyImplementationSelectionToSourceAgent(
+      pendingReview.agentId,
       implementation,
     );
     let review: PlanReviewRecord;
@@ -153,8 +152,11 @@ export class HumanInputResolutionService {
     } catch (error) {
       throw this.planReviewNotFound(error);
     }
-    if (source.state === "terminal") {
+    if (source.state === "terminal" || source.state === "detached") {
       await this.reconcileTerminalPlanReview(review);
+      await this.appendAcceptedPlanFollowUp(review);
+      if (implementation?.compactBeforeImplementation)
+        await this.compactPlanBeforeAcceptance(review, source.toolCall);
       await this.startAcceptedPlanImplementation(review);
       return review;
     }
@@ -166,14 +168,20 @@ export class HumanInputResolutionService {
         {
           continueAgent: true,
           followUpUserMessage: acceptedPlanFollowUp(review.planPath),
+          followUpAnchor: { kind: "plan", text: review.planPath },
           finalSuspensionStatus: "resumed",
         },
+        implementation?.compactBeforeImplementation
+          ? () => this.compactPlanBeforeAcceptance(review, source.toolCall)
+          : undefined,
       );
     } catch (error) {
-      if (source.state === "detached") throw error;
       const latest = await this.planReviewSource(review);
       if (latest.state !== "terminal") throw error;
       await this.reconcileTerminalPlanReview(review);
+      await this.appendAcceptedPlanFollowUp(review);
+      if (implementation?.compactBeforeImplementation)
+        await this.compactPlanBeforeAcceptance(review, source.toolCall);
       await this.startAcceptedPlanImplementation(review);
     }
     return review;
@@ -356,12 +364,14 @@ export class HumanInputResolutionService {
       .listPlanReviews()
       .filter(
         (review) =>
-          (review.status === "accepted" ||
+          (review.status === "pending" ||
+            review.status === "accepted" ||
             review.status === "accepted_in_new_chat") &&
           (!conversationId || review.conversationId === conversationId),
       );
     let repaired = 0;
-    for (const review of reviews) {
+    for (const storedReview of reviews) {
+      let review = storedReview;
       if (review.status === "accepted_in_new_chat") {
         await this.recoverAcceptedPlanInNewChat(review, undefined, {
           tolerateMissingSource: true,
@@ -385,13 +395,43 @@ export class HumanInputResolutionService {
           .catch(() => undefined);
         continue;
       }
+      const decision = toolCall.interactions?.find(
+        (item) => item.kind === "plan_review",
+      )?.resolution as
+        | (PlanImplementationSelection & { action?: string })
+        | undefined;
+      if (review.status === "pending") {
+        if (decision?.action !== "accept") continue;
+        await this.applyImplementationSelectionToSourceAgent(
+          review.agentId,
+          decision,
+        );
+        review = await this.deps.plans.acceptPlanReview(
+          review.id,
+          review.feedback,
+        );
+      }
       if (
         toolCall.toolName !== "plan_mode_present" ||
-        toolCall.status !== "waiting"
+        (toolCall.status !== "waiting" && toolCall.status !== "completed")
       ) {
         continue;
       }
+      if (
+        toolCall.runId &&
+        (await this.deps.runs.isToolInteractionResolved(
+          toolCall.id,
+          toolCall.runId,
+        ))
+      )
+        continue;
       const source = await this.planReviewSource(review);
+      const selection = toolCall.interactions?.find(
+        (item) => item.kind === "plan_review",
+      )?.resolution as { compactBeforeImplementation?: boolean } | undefined;
+      const compact = selection?.compactBeforeImplementation
+        ? () => this.compactPlanBeforeAcceptance(review, toolCall)
+        : undefined;
       if (source.state === "pending") {
         try {
           await this.resolveSuspensionForToolCall(
@@ -400,8 +440,10 @@ export class HumanInputResolutionService {
             {
               continueAgent: true,
               followUpUserMessage: acceptedPlanFollowUp(review.planPath),
+              followUpAnchor: { kind: "plan", text: review.planPath },
               finalSuspensionStatus: "resumed",
             },
+            compact,
           );
           repaired += 1;
           continue;
@@ -411,6 +453,8 @@ export class HumanInputResolutionService {
         }
       }
       await this.reconcileTerminalPlanReview(review);
+      await this.appendAcceptedPlanFollowUp(review);
+      await compact?.();
       await this.startAcceptedPlanImplementation(review);
       repaired += 1;
     }
@@ -730,6 +774,7 @@ export class HumanInputResolutionService {
         agentId: review.agentId,
         runId: toolCall.runId,
         planPath: review.planPath,
+        sourceReviewId: review.id,
       });
     } catch (error) {
       if (
@@ -884,24 +929,41 @@ export class HumanInputResolutionService {
       .catch(() => undefined);
   }
 
+  private async appendAcceptedPlanFollowUp(
+    review: PlanReviewRecord,
+  ): Promise<void> {
+    const toolCall = this.deps.tools.getToolCall(review.toolCallId);
+    await this.appendUserInstructionForAgent(
+      review.agentId,
+      acceptedPlanFollowUp(review.planPath),
+      {
+        runId: toolCall.runId,
+        turnId: toolCall.turnId,
+        id: `entry_plan_followup_${toolCall.id}`,
+        anchor: { kind: "plan", text: review.planPath },
+      },
+    );
+  }
+
   private async startAcceptedPlanImplementation(
     review: PlanReviewRecord,
   ): Promise<void> {
-    await this.deps.runs.promptAgent(review.agentId, {
-      text: acceptedPlanFollowUp(review.planPath),
-    });
+    await this.deps.runs.wakePlanImplementation(review.agentId, review.id);
   }
 
   private async reconcileTerminalPlanReview(
     review: PlanReviewRecord,
   ): Promise<void> {
     const toolCall = this.deps.tools.getToolCall(review.toolCallId);
-    if (toolCall.status === "completed") return;
-    await this.deps.tools.resumeToolCall(review.toolCallId);
-    const completed = await this.deps.tools.completeToolCall(
-      review.toolCallId,
-      this.deps.plans.planReviewResult(review),
-    );
+    if (toolCall.status !== "completed")
+      await this.deps.tools.resumeToolCall(review.toolCallId);
+    const completed =
+      toolCall.status === "completed"
+        ? toolCall
+        : await this.deps.tools.completeToolCall(
+            review.toolCallId,
+            this.deps.plans.planReviewResult(review),
+          );
     if (!(await this.existingToolResultEntry(completed))) {
       await this.appendToolResultForToolCall(completed, false);
     }
@@ -928,9 +990,31 @@ export class HumanInputResolutionService {
       continueAgent: boolean;
       completeRun?: boolean;
       followUpUserMessage?: string;
+      followUpAnchor?: PromptAnchor;
       finalSuspensionStatus: "resumed" | "cancelled";
     },
+    beforeResume?: () => Promise<void>,
   ): Promise<void> {
+    const resume = await this.prepareSuspensionForToolCall(
+      toolCallId,
+      result,
+      options,
+    );
+    await beforeResume?.();
+    await resume();
+  }
+
+  private async prepareSuspensionForToolCall(
+    toolCallId: string,
+    result: unknown,
+    options: {
+      continueAgent: boolean;
+      completeRun?: boolean;
+      followUpUserMessage?: string;
+      followUpAnchor?: PromptAnchor;
+      finalSuspensionStatus: "resumed" | "cancelled";
+    },
+  ): Promise<() => Promise<void>> {
     const toolCall = this.deps.tools.getToolCall(toolCallId);
     const batch =
       toolCall.runId && toolCall.toolName === "ask_user"
@@ -939,15 +1023,13 @@ export class HumanInputResolutionService {
             toolCall.runId,
           )
         : undefined;
-    await this.deps.tools.resumeToolCall(toolCallId);
-    if (!toolCall.runId) {
-      await this.deps.tools.completeToolCall(toolCallId, result);
-      return;
-    }
-    const completed = await this.deps.tools.completeToolCall(
-      toolCallId,
-      result,
-    );
+    if (toolCall.status !== "completed")
+      await this.deps.tools.resumeToolCall(toolCallId);
+    const completed =
+      toolCall.status === "completed"
+        ? toolCall
+        : await this.deps.tools.completeToolCall(toolCallId, result);
+    if (!toolCall.runId) return async () => {};
     const hasPendingSibling = batch?.interactions.some(
       (interaction) =>
         interaction.toolCallId !== toolCallId &&
@@ -961,9 +1043,7 @@ export class HumanInputResolutionService {
     const entries: ConversationEntry[] = [];
     if (!hasPendingSibling) {
       for (const batchToolCall of orderedToolCalls) {
-        const existing = batch
-          ? await this.existingToolResultEntry(batchToolCall)
-          : undefined;
+        const existing = await this.existingToolResultEntry(batchToolCall);
         entries.push(
           existing ??
             (await this.appendToolResultForToolCall(
@@ -978,7 +1058,12 @@ export class HumanInputResolutionService {
         await this.appendUserInstructionForAgent(
           completed.agentId,
           options.followUpUserMessage,
-          { runId: completed.runId, turnId: completed.turnId },
+          {
+            runId: completed.runId,
+            turnId: completed.turnId,
+            id: `entry_plan_followup_${completed.id}`,
+            anchor: options.followUpAnchor,
+          },
         ),
       );
     }
@@ -990,33 +1075,60 @@ export class HumanInputResolutionService {
       .update(`${toolCallId}:${JSON.stringify(resolution)}`)
       .digest("hex")
       .slice(0, 24)}`;
-    await this.deps.runs.resolveInteractionForToolCall({
-      toolCallId,
-      runId: completed.runId,
-      resolutionRequestId,
-      resolution,
-      entries,
-      toolCalls: orderedToolCalls.map(toToolCallTranscriptRecord),
-      continueRun: options.continueAgent,
-      completeRun: options.completeRun,
-    });
+    return () =>
+      this.resumeSuspensionForToolCall({
+        toolCallId,
+        runId: completed.runId!,
+        resolutionRequestId,
+        resolution,
+        entries,
+        toolCalls: orderedToolCalls.map(toToolCallTranscriptRecord),
+        continueRun: options.continueAgent,
+        completeRun: options.completeRun,
+      });
+  }
+
+  private async resumeSuspensionForToolCall(
+    input: Parameters<WorkbenchRunService["resolveInteractionForToolCall"]>[0],
+  ): Promise<void> {
+    await this.deps.runs.resolveInteractionForToolCall(input);
   }
 
   private async appendUserInstructionForAgent(
     agentId: string,
     text: string,
-    metadata: { runId?: string; turnId?: string } = {},
+    metadata: {
+      runId?: string;
+      turnId?: string;
+      id?: string;
+      anchor?: PromptAnchor;
+    } = {},
   ): Promise<ConversationEntry> {
     const agent = this.deps.getAgent(agentId);
+    const existing = metadata.id
+      ? (await this.deps.getConversationEntries(agent.conversationId)).find(
+          (entry) => entry.id === metadata.id,
+        )
+      : undefined;
+    if (existing) return existing;
     const message: AgentMessage = {
       role: "user",
       content: text,
       timestamp: Date.now(),
     };
-    const appended = await this.deps.harnessStorage.appendAgentMessage(
-      agent,
-      message,
-    );
+    const appended = metadata.id
+      ? await this.deps.harnessStorage.appendAgentMessageWithId(
+          agent,
+          metadata.id,
+          message,
+          undefined,
+          metadata.anchor,
+        )
+      : await this.deps.harnessStorage.appendAgentMessage(
+          agent,
+          message,
+          metadata.anchor,
+        );
     return this.deps.appendEntry(
       {
         id: appended.id,
@@ -1059,7 +1171,13 @@ export class HumanInputResolutionService {
           id: createId("entry"),
           timestamp: new Date(message.timestamp).toISOString(),
         }
-      : await this.deps.harnessStorage.appendAgentMessage(agent, message);
+      : toolCall.toolName === "plan_mode_present"
+        ? await this.deps.harnessStorage.appendAgentMessageWithId(
+            agent,
+            `entry_tool_result_${toolCall.id}`,
+            message,
+          )
+        : await this.deps.harnessStorage.appendAgentMessage(agent, message);
     return this.deps.appendEntry(
       {
         id: appended.id,

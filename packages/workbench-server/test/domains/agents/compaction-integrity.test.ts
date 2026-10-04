@@ -50,7 +50,10 @@ function setup(
         createdAt: timestamp,
       } as never;
     },
-    { openStorage: async () => storage } as never,
+    {
+      pendingProviderToolCallIds: async () => [],
+      openStorage: async () => storage,
+    } as never,
     async () => undefined,
     {
       publish: async (type: string) => {
@@ -58,6 +61,24 @@ function setup(
       },
     } as never,
     summarizer,
+    {},
+    async (input, modelEntry, guard) => {
+      assert.equal(await storage.getLeafId(), guard.expectedModelLeafId);
+      appends++;
+      await storage.appendEntry(modelEntry);
+      return input as never;
+    },
+    undefined,
+    undefined,
+    async () => ({
+      contextWindow: 100_000,
+      settings: {
+        auto: false,
+        profile: "balanced",
+        customTriggerPercent: 80,
+        customKeepRecentPercent: 15,
+      },
+    }),
   );
   return { service, appends: () => appends, events };
 }
@@ -233,7 +254,12 @@ describe("compaction integrity", () => {
           { keepRecentTokens: 1 },
           { reason },
         ),
-        /would not reduce/,
+        {
+          code:
+            reason === "threshold"
+              ? "COMPACTION_PREFLIGHT_INEFFECTIVE"
+              : "INEFFECTIVE_COMPACTION",
+        },
       );
       assert.equal(appends(), 0);
     }

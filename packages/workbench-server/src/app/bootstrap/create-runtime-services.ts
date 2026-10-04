@@ -1,3 +1,6 @@
+import { getModelContextWindow } from "@nervekit/harness/models";
+import { compactionSettingsForAgent } from "../../domains/agents/execution/subagent-compaction-settings.js";
+import { resolveCompactionOwner } from "../../domains/conversations/compaction-owner.js";
 import { AsyncSubagentService } from "../../domains/agents/async-subagent.service.js";
 import { subagentToolResult } from "../../domains/agents/async-subagent-tool-result.js";
 import { AsyncSubagentRepository } from "../../domains/agents/async-subagent.repository.js";
@@ -282,6 +285,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     instructions,
     summaryProfile,
     summaryReserveTokens,
+    anchorOverflow,
+    abandonedToolCallIds,
     signal,
     onProgress,
   }) => {
@@ -317,6 +322,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       turnPrefixMessages,
       fileReferences,
       summaryProfile,
+      anchorOverflow,
+      abandonedToolCallIds,
       thinkingLevel: agent.thinkingLevel,
       env: requestAuth.env,
       onProgress: (progress) => {
@@ -344,8 +351,32 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     events,
     compactionSummarizer,
     {},
-    (input, modelEntry) =>
-      conversationLifecycle.appendCompactionAtomic(input, modelEntry),
+    (input, modelEntry, guard) =>
+      conversationLifecycle.appendCompactionAtomic(input, modelEntry, guard),
+    getAgent,
+    (conversationId, ownerAgentId) =>
+      workbenchRun.hasNonterminalOwnerRun(conversationId, ownerAgentId),
+    async (conversationId, agentId) => {
+      const conversation = getConversation(conversationId);
+      const agent = agentId
+        ? getAgent(agentId)
+        : conversation.activeAgentId
+          ? getAgent(conversation.activeAgentId)
+          : undefined;
+      return {
+        contextWindow: getModelContextWindow(
+          agent?.model,
+          await providerCatalog.resolvedModelsWithCredentials(
+            (name) => secrets.get(name),
+            agent?.projectDir,
+          ),
+        ),
+        settings: compactionSettingsForAgent(
+          await capabilities.settings(conversation.projectId, conversationId),
+          agent,
+        ),
+      };
+    },
   );
   const navigationService = new NavigationService(
     getConversation,
@@ -1032,11 +1063,34 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     lifecycleWork: storage.canonicalStore,
     notifyLifecycleWork,
     compactPlanConversation: async (input) => {
+      const owner = resolveCompactionOwner(
+        input.conversationId,
+        getAgent(input.agentId),
+      );
+      const ownerStorage = owner.ownerAgentId
+        ? await harnessStorage.openAgentStorage(getAgent(owner.ownerAgentId))
+        : await harnessStorage.openStorage(
+            getConversation(input.conversationId),
+          );
+      const entries = await ownerStorage.getPathToRoot(
+        await ownerStorage.getLeafId(),
+      );
+      if (
+        input.sourceReviewId &&
+        entries.some(
+          (entry) =>
+            entry.type === "compaction" &&
+            (entry.details as { sourceReviewId?: string } | undefined)
+              ?.sourceReviewId === input.sourceReviewId,
+        )
+      )
+        return;
       await compactionService.compactConversation(
         input.conversationId,
         { keepRecentTokens: 1 },
         {
           reason: "manual",
+          sourceReviewId: input.sourceReviewId,
           agentId: input.agentId,
           runId: input.runId,
           keepRecentTokens: 1,

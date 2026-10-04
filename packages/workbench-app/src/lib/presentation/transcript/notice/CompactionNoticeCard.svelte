@@ -109,7 +109,7 @@ const completedChips = $derived.by<NoticeChip[]>(() => {
   if (typeof notice.freedTokens === "number" && notice.freedTokens > 0) {
     items.push({
       text: `≈${formatTokens(notice.freedTokens)} freed`,
-      tone: "success",
+      tone: header.tone === "warning" ? "warning" : "success",
     });
   }
   if (typeof compactedMessages === "number") {
@@ -151,7 +151,7 @@ const chips = $derived(
 );
 
 const errorMessage = $derived(
-  notice.state === "failed"
+  notice.state === "failed" && !notice.code
     ? notice.errorMessage?.trim() || "Could not compact this conversation."
     : undefined,
 );
@@ -161,6 +161,14 @@ const summary = $derived.by(() => {
     return "Summarizing recent work…";
   }
   if (notice.state === "cancelled") return "Compaction stopped early.";
+  if (notice.state === "failed" && notice.code) {
+    return (
+      notice.errorMessage?.trim() || "Could not compact this conversation."
+    );
+  }
+  if (notice.state === "completed" && header.tone === "warning") {
+    return header.statusLabel;
+  }
   return undefined;
 });
 
@@ -185,7 +193,7 @@ const layoutRevision = $derived(
       bodyVisible,
       previewVisible: previewText.length > 0,
     }),
-    errorVisible: notice.state === "failed",
+    errorVisible: Boolean(errorMessage),
     footerItemCount: chips.length + (summaryDetails ? 1 : 0),
   }),
 );

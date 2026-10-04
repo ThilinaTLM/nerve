@@ -1,3 +1,4 @@
+import { legacyReadCompatibilityReleases } from "../../../src/infrastructure/storage-migrations/read-compatibility-evidence.js";
 import assert from "node:assert/strict";
 import {
   mkdtemp,
@@ -164,7 +165,7 @@ test("rechecks released 0.32 readability evidence after reader contract changes"
   }
 });
 
-test("adopts an equivalent prior reader sweep without another sweep", async (t) => {
+test("adopts only declared-equivalent prior reader sweeps", async (t) => {
   const home = await temporaryHome("nerve-home-read-adoption-");
   t.after(() => rm(home, { recursive: true, force: true }));
   const initial = await initializeStorage(home);
@@ -189,7 +190,9 @@ test("adopts an equivalent prior reader sweep without another sweep", async (t) 
 
   assert.equal(
     messages.includes("Checking stored records for readability"),
-    false,
+    !legacyReadCompatibilityReleases(STORAGE_READ_COMPATIBILITY_ID).includes(
+      "reader:e757c9731dce7f48cde69d3cd4ff53ec73ca04d2d58fd70e31261415a29a366c",
+    ),
   );
   const verified = new DatabaseSync(initial.paths.sqlitePath, {
     readOnly: true,

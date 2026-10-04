@@ -115,6 +115,19 @@ export function deriveAutoCompactionPolicy(
   };
 }
 
+/** Manual compaction is independent of the auto switch, but uses the same model-window policy. */
+export function deriveManualCompactionSettings(
+  contextWindow: number,
+  settings: AutoCompactionSettings = DEFAULT_AUTO_COMPACTION_SETTINGS,
+): CompactionSettings {
+  const policy = deriveAutoCompactionPolicy(contextWindow, settings);
+  return {
+    enabled: true,
+    reserveTokens: policy.summaryReserveTokens,
+    keepRecentTokens: policy.keepRecentTokens,
+  };
+}
+
 export function shouldAutoCompact(
   contextTokens: number | null | undefined,
   policy: AutoCompactionPolicy,

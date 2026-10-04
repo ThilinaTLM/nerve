@@ -698,3 +698,45 @@ describe("Protocol v1 shared schemas", () => {
     ]);
   });
 });
+
+describe("compaction request targeting and warning codes", () => {
+  it("accepts legacy lead requests and optional child owners", () => {
+    for (const method of [
+      "conversation.compact",
+      "conversation.compaction.cancel",
+    ] as const) {
+      const lead = { conversationId: "conv_test" };
+      assert.deepEqual(parseOperationParams(method, lead), lead);
+      const child = { ...lead, agentId: "agent_child" };
+      assert.deepEqual(parseOperationParams(method, child), child);
+      assert.throws(() =>
+        parseOperationParams(method, { ...lead, agentId: "invalid" }),
+      );
+    }
+  });
+
+  it("accepts old failures and only the four typed warning codes", () => {
+    const legacy = {
+      conversationId: "conv_test",
+      reason: "manual",
+      failedAt: ts,
+      message: "Could not compact",
+    };
+    const validate = (data: unknown) =>
+      validatePublicEvent(
+        "conversation.compaction.failed",
+        data,
+        "workbench_server",
+      );
+    assert.deepEqual(validate(legacy), legacy);
+    for (const code of [
+      "ineffective",
+      "stale",
+      "pending_work",
+      "no_new_history",
+    ]) {
+      assert.deepEqual(validate({ ...legacy, code }), { ...legacy, code });
+    }
+    assert.throws(() => validate({ ...legacy, code: "unexpected" }));
+  });
+});

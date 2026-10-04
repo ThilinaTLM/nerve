@@ -1,3 +1,5 @@
+import type { CheckpointDetails } from "@nervekit/contracts/conversations";
+import type { CompactionPlanningOptions } from "./cut-points.js";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import { buildConversationContext } from "../conversation/context.js";
 import { CompactionError } from "../errors.js";
@@ -5,6 +7,7 @@ import {
   getLatestCompactionEntry,
   estimateRetainedContextTokens,
 } from "./usage.js";
+import { createCompactionSummaryMessage } from "../messages/messages.js";
 import { assertSafeCompactionBoundary } from "./cut-points.js";
 
 /** Reconstruct exactly the context a newly appended checkpoint will select. */
@@ -12,6 +15,8 @@ export function estimatePostCompactionContext(
   branch: ConversationTreeEntry[],
   firstKeptEntryId: string,
   summary: string,
+  details?: CheckpointDetails,
+  options: CompactionPlanningOptions = {},
 ) {
   const index = branch.findIndex((entry) => entry.id === firstKeptEntryId);
   if (index < 0)
@@ -34,7 +39,12 @@ export function estimatePostCompactionContext(
       "Previous compaction boundary is missing.",
     );
   // Validate against the entire active context, not a suffix that forgets pending calls.
-  assertSafeCompactionBoundary(branch, Math.max(0, previousIndex), index);
+  assertSafeCompactionBoundary(
+    branch,
+    Math.max(0, previousIndex),
+    index,
+    options,
+  );
   const messages = buildConversationContext([
     ...branch,
     {
@@ -45,6 +55,7 @@ export function estimatePostCompactionContext(
       firstKeptEntryId,
       summary,
       tokensBefore: 0,
+      details,
     },
   ]).messages;
   const summaryTokens = estimateRetainedContextTokens(messages.slice(0, 1));
@@ -54,7 +65,13 @@ export function estimatePostCompactionContext(
       buildConversationContext(branch).messages,
     ),
     tokensAfter: summaryTokens + retainedTokens,
+    /** Full provider-visible checkpoint, including anchors and envelope. */
     summaryTokens,
+    anchorTokens:
+      summaryTokens -
+      estimateRetainedContextTokens([
+        createCompactionSummaryMessage(summary, 0, new Date(0).toISOString()),
+      ]),
     retainedTokens,
     retainedMessages: Math.max(0, messages.length - 1),
   };

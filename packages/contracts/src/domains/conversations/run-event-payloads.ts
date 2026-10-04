@@ -212,6 +212,7 @@ export interface ConversationCompactionFailedData {
   reason: ConversationCompactionReason;
   failedAt: string;
   message: string;
+  code?: "ineffective" | "stale" | "pending_work" | "no_new_history";
   failedEntryId?: string;
 }
 
@@ -435,6 +436,9 @@ const conversationCompactionFailedDataSchema = z.object({
   reason: z.enum(["manual", "threshold", "overflow"]),
   failedAt: z.string().datetime(),
   message: z.string(),
+  code: z
+    .enum(["ineffective", "stale", "pending_work", "no_new_history"])
+    .optional(),
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 

@@ -8,15 +8,33 @@ const safeJsonStringify = (value: unknown): string => {
     return "[unserializable]";
   }
 };
+const references = (text: string) =>
+  [
+    ...new Set(
+      text.match(
+        /(?:\/[\w.@+~-]+)+|(?:[\w.@+~-]+\/)+[\w.@+~-]+|(?:artifact|file):\/\/[^\s)]+/g,
+      ) ?? [],
+    ),
+  ]
+    .slice(0, 40)
+    .join("\n");
 const truncateForSummary = (text: string): string =>
   text.length <= TOOL_RESULT_MAX_CHARS
     ? text
-    : `${text.slice(0, TOOL_RESULT_MAX_CHARS)}\n\n[... ${text.length - TOOL_RESULT_MAX_CHARS} more characters truncated]`;
+    : `${text.slice(0, TOOL_RESULT_MAX_CHARS)}\n\n[... ${text.length - TOOL_RESULT_MAX_CHARS} more characters truncated; omitted evidence does not prove success]\n[Path/artifact references from full evidence]\n${references(text)}`;
 
 /** Serialize model messages to bounded plain text for summarization prompts. */
-export function serializeConversation(messages: Message[]): string {
+export function serializeConversation(
+  messages: Message[],
+  options: { abandonedToolCallIds?: readonly string[] } = {},
+): string {
   const parts: string[] = [];
-  for (const message of messages) {
+  const results = new Map(
+    messages
+      .filter((m) => m.role === "toolResult")
+      .map((m) => [m.toolCallId, m]),
+  );
+  for (const [index, message] of messages.entries()) {
     if (message.role === "user") {
       const content =
         typeof message.content === "string"
@@ -42,12 +60,32 @@ export function serializeConversation(messages: Message[]): string {
           )
             .map(([key, value]) => `${key}=${safeJsonStringify(value)}`)
             .join(", ");
-          tools.push(`${block.name}(${args})`);
+          const result = results.get(block.id);
+          const closed =
+            options.abandonedToolCallIds?.includes(block.id) ||
+            messages
+              .slice(index + 1)
+              .some((m) => m.role === "user" || m.role === "assistant");
+          const outcome = result
+            ? result.isError
+              ? "error"
+              : "success"
+            : message.stopReason === "error" ||
+                message.stopReason === "aborted" ||
+                !closed
+              ? "unknown"
+              : "abandoned (no recorded result on this path)";
+          tools.push(
+            `id=${block.id} name=${block.name} outcome=${outcome} arguments=(${truncateForSummary(args)})`,
+          );
         }
       }
       if (thinking.length)
-        parts.push(`[Assistant thinking]: ${thinking.join("\n")}`);
-      if (text.length) parts.push(`[Assistant]: ${text.join("\n")}`);
+        parts.push(
+          `[Assistant thinking]: ${truncateForSummary(thinking.join("\n"))}`,
+        );
+      if (text.length)
+        parts.push(`[Assistant]: ${truncateForSummary(text.join("\n"))}`);
       if (tools.length)
         parts.push(`[Assistant tool calls]: ${tools.join("; ")}`);
     } else if (message.role === "toolResult") {
@@ -58,7 +96,9 @@ export function serializeConversation(messages: Message[]): string {
         )
         .map((block) => block.text)
         .join("");
-      if (content) parts.push(`[Tool result]: ${truncateForSummary(content)}`);
+      parts.push(
+        `[Tool result id=${message.toolCallId} name=${message.toolName} outcome=${message.isError ? "error" : "success"}]: ${truncateForSummary(content) || "(no text evidence)"}`,
+      );
     }
   }
   return parts.join("\n\n");

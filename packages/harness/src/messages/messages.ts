@@ -1,6 +1,12 @@
+import type { CheckpointAnchor } from "@nervekit/contracts/conversations";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
 import type { TaskReadiness, TaskStatus } from "@nervekit/contracts/tasks";
 import type { AgentMessage } from "../agent/contracts/index.js";
+
+export function renderCheckpointAnchors(anchors: CheckpointAnchor[]): string {
+  if (!anchors.length) return "";
+  return `\n\n<verbatim-requirements>\n${anchors.map((a) => `[${a.kind}; source=${a.sourceEntryId}]\n${a.text}`).join("\n\n")}\n</verbatim-requirements>`;
+}
 
 export const COMPACTION_SUMMARY_PREFIX = `The conversation history before this point was compacted into the following summary:
 
@@ -88,6 +94,7 @@ export interface BranchSummaryMessage {
 export interface CompactionSummaryMessage {
   role: "compactionSummary";
   summary: string;
+  anchors?: CheckpointAnchor[];
   tokensBefore: number;
   timestamp: number;
 }
@@ -141,10 +148,12 @@ export function createCompactionSummaryMessage(
   summary: string,
   tokensBefore: number,
   timestamp: string,
+  anchors?: CheckpointAnchor[],
 ): CompactionSummaryMessage {
   return {
     role: "compactionSummary",
     summary,
+    anchors,
     tokensBefore,
     timestamp: new Date(timestamp).getTime(),
   };
@@ -249,7 +258,8 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
                 text:
                   COMPACTION_SUMMARY_PREFIX +
                   m.summary +
-                  COMPACTION_SUMMARY_SUFFIX,
+                  COMPACTION_SUMMARY_SUFFIX +
+                  renderCheckpointAnchors(m.anchors ?? []),
               },
             ],
             timestamp: m.timestamp,

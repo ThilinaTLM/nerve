@@ -81,10 +81,13 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
       state.compactionService.compactConversation(
         params.conversationId,
         params,
-        { reason: "manual" },
+        { reason: "manual", agentId: params.agentId },
       ),
     "conversation.compaction.cancel": async (state, params) => {
-      await state.compactionService.cancelCompaction(params.conversationId);
+      await state.compactionService.cancelCompaction(
+        params.conversationId,
+        params.agentId,
+      );
       return { ok: true };
     },
   });

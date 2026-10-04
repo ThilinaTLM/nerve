@@ -1,3 +1,7 @@
+import {
+  resolveCompactionOwner,
+  type CompactionCommitGuard,
+} from "./compaction-owner.js";
 import type {
   ConversationDeletionIntent,
   ConversationRemovalOptions,
@@ -389,6 +393,7 @@ export class ConversationLifecycleService {
   async appendCompactionAtomic(
     input: AppendEntryInput & { id: string; createdAt: string },
     modelEntry: ConversationTreeEntry,
+    guard: CompactionCommitGuard,
   ): Promise<ConversationEntry> {
     const conversation = this.getConversation(input.conversationId);
     const entry: ConversationEntry = {
@@ -406,24 +411,22 @@ export class ConversationLifecycleService {
       details: input.details,
       createdAt: input.createdAt,
     };
-    const updatedConversation: ConversationRecord = {
-      ...conversation,
-      activeEntryId: entry.id,
-      updatedAt: entry.createdAt,
-    };
-    const child = input.agentId
-      ? this.state.agents.get(input.agentId)
-      : undefined;
-    const ownerAgentId =
-      child?.executionKind === "async_developer" ? child.id : undefined;
+    const ownerAgentId = resolveCompactionOwner(
+      input.conversationId,
+      input.agentId ? this.state.agents.get(input.agentId) : undefined,
+    ).ownerAgentId;
+    if (ownerAgentId !== guard.ownerAgentId)
+      throw new Error("Compaction owner changed.");
     await this.entryRepository.appendCompaction({
       entry,
       modelEntry,
-      conversation: updatedConversation,
-      ownerAgentId,
+      guard,
     });
     this.state.appendConversationEntry(entry);
     if (ownerAgentId) return entry;
+    const updatedConversation = (
+      await this.conversationRepository.journal.load(input.conversationId)
+    ).conversation!;
     this.state.conversations.set(input.conversationId, updatedConversation);
     this.queryCache.upsertConversation(updatedConversation);
     return entry;

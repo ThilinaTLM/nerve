@@ -1,3 +1,4 @@
+import type { CheckpointAnchor } from "@nervekit/contracts/conversations";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import type { ConversationContext } from "./context.js";
@@ -7,6 +8,8 @@ export interface ConversationTreeEntryBase {
   id: string;
   parentId: string | null;
   timestamp: string;
+  /** Explicit source provenance; absent means ineligible for verbatim anchoring. */
+  compactionAnchor?: { kind: CheckpointAnchor["kind"]; text?: string };
 }
 
 export interface MessageEntry extends ConversationTreeEntryBase {
