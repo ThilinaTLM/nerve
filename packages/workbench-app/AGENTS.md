@@ -13,7 +13,7 @@ Application `*Host` components are state/effect adapters around canonical featur
   opaque destructive fills use `destructive-solid` /
   `destructive-solid-foreground`. No hard-coded colors, font sizes, spacing, or
   one-off visual constants.
-- **Surfaces are a four-step ladder**, deepest to highest: `well` (recessed
+- **Surfaces are a five-step ladder**, deepest to highest: `well` (recessed
   output — terminal, logs, tool results, code blocks), `panel` (movable panel and
   shell chrome), `background` (workspace), `card` (raised content), `popover`
   (floating layers). `well` and `panel` are Nerve-specific and pair with the

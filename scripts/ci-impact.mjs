@@ -215,7 +215,7 @@ export function githubOutputs(impact) {
   };
 }
 
-function reverseDependencyClosure(initial, workspace) {
+export function reverseDependencyClosure(initial, workspace) {
   const result = new Set(initial);
   let changed = true;
   while (changed) {
@@ -231,7 +231,7 @@ function reverseDependencyClosure(initial, workspace) {
   return result;
 }
 
-function dependencyClosure(initial, workspace) {
+export function dependencyClosure(initial, workspace) {
   const result = new Set(initial);
   const queue = [...initial];
   while (queue.length > 0) {
@@ -245,7 +245,7 @@ function dependencyClosure(initial, workspace) {
   return result;
 }
 
-function packageForPath(path, workspace) {
+export function packageForPath(path, workspace) {
   for (const [packageName, workspacePackage] of workspace) {
     if (
       path === workspacePackage.directory ||

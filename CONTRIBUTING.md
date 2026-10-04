@@ -15,6 +15,19 @@ pnpm run test:affected
 
 Use `pnpm run test:full` when changing root, workspace, or test infrastructure, and before release validation.
 
+For faster feedback while editing, use import-related test selection:
+
+```sh
+pnpm test:focused --base HEAD --dry-run
+pnpm test:focused --base HEAD
+```
+
+Without `--base`, selection includes branch changes since the merge-base with `origin/main`, plus staged, unstaged, and nonignored untracked files. `--base HEAD` selects current uncommitted changes. Dry-run prints selected tests, reasons, fallbacks, and prerequisites without running builds or tests.
+
+The selector follows JavaScript/TypeScript imports across workspace source exports. Filesystem/process-driven tests are selected conservatively; configuration, assets, fixtures, native code, unsupported formats, deleted files, and sources without known tests fall back to complete affected package suites. Global/unknown changes or an unavailable base fall back to `test:full`. Root script tests remain a baseline; native and emitted workspace APIs are built when required.
+
+`test:focused` is an inner-loop aid, not a replacement for the validation above. Import graphs cannot capture all runtime coupling, and browser tests still require the separate `test:browser` command.
+
 ## Guidelines
 
 - Keep changes scoped. Add automated tests for important behavior: public contracts, security and redaction, persistence and migrations, destructive operations, concurrency and state machines, recovery and failure handling, and complex parsing or orchestration.
