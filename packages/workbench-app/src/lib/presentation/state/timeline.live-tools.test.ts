@@ -179,6 +179,36 @@ describe("buildConversationTimeline live tools", () => {
     ]);
   });
 
+  it("hides empty live reasoning blocks unless redacted", () => {
+    const transcript: TranscriptItem[] = [
+      { id: "entry_user", role: "user", text: "Think" },
+    ];
+
+    const timeline = buildConversationTimeline(
+      transcript,
+      [],
+      activeRun({
+        runId: "run_active",
+        turns: [
+          runTurn("turn_1", 0, [
+            liveMessage("msg_active", 0, [
+              textBlock("thinking", 0, "", true),
+              textBlock("thinking", 1, "**Planning**\n\nChecking files.", true),
+              textBlock("thinking", 2, "", true, true),
+              textBlock("thinking", 3, ""),
+            ]),
+          ]),
+        ],
+      }),
+    );
+
+    assert.deepEqual(keys(timeline), [
+      "entry_user",
+      "live:msg_active:thinking:1",
+      "live:msg_active:thinking:2",
+    ]);
+  });
+
   it("joins by exact coordinates before provider aliases", () => {
     const coordinateMatch = toolCall(
       "tool_by_slot",
