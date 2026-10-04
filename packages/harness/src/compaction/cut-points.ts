@@ -1,50 +1,8 @@
 import type { ConversationTreeEntry } from "../conversation/entries.js";
+import { buildConversationContext } from "../conversation/context.js";
+import { CompactionError } from "../errors.js";
 import type { CutPointResult } from "./compaction-preparation.js";
-import { estimateTokens } from "./usage.js";
-
-function findValidCutPoints(
-  entries: ConversationTreeEntry[],
-  startIndex: number,
-  endIndex: number,
-): number[] {
-  const cutPoints: number[] = [];
-  for (let i = startIndex; i < endIndex; i++) {
-    const entry = entries[i];
-    switch (entry.type) {
-      case "message": {
-        const role = entry.message.role;
-        switch (role) {
-          case "bashExecution":
-          case "custom":
-          case "branchSummary":
-          case "compactionSummary":
-          case "user":
-          case "assistant":
-            cutPoints.push(i);
-            break;
-          case "toolResult":
-            break;
-        }
-        break;
-      }
-      case "thinking_level_change":
-      case "model_change":
-      case "active_tools_change":
-      case "compaction":
-      case "branch_summary":
-      case "custom":
-      case "custom_message":
-      case "label":
-      case "conversation_info":
-      case "leaf":
-        break;
-    }
-    if (entry.type === "branch_summary" || entry.type === "custom_message") {
-      cutPoints.push(i);
-    }
-  }
-  return cutPoints;
-}
+import { estimateRetainedContextTokens } from "./usage.js";
 
 /** Find the user-visible message that starts the turn containing an entry. */
 export function findTurnStartIndex(
@@ -54,73 +12,100 @@ export function findTurnStartIndex(
 ): number {
   for (let i = entryIndex; i >= startIndex; i--) {
     const entry = entries[i];
-    if (entry.type === "branch_summary" || entry.type === "custom_message") {
+    if (entry.type === "branch_summary" || entry.type === "custom_message")
       return i;
-    }
-    if (entry.type === "message") {
-      const role = entry.message.role;
-      if (role === "user" || role === "bashExecution") {
-        return i;
-      }
-    }
+    if (
+      entry.type === "message" &&
+      (entry.message.role === "user" || entry.message.role === "bashExecution")
+    )
+      return i;
   }
   return -1;
 }
 
-/** Find the compaction cut point that keeps approximately the requested recent-token budget. */
+/** Atomic spans prevent a retained result from losing its assistant proposal. */
+function retainedGroups(
+  entries: ConversationTreeEntry[],
+  startIndex: number,
+  endIndex: number,
+) {
+  const groups: Array<{ index: number; tokens: number; messages: number }> = [];
+  const pending = new Set<string>();
+  for (let i = startIndex; i < endIndex; i++) {
+    const entry = entries[i];
+    if (entry.type === "compaction") continue;
+    const messages = buildConversationContext([entry]).messages;
+    if (!messages.length) continue;
+    const message = entry.type === "message" ? entry.message : undefined;
+    if (message?.role === "toolResult" && !pending.has(message.toolCallId)) {
+      throw new CompactionError(
+        "invalid_conversation",
+        "Cannot compact an orphan tool result.",
+      );
+    }
+    if (!pending.size) groups.push({ index: i, tokens: 0, messages: 0 });
+    const group = groups.at(-1)!;
+    group.tokens += estimateRetainedContextTokens(messages);
+    group.messages += messages.length;
+    if (message?.role === "assistant") {
+      for (const block of message.content) {
+        if (block.type === "toolCall") pending.add(block.id);
+      }
+    } else if (message?.role === "toolResult")
+      pending.delete(message.toolCallId);
+  }
+  return groups;
+}
+
+export function assertSafeCompactionBoundary(
+  entries: ConversationTreeEntry[],
+  startIndex: number,
+  boundaryIndex: number,
+): void {
+  if (
+    !retainedGroups(entries, startIndex, entries.length).some(
+      (group) => group.index === boundaryIndex,
+    )
+  ) {
+    throw new CompactionError(
+      "invalid_conversation",
+      "Compaction boundary splits a message/tool group.",
+    );
+  }
+}
+
 export function findCutPoint(
   entries: ConversationTreeEntry[],
   startIndex: number,
   endIndex: number,
   keepRecentTokens: number,
 ): CutPointResult {
-  const cutPoints = findValidCutPoints(entries, startIndex, endIndex);
-
-  if (cutPoints.length === 0) {
-    return {
-      firstKeptEntryIndex: startIndex,
-      turnStartIndex: -1,
-      isSplitTurn: false,
-    };
-  }
-  let accumulatedTokens = 0;
-  let cutIndex = cutPoints[0];
-
-  for (let i = endIndex - 1; i >= startIndex; i--) {
-    const entry = entries[i];
-    if (entry.type !== "message") continue;
-    const messageTokens = estimateTokens(entry.message);
-    accumulatedTokens += messageTokens;
-    if (accumulatedTokens >= keepRecentTokens) {
-      for (let c = 0; c < cutPoints.length; c++) {
-        if (cutPoints[c] >= i) {
-          cutIndex = cutPoints[c];
-          break;
-        }
-      }
+  const groups = retainedGroups(entries, startIndex, endIndex);
+  // An unresolved proposal is an intact newest span; it must not be split.
+  let retainedTokens = 0;
+  let retainedMessages = 0;
+  let cutIndex = endIndex;
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const group = groups[i];
+    if (retainedMessages && retainedTokens + group.tokens > keepRecentTokens)
       break;
-    }
+    retainedTokens += group.tokens;
+    retainedMessages += group.messages;
+    cutIndex = group.index;
+    if (retainedTokens > keepRecentTokens) break;
   }
-  while (cutIndex > startIndex) {
-    const prevEntry = entries[cutIndex - 1];
-    if (prevEntry.type === "compaction") {
-      break;
-    }
-    if (prevEntry.type === "message") {
-      break;
-    }
-    cutIndex--;
-  }
-  const cutEntry = entries[cutIndex];
-  const isUserMessage =
-    cutEntry.type === "message" && cutEntry.message.role === "user";
-  const turnStartIndex = isUserMessage
+  if (cutIndex === endIndex) cutIndex = startIndex;
+  const cut = entries[cutIndex];
+  const isUser = cut?.type === "message" && cut.message.role === "user";
+  const turnStartIndex = isUser
     ? -1
     : findTurnStartIndex(entries, cutIndex, startIndex);
-
   return {
     firstKeptEntryIndex: cutIndex,
     turnStartIndex,
-    isSplitTurn: !isUserMessage && turnStartIndex !== -1,
+    isSplitTurn: !isUser && turnStartIndex !== -1,
+    retainedTokens,
+    retainedMessages,
+    retentionBudgetExceeded: retainedTokens > keepRecentTokens,
   };
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { compactionAccountingSchema } from "@nervekit/contracts/conversations";
 import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
 import ResultCodeBlock from "../../tools/tool-call/ResultCodeBlock.svelte";
@@ -27,6 +28,9 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 }
 
 const details = $derived(recordValue(notice.details));
+const accounting = $derived(
+  compactionAccountingSchema.safeParse(details?.accounting).data,
+);
 const compactedMessages = $derived(
   typeof details?.compactedMessages === "number"
     ? details.compactedMessages
@@ -59,7 +63,9 @@ const summaryDetails = $derived.by(() => {
   return summary
     ? {
         title: "Compaction summary",
-        description: header.arg,
+        description: accounting
+          ? `${header.arg ?? ""} · Conversation estimate: ${formatTokens(accounting.summaryTokens)} summary + ${formatTokens(accounting.retainedTokens)} retained across ${accounting.retainedMessages} messages. Excludes system/tool/provider overhead.${accounting.retentionBudgetExceeded ? " Newest intact message/tool group exceeds the retention target." : ""}`
+          : header.arg,
         text: summary,
         language: "markdown",
       }
@@ -102,12 +108,15 @@ const completedChips = $derived.by<NoticeChip[]>(() => {
   }
   if (typeof notice.freedTokens === "number" && notice.freedTokens > 0) {
     items.push({
-      text: `${formatTokens(notice.freedTokens)} freed`,
+      text: `≈${formatTokens(notice.freedTokens)} freed`,
       tone: "success",
     });
   }
   if (typeof compactedMessages === "number") {
-    items.push({ text: `${compactedMessages} messages` });
+    items.push({ text: `${compactedMessages} summarized` });
+  }
+  if (accounting?.retentionBudgetExceeded) {
+    items.push({ text: "retained group exceeds target", tone: "warning" });
   }
   if (typeof contextPercent === "number") {
     items.push({ text: `${contextPercent}% context` });

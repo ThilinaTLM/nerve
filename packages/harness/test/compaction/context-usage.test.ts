@@ -4,6 +4,7 @@ import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import {
   computeContextUsage,
   estimateContextTokens,
+  estimateRetainedContextTokens,
   getCompactionDecisionTokens,
 } from "../../src/compaction/compaction.js";
 import { buildConversationContext } from "../../src/conversation/conversation.js";
@@ -107,7 +108,7 @@ describe("context usage", () => {
     });
   });
 
-  it("uses persisted post-compaction estimates for immediate decisions", () => {
+  it("recomputes post-compaction estimates for immediate decisions", () => {
     const keptUserId = "entry_3";
     const entries = [
       messageEntry(keptUserId, user("second")),
@@ -119,7 +120,10 @@ describe("context usage", () => {
     ];
     const messages = buildConversationContext(entries).messages;
 
-    assert.equal(getCompactionDecisionTokens(messages, entries), 20_002);
+    assert.equal(
+      getCompactionDecisionTokens(messages, entries),
+      estimateRetainedContextTokens(messages),
+    );
   });
 
   it("uses post-compaction assistant usage instead of stale kept usage", () => {

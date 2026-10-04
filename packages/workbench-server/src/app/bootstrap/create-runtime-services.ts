@@ -19,7 +19,7 @@ import {
   explainImageWithModel,
   resolveAgentModel,
 } from "@nervekit/harness/models";
-import { generateSummary } from "@nervekit/harness/compaction";
+import { generateSummary, summaryBudget } from "@nervekit/harness/compaction";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
 import { GitService } from "@nervekit/tools/git";
@@ -277,6 +277,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     agentId,
     messages,
     previousSummary,
+    turnPrefixMessages,
+    fileReferences,
     instructions,
     summaryProfile,
     summaryReserveTokens,
@@ -302,6 +304,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     const requestModel = requestAuth.baseUrl
       ? { ...model, baseUrl: requestAuth.baseUrl }
       : model;
+    let summaryRepaired = false;
     const result = await generateSummary({
       messages,
       model: requestModel,
@@ -311,14 +314,26 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       signal,
       customInstructions: instructions,
       previousSummary,
+      turnPrefixMessages,
+      fileReferences,
       summaryProfile,
       thinkingLevel: agent.thinkingLevel,
       env: requestAuth.env,
-      onProgress,
+      onProgress: (progress) => {
+        summaryRepaired ||= progress.attempt === 2;
+        onProgress?.(progress);
+      },
     });
-    return result.ok
-      ? { text: result.value, generatedBy: "model" as const }
-      : undefined;
+    if (!result.ok) throw result.error;
+    return {
+      text: result.value,
+      generatedBy: "model" as const,
+      summaryRepaired,
+      summaryBudget: summaryBudget(
+        summaryReserveTokens,
+        requestModel.maxTokens,
+      ),
+    };
   };
   const compactionService = new CompactionService(
     getConversation,

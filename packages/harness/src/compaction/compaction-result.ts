@@ -1,5 +1,6 @@
 /** File-operation details stored on generated compaction entries. */
 export interface CompactionDetails {
+  summaryRepaired?: boolean;
   /** Files read in the compacted history. */
   readFiles: string[];
   /** Files modified in the compacted history. */

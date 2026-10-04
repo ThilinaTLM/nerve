@@ -4,6 +4,9 @@ import type { CompactionSettings } from "./compaction-policy.js";
 
 /** Cut point selected for compaction. */
 export interface CutPointResult {
+  retainedTokens: number;
+  retainedMessages: number;
+  retentionBudgetExceeded: boolean;
   /** Index of the first entry retained after compaction. */
   firstKeptEntryIndex: number;
   /** Index of the turn-start entry when the cut splits a turn, otherwise -1. */
@@ -18,7 +21,7 @@ export interface CompactionPreparation {
   firstKeptEntryId: string;
   /** Messages summarized into the history summary. */
   messagesToSummarize: AgentMessage[];
-  /** Prefix messages summarized separately when compaction splits a turn. */
+  /** Prefix messages included in the checkpoint when compaction splits a turn. */
   turnPrefixMessages: AgentMessage[];
   /** Whether compaction splits a turn. */
   isSplitTurn: boolean;

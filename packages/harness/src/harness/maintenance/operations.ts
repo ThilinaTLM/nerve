@@ -1,3 +1,4 @@
+import type { CompactionAccounting } from "@nervekit/contracts/conversations";
 import type {
   AgentTool,
   AnyModel,
@@ -11,6 +12,9 @@ import {
   compact,
   DEFAULT_COMPACTION_SETTINGS,
   prepareCompaction,
+  estimatePostCompactionContext,
+  summaryBudget,
+  summaryDefects,
 } from "../../compaction/compaction.js";
 import type { Conversation } from "../../conversation/conversation.js";
 import { editorTextForNavigatedEntry } from "../../conversation/text-extraction.js";
@@ -130,6 +134,50 @@ export async function compactHarnessConversation<
         );
     if (!compactResult.ok) throw compactResult.error;
     const result = compactResult.value;
+    const budget = summaryBudget(
+      preparation.settings.reserveTokens,
+      model.maxTokens,
+    );
+    const defects = summaryDefects(result.summary, budget.ceiling);
+    if (defects.length)
+      throw new AgentHarnessError(
+        "compaction",
+        `Invalid checkpoint: ${defects.join("; ")}`,
+      );
+    const estimate = estimatePostCompactionContext(
+      branchEntries,
+      result.firstKeptEntryId,
+      result.summary,
+    );
+    if (estimate.tokensAfter >= estimate.tokensBeforeEstimate) {
+      throw new AgentHarnessError(
+        "compaction",
+        "Compaction would not reduce retained context",
+      );
+    }
+    const originalDetails =
+      result.details && typeof result.details === "object"
+        ? result.details
+        : {};
+    result.details = {
+      ...originalDetails,
+      tokensAfter: estimate.tokensAfter,
+      accounting: {
+        estimatorVersion: 1,
+        scope: "conversation",
+        summaryTokens: estimate.summaryTokens,
+        retainedTokens: estimate.retainedTokens,
+        retainedMessages: estimate.retainedMessages,
+        retentionTarget: preparation.settings.keepRecentTokens,
+        retentionBudgetExceeded:
+          estimate.retainedTokens > preparation.settings.keepRecentTokens,
+        summaryTarget: budget.target,
+        summaryCeiling: budget.ceiling,
+        summaryRepaired:
+          "summaryRepaired" in originalDetails &&
+          originalDetails.summaryRepaired === true,
+      } satisfies CompactionAccounting,
+    };
     const entryId = await context.conversation.appendCompaction(
       result.summary,
       result.firstKeptEntryId,

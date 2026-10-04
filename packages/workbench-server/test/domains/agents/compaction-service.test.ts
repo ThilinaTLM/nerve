@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { validatePublicEvent } from "@nervekit/contracts/events";
 import { CompactionService } from "../../../src/domains/conversations/operations/compaction-service.js";
-import { buildPlanImplementationSummary } from "../../../src/domains/conversations/operations/summary.js";
 
 const timestamp = "2026-07-19T00:00:00.000Z";
 
@@ -33,17 +32,6 @@ Finish the task.
 }
 
 describe("CompactionService", () => {
-  it("builds a concise structured fallback for plan implementation", () => {
-    const planPath = "/tmp/approved-plan.md";
-    const summary = buildPlanImplementationSummary(planPath);
-
-    assert.match(summary, /## Goal/);
-    assert.match(summary, /## Work Remaining/);
-    assert.match(summary, /implementation has not started/i);
-    assert.match(summary, new RegExp(planPath.replaceAll("/", "\\/")));
-    assert.doesNotMatch(summary, /conversation excerpt/i);
-  });
-
   it("forwards the summary budget and records model provenance and policy", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     let summarizerBudget = 0;
@@ -178,7 +166,7 @@ describe("CompactionService", () => {
     assert.equal((compacted.data as { entry?: unknown }).entry, undefined);
   });
 
-  it("publishes a reference event for summaries larger than the public text limit", async () => {
+  it("rejects oversized new summaries without changing context", async () => {
     const events: Array<{ type: string; data: unknown }> = [];
     const branch = [
       {
@@ -235,26 +223,36 @@ describe("CompactionService", () => {
       async () => ({ text: largeSummary, generatedBy: "model" }),
     );
 
-    const result = await service.compactConversation(
-      "conv_test",
-      {},
-      {
-        reason: "manual",
-        activeConversation: { getStorage: () => storage } as never,
-      },
+    await assert.rejects(
+      service.compactConversation(
+        "conv_test",
+        {},
+        {
+          reason: "manual",
+          activeConversation: { getStorage: () => storage } as never,
+        },
+      ),
+      /exceeds 4000/,
     );
-
-    assert.ok(result.entry.text.length > 16_384);
-    const compacted = events.find(
-      (event) => event.type === "conversation.compacted",
-    );
+    assert.equal(activeLeafId, "entry_recent");
     assert.equal(
-      (compacted?.data as { entryId?: string } | undefined)?.entryId,
-      "entry_compaction",
+      events.some((event) => event.type === "conversation.compacted"),
+      false,
     );
     assert.equal(
       events.some((event) => event.type === "conversation.compaction.failed"),
-      false,
+      true,
+    );
+    // Legacy summaries still use reference-only events, regardless of text size.
+    validatePublicEvent(
+      "conversation.compacted",
+      {
+        conversationId: "conv_test",
+        entryId: "entry_legacy_large",
+        firstKeptEntryId: "entry_recent",
+        tokensBefore: 100_000,
+      },
+      "workbench_server",
     );
   });
 
@@ -326,6 +324,7 @@ describe("CompactionService", () => {
       {},
       {
         reason: "threshold",
+        keepRecentTokens: 1,
         agentId: "agent_test",
         runId: "run_test",
         activeConversation: { getStorage: () => storage } as never,
@@ -438,6 +437,7 @@ describe("CompactionService", () => {
       {},
       {
         reason: "manual",
+        keepRecentTokens: 1,
         activeConversation: { getStorage: () => storage } as never,
       },
     );

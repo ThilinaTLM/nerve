@@ -34,3 +34,7 @@ The server loads effective AGENTS/SYSTEM/skills according to scope and toggles. 
 - [Tools and policy](/developers/tools-policy/)
 - [Resource reference](/reference/resources/)
 - [Protocol](/developers/protocol/)
+
+Compaction budgets opaque reasoning without modifying provider signatures. Individual assistant output usage provides a retention floor (reasoning is already part of output); missing usage falls back to an opaque-size heuristic. Post-compaction estimates use the same context reconstruction as execution, not sliced historical checkpoints. Before fresh provider usage, automatic decisions recompute the retained context rather than trust stored historical estimates.
+
+Summary generation uses one bounded request for history and any removed turn prefix, with at most one quality-repair retry. Failure does not silently substitute an extractive checkpoint. Conversation estimates exclude system/tool/provider overhead and cannot guarantee an exact request-token count.

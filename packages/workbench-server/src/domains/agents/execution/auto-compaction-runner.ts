@@ -32,7 +32,10 @@ export class AutoCompactionRunner {
     const agent = conversation.activeAgentId
       ? this.deps.state.agents.get(conversation.activeAgentId)
       : undefined;
-    const contextWindow = getModelContextWindow(agent?.model);
+    const contextWindow = getModelContextWindow(
+      agent?.model,
+      (await this.deps.customModels?.(agent?.projectDir)) ?? [],
+    );
     return computeContextUsage(messages, branch, contextWindow);
   }
 

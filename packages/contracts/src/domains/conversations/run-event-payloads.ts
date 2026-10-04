@@ -1,3 +1,7 @@
+import {
+  compactionAccountingSchema,
+  type CompactionAccounting,
+} from "./compaction-accounting.js";
 import { z } from "zod";
 import {
   contentBlockIdSchema,
@@ -221,6 +225,7 @@ export interface ConversationCompactionCancelledData {
 }
 
 export interface ConversationCompactedData {
+  accounting?: CompactionAccounting;
   conversationId: string;
   entryId: string;
   tokensBefore: number;
@@ -443,6 +448,7 @@ const conversationCompactionCancelledDataSchema = z.object({
 });
 
 const conversationCompactedDataSchema = z.object({
+  accounting: compactionAccountingSchema.optional(),
   conversationId: z.string().startsWith("conv_"),
   entryId: z.string().startsWith("entry_"),
   tokensBefore: z.number().int().nonnegative(),

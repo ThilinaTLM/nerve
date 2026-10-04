@@ -99,6 +99,9 @@ export function applyCompactionCancelled(
 }
 
 export function applyCompacted(state: ConversationRenderState): void {
+  if (state.contextUsage) {
+    state.contextUsage = { ...state.contextUsage, tokens: null, percent: null };
+  }
   clearTransientCompaction(state);
 }
 

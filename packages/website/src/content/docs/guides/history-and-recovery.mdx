@@ -32,6 +32,12 @@ Choose edit on a user entry. Nerve navigates to its parent, copies the old text 
 
 Automatic compaction defaults to a balanced profile: trigger near 80% context use and retain roughly 15%. Aggressive and conservative profiles use 70/10 and 90/25. A run can automatically continue after compaction up to three times.
 
+Compaction keeps recent messages intact, including provider reasoning state. Retention estimates account for signed reasoning using individual assistant output usage where available. Tool calls and their results stay together; one oversized newest group may exceed the retention target and is reported as a warning.
+
+New checkpoints target about 3,000 estimated text tokens, with a ceiling of 4,000 or less for smaller model/reserve budgets. Repeated checkpoints consolidate current state rather than accumulate a history of completed steps. Invalid or truncated summaries get one repair attempt; if that fails, or a model is unavailable, compaction fails without replacing the current context. Manual compaction also rejects results that would not reduce estimated retained context.
+
+The “after” and “freed” figures are approximate conversation-content estimates, not full provider-request measurements. System instructions, tool schemas, images, and provider accounting can change the next measured total. The context meter is unknown immediately after compaction and becomes authoritative again after a fresh provider response. Stored transcript history is not deleted.
+
 Compaction summarizes earlier work. Important file-operation context is preserved where possible, but summaries are lossy; keep durable requirements in project resources or restate them.
 
 ## Retry and continue

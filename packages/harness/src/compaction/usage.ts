@@ -1,7 +1,7 @@
 import type { Usage } from "@earendil-works/pi-ai";
+import { convertToLlm } from "../messages/messages.js";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import type { AgentMessage } from "../agent/contracts/index.js";
-import { buildConversationContext } from "../conversation/conversation.js";
 import type {
   CompactionEntry,
   ConversationTreeEntry,
@@ -71,7 +71,7 @@ export function estimateContextTokens(
   if (!usageInfo) {
     let estimated = 0;
     for (const message of messages) {
-      estimated += estimateTokens(message);
+      estimated += estimateRetainedMessageTokens(message);
     }
     return {
       tokens: estimated,
@@ -84,7 +84,7 @@ export function estimateContextTokens(
   const usageTokens = calculateContextTokens(usageInfo.usage);
   let trailingTokens = 0;
   for (let i = usageInfo.index + 1; i < messages.length; i++) {
-    trailingTokens += estimateTokens(messages[i]);
+    trailingTokens += estimateRetainedMessageTokens(messages[i]);
   }
 
   return {
@@ -99,8 +99,7 @@ export function estimateContextTokens(
  * Return context tokens suitable for an automatic-compaction decision.
  *
  * Unlike the public UI usage value, this provides a conservative baseline
- * immediately after compaction by using the persisted post-compaction estimate
- * plus structurally estimated trailing messages. Provider usage from a fresh
+ * immediately after compaction by estimating the reconstructed current context. Provider usage from a fresh
  * post-compaction assistant response remains authoritative.
  */
 export function getCompactionDecisionTokens(
@@ -120,30 +119,9 @@ export function getCompactionDecisionTokens(
     }
   }
 
-  const details = latestCompaction.details;
-  const tokensAfter =
-    details &&
-    typeof details === "object" &&
-    "tokensAfter" in details &&
-    typeof details.tokensAfter === "number" &&
-    Number.isFinite(details.tokensAfter) &&
-    details.tokensAfter >= 0
-      ? Math.floor(details.tokensAfter)
-      : undefined;
-  if (tokensAfter !== undefined) {
-    const trailingMessages = buildConversationContext(
-      entries.slice(compactionIndex + 1),
-    ).messages;
-    return (
-      tokensAfter +
-      trailingMessages.reduce(
-        (sum, message) => sum + estimateTokens(message),
-        0,
-      )
-    );
-  }
-
-  return messages.reduce((sum, message) => sum + estimateTokens(message), 0);
+  // Historical checkpoint estimates may have ignored opaque reasoning or
+  // reconstructed an older boundary. Recompute rather than trusting them.
+  return estimateRetainedContextTokens(messages);
 }
 
 /** Return the most recent compaction entry in a branch, if any. */
@@ -269,4 +247,46 @@ export function estimateTokens(message: AgentMessage): number {
   }
 
   return 0;
+}
+
+/** Budget the content actually replayed, without accumulating request input usage. */
+export function estimateRetainedMessageTokens(message: AgentMessage): number {
+  const visible = convertToLlm([message]).reduce(
+    (sum, item) => sum + estimateTokens(item),
+    0,
+  );
+  if (message.role !== "assistant") return visible;
+  let signatureChars = 0;
+  for (const block of message.content) {
+    const signature =
+      block.type === "thinking"
+        ? block.thinkingSignature
+        : block.type === "toolCall"
+          ? block.thoughtSignature
+          : undefined;
+    if (typeof signature === "string") signatureChars += signature.length;
+  }
+  if (!signatureChars) return visible;
+  const positive = (value: number | undefined) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0
+      ? Math.ceil(value)
+      : 0;
+  const output = positive(message.usage?.output);
+  const reasoning = positive(message.usage?.reasoning);
+  // Reasoning is already included in output. Ciphertext length is only a
+  // conservative fallback when the provider supplied no usable output usage.
+  return Math.max(
+    output || visible + Math.ceil(signatureChars / 4),
+    visible,
+    reasoning,
+  );
+}
+
+export function estimateRetainedContextTokens(
+  messages: AgentMessage[],
+): number {
+  return messages.reduce(
+    (sum, message) => sum + estimateRetainedMessageTokens(message),
+    0,
+  );
 }

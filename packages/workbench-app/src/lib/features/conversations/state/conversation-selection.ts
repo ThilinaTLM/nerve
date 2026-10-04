@@ -42,9 +42,14 @@ async function projectForConversation(
   );
 }
 
+import { clearContextUsageRefresh } from "./conversation-context-usage";
+
 export async function applyActiveConversationSelection(
   conversation: ConversationRecord,
 ) {
+  if (selection.conversationId)
+    clearContextUsageRefresh(selection.conversationId);
+  clearContextUsageRefresh(conversation.id);
   selection.conversationId = conversation.id;
   selection.projectId = conversation.projectId;
   const conversationAgent = mainAgentForConversation(
@@ -133,6 +138,7 @@ export function refreshConversationView(conversationId: string): Promise<void> {
       view.transient = undefined;
       view.optimisticMessages = [];
       view.queuedPrompts = canonical.queuedPrompts ?? [];
+      clearContextUsageRefresh(conversationId);
       view.contextUsage = canonical.contextUsage;
       view.cursorSeq = canonical.cursorSeq;
       view.stopping = stoppingAfterConversationSnapshot(
