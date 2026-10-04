@@ -1,7 +1,7 @@
 /* Design tokens for standalone HTML the daemon renders outside the workbench
  * app (setup pages, fallback shells, conversation exports). These pages cannot
  * load the ui-kit stylesheet, so the Nerve light/dark values are mirrored here
- * and `scripts/lib/document-theme-sync.test.mjs` fails if they drift from
+ * and `scripts/checks/test/document-theme-sync.test.mjs` fails if they drift from
  * `packages/ui-kit/src/styles/theme.css`. */
 
 export const documentThemeTokens = {

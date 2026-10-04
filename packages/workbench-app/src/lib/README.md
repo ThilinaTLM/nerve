@@ -1,6 +1,6 @@
 # Workbench module ownership
 
-The frontend combines a composition root, cross-feature workflows, pure product concepts, vertical features, concrete platform adapters, and stateless shared presentation. The import graph is enforced by `scripts/lib/workbench-boundaries.mjs`.
+The frontend combines a composition root, cross-feature workflows, pure product concepts, vertical features, concrete platform adapters, and stateless shared presentation. The import graph is enforced by `scripts/checks/workbench-boundaries.mjs`.
 
 ```mermaid
 flowchart TD

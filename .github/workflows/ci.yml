@@ -36,12 +36,12 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: node scripts/ci-impact.mjs --base "${BASE_SHA}"
+        run: node scripts/testing/ci-impact.mjs --base "${BASE_SHA}"
 
       - name: Select full coverage for main
         id: impact_main
         if: github.event_name != 'pull_request'
-        run: node scripts/ci-impact.mjs --full
+        run: node scripts/testing/ci-impact.mjs --full
 
   validate:
     name: Check and test (Ubuntu)
@@ -72,7 +72,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Fast baseline (format, lint, boundaries, scripts tests)
-        run: pnpm exec oxfmt --check && pnpm exec eslint . && node scripts/check-package-boundaries.mjs && node --test "scripts/**/*.test.mjs"
+        run: pnpm exec oxfmt --check && pnpm exec eslint . && node scripts/checks/check-package-boundaries.mjs && node --test "scripts/**/*.test.mjs"
 
       - name: Build affected native runtime
         if: needs.paths.outputs.full != 'true' && needs.paths.outputs.native == 'true'
@@ -82,19 +82,19 @@ jobs:
         if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.dependency_packages }}
-        run: node scripts/run-affected-packages.mjs build
+        run: node scripts/testing/run-affected-packages.mjs build
 
       - name: Check affected packages
         if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
-        run: node scripts/run-affected-packages.mjs check
+        run: node scripts/testing/run-affected-packages.mjs check
 
       - name: Test affected packages
         if: needs.paths.outputs.full != 'true' && needs.paths.outputs.has_packages == 'true'
         env:
           NERVE_AFFECTED_PACKAGES: ${{ needs.paths.outputs.packages }}
-        run: node scripts/run-affected-packages.mjs test
+        run: node scripts/testing/run-affected-packages.mjs test
 
       - name: Check all packages
         if: needs.paths.outputs.full == 'true'
@@ -119,11 +119,11 @@ jobs:
 
       - name: Smoke Electron image normalization
         if: needs.paths.outputs.electron_smoke == 'true'
-        run: xvfb-run -a node scripts/smoke-electron-image-resize.mjs
+        run: xvfb-run -a node scripts/release/smoke-electron-image-resize.mjs
 
       - name: Smoke built workbench HTTP and WebSocket parity
         if: needs.paths.outputs.workbench == 'true'
-        run: node scripts/smoke-workbench-release.mjs
+        run: node scripts/release/smoke-workbench-release.mjs
 
   browser-tests:
     name: Workbench browser tests

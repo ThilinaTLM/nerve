@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import {
   STORAGE_MIGRATION_KINDS,
   STORAGE_MIGRATIONS_DIRECTORY,
-} from "../lib/storage-migration-policy.mjs";
+} from "../checks/storage-migration-policy.mjs";
 import {
   appendRegistryEntry,
   fail,

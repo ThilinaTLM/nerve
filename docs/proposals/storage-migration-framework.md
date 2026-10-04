@@ -97,7 +97,7 @@ packages/workbench-server/test/fixtures/storage/
 How this shape steers developers:
 
 - **Folder per step.** Everything a step depends on sits next to it. Copying a shape into `shapes.ts` is the path of least resistance.
-- **Import boundary.** A rule in [`scripts/lib`](../../scripts/lib/) rejects the following inside `steps/**`:
+- **Import boundary.** A rule in [`scripts/checks`](../../scripts/checks/) rejects the following inside `steps/**`:
   - `@nervekit/contracts`, `domains/`, repositories, and `runner/`;
   - direct `zod`, Node built-ins, and non-literal dynamic imports;
   - kit directories and barrel files. Steps import concrete files such as `kit/rows/v1.js`.
@@ -296,15 +296,15 @@ Policy:
 - **Persisted reads preserve unknown fields; new writes and API inputs are strict.** Read codecs use recursively passthrough schemas and retain the upgraded raw object so known-field updates can be merged without erasing unknown top-level or nested fields. Upgraders map retired enum values. Contract modules export strict input schemas separately from persisted read schemas.
 - Upgraders are pure functions in `persistence/payloads/<kind>/upgraders.ts`, with one fixture per historical version.
 - `config/*.json` documents already carry `version`. They get the same upgrader chain in [`home-configuration.ts`](../../packages/workbench-server/src/infrastructure/configuration/home-configuration.ts), next to the existing merge of missing defaults.
-- [`contracts-source-policy.mjs`](../../scripts/lib/contracts-source-policy.mjs) flags persisted read schemas that use `.strict()`.
+- [`contracts-source-policy.mjs`](../../scripts/checks/contracts-source-policy.mjs) flags persisted read schemas that use `.strict()`.
 
 ## Step lifecycle
 
-| Stage      | Set by                                                               | May change?                                                                             | Runs on                |
-| ---------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------- |
-| `draft`    | `pnpm migrations:new`                                                | Freely.                                                                                 | Disposable homes only. |
-| `final`    | `pnpm migrations:finalize`, required before merge                    | No, except a reviewed harmless edit that lists the old checksum in `acceptedChecksums`. | All homes.             |
-| `released` | [`tag-release.sh`](../../scripts/tag-release.sh) stamps `releasedIn` | Never.                                                                                  | All homes.             |
+| Stage      | Set by                                                                       | May change?                                                                             | Runs on                |
+| ---------- | ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------- |
+| `draft`    | `pnpm migrations:new`                                                        | Freely.                                                                                 | Disposable homes only. |
+| `final`    | `pnpm migrations:finalize`, required before merge                            | No, except a reviewed harmless edit that lists the old checksum in `acceptedChecksums`. | All homes.             |
+| `released` | [`tag-release.sh`](../../scripts/release/tag-release.sh) stamps `releasedIn` | Never.                                                                                  | All homes.             |
 
 CI fails when:
 

@@ -7,7 +7,7 @@ import {
   STORAGE_MIGRATIONS_DIRECTORY,
   storageMigrationLockMetadataViolations,
   storageMigrationChecksum,
-} from "../lib/storage-migration-policy.mjs";
+} from "../checks/storage-migration-policy.mjs";
 
 export const repositoryRoot = resolve(
   dirname(fileURLToPath(import.meta.url)),

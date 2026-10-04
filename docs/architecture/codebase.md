@@ -1,6 +1,6 @@
 # Codebase architecture
 
-> **Status:** Current implementation. [`scripts/lib/workspace-architecture.mjs`](../../scripts/lib/workspace-architecture.mjs), package manifests, export surfaces, and boundary checks are authoritative.
+> **Status:** Current implementation. [`scripts/shared/workspace-architecture.mjs`](../../scripts/shared/workspace-architecture.mjs), package manifests, export surfaces, and boundary checks are authoritative.
 
 Nerve is a ten-package pnpm workspace. Paths communicate ownership: domain contracts are separate from runtime mechanics, product runtimes compose reusable libraries, and platform shells sit at the edge.
 
@@ -46,7 +46,7 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 - `index.ts` is a curated public boundary, never an internal import shortcut.
 - Avoid `common`, `shared`, and broad `utils` directories. Reusable code belongs to a named technical or domain area.
 - Small domains remain flat; add layer subdirectories only when they improve navigation.
-- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, narrowly scoped tools/server contract modules, and the desktop daemon composition boundary. `scripts/lib/source-naming-policy.mjs` is the complete authoritative inventory for production `types.ts`, `state.ts`, `helpers.ts`, `utils.ts`, `operations.ts`, and `composition.ts` exceptions; every new occurrence requires architecture review and an explicit inventory update.
+- Cohesive exceptions remain intentional: UI-kit `utils.ts`, domain-local `operations.ts`, curated `index.ts` boundaries, test-support helpers, narrowly scoped tools/server contract modules, and the desktop daemon composition boundary. `scripts/checks/source-naming-policy.mjs` is the complete authoritative inventory for production `types.ts`, `state.ts`, `helpers.ts`, `utils.ts`, `operations.ts`, and `composition.ts` exceptions; every new occurrence requires architecture review and an explicit inventory update.
 
 ## Runtime composition boundaries
 
@@ -56,9 +56,9 @@ Arrows in the diagram mean “is consumed by.” `website` is standalone.
 
 ## Enforced surfaces
 
-Package export allowlists live in [`scripts/lib/package-export-surfaces.mjs`](../../scripts/lib/package-export-surfaces.mjs). Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
+Package export allowlists live in [`scripts/checks/package-export-surfaces.mjs`](../../scripts/checks/package-export-surfaces.mjs). Contracts, protocol, harness, and tools expose curated concept subpaths rather than broad implementation roots. `pnpm build` verifies every declared concrete build target and each wildcard target after production artifacts are generated. Website token parity is checked at build/check time without adding a runtime UI-kit dependency.
 
-The canonical package inventory and allowed workspace dependencies live in [`scripts/lib/workspace-architecture.mjs`](../../scripts/lib/workspace-architecture.mjs). Package-specific `AGENTS.md` and README files define stricter local ownership rules. [`scripts/check-package-boundaries.mjs`](../../scripts/check-package-boundaries.mjs) is the runner for package, workbench, UI-style, and retired-surface checks in `scripts/lib/*-checks.mjs`, alongside the contracts, naming, server-test, and export policies. They share one repository source inventory and cached reads, covering tracked and non-ignored untracked files while excluding deleted paths. The command emits one sorted diagnostic report.
+The canonical package inventory and allowed workspace dependencies live in [`scripts/shared/workspace-architecture.mjs`](../../scripts/shared/workspace-architecture.mjs). Package-specific `AGENTS.md` and README files define stricter local ownership rules. [`scripts/checks/check-package-boundaries.mjs`](../../scripts/checks/check-package-boundaries.mjs) is the runner for package, workbench, UI-style, and retired-surface checks in `scripts/checks/*-checks.mjs`, alongside the contracts, naming, server-test, and export policies. They share one repository source inventory and cached reads, covering tracked and non-ignored untracked files while excluding deleted paths. The command emits one sorted diagnostic report.
 
 ## Cohesive implementation owners
 

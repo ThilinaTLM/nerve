@@ -184,7 +184,7 @@ src/styles/
 - A class may be global only if it is **(a)** consumed by two or more components
   **AND (b)** a deliberate cross-component contract, not an incidental name
   match. Everything else belongs to the component that renders it. The partial
-  allowlist in `scripts/lib/style-policy.mjs` is authoritative: adding a partial
+  allowlist in `scripts/checks/style-policy.mjs` is authoritative: adding a partial
   requires editing the guard, which forces the "is this really shared?"
   conversation into code review.
 - A class name defined in another component's scoped `<style>` does **nothing**
