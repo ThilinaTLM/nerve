@@ -49,7 +49,9 @@ export function summaryDefects(
   if (stopReason === "length") defects.push("completion was truncated");
   if (Math.ceil(text.length / 4) > ceiling)
     defects.push(`exceeds ${ceiling} estimated text tokens`);
-  const headings = [...text.matchAll(/^## (.+)\s*$/gm)];
+  // Keep heading capture on one line. Overlapping .+ and \s* quantifiers
+  // permit polynomial backtracking on untrusted model output.
+  const headings = [...text.matchAll(/^## ([^\r\n]+)\r?$/gm)];
   if (
     headings.length !== REQUIRED_SUMMARY_HEADINGS.length ||
     headings.some(

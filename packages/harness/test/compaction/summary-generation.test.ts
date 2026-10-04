@@ -97,6 +97,26 @@ describe("bounded checkpoint generation", () => {
       assert.equal(failure.prompts.length, 1);
     }
   });
+  it("handles long heading whitespace and CRLF without consuming section content", () => {
+    const whitespace = "\t".repeat(100_000);
+    const padded = validSummary
+      .replaceAll("\n", "\r\n")
+      .replace("## Goal", `## Goal${whitespace}`);
+    assert.deepEqual(summaryDefects(padded, Number.MAX_SAFE_INTEGER), []);
+    assert.ok(
+      summaryDefects(
+        `## a${whitespace}\r\nbody`,
+        Number.MAX_SAFE_INTEGER,
+      ).includes("use each required heading exactly once, in order"),
+    );
+    const empty = padded.replace("Finish the feature.", "\t \r\n");
+    assert.ok(
+      summaryDefects(empty, Number.MAX_SAFE_INTEGER).includes(
+        "empty section at position 1",
+      ),
+    );
+  });
+
   it("rejects duplicate, empty, and out-of-order sections", () => {
     assert.equal(summaryDefects(validSummary, 4_000).length, 0);
     assert.ok(
