@@ -1,3 +1,7 @@
+import {
+  compactionFailureOutcome,
+  type CompactionOutcome,
+} from "../../conversations/operations/compaction-service.js";
 import type { ImageContent } from "@earendil-works/pi-ai";
 import {
   computeContextUsage,
@@ -16,7 +20,7 @@ import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 const MAX_AUTO_CONTINUATIONS_PER_RUN = 3;
 
 export const AUTO_COMPACTION_CONTINUE_MESSAGE =
-  "Context was compacted into the checkpoint above. Continue from it: follow Work Remaining and the Continuation Plan, skip work already completed, then validate and stop when the task is done.";
+  "Context was compacted into the checkpoint above. Preserve the original requirements and assignment, continue from the working state and remaining work, skip completed work, then validate and stop when done.";
 
 export class AutoCompactionRunner {
   private readonly continuationCounts = new Map<string, number>();
@@ -32,7 +36,10 @@ export class AutoCompactionRunner {
     const agent = conversation.activeAgentId
       ? this.deps.state.agents.get(conversation.activeAgentId)
       : undefined;
-    const contextWindow = getModelContextWindow(agent?.model);
+    const contextWindow = getModelContextWindow(
+      agent?.model,
+      (await this.deps.customModels?.(agent?.projectDir)) ?? [],
+    );
     return computeContextUsage(messages, branch, contextWindow);
   }
 
@@ -58,7 +65,7 @@ export class AutoCompactionRunner {
     images?: ImageContent[];
     conversation: Conversation;
     signal?: AbortSignal;
-  }): Promise<boolean> {
+  }): Promise<CompactionOutcome> {
     const promptTokens = estimateTokens({
       role: "user",
       content: [{ type: "text", text: input.text }, ...(input.images ?? [])],
@@ -82,7 +89,7 @@ export class AutoCompactionRunner {
     runId: string;
     conversation: Conversation;
     signal?: AbortSignal;
-  }): Promise<boolean> {
+  }): Promise<CompactionOutcome> {
     return this.maybeCompact({
       ...input,
       additionalTokens: 0,
@@ -91,11 +98,14 @@ export class AutoCompactionRunner {
     });
   }
 
-  takeContinuation(runId: string): string | undefined {
+  takeContinuation(runId: string, child = false): string | undefined {
     const count = this.continuationCounts.get(runId) ?? 0;
     if (count >= MAX_AUTO_CONTINUATIONS_PER_RUN) return undefined;
     this.continuationCounts.set(runId, count + 1);
-    return AUTO_COMPACTION_CONTINUE_MESSAGE;
+    return (
+      AUTO_COMPACTION_CONTINUE_MESSAGE +
+      (child ? " Report your result to the lead when done." : "")
+    );
   }
 
   finishRun(runId: string): void {
@@ -110,7 +120,7 @@ export class AutoCompactionRunner {
     instructions: string;
     conversation: Conversation;
     signal?: AbortSignal;
-  }): Promise<boolean> {
+  }): Promise<CompactionOutcome> {
     const conversation = this.deps.state.getConversation(input.conversationId);
     const agent = this.resolveAgent(conversation.activeAgentId, input.agentId);
     const effectiveSettings = agent
@@ -120,19 +130,22 @@ export class AutoCompactionRunner {
         )
       : this.deps.storage.settings;
     const settings = compactionSettingsForAgent(effectiveSettings, agent);
-    if (!settings.auto) return false;
+    if (!settings.auto)
+      return { status: "not_needed", reason: "auto_disabled" };
     const contextWindow = getModelContextWindow(
       agent?.model,
       (await this.deps.customModels?.(agent?.projectDir)) ?? [],
     );
     const policy = deriveAutoCompactionPolicy(contextWindow, settings);
-    if (!policy.enabled || contextWindow <= 0) return false;
+    if (!policy.enabled || contextWindow <= 0)
+      return { status: "not_needed", reason: "policy_disabled" };
 
     const branch = await input.conversation.getContextBranch();
     const messages = (await input.conversation.buildContext()).messages;
     const contextTokens =
       getCompactionDecisionTokens(messages, branch) + input.additionalTokens;
-    if (!shouldAutoCompact(contextTokens, policy)) return false;
+    if (!shouldAutoCompact(contextTokens, policy))
+      return { status: "not_needed", reason: "below_threshold" };
 
     try {
       await this.deps.compactionService.compactConversation(
@@ -145,25 +158,25 @@ export class AutoCompactionRunner {
             input.runId,
             contextTokens,
           ),
+          pendingPromptTokens: input.additionalTokens,
           activeConversation: input.conversation,
           signal: input.signal,
         },
       );
-      return true;
+      return { status: "compacted", reason: "checkpoint_committed" };
     } catch (error) {
-      if (input.signal?.aborted) return false;
-      await this.deps.logger.warn("Automatic context compaction failed", {
-        agentId: input.agentId,
-        conversationId: input.conversationId,
-        runId: input.runId,
-        context: {
-          contextTokens,
-          thresholdTokens: policy.thresholdTokens,
-          profile: policy.profile,
+      const outcome = compactionFailureOutcome(error, input.signal);
+      await this.deps.logger.warn(
+        "Automatic context compaction did not commit",
+        {
+          agentId: input.agentId,
+          conversationId: input.conversationId,
+          runId: input.runId,
+          context: { outcome },
+          error,
         },
-        error,
-      });
-      return false;
+      );
+      return outcome;
     }
   }
 

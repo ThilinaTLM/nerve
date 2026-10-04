@@ -1,3 +1,4 @@
+import { clearContextUsageRefresh } from "./state/conversation-context-usage";
 import type { AgentRecord } from "$lib/api";
 import {
   conversationViewKey,
@@ -16,6 +17,7 @@ export const conversationWorkspaceCommands = {
     conversationState.slashCompletions = completions;
   },
   discardConversationView(id: string): void {
+    clearContextUsageRefresh(id);
     delete conversationState.conversationViews[conversationViewKey(id)];
   },
   discardPendingConversation(id: string): void {

@@ -238,6 +238,7 @@ function applyAppEffects(
       scheduleContextUsageRefresh(conversationId);
       break;
     }
+    case "conversation.compacted":
     case "conversation.context.updated":
       clearContextUsageRefresh(conversationId);
       break;

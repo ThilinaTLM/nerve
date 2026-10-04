@@ -1,4 +1,5 @@
 <script lang="ts">
+import { compactionAccountingSchema } from "@nervekit/contracts/conversations";
 import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
 import ResultCodeBlock from "../../tools/tool-call/ResultCodeBlock.svelte";
@@ -27,6 +28,9 @@ function recordValue(value: unknown): Record<string, unknown> | undefined {
 }
 
 const details = $derived(recordValue(notice.details));
+const accounting = $derived(
+  compactionAccountingSchema.safeParse(details?.accounting).data,
+);
 const compactedMessages = $derived(
   typeof details?.compactedMessages === "number"
     ? details.compactedMessages
@@ -59,7 +63,9 @@ const summaryDetails = $derived.by(() => {
   return summary
     ? {
         title: "Compaction summary",
-        description: header.arg,
+        description: accounting
+          ? `${header.arg ?? ""} · Conversation estimate: ${formatTokens(accounting.summaryTokens)} summary + ${formatTokens(accounting.retainedTokens)} retained across ${accounting.retainedMessages} messages. Excludes system/tool/provider overhead.${accounting.retentionBudgetExceeded ? " Newest intact message/tool group exceeds the retention target." : ""}`
+          : header.arg,
         text: summary,
         language: "markdown",
       }
@@ -102,12 +108,15 @@ const completedChips = $derived.by<NoticeChip[]>(() => {
   }
   if (typeof notice.freedTokens === "number" && notice.freedTokens > 0) {
     items.push({
-      text: `${formatTokens(notice.freedTokens)} freed`,
-      tone: "success",
+      text: `≈${formatTokens(notice.freedTokens)} freed`,
+      tone: header.tone === "warning" ? "warning" : "success",
     });
   }
   if (typeof compactedMessages === "number") {
-    items.push({ text: `${compactedMessages} messages` });
+    items.push({ text: `${compactedMessages} summarized` });
+  }
+  if (accounting?.retentionBudgetExceeded) {
+    items.push({ text: "retained group exceeds target", tone: "warning" });
   }
   if (typeof contextPercent === "number") {
     items.push({ text: `${contextPercent}% context` });
@@ -142,7 +151,7 @@ const chips = $derived(
 );
 
 const errorMessage = $derived(
-  notice.state === "failed"
+  notice.state === "failed" && !notice.code
     ? notice.errorMessage?.trim() || "Could not compact this conversation."
     : undefined,
 );
@@ -152,6 +161,14 @@ const summary = $derived.by(() => {
     return "Summarizing recent work…";
   }
   if (notice.state === "cancelled") return "Compaction stopped early.";
+  if (notice.state === "failed" && notice.code) {
+    return (
+      notice.errorMessage?.trim() || "Could not compact this conversation."
+    );
+  }
+  if (notice.state === "completed" && header.tone === "warning") {
+    return header.statusLabel;
+  }
   return undefined;
 });
 
@@ -176,7 +193,7 @@ const layoutRevision = $derived(
       bodyVisible,
       previewVisible: previewText.length > 0,
     }),
-    errorVisible: notice.state === "failed",
+    errorVisible: Boolean(errorMessage),
     footerItemCount: chips.length + (summaryDetails ? 1 : 0),
   }),
 );

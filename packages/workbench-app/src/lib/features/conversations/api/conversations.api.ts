@@ -30,18 +30,29 @@ export async function getConversationContextUsage(
   ).result.contextUsage;
 }
 
-export async function compactConversation(conversationId: string): Promise<{
+export async function compactConversation(
+  conversationId: string,
+  agentId?: string,
+): Promise<{
   conversation: ConversationRecord;
   entry: ConversationEntry;
 }> {
-  return (await protocolRequest("conversation.compact", { conversationId }))
-    .result;
+  return (
+    await protocolRequest("conversation.compact", {
+      conversationId,
+      ...(agentId ? { agentId } : {}),
+    })
+  ).result;
 }
 
 export async function cancelConversationCompaction(
   conversationId: string,
+  agentId?: string,
 ): Promise<void> {
-  await protocolRequest("conversation.compaction.cancel", { conversationId });
+  await protocolRequest("conversation.compaction.cancel", {
+    conversationId,
+    ...(agentId ? { agentId } : {}),
+  });
 }
 
 export async function deleteConversation(

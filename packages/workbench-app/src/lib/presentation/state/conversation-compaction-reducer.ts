@@ -16,6 +16,7 @@ export function applyCompactionStarted(
   ts: string,
 ): void {
   const transient = ensureTransient(state);
+  transient.compactionCompleted = false;
   transient.compaction = compactionNoticeFromStarted(
     data,
     ts,
@@ -31,7 +32,11 @@ export function applyCompactionProgress(
 ): void {
   const current = state.transient?.compaction;
   // Terminal states win; a late snapshot must not revive a finished notice.
-  if (current && current.state !== "running") return;
+  if (
+    state.transient?.compactionCompleted ||
+    (current && current.state !== "running")
+  )
+    return;
   if (
     current?.previewSequence !== undefined &&
     data.sequence <= current.previewSequence
@@ -99,7 +104,11 @@ export function applyCompactionCancelled(
 }
 
 export function applyCompacted(state: ConversationRenderState): void {
+  if (state.contextUsage) {
+    state.contextUsage = { ...state.contextUsage, tokens: null, percent: null };
+  }
   clearTransientCompaction(state);
+  ensureTransient(state).compactionCompleted = true;
 }
 
 function compactionNoticeFromStarted(
@@ -148,6 +157,7 @@ function compactionNoticeFromFailed(
     keepRecentTokens: current?.keepRecentTokens,
     failedEntryId: data.failedEntryId ?? current?.failedEntryId,
     errorMessage: data.message,
+    code: data.code,
     createdAt: current?.createdAt ?? ts,
     completedAt: data.failedAt,
   };

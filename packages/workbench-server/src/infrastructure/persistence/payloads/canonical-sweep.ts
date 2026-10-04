@@ -198,7 +198,7 @@ function tableExists(database: DatabaseSync, table: string): boolean {
 const NAMESPACE_REFERENCE_PATTERNS = [
   /\bnamespace\s*:\s*["']([^"']+)["']/g,
   /\b(?:read|list|delete)Document(?:s)?(?:<[^>]*>)?\s*\(\s*["']([^"']+)["']/g,
-  /\b[A-Z][A-Z_]*NAMESPACE\s*=\s*["']([^"']+)["']/g,
+  /\b(?:[A-Z][A-Z_]*_)?NAMESPACE\s*=\s*["']([^"']+)["']/g,
   /\bnamespace\s*=\s*["']([^"']+)["']/g,
 ] as const;
 

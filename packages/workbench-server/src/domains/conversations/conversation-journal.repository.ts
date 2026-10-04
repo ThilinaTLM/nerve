@@ -1,3 +1,7 @@
+import {
+  CompactionStaleConflictError,
+  type CompactionCommitGuard,
+} from "./compaction-owner.js";
 /* eslint-disable max-lines -- The journal keeps guarded append validation inside its conversation lock. */
 import {
   ConversationJournalDeletion,
@@ -364,6 +368,41 @@ export class ConversationJournalRepository {
     return [...this.states.values()];
   }
 
+  /** Original stored provider IDs, never canonical proposal IDs or normalized replay IDs. */
+  async pendingProviderToolCallIds(
+    conversationId: string,
+    ownsAgent: (agentId: string) => boolean,
+  ): Promise<string[]> {
+    const state = await this.load(conversationId);
+    const issues = await this.canonical.listRecoveryIssues(conversationId);
+    const protectedProposals = new Set(
+      issues.flatMap((issue) => (issue.proposalId ? [issue.proposalId] : [])),
+    );
+    const pendingInteractions = new Set(
+      [...state.interactions.values()]
+        .filter((record) => record.interaction.status === "pending")
+        .map((record) => record.toolCallId),
+    );
+    return [
+      ...new Set(
+        [...state.toolCalls.values()]
+          .filter(
+            (call) =>
+              ownsAgent(call.agentId) &&
+              (pendingInteractions.has(call.id) ||
+                protectedProposals.has(call.id) ||
+                (call.status !== "completed" &&
+                  call.status !== "failed" &&
+                  call.status !== "cancelled")),
+          )
+          .flatMap((call) => {
+            const id = call.providerToolCallId ?? call.sourceToolCallId;
+            return id ? [id] : [];
+          }),
+      ),
+    ];
+  }
+
   async commit(
     conversationId: string,
     input: {
@@ -373,6 +412,7 @@ export class ConversationJournalRepository {
       idempotencyKey?: string;
       /** Guard and advance the active leaf atomically with a result entry. */
       expectedActiveBranchParentEntryId?: string | null;
+      compactionGuard?: CompactionCommitGuard;
       guardedModelMessage?: { message: AgentMessage; ownerAgentId?: string };
       lifecycle?: {
         aggregate?: {
@@ -407,6 +447,42 @@ export class ConversationJournalRepository {
       }
       const prepareStartedAt = performance.now();
       let events = input.events;
+      if (input.compactionGuard) {
+        const guard = input.compactionGuard;
+        const leaf = guard.ownerAgentId
+          ? (state.agentModelLeafIds.get(guard.ownerAgentId) ?? null)
+          : state.modelLeafId;
+        if (
+          leaf !== guard.expectedModelLeafId ||
+          (!guard.ownerAgentId &&
+            (state.conversation?.activeEntryId ?? null) !==
+              guard.expectedActiveEntryId)
+        ) {
+          throw new CompactionStaleConflictError(conversationId);
+        }
+        if (!guard.ownerAgentId) {
+          const entry = events.find(
+            (event) => event.kind === "conversation.entry_appended",
+          );
+          if (
+            !state.conversation ||
+            entry?.kind !== "conversation.entry_appended"
+          )
+            throw new Error("Compaction requires a conversation and entry.");
+          events = [
+            ...events,
+            {
+              kind: "conversation.upserted",
+              conversationId,
+              conversation: {
+                ...state.conversation,
+                activeEntryId: entry.entry.id,
+                updatedAt: entry.entry.createdAt,
+              },
+            },
+          ];
+        }
+      }
       if ("expectedActiveBranchParentEntryId" in input) {
         const conversation = state.conversation;
         const expectedParent = input.expectedActiveBranchParentEntryId ?? null;

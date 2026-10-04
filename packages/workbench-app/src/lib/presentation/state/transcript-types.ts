@@ -1,4 +1,7 @@
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type {
+  ConversationEntry,
+  ConversationCompactionFailedData,
+} from "@nervekit/contracts/conversations";
 import type { RunFailureCategory } from "@nervekit/contracts/runs";
 
 export type TranscriptDisplayKind = "message" | "thinking";
@@ -30,6 +33,7 @@ export type CompactionNotice = {
   firstKeptEntryId?: string;
   failedEntryId?: string;
   errorMessage?: string;
+  code?: ConversationCompactionFailedData["code"];
   details?: unknown;
   /** Tail of the summary text while it streams (running state only). */
   summaryPreview?: string;
@@ -128,4 +132,6 @@ export type TranscriptItem = {
  */
 export type ConversationTransientState = {
   compaction?: CompactionNotice;
+  /** Completion removes the live card but must still reject late progress. */
+  compactionCompleted?: boolean;
 };

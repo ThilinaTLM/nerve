@@ -176,6 +176,7 @@ export type NavigateConversationRequest = z.infer<
 >;
 
 export const compactConversationRequestSchema = z.object({
+  agentId: z.string().startsWith("agent_").optional(),
   instructions: z.string().optional(),
   keepRecentTokens: z.number().int().positive().optional(),
 });

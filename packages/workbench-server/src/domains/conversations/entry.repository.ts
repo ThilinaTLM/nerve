@@ -1,3 +1,4 @@
+import type { CompactionCommitGuard } from "./compaction-owner.js";
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type { AgentMessage } from "@nervekit/harness/agent";
 import type {
@@ -66,10 +67,10 @@ export class EntryRepository {
   async appendCompaction(input: {
     entry: ConversationEntry;
     modelEntry: ConversationTreeEntry;
-    conversation: ConversationRecord;
-    ownerAgentId?: string;
+    guard: CompactionCommitGuard;
   }): Promise<void> {
     await this.journal.commit(input.entry.conversationId, {
+      compactionGuard: input.guard,
       kind: "compaction.completed",
       idempotencyKey: `compaction:${input.entry.id}`,
       events: [
@@ -78,24 +79,15 @@ export class EntryRepository {
           conversationId: input.entry.conversationId,
           entry: input.entry,
         },
-        ...(input.ownerAgentId
-          ? []
-          : [
-              {
-                kind: "conversation.upserted" as const,
-                conversationId: input.entry.conversationId,
-                conversation: input.conversation,
-              },
-            ]),
         {
           kind: "model_context.entry_appended",
-          ownerAgentId: input.ownerAgentId,
+          ownerAgentId: input.guard.ownerAgentId,
           conversationId: input.entry.conversationId,
           entry: input.modelEntry as never,
         },
         {
           kind: "model_context.leaf_changed",
-          ownerAgentId: input.ownerAgentId,
+          ownerAgentId: input.guard.ownerAgentId,
           conversationId: input.entry.conversationId,
           entryId: input.modelEntry.id,
         },

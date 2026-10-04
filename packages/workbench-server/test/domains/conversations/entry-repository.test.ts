@@ -152,7 +152,10 @@ test("agent-attributed compaction replaces the shared model context", async (t) 
   await repository.appendCompaction({
     entry: compactionEntry,
     modelEntry,
-    conversation: conversation(compactionEntry.id),
+    guard: {
+      expectedModelLeafId: recentEntry.id,
+      expectedActiveEntryId: recentEntry.id,
+    },
   });
 
   const state = await journal.load(conversationId);

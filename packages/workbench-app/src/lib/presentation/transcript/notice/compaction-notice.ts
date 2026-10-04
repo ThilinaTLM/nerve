@@ -42,7 +42,7 @@ export function compactionNoticeHeader(
       };
     case "failed":
       return {
-        tone: "destructive",
+        tone: notice.code ? "warning" : "destructive",
         glyph: "bell-dot",
         busy: false,
         badge: "compact_failed",
@@ -50,6 +50,21 @@ export function compactionNoticeHeader(
         statusLabel: "Compaction failed",
       };
     default:
+      if (
+        typeof notice.tokensAfter === "number" &&
+        typeof notice.thresholdTokens === "number" &&
+        notice.tokensAfter >= notice.thresholdTokens
+      ) {
+        return {
+          tone: "warning",
+          glyph: "compaction",
+          busy: false,
+          badge: "compacted",
+          arg,
+          statusLabel:
+            "Insufficient context reduction: still at or above the compaction threshold",
+        };
+      }
       return {
         tone: "success",
         glyph: "compaction",

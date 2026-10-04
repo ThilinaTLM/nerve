@@ -138,6 +138,7 @@ export const DOMAIN_DOCUMENT_NAMESPACES = [
   "conversation_journal_commit",
   "conversation_journal_head",
   "conversation_state",
+  "integration-health",
   "maintenance",
   "project",
   "project-capability-trust",

@@ -159,7 +159,9 @@ export const conversationsOperationDefinitions = [
   ),
   defineOperation(
     "conversation.compaction.cancel",
-    conversationIdParamsSchema,
+    conversationIdParamsSchema.extend({
+      agentId: z.string().startsWith("agent_").optional(),
+    }),
     okResultSchema,
     "mutation",
     "recommended",

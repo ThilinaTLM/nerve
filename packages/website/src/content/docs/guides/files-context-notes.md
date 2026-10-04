@@ -30,3 +30,5 @@ For durable agent guidance, use `AGENTS.md`, `SYSTEM.md`, or a skill in the docu
 - [Agents and delegation](/guides/agents-and-delegation/)
 - [Skills and resources](/guides/skills-and-resources/)
 - [Storage and migration](/operations/storage-migration/)
+
+After compaction, context usage is unknown until the next successful model response. Checkpoint “after” and savings figures are estimates of summary plus retained messages, not exact full-request usage. Signed reasoning is included conservatively in retention budgets; a complete newest tool group may exceed the requested retention target. Failed summary generation leaves the existing context unchanged.

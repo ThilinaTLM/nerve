@@ -1,4 +1,8 @@
 import type {
+  CheckpointDetails,
+  CompactionAccounting,
+} from "@nervekit/contracts/conversations";
+import type {
   AgentTool,
   AnyModel,
   ThinkingLevel,
@@ -9,9 +13,13 @@ import {
 } from "../../compaction/branch-summarization.js";
 import {
   compact,
-  DEFAULT_COMPACTION_SETTINGS,
+  deriveManualCompactionSettings,
   prepareCompaction,
+  estimatePostCompactionContext,
+  summaryBudget,
+  summaryDefects,
 } from "../../compaction/compaction.js";
+import { selectCheckpointAnchors } from "../../compaction/anchors.js";
 import type { Conversation } from "../../conversation/conversation.js";
 import { editorTextForNavigatedEntry } from "../../conversation/text-extraction.js";
 import { AgentHarnessError } from "../../errors.js";
@@ -98,7 +106,8 @@ export async function compactHarnessConversation<
     const branchEntries = await context.conversation.getBranch();
     const preparationResult = prepareCompaction(
       branchEntries,
-      DEFAULT_COMPACTION_SETTINGS,
+      deriveManualCompactionSettings(model.contextWindow),
+      { contextWindow: model.contextWindow },
     );
     if (!preparationResult.ok) throw preparationResult.error;
     const preparation = preparationResult.value;
@@ -130,6 +139,65 @@ export async function compactHarnessConversation<
         );
     if (!compactResult.ok) throw compactResult.error;
     const result = compactResult.value;
+    const budget = summaryBudget(
+      preparation.settings.reserveTokens,
+      model.maxTokens,
+    );
+    const defects = summaryDefects(result.summary, budget.ceiling);
+    if (defects.length)
+      throw new AgentHarnessError(
+        "compaction",
+        `Invalid checkpoint: ${defects.join("; ")}`,
+      );
+    const selected = selectCheckpointAnchors(
+      branchEntries,
+      branchEntries.findIndex((e) => e.id === result.firstKeptEntryId),
+      Math.floor(model.contextWindow * 0.08),
+      preparation.plan,
+    );
+    const checkpointDetails: CheckpointDetails = {
+      anchors: selected.anchors,
+      anchorOverflow: selected.anchorOverflow,
+      knownToolCallIds: preparation.plan?.knownToolCallIds,
+    };
+    const estimate = estimatePostCompactionContext(
+      branchEntries,
+      result.firstKeptEntryId,
+      result.summary,
+      checkpointDetails,
+    );
+    if (estimate.tokensAfter >= estimate.tokensBeforeEstimate) {
+      throw new AgentHarnessError(
+        "compaction",
+        "Compaction would not reduce retained context",
+      );
+    }
+    const originalDetails =
+      result.details && typeof result.details === "object"
+        ? result.details
+        : {};
+    result.details = {
+      ...originalDetails,
+      ...checkpointDetails,
+      tokensAfter: estimate.tokensAfter,
+      accounting: {
+        estimatorVersion: 1,
+        scope: "conversation",
+        summaryTokens: estimate.summaryTokens,
+        anchorTokens: estimate.anchorTokens,
+        anchorOverflow: checkpointDetails.anchorOverflow,
+        retainedTokens: estimate.retainedTokens,
+        retainedMessages: estimate.retainedMessages,
+        retentionTarget: preparation.settings.keepRecentTokens,
+        retentionBudgetExceeded:
+          estimate.retainedTokens > preparation.settings.keepRecentTokens,
+        summaryTarget: budget.target,
+        summaryCeiling: budget.ceiling,
+        summaryRepaired:
+          "summaryRepaired" in originalDetails &&
+          originalDetails.summaryRepaired === true,
+      } satisfies CompactionAccounting,
+    };
     const entryId = await context.conversation.appendCompaction(
       result.summary,
       result.firstKeptEntryId,

@@ -214,6 +214,7 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
         firstKeptEntryId,
         tokensBefore: 100,
       },
+      { ownerAgentId: child.id, expectedModelLeafId: childLeaf },
     );
     assert.equal(await parentStorage.getLeafId(), parentLeaf);
     assert.equal(await history.getLeafId(), compactionId);

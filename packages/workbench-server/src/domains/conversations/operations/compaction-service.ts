@@ -1,18 +1,30 @@
-import { type AgentMessage } from "@nervekit/harness/agent";
-import { createCompactionSummaryMessage } from "@nervekit/harness/messages";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import {
-  buildConversationContext,
+  resolveCompactionOwner,
+  type CompactionCommitGuard,
+} from "../compaction-owner.js";
+import { type AgentMessage } from "@nervekit/harness/agent";
+import {
   type Conversation,
   type ConversationTreeEntry,
 } from "@nervekit/harness/conversation";
 import {
   type CompactionSummaryProfile,
   DEFAULT_COMPACTION_SETTINGS,
-  estimateTokens,
+  estimatePostCompactionContext,
+  summaryBudget,
+  summaryDefects,
   prepareCompaction,
+  planCompaction,
+  assessCompactionUsefulness,
+  deriveManualCompactionSettings,
 } from "@nervekit/harness/compaction";
 import { createId } from "@nervekit/contracts";
 import type {
+  CompactionAccounting,
+  CheckpointDetails,
+  AnchorOverflow,
   CompactConversationRequest,
   ConversationCompactionReason,
   ConversationEntry,
@@ -27,11 +39,6 @@ import {
   type CompactionProgressPublisherOptions,
   type CompactionProgressReport,
 } from "./compaction-progress-publisher.js";
-import {
-  buildExtractiveSummary,
-  buildPlanImplementationSummary,
-} from "./summary.js";
-
 export interface AppendConversationEntryInput {
   id?: string;
   conversationId: string;
@@ -54,23 +61,31 @@ export type AppendConversationEntry = (
   options?: { mirrorToHarness?: boolean },
 ) => Promise<ConversationEntry>;
 
-/**
- * Optional LLM summarizer. Returns continuation-focused summary text, or
- * `undefined` to fall back to the local extractive summary (e.g. when model or
- * auth is unavailable).
- */
+/** Missing or failed summarization must leave the existing context intact. */
 export type CompactionSummarizer = (input: {
   conversationId: string;
   agentId?: string;
   messages: AgentMessage[];
   previousSummary?: string;
+  turnPrefixMessages?: AgentMessage[];
+  fileReferences?: string[];
   instructions?: string;
   summaryProfile?: CompactionSummaryProfile;
   summaryReserveTokens: number;
+  anchorOverflow?: AnchorOverflow[];
+  abandonedToolCallIds?: string[];
   signal?: AbortSignal;
   /** Receives the summary text as it streams in, for live UI feedback. */
   onProgress?: (progress: CompactionProgressReport) => void;
-}) => Promise<{ text: string; generatedBy: "model" } | undefined>;
+}) => Promise<
+  | {
+      text: string;
+      generatedBy: "model";
+      summaryRepaired?: boolean;
+      summaryBudget?: { target: number; ceiling: number };
+    }
+  | undefined
+>;
 
 export interface CompactConversationOptions {
   reason?: ConversationCompactionReason;
@@ -78,6 +93,7 @@ export interface CompactConversationOptions {
   runId?: string;
   contextWindow?: number;
   contextTokens?: number;
+  pendingPromptTokens?: number;
   thresholdTokens?: number;
   triggerReserveTokens?: number;
   keepRecentTokens?: number;
@@ -89,7 +105,28 @@ export interface CompactConversationOptions {
   failedEntryId?: string;
   activeConversation?: Conversation;
   summaryProfile?: CompactionSummaryProfile;
+  sourceReviewId?: string;
   signal?: AbortSignal;
+}
+
+function failureCode(
+  error: unknown,
+): "ineffective" | "stale" | "pending_work" | "no_new_history" | undefined {
+  if (!(error instanceof ApplicationError)) return undefined;
+  switch (error.code) {
+    case "COMPACTION_PREFLIGHT_INEFFECTIVE":
+    case "INEFFECTIVE_COMPACTION":
+      return "ineffective";
+    case "STALE_COMPACTION":
+      return "stale";
+    case "COMPACTION_PENDING_WORK":
+    case "COMPACTION_OWNER_BUSY":
+      return "pending_work";
+    case "NOTHING_TO_COMPACT":
+      return "no_new_history";
+    default:
+      return undefined;
+  }
 }
 
 function errorMessage(error: unknown): string {
@@ -101,6 +138,55 @@ function throwIfCompactionAborted(signal: AbortSignal): void {
   throw signal.reason instanceof Error
     ? signal.reason
     : new Error("Compaction cancelled.");
+}
+
+export type CompactionOutcome =
+  | { status: "compacted"; reason: "checkpoint_committed" }
+  | {
+      status: "not_needed";
+      reason:
+        | "auto_disabled"
+        | "policy_disabled"
+        | "below_threshold"
+        | "no_new_history"
+        | "ineffective";
+    }
+  | { status: "deferred"; reason: "in_progress" | "pending_work" }
+  | { status: "blocked"; reason: "pending_work" | "invalid_overflow_source" }
+  | { status: "failed"; reason: "stale" | "ineffective" | "summary_failed" }
+  | { status: "cancelled"; reason: "aborted" };
+
+/** Only expected domain refusals become outcomes; programming/storage faults propagate. */
+export function compactionFailureOutcome(
+  error: unknown,
+  signal?: AbortSignal,
+): CompactionOutcome {
+  if (signal?.aborted) return { status: "cancelled", reason: "aborted" };
+  if (!(error instanceof ApplicationError)) throw error;
+  switch (error.code) {
+    case "COMPACTION_PENDING_WORK":
+      return { status: "deferred", reason: "pending_work" };
+    case "COMPACTION_PREFLIGHT_INEFFECTIVE":
+      return { status: "not_needed", reason: "ineffective" };
+    case "COMPACTION_IN_PROGRESS":
+      return { status: "deferred", reason: "in_progress" };
+    case "NOTHING_TO_COMPACT":
+      return { status: "not_needed", reason: "no_new_history" };
+    case "COMPACTION_CANCELLED":
+      return { status: "cancelled", reason: "aborted" };
+    case "INVALID_OVERFLOW_SOURCE":
+      return { status: "blocked", reason: "invalid_overflow_source" };
+    case "COMPACTION_OWNER_BUSY":
+      return { status: "blocked", reason: "pending_work" };
+    case "STALE_COMPACTION":
+      return { status: "failed", reason: "stale" };
+    case "INEFFECTIVE_COMPACTION":
+      return { status: "failed", reason: "ineffective" };
+    case "COMPACTION_FAILED":
+      return { status: "failed", reason: "summary_failed" };
+    default:
+      throw error;
+  }
 }
 
 type ActiveCompaction = {
@@ -129,15 +215,38 @@ export class CompactionService {
     private readonly appendCompactionAtomic?: (
       input: AppendConversationEntryInput & { id: string; createdAt: string },
       modelEntry: ConversationTreeEntry,
+      guard: CompactionCommitGuard,
     ) => Promise<ConversationEntry>,
+    private readonly getAgent?: (agentId: string) => AgentRecord,
+    private readonly hasNonterminalOwnerRun?: (
+      conversationId: string,
+      ownerAgentId?: string,
+    ) => Promise<boolean>,
+    private readonly manualPolicy?: (
+      conversationId: string,
+      agentId?: string,
+    ) => Promise<{ contextWindow: number; settings: AutoCompactionSettings }>,
   ) {}
+
+  private resolveOwner(conversationId: string, agentId?: string) {
+    if (agentId && !this.getAgent)
+      throw new Error("Compaction owner resolver is required.");
+    return resolveCompactionOwner(
+      conversationId,
+      agentId ? this.getAgent!(agentId) : undefined,
+    );
+  }
 
   async compactConversation(
     conversationId: string,
     request: CompactConversationRequest = {},
     options: CompactConversationOptions = {},
   ): Promise<{ conversation: ConversationRecord; entry: ConversationEntry }> {
-    if (this.activeCompactions.has(conversationId)) {
+    const agentId = options.agentId ?? request.agentId;
+    options = { ...options, agentId };
+    const owner = this.resolveOwner(conversationId, agentId);
+    const scopeKey = owner.key;
+    if (this.activeCompactions.has(scopeKey)) {
       throw new ApplicationError(
         409,
         "COMPACTION_IN_PROGRESS",
@@ -146,6 +255,8 @@ export class CompactionService {
     }
 
     const reason = options.reason ?? "manual";
+    if (!this.appendCompactionAtomic)
+      throw new Error("Guarded compaction commit is required.");
     let complete!: () => void;
     const completion = new Promise<void>((resolve) => {
       complete = resolve;
@@ -156,78 +267,170 @@ export class CompactionService {
       completion,
       complete,
     };
-    this.activeCompactions.set(conversationId, operation);
+    this.activeCompactions.set(scopeKey, operation);
     const abortFromOwner = () =>
       operation.controller.abort(options.signal?.reason);
     if (options.signal?.aborted) abortFromOwner();
     else
       options.signal?.addEventListener("abort", abortFromOwner, { once: true });
 
+    let started = false;
     try {
+      if (
+        reason === "manual" &&
+        !options.sourceReviewId &&
+        (await this.hasNonterminalOwnerRun?.(
+          conversationId,
+          owner.ownerAgentId,
+        ))
+      ) {
+        throw new ApplicationError(
+          409,
+          "COMPACTION_OWNER_BUSY",
+          "Cannot compact an owner with a nonterminal run.",
+        );
+      }
       const conversation = this.getConversation(conversationId);
       const storage =
         options.activeConversation?.getStorage() ??
-        (await this.harnessStorage.openStorage(conversation));
+        (owner.ownerAgentId
+          ? await this.harnessStorage.openAgentStorage(
+              this.getAgent!(owner.ownerAgentId),
+            )
+          : await this.harnessStorage.openStorage(conversation));
       throwIfCompactionAborted(operation.controller.signal);
-      const branch = await storage.getPathToRoot(await storage.getLeafId());
+      const expectedModelLeafId = await storage.getLeafId();
+      const guard: CompactionCommitGuard = {
+        ownerAgentId: owner.ownerAgentId,
+        expectedModelLeafId,
+        ...(!owner.ownerAgentId
+          ? { expectedActiveEntryId: conversation.activeEntryId ?? null }
+          : {}),
+      };
+      let sourceLeafId = expectedModelLeafId;
+      if (options.failedEntryId) {
+        const failed = expectedModelLeafId
+          ? await storage.getEntry(expectedModelLeafId)
+          : undefined;
+        if (
+          reason !== "overflow" ||
+          failed?.id !== options.failedEntryId ||
+          failed.type !== "message" ||
+          failed.message.role !== "assistant" ||
+          failed.message.stopReason !== "error" ||
+          !failed.parentId
+        ) {
+          throw new ApplicationError(
+            409,
+            "INVALID_OVERFLOW_SOURCE",
+            "Overflow source must be the current failed assistant with a parent.",
+          );
+        }
+        if (!(await storage.getEntry(failed.parentId)))
+          throw new ApplicationError(
+            409,
+            "INVALID_OVERFLOW_SOURCE",
+            "Overflow assistant parent is missing.",
+          );
+        sourceLeafId = failed.parentId;
+      }
+      // Preflight seam: immutable owner path + protected provider IDs feed the pure planner here.
+      const branch = structuredClone(await storage.getPathToRoot(sourceLeafId));
       const branchLeafId = branch.at(-1)?.id ?? null;
+      const manualPolicy =
+        reason === "manual"
+          ? await this.manualPolicy?.(conversationId, options.agentId)
+          : undefined;
+      const contextWindow =
+        options.contextWindow ?? manualPolicy?.contextWindow;
+      options = { ...options, contextWindow };
+      const defaults =
+        reason === "manual"
+          ? deriveManualCompactionSettings(
+              contextWindow ?? 0,
+              manualPolicy?.settings,
+            )
+          : DEFAULT_COMPACTION_SETTINGS;
       const summaryReserveTokens =
-        options.summaryReserveTokens && options.summaryReserveTokens > 0
-          ? options.summaryReserveTokens
-          : DEFAULT_COMPACTION_SETTINGS.reserveTokens;
+        options.summaryReserveTokens ?? defaults.reserveTokens;
       const settings = {
-        ...DEFAULT_COMPACTION_SETTINGS,
+        ...defaults,
         reserveTokens: summaryReserveTokens,
         keepRecentTokens:
           request.keepRecentTokens ??
-          (options.keepRecentTokens && options.keepRecentTokens > 0
-            ? options.keepRecentTokens
-            : DEFAULT_COMPACTION_SETTINGS.keepRecentTokens),
+          options.keepRecentTokens ??
+          defaults.keepRecentTokens,
       };
-      const prepared = prepareCompaction(branch, settings);
-      if (!prepared.ok) {
+      const protectedToolCallIds =
+        await this.harnessStorage.pendingProviderToolCallIds(
+          conversationId,
+          owner.ownerAgentId,
+          (id) => {
+            if (!this.getAgent)
+              throw new Error("Compaction agent lookup is required.");
+            return this.getAgent(id);
+          },
+        );
+      const planningOptions = { protectedToolCallIds, contextWindow };
+      const plan = planCompaction(
+        branch,
+        settings.keepRecentTokens,
+        planningOptions,
+      );
+      if (plan.status === "deferred")
+        throw new ApplicationError(
+          409,
+          "COMPACTION_PENDING_WORK",
+          "Compaction is deferred while owner tool work is pending.",
+        );
+      if (!plan.advances)
+        throw new ApplicationError(
+          409,
+          "NOTHING_TO_COMPACT",
+          "No new history can be compacted.",
+        );
+      const prepared = prepareCompaction(branch, settings, planningOptions);
+      if (!prepared.ok)
         throw new ApplicationError(
           400,
           "COMPACTION_FAILED",
           prepared.error.message,
         );
-      }
-      if (!prepared.value) {
+      if (!prepared.value)
         throw new ApplicationError(
           409,
           "NOTHING_TO_COMPACT",
           "Nothing to compact.",
         );
-      }
       const preparation = prepared.value;
-      let firstKeptEntryId = preparation.firstKeptEntryId;
-      let messagesToSummarize = [
-        ...preparation.messagesToSummarize,
-        ...preparation.turnPrefixMessages,
-      ];
-      if (messagesToSummarize.length === 0) {
-        const messageEntries = branch.filter(
-          (
-            entry,
-          ): entry is Extract<ConversationTreeEntry, { type: "message" }> =>
-            entry.type === "message",
-        );
-        const fallbackKept = messageEntries.at(-1);
-        messagesToSummarize = messageEntries
-          .slice(0, -1)
-          .map((entry) => entry.message);
-        if (fallbackKept) firstKeptEntryId = fallbackKept.id;
-      }
-      if (messagesToSummarize.length === 0) {
-        throw new ApplicationError(
-          409,
-          "NOTHING_TO_COMPACT",
-          "No prior messages to compact.",
-        );
+      const checkpointDetails: CheckpointDetails = {
+        anchors: plan.anchors,
+        anchorOverflow: plan.anchorOverflow,
+        knownToolCallIds: plan.knownToolCallIds,
+      };
+      const firstKeptEntryId = preparation.firstKeptEntryId;
+      const messagesToSummarize = preparation.messagesToSummarize;
+      const budget = summaryBudget(summaryReserveTokens);
+      if (reason === "threshold") {
+        const usefulness = assessCompactionUsefulness({
+          tokensBefore: preparation.tokensBefore,
+          retainedTokens: plan.retainedTokens,
+          checkpointTokens: budget.ceiling + plan.checkpointOverheadTokens,
+          advances: plan.advances,
+          pendingPromptTokens: options.pendingPromptTokens,
+          thresholdTokens: options.thresholdTokens,
+        });
+        if (!usefulness.useful)
+          throw new ApplicationError(
+            409,
+            usefulness.reason === "no_new_history"
+              ? "NOTHING_TO_COMPACT"
+              : "COMPACTION_PREFLIGHT_INEFFECTIVE",
+            "No useful threshold compaction is available; context was not changed.",
+          );
       }
 
       const startedAt = new Date().toISOString();
-      let started = false;
       const progress = new CompactionProgressPublisher(
         this.events,
         {
@@ -255,47 +458,105 @@ export class CompactionService {
         });
         started = true;
 
-        const modelSummary = await this.summarizeWithFallback(
+        if (!this.summarize)
+          throw new ApplicationError(
+            409,
+            "COMPACTION_FAILED",
+            "No compaction summarizer is available; context was not changed.",
+          );
+        const modelSummary = await this.summarize({
           conversationId,
-          options.agentId,
-          messagesToSummarize,
-          preparation.previousSummary,
-          request.instructions,
-          options.summaryProfile,
+          agentId: options.agentId,
+          messages: messagesToSummarize,
+          turnPrefixMessages: preparation.turnPrefixMessages,
+          previousSummary: preparation.previousSummary,
+          instructions: request.instructions,
+          fileReferences: [
+            ...preparation.fileOps.edited,
+            ...preparation.fileOps.written,
+            ...preparation.fileOps.read,
+          ],
+          summaryProfile: options.summaryProfile,
           summaryReserveTokens,
-          operation.controller.signal,
-          (report) => progress.report(report),
-        ).finally(flushProgress);
+          anchorOverflow: plan.anchorOverflow,
+          abandonedToolCallIds: plan.abandonedToolCallIds,
+          signal: operation.controller.signal,
+          onProgress: (report) => progress.report(report),
+        })
+          .catch((error: unknown) => {
+            if (operation.controller.signal.aborted) throw error;
+            throw new ApplicationError(
+              502,
+              "COMPACTION_FAILED",
+              "Summary generation failed; context was not changed. Check model availability and retry.",
+            );
+          })
+          .finally(flushProgress);
         throwIfCompactionAborted(operation.controller.signal);
-        const generatedBy =
-          modelSummary?.generatedBy ?? "orchestrator-extractive";
-        const summary =
-          modelSummary?.text ??
-          (options.summaryProfile?.kind === "plan-implementation"
-            ? buildPlanImplementationSummary(options.summaryProfile.planPath)
-            : buildExtractiveSummary({
-                title: "Context checkpoint",
-                messages: messagesToSummarize,
-                previousSummary: preparation.previousSummary,
-                instructions: request.instructions,
-                maxChars: Math.max(
-                  1_000,
-                  Math.floor(summaryReserveTokens * 3.2),
-                ),
-              }));
-        const tokensAfter = estimatePostCompactionTokens(
+        if (!modelSummary)
+          throw new ApplicationError(
+            409,
+            "COMPACTION_FAILED",
+            "A model and authentication are required for compaction; context was not changed.",
+          );
+        const summary = modelSummary.text.trim();
+        const defects = summaryDefects(summary, budget.ceiling);
+        if (defects.length)
+          throw new ApplicationError(
+            409,
+            "COMPACTION_FAILED",
+            `Invalid checkpoint: ${defects.join("; ")}`,
+          );
+        const generatedBy = modelSummary.generatedBy;
+        const estimate = estimatePostCompactionContext(
           branch,
           firstKeptEntryId,
           summary,
-          preparation.tokensBefore,
+          checkpointDetails,
+          planningOptions,
         );
-        if (reason !== "manual" && tokensAfter >= preparation.tokensBefore) {
+        const { tokensAfter } = estimate;
+        const usefulness = assessCompactionUsefulness({
+          tokensBefore: estimate.tokensBeforeEstimate,
+          retainedTokens: estimate.retainedTokens,
+          checkpointTokens: estimate.summaryTokens,
+          advances: plan.advances,
+          ...(reason === "threshold"
+            ? {
+                pendingPromptTokens: options.pendingPromptTokens,
+                thresholdTokens: options.thresholdTokens,
+              }
+            : {}),
+        });
+        if (!usefulness.useful)
           throw new ApplicationError(
             409,
-            "INEFFECTIVE_COMPACTION",
-            "Compaction would not reduce context usage.",
+            usefulness.reason === "no_new_history"
+              ? "NOTHING_TO_COMPACT"
+              : "INEFFECTIVE_COMPACTION",
+            "Compaction would not produce useful context reduction; context was not changed.",
           );
-        }
+        const accounting: CompactionAccounting = {
+          estimatorVersion: 1,
+          scope: "conversation",
+          summaryTokens: estimate.summaryTokens,
+          retainedTokens: estimate.retainedTokens,
+          retainedMessages: estimate.retainedMessages,
+          retentionTarget: settings.keepRecentTokens,
+          retentionBudgetExceeded:
+            estimate.retainedTokens > settings.keepRecentTokens,
+          summaryTarget: Math.min(
+            budget.target,
+            modelSummary.summaryBudget?.target ?? budget.target,
+          ),
+          summaryCeiling: Math.min(
+            budget.ceiling,
+            modelSummary.summaryBudget?.ceiling ?? budget.ceiling,
+          ),
+          summaryRepaired: modelSummary.summaryRepaired ?? false,
+          anchorTokens: estimate.anchorTokens,
+          anchorOverflow: plan.anchorOverflow,
+        };
         const freedTokens = Math.max(0, preparation.tokensBefore - tokensAfter);
         const fileOps = {
           read: [...preparation.fileOps.read].sort(),
@@ -303,12 +564,16 @@ export class CompactionService {
           edited: [...preparation.fileOps.edited].sort(),
         };
         const details = {
+          ...checkpointDetails,
           generatedBy,
-          compactedMessages: messagesToSummarize.length,
+          accounting,
+          compactedMessages:
+            messagesToSummarize.length + preparation.turnPrefixMessages.length,
           splitTurn: preparation.isSplitTurn,
           tokensAfter,
           freedTokens,
           reason,
+          sourceReviewId: options.sourceReviewId,
           summaryProfile: options.summaryProfile?.kind,
           policy: {
             contextWindow: options.contextWindow,
@@ -342,39 +607,23 @@ export class CompactionService {
           firstKeptEntryId,
           details,
         };
-        let entry: ConversationEntry;
-        if (this.appendCompactionAtomic) {
-          const entryId = createId("entry");
-          const createdAt = new Date().toISOString();
-          const modelEntry: ConversationTreeEntry = {
-            type: "compaction",
-            id: entryId,
-            parentId: branchLeafId,
-            timestamp: createdAt,
-            summary,
-            firstKeptEntryId,
-            tokensBefore: preparation.tokensBefore,
-            details,
-          };
-          entry = await this.appendCompactionAtomic(
-            { ...baseEntryInput, id: entryId, createdAt },
-            modelEntry,
-          );
-        } else {
-          entry = await this.appendEntry(baseEntryInput, {
-            mirrorToHarness: false,
-          });
-          await storage.appendEntry({
-            type: "compaction",
-            id: entry.id,
-            parentId: entry.parentEntryId ?? null,
-            timestamp: entry.createdAt,
-            summary,
-            firstKeptEntryId,
-            tokensBefore: preparation.tokensBefore,
-            details,
-          });
-        }
+        const entryId = createId("entry");
+        const createdAt = new Date().toISOString();
+        const modelEntry: ConversationTreeEntry = {
+          type: "compaction",
+          id: entryId,
+          parentId: branchLeafId,
+          timestamp: createdAt,
+          summary,
+          firstKeptEntryId,
+          tokensBefore: preparation.tokensBefore,
+          details,
+        };
+        const entry = await this.appendCompactionAtomic(
+          { ...baseEntryInput, id: entryId, createdAt },
+          modelEntry,
+          guard,
+        );
         await this.rebuildConversation(conversationId);
         await this.events.publish("conversation.compacted", {
           conversationId,
@@ -387,6 +636,7 @@ export class CompactionService {
           contextWindow: options.contextWindow,
           thresholdTokens: options.thresholdTokens,
           keepRecentTokens: settings.keepRecentTokens,
+          accounting,
           tokensAfter,
           freedTokens,
         });
@@ -417,6 +667,7 @@ export class CompactionService {
                     reason,
                     failedAt: new Date().toISOString(),
                     message: errorMessage(error),
+                    code: failureCode(error),
                     failedEntryId: options.failedEntryId,
                   },
             )
@@ -424,80 +675,49 @@ export class CompactionService {
         }
         throw error;
       }
+    } catch (error) {
+      if (
+        !started &&
+        reason === "manual" &&
+        !operation.controller.signal.aborted
+      ) {
+        await this.events.publish("conversation.compaction.failed", {
+          conversationId,
+          agentId: options.agentId,
+          runId: options.runId,
+          reason,
+          failedAt: new Date().toISOString(),
+          message: errorMessage(error),
+          code: failureCode(error),
+        });
+      }
+      if (operation.controller.signal.aborted && !operation.committing) {
+        throw new ApplicationError(
+          499,
+          "COMPACTION_CANCELLED",
+          "Compaction cancelled.",
+        );
+      }
+      throw error;
     } finally {
       options.signal?.removeEventListener("abort", abortFromOwner);
-      if (this.activeCompactions.get(conversationId) === operation) {
-        this.activeCompactions.delete(conversationId);
+      if (this.activeCompactions.get(scopeKey) === operation) {
+        this.activeCompactions.delete(scopeKey);
       }
       operation.complete();
     }
   }
 
-  async cancelCompaction(conversationId: string): Promise<boolean> {
-    const operation = this.activeCompactions.get(conversationId);
+  async cancelCompaction(
+    conversationId: string,
+    agentId?: string,
+  ): Promise<boolean> {
+    const operation = this.activeCompactions.get(
+      this.resolveOwner(conversationId, agentId).key,
+    );
     if (!operation || operation.committing) return false;
     operation.controller.abort(new Error("Compaction cancelled."));
     await operation.completion;
     return true;
   }
-
-  private async summarizeWithFallback(
-    conversationId: string,
-    agentId: string | undefined,
-    messages: AgentMessage[],
-    previousSummary: string | undefined,
-    instructions: string | undefined,
-    summaryProfile: CompactionSummaryProfile | undefined,
-    summaryReserveTokens: number,
-    signal: AbortSignal,
-    onProgress?: (progress: CompactionProgressReport) => void,
-  ): Promise<{ text: string; generatedBy: "model" } | undefined> {
-    if (!this.summarize) return undefined;
-    try {
-      const summary = await this.summarize({
-        conversationId,
-        agentId,
-        messages,
-        previousSummary,
-        instructions,
-        summaryProfile,
-        summaryReserveTokens,
-        signal,
-        onProgress,
-      });
-      throwIfCompactionAborted(signal);
-      return summary?.text.trim()
-        ? { text: summary.text.trim(), generatedBy: summary.generatedBy }
-        : undefined;
-    } catch (error) {
-      if (signal.aborted) throw error;
-      return undefined;
-    }
-  }
-}
-
-/**
- * Estimate the context-token size of the conversation after compaction: the
- * generated summary plus the retained recent messages. Uses a character-based
- * estimate (not provider usage) because retained assistant usage still reflects
- * the pre-compaction context size.
- */
-function estimatePostCompactionTokens(
-  branch: ConversationTreeEntry[],
-  firstKeptEntryId: string,
-  summary: string,
-  tokensBefore: number,
-): number {
-  const keptIndex = branch.findIndex((entry) => entry.id === firstKeptEntryId);
-  const keptEntries = keptIndex >= 0 ? branch.slice(keptIndex) : [];
-  const keptMessages = buildConversationContext(keptEntries).messages;
-  const summaryMessage = createCompactionSummaryMessage(
-    summary,
-    tokensBefore,
-    new Date().toISOString(),
-  );
-  return [summaryMessage, ...keptMessages].reduce(
-    (sum, message) => sum + estimateTokens(message),
-    0,
-  );
 }

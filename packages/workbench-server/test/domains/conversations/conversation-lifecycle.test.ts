@@ -1,3 +1,4 @@
+import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { ConversationRecord } from "@nervekit/contracts/conversations";
@@ -412,6 +413,27 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
   });
 
   it("publishes compaction lifecycle events with metadata", async () => {
+    const summary = `## Goal
+Inspect the project.
+## Requirements and Constraints
+- Preserve behavior.
+## Work Completed
+- [x] Inspected the project.
+## Work Remaining
+- [ ] Validate the findings.
+## Key Decisions
+- Use the existing architecture.
+## Current Working State
+- No edits have been made.
+## Continuation Plan
+1. Validate the findings.
+## Critical References
+- Project directory.`;
+    const provider = "nerve-compaction-scripted";
+    const registration = registerAgentScriptedProvider({
+      provider,
+      steps: [{ type: "assistantText", text: summary }],
+    });
     const state = await createState("nerve-runtime-compaction-");
     try {
       const project = await state.services.projectLifecycle.createProject({
@@ -421,10 +443,16 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         await state.services.conversationLifecycle.createConversation({
           projectId: project.id,
         });
+      await state.runtime.auth.setApiKey(provider, "synthetic-test-key");
+      await state.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: { provider, modelId: "scripted-fast" },
+      });
       const first = await appendConversationEntry(state, {
         conversationId: conversation.id,
         role: "user",
-        text: "Please inspect this project.",
+        text: "Please inspect this project. ".repeat(1_000),
       });
       await appendConversationEntry(state, {
         conversationId: conversation.id,
@@ -440,7 +468,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
 
       const result = await state.services.compactionService.compactConversation(
         conversation.id,
-        {},
+        { keepRecentTokens: 1 },
         { reason: "manual" },
       );
       const events = (
@@ -473,7 +501,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
       );
       assert.equal(
         (result.entry.details as { generatedBy?: string }).generatedBy,
-        "orchestrator-extractive",
+        "model",
       );
       const compactedDetails = result.entry.details as {
         tokensAfter?: number;
@@ -490,6 +518,7 @@ describe("RuntimeLifecycle conversation lifecycle", () => {
         "number",
       );
     } finally {
+      registration.unregister();
       state.runtime.queryCache.close();
     }
   });

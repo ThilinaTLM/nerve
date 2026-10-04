@@ -1,3 +1,4 @@
+import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
@@ -203,6 +204,22 @@ export class WorkbenchRunService {
         "The conversation changed after this approval was requested. No tool was executed.",
       );
     }
+  }
+
+  async hasNonterminalOwnerRun(
+    conversationId: string,
+    ownerAgentId?: string,
+  ): Promise<boolean> {
+    for (const agent of this.state.agents.values()) {
+      if (
+        agent.conversationId !== conversationId ||
+        resolveCompactionOwner(conversationId, agent).ownerAgentId !==
+          ownerAgentId
+      )
+        continue;
+      if (await this.unitOfWork.findActive(this.scopeId(agent))) return true;
+    }
+    return false;
   }
 
   async listQueuedPrompts(agentId: string) {
@@ -411,6 +428,34 @@ export class WorkbenchRunService {
 
   async abortAgent(agentId: string): Promise<void> {
     await this.abortRun({ agentId });
+  }
+
+  async isToolInteractionResolved(
+    toolCallId: string,
+    runId: string,
+  ): Promise<boolean> {
+    const state = await this.unitOfWork.load(runId);
+    return (
+      state?.interactions.some(
+        (item) => item.toolCallId === toolCallId && item.status !== "pending",
+      ) ?? false
+    );
+  }
+
+  async wakePlanImplementation(
+    agentId: string,
+    reviewId: string,
+  ): Promise<void> {
+    const agent = this.requireAgent(agentId);
+    const runId = `run_plan_${reviewId}`;
+    if (await this.unitOfWork.load(runId)) return;
+    await this.coordinator.startContinuation({
+      runId,
+      conversationId: agent.conversationId,
+      agentId,
+      projectId: agent.projectId,
+      scopeId: this.scopeId(agent),
+    });
   }
 
   async interactionResolutionStateForToolCall(

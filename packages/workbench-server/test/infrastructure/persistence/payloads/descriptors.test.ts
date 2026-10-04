@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { assertNamespaceReferencesCovered } from "../../../../src/infrastructure/persistence/payloads/canonical-sweep.js";
+import {
+  assertNamespaceReferencesCovered,
+  unregisteredNamespaceReferences,
+} from "../../../../src/infrastructure/persistence/payloads/canonical-sweep.js";
 import {
   DOMAIN_DOCUMENT_NAMESPACES,
   PAYLOAD_DESCRIPTORS,
@@ -71,6 +74,16 @@ describe("payload descriptor registry", () => {
       assertNamespaceReferencesCovered(
         sources.map((path) => readFileSync(path, "utf8")),
       ),
+    );
+  });
+
+  it("discovers namespaces declared by bare and prefixed NAMESPACE constants", () => {
+    assert.deepEqual(
+      unregisteredNamespaceReferences([
+        'const NAMESPACE = "bare-namespace";',
+        'const TASK_NAMESPACE = "prefixed-namespace";',
+      ]),
+      ["bare-namespace", "prefixed-namespace"],
     );
   });
 

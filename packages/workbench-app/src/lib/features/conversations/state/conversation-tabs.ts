@@ -1,3 +1,4 @@
+import { clearContextUsageRefresh } from "./conversation-context-usage";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 import { conversationStream } from "@nervekit/contracts/events";
@@ -79,6 +80,7 @@ export async function closeConversationTab(conversationId: string) {
     id: conversationId,
   });
   removeCenterTab(tab);
+  clearContextUsageRefresh(conversationId);
   delete conversationState.conversationViews[
     conversationViewKey(conversationId)
   ];
@@ -141,6 +143,7 @@ export async function removeConversationTabs(conversationIds: string[]) {
     ),
   );
   for (const conversationId of removing) {
+    clearContextUsageRefresh(conversationId);
     delete conversationState.conversationViews[
       conversationViewKey(conversationId)
     ];

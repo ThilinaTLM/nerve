@@ -1,3 +1,7 @@
+import {
+  compactionAccountingSchema,
+  type CompactionAccounting,
+} from "./compaction-accounting.js";
 import { z } from "zod";
 import {
   contentBlockIdSchema,
@@ -208,6 +212,7 @@ export interface ConversationCompactionFailedData {
   reason: ConversationCompactionReason;
   failedAt: string;
   message: string;
+  code?: "ineffective" | "stale" | "pending_work" | "no_new_history";
   failedEntryId?: string;
 }
 
@@ -221,6 +226,7 @@ export interface ConversationCompactionCancelledData {
 }
 
 export interface ConversationCompactedData {
+  accounting?: CompactionAccounting;
   conversationId: string;
   entryId: string;
   tokensBefore: number;
@@ -430,6 +436,9 @@ const conversationCompactionFailedDataSchema = z.object({
   reason: z.enum(["manual", "threshold", "overflow"]),
   failedAt: z.string().datetime(),
   message: z.string(),
+  code: z
+    .enum(["ineffective", "stale", "pending_work", "no_new_history"])
+    .optional(),
   failedEntryId: z.string().startsWith("entry_").optional(),
 });
 
@@ -443,6 +452,7 @@ const conversationCompactionCancelledDataSchema = z.object({
 });
 
 const conversationCompactedDataSchema = z.object({
+  accounting: compactionAccountingSchema.optional(),
   conversationId: z.string().startsWith("conv_"),
   entryId: z.string().startsWith("entry_"),
   tokensBefore: z.number().int().nonnegative(),

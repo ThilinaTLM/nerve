@@ -1,3 +1,4 @@
+import type { CheckpointDetails } from "@nervekit/contracts/conversations";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import {
   createBranchSummaryMessage,
@@ -91,6 +92,7 @@ export function buildContextMessages(
         state.compaction.summary,
         state.compaction.tokensBefore,
         state.compaction.timestamp,
+        (state.compaction.details as CheckpointDetails | undefined)?.anchors,
       ),
     );
     const compactionIdx = pathEntries.findIndex(

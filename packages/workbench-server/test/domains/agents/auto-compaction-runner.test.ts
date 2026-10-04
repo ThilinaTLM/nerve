@@ -197,7 +197,7 @@ it("compacts projected prompt usage before the first provider iteration", async 
     logger: { warn: async () => undefined },
   } as never);
 
-  assert.equal(
+  assert.deepEqual(
     await runner.maybeCompactBeforePrompt({
       conversationId: agent.conversationId,
       agentId: agent.id,
@@ -209,7 +209,7 @@ it("compacts projected prompt usage before the first provider iteration", async 
         buildContext: async () => buildConversationContext(branch as never),
       } as never,
     }),
-    true,
+    { status: "compacted", reason: "checkpoint_committed" },
   );
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.contextTokens, 405_000);
