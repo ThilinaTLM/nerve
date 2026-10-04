@@ -80,6 +80,7 @@ export function textBlock(
   contentIndex: number,
   text: string,
   done = false,
+  redacted?: boolean,
 ): ConversationLiveContentBlockSnapshot {
   return {
     kind,
@@ -87,6 +88,7 @@ export function textBlock(
     contentIndex,
     text,
     done,
+    ...(redacted === undefined ? {} : { redacted }),
   };
 }
 

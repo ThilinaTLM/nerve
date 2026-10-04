@@ -259,7 +259,11 @@ function emitMessageSlots(
 
     const block = blocks[slot.blockIndex];
     if (block.kind !== "tool_call_draft") {
-      if (!block.text && block.kind !== "thinking") continue;
+      // Match committed transcripts: providers can emit empty reasoning items
+      // (no summary text); only text or redacted reasoning is visible.
+      if (!block.text && !(block.kind === "thinking" && block.redacted)) {
+        continue;
+      }
       items.push({
         kind: "message",
         key: liveBlockKey(

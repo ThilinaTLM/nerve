@@ -48,13 +48,10 @@ let { items }: Props = $props();
 }
 
 .thinking-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
   font-style: italic;
-}
-
-.thinking-step + .thinking-step {
-  margin-top: 0.55rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 
 .thinking-content :global(.markdown) {
@@ -68,7 +65,20 @@ let { items }: Props = $props();
   font-style: normal;
 }
 
-.thinking-content :global(p > strong:only-child) {
+/* Reasoning summaries often open sections with a bold-only paragraph
+   (`**Title**`); render those as quiet step headings instead of rules. */
+.thinking-content :global(.markdown > p:has(> strong:only-child)) {
+  color: color-mix(in oklab, var(--foreground) 75%, transparent);
+  font-style: normal;
+  font-weight: 500;
+}
+
+.thinking-content
+  :global(.markdown > p:not(:first-child):has(> strong:only-child)) {
+  margin-top: 0.625rem;
+}
+
+.thinking-content :global(.markdown > p > strong:only-child) {
   font-weight: inherit;
 }
 
