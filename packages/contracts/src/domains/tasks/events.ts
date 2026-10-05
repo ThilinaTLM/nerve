@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { definePublicEvent } from "../../events/definition.js";
+import {
+  defineContentEvent,
+  definePublicEvent,
+} from "../../events/definition.js";
 import {
   taskListeningPortSchema,
   taskRecordSchema,
@@ -17,6 +20,9 @@ const cleanupMethodSchema = z.enum([
 ]);
 const taskSignalSchema = z.enum(["SIGTERM", "SIGINT", "SIGKILL"]);
 
+// Full task records carry authoritative executable command content, not a
+// command preview. Use the existing content-sized event policy without changing
+// persisted commands; metadata-only and output events retain the strict guard.
 const taskPayloadSchema = z.object({
   task: taskRecordSchema,
   pid: z.number().int().positive().optional(),
@@ -44,7 +50,7 @@ export const taskEventDefinitions = [
     "task.recovery_unknown",
     "task.updated",
   ].map((name) =>
-    definePublicEvent(name, taskPayloadSchema, { scope: ["task.id"] }),
+    defineContentEvent(name, taskPayloadSchema, { scope: ["task.id"] }),
   ),
   definePublicEvent(
     "task.removed",
@@ -69,12 +75,12 @@ export const taskEventDefinitions = [
     },
   ),
   ...["task.promoted", "task.runtime_updated"].map((name) =>
-    definePublicEvent(name, z.object({ task: taskRecordSchema }), {
+    defineContentEvent(name, z.object({ task: taskRecordSchema }), {
       allowedSourceRoles: workbenchRoles,
       scope: ["task.id"],
     }),
   ),
-  definePublicEvent(
+  defineContentEvent(
     "task.orphan_cleanup_succeeded",
     z.object({
       task: taskRecordSchema,
@@ -85,7 +91,7 @@ export const taskEventDefinitions = [
     }),
     { allowedSourceRoles: workbenchRoles, scope: ["task.id"] },
   ),
-  definePublicEvent(
+  defineContentEvent(
     "task.cleanup_failed",
     z.object({
       task: taskRecordSchema,
