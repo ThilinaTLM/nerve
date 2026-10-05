@@ -131,9 +131,10 @@ export function handleConversationNotification(
     return;
   }
   if (applied !== view) {
-    const key = conversationViewKey(conversationId);
-    conversationState.conversationViews[key] = applied;
-    syncActiveView(conversationState.conversationViews[key]);
+    // Keep metadata-only consumers subscribed to their fields, not each live
+    // delta. The reducer still replaces changed transcript snapshots.
+    Object.assign(view, applied);
+    syncActiveView(view);
   }
 }
 
