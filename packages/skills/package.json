@@ -24,9 +24,9 @@
     }
   },
   "scripts": {
-    "build": "tsc -b && node ../../scripts/copy-skills-assets.mjs",
+    "build": "tsc -b && node ../../scripts/build/copy-skills-assets.mjs",
     "check": "tsc -b --pretty false",
-    "pretest": "node ../../scripts/copy-skills-assets.mjs",
+    "pretest": "node ../../scripts/build/copy-skills-assets.mjs",
     "test": "tsx --test \"test/**/*.test.ts\""
   },
   "dependencies": {

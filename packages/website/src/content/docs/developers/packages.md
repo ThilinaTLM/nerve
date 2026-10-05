@@ -21,7 +21,7 @@ sidebar:
 - `packages/desktop-shell` — published npm/Electron launcher, desktop bridge, migration gate, and daemon ownership. It depends on contracts and server packaging.
 - `packages/website` — static public marketing/documentation site. It intentionally imports no product runtime package.
 
-`scripts/check-package-boundaries.mjs` enforces workspace-level edges. Package-local AGENTS instructions enforce finer boundaries, such as keeping presentation free from feature/application state and keeping UI kit contract-free.
+`scripts/checks/check-package-boundaries.mjs` enforces workspace-level edges. Package-local AGENTS instructions enforce finer boundaries, such as keeping presentation free from feature/application state and keeping UI kit contract-free.
 
 ## Ownership principle
 

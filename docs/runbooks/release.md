@@ -23,26 +23,26 @@ Keep the root and workspace versions aligned and tag `v<version>`.
 ```sh
 release_tag=vX.Y.Z
 pnpm install --frozen-lockfile
-node scripts/verify-release-tag.mjs "$release_tag"
+node scripts/release/verify-release-tag.mjs "$release_tag"
 pnpm fix
 pnpm check
 pnpm run test:full
 pnpm build
-node scripts/pack-npm.mjs
+node scripts/release/pack-npm.mjs
 ```
 
-`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/verify-native-prebuilds.mjs` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
+`release/npm` is generated and must not be committed. Packing creates a temporary `release/npm-stage/desktop` tree and removes it on completion. Final packing requires the exact six-file native prebuild inventory in `packages/native/prebuilds`; `node scripts/release/verify-native-prebuilds.mjs` rejects missing, extra, or developer-local artifacts. The release workflow produces this inventory. Ordinary local development needs only the host binding under `packages/native/prebuilds/local` and does not produce a publishable package.
 
-`node scripts/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
+`node scripts/release/pack-npm.mjs` must produce only `release/npm/nervekit-desktop-<version>.tgz`; it verifies exact names, versions, contents, bundled package resolution, package entrypoints, native prebuilds, and the desktop launcher through an isolated install.
 
 Run the finite built-artifact smokes after `pnpm build`:
 
 ```sh
-node scripts/verify-npm-tarballs.mjs       # inspect packed tarballs and isolated install
-node scripts/smoke-workbench-release.mjs   # built workbench server HTTP/WS parity
-node scripts/smoke-desktop-release.mjs     # desktop --version/--help and server resolution
+node scripts/release/verify-npm-tarballs.mjs       # inspect packed tarballs and isolated install
+node scripts/release/smoke-workbench-release.mjs   # built workbench server HTTP/WS parity
+node scripts/release/smoke-desktop-release.mjs     # desktop --version/--help and server resolution
 pnpm --filter @nervekit/desktop-shell package:dir
-node scripts/smoke-desktop-package.mjs
+node scripts/release/smoke-desktop-package.mjs
 ```
 
 ## Release tagging flow
@@ -50,7 +50,7 @@ node scripts/smoke-desktop-package.mjs
 Start from a clean checkout on the branch that should contain the release commit, with a local Git identity and commit-signing key configured. Run the local release script with the exact version to publish, without a leading `v`:
 
 ```sh
-scripts/tag-release.sh X.Y.Z
+scripts/release/tag-release.sh X.Y.Z
 ```
 
 The script updates every workspace `package.json`, the native `Cargo.toml`, and the `nerve-native` entry in `Cargo.lock`. It also stamps Discover announcements authored with `releasedIn: "next"` with the release version. It then creates the signed `chore(release): bump version to vX.Y.Z` commit and an annotated `vX.Y.Z` tag. It never pushes the current branch. Put the release commit onto the protected default branch through the repository's normal branch and pull-request process.
@@ -69,7 +69,7 @@ Current homes use `manifest.json` with format `nerve-home`, version `1`. The onl
 
 ## Release commit signing
 
-`scripts/tag-release.sh` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
+`scripts/release/tag-release.sh` uses `git commit -S` and refuses to create the tag unless Git records a signature on the release commit. Each maintainer must configure a local Git identity and a signing key whose public identity GitHub recognizes. The script does not read private signing material from repository secrets.
 
 If signing fails, fix the local Git signing configuration and retry. The script does not reset partially updated files, so inspect the working tree before deciding whether to restore the version changes or complete the commit manually.
 

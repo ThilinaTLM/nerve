@@ -9,7 +9,7 @@ import {
   storageMigrationChecksum,
   storageMigrationLockMetadataViolations,
   storageMigrationPolicyViolations,
-} from "../lib/storage-migration-policy.mjs";
+} from "../checks/storage-migration-policy.mjs";
 
 const registryFile = `${STORAGE_MIGRATIONS_DIRECTORY}/steps/registry-metadata.ts`;
 

@@ -9,7 +9,7 @@ packages/desktop-shell/build/
 packages/desktop-shell/release/
 packages/native/prebuilds/
 target/
-release/
+/release/
 .env
 .env.*
 !.env.example

@@ -63,6 +63,6 @@ end note
 legend bottom
   |<#3567a8> solid arrow | consumer --> allowed compile-time @nervekit dependency |
   | dotted double arrow | runtime network communication, not an import dependency |
-  The compile-time graph and internal purity rules are enforced by scripts/check-package-boundaries.mjs.
+  The compile-time graph and internal purity rules are enforced by scripts/checks/check-package-boundaries.mjs.
 endlegend
 @enduml

@@ -10,11 +10,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "pnpm -r build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/check-built-package-exports.mjs",
+    "build": "pnpm -r build && node scripts/build/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/checks/check-built-package-exports.mjs",
     "build:native": "pnpm --filter @nervekit/native build:native",
-    "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/copy-workbench-app-dist-to-workbench-server.mjs",
+    "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/build/copy-workbench-app-dist-to-workbench-server.mjs",
     "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt && node scripts/storage-migrations/update-read-compatibility.mjs",
-    "check": "oxfmt --check && eslint . && node scripts/check-package-boundaries.mjs && pnpm -r check",
+    "check": "oxfmt --check && eslint . && node scripts/checks/check-package-boundaries.mjs && pnpm -r check",
+    "test:focused": "node scripts/testing/run-focused-tests.mjs",
     "test:affected": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=4 --filter \"...[origin/main]\" --if-present test",
     "test:full": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=4 -r --if-present test",
     "test:coverage": "c8 pnpm run test:full",

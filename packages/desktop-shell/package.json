@@ -25,7 +25,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "icons": "node ../../scripts/generate-brand-assets.mjs --desktop",
+    "icons": "node ../../scripts/build/generate-brand-assets.mjs --desktop",
     "build": "pnpm run icons && tsc -b && node scripts/copy-preload.mjs",
     "check": "tsc -b --pretty false",
     "test": "tsx --test \"test/**/*.test.ts\"",

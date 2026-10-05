@@ -3,7 +3,7 @@ import { escapeHtml } from "./html.js";
 /* The block between the `startup-splash` markers is the canonical splash
  * composition. `packages/workbench-app/index.html` mirrors it verbatim so the
  * Electron shell page and the workbench bootstrap render identical pixels, and
- * `scripts/lib/startup-splash-sync.test.mjs` fails the build on any drift.
+ * `scripts/checks/test/startup-splash-sync.test.mjs` fails the build on any drift.
  *
  * Rules for editing: only `--splash-*` custom properties may be referenced (each
  * host document declares them), every animation delay is offset by
