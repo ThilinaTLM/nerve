@@ -13,6 +13,8 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 
 ## Active proposals
 
+- [Generalized agent runtime](proposals/generalized-agent-runtime/README.md) — one configurable agent blueprint, canonical branching history, coordinated child-history bindings, and visibility-driven live delivery.
+
 - [Asynchronous subagent teams](proposals/async-subagent-teams.md) — optional persistent teammates with idle-only prompting, cancellation, and completion notifications that wake the lead.
 
 - [Unified conversation timeline](proposals/unified-conversation-timeline/README.md) — decision overview and focused contracts for canonical history, execution, permissions, projections, durable recovery, and cutover.
