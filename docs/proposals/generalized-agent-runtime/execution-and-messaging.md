@@ -41,11 +41,11 @@ Acceptance is acknowledged only after its journal fact and projection commit. Re
 
 ### Delivery policies
 
-| Policy | Active agent | Idle agent |
-| --- | --- | --- |
-| `steer` | Deliver at the next safe boundary in the active run | Eligible for next admission if activation permits |
-| `follow_up` | Remain queued for the next run | Eligible for next admission if activation permits |
-| Run-targeted input | Deliver only to the named run/generation | Mark obsolete if that run has settled; never silently retarget |
+| Policy             | Active agent                                        | Idle agent                                                     |
+| ------------------ | --------------------------------------------------- | -------------------------------------------------------------- |
+| `steer`            | Deliver at the next safe boundary in the active run | Eligible for next admission if activation permits              |
+| `follow_up`        | Remain queued for the next run                      | Eligible for next admission if activation permits              |
+| Run-targeted input | Deliver only to the named run/generation            | Mark obsolete if that run has settled; never silently retarget |
 
 Activation is explicit: `wake_if_idle` requests serialized admission; `manual` retains input without waking. Roles do not imply priority or activation. Batch limits and fairness budgets prevent a continual stream of steering from indefinitely starving settlement and follow-ups.
 
@@ -104,15 +104,15 @@ Wake requests carry the agent's activation generation. A prior request cannot un
 
 The journal owns accepted input, interaction, configuration, and execution facts. Inbox/lifecycle projections accelerate scheduling; work leases, admission locks, and fences coordinate execution transactionally. In-memory queues, wake hints, and harness registries are caches. Workers validate execution/branch generation and ownership at every committed mutation. Startup reconciles projections, claimed input, active runs, interactions, branch-switch intents, and publication work against history before admitting new execution.
 
-| Failure window | Required behavior |
-| --- | --- |
-| Before acceptance commit | No acceptance acknowledgment; retry is safe |
-| After acceptance, before wake hint | Scheduler finds pending durable work |
-| After claim, before context insertion | Expired/fenced claim can be retried |
-| After insertion, before provider submission | Rehydrate committed context; do not duplicate input |
-| During provider/tool execution | Fence old attempt; record interruption/uncertainty; do not blindly repeat side effects |
-| After settlement, before notification | Publish/retry persisted completion intent |
-| After publication, before delivery acknowledgment | Deduplicate by notification/message identity |
+| Failure window                                    | Required behavior                                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Before acceptance commit                          | No acceptance acknowledgment; retry is safe                                            |
+| After acceptance, before wake hint                | Scheduler finds pending durable work                                                   |
+| After claim, before context insertion             | Expired/fenced claim can be retried                                                    |
+| After insertion, before provider submission       | Rehydrate committed context; do not duplicate input                                    |
+| During provider/tool execution                    | Fence old attempt; record interruption/uncertainty; do not blindly repeat side effects |
+| After settlement, before notification             | Publish/retry persisted completion intent                                              |
+| After publication, before delivery acknowledgment | Deduplicate by notification/message identity                                           |
 
 Workers and notifications may execute at least once. Committed input effects are deduplicated. External provider/tool execution is not exactly once; a process loss may leave an effect whose outcome cannot be inferred from stored state.
 

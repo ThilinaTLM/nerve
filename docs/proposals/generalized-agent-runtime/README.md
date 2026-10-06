@@ -36,14 +36,14 @@ Non-goals: multiple simultaneous executions of one agent, unrestricted authority
 
 ## Current foundations and target
 
-| Today | Target |
-| --- | --- |
-| [`executionKind`](../../../packages/contracts/src/domains/agents/agent.ts) combines root, explore, and async developer | Parentage, configuration, and orchestration are separate dimensions |
-| [`SubagentRunner`](../../../packages/workbench-server/src/domains/agents/execution/subagent-runner.ts) executes one-shot Explore children | Explorer configuration on the shared runtime |
-| [`AsyncSubagentService`](../../../packages/workbench-server/src/domains/agents/async-subagent.service.ts) rejects busy child prompts | Every agent accepts explicit steering/follow-up input |
-| [Harness steering](../../../packages/harness/src/agent/agent.ts) and [durable run prompts](../../../packages/workbench-server/src/domains/runs/runtime/run-prompts.ts) already exist | Acceptance is agent-owned, journaled, and independent of a live harness |
-| Journal, run/work records, and event streams have distinct responsibilities | Journal owns conversation-affecting facts; lifecycle/inbox projections accelerate reads and scheduling |
-| Workspace/conversation subscriptions and transient filtering already exist | Explicit overview, detail, and live interests; fan-out routed by interest |
+| Today                                                                                                                                                                                | Target                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| [`executionKind`](../../../packages/contracts/src/domains/agents/agent.ts) combines root, explore, and async developer                                                               | Parentage, configuration, and orchestration are separate dimensions                                    |
+| [`SubagentRunner`](../../../packages/workbench-server/src/domains/agents/execution/subagent-runner.ts) executes one-shot Explore children                                            | Explorer configuration on the shared runtime                                                           |
+| [`AsyncSubagentService`](../../../packages/workbench-server/src/domains/agents/async-subagent.service.ts) rejects busy child prompts                                                 | Every agent accepts explicit steering/follow-up input                                                  |
+| [Harness steering](../../../packages/harness/src/agent/agent.ts) and [durable run prompts](../../../packages/workbench-server/src/domains/runs/runtime/run-prompts.ts) already exist | Acceptance is agent-owned, journaled, and independent of a live harness                                |
+| Journal, run/work records, and event streams have distinct responsibilities                                                                                                          | Journal owns conversation-affecting facts; lifecycle/inbox projections accelerate reads and scheduling |
+| Workspace/conversation subscriptions and transient filtering already exist                                                                                                           | Explicit overview, detail, and live interests; fan-out routed by interest                              |
 
 The [async-subagent proposal](../async-subagent-teams.md) deliberately specifies idle-only prompting and limited child tools. This proposal evolves that model; it does not claim those restrictions already changed. [Storage architecture](../../architecture/storage.md) remains the description of implemented persistence.
 
@@ -61,14 +61,14 @@ The [async-subagent proposal](../async-subagent-teams.md) deliberately specifies
 
 ## Package ownership
 
-| Package | Responsibility |
-| --- | --- |
-| `packages/contracts` | Agent, history, branch binding, input, configuration, permission, and event contracts |
-| `packages/protocol` | Transport-neutral sessions, interest subscriptions, replay/cursors, and resynchronization |
-| `packages/harness` | Provider/tool loop, context application, turn boundaries |
+| Package                     | Responsibility                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `packages/contracts`        | Agent, history, branch binding, input, configuration, permission, and event contracts                  |
+| `packages/protocol`         | Transport-neutral sessions, interest subscriptions, replay/cursors, and resynchronization              |
+| `packages/harness`          | Provider/tool loop, context application, turn boundaries                                               |
 | `packages/workbench-server` | Authorization, history commits, projection maintenance, execution coordination, branching, publication |
-| `packages/tools` | Model-facing operations over shared services |
-| `packages/workbench-app` | Agent navigation, history rendering, pending controls, visibility-driven subscriptions |
+| `packages/tools`            | Model-facing operations over shared services                                                           |
+| `packages/workbench-app`    | Agent navigation, history rendering, pending controls, visibility-driven subscriptions                 |
 
 Protocol must not acquire domain scheduling rules. Harness queues and UI caches are not durable authority. Specialized tools such as Explore call common services rather than invoking other model-facing tools.
 

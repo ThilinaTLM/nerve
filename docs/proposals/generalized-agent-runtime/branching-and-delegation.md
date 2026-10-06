@@ -34,13 +34,13 @@ Message numbers are explanatory, not storage identifiers. The actual operation u
 
 ## Communication boundaries
 
-| Communication | Required markers and causal references |
-| --- | --- |
-| Child creation | Parent creation/membership fact; child's initial baseline |
-| Parent assignment/steering | Parent dispatch boundary; child head/frontier before acceptance; linked accepted input boundary |
-| Child completion/result | Child producing run/output boundary; parent boundary before/after acceptance of the completion |
-| User steering of child | Child input origin and boundary; correlated parent intervention notice where delivered |
-| Parent management affecting execution | Linked stop/resume/control facts and affected generations; not implicit history mutation |
+| Communication                         | Required markers and causal references                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Child creation                        | Parent creation/membership fact; child's initial baseline                                       |
+| Parent assignment/steering            | Parent dispatch boundary; child head/frontier before acceptance; linked accepted input boundary |
+| Child completion/result               | Child producing run/output boundary; parent boundary before/after acceptance of the completion  |
+| User steering of child                | Child input origin and boundary; correlated parent intervention notice where delivered          |
+| Parent management affecting execution | Linked stop/resume/control facts and affected generations; not implicit history mutation        |
 
 Dispatch and acceptance are a cross-agent transaction in the shared canonical store. Capture the child's marker before accepting the input, append linked facts in both journals, update projections, and persist delivery work together. Sending a hint happens afterward. Child delivery and completion append later facts under the same correlation identity.
 

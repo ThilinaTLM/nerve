@@ -12,11 +12,11 @@ An agent overview includes ID/name, parent, active branch/membership, current st
 
 ## Three interest levels
 
-| Interest | Delivery | Typical use |
-| --- | --- | --- |
-| Overview | Compact durable summary changes for authorized agents in scope | Workspace/team list; discover children and blockers |
-| Detail | Durable conversation changes, branch selection, interactions, configuration state | Opened transcript or inspection panel |
-| Live | Detail plus transient output/progress for current execution | Actively watched agent |
+| Interest | Delivery                                                                          | Typical use                                         |
+| -------- | --------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Overview | Compact durable summary changes for authorized agents in scope                    | Workspace/team list; discover children and blockers |
+| Detail   | Durable conversation changes, branch selection, interactions, configuration state | Opened transcript or inspection panel               |
+| Live     | Detail plus transient output/progress for current execution                       | Actively watched agent                              |
 
 These are delivery interests, not new domain histories. One client may watch several agents. Interest is explicit and independent of conversation existence: a cached transcript should not leave an accidental permanent live subscription.
 

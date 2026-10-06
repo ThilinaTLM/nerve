@@ -27,21 +27,21 @@ Each agent owns one logical conversation, containing branches and many runs over
 
 ## Configuration determines capabilities
 
-| Concept | Meaning |
-| --- | --- |
-| ID and name | Stable identity and optional human label; labels are not authorization handles |
-| Model and reasoning effort | Provider/model selection and per-turn execution settings |
-| Conversation | Owned canonical history and selected branch/head |
-| Parent | Optional delegation/reporting relationship |
-| Tools | Enabled operations, authorized separately at dispatch |
-| Skills | Enabled structured references rendered into system instructions |
-| System prompt | Authored base instructions and composition provenance |
-| Modes | Coordination/planning behavior and corresponding instructions/tools |
-| Permission rule set / overlay | Resolved policy, constrained by the caller's authority and delegated grants |
-| Project and cwd | Project association and starting execution directory |
-| Workspace scope | Allowed roots, access constraints, and sandbox boundaries |
-| Input lanes | User/system inputs projected from durable acceptance facts |
-| Controls | Admission, activation/paused state, generation, and depth/concurrency budgets |
+| Concept                       | Meaning                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| ID and name                   | Stable identity and optional human label; labels are not authorization handles |
+| Model and reasoning effort    | Provider/model selection and per-turn execution settings                       |
+| Conversation                  | Owned canonical history and selected branch/head                               |
+| Parent                        | Optional delegation/reporting relationship                                     |
+| Tools                         | Enabled operations, authorized separately at dispatch                          |
+| Skills                        | Enabled structured references rendered into system instructions                |
+| System prompt                 | Authored base instructions and composition provenance                          |
+| Modes                         | Coordination/planning behavior and corresponding instructions/tools            |
+| Permission rule set / overlay | Resolved policy, constrained by the caller's authority and delegated grants    |
+| Project and cwd               | Project association and starting execution directory                           |
+| Workspace scope               | Allowed roots, access constraints, and sandbox boundaries                      |
+| Input lanes                   | User/system inputs projected from durable acceptance facts                     |
+| Controls                      | Admission, activation/paused state, generation, and depth/concurrency budgets  |
 
 There is no intrinsic rule that children cannot ask the user, enter planning mode, or delegate. Enable those capabilities through configuration and authorization. An explorer or developer preset can still choose to exclude them. Users and parents do not necessarily possess equal authority to edit these settings.
 

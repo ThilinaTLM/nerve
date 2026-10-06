@@ -40,32 +40,32 @@ Branch selection includes a content head and a journal frontier/branch associati
 
 ## Record types are not provider roles
 
-| Application fact family | Examples | Provider context |
-| --- | --- | --- |
-| Input | Accepted, cancelled, delivered user/system input | Only delivered content, with explicit role adaptation |
-| Assistant | Output started, persisted chunk/checkpoint, finalized/interrupted | Selected assistant content |
-| Tool | Invocation, execution authorized/started, result, failure/uncertainty | Provider tool-call/result representation |
-| Human interaction | Approval requested/decided, question asked/answered/cancelled | Relevant answer/outcome through the interaction contract |
-| Execution | Run/turn started, suspended, resumed, settled/interrupted | Usually metadata, not synthetic chat |
-| Configuration | Revision committed, turn effective revision | Effective instructions/settings, not all edits as chat |
-| Delegation | Child created, assignment accepted, completion received, history binding | Relevant assignment/result references |
-| Branch control | Continuation created, active selection changed | Context selection, not provider content |
+| Application fact family | Examples                                                                 | Provider context                                         |
+| ----------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------- |
+| Input                   | Accepted, cancelled, delivered user/system input                         | Only delivered content, with explicit role adaptation    |
+| Assistant               | Output started, persisted chunk/checkpoint, finalized/interrupted        | Selected assistant content                               |
+| Tool                    | Invocation, execution authorized/started, result, failure/uncertainty    | Provider tool-call/result representation                 |
+| Human interaction       | Approval requested/decided, question asked/answered/cancelled            | Relevant answer/outcome through the interaction contract |
+| Execution               | Run/turn started, suspended, resumed, settled/interrupted                | Usually metadata, not synthetic chat                     |
+| Configuration           | Revision committed, turn effective revision                              | Effective instructions/settings, not all edits as chat   |
+| Delegation              | Child created, assignment accepted, completion received, history binding | Relevant assignment/result references                    |
+| Branch control          | Continuation created, active selection changed                           | Context selection, not provider content                  |
 
 Providers differ. A tool result may use a dedicated tool role or a user-message content block. Preserve application meaning and interaction identity independently of that encoding. Unsupported system-role placement or tool sequences require explicit adapter validation; never silently reinterpret trust or fabricate missing results.
 
 ## Authority and physical storage
 
-| Concern | Canonical source | Efficient representation |
-| --- | --- | --- |
-| Input acceptance, eligibility, cancellation, delivery | Journal facts | Indexed inbox view |
-| Approvals/questions and their resolutions | Journal facts | Indexed pending-interaction view |
-| Run/turn lifecycle and tool outcomes | Journal facts | Status and execution read projections |
-| Content, branch ancestry, selection, communication | Journal facts and immutable referenced content | Node/branch/link indexes |
-| Agent creation, configuration changes and effective revisions | Journal facts with durable revision references | Identity/configuration indexes and immutable revision payloads |
-| Large complete payloads | Managed assets referenced by committed facts | File ownership/digest index and safe previews |
-| Work leases, fences, admission lock, publication progress | Operational transactional metadata | Dedicated bounded work/control tables |
-| Replay notifications | Replay store, derived from committed facts | Sequenced streams and snapshot cursors |
-| Live tokens/progress | No recovery authority unless explicitly checkpointed | In-memory live buffers |
+| Concern                                                       | Canonical source                                     | Efficient representation                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
+| Input acceptance, eligibility, cancellation, delivery         | Journal facts                                        | Indexed inbox view                                             |
+| Approvals/questions and their resolutions                     | Journal facts                                        | Indexed pending-interaction view                               |
+| Run/turn lifecycle and tool outcomes                          | Journal facts                                        | Status and execution read projections                          |
+| Content, branch ancestry, selection, communication            | Journal facts and immutable referenced content       | Node/branch/link indexes                                       |
+| Agent creation, configuration changes and effective revisions | Journal facts with durable revision references       | Identity/configuration indexes and immutable revision payloads |
+| Large complete payloads                                       | Managed assets referenced by committed facts         | File ownership/digest index and safe previews                  |
+| Work leases, fences, admission lock, publication progress     | Operational transactional metadata                   | Dedicated bounded work/control tables                          |
+| Replay notifications                                          | Replay store, derived from committed facts           | Sequenced streams and snapshot cursors                         |
+| Live tokens/progress                                          | No recovery authority unless explicitly checkpointed | In-memory live buffers                                         |
 
 Operational metadata coordinates workers; it must not be the only place an approval answer, input acceptance, or run outcome exists. Persist corresponding facts and maintain projections atomically. Rebuilding read state never invokes tools/providers. Recovery reconciles leases with the journal before admitting new execution.
 
