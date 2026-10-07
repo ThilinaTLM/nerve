@@ -23,6 +23,7 @@
     "dev": "pnpm build:native && pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/skills --filter @nervekit/tools build && pnpm --parallel --stream --filter @nervekit/workbench-server --filter @nervekit/workbench-app dev",
     "dev:ui": "pnpm --filter @nervekit/contracts --filter @nervekit/protocol --filter @nervekit/harness --filter @nervekit/tools build && pnpm --filter @nervekit/workbench-app dev",
     "desktop": "pnpm --filter @nervekit/desktop-shell dev --",
+    "desktop:dev": "node packages/desktop-shell/scripts/dev-desktop.mjs",
     "migrations:new": "node scripts/storage-migrations/new.mjs",
     "migrations:finalize": "node scripts/storage-migrations/finalize.mjs",
     "migrations:update-read-compatibility": "node scripts/storage-migrations/update-read-compatibility.mjs",

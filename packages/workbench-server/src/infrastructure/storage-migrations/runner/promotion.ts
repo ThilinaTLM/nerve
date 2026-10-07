@@ -7,6 +7,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import {
   atomicWriteJson,
@@ -50,6 +51,7 @@ export async function promoteStorageMigrationWorkspace(
   options: { now?: () => Date } = {},
 ): Promise<StoragePromotionResult> {
   await recoverStoragePromotion(paths);
+  makeDatabaseStandalone(paths.sqlitePath);
   const now = options.now ?? (() => new Date());
   const stamp = now().toISOString().replace(/[-:.]/g, "");
   const safeStep = firstStepId.replace(/[^a-zA-Z0-9_-]/g, "-");
@@ -93,6 +95,27 @@ export async function promoteStorageMigrationWorkspace(
   } catch (error) {
     await recoverStoragePromotion(paths).catch(() => undefined);
     throw error;
+  }
+}
+
+/** Promotion runs under the exclusive home lock, before runtime SQLite owners open.
+ * SQLite must checkpoint and retire the source WAL before its main file moves:
+ * the VACUUM-built workspace has a different page layout, so replaying the old
+ * pathname's WAL over it corrupts the installed database. DELETE mode also
+ * makes the retained pre-upgrade snapshot complete without separate sidecars.
+ * An outstanding SQLite reader/writer prevents the mode change and must abort
+ * promotion rather than leave an incomplete snapshot or remove its WAL.
+ */
+function makeDatabaseStandalone(path: string): void {
+  const database = new DatabaseSync(path);
+  try {
+    database.exec("PRAGMA synchronous = FULL");
+    const row = database.prepare("PRAGMA journal_mode = DELETE").get();
+    if (row?.journal_mode !== "delete") {
+      throw new Error("Storage promotion requires a standalone database.");
+    }
+  } finally {
+    database.close();
   }
 }
 

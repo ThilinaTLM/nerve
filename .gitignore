@@ -10,6 +10,7 @@ packages/desktop-shell/release/
 packages/native/prebuilds/
 target/
 /release/
+/data/
 .env
 .env.*
 !.env.example

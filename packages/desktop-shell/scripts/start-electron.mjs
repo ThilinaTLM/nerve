@@ -81,7 +81,18 @@ const child = spawn(electronPath, electronArgs, {
   windowsHide: false,
 });
 
+// The isolated development launcher signals this wrapper, not arbitrary
+// Electron instances. Relay only to the Electron child it actually spawned.
+const relayInterrupt = () => child.kill("SIGINT");
+const relayTerminate = () => child.kill("SIGTERM");
+if (env.NERVE_ELECTRON_USER_DATA) {
+  process.on("SIGINT", relayInterrupt);
+  process.on("SIGTERM", relayTerminate);
+}
+
 child.on("exit", (code, signal) => {
+  process.off("SIGINT", relayInterrupt);
+  process.off("SIGTERM", relayTerminate);
   if (signal) {
     process.kill(process.pid, signal);
     return;

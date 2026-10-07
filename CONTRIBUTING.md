@@ -30,6 +30,18 @@ Do not routinely follow focused testing with `test:affected` or `test:full`; bro
 
 Repository tooling follows the [scripts placement guide](scripts/README.md); keep scripts and their tests in the owning domain.
 
+### Isolated desktop development
+
+```sh
+pnpm run desktop:dev
+```
+
+This builds and opens a separate desktop using the repository's `data/storage-1` as `NERVE_HOME` and `data/desktop-profile-1` as Electron's profile, regardless of ambient home/profile settings. HTTP uses `43967`; mobile HTTPS uses `43968`. The root `/data/` directory is ignored by Git. The command takes no arguments; `pnpm desktop` keeps its existing behavior.
+
+Only an authenticated daemon recorded in this development home with matching paths and ports can be reused. Occupied ports or mismatched metadata fail without stopping other processes. A reused daemon remains externally owned and is not stopped when this desktop quits. Credentials come from the development home; the launcher does not copy credentials from `~/.nerve`.
+
+Quit the development desktop normally before cleanup. If it reused an external daemon, stop that daemon through its original owner first. Once neither is running, remove `data/desktop-profile-1` to reset Electron state, or `data/storage-1` to discard development storage. Never remove a live home or stop a process solely because it occupies one of these ports.
+
 ## Guidelines
 
 - Keep changes scoped. Add automated tests for important behavior: public contracts, security and redaction, persistence and migrations, destructive operations, concurrency and state machines, recovery and failure handling, and complex parsing or orchestration.

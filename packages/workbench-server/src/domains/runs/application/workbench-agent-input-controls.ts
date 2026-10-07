@@ -9,6 +9,7 @@ import { createId } from "@nervekit/contracts";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { RunPromptRecord } from "@nervekit/contracts/runs";
 import {
   AgentInputConflictError,
   type AgentInputRequest,
@@ -225,19 +226,23 @@ export class WorkbenchAgentInputControls {
   }
   async migrateLegacyInputs(): Promise<void> {
     if (!this.controls) return;
-    const states = this.unitOfWork.list
-      ? await this.unitOfWork.list()
-      : await this.unitOfWork.listActive();
-    const pending = states
-      .flatMap((state) =>
-        state.prompts
-          .filter((prompt) => ["queued", "accepted"].includes(prompt.status))
-          .map((prompt) => ({ ...prompt, runId: state.run.runId })),
-      )
-      .sort(
-        (a, b) =>
-          a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal,
-      );
+    // Retain only pending prompts, never every historical run's transition
+    // tree. Real homes can contain gigabytes of terminal run payloads; list()
+    // keeps all of their decoded histories alive until this migration finishes.
+    const pending: (RunPromptRecord & { runId: string })[] = [];
+    for (const record of await this.unitOfWork.listMetadata()) {
+      const state = await this.unitOfWork.load(record.runId);
+      if (!state) continue;
+      for (const prompt of state.prompts) {
+        if (["queued", "accepted"].includes(prompt.status)) {
+          pending.push({ ...prompt, runId: state.run.runId });
+        }
+      }
+    }
+    pending.sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal,
+    );
     for (const prompt of pending) {
       this.requireAgent(prompt.agentId);
       await this.controls.inputs.accept(
