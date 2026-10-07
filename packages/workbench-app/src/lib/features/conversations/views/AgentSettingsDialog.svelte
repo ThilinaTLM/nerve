@@ -1,9 +1,5 @@
 <script lang="ts">
-import type {
-  AgentRecord,
-  AgentActivitySnapshot,
-  AgentQueueItem,
-} from "$lib/api";
+import type { AgentRecord } from "$lib/api";
 import {
   agentSettingsSelection,
   agentSettingsPatch,
@@ -18,44 +14,20 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
-import Settings2 from "@lucide/svelte/icons/settings-2";
-import Pause from "@lucide/svelte/icons/pause";
-import Play from "@lucide/svelte/icons/play";
-import { pendingQueueItems } from "$lib/presentation/state/agent-queue-presentation";
-import { agentRowLabel } from "./context-agent-rows";
 
 let {
   agent,
-  activity,
-  queuedPrompts = [],
-  error,
-  lastOutcome,
   latestCompletion,
   effectiveSnapshot,
-  busy = false,
-  hasReplacement = false,
-  onStop,
-  onResume,
-  onInterrupt,
   onSave,
-  settingsOpen = $bindable(false),
+  open = $bindable(false),
 }: {
   agent: AgentRecord;
-  activity?: AgentActivitySnapshot;
-  queuedPrompts?: AgentQueueItem[];
-  error?: string;
-  lastOutcome?: string;
   latestCompletion?: AgentCompletion | null;
   effectiveSnapshot?: EffectiveTurnConfiguration | null;
-  busy?: boolean;
-  hasReplacement?: boolean;
-  onStop: () => void;
-  onResume: () => void;
-  onInterrupt: () => void;
   onSave: (patch: UpdateAgentRequest) => Promise<void>;
-  settingsOpen?: boolean;
+  open?: boolean;
 } = $props();
 
 let saving = $state(false);
@@ -71,13 +43,6 @@ let skills = $state("");
 let defaultSkills = $state(true);
 let initialDraft = $state<UpdateAgentRequest>({});
 let draftAgentId = $state("");
-const accepted = $derived(agent.configurationRevision ?? 1);
-const effective = $derived(
-  effectiveSnapshot?.configurationRevision ??
-    agent.effectiveConfigurationRevision ??
-    0,
-);
-const pending = $derived(pendingQueueItems(queuedPrompts));
 function loadDraft() {
   projectDir = agent.projectDir;
   roots = agent.workspaceScope.roots.join("\n");
@@ -92,16 +57,11 @@ function loadDraft() {
   draftAgentId = agent.id;
   initialDraft = settingsFields();
 }
-function edit() {
-  loadDraft();
-  settingsOpen = true;
-}
 let initializedOpen = false;
 $effect(() => {
-  if (settingsOpen && initializedOpen && draftAgentId !== agent.id)
-    settingsOpen = false;
-  if (settingsOpen && !initializedOpen) loadDraft();
-  initializedOpen = settingsOpen;
+  if (open && initializedOpen && draftAgentId !== agent.id) open = false;
+  if (open && !initializedOpen) loadDraft();
+  initializedOpen = open;
 });
 function lines(value: string) {
   return value
@@ -121,7 +81,7 @@ function settingsFields(): UpdateAgentRequest {
 }
 async function save() {
   if (agent.id !== draftAgentId) {
-    settingsOpen = false;
+    open = false;
     return;
   }
   saving = true;
@@ -129,7 +89,7 @@ async function save() {
   try {
     const patch = agentSettingsPatch(initialDraft, settingsFields());
     if (Object.keys(patch).length) await onSave(patch);
-    settingsOpen = false;
+    open = false;
   } catch (caught) {
     saveError = caught instanceof Error ? caught.message : String(caught);
   } finally {
@@ -138,68 +98,8 @@ async function save() {
 }
 </script>
 
-<div
-  class="flex flex-wrap items-center gap-2 border-b px-3 py-2 text-xs"
-  aria-label="Agent controls"
->
-  <span class="font-semibold">{agentRowLabel(agent)}</span>
-  <Badge variant="neutral"
-    >{agent.orchestrationPolicy?.preset ?? "standard"}</Badge
-  >
-  <span class="text-muted-foreground"
-    >{agent.activationState === "paused"
-      ? "Paused"
-      : (activity?.state ?? "idle").replaceAll("_", " ")}</span
-  >
-  {#if lastOutcome}<span class="text-muted-foreground"
-      >Last outcome: {lastOutcome}</span
-    >{/if}
-  {#if activity?.pendingInteractionCount}<Badge variant="warning"
-      >{activity.pendingInteractionCount} needs attention</Badge
-    >{/if}
-  {#if agent.parentAgentId}<span
-      class="text-muted-foreground"
-      title={agent.parentAgentId}>Parent: {agent.parentAgentId}</span
-    >{/if}
-  <span class="text-muted-foreground" aria-label="Configuration revisions"
-    >Accepted configuration {accepted} · Effective {effective}{accepted >
-    effective
-      ? " · Pending next turn"
-      : ""}</span
-  >
-  {#if pending.length}<Badge variant="warning"
-      >{pending.length} pending input</Badge
-    >{/if}
-  {#if agent.readOnlyCeiling}<Badge variant="neutral">Read-only ceiling</Badge
-    >{/if}
-  <div class="ml-auto flex items-center gap-1">
-    <Button
-      variant="ghost"
-      size="sm"
-      onclick={onInterrupt}
-      disabled={busy || !hasReplacement}
-      title="Cancel the current run and reactivate with the composer text"
-      >Interrupt and replace</Button
-    >
-    <Button variant="ghost" size="sm" onclick={edit} disabled={busy}
-      ><Settings2 class="size-3.5" />Agent settings</Button
-    >
-    {#if agent.activationState === "paused"}
-      <Button variant="outline" size="sm" onclick={onResume} disabled={busy}
-        ><Play class="size-3.5" />Resume agent</Button
-      >
-    {:else}
-      <Button variant="ghost" size="sm" onclick={onStop} disabled={busy}
-        ><Pause class="size-3.5" />Pause agent</Button
-      >
-    {/if}
-  </div>
-</div>
-{#if error}<p role="alert" class="px-3 py-2 text-xs text-destructive">
-    {error}
-  </p>{/if}
 <DialogShell
-  bind:open={settingsOpen}
+  bind:open
   title="Agent settings"
   description="Changes are accepted now and take effect together at the next safe turn. Model, thinking, mode and permissions use the ordinary composer controls."
   size="wide"
@@ -296,10 +196,8 @@ async function save() {
       </p>{/if}
   </div>
   {#snippet footer()}
-    <Button
-      variant="outline"
-      onclick={() => (settingsOpen = false)}
-      disabled={saving}>Cancel</Button
+    <Button variant="outline" onclick={() => (open = false)} disabled={saving}
+      >Cancel</Button
     >
     <Button
       onclick={save}

@@ -1,6 +1,4 @@
 <script lang="ts">
-import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
-import { upsertAgentRecordFresh } from "$lib/application/workspace/entity-reducers";
 import { type AgentQueueItem } from "$lib/api";
 import { SvelteSet } from "svelte/reactivity";
 import { protocolRequest } from "@nervekit/protocol/adapters";
@@ -61,10 +59,8 @@ import {
   selectedConversationView,
   selectedConversationAgent,
   controlAgent,
-  refreshAgentView,
 } from "$lib/features/conversations/state/agent-selection.svelte";
 import { mainAgentForConversation } from "$lib/features/conversations/state/main-agent";
-import AgentControlBar from "$lib/features/conversations/views/AgentControlBar.svelte";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
@@ -534,54 +530,8 @@ function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
 }
 </script>
 
-{#if activeAgent}
-  <AgentControlBar
-    agent={activeAgent}
-    activity={workspaceState.agentActivities[activeAgent.id]}
-    queuedPrompts={view?.queuedPrompts ?? []}
-    error={view?.error}
-    lastOutcome={view?.latestCompletion === undefined
-      ? view?.lastRunOutcome?.outcome
-      : view.latestCompletion?.outcome}
-    latestCompletion={view?.latestCompletion}
-    effectiveSnapshot={view?.effectiveConfiguration}
-    hasReplacement={Boolean(activeComposerText.trim())}
-    busy={view?.stopping ?? false}
-    onInterrupt={() =>
-      void runActivePaneAction(async () => {
-        const target = activeAgent!;
-        try {
-          await protocolRequest(
-            "agent.interrupt",
-            { agentId: target.id, text: activeComposerText.trim() },
-            { idempotencyKey: crypto.randomUUID() },
-          );
-          setPaneComposerText("");
-          const { result } = await protocolRequest("agent.get", {
-            agentId: target.id,
-          });
-          upsertAgentRecordFresh(result.agent);
-          await refreshAgentView(result.agent);
-        } catch (caught) {
-          notify.error("Interrupt failed", {
-            description:
-              caught instanceof Error ? caught.message : String(caught),
-          });
-        }
-      })}
-    onStop={() => void controlAgent(activeAgent!, "agent.stop")}
-    onResume={() => void controlAgent(activeAgent!, "agent.resume")}
-    onSave={async (patch) => {
-      const target = activeAgent!;
-      await flushAgentConfigChanges(target.id);
-      const { result } = await protocolRequest("agent.configure", {
-        agentId: target.id,
-        ...patch,
-      });
-      if ("agent" in result) upsertAgentRecordFresh(result.agent);
-      await refreshAgentView(target);
-    }}
-  />
+{#if view?.error}
+  <p role="alert" class="px-3 py-2 text-xs text-destructive">{view.error}</p>
 {/if}
 <WorkbenchConversationAdapter
   {active}

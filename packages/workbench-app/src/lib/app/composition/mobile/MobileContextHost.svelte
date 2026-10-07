@@ -22,7 +22,17 @@ import {
   compactActiveConversation,
   conversationSelectors,
 } from "$lib/features/conversations";
-import { selectConversationAgent } from "$lib/features/conversations/state/agent-selection.svelte";
+import {
+  selectConversationAgent,
+  controlAgent,
+  ensureAgentView,
+} from "$lib/features/conversations/state/agent-selection.svelte";
+import {
+  saveAgentSettings,
+  interruptAgentWithDraft,
+  agentSettingsView,
+} from "$lib/features/conversations/state/agent-settings-actions";
+import AgentSettingsDialog from "$lib/features/conversations/views/AgentSettingsDialog.svelte";
 import {
   agentModelLabel,
   agentRowLabel,
@@ -75,7 +85,7 @@ const usageLabel = $derived(
 const metrics = $derived(
   conversationUsageMetrics(conversationSelectors.activeConversationUsage),
 );
-const agents = $derived(
+const agents = $derived<AgentRecord[]>(
   conversationSelectors.conversationAgents.filter(
     (agent: AgentRecord) => agent.conversationId === route.conversationId,
   ),
@@ -86,6 +96,63 @@ const compacting = $derived(conversationSelectors.compacting);
 let compactOpen = $state(false);
 let transcriptAgent = $state<AgentRecord>();
 let transcriptOpen = $state(false);
+let settingsAgentId = $state<string>();
+let settingsOpen = $state(false);
+let controlAgentId = $state<string>();
+const settingsAgent = $derived(
+  agents.find((agent) => agent.id === settingsAgentId),
+);
+$effect(() => {
+  for (const agent of agents) ensureAgentView(agent);
+});
+const agentViews = $derived(
+  Object.fromEntries(
+    agents.map((agent) => [agent.id, agentSettingsView(agent)]),
+  ),
+);
+const settingsView = $derived(
+  settingsAgent ? agentViews[settingsAgent.id] : undefined,
+);
+const controlError = $derived(
+  controlAgentId ? agentViews[controlAgentId]?.error : undefined,
+);
+
+function agentMenu(agent: AgentRecord) {
+  const view = agentViews[agent.id];
+  return [
+    {
+      label: "Agent settings",
+      disabled: !view || view.stopping,
+      onSelect: () => {
+        settingsAgentId = agent.id;
+        settingsOpen = true;
+      },
+    },
+    {
+      label:
+        agent.activationState === "paused" ? "Resume agent" : "Pause agent",
+      disabled: !view || view.stopping,
+      onSelect: () => {
+        controlAgentId = agent.id;
+        void controlAgent(
+          agent,
+          agent.activationState === "paused" ? "agent.resume" : "agent.stop",
+        );
+      },
+    },
+    {
+      label: "Interrupt and replace",
+      disabled: !view || view.stopping || !view.composerText.trim(),
+      onSelect: () => {
+        controlAgentId = agent.id;
+        void interruptAgentWithDraft(agent);
+      },
+    },
+    ...(agent.parentAgentId
+      ? [{ label: "View transcript", onSelect: () => openTranscript(agent) }]
+      : []),
+  ];
+}
 
 function agentTone(agent: AgentRecord): StatusTone {
   switch (agentActivities[agent.id]?.state) {
@@ -189,14 +256,7 @@ function tokensLabel(value: number): string {
           tone={agentTone(agent)}
           pulse={agentActivities[agent.id]?.state === "running"}
           selected={conversationSelectors.activeAgent?.id === agent.id}
-          menuItems={agent.parentAgentId
-            ? [
-                {
-                  label: "View transcript",
-                  onSelect: () => openTranscript(agent),
-                },
-              ]
-            : undefined}
+          menuItems={agentMenu(agent)}
           onclick={() => void selectAgent(agent)}
         >
           {#snippet leading()}
@@ -204,6 +264,11 @@ function tokensLabel(value: number): string {
           {/snippet}
         </MobileListRow>
       {/each}
+      {#if controlError}
+        <p role="alert" class="px-4 py-3 text-sm text-destructive">
+          {controlError}
+        </p>
+      {/if}
     </MobileSection>
   {/if}
 
@@ -246,5 +311,15 @@ function tokensLabel(value: number): string {
     parentAgentId={transcriptAgent.parentAgentId}
     childAgentId={transcriptAgent.id}
     label={agentRowLabel(transcriptAgent)}
+  />
+{/if}
+
+{#if settingsAgent}
+  <AgentSettingsDialog
+    agent={settingsAgent}
+    bind:open={settingsOpen}
+    latestCompletion={settingsView?.latestCompletion}
+    effectiveSnapshot={settingsView?.effectiveConfiguration}
+    onSave={(patch) => saveAgentSettings(settingsAgent, patch)}
   />
 {/if}
