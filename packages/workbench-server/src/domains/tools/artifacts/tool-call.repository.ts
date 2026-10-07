@@ -44,6 +44,14 @@ export interface ToolCallHydrationStats {
   source: "canonical_projection";
 }
 
+/** A locked terminal record cannot be revised, even by late cancellation. */
+export class ToolCallTerminalError extends Error {
+  constructor(readonly toolCall: ToolCallRecord) {
+    super(`Terminal tool call '${toolCall.id}' is immutable.`);
+    this.name = "ToolCallTerminalError";
+  }
+}
+
 export class ToolCallRevisionConflictError extends Error {
   constructor(
     readonly toolCallId: string,
@@ -387,7 +395,7 @@ export class ToolCallRepository {
         );
       }
       if (isTerminal(current.status)) {
-        throw new Error(`Terminal tool call '${toolCallId}' is immutable.`);
+        throw new ToolCallTerminalError(current);
       }
       const candidate = await mutate(current);
       assertImmutableIdentity(current, candidate);

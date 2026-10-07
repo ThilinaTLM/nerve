@@ -21,7 +21,7 @@ test("public migration adapters fingerprint and revalidate a current home", asyn
   const plan = await inspectStorageMigrationPlan(home);
   assert.equal(plan.outcome, "current");
   assert.match(plan.fingerprint, /^[a-f0-9]{64}$/);
-  assert.equal(plan.steps.length, 10);
+  assert.equal(plan.steps.length, 11);
   assert.ok(plan.steps.every((step) => step.status === "applied"));
 
   const result = await applyStorageMigrationPlan(home, plan, {
@@ -55,24 +55,43 @@ test("released 0.32 homes are revalidated after reader contract changes", async 
 
     const messages: string[] = [];
     const plan = await inspectStorageMigrationPlan(home);
-    assert.equal(plan.outcome, "sweep");
+    assert.equal(plan.outcome, "pending");
+    assert.deepEqual(
+      plan.steps
+        .filter((step) => step.status === "pending")
+        .map((step) => step.id),
+      ["0011-agent-intervention-obligations"],
+    );
     const result = await applyStorageMigrationPlan(
       home,
       plan,
       { fingerprint: plan.fingerprint, approvedQuarantineIds: [] },
       { reportProgress: (progress) => messages.push(progress.message) },
     );
-    assert.equal(result.outcome, "swept");
-    assert.equal(
-      messages.includes("Checking stored records for readability"),
-      true,
-    );
+    assert.equal(result.outcome, "migrated");
+    assert.equal(messages.includes("Verifying upgraded storage"), true);
 
     const verified = new DatabaseSync(sqlitePath, { readOnly: true });
     assert.ok(
       verified
         .prepare("SELECT 1 FROM storage_read_sweeps WHERE build_id = ?")
         .get(STORAGE_READ_COMPATIBILITY_ID),
+    );
+    assert.equal(
+      verified
+        .prepare("SELECT origin FROM storage_migrations WHERE id = ?")
+        .get("0011-agent-intervention-obligations")?.origin,
+      "applied",
+    );
+    assert.match(
+      String(
+        verified
+          .prepare(
+            "SELECT sql FROM sqlite_master WHERE name = 'agent_async_obligations'",
+          )
+          .get()?.sql,
+      ),
+      /user_intervention/,
     );
     verified.close();
   }

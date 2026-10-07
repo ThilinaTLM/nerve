@@ -259,10 +259,14 @@ test("migrates legacy payload references and rechains conversation journals", as
       "0008-tool-result-payload-reference",
       "0009-agent-async-obligations-backfill",
       "0010-deletion-indexes",
+      "0011-agent-intervention-obligations",
     ].map((id) => ({
       id,
       origin:
-        id === "0008-tool-result-payload-reference" ? "applied" : "adopted",
+        id === "0008-tool-result-payload-reference" ||
+        id === "0011-agent-intervention-obligations"
+          ? "applied"
+          : "adopted",
     })),
   );
   assert.equal(

@@ -3,7 +3,7 @@ import test from "node:test";
 import {
   activeBranchEndsWithCheckpoint,
   activeBranchEndsWithCheckpointResults,
-} from "../../../src/domains/runs/application/workbench-run.service.js";
+} from "../../../src/domains/runs/application/approval-checkpoint-branch.js";
 
 test("approval checkpoint matches the run-local suffix of an existing conversation", () => {
   assert.equal(

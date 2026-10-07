@@ -1,4 +1,8 @@
 import {
+  agentRecordSchema,
+  type AgentRecord,
+} from "@nervekit/contracts/agents";
+import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
 } from "../method-handler-registry.js";
@@ -11,13 +15,13 @@ const defineAgentMethodHandlers =
 export const agentMethodHandlers: WorkbenchMethodHandlerMapFor<AgentMethodContext> =
   defineAgentMethodHandlers({
     "agent.create": async (state, params) => ({
-      agent: await state.agentLifecycle.createAgent(params),
+      agent: agentResponseDto(await state.agentLifecycle.createAgent(params)),
     }),
     "agent.list": (state) => ({
-      agents: state.agentLifecycle.listAgents(),
+      agents: state.agentLifecycle.listAgents().map(agentResponseDto),
     }),
     "agent.get": (state, params) => ({
-      agent: state.agentLifecycle.getAgent(params.agentId),
+      agent: agentResponseDto(state.agentLifecycle.getAgent(params.agentId)),
     }),
     "agent.subagentTranscript.get": async (state, params) => ({
       transcript: await state.subagentTranscripts.get(
@@ -65,7 +69,7 @@ export const agentMethodHandlers: WorkbenchMethodHandlerMapFor<AgentMethodContex
             state.agentInterventions.configurationAccepted(receipt),
         },
       );
-      return { agent };
+      return { agent: agentResponseDto(agent) };
     },
     "run.start": (state, params) => dispatchPrompt(state, "run.start", params),
     "run.steer": (state, params) => dispatchPrompt(state, "run.steer", params),
@@ -112,6 +116,30 @@ export const agentMethodHandlers: WorkbenchMethodHandlerMapFor<AgentMethodContex
       };
     },
   });
+
+/** Canonical public agent shape; unset optional object fields are absent on wire. */
+function agentResponseDto(agent: AgentRecord): AgentRecord {
+  // Validate the full declared reply first, including nested accepted settings.
+  // Do not stringify arbitrary values (which would coerce NaN, dates/functions,
+  // or sparse arrays). All other durability/credential fences remain in place.
+  return omitUnsetProperties(agentRecordSchema.parse(agent)) as AgentRecord;
+}
+
+function omitUnsetProperties(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(omitUnsetProperties);
+  if (
+    value !== null &&
+    typeof value === "object" &&
+    Object.getPrototypeOf(value) === Object.prototype
+  ) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, child]) => child !== undefined)
+        .map(([key, child]) => [key, omitUnsetProperties(child)]),
+    );
+  }
+  return value;
+}
 
 type PromptMethod = "run.start" | "run.steer" | "run.followUp";
 

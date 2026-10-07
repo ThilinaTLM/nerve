@@ -864,8 +864,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       await agentLifecycle.setEffectiveConfigurationRevision(id, revision);
     },
     exploreRuntime: {
-      submitRun: (agentId, text, parent) =>
-        workbenchRun.submitAgentRun(agentId, text, parent),
+      submitRun: (agentId, text, parent, options) =>
+        workbenchRun.submitAgentRun(agentId, text, parent, options),
       waitForRun: async (identity) => {
         const state = await workbenchRun.waitForRun(identity.runId);
         if (state.run.agentId !== identity.agentId)

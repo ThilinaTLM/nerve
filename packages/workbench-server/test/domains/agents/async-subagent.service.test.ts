@@ -404,6 +404,57 @@ describe("shared parent controls and durable admission policy", () => {
     });
     assert.equal(f.controls.get(view.agentId)?.reservedRunId, "run_second");
   });
+  it("non-reporting policy reserves shared capacity without recoverable parent-notice assignments", async () => {
+    const f = setup();
+    const view = await child(f);
+    const agent = f.agents.get(view.agentId)!;
+    f.agents.set(agent.id, {
+      ...agent,
+      // Policy, not an Explore-specific kind/preset exception, owns reporting.
+      orchestrationPolicy: {
+        ...agent.orchestrationPolicy!,
+        completionReporting: "none",
+      },
+    });
+    await f.service.reserveAdmission({
+      agentId: agent.id,
+      runId: "run_no_report",
+      inputs: [],
+    });
+    assert.equal(f.controls.get(agent.id)?.reservedRunId, "run_no_report");
+    assert.equal(
+      f.assignments.size,
+      0,
+      "recovery must not reconstruct an unsolicited notice",
+    );
+    f.active(agent.id, "run_no_report");
+    await f.service.commitAdmission({
+      agentId: agent.id,
+      runId: "run_no_report",
+    });
+    await f.service.commitAdmission({
+      agentId: agent.id,
+      runId: "run_no_report",
+    });
+    assert.equal(f.controls.get(agent.id)?.reservedRunId, undefined);
+    assert.deepEqual(f.obligations, []);
+    assert.equal(f.assignments.size, 0);
+    f.runs.set("run_no_report", {
+      ...f.runs.get("run_no_report")!,
+      status: "completed",
+    });
+    await f.service.reserveAdmission({
+      agentId: agent.id,
+      runId: "run_followup",
+      inputs: [],
+    });
+    await f.service.releaseAdmission({
+      agentId: agent.id,
+      runId: "run_followup",
+    });
+    assert.equal(f.controls.get(agent.id)?.reservedRunId, undefined);
+    assert.equal(f.assignments.size, 0);
+  });
   it("allows parent prompt/configure/stop for Explore children by persistent ID without developer membership", async () => {
     const f = setup();
     const view = await child(f);

@@ -3,11 +3,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type {
-  OperationName,
-  OperationParams,
-  OperationResult,
-} from "@nervekit/contracts/operations";
+import {
+  operationDefinition,
+  type OperationName,
+  type OperationParams,
+  type OperationResult,
+} from "../../packages/contracts/src/operations/index.js";
 
 async function rpc<M extends OperationName>(
   page: Page,
@@ -28,7 +29,13 @@ async function rpc<M extends OperationName>(
         instanceId: "browser_live_configuration_instance",
       },
       target: { role: "workbench_server" },
-      data: { method, params, idempotencyKey: crypto.randomUUID() },
+      data: {
+        method,
+        params,
+        ...(operationDefinition(method).idempotency !== "none"
+          ? { idempotencyKey: crypto.randomUUID() }
+          : {}),
+      },
     },
   });
   const envelope = await response.json();
@@ -292,19 +299,23 @@ for (const preset of ["developer", "explore"] as const) {
       ).toEqual({ provider, modelId: "original" });
       const originalRevision =
         originalHistory.effectiveConfiguration!.configurationRevision;
-      await page
-        .getByRole("tab", { name: "Context", exact: true })
-        .first()
-        .click();
-      await page
-        .getByText(
-          preset === "explore"
-            ? "Live Explore evidence"
-            : "Live developer evidence",
-          { exact: true },
-        )
-        .first()
-        .click();
+      if (preset === "explore") {
+        await page
+          .getByRole("button", {
+            name: "Open agent Live Explore evidence",
+            exact: true,
+          })
+          .click();
+      } else {
+        await page
+          .getByRole("tab", { name: "Context", exact: true })
+          .first()
+          .click();
+        await page
+          .getByText("Live developer evidence", { exact: true })
+          .first()
+          .click();
+      }
       const controls = page.getByLabel("Agent controls", { exact: true });
       await expect(controls).toContainText(
         preset === "explore"

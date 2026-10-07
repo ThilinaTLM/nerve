@@ -1,4 +1,5 @@
 import { createJsonPayloadCodec, type PayloadCodec } from "./codec.js";
+import { agentRuntimeDocumentCodecs } from "./agent-runtime-documents.js";
 import { isJsonObject } from "./merge.js";
 import { toolCallPayloadCodec } from "./tool-call/upgraders.js";
 
@@ -110,12 +111,17 @@ function domainDocumentDescriptor(
   recordClass: PayloadRecordClass,
   quarantineUnit: PayloadQuarantineUnit = "record",
 ): PayloadDescriptor {
+  const codec = domainDocumentReadCodecs[namespace];
   return {
     ...canonicalDescriptor(
       `domain-document:${namespace}`,
       "domain_documents",
       ["namespace", "scope_id", "document_id"],
-      { recordClass, quarantineUnit },
+      {
+        recordClass,
+        quarantineUnit,
+        ...(codec ? { codec, validation: "read-schema" as const } : {}),
+      },
     ),
     location: {
       database: "canonical",
@@ -129,6 +135,9 @@ function domainDocumentDescriptor(
 /** Namespaces written by current repositories and canonical journal storage. */
 export const DOMAIN_DOCUMENT_NAMESPACES = [
   "agent",
+  "agent-context-binding",
+  "agent-context-prefix-migration",
+  "agent_inputs",
   "approval_settlement",
   "async-subagent-assignment",
   "async-subagent-control",
@@ -152,8 +161,15 @@ export const DOMAIN_DOCUMENT_NAMESPACES = [
 export type DomainDocumentNamespace =
   (typeof DOMAIN_DOCUMENT_NAMESPACES)[number];
 
+const domainDocumentReadCodecs: Partial<
+  Record<DomainDocumentNamespace, PayloadCodec>
+> = agentRuntimeDocumentCodecs;
+
 const userDocumentNamespaces = new Set<DomainDocumentNamespace>([
   "agent",
+  "agent-context-binding",
+  "agent-context-prefix-migration",
+  "agent_inputs",
   "approval_settlement",
   "conversation",
   "conversation_journal_commit",
@@ -164,6 +180,7 @@ const userDocumentNamespaces = new Set<DomainDocumentNamespace>([
   "task_definitions",
 ]);
 const conversationUnitNamespaces = new Set<DomainDocumentNamespace>([
+  "agent-context-prefix-migration",
   "conversation_journal_commit",
   "conversation_journal_head",
   "conversation_state",

@@ -117,12 +117,27 @@ for (const kind of ["approval", "question"] as const)
       const approval = await eventually(() =>
         pending().find((item) => item.agentId === child.id),
       );
+      const originalTool = runtime.services.tools.getToolCall(
+        approval.toolCallId,
+      );
+      const originalAuthority = structuredClone(originalTool.authoritySnapshot);
+      assert.ok(
+        originalAuthority,
+        "suspended tool must retain original turn authority",
+      );
+      assert.equal(originalTool.cwd, workspace);
+      assert.equal(
+        originalAuthority.configuration.permissionLevel,
+        "supervised",
+      );
       await runtime.services.agentLifecycle.configureAgent(child.id, {
         model: { provider: nextProvider, modelId: "scripted-fast" },
         projectDir: join(workspace, "next"),
         tools: [],
         skills: null,
         instructions: "new child instructions",
+        permissionLevel: "read_only",
+        permissionRuleSetId: "read_only",
       });
       await runtime.services.workbenchRun.promptAgent(child.id, {
         text: "queued child steering",
@@ -171,10 +186,36 @@ for (const kind of ["approval", "question"] as const)
           ? history
           : undefined;
       }).catch(async (error) => {
+        const tool = runtime.services.tools.getToolCall(approval.toolCallId);
+        const run = tool.runId
+          ? await runtime.services.workbenchRun.loadRunState(tool.runId)
+          : undefined;
         throw new Error(
-          `${error}; ${JSON.stringify(await runtime.services.workbenchRun.getAgentHistory(child.id))}`,
+          `${error}; ${JSON.stringify({
+            toolStatus: tool.status,
+            runStatus: run?.run.status,
+            acceptedConfiguration: runtime.services.agentLifecycle.getAgent(
+              child.id,
+            ).configurationRevision,
+            effectiveConfiguration: runtime.services.agentLifecycle.getAgent(
+              child.id,
+            ).effectiveConfigurationRevision,
+            history: await runtime.services.workbenchRun.getAgentHistory(
+              child.id,
+            ),
+          })}`,
         );
       });
+      const settledTool = runtime.services.tools.getToolCall(
+        approval.toolCallId,
+      );
+      assert.equal(settledTool.status, "completed");
+      assert.equal(settledTool.cwd, workspace);
+      assert.deepEqual(settledTool.authoritySnapshot, originalAuthority);
+      const configured = runtime.services.agentLifecycle.getAgent(child.id);
+      assert.equal(configured.configurationRevision, 2);
+      assert.equal(configured.effectiveConfigurationRevision, 2);
+      assert.equal(configured.permissionLevel, "read_only");
       if (kind === "approval")
         assert.equal(await readFile(marker, "utf8"), "original tool completed");
       const parentHistory = await runtime.services.workbenchRun.getAgentHistory(

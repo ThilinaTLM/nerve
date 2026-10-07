@@ -254,7 +254,7 @@ export function resolveAgentBlueprint(record: AgentRecord): AgentRecord {
     orchestrationPolicy: record.orchestrationPolicy ?? {
       preset,
       parentCancellation: preset === "explore" ? "attached" : "independent",
-      completionReporting: preset === "standard" ? "none" : "parent",
+      completionReporting: preset === "developer" ? "parent" : "none",
     },
     readOnlyCeiling: record.readOnlyCeiling ?? preset === "explore",
     parentGrants: record.parentGrants ?? agentParentGrantsSchema.parse({}),

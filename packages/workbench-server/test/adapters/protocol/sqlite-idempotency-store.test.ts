@@ -106,6 +106,16 @@ test("SQLite idempotency refuses unsafe and oversized successful outcomes", asyn
   const { canonical } = await fixture(t);
   const unsafeResults: unknown[] = [
     { accessToken: "secret" },
+    { accessToken: 4096 },
+    { maxTokens: "credential disguised as a count" },
+    { inputTokensAbove: { accessToken: "nested credential" } },
+    { maxTokens: -1 },
+    { maxTokens: 1.5 },
+    { maxTokens: Infinity },
+    { value: NaN },
+    { value: undefined },
+    { value: () => 4096 },
+    new Date(),
     { url: "https://user:password@example.com/path" },
     { value: "x".repeat(70 * 1024) },
     new Uint8Array([1, 2, 3]),
@@ -129,6 +139,43 @@ test("SQLite idempotency refuses unsafe and oversized successful outcomes", asyn
     );
     assert.equal(execution.outcome.status, "error");
   }
+});
+
+test("SQLite idempotency persists declared numeric token metadata without dropping its JSON shape", async (t) => {
+  const { canonical } = await fixture(t);
+  const outcome = {
+    status: "success" as const,
+    result: {
+      models: [
+        {
+          maxTokens: 4096,
+          cost: { tiers: [{ inputTokensAbove: 64000, input: 0 }] },
+        },
+      ],
+    },
+  };
+  const store = new SqliteIdempotencyStore(canonical);
+  const first = await store.execute(
+    "ui",
+    "token-metadata",
+    "providerCatalog.model.upsert",
+    {},
+    async () => outcome,
+  );
+  assert.deepEqual(first.outcome, outcome);
+  const duplicate = await store.execute(
+    "ui",
+    "token-metadata",
+    "providerCatalog.model.upsert",
+    {},
+    async () => {
+      assert.fail(
+        "persisted token metadata must replay without repeating mutation",
+      );
+    },
+  );
+  assert.equal(duplicate.status, "replayed");
+  assert.deepEqual(duplicate.outcome, outcome);
 });
 
 test("SQLite idempotency expires and retains only the newest bound", async (t) => {

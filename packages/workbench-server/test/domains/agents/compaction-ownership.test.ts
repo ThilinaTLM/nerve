@@ -7,7 +7,7 @@ import { Conversation } from "@nervekit/harness/conversation";
 import test from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import { ConversationRepository } from "../../../src/domains/conversations/conversation.repository.js";
-import { WorkbenchAgentInputControls } from "../../../src/domains/runs/application/workbench-agent-input-controls.js";
+import { WorkbenchRunService } from "../../../src/domains/runs/application/workbench-run.service.js";
 import { installIterationCompaction } from "../../../src/domains/agents/execution/iteration-compaction.js";
 import {
   CompactionStaleConflictError,
@@ -385,7 +385,7 @@ test("canonical active lookup isolates persisted additional-root and child owner
     },
   };
   assert.equal(
-    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
+    await WorkbenchRunService.prototype.hasNonterminalOwnerRun.call(
       service as never,
       "conv_scope",
     ),
@@ -394,7 +394,7 @@ test("canonical active lookup isolates persisted additional-root and child owner
   assert.deepEqual(queried, ["conv_scope:agent_0"]);
   queried.length = 0;
   assert.equal(
-    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
+    await WorkbenchRunService.prototype.hasNonterminalOwnerRun.call(
       service as never,
       "conv_scope",
       "agent_1",
@@ -404,7 +404,7 @@ test("canonical active lookup isolates persisted additional-root and child owner
   assert.deepEqual(queried, ["conv_scope:agent_1"]);
   queried.length = 0;
   assert.equal(
-    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
+    await WorkbenchRunService.prototype.hasNonterminalOwnerRun.call(
       service as never,
       "conv_scope",
       "agent_2",
@@ -491,6 +491,7 @@ test("explicit context bindings isolate additional roots and preserve an already
       },
     });
   }
+  const historical = await f.journal.load("conv_scope");
   const migrated = await new AgentRepository({
     canonicalStore: store,
   } as InitializedStorage).loadAll();
@@ -499,24 +500,9 @@ test("explicit context bindings isolate additional roots and preserve an already
   assert.equal(f.agents.get("agent_1")!.contextOwnerAgentId, "agent_1");
   for (const id of ["agent_2", "agent_3"])
     f.agents.set(id, { ...f.agents.get(id)!, contextOwnerAgentId: id });
-  const historical = await f.journal.load("conv_scope");
-  await f.journal.commit("conv_scope", {
-    kind: "test.copied_historical_prefix",
-    events: [
-      ...historical.modelEntries.map((entry) => ({
-        kind: "model_context.entry_appended" as const,
-        conversationId: "conv_scope",
-        ownerAgentId: "agent_1",
-        entry,
-      })),
-      {
-        kind: "model_context.leaf_changed",
-        conversationId: "conv_scope",
-        ownerAgentId: "agent_1",
-        entryId: historical.modelLeafId!,
-      },
-    ],
-  });
+  // This fixture migrates through a separate store, unlike runtime startup's
+  // shared store/cache invalidation. Refresh its old journal before writing.
+  await f.journal.loadFresh("conv_scope");
   const secondary = await f.storage.openAgentStorage(f.agents.get("agent_1")!);
   assert.deepEqual(
     (await secondary.getEntries()).map((entry) => entry.id),
@@ -528,6 +514,16 @@ test("explicit context bindings isolate additional roots and preserve an already
     content: "Secondary private follow-up",
     timestamp: 5,
   });
+  const copiedWithFollowUp = await secondary.getEntries();
+  await new AgentRepository({
+    canonicalStore: store,
+  } as InitializedStorage).loadAll();
+  await f.journal.loadFresh("conv_scope");
+  assert.deepEqual(
+    await secondary.getEntries(),
+    copiedWithFollowUp,
+    "reloading migrated bindings must not duplicate or reset an owned prefix",
+  );
   await f.seed("agent_2");
   await f.seed("agent_3");
   const texts = await Promise.all(

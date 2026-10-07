@@ -27,7 +27,11 @@ import {
   validateCommitEvents,
 } from "./conversation-journal-validation.js";
 import type { AgentMessage } from "@nervekit/harness/agent";
-import type { AgentAsyncObligation } from "@nervekit/contracts/agents";
+import {
+  agentContextBindingSchema,
+  agentRecordSchema,
+  type AgentAsyncObligation,
+} from "@nervekit/contracts/agents";
 import {
   ConversationTreeState,
   type ConversationTreeEntry,
@@ -428,6 +432,117 @@ export class ConversationJournalRepository {
     ];
   }
 
+  private async hasConflictingBranchSibling(
+    state: ConversationJournalState,
+    entry: ConversationEntry,
+    expectedParent: string | null,
+    ownerAgentId: string | undefined,
+  ): Promise<boolean> {
+    for (const sibling of state.entries) {
+      if (
+        sibling.id === entry.id ||
+        (sibling.parentEntryId ?? null) !== expectedParent
+      )
+        continue;
+      // Historical entries without an actor belong to the conversation alias.
+      if (!sibling.agentId) {
+        if (ownerAgentId === undefined) return true;
+        continue;
+      }
+      const document = await this.canonical.readDocument<unknown>(
+        "agent",
+        "global",
+        sibling.agentId,
+      );
+      const parsed = agentRecordSchema.safeParse(document?.data);
+      if (
+        !parsed.success ||
+        parsed.data.id !== sibling.agentId ||
+        parsed.data.conversationId !== state.conversationId
+      )
+        throw new ConversationBranchConflictError(state.conversationId);
+      const agent = parsed.data;
+      const bindingDocument = await this.canonical.readDocument<unknown>(
+        "agent-context-binding",
+        "global",
+        state.conversationId,
+      );
+      const binding = bindingDocument
+        ? agentContextBindingSchema.parse(bindingDocument.data)
+        : undefined;
+      let siblingOwner: string | undefined;
+      if (typeof agent.contextOwnerAgentId === "string") {
+        if (
+          agent.contextOwnerAgentId !== agent.id ||
+          binding?.legacyRootAgentId === agent.id ||
+          (!binding &&
+            state.idempotencyKeys.has(
+              `agent-context-prefix-copy:${agent.id}:complete`,
+            ))
+        )
+          throw new ConversationBranchConflictError(state.conversationId);
+        siblingOwner = this.siblingOwnerAtAppend(state, sibling, agent.id);
+      } else if (
+        agent.contextOwnerAgentId === null ||
+        binding?.legacyRootAgentId === agent.id
+      ) {
+        if (binding && binding.legacyRootAgentId !== agent.id)
+          throw new ConversationBranchConflictError(state.conversationId);
+        siblingOwner = undefined;
+      } else {
+        // Missing/ambiguous ownership is not proof of an independent context.
+        throw new ConversationBranchConflictError(state.conversationId);
+      }
+      if (siblingOwner === ownerAgentId) return true;
+    }
+    return false;
+  }
+
+  private siblingOwnerAtAppend(
+    state: ConversationJournalState,
+    sibling: ConversationEntry,
+    currentOwner: string,
+  ): string | undefined {
+    const migrationKey = `agent-context-prefix-copy:${currentOwner}:complete`;
+    const migration = state.idempotencyKeys.get(migrationKey);
+    // Fresh self-owned agents and preexisting owned trees never copy the root
+    // alias. Their immutable canonical binding already proves ownership.
+    if (!migration) return currentOwner;
+    const completion = migration.events[0];
+    const receiptKey = `conversation-entry:${sibling.id}`;
+    const receipt = state.idempotencyKeys.get(receiptKey);
+    const appEvents = receipt?.events.filter(
+      (event) => event.kind === "conversation.entry_appended",
+    );
+    const app = appEvents?.[0];
+    if (
+      migration.kind !== "agent.context_prefix_migrated" ||
+      migration.idempotencyKey !== migrationKey ||
+      migration.conversationId !== state.conversationId ||
+      migration.events.length !== 1 ||
+      completion?.kind !== "model_context.leaf_changed" ||
+      completion.conversationId !== state.conversationId ||
+      completion.ownerAgentId !== currentOwner ||
+      !receipt ||
+      receipt.kind !== "conversation.entry_appended" ||
+      receipt.idempotencyKey !== receiptKey ||
+      receipt.conversationId !== state.conversationId ||
+      appEvents?.length !== 1 ||
+      app?.kind !== "conversation.entry_appended" ||
+      app.conversationId !== state.conversationId ||
+      app.entry.conversationId !== state.conversationId ||
+      app.entry.id !== sibling.id ||
+      app.entry.agentId !== currentOwner ||
+      (app.entry.parentEntryId ?? null) !== (sibling.parentEntryId ?? null) ||
+      receipt.revision === migration.revision
+    )
+      throw new ConversationBranchConflictError(state.conversationId);
+    // The prefix copier finishes before AgentRepository publishes self ownership.
+    // Earlier app receipts therefore belong to the historical conversation alias,
+    // even if a crash prevented model insertion or active-leaf advancement.
+    return receipt.revision < migration.revision ? undefined : currentOwner;
+  }
+
   async commit(
     conversationId: string,
     input: {
@@ -512,19 +627,30 @@ export class ConversationJournalRepository {
         const conversation = state.conversation;
         const expectedParent = input.expectedActiveBranchParentEntryId ?? null;
         const entryEvent = events.length === 1 ? events[0] : undefined;
+        // The adapter resolves context ownership from the agent blueprint.
+        // Agent-owned histories have their own atomic model-context leaf; the
+        // conversation leaf belongs only to the ordinary conversation owner.
+        const ownerAgentId = input.guardedModelMessage?.ownerAgentId;
+        const activeLeaf = ownerAgentId
+          ? (state.agentModelLeafIds.get(ownerAgentId) ?? null)
+          : (conversation?.activeEntryId ?? null);
         if (
           !conversation ||
-          (conversation.activeEntryId ?? null) !== expectedParent ||
+          activeLeaf !== expectedParent ||
+          (ownerAgentId &&
+            entryEvent?.kind === "conversation.entry_appended" &&
+            entryEvent.entry.agentId !== ownerAgentId) ||
           entryEvent?.kind !== "conversation.entry_appended" ||
           (entryEvent.entry.parentEntryId ?? null) !== expectedParent ||
           // Ordinary appends commit their entry before advancing the active
           // leaf. An already-persisted child means that advance may still be
           // in flight; accepting a sibling here would attach to the old tip.
-          state.entries.some(
-            (existing) =>
-              existing.id !== entryEvent.entry.id &&
-              (existing.parentEntryId ?? null) === expectedParent,
-          )
+          (await this.hasConflictingBranchSibling(
+            state,
+            entryEvent.entry,
+            expectedParent,
+            ownerAgentId,
+          ))
         ) {
           throw new ConversationBranchConflictError(conversationId);
         }
@@ -544,11 +670,15 @@ export class ConversationJournalRepository {
         const model = input.guardedModelMessage;
         events = [
           ...events,
-          {
-            kind: "conversation.upserted",
-            conversationId,
-            conversation: updatedConversation,
-          },
+          ...(!ownerAgentId
+            ? [
+                {
+                  kind: "conversation.upserted" as const,
+                  conversationId,
+                  conversation: updatedConversation,
+                },
+              ]
+            : []),
           ...(model
             ? [
                 {

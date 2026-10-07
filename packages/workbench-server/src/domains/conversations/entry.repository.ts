@@ -56,6 +56,13 @@ export class EntryRepository {
     const conversation = commit.events.find(
       (event) => event.kind === "conversation.upserted",
     );
+    if (model?.ownerAgentId) {
+      // The same commit advanced the agent context, not the shared root leaf.
+      const record = (await this.journal.load(entry.conversationId))
+        .conversation;
+      if (!record) throw new Error("Guarded agent append has no conversation.");
+      return { entry, conversation: record };
+    }
     if (!conversation || conversation.kind !== "conversation.upserted") {
       throw new Error(
         "Guarded entry commit did not advance the active branch.",

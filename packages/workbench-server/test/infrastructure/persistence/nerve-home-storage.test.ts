@@ -118,6 +118,7 @@ test("initializes the current home through the storage migration chain", async (
     "0008-tool-result-payload-reference",
     "0009-agent-async-obligations-backfill",
     "0010-deletion-indexes",
+    "0011-agent-intervention-obligations",
   ]);
 });
 

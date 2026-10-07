@@ -337,13 +337,18 @@ export class AsyncSubagentService {
       };
       await this.ports.writeControl(reserved);
       try {
-        await this.ports.reserveAssignment({
-          runId: input.runId,
-          childId: child.id,
-          leadId: parentId,
-          generation: team.generation,
-          childGeneration: control.generation,
-        });
+        // Assignments are durable parent-report correlations, also scanned by
+        // obligation recovery. Non-reporting children still reserve capacity via
+        // control/canonical run state, but must not leave a reconstructable notice.
+        if (child.orchestrationPolicy?.completionReporting === "parent") {
+          await this.ports.reserveAssignment({
+            runId: input.runId,
+            childId: child.id,
+            leadId: parentId,
+            generation: team.generation,
+            childGeneration: control.generation,
+          });
+        }
       } catch (error) {
         await this.ports.writeControl({ ...control, reservedRunId: undefined });
         throw error;

@@ -665,6 +665,17 @@ describe("workbench coordinator behavior regressions", () => {
           interactions: [],
           result: { decision: "accept_new_chat" },
         }),
+        getToolCallDetails: async () => ({
+          id: review.toolCallId,
+          agentId: source.id,
+          conversationId: source.conversationId,
+          projectId: source.projectId,
+          runId: "run_source",
+          toolName: "plan_mode_present",
+          status: "waiting_for_user",
+          interactions: [],
+          result: { decision: "accept_new_chat" },
+        }),
         resumeToolCall: async () => ({
           id: review.toolCallId,
           agentId: source.id,
@@ -1088,6 +1099,7 @@ function rejectionFixture(
     },
     tools: {
       getToolCall: () => currentToolCall,
+      getToolCallDetails: async () => currentToolCall,
       resumeToolCall: async () => {
         assert.equal(currentToolCall.status, "waiting_for_user");
         currentToolCall = { ...currentToolCall, status: "running" };

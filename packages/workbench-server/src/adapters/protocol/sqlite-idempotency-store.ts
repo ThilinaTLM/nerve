@@ -128,7 +128,16 @@ function safeJson(
     if (entries.length > MAX_OBJECT_KEYS) throw new Error("object too large");
     const output: Record<string, unknown> = {};
     for (const [key, child] of entries) {
-      if (SECRET_KEY_PATTERN.test(key)) throw new Error("secret-like key");
+      // Public model contracts contain numeric token limits/pricing thresholds,
+      // not credentials. Only these declared count fields with their exact safe
+      // scalar shape may pass the otherwise conservative credential-key fence.
+      const tokenCount =
+        (key === "maxTokens" || key === "inputTokensAbove") &&
+        typeof child === "number" &&
+        Number.isSafeInteger(child) &&
+        child >= 0;
+      if (SECRET_KEY_PATTERN.test(key) && !tokenCount)
+        throw new Error("secret-like key");
       output[key] = safeJson(child, depth + 1, seen);
     }
     return output;

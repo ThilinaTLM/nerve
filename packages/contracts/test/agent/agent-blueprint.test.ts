@@ -38,6 +38,10 @@ test("historical blueprint migration preserves identity and resolves determinist
     assert.equal(decoded.activationState, "enabled");
     assert.deepEqual(resolveAgentBlueprint(decoded), decoded);
     assert.equal(decoded.readOnlyCeiling, executionKind === "explore");
+    assert.equal(
+      decoded.orchestrationPolicy?.completionReporting,
+      executionKind === "async_developer" ? "parent" : "none",
+    );
     const staleKind = resolveAgentBlueprint({
       ...decoded,
       executionKind: "explore",
@@ -47,6 +51,29 @@ test("historical blueprint migration preserves identity and resolves determinist
       decoded.orchestrationPolicy,
     );
     assert.equal(staleKind.readOnlyCeiling, decoded.readOnlyCeiling);
+  }
+});
+
+test("historical decoding preserves explicit custom reporting policies and context bindings", () => {
+  for (const completionReporting of ["none", "parent"] as const) {
+    for (const contextOwnerAgentId of [null, historical.id]) {
+      const record = agentRecordSchema.parse({
+        ...historical,
+        executionKind: "explore",
+        contextOwnerAgentId,
+        orchestrationPolicy: {
+          preset: "explore",
+          parentCancellation: "attached",
+          completionReporting,
+        },
+      });
+      const decoded = resolveAgentBlueprint(record);
+      assert.deepEqual(decoded.orchestrationPolicy, record.orchestrationPolicy);
+      assert.equal(decoded.contextOwnerAgentId, contextOwnerAgentId);
+      assert.equal(decoded.id, record.id);
+      assert.equal(decoded.conversationId, record.conversationId);
+      assert.deepEqual(resolveAgentBlueprint(decoded), decoded);
+    }
   }
 });
 

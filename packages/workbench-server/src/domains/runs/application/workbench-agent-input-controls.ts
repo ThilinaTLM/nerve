@@ -2,14 +2,17 @@ import {
   interruptAgent,
   type AgentInterruptionOptions,
 } from "./workbench-agent-interruption.js";
-import { waitForAgentRun } from "./workbench-agent-run-results.js";
+import { waitForAgentRun, waitForRun } from "./workbench-agent-run-results.js";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { createId } from "@nervekit/contracts";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import { type AgentInputRequest } from "../runtime/agent-inputs.js";
+import {
+  AgentInputConflictError,
+  type AgentInputRequest,
+} from "../runtime/agent-inputs.js";
 import { KeyedSerialLock } from "../runtime/run-locks.js";
 import { TERMINAL_STATUSES, type RunCoordinator } from "../runtime/index.js";
 import { ApplicationError } from "../../../core/application-error.js";
@@ -552,9 +555,9 @@ export class WorkbenchAgentInputControls {
   ): Promise<{ agentId: string; runId: string; attemptId: string }> {
     if (!this.controls)
       throw new Error("Durable inputs are required for submitted assignments");
-    if (options.signal?.aborted)
-      throw options.signal.reason ?? new Error("Assignment cancelled");
+    options.signal?.throwIfAborted();
     let onAbort: (() => void) | undefined;
+    let cancellation: Promise<void> | undefined;
     try {
       const accepted = await this.enqueueAgentInput(
         agentId,
@@ -572,10 +575,11 @@ export class WorkbenchAgentInputControls {
           activate: false,
           onAccepted: (input) => {
             onAbort = () => {
-              if (this.admissionsStopped) return;
-              void this.trackInputWork(
+              if (this.admissionsStopped || cancellation) return;
+              cancellation = this.trackInputWork(
                 this.cancelAcceptedSubmission(agentId, input.id),
-              ).catch((error) => process.emitWarning(String(error)));
+              );
+              void cancellation.catch(() => undefined);
             };
             options.signal?.addEventListener("abort", onAbort, { once: true });
             if (options.signal?.aborted) onAbort();
@@ -598,11 +602,7 @@ export class WorkbenchAgentInputControls {
             state.run.runId === currentReceipt?.delivery?.runId,
         );
         if (options.signal?.aborted) {
-          if (bound) await this.abortRun({ agentId, runId: bound.run.runId });
-          else
-            await this.controls.inputs
-              .cancel(agentId, accepted.id)
-              .catch(() => undefined);
+          onAbort?.();
           throw options.signal.reason ?? new Error("Assignment cancelled");
         }
         if (bound)
@@ -615,11 +615,10 @@ export class WorkbenchAgentInputControls {
                 ?.transitions?.[0]?.run.executionId ??
               bound.run.executionId,
           };
-        const receipt = currentReceipt;
         if (
-          !receipt ||
-          receipt.state === "cancelled" ||
-          receipt.state === "obsolete"
+          !currentReceipt ||
+          currentReceipt.state === "cancelled" ||
+          currentReceipt.state === "obsolete"
         )
           throw new ApplicationError(
             409,
@@ -648,9 +647,7 @@ export class WorkbenchAgentInputControls {
           });
         } catch (error) {
           if (options.signal?.aborted) {
-            await this.controls.inputs
-              .cancel(agentId, accepted.id)
-              .catch(() => undefined);
+            onAbort?.();
             throw options.signal.reason ?? error;
           }
           if (
@@ -665,14 +662,18 @@ export class WorkbenchAgentInputControls {
           return { agentId, runId: run.runId, attemptId: run.executionId };
         // Wait outside control/admission locks; preserve the accepted identity.
         await delay(25, undefined, {
-          signal: this.watcherShutdown.signal,
+          signal: options.signal
+            ? AbortSignal.any([this.watcherShutdown.signal, options.signal])
+            : this.watcherShutdown.signal,
         }).catch((error) => {
           this.assertAdmissionsOpen();
+          if (options.signal?.aborted) throw options.signal.reason ?? error;
           throw error;
         });
       }
     } finally {
       if (onAbort) options.signal?.removeEventListener("abort", onAbort);
+      await cancellation;
     }
   }
   private async cancelAcceptedSubmission(
@@ -680,19 +681,26 @@ export class WorkbenchAgentInputControls {
     inputId: string,
   ): Promise<void> {
     if (!this.controls) return;
-    await this.controls.inputs.cancel(agentId, inputId).catch(() => undefined);
-    const receipt = await this.controls.inputs.get(agentId, inputId);
-    const states = this.unitOfWork.list
-      ? await this.unitOfWork.list()
-      : await this.unitOfWork.listActive();
-    const bound = states.find(
-      (state) =>
-        state.run.initialInputId === inputId ||
-        state.run.runId === receipt?.delivery?.runId,
-    );
-    if (bound) await this.abortRun({ agentId, runId: bound.run.runId });
+    // Fence admission commit; cancel only this input/run, never pause the agent.
+    const bound = await this.agentAdmissions.exclusive(agentId, async () => {
+      await this.controls!.inputs.cancel(agentId, inputId).catch((error) => {
+        if (!(error instanceof AgentInputConflictError)) throw error;
+      });
+      const receipt = await this.controls!.inputs.get(agentId, inputId);
+      const states = this.unitOfWork.list
+        ? await this.unitOfWork.list()
+        : await this.unitOfWork.listActive();
+      return states.find(
+        (state) =>
+          state.run.initialInputId === inputId ||
+          state.run.runId === receipt?.delivery?.runId,
+      );
+    });
+    if (bound) {
+      await this.coordinator.cancel(bound.run.runId, "Assignment cancelled");
+      await waitForRun(this.unitOfWork, bound.run.runId);
+    }
   }
-
   waitForAgentRun(
     identity: { agentId: string; runId: string; attemptId: string },
     signal?: AbortSignal,

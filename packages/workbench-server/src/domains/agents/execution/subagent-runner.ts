@@ -129,6 +129,7 @@ export interface ExploreRuntime {
     agentId: string,
     text: string,
     parent: { agentId: string; runId?: string },
+    options?: { signal?: AbortSignal },
   ): Promise<ExploreRunIdentity>;
   waitForRun(run: ExploreRunIdentity): Promise<AgentCompletion>;
   /** Exact-run cancellation; must not stop a later execution of the child. */
@@ -365,7 +366,9 @@ export class SubagentRunner {
       orchestrationPolicy: {
         preset: "explore",
         parentCancellation: "attached",
-        completionReporting: "parent",
+        // This wrapper returns the exact run's report to the caller itself.
+        // A background completion notice would duplicate it and wake the parent.
+        completionReporting: "none",
       },
       tools: activeToolNamesForExploreAgent(),
       model: spec.model,
@@ -391,10 +394,12 @@ export class SubagentRunner {
     };
     try {
       throwIfAborted(spec.signal);
-      run = await this.deps.runtime.submitRun(child.id, spec.prompt, {
-        agentId: spec.parent.id,
-        runId: spec.parentRunId,
-      });
+      run = await this.deps.runtime.submitRun(
+        child.id,
+        spec.prompt,
+        { agentId: spec.parent.id, runId: spec.parentRunId },
+        { signal: spec.signal },
+      );
       if (run.agentId !== child.id)
         throw new Error("Explore admission returned a different agent.");
       unregister = spec.parentRunId

@@ -39,6 +39,16 @@ describe("explore subagent transcript isolation", () => {
         },
       ],
     });
+    const parentProvider = "nerve-scripted-explore-isolation-parent";
+    const parentRegistration = registerAgentScriptedProvider({
+      provider: parentProvider,
+      steps: [
+        {
+          type: "assistantText",
+          text: "Parent acknowledged the direct child intervention.",
+        },
+      ],
+    });
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-isolation-"));
     const storage = await initializeStorage(root);
     const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
@@ -89,6 +99,7 @@ describe("explore subagent transcript isolation", () => {
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
       assert.equal(child.orchestrationPolicy?.preset, "explore");
+      assert.equal(child.orchestrationPolicy?.completionReporting, "none");
       assert.equal(child.readOnlyCeiling, true);
       assert.equal(child.name, "Temporary project contents");
       assert.deepEqual(child.model, parent.model);
@@ -156,6 +167,37 @@ describe("explore subagent transcript isolation", () => {
       assert.equal(childTranscript.activeRun, undefined);
       assert.ok(childTranscript.cursorSeq > 0);
 
+      // Exercise recovery as well as admission: no assignment correlation may
+      // reconstruct a duplicate report/notification after the wrapper returns.
+      await orchestrator.services.asyncObligationRuntime.stop();
+      await orchestrator.services.asyncObligationRuntime.start();
+      const parentReports =
+        await orchestrator.services.tools.listToolCallPreviews({
+          agentId: parent.id,
+          limit: 10,
+        });
+      assert.deepEqual(
+        parentReports.map((call) => [call.id, call.toolName, call.status]),
+        [[result.toolCall.id, "explore", "completed"]],
+      );
+      assert.deepEqual(
+        await storage.canonicalStore.listDocuments(
+          "async-subagent-assignment",
+          parent.id,
+        ),
+        [],
+      );
+      const parentInputs = await storage.canonicalStore.readDocument<{
+        inputs: unknown[];
+      }>("agent_inputs", "global", parent.id);
+      assert.deepEqual(parentInputs?.data.inputs ?? [], []);
+      assert.equal(
+        (await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()).some(
+          (state) => state.run.agentId === parent.id,
+        ),
+        false,
+        "returning an Explore tool report must not admit the idle parent",
+      );
       const stream = await orchestrator.runtime.events.readStream(
         conversationStream(conversation.id),
         1,
@@ -214,18 +256,7 @@ describe("explore subagent transcript isolation", () => {
             (event.data as { agentId?: string }).agentId === parent.id,
         ),
         false,
-        JSON.stringify({
-          parentLive: liveEvents.filter(
-            (event) =>
-              event.type === "conversation.live.content.delta" &&
-              (event.data as { agentId?: string }).agentId === parent.id,
-          ),
-          input: await storage.canonicalStore.readDocument(
-            "agent_inputs",
-            "global",
-            parent.id,
-          ),
-        }),
+        "the wrapper must not create a parent run or borrow child live content",
       );
       await assert.rejects(
         orchestrator.services.subagentTranscripts.get(child.id, parent.id),
@@ -235,6 +266,11 @@ describe("explore subagent transcript isolation", () => {
         snapshot.toolCalls.some((toolCall) => toolCall.agentId === child.id),
         false,
       );
+      // Direct user controls intentionally notify the parent. Give its response
+      // a separate script so that notice cannot consume the child's follow-up.
+      await orchestrator.services.agentLifecycle.configureAgent(parent.id, {
+        model: { provider: parentProvider, modelId: "scripted-fast" },
+      });
       await orchestrator.services.agentLifecycle.configureAgent(child.id, {
         mode: "planning",
       });
@@ -270,15 +306,59 @@ describe("explore subagent transcript isolation", () => {
           break;
         assert.ok(
           Date.now() < deadline,
-          "child direct follow-up must reach its own context",
+          `child direct follow-up must reach its own context: ${JSON.stringify((await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()).map((state) => state.run))}`,
         );
         await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      await orchestrator.services.asyncObligationRuntime.stop();
+      await orchestrator.services.asyncObligationRuntime.start();
+      const runStatesAfterFollowUp = await new WorkbenchRunUnitOfWork(
+        storage.paths.home,
+        0,
+      ).list();
+      assert.equal(
+        runStatesAfterFollowUp.filter((state) => state.run.agentId === child.id)
+          .length,
+        2,
+      );
+      // Any later parent admission belongs to deliberate user intervention,
+      // never a duplicate child completion report.
+      const parentInputState = await storage.canonicalStore.readDocument<{
+        inputs: { origin: { producer?: string; correlationId?: string } }[];
+      }>("agent_inputs", "global", parent.id);
+      assert.ok(
+        (parentInputState?.data.inputs ?? []).every(
+          (input) =>
+            input.origin.producer === "async_obligation" &&
+            input.origin.correlationId?.startsWith("user_intervention:"),
+        ),
+      );
+      assert.ok((parentInputState?.data.inputs.length ?? 0) > 0);
+      assert.deepEqual(
+        await storage.canonicalStore.listDocuments(
+          "async-subagent-assignment",
+          parent.id,
+        ),
+        [],
+      );
+      for (const run of runStatesAfterFollowUp.filter(
+        (state) => state.run.agentId === child.id,
+      )) {
+        assert.equal(
+          await storage.canonicalStore.readAgentObligation(
+            `async_subagent:${run.run.runId}:0`,
+          ),
+          undefined,
+        );
       }
       const parentAfterFollowUp =
         await orchestrator.services.conversationQuery.getConversationSnapshot(
           conversation.id,
         );
-      assert.deepEqual(parentAfterFollowUp.entries, []);
+      assert.doesNotMatch(
+        JSON.stringify(parentAfterFollowUp.entries),
+        /temporary project is isolated|child accepted a direct follow-up/i,
+      );
       assert.equal(
         orchestrator.services.conversationLifecycle.getConversation(
           conversation.id,
@@ -287,6 +367,7 @@ describe("explore subagent transcript isolation", () => {
       );
     } finally {
       unsubscribe();
+      parentRegistration.unregister();
       registration.unregister();
       await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
@@ -298,6 +379,176 @@ describe("explore subagent transcript isolation", () => {
     }
   });
 
+  it("hydrates a legacy Explore without reporting policy and keeps future follow-up completion child-owned", async () => {
+    const childProvider = "nerve-scripted-legacy-explore-followup";
+    const parentProvider = "nerve-scripted-legacy-explore-parent";
+    const registrations = [
+      registerAgentScriptedProvider({
+        provider: childProvider,
+        steps: [
+          {
+            type: "assistantText",
+            text: "Legacy child direct follow-up response.",
+          },
+        ],
+      }),
+      registerAgentScriptedProvider({
+        provider: parentProvider,
+        steps: [
+          {
+            type: "assistantText",
+            text: "Parent acknowledged deliberate intervention.",
+          },
+        ],
+      }),
+    ];
+    const home = await mkdtemp(
+      join(tmpdir(), "nerve-legacy-explore-followup-"),
+    );
+    let storage = await initializeStorage(home);
+    let fixture = createRuntimeFixture(storage, "127.0.0.1", 0);
+    try {
+      await fixture.lifecycle.hydrate();
+      const project = await fixture.services.projectLifecycle.createProject({
+        dir: home,
+      });
+      const conversation =
+        await fixture.services.conversationLifecycle.createConversation({
+          projectId: project.id,
+        });
+      const parent = await fixture.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        model: { provider: parentProvider, modelId: "scripted-fast" },
+      });
+      const child = await fixture.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        parentAgentId: parent.id,
+        model: { provider: childProvider, modelId: "scripted-fast" },
+        permissionLevel: "read_only",
+        readOnlyCeiling: true,
+        orchestrationPolicy: {
+          preset: "explore",
+          parentCancellation: "attached",
+          completionReporting: "none",
+        },
+      });
+      const document = await storage.canonicalStore.readDocument(
+        "agent",
+        "global",
+        child.id,
+      );
+      assert.ok(document);
+      const legacy = { ...child, executionKind: "explore" as const };
+      delete legacy.orchestrationPolicy;
+      await storage.canonicalStore.writeDocument({
+        namespace: "agent",
+        scopeId: "global",
+        documentId: child.id,
+        expectedRevision: document.revision,
+        data: legacy,
+      });
+      const journal = new ConversationJournalRepository(storage);
+      const seedId = "entry_legacy_explore_seed";
+      await journal.commit(conversation.id, {
+        kind: "test.legacy_explore_context",
+        events: [
+          {
+            kind: "model_context.entry_appended",
+            conversationId: conversation.id,
+            ownerAgentId: child.id,
+            entry: {
+              type: "message",
+              id: seedId,
+              parentId: null,
+              timestamp: child.createdAt,
+              message: {
+                role: "user",
+                content: "Historical child context",
+                timestamp: Date.parse(child.createdAt),
+              },
+            },
+          },
+          {
+            kind: "model_context.leaf_changed",
+            conversationId: conversation.id,
+            ownerAgentId: child.id,
+            entryId: seedId,
+          },
+        ],
+      });
+      await journal.close();
+      await shutdownServerRuntime(fixture.runtime);
+      storage = await initializeStorage(home);
+      fixture = createRuntimeFixture(storage, "127.0.0.1", 0);
+      await fixture.lifecycle.hydrate();
+      const decoded = fixture.services.agentLifecycle.getAgent(child.id);
+      assert.equal(decoded.id, child.id);
+      assert.equal(decoded.conversationId, conversation.id);
+      assert.equal(decoded.contextOwnerAgentId, child.contextOwnerAgentId);
+      assert.equal(decoded.orchestrationPolicy?.completionReporting, "none");
+      assert.equal(decoded.orchestrationPolicy?.parentCancellation, "attached");
+      await fixture.services.workbenchRun.promptAgent(child.id, {
+        text: "Direct follow-up to legacy Explore",
+      });
+      await waitUntil(
+        async () =>
+          (await fixture.services.subagentTranscripts.snapshot(child.id))
+            .latestCompletion?.outcome === "completed",
+        async () =>
+          JSON.stringify(
+            (await new WorkbenchRunUnitOfWork(home, 0).list()).map(
+              (state) => state.run,
+            ),
+          ),
+      );
+      await fixture.services.asyncObligationRuntime.stop();
+      await fixture.services.asyncObligationRuntime.start();
+      const history = await fixture.services.subagentTranscripts.snapshot(
+        child.id,
+      );
+      assert.equal(
+        history.latestCompletion?.response?.text,
+        "Legacy child direct follow-up response.",
+      );
+      assert.ok(
+        history.activeEntryIds.includes(seedId),
+        "migration retains historical context IDs/ancestry",
+      );
+      assert.deepEqual(
+        await storage.canonicalStore.listDocuments(
+          "async-subagent-assignment",
+          parent.id,
+        ),
+        [],
+      );
+      assert.equal(
+        await storage.canonicalStore.readAgentObligation(
+          `async_subagent:${history.latestCompletion!.runId}:0`,
+        ),
+        undefined,
+      );
+      const parentInputs = await storage.canonicalStore.readDocument<{
+        inputs: { origin: { correlationId?: string } }[];
+      }>("agent_inputs", "global", parent.id);
+      assert.ok(
+        (parentInputs?.data.inputs ?? []).every((input) =>
+          input.origin.correlationId?.startsWith("user_intervention:"),
+        ),
+        "only intended direct-user intervention notices may reach parent",
+      );
+    } finally {
+      await shutdownServerRuntime(fixture.runtime);
+      for (const registration of registrations) registration.unregister();
+      await rm(home, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+        retryDelay: 50,
+      });
+    }
+  });
   it("repairs a persisted child active-agent reference during hydration", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-recovery-"));
     const storage = await initializeStorage(root);
@@ -494,7 +745,7 @@ describe("explore subagent transcript isolation", () => {
       const [run] = runStates.filter(
         (state) => state.run.agentId === parent.id,
       );
-      assert.equal(run?.run.status, "cancelled");
+      assert.equal(run?.run.status, "cancelled", JSON.stringify(run?.run));
       // Cancelling the common model aborts the attached wrapper signal first.
       // By the later subagent sweep its already-settled handles can be gone;
       // the exact cancelled child runs above are the behavioral evidence.

@@ -1,6 +1,13 @@
 import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
 import { type TaskLogQuery, type TaskRecord } from "@nervekit/contracts/tasks";
-import { type ToolCallRecord } from "@nervekit/contracts/tools";
+import {
+  toolAuthoritySnapshotSchema,
+  type ToolCallRecord,
+} from "@nervekit/contracts/tools";
+import {
+  agentConfigurationSchema,
+  type AgentRecord,
+} from "@nervekit/contracts/agents";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -87,24 +94,129 @@ describe("orchestration task tools", () => {
       {
         ...toolCall("task_status"),
         cwd: "/tmp/project/packages/app",
-        authoritySnapshot: {
-          version: 1,
-          agentId: "agent_test",
-          projectDir: "/tmp/project",
-          mode: "coding",
-          workspaceScope: { roots: ["/tmp/project"] },
-          scopeRestricted: false,
-          workspaceRoots: [
-            { path: "/tmp/project", physicalPath: "/tmp/project" },
-          ],
-          managedReadRoot: { path: "/tmp/home", physicalPath: "/tmp/home" },
-          policyRoots: [],
-          targetPaths: [],
-        },
       },
       { tasks: [sibling.id] },
     )) as { tasks: TaskRecord[] };
     assert.equal(result.tasks[0]?.id, sibling.id);
+  });
+
+  it("starts a child-owned task using the captured turn cwd and filters shared-conversation peers to that actor", async () => {
+    const parentTurnActor = agentRecord({
+      parentAgentId: "agent_parent",
+      rootAgentId: "agent_parent",
+      budget: { depth: 1, maxDepth: 3 },
+    });
+    const call = toolCall("task_start", parentTurnActor);
+    const actualSnapshot = call.authoritySnapshot!;
+    const current = structuredClone(parentTurnActor);
+    // A later edit is not the authority of this already-approved tool call.
+    Object.assign(current, {
+      projectDir: "/tmp/later-project",
+      mode: "planning",
+      permissionLevel: "read_only",
+      permissionRuleSetId: "read_only",
+      workspaceScope: { roots: ["/tmp/later-project"], readonly: true },
+      configurationRevision: 5,
+    });
+    const own = task({ id: "task_own", status: "running" });
+    const sibling = task({
+      id: "task_sibling",
+      agentId: "agent_sibling",
+      status: "running",
+    });
+    const parent = task({
+      id: "task_parent",
+      agentId: "agent_parent",
+      status: "running",
+    });
+    let started: Record<string, unknown> | undefined;
+    const dispatcher = await createDispatcher([own, sibling, parent], {
+      agent: current,
+      startTask: async (input) => {
+        started = input as Record<string, unknown>;
+        return task({
+          id: "task_started",
+          cwd: String(started.cwd),
+          status: "running",
+        });
+      },
+    });
+    const result = (await dispatcher.execute(call, {
+      command: "pnpm dev",
+      cwd: "packages/app",
+    })) as {
+      otherActiveTasks: TaskRecord[];
+      otherActiveTaskCount: number;
+    };
+    assert.equal(actualSnapshot.configuration?.permissionLevel, "supervised");
+    assert.equal(
+      actualSnapshot.configuration?.permissionRuleSetId,
+      "supervised",
+    );
+    assert.equal(actualSnapshot.configuration?.mode, "coding");
+    assert.equal(
+      started?.cwd,
+      join(parentTurnActor.projectDir, "packages/app"),
+    );
+    assert.equal(started?.agentId, parentTurnActor.id);
+    assert.equal(started?.conversationId, parentTurnActor.conversationId);
+    assert.equal(started?.projectId, parentTurnActor.projectId);
+    assert.deepEqual(started?.origin, {
+      kind: "agent_tool",
+      toolCallId: call.id,
+      providerToolCallId: undefined,
+      runId: call.runId,
+      turnId: call.turnId,
+      liveMessageId: undefined,
+      contentIndex: undefined,
+    });
+    assert.deepEqual(
+      result.otherActiveTasks.map((peer) => peer.id),
+      [own.id],
+    );
+    assert.equal(result.otherActiveTaskCount, 1);
+    await assert.rejects(
+      dispatcher.execute(toolCall("task_status", parentTurnActor), {
+        tasks: [sibling.id],
+      }),
+      (error) =>
+        error instanceof CodedToolError && error.code === "TASK_OUT_OF_SCOPE",
+    );
+  });
+
+  it("rejects an incorrectly scoped task-start snapshot before starting a process", async () => {
+    let starts = 0;
+    const dispatcher = await createDispatcher([], {
+      startTask: async () => {
+        starts++;
+        return task();
+      },
+    });
+    const valid = toolCall("task_start");
+    for (const call of [
+      { ...valid, conversationId: "conv_other" },
+      { ...valid, projectId: "proj_other" },
+      {
+        ...valid,
+        authoritySnapshot: {
+          ...valid.authoritySnapshot!,
+          agentId: "agent_other",
+        },
+      },
+    ]) {
+      await assert.rejects(
+        dispatcher.execute(call, { command: "pnpm dev" }),
+        /different agent scope/,
+      );
+    }
+    await assert.rejects(
+      dispatcher.execute(
+        { ...valid, authoritySnapshot: undefined },
+        { command: "pnpm dev" },
+      ),
+      /TOOL_CONFIGURATION_SNAPSHOT_UNAVAILABLE/,
+    );
+    assert.equal(starts, 0);
   });
 
   it("scopes Windows task paths independently of the server host OS", async () => {
@@ -123,7 +235,13 @@ describe("orchestration task tools", () => {
     );
 
     const result = (await dispatcher.execute(
-      { ...toolCall("task_status"), cwd: "C:\\repo" },
+      toolCall(
+        "task_status",
+        agentRecord({
+          projectDir: "C:\\repo",
+          workspaceScope: { roots: ["C:\\repo"] },
+        }),
+      ),
       { status: "all" },
     )) as { tasks: TaskRecord[] };
 
@@ -242,6 +360,7 @@ describe("orchestration task tools", () => {
     await mkdir(nested, { recursive: true });
     let captured: Record<string, unknown> | undefined;
     const dispatcher = await createDispatcher([], {
+      projectDir: base,
       runForegroundBashWithPromotion: async (input) => {
         captured = input as Record<string, unknown>;
         return {
@@ -250,7 +369,10 @@ describe("orchestration task tools", () => {
         };
       },
     });
-    const call = { ...toolCall("bash"), cwd: base };
+    const call = toolCall(
+      "bash",
+      agentRecord({ projectDir: base, workspaceScope: { roots: [base] } }),
+    );
 
     await dispatcher.execute(call, { command: "pwd", cwd: "packages/app" });
     assert.equal(captured?.cwd, nested);
@@ -417,12 +539,20 @@ async function createDispatcher(
     runForegroundBashWithPromotion: (input: unknown) => Promise<unknown>;
     queryLogs: (taskId: string, query: TaskLogQuery) => Promise<unknown>;
     settings: Settings;
+    agent: AgentRecord;
     projectDir: string;
     executionKind: "async_developer";
   }> = {},
 ): Promise<OrchestrationToolDispatcher> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-dispatcher-"));
   roots.push(root);
+  const agent =
+    overrides.agent ??
+    agentRecord({
+      projectDir: overrides.projectDir ?? "/tmp/project",
+      workspaceScope: { roots: [overrides.projectDir ?? "/tmp/project"] },
+      executionKind: overrides.executionKind,
+    });
   const byId = new Map(records.map((record) => [record.id, record]));
   const tasks = {
     listTasks: () => [...byId.values()],
@@ -481,23 +611,14 @@ async function createDispatcher(
       byId.set(started.id, started);
       return started;
     },
-    getAgent: () => ({
-      id: "agent_test",
-      projectDir: overrides.projectDir ?? "/tmp/project",
-      mode: "coding",
-      executionKind: overrides.executionKind,
-    }),
+    getAgent: () => agent,
     runExplore: async () => ({ reports: [] }),
     getApiKey: async () => undefined,
     resolveToolScope: async () => {
       throw new Error("Integrations are not used by this test.");
     },
     plans: {},
-    setAgentMode: async () => ({
-      id: "agent_test",
-      projectDir: overrides.projectDir ?? "/tmp/project",
-      mode: "coding",
-    }),
+    setAgentMode: async () => agent,
     conversationRuntime: {
       toolOutputOffset: () => 0,
       applyToolOutputDelta: (data: unknown) => data,
@@ -513,16 +634,67 @@ async function createDispatcher(
   } as never);
 }
 
-function toolCall(toolName: ToolCallRecord["toolName"]): ToolCallRecord {
+function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
   return {
-    id: "tool_test",
-    agentId: "agent_test",
+    id: "agent_test",
     conversationId: "conv_test",
     projectId: "proj_test",
+    rootAgentId: "agent_test",
+    projectDir: "/tmp/project",
+    mode: "coding",
+    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
+    workspaceScope: { roots: ["/tmp/project"] },
+    model: { provider: "test-provider", modelId: "test-model" },
+    thinkingLevel: "off",
+    systemPrompt: "Captured task-tool instructions",
+    instructions: "",
+    tools: ["task_start", "task_status", "task_logs", "task_control", "bash"],
+    skills: [],
+    configurationRevision: 4,
+    effectiveConfigurationRevision: 4,
+    budget: { depth: 0, maxDepth: 3 },
+    createdAt: "2026-01-02T03:04:05.000Z",
+    updatedAt: "2026-01-02T03:04:05.000Z",
+    ...overrides,
+  };
+}
+
+function toolCall(
+  toolName: ToolCallRecord["toolName"],
+  capturedAgent = agentRecord(),
+): ToolCallRecord {
+  return {
+    id: "tool_test",
+    agentId: capturedAgent.id,
+    conversationId: capturedAgent.conversationId,
+    projectId: capturedAgent.projectId,
     toolName,
     risk: "read",
     args: {},
-    cwd: "/tmp/project",
+    cwd: capturedAgent.projectDir,
+    runId: "run_test",
+    turnId: "turn_test",
+    authoritySnapshot: toolAuthoritySnapshotSchema.parse({
+      version: 1,
+      agentId: capturedAgent.id,
+      configurationRevision: capturedAgent.configurationRevision,
+      configurationProvenance: "resolved",
+      configuration: agentConfigurationSchema.parse(capturedAgent),
+      projectDir: capturedAgent.projectDir,
+      mode: capturedAgent.mode,
+      workspaceScope: structuredClone(capturedAgent.workspaceScope),
+      scopeRestricted: Boolean(
+        capturedAgent.parentAgentId || capturedAgent.workspaceScope.readonly,
+      ),
+      workspaceRoots: capturedAgent.workspaceScope.roots.map((path) => ({
+        path,
+        physicalPath: path,
+      })),
+      managedReadRoot: { path: "/tmp/home", physicalPath: "/tmp/home" },
+      policyRoots: [],
+      targetPaths: [],
+    }),
     status: "running",
     createdAt: "2026-01-02T03:04:05.000Z",
     updatedAt: "2026-01-02T03:04:05.000Z",

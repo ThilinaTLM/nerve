@@ -70,7 +70,10 @@ import type { PythonRuntimeService } from "./python-runtime.js";
 import type { WorkbenchTaskService } from "../../tasks/adapters/workbench-task-service.js";
 import { evaluateWorkbenchToolPermission } from "../permission/index.js";
 import { TodoStateService } from "../orchestration/todo-state.service.js";
-import type { ToolCallRepository } from "../artifacts/tool-call.repository.js";
+import {
+  type ToolCallRepository,
+  ToolCallTerminalError,
+} from "../artifacts/tool-call.repository.js";
 import { InteractionSessionService } from "../orchestration/interaction-session.service.js";
 import type { ConversationJournalRepository } from "../../conversations/conversation-journal.repository.js";
 import {
@@ -1570,19 +1573,17 @@ export class ToolService {
   ): Promise<{ record: ToolCallRecord; owned: boolean }> {
     try {
       return {
-        record: await this.reviseToolCall(toolCallId, undefined, (current) => {
-          if (isTerminalToolStatus(current.status)) {
-            throw new ToolExecutionAlreadyClaimedError(current);
-          }
-          return {
-            ...toolTerminationPatch(current, outcome),
-            interactions: cancelPendingInteractions(current.interactions),
-          };
-        }),
+        record: await this.reviseToolCall(toolCallId, undefined, (current) => ({
+          ...toolTerminationPatch(current, outcome),
+          interactions: cancelPendingInteractions(current.interactions),
+        })),
         owned: true,
       };
     } catch (error) {
-      if (error instanceof ToolExecutionAlreadyClaimedError) {
+      if (error instanceof ToolCallTerminalError) {
+        // A terminal settlement may win after the active-list snapshot but
+        // before this revision acquires the lock. Preserve its exact outcome;
+        // no revision, projection, or second terminal publication is owned here.
         return { record: error.toolCall, owned: false };
       }
       throw error;

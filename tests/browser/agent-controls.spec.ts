@@ -91,24 +91,19 @@ test("ordinary controls select and administer developer and Explore identities s
       await expect
         .poll(
           async () => {
-            const history = agent.parentAgentId
-              ? await rpc(page, "agent.history.get", { agentId: agent.id })
-              : await rpc(page, "snapshot.conversation.get", {
-                  conversationId: conversation.id,
-                });
-            return JSON.stringify(history);
+            const history = await rpc(page, "agent.history.get", {
+              agentId: agent.id,
+            });
+            return {
+              outcome: history.latestCompletion?.outcome,
+              hasAssistant: history.entries.some(
+                (entry) => entry.role === "assistant",
+              ),
+            };
           },
           { message: `Initial ordinary run completes for ${agent.id}` },
         )
-        .toContain('"role":"assistant"');
-      await expect
-        .poll(
-          async () =>
-            (await rpc(page, "agent.history.get", { agentId: agent.id }))
-              .latestCompletion?.outcome,
-          { message: `Exact durable completion for ${agent.id}` },
-        )
-        .toBe("completed");
+        .toEqual({ outcome: "completed", hasAssistant: true });
       const history = await rpc(page, "agent.history.get", {
         agentId: agent.id,
       });
@@ -126,12 +121,11 @@ test("ordinary controls select and administer developer and Explore identities s
       .click();
     await page.getByText(currentTitle, { exact: true }).first().click();
     const composer = page.getByRole("textbox").first();
-    await expect(
-      page.getByLabel("Agent controls", { exact: true }),
-    ).toContainText("Lead agent");
-    await expect(
-      page.getByText(`Private history ${root.id}`, { exact: true }),
-    ).toBeVisible();
+    const controls = page.getByLabel("Agent controls", { exact: true });
+    const privateHistory = (id: string) =>
+      page.getByText(`Private history ${id}`, { exact: true });
+    await expect(controls).toContainText("Lead agent");
+    await expect(privateHistory(root.id)).toBeVisible();
     // Context is the normal discovery surface, including completed Explore history.
     await page
       .getByRole("tab", { name: "Context", exact: true })
@@ -144,18 +138,11 @@ test("ordinary controls select and administer developer and Explore identities s
           .first()
           .click();
       await page.getByText(child.name!, { exact: true }).first().click();
-      const controls = page.getByLabel("Agent controls", { exact: true });
       await expect(controls).toContainText(child.name!);
-      await expect(
-        page.getByText(`Private history ${child.id}`, { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(`Private history ${root.id}`, { exact: true }),
-      ).toHaveCount(0);
+      await expect(privateHistory(child.id)).toBeVisible();
+      await expect(privateHistory(root.id)).toHaveCount(0);
       const sibling = child.id === developer.id ? explorer : developer;
-      await expect(
-        page.getByText(`Private history ${sibling.id}`, { exact: true }),
-      ).toHaveCount(0);
+      await expect(privateHistory(sibling.id)).toHaveCount(0);
       await controls.getByRole("button", { name: "Pause agent" }).click();
       await expect(
         controls.getByRole("button", { name: "Resume agent" }),
@@ -192,12 +179,25 @@ test("ordinary controls select and administer developer and Explore identities s
       await expect(controls).not.toContainText("pending input");
     }
     await page.getByText("Lead agent", { exact: true }).last().click();
-    await expect(
-      page.getByLabel("Agent controls", { exact: true }),
-    ).toContainText("Lead agent");
-    await expect(
-      page.getByText(`Private history ${root.id}`, { exact: true }),
-    ).toBeVisible();
+    await expect(controls).toContainText("Lead agent");
+    const history = await rpc(page, "agent.history.get", { agentId: root.id });
+    const text = `Private history ${root.id}`;
+    const original = history.entries.find((entry) => entry.text === text);
+    expect(original).toMatchObject({ agentId: root.id, role: "user" });
+    expect(history.activeEntryIds).toContain(original?.id);
+    const view = page.getByRole("region", { name: "Conversation transcript" });
+    await view.hover();
+    await expect
+      .poll(async () => {
+        await page.mouse.wheel(0, -100_000);
+        return view.evaluate((el) => ({
+          top: el.scrollTop,
+          first:
+            el.querySelector<HTMLElement>('[data-index="0"]')?.dataset.itemKey,
+        }));
+      })
+      .toEqual({ top: 0, first: `string:"${original?.id}"` });
+    await expect(privateHistory(root.id)).toBeVisible();
     await expect(
       page.getByText(`Queued follow-up ${developer.id}`, { exact: true }),
     ).toHaveCount(0);
@@ -591,10 +591,13 @@ for (const preset of ["developer", "explore"] as const) {
         .getByRole("navigation", { name: "Primary", exact: true })
         .getByRole("button", { name: "Projects", exact: true })
         .click();
-      await page
+      const mobileNavigation = page.locator(".mobile-layer:visible");
+      await mobileNavigation
         .getByRole("button", { name: new RegExp(basename(dir)) })
         .click();
-      await page.getByText(conversation.title, { exact: true }).first().click();
+      await mobileNavigation
+        .getByRole("button", { name: new RegExp(`^${conversation.title}\\b`) })
+        .click();
       const controls = page.getByLabel("Agent controls", { exact: true });
       await expect(controls).toContainText("Lead agent");
       await page.getByRole("textbox").first().fill("Mobile root draft");
@@ -628,10 +631,25 @@ for (const preset of ["developer", "explore"] as const) {
           ).queuedPrompts.map((item) => item.text),
         )
         .toContain(prompt);
-      expect(
-        (await rpc(page, "agent.promptQueue.list", { agentId: root.id }))
-          .queuedPrompts,
-      ).toHaveLength(0);
+      const rootQueue = (
+        await rpc(page, "agent.promptQueue.list", { agentId: root.id })
+      ).queuedPrompts;
+      // Intervention metadata may queue for the parent despite reporting none;
+      // the child user payload must not route there or change the notice owner.
+      for (const notice of rootQueue) {
+        expect(notice).toMatchObject({
+          agentId: root.id,
+          conversationId: conversation.id,
+          role: "system",
+          origin: {
+            kind: "system",
+            producer: "async_obligation",
+            correlationId: expect.stringMatching(/^user_intervention:/),
+          },
+        });
+        expect(notice.text).toContain(child.id);
+        expect(notice.text).not.toContain(prompt);
+      }
       await controls.getByRole("button", { name: "Agent settings" }).click();
       await page
         .getByRole("textbox", { name: "Instructions", exact: true })
@@ -726,22 +744,42 @@ test("switching lead and child during live runs keeps events and history agent-s
     await expect(controls).toContainText("Lead agent");
     await expect(page.getByText(rootPrompt, { exact: true })).toBeVisible();
     await expect(page.getByText(childPrompt, { exact: true })).toHaveCount(0);
-    for (const agent of [root, child]) {
+    const getHistory = (agentId: string) =>
+      rpc(page, "agent.history.get", { agentId });
+    const responses = page.getByText(/I received your prompt:/);
+    for (const { agent, prompt, foreignPrompt } of [
+      { agent: root, prompt: rootPrompt, foreignPrompt: childPrompt },
+      { agent: child, prompt: childPrompt, foreignPrompt: rootPrompt },
+    ]) {
       await expect
         .poll(
-          async () =>
-            (await rpc(page, "agent.history.get", { agentId: agent.id }))
-              .latestCompletion?.outcome,
+          async () => (await getHistory(agent.id)).latestCompletion?.outcome,
         )
         .toBe("completed");
+      const history = await getHistory(agent.id);
+      expect(history).toMatchObject({
+        agentId: agent.id,
+        conversationId: conversation.id,
+        latestCompletion: { agentId: agent.id, outcome: "completed" },
+      });
+      expect(history.entries.map((entry) => entry.agentId)).toEqual(
+        history.entries.map(() => agent.id),
+      );
+      expect(history.entries.find((entry) => entry.text === prompt)?.role).toBe(
+        "user",
+      );
+      expect(
+        history.entries.some((entry) => entry.text?.includes(foreignPrompt)),
+      ).toBe(false);
     }
-    await expect(page.getByText(/I received your prompt:/)).toContainText(
-      rootPrompt,
-    );
+    // Faux may echo a newer parent intervention notice; retain the root user UX.
+    await expect(page.getByText(rootPrompt, { exact: true })).toBeVisible();
+    await expect(page.getByText(childPrompt, { exact: true })).toHaveCount(0);
+    await expect(responses.filter({ visible: true })).not.toHaveCount(0);
+    await expect(responses.filter({ hasText: childPrompt })).toHaveCount(0);
     await page.getByText(child.name!, { exact: true }).first().click();
-    await expect(page.getByText(/I received your prompt:/)).toContainText(
-      childPrompt,
-    );
+    await expect(responses).toContainText(childPrompt);
+    await expect(responses.filter({ hasText: rootPrompt })).toHaveCount(0);
     await expect(page.getByText(rootPrompt, { exact: true })).toHaveCount(0);
     // A new child run must still target the selected identity after live root
     // events and snapshot hydration have both been applied, without a reload.
@@ -751,11 +789,7 @@ test("switching lead and child during live runs keeps events and history agent-s
     await composer.press("Enter");
     await expect(page.getByText(followUp, { exact: true })).toBeVisible();
     await expect
-      .poll(async () =>
-        JSON.stringify(
-          await rpc(page, "agent.history.get", { agentId: child.id }),
-        ),
-      )
+      .poll(async () => JSON.stringify(await getHistory(child.id)))
       .toContain(followUp);
     await page.getByText("Lead agent", { exact: true }).last().click();
     await expect(page.getByText(followUp, { exact: true })).toHaveCount(0);

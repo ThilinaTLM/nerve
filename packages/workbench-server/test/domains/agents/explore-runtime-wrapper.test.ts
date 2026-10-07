@@ -137,7 +137,7 @@ it("creates a fresh persistent read-only blueprint and returns the exact submitt
   assert.deepEqual(request.orchestrationPolicy, {
     preset: "explore",
     parentCancellation: "attached",
-    completionReporting: "parent",
+    completionReporting: "none",
   });
   assert.ok(request.tools?.includes("read"));
   // A subsequent execution/configuration can exist while the original wait is unresolved.
@@ -176,8 +176,13 @@ it("forwards abort during admission to the exact run and waits for terminal sett
   const admission = deferred<ExploreRunIdentity>();
   const terminal = deferred<AgentCompletion>();
   const cancelled = deferred<ExploreRunIdentity>();
+  const admitting = deferred<void>();
   const f = fixture({
-    submitRun: async () => admission.promise,
+    submitRun: async (_id, _text, _parent, options) => {
+      assert.equal(options?.signal, controller.signal);
+      admitting.resolve();
+      return admission.promise;
+    },
     waitForRun: async () => terminal.promise,
     cancelRun: async (run) => {
       cancelled.resolve(run);
@@ -190,7 +195,7 @@ it("forwards abort during admission to the exact run and waits for terminal sett
       finished = true;
     });
   // Admission has started but has not yet yielded an identity.
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  await admitting.promise;
   controller.abort();
   const run = identity("agent_child_1");
   admission.resolve(run);
@@ -202,6 +207,59 @@ it("forwards abort during admission to the exact run and waits for terminal sett
     response: undefined,
   });
   await assert.rejects(result, { name: "AbortError" });
+});
+
+it("cancellation while waiting for Explore capacity creates no child or run", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-explore-capacity-abort-"));
+  const submitted = deferred<ExploreRunIdentity>();
+  const terminal = deferred<AgentCompletion>();
+  const waiting = deferred<void>();
+  const controller = new AbortController();
+  let submissions = 0;
+  const f = fixture(
+    {
+      submitRun: async (id) => {
+        submissions++;
+        const run = identity(id);
+        submitted.resolve(run);
+        return run;
+      },
+      waitForRun: async () => terminal.promise,
+      cancelRun: async () =>
+        assert.fail("queued cancellation must not cancel the active sibling"),
+    },
+    home,
+  );
+  const args = {
+    context: "Initial inspection identified independent readonly source work.",
+    tasks: [
+      {
+        task: "Inspect this independent source area without changing files",
+        label: "Read source",
+      },
+    ],
+  };
+  try {
+    const active = f.runner.runExplore(parent, args);
+    const run = await submitted.promise;
+    const queued = f.runner.runExplore(parent, args, {
+      signal: controller.signal,
+      onProgress: (update) => {
+        if (update.message.includes("waiting for an active-agent slot"))
+          waiting.resolve();
+      },
+    });
+    const cancelled = assert.rejects(queued, { name: "AbortError" });
+    await waiting.promise;
+    controller.abort();
+    await cancelled;
+    assert.equal(submissions, 1);
+    assert.equal(f.requests.length, 1);
+    terminal.resolve(completion(run));
+    assert.equal((await active).reports[0]?.status, "completed");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 it("bounds admission through settlement, settles every sibling and preserves partial-failure reports", async () => {
