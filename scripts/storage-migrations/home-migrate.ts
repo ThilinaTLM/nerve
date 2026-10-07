@@ -13,7 +13,7 @@ try {
   assertAllowedOptions(options, ["--dry-run", "--home"]);
   if (options.get("--dry-run") !== true)
     throw new Error(
-      "home:migrate currently requires --dry-run; it never promotes storage.",
+      "home-migrate.ts currently requires --dry-run; it never promotes storage.",
     );
   const home = option(options, "--home", defaultNerveHome());
   const result = await dryRunNerveHomeMigration({

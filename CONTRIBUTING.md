@@ -26,21 +26,39 @@ Without `--base`, selection includes branch changes since the merge-base with `o
 
 The selector follows JavaScript/TypeScript imports across workspace source exports. Filesystem/process-driven tests are selected conservatively; configuration, assets, fixtures, native code, unsupported formats, deleted files, and sources without known tests fall back to complete affected package suites. Global/unknown changes or an unavailable base fall back to `test:full`. Root script tests remain a baseline; native and emitted workspace APIs are built when required.
 
-Do not routinely follow focused testing with `test:affected` or `test:full`; broader validation belongs in CI. Run those suites locally only for a specific concern (such as suspected selection gaps, cross-package runtime coupling, or reproducing a CI failure) or an explicit request. The selector's automatic conservative fallbacks still apply. Import graphs cannot capture all runtime coupling; run `pnpm test:browser` separately when browser behavior is relevant.
+Do not routinely follow focused testing with `test:full`; broader validation belongs in CI. Run the full suite locally only for a specific concern (such as suspected selection gaps, cross-package runtime coupling, or reproducing a CI failure) or an explicit request. The selector's automatic conservative fallbacks still apply. Import graphs cannot capture all runtime coupling; run `pnpm test:browser` separately when browser behavior is relevant.
 
 Repository tooling follows the [scripts placement guide](scripts/README.md); keep scripts and their tests in the owning domain.
 
-### Isolated desktop development
+### Isolated development storage
 
 ```sh
-pnpm run desktop:dev
+pnpm desktop:dev             # slot 1: desktop with disposable storage
+pnpm dev --slot 2            # slot 2: daemon + browser UI
+pnpm dev:ui --slot 2         # UI against the running slot 2 daemon
+pnpm storage:copy --slot 3   # stopped ~/.nerve -> unused slot 3
+pnpm desktop:dev --slot 3
 ```
 
-This builds and opens a separate desktop using the repository's `data/storage-1` as `NERVE_HOME` and `data/desktop-profile-1` as Electron's profile, regardless of ambient home/profile settings. HTTP uses `43967`; mobile HTTPS uses `43968`. The root `/data/` directory is ignored by Git. The command takes no arguments; `pnpm desktop` keeps its existing behavior.
+Slots accept integers 1–100 (default 1). Paths resolve from the checkout root, not the current directory: `data/storage-N` is the daemon home and `data/desktop-profile-N` is Electron's separate profile. Git ignores `/data/`. HTTP uses `43967 + 2*(N-1)`, mobile HTTPS uses the next port, and Vite uses `5173 + (N-1)`. Occupied ports fail rather than silently choosing another port. Concurrent slots share build outputs; avoid concurrent rebuilds.
 
-Only an authenticated daemon recorded in this development home with matching paths and ports can be reused. Occupied ports or mismatched metadata fail without stopping other processes. A reused daemon remains externally owned and is not stopped when this desktop quits. Credentials come from the development home; the launcher does not copy credentials from `~/.nerve`.
+`desktop:dev` and `dev` ignore ambient home/profile/target overrides and bind loopback. New homes are initialized as disposable. Existing standard or malformed slot homes are refused, never silently reclassified. Only an authenticated daemon recorded in this slot with matching paths and ports can be reused; it remains externally owned and is not stopped on exit. Mismatched metadata and occupied ports fail without stopping other processes. Development launchers use credentials from the slot, not from `~/.nerve`.
 
-Quit the development desktop normally before cleanup. If it reused an external daemon, stop that daemon through its original owner first. Once neither is running, remove `data/desktop-profile-1` to reset Electron state, or `data/storage-1` to discard development storage. Never remove a live home or stop a process solely because it occupies one of these ports.
+`storage:copy` always reads `~/.nerve`, regardless of ambient `NERVE_HOME`. Stop its owning desktop/daemon first. Copying holds startup locks, refuses live owners or malformed ownership metadata, excludes daemon records/backups/migration work, rejects linked storage content, and marks the result disposable. Existing destinations are refused even when empty; nothing is overwritten. Copied credentials and absolute project paths can still access real providers and files: storage isolation is **not** a sandbox.
+
+Quit the development desktop/daemon before resetting a slot. Stop a reused daemon through its original owner. Once neither is running, remove `data/desktop-profile-N` to reset Electron state or `data/storage-N` to discard storage and recopy. Never delete a live home or stop a process merely because it occupies a slot port. For manual migration iteration, copy a slot, run the development build, inspect its logs, then discard/recopy when needed. Automated tests retain fresh temporary homes rather than shared persistent slots.
+
+### Explicit production-data launch
+
+`pnpm desktop:prod` builds and runs source code against `~/.nerve` and the normal Electron profile by default. It respects explicit `NERVE_HOME` and launch arguments. This is not a release build; pending finalized migrations and new features may affect your real data. Installed/npm desktop apps retain their normal `~/.nerve` default. The ambiguous `pnpm desktop` command is removed.
+
+To run only the UI against an existing non-slot daemon, explicitly pair its home and target so Vite reads the correct local token:
+
+```sh
+NERVE_HOME="$HOME/.nerve" NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
+```
+
+UI-only overrides do not initialize or mutate the chosen external home. Without overrides, `dev:ui` requires a running authenticated slot daemon.
 
 ## Guidelines
 

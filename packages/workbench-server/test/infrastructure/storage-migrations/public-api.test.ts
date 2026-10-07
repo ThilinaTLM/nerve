@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -11,6 +11,11 @@ import {
 import { runStorageMigrationWorker } from "../../../src/infrastructure/storage-migrations/worker-client.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/initialize.js";
 import { STORAGE_READ_COMPATIBILITY_ID } from "../../../src/infrastructure/storage-migrations/read-compatibility.js";
+
+import { acquireStorageStartupLock } from "../../../src/infrastructure/storage-bootstrap/startup-lock.js";
+import { cloneNerveHome } from "../../../../../scripts/storage-migrations/home-operations.js";
+import { prepareDevelopmentSlot } from "../../../../../scripts/development/storage-preparation.js";
+import { resolveStorageSlot } from "../../../../../scripts/development/storage-slot.mjs";
 
 test("public migration adapters fingerprint and revalidate a current home", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-migration-api-"));
@@ -206,3 +211,89 @@ test("public migration apply rejects a stale fingerprint before mutation", async
 function moduleDataUrl(source: string): URL {
   return new URL(`data:text/javascript,${encodeURIComponent(source)}`);
 }
+
+test("fresh disposable initialization is opt-in and never reclassifies existing standard storage", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-storage-home-class-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const standard = join(root, "standard");
+  const disposable = join(root, "disposable");
+  for (const [home, options, expected] of [
+    [standard, {}, "standard"],
+    [disposable, { freshHomeClass: "disposable" as const }, "disposable"],
+    [standard, { freshHomeClass: "disposable" as const }, "standard"],
+  ] as const) {
+    const storage = await initializeStorage(home, options);
+    await storage.canonicalStore.close();
+    const manifest = JSON.parse(
+      await readFile(join(home, "manifest.json"), "utf8"),
+    );
+    assert.equal(manifest.homeClass, expected);
+    const plan = await inspectStorageMigrationPlan(home);
+    assert.equal(plan.outcome, "current");
+  }
+});
+
+test("slot preparation initializes only fresh disposable homes and never upgrades or reclassifies existing copies", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-dev-preparation-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const slot = resolveStorageSlot([], root);
+  await prepareDevelopmentSlot(slot);
+  assert.equal(
+    JSON.parse(await readFile(join(slot.home, "manifest.json"), "utf8"))
+      .homeClass,
+    "disposable",
+  );
+  const database = await readFile(join(slot.home, "data", "nerve.sqlite"));
+  await prepareDevelopmentSlot(slot);
+  assert.deepEqual(
+    await readFile(join(slot.home, "data", "nerve.sqlite")),
+    database,
+  );
+  await writeFile(
+    join(slot.home, "manifest.json"),
+    JSON.stringify({ format: "nerve-home", version: 2, homeClass: "standard" }),
+  );
+  await assert.rejects(prepareDevelopmentSlot(slot), /never reclassified/);
+  assert.equal(
+    JSON.parse(await readFile(join(slot.home, "manifest.json"), "utf8"))
+      .homeClass,
+    "standard",
+  );
+});
+
+test("daemon-owned startup lock covers the gap from storage initialization to published ownership", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-startup-copy-lock-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const home = join(root, "source");
+  const destination = join(root, "copy");
+  const startupLock = await acquireStorageStartupLock(home);
+  t.after(() => startupLock.release());
+  const storage = await initializeStorage(home, { startupLock });
+  await storage.canonicalStore.close();
+  // initializeStorage returned, but the daemon hasn't advertised its lease.
+  await assert.rejects(
+    cloneNerveHome({ source: home, destination }),
+    /locked by live process/,
+  );
+  await writeFile(
+    join(home, "daemon.json"),
+    JSON.stringify({
+      daemonId: "daemon_lock_test",
+      pid: process.pid,
+      host: "127.0.0.1",
+      port: 3747,
+      url: "http://127.0.0.1:3747",
+      dataDir: home,
+      version: "test",
+      startedAt: new Date().toISOString(),
+    }),
+  );
+  await startupLock.release();
+  await assert.rejects(
+    cloneNerveHome({ source: home, destination }),
+    /Stop the source/,
+  );
+  await assert.rejects(readFile(join(destination, "manifest.json")), {
+    code: "ENOENT",
+  });
+});

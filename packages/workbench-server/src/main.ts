@@ -48,6 +48,10 @@ import {
   initializeStorage,
   resolveDataDir,
 } from "./infrastructure/storage-bootstrap/index.js";
+import {
+  acquireStorageStartupLock,
+  type StorageStartupLock,
+} from "./infrastructure/storage-bootstrap/startup-lock.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
@@ -84,6 +88,13 @@ function prepareEnterpriseNetworkEnvironment(): void {
 }
 
 let leaseMonitor: DaemonLeaseMonitor | undefined;
+let startupLock: StorageStartupLock | undefined;
+
+async function releaseStartupLock(): Promise<void> {
+  const lock = startupLock;
+  startupLock = undefined;
+  await lock?.release();
+}
 let performanceMonitor: DaemonPerformanceMonitor | undefined;
 const processStartupStartedAt = performance.now();
 
@@ -128,8 +139,13 @@ async function main() {
     );
   };
   const storageStartedAt = performance.now();
+  // Keep initialization and publication atomic with offline clone/migration
+  // tooling. No writer may slip into the gap before daemon.json identifies us.
+  await mkdir(dirname(dataDir), { recursive: true, mode: 0o700 });
+  startupLock = await acquireStorageStartupLock(dataDir);
   const storage = await initializeStorage(dataDir, {
     reportStartupProgress,
+    startupLock,
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
@@ -289,6 +305,7 @@ async function main() {
       if (mobileTls)
         updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
       await leaseMonitor?.publish(toDaemonFile(state));
+      await releaseStartupLock();
       await state.events.publish("daemon.started", {
         daemonId: state.daemonId,
         pid: process.pid,
@@ -461,6 +478,7 @@ async function main() {
         : []),
     ]);
     await leaseMonitor?.close();
+    await releaseStartupLock();
     process.exit(0);
   };
   const requestShutdown = (signal: NodeJS.Signals) => {
@@ -597,7 +615,8 @@ function formatHostForUrl(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
+  await releaseStartupLock().catch(() => undefined);
   console.error(error);
   if (isDaemonLeaseConflictError(error)) {
     process.exit(1);

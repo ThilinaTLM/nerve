@@ -40,18 +40,20 @@ The shell stops only a daemon it owns. An existing local daemon or a configured 
  git clone https://github.com/ThilinaTLM/nerve.git
  cd nerve
  pnpm install
- pnpm desktop
+ pnpm desktop:dev
 ```
 
 The repository pins pnpm 11.20.0. Use `pnpm dev` to run the daemon and browser UI development servers, or connect the UI to an existing daemon:
 
 ```sh
-NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
+NERVE_HOME="$HOME/.nerve" NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
 ```
 
 ## Data created on first launch
 
-Nerve uses `~/.nerve` by default for portable application state, credentials, logs, reports, and daemon metadata. Override it with `NERVE_HOME` when you need an isolated test profile. Electron's active Chromium profile is deliberately stored elsewhere, so also isolate Electron user data when a test requires a completely separate browser profile.
+Repository development uses disposable `data/storage-1` and a separate Electron profile by default; `--slot N` selects another slot. Explicit `pnpm desktop:prod` runs source code against real user data.
+
+Installed Nerve uses `~/.nerve` by default for portable application state, credentials, logs, reports, and daemon metadata. Override it with `NERVE_HOME` when you need an isolated test profile. Electron's active Chromium profile is deliberately stored elsewhere, so also isolate Electron user data when a test requires a completely separate browser profile.
 
 :::note
 If Nerve recognizes a supported legacy v2 home (`manifest.json` format `nerve-workbench-state`), the desktop asks before migration. Read [Storage and migration](/operations/storage-migration/) before accepting if you need old conversations or project history.

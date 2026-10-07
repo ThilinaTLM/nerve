@@ -5,6 +5,7 @@ import {
   defaultSettings,
   NERVE_HOME_MANIFEST,
   type Settings,
+  type NerveHomeClass,
   settingsSchema,
   type UpdateSettingsRequest,
   type UserConfiguration,
@@ -21,7 +22,10 @@ import {
   writeHomeConfiguration,
 } from "../configuration/home-configuration.js";
 import { inspectNerveHome } from "./state-layout.js";
-import { acquireStorageStartupLock } from "./startup-lock.js";
+import {
+  acquireStorageStartupLock,
+  type StorageStartupLock,
+} from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { writeStorageMigrationFailureReport } from "../storage-migrations/runner/failure-report.js";
 import { legacyReadCompatibilityReleases } from "../storage-migrations/read-compatibility-evidence.js";
@@ -83,6 +87,10 @@ export async function initializeStorage(
   home = resolveDataDir(),
   options: {
     reportStartupProgress?: (progress: DaemonStartupProgress) => void;
+    /** Applies only to a fresh home; existing homes retain their class. */
+    freshHomeClass?: NerveHomeClass;
+    /** Caller retains ownership through daemon publication and releases it. */
+    startupLock?: StorageStartupLock;
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
@@ -92,7 +100,14 @@ export async function initializeStorage(
     message: "Checking local storage",
   });
 
-  const startupLock = await acquireStorageStartupLock(home);
+  if (
+    options.startupLock &&
+    options.startupLock.path !== `${home}.startup.lock`
+  ) {
+    throw new Error("Storage startup lock does not belong to this home.");
+  }
+  const startupLock =
+    options.startupLock ?? (await acquireStorageStartupLock(home));
   try {
     const homeInspectionStartedAt = performance.now();
     const inspection = await inspectNerveHome(home);
@@ -104,7 +119,14 @@ export async function initializeStorage(
     await mkdir(paths.home, { recursive: true, mode: 0o700 });
     await chmod(paths.home, 0o700).catch(() => undefined);
     if (fresh) {
-      await atomicWriteJson(paths.manifestPath, NERVE_HOME_MANIFEST, 0o600);
+      await atomicWriteJson(
+        paths.manifestPath,
+        {
+          ...NERVE_HOME_MANIFEST,
+          homeClass: options.freshHomeClass ?? "standard",
+        },
+        0o600,
+      );
     } else if (!(await pathExists(paths.sqlitePath))) {
       throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
     }
@@ -209,7 +231,7 @@ export async function initializeStorage(
       },
     };
   } finally {
-    await startupLock.release();
+    if (!options.startupLock) await startupLock.release();
   }
 }
 

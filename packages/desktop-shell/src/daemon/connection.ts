@@ -182,7 +182,7 @@ function validateExistingDaemon(
   }
   if (wantsLanAccess(options, env) && isLoopbackHost(existing.daemon.host)) {
     throw new Error(
-      `A Nerve daemon is already running at ${existing.url}, but it is bound to ${existing.daemon.host} and cannot accept LAN clients. Stop the existing daemon, then run pnpm desktop again.`,
+      `A Nerve daemon is already running at ${existing.url}, but it is bound to ${existing.daemon.host} and cannot accept LAN clients. Stop the existing daemon through its owner, then restart your desktop with LAN access enabled.`,
     );
   }
   if (options.mobileHttps && !existing.daemon.mobileHttps) {

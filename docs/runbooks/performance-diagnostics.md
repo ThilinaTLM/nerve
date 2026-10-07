@@ -2,13 +2,13 @@
 
 > **Scope:** Maintainer workflow for unpackaged source desktop sessions. Public operational guidance lives in [Logs and diagnostics](https://nerve.tlmtech.dev/operations/diagnostics/).
 
-Source desktop launches collect lightweight performance diagnostics by default until a saved diagnostics choice overrides that development fallback. Run Nerve normally:
+Source desktop launches collect lightweight performance diagnostics by default until a saved diagnostics choice overrides that development fallback. Run the isolated development desktop:
 
 ```sh
-pnpm desktop
+pnpm desktop:dev
 ```
 
-No alternate home, ports, Electron profile, or profiling flags are required for normal use. The unpackaged desktop process configures diagnostics for itself and the local daemon it owns. Packaged releases do not enable sampling automatically, although users can enable it in Settings.
+The launcher selects the development home, ports, and separate Electron profile; `--slot N` selects another slot. Use explicit `pnpm desktop:prod` only when intentionally diagnosing real user data in `~/.nerve`. No profiling flags are required. The unpackaged desktop process configures diagnostics for itself and the local daemon it owns. Packaged releases do not enable sampling automatically, although users can enable it in Settings.
 
 ## When CPU becomes high
 
@@ -18,8 +18,8 @@ No alternate home, ports, Electron profile, or profiling flags are required for 
 
 The agent can inspect the normal files directly:
 
-- `~/.nerve/logs/performance-<session-id>.jsonl` (or the equivalent beneath `<NERVE_HOME>`);
-- `~/.nerve/logs/startup.jsonl`.
+- `data/storage-1/logs/performance-<session-id>.jsonl` (or the equivalent beneath the selected `<NERVE_HOME>`);
+- `data/storage-1/logs/startup.jsonl`.
 
 Each desktop launch creates a timestamped performance file. Desktop and daemon samples share that file, and automatic daemon restarts remain in the same desktop session. Fully quitting and reopening Nerve creates a new file. The agent selects the newest file for the current incident or an older timestamped file for a previous launch.
 
@@ -43,7 +43,7 @@ Inspect the timestamped JSONL samples around the reported incident. Common signa
 To compare against a source launch with diagnostics disabled:
 
 ```sh
-NERVE_PERFORMANCE_DIAGNOSTICS=0 pnpm desktop
+NERVE_PERFORMANCE_DIAGNOSTICS=0 pnpm desktop:dev
 ```
 
 An explicit `0` or `1` is always respected. A saved Settings choice also overrides the unpackaged-source default when no environment override is present. Do not run two daemons against the same `NERVE_HOME`. Diagnostics remain local and are never uploaded automatically.

@@ -20,10 +20,10 @@ From a source checkout:
 ```sh
 pnpm dev
 # or point only the UI at an existing daemon
-NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
+NERVE_HOME="$HOME/.nerve" NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui
 ```
 
-The Vite UI defaults to `127.0.0.1:5173` and proxies API/WebSocket traffic to the configured target or local daemon metadata.
+Repository development defaults to disposable `data/storage-1`, daemon HTTP `43967`, and Vite `127.0.0.1:5173`. Use `--slot N` for another home and port tuple. `pnpm dev:ui` without overrides requires a running slot daemon. Pair explicit local targets with their `NERVE_HOME` so the proxy reads the correct bearer token. Installed desktop/daemon defaults are unchanged.
 
 ## Mobile and responsive use
 

@@ -4,6 +4,7 @@ Place repository tooling by responsibility; keep filenames descriptive and domai
 
 | Directory             | Responsibility                                                                                                                                                             |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `development/`        | Repository-only slot selection, disposable storage preparation, and owned development process orchestration.                                                               |
 | `build/`              | Asset generation and build assembly.                                                                                                                                       |
 | `checks/`             | Architecture, boundaries, policy validation, source inventory, and package-export surfaces.                                                                                |
 | `testing/`            | CI impact analysis, focused selection/import graphs, and test orchestration.                                                                                               |
@@ -13,4 +14,6 @@ Place repository tooling by responsibility; keep filenames descriptive and domai
 
 Keep tests in a `test/` subdirectory of their owning domain (`*.test.mjs` or existing `*.test.ts`); create it only where tests exist. The recursive `scripts/**/*.test.mjs` glob discovers these tests, including the runner for TypeScript home-operation tests. Do not add a generic `lib/`, global tests directory, or domain `lib/` nesting. Admit a module to `shared/` only when multiple domains genuinely consume it; shared implementation must not import domain entrypoints. Domain-owned helpers stay with their domain even when another domain imports them.
 
-Prefer the stable pnpm commands in [package.json](../package.json): `pnpm build`, `pnpm check`, `pnpm test:focused`, `pnpm run test:affected`, and `pnpm run test:full`. See [Contributing](../CONTRIBUTING.md) for test selection and validation, and the [release checklist](../docs/runbooks/release.md) for direct release commands. Package-local script trees are outside this layout.
+Prefer the stable pnpm commands in [package.json](../package.json): `pnpm build`, `pnpm check`, `pnpm test:focused`, and `pnpm run test:full`. See [Contributing](../CONTRIBUTING.md) for test selection and validation, and the [release checklist](../docs/runbooks/release.md) for direct release commands. Package-local script trees are outside this layout.
+
+Daily development: `pnpm desktop:dev`, `pnpm dev`, and `pnpm dev:ui` accept `--slot N`. `pnpm storage:copy --slot N` seeds an unused disposable slot from a stopped `~/.nerve`. `pnpm desktop:prod` explicitly launches source code against real user data. Migration compatibility metadata is refreshed by `pnpm fix`; specialized dry-run/restore/fixture tools remain directly invokable under `storage-migrations/`, not root aliases.

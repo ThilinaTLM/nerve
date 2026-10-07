@@ -194,17 +194,13 @@ export function storageReadCompatibilityPolicyViolations(repoRoot) {
   if (!ENTRYPOINTS.some((entry) => existsSync(resolve(root, entry)))) return [];
   const path = resolve(root, STORAGE_READ_COMPATIBILITY_FILE);
   if (!existsSync(path))
-    return [
-      `${STORAGE_READ_COMPATIBILITY_FILE} is missing; run pnpm migrations:update-read-compatibility`,
-    ];
+    return [`${STORAGE_READ_COMPATIBILITY_FILE} is missing; run pnpm fix`];
   try {
     const expected = renderStorageReadCompatibility(repoRoot);
     const actual = readFileSync(path, "utf8");
     return actual === expected
       ? []
-      : [
-          `${STORAGE_READ_COMPATIBILITY_FILE} is stale; run pnpm migrations:update-read-compatibility`,
-        ];
+      : [`${STORAGE_READ_COMPATIBILITY_FILE} is stale; run pnpm fix`];
   } catch (error) {
     return [error instanceof Error ? error.message : String(error)];
   }

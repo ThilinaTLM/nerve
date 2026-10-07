@@ -1,5 +1,16 @@
 import { randomUUID } from "node:crypto";
-import { cp, lstat, mkdir, realpath, rm, stat } from "node:fs/promises";
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
+import { daemonFileSchema } from "../../packages/contracts/src/domains/status/status.js";
 import { homedir } from "node:os";
 import {
   basename,
@@ -51,7 +62,7 @@ export async function cloneNerveHome(input: {
   destination: string;
 }): Promise<void> {
   const requestedSource = resolve(input.source);
-  const destination = resolve(input.destination);
+  let destination = resolve(input.destination);
   await assertDisposableHomePath(destination);
   if (!(await pathExists(requestedSource)))
     throw new Error(`Source home does not exist: ${requestedSource}`);
@@ -59,35 +70,60 @@ export async function cloneNerveHome(input: {
   if (!(await lstat(source)).isDirectory())
     throw new Error(`Source home is not a directory: ${source}`);
   await assertDistinctNonNestedPaths(source, destination);
-  if (await pathExists(destination))
-    throw new Error(`Clone destination already exists: ${destination}`);
+  await assertCloneDestinationAbsent(destination);
 
   const sourcePaths = storagePaths(source);
   await readStorageHomeClass(sourcePaths.manifestPath);
-  const lock = await acquireStorageHomeLock(source);
+  const lock = await acquireStorageHomeLock(source, { timeoutMs: 0 });
+  let destinationLock;
+  let created = false;
   try {
+    await assertOfflineCloneSource(source);
     if (await pathExists(sourcePaths.migrationPromotionJournalPath))
       throw new Error(
         "Source home has an interrupted storage promotion; start the owning build to recover it before cloning.",
       );
-    await mkdir(dirname(destination), { recursive: true });
+    await mkdir(dirname(destination), { recursive: true, mode: 0o700 });
+    destination = join(
+      await realpath(dirname(destination)),
+      basename(destination),
+    );
+    await assertDisposableHomePath(destination);
+    await assertDistinctNonNestedPaths(source, destination);
+    await assertCloneDestinationAbsent(destination);
+    destinationLock = await acquireStorageHomeLock(destination, {
+      timeoutMs: 0,
+    });
+    await mkdir(destination, { mode: 0o700 });
+    created = true;
     const excluded = new Set([
       sourcePaths.backupsPath,
       sourcePaths.migrationWorkPath,
       sourcePaths.daemonPath,
     ]);
-    await cp(source, destination, {
-      recursive: true,
-      errorOnExist: true,
-      force: false,
-      verbatimSymlinks: true,
-      filter(path) {
-        const candidate = resolve(path);
-        for (const excludedPath of excluded)
-          if (isWithin(excludedPath, candidate)) return false;
-        return true;
-      },
-    });
+    for (const entry of await readdir(source)) {
+      await cp(join(source, entry), join(destination, entry), {
+        recursive: true,
+        errorOnExist: true,
+        force: false,
+        async filter(path) {
+          const candidate = resolve(path);
+          for (const excludedPath of excluded)
+            if (isWithin(excludedPath, candidate)) return false;
+          const entry = await lstat(path);
+          if (
+            entry.isSymbolicLink() ||
+            (!entry.isDirectory() && !entry.isFile())
+          ) {
+            throw new Error(
+              `Cannot safely clone linked or special storage content: ${path}`,
+            );
+          }
+          return true;
+        },
+      });
+    }
+    await chmod(destination, 0o700);
     await atomicWriteJson(
       join(destination, "manifest.json"),
       {
@@ -98,11 +134,73 @@ export async function cloneNerveHome(input: {
       0o600,
     );
   } catch (error) {
-    await rm(destination, { recursive: true, force: true });
+    if (created) await rm(destination, { recursive: true, force: true });
     throw error;
   } finally {
+    await destinationLock?.release();
     await lock.release();
   }
+}
+
+async function assertCloneDestinationAbsent(
+  destination: string,
+): Promise<void> {
+  try {
+    await lstat(destination);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    )
+      return;
+    throw error;
+  }
+  throw new Error(`Clone destination already exists: ${destination}`);
+}
+
+async function assertOfflineCloneSource(source: string): Promise<void> {
+  let raw: string;
+  try {
+    raw = await readFile(join(source, "daemon.json"), "utf8");
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ENOENT"
+    )
+      return;
+    throw error;
+  }
+  let daemon;
+  try {
+    daemon = daemonFileSchema.parse(JSON.parse(raw));
+  } catch (cause) {
+    throw new Error(
+      "Source daemon metadata is invalid; confirm the source is stopped and inspect the record before copying.",
+      { cause },
+    );
+  }
+  try {
+    process.kill(daemon.pid, 0);
+  } catch (error) {
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "ESRCH"
+    )
+      return;
+    throw new Error(
+      "Cannot verify source daemon ownership; refusing to copy.",
+      { cause: error },
+    );
+  }
+  throw new Error(
+    `Stop the source Nerve daemon (${daemon.pid}) before copying its storage.`,
+  );
 }
 
 export async function dryRunNerveHomeMigration(input: {
@@ -115,7 +213,7 @@ export async function dryRunNerveHomeMigration(input: {
   await assertDisposableHomePath(home);
   const paths = storagePaths(home);
   if ((await readStorageHomeClass(paths.manifestPath)) !== "disposable")
-    throw new Error("home:migrate --dry-run requires a disposable Nerve home.");
+    throw new Error("Migration dry run requires a disposable Nerve home.");
   if (await pathExists(paths.migrationPromotionJournalPath))
     throw new Error(
       "The home has an interrupted storage promotion; recover it before a dry run.",

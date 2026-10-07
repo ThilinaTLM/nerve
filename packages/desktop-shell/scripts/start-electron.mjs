@@ -7,7 +7,7 @@ import {
   formatElectronDownloadFailure,
   formatProxyPreparationForLog,
   prepareElectronDownloadEnv,
-} from "../dist/electron-download-env.js";
+} from "../dist/platform/electron/download-environment.js";
 
 const require = createRequire(import.meta.url);
 
@@ -23,7 +23,7 @@ const env = {
 };
 delete env.ELECTRON_RUN_AS_NODE;
 
-// pnpm script forwarding can inject stray "--" separators (e.g. `pnpm desktop
+// pnpm script forwarding can inject stray "--" separators (e.g. `pnpm desktop:prod
 // -- --host ...`); they are meaningless to Electron once placed after the app
 // path, so drop them before forwarding.
 const forwardedArgs = process.argv.slice(2).filter((arg) => arg !== "--");
@@ -83,14 +83,29 @@ const child = spawn(electronPath, electronArgs, {
 
 // The isolated development launcher signals this wrapper, not arbitrary
 // Electron instances. Relay only to the Electron child it actually spawned.
-const relayInterrupt = () => child.kill("SIGINT");
-const relayTerminate = () => child.kill("SIGTERM");
+let terminationTimer;
+const relaySignal = (signal) => {
+  child.kill(signal);
+  // Escalate at the actual Electron child before an outer development launcher
+  // can kill this wrapper and orphan Electron. Never signal discovered daemons.
+  terminationTimer ??= setTimeout(() => child.kill("SIGKILL"), 3000);
+  terminationTimer.unref();
+};
+const relayInterrupt = () => relaySignal("SIGINT");
+const relayTerminate = () => relaySignal("SIGTERM");
 if (env.NERVE_ELECTRON_USER_DATA) {
   process.on("SIGINT", relayInterrupt);
   process.on("SIGTERM", relayTerminate);
 }
 
+child.on("error", (error) => {
+  clearTimeout(terminationTimer);
+  console.error(`Could not start Electron: ${error.message}`);
+  process.exitCode = 1;
+});
+
 child.on("exit", (code, signal) => {
+  clearTimeout(terminationTimer);
   process.off("SIGINT", relayInterrupt);
   process.off("SIGTERM", relayTerminate);
   if (signal) {

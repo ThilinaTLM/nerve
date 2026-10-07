@@ -62,10 +62,10 @@ The repository requires Node.js 24 or newer, pnpm 11.20.0, and rustup; the Rust 
 
 ```sh
 pnpm install
-pnpm desktop
+pnpm desktop:dev
 ```
 
-Use `pnpm dev` for the daemon and browser UI development servers. See the [development guide](https://nerve.tlmtech.dev/developers/development/) and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the complete workflow. Release engineering details remain in [`docs/runbooks/release.md`](docs/runbooks/release.md).
+Development defaults to disposable `data/storage-1` with a separate Electron profile; use `--slot N` for another slot. `pnpm storage:copy --slot N` copies a stopped `~/.nerve` into an unused slot for safe storage/migration testing. Only explicit `pnpm desktop:prod` uses real user data by default; installed desktop apps keep their `~/.nerve` default. Use `pnpm dev` for the daemon and browser UI development servers. See the [development guide](https://nerve.tlmtech.dev/developers/development/) and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the complete workflow. Release engineering details remain in [`docs/runbooks/release.md`](docs/runbooks/release.md).
 
 ## Support
 

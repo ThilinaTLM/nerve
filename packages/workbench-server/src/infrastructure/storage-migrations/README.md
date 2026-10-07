@@ -28,6 +28,6 @@ This directory is immutable storage history. `steps/index.ts` is the single orde
 
 ## Persisted-reader compatibility
 
-Readability sweeps are keyed by the generated identity in `read-compatibility.ts`, not by the application release. Changes to payload descriptors, codecs, upgraders, reachable persisted contract schemas, sweep dispatch, or runtime validator versions must refresh it with `pnpm migrations:update-read-compatibility`. Repository policy rejects stale generated metadata. Unrelated release-version changes do not invalidate a completed sweep.
+Readability sweeps are keyed by the generated identity in `read-compatibility.ts`, not by the application release. Changes to payload descriptors, codecs, upgraders, reachable persisted contract schemas, sweep dispatch, or runtime validator versions must refresh it with `pnpm fix`. Repository policy rejects stale generated metadata. Unrelated release-version changes do not invalidate a completed sweep.
 
 Released migration steps remain immutable. On a direct 0.31.1 upgrade, the 0.32.0 steps 0005–0010 are resolved once through checksummed legacy adoption or application; 0.32.1 and 0.32.2 added no migration steps. Successful production readability evidence from those releases is adopted only for the specifically reviewed compatibility identity in `read-compatibility-evidence.ts`; that evidence also recognizes the stale `0.31.1` build label emitted by packaged 0.32 startup when `npm_package_version` was absent.

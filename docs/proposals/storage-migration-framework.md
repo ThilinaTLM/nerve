@@ -236,7 +236,7 @@ Restoring a snapshot discards writes made since it was taken. So homes with real
 | **Standard**   | Default, including `~/.nerve` used by any build.                                                                                                           | Refused, with a pointer to `home:clone`. | Fix forward: final steps are immutable, so fixes are corrective steps. Mismatches fail closed. |
 | **Disposable** | `manifest.json` has `"disposable": true`. Set by `home:clone`, fresh development homes under `/tmp`, and fixtures. Never allowed on the default home path. | Allowed.                                 | Draft drift: confirm, snapshot the current state, restore the pre-step snapshot, re-apply.     |
 
-- **`ahead`** (a newer build upgraded this home): fail closed and advise running the newer build. `pnpm home:restore` can restore an older snapshot as an explicit destructive action. It first exports the current home, shows the time range of writes that would be lost, and needs typed confirmation.
+- **`ahead`** (a newer build upgraded this home): fail closed and advise running the newer build. `pnpm exec tsx scripts/storage-migrations/home-restore.ts` can restore an older snapshot as an explicit destructive action. It first exports the current home, shows the time range of writes that would be lost, and needs typed confirmation.
 - **A disposable home that lost its marker or was moved to a standard location** is refused by the `invalid` rule if it contains draft rows.
 
 ## Quarantine
@@ -321,11 +321,11 @@ Dependency upgrades (e.g. `zod`) are reviewed changes like any other. They're ga
 ## Development workflow
 
 1. `pnpm migrations:new data backfill-foo` creates a draft.
-2. `pnpm home:clone --to /tmp/nerve-foo` creates a disposable clone of a real home. Iterate there. Draft drift restores automatically after confirmation.
-3. `pnpm home:migrate --dry-run --home /tmp/nerve-foo` prints per-step timings, counts, quarantines, and sweep results. The PR template asks for this output.
+2. Stop the owning production desktop/daemon, then `pnpm storage:copy --slot 2` creates a disposable copy of `~/.nerve` in unused `data/storage-2`. Copying refuses existing slots and linked content. Copied credentials/project paths still access real services/files.
+3. `pnpm desktop:dev --slot 2` (or `pnpm dev --slot 2`) runs the development build against the copy. Inspect slot logs; stop its owner before discarding/recopying. For specialized dry-run output without promotion, use `pnpm exec tsx scripts/storage-migrations/home-migrate.ts --dry-run --home ./data/storage-2`. Automated tests use fresh temporary homes.
 4. `pnpm migrations:finalize` before merge. From then on, any build may apply the step to `~/.nerve`, and fixes go forward.
 
-Dogfooding `main` builds on `~/.nerve` stays supported, because `main` contains only final steps.
+Explicit `pnpm desktop:prod` dogfooding on `~/.nerve` stays supported for builds containing only final steps; the normal development commands use disposable slots.
 
 ## Testing
 
