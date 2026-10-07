@@ -1,13 +1,13 @@
 # Storage and evidence setup
 
-Use this first for every persistence investigation. Confirm the affected daemon endpoint, its actual `NERVE_HOME`, conversation ID, and incident UTC window. Your shell environment is not proof of the daemon's configuration. The default is `~/.nerve`; do not silently fall back there.
+Use this first for every persistence investigation. Default to `data/storage-1/` relative to the repository root. For production investigations, use `~/.nerve` unless an explicit production home is provided. Confirm the affected daemon endpoint, its actual `NERVE_HOME`, conversation ID, and incident UTC window before querying. Your shell environment is not proof of the daemon's configuration; do not silently fall back to another home if the expected database is missing.
 
 ## Open the right database
 
-Replace the path below with the confirmed home. Do not print credentials while checking configuration.
+Run from the repository root after confirming the target home; replace the default if the daemon uses a different home. For production, set `NERVE_HOME="$HOME/.nerve"` instead (or the confirmed production path). Do not print credentials while checking configuration.
 
 ```bash
-NERVE_HOME="/absolute/path/to/confirmed/home"
+NERVE_HOME="$(pwd)/data/storage-1"
 DB="$NERVE_HOME/data/nerve.sqlite"
 test -f "$DB" || { printf 'Expected database missing: %s\n' "$DB" >&2; exit 1; }
 sqlite3 -readonly "$DB" '.tables'
