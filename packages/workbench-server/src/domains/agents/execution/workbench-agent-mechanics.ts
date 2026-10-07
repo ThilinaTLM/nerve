@@ -61,6 +61,10 @@ import type { SubscriptionUsageService } from "../../usage/subscription-usage-se
 import type { AgentBrowserSkillCatalog } from "../prompting/agent-browser-skills.js";
 import type { SubagentTranscriptLiveService } from "../subagent-transcript-live.service.js";
 import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
+import {
+  insertWorkbenchAgentInput,
+  assertWorkbenchDispatch,
+} from "./workbench-turn-preparation.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
@@ -71,6 +75,20 @@ import type { WorkbenchExploreAdmission } from "./workbench-explore-admission.js
 import type { WorkbenchSubagentExecutions } from "./workbench-subagent-executions.js";
 
 export interface WorkbenchAgentMechanicsDeps {
+  exploreRuntime: import("./subagent-runner.js").ExploreRuntime;
+  agentInputs?: import("../../runs/runtime/agent-inputs.js").AgentInputService;
+  loadRunState?: (
+    runId: string,
+  ) => Promise<
+    | import("../../runs/runtime/run-unit-of-work.js").RunHydratedState
+    | undefined
+  >;
+  commitEffectiveConfiguration?: (
+    agentId: string,
+    revision: number,
+    turnId: string,
+    runId: string,
+  ) => Promise<void>;
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;
@@ -112,31 +130,12 @@ export class WorkbenchAgentMechanics {
     this.subagents = new SubagentRunner({
       storage: deps.storage,
       events: deps.events,
-      auth: deps.auth,
-      tools: deps.tools,
-      harnessStorage: deps.harnessStorage,
       createAgent: deps.createAgent,
-      subscriptionUsage: deps.subscriptionUsage,
+      runtime: deps.exploreRuntime,
       logger: deps.logger.child({ component: "subagent-runner" }),
       executions: deps.subagentExecutions,
       exploreAdmission: deps.exploreAdmission,
-      nerveSkills: deps.nerveSkills,
-      agentBrowserSkills: deps.agentBrowserSkills,
       capabilities: deps.capabilities,
-      transcriptLive: deps.subagentTranscriptLive,
-      maxParallelToolsPerRun: deps.maxParallelToolsPerRun,
-      compaction: {
-        beforePrompt: (input) =>
-          this.autoCompaction.maybeCompactBeforePrompt(input),
-        iteration: (input) =>
-          this.autoCompaction.maybeCompactAtIteration(input),
-        overflow: (input, assistant, window) =>
-          this.tryOverflowCompactionRecovery(input, assistant, window),
-        continuation: (runId) =>
-          this.autoCompaction.takeContinuation(runId, true),
-        finish: (runId) => this.autoCompaction.finishRun(runId),
-      },
-      customModels: deps.customModels,
     });
     this.inlineCommands = new InlineCommandRunner(deps);
   }
@@ -220,6 +219,7 @@ export class WorkbenchAgentMechanics {
       useForegroundBash?: boolean;
     },
   ): Promise<ToolCallRecord> {
+    this.assertInlineCommandAllowed(agent);
     return this.inlineCommands.executeBashCommand(agent, command, options);
   }
 
@@ -228,11 +228,18 @@ export class WorkbenchAgentMechanics {
     command: string,
     options: { signal?: AbortSignal },
   ): Promise<ToolExecutionResult> {
+    this.assertInlineCommandAllowed(agent);
     return this.inlineCommands.executePromptBlockCommand(
       agent,
       command,
       options,
     );
+  }
+
+  private assertInlineCommandAllowed(agent: AgentRecord): void {
+    const current = this.deps.state.agents.get(agent.id) ?? agent;
+    if (current.readOnlyCeiling || current.permissionLevel === "read_only")
+      throw new Error("Read-only agent policy forbids inline shell execution");
   }
 
   runExplore(
@@ -257,6 +264,7 @@ export class WorkbenchAgentMechanics {
     prompt?: string;
     images?: PromptRequest["images"];
     signal: AbortSignal;
+    withProviderDispatchFence?<T>(action: () => Promise<T>): Promise<T>;
     installControl(control: WorkbenchLiveExecutionControl): void;
     checkpointCommand(
       boundary: "after_provider_response" | "suspension",
@@ -265,10 +273,57 @@ export class WorkbenchAgentMechanics {
   }): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
     const inline =
-      input.command === "start" && agent.executionKind !== "async_developer"
+      input.command === "start"
         ? parseInlineCommandPrompt(input.prompt ?? "")
         : undefined;
     if (inline) {
+      try {
+        this.assertInlineCommandAllowed(agent);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        await this.deps.agentInputs?.recordAdmissionBlocker(
+          agent.id,
+          message,
+          agent.configurationRevision ?? 1,
+        );
+        return {
+          status: "failed",
+          failure: {
+            code: "AGENT_CONFIGURATION_BLOCKED",
+            message,
+            retryable: false,
+            continuable: false,
+          },
+        };
+      }
+      await assertWorkbenchDispatch(this, agent, input.signal);
+      if (this.deps.agentInputs && input.run.initialInputId) {
+        const delivered = await this.deps.agentInputs.prepare(
+          {
+            agentId: agent.id,
+            conversationId: agent.conversationId,
+            runId: input.run.runId,
+            attemptId: input.run.executionId,
+            turnId: `inline_${input.run.executionId}`,
+            requiresProvider: false,
+          },
+          (record, id, target) =>
+            insertWorkbenchAgentInput(this, agent, input, record, id, target),
+          async (id) => {
+            const state = await this.deps.loadRunState?.(id);
+            return Boolean(
+              state &&
+              ["completed", "failed", "cancelled"].includes(state.run.status),
+            );
+          },
+          1,
+          undefined,
+          input.run.initialInputId,
+        );
+        if (!delivered.some((record) => record.id === input.run.initialInputId))
+          return { status: "completed", result: {} };
+      }
+      await assertWorkbenchDispatch(this, agent, input.signal);
       return this.inlineCommands.runCoordinatorPrompt({
         agent,
         command: inline.command,
@@ -435,6 +490,12 @@ export class WorkbenchAgentMechanics {
       agentId,
       runId,
     );
+  }
+
+  async maybeAutoCompactBeforeQueuedTurn(
+    input: Parameters<AutoCompactionRunner["maybeCompactBeforePrompt"]>[0],
+  ) {
+    return this.autoCompaction.maybeCompactBeforePrompt(input);
   }
 
   async maybeAutoCompactAtIteration(

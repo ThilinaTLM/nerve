@@ -4,52 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { AgentAsyncObligation } from "@nervekit/contracts/agents";
-import type {
-  ConversationEntry,
-  ConversationJournalCommit,
-  ConversationRecord,
-} from "@nervekit/contracts/conversations";
+import type { ConversationJournalCommit } from "@nervekit/contracts/conversations";
 import { JournalAgentAsyncObligationRepository } from "../../../src/domains/agents/agent-async-obligation.repository.js";
 import { ConversationJournalRepository } from "../../../src/domains/conversations/conversation-journal.repository.js";
 import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
 import { decode } from "../../../src/infrastructure/persistence/canonical-sqlite/payload-codecs.js";
 
-const conversationId = "conv_obligation_repository";
-const ownerAgentId = "agent_root";
-const createdAt = "2026-09-27T10:00:00.000Z";
-const deliveredAt = "2026-09-27T10:01:00.000Z";
+const now = "2026-09-27T10:00:00.000Z";
 
-function conversation(): ConversationRecord {
-  return {
-    id: conversationId,
-    projectId: "proj_test",
-    title: "Obligation delivery",
-    mode: "coding",
-    permissionLevel: "supervised",
-    activeAgentId: ownerAgentId,
-    activeEntryId: "entry_root",
-    createdAt,
-    updatedAt: createdAt,
-  };
-}
-
-function readyObligation(): AgentAsyncObligation {
-  return {
-    id: "promoted_task:task_repository:0",
-    conversationId,
-    ownerAgentId,
-    sourceKind: "promoted_task",
-    sourceId: "task_repository",
-    state: "ready",
-    notificationEntryId: "entry_task_repository_completion",
-    generation: 0,
-    outcome: "completed",
-    createdAt,
-    updatedAt: createdAt,
-  };
-}
-
-test("delivery atomically advances the shared root model tree and materializes state", async (t) => {
+test("obligation registration and queue receipt transitions persist without writing context", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-obligation-repository-"));
   const sqlitePath = join(home, "canonical.sqlite");
   const canonical = new CanonicalStore(sqlitePath, { readerCount: 0 });
@@ -63,106 +26,60 @@ test("delivery atomically advances the shared root model tree and materializes s
     await canonical.close();
     await rm(home, { recursive: true, force: true });
   });
-
-  const root: ConversationEntry = {
-    id: "entry_root",
-    conversationId,
-    agentId: ownerAgentId,
-    role: "user",
-    kind: "message",
-    text: "Start",
-    createdAt,
-  };
-  await journal.commit(conversationId, {
-    kind: "conversation.created",
-    events: [
-      {
-        kind: "conversation.upserted",
-        conversationId,
-        conversation: conversation(),
-      },
-      { kind: "conversation.entry_appended", conversationId, entry: root },
-      {
-        kind: "model_context.entry_appended",
-        conversationId,
-        entry: {
-          type: "message",
-          id: root.id,
-          parentId: null,
-          timestamp: createdAt,
-          message: { role: "user", content: "Start" },
-        },
-      },
-      {
-        kind: "model_context.leaf_changed",
-        conversationId,
-        entryId: root.id,
-      },
-    ],
-  });
-
   const repository = new JournalAgentAsyncObligationRepository(
     journal,
     canonical,
-    undefined,
-    () => undefined,
   );
-  const obligation = readyObligation();
-  await repository.register(obligation);
-  const delivered = await repository.deliverWithNotice(obligation, {
-    entry: {
-      id: obligation.notificationEntryId,
-      conversationId,
-      agentId: ownerAgentId,
-      role: "system",
-      kind: "task_event",
-      text: "Build completed.",
-      createdAt: deliveredAt,
-    },
-    message: { role: "user", content: "Build completed." } as never,
-  });
-
-  assert.equal(delivered.state, "delivered");
-  const fresh = await journal.loadFresh(conversationId);
-  assert.equal(fresh.modelLeafId, obligation.notificationEntryId);
-  assert.equal(fresh.agentModelEntries.has(ownerAgentId), false);
-  assert.equal(
-    fresh.modelEntryById.get(obligation.notificationEntryId)?.parentId,
-    root.id,
-  );
-  assert.equal(
-    fresh.entryById.get(obligation.notificationEntryId)?.parentEntryId,
-    root.id,
-  );
-  assert.equal(
-    fresh.conversation?.activeEntryId,
-    obligation.notificationEntryId,
-  );
-
-  const [materializedEntries, materializedObligation] = await Promise.all([
-    canonical.readConversationEntries(conversationId),
-    canonical.readAgentObligation(obligation.id),
-  ]);
-  assert.equal(
-    materializedEntries.some(
-      (entry) => entry.id === obligation.notificationEntryId,
-    ),
-    true,
-  );
-  assert.equal(materializedObligation?.state, "delivered");
-
-  const persisted = await canonical.readConversationJournal(conversationId);
-  const deliveryCommit = decode(
-    persisted.commits.at(-1)!,
-  ) as ConversationJournalCommit;
+  const obligation: AgentAsyncObligation = {
+    id: "promoted_task:task_repository:0",
+    conversationId: "conv_obligation_repository",
+    ownerAgentId: "agent_root",
+    sourceKind: "promoted_task",
+    sourceId: "task_repository",
+    state: "ready",
+    notificationEntryId: "entry_task_repository_completion",
+    generation: 0,
+    outcome: "completed",
+    createdAt: now,
+    updatedAt: now,
+  };
+  assert.deepEqual(await repository.register(obligation), obligation);
   assert.deepEqual(
-    deliveryCommit.events.map((event) => event.kind),
-    [
-      "conversation.entry_appended",
-      "conversation.upserted",
-      "model_context.entry_appended",
-      "model_context.leaf_changed",
-      "agent_obligation.upserted",
-    ],
+    await repository.register({ ...obligation, outcome: "failed" }),
+    obligation,
   );
+  assert.deepEqual(await repository.listByStates(["ready"]), [obligation]);
+  const accepted = await repository.transition(obligation.id, ["ready"], {
+    queueInputId: "input_notice",
+    updatedAt: "2026-09-27T10:01:00.000Z",
+  });
+  assert.equal(accepted.state, "ready", "queue acceptance is not delivery");
+  const delivered = await repository.transition(obligation.id, ["ready"], {
+    state: "delivered",
+    deliveredAt: "2026-09-27T10:02:00.000Z",
+    updatedAt: "2026-09-27T10:02:00.000Z",
+  });
+  assert.deepEqual(await repository.get(obligation.id), delivered);
+  assert.deepEqual(await repository.listByStates(["ready"]), []);
+  assert.deepEqual(
+    await repository.transition(obligation.id, ["ready"], {
+      state: "cancelled",
+    }),
+    delivered,
+  );
+  const fresh = await journal.loadFresh(obligation.conversationId);
+  assert.equal(fresh.entries.length, 0);
+  assert.equal(fresh.modelEntries.length, 0);
+  assert.equal(fresh.agentModelEntries.size, 0);
+  const persisted = await canonical.readConversationJournal(
+    obligation.conversationId,
+  );
+  assert.equal(persisted.commits.length, 3);
+  for (const payload of persisted.commits) {
+    const commit = decode(payload) as ConversationJournalCommit;
+    assert.deepEqual(
+      commit.events.map((event) => event.kind),
+      ["agent_obligation.upserted"],
+    );
+  }
 });

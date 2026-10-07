@@ -524,6 +524,17 @@ const cardActions = $derived.by<CardAction[]>(() => {
   const actions: CardAction[] = [];
   if (toolCall?.status === "completed" && view?.kind === "subagent") {
     for (const target of subagentTranscriptTargets(view, toolCall.agentId)) {
+      if (capabilities.openAgent)
+        actions.push({
+          label:
+            view.teammates.length === 1
+              ? "Open agent"
+              : `Open · ${target.name}`,
+          ariaLabel: `Open agent ${target.name}`,
+          onClick: () => {
+            void capabilities.openAgent?.(target.agentId);
+          },
+        });
       actions.push({
         label:
           view.teammates.length === 1

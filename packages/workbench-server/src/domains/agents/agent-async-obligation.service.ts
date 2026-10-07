@@ -15,6 +15,7 @@ const RECOVERABLE_STATES: readonly AgentAsyncObligationState[] = [
 export interface AsyncObligationNotice {
   entry: AppendEntryInput & { id: string; createdAt: string };
   message: HarnessMessage;
+  activation?: "wake_if_idle" | "queue_only";
 }
 
 export interface AgentAsyncObligationRepository {
@@ -29,6 +30,8 @@ export interface AgentAsyncObligationRepository {
     patch: Partial<
       Pick<
         AgentAsyncObligation,
+        | "completion"
+        | "queueInputId"
         | "state"
         | "outcome"
         | "updatedAt"
@@ -37,11 +40,6 @@ export interface AgentAsyncObligationRepository {
         | "cancelledAt"
       >
     >,
-  ): Promise<AgentAsyncObligation>;
-  /** Commits the notice/model-context append and ready -> delivered together. */
-  deliverWithNotice(
-    obligation: AgentAsyncObligation,
-    notice: AsyncObligationNotice,
   ): Promise<AgentAsyncObligation>;
 }
 
@@ -56,16 +54,12 @@ export interface AgentAsyncObligationServicePorts {
   adapters: readonly AsyncObligationSourceAdapter[];
   getAgent(id: string): AgentRecord;
   entries(conversationId: string): Promise<readonly ConversationEntry[]>;
-  activeRunId(
-    conversationId: string,
-    agentId: string,
-  ): Promise<string | undefined>;
-  enqueue(
-    runId: string,
+  /** Persist through the sole shared agent-input queue; safe on replay. */
+  acceptNotice(
     obligation: AgentAsyncObligation,
     notice: AsyncObligationNotice,
-  ): Promise<boolean>;
-  wake(agentId: string): Promise<void>;
+  ): Promise<string>;
+  cancelNotice(agentId: string, inputId: string): Promise<void>;
   now?(): string;
   warn?(error: unknown, obligation: AgentAsyncObligation): void;
   changed?(): void | Promise<void>;
@@ -75,7 +69,6 @@ export interface AgentAsyncObligationServicePorts {
 export class AgentAsyncObligationService {
   private tail = Promise.resolve();
   private stopped = true;
-  private readonly queued = new Map<string, string>();
   private readonly adapters: Map<
     AgentAsyncObligation["sourceKind"],
     AsyncObligationSourceAdapter
@@ -94,7 +87,6 @@ export class AgentAsyncObligationService {
   async stop(): Promise<void> {
     this.stopped = true;
     await this.tail;
-    this.queued.clear();
   }
 
   async register(
@@ -105,10 +97,15 @@ export class AgentAsyncObligationService {
     return registered;
   }
 
-  async markReady(id: string, outcome: string): Promise<AgentAsyncObligation> {
+  async markReady(
+    id: string,
+    outcome: string,
+    completion?: AgentAsyncObligation["completion"],
+  ): Promise<AgentAsyncObligation> {
     const ready = await this.ports.repository.transition(id, ["pending"], {
       state: "ready",
       outcome,
+      completion,
       updatedAt: this.now(),
     });
     await this.ports.changed?.();
@@ -144,18 +141,26 @@ export class AgentAsyncObligationService {
     const adapter = this.adapters.get(obligation.sourceKind);
     if (!adapter) throw new Error(`No adapter for '${obligation.sourceKind}'.`);
     if (!(await adapter.allow(obligation))) {
+      if (obligation.queueInputId)
+        await this.ports.cancelNotice(
+          obligation.ownerAgentId,
+          obligation.queueInputId,
+        );
       await this.ports.repository.transition(
         obligation.id,
         ["pending", "ready", "delivered"],
         { state: "suppressed", updatedAt: this.now() },
       );
-      this.queued.delete(obligation.id);
       return;
     }
 
     const entries = await this.ports.entries(obligation.conversationId);
     const entry = entries.find(
-      (candidate) => candidate.id === obligation.notificationEntryId,
+      (candidate) =>
+        candidate.id ===
+        (obligation.queueInputId
+          ? `entry_${obligation.queueInputId}`
+          : obligation.notificationEntryId),
     );
     if (
       entry &&
@@ -171,7 +176,6 @@ export class AgentAsyncObligationService {
           updatedAt: this.now(),
         },
       );
-      this.queued.delete(obligation.id);
       return;
     }
 
@@ -188,25 +192,16 @@ export class AgentAsyncObligationService {
       );
     }
 
-    const activeRunId = await this.ports.activeRunId(
-      obligation.conversationId,
-      obligation.ownerAgentId,
-    );
-    if (!entry && current.state === "ready") {
+    if (!entry && current.state === "ready" && !current.queueInputId) {
       const notice = await adapter.buildNotice(current);
-      if (activeRunId) {
-        if (this.queued.get(current.id) === activeRunId) return;
-        if (await this.ports.enqueue(activeRunId, current, notice)) {
-          this.queued.set(current.id, activeRunId);
-          return;
-        }
-      }
-      current = await this.ports.repository.deliverWithNotice(current, notice);
+      const queueInputId = await this.ports.acceptNotice(current, notice);
+      await this.ports.repository.transition(current.id, ["ready"], {
+        queueInputId,
+        updatedAt: this.now(),
+      });
     }
-
-    if (current.state === "delivered" && !activeRunId && !this.stopped) {
-      await this.ports.wake(current.ownerAgentId);
-    }
+    // Activation is owned by common input acceptance. Never separately wake a
+    // delivered obligation: a stale completion must not bypass a stop fence.
   }
 
   private now(): string {

@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import type { AgentMessage } from "@nervekit/harness/agent";
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { EventEnvelope } from "@nervekit/contracts/events";
 import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
@@ -125,163 +123,244 @@ class FakeTasks {
   }
 }
 
-describe("TaskNotificationService awaited task continuation", () => {
-  it("continues an idle agent after an awaited promoted bash task terminates", async () => {
+type Notice = Parameters<TaskNotificationServiceDeps["enqueueNotification"]>[0];
+
+describe("TaskNotificationService durable queue delivery", () => {
+  for (const phase of ["log read", "notification adapter"] as const) {
+    it(`stop drains a pending event delivery held in its ${phase}`, async () => {
+      let enter!: () => void, release!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const barrier = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let closed = false;
+      const context = createNotificationContext({
+        enqueueNotification: async () => {
+          if (phase === "notification adapter") {
+            enter();
+            await barrier;
+          }
+          assert.equal(closed, false, "notification wrote after close");
+        },
+      });
+      const queryLogs = context.tasks.queryLogs.bind(context.tasks);
+      context.tasks.queryLogs = async () => {
+        if (phase === "log read") {
+          enter();
+          await barrier;
+        }
+        assert.equal(closed, false, "task log read after close");
+        return queryLogs();
+      };
+      context.service.start();
+      await context.events.publish("task.completed", { task: context.task });
+      await entered;
+      context.service.stop();
+      let drained = false;
+      const drain = context.service.settled().then(() => {
+        drained = true;
+        closed = true;
+      });
+      await delay(0);
+      assert.equal(drained, false);
+      release();
+      await drain;
+      await context.events.publish("task.completed", { task: context.task });
+      await context.service.recoverPendingNotifications();
+      assert.equal(context.notices.length, 1);
+      assert.equal(context.tasks.delivered.length, 0);
+      assert.equal(context.tasks.pending.length, 1);
+    });
+  }
+
+  it("does not bypass a paused queue with live injection, direct append, or continuation", async () => {
     const context = createNotificationContext({
       task: taskRecord({
         completion: { inject: true, outputTailLineCount: 80 },
       }),
     });
     context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(
-      () =>
-        context.continuedAgentIds.length === 1 &&
-        Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
-    );
-
-    assert.deepEqual(context.continuedAgentIds, [context.agent.id]);
-    assert.equal(context.entries.length, 1);
-    assert.equal(
-      context.tasks.getTask(context.task.id).completion?.entryId,
-      context.entries[0]?.id,
-    );
-    assert.ok(context.tasks.getTask(context.task.id).completion?.injectedAt);
-    assert.equal(context.entries[0]?.kind, "task_event");
-    assert.equal(
-      context.tasks.delivered.some((row) => row.slot === "terminal"),
-      true,
-    );
-    context.service.stop();
+    try {
+      await context.events.publish("task.completed", { task: context.task });
+      await waitFor(() => context.notices.length === 1);
+      // The queue adapter accepts without delivering while paused.
+      assert.deepEqual(context.tasks.delivered, []);
+      assert.equal(
+        context.tasks.getTask(context.task.id).completion?.injectedAt,
+        undefined,
+      );
+      await context.events.publish("run.completed", {});
+      await waitFor(() => context.notices.length === 2);
+      assert.equal(context.notices[0]?.entryId, context.notices[1]?.entryId);
+    } finally {
+      context.service.stop();
+    }
   });
 
-  it("retries a delivered completion wake until scheduling succeeds", async () => {
+  it("keeps acceptance pending across restart and stops retrying only after a delivery receipt", async () => {
+    const context = createNotificationContext();
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 1);
+    assert.equal(context.tasks.delivered.length, 0);
+    const entryId = context.notices[0]!.entryId;
+    context.service.stop();
+    const recovered = new TaskNotificationService(context.deps);
+    await recovered.recoverPendingNotifications();
+    assert.equal(context.notices[1]?.entryId, entryId);
+    assert.equal(context.tasks.pending.length, 1);
+    // The common adapter observes actual context insertion on a later retry.
+    context.deps.enqueueNotification = async (notice) => {
+      context.notices.push(notice);
+      await context.tasks.markNotificationDelivered(
+        notice.task.id,
+        "terminal",
+        "entry_common_delivery",
+        "2026-01-02T03:04:07.000Z",
+      );
+    };
+    await recovered.recoverPendingNotifications();
+    await recovered.recoverPendingNotifications();
+    assert.equal(context.notices.length, 3);
+    assert.equal(
+      context.tasks.getTask(context.task.id).notifications?.terminalEntryId,
+      "entry_common_delivery",
+    );
+  });
+
+  it("retries callback failure with the persisted identity and never falls back to direct injection", async () => {
     let attempts = 0;
     const context = createNotificationContext({
-      task: taskRecord({
-        completion: { inject: true, outputTailLineCount: 80 },
-      }),
-      continueAgent: async () => {
-        attempts += 1;
-        if (attempts === 1) throw new Error("scheduler unavailable");
+      enqueueNotification: async () => {
+        if (++attempts === 1) throw new Error("queue unavailable");
       },
     });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => context.entries.length === 1 && attempts === 1);
-    assert.equal(
-      context.tasks.getTask(context.task.id).completion?.injectedAt,
-      undefined,
-    );
-
     await context.service.recoverPendingNotifications();
-
+    assert.equal(context.warnings.length, 1);
+    assert.equal(context.tasks.delivered.length, 0);
+    await context.service.recoverPendingNotifications();
     assert.equal(attempts, 2);
-    assert.ok(context.tasks.getTask(context.task.id).completion?.injectedAt);
-    assert.equal(context.entries.length, 1);
-    context.service.stop();
+    assert.equal(context.notices[0]?.entryId, context.notices[1]?.entryId);
+    assert.equal(context.tasks.pending.length, 1);
   });
 
-  it("does not wake again when an assistant response already consumed the task event", async () => {
-    const taskEvent = {
-      id: "entry_existing_notification",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      runId: "run_test",
-      role: "system",
-      kind: "task_event",
-      text: "Background task completed.",
-      details: {
-        type: "task_event",
-        taskId: "task_test",
-        event: "completed",
-      },
-      createdAt: "2026-01-02T03:04:06.000Z",
-    } satisfies ConversationEntry;
-    const response = {
-      id: "entry_existing_response",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      runId: "run_test",
-      parentEntryId: taskEvent.id,
-      role: "assistant",
-      kind: "message",
-      text: "Handled the completed task.",
-      createdAt: "2026-01-02T03:04:07.000Z",
-    } satisfies ConversationEntry;
-    const context = createNotificationContext({
-      task: taskRecord({
-        completion: { inject: true, outputTailLineCount: 80 },
-      }),
-      existingEntries: [taskEvent, response],
-    });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() =>
-      Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
-    );
-
-    assert.deepEqual(context.continuedAgentIds, []);
-    assert.equal(
-      context.tasks.getTask(context.task.id).completion?.entryId,
-      taskEvent.id,
-    );
-    context.service.stop();
-  });
-
-  it("coalesces completion wake recovery while scheduling is in flight", async () => {
-    let releaseWake!: () => void;
-    const wakeGate = new Promise<void>((resolve) => {
-      releaseWake = resolve;
-    });
-    const context = createNotificationContext({
-      task: taskRecord({
-        completion: { inject: true, outputTailLineCount: 80 },
-      }),
-      continueAgent: () => wakeGate,
-    });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => context.continuedAgentIds.length === 1);
+  it("does not call the adapter before persisting the pending identity", async () => {
+    const context = createNotificationContext();
+    const persist = context.tasks.markNotificationPending.bind(context.tasks);
+    context.tasks.markNotificationPending = async () => {
+      throw new Error("pending write failed");
+    };
     await context.service.recoverPendingNotifications();
-
-    assert.equal(context.continuedAgentIds.length, 1);
-    releaseWake();
-    await waitFor(() =>
-      Boolean(context.tasks.getTask(context.task.id).completion?.injectedAt),
+    assert.equal(context.notices.length, 0);
+    assert.equal(context.warnings.length, 1);
+    assert.equal(context.tasks.delivered.length, 0);
+    context.tasks.markNotificationPending = persist;
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 1);
+    assert.equal(
+      context.notices[0]?.entryId,
+      context.tasks.pending[0]?.entryId,
     );
-    context.service.stop();
   });
 
-  it("does not continue background tasks that did not subscribe for completion", async () => {
-    const context = createNotificationContext({ task: taskRecord() });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await delay(10);
-
-    assert.deepEqual(context.continuedAgentIds, []);
-    assert.equal(context.entries.length, 1);
-    assert.equal(context.entries[0]?.kind, "task_event");
-    context.service.stop();
-  });
-
-  it("persists a structured user projection beside the agent summary", async () => {
+  it("logs event callback failures without losing retryability", async () => {
     const context = createNotificationContext({
-      task: taskRecord({ command: "printf one\r\nprintf two" }),
+      enqueueNotification: async () => {
+        throw new Error("disk full");
+      },
+    });
+    context.service.start();
+    try {
+      await context.events.publish("task.failed", { task: context.task });
+      await waitFor(() => context.warnings.length === 1);
+      assert.equal(context.tasks.delivered.length, 0);
+      context.deps.enqueueNotification = async (notice) => {
+        context.notices.push(notice);
+      };
+      await context.service.recoverPendingNotifications();
+      assert.equal(context.notices.length, 2);
+    } finally {
+      context.service.stop();
+    }
+  });
+
+  it("serializes concurrent recovery attempts until durable acceptance settles", async () => {
+    let release!: () => void;
+    const accepted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const context = createNotificationContext({
+      enqueueNotification: () => accepted,
+    });
+    const first = context.service.recoverPendingNotifications();
+    await waitFor(() => context.notices.length === 1);
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 1);
+    assert.equal(context.tasks.delivered.length, 0);
+    release();
+    await first;
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 2);
+    assert.equal(context.notices[0]?.entryId, context.notices[1]?.entryId);
+  });
+
+  it("does not treat legacy agent transcript events as common queue delivery receipts", async () => {
+    const existing = taskEntry();
+    const context = createNotificationContext({ existingEntries: [existing] });
+    context.service.start();
+    try {
+      await context.events.publish("conversation.entry.appended", {
+        entry: existing,
+      });
+      await context.service.recoverPendingNotifications();
+      assert.equal(context.notices.length, 1);
+      assert.equal(context.tasks.delivered.length, 0);
+    } finally {
+      context.service.stop();
+    }
+  });
+
+  it("preserves UI-only legacy events and deduplicates their transcript entries", async () => {
+    const context = createNotificationContext({
+      task: taskRecord({ agentId: undefined }),
+    });
+    await context.service.recoverPendingNotifications();
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 1);
+    assert.equal(context.tasks.delivered.length, 1);
+    const existingContext = createNotificationContext({
+      task: taskRecord({ agentId: undefined }),
+      existingEntries: [taskEntry({ agentId: undefined })],
+    });
+    await existingContext.service.recoverPendingNotifications();
+    assert.equal(existingContext.notices.length, 0);
+    assert.equal(existingContext.tasks.delivered[0]?.entryId, "entry_existing");
+  });
+
+  it("suppresses notifications rejected by policy or without a conversation", async () => {
+    const context = createNotificationContext();
+    context.deps.allowNotification = async () => false;
+    await context.service.recoverPendingNotifications();
+    assert.equal(context.notices.length, 0);
+    assert.equal(context.tasks.pending.length, 0);
+    const detached = createNotificationContext({
+      task: taskRecord({ conversationId: undefined }),
+    });
+    await detached.service.recoverPendingNotifications();
+    assert.equal(detached.notices.length, 0);
+  });
+
+  it("sends task command and relevant failure output to the adapter", async () => {
+    const context = createNotificationContext({
+      task: taskRecord({
+        status: "failed",
+        command: "printf one\nprintf two",
+        exitCode: 1,
+      }),
       logs: [
         {
-          seq: 4,
-          ts: "2026-01-02T03:04:05.000Z",
-          stream: "stdout",
-          level: "info",
-          line: "one",
-        },
-        {
+          taskId: "task_test",
           seq: 5,
           ts: "2026-01-02T03:04:06.000Z",
           stream: "stderr",
@@ -290,211 +369,107 @@ describe("TaskNotificationService awaited task continuation", () => {
         },
       ],
     });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => context.entries.length === 1);
-
-    const entry = context.entries[0];
-    const details = entry?.details as {
-      command?: string;
-      commandPreview?: string;
-      output?: string;
+    await context.service.recoverPendingNotifications();
+    const notice = context.notices[0]!;
+    const details = notice.message.details as {
+      command: string;
+      commandPreview: string;
+      output: string;
+      event: string;
     };
     assert.equal(details.command, "printf one\nprintf two");
     assert.equal(details.commandPreview, "printf one printf two");
-    assert.equal(details.output, "one\ntwo");
-    assert.match(entry?.text ?? "", /Relevant output:/);
-    assert.match(entry?.text ?? "", /\[5 stderr warn\] two/);
-    context.service.stop();
+    assert.equal(details.output, "two");
+    assert.equal(details.event, "failed");
+    assert.match(notice.message.content, /Relevant output:/);
   });
 
-  it("recovers an existing terminal transcript entry without appending it again", async () => {
-    const existing = {
-      id: "entry_existing_notification",
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      runId: "run_test",
-      role: "system",
-      kind: "task_event",
-      text: "Background task completed.",
-      details: {
-        type: "task_event",
-        taskId: "task_test",
-        event: "completed",
-      },
-      createdAt: "2026-01-02T03:04:06.000Z",
-    } satisfies ConversationEntry;
-    const context = createNotificationContext({
-      task: taskRecord(),
-      existingEntries: [existing],
-    });
+  it("cancels a delayed ready notice when a terminal event wins", async () => {
+    const context = createNotificationContext();
     context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => context.tasks.delivered.length === 1);
-
-    assert.deepEqual(context.entries, [existing]);
-    assert.deepEqual(context.harnessMessages, []);
-    assert.deepEqual(context.tasks.pending, []);
-    assert.deepEqual(context.tasks.delivered, [
-      { slot: "terminal", entryId: existing.id },
-    ]);
-    context.service.stop();
+    try {
+      await context.events.publish("task.ready", { task: context.task });
+      await context.events.publish("task.completed", { task: context.task });
+      await delay(550);
+      assert.deepEqual(
+        context.notices.map((notice) => notice.event),
+        ["completed"],
+      );
+    } finally {
+      context.service.stop();
+    }
   });
 
-  it("adds cancellation events directly when no run is live", async () => {
-    const context = createNotificationContext({
-      task: taskRecord({ status: "cancelled", signal: "SIGTERM" }),
-    });
-    context.service.start();
-
-    await context.events.publish("task.cancelled", { task: context.task });
-    await waitFor(() => context.entries.length === 1);
-
-    const entry = context.entries[0];
-    assert.equal(entry?.kind, "task_event");
-    assert.match(entry?.text ?? "", /cancelled/i);
-    assert.deepEqual(
-      (entry?.details as { event?: string; signal?: string | null })?.event,
-      "cancelled",
-    );
-    assert.equal(
-      (entry?.details as { signal?: string | null })?.signal,
-      "SIGTERM",
-    );
-    assert.equal(context.harnessMessages.length, 1);
-    assert.equal(context.tasks.delivered[0]?.slot, "terminal");
-    context.service.stop();
-  });
-
-  it("queues into the current live run when the task origin run is dead", async () => {
-    const enqueued: AgentMessage[] = [];
-    const context = createNotificationContext({
-      task: taskRecord(),
-      activeRunId: "run_current",
-      liveRunId: "run_current",
-      liveControl: {
-        enqueueHarnessMessage: async (input) => {
-          enqueued.push(input.message);
-        },
-      },
-    });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => enqueued.length === 1);
-
-    assert.equal(context.entries.length, 0);
-    assert.equal(enqueued[0]?.role, "harness");
-    context.service.stop();
-  });
-
-  it("queues notifications into an active run without starting a second run", async () => {
-    const enqueued: AgentMessage[] = [];
-    const context = createNotificationContext({
-      task: taskRecord({
-        completion: { inject: true, outputTailLineCount: 80 },
-      }),
-      liveControl: {
-        enqueueHarnessMessage: async (input) => {
-          enqueued.push(input.message);
-        },
-      },
-    });
-    context.service.start();
-
-    await context.events.publish("task.completed", { task: context.task });
-    await waitFor(() => enqueued.length === 1);
-
-    assert.deepEqual(context.continuedAgentIds, []);
-    assert.equal(context.entries.length, 0);
-    assert.equal(enqueued[0]?.role, "harness");
-    context.service.stop();
+  it("recovers ready and timeout notices through the same adapter", async () => {
+    for (const outcome of ["ready", "timeout"] as const) {
+      const context = createNotificationContext({
+        task: taskRecord({
+          status: "running",
+          readiness: { outcome },
+        }),
+      });
+      await context.service.recoverPendingNotifications();
+      assert.equal(
+        context.notices[0]?.event,
+        outcome === "ready" ? "ready" : "ready_timeout",
+      );
+      assert.equal(context.tasks.pending[0]?.slot, "ready");
+      assert.equal(context.tasks.delivered.length, 0);
+    }
   });
 });
 
-function createNotificationContext(options: {
-  task: TaskRecord;
-  logs?: TaskLogEvent[];
-  existingEntries?: ConversationEntry[];
-  activeRunId?: string;
-  liveRunId?: string;
-  liveControl?: {
-    enqueueHarnessMessage(input: { message: AgentMessage }): Promise<void>;
+function taskEntry(
+  overrides: Partial<ConversationEntry> = {},
+): ConversationEntry {
+  return {
+    id: "entry_existing",
+    conversationId: "conv_test",
+    agentId: "agent_test",
+    role: "system",
+    kind: "task_event",
+    text: "Task completed.",
+    details: { type: "task_event", taskId: "task_test", event: "completed" },
+    createdAt: "2026-01-02T03:04:06.000Z",
+    ...overrides,
   };
-  agent?: AgentRecord;
-  continueAgent?: (agentId: string) => Promise<void>;
-}) {
+}
+
+function createNotificationContext(
+  options: {
+    task?: TaskRecord;
+    logs?: TaskLogEvent[];
+    existingEntries?: ConversationEntry[];
+    enqueueNotification?: TaskNotificationServiceDeps["enqueueNotification"];
+  } = {},
+) {
   const events = new TestEvents();
-  const task = options.task;
+  const task = options.task ?? taskRecord();
   const tasks = new FakeTasks(task, options.logs);
-  const entries: ConversationEntry[] = [...(options.existingEntries ?? [])];
-  const harnessMessages: Array<{
-    id: string;
-    message: AgentMessage;
-    timestamp: string;
-  }> = [];
-  const continuedAgentIds: string[] = [];
-  const agent = options.agent ?? agentRecord();
+  const notices: Notice[] = [];
+  const warnings: unknown[] = [];
   const deps: TaskNotificationServiceDeps = {
     tasks: tasks as unknown as TaskNotificationServiceDeps["tasks"],
     events: events as unknown as TaskNotificationServiceDeps["events"],
-    liveRuns: {
-      get: (runId: string) =>
-        runId === (options.liveRunId ?? "run_test")
-          ? options.liveControl
-          : undefined,
-    } as unknown as TaskNotificationServiceDeps["liveRuns"],
-    runUnitOfWork: {
-      findActive: async () => ({
-        run: { runId: options.activeRunId ?? "run_test" },
-      }),
-    } as unknown as TaskNotificationServiceDeps["runUnitOfWork"],
-    appendEntry: async (input) => {
-      const entry = {
-        id: input.id ?? `entry_test_${entries.length + 1}`,
-        conversationId: input.conversationId,
-        agentId: input.agentId,
-        runId: input.runId,
-        turnId: input.turnId,
-        liveMessageId: input.liveMessageId,
-        parentEntryId: input.parentEntryId,
-        role: input.role,
-        kind: input.kind ?? "message",
-        text: input.text,
-        summary: input.summary,
-        tokensBefore: input.tokensBefore,
-        usage: input.usage,
-        firstKeptEntryId: input.firstKeptEntryId,
-        fromEntryId: input.fromEntryId,
-        details: input.details,
-        createdAt: input.createdAt ?? new Date().toISOString(),
-      } satisfies ConversationEntry;
-      entries.push(entry);
-      return entry;
+    getConversationEntries: async () => options.existingEntries ?? [],
+    enqueueNotification: async (notice) => {
+      notices.push(notice);
+      await options.enqueueNotification?.(notice);
     },
-    harnessStorage: {
-      appendHarnessMessageWithId: async (_agent, id, message, timestamp) => {
-        harnessMessages.push({ id, message, timestamp });
+    logger: {
+      warn: async (...args: unknown[]) => {
+        warnings.push(args);
       },
-    } as unknown as TaskNotificationServiceDeps["harnessStorage"],
-    getAgent: () => agent,
-    getConversationEntries: () => entries,
-    continueAgent: async (agentId) => {
-      continuedAgentIds.push(agentId);
-      await options.continueAgent?.(agentId);
-    },
+    } as unknown as TaskNotificationServiceDeps["logger"],
   };
   return {
     service: new TaskNotificationService(deps),
+    deps,
     events,
-    tasks,
     task,
-    agent,
-    entries,
-    harnessMessages,
-    continuedAgentIds,
+    tasks,
+    notices,
+    warnings,
   };
 }
 
@@ -528,25 +503,6 @@ function taskRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
       outputTailLineCount: 80,
     },
     visibility: "background",
-    ...overrides,
-  };
-}
-
-function agentRecord(overrides: Partial<AgentRecord> = {}): AgentRecord {
-  const now = "2026-01-02T03:04:05.000Z";
-  return {
-    id: "agent_test",
-    conversationId: "conv_test",
-    projectId: "proj_test",
-    projectDir: "/tmp/project",
-    rootAgentId: "agent_test",
-    mode: "coding",
-    permissionLevel: "autonomous",
-    workspaceScope: { roots: ["/tmp/project"] },
-    budget: { depth: 0, maxDepth: 3 },
-    thinkingLevel: "off",
-    createdAt: now,
-    updatedAt: now,
     ...overrides,
   };
 }

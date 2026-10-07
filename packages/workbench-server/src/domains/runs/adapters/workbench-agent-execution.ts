@@ -91,10 +91,6 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
       },
       updateAgentRuntimeConfig: async (agent) =>
         installed?.updateAgentRuntimeConfig?.(agent),
-      appendExternalMessage: async (input) =>
-        installed?.appendExternalMessage?.(input),
-      enqueueHarnessMessage: async (input) =>
-        installed?.enqueueHarnessMessage?.(input),
     };
 
     return {

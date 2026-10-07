@@ -88,6 +88,8 @@ export interface AskReplyComposerCapability {
 }
 
 export interface ConversationUiCapabilities {
+  /** Open the ordinary workspace controls for this identity. */
+  openAgent?: (agentId: string) => void | Promise<void>;
   /** Fetch canonical bounded details without loading the complete result. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
   /** Read one bounded UTF-8 chunk of the complete result. */

@@ -1,4 +1,5 @@
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type { AgentQueueItem } from "@nervekit/contracts/agents";
+import { pendingQueueItems } from "./agent-queue-presentation";
 import { activeRunStreamingText } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {
@@ -12,7 +13,7 @@ import type { ConversationRenderState } from "./conversation-render-state.js";
 export type ConversationRenderProjection = {
   timeline: TimelineItem[];
   streamingText: string;
-  queuedPrompts: QueuedPromptRecord[];
+  queuedPrompts: AgentQueueItem[];
 };
 
 /**
@@ -55,6 +56,8 @@ export function buildConversationRenderProjection(
   return {
     timeline,
     streamingText: activeRunStreamingText(state.activeRun),
-    queuedPrompts: state.queuedPrompts ?? state.activeRun?.queuedPrompts ?? [],
+    queuedPrompts: pendingQueueItems(
+      state.queuedPrompts ?? state.activeRun?.queuedPrompts ?? [],
+    ),
   };
 }

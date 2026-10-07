@@ -278,3 +278,142 @@ describe("Workbench tool permission", () => {
     assert.deepEqual(result.suggestedExceptions, []);
   });
 });
+
+describe("configured child authority", () => {
+  it("permits interaction, planning and delegation only through actual configuration/policy", () => {
+    const child = {
+      ...agent("autonomous"),
+      parentAgentId: "agent_parent",
+      executionKind: "async_developer" as const,
+    };
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "ask_user",
+        { question: "Next?" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "allow",
+    );
+    const disabled = { ...child, tools: ["read"] };
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        disabled,
+        "ask_user",
+        { question: "Next?" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "deny",
+    );
+  });
+  it("enforces read-only ceilings against custom policy, overlays and enabled writable tools", () => {
+    const child = {
+      ...agent("autonomous"),
+      readOnlyCeiling: true,
+      tools: ["read", "write", "bash", "ask_user"],
+    };
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "write",
+        { path: "file", content: "x" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "bash",
+        { command: "touch file" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "read",
+        { path: "file" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "allow",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "ask_user",
+        { question: "Next?" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "allow",
+    );
+  });
+  it("bounds child normalized filesystem targets to delegated roots without prefix escapes", () => {
+    const child = { ...agent("autonomous"), parentAgentId: "agent_parent" };
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "read",
+        { path: "/workspace-sibling/file" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "write",
+        { path: "../outside", content: "x" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "deny",
+    );
+    assert.equal(
+      evaluateWorkbenchToolPermission(
+        child,
+        "read",
+        { path: "inside" },
+        ruleSetContext("autonomous"),
+      ).decision,
+      "allow",
+    );
+  });
+});
+
+it("delegated artifact reads do not authorize daemon-home secrets", () => {
+  const child = {
+    ...agent("autonomous"),
+    parentAgentId: "agent_parent",
+    readOnlyCeiling: true,
+  };
+  assert.equal(
+    evaluateWorkbenchToolPermission(
+      child,
+      "read",
+      { path: "/home/test/.nerve/data/nerve.sqlite" },
+      ruleSetContext("autonomous"),
+    ).decision,
+    "deny",
+  );
+  assert.equal(
+    evaluateWorkbenchToolPermission(
+      child,
+      "read",
+      {
+        path: "/home/test/.nerve/data/reports/conversations/conv_test/report.md",
+      },
+      ruleSetContext("autonomous"),
+    ).decision,
+    "allow",
+  );
+  assert.equal(
+    evaluateWorkbenchToolPermission(
+      child,
+      "read",
+      { path: "/home/test/.nerve/secrets/daemon-token" },
+      ruleSetContext("autonomous"),
+    ).decision,
+    "deny",
+  );
+});

@@ -1,9 +1,13 @@
+import type {
+  AgentCompletion,
+  EffectiveTurnConfiguration,
+} from "@nervekit/contracts/agents";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import type {
   AgentRecord,
   CompletionItem,
   ConversationTreeNode,
-  QueuedPromptRecord,
+  AgentQueueItem,
 } from "$lib/api";
 import type { RecoveryIssue } from "@nervekit/contracts/runs";
 import type {
@@ -32,12 +36,14 @@ export type {
  * operates on the canonical subset; app effects own the rest.
  */
 export interface ConversationViewState extends ConversationRenderState {
+  latestCompletion?: AgentCompletion | null;
+  effectiveConfiguration?: EffectiveTurnConfiguration | null;
   conversationId: string;
   activeEntryId?: string;
   treeNodes: ConversationTreeNode[];
   /** Locally echoed user prompts awaiting their durable entries. */
   optimisticMessages: TranscriptItem[];
-  queuedPrompts: QueuedPromptRecord[];
+  queuedPrompts: AgentQueueItem[];
   sending: boolean;
   /** Local Stop request is awaiting server acknowledgment. */
   stopping: boolean;
@@ -65,6 +71,8 @@ export type PendingConversationState = {
 
 export const conversationState = $state({
   conversationViews: {} as Record<string, ConversationViewState>,
+  agentViews: {} as Record<string, ConversationViewState>,
+  selectedAgentIds: {} as Record<string, string>,
   pendingConversations: {} as Record<string, PendingConversationState>,
   openConversationTabIds: [] as string[],
   activeConversationTabId: undefined as string | undefined,

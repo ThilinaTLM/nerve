@@ -96,6 +96,21 @@ export interface AgentHarnessOptions<
 > {
   env: ExecutionEnv;
   conversation: Conversation;
+  /** Atomic safe-boundary refresh, before initial and subsequent provider turns.
+   * Called only after the preceding provider request and its tool batch settle.
+   * Return a coherent snapshot; errors block dispatch rather than silently falling back.
+   */
+  /** Lets a durable queue extend a final response without speculatively applying configuration to a nonexistent turn. */
+  hasPendingTurnInput?: () => Promise<boolean>;
+  prepareTurn?: () => Promise<{
+    model: AnyModel;
+    thinkingLevel: ThinkingLevel;
+    tools: TTool[];
+    activeToolNames: string[];
+    resources: AgentHarnessResources<TSkill, TPromptTemplate>;
+    systemPrompt: string;
+    env?: ExecutionEnv;
+  }>;
   tools?: TTool[];
   /**
    * Concrete resources available to explicit invocation methods and system-prompt callbacks.

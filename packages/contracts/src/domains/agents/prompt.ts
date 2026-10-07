@@ -19,6 +19,7 @@ export const promptRequestSchema = z.object({
   text: z.string().min(1),
   images: z.array(promptImageSchema).max(16).optional(),
   behavior: promptBehaviorSchema.optional(),
+  idempotencyKey: z.string().min(1).max(256).optional(),
 });
 export type PromptRequest = z.infer<typeof promptRequestSchema>;
 

@@ -23,7 +23,7 @@ function agent(): AgentRecord {
 }
 
 describe("explore availability", () => {
-  it("disables all task tools only for developer children", () => {
+  it("uses configured capabilities rather than parentage or historical kind", () => {
     const root = activeToolNamesForAgent(agent());
     const child = activeToolNamesForAgent({
       ...agent(),
@@ -34,7 +34,24 @@ describe("explore availability", () => {
     assert.ok(root.includes("task_start") && root.includes("task_status"));
     assert.ok(explore.includes("task_status") && explore.includes("task_logs"));
     assert.ok(child.includes("bash"));
-    assert.ok(!child.some((name) => name.startsWith("task_")));
+    assert.ok(child.includes("task_start") && child.includes("ask_user"));
+    const restricted = activeToolNamesForAgent({
+      ...agent(),
+      tools: ["read", "ask_user"],
+    });
+    assert.ok(restricted.includes("read") && restricted.includes("ask_user"));
+    assert.ok(!restricted.includes("task_start"));
+    const readonly = activeToolNamesForAgent({
+      ...agent(),
+      readOnlyCeiling: true,
+      tools: ["read", "write", "bash", "ask_user"],
+    });
+    assert.ok(readonly.includes("read") && readonly.includes("ask_user"));
+    assert.ok(!readonly.includes("write") && !readonly.includes("bash"));
+    assert.throws(
+      () => activeToolNamesForAgent({ ...agent(), tools: ["not_registered"] }),
+      /unregistered tool/,
+    );
   });
 
   it("is enabled by default and can be disabled", () => {

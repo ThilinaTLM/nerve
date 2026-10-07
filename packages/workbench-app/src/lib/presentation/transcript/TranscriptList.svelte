@@ -7,7 +7,7 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
   ProjectRecord,
-  QueuedPromptRecord,
+  AgentQueueItem,
   UserQuestionRecord,
 } from "../state/tool-types";
 import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
@@ -51,7 +51,7 @@ type Props = {
   streamingText: string;
   sending: boolean;
   runActivity: ConversationRunActivityModel;
-  queuedPrompts: QueuedPromptRecord[];
+  queuedPrompts: AgentQueueItem[];
   followBottom?: boolean;
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
@@ -88,12 +88,10 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
-  onForcePushQueuedPrompts?: (
-    prompt: QueuedPromptRecord,
-  ) => void | Promise<void>;
-  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onForcePushQueuedPrompts?: (prompt: AgentQueueItem) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: AgentQueueItem) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
-    prompt: QueuedPromptRecord,
+    prompt: AgentQueueItem,
   ) => void | Promise<void>;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };

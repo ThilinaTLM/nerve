@@ -8,6 +8,7 @@ import { settingsReadModel } from "$lib/application/preferences/settings-read-mo
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { mainAgentForConversation } from "./main-agent";
+import { selectedConversationAgent } from "./agent-selection.svelte";
 import { legacyPermissionLevelForRuleSet } from "$lib/domain/permissions/rule-set-options";
 import {
   clampThinkingLevelForModel,
@@ -19,10 +20,13 @@ export function currentActiveAgent(): AgentRecord | undefined {
     (candidate) => candidate.id === selection.conversationId,
   );
   if (!conversation) return undefined;
-  return mainAgentForConversation(
-    conversation,
-    workspaceState.agents,
-    selection.agentId,
+  return (
+    selectedConversationAgent(conversation.id) ??
+    mainAgentForConversation(
+      conversation,
+      workspaceState.agents,
+      selection.agentId,
+    )
   );
 }
 

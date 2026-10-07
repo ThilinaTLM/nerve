@@ -1,5 +1,20 @@
+import { waitForRun } from "./workbench-agent-run-results.js";
+import { assertApprovalCheckpointBranch } from "./approval-checkpoint-branch.js";
+export { activeBranchEndsWithCheckpointResults } from "./approval-checkpoint-branch.js";
+import { randomUUID } from "node:crypto";
+import { WorkbenchAgentInputControls } from "./workbench-agent-input-controls.js";
+import {
+  AgentInputConflictError,
+  type AgentInputRequest,
+  type AgentInputService,
+} from "../runtime/agent-inputs.js";
 import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
-import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
+import type {
+  AgentRecord,
+  AgentInputRecord,
+  AgentCompletion,
+  PromptRequest,
+} from "@nervekit/contracts/agents";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { RunInteractionRecord } from "@nervekit/contracts/runs";
@@ -57,18 +72,114 @@ export interface WorkbenchRunFeatureMechanics {
  * public busy semantics live here; every lifecycle transition is delegated to
  * the shared RunCoordinator.
  */
+export interface WorkbenchAgentControls {
+  inputs: AgentInputService;
+  inputAccepted?(input: AgentInputRecord): Promise<void>;
+  admissionPolicy?: {
+    recordAdministrativeActivation?(input: {
+      agentId: string;
+      generation: number;
+      cause: "user_resume" | "user_interrupt";
+      runId?: string;
+    }): Promise<void>;
+    reserve(input: {
+      agentId: string;
+      runId: string;
+      inputs: readonly AgentInputRecord[];
+    }): Promise<void>;
+    committed(input: { agentId: string; runId: string }): Promise<void>;
+    released(input: { agentId: string; runId: string }): Promise<void>;
+  };
+  setActivationState?(
+    agentId: string,
+    state: "enabled" | "paused",
+  ): Promise<void>;
+  getCompletion?(
+    agentId: string,
+    runId: string,
+    submittedAttemptId?: string,
+  ): Promise<AgentCompletion>;
+  getAgentHistory?(agentId: string): Promise<ConversationEntry[]>;
+  getAgentActiveEntryId?(agentId: string): Promise<string | null>;
+  hasAgentContextEntry?(agentId: string, entryId: string): Promise<boolean>;
+}
+
 export class WorkbenchRunService {
+  private readonly inputControls: WorkbenchAgentInputControls;
   constructor(
     private readonly state: RuntimeState,
     private readonly coordinator: RunCoordinator,
     private readonly unitOfWork: WorkbenchRunUnitOfWork,
     private readonly features: WorkbenchRunFeatureMechanics,
-  ) {}
+    private readonly controls?: WorkbenchAgentControls,
+  ) {
+    this.inputControls = new WorkbenchAgentInputControls(
+      state,
+      coordinator,
+      unitOfWork,
+      features,
+      controls,
+      this,
+    );
+  }
+
+  /** Fence automatic admission without changing durable agent activation. */
+  stopAdmissions = () => this.inputControls.stopAdmissions();
+  settledInputWork = () => this.inputControls.settledInputWork();
+
+  enqueueAgentInput = (agentId: string, request: AgentInputRequest) =>
+    this.inputControls.withInputWork(() =>
+      this.inputControls.enqueueAgentInput(agentId, request),
+    );
+  submitAgentRun = (
+    agentId: string,
+    text: string,
+    parent?: { agentId: string; runId?: string },
+    options?: { signal?: AbortSignal; idempotencyKey?: string },
+  ) =>
+    this.inputControls.withInputWork(() =>
+      this.inputControls.submitAgentRun(agentId, text, parent, options),
+    );
+  waitForAgentRun = (
+    identity: { agentId: string; runId: string; attemptId: string },
+    signal?: AbortSignal,
+  ) => this.inputControls.waitForAgentRun(identity, signal);
+  waitForRun(runId: string, signal?: AbortSignal, unref = false) {
+    return waitForRun(this.unitOfWork, runId, signal, unref);
+  }
+
+  async getAgentHistory(agentId: string): Promise<ConversationEntry[]> {
+    const agent = this.requireAgent(agentId);
+    if (this.controls?.getAgentHistory)
+      return this.controls.getAgentHistory(agentId);
+    return (
+      await this.features.getConversationEntries(agent.conversationId)
+    ).filter((entry) => entry.agentId === agentId);
+  }
+  resumeAgent = (
+    agentId: string,
+    onResumed?: (generation: number) => void,
+    options?: { authority: "user_administration" },
+  ) => this.inputControls.resumeAgent(agentId, onResumed, options);
+  interruptAgent = (
+    agentId: string,
+    request: PromptRequest,
+    options?: {
+      authority?: "user_administration";
+      parent?: { agentId: string; runId?: string };
+    },
+  ) => this.inputControls.interruptAgent(agentId, request, options);
 
   /**
    * Active runs holding an approval checkpoint: awaiting decisions or
    * executing released tools. Used by checkpoint reconciliation.
    */
+  settledAdmissions = () => this.inputControls.settledAdmissions();
+  migrateLegacyInputs = () => this.inputControls.migrateLegacyInputs();
+
+  recoverAgentInputs = (excludeAgentId?: string) =>
+    this.inputControls.recoverAgentInputs(excludeAgentId);
+
   async listApprovalCheckpointRuns(
     conversationId?: string,
   ): Promise<RunHydratedState[]> {
@@ -167,43 +278,19 @@ export class WorkbenchRunService {
     state: RunHydratedState,
     checkpointId: string | undefined,
   ): Promise<void> {
-    const checkpoint = state.checkpoints.find(
-      (candidate) => candidate.checkpointId === checkpointId,
-    );
-    if (!checkpoint) {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The approval checkpoint is no longer active.",
-      );
-    }
     const conversation = this.state.getConversation(state.run.conversationId);
-    const entries = await this.features.getConversationEntries(conversation.id);
-    const currentEntryIds = activeBranchEntryIds(
-      entries,
-      conversation.activeEntryId,
-    );
-    // Result entries may have been appended before a crash between recording
-    // member results and the checkpoint settlement transition. Only results
-    // for this run's checkpoint members may extend its original branch tip.
-    const memberIds = state.interactions
-      .filter((item) => item.checkpointId === checkpointId)
-      .map((item) => item.toolCallId);
-    if (
-      !activeBranchEndsWithCheckpointResults(
-        currentEntryIds,
-        checkpoint.entryIds,
-        entries,
-        state.run.runId,
-        memberIds,
-      )
-    ) {
-      throw new ApplicationError(
-        409,
-        "RUN_CHECKPOINT_STALE",
-        "The conversation changed after this approval was requested. No tool was executed.",
-      );
-    }
+    const agent = this.requireAgent(state.run.agentId);
+    const owner = resolveCompactionOwner(conversation.id, agent);
+    const entries =
+      owner.ownerAgentId === undefined
+        ? await this.features.getConversationEntries(conversation.id)
+        : await this.getAgentHistory(agent.id);
+    const activeEntryId =
+      owner.ownerAgentId === undefined
+        ? conversation.activeEntryId
+        : ((await this.controls?.getAgentActiveEntryId?.(agent.id)) ??
+          entries.at(-1)?.id);
+    assertApprovalCheckpointBranch(state, checkpointId, entries, activeEntryId);
   }
 
   async hasNonterminalOwnerRun(
@@ -225,6 +312,7 @@ export class WorkbenchRunService {
   async listQueuedPrompts(agentId: string) {
     const agent = this.requireAgent(agentId);
     const state = await this.unitOfWork.findActive(this.scopeId(agent));
+    if (this.controls) return this.controls.inputs.list(agentId);
     if (!state) return [];
     return state.prompts
       .filter(
@@ -237,6 +325,25 @@ export class WorkbenchRunService {
 
   async cancelQueuedPrompt(agentId: string, promptId: string) {
     this.requireAgent(agentId);
+    const migrated = (await this.controls?.inputs.list(agentId))?.find(
+      (input) => input.idempotencyKey === `legacy:${promptId}`,
+    );
+    if (this.controls && (promptId.startsWith("input_") || migrated)) {
+      try {
+        return await this.controls.inputs.cancel(
+          agentId,
+          migrated?.id ?? promptId,
+        );
+      } catch (error) {
+        if (error instanceof AgentInputConflictError)
+          throw new ApplicationError(
+            409,
+            "INPUT_NOT_PENDING",
+            "Input was cancelled or delivery has already begun.",
+          );
+        throw error;
+      }
+    }
     const state = await this.unitOfWork.findByPromptId(promptId);
     const prompt = state?.prompts.find(
       (candidate) => candidate.id === promptId && candidate.agentId === agentId,
@@ -261,7 +368,9 @@ export class WorkbenchRunService {
         "Agent has no active run.",
       );
     }
-    const prompts = await this.coordinator.forcePush(state.run.runId);
+    const prompts = this.controls
+      ? await this.controls.inputs.promote(agentId)
+      : await this.coordinator.forcePush(state.run.runId);
     return {
       accepted: true as const,
       runId: state.run.runId,
@@ -269,16 +378,58 @@ export class WorkbenchRunService {
     };
   }
 
-  async promptAgent(agentId: string, request: PromptRequest): Promise<void> {
+  promptAgent(agentId: string, request: PromptRequest) {
+    return this.inputControls.withInputWork(() =>
+      this.performPromptAgent(agentId, request),
+    );
+  }
+  private async performPromptAgent(
+    agentId: string,
+    request: PromptRequest,
+  ): Promise<AgentInputRecord | undefined> {
     const agent = this.requireAgent(agentId);
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
     this.state.maintenanceScopes.assertProject(agent.projectId);
-    if (agent.parentAgentId) {
+    const previous =
+      this.controls && request.idempotencyKey
+        ? await this.controls.inputs.acceptanceForKey(
+            agentId,
+            request.idempotencyKey,
+          )
+        : undefined;
+    if (
+      !previous &&
+      parseInlineCommandPrompt(request.text) &&
+      (agent.readOnlyCeiling || agent.permissionLevel === "read_only")
+    )
       throw new ApplicationError(
-        409,
-        "SUBAGENT_NOT_INTERACTIVE",
-        "Sub-agents are managed by their parent run and cannot receive direct prompts.",
+        403,
+        "INLINE_COMMAND_FORBIDDEN",
+        "Read-only agent policy forbids inline shell execution.",
       );
+    if (this.controls) {
+      const active = await this.unitOfWork.findActive(this.scopeId(agent));
+      if (active && !previous && request.behavior === "reject-if-busy")
+        throw new ApplicationError(
+          409,
+          "AGENT_BUSY",
+          "Agent is already running.",
+        );
+      return await this.enqueueAgentInput(agentId, {
+        text: request.text,
+        images: request.images,
+        role: "user",
+        origin: { kind: "user", userId: "authorized-user" },
+        idempotencyKey: request.idempotencyKey ?? randomUUID(),
+        eligibility:
+          request.behavior === "follow-up" ||
+          parseInlineCommandPrompt(request.text)
+            ? previous?.eligibility.kind === "next_run"
+              ? previous.eligibility
+              : { kind: "next_run", afterRunId: active?.run.runId }
+            : { kind: "next_turn" },
+        activation: "wake_if_idle",
+      });
     }
     await this.features.reopenTeam?.(agent.id);
     const scopeId = this.scopeId(agent);
@@ -325,8 +476,8 @@ export class WorkbenchRunService {
       images: request.images,
     });
   }
-
   async continueAgent(agentId: string): Promise<void> {
+    if (this.controls) return this.resumeAgent(agentId);
     const state = await this.requireCurrentRun(agentId);
     await this.coordinator.scheduleContinuation(state.run.runId);
   }
@@ -335,32 +486,54 @@ export class WorkbenchRunService {
    * Runs harness input that was appended outside a live execution. Terminal
    * runs are immutable, so an idle agent receives a fresh continuation run.
    */
-  async wakeAgentFromHarness(agentId: string): Promise<void> {
+  async wakeAgentFromHarness(agentId: string, explicit = false): Promise<void> {
+    if (this.inputControls.admissionsStopped) return;
+    await this.inputControls.withAdmission(agentId, () =>
+      this.activateAgent(agentId, explicit),
+    );
+  }
+  private async activateAgent(
+    agentId: string,
+    explicit: boolean,
+  ): Promise<void> {
     const agent = this.requireAgent(agentId);
-    if (agent.executionKind === "async_developer") {
-      await this.features.wakeChild?.(agentId);
+    if (
+      agent.activationState === "paused" ||
+      (await this.controls?.inputs.isPaused(agentId))
+    )
       return;
-    }
     this.state.maintenanceScopes.assertConversation(agent.conversationId);
     this.state.maintenanceScopes.assertProject(agent.projectId);
     const scopeId = this.scopeId(agent);
     const active = await this.unitOfWork.findActive(scopeId);
-    if (active) {
-      if (
-        active.run.status === "suspended" ||
-        active.run.status === "interrupted"
-      ) {
-        await this.coordinator.scheduleContinuation(active.run.runId);
-      }
+    // Automatic wakes never bypass a suspension or interrupted recovery fence.
+    // Explicit resume and interaction resolution own those continuations.
+    if (active) return;
+    const blocker = await this.controls?.inputs.admissionBlocker(agentId);
+    if (
+      !explicit &&
+      blocker?.configurationRevision === (agent.configurationRevision ?? 1)
+    )
       return;
-    }
+    if (
+      this.controls &&
+      !explicit &&
+      !(await this.controls.inputs.hasWakeRequest(agentId)) &&
+      !(await this.controls.inputs.hasContextPending(agentId)) &&
+      !(await this.controls.inputs.list(agentId)).some(
+        (input) =>
+          input.activation === "wake_if_idle" &&
+          input.eligibility.kind !== "run",
+      )
+    )
+      return;
     try {
-      await this.coordinator.startContinuation({
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        projectId: agent.projectId,
-        scopeId,
-      });
+      await this.inputControls.admitAgentRun(
+        agent,
+        undefined,
+        undefined,
+        explicit,
+      );
     } catch (error) {
       if (
         error instanceof RunConflictError &&
@@ -399,35 +572,16 @@ export class WorkbenchRunService {
     agentId?: string;
     runId?: string;
     reason?: string;
+    onPaused?: (generation: number) => void;
   }): Promise<void> {
-    const agent = input.agentId ? this.requireAgent(input.agentId) : undefined;
-    const state = input.runId
-      ? await this.unitOfWork.load(input.runId)
-      : agent
-        ? await this.unitOfWork.findActive(this.scopeId(agent))
-        : undefined;
-    const owner =
-      agent ?? (state ? this.requireAgent(state.run.agentId) : undefined);
-    if (owner && !owner.parentAgentId) await this.features.stopTeam?.(owner.id);
-    if (!state) {
-      if (input.runId) {
-        throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
-      }
-      return;
-    }
-    if (agent && state.run.agentId !== agent.id) {
-      throw new ApplicationError(404, "RUN_NOT_FOUND", "Run not found.");
-    }
-    await this.coordinator.cancel(
-      state.run.runId,
-      input.reason ?? "user requested abort",
-    );
-    // Cancellation does not establish the external outcome of a claimed tool.
-    // Keep its inspection issue visible after the run becomes terminal.
+    await this.inputControls.abortRun(input);
   }
 
-  async abortAgent(agentId: string): Promise<void> {
-    await this.abortRun({ agentId });
+  async abortAgent(
+    agentId: string,
+    onPaused?: (generation: number) => void,
+  ): Promise<void> {
+    await this.abortRun({ agentId, onPaused });
   }
 
   async isToolInteractionResolved(
@@ -622,7 +776,6 @@ export class WorkbenchRunService {
   }> {
     return this.features.runExplore(parent, args, options);
   }
-
   private async requireCurrentRun(agentId: string) {
     const agent = this.requireAgent(agentId);
     const state = await this.unitOfWork.findActive(this.scopeId(agent));
@@ -635,78 +788,13 @@ export class WorkbenchRunService {
     }
     return state;
   }
-
   private requireAgent(agentId: string): AgentRecord {
     const agent = this.state.agents.get(agentId);
     if (!agent)
       throw new ApplicationError(404, "AGENT_NOT_FOUND", "Agent not found.");
     return agent;
   }
-
   private scopeId(agent: AgentRecord): string {
     return `${agent.conversationId}:${agent.id}`;
   }
-}
-
-// Checkpoints contain entries committed through the run transition journal.
-// Other durable paths can append entries to the same model transcript between
-// those transitions (for example, a completed tool result). The checkpoint
-// must therefore be an ordered subsequence of the active branch and still own
-// its tip; requiring a contiguous suffix incorrectly marks those runs stale.
-export function activeBranchEndsWithCheckpointResults(
-  activeIds: readonly string[],
-  checkpointIds: readonly string[],
-  entries: readonly ConversationEntry[],
-  runId: string,
-  memberIds: readonly string[],
-): boolean {
-  const ids = [...activeIds];
-  const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const members = new Set(memberIds);
-  while (ids.length) {
-    const tail = byId.get(ids.at(-1)!);
-    const toolRecordId = (
-      tail?.details as { toolRecordId?: string } | undefined
-    )?.toolRecordId;
-    if (tail?.runId !== runId || !toolRecordId || !members.has(toolRecordId)) {
-      break;
-    }
-    ids.pop();
-  }
-  return activeBranchEndsWithCheckpoint(ids, checkpointIds);
-}
-
-export function activeBranchEndsWithCheckpoint(
-  activeBranchEntryIds: readonly string[],
-  checkpointEntryIds: readonly string[],
-): boolean {
-  if (checkpointEntryIds.length === 0 || activeBranchEntryIds.length === 0)
-    return false;
-  if (checkpointEntryIds.at(-1) !== activeBranchEntryIds.at(-1)) return false;
-
-  let checkpointIndex = 0;
-  for (const entryId of activeBranchEntryIds) {
-    if (entryId === checkpointEntryIds[checkpointIndex]) checkpointIndex += 1;
-  }
-  return checkpointIndex === checkpointEntryIds.length;
-}
-
-function activeBranchEntryIds(
-  entries: readonly ConversationEntry[],
-  activeEntryId: string | undefined,
-): string[] {
-  if (!activeEntryId) return [];
-  const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const ids: string[] = [];
-  const visited = new Set<string>();
-  let cursor: string | undefined = activeEntryId;
-  while (cursor) {
-    if (visited.has(cursor)) return [];
-    visited.add(cursor);
-    const entry = byId.get(cursor);
-    if (!entry) return [];
-    ids.push(entry.id);
-    cursor = entry.parentEntryId;
-  }
-  return ids.reverse();
 }

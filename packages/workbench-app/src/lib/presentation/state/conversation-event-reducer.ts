@@ -37,7 +37,7 @@ import {
   ConversationRunSuspendedData,
   ConversationToolCallUpdatedData,
 } from "@nervekit/contracts/conversations";
-import { QueuedPromptRecord } from "@nervekit/contracts/agents";
+
 import { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import {
   drainMaterializedActiveRunMessages,
@@ -373,7 +373,9 @@ function applyRunStarted(
   };
   state.lastRunOutcome = undefined;
   clearTransientCompaction(state);
-  state.queuedPrompts = [];
+  state.queuedPrompts = (state.queuedPrompts ?? []).filter(
+    (item) => "state" in item && item.state === "pending",
+  );
   state.sending = true;
   state.error = undefined;
 }
@@ -447,18 +449,18 @@ function applyPromptRemoved(
   }
 }
 
-function upsertPrompt(
-  prompts: QueuedPromptRecord[],
-  prompt: QueuedPromptRecord | undefined,
-): QueuedPromptRecord[] {
+function upsertPrompt<T extends { id: string }>(
+  prompts: T[],
+  prompt: T | undefined,
+): T[] {
   if (!prompt) return prompts;
   return upsert(prompts, prompt.id, prompt);
 }
 
-function removePrompt(
-  prompts: QueuedPromptRecord[],
-  prompt: QueuedPromptRecord | undefined,
-): QueuedPromptRecord[] {
+function removePrompt<T extends { id: string }>(
+  prompts: T[],
+  prompt: { id: string } | undefined,
+): T[] {
   if (!prompt) return prompts;
   return prompts.filter((candidate) => candidate.id !== prompt.id);
 }
@@ -556,7 +558,9 @@ function applyRunCompleted(
   recordRunOutcome(state, data.runId, "completed", data.completedAt);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
-  state.queuedPrompts = [];
+  state.queuedPrompts = (state.queuedPrompts ?? []).filter(
+    (item) => "state" in item && item.state === "pending",
+  );
   state.sending = false;
   state.error = undefined;
 }
@@ -568,7 +572,9 @@ function applyRunCancelled(
   recordRunOutcome(state, data.runId, "stopped", data.cancelledAt);
   if (runMatches(state.activeRun?.runId, data.runId))
     state.activeRun = undefined;
-  state.queuedPrompts = [];
+  state.queuedPrompts = (state.queuedPrompts ?? []).filter(
+    (item) => "state" in item && item.state === "pending",
+  );
   state.sending = false;
   state.error = undefined;
 }
@@ -616,7 +622,9 @@ function applyRunFailed(
   ) {
     clearTransientCompaction(state);
   }
-  state.queuedPrompts = [];
+  state.queuedPrompts = (state.queuedPrompts ?? []).filter(
+    (item) => "state" in item && item.state === "pending",
+  );
   state.sending = false;
   state.error =
     data.aborted || (continuableInterruption && targetsCurrentRun)

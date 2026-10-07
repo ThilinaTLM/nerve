@@ -12,7 +12,7 @@ import type {
   PermissionRuleSetSummary,
   PlanReviewResolveOptions,
   ProjectRecord,
-  QueuedPromptRecord,
+  AgentQueueItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "$lib/api";
@@ -45,7 +45,7 @@ export type WorkbenchConversationAdapterProps = {
   activeRun?: ConversationActiveRunSnapshot;
   lastRunOutcome?: ConversationRunOutcome;
   transient?: ConversationTransientState;
-  queuedPrompts?: QueuedPromptRecord[];
+  queuedPrompts?: AgentQueueItem[];
   recoveryIssues?: RecoveryIssue[];
   sending?: boolean;
   stopping?: boolean;
@@ -117,12 +117,10 @@ export type WorkbenchConversationAdapterProps = {
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
-  onForcePushQueuedPrompts?: (
-    prompt: QueuedPromptRecord,
-  ) => void | Promise<void>;
-  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onForcePushQueuedPrompts?: (prompt: AgentQueueItem) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: AgentQueueItem) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
-    prompt: QueuedPromptRecord,
+    prompt: AgentQueueItem,
   ) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
   onNavigateToEntry?: (

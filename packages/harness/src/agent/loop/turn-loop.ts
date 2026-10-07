@@ -122,7 +122,7 @@ export async function runLoop(
       return;
     }
 
-    if (hasMoreToolCalls) continue;
+    if (hasMoreToolCalls || nextTurnSnapshot?.continue) continue;
 
     pendingMessages = (await config.getFollowUpMessages?.()) || [];
     if (pendingMessages.length > 0) continue;

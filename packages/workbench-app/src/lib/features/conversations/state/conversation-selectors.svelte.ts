@@ -75,9 +75,13 @@ function activeView() {
     workspaceReadModel.selectedConversationId ??
     conversationState.activeConversationTabId;
   if (!conversationId) return undefined;
-  return conversationState.conversationViews[
-    conversationViewKey(conversationId)
-  ];
+  const agentId =
+    conversationState.selectedAgentIds[conversationId] ??
+    workspaceReadModel.selectedAgentId;
+  return (
+    (agentId ? conversationState.agentViews[agentId] : undefined) ??
+    conversationState.conversationViews[conversationViewKey(conversationId)]
+  );
 }
 
 function activePendingConversation() {
@@ -108,7 +112,11 @@ const conversationSelectorsValue = {
     const conversationId = workspaceReadModel.selectedConversationId;
     const agentId = workspaceReadModel.selectedAgentId;
     return workspaceReadModel.userQuestions.find((question) => {
-      if (conversationId && question.conversationId === conversationId)
+      if (
+        !agentId &&
+        conversationId &&
+        question.conversationId === conversationId
+      )
         return true;
       return Boolean(agentId && question.agentId === agentId);
     });
@@ -117,7 +125,11 @@ const conversationSelectorsValue = {
     const conversationId = workspaceReadModel.selectedConversationId;
     const agentId = workspaceReadModel.selectedAgentId;
     return workspaceReadModel.planReviews.find((review) => {
-      if (conversationId && review.conversationId === conversationId)
+      if (
+        !agentId &&
+        conversationId &&
+        review.conversationId === conversationId
+      )
         return true;
       return Boolean(agentId && review.agentId === agentId);
     });

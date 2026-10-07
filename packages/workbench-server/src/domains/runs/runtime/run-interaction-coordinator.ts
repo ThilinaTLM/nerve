@@ -232,19 +232,37 @@ export class RunInteractionCoordinator {
             pendingSiblings.find((item) => item.toolCallId === toolCallId),
           )
           .find((item) => item !== undefined);
-        const wake = pendingSiblings.length === 0;
+        const allowedApprovals = checkpointSiblings.filter(
+          (item) =>
+            item.kind === "approval" &&
+            item.status === "resolved" &&
+            item.resolution?.decision === "allow",
+        );
+        const releaseApprovals =
+          current.kind !== "approval" &&
+          pendingSiblings.length === 0 &&
+          allowedApprovals.length > 0;
+        const wake = pendingSiblings.length === 0 && !releaseApprovals;
         const next = revise(
           state.run,
-          wake
-            ? { status: "suspended", activeInteractionId: undefined }
-            : { status: "waiting", activeInteractionId: nextPending?.id },
+          releaseApprovals
+            ? { status: "executing_tools", activeInteractionId: undefined }
+            : wake
+              ? { status: "suspended", activeInteractionId: undefined }
+              : { status: "waiting", activeInteractionId: nextPending?.id },
           now,
         );
         await this.options.commit(state, next, "interaction_resolved", {
           ...accompanying,
           interactions: [record],
-          lifecycleWork:
-            wake && this.options.durableContinuation
+          lifecycleWork: releaseApprovals
+            ? [
+                ...(accompanying.lifecycleWork ?? []),
+                ...allowedApprovals.map((item) =>
+                  this.executeToolWork(next, item.checkpointId, item, now),
+                ),
+              ]
+            : wake && this.options.durableContinuation
               ? [this.continuationWork(next, now)]
               : accompanying.lifecycleWork,
         });
@@ -306,11 +324,6 @@ export class RunInteractionCoordinator {
           "The approval checkpoint is no longer active.",
         );
       }
-      if (members.some((member) => member.kind !== "approval")) {
-        throw new InvalidRunStateError(
-          "Approval checkpoints must contain only approval interactions",
-        );
-      }
       if (
         command.toolProjection &&
         command.toolProjection.revision !== interaction.toolCallRevision + 1
@@ -359,7 +372,11 @@ export class RunInteractionCoordinator {
         toolProjections,
         lifecycleWork: command.releaseWork
           ? decided
-              .filter((member) => member.resolution?.decision === "allow")
+              .filter(
+                (member) =>
+                  member.kind === "approval" &&
+                  member.resolution?.decision === "allow",
+              )
               .map((member) =>
                 this.executeToolWork(next, member.checkpointId, member, now),
               )

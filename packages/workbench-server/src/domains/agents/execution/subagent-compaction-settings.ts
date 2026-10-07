@@ -4,15 +4,10 @@ import type { Settings } from "@nervekit/contracts/settings";
 /** Resolve a teammate's profile without overriding the project's auto-compaction switch. */
 export function compactionSettingsForAgent(
   settings: Pick<Settings, "compaction" | "asyncSubagent">,
-  agent?: AgentRecord,
+  _agent?: AgentRecord,
 ): Settings["compaction"] {
-  const profile = settings.asyncSubagent.compactionProfile;
-  if (agent?.executionKind !== "async_developer" || profile === "inherit")
-    return settings.compaction;
-  return {
-    ...settings.compaction,
-    profile,
-    customTriggerPercent: settings.asyncSubagent.customTriggerPercent,
-    customKeepRecentPercent: settings.asyncSubagent.customKeepRecentPercent,
-  };
+  void _agent;
+  // Agent parentage/preset does not impose a hidden context-management policy.
+  // Until compaction becomes an explicit agent configuration, project settings own it.
+  return settings.compaction;
 }

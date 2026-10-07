@@ -17,7 +17,18 @@ export function createSubagentHandlers(
   const handlers: ToolHandlerRegistry = {};
   for (const name of asyncSubagentToolNames) {
     handlers[name] = async (args, context) => {
-      if (name !== "subagent_list") requiredString(args.name, "name");
+      if (name === "subagent_new") requiredString(args.name, "name");
+      else if (name !== "subagent_list") {
+        if ((args.name !== undefined) === (args.agentId !== undefined))
+          throw new ToolValidationError(
+            "Provide exactly one of name or agentId.",
+          );
+        if (args.agentId !== undefined) {
+          requiredString(args.agentId, "agentId");
+          if (!String(args.agentId).startsWith("agent_"))
+            throw new ToolValidationError("agentId must start with agent_.");
+        } else requiredString(args.name, "name");
+      }
       if (name === "subagent_prompt") requiredString(args.prompt, "prompt");
       if (
         name === "subagent_list" &&

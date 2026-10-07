@@ -1,3 +1,10 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  agent as fixtureAgent,
+  buildToolService,
+} from "../tools/tool-service-test-fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentToolSuspensionData } from "@nervekit/harness/agent";
@@ -104,16 +111,51 @@ function runBatch(options: {
     batchWaitIds(): string[] {
       return waits.map((wait) => wait.toolCallId);
     },
-    run: () =>
-      waitForSequentialToolInteractionBatch({
-        agent: { id: "agent_test" } as unknown as AgentRecord,
-        runId: "run_test",
-        suspension,
-        deps,
-        sink,
-        checkpointCommand: async () =>
-          ({ boundary: "suspension" }) as unknown as CheckpointCommand,
-      }),
+    run: async () => {
+      const home = await mkdtemp(join(tmpdir(), "nerve-sequential-captures-"));
+      const actor: AgentRecord = {
+        ...fixtureAgent("supervised"),
+        projectDir: home,
+        workspaceScope: { roots: [home] },
+        permissionRuleSetId: "supervised",
+        model: { provider: "nerve-faux", modelId: "faux-fast" },
+        thinkingLevel: "off",
+        instructions: "",
+        systemPrompt: "Original effective prompt",
+        tools: ["bash", "python_exec", "ask_user"],
+        skills: [],
+      };
+      const fixture = buildToolService(home, actor);
+      try {
+        const permissionContext =
+          await fixture.service.capturePermissionContext(actor);
+        const toolAuthority = await fixture.service.captureToolAuthority(
+          actor,
+          permissionContext,
+          { configurationProvenance: "resolved" },
+        );
+        await waitForSequentialToolInteractionBatch({
+          agent: actor,
+          agentSnapshot: actor,
+          permissionContext,
+          toolAuthority,
+          runId: "run_test",
+          suspension,
+          deps,
+          sink,
+          checkpointCommand: async () =>
+            ({ boundary: "suspension" }) as unknown as CheckpointCommand,
+        });
+        for (const request of requested) {
+          assert.equal(request.options.agentSnapshot, actor);
+          assert.equal(request.options.permissionContext, permissionContext);
+          assert.equal(request.options.toolAuthority, toolAuthority);
+        }
+      } finally {
+        await fixture.journal.close();
+        await rm(home, { recursive: true, force: true });
+      }
+    },
     requested,
     waits,
   };

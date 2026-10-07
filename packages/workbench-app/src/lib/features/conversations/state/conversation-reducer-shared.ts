@@ -1,3 +1,4 @@
+import { agentUsesConversationView } from "./agent-history-ownership";
 import type { ConversationEntry } from "$lib/api";
 import type { ConversationViewState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
@@ -8,7 +9,13 @@ export function stringValue(value: unknown): string | undefined {
 }
 
 export function active(conversationId: string): boolean {
-  return selection.conversationId === conversationId;
+  return (
+    selection.conversationId === conversationId &&
+    !workspaceState.agents.some(
+      (agent) =>
+        agent.id === selection.agentId && !agentUsesConversationView(agent),
+    )
+  );
 }
 
 export function isOpenConversation(conversationId: string): boolean {

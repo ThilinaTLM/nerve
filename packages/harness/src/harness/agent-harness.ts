@@ -97,7 +97,16 @@ export class AgentHarness<
   TPromptTemplate extends PromptTemplate = PromptTemplate,
   TTool extends AgentTool = AgentTool,
 > {
-  readonly env: ExecutionEnv;
+  private currentEnv: ExecutionEnv;
+  get env(): ExecutionEnv {
+    return this.currentEnv;
+  }
+  private readonly hasPendingTurnInput?: () => Promise<boolean>;
+  private readonly prepareTurn?: AgentHarnessOptions<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  >["prepareTurn"];
   private conversation: Conversation;
   private readonly runState: HarnessRunState;
   private model: AnyModel;
@@ -120,7 +129,9 @@ export class AgentHarness<
   >;
   private readonly maxParallelToolCalls: number | undefined;
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
-    this.env = options.env;
+    this.currentEnv = options.env;
+    this.prepareTurn = options.prepareTurn;
+    this.hasPendingTurnInput = options.hasPendingTurnInput;
     this.conversation = options.conversation;
     this.resources = options.resources ?? {};
     this.streamOptions = cloneStreamOptions(options.streamOptions);
@@ -271,6 +282,18 @@ export class AgentHarness<
   private async createTurnState(): Promise<
     AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>
   > {
+    const snapshot = await this.prepareTurn?.();
+    if (snapshot) {
+      const tools = createToolMap(snapshot.tools);
+      this.validateToolNames(snapshot.activeToolNames, tools);
+      this.model = snapshot.model;
+      this.thinkingLevel = snapshot.thinkingLevel;
+      this.tools = tools;
+      this.activeToolNames = [...snapshot.activeToolNames];
+      this.resources = cloneHarnessResources(snapshot.resources);
+      this.systemPrompt = snapshot.systemPrompt;
+      this.currentEnv = snapshot.env ?? this.currentEnv;
+    }
     return createAgentHarnessTurnState({
       env: this.env,
       conversation: this.conversation,
@@ -393,9 +416,20 @@ export class AgentHarness<
             boundaryResult.followUp,
           );
         }
+        if (
+          !context.hasMoreToolCalls &&
+          this.hasPendingTurnInput &&
+          !this.steerQueue.length &&
+          !this.followUpQueue.length &&
+          !(await this.hasPendingTurnInput())
+        )
+          return undefined;
         const nextTurnState = await this.createTurnState();
         setTurnState(nextTurnState);
         return {
+          continue: ["user", "harness"].includes(
+            nextTurnState.messages.at(-1)?.role ?? "",
+          ),
           context: this.createContext(nextTurnState),
           model: nextTurnState.model,
           thinkingLevel: nextTurnState.thinkingLevel,

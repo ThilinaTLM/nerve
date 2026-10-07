@@ -1,3 +1,4 @@
+import { getAgentSnapshotForToolCall } from "./agent-tool-adapter.js";
 import { isAbsolute, resolve } from "node:path";
 import {
   buildProcessTextResult,
@@ -375,7 +376,10 @@ export class OrchestrationToolDispatcher {
         run: (request, _identity, signal) =>
           result(
             this.deps.runExplore(
-              this.deps.getAgent(toolCall.agentId),
+              getAgentSnapshotForToolCall(
+                this.deps.getAgent(toolCall.agentId),
+                toolCall,
+              ),
               request,
               {
                 onProgress: (message) =>
@@ -459,9 +463,7 @@ export class OrchestrationToolDispatcher {
       if (options.useForegroundBash !== false) {
         const autoPromotion =
           this.deps.storage.settings.tools.bash.autoPromotion;
-        const foregroundOnly =
-          this.deps.getAgent(toolCall.agentId).executionKind ===
-          "async_developer";
+        const foregroundOnly = false;
         const promoted = await this.deps.tasks.runForegroundBashWithPromotion({
           command: stringArg(args, "command"),
           cwd,
@@ -499,7 +501,10 @@ export class OrchestrationToolDispatcher {
     if (toolCall.toolName === "python_exec") {
       const cwd = await resolveCommandCwd(toolCall.cwd, args.cwd);
       delete args.cwd;
-      const agent = this.deps.getAgent(toolCall.agentId);
+      const agent = getAgentSnapshotForToolCall(
+        this.deps.getAgent(toolCall.agentId),
+        toolCall,
+      );
       const runtime = await this.deps.pythonRuntime.runtimeForProject(
         agent.projectDir,
       );
@@ -523,7 +528,10 @@ export class OrchestrationToolDispatcher {
     args: Record<string, unknown>,
   ): Promise<unknown> {
     const command = stringArg(args, "command");
-    const agent = this.deps.getAgent(toolCall.agentId);
+    const agent = getAgentSnapshotForToolCall(
+      this.deps.getAgent(toolCall.agentId),
+      toolCall,
+    );
     const rawCwd = optionalStringArg(args.cwd);
     if (rawCwd && isAbsolute(rawCwd)) {
       throw new CodedToolError(

@@ -20,7 +20,9 @@ export function applyRunWaitingProjection(
     }
   }
   view.sending = false;
-  view.queuedPrompts = [];
+  view.queuedPrompts = view.queuedPrompts.filter(
+    (item) => "state" in item && item.state === "pending",
+  );
   view.error = undefined;
 }
 

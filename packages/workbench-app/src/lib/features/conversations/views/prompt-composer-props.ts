@@ -25,6 +25,7 @@ export type PromptComposerProps = {
   text?: string;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
+  activeAgent?: AgentRecord;
   activePendingConversation?: PendingConversationState;
   pendingConversationActive?: boolean;
   approvals?: ApprovalWithToolCall[];

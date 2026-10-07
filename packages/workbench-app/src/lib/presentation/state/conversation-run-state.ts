@@ -1,3 +1,4 @@
+import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
 import { type ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
 import type {
   ConversationRenderState,
@@ -24,7 +25,11 @@ export function ensureActiveRun(
     startedAt: data.startedAt ?? new Date().toISOString(),
     turns: [],
     toolOutputsByToolCallId: {},
-    queuedPrompts: state.queuedPrompts ?? [],
+    // The legacy live snapshot contains only genuine legacy prompt records.
+    // Canonical input identity stays in state.queuedPrompts, never remapped.
+    queuedPrompts: (state.queuedPrompts ?? []).filter(
+      (item): item is QueuedPromptRecord => !("state" in item),
+    ),
   };
   return state.activeRun;
 }

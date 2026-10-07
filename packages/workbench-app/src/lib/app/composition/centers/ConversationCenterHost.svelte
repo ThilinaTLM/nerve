@@ -1,5 +1,7 @@
 <script lang="ts">
-import { type QueuedPromptRecord } from "$lib/api";
+import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
+import { upsertAgentRecordFresh } from "$lib/application/workspace/entity-reducers";
+import { type AgentQueueItem } from "$lib/api";
 import { SvelteSet } from "svelte/reactivity";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
@@ -8,7 +10,6 @@ import { composerDraft } from "$lib/application/workspace/selection.svelte";
 import { selectCenterTab } from "$lib/application/workspace/center-tabs.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 import {
-  conversationViewKey,
   gitProjectStateKey,
   gitRepoStateKey,
   pendingConversationKey,
@@ -55,7 +56,15 @@ import {
   setComposerPermissionRuleSet,
   setComposerThinkingLevel,
 } from "$lib/features/conversations/state/composer-config.svelte";
-import { ensureConversationView } from "$lib/features/conversations/state/conversation-view-actions";
+import {
+  ensureAgentView,
+  selectedConversationView,
+  selectedConversationAgent,
+  controlAgent,
+  refreshAgentView,
+} from "$lib/features/conversations/state/agent-selection.svelte";
+import { mainAgentForConversation } from "$lib/features/conversations/state/main-agent";
+import AgentControlBar from "$lib/features/conversations/views/AgentControlBar.svelte";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
@@ -107,9 +116,7 @@ const pendingId = $derived(
   paneTab?.kind === "pending-conversation" ? paneTab.id : undefined,
 );
 const view = $derived(
-  conversationId
-    ? conversationState.conversationViews[conversationViewKey(conversationId)]
-    : undefined,
+  conversationId ? selectedConversationView(conversationId) : undefined,
 );
 const activePendingConversation = $derived(
   pendingId
@@ -125,11 +132,8 @@ const activeConversation = $derived(
 );
 const activeAgent = $derived(
   activeConversation
-    ? workspaceState.agents.find(
-        (agent) =>
-          agent.id === activeConversation.activeAgentId ||
-          agent.conversationId === activeConversation.id,
-      )
+    ? (selectedConversationAgent(activeConversation.id) ??
+        mainAgentForConversation(activeConversation, workspaceState.agents))
     : undefined,
 );
 const activeProject = $derived.by(() => {
@@ -143,7 +147,11 @@ const pendingConversationActive = $derived(Boolean(activePendingConversation));
 const pendingUserQuestions = $derived.by(() => {
   const agentId = activeAgent?.id;
   return workspaceSelectors.userQuestions.filter((question) => {
-    if (conversationId && question.conversationId === conversationId)
+    if (
+      !agentId &&
+      conversationId &&
+      question.conversationId === conversationId
+    )
       return true;
     return Boolean(agentId && question.agentId === agentId);
   });
@@ -151,14 +159,19 @@ const pendingUserQuestions = $derived.by(() => {
 const pendingPlanReviews = $derived.by(() => {
   const agentId = activeAgent?.id;
   return workspaceSelectors.planReviews.filter((review) => {
-    if (conversationId && review.conversationId === conversationId) return true;
+    if (!agentId && conversationId && review.conversationId === conversationId)
+      return true;
     return Boolean(agentId && review.agentId === agentId);
   });
 });
 const activeApprovals = $derived.by(() => {
   const agentId = activeAgent?.id;
   return workspaceSelectors.approvals.filter((approval) => {
-    if (conversationId && approval.conversationId === conversationId)
+    if (
+      !agentId &&
+      conversationId &&
+      approval.conversationId === conversationId
+    )
       return true;
     return Boolean(agentId && approval.agentId === agentId);
   });
@@ -178,8 +191,10 @@ const activeAgentConfigOverride = $derived(
 );
 const selectedModelKey = $derived(
   activePendingConversation?.selectedModelKey ??
-    (activeAgentConfigOverride?.model
-      ? modelKey(activeAgentConfigOverride.model)
+    (activeAgentConfigOverride?.model !== undefined
+      ? activeAgentConfigOverride.model
+        ? modelKey(activeAgentConfigOverride.model)
+        : ""
       : activeAgent?.model
         ? modelKey(activeAgent.model)
         : conversationState.selectedModelKey),
@@ -331,7 +346,7 @@ function setPaneComposerText(value: string) {
     return;
   }
   if (conversationId) {
-    ensureConversationView(conversationId).composerText = value;
+    selectedConversationView(conversationId).composerText = value;
     return;
   }
   if (active && tabsEqual(workspaceState.activeCenterTab, paneTab)) {
@@ -393,6 +408,42 @@ $effect(() => {
   });
 });
 
+const queueAgentId = $derived(activeAgent?.id);
+// Agent-owned acceptance can be queue-only/paused without publishing a run
+// event. Refresh only this visible selected pane, one request at a time.
+$effect(() => {
+  const selectedAgentId = queueAgentId;
+  if (!active || !selectedAgentId) return;
+  const agentId: string = selectedAgentId;
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout>;
+  async function refreshQueue() {
+    try {
+      if (document.visibilityState === "visible") {
+        const { result } = await protocolRequest("agent.promptQueue.list", {
+          agentId,
+        });
+        if (!disposed) {
+          const target = workspaceState.agents.find(
+            (agent) => agent.id === agentId,
+          );
+          if (target)
+            ensureAgentView(target).queuedPrompts = result.queuedPrompts;
+        }
+      }
+    } catch {
+      /* Connection recovery owns error reporting; no repeating toasts. */
+    } finally {
+      if (!disposed) timer = setTimeout(refreshQueue, 2000);
+    }
+  }
+  void refreshQueue();
+  return () => {
+    disposed = true;
+    clearTimeout(timer);
+  };
+});
+
 function applySuggestion(suggestion: { prompt: string }) {
   const current = activeComposerText.trim();
   setPaneComposerText(
@@ -409,10 +460,16 @@ function sendSuggestion(suggestion: { prompt: string }) {
 }
 
 const forcePushesInFlight = new SvelteSet<string>();
+function queuedPromptView(prompt: AgentQueueItem) {
+  const agent = workspaceState.agents.find(
+    (candidate) => candidate.id === prompt.agentId,
+  );
+  return agent ? ensureAgentView(agent) : undefined;
+}
 
-function forcePushQueuedPrompts(prompt: QueuedPromptRecord): Promise<void> {
+function forcePushQueuedPrompts(prompt: AgentQueueItem): Promise<void> {
   return runActivePaneAction(async () => {
-    const key = prompt.runId ?? prompt.agentId;
+    const key = prompt.agentId;
     if (forcePushesInFlight.has(key)) return;
     forcePushesInFlight.add(key);
     try {
@@ -422,10 +479,11 @@ function forcePushQueuedPrompts(prompt: QueuedPromptRecord): Promise<void> {
         { idempotencyKey: crypto.randomUUID() },
       );
       const pushedIds = new Set(result.queuedPromptIds);
-      const targetView = ensureConversationView(prompt.conversationId);
-      targetView.queuedPrompts = targetView.queuedPrompts.filter(
-        (candidate) => !pushedIds.has(candidate.id),
-      );
+      const targetView = queuedPromptView(prompt);
+      if (targetView)
+        targetView.queuedPrompts = targetView.queuedPrompts.filter(
+          (candidate) => !pushedIds.has(candidate.id),
+        );
       notify.success(
         result.queuedPromptIds.length === 1
           ? "Queued prompt force pushed"
@@ -440,18 +498,17 @@ function forcePushQueuedPrompts(prompt: QueuedPromptRecord): Promise<void> {
   });
 }
 
-async function cancelQueuedPrompt(
-  prompt: QueuedPromptRecord,
-): Promise<boolean> {
+async function cancelQueuedPrompt(prompt: AgentQueueItem): Promise<boolean> {
   try {
     await protocolRequest("agent.promptQueue.cancel", {
       agentId: prompt.agentId,
       queuedPromptId: prompt.id,
     });
-    const targetView = ensureConversationView(prompt.conversationId);
-    targetView.queuedPrompts = targetView.queuedPrompts.filter(
-      (candidate) => candidate.id !== prompt.id,
-    );
+    const targetView = queuedPromptView(prompt);
+    if (targetView)
+      targetView.queuedPrompts = targetView.queuedPrompts.filter(
+        (candidate) => candidate.id !== prompt.id,
+      );
     return true;
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
@@ -460,15 +517,15 @@ async function cancelQueuedPrompt(
   }
 }
 
-function discardQueuedPrompt(prompt: QueuedPromptRecord) {
-  void runActivePaneAction(async () => {
+function discardQueuedPrompt(prompt: AgentQueueItem) {
+  return runActivePaneAction(async () => {
     if (!(await cancelQueuedPrompt(prompt))) return;
     notify.message("Queued prompt discarded");
   });
 }
 
-function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
-  void runActivePaneAction(async () => {
+function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
+  return runActivePaneAction(async () => {
     if (!(await cancelQueuedPrompt(prompt))) return;
     setPaneComposerText(prompt.text);
     focusComposer();
@@ -477,6 +534,55 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
 }
 </script>
 
+{#if activeAgent}
+  <AgentControlBar
+    agent={activeAgent}
+    activity={workspaceState.agentActivities[activeAgent.id]}
+    queuedPrompts={view?.queuedPrompts ?? []}
+    error={view?.error}
+    lastOutcome={view?.latestCompletion === undefined
+      ? view?.lastRunOutcome?.outcome
+      : view.latestCompletion?.outcome}
+    latestCompletion={view?.latestCompletion}
+    effectiveSnapshot={view?.effectiveConfiguration}
+    hasReplacement={Boolean(activeComposerText.trim())}
+    busy={view?.stopping ?? false}
+    onInterrupt={() =>
+      void runActivePaneAction(async () => {
+        const target = activeAgent!;
+        try {
+          await protocolRequest(
+            "agent.interrupt",
+            { agentId: target.id, text: activeComposerText.trim() },
+            { idempotencyKey: crypto.randomUUID() },
+          );
+          setPaneComposerText("");
+          const { result } = await protocolRequest("agent.get", {
+            agentId: target.id,
+          });
+          upsertAgentRecordFresh(result.agent);
+          await refreshAgentView(result.agent);
+        } catch (caught) {
+          notify.error("Interrupt failed", {
+            description:
+              caught instanceof Error ? caught.message : String(caught),
+          });
+        }
+      })}
+    onStop={() => void controlAgent(activeAgent!, "agent.stop")}
+    onResume={() => void controlAgent(activeAgent!, "agent.resume")}
+    onSave={async (patch) => {
+      const target = activeAgent!;
+      await flushAgentConfigChanges(target.id);
+      const { result } = await protocolRequest("agent.configure", {
+        agentId: target.id,
+        ...patch,
+      });
+      if ("agent" in result) upsertAgentRecordFresh(result.agent);
+      await refreshAgentView(target);
+    }}
+  />
+{/if}
 <WorkbenchConversationAdapter
   {active}
   {activeProject}
@@ -501,7 +607,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   teamRunning={workspaceState.agents.some(
     (agent) =>
       agent.parentAgentId === activeAgent?.id &&
-      agent.executionKind === "async_developer" &&
+      agent.orchestrationPolicy?.preset === "developer" &&
       (workspaceState.agentActivities[agent.id]?.state === "running" ||
         taskSelectors.tasks.some(
           (task) =>
@@ -546,7 +652,9 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
     void runActivePaneAction(
       view?.transient?.compaction?.state === "running"
         ? cancelActiveCompaction
-        : abortActiveRun,
+        : activeAgent
+          ? () => controlAgent(activeAgent, "agent.stop")
+          : abortActiveRun,
     );
   }}
   onCompact={() => {

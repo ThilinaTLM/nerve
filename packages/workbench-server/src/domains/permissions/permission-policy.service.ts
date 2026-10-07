@@ -73,14 +73,14 @@ export class PermissionPolicyService {
 
   async resolve(agent: AgentRecord): Promise<ResolvedPermissionPolicy> {
     const project = this.getProject(agent.projectId);
-    const subagent = Boolean(agent.parentAgentId);
-    const selectedId = subagent
-      ? agent.executionKind === "async_developer"
-        ? "autonomous"
-        : "read_only"
-      : agent.mode === "planning"
+    // Mode chooses the supported ordinary policy; immutable read-only authority
+    // is independently intersected at evaluation/claim, including planning.
+    const selectedId =
+      agent.mode === "planning"
         ? "planning"
-        : (agent.permissionRuleSetId ?? agent.permissionLevel);
+        : agent.readOnlyCeiling
+          ? "read_only"
+          : (agent.permissionRuleSetId ?? agent.permissionLevel);
     const custom = await this.customRuleSets();
     const diagnostics: string[] = [...custom.diagnostics];
     let selected: PermissionRuleSet | undefined =
@@ -135,7 +135,7 @@ export class PermissionPolicyService {
       knownRuleSetIds,
     );
     diagnostics.push(...ignored.map((item) => `${item.path}: ${item.reason}`));
-    const overlaysEnabled = !subagent && !fallback;
+    const overlaysEnabled = !fallback;
     return {
       policy: composeEffectivePermissionPolicy({
         selectedRuleSet: effectiveSelected,
@@ -155,8 +155,7 @@ export class PermissionPolicyService {
               ),
             }
           : {}),
-        ignoredOverlays: subagent ? [] : ignored,
-        subagent,
+        ignoredOverlays: ignored,
       }),
       roots: {
         project: project.dir,

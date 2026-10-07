@@ -6,6 +6,7 @@ import { it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
 import { asyncSubagentToolNames } from "@nervekit/contracts/agents";
 import { createRuntimeFixture } from "../../support/runtime-fixture.js";
+import { AgentInputRepository } from "../../../src/domains/runs/persistence/agent-input.repository.js";
 import {
   initializeStorage,
   writeSettings,
@@ -81,10 +82,26 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       },
     );
     assert.equal(prompted.toolCall.status, "completed");
-    const receipt = prompted.toolCall.result?.details as { runId: string };
-    assert.ok(receipt.runId);
+    const receipt = prompted.toolCall.result?.details as {
+      runId?: string;
+      inputId: string;
+    };
+    assert.ok(receipt.inputId);
+    const acceptedInputs = new AgentInputRepository(storage);
     const deadline = Date.now() + 15_000;
-    const obligationId = `async_subagent:${receipt.runId}:0`;
+    let originalRunId: string | undefined;
+    while (Date.now() < deadline) {
+      originalRunId = (await acceptedInputs.load(child.id))?.inputs.find(
+        (input) => input.id === receipt.inputId,
+      )?.delivery?.runId;
+      if (originalRunId) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(
+      originalRunId,
+      "accepted parent input must bind to its actual admitted run",
+    );
+    const obligationId = `async_subagent:${originalRunId}:0`;
     while (Date.now() < deadline) {
       const obligation =
         await storage.canonicalStore.readAgentObligation(obligationId);
@@ -95,14 +112,29 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       await storage.canonicalStore.readAgentObligation(obligationId);
     assert.ok(
       obligation?.consumedAt,
-      "lead must consume the durable completion obligation",
+      `lead must consume the durable completion obligation: ${JSON.stringify(obligation)}; history: ${JSON.stringify(await runtime.services.workbenchRun.getAgentHistory(lead.id))}`,
     );
     assert.equal(
       await readFile(join(root, "component.txt"), "utf8"),
       "implemented by child",
     );
     const status = await runtime.services.asyncSubagents.status(lead.id, "API");
-    assert.equal(status.state, "idle");
+    assert.equal(
+      status.state,
+      "idle",
+      JSON.stringify({
+        status,
+        control: await storage.canonicalStore.readDocument(
+          "async-subagent-control",
+          "global",
+          child.id,
+        ),
+        runs: (
+          await runtime.services.runRuntime.unitOfWork.listMetadata()
+        ).filter((run) => run.agentId === child.id),
+        queue: await acceptedInputs.load(child.id),
+      }),
+    );
     assert.match(status.response?.text ?? "", /Child implementation is ready/);
     assert.equal(status.agentId, child.id);
     assert.doesNotMatch(created.toolCall.result?.content ?? "", /agentId/);
@@ -125,7 +157,7 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
     );
     assert.ok(snapshot.entries.every((entry) => entry.agentId !== child.id));
     const notifications = snapshot.entries.filter(
-      (entry) => entry.details?.type === "subagent_event",
+      (entry) => entry.id === `entry_${obligation.queueInputId}`,
     );
     assert.ok(notifications.length > 0);
     assert.equal(
@@ -133,39 +165,56 @@ it("executes an autonomous teammate in the shared workspace and wakes an idle le
       notifications.length,
     );
     for (const entry of notifications) {
-      assert.equal(entry.kind, "subagent_run_event");
-      assert.equal(entry.details?.childName, child.name);
-      assert.equal(entry.details?.outcome, "completed");
-      assert.match(entry.text ?? "", /teammate API/);
-      assert.doesNotMatch(
-        entry.text ?? "",
-        /agent_child|Active owned background tasks/,
-      );
+      assert.equal(entry.role, "system");
+      assert.match(entry.text ?? "", /Child agent/);
+      assert.match(entry.text ?? "", /Child implementation is ready/);
+      assert.match(entry.text ?? "", /untrusted result data/);
     }
+    assert.equal(obligation.completion?.runId, originalRunId);
+    assert.equal(obligation.completion?.agentId, child.id);
+    assert.ok(obligation.completion?.attemptId);
     assert.equal(snapshot.conversation.activeAgentId, lead.id);
+    await runtime.services.agentLifecycle.configureAgent(child.id, {
+      tools: ["write"],
+    });
     const denied = await runtime.services.tools.requestTool(
       runtime.services.agentLifecycle.getAgent(child.id),
       "ask_user",
-      { question: "This must not reach the user." },
+      { question: "This configured restriction must not reach the user." },
     );
     assert.equal(denied.toolCall.status, "denied");
     const tools = await runtime.services.agentMechanics.activeToolNamesFor(
       runtime.services.agentLifecycle.getAgent(child.id),
     );
     assert.ok(tools.includes("write"));
+    assert.ok(!tools.includes("ask_user"));
+    await runtime.services.agentLifecycle.configureAgent(child.id, {
+      tools: null,
+    });
+    const restoredTools =
+      await runtime.services.agentMechanics.activeToolNamesFor(
+        runtime.services.agentLifecycle.getAgent(child.id),
+      );
     assert.ok(
-      !tools.includes("ask_user") &&
-        !tools.includes("plan_mode_enter") &&
-        !tools.includes("explore") &&
-        !tools.some((name) => name.startsWith("task_")),
+      restoredTools.includes("ask_user"),
+      "Child human interaction is configured, not inherently denied",
     );
     const followUp = await runtime.services.asyncSubagents.prompt(
       lead.id,
       "API",
       "Review your previous implementation.",
     );
-    const followUpObligationId = `async_subagent:${followUp.runId}:0`;
     const followUpDeadline = Date.now() + 15_000;
+    let followUpRunId: string | undefined;
+    while (Date.now() < followUpDeadline) {
+      followUpRunId = (await acceptedInputs.load(child.id))?.inputs.find(
+        (input) => input.id === followUp.inputId,
+      )?.delivery?.runId;
+      if (followUpRunId) break;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    assert.ok(followUpRunId);
+    const followUpObligationId = `async_subagent:${followUpRunId}:0`;
     while (Date.now() < followUpDeadline) {
       const followUpObligation =
         await storage.canonicalStore.readAgentObligation(followUpObligationId);

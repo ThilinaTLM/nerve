@@ -1,4 +1,6 @@
 <script lang="ts">
+import ScrollText from "@lucide/svelte/icons/scroll-text";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Binoculars from "@lucide/svelte/icons/binoculars";
 import Bot from "@lucide/svelte/icons/bot";
 import ChevronRight from "@lucide/svelte/icons/chevron-right";
@@ -38,7 +40,7 @@ let {
   activeAgent?: AgentRecord;
   agentActivities?: Readonly<Record<string, AgentActivitySnapshot>>;
   onSelectAgent?: (agent: AgentRecord) => void;
-  /** Subagent rows open their live transcript instead of selecting the agent. */
+  /** Optional transcript inspection in addition to ordinary agent selection. */
   onOpenTranscript?: (agent: AgentRecord) => void;
 } = $props();
 
@@ -65,14 +67,18 @@ const exploreCount = $derived(
   groups.exploreLive.length + groups.exploreDone.length,
 );
 
+$effect(() => {
+  if (groups.exploreDone.some((agent) => agent.id === activeAgent?.id))
+    exploreOpen = true;
+});
+
 function activateRow(agent: AgentRecord) {
-  if (agent.parentAgentId) onOpenTranscript?.(agent);
-  else onSelectAgent?.(agent);
+  onSelectAgent?.(agent);
 }
 
 function rowTitle(agent: AgentRecord): string {
   const base = `${agentRowLabel(agent)} · ${agentModelLabel(agent)}`;
-  return agent.parentAgentId ? `${base} · Open transcript` : base;
+  return `${base} · Open agent`;
 }
 
 function statusDotClass(agent: AgentRecord): string | undefined {
@@ -136,6 +142,17 @@ function idleLabel(agent: AgentRecord): string {
       {/if}
     {/snippet}
     {#snippet actions()}
+      {#if agent.parentAgentId && onOpenTranscript}
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={`Inspect ${agentRowLabel(agent)} transcript`}
+          onclick={(event) => {
+            event.stopPropagation();
+            onOpenTranscript?.(agent);
+          }}><ScrollText class="size-3.5" /></Button
+        >
+      {/if}
       <ContextAgentDetailPopover
         {agent}
         {activity}
@@ -183,6 +200,14 @@ function idleLabel(agent: AgentRecord): string {
       </PanelList>
     {/if}
 
+    {#if groups.otherRoots.length > 0}
+      {@render groupHeader("Independent agents", groups.otherRoots.length)}
+      <PanelList ariaLabel="Independent agents"
+        >{#each groups.otherRoots as agent (agent.id)}{@render agentRow(
+            agent,
+          )}{/each}</PanelList
+      >
+    {/if}
     {#if groups.teammates.length > 0}
       {@render groupHeader("Teammates", groups.teammates.length)}
       <PanelList ariaLabel="Teammates">

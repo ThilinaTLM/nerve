@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { effectiveTurnConfigurationSchema } from "../agents/agent-blueprint.js";
 import { queuedPromptRecordSchema } from "../agents/prompt.js";
 import { conversationEntrySchema } from "../conversations/conversation-state.js";
 import { publicEventNameSchema } from "../../events/catalog.js";
@@ -74,6 +75,8 @@ export type RunCancellationEvidence = z.infer<
 >;
 
 export const runRecordSchema = z.object({
+  /** Immutable originating durable input; absent on historical runs. */
+  initialInputId: z.string().startsWith("input_").optional(),
   stateEpoch: z.literal(RUN_STATE_EPOCH),
   conversationId: conversationIdSchema,
   agentId: agentIdSchema,
@@ -97,7 +100,19 @@ export const runRecordSchema = z.object({
 });
 export type RunRecord = z.infer<typeof runRecordSchema>;
 
+/** Admission source may not be added, removed or replaced after run creation. */
+export function assertRunInitialInputIdentity(
+  previous: Pick<RunRecord, "initialInputId">,
+  replacement: Pick<RunRecord, "initialInputId">,
+): void {
+  if (previous.initialInputId !== replacement.initialInputId)
+    throw new Error("Run initial input identity is immutable");
+}
+
 export const runExecutionRecordSchema = z.object({
+  effectiveTurnConfigurations: z
+    .array(effectiveTurnConfigurationSchema)
+    .optional(),
   stateEpoch: z.literal(RUN_STATE_EPOCH),
   conversationId: conversationIdSchema,
   agentId: agentIdSchema,

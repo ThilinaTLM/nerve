@@ -5,10 +5,10 @@ import {
   ConversationContextPanel,
   conversationSelectors,
 } from "$lib/features/conversations";
+import { selectConversationAgent } from "$lib/features/conversations/state/agent-selection.svelte";
 import { agentRowLabel } from "$lib/features/conversations/views/context-agent-rows";
 import {
   exportUrl,
-  selection,
   systemPromptUrl,
   workspaceSelectors,
 } from "$lib/application/workspace";
@@ -38,9 +38,7 @@ let transcriptAgent = $state<AgentRecord>();
 let transcriptOpen = $state(false);
 
 function selectAgent(agent: AgentRecord) {
-  selection.agentId = agent.id;
-  selection.projectId = agent.projectId;
-  selection.conversationId = agent.conversationId;
+  void selectConversationAgent(agent);
   revealPanelView("context", responsive.isCompact);
 }
 

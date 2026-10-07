@@ -13,6 +13,7 @@ export interface CoordinatorExecutionOptions {
   prompt?: string;
   images?: PromptRequest["images"];
   signal: AbortSignal;
+  withProviderDispatchFence?<T>(action: () => Promise<T>): Promise<T>;
   installControl(control: WorkbenchLiveExecutionControl): void;
   checkpointCommand(
     boundary: CheckpointCommand["boundary"],

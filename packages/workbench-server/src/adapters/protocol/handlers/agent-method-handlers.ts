@@ -25,9 +25,48 @@ export const agentMethodHandlers: WorkbenchMethodHandlerMapFor<AgentMethodContex
         params.childAgentId,
       ),
     }),
-    "agent.configure": async (state, params) => ({
-      agent: await state.agentLifecycle.configureAgent(params.agentId, params),
-    }),
+    "agent.history.get": (state, params) =>
+      state.subagentTranscripts.snapshot(params.agentId),
+    "agent.stop": async (state, params) => {
+      let generation: number | undefined;
+      await state.workbenchRun.abortAgent(params.agentId, (value) => {
+        generation = value;
+      });
+      if (generation !== undefined)
+        await notifyControl(state, params.agentId, "paused", generation);
+      return { accepted: true, agentId: params.agentId };
+    },
+    "agent.resume": async (state, params) => {
+      let generation: number | undefined;
+      await state.workbenchRun.resumeAgent(
+        params.agentId,
+        (value) => {
+          generation = value;
+        },
+        { authority: "user_administration" },
+      );
+      if (generation !== undefined)
+        await notifyControl(state, params.agentId, "enabled", generation);
+      return { accepted: true, agentId: params.agentId };
+    },
+    "agent.interrupt": async (state, params) => {
+      await state.workbenchRun.interruptAgent(params.agentId, params, {
+        authority: "user_administration",
+      });
+      return { accepted: true, agentId: params.agentId };
+    },
+    "agent.configure": async (state, params) => {
+      const agent = await state.agentLifecycle.configureAgent(
+        params.agentId,
+        params,
+        {
+          actor: { kind: "user", userId: "authorized-user" },
+          onConfigurationAccepted: (receipt) =>
+            state.agentInterventions.configurationAccepted(receipt),
+        },
+      );
+      return { agent };
+    },
     "run.start": (state, params) => dispatchPrompt(state, "run.start", params),
     "run.steer": (state, params) => dispatchPrompt(state, "run.steer", params),
     "run.followUp": (state, params) =>
@@ -95,7 +134,28 @@ async function dispatchPrompt(
         ? "steer"
         : method === "run.followUp"
           ? "follow-up"
-          : "reject-if-busy",
+          : "steer",
   } as never);
   return { accepted: true, agentId: request.agentId };
+}
+
+async function notifyControl(
+  state: AgentMethodContext,
+  agentId: string,
+  activation: "enabled" | "paused",
+  generation: number,
+): Promise<void> {
+  try {
+    await state.agentInterventions.controlAccepted(
+      agentId,
+      generation,
+      activation,
+      state.agentLifecycle.getAgent(agentId).updatedAt,
+    );
+  } catch (error) {
+    state.agentInterventions.deferred(
+      error,
+      `control:${agentId}:${activation}`,
+    );
+  }
 }

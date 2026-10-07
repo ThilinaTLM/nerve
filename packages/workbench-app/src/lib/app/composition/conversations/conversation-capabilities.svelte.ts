@@ -1,3 +1,8 @@
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { protocolRequest } from "@nervekit/protocol/adapters";
+import { openConversation } from "$lib/features/conversations/state/conversation-tabs";
+import { selectConversationAgent } from "$lib/features/conversations/state/agent-selection.svelte";
+import { upsertAgentRecordFresh } from "$lib/application/workspace/entity-reducers";
 import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
@@ -41,6 +46,25 @@ export function workbenchConversationUiCapabilities(): ConversationUiCapabilitie
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),
     watchSubagentTranscript,
+    openAgent: async (agentId) => {
+      try {
+        const agent =
+          workspaceState.agents.find((candidate) => candidate.id === agentId) ??
+          (await protocolRequest("agent.get", { agentId })).result.agent;
+        upsertAgentRecordFresh(agent);
+        if (
+          workspaceState.activeCenterTab?.kind !== "conversation" ||
+          workspaceState.activeCenterTab.id !== agent.conversationId
+        )
+          await openConversation(agent.conversationId);
+        await selectConversationAgent(agent);
+      } catch (caught) {
+        notify.error("Could not open agent", {
+          description:
+            caught instanceof Error ? caught.message : String(caught),
+        });
+      }
+    },
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,

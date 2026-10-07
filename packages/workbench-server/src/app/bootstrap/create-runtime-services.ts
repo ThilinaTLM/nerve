@@ -1,3 +1,17 @@
+import type { TaskRecord } from "@nervekit/contracts/tasks";
+import type {
+  HarnessMessage,
+  HarnessTaskEvent,
+} from "@nervekit/harness/messages";
+import { AgentInterventionService } from "../../domains/agents/agent-intervention.service.js";
+import { AgentCompletionService } from "../../domains/agents/agent-completion.service.js";
+import { AgentInputService } from "../../domains/runs/runtime/agent-inputs.js";
+import { AgentInputRepository } from "../../domains/runs/persistence/agent-input.repository.js";
+import { createId } from "@nervekit/contracts";
+import {
+  updateAgentRequestSchema,
+  parentConfigurationSnapshotSchema,
+} from "@nervekit/contracts/agents";
 import { getModelContextWindow } from "@nervekit/harness/models";
 import { compactionSettingsForAgent } from "../../domains/agents/execution/subagent-compaction-settings.js";
 import { resolveCompactionOwner } from "../../domains/conversations/compaction-owner.js";
@@ -12,6 +26,7 @@ import { AgentAsyncObligationRuntime } from "../../domains/agents/agent-async-ob
 import {
   AsyncSubagentObligationAdapter,
   PromotedTaskObligationAdapter,
+  UserInterventionObligationAdapter,
 } from "../../domains/agents/async-obligation-source-adapters.js";
 import { agentAsyncObligationEntryId } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
@@ -419,20 +434,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const obligationRepository = new JournalAgentAsyncObligationRepository(
     conversationJournal,
     storage.canonicalStore,
-    events,
-    (agentId) =>
-      getAgent(agentId).executionKind === "async_developer"
-        ? agentId
-        : undefined,
-    (entry, conversation) => {
-      if (!state.getConversationEntry(entry.conversationId, entry.id)) {
-        state.appendConversationEntry(entry);
-      }
-      if (conversation) {
-        state.conversations.set(conversation.id, conversation);
-        queryCache.upsertConversation(conversation);
-      }
-    },
   );
   const tasks = new WorkbenchTaskService(
     storage,
@@ -603,18 +604,72 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     subagents: async (name, args, identity) => {
       const call = identity as ToolCallRecord;
       const execute = async () => {
+        const originalRun = call.runId
+          ? await workbenchRun.loadRunState(call.runId)
+          : undefined;
+        const matchingTurn = originalRun?.transitions
+          .flatMap(
+            (transition) =>
+              transition.execution?.effectiveTurnConfigurations ?? [],
+          )
+          .find(
+            (turn) =>
+              turn.agentId === call.agentId &&
+              turn.runId === call.runId &&
+              turn.turnId === call.turnId,
+          );
+        const configuration =
+          call.authoritySnapshot?.configuration ??
+          (matchingTurn?.configurationProvenance === "resolved"
+            ? matchingTurn.configuration
+            : undefined);
+        const revision =
+          call.authoritySnapshot?.configurationRevision ??
+          matchingTurn?.configurationRevision;
+        const attemptId =
+          matchingTurn?.attemptId ??
+          originalRun?.transitions.find((transition) =>
+            transition.toolCalls.some((tool) => tool.id === call.id),
+          )?.run.executionId;
+        const parentSnapshot =
+          configuration && revision && call.runId && attemptId
+            ? {
+                agentId: call.agentId,
+                configurationRevision: revision,
+                configuration,
+                source: { runId: call.runId, attemptId, toolCallId: call.id },
+              }
+            : undefined;
+        if (
+          (name === "subagent_new" || name === "subagent_prompt") &&
+          call.runId &&
+          !parentSnapshot
+        )
+          throw new Error(
+            "Original full parent configuration/provenance unavailable; explicitly reissue this delegated tool.",
+          );
         switch (name) {
           case "subagent_new":
             return await asyncSubagents.create(
               call.agentId,
               String(args.name),
-              call.supervision?.status === "approved",
+              call.supervision?.status === "approved" &&
+                call.supervision.source === "user",
+              parentSnapshot,
             );
           case "subagent_prompt":
             return await asyncSubagents.prompt(
               call.agentId,
-              String(args.name),
+              String(args.agentId ?? args.name ?? ""),
               String(args.prompt),
+              {
+                resume: args.resume === true,
+                parentSnapshot,
+                configuration:
+                  args.configuration === undefined
+                    ? undefined
+                    : updateAgentRequestSchema.parse(args.configuration),
+              },
             );
           case "subagent_list":
             return await asyncSubagents.list(
@@ -623,9 +678,15 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
               typeof args.limit === "number" ? args.limit : undefined,
             );
           case "subagent_status":
-            return await asyncSubagents.status(call.agentId, String(args.name));
+            return await asyncSubagents.status(
+              call.agentId,
+              String(args.agentId ?? args.name ?? ""),
+            );
           case "subagent_stop":
-            return await asyncSubagents.stop(call.agentId, String(args.name));
+            return await asyncSubagents.stop(
+              call.agentId,
+              String(args.agentId ?? args.name ?? ""),
+            );
         }
       };
       return subagentToolResult(await execute());
@@ -713,6 +774,27 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       resultPayloads,
     ),
   });
+  // Existing run transitions are the only durable effective-turn writer.
+  const persistedTurnConfigurations = async (agentId: string) => {
+    const runs = (await runRuntime.unitOfWork.listMetadata())
+      .filter((run) => run.agentId === agentId)
+      .sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) ||
+          a.runId.localeCompare(b.runId),
+      );
+    const configurations = [];
+    for (const run of runs) {
+      const state = await runRuntime.unitOfWork.loadFresh(run.runId);
+      for (const transition of [...(state?.transitions ?? [])].sort(
+        (a, b) => a.revision - b.revision,
+      ))
+        configurations.push(
+          ...(transition.execution?.effectiveTurnConfigurations ?? []),
+        );
+    }
+    return configurations;
+  };
   const subagentTranscriptLive = new SubagentTranscriptLiveService(events);
   const subagentTranscripts: SubagentTranscriptService =
     new SubagentTranscriptService({
@@ -729,7 +811,28 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           throw new Error("Agent activity service is not initialized.");
         return agentActivityService.activityForAgent(agentId);
       },
+      turnConfigurations: persistedTurnConfigurations,
+      latestCompletion: async (agentId) => {
+        const run = (await runRuntime.unitOfWork.listMetadata())
+          .filter(
+            (run) =>
+              run.agentId === agentId &&
+              ["completed", "failed", "cancelled"].includes(run.status),
+          )
+          .sort(
+            (a, b) =>
+              a.createdAt.localeCompare(b.createdAt) ||
+              a.runId.localeCompare(b.runId),
+          )
+          .at(-1);
+        return run ? agentCompletions.snapshot(agentId, run.runId) : null;
+      },
     });
+  const agentInputs = new AgentInputService(
+    new AgentInputRepository(storage),
+    { next: () => createId("entry") },
+    { now: () => new Date() },
+  );
   const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
     events,
@@ -755,6 +858,33 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     subagentTranscriptLive: subagentTranscriptLive,
     exploreAdmission,
     subagentExecutions,
+    agentInputs,
+    loadRunState: (id) => runRuntime.unitOfWork.loadFresh(id),
+    commitEffectiveConfiguration: async (id, revision) => {
+      await agentLifecycle.setEffectiveConfigurationRevision(id, revision);
+    },
+    exploreRuntime: {
+      submitRun: (agentId, text, parent) =>
+        workbenchRun.submitAgentRun(agentId, text, parent),
+      waitForRun: async (identity) => {
+        const state = await workbenchRun.waitForRun(identity.runId);
+        if (state.run.agentId !== identity.agentId)
+          throw new Error(
+            "Explore run identity no longer matches its submitted agent",
+          );
+        // Automatic retries remain part of this exact submitted run. Report the
+        // actual terminal attempt, never relabel it with the initial attempt.
+        return completionSnapshot(state.run, identity.attemptId);
+      },
+      cancelRun: async (identity) => {
+        const state = await workbenchRun.loadRunState(identity.runId);
+        if (state?.run.agentId !== identity.agentId) return;
+        await runRuntime.coordinator.cancel(
+          identity.runId,
+          "Explore parent cancelled",
+        );
+      },
+    },
     maxParallelToolsPerRun: deps.resources.maxParallelToolsPerRun,
     customModels: (projectDir) =>
       providerCatalog.resolvedModelsWithCredentials(
@@ -812,7 +942,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     {
       stopTeam: (leadId) => asyncSubagents.stopTeam(leadId),
       reopenTeam: (leadId) => asyncSubagents.reopen(leadId),
-      wakeChild: (childId) => asyncSubagents.wake(childId),
       activeToolNamesFor: (agent) => agentMechanics.activeToolNamesFor(agent),
       getContextUsage: (conversationId) =>
         agentMechanics.getContextUsage(conversationId),
@@ -824,6 +953,34 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         humanInput.resolveBlockedApprovalCheckpoint(runId),
       runExplore: (parent, args, options) =>
         agentMechanics.runExplore(parent, args, options),
+    },
+    {
+      inputs: agentInputs,
+      inputAccepted: (input) => agentInterventions.inputAccepted(input),
+      admissionPolicy: {
+        reserve: (input) => asyncSubagents.reserveAdmission(input),
+        committed: (input) => asyncSubagents.commitAdmission(input),
+        released: (input) => asyncSubagents.releaseAdmission(input),
+        recordAdministrativeActivation: (input) =>
+          asyncSubagents.recordAdministrativeActivation(input),
+      },
+      setActivationState: async (id, activation) => {
+        await asyncSubagents.recordActivation(id, activation);
+        await agentLifecycle.setActivationState(id, activation);
+      },
+      getAgentHistory: (id) => subagentTranscripts.history(id),
+      getAgentActiveEntryId: async (id) => {
+        const agent = getAgent(id);
+        const owner = resolveCompactionOwner(agent.conversationId, agent);
+        const context = owner.ownerAgentId
+          ? await harnessStorage.openAgentStorage(agent)
+          : await harnessStorage.openStorage(
+              getConversation(agent.conversationId),
+            );
+        return context.getLeafId();
+      },
+      getCompletion: (agentId, runId, submittedAttemptId) =>
+        agentCompletions.snapshot(agentId, runId, submittedAttemptId),
     },
   );
   const asyncSubagentRepository = new AsyncSubagentRepository(
@@ -852,10 +1009,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
   const asyncSubagents = new AsyncSubagentService({
     getAgent,
     listAgents,
-    createAgent: (request, authorized) =>
+    createAgent: (request, authorized, parentConfigurationSnapshot) =>
       createAgent(request, {
         allowChildAuthorityExceed: authorized,
         allowAsyncDeveloper: true,
+        parentConfigurationSnapshot,
       }),
     enabled: asyncSubagentsEnabled,
     configuredModel: async (lead) => {
@@ -870,16 +1028,21 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       asyncSubagentRepository.reserveAssignment(assignment),
     registerObligation: async (obligation) => {
       await obligationRepository.register(obligation);
+      const run = (await runRuntime.unitOfWork.loadFresh(obligation.sourceId))
+        ?.run;
+      if (run && ["completed", "failed", "cancelled"].includes(run.status)) {
+        const completion = await completionSnapshot(run);
+        await obligationRepository.transition(obligation.id, ["pending"], {
+          state: "ready",
+          outcome: completion.outcome,
+          completion,
+          updatedAt: run.terminalAt ?? run.updatedAt,
+        });
+        void recoverAsyncObligations().catch((error) => {
+          void logger.warn("Completion notice recovery deferred", { error });
+        });
+      }
       publishObligationActivity();
-    },
-    readyObligation: async (id, outcome) => {
-      await obligationRepository.transition(id, ["pending"], {
-        state: "ready",
-        outcome,
-        updatedAt: new Date().toISOString(),
-      });
-      publishObligationActivity();
-      await recoverAsyncObligations();
     },
     activeRun: async (agent) =>
       (
@@ -896,19 +1059,70 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
             a.runId.localeCompare(b.runId),
         )
         .at(-1),
-    start: (agent, runId, prompt) => {
-      const command = {
-        runId,
-        conversationId: agent.conversationId,
-        agentId: agent.id,
-        projectId: agent.projectId,
-        scopeId: `${agent.conversationId}:${agent.id}`,
-      };
-      return prompt === undefined
-        ? runRuntime.coordinator.startContinuation(command)
-        : runRuntime.coordinator.start({ ...command, prompt });
+    getRun: async (id) => (await runRuntime.unitOfWork.loadFresh(id))?.run,
+    assignments: () => asyncSubagentRepository.assignments(),
+    controlGeneration: (id) => agentInputs.controlGeneration(id),
+    delegationSnapshot: async (agentId, idempotencyKey) => {
+      const document = await storage.canonicalStore.readDocument(
+        "agent-delegation-input",
+        agentId,
+        idempotencyKey,
+      );
+      return document
+        ? parentConfigurationSnapshotSchema.parse(document.data)
+        : undefined;
+    },
+    steer: async (agent, text, parentConfigurationSnapshot) => {
+      const idempotencyKey = parentConfigurationSnapshot
+        ? `parent:${parentConfigurationSnapshot.source.toolCallId}`
+        : createId("entry");
+      if (parentConfigurationSnapshot) {
+        const existing = await storage.canonicalStore.readDocument(
+          "agent-delegation-input",
+          agent.id,
+          idempotencyKey,
+        );
+        const snapshot = parentConfigurationSnapshotSchema.parse(
+          parentConfigurationSnapshot,
+        );
+        if (!existing)
+          await storage.canonicalStore.writeDocument({
+            namespace: "agent-delegation-input",
+            scopeId: agent.id,
+            documentId: idempotencyKey,
+            expectedRevision: 0,
+            data: snapshot,
+          });
+        else if (
+          JSON.stringify(
+            parentConfigurationSnapshotSchema.parse(existing.data),
+          ) !== JSON.stringify(snapshot)
+        )
+          throw new Error("Delegation input snapshot identity conflict");
+      }
+      return workbenchRun.enqueueAgentInput(agent.id, {
+        text,
+        role: "user",
+        origin: {
+          kind: "parent",
+          agentId: agent.parentAgentId!,
+          runId: parentConfigurationSnapshot?.source.runId,
+        },
+        idempotencyKey,
+        eligibility: { kind: "next_turn" },
+        activation: "wake_if_idle",
+      });
+    },
+    resume: (agent) => workbenchRun.resumeAgent(agent.id),
+    configure: async (agent, parent, request, parentConfigurationSnapshot) => {
+      await agentLifecycle.configureAgent(agent.id, request, {
+        parentAgentId: parent.id,
+        actor: { kind: "parent", agentId: parent.id },
+        parentConfigurationSnapshot,
+      });
     },
     cancel: async (agent) => {
+      await workbenchRun.abortAgent(agent.id);
       const active = await runRuntime.unitOfWork.findActive(
         `${agent.conversationId}:${agent.id}`,
       );
@@ -921,9 +1135,21 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         ownedActiveTasks(agent.id).map((task) => tasks.cancel(task.id)),
       );
     },
+    cancelForShutdown: async (agent) => {
+      const active = await runRuntime.unitOfWork.findActive(
+        `${agent.conversationId}:${agent.id}`,
+      );
+      if (active)
+        await runRuntime.coordinator.cancel(
+          active.run.runId,
+          "daemon shutdown",
+        );
+      await Promise.all(
+        ownedActiveTasks(agent.id).map((task) => tasks.cancel(task.id)),
+      );
+    },
     activeTaskCount: (agent) => ownedActiveTasks(agent.id).length,
-    entries: (agent) =>
-      conversationLifecycle.ensureConversationEntries(agent.conversationId),
+    completion: (run) => completionSnapshot(run),
   });
   const agentActivity = (agentActivityService = new AgentActivityService({
     listAgents,
@@ -933,37 +1159,68 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     listObligations: () =>
       storage.canonicalStore.scanObligationsForReconciliation(10_000),
   }));
+  const agentCompletions = new AgentCompletionService({
+    loadRun: (id) => runRuntime.unitOfWork.loadFresh(id),
+    readSnapshot: async (agentId, runId, attemptId) =>
+      (
+        await storage.canonicalStore.readDocument<
+          import("@nervekit/contracts/agents").AgentCompletion
+        >("agent-run-completion", agentId, `${runId}:${attemptId}`)
+      )?.data,
+    writeSnapshot: async (completion) => {
+      await storage.canonicalStore.writeDocument({
+        namespace: "agent-run-completion",
+        scopeId: completion.agentId,
+        documentId: `${completion.runId}:${completion.attemptId}`,
+        expectedRevision: 0,
+        data: completion,
+      });
+    },
+    turnConfigurations: persistedTurnConfigurations,
+  });
+  const completionSnapshot = (
+    run: import("@nervekit/contracts/runs").RunRecord,
+    submittedAttemptId?: string,
+  ) => agentCompletions.snapshot(run.agentId, run.runId, submittedAttemptId);
   const asyncObligations = new AgentAsyncObligationService({
     repository: obligationRepository,
     adapters: [
+      new UserInterventionObligationAdapter(),
       new PromotedTaskObligationAdapter({
         getTask: (id) => tasks.getTask(id),
         queryLogs: (id) => tasks.queryLogs(id, { mode: "recent", limit: 80 }),
       }),
       new AsyncSubagentObligationAdapter({
         getAgent,
-        entries: (id) => conversationLifecycle.ensureConversationEntries(id),
-        enabled: asyncSubagentsEnabled,
         generation: (id) => asyncSubagentRepository.control(id),
       }),
     ],
     getAgent,
     entries: (id) => conversationLifecycle.ensureConversationEntries(id),
-    activeRunId: async (conversationId, agentId) =>
-      (await runRuntime.unitOfWork.findActive(`${conversationId}:${agentId}`))
-        ?.run.runId,
-    enqueue: async (runId, obligation, notice) => {
-      const live = runRuntime.live.get(runId);
-      if (!live?.enqueueHarnessMessage) return false;
-      await live.enqueueHarnessMessage({
-        id: obligation.notificationEntryId,
-        message: notice.message,
-        timestamp: notice.entry.createdAt,
-        delivery: { pendingNotificationId: obligation.notificationEntryId },
-      });
-      return true;
+    acceptNotice: async (obligation, notice) => {
+      const input = await workbenchRun.enqueueAgentInput(
+        obligation.ownerAgentId,
+        {
+          text: notice.entry.text ?? "Background work finished.",
+          role: "system",
+          origin: {
+            kind: "system",
+            producer: "async_obligation",
+            correlationId: obligation.id,
+          },
+          idempotencyKey: obligation.id,
+          eligibility: { kind: "next_turn" },
+          activation: "wake_if_idle",
+        },
+      );
+      return input.id;
     },
-    wake: (id) => workbenchRun.wakeAgentFromHarness(id),
+    cancelNotice: async (agentId, inputId) => {
+      if (
+        (await agentInputs.list(agentId)).some((input) => input.id === inputId)
+      )
+        await agentInputs.cancel(agentId, inputId);
+    },
     changed: () => publishObligationActivity(),
     warn: (error, obligation) => {
       void logger.warn("Agent async obligation delivery failed", {
@@ -972,6 +1229,28 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       });
     },
   });
+  const agentInterventions = new AgentInterventionService({
+    getAgent,
+    obligations: asyncObligations,
+    listConfigurationAcceptances: () =>
+      agentLifecycle.listConfigurationAcceptances(),
+    warn: (error, sourceId) => {
+      void logger.warn(
+        "User intervention notice deferred; accepted child action is unchanged",
+        { error, context: { sourceId } },
+      );
+    },
+  });
+  const recoverUserInterventions = async () => {
+    const repository = new AgentInputRepository(storage);
+    for (const agent of listAgents()) {
+      if (!agent.parentAgentId) continue;
+      for (const input of (await repository.load(agent.id))?.inputs ?? [])
+        await agentInterventions.inputAccepted(input);
+    }
+    await agentInterventions.recoverConfigurationAcceptances();
+    await asyncObligations.recover();
+  };
   recoverAsyncObligations = () => asyncObligations.recover();
   const asyncObligationRuntime = new AgentAsyncObligationRuntime({
     service: asyncObligations,
@@ -980,6 +1259,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     getTask: (id) => tasks.getTask(id),
     listTasks: () => tasks.listTasks(),
     getRun: async (id) => (await runRuntime.unitOfWork.load(id))?.run,
+    completion: (run) => completionSnapshot(run),
     listAssignments: () => asyncSubagentRepository.assignments(),
     getAgent,
     warn: (error) => {
@@ -1000,48 +1280,90 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     new TaskNotificationService({
       tasks: tasks,
       events,
-      liveRuns: runRuntime.live,
-      runUnitOfWork: runRuntime.unitOfWork,
-      appendEntry,
-      harnessStorage: harnessStorage,
-      getAgent,
       getConversationEntries: (conversationId) =>
         conversationLifecycle.ensureConversationEntries(conversationId),
-      allowNotification: async (task) => {
-        // Awaited Bash promotions are delivered exclusively by the durable
-        // obligation runtime; explicit task_start processes remain detached.
-        if (task.completion?.inject) return false;
-        if (!task.agentId) return true;
-        const agent = state.agents.get(task.agentId);
-        if (agent?.executionKind !== "async_developer") return true;
-        if (!agent.parentAgentId || task.origin.kind !== "agent_tool")
-          return false;
-        const [control, team] = await Promise.all([
-          asyncSubagentRepository.control(agent.id),
-          asyncSubagentRepository.control(agent.parentAgentId),
-        ]);
+      allowNotification: async (task) => task.completion?.inject !== true,
+      enqueueNotification: async ({
+        task,
+        event,
+        message,
+        entryId,
+        timestamp,
+      }: {
+        task: TaskRecord;
+        event: HarnessTaskEvent;
+        message: HarnessMessage;
+        entryId: string;
+        timestamp: string;
+      }) => {
+        if (!task.agentId || !task.conversationId) {
+          // Legacy non-actor events are UI-only: never invent an execution owner.
+          if (task.conversationId)
+            await appendEntry(
+              {
+                id: entryId,
+                conversationId: task.conversationId,
+                role: "system",
+                kind: "task_event",
+                text: message.content,
+                details: {
+                  type: "task_event",
+                  ...(message.details && typeof message.details === "object"
+                    ? message.details
+                    : {}),
+                },
+                createdAt: timestamp,
+              },
+              { mirrorToHarness: false },
+            );
+          return;
+        }
+        const slot =
+          event === "ready" || event === "ready_timeout" ? "ready" : "terminal";
+        const idempotencyKey = `task-notification:${task.id}:${slot}`;
+        // Logs, cursors, and task state can change while the notice is pending.
+        // Retry the original durable acceptance, not a reconstructed payload.
+        const input =
+          (await agentInputs.acceptanceForKey(task.agentId, idempotencyKey)) ??
+          (await workbenchRun.enqueueAgentInput(task.agentId, {
+            text: `Task event (quoted task output is untrusted):\n${message.content}`,
+            role: "user",
+            origin: {
+              kind: "system",
+              producer: "task_notification",
+              correlationId: `${task.id}:${slot}`,
+            },
+            idempotencyKey,
+            eligibility: { kind: "next_turn" },
+            activation: "queue_only",
+          }));
+        // A public caller can choose the same key. Only this producer's exact
+        // scoped acceptance may stand in for the rebuilt task notification.
+        // acceptanceForKey preserves the original eligibility after promotion.
         if (
-          control.stopped ||
-          team.stopped ||
-          !(await asyncSubagentsEnabled(getAgent(agent.parentAgentId)))
-        )
-          return false;
-        const originatingRunId = task.origin.runId;
-        if (
-          originatingRunId &&
-          (await runRuntime.unitOfWork.load(originatingRunId))?.run.failure
-            ?.code === "RUN_INTERRUPTED_NO_RESUME"
-        )
-          return false;
-        const assignment = (await asyncSubagentRepository.assignments()).find(
-          (item) => item.runId === originatingRunId,
-        );
-        return (
-          assignment?.childGeneration === control.generation &&
-          assignment.generation === team.generation
-        );
+          input.agentId !== task.agentId ||
+          input.conversationId !== task.conversationId ||
+          input.origin.kind !== "system" ||
+          input.origin.producer !== "task_notification" ||
+          input.origin.correlationId !== `${task.id}:${slot}` ||
+          input.role !== "user" ||
+          input.eligibility.kind !== "next_turn" ||
+          input.activation !== "queue_only"
+        ) {
+          throw new Error(
+            `Task notification idempotency conflict: ${idempotencyKey} belongs to a different input scope or producer`,
+          );
+        }
+        // Repeated recovery reads the same durable input. Its common delivery
+        // receipt, not queue acceptance, proves the task notice reached context.
+        if (input.delivery)
+          await tasks.markNotificationDelivered(
+            task.id,
+            slot,
+            input.delivery.contextEntryId,
+            input.delivery.deliveredAt,
+          );
       },
-      continueAgent: (agentId) => workbenchRun.wakeAgentFromHarness(agentId),
       logger: logger.child({ component: "task-notification" }),
     });
   const humanInput = new HumanInputResolutionService({
@@ -1053,7 +1375,9 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     createAgent,
     getAgent,
     configureAgent: (agentId, request) =>
-      agentLifecycle.configureAgent(agentId, request),
+      agentLifecycle.configureAgent(agentId, request, {
+        actor: { kind: "system", producer: "human_input_resolution" },
+      }),
     appendEntry,
     getConversationEntries: (conversationId) =>
       conversationLifecycle.ensureConversationEntries(conversationId),
@@ -1165,6 +1489,8 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     asyncObligations,
     asyncObligationRuntime,
     asyncSubagents,
+    agentInterventions,
+    recoverUserInterventions,
     pythonRuntime,
     plans,
     tools,

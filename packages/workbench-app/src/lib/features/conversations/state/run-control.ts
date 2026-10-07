@@ -1,3 +1,4 @@
+import { agentUsesConversationView } from "./agent-history-ownership";
 import { cancelConversationCompaction, compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol/adapters";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
@@ -9,7 +10,11 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { createAbortActiveRun } from "./run-abort";
+import {
+  selectedConversationView,
+  selectedConversationAgent,
+  controlAgent,
+} from "./agent-selection.svelte";
 import { ensureConversationView } from "./conversation-view-actions";
 import { openConversation } from "./conversation-tabs";
 
@@ -18,6 +23,18 @@ export async function navigateToEntry(
   summarize = false,
 ): Promise<boolean> {
   if (!selection.conversationId) return false;
+  if (
+    selectedConversationAgent(selection.conversationId) &&
+    !agentUsesConversationView(
+      selectedConversationAgent(selection.conversationId)!,
+    )
+  ) {
+    notify.message("Agent history is isolated", {
+      description:
+        "Branching this agent's shared legacy conversation is not supported. No parent history was changed.",
+    });
+    return false;
+  }
   const conversationId = selection.conversationId;
   try {
     await protocolRequest("conversation.navigate", {
@@ -38,6 +55,18 @@ export async function navigateToEntry(
 
 export async function compactActiveConversation() {
   if (!selection.conversationId) return;
+  if (
+    selectedConversationAgent(selection.conversationId) &&
+    !agentUsesConversationView(
+      selectedConversationAgent(selection.conversationId)!,
+    )
+  ) {
+    notify.message("Agent history is isolated", {
+      description:
+        "Manual compaction of a shared legacy conversation is not supported for a selected child.",
+    });
+    return;
+  }
   const conversationId = selection.conversationId;
   compactionCancellationRequested.delete(conversationId);
   const view = ensureConversationView(conversationId);
@@ -116,7 +145,7 @@ export async function continueFromFailure(runId: string) {
   if (!selection.agentId || !selection.conversationId) return;
   const agentId = selection.agentId;
   const conversationId = selection.conversationId;
-  const view = ensureConversationView(conversationId);
+  const view = selectedConversationView(conversationId);
   view.sending = true;
   view.error = undefined;
   workspaceState.error = undefined;
@@ -143,18 +172,9 @@ export async function continueFromFailure(runId: string) {
   }
 }
 
-export const abortActiveRun = createAbortActiveRun({
-  agentId: () => selection.agentId,
-  view: (conversationId = selection.conversationId) =>
-    conversationId
-      ? conversationState.conversationViews[conversationViewKey(conversationId)]
-      : undefined,
-  cancelRun: async (agentId, runId) => {
-    await protocolRequest(
-      "run.cancel",
-      { agentId, runId },
-      { idempotencyKey: crypto.randomUUID() },
-    );
-  },
-  notifyError: (title, options) => notify.error(title, options),
-});
+export async function abortActiveRun(): Promise<void> {
+  const agent = workspaceState.agents.find(
+    (candidate) => candidate.id === selection.agentId,
+  );
+  if (agent) await controlAgent(agent, "agent.stop");
+}

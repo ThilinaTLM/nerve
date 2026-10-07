@@ -3,6 +3,15 @@ import {
   onAnyEvent,
   type WorkbenchEvent,
 } from "$lib/application/events/event-bus";
+import { agentUsesConversationView } from "./agent-history-ownership";
+import { agentIdFromEvent, eventTargetsAgent } from "./agent-event-routing";
+import { conversationState } from "./conversation-state.svelte";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import {
+  applyAgentViewEvent,
+  applyAgentViewNotification,
+  reconcileAgentView,
+} from "./agent-selection.svelte";
 import { refreshConversationView } from "$lib/features/conversations/state/conversation-flow.svelte";
 import {
   conversationIdFromEvent,
@@ -21,6 +30,39 @@ export function registerConversationEventHandlers(): () => void {
 
 function handleConversationBusEvent(event: WorkbenchEvent): void {
   const conversationId = conversationIdFromEvent(event);
+  const agentId = agentIdFromEvent(event);
+  const agent = workspaceState.agents.find(
+    (candidate) => candidate.id === agentId,
+  );
+  const agentView = agentId ? conversationState.agentViews[agentId] : undefined;
+  if (
+    agent &&
+    eventTargetsAgent(event, agent) &&
+    (agentView ||
+      (agentUsesConversationView(agent) &&
+        isOpenConversation(agent.conversationId)))
+  ) {
+    if (
+      !agentUsesConversationView(agent) &&
+      isSequencedEvent(event) &&
+      isConversationStreamEvent(event)
+    ) {
+      applyAgentViewEvent(agent, event);
+    } else if (!agentUsesConversationView(agent) && !isSequencedEvent(event)) {
+      applyAgentViewNotification(agent, event);
+    }
+    if (
+      event.type.includes("completed") ||
+      event.type.includes("failed") ||
+      event.type.includes("aborted") ||
+      event.type.includes("cancelled") ||
+      event.type.startsWith("agent.prompt") ||
+      event.type === "agent.configured" ||
+      event.type === "agent.activity_changed"
+    ) {
+      void reconcileAgentView(agent);
+    }
+  }
   if (!isSequencedEvent(event)) {
     if (conversationId && isOpenConversation(conversationId)) {
       handleConversationNotification(event);

@@ -8,6 +8,7 @@ import step0007 from "./0007-agent-async-obligations/step.js";
 import step0008 from "./0008-tool-result-payload-reference/step.js";
 import step0009 from "./0009-agent-async-obligations-backfill/step.js";
 import step0010 from "./0010-deletion-indexes/step.js";
+import step0011 from "./0011-agent-intervention-obligations/step.js";
 import type { MigrationStepV1 } from "../kit/define-step/v1.js";
 
 /** Append-only canonical order. The runner must reject duplicate or non-contiguous ordinals. */
@@ -23,4 +24,5 @@ export const STORAGE_MIGRATION_STEPS: readonly MigrationStepV1[] =
     step0008,
     step0009,
     step0010,
+    step0011,
   ]);

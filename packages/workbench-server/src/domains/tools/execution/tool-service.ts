@@ -1,5 +1,4 @@
 import type { SubagentToolPort } from "@nervekit/tools/runtime";
-import { isDeveloperChildToolAllowed } from "@nervekit/contracts/agents";
 import {
   projectApproval,
   projectApprovals,
@@ -16,10 +15,19 @@ import {
 } from "./tool-execution-claim.js";
 /* eslint-disable max-lines -- Durable transitions and lifecycle-local execution wiring retain one coordinator; projections and maintenance have separate owners. */
 import { realpath } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  relative,
+  resolve,
+  sep,
+} from "node:path";
 import { allToolDescriptors, toolRiskForName } from "@nervekit/tools/catalog";
-import { type PermissionRootPaths } from "@nervekit/tools/policy";
-import { type AgentRecord } from "@nervekit/contracts/agents";
+import {
+  agentConfigurationSchema,
+  type AgentRecord,
+} from "@nervekit/contracts/agents";
 import type { ConversationJournalEvent } from "@nervekit/contracts/conversations";
 import {
   type ApprovalRecord,
@@ -27,6 +35,8 @@ import {
   type ResolveToolInteractionRequest,
   type ToolCallDetails,
   type ToolCallRecord,
+  type ToolAuthoritySnapshot,
+  toolAuthoritySnapshotSchema,
   type ToolCallTranscriptRecord,
   type ToolInteraction,
   type ToolName,
@@ -40,7 +50,6 @@ import {
 } from "@nervekit/contracts/events";
 import { createId } from "@nervekit/contracts";
 import { type Mode } from "@nervekit/contracts/settings";
-import { type PermissionTarget } from "@nervekit/contracts/permissions";
 import {
   type StartTaskRequest,
   type TaskRecord,
@@ -77,6 +86,9 @@ import {
   type ToolTerminationOutcome,
 } from "./tool-termination.js";
 
+import { getAgentSnapshotForToolCall } from "../orchestration/agent-tool-adapter.js";
+import type { WorkbenchPermissionContext } from "../permission/types.js";
+
 type ToolCallPatch = Partial<Omit<ToolCallRecord, "id" | "createdAt">>;
 
 type ApprovalScope = NonNullable<
@@ -99,6 +111,11 @@ export interface ToolExecutionResponse {
 }
 
 export type ToolRequestOptions = {
+  /** Server-resolved ordinary policy captured before this model turn. */
+  permissionContext?: WorkbenchPermissionContext;
+  toolAuthority?: ToolAuthoritySnapshot;
+  /** Captured configuration, only accepted from the harness tool adapter. */
+  agentSnapshot?: AgentRecord;
   signal?: AbortSignal;
   sourceToolCallId?: string;
   providerToolCallId?: string;
@@ -215,38 +232,39 @@ export type TaskStarter = (
   },
 ) => Promise<TaskRecord>;
 
-async function assertWriteTargetBoundaries(
-  targets: readonly PermissionTarget[],
-  roots: PermissionRootPaths,
-): Promise<void> {
-  for (const target of targets) {
-    if (
-      target.kind !== "path" ||
-      target.access !== "write" ||
-      !("root" in target)
-    )
-      continue;
-    const root = await realpath(roots[target.root]);
-    const candidate = resolve(root, target.relativePath);
-    let existing = candidate;
-    for (;;) {
-      try {
-        existing = await realpath(existing);
-        break;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        const parent = dirname(existing);
-        if (parent === existing) throw error;
-        existing = parent;
-      }
-    }
-    const child = relative(root, existing);
-    if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child)) {
-      throw new Error(
-        `Write target escapes the authorized ${target.root} root through a symbolic link.`,
-      );
+function ordinaryConfigurationForAgent(agent: AgentRecord) {
+  return agentConfigurationSchema.parse({
+    ...structuredClone(agent),
+    thinkingLevel: agent.thinkingLevel ?? "off",
+    model: agent.model ?? null,
+    systemPrompt: agent.systemPrompt ?? null,
+    instructions: agent.instructions ?? "",
+    tools: agent.tools ?? null,
+    skills: agent.skills ?? null,
+  });
+}
+
+async function physicalPath(path: string): Promise<string> {
+  let candidate = resolve(path);
+  const missing: string[] = [];
+  for (;;) {
+    try {
+      return resolve(await realpath(candidate), ...missing.reverse());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      const ancestor = dirname(candidate);
+      if (ancestor === candidate) throw error;
+      missing.push(basename(candidate));
+      candidate = ancestor;
     }
   }
+}
+function pathWithin(root: string, path: string): boolean {
+  const child = relative(root, path);
+  return (
+    child === "" ||
+    (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child))
+  );
 }
 
 export interface ToolServiceDependencies {
@@ -434,6 +452,74 @@ export class ToolService {
     for (const agentId of agents) this.todoState.delete(agentId);
   }
 
+  /** Resolve once at the safe turn boundary, not when each tool claims execution. */
+  async capturePermissionContext(
+    agent: AgentRecord,
+  ): Promise<WorkbenchPermissionContext> {
+    const resolved = await this.dependencies.permissionPolicy?.resolve(agent);
+    return structuredClone({
+      dataDir: this.dependencies.storage.paths.home,
+      policy: resolved?.policy,
+      roots: resolved?.roots,
+      policyDiagnostic: resolved?.diagnostics.at(-1),
+      exceptions: resolved
+        ? []
+        : this.dependencies.permissionExceptions
+          ? await this.dependencies.permissionExceptions.effective(
+              agent.projectId,
+            )
+          : this.dependencies.storage.settings.permissions.exceptions,
+      rules: resolved
+        ? undefined
+        : await this.dependencies.permissionExceptions?.effectiveRules(
+            agent.projectId,
+          ),
+    });
+  }
+
+  /** Pin ordinary scope to physical roots before the provider request. */
+  async captureToolAuthority(
+    agent: AgentRecord,
+    context: WorkbenchPermissionContext,
+    options: { configurationProvenance?: "accepted" | "resolved" } = {},
+  ): Promise<ToolAuthoritySnapshot> {
+    const pin = async (path: string) => ({
+      path: resolve(path),
+      physicalPath: await physicalPath(path),
+    });
+    const configuration = ordinaryConfigurationForAgent(agent);
+    const roots = context.roots ?? {
+      project: agent.projectDir,
+      nerve_home: context.dataDir,
+      nerve_data: this.dependencies.storage.paths.dataPath,
+      plans: this.dependencies.storage.paths.plansPath,
+    };
+    return toolAuthoritySnapshotSchema.parse({
+      version: 1,
+      agentId: agent.id,
+      configurationRevision: agent.configurationRevision ?? 1,
+      configurationProvenance: options.configurationProvenance ?? "accepted",
+      configuration,
+      projectDir: agent.projectDir,
+      mode: agent.mode,
+      workspaceScope: structuredClone(agent.workspaceScope),
+      scopeRestricted: Boolean(
+        agent.parentAgentId ||
+        agent.readOnlyCeiling ||
+        agent.workspaceScope.readonly,
+      ),
+      workspaceRoots: await Promise.all(agent.workspaceScope.roots.map(pin)),
+      managedReadRoot: await pin(this.dependencies.storage.paths.dataPath),
+      policyRoots: await Promise.all(
+        Object.entries(roots).map(async ([name, path]) => ({
+          name: name as "project" | "nerve_home" | "nerve_data" | "plans",
+          ...(await pin(path)),
+        })),
+      ),
+      targetPaths: [],
+    });
+  }
+
   async requestTool(
     agent: AgentRecord,
     toolName: ToolName,
@@ -441,36 +527,52 @@ export class ToolService {
     options: ToolRequestOptions = {},
   ): Promise<ToolExecutionResponse> {
     const now = new Date().toISOString();
-    const latestAgent = this.dependencies.getAgent(agent.id);
-    const resolvedPolicy =
-      await this.dependencies.permissionPolicy?.resolve(latestAgent);
-    const exceptions = resolvedPolicy
-      ? []
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effective(
-            latestAgent.projectId,
-          )
-        : this.dependencies.storage.settings.permissions.exceptions;
-    const rules = resolvedPolicy
-      ? undefined
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effectiveRules(
-            latestAgent.projectId,
-          )
-        : undefined;
+    const latestAgent =
+      options.agentSnapshot ?? this.dependencies.getAgent(agent.id);
+    const permissionContext =
+      options.permissionContext ??
+      (await this.capturePermissionContext(latestAgent));
     const evaluation = evaluateWorkbenchToolPermission(
       latestAgent,
       toolName,
       args,
-      {
-        dataDir: this.dependencies.storage.paths.home,
-        exceptions,
-        rules,
-        policy: resolvedPolicy?.policy,
-        roots: resolvedPolicy?.roots,
-        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
-      },
+      permissionContext,
     );
+    const authoritySnapshot = structuredClone(
+      options.toolAuthority ??
+        (await this.captureToolAuthority(latestAgent, permissionContext)),
+    );
+    if (
+      authoritySnapshot.agentId !== latestAgent.id ||
+      authoritySnapshot.projectDir !== latestAgent.projectDir ||
+      authoritySnapshot.mode !== latestAgent.mode ||
+      JSON.stringify(authoritySnapshot.workspaceScope) !==
+        JSON.stringify(latestAgent.workspaceScope) ||
+      authoritySnapshot.configurationRevision !==
+        (latestAgent.configurationRevision ?? 1) ||
+      !authoritySnapshot.configuration ||
+      JSON.stringify(authoritySnapshot.configuration) !==
+        JSON.stringify(ordinaryConfigurationForAgent(latestAgent))
+    ) {
+      throw new Error(
+        "Tool authority snapshot does not match its originating configuration.",
+      );
+    }
+    authoritySnapshot.cwd = {
+      path: evaluation.cwd,
+      physicalPath: await physicalPath(evaluation.cwd),
+    };
+    authoritySnapshot.targetPaths = await Promise.all(
+      (evaluation.supervision?.normalizedTargets ?? [])
+        .flatMap((target) =>
+          target.kind === "path" ? [target.absolutePath] : [],
+        )
+        .map(async (path) => ({
+          path,
+          physicalPath: await physicalPath(path),
+        })),
+    );
+
     const decision =
       evaluation.decision === "allow" && options.forceApproval === true
         ? "approval"
@@ -508,6 +610,7 @@ export class ToolService {
       status: "committed",
       phase: "drafted",
       permissionEvaluation: evaluation.permissionEvaluation,
+      authoritySnapshot,
       supervision: supervisionDecision
         ? {
             status:
@@ -713,12 +816,23 @@ export class ToolService {
     if (existing) return existing;
 
     const now = new Date().toISOString();
-    const latestAgent = this.dependencies.getAgent(agent.id);
+    const latestAgent =
+      options.agentSnapshot ?? this.dependencies.getAgent(agent.id);
     const anchor = options.anchor;
     const cwd =
       typeof args.cwd === "string" && args.cwd.trim().length > 0
         ? resolve(latestAgent.projectDir, args.cwd)
         : resolve(latestAgent.projectDir);
+    const authoritySnapshot = options.toolAuthority
+      ? structuredClone(options.toolAuthority)
+      : undefined;
+    if (authoritySnapshot) {
+      authoritySnapshot.cwd = {
+        path: cwd,
+        physicalPath: await physicalPath(cwd),
+      };
+      authoritySnapshot.targetPaths = [];
+    }
     const toolCall: ToolCallRecord = {
       id: createId("tool"),
       agentId: latestAgent.id,
@@ -734,6 +848,7 @@ export class ToolService {
       risk: toolRiskForName(toolName),
       args,
       cwd,
+      authoritySnapshot,
       status: "failed",
       revision: 1,
       attempt: 0,
@@ -1290,61 +1405,162 @@ export class ToolService {
     toolCall: ToolCallRecord,
   ): Promise<void> {
     const agent = this.dependencies.getAgent(toolCall.agentId);
+    if (agent.activationState === "paused")
+      throw new Error("Agent execution is paused.");
+    const snapshot = toolCall.authoritySnapshot;
+    const targets = toolCall.supervision?.decision.normalizedTargets ?? [];
+    // Old pathless interaction decisions remain usable; unknown original
+    // physical scope is a visible blocker, never reconstructed from live config.
     if (
-      agent.executionKind === "async_developer" &&
-      !isDeveloperChildToolAllowed(toolCall.toolName)
+      !snapshot &&
+      (targets.some((target) => target.kind === "path") ||
+        ["bash", "python_exec", "task_start", "task_control"].includes(
+          toolCall.toolName,
+        ))
     ) {
       throw new Error(
-        "Tool is unavailable for autonomous developer teammates.",
-      );
-    }
-    const resolvedPolicy =
-      await this.dependencies.permissionPolicy?.resolve(agent);
-    const exceptions = resolvedPolicy
-      ? []
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effective(
-            agent.projectId,
-          )
-        : this.dependencies.storage.settings.permissions.exceptions;
-    const rules = resolvedPolicy
-      ? undefined
-      : this.dependencies.permissionExceptions
-        ? await this.dependencies.permissionExceptions.effectiveRules(
-            agent.projectId,
-          )
-        : undefined;
-    const evaluation = evaluateWorkbenchToolPermission(
-      agent,
-      toolCall.toolName as ToolName,
-      toolCall.args as Record<string, unknown>,
-      {
-        dataDir: this.dependencies.storage.paths.home,
-        exceptions,
-        rules,
-        policy: resolvedPolicy?.policy,
-        roots: resolvedPolicy?.roots,
-        policyDiagnostic: resolvedPolicy?.diagnostics.at(-1),
-      },
-    );
-    if (evaluation.permissionEvaluation && resolvedPolicy) {
-      await assertWriteTargetBoundaries(
-        evaluation.permissionEvaluation.normalizedTargets,
-        resolvedPolicy.roots,
+        "TOOL_AUTHORITY_SNAPSHOT_UNAVAILABLE: original physical authority is unavailable; explicitly reissue the tool.",
       );
     }
     if (
-      evaluation.decision === "deny" ||
-      !evaluation.supervision ||
-      (toolCall.supervision?.source !== "user" &&
-        evaluation.supervision.policySnapshotHash !==
-          toolCall.supervision?.decision.policySnapshotHash) ||
-      JSON.stringify(evaluation.normalizedArgs) !==
-        JSON.stringify(toolCall.args)
+      [
+        "explore",
+        "subagent_new",
+        "subagent_prompt",
+        "subagent_stop",
+        "python_exec",
+        "task_start",
+        "plan_mode_present",
+      ].includes(toolCall.toolName)
     ) {
-      throw new Error(
-        "Tool approval is stale or its execution target no longer satisfies policy.",
+      getAgentSnapshotForToolCall(agent, toolCall);
+    }
+    if (agent.readOnlyCeiling) {
+      const ceilingAgent = snapshot
+        ? {
+            ...agent,
+            projectDir: snapshot.projectDir,
+            mode: snapshot.mode,
+            permissionLevel: "autonomous" as const,
+            workspaceScope: snapshot.workspaceScope,
+            tools: null,
+          }
+        : { ...agent, tools: null };
+      const ceiling = evaluateWorkbenchToolPermission(
+        ceilingAgent,
+        toolCall.toolName as ToolName,
+        toolCall.args as Record<string, unknown>,
+        { dataDir: this.dependencies.storage.paths.home },
       );
+      if (ceiling.decision === "deny") throw new Error(ceiling.reason);
+    }
+    if (snapshot) {
+      // Never resolve a changed logical root and adopt its newly pointed-to
+      // location as authority. Ordinary settings edits do not enter this check.
+      const roots = [
+        ...snapshot.workspaceRoots,
+        snapshot.managedReadRoot,
+        ...snapshot.policyRoots,
+      ];
+      for (const root of roots) {
+        if ((await physicalPath(root.path)) !== root.physicalPath) {
+          throw new Error(
+            "Captured authority root changed through a symbolic link.",
+          );
+        }
+      }
+      if (snapshot.cwd) {
+        const cwd = await physicalPath(snapshot.cwd.path);
+        if (
+          cwd !== snapshot.cwd.physicalPath ||
+          ((snapshot.scopeRestricted || agent.readOnlyCeiling) &&
+            !snapshot.workspaceRoots.some((root) =>
+              pathWithin(root.physicalPath, cwd),
+            ))
+        ) {
+          throw new Error(
+            "Tool working directory changed or escapes captured physical authority.",
+          );
+        }
+      }
+      for (const target of targets) {
+        if (target.kind !== "path") continue;
+        const physical = await physicalPath(target.absolutePath);
+        const capturedTarget = snapshot.targetPaths.find(
+          (path) => path.path === target.absolutePath,
+        );
+        if (!capturedTarget || capturedTarget.physicalPath !== physical) {
+          throw new Error(
+            "Tool target changed through a symbolic link since authorization.",
+          );
+        }
+        if (snapshot.scopeRestricted || agent.readOnlyCeiling) {
+          const artifactRoots = [
+            "reports/conversations/" + toolCall.conversationId,
+            "conversations/" + toolCall.conversationId,
+            "tasks",
+            "images",
+            "plans",
+          ].map((suffix) => ({
+            path: resolve(snapshot.managedReadRoot.path, suffix),
+            physicalPath: resolve(
+              snapshot.managedReadRoot.physicalPath,
+              suffix,
+            ),
+          }));
+          const allowedRoots =
+            target.access === "read"
+              ? [...snapshot.workspaceRoots, ...artifactRoots]
+              : snapshot.workspaceRoots;
+          if (
+            !allowedRoots.some((root) =>
+              pathWithin(root.physicalPath, physical),
+            )
+          ) {
+            throw new Error(
+              "Tool target escapes captured workspace authority through a symbolic link.",
+            );
+          }
+        }
+        const ordinary = toolCall.permissionEvaluation?.normalizedTargets.find(
+          (candidate) =>
+            candidate.kind === "path" &&
+            "root" in candidate &&
+            snapshot.policyRoots.some(
+              (root) =>
+                root.name === candidate.root &&
+                resolve(root.path, candidate.relativePath) ===
+                  target.absolutePath,
+            ),
+        );
+        if (
+          target.access === "write" &&
+          ordinary?.kind === "path" &&
+          "root" in ordinary
+        ) {
+          const root = snapshot.policyRoots.find(
+            (root) => root.name === ordinary.root,
+          );
+          if (!root || !pathWithin(root.physicalPath, physical)) {
+            throw new Error(
+              "Write target escapes captured policy root through a symbolic link.",
+            );
+          }
+        }
+      }
+    }
+    // Physical checks await I/O; stop may have committed while they ran.
+    // Recheck the explicit live fence immediately before granting the claim.
+    if (
+      this.dependencies.getAgent(toolCall.agentId).activationState === "paused"
+    ) {
+      throw new Error("Agent execution is paused.");
+    }
+    if (
+      toolCall.supervision?.status !== "approved" ||
+      toolCall.supervision.decision.decision === "deny"
+    ) {
+      throw new Error("Tool has no approved originating policy decision.");
     }
   }
 

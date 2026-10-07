@@ -22,6 +22,7 @@ import {
   compactActiveConversation,
   conversationSelectors,
 } from "$lib/features/conversations";
+import { selectConversationAgent } from "$lib/features/conversations/state/agent-selection.svelte";
 import {
   agentModelLabel,
   agentRowLabel,
@@ -99,6 +100,11 @@ function agentTone(agent: AgentRecord): StatusTone {
     default:
       return "neutral";
   }
+}
+
+async function selectAgent(agent: AgentRecord) {
+  await selectConversationAgent(agent);
+  backFromMobileScreen();
 }
 
 function openTranscript(agent: AgentRecord) {
@@ -182,8 +188,16 @@ function tokensLabel(value: number): string {
           detail={agentModelLabel(agent)}
           tone={agentTone(agent)}
           pulse={agentActivities[agent.id]?.state === "running"}
-          chevron={Boolean(agent.parentAgentId)}
-          onclick={() => openTranscript(agent)}
+          selected={conversationSelectors.activeAgent?.id === agent.id}
+          menuItems={agent.parentAgentId
+            ? [
+                {
+                  label: "View transcript",
+                  onSelect: () => openTranscript(agent),
+                },
+              ]
+            : undefined}
+          onclick={() => void selectAgent(agent)}
         >
           {#snippet leading()}
             <Bot class="mt-0.5 size-4 flex-none text-muted-foreground" />

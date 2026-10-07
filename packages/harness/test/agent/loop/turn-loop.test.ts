@@ -520,6 +520,62 @@ describe("agent loop steering queue", () => {
   });
 });
 
+describe("durable boundary input", () => {
+  it("extends a final response with inserted input and switches provider coherently", async () => {
+    const requests: Array<{
+      model: string;
+      prompt: string;
+      lastRole?: string;
+    }> = [];
+    let count = 0;
+    let prepared = false;
+    await runAgentLoop(
+      [{ role: "user", content: "initial", timestamp: 1 }],
+      { systemPrompt: "old", messages: [], tools: [] },
+      {
+        model,
+        convertToLlm,
+        prepareNextTurn: async ({ context }) => {
+          if (prepared) return undefined;
+          prepared = true;
+          return {
+            continue: true,
+            model: { ...model, id: "replacement", provider: "other-provider" },
+            thinkingLevel: "high",
+            context: {
+              ...context,
+              systemPrompt: "new complete snapshot",
+              messages: [
+                ...context.messages,
+                { role: "user", content: "late steering", timestamp: 2 },
+              ],
+            },
+          };
+        },
+      },
+      async () => undefined,
+      undefined,
+      (requestModel, context) => {
+        requests.push({
+          model: requestModel.id,
+          prompt: context.systemPrompt,
+          lastRole: context.messages.at(-1)?.role,
+        });
+        count++;
+        return streamMessage(
+          assistant([{ type: "text", text: `final ${count}` }]),
+        );
+      },
+    );
+    assert.equal(count, 2);
+    assert.deepEqual(requests[1], {
+      model: "replacement",
+      prompt: "new complete snapshot",
+      lastRole: "user",
+    });
+  });
+});
+
 describe("agent loop tool concurrency", () => {
   it("bounds a parallel tool batch while preserving progress", async () => {
     let providerCalls = 0;

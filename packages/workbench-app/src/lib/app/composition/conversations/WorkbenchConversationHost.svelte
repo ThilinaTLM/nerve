@@ -113,7 +113,8 @@ const activeProjectLabel = $derived(
   activeProject ? shortProjectLabel(activeProject.dir, homeDir) : undefined,
 );
 const scrollConversationId = $derived(
-  activeConversation?.id ??
+  activeAgent?.id ??
+    activeConversation?.id ??
     (pendingConversationActive
       ? (activePendingConversation?.id ?? "pending")
       : undefined),
@@ -320,6 +321,7 @@ function menuForTranscript(
       text={composerText}
       {activeProject}
       {activeConversation}
+      {activeAgent}
       {activePendingConversation}
       {pendingConversationActive}
       {approvals}

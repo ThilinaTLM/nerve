@@ -1,3 +1,4 @@
+import { getAgentSnapshotForToolCall } from "./agent-tool-adapter.js";
 import type { ToolExecutionOutputUpdate } from "@nervekit/tools/execution";
 import {
   type TaskCancelResultPayload,
@@ -144,14 +145,13 @@ export function tasksInScope(
   toolCall: ToolCallRecord,
 ): TaskRecord[] {
   const agent = this.deps.getAgent(toolCall.agentId);
-  const projectRoot = agent.projectDir;
+  const projectRoot = toolCall.authoritySnapshot?.projectDir ?? toolCall.cwd;
   return this.deps.tasks
     .listTasks()
     .filter(
       (task) =>
         isPathInDirectoryTree(projectRoot, task.cwd) &&
-        (agent.executionKind !== "async_developer" ||
-          task.agentId === agent.id),
+        (!agent.parentAgentId || task.agentId === agent.id),
     );
 }
 
@@ -162,7 +162,7 @@ export function resolveTaskReference(
 ): TaskRecord {
   const trimmed = ref.trim();
   const agent = this.deps.getAgent(toolCall.agentId);
-  const projectRoot = agent.projectDir;
+  const projectRoot = toolCall.authoritySnapshot?.projectDir ?? toolCall.cwd;
   if (trimmed.startsWith("task_")) {
     let task: TaskRecord;
     try {
@@ -176,7 +176,7 @@ export function resolveTaskReference(
     }
     if (
       !isPathInDirectoryTree(projectRoot, task.cwd) ||
-      (agent.executionKind === "async_developer" && task.agentId !== agent.id)
+      (agent.parentAgentId !== undefined && task.agentId !== agent.id)
     ) {
       throw new CodedToolError(
         "TASK_OUT_OF_SCOPE",
@@ -311,7 +311,7 @@ export async function requestPlanReview(
   }
   const review = await this.deps.plans.createPlanReview(
     toolCall,
-    this.deps.getAgent(toolCall.agentId),
+    getAgentSnapshotForToolCall(this.deps.getAgent(toolCall.agentId), toolCall),
     args,
   );
   const requestedAt = review.requestedAt;

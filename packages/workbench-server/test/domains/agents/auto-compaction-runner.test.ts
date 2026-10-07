@@ -112,8 +112,9 @@ it("uses the selected model context window for threshold compaction", async () =
   assert.equal(compactions.length, 1);
   assert.equal(compactions[0]?.agentId, selected.id);
   assert.equal(compactions[0]?.contextWindow, 500_000);
-  assert.equal(compactions[0]?.thresholdTokens, 350_000);
-  assert.equal(compactions[0]?.keepRecentTokens, 50_000);
+  // Common execution uses the shared balanced settings, not legacy-kind overrides.
+  assert.equal(compactions[0]?.thresholdTokens, 400_000);
+  assert.equal(compactions[0]?.keepRecentTokens, 75_000);
   assert.equal(compactions[0]?.activeConversation, activeConversation);
 });
 

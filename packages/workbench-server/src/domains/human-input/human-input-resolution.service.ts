@@ -23,6 +23,8 @@ import type {
   ToolCallRecord,
   UserQuestionRecord,
 } from "@nervekit/contracts/tools";
+import { isTerminalToolStatus } from "@nervekit/contracts/events";
+import { KeyedSerialLock } from "../runs/runtime/run-locks.js";
 import { ApplicationError } from "../../core/application-error.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/logging.js";
 import type { AppendEntryInput } from "../conversations/append-entry-contracts.js";
@@ -95,6 +97,7 @@ export interface HumanInputResolutionDeps {
 
 export class HumanInputResolutionService {
   private readonly approvals: ApprovalCheckpointService;
+  private readonly suspensionResolution = new KeyedSerialLock();
 
   constructor(private readonly deps: HumanInputResolutionDeps) {
     this.approvals = new ApprovalCheckpointService({
@@ -475,6 +478,13 @@ export class HumanInputResolutionService {
         question.toolCallId,
       );
       if (!toolCall.runId) continue;
+      if (
+        await this.deps.runs.isToolInteractionResolved(
+          toolCall.id,
+          toolCall.runId,
+        )
+      )
+        continue;
       const state = await this.deps.runs.interactionResolutionStateForToolCall(
         toolCall.id,
         toolCall.runId,
@@ -995,13 +1005,35 @@ export class HumanInputResolutionService {
     },
     beforeResume?: () => Promise<void>,
   ): Promise<void> {
-    const resume = await this.prepareSuspensionForToolCall(
-      toolCallId,
-      result,
-      options,
-    );
-    await beforeResume?.();
-    await resume();
+    // The durable recovery work and immediate answer path may race. Serialize
+    // this local repair and reread ownership after acquiring it; never revise
+    // a terminal question tool or replay its already-resolved transition.
+    await this.suspensionResolution.exclusive(toolCallId, async () => {
+      const current = await this.deps.tools.getToolCallDetails(toolCallId);
+      if (current.toolName === "ask_user" && current.runId) {
+        if (
+          await this.deps.runs.isToolInteractionResolved(
+            current.id,
+            current.runId,
+          )
+        )
+          return;
+        if (
+          (await this.deps.runs.interactionResolutionStateForToolCall(
+            current.id,
+            current.runId,
+          )) !== "pending"
+        )
+          return;
+      }
+      const resume = await this.prepareSuspensionForToolCall(
+        toolCallId,
+        result,
+        options,
+      );
+      await beforeResume?.();
+      await resume();
+    });
   }
 
   private async prepareSuspensionForToolCall(
@@ -1040,8 +1072,16 @@ export class HumanInputResolutionService {
       : (batch?.batchToolCallIds ?? [toolCallId]).map((id) =>
           this.deps.tools.getToolCall(id),
         );
+    // Decided interactions do not mean their approved effects have executed.
+    // Keep the original branch tip until all effects have real terminal results;
+    // the existing approval reconciler owns their ordered append/continuation.
+    const deferBatchResults =
+      hasPendingSibling ||
+      orderedToolCalls.some(
+        (batchToolCall) => !isTerminalToolStatus(batchToolCall.status),
+      );
     const entries: ConversationEntry[] = [];
-    if (!hasPendingSibling) {
+    if (!deferBatchResults) {
       for (const batchToolCall of orderedToolCalls) {
         const existing = await this.existingToolResultEntry(batchToolCall);
         entries.push(
@@ -1053,7 +1093,7 @@ export class HumanInputResolutionService {
         );
       }
     }
-    if (options.followUpUserMessage && !hasPendingSibling) {
+    if (options.followUpUserMessage && !deferBatchResults) {
       entries.push(
         await this.appendUserInstructionForAgent(
           completed.agentId,

@@ -5,7 +5,10 @@ import {
   type RunInteractionRecord,
   type RunRecord,
 } from "@nervekit/contracts/runs";
-import type { RunCheckpointReferencePort } from "../runtime/index.js";
+import {
+  isTerminalRunStatus,
+  type RunCheckpointReferencePort,
+} from "../runtime/index.js";
 import type { RuntimeState } from "../../../app/runtime/runtime-projections.js";
 import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import type { WorkbenchRunUnitOfWork } from "../persistence/run-transition.repository.js";
@@ -36,13 +39,16 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
       };
     }
     const run = runState.run;
-    const conversation = this.state.getConversation(run.conversationId);
     const agent = this.state.getAgent(run.agentId);
-    const storage =
-      agent.executionKind === "async_developer"
-        ? await this.harnessStorage.openAgentStorage(agent)
-        : await this.harnessStorage.openStorage(conversation);
-    const leafId = await storage.getLeafId();
+    const storage = await this.harnessStorage.openAgentStorage(agent);
+    const checkpoint = runState.checkpoints.find(
+      (item) => item.checkpointId === run.lastCheckpointId,
+    );
+    // Settled run references are frozen by their checkpoint. A later execution
+    // may have advanced the same agent tree; it is not this run's transcript.
+    const leafId = isTerminalRunStatus(run.status)
+      ? (checkpoint?.harnessLeafId ?? null)
+      : await storage.getLeafId();
     const path = leafId ? await storage.getPathToRoot(leafId) : [];
     const entryIds = checkpointTranscriptEntryIds(runState.transitions, path);
     return {
@@ -62,12 +68,8 @@ export class WorkbenchRunReferences implements RunCheckpointReferencePort {
     const runState = await this.unitOfWork.load(input.runId);
     if (!runState) return false;
     const run = runState.run;
-    const conversation = this.state.getConversation(run.conversationId);
     const agent = this.state.getAgent(run.agentId);
-    const storage =
-      agent.executionKind === "async_developer"
-        ? await this.harnessStorage.openAgentStorage(agent)
-        : await this.harnessStorage.openStorage(conversation);
+    const storage = await this.harnessStorage.openAgentStorage(agent);
     try {
       const path = await storage.getPathToRoot(input.toLeafId);
       const notificationEntryIds = path.flatMap((entry) => {

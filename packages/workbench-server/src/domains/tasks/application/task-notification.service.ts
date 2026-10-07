@@ -4,17 +4,12 @@ import {
   type HarnessTaskEvent,
   type HarnessTaskEventDetails,
 } from "@nervekit/harness/messages";
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { EventEnvelope } from "@nervekit/contracts/events";
 import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 import { createId } from "@nervekit/contracts";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { AppendEntryInput } from "../../conversations/append-entry-contracts.js";
-import type { WorkbenchLiveExecutions } from "../../runs/application/run-live-executions.js";
-import type { WorkbenchRunUnitOfWork } from "../../runs/persistence/run-transition.repository.js";
-import type { ConversationHarnessStorage } from "../../conversations/conversation-harness-storage.js";
 import type { WorkbenchTaskService } from "../adapters/workbench-task-service.js";
 import {
   formatTaskEventSummary,
@@ -27,16 +22,15 @@ import {
 export interface TaskNotificationServiceDeps {
   tasks: WorkbenchTaskService;
   events: StreamLogRegistry;
-  liveRuns: WorkbenchLiveExecutions;
-  runUnitOfWork: WorkbenchRunUnitOfWork;
-  appendEntry(
-    input: AppendEntryInput,
-    options?: { mirrorToHarness?: boolean },
-  ): Promise<ConversationEntry>;
-  harnessStorage: ConversationHarnessStorage;
-  getAgent(agentId: string): AgentRecord;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
-  continueAgent?: (agentId: string) => Promise<void>;
+  /** Acceptance is durable, but is not a context-delivery receipt. */
+  enqueueNotification(input: {
+    task: TaskRecord;
+    event: HarnessTaskEvent;
+    message: HarnessMessage;
+    entryId: string;
+    timestamp: string;
+  }): Promise<void>;
   logger?: ApplicationLogger;
   allowNotification?(task: TaskRecord): Promise<boolean>;
 }
@@ -55,29 +49,48 @@ const TERMINAL_TASK_EVENTS = new Map<string, HarnessTaskEvent>([
 
 export class TaskNotificationService {
   private unsubscribe?: () => void;
+  private stopped = false;
+  private readonly pendingOperations = new Set<Promise<void>>();
   private readonly delivering = new Set<string>();
-  private readonly completionWakes = new Set<string>();
-  private readonly liveDeliveryEntryIds = new Set<string>();
   private readonly readyTimers = new Map<string, NodeJS.Timeout>();
 
   constructor(private readonly deps: TaskNotificationServiceDeps) {}
 
   start(): void {
+    this.stopped = false;
     this.unsubscribe ??= this.deps.events.subscribe((event) => {
-      void this.handleEvent(event);
+      void this.track(
+        this.handleEvent(event).catch((error) =>
+          this.deps.logger?.warn("Task notification event handling failed", {
+            error,
+          }),
+        ),
+      );
     });
   }
 
   stop(): void {
+    this.stopped = true;
     this.unsubscribe?.();
     this.unsubscribe = undefined;
     for (const timer of this.readyTimers.values()) clearTimeout(timer);
     this.readyTimers.clear();
-    this.completionWakes.clear();
-    this.liveDeliveryEntryIds.clear();
+  }
+
+  async settled(): Promise<void> {
+    while (this.pendingOperations.size)
+      await Promise.allSettled([...this.pendingOperations]);
+  }
+
+  private track(operation: Promise<void>): Promise<void> {
+    this.pendingOperations.add(operation);
+    const release = () => this.pendingOperations.delete(operation);
+    void operation.then(release, release);
+    return operation;
   }
 
   private async handleEvent(event: EventEnvelope): Promise<void> {
+    if (this.stopped) return;
     if (event.type === "conversation.entry.appended") {
       const data = event.data as { entry?: ConversationEntry } | undefined;
       if (data?.entry) await this.markDeliveredFromEntry(data.entry);
@@ -129,21 +142,30 @@ export class TaskNotificationService {
     if (existing) clearTimeout(existing);
     const timer = setTimeout(() => {
       this.readyTimers.delete(task.id);
-      void this.deliverNotification(task, event).catch((error) =>
-        this.deps.logger?.warn("Task ready notification failed", {
-          taskId: task.id,
-          projectId: task.projectId,
-          conversationId: task.conversationId,
-          agentId: task.agentId,
-          error,
-        }),
+      if (this.stopped) return;
+      void this.track(
+        this.deliverNotification(task, event).catch((error) =>
+          this.deps.logger?.warn("Task ready notification failed", {
+            taskId: task.id,
+            projectId: task.projectId,
+            conversationId: task.conversationId,
+            agentId: task.agentId,
+            error,
+          }),
+        ),
       );
     }, 500);
     this.readyTimers.set(task.id, timer);
   }
 
-  async recoverPendingNotifications(): Promise<void> {
+  recoverPendingNotifications(): Promise<void> {
+    if (this.stopped) return Promise.resolve();
+    return this.track(this.performRecovery());
+  }
+
+  private async performRecovery(): Promise<void> {
     for (const task of this.deps.tasks.listTasks()) {
+      if (this.stopped) return;
       if (task.notifications?.enabled !== true) continue;
       const readinessEvent = readinessEventForTask(task);
       if (
@@ -152,7 +174,7 @@ export class TaskNotificationService {
         !task.notifications.readyDeliveredAt &&
         (task.status === "ready" || task.status === "running")
       ) {
-        await this.recoverNotification(task, readinessEvent).catch((error) =>
+        await this.deliverNotification(task, readinessEvent).catch((error) =>
           this.deps.logger?.warn(
             "Task readiness notification recovery failed",
             {
@@ -168,54 +190,22 @@ export class TaskNotificationService {
         task.notifications.terminal === true &&
         !task.notifications.terminalDeliveredAt
       ) {
-        await this.recoverNotification(task, terminalEvent).catch((error) =>
+        await this.deliverNotification(task, terminalEvent).catch((error) =>
           this.deps.logger?.warn("Task terminal notification recovery failed", {
             taskId: task.id,
             error,
           }),
         );
       }
-      const refreshed = this.deps.tasks.getTask(task.id);
-      if (
-        terminalEvent &&
-        refreshed.completion?.inject === true &&
-        !refreshed.completion.injectedAt &&
-        refreshed.notifications?.terminalDeliveredAt
-      ) {
-        await this.maybeContinueAwaitedTask(refreshed, terminalEvent).catch(
-          (error) =>
-            this.deps.logger?.warn("Task completion wake recovery failed", {
-              taskId: task.id,
-              error,
-            }),
-        );
-      }
     }
-  }
-
-  private async recoverNotification(
-    task: TaskRecord,
-    event: HarnessTaskEvent,
-  ): Promise<void> {
-    const existing = await this.findExistingTaskEventEntry(task, event);
-    if (existing) {
-      await this.deps.tasks.markNotificationDelivered(
-        task.id,
-        slotForEvent(event),
-        existing.id,
-        existing.createdAt,
-      );
-      await this.maybeContinueAwaitedTask(task, event);
-      return;
-    }
-    await this.deliverNotification(task, event);
   }
 
   private async deliverNotification(
     taskSnapshot: TaskRecord,
     event: HarnessTaskEvent,
   ): Promise<void> {
-    const key = `${taskSnapshot.id}:${event}`;
+    const slot = slotForEvent(event);
+    const key = `${taskSnapshot.id}:${slot}`;
     if (this.delivering.has(key)) return;
     this.delivering.add(key);
     try {
@@ -223,8 +213,7 @@ export class TaskNotificationService {
       try {
         task = this.deps.tasks.getTask(taskSnapshot.id);
       } catch {
-        // Foreground tasks can finish and be removed before a delayed ready
-        // notification fires. Their terminal tool result is already durable.
+        // Foreground tasks may be removed before a delayed notice fires.
         return;
       }
       if (!this.shouldDeliver(task, event)) return;
@@ -233,19 +222,21 @@ export class TaskNotificationService {
         !(await this.deps.allowNotification(task))
       )
         return;
-      const existing = await this.findExistingTaskEventEntry(task, event);
-      if (existing) {
-        await this.deps.tasks.markNotificationDelivered(
-          task.id,
-          slotForEvent(event),
-          existing.id,
-          existing.createdAt,
-        );
-        await this.maybeContinueAwaitedTask(task, event);
-        return;
-      }
 
-      const slot = slotForEvent(event);
+      // Only legacy/UI notices use transcript entries as delivery evidence.
+      // Agent notices are acknowledged by the common input delivery receipt.
+      if (!task.agentId) {
+        const existing = await this.findExistingTaskEventEntry(task, event);
+        if (existing) {
+          await this.deps.tasks.markNotificationDelivered(
+            task.id,
+            slot,
+            existing.id,
+            existing.createdAt,
+          );
+          return;
+        }
+      }
       const currentEntryId =
         slot === "ready"
           ? task.notifications?.readyEntryId
@@ -254,21 +245,6 @@ export class TaskNotificationService {
       if (!currentEntryId) {
         await this.deps.tasks.markNotificationPending(task.id, slot, entryId);
       }
-      const existingById = await this.findExistingTaskEventEntry(
-        task,
-        event,
-        entryId,
-      );
-      if (existingById) {
-        await this.deps.tasks.markNotificationDelivered(
-          task.id,
-          slot,
-          existingById.id,
-          existingById.createdAt,
-        );
-        await this.maybeContinueAwaitedTask(task, event);
-        return;
-      }
       const timestamp = new Date().toISOString();
       const { message } = await this.buildHarnessMessage(
         task,
@@ -276,128 +252,32 @@ export class TaskNotificationService {
         entryId,
         timestamp,
       );
-
-      const activeRunId = await this.activeRunId(task);
-      const activeRun = activeRunId
-        ? this.deps.liveRuns.get(activeRunId)
-        : undefined;
-      if (activeRun?.enqueueHarnessMessage) {
-        try {
-          this.liveDeliveryEntryIds.add(entryId);
-          await activeRun.enqueueHarnessMessage({
-            id: entryId,
-            message,
-            timestamp,
-            delivery: {
-              taskId: task.id,
-              event,
-              pendingNotificationId: entryId,
-            },
-          });
-          return;
-        } catch (error) {
-          this.liveDeliveryEntryIds.delete(entryId);
-          await this.deps.logger?.warn(
-            "Active run rejected task notification; appending directly",
-            {
-              taskId: task.id,
-              agentId: task.agentId,
-              conversationId: task.conversationId,
-              error,
-            },
-          );
-        }
+      await this.deps.enqueueNotification({
+        task,
+        event,
+        message,
+        entryId,
+        timestamp,
+      });
+      if (!task.agentId) {
+        await this.deps.tasks.markNotificationDelivered(
+          task.id,
+          slot,
+          entryId,
+          timestamp,
+        );
       }
-
-      await this.appendNotificationDirectly(task, entryId, message, timestamp);
-      await this.maybeContinueAwaitedTask(task, event);
+      // No direct harness injection, append, or wake on acceptance. Recovery
+      // retries with the same slot identity until the adapter observes delivery.
     } finally {
       this.delivering.delete(key);
     }
   }
 
-  private async maybeContinueAwaitedTask(
-    taskSnapshot: TaskRecord,
-    event: HarnessTaskEvent,
-  ): Promise<void> {
-    if (slotForEvent(event) !== "terminal") return;
-    const task = this.deps.tasks.getTask(taskSnapshot.id);
-    if (
-      this.deps.allowNotification &&
-      !(await this.deps.allowNotification(task))
-    )
-      return;
-    if (
-      task.completion?.inject !== true ||
-      task.completion.injectedAt ||
-      this.completionWakes.has(task.id)
-    )
-      return;
-    if (!task.agentId || !task.conversationId) return;
-    const activeRunId = await this.activeRunId(task);
-    if (activeRunId) return;
-    const continueAgent = this.deps.continueAgent;
-    if (!continueAgent) return;
-    const entryId =
-      task.notifications?.terminalEntryId ?? task.completion.entryId;
-    if (!entryId) {
-      throw new Error(`Awaited task ${task.id} has no terminal entry ID.`);
-    }
-
-    this.completionWakes.add(task.id);
-    try {
-      if (await this.hasAssistantDescendant(task, entryId)) {
-        await this.deps.tasks.markCompletionInjected(task.id, entryId);
-        return;
-      }
-      await continueAgent(task.agentId);
-      await this.deps.tasks.markCompletionInjected(task.id, entryId);
-    } finally {
-      this.completionWakes.delete(task.id);
-    }
-  }
-
-  private async hasAssistantDescendant(
-    task: TaskRecord,
-    entryId: string,
-  ): Promise<boolean> {
-    const entries = await this.deps.getConversationEntries(
-      task.conversationId as string,
-    );
-    const byId = new Map(entries.map((entry) => [entry.id, entry]));
-    return entries.some((entry) => {
-      if (entry.role !== "assistant" || entry.agentId !== task.agentId) {
-        return false;
-      }
-      const visited = new Set<string>();
-      let parentId = entry.parentEntryId;
-      while (parentId && !visited.has(parentId)) {
-        if (parentId === entryId) return true;
-        visited.add(parentId);
-        parentId = byId.get(parentId)?.parentEntryId;
-      }
-      return false;
-    });
-  }
-
-  private async activeRunId(task: TaskRecord): Promise<string | undefined> {
-    const originRunId =
-      task.origin.kind === "agent_tool" ? task.origin.runId : undefined;
-    if (originRunId && this.deps.liveRuns.get(originRunId)) return originRunId;
-    if (!task.agentId || !task.conversationId) return undefined;
-    const state = await this.deps.runUnitOfWork.findActive(
-      `${task.conversationId}:${task.agentId}`,
-    );
-    const activeRunId = state?.run.runId;
-    return activeRunId && this.deps.liveRuns.get(activeRunId)
-      ? activeRunId
-      : undefined;
-  }
-
   private shouldDeliver(task: TaskRecord, event: HarnessTaskEvent): boolean {
     const notifications = task.notifications;
     if (notifications?.enabled !== true) return false;
-    if (!task.agentId || !task.conversationId) return false;
+    if (!task.conversationId) return false;
     if (event === "ready" || event === "ready_timeout") {
       return notifications.ready === true && !notifications.readyDeliveredAt;
     }
@@ -485,67 +365,6 @@ export class TaskNotificationService {
     return { events: recent.events, nextCursor: recent.nextCursor };
   }
 
-  private async appendNotificationDirectly(
-    task: TaskRecord,
-    entryId: string,
-    message: HarnessMessage<HarnessTaskEventDetails>,
-    timestamp: string,
-  ): Promise<void> {
-    const event = message.details?.event ?? "completed";
-    const existing = await this.findExistingTaskEventEntry(
-      task,
-      event,
-      entryId,
-    );
-    if (existing) {
-      await this.deps.tasks.markNotificationDelivered(
-        task.id,
-        slotForEvent(event),
-        existing.id,
-        existing.createdAt,
-      );
-      return;
-    }
-    const agent = this.deps.getAgent(task.agentId as string);
-    await this.deps.harnessStorage.appendHarnessMessageWithId(
-      agent,
-      entryId,
-      message,
-      timestamp,
-    );
-    const entry = await this.deps.appendEntry(
-      {
-        id: entryId,
-        conversationId: task.conversationId as string,
-        agentId: task.agentId,
-        runId:
-          task.origin.kind === "agent_tool" ? task.origin.runId : undefined,
-        role: "system",
-        kind: "task_event",
-        text: message.content,
-        details: {
-          type: "task_event",
-          source: "harness",
-          ...message.details,
-        },
-        createdAt: timestamp,
-      },
-      { mirrorToHarness: false },
-    );
-    await this.deps.tasks.markNotificationDelivered(
-      task.id,
-      slotForEvent(event),
-      entry.id,
-      entry.createdAt,
-    );
-    await this.deps.events.publish("conversation.entry.appended", {
-      conversationId: task.conversationId,
-      agentId: task.agentId,
-      runId: entry.runId,
-      entry,
-    });
-  }
-
   private async markDeliveredFromEntry(
     entry: ConversationEntry,
   ): Promise<void> {
@@ -556,7 +375,8 @@ export class TaskNotificationService {
     const event = taskEventValue(details.event);
     if (!taskId || !event) return;
     try {
-      this.deps.tasks.getTask(taskId);
+      // Agent-owned delivery is exclusively acknowledged by the queue adapter.
+      if (this.deps.tasks.getTask(taskId).agentId) return;
     } catch {
       return;
     }
@@ -566,30 +386,15 @@ export class TaskNotificationService {
       entry.id,
       entry.createdAt,
     );
-    if (
-      slotForEvent(event) === "terminal" &&
-      this.liveDeliveryEntryIds.delete(entry.id)
-    ) {
-      const task = this.deps.tasks.getTask(taskId);
-      if (task.completion?.inject === true && !task.completion.injectedAt) {
-        await this.deps.tasks.markCompletionInjected(
-          taskId,
-          entry.id,
-          entry.createdAt,
-        );
-      }
-    }
   }
 
   private async findExistingTaskEventEntry(
     task: TaskRecord,
     event: HarnessTaskEvent,
-    entryId?: string,
   ): Promise<ConversationEntry | undefined> {
     if (!task.conversationId) return undefined;
     return (await this.deps.getConversationEntries(task.conversationId)).find(
       (entry) => {
-        if (entryId && entry.id === entryId) return true;
         if (entry.kind !== "task_event") return false;
         const details = asRecord(entry.details);
         return (

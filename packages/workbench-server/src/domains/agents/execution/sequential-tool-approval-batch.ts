@@ -4,14 +4,23 @@ import type {
   RunExecutionSink,
   WaitCommand,
 } from "../../runs/runtime/index.js";
-import { toolNameSchema, type ToolCallRecord } from "@nervekit/contracts/tools";
+import {
+  toolNameSchema,
+  type ToolCallRecord,
+  type ToolAuthoritySnapshot,
+} from "@nervekit/contracts/tools";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import { toToolCallTranscriptRecord } from "../../tools/artifacts/tool-call-transcript-preview.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import { recordFromUnknown } from "./harness-execution-shared.js";
 
+import type { WorkbenchPermissionContext } from "../../tools/permission/types.js";
+
 interface SequentialToolInteractionBatchInput {
   agent: AgentRecord;
+  agentSnapshot: AgentRecord;
+  permissionContext: WorkbenchPermissionContext;
+  toolAuthority: ToolAuthoritySnapshot;
   runId: string;
   suspension: AgentToolSuspensionData;
   deps: WorkbenchAgentMechanics["deps"];
@@ -25,7 +34,24 @@ interface SequentialToolInteractionBatchInput {
 export async function waitForSequentialToolInteractionBatch(
   input: SequentialToolInteractionBatchInput,
 ): Promise<void> {
-  const { agent, runId, suspension, deps, sink } = input;
+  const {
+    agentSnapshot,
+    permissionContext,
+    toolAuthority,
+    runId,
+    suspension,
+    deps,
+    sink,
+  } = input;
+  if (!agentSnapshot || !permissionContext || !toolAuthority)
+    throw new Error(
+      "Originating provider tool snapshots unavailable for sequential batch.",
+    );
+  const originatingOptions = {
+    agentSnapshot,
+    permissionContext,
+    toolAuthority,
+  };
   const primaryToolCall = deps.tools.getToolCall(suspension.toolCallId);
   const toolCalls = [primaryToolCall];
   for (const remaining of suspension.remainingToolCalls ?? []) {
@@ -43,10 +69,11 @@ export async function waitForSequentialToolInteractionBatch(
     let staged: ToolCallRecord;
     try {
       const response = await deps.tools.requestTool(
-        agent,
+        agentSnapshot,
         parsedToolName.data,
         args,
         {
+          ...originatingOptions,
           sourceToolCallId: remaining.id,
           providerToolCallId: remaining.id,
           runId,
@@ -62,13 +89,14 @@ export async function waitForSequentialToolInteractionBatch(
       staged = response.toolCall;
     } catch (stagingError) {
       staged = await deps.tools.recordProviderToolCallError(
-        agent,
+        agentSnapshot,
         parsedToolName.data,
         args,
         stagingError instanceof Error
           ? stagingError.message
           : String(stagingError),
         {
+          ...originatingOptions,
           sourceToolCallId: remaining.id,
           providerToolCallId: remaining.id,
           runId,

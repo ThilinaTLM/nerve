@@ -32,11 +32,13 @@ function obligation(
   };
 }
 
-function setup(options: { activeRunId?: string } = {}) {
+function setup() {
   const records = new Map([[obligation().id, obligation()]]);
   const entries: ConversationEntry[] = [];
   const enqueued: string[] = [];
-  let wakeCount = 0;
+  const cancelled: string[] = [];
+  let allowed = true;
+  const wakeCount = 0;
   const repository: AgentAsyncObligationRepository = {
     register: async (record) => {
       const existing = records.get(record.id);
@@ -52,17 +54,6 @@ function setup(options: { activeRunId?: string } = {}) {
       assert.ok(expected.includes(current.state));
       const replacement = { ...current, ...patch };
       records.set(id, replacement);
-      return replacement;
-    },
-    deliverWithNotice: async (record, notice) => {
-      entries.push(notice.entry as ConversationEntry);
-      const replacement: AgentAsyncObligation = {
-        ...record,
-        state: "delivered",
-        deliveredAt: notice.entry.createdAt,
-        updatedAt: notice.entry.createdAt,
-      };
-      records.set(record.id, replacement);
       return replacement;
     },
   };
@@ -83,19 +74,18 @@ function setup(options: { activeRunId?: string } = {}) {
     adapters: [
       {
         kind: "promoted_task",
-        allow: async () => true,
+        allow: async () => allowed,
         buildNotice: async () => notice,
       },
     ],
     getAgent: () => ({ id: "agent_test" }) as AgentRecord,
     entries: async () => entries,
-    activeRunId: async () => options.activeRunId,
-    enqueue: async (runId, record) => {
-      enqueued.push(`${runId}:${record.notificationEntryId}`);
-      return true;
+    acceptNotice: async (record) => {
+      enqueued.push(record.id);
+      return "input_notice";
     },
-    wake: async () => {
-      wakeCount += 1;
+    cancelNotice: async (_agentId, inputId) => {
+      cancelled.push(inputId);
     },
     now: () => now,
   });
@@ -105,40 +95,65 @@ function setup(options: { activeRunId?: string } = {}) {
     records,
     entries,
     enqueued,
+    cancelled,
+    setAllowed: (value: boolean) => {
+      allowed = value;
+    },
     wakeCount: () => wakeCount,
     notice,
   };
 }
 
 describe("AgentAsyncObligationService", () => {
-  it("deduplicates live delivery and waits for durable transcript evidence", async () => {
-    const fixture = setup({ activeRunId: "run_active" });
+  it("accepts once through the durable queue and waits for transcript evidence", async () => {
+    const fixture = setup();
     await fixture.service.recover();
     await fixture.service.recover();
-    assert.deepEqual(fixture.enqueued, ["run_active:entry_notice"]);
+    assert.deepEqual(fixture.enqueued, [obligation().id]);
     assert.equal(fixture.records.get(obligation().id)?.state, "ready");
+    assert.equal(
+      fixture.records.get(obligation().id)?.queueInputId,
+      "input_notice",
+    );
     await fixture.service.stop();
   });
 
-  it("atomically appends idle notices then wakes the owner", async () => {
+  it("does not append idle notices or independently wake the owner", async () => {
     const fixture = setup();
     await fixture.service.recover();
-    assert.equal(fixture.entries.length, 1);
-    assert.equal(fixture.records.get(obligation().id)?.state, "delivered");
-    assert.equal(fixture.wakeCount(), 1);
+    assert.equal(fixture.entries.length, 0);
+    assert.equal(fixture.records.get(obligation().id)?.state, "ready");
+    assert.equal(fixture.wakeCount(), 0);
+    await fixture.service.stop();
+  });
+
+  it("cancels queued stale completion input when team generation policy suppresses it", async () => {
+    const fixture = setup();
+    await fixture.service.recover();
+    fixture.setAllowed(false);
+    await fixture.service.recover();
+    assert.deepEqual(fixture.cancelled, ["input_notice"]);
+    assert.equal(fixture.records.get(obligation().id)?.state, "suppressed");
+    assert.equal(fixture.wakeCount(), 0);
     await fixture.service.stop();
   });
 
   it("marks delivered work consumed after an assistant descendant", async () => {
     const fixture = setup();
-    fixture.records.set(obligation().id, obligation("delivered"));
+    fixture.records.set(obligation().id, {
+      ...obligation("delivered"),
+      queueInputId: "input_notice",
+    });
     fixture.entries.push(
-      fixture.notice.entry as ConversationEntry,
+      {
+        ...fixture.notice.entry,
+        id: "entry_input_notice",
+      } as ConversationEntry,
       {
         id: "entry_response",
         conversationId: "conv_test",
         agentId: "agent_test",
-        parentEntryId: "entry_notice",
+        parentEntryId: "entry_input_notice",
         role: "assistant",
         kind: "message",
         text: "Handled.",

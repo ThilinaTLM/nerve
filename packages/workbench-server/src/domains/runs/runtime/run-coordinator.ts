@@ -135,6 +135,7 @@ export class RunCoordinator {
   private readonly locks = new KeyedSerialLock();
   private readonly live = new LiveExecutionRegistry();
   private readonly pendingExecutions = new Set<Promise<void>>();
+  private readonly agentExecutions = new Map<string, Set<Promise<void>>>();
   private readonly pendingCommits = new Set<Promise<void>>();
   private executionGeneration = 0;
   private commitGeneration = 0;
@@ -197,15 +198,25 @@ export class RunCoordinator {
     command: StartRunCommand | StartContinuationRunCommand,
     mode: "start" | "continue",
   ): Promise<RunRecord> {
-    const scopeId =
-      command.scopeId ?? `${command.conversationId}:${command.agentId}`;
-    return this.exclusive(`scope:${scopeId}`, async () => {
-      const active = await this.ports.unitOfWork.findActive(scopeId);
+    // Callers cannot substitute a conversation-wide or shared scope: durable
+    // lookups and ephemeral admission locks must refer to the same agent.
+    const scopeId = `${command.conversationId}:${command.agentId}`;
+    return this.exclusive(`agent:${command.agentId}`, async () => {
+      const active = (await this.ports.unitOfWork.listActive()).find(
+        (state) => state.run.agentId === command.agentId,
+      );
       if (active && ACTIVE_STATUSES.has(active.run.status)) {
         throw new RunConflictError(
           `Scope already has active run ${active.run.runId}`,
         );
       }
+      // A terminal record does not prove the cancelled harness/tool batch has
+      // unwound. Replacement admission waits for that agent's detached work,
+      // without blocking other agents.
+      await Promise.allSettled([
+        ...(this.agentExecutions.get(command.agentId) ?? []),
+      ]);
+      await command.assertAdmission?.();
       const now = this.now();
       const run = newRun(command, scopeId, now, this.ports.ids);
       let execution: RunExecution | undefined;
@@ -799,6 +810,10 @@ export class RunCoordinator {
   }
 
   /** Waits until detached executions and their complete commit pipelines stop. */
+  async settledForAgent(agentId: string): Promise<void> {
+    await Promise.allSettled([...(this.agentExecutions.get(agentId) ?? [])]);
+  }
+
   async settled(): Promise<void> {
     for (;;) {
       const executionGeneration = this.executionGeneration;
@@ -818,6 +833,8 @@ export class RunCoordinator {
 
   private sink(runId: string): RunExecutionSink {
     return {
+      recordEffectiveTurnConfiguration: (configuration) =>
+        this.recordEffectiveTurn(runId, configuration),
       appendEntries: (entries) =>
         this.appendDurable(runId, "entries_appended", {
           entries: [...entries],
@@ -832,6 +849,38 @@ export class RunCoordinator {
       waitMany: (commands) => this.waitMany(runId, commands),
       progress: (event) => this.ports.notify?.publish(event),
     };
+  }
+
+  private async recordEffectiveTurn(
+    runId: string,
+    configuration: import("@nervekit/contracts/agents").EffectiveTurnConfiguration,
+  ): Promise<void> {
+    await this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      if (
+        TERMINAL_STATUSES.has(state.run.status) ||
+        configuration.runId !== runId ||
+        configuration.agentId !== state.run.agentId ||
+        configuration.attemptId !== state.run.executionId
+      )
+        throw invalid(state.run, "prepare turn");
+      if (
+        state.transitions.some((transition) =>
+          transition.execution?.effectiveTurnConfigurations?.some(
+            (turn) => turn.turnId === configuration.turnId,
+          ),
+        )
+      )
+        return;
+      const now = this.now();
+      const next = revise(state.run, {}, now);
+      await this.commit(state, next, "turn_prepared", {
+        execution: {
+          ...executionRecord(next, "streaming", now),
+          effectiveTurnConfigurations: [configuration],
+        },
+      });
+    });
   }
 
   private async appendDurable(
@@ -915,6 +964,8 @@ export class RunCoordinator {
           prompt,
           images,
           signal: abort.signal,
+          withProviderDispatchFence: (action) =>
+            this.withAgentDispatchFence(run.agentId, action),
         });
         if (outcome.status === "completed") {
           await this.complete(run.runId, run.executionId, outcome.result);
@@ -932,7 +983,8 @@ export class RunCoordinator {
             {
               code: "RUN_INTERRUPTED",
               ...normalizeRunFailure(outcome.message, "harness"),
-              retryable: true,
+              retryable: false,
+              continuable: true,
             },
             abort.signal,
           );
@@ -961,6 +1013,15 @@ export class RunCoordinator {
     })();
     this.executionGeneration += 1;
     this.pendingExecutions.add(promise);
+    const agentExecutions =
+      this.agentExecutions.get(run.agentId) ?? new Set<Promise<void>>();
+    agentExecutions.add(promise);
+    this.agentExecutions.set(run.agentId, agentExecutions);
+    const releaseAgent = () => {
+      agentExecutions.delete(promise);
+      if (!agentExecutions.size) this.agentExecutions.delete(run.agentId);
+    };
+    void promise.then(releaseAgent, releaseAgent);
     void promise.then(
       () => this.pendingExecutions.delete(promise),
       () => this.pendingExecutions.delete(promise),
@@ -1274,6 +1335,19 @@ export class RunCoordinator {
 
   private now(): string {
     return this.ports.clock.now().toISOString();
+  }
+
+  /** Only short durable dispatch/control writes; never hold across provider/tool work. */
+  withAgentDispatchFence<T>(
+    agentId: string,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    return this.exclusive(`dispatch:${agentId}`, action);
+  }
+
+  /** Short fence against terminal settlement; never waits for detached execution. */
+  withRunControlFence<T>(runId: string, action: () => Promise<T>): Promise<T> {
+    return this.exclusive(`run:${runId}`, action);
   }
 
   private exclusive<T>(key: string, action: () => Promise<T>): Promise<T> {

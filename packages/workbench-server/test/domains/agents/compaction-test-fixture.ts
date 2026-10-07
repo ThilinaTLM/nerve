@@ -74,6 +74,7 @@ export async function fixture(
         id: `agent_${index}`,
         conversationId: record.id,
         executionKind: kind === "root2" ? "root" : kind,
+        parentAgentId: index >= 2 ? "agent_0" : undefined,
       } as AgentRecord;
       return [agent.id, agent] as const;
     }),
@@ -135,6 +136,7 @@ export async function fixture(
     return new Conversation(await storage.openAgentStorage(agent));
   }
   return {
+    home,
     events,
     journal,
     storage,

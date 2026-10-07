@@ -60,24 +60,19 @@ export function composeAgentSystemPrompt(
     planDir?: string;
   } = {},
 ): string {
-  if (agent.systemPrompt && agent.executionKind !== "async_developer")
-    return agent.systemPrompt;
+  if (agent.systemPrompt)
+    return [agent.systemPrompt, agent.instructions]
+      .filter(Boolean)
+      .join("\n\n");
   return buildNerveSystemPrompt({
     cwd: agent.projectDir,
-    mode: agent.executionKind === "async_developer" ? "coding" : agent.mode,
+    mode: agent.mode,
     selectedTools: activeToolNames,
-    promptGuidelines: promptGuidelinesForTools(activeToolNames, {
-      foregroundOnlyBash: agent.executionKind === "async_developer",
-    }),
+    promptGuidelines: promptGuidelinesForTools(activeToolNames),
     contextFiles: resources.contextFiles,
     skills: resources.skills,
     customPrompt: resources.systemPrompt,
-    appendSystemPrompt: [
-      resources.appendSystemPrompt,
-      agent.executionKind === "async_developer"
-        ? "You are a persistent autonomous developer teammate. You share the lead agent’s exact working directory and worktree. Follow assigned component ownership, coordinate overlaps through your final response, and never revert another teammate’s changes. There is no Ask User, plan mode, background-task management, Bash auto-promotion, or nested delegation. If blocked or needing clarification, finish with a normal assistant response for the lead. Your conversation is retained for follow-up assignments."
-        : undefined,
-    ]
+    appendSystemPrompt: [resources.appendSystemPrompt, agent.instructions]
       .filter(Boolean)
       .join("\n\n"),
     planDir: options.planDir,

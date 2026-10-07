@@ -1,6 +1,11 @@
+import { toolCallRecordSchema } from "@nervekit/contracts/tools";
 import { type ConversationTreeEntry } from "@nervekit/harness/conversation";
 import { conversationStream } from "@nervekit/contracts/events";
 import {
+  completeAgentHistoryResultSchema,
+  effectiveTurnConfigurationSchema,
+  type AgentCompletion,
+  type CompleteAgentHistoryResult,
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
   SUBAGENT_TRANSCRIPT_MAX_TEXT_CHARS,
   SUBAGENT_TRANSCRIPT_MAX_THINKING_BLOCKS,
@@ -11,12 +16,16 @@ import {
   type SubagentTranscriptSnapshot,
 } from "@nervekit/contracts/agents";
 import { ApplicationError } from "../../core/application-error.js";
-import type { ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
+import type {
+  ConversationActiveRunSnapshot,
+  ConversationEntry,
+} from "@nervekit/contracts/conversations";
 import { type InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
 import type { ConversationHarnessStorage } from "../conversations/conversation-harness-storage.js";
 import type { ToolService } from "../tools/execution/tool-service.js";
 import { projectHarnessMessageEntry } from "./execution/message-mirror.js";
+import { resolveCompactionOwner } from "../conversations/compaction-owner.js";
 
 const MAX_PROJECTED_TEXT_CHARS = 2 * 1024 * 1024;
 
@@ -31,6 +40,8 @@ export interface SubagentTranscriptServiceDeps {
     childAgentId: string,
   ) => ConversationActiveRunSnapshot | undefined;
   activityForAgent(agentId: string): Promise<AgentActivitySnapshot>;
+  latestCompletion(agentId: string): Promise<AgentCompletion | null>;
+  turnConfigurations?(agentId: string): Promise<readonly unknown[]>;
 }
 
 function modelLabel(agent: AgentRecord): string | undefined {
@@ -150,6 +161,264 @@ function messageEntries(
 export class SubagentTranscriptService {
   constructor(private readonly deps: SubagentTranscriptServiceDeps) {}
 
+  /** Normal user history is selected by persistent agent identity, not parentage. */
+  async history(agentId: string): Promise<ConversationEntry[]> {
+    const agent = this.deps.getAgent(agentId);
+    const canonical =
+      await this.deps.storage.canonicalStore.readConversationEntries(
+        agent.conversationId,
+      );
+    const owner = resolveCompactionOwner(
+      agent.conversationId,
+      agent,
+    ).ownerAgentId;
+    const context = await this.deps.harnessStorage.modelEntries(
+      agent.conversationId,
+      owner,
+    );
+    const owned = new Map(context.map((entry) => [entry.id, entry]));
+    const selected = new Map<string, ConversationEntry>();
+    for (const entry of canonical) {
+      const model = owned.get(entry.id);
+      if (
+        entry.agentId !== agent.id &&
+        !model &&
+        !(agent.contextOwnerAgentId === null && !entry.agentId)
+      )
+        continue;
+      if (entry.agentId === agent.id || !model) {
+        selected.set(entry.id, entry);
+        continue;
+      }
+      const projected =
+        model.type === "message"
+          ? projectHarnessMessageEntry({
+              entry: model,
+              conversationId: agent.conversationId,
+              agentId: agent.id,
+            })
+          : model.type === "compaction" || model.type === "branch_summary"
+            ? {
+                text: model.summary,
+                summary: model.summary,
+                ...(model.type === "compaction"
+                  ? {
+                      tokensBefore: model.tokensBefore,
+                      firstKeptEntryId: model.firstKeptEntryId,
+                    }
+                  : {}),
+              }
+            : undefined;
+      const details =
+        model.type === "message" &&
+        projected &&
+        "details" in projected &&
+        projected.details &&
+        typeof projected.details === "object"
+          ? projected.details
+          : {};
+      // A frozen migration prefix belongs to this context; preserve author
+      // provenance without following the sibling's later/live history.
+      selected.set(entry.id, {
+        ...entry,
+        ...projected,
+        ...(model.type === "message" && model.message.role === "toolResult"
+          ? {
+              text: model.message.content
+                .filter((block) => block.type === "text")
+                .map((block) => block.text)
+                .join("\n"),
+            }
+          : {}),
+        parentEntryId: model.parentId ?? undefined,
+        agentId: agent.id,
+        details: {
+          ...details,
+          ...(model.type === "message" && model.message.role === "toolResult"
+            ? {
+                outputOmitted: false,
+                capturedToolResult: model.message.details,
+              }
+            : {}),
+          sourceAgentId: entry.agentId,
+          contextOwnerAgentId: agent.id,
+          provenance: "historical_context_prefix",
+        },
+      });
+    }
+    for (const entry of context) {
+      if (selected.has(entry.id)) continue;
+      const projected =
+        entry.type === "message"
+          ? projectHarnessMessageEntry({
+              entry,
+              conversationId: agent.conversationId,
+              agentId: agent.id,
+            })
+          : entry.type === "compaction" || entry.type === "branch_summary"
+            ? {
+                id: entry.id,
+                conversationId: agent.conversationId,
+                agentId: agent.id,
+                role: "system" as const,
+                kind: "compaction" as const,
+                text: entry.summary,
+                summary: entry.summary,
+                createdAt: entry.timestamp,
+                ...(entry.type === "compaction"
+                  ? {
+                      tokensBefore: entry.tokensBefore,
+                      firstKeptEntryId: entry.firstKeptEntryId,
+                    }
+                  : {}),
+              }
+            : undefined;
+      if (projected)
+        selected.set(entry.id, {
+          ...projected,
+          ...(entry.type === "message" && entry.message.role === "toolResult"
+            ? {
+                text: entry.message.content
+                  .filter((block) => block.type === "text")
+                  .map((block) => block.text)
+                  .join("\n"),
+                details: {
+                  ...(projected.details && typeof projected.details === "object"
+                    ? projected.details
+                    : {}),
+                  capturedToolResult: entry.message.details,
+                  outputOmitted: false,
+                  provenance: "model_context",
+                },
+              }
+            : {}),
+          parentEntryId: entry.parentId ?? undefined,
+        });
+    }
+    return [...selected.values()].sort(
+      (a, b) =>
+        a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+    );
+  }
+
+  async snapshot(agentId: string): Promise<CompleteAgentHistoryResult> {
+    const agent = this.deps.getAgent(agentId);
+    const captured = await this.deps.events.withCursor(
+      conversationStream(agent.conversationId),
+      async () => {
+        const entries = await this.history(agentId);
+        const ids = new Set<string>();
+        let cursor: { updatedAt: string; id: string } | undefined;
+        do {
+          const page = await this.deps.tools.queryToolCallPreviews({
+            agentId,
+            limit: 200,
+            cursor,
+          });
+          for (const preview of page.toolCalls) ids.add(preview.id);
+          cursor = page.nextCursor;
+        } while (cursor);
+        const toolCalls = [];
+        for (const id of ids) {
+          const record = await this.deps.tools.getToolCallDetails(id);
+          if (
+            record.agentId !== agentId ||
+            record.conversationId !== agent.conversationId
+          )
+            throw new Error(
+              "History tool record is outside the selected agent scope",
+            );
+          toolCalls.push(record);
+        }
+        // Inherited prefix results are immutable copies, never live foreign queries.
+        for (const entry of entries) {
+          const details =
+            entry.details && typeof entry.details === "object"
+              ? (entry.details as Record<string, unknown>)
+              : undefined;
+          if (
+            !details ||
+            !["historical_context_prefix", "model_context"].includes(
+              String(details.provenance),
+            ) ||
+            entry.kind !== "tool_result"
+          )
+            continue;
+          const frozen = details.capturedToolResult;
+          const record = toolCallRecordSchema.safeParse(
+            frozen && typeof frozen === "object"
+              ? (frozen as { toolCall?: unknown }).toolCall
+              : undefined,
+          );
+          if (
+            record.success &&
+            record.data.conversationId === agent.conversationId &&
+            ["completed", "error", "cancelled"].includes(record.data.status) &&
+            !ids.has(record.data.id)
+          ) {
+            toolCalls.push(record.data);
+            ids.add(record.data.id);
+          }
+        }
+        const effectiveConfiguration =
+          ((await this.deps.turnConfigurations?.(agentId)) ?? [])
+            .map((value) => effectiveTurnConfigurationSchema.safeParse(value))
+            .filter((result) => result.success)
+            .map((result) => result.data)
+            .filter((turn) => turn.agentId === agentId)
+            .at(-1) ?? null;
+        const owner = resolveCompactionOwner(
+          agent.conversationId,
+          agent,
+        ).ownerAgentId;
+        const modelEntries = await this.deps.harnessStorage.modelEntries(
+          agent.conversationId,
+          owner,
+        );
+        const modelById = new Map(
+          modelEntries.map((entry) => [entry.id, entry]),
+        );
+        const modelStorage =
+          await this.deps.harnessStorage.openAgentStorage?.(agent);
+        const activeEntryId = modelStorage
+          ? await modelStorage.getLeafId()
+          : null;
+        const activeEntryIds: string[] = [];
+        let ancestor = activeEntryId;
+        while (ancestor) {
+          if (activeEntryIds.includes(ancestor))
+            throw new Error("Owner history contains an ancestry cycle");
+          const entry = modelById.get(ancestor);
+          if (!entry)
+            throw new Error(
+              "Owner history leaf/ancestor is missing from its model tree",
+            );
+          activeEntryIds.unshift(ancestor);
+          ancestor = entry.parentId;
+        }
+        const complete = completeAgentHistoryResultSchema.parse({
+          agentId,
+          conversationId: agent.conversationId,
+          entries,
+          activeEntryId,
+          activeEntryIds,
+          toolCalls,
+          latestCompletion: await this.deps.latestCompletion(agentId),
+          effectiveConfiguration,
+        });
+        return {
+          ...complete,
+          activeRun: this.deps.activeRun(agentId),
+          activity: await this.deps.activityForAgent(agentId),
+        };
+      },
+    );
+    return completeAgentHistoryResultSchema.parse({
+      ...captured.value,
+      cursorSeq: captured.cursor.processedSeq,
+    });
+  }
+
   async get(
     parentAgentId: string,
     childAgentId: string,
@@ -174,13 +443,17 @@ export class SubagentTranscriptService {
       async () => {
         const parentIds = new Set(
           (
-            await this.deps.harnessStorage.modelEntries(parent.conversationId)
+            await this.deps.harnessStorage.modelEntries(
+              parent.conversationId,
+              resolveCompactionOwner(parent.conversationId, parent)
+                .ownerAgentId,
+            )
           ).map((entry) => entry.id),
         );
         const projected = messageEntries(
           await this.deps.harnessStorage.modelEntries(
             child.conversationId,
-            child.id,
+            resolveCompactionOwner(child.conversationId, child).ownerAgentId,
           ),
         )
           .filter((entry) => !parentIds.has(entry.id))

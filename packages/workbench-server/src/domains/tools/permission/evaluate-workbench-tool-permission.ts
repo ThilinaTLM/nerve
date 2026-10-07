@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
-import {
-  isDeveloperChildToolAllowed,
-  type AgentRecord,
-} from "@nervekit/contracts/agents";
+import { resolve, relative, isAbsolute, sep } from "node:path";
+import type { AgentRecord } from "@nervekit/contracts/agents";
 import type {
   PermissionException,
   LegacyPermissionRule,
@@ -17,6 +14,8 @@ import {
   evaluateToolPermission,
   evaluateToolSupervision,
   normalizePermissionRequest,
+  builtInPermissionRuleSet,
+  composeEffectivePermissionPolicy,
 } from "@nervekit/tools/policy";
 import { permissionMetadataForTool } from "@nervekit/tools/catalog";
 import { planningModeGuardrails } from "./planning-mode-guardrails.js";
@@ -62,12 +61,7 @@ export function evaluateWorkbenchToolPermission(
   context: WorkbenchPermissionContext,
 ): WorkbenchPermissionEvaluation {
   const request = toolRequestContext(agent, args);
-  if (
-    agent.executionKind === "async_developer" &&
-    !isDeveloperChildToolAllowed(toolName)
-  ) {
-    const reason =
-      "Developer teammates cannot use human-input, planning, or delegation tools.";
+  const deny = (reason: string): WorkbenchPermissionEvaluation => {
     const risk = legacyRisk(permissionMetadataForTool(toolName).baseRisk);
     return {
       decision: "deny",
@@ -84,10 +78,106 @@ export function evaluateWorkbenchToolPermission(
         normalizedArgs: request.normalizedArgs,
         normalizedTargets: [],
         matchedRuleIds: [],
-        policySnapshotHash: `sha256:${createHash("sha256").update(reason).digest("hex")}`,
         suggestedRules: [],
+        policySnapshotHash: `sha256:${createHash("sha256").update(reason).digest("hex")}`,
       },
     };
+  };
+  if (agent.tools && !agent.tools.includes(toolName))
+    return deny("Tool is not enabled in this agent's configuration.");
+  // A ceiling is independent of the selected ordinary policy and its overlays.
+  // Evaluate normalized targets even when the eventual ordinary policy allows.
+  if (agent.readOnlyCeiling || agent.workspaceScope.readonly) {
+    try {
+      const ceilingRequest = normalizePermissionRequest({
+        toolName,
+        args,
+        normalizedArgs: request.normalizedArgs,
+        roots: context.roots ?? {
+          project: agent.projectDir,
+          nerve_home: context.dataDir,
+          nerve_data: context.dataDir,
+          plans: resolve(context.dataDir, "plans"),
+        },
+        cwd: request.cwd,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+      });
+      const ceiling = evaluatePermissionRequest({
+        request: ceilingRequest,
+        policy: composeEffectivePermissionPolicy({
+          selectedRuleSet: builtInPermissionRuleSet("read_only"),
+        }),
+      });
+      if (ceiling.decision !== "allow")
+        return deny("Immutable read-only authority ceiling denies this tool.");
+    } catch {
+      return deny("Read-only authority target validation failed.");
+    }
+  }
+
+  if (
+    agent.parentAgentId ||
+    agent.readOnlyCeiling ||
+    agent.workspaceScope.readonly
+  ) {
+    if (
+      !agent.workspaceScope.roots.some((root) =>
+        containsPath(root, request.cwd),
+      )
+    ) {
+      return deny(
+        "Tool working directory is outside delegated workspace authority.",
+      );
+    }
+    try {
+      const roots = context.roots ?? {
+        project: agent.projectDir,
+        nerve_home: context.dataDir,
+        nerve_data: context.dataDir,
+        plans: resolve(context.dataDir, "plans"),
+      };
+      const normalized = normalizePermissionRequest({
+        toolName,
+        args,
+        normalizedArgs: request.normalizedArgs,
+        roots,
+        cwd: request.cwd,
+        projectId: agent.projectId,
+        conversationId: agent.conversationId,
+      });
+      for (const target of normalized.targets) {
+        if (target.kind !== "path") continue;
+        const path =
+          "root" in target
+            ? resolve(roots[target.root], target.relativePath)
+            : target.absolutePath;
+        if (
+          !agent.workspaceScope.roots.some((root) =>
+            containsPath(root, path),
+          ) &&
+          !(
+            target.access === "read" &&
+            [
+              "reports/conversations/" + agent.conversationId,
+              "conversations/" + agent.conversationId,
+              "tasks",
+              "images",
+              "plans",
+            ].some((artifactRoot) =>
+              containsPath(
+                resolve(context.dataDir, "data", artifactRoot),
+                path,
+              ),
+            )
+          )
+        ) {
+          return deny("Tool target is outside delegated workspace authority.");
+        }
+      }
+    } catch {
+      return deny("Workspace authority target validation failed.");
+    }
   }
 
   if (context.policy && context.roots) {
@@ -281,4 +371,12 @@ function legacyRisk(risk: StaticToolRisk): ToolRisk {
   if (risk === "write") return "workspace_write";
   if (risk === "unknown") return "command";
   return risk;
+}
+
+function containsPath(root: string, path: string): boolean {
+  const suffix = relative(resolve(root), resolve(path));
+  return (
+    suffix === "" ||
+    (!isAbsolute(suffix) && suffix !== ".." && !suffix.startsWith(`..${sep}`))
+  );
 }

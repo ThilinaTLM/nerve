@@ -78,11 +78,30 @@ describe("orchestration task tools", () => {
     );
   });
 
-  it("keeps sibling project directories in one task scope", async () => {
+  it("keeps sibling task scope pinned to the originating project despite a later cwd edit", async () => {
     const sibling = task({ cwd: "/tmp/project/packages/server" });
-    const dispatcher = await createDispatcher([sibling]);
+    const dispatcher = await createDispatcher([sibling], {
+      projectDir: "/tmp/changed-project",
+    });
     const result = (await dispatcher.execute(
-      { ...toolCall("task_status"), cwd: "/tmp/project/packages/app" },
+      {
+        ...toolCall("task_status"),
+        cwd: "/tmp/project/packages/app",
+        authoritySnapshot: {
+          version: 1,
+          agentId: "agent_test",
+          projectDir: "/tmp/project",
+          mode: "coding",
+          workspaceScope: { roots: ["/tmp/project"] },
+          scopeRestricted: false,
+          workspaceRoots: [
+            { path: "/tmp/project", physicalPath: "/tmp/project" },
+          ],
+          managedReadRoot: { path: "/tmp/home", physicalPath: "/tmp/home" },
+          policyRoots: [],
+          targetPaths: [],
+        },
+      },
       { tasks: [sibling.id] },
     )) as { tasks: TaskRecord[] };
     assert.equal(result.tasks[0]?.id, sibling.id);
@@ -193,7 +212,7 @@ describe("orchestration task tools", () => {
     assert.equal(captured?.agentId, "agent_test");
   });
 
-  it("keeps developer teammate Bash foreground-only without changing root promotion", async () => {
+  it("does not derive Bash promotion policy from historical child kind", async () => {
     const captures: Record<string, unknown>[] = [];
     const runForegroundBashWithPromotion = async (input: unknown) => {
       captures.push(input as Record<string, unknown>);
@@ -212,7 +231,7 @@ describe("orchestration task tools", () => {
     const root = await createDispatcher([], { runForegroundBashWithPromotion });
     await child.execute(toolCall("bash"), { command: "sleep 1" });
     await root.execute(toolCall("bash"), { command: "sleep 1" });
-    assert.equal(captures[0]?.autoPromoteAfterMs, undefined);
+    assert.equal(captures[0]?.autoPromoteAfterMs, 120_000);
     assert.equal(captures[1]?.autoPromoteAfterMs, 120_000);
   });
 

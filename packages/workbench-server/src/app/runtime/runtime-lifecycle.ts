@@ -129,11 +129,9 @@ export class RuntimeLifecycle {
       loadAgents: () => this.services.agentLifecycle.loadAgents(),
       flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
       recoverRuns: async () => {
-        await this.services.runRuntime.coordinator.recover({
-          canResumeCheckpoint: (run) =>
-            this.services.agentLifecycle.getAgent(run.agentId).executionKind !==
-            "async_developer",
-        });
+        // Transfer old run-owned prompts before recovery can dispatch providers.
+        await this.services.workbenchRun.migrateLegacyInputs();
+        await this.services.runRuntime.coordinator.recover();
       },
       recoverHumanInput: async () => {
         await this.services.runReconciliation.reconcileStartup();
@@ -179,6 +177,7 @@ export class RuntimeLifecycle {
    */
   shutdown(): Promise<void> {
     this.shuttingDown = true;
+    this.services.workbenchRun.stopAdmissions();
     this.shutdownOperation ??= this.performShutdown();
     return this.shutdownOperation;
   }
@@ -196,6 +195,8 @@ export class RuntimeLifecycle {
     await this.services.workspaceMonitor.close();
     await this.services.tasks.shutdown();
     await Promise.allSettled([...this.backgroundOperations]);
+    await this.services.taskNotifications.settled();
+    await this.services.workbenchRun.settledInputWork();
     await this.services.lifecycleDispatcher.settled();
     await this.services.runRuntime.coordinator.settled();
     await this.services.runRuntime.delivery.settled();
@@ -222,6 +223,8 @@ export class RuntimeLifecycle {
       const timings = await this.hydrator.hydrate(reportStage);
       await this.services.agentActivityPublisher.start();
       await this.services.asyncObligationRuntime.start();
+      await this.services.recoverUserInterventions();
+      await this.services.workbenchRun.recoverAgentInputs();
       // Provider and tool work can be arbitrarily long-running. Start its drain
       // only after canonical hydration, and never gate daemon readiness on it.
       if (!this.shuttingDown) this.services.lifecycleDispatcher.start();

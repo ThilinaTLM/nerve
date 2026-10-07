@@ -4,7 +4,7 @@ import type {
   ConversationEntry,
   ConversationSnapshot,
 } from "@nervekit/contracts/conversations";
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type { AgentQueueItem } from "@nervekit/contracts/agents";
 import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
 import type { ConversationTransientState } from "./transcript-types.js";
 
@@ -30,7 +30,7 @@ export interface ConversationRenderState {
   activeRun?: ConversationActiveRunSnapshot;
   lastRunOutcome?: ConversationRunOutcome;
   transient?: ConversationTransientState;
-  queuedPrompts?: QueuedPromptRecord[];
+  queuedPrompts?: AgentQueueItem[];
   contextUsage?: ContextUsage;
   cursorSeq: number;
   sending?: boolean;

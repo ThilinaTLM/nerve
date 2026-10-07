@@ -1,6 +1,5 @@
 import {
   asyncSubagentToolNames,
-  isDeveloperChildToolAllowed,
   normalizeAsyncSubagentTools,
 } from "@nervekit/contracts/agents";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
@@ -19,18 +18,67 @@ import { defaultSettings } from "@nervekit/contracts/settings";
 import { type AgentRecord } from "@nervekit/contracts/agents";
 import {
   type ToolCallRecord,
+  type ToolAuthoritySnapshot,
   type ToolName,
   type UserConfigurableToolName,
   type ValidatedToolArtifact,
 } from "@nervekit/contracts/tools";
 import type { ToolAnchor } from "../../runs/runtime/conversation-runtime.js";
+import type { WorkbenchPermissionContext } from "../permission/types.js";
 import type { ToolService } from "../execution/tool-service.js";
 import { projectToolCallResult } from "../artifacts/tool-result-projector.js";
+
+/**
+ * Restore the originating ordinary actor without overwriting static identity or
+ * independent live fences/grants. Config-sensitive host callbacks must use this
+ * after approval/restart, never overlay a few fields on latest configuration.
+ */
+export function getAgentSnapshotForToolCall(
+  originalStaticAgent: AgentRecord,
+  toolCall: ToolCallRecord,
+): AgentRecord {
+  const snapshot = toolCall.authoritySnapshot;
+  if (
+    originalStaticAgent.id !== toolCall.agentId ||
+    originalStaticAgent.conversationId !== toolCall.conversationId ||
+    originalStaticAgent.projectId !== toolCall.projectId ||
+    (snapshot && snapshot.agentId !== toolCall.agentId)
+  ) {
+    throw new Error(
+      "Tool configuration snapshot belongs to a different agent scope.",
+    );
+  }
+  if (
+    !snapshot?.configuration ||
+    !snapshot.configurationRevision ||
+    !snapshot.configurationProvenance ||
+    snapshot.configurationProvenance === "legacy_scope_only"
+  ) {
+    throw new Error(
+      "TOOL_CONFIGURATION_SNAPSHOT_UNAVAILABLE: original full configuration is unavailable; explicitly reissue this config-sensitive tool.",
+    );
+  }
+  const configuration = structuredClone(snapshot.configuration);
+  return {
+    ...structuredClone(originalStaticAgent),
+    ...configuration,
+    model: configuration.model ?? undefined,
+    permissionRuleSetId: configuration.permissionRuleSetId,
+    systemPrompt: configuration.systemPrompt ?? undefined,
+    configurationRevision: snapshot.configurationRevision,
+    effectiveConfigurationRevision:
+      snapshot.configurationProvenance === "resolved"
+        ? snapshot.configurationRevision
+        : 0,
+  };
+}
 
 export function createAgentToolsForAgent(
   agent: AgentRecord,
   tools: ToolService,
   options: {
+    permissionContext?: WorkbenchPermissionContext;
+    toolAuthority?: ToolAuthoritySnapshot;
     runId?: string;
     resolveToolAnchor?: (providerToolCallId: string) => ToolAnchor | undefined;
     hidden?: boolean;
@@ -38,6 +86,19 @@ export function createAgentToolsForAgent(
     onLifecycle?: (toolCall: ToolCallRecord) => Promise<void>;
   } = {},
 ): AgentTool[] {
+  const agentSnapshot = structuredClone(agent);
+  const permissionContext = options.permissionContext
+    ? Promise.resolve(structuredClone(options.permissionContext))
+    : tools.capturePermissionContext(agentSnapshot);
+  const toolAuthority = options.toolAuthority
+    ? Promise.resolve(structuredClone(options.toolAuthority))
+    : permissionContext.then((context) =>
+        tools.captureToolAuthority(agentSnapshot, context),
+      );
+  void toolAuthority.catch(() => undefined);
+  // Construction can fail even if the model produces no tools; keep the
+  // shared capture observed and let invoked handlers propagate its failure.
+  void permissionContext.catch(() => undefined);
   const allowed = options.allowedToolNames
     ? new Set<string>(options.allowedToolNames)
     : undefined;
@@ -48,6 +109,9 @@ export function createAgentToolsForAgent(
       const toolName = definition.name as ToolName;
       const toolCall = await tools.requestToolAndWait(agent, toolName, params, {
         signal,
+        agentSnapshot,
+        permissionContext: await permissionContext,
+        toolAuthority: await toolAuthority,
         sourceToolCallId,
         providerToolCallId: sourceToolCallId,
         runId: options.runId,
@@ -92,6 +156,13 @@ export function activeToolNamesForAgent(
     primaryModelSupportsImages?: boolean;
   } = {},
 ): ToolName[] {
+  for (const name of agent.tools ?? []) {
+    if (!allToolDefinitions.some((definition) => definition.name === name)) {
+      throw new Error(
+        `Agent configuration references an unregistered tool: ${name}`,
+      );
+    }
+  }
   const unavailable: ToolName[] = [];
   if (options.pythonAvailable !== true) unavailable.push("python_exec");
   if (options.jiraEnabled !== true) {
@@ -119,17 +190,7 @@ export function activeToolNamesForAgent(
       options.disabledToolNames ?? defaultSettings.tools.disabled,
     ),
   );
-  if (agent.executionKind === "async_developer") {
-    for (const definition of allToolDefinitions) {
-      if (!isDeveloperChildToolAllowed(definition.name))
-        disabled.add(definition.name);
-    }
-  }
-  if (
-    agent.parentAgentId ||
-    agent.mode === "planning" ||
-    agent.permissionLevel === "read_only"
-  ) {
+  if (agent.mode === "planning" || agent.permissionLevel === "read_only") {
     for (const name of asyncSubagentToolNames) disabled.add(name);
   }
   if (agent.mode === "planning") {
@@ -148,7 +209,16 @@ export function activeToolNamesForAgent(
   }
 
   return resolveToolAvailability({
-    permissionLevel: agent.permissionLevel,
+    permissionLevel:
+      agent.readOnlyCeiling || agent.workspaceScope.readonly
+        ? "read_only"
+        : agent.permissionLevel,
+    enabledNames:
+      agent.tools === null || agent.tools === undefined
+        ? undefined
+        : agent.tools.filter((name): name is ToolName =>
+            allToolDefinitions.some((definition) => definition.name === name),
+          ),
     disabledNames: [...disabled],
     unavailableNames: unavailable,
   }).activeToolNames;

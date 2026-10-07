@@ -14,7 +14,10 @@ import { notify } from "$lib/application/notifications/notify.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
 import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
-import { upsertConversationActivity } from "$lib/application/workspace/entity-reducers";
+import {
+  upsertConversationActivity,
+  upsertAgentActivity,
+} from "$lib/application/workspace/entity-reducers";
 import { KeyedSingleFlight } from "$lib/features/conversations/state/keyed-single-flight";
 import {
   replaceOpenCenterTabs,
@@ -25,7 +28,13 @@ import {
   selection,
 } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { agentUsesConversationView } from "./agent-history-ownership";
+import { applyAgentHistory } from "./agent-history-state";
 import { mainAgentForConversation } from "./main-agent";
+import {
+  selectedConversationAgent,
+  refreshAgentView,
+} from "./agent-selection.svelte";
 import {
   clearActiveSelection,
   ensureConversationView,
@@ -52,11 +61,12 @@ export async function applyActiveConversationSelection(
   clearContextUsageRefresh(conversation.id);
   selection.conversationId = conversation.id;
   selection.projectId = conversation.projectId;
-  const conversationAgent = mainAgentForConversation(
-    conversation,
-    workspaceState.agents,
-  );
+  const conversationAgent =
+    selectedConversationAgent(conversation.id) ??
+    mainAgentForConversation(conversation, workspaceState.agents);
   selection.agentId = conversationAgent?.id;
+  if (conversationAgent && !agentUsesConversationView(conversationAgent))
+    void refreshAgentView(conversationAgent);
   selection.entryId = conversation.activeEntryId;
   const project = await projectForConversation(conversation);
   composerDraft.projectDir = project.dir;
@@ -68,6 +78,8 @@ export async function applyActiveConversationSelection(
     conversationState.selectedModelKey = modelKey(overrideModel);
   } else if (conversationAgent?.model) {
     conversationState.selectedModelKey = modelKey(conversationAgent.model);
+  } else {
+    conversationState.selectedModelKey = "";
   }
   conversationState.selectedThinkingLevel =
     override?.thinkingLevel ?? conversationAgent?.thinkingLevel ?? "off";
@@ -123,7 +135,20 @@ export function refreshConversationView(conversationId: string): Promise<void> {
     const view = ensureConversationView(conversationId);
     view.loading = true;
     try {
-      const response = await getConversationSnapshotWithCursor(conversationId);
+      const rootAgent = workspaceState.agents.find(
+        (agent) =>
+          agent.conversationId === conversationId &&
+          agentUsesConversationView(agent),
+      );
+      const [response, queue, history] = await Promise.all([
+        getConversationSnapshotWithCursor(conversationId),
+        rootAgent
+          ? protocolRequest("agent.promptQueue.list", { agentId: rootAgent.id })
+          : Promise.resolve(undefined),
+        rootAgent
+          ? protocolRequest("agent.history.get", { agentId: rootAgent.id })
+          : Promise.resolve(undefined),
+      ]);
       const snapshot = response.snapshot;
       // Canonical state comes straight from the shared snapshot ingestion
       // (which drains already-materialized active-run messages).
@@ -137,7 +162,8 @@ export function refreshConversationView(conversationId: string): Promise<void> {
       view.activeRun = canonical.activeRun;
       view.transient = undefined;
       view.optimisticMessages = [];
-      view.queuedPrompts = canonical.queuedPrompts ?? [];
+      view.queuedPrompts =
+        queue?.result.queuedPrompts ?? canonical.queuedPrompts ?? [];
       clearContextUsageRefresh(conversationId);
       view.contextUsage = canonical.contextUsage;
       view.cursorSeq = canonical.cursorSeq;
@@ -152,9 +178,20 @@ export function refreshConversationView(conversationId: string): Promise<void> {
       );
       upsertConversationActivity(snapshot.activity);
       view.sending = canonical.sending ?? false;
+      if (history && rootAgent) {
+        applyAgentHistory(view, rootAgent, history.result);
+        if (history.result.activity)
+          upsertAgentActivity(history.result.activity);
+        // Keep the full tree used by the ordinary lead's branch navigation.
+        view.treeNodes = snapshot.tree.nodes;
+      }
       installEventCursors(response.cursor.streams);
-      if (selection.conversationId === conversationId) {
-        selection.entryId = snapshot.tree.activeEntryId;
+      if (
+        selection.conversationId === conversationId &&
+        (!selectedConversationAgent(conversationId) ||
+          agentUsesConversationView(selectedConversationAgent(conversationId)!))
+      ) {
+        selection.entryId = view.activeEntryId;
       }
     } finally {
       view.loading = false;
@@ -168,6 +205,8 @@ export function clearConversationState() {
   conversationState.activeConversationTabId = undefined;
   setActiveCenterTab(undefined);
   conversationState.conversationViews = {};
+  conversationState.agentViews = {};
+  conversationState.selectedAgentIds = {};
   conversationState.pendingConversations = {};
   clearActiveSelection();
   persistConversationTabs();

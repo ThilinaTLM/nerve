@@ -125,6 +125,25 @@ export class ConversationBranchConflictError extends Error {
 const journalLocks = new Map<string, Promise<void>>();
 
 export class ConversationJournalRepository {
+  private static readonly instances = new WeakMap<
+    CanonicalStore,
+    Set<ConversationJournalRepository>
+  >();
+
+  /** Startup migrations must invalidate readers sharing their canonical store after durable writes. */
+  static invalidateMigratedConversation(
+    canonical: CanonicalStore,
+    conversationId: string,
+  ): void {
+    for (const repository of this.instances.get(canonical) ?? []) {
+      // Dirty means a durable commit awaits an optional checkpoint, not uncommitted work.
+      // An older resident checkpoint must not overwrite a migration's newer durable head.
+      repository.states.delete(conversationId);
+      repository.dirty.delete(conversationId);
+      repository.encodedBytes.delete(conversationId);
+    }
+  }
+
   private readonly states = new Map<string, ConversationJournalState>();
   readonly deletions: ConversationJournalDeletion;
   private readonly pendingLoads = new Map<
@@ -155,6 +174,11 @@ export class ConversationJournalRepository {
       new CanonicalStore(
         storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
       );
+    const instances =
+      ConversationJournalRepository.instances.get(this.canonical) ??
+      new Set<ConversationJournalRepository>();
+    instances.add(this);
+    ConversationJournalRepository.instances.set(this.canonical, instances);
     this.deletions = new ConversationJournalDeletion(
       this.canonical,
       this.canonical.initialize(),
@@ -169,6 +193,7 @@ export class ConversationJournalRepository {
   }
 
   async close(): Promise<void> {
+    ConversationJournalRepository.instances.get(this.canonical)?.delete(this);
     if (!this.ownsCanonicalStore) return;
     await this.ready;
     await this.canonical.close();

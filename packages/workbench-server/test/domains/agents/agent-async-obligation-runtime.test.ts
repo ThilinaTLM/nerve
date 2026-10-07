@@ -118,18 +118,22 @@ test("runtime reconstructs missing sources and restart is idempotent", async () 
       records.set(id, replacement);
       return replacement;
     },
-    deliverWithNotice: async (obligation) => obligation,
   };
   const service = {
     start() {},
     async stop() {},
     register: (obligation: AgentAsyncObligation) =>
       repository.register(obligation),
-    async markReady(id: string, outcome: string) {
+    async markReady(
+      id: string,
+      outcome: string,
+      completion?: AgentAsyncObligation["completion"],
+    ) {
       readinessCounts.set(id, (readinessCounts.get(id) ?? 0) + 1);
       return repository.transition(id, ["pending"], {
         state: "ready",
         outcome,
+        completion,
         updatedAt: "2026-09-27T10:03:00.000Z",
       });
     },
@@ -147,6 +151,13 @@ test("runtime reconstructs missing sources and restart is idempotent", async () 
       getTask: () => task,
       listTasks: () => [task],
       getRun: async (id) => runs.get(id),
+      completion: async (run) => ({
+        agentId: run.agentId,
+        runId: run.runId,
+        attemptId: `${run.executionId}:${run.attempt}`,
+        outcome: "failed",
+        completedAt: run.updatedAt,
+      }),
       listAssignments: async () => assignments,
       getAgent: () =>
         ({ id: "agent_lead", conversationId: "conv_lead" }) as AgentRecord,
@@ -185,6 +196,14 @@ test("runtime reconstructs missing sources and restart is idempotent", async () 
   const restarted = runtime();
   await restarted.start();
   await restarted.stop();
+  assert.equal(
+    records.get("async_subagent:run_failed:3")?.completion?.runId,
+    "run_failed",
+  );
+  assert.equal(
+    records.get("async_subagent:run_failed:3")?.completion?.attemptId,
+    "exec_test:1",
+  );
   for (const count of registrationCounts.values()) assert.equal(count, 1);
   for (const count of readinessCounts.values()) assert.equal(count, 1);
 });

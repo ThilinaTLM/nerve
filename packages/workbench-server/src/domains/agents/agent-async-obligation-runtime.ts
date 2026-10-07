@@ -27,6 +27,13 @@ export interface AgentAsyncObligationRuntimePorts {
   getTask(id: string): TaskRecord;
   listTasks(): readonly TaskRecord[];
   getRun(id: string): Promise<RunRecord | undefined>;
+  completion(
+    run: RunRecord,
+  ): Promise<
+    NonNullable<
+      import("@nervekit/contracts/agents").AgentAsyncObligation["completion"]
+    >
+  >;
   listAssignments(): Promise<readonly AsyncSubagentAssignment[]>;
   getAgent(id: string): AgentRecord;
   now?(): string;
@@ -91,10 +98,7 @@ export class AgentAsyncObligationRuntime {
           | { runId?: string; interrupted?: boolean }
           | undefined;
         if (data?.runId) {
-          await this.readySubagentRun(
-            data.runId,
-            data.interrupted ? "interrupted" : event.type.replace("run.", ""),
-          );
+          await this.readySubagentRun(data.runId);
         }
       }
       await this.ports.service.recover();
@@ -162,7 +166,10 @@ export class AgentAsyncObligationRuntime {
   }
 
   private async reconcilePendingSources(): Promise<void> {
-    const pending = await this.ports.repository.listByStates(["pending"]);
+    const pending = await this.ports.repository.listByStates([
+      "pending",
+      "ready",
+    ]);
     for (const obligation of pending) {
       if (obligation.sourceKind === "promoted_task") {
         let task: TaskRecord;
@@ -175,8 +182,24 @@ export class AgentAsyncObligationRuntime {
         continue;
       }
       const run = await this.ports.getRun(obligation.sourceId);
-      if (run && isTerminalSubagentRun(run)) {
-        await this.ports.service.markReady(obligation.id, run.status);
+      if (
+        !obligation.completion &&
+        run &&
+        run.agentId === obligation.sourceAgentId &&
+        isTerminalSubagentRun(run)
+      ) {
+        const completion = await this.ports.completion(run);
+        if (obligation.state === "ready") {
+          await this.ports.repository.transition(obligation.id, ["ready"], {
+            completion,
+          });
+        } else {
+          await this.ports.service.markReady(
+            obligation.id,
+            completion.outcome,
+            completion,
+          );
+        }
       }
     }
   }
@@ -188,10 +211,7 @@ export class AgentAsyncObligationRuntime {
     await this.ports.service.markReady(id, task.status);
   }
 
-  private async readySubagentRun(
-    runId: string,
-    outcome: string,
-  ): Promise<void> {
+  private async readySubagentRun(runId: string): Promise<void> {
     const pending = await this.ports.repository.listByStates(["pending"]);
     const obligation = pending.find(
       (candidate) =>
@@ -199,7 +219,19 @@ export class AgentAsyncObligationRuntime {
         candidate.sourceId === runId,
     );
     if (!obligation) return;
-    await this.ports.service.markReady(obligation.id, outcome);
+    const run = await this.ports.getRun(runId);
+    if (
+      !run ||
+      run.agentId !== obligation.sourceAgentId ||
+      !isTerminalSubagentRun(run)
+    )
+      return;
+    const completion = await this.ports.completion(run);
+    await this.ports.service.markReady(
+      obligation.id,
+      completion.outcome,
+      completion,
+    );
   }
 
   private now(): string {

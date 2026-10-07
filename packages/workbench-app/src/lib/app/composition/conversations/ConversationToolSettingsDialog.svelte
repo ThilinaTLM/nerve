@@ -58,10 +58,10 @@ const usableModels = $derived(
     settingsState.authProviders,
   ),
 );
-const title = $derived(group ? `Configure ${group.label}` : "");
+const title = $derived(group ? `Shared defaults · ${group.label}` : "");
 const scopeNote = $derived(
   toolState
-    ? `${toolState.originLabel}. Applies only to this conversation.`
+    ? `${toolState.originLabel}. Shared conversation defaults and credentials; inherited by agents using resource defaults.`
     : "",
 );
 

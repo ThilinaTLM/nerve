@@ -1,7 +1,4 @@
-import type {
-  ConversationActiveRunSnapshot,
-  QueuedPromptRecord,
-} from "$lib/api";
+import type { ConversationActiveRunSnapshot, AgentQueueItem } from "$lib/api";
 import {
   recordRunOutcome,
   type ConversationRunOutcome,
@@ -13,7 +10,7 @@ export interface AbortableConversationView {
   stopping: boolean;
   activeRun?: ConversationActiveRunSnapshot;
   lastRunOutcome?: ConversationRunOutcome;
-  queuedPrompts: QueuedPromptRecord[];
+  queuedPrompts: AgentQueueItem[];
 }
 
 export interface AbortActiveRunDeps {

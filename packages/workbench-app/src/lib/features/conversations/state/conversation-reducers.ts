@@ -1,3 +1,4 @@
+import { agentUsesConversationView } from "./agent-history-ownership";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
   conversationStream,
@@ -49,11 +50,30 @@ export { refreshContextUsage } from "./conversation-context-usage";
 export { isOpenConversation } from "./conversation-reducer-shared";
 
 function isChildEvent(data: Record<string, unknown>): boolean {
+  if (typeof data.childAgentId === "string") return true;
   const agentId =
-    data.agentId ?? (data.entry as ConversationEntry | undefined)?.agentId;
-  return workspaceState.agents.some(
-    (agent) =>
-      agent.id === agentId && agent.executionKind === "async_developer",
+    data.childAgentId ??
+    data.agentId ??
+    (data.entry as ConversationEntry | undefined)?.agentId ??
+    (data.toolCall as { agentId?: string } | undefined)?.agentId;
+  const agent = workspaceState.agents.find(
+    (candidate) => candidate.id === agentId,
+  );
+  if (agent) return !agentUsesConversationView(agent);
+  // Birth notifications can arrive after an agent's first transcript event.
+  // Unknown explicit identities are not the selected conversation's lead.
+  const conversationId =
+    data.conversationId ??
+    recordValue(data.entry)?.conversationId ??
+    recordValue(data.toolCall)?.conversationId;
+  return (
+    typeof agentId === "string" &&
+    workspaceState.agents.some(
+      (candidate) =>
+        candidate.conversationId === conversationId &&
+        !candidate.parentAgentId &&
+        candidate.id !== agentId,
+    )
   );
 }
 
@@ -255,9 +275,11 @@ function applyAppEffects(
       break;
     case "run.cancelled":
       applyConversationTerminalUiState(view);
+      void refreshConversationView(conversationId);
       break;
     case "run.failed":
       applyConversationTerminalUiState(view);
+      void refreshConversationView(conversationId);
       break;
     case "run.suspended":
       view.optimisticMessages = [];

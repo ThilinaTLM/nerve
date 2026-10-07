@@ -1,9 +1,11 @@
+import { fixture as contextFixture } from "../agents/compaction-test-fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { RunRecord } from "@nervekit/contracts/runs";
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import {
+  WorkbenchRunReferences,
   checkpointTranscriptEntryIds,
   isAuthorizedTaskEventAdvance,
 } from "../../../src/domains/runs/application/run-references.js";
@@ -284,4 +286,71 @@ test("checkpoint references map notifications and exclude unrelated and metadata
     ),
     [task.id, child.id],
   );
+});
+
+test("root, developer and Explore references select their own persisted context and freeze settled run leaves", async (t) => {
+  const f = await contextFixture(t);
+  await f.seed("agent_0");
+  await f.seed("agent_2");
+  const explorer = await f.seed("agent_3");
+  const originalLeaf = await explorer.getLeafId();
+  const states = new Map(
+    [0, 2, 3].map((index) => {
+      const agentId = `agent_${index}`;
+      const stateRun = {
+        ...run,
+        agentId,
+        conversationId: "conv_scope",
+        runId: `run_${index}`,
+        status: index === 3 ? "completed" : "running",
+        lastCheckpointId: "checkpoint_original",
+      };
+      return [
+        stateRun.runId,
+        {
+          run: stateRun,
+          checkpoints: [
+            {
+              checkpointId: "checkpoint_original",
+              harnessLeafId: originalLeaf,
+            },
+          ],
+          transitions: [
+            {
+              entries: [
+                {
+                  ...projection(`entry_recent_${agentId}`),
+                  agentId,
+                  conversationId: "conv_scope",
+                  runId: stateRun.runId,
+                  kind: "message",
+                },
+              ],
+            },
+          ],
+        },
+      ];
+    }),
+  );
+  // The completed Explore child's next execution can advance independently.
+  await explorer.appendMessage({
+    role: "user",
+    content: "Later interactive follow-up",
+    timestamp: 10,
+  });
+  const references = new WorkbenchRunReferences(
+    { load: async (id: string) => states.get(id) } as never,
+    f.storage,
+    { getAgent: (id: string) => f.agents.get(id)! } as never,
+  );
+  const root = await references.transcript("run_0");
+  const developer = await references.transcript("run_2");
+  const explore = await references.transcript("run_3");
+  assert.equal(root.harnessLeafId, "entry_recent_agent_0");
+  assert.equal(developer.harnessLeafId, "entry_recent_agent_2");
+  assert.equal(explore.harnessLeafId, originalLeaf);
+  assert.notEqual(explore.harnessLeafId, await explorer.getLeafId());
+  assert.deepEqual(explore.entryIds, ["entry_recent_agent_3"]);
+  assert.deepEqual(developer.entryIds, ["entry_recent_agent_2"]);
+  assert.deepEqual(root.entryIds, ["entry_recent_agent_0"]);
 });

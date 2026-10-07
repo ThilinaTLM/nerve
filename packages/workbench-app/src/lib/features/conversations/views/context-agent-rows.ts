@@ -28,13 +28,13 @@ const TASK_CLAUSE_BREAK = /[,:;]|\.(?:\s|$)|\s[—–-]\s|\s\(/;
 export type AgentRole = "lead" | "teammate" | "explore";
 
 /**
- * Conversation role. Only the explore tool spawns non-teammate children, so a
- * child without `executionKind` (older records) is an explore agent.
+ * Display grouping follows the persisted orchestration preset, not execution kind.
  */
 export function agentRole(agent: AgentRecord): AgentRole {
   if (!agent.parentAgentId) return "lead";
-  if (agent.executionKind === "async_developer") return "teammate";
-  return "explore";
+  return agent.orchestrationPolicy?.preset === "explore"
+    ? "explore"
+    : "teammate";
 }
 
 export function isAgentLive(
@@ -92,7 +92,10 @@ export function shortTaskLabel(task: string | undefined): string | undefined {
 /** First-view row text: the lead by role, subagents by a short name. */
 export function agentRowLabel(agent: AgentRecord): string {
   const role = agentRole(agent);
-  if (role === "lead") return "Lead agent";
+  if (role === "lead")
+    return agent.contextOwnerAgentId
+      ? (agent.name ?? "Independent agent")
+      : "Lead agent";
   if (agent.name) return agent.name;
   if (role === "explore") return shortTaskLabel(agent.task) ?? "Explore agent";
   return firstTaskLine(agent.task) ?? "Subagent";
@@ -117,6 +120,7 @@ function attentionRank(
 
 export type AgentGroups = {
   lead?: AgentRecord;
+  otherRoots: AgentRecord[];
   teammates: AgentRecord[];
   /** Running or waiting explore agents, always shown as rows. */
   exploreLive: AgentRecord[];
@@ -130,9 +134,14 @@ export function groupAgents(
   activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
 ): AgentGroups {
   const leads = agents.filter((agent) => agentRole(agent) === "lead");
+  const lead =
+    leads.find((agent) => agent.contextOwnerAgentId === null) ??
+    leads.find((agent) => agent.id === activeAgentId) ??
+    leads[0];
   const explore = agents.filter((agent) => agentRole(agent) === "explore");
   return {
-    lead: leads.find((agent) => agent.id === activeAgentId) ?? leads[0],
+    lead,
+    otherRoots: leads.filter((agent) => agent.id !== lead?.id),
     teammates: agents
       .filter((agent) => agentRole(agent) === "teammate")
       .sort(
@@ -223,7 +232,10 @@ export type AgentDetailField = {
 /** Role word used as the detail popover's title. */
 export function agentRoleLabel(agent: AgentRecord): string {
   const role = agentRole(agent);
-  if (role === "lead") return "Lead agent";
+  if (role === "lead")
+    return agent.contextOwnerAgentId
+      ? (agent.name ?? "Independent agent")
+      : "Lead agent";
   return role === "teammate" ? "Teammate" : "Explore agent";
 }
 
@@ -240,6 +252,38 @@ export function agentDetailFields(agent: AgentRecord): AgentDetailField[] {
     ? `${agent.model.provider}/${agent.model.modelId}`
     : "Pending";
   return [
+    { label: "Policy", value: agent.orchestrationPolicy?.preset ?? "standard" },
+    { label: "Activation", value: agent.activationState ?? "enabled" },
+    {
+      label: "Parent",
+      value: agent.parentAgentId ?? "None",
+    },
+    {
+      label: "Configuration",
+      value: `Accepted ${agent.configurationRevision ?? 1} / effective ${agent.effectiveConfigurationRevision ?? 0}`,
+    },
+    {
+      label: "Tools",
+      value:
+        agent.tools == null
+          ? "Registered defaults"
+          : agent.tools.join(", ") || "None",
+    },
+    {
+      label: "Skills",
+      value:
+        agent.skills == null
+          ? "Inherited resource defaults"
+          : agent.skills.join(", ") || "None",
+    },
+    {
+      label: "Cancellation",
+      value: agent.orchestrationPolicy?.parentCancellation ?? "independent",
+    },
+    {
+      label: "Reporting",
+      value: agent.orchestrationPolicy?.completionReporting ?? "none",
+    },
     { label: "Model", value: model, title: model },
     {
       label: "Thinking",

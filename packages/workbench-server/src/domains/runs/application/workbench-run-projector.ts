@@ -1,3 +1,4 @@
+import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
 import type { ConversationRunRetrySnapshot } from "@nervekit/contracts/conversations";
 import {
   runFailureCategorySchema,
@@ -59,7 +60,10 @@ export class WorkbenchRunProjector implements RunTransitionObserverPort {
 
     runtime.startRun({
       background:
-        this.state.agents.get(run.agentId)?.executionKind === "async_developer",
+        resolveCompactionOwner(
+          run.conversationId,
+          this.state.agents.get(run.agentId),
+        ).ownerAgentId !== undefined,
       conversationId: run.conversationId,
       agentId: run.agentId,
       projectId: run.projectId,

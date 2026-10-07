@@ -38,6 +38,20 @@ export class AsyncSubagentRepository {
   }
 
   async reserveAssignment(assignment: AsyncSubagentAssignment): Promise<void> {
+    const existing = await this.store.readDocument(
+      "async-subagent-assignment",
+      assignment.leadId,
+      assignment.runId,
+    );
+    if (existing) {
+      const value = asyncSubagentAssignmentSchema.parse(existing.data);
+      if (
+        JSON.stringify(value) !==
+        JSON.stringify(asyncSubagentAssignmentSchema.parse(assignment))
+      )
+        throw new Error("Admission assignment identity conflict");
+      return;
+    }
     await this.store.writeDocument({
       namespace: "async-subagent-assignment",
       scopeId: assignment.leadId,

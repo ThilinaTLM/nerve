@@ -69,6 +69,58 @@ function hiddenTool(): ToolCallTranscriptRecord {
 }
 
 describe("subagent transcript session", () => {
+  it("retains the selected Explore run's terminal outcome for ordinary controls", () => {
+    for (const [status, outcome] of [
+      ["completed", "completed"],
+      ["failed", "failed"],
+      ["aborted", "stopped"],
+    ] as const) {
+      let state = fromSubagentTranscriptSnapshot(snapshot());
+      state = applySubagentTranscriptEvent(
+        state,
+        event(21, "agent.subagent_transcript.run.started", {
+          ...identity,
+          startedAt: ts,
+        }),
+      );
+      state = applySubagentTranscriptEvent(
+        state,
+        event(25, "agent.subagent_transcript.run.completed", {
+          ...identity,
+          status,
+          completedAt: ts,
+        }),
+      );
+      assert.equal(state.activeRun, undefined);
+      assert.equal(state.sending, false);
+      assert.equal(state.lastRunOutcome?.outcome, outcome);
+      assert.equal(state.lastRunOutcome?.runId, identity.runId);
+    }
+  });
+  it("does not let an old wrapper completion settle a child's newer interactive run", () => {
+    let state = fromSubagentTranscriptSnapshot(snapshot());
+    state = applySubagentTranscriptEvent(
+      state,
+      event(21, "run.started", {
+        ...identity,
+        agentId: identity.childAgentId,
+        runId: "run_newer",
+        startedAt: ts,
+      }),
+    );
+    state = applySubagentTranscriptEvent(
+      state,
+      event(22, "agent.subagent_transcript.run.completed", {
+        ...identity,
+        status: "completed",
+        completedAt: ts,
+      }),
+    );
+    assert.equal(state.activeRun?.runId, "run_newer");
+    assert.equal(state.sending, true);
+    assert.equal(state.lastRunOutcome, undefined);
+  });
+
   it("projects child text incrementally across unrelated stream sequences", () => {
     let state = fromSubagentTranscriptSnapshot(snapshot());
     state = applySubagentTranscriptEvent(

@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
-import { conversationStream } from "@nervekit/contracts/events";
+import {
+  conversationStream,
+  type NotifyEvent,
+} from "@nervekit/contracts/events";
 import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import {
   initializeStorage,
@@ -30,11 +33,19 @@ describe("explore subagent transcript isolation", () => {
           type: "assistantText",
           text: "The temporary project is isolated and readable.",
         },
+        {
+          type: "assistantText",
+          text: "The child accepted a direct follow-up.",
+        },
       ],
     });
     const root = await mkdtemp(join(tmpdir(), "nerve-explore-isolation-"));
     const storage = await initializeStorage(root);
     const orchestrator = createRuntimeFixture(storage, "127.0.0.1", 0);
+    const liveEvents: NotifyEvent[] = [];
+    const unsubscribe = orchestrator.runtime.events.subscribeNotify((event) => {
+      if (event.type.startsWith("conversation.live.")) liveEvents.push(event);
+    });
     try {
       await orchestrator.lifecycle.hydrate();
       const project =
@@ -77,7 +88,8 @@ describe("explore subagent transcript isolation", () => {
         .listAgents()
         .find((agent) => agent.parentAgentId === parent.id);
       assert.ok(child);
-      assert.equal(child.executionKind, "explore");
+      assert.equal(child.orchestrationPolicy?.preset, "explore");
+      assert.equal(child.readOnlyCeiling, true);
       assert.equal(child.name, "Temporary project contents");
       assert.deepEqual(child.model, parent.model);
       assert.equal(
@@ -149,25 +161,72 @@ describe("explore subagent transcript isolation", () => {
         1,
         1_000,
       );
-      const dedicated = stream.events.filter((event) =>
-        event.type.startsWith("agent.subagent_transcript."),
-      );
-      assert.ok(dedicated.length > 0);
-      assert.equal(dedicated[0]?.type, "agent.subagent_transcript.run.started");
+      const childRuns = (
+        await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()
+      ).filter((state) => state.run.agentId === child.id);
+      assert.equal(childRuns.length, 1);
       assert.equal(
-        dedicated.at(-1)?.type,
-        "agent.subagent_transcript.run.completed",
+        childRuns[0]?.run.status,
+        "completed",
+        JSON.stringify(childRuns[0]?.run),
       );
-      assert.equal(
-        stream.events.some(
+      const childRunId = childRuns[0]!.run.runId;
+      const childLifecycle = stream.events.filter(
+        (event) =>
+          (event.data as { agentId?: string; runId?: string }).agentId ===
+            child.id &&
+          (event.data as { runId?: string }).runId === childRunId &&
+          (event.type === "run.started" || event.type === "run.completed"),
+      );
+      assert.deepEqual(
+        childLifecycle.map((event) => event.type),
+        ["run.started", "run.completed"],
+      );
+      const childLive = liveEvents.filter(
+        (event) => (event.data as { agentId?: string }).agentId === child.id,
+      );
+      assert.ok(
+        childLive.some(
+          (event) => event.type === "conversation.live.turn.started",
+        ),
+      );
+      const deltas = childLive.filter(
+        (event) => event.type === "conversation.live.content.delta",
+      );
+      assert.ok(
+        deltas.length > 0,
+        "common child runtime must publish live content deltas",
+      );
+      assert.match(JSON.stringify(deltas), /temporary project is isolated/i);
+      assert.ok(
+        childLive.every(
           (event) =>
-            event.type.startsWith("conversation.live.") &&
-            (event.data as { agentId?: string }).agentId === child.id,
+            (event.data as { conversationId?: string; runId?: string })
+              .conversationId === conversation.id &&
+            (event.data as { runId?: string }).runId === childRunId,
+        ),
+        "live child events retain exact agent/conversation/run routing",
+      );
+      assert.equal(
+        liveEvents.some(
+          (event) =>
+            event.type === "conversation.live.content.delta" &&
+            (event.data as { agentId?: string }).agentId === parent.id,
         ),
         false,
+        JSON.stringify({
+          parentLive: liveEvents.filter(
+            (event) =>
+              event.type === "conversation.live.content.delta" &&
+              (event.data as { agentId?: string }).agentId === parent.id,
+          ),
+          input: await storage.canonicalStore.readDocument(
+            "agent_inputs",
+            "global",
+            parent.id,
+          ),
+        }),
       );
-      const dedicatedJson = JSON.stringify(dedicated);
-      assert.doesNotMatch(dedicatedJson, /explore_ls_1|arguments|result|cwd/);
       await assert.rejects(
         orchestrator.services.subagentTranscripts.get(child.id, parent.id),
         hasErrorCode("SUBAGENT_TRANSCRIPT_NOT_FOUND"),
@@ -176,18 +235,50 @@ describe("explore subagent transcript isolation", () => {
         snapshot.toolCalls.some((toolCall) => toolCall.agentId === child.id),
         false,
       );
-      await assert.rejects(
-        orchestrator.services.workbenchRun.promptAgent(child.id, {
-          text: "Continue.",
-        }),
-        hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
+      await orchestrator.services.agentLifecycle.configureAgent(child.id, {
+        mode: "planning",
+      });
+      assert.equal(
+        orchestrator.services.agentLifecycle.getAgent(child.id).mode,
+        "planning",
       );
       await assert.rejects(
         orchestrator.services.agentLifecycle.configureAgent(child.id, {
-          mode: "planning",
+          permissionLevel: "autonomous",
         }),
-        hasErrorCode("SUBAGENT_NOT_INTERACTIVE"),
       );
+      assert.equal(
+        orchestrator.services.agentLifecycle.getAgent(child.id).readOnlyCeiling,
+        true,
+      );
+      await orchestrator.services.workbenchRun.promptAgent(child.id, {
+        text: "Continue.",
+      });
+      const deadline = Date.now() + 5_000;
+      while (true) {
+        const childEntries =
+          (
+            await new ConversationJournalRepository(storage).load(
+              conversation.id,
+            )
+          ).agentModelEntries.get(child.id) ?? [];
+        if (
+          JSON.stringify(childEntries).includes(
+            "The child accepted a direct follow-up.",
+          )
+        )
+          break;
+        assert.ok(
+          Date.now() < deadline,
+          "child direct follow-up must reach its own context",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      const parentAfterFollowUp =
+        await orchestrator.services.conversationQuery.getConversationSnapshot(
+          conversation.id,
+        );
+      assert.deepEqual(parentAfterFollowUp.entries, []);
       assert.equal(
         orchestrator.services.conversationLifecycle.getConversation(
           conversation.id,
@@ -195,6 +286,7 @@ describe("explore subagent transcript isolation", () => {
         parent.id,
       );
     } finally {
+      unsubscribe();
       registration.unregister();
       await shutdownServerRuntime(orchestrator.runtime);
       await rm(root, {
@@ -331,19 +423,33 @@ describe("explore subagent transcript isolation", () => {
       await orchestrator.services.workbenchRun.promptAgent(parent.id, {
         text: "Start both explore children.",
       });
-      await waitUntil(() => {
-        const children = orchestrator.services.agentLifecycle
-          .listAgents()
-          .filter((agent) => agent.parentAgentId === parent.id);
-        return (
-          children.length === 2 &&
-          children.every((agent) =>
-            Boolean(
-              orchestrator.services.subagentTranscriptLive.snapshot(agent.id),
+      await waitUntil(
+        async () => {
+          const children = orchestrator.services.agentLifecycle
+            .listAgents()
+            .filter((agent) => agent.parentAgentId === parent.id);
+          if (children.length !== 2) return false;
+          const transcripts = await Promise.all(
+            children.map((child) =>
+              orchestrator.services.subagentTranscripts.get(
+                parent.id,
+                child.id,
+              ),
             ),
-          )
-        );
-      });
+          );
+          return transcripts.every(
+            (transcript) =>
+              transcript.activeRun?.status === "running" &&
+              transcript.activeRun.turns.length > 0,
+          );
+        },
+        async () =>
+          JSON.stringify(
+            (
+              await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()
+            ).map((state) => state.run),
+          ),
+      );
       assert.equal(
         orchestrator.services.conversationLifecycle.getConversation(
           conversation.id,
@@ -356,22 +462,53 @@ describe("explore subagent transcript isolation", () => {
         .listAgents()
         .filter((agent) => agent.parentAgentId === parent.id);
       assert.equal(children.length, 2);
-      assert.ok(
-        children.every(
-          (agent) =>
-            orchestrator.services.subagentTranscriptLive.snapshot(agent.id) ===
-            undefined,
+      const transcripts = await Promise.all(
+        children.map((child) =>
+          orchestrator.services.subagentTranscripts.get(parent.id, child.id),
         ),
       );
-      const [run] = (
-        await new WorkbenchRunUnitOfWork(storage.paths.home, 0).list()
-      ).filter((state) => state.run.agentId === parent.id);
+      assert.ok(
+        transcripts.every((transcript) => transcript.activeRun === undefined),
+      );
+      const runStates = await new WorkbenchRunUnitOfWork(
+        storage.paths.home,
+        0,
+      ).list();
+      for (const child of children) {
+        const childRuns = runStates.filter(
+          (state) => state.run.agentId === child.id,
+        );
+        assert.equal(childRuns.length, 1);
+        assert.equal(
+          childRuns[0]?.run.status,
+          "cancelled",
+          JSON.stringify(childRuns[0]?.run),
+        );
+        const completion = (
+          await orchestrator.services.subagentTranscripts.snapshot(child.id)
+        ).latestCompletion;
+        assert.equal(completion?.runId, childRuns[0]!.run.runId);
+        assert.equal(completion?.outcome, "cancelled");
+        assert.equal(completion?.response?.complete ?? false, false);
+      }
+      const [run] = runStates.filter(
+        (state) => state.run.agentId === parent.id,
+      );
       assert.equal(run?.run.status, "cancelled");
-      assert.equal(
-        run?.run.cancellationEvidence.find(
-          (evidence) => evidence.target === "subagent",
-        )?.status,
-        "confirmed",
+      // Cancelling the common model aborts the attached wrapper signal first.
+      // By the later subagent sweep its already-settled handles can be gone;
+      // the exact cancelled child runs above are the behavioral evidence.
+      assert.deepEqual(
+        run?.run.cancellationEvidence.map((evidence) => evidence.target),
+        ["model", "tool", "task", "subagent", "interaction"],
+      );
+      assert.ok(
+        run?.run.cancellationEvidence.every(
+          (evidence) =>
+            evidence.status === "confirmed" ||
+            evidence.status === "not_running",
+        ),
+        JSON.stringify(run?.run.cancellationEvidence),
       );
     } finally {
       registration.unregister();
@@ -396,11 +533,16 @@ function hasErrorCode(expected: string): (error: unknown) => boolean {
     );
 }
 
-async function waitUntil(predicate: () => boolean): Promise<void> {
+async function waitUntil(
+  predicate: () => boolean | Promise<boolean>,
+  diagnostic: () => Promise<string>,
+): Promise<void> {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  throw new Error("Timed out waiting for explore children");
+  throw new Error(
+    `Timed out waiting for explore children: ${await diagnostic()}`,
+  );
 }

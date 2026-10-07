@@ -1,9 +1,10 @@
 <script lang="ts">
+import { queueItemLabel } from "../state/agent-queue-presentation";
 import ArrowUpToLine from "@lucide/svelte/icons/arrow-up-to-line";
 import ListPlus from "@lucide/svelte/icons/list-plus";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import type { QueuedPromptRecord } from "../state/tool-types";
+import type { AgentQueueItem } from "../state/tool-types";
 import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -11,10 +12,10 @@ import UserMessageContent from "./UserMessageContent.svelte";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 type Props = {
-  prompt: QueuedPromptRecord;
-  onForcePush?: (prompt: QueuedPromptRecord) => void | Promise<void>;
-  onDiscard?: (prompt: QueuedPromptRecord) => void | Promise<void>;
-  onMoveToComposer?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  prompt: AgentQueueItem;
+  onForcePush?: (prompt: AgentQueueItem) => void | Promise<void>;
+  onDiscard?: (prompt: AgentQueueItem) => void | Promise<void>;
+  onMoveToComposer?: (prompt: AgentQueueItem) => void | Promise<void>;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
@@ -41,12 +42,14 @@ async function runAction(action: "force-push" | "edit" | "discard") {
   }
 }
 
+const editable = $derived(!("role" in prompt) || prompt.role === "user");
+const label = $derived(queueItemLabel(prompt));
 const menuTarget = $derived({
   kind: "queued_prompt" as const,
   prompt,
   busy: Boolean(pendingAction),
   canForcePush: Boolean(onForcePush),
-  canEdit: Boolean(onMoveToComposer),
+  canEdit: editable && Boolean(onMoveToComposer),
   canDiscard: Boolean(onDiscard),
   onForcePush: () => void runAction("force-push"),
   onEdit: () => void runAction("edit"),
@@ -59,15 +62,28 @@ const menuTarget = $derived({
   menu={transcriptMenu}
   triggerClass="block select-text"
 >
-  <article class="queued-prompt-card" aria-label="Queued user prompt">
+  <article
+    class="ml-auto w-fit max-w-full rounded-lg border border-dashed bg-card p-3 text-muted-foreground"
+    data-input-id={prompt.id}
+    aria-label={"role" in prompt && prompt.role === "system"
+      ? "Queued system input"
+      : "Queued user prompt"}
+  >
     <div
-      class="queued-badge"
-      title="This prompt is queued for the next agent turn"
+      class="flex flex-wrap items-center gap-1 pb-2 text-xs font-semibold"
+      title={`${prompt.id} · ${label}`}
     >
       <ListPlus size={13} strokeWidth={2.2} aria-hidden="true" />
-      <span>Queued</span>
+      <span>{label}</span>
     </div>
-    <div class="queued-actions" role="group" aria-label="Queued prompt actions">
+    <div class="min-w-0 text-sm text-foreground">
+      <UserMessageContent text={prompt.text} />
+    </div>
+    <div
+      class="flex justify-end gap-1 pt-2"
+      role="group"
+      aria-label="Queued prompt actions"
+    >
       <Tooltip.Provider delayDuration={300} disableHoverableContent>
         <Tooltip.Root>
           <Tooltip.Trigger>
@@ -95,7 +111,9 @@ const menuTarget = $derived({
                 {...props}
                 variant="ghost"
                 size="icon-xs"
-                disabled={!onMoveToComposer || Boolean(pendingAction)}
+                disabled={!editable ||
+                  !onMoveToComposer ||
+                  Boolean(pendingAction)}
                 ariaLabel="Cancel and edit queued prompt"
                 onclick={() => void runAction("edit")}
               >
@@ -124,81 +142,5 @@ const menuTarget = $derived({
         </Tooltip.Root>
       </Tooltip.Provider>
     </div>
-    <div class="queued-content">
-      <UserMessageContent text={prompt.text} />
-    </div>
   </article>
 </TranscriptContextMenu>
-
-<style>
-.queued-prompt-card {
-  position: relative;
-  width: fit-content;
-  max-width: 70%;
-  margin-left: auto;
-  border: 1px dashed
-    color-mix(in oklab, var(--muted-foreground) 28%, var(--border));
-  border-radius: var(--radius-lg);
-  border-bottom-right-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--muted) 72%, var(--card));
-  padding: 0.55rem 0.8rem 0.65rem;
-  color: var(--muted-foreground);
-}
-
-.queued-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.4rem;
-  border: 1px solid
-    color-mix(in oklab, var(--muted-foreground) 18%, var(--border));
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--card) 72%, var(--muted));
-  padding: 0.14rem 0.42rem;
-  color: var(--muted-foreground);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.queued-actions {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
-  display: flex;
-  gap: 0.1rem;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(0.12rem);
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease;
-}
-
-.queued-prompt-card:hover .queued-actions,
-.queued-prompt-card:focus-within .queued-actions {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
-}
-
-.queued-content {
-  min-width: 0;
-  color: color-mix(in oklab, var(--foreground) 78%, var(--muted-foreground));
-  font-size: var(--text-sm);
-}
-
-@container (max-width: 40rem) {
-  .queued-prompt-card {
-    max-width: 88%;
-  }
-}
-
-@media (hover: none) {
-  .queued-actions {
-    opacity: 1;
-    pointer-events: auto;
-    transform: none;
-  }
-}
-</style>

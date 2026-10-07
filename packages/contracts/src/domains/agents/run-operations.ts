@@ -13,6 +13,7 @@ const runScopeSchema = z.object({
 
 const promptContentSchema = z.object({
   text: z.string().min(1),
+  idempotencyKey: z.string().min(1).max(256).optional(),
   images: z.array(promptImageSchema).max(16).optional(),
 });
 

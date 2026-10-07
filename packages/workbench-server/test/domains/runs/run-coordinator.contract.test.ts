@@ -2308,3 +2308,181 @@ test("durable retry awaits execution and sequential redelivery joins it", async 
     "completed",
   );
 });
+
+test("agent admission cannot be bypassed with a different scope or shared conversation", async () => {
+  const harness = fixture();
+  const first = await start(harness.coordinator, "custom:first");
+  await assert.rejects(
+    start(harness.coordinator, "custom:second"),
+    RunConflictError,
+  );
+  const sibling = await harness.coordinator.start({
+    conversationId: "conv_a",
+    agentId: "agent_b",
+    projectId: "proj_a",
+    prompt: "sibling",
+    scopeId: "custom:first",
+  });
+  assert.notEqual(sibling.runId, first.runId);
+  harness.finishExecution({ status: "completed" });
+  await harness.coordinator.settled();
+});
+
+test("replacement admission waits for cancelled agent execution, not unrelated agents", async () => {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const harness = fixture({
+    execute: async (attempt) => {
+      if (attempt === 1) await gate;
+      return { status: "completed" };
+    },
+  });
+  const first = await start(harness.coordinator);
+  await harness.coordinator.cancel(first.runId);
+  let admitted = false;
+  const replacement = start(harness.coordinator).then((run) => {
+    admitted = true;
+    return run;
+  });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(admitted, false);
+  await harness.coordinator.start({
+    conversationId: "conv_a",
+    agentId: "agent_b",
+    projectId: "proj_a",
+    prompt: "independent",
+  });
+  release();
+  assert.notEqual((await replacement).runId, first.runId);
+  await harness.coordinator.settled();
+});
+
+test("effective turn configuration is durable execution history, idempotent and attempt fenced", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  const configuration = {
+    mode: "coding" as const,
+    permissionLevel: "read_only" as const,
+    permissionRuleSetId: "read_only",
+    projectDir: "/tmp",
+    workspaceScope: { roots: ["/tmp"] },
+    thinkingLevel: "off" as const,
+    tools: ["read"],
+    skills: [],
+    instructions: "",
+    systemPrompt: "resolved prompt",
+    model: { provider: "nerve-faux", modelId: "faux-fast" },
+  };
+  const turn = {
+    agentId: run.agentId,
+    runId: run.runId,
+    attemptId: run.executionId,
+    turnId: "turn_effective",
+    configurationRevision: 1,
+    configurationProvenance: "resolved" as const,
+    acceptedConfiguration: configuration,
+    configuration,
+  };
+  await harness.sinks[0]!.recordEffectiveTurnConfiguration(turn);
+  await harness.sinks[0]!.recordEffectiveTurnConfiguration(turn);
+  const state = await harness.coordinator.get(run.runId);
+  const prepared = state?.transitions.filter(
+    (transition) => transition.kind === "turn_prepared",
+  );
+  assert.equal(prepared?.length, 1);
+  assert.equal(
+    prepared?.[0]?.execution?.effectiveTurnConfigurations?.[0]
+      ?.configurationProvenance,
+    "resolved",
+  );
+  await assert.rejects(
+    harness.sinks[0]!.recordEffectiveTurnConfiguration({
+      ...turn,
+      turnId: "turn_stale",
+      attemptId: "exec_stale",
+    }),
+  );
+  harness.finishExecution({ status: "completed" });
+  await harness.coordinator.settled();
+});
+
+test("mixed approval/question checkpoints release original effects only after both member kinds resolve", async () => {
+  for (const questionFirst of [true, false]) {
+    const harness = fixture({ durableContinuation: true });
+    const run = await start(harness.coordinator);
+    const checkpoint = suspensionCheckpoint();
+    const batchToolCallIds = ["tool_write", "tool_question"];
+    await harness.coordinator.waitMany(run.runId, [
+      {
+        kind: "approval",
+        interactionId: "mixed_approval",
+        toolCallId: "tool_write",
+        interactionOrdinal: 0,
+        toolCallRevision: 1,
+        batchToolCallIds,
+        checkpoint,
+      },
+      {
+        kind: "user_input",
+        interactionId: "mixed_question",
+        toolCallId: "tool_question",
+        interactionOrdinal: 0,
+        toolCallRevision: 1,
+        batchToolCallIds,
+        checkpoint,
+      },
+    ]);
+    const before = harness.unitOfWork.lifecycleWork.length;
+    const approve = () =>
+      harness.coordinator.recordApprovalDecision(run.runId, {
+        toolCallId: "tool_write",
+        resolutionRequestId: "mixed_allow",
+        resolution: { decision: "allow" },
+        releaseWork: true,
+      });
+    const answer = () =>
+      harness.coordinator.resolveInteraction(run.runId, {
+        interactionId: "mixed_question",
+        resolutionRequestId: "mixed_answer",
+        resolution: { answer: "Original answer" },
+      });
+    if (questionFirst) await answer();
+    else await approve();
+    assert.equal(
+      (await harness.coordinator.get(run.runId))?.run.status,
+      "waiting",
+    );
+    assert.equal(harness.unitOfWork.lifecycleWork.length, before);
+    await assert.rejects(harness.coordinator.continue(run.runId));
+    if (questionFirst) await approve();
+    else await answer();
+    const released = await harness.coordinator.get(run.runId);
+    assert.equal(released?.run.status, "executing_tools");
+    assert.ok(
+      released?.interactions.every((member) => member.status === "resolved"),
+    );
+    assert.deepEqual(
+      harness.unitOfWork.lifecycleWork
+        .slice(before)
+        .map((work) => [work.kind, work.proposalId]),
+      [["execute_tool", "tool_write"]],
+    );
+    await assert.rejects(harness.coordinator.continue(run.runId));
+    await approve();
+    await answer();
+    assert.equal(harness.unitOfWork.lifecycleWork.length, before + 1);
+    assert.equal(
+      await harness.coordinator.settleApprovalCheckpoint(
+        run.runId,
+        released!.run.lastCheckpointId!,
+      ),
+      true,
+    );
+    assert.equal(
+      harness.unitOfWork.lifecycleWork.at(-1)?.kind,
+      "continue_model",
+    );
+  }
+});

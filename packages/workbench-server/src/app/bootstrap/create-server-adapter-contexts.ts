@@ -96,6 +96,8 @@ export function createServerAdapterContexts(
       runReconciliation: services.runReconciliation,
     },
     agents: {
+      agentInterventions: services.agentInterventions,
+      asyncSubagents: services.asyncSubagents,
       agentLifecycle: services.agentLifecycle,
       subagentTranscripts: services.subagentTranscripts,
       tools: services.tools,

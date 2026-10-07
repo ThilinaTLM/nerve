@@ -77,6 +77,8 @@ export interface ShouldStopAfterTurnContext {
 
 /** Replacement runtime state used by the agent loop before starting another provider request. */
 export interface AgentLoopTurnUpdate {
+  /** Durable input inserted at this boundary requires another request, even after a final response. */
+  continue?: boolean;
   /** Context for the next provider request. */
   context?: AgentContext;
   /** Model for the next provider request. */

@@ -74,6 +74,7 @@ export class AutoCompactionRunner {
   }
 
   async maybeCompactBeforePrompt(input: {
+    actor?: AgentRecord;
     conversationId: string;
     agentId: string;
     runId: string;
@@ -82,12 +83,19 @@ export class AutoCompactionRunner {
     conversation: Conversation;
     signal?: AbortSignal;
   }): Promise<CompactionOutcome> {
-    const promptTokens = estimateTokens({
-      role: "user",
-      content: [{ type: "text", text: input.text }, ...(input.images ?? [])],
-      timestamp: Date.now(),
-    });
+    const promptTokens =
+      input.text || input.images?.length
+        ? estimateTokens({
+            role: "user",
+            content: [
+              { type: "text", text: input.text },
+              ...(input.images ?? []),
+            ],
+            timestamp: Date.now(),
+          })
+        : 0;
     return this.maybeCompact({
+      actor: input.actor,
       conversationId: input.conversationId,
       agentId: input.agentId,
       runId: input.runId,
@@ -129,6 +137,7 @@ export class AutoCompactionRunner {
   }
 
   private async maybeCompact(input: {
+    actor?: AgentRecord;
     conversationId: string;
     agentId: string;
     runId: string;
@@ -138,7 +147,9 @@ export class AutoCompactionRunner {
     signal?: AbortSignal;
   }): Promise<CompactionOutcome> {
     const conversation = this.deps.state.getConversation(input.conversationId);
-    const agent = this.resolveAgent(conversation.activeAgentId, input.agentId);
+    const agent =
+      input.actor ??
+      this.resolveAgent(conversation.activeAgentId, input.agentId);
     const effectiveSettings = agent
       ? await this.deps.capabilities.settings(
           agent.projectId,

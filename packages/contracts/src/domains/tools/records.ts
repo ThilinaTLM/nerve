@@ -1,3 +1,4 @@
+import { agentConfigurationSchema } from "../agents/agent.js";
 import { z } from "zod";
 import {
   durablePermissionSchema,
@@ -309,6 +310,96 @@ export type ToolResultPayloadReference = z.infer<
   typeof toolResultPayloadReferenceSchema
 >;
 
+/** Ordinary turn authority; physical roots are pinned before model invocation. */
+const capturedToolPathSchema = z.object({
+  path: z.string().min(1),
+  physicalPath: z.string().min(1),
+});
+export const toolAuthoritySnapshotSchema = z
+  .object({
+    version: z.literal(1),
+    agentId: z.string().startsWith("agent_"),
+    configurationRevision: z.number().int().positive().optional(),
+    configurationProvenance: z
+      .enum(["accepted", "resolved", "legacy_scope_only"])
+      .optional(),
+    configuration: agentConfigurationSchema.optional(),
+    projectDir: z.string().min(1),
+    mode: z.enum(["coding", "planning"]),
+    workspaceScope: z.object({
+      roots: z.array(z.string().min(1)).min(1),
+      readonly: z.boolean().optional(),
+    }),
+    scopeRestricted: z.boolean(),
+    workspaceRoots: z.array(capturedToolPathSchema).min(1),
+    managedReadRoot: capturedToolPathSchema,
+    policyRoots: z.array(
+      capturedToolPathSchema.extend({
+        name: z.enum(["project", "nerve_home", "nerve_data", "plans"]),
+      }),
+    ),
+    cwd: capturedToolPathSchema.optional(),
+    targetPaths: z.array(capturedToolPathSchema).default([]),
+  })
+  .superRefine((snapshot, context) => {
+    const configuration = snapshot.configuration;
+    if (!configuration) {
+      if (
+        snapshot.configurationProvenance === "accepted" ||
+        snapshot.configurationProvenance === "resolved"
+      ) {
+        context.addIssue({
+          code: "custom",
+          path: ["configuration"],
+          message:
+            "Full configuration is required for captured configuration provenance.",
+        });
+      }
+      return;
+    }
+    if (
+      !snapshot.configurationRevision ||
+      !snapshot.configurationProvenance ||
+      snapshot.configurationProvenance === "legacy_scope_only"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["configurationProvenance"],
+        message:
+          "Full tool configuration requires its originating revision and provenance.",
+      });
+    }
+    if (
+      configuration.projectDir !== snapshot.projectDir ||
+      configuration.mode !== snapshot.mode ||
+      JSON.stringify(configuration.workspaceScope) !==
+        JSON.stringify(snapshot.workspaceScope)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["configuration"],
+        message:
+          "Captured configuration must match its pinned workspace authority.",
+      });
+    }
+    if (
+      snapshot.configurationProvenance === "resolved" &&
+      (!configuration.model ||
+        !configuration.permissionRuleSetId ||
+        typeof configuration.systemPrompt !== "string" ||
+        !Array.isArray(configuration.tools) ||
+        !Array.isArray(configuration.skills))
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["configuration"],
+        message:
+          "Resolved tool configuration must contain concrete model, permission, prompt, tools and skills selections.",
+      });
+    }
+  });
+export type ToolAuthoritySnapshot = z.infer<typeof toolAuthoritySnapshotSchema>;
+
 const toolCallRecordBaseSchema = z.object({
   id: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
@@ -331,6 +422,7 @@ const toolCallRecordBaseSchema = z.object({
   supervision: durableToolSupervisionSchema.optional(),
   /** Immutable generic permission evidence captured when the call was drafted. */
   permissionEvaluation: permissionEvaluationResultSchema.optional(),
+  authoritySnapshot: toolAuthoritySnapshotSchema.optional(),
   execution: durableToolExecutionSchema.optional(),
   revision: z.number().int().positive().safe(),
   attempt: z.number().int().nonnegative().safe(),
@@ -351,6 +443,28 @@ const toolCallRecordBaseSchema = z.object({
 
 export const toolCallRecordSchema = toolCallRecordBaseSchema.superRefine(
   (record, context) => {
+    if (
+      record.authoritySnapshot &&
+      (!record.authoritySnapshot.cwd ||
+        record.authoritySnapshot.cwd.path !== record.cwd)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["authoritySnapshot", "cwd"],
+        message:
+          "Persisted tool authority must bind the exact originating working directory.",
+      });
+    }
+    if (
+      record.authoritySnapshot &&
+      record.authoritySnapshot.agentId !== record.agentId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["authoritySnapshot", "agentId"],
+        message: "Tool authority must belong to the originating agent.",
+      });
+    }
     if (
       record.resultPayload &&
       (record.resultPayload.conversationId !== record.conversationId ||
@@ -446,6 +560,7 @@ export type ToolCallPreviewOverflow = z.infer<
 export const toolCallTranscriptRecordSchema = toolCallRecordBaseSchema
   .omit({
     args: true,
+    authoritySnapshot: true,
     result: true,
     resultPreview: true,
     resultPayload: true,

@@ -29,7 +29,9 @@ const queue = new AgentConfigMutationQueue({
   onConfirmed: (agentId, agent) => {
     if (selection.agentId !== agentId) return;
     // Reconcile the composer to the server-clamped values.
-    if (agent.model) conversationState.selectedModelKey = modelKey(agent.model);
+    conversationState.selectedModelKey = agent.model
+      ? modelKey(agent.model)
+      : "";
     conversationState.selectedThinkingLevel = agent.thinkingLevel;
     conversationState.selectedMode = agent.mode;
     conversationState.selectedPermissionLevel = agent.permissionLevel;
@@ -42,9 +44,9 @@ const queue = new AgentConfigMutationQueue({
     );
     if (confirmed && selection.agentId === agentId) {
       // Roll back to the latest confirmed agent record.
-      if (confirmed.model) {
-        conversationState.selectedModelKey = modelKey(confirmed.model);
-      }
+      conversationState.selectedModelKey = confirmed.model
+        ? modelKey(confirmed.model)
+        : "";
       conversationState.selectedThinkingLevel = confirmed.thinkingLevel;
       conversationState.selectedMode = confirmed.mode;
       conversationState.selectedPermissionLevel = confirmed.permissionLevel;

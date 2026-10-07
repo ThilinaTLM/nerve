@@ -287,17 +287,20 @@ test("invalid custom selection falls back to Baseline without overlays", async (
   assert.match(resolved.diagnostics.join("\n"), /missing, disabled, malformed/);
 });
 
-test("Explore children receive only fixed Read only without overlays", async () => {
+test("child parentage does not replace configured permission selection or overlays", async () => {
   const { service, agent } = await setup();
   await service.saveRule("user", "autonomous", allowWrite);
   agent.parentAgentId = "agent_parent";
   agent.permissionRuleSetId = "autonomous";
   const resolved = await service.resolve(agent);
-  assert.deepEqual(resolved.policy.activeRuleSetIds, ["read_only"]);
-  assert.equal(resolved.policy.subagent, true);
+  assert.deepEqual(resolved.policy.activeRuleSetIds, [
+    "baseline",
+    "autonomous",
+  ]);
+  assert.equal(resolved.policy.subagent, false);
   assert.equal(
     resolved.policy.rules.some((entry) => entry.origin === "user"),
-    false,
+    true,
   );
 });
 
@@ -317,5 +320,43 @@ test("one invalid rule causes the complete overlay to be ignored", async () => {
   );
   assert.ok(
     resolved.policy.ignoredOverlays.some((item) => item.origin === "user"),
+  );
+});
+
+test("read-only planning children resolve a supported planning policy without authority escalation or fallback", async () => {
+  const { service, agent } = await setup();
+  agent.mode = "planning";
+  agent.parentAgentId = "agent_parent";
+  agent.permissionLevel = "read_only";
+  agent.permissionRuleSetId = "read_only";
+  agent.readOnlyCeiling = true;
+  agent.workspaceScope.readonly = true;
+  const resolved = await service.resolve(agent);
+  assert.equal(resolved.fallback, false);
+  assert.equal(resolved.selectedRuleSetId, "planning");
+  const { evaluateWorkbenchToolPermission } =
+    await import("../../../src/domains/tools/permission/index.js");
+  const context = {
+    dataDir: resolved.roots.nerve_home,
+    policy: resolved.policy,
+    roots: resolved.roots,
+  };
+  assert.equal(
+    evaluateWorkbenchToolPermission(
+      agent,
+      "read",
+      { path: "file.txt" },
+      context,
+    ).decision,
+    "allow",
+  );
+  assert.equal(
+    evaluateWorkbenchToolPermission(
+      agent,
+      "write",
+      { path: "file.txt", content: "x" },
+      context,
+    ).decision,
+    "deny",
   );
 });

@@ -129,4 +129,13 @@ export const STORAGE_MIGRATION_REGISTRY_METADATA = [
     stage: "released",
     acceptedChecksums: [],
   },
+  {
+    id: "0011-agent-intervention-obligations",
+    ordinal: 11,
+    kind: "schema",
+    checksum:
+      "da3a1d582f647a3eec9bdbaaea2f47730e147db3cc896db3adf863241bc759af",
+    stage: "final",
+    acceptedChecksums: [],
+  },
 ] as const satisfies readonly StorageMigrationRegistryMetadata[];

@@ -256,8 +256,10 @@ export class ConversationLifecycleService {
       .filter(
         (entry) =>
           !entry.agentId ||
-          this.state.agents.get(entry.agentId)?.executionKind !==
-            "async_developer",
+          resolveCompactionOwner(
+            conversationId,
+            this.state.agents.get(entry.agentId),
+          ).ownerAgentId === undefined,
       );
     return this.entryRepository.getConversationTree(
       new Map([[conversationId, entries]]),
@@ -334,12 +336,12 @@ export class ConversationLifecycleService {
           options.guardedModelMessage
             ? {
                 message: options.guardedModelMessage,
-                ownerAgentId:
-                  entry.agentId &&
-                  this.state.agents.get(entry.agentId)?.executionKind ===
-                    "async_developer"
-                    ? entry.agentId
+                ownerAgentId: resolveCompactionOwner(
+                  entry.conversationId,
+                  entry.agentId
+                    ? this.state.agents.get(entry.agentId)
                     : undefined,
+                ).ownerAgentId,
               }
             : undefined,
         )
@@ -357,8 +359,10 @@ export class ConversationLifecycleService {
     );
     this.pruneConversationEntries(input.conversationId);
     if (
-      entry.agentId &&
-      this.state.agents.get(entry.agentId)?.executionKind === "async_developer"
+      resolveCompactionOwner(
+        entry.conversationId,
+        entry.agentId ? this.state.agents.get(entry.agentId) : undefined,
+      ).ownerAgentId !== undefined
     ) {
       return entry;
     }

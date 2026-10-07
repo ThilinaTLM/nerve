@@ -1,9 +1,10 @@
 import type {
   ApprovalWithToolCall,
   PlanReviewRecord,
-  QueuedPromptRecord,
+  AgentQueueItem,
   UserQuestionRecord,
 } from "../state/tool-types";
+import { queueItemRevision } from "../state/agent-queue-presentation";
 import type { TranscriptDisplayNode } from "./transcript-presentation";
 import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
 import { toolLifecycleSpec } from "../tools/lifecycle/registry";
@@ -18,7 +19,7 @@ export type TimelineRowItem = {
 export type TranscriptRowItem =
   | TimelineRowItem
   | { kind: "activity"; key: string }
-  | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
+  | { kind: "queued"; key: string; prompt: AgentQueueItem };
 
 export function uniqueRowKey(key: string, seen: Map<string, number>): string {
   const count = seen.get(key) ?? 0;
@@ -57,7 +58,7 @@ export function measurementVersionForRow(
 ): string {
   if (row.kind === "activity") return "activity";
   if (row.kind === "queued") {
-    return `${row.prompt.status}:${row.prompt.updatedAt}`;
+    return queueItemRevision(row.prompt);
   }
 
   const node = row.node;

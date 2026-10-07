@@ -71,6 +71,7 @@ type Props = {
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   capabilityConfiguration?: CapabilityConfiguration;
+  capabilityScopeLabel?: "agent" | "conversation";
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
@@ -117,6 +118,7 @@ let {
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   capabilityConfiguration,
+  capabilityScopeLabel,
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
@@ -299,6 +301,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 
     <ComposerCapabilitiesPopover
       configuration={capabilityConfiguration}
+      scopeLabel={capabilityScopeLabel}
       skills={capabilitySkills}
       loading={capabilityLoading}
       error={capabilityError}

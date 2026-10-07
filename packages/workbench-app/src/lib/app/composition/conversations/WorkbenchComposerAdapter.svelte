@@ -1,4 +1,13 @@
 <script lang="ts">
+import { protocolRequest } from "@nervekit/protocol/adapters";
+import type { UpdateAgentRequest } from "@nervekit/contracts/agents";
+import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
+import { upsertAgentRecordFresh } from "$lib/application/workspace/entity-reducers";
+import {
+  agentCapabilityConfiguration,
+  agentCapabilityPatch,
+  selectedAgentSkillNames,
+} from "./agent-capability-configuration";
 import { onDestroy, untrack } from "svelte";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -47,6 +56,7 @@ let {
   text = "",
   activeProject,
   activeConversation,
+  activeAgent,
   activePendingConversation,
   pendingConversationActive = false,
   approvals = [],
@@ -114,12 +124,50 @@ const capabilityController = new ComposerCapabilityController({
     capabilityState = state;
   },
 });
-const capabilityConfiguration = $derived(capabilityState.configuration);
-const capabilitySkills = $derived(capabilityState.skills);
-const capabilityLoading = $derived(
-  capabilityState.loading || capabilityState.mutating,
+const capabilityAgent = $derived(activeAgent);
+let agentCapabilityMutations = $state<Record<string, boolean>>({});
+let agentCapabilityErrors = $state<Record<string, string | undefined>>({});
+const agentCapabilityMutating = $derived(
+  capabilityAgent
+    ? (agentCapabilityMutations[capabilityAgent.id] ?? false)
+    : false,
 );
-const capabilityError = $derived(capabilityState.error);
+const agentCapabilityError = $derived(
+  capabilityAgent ? agentCapabilityErrors[capabilityAgent.id] : undefined,
+);
+const capabilityConfiguration = $derived(
+  capabilityAgent && capabilityState.configuration
+    ? agentCapabilityConfiguration(
+        capabilityState.configuration,
+        capabilityAgent,
+        capabilityState.skills,
+      )
+    : capabilityState.configuration,
+);
+const capabilitySkills = $derived.by(() => {
+  if (!capabilityAgent) return capabilityState.skills;
+  if (capabilityAgent.skills == null)
+    return capabilityState.skills.map((skill) => ({
+      ...skill,
+      overridden: false,
+      matchesInherited: true,
+    }));
+  const selected = new Set(
+    selectedAgentSkillNames(capabilityAgent, capabilityState.skills),
+  );
+  return capabilityState.skills.map((skill) => ({
+    ...skill,
+    enabled: selected.has(skill.name),
+    overridden: capabilityAgent.skills != null,
+    matchesInherited: selected.has(skill.name) === skill.enabled,
+  }));
+});
+const capabilityLoading = $derived(
+  capabilityState.loading ||
+    capabilityState.mutating ||
+    agentCapabilityMutating,
+);
+const capabilityError = $derived(agentCapabilityError ?? capabilityState.error);
 let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
 /** Tool group whose conversation-level settings dialog is open. */
 let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
@@ -193,12 +241,61 @@ $effect(() => {
   };
 });
 
-function patchCapabilities(patch: CapabilityPatch): Promise<void> {
-  return capabilityController.patch(patch);
+async function configureAgentCapabilities(
+  patch: UpdateAgentRequest,
+  target = capabilityAgent,
+): Promise<void> {
+  if (!target || agentCapabilityMutations[target.id]) return;
+  agentCapabilityMutations[target.id] = true;
+  agentCapabilityErrors[target.id] = undefined;
+  try {
+    await flushAgentConfigChanges(target.id);
+    const { result } = await protocolRequest("agent.configure", {
+      agentId: target.id,
+      ...patch,
+    });
+    if ("agent" in result) upsertAgentRecordFresh(result.agent);
+  } catch (caught) {
+    agentCapabilityErrors[target.id] =
+      caught instanceof Error ? caught.message : String(caught);
+  } finally {
+    agentCapabilityMutations[target.id] = false;
+  }
 }
-
+async function patchCapabilities(patch: CapabilityPatch): Promise<void> {
+  const target = capabilityAgent;
+  if (!target) return capabilityController.patch(patch);
+  const inheritedSkills = capabilityState.skills;
+  const defaults = capabilityState.configuration;
+  try {
+    const sharedTools = Object.fromEntries(
+      Object.entries(patch.tools ?? {}).filter(
+        ([, edit]) =>
+          edit?.enabled === undefined && edit?.profileId !== undefined,
+      ),
+    );
+    if (Object.keys(sharedTools).length || patch.toolSettings)
+      await capabilityController.patch({
+        tools: sharedTools,
+        ...(patch.toolSettings ? { toolSettings: patch.toolSettings } : {}),
+      });
+    const selectionPatch = agentCapabilityPatch(
+      target,
+      patch,
+      inheritedSkills,
+      defaults,
+    );
+    if (Object.keys(selectionPatch).length)
+      await configureAgentCapabilities(selectionPatch, target);
+  } catch (caught) {
+    agentCapabilityErrors[target.id] =
+      caught instanceof Error ? caught.message : String(caught);
+  }
+}
 function resetCapabilities(): Promise<void> {
-  return capabilityController.reset();
+  return capabilityAgent
+    ? configureAgentCapabilities({ tools: null, skills: null })
+    : capabilityController.reset();
 }
 
 const micShortcut = getShortcutLabel("composer.toggleMic");
@@ -506,6 +603,7 @@ function handleMicContextMenu(event: MouseEvent) {
     fileCompletions,
     referenceCompletions,
     capabilityConfiguration,
+    capabilityScopeLabel: capabilityAgent ? "agent" : "conversation",
     capabilitySkills,
     capabilityLoading,
     capabilityError,
@@ -598,7 +696,7 @@ function handleMicContextMenu(event: MouseEvent) {
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
 
 <ConversationToolSettingsDialog
-  configuration={capabilityConfiguration}
+  configuration={capabilityState.configuration}
   group={configuringToolGroup}
   profileHealth={capabilityProfileHealth}
   onPatch={(patch) => void patchCapabilities(patch)}

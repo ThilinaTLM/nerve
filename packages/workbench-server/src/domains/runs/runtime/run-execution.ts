@@ -1,5 +1,8 @@
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { PromptImage } from "@nervekit/contracts/agents";
+import type {
+  PromptImage,
+  EffectiveTurnConfiguration,
+} from "@nervekit/contracts/agents";
 import type {
   RunCheckpointRecord,
   RunFailureRecord,
@@ -18,6 +21,9 @@ import type { CheckpointCommand, WaitCommand } from "./run-transitions.js";
  * coordinator's revision-checked unit of work.
  */
 export interface RunExecutionSink {
+  recordEffectiveTurnConfiguration(
+    configuration: EffectiveTurnConfiguration,
+  ): Promise<void>;
   /** Append committed conversation entries produced by the execution. */
   appendEntries(entries: readonly ConversationEntry[]): Promise<void>;
   /** Upsert tool-call transcript revisions for the run. */
@@ -63,6 +69,7 @@ export interface RunExecution {
     prompt?: string;
     images?: PromptImage[];
     signal: AbortSignal;
+    withProviderDispatchFence?<T>(action: () => Promise<T>): Promise<T>;
   }): Promise<RunExecutionOutcome>;
 }
 

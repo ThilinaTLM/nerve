@@ -12,13 +12,8 @@ import type {
   ConversationViewState,
   PendingConversationState,
 } from "$lib/features/conversations/state/conversation-state.svelte";
+import { flushAgentConfigChanges } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import {
-  flushAgentConfigChanges,
-  queueAgentConfigChange,
-} from "$lib/features/conversations/state/agent-config-mutations.svelte";
-import type { AgentConfigPatch } from "$lib/features/conversations/state/agent-config-mutation-queue";
-import {
-  agentNeedsComposerUpdate,
   currentActiveAgent,
   selectedModel,
   selectedThinkingLevel,
@@ -36,6 +31,10 @@ import {
 import { reloadWorkspace } from "$lib/application/workspace/workspace-commands";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { executeComposerSlashCommand } from "./composer-slash-command";
+import {
+  selectedConversationView,
+  refreshAgentView,
+} from "./agent-selection.svelte";
 import { optimisticUserMessage } from "./conversation-optimistic";
 import {
   beginOptimisticPrompt,
@@ -65,14 +64,14 @@ export function setActiveComposerText(value: string) {
     composerDraft.text = value;
     return;
   }
-  ensureConversationView(selection.conversationId).composerText = value;
+  selectedConversationView(selection.conversationId).composerText = value;
 }
 
 function clearActiveComposerText(): void {
   const pending = activePendingConversation();
   if (pending) pending.composerText = "";
   if (selection.conversationId) {
-    ensureConversationView(selection.conversationId).composerText = "";
+    selectedConversationView(selection.conversationId).composerText = "";
   }
   composerDraft.text = "";
 }
@@ -82,36 +81,8 @@ export async function ensureAgent(): Promise<string> {
   if (agent) {
     const agentId = agent.id;
     selection.agentId = agentId;
-    // First flush an already-published local intent. Only compute a fallback
-    // delta afterward, avoiding a redundant duplicate configuration request
-    // based on the still-stale authoritative agent record.
-    await flushAgentConfigChanges(agentId);
-    const {
-      desired,
-      thinkingLevel,
-      needsModel,
-      needsMode,
-      needsPermission,
-      needsPermissionRuleSet,
-      desiredPermissionRuleSetId,
-      legacyPermissionLevel,
-      needsThinking,
-    } = agentNeedsComposerUpdate(agent);
-    const patch: AgentConfigPatch = {
-      ...(needsModel && desired ? { model: desired } : {}),
-      ...(needsThinking ? { thinkingLevel } : {}),
-      ...(needsMode ? { mode: conversationState.selectedMode } : {}),
-      ...(needsPermission && legacyPermissionLevel
-        ? { permissionLevel: legacyPermissionLevel }
-        : {}),
-      ...(needsPermissionRuleSet
-        ? { permissionRuleSetId: desiredPermissionRuleSetId }
-        : {}),
-    };
-    // Route any remaining delta through the shared per-agent mutation queue
-    // and flush it, so the visibly selected configuration applies to this
-    // prompt without a competing full configuration request.
-    if (Object.keys(patch).length > 0) queueAgentConfigChange(agentId, patch);
+    // Only explicit per-agent composer edits configure an existing identity.
+    // Ambient/global display defaults must not become a sibling's settings.
     await flushAgentConfigChanges(agentId);
     return agentId;
   }
@@ -153,6 +124,7 @@ function notifyPromptError(title: string, message: string): void {
 
 type SendPromptTextOptions = {
   clearComposer?: boolean;
+  idempotencyKey?: string;
 };
 
 async function sendPendingPrompt(
@@ -161,6 +133,7 @@ async function sendPendingPrompt(
   options: SendPromptTextOptions = {},
 ): Promise<void> {
   const clearComposer = options.clearComposer ?? true;
+  const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
 
   if (!hasUsableModel()) {
     void openSettingsPane();
@@ -240,8 +213,8 @@ async function sendPendingPrompt(
       start: async () => {
         await protocolRequest(
           "run.start",
-          { agentId: agent.id, text },
-          { idempotencyKey: crypto.randomUUID() },
+          { agentId: agent.id, text, idempotencyKey },
+          { idempotencyKey },
         );
       },
     });
@@ -267,14 +240,15 @@ export async function sendPromptText(
   options: SendPromptTextOptions = {},
 ) {
   const clearComposer = options.clearComposer ?? true;
+  const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
   const pending = activePendingConversation();
   const view = selection.conversationId
-    ? ensureConversationView(selection.conversationId)
+    ? selectedConversationView(selection.conversationId)
     : undefined;
   const text = rawText.trim();
   if (!text || pending?.sending) return;
   if (pending) {
-    await sendPendingPrompt(pending, text, { clearComposer });
+    await sendPendingPrompt(pending, text, { clearComposer, idempotencyKey });
     return;
   }
   if (!selection.projectId || !selection.conversationId || !view) {
@@ -302,11 +276,13 @@ export async function sendPromptText(
     );
     return;
   }
+  const targetAgent = currentActiveAgent();
+  const paused = targetAgent?.activationState === "paused";
   const queueWhileRunning = Boolean(view.sending);
   let optimisticTransaction: OptimisticPromptTransaction | undefined;
   view.error = undefined;
   workspaceState.error = undefined;
-  if (!queueWhileRunning) {
+  if (!queueWhileRunning && !paused) {
     view.sending = true;
   }
   try {
@@ -315,15 +291,9 @@ export async function sendPromptText(
       view.composerText = "";
       composerDraft.text = "";
     }
-    if (queueWhileRunning) {
-      await protocolRequest(
-        "run.steer",
-        { agentId, text },
-        { idempotencyKey: crypto.randomUUID() },
-      );
-      return;
-    }
-    if (!isInlineCommandPrompt(text)) {
+    // Ordinary composer input is agent-owned next-turn input, not legacy
+    // run-targeted steer. Keep the method/key stable if settlement wins.
+    if (!queueWhileRunning && !paused && !isInlineCommandPrompt(text)) {
       optimisticTransaction = beginOptimisticPrompt(
         view,
         text,
@@ -332,9 +302,14 @@ export async function sendPromptText(
     }
     await protocolRequest(
       "run.start",
-      { agentId, text },
-      { idempotencyKey: crypto.randomUUID() },
+      { agentId, text, idempotencyKey },
+      { idempotencyKey },
     );
+    if (targetAgent) await refreshAgentView(targetAgent);
+    else
+      view.queuedPrompts = (
+        await protocolRequest("agent.promptQueue.list", { agentId })
+      ).result.queuedPrompts;
   } catch (caught) {
     if (optimisticTransaction) {
       rollbackOptimisticPrompt(view, optimisticTransaction);
@@ -351,9 +326,7 @@ export async function sendPromptText(
       : caught instanceof Error
         ? caught.message
         : String(caught);
-    const currentView = selection.conversationId
-      ? ensureConversationView(selection.conversationId)
-      : view;
+    const currentView = view;
     currentView.error = message;
     workspaceState.error = message;
     if (!queueWhileRunning && !busyConflict) {
@@ -363,10 +336,13 @@ export async function sendPromptText(
   }
 }
 
-export async function sendPrompt(options: { newConversation: () => void }) {
+export async function sendPrompt(options: {
+  newConversation: () => void;
+  idempotencyKey?: string;
+}) {
   const pending = activePendingConversation();
   const view = selection.conversationId
-    ? ensureConversationView(selection.conversationId)
+    ? selectedConversationView(selection.conversationId)
     : undefined;
   const text = (
     pending?.composerText ??
@@ -381,5 +357,9 @@ export async function sendPrompt(options: { newConversation: () => void }) {
     abort: abortActiveRun,
     newConversation: options.newConversation,
   });
-  if (!handled) await sendPromptText(text, { clearComposer: true });
+  if (!handled)
+    await sendPromptText(text, {
+      clearComposer: true,
+      idempotencyKey: options.idempotencyKey,
+    });
 }

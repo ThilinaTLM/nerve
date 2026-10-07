@@ -8,3 +8,6 @@ export * from "./run-events.js";
 export * from "./agent-operations.js";
 export * from "./run-operations.js";
 export * from "./async-subagents.js";
+export * from "./agent-blueprint.js";
+export * from "./agent-context-migration.js";
+export * from "./agent-input-queue.js";

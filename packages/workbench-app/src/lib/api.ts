@@ -4,6 +4,7 @@ export type {
   AgentRecord,
   ConversationActivitySnapshot,
   QueuedPromptRecord,
+  AgentQueueItem,
 } from "@nervekit/contracts/agents";
 export type {
   ApplicationLogLevel,

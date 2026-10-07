@@ -23,7 +23,12 @@ function agent(id: string, patch: Partial<AgentRecord> = {}): AgentRecord {
     rootAgentId: "agent_root",
     mode: "coding",
     permissionLevel: "supervised",
-    workspaceScope: "project",
+    workspaceScope: { roots: ["/tmp/project"] },
+    orchestrationPolicy: {
+      preset: patch.parentAgentId ? "explore" : "standard",
+      parentCancellation: "independent",
+      completionReporting: "none",
+    },
     budget: { depth: 0, maxDepth: 3 },
     thinkingLevel: "off",
     createdAt: "2026-01-01T00:00:00.000Z",
@@ -53,7 +58,11 @@ describe("context agent rows", () => {
       agentRole(
         agent("mate", {
           parentAgentId: "lead",
-          executionKind: "async_developer",
+          orchestrationPolicy: {
+            preset: "developer",
+            parentCancellation: "independent",
+            completionReporting: "parent",
+          },
         }),
       ),
       "teammate",
@@ -64,16 +73,55 @@ describe("context agent rows", () => {
     );
   });
 
+  it("uses policy rather than stale execution kind for child discovery", () => {
+    assert.equal(
+      agentRole(
+        agent("child", {
+          parentAgentId: "lead",
+          executionKind: "async_developer",
+          orchestrationPolicy: {
+            preset: "explore",
+            parentCancellation: "attached",
+            completionReporting: "parent",
+          },
+        }),
+      ),
+      "explore",
+    );
+    assert.equal(
+      agentRole(
+        agent("child", {
+          parentAgentId: "lead",
+          executionKind: "explore",
+          orchestrationPolicy: {
+            preset: "developer",
+            parentCancellation: "independent",
+            completionReporting: "parent",
+          },
+        }),
+      ),
+      "teammate",
+    );
+  });
+
   it("groups and ranks agents using canonical activity", () => {
     const records = [
       agent("lead"),
       agent("mate-idle", {
         parentAgentId: "lead",
-        executionKind: "async_developer",
+        orchestrationPolicy: {
+          preset: "developer",
+          parentCancellation: "independent",
+          completionReporting: "parent",
+        },
       }),
       agent("mate-running", {
         parentAgentId: "lead",
-        executionKind: "async_developer",
+        orchestrationPolicy: {
+          preset: "developer",
+          parentCancellation: "independent",
+          completionReporting: "parent",
+        },
       }),
       agent("explore-running", { parentAgentId: "lead" }),
       agent("explore-done", { parentAgentId: "lead" }),
@@ -159,7 +207,11 @@ describe("context agent rows", () => {
   it("keeps role labels and detailed configuration", () => {
     const teammate = agent("child", {
       parentAgentId: "lead",
-      executionKind: "async_developer",
+      orchestrationPolicy: {
+        preset: "developer",
+        parentCancellation: "independent",
+        completionReporting: "parent",
+      },
       name: "server-tests",
       mode: "planning",
       permissionRuleSetId: "autonomous",

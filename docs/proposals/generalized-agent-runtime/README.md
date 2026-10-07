@@ -1,8 +1,22 @@
 # Generalized agent runtime
 
-Status: proposed. This describes a target architecture, not current contracts or storage schemas.
+Status: shared runtime/configuration cutover implementation and final browser source assertions are present for issue #402; browser execution, final integration acceptance and whole-chain validation remain pending. Scoped tests do not establish that all acceptance criteria have passed. See the [T1–T10 acceptance evidence matrix](acceptance-402.md) for owning modules, specific assertions and execution limits. Unified timeline, coordinated parent/child rewind, physical per-agent conversations and interest-scoped delivery remain proposed. This document does not claim all proposal schemas or storage changes exist.
 
-## Philosophy
+## Implemented runtime scope and remaining boundaries
+
+Agent records now carry explicit configuration, configuration revisions, activation, immutable read-only ceilings, and orchestration policy independently of historical `executionKind`. Configured children use the common admission/harness path. Explore is a batch/wait/report wrapper over that path, with exact agent/run/attempt completion identity; it does not construct a harness. Shared controls accept agent input and configuration without a live harness. Tool construction captures ordinary turn configuration/policy and pinned physical workspace roots. Approval/execution uses the originating durable decision and persisted ToolAuthoritySnapshot after restart; ordinary scope/cwd/readonly edits apply next turn. Stop and immutable read-only ceilings are independently checked at claim. Explore consumes immutable completion usage/model/tool-step metadata and correlates original submission with terminal retry identity.
+
+These changes reuse agent documents, narrow `agent_inputs` persisted authority, run/work records and the existing conversation journal—not projections of one canonical timeline. Actual effective configuration snapshots live in execution transitions (`execution.effectiveTurnConfigurations`), not an unwritten `agent_effective_turn` namespace or a reconstruction from current settings. User/parent and trusted notification lanes share ordered acceptance and the common turn pipeline; caller idempotency keys deduplicate acceptance. Eligibility and activation are separate: `queue_only` does not wake an idle agent, and explicit pause fences automatic activation.
+
+Existing conversation IDs remain. Immutable `contextOwnerAgentId` selects the lead or an identity partition for children/additional roots/orphans. Initial migration preserves a valid active historical root as lead after existing bindings, with deterministic oldest fallback. Unbound secondary historical roots still using only the shared layout receive a frozen complete tree/prefix and exact leaf before self-binding; existing owned trees are preserved and fresh roots stay empty. IDs, detached branches and later-write isolation are preserved, with copied-old-SQLite partial-copy/copy-before-binding crash/restart regressions. This evidence does not replace integration acceptance.
+
+Desktop/mobile browser assertions now cover direct child selection and normal queue/settings/pause/resume controls. A real loopback OpenAI-compatible endpoint test registers two models and asserts live next-turn model adoption, queued steering after original tool settlement, same-run completion and effective revision for developer and tool-created Explore children; Explore remains discoverable/controllable while its parent wrapper waits. Full-suite discovery found 15 tests including 8 agent-acceptance tests; browser execution is pending. The obsolete direct obligation-notice writer and remaining live kind filter have been removed; live creation now uses explicit standard/independent/no-report defaults, so stale `executionKind` cannot affect new records. Readiness notification retries freeze the original acceptance, and foreign-origin same-key receipts cannot acknowledge task delivery. Lead-reported scoped results are 13 passing turn-preparation/blocker tests, 15 passing task notification/producer tests and 47 passing lifecycle/migration tests. Whole input enqueue/submission/event shutdown drain is complete, with 49 scoped follow-up passes and final read-only barrier review approved. The acceptance matrix links the actual input-shutdown and task-event teardown assertions. No pending source defect is identified; full-chain and browser execution outcomes remain pending lead update.
+
+Final integration acceptance must verify coherent turn-policy capture, runtime cancellation/recovery, live child controls and migration against copied homes. Graceful shutdown explicitly cancels active child runs/tasks during team settlement; do not equate durable general input/settings with every pending approval/question surviving graceful restart unchanged. Emergency revocation beyond stop/read-only fences needs an explicit service/epoch; ordinary permission edits are next-turn changes, not implicit revocation. Coordinated rewind, communication-delivery rollback, subscription redesign and OS sandboxing are outside #402; no external rollback or exactly-once tool execution is claimed. See [implemented storage authority and failure windows](../../architecture/storage.md#generalized-agent-runtime-authority-and-failure-windows).
+
+## Proposed philosophy
+
+The sections below describe the broader target, not current persistence or issue #402 acceptance requirements. In particular, separate physical conversations, one fact journal and coordinated rewind are future work.
 
 > One agent blueprint. One canonical branching history per agent. Configuration determines capabilities. Views and provider messages are projections. Live delivery follows user interest.
 
@@ -36,18 +50,18 @@ Non-goals: multiple simultaneous executions of one agent, unrestricted authority
 
 ## Current foundations and target
 
-| Today                                                                                                                                                                                | Target                                                                                                 |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
-| [`executionKind`](../../../packages/contracts/src/domains/agents/agent.ts) combines root, explore, and async developer                                                               | Parentage, configuration, and orchestration are separate dimensions                                    |
-| [`SubagentRunner`](../../../packages/workbench-server/src/domains/agents/execution/subagent-runner.ts) executes one-shot Explore children                                            | Explorer configuration on the shared runtime                                                           |
-| [`AsyncSubagentService`](../../../packages/workbench-server/src/domains/agents/async-subagent.service.ts) rejects busy child prompts                                                 | Every agent accepts explicit steering/follow-up input                                                  |
-| [Harness steering](../../../packages/harness/src/agent/agent.ts) and [durable run prompts](../../../packages/workbench-server/src/domains/runs/runtime/run-prompts.ts) already exist | Acceptance is agent-owned, journaled, and independent of a live harness                                |
-| Journal, run/work records, and event streams have distinct responsibilities                                                                                                          | Journal owns conversation-affecting facts; lifecycle/inbox projections accelerate reads and scheduling |
-| Workspace/conversation subscriptions and transient filtering already exist                                                                                                           | Explicit overview, detail, and live interests; fan-out routed by interest                              |
+| Today                                                                                                                                 | Target                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Historical kind values are decoded into explicit agent configuration/policies                                                         | Kind is migration data, not a live lifecycle authority                            |
+| [`SubagentRunner`](../../../packages/workbench-server/src/domains/agents/execution/subagent-runner.ts) waits on common submitted runs | Preserve wait-and-return orchestration without another engine                     |
+| Shared agent controls; desktop/mobile and real-endpoint live configuration source assertions                                          | Execute final acceptance/recovery and browser coverage across configured profiles |
+| Agent-input documents and run/work records remain separate canonical authorities                                                      | A future unified fact timeline may provide derived inbox/lifecycle projections    |
+| Existing conversation journal retains lead and agent-owned model partitions                                                           | Future separate physical conversations and communication-boundary bindings        |
+| Existing workspace/conversation subscriptions remain                                                                                  | Future interest-scoped indexed delivery                                           |
 
-The [async-subagent proposal](../async-subagent-teams.md) deliberately specifies idle-only prompting and limited child tools. This proposal evolves that model; it does not claim those restrictions already changed. [Storage architecture](../../architecture/storage.md) remains the description of implemented persistence.
+The [async-subagent proposal](../async-subagent-teams.md) describes the earlier idle-only/limited-child design. Those kind-wide restrictions are removed from the cutover's shared tool/control paths; reusable-team capacity and reporting remain orchestration responsibilities. [Storage architecture](../../architecture/storage.md) describes implemented persistence.
 
-## Architectural decisions
+## Proposed architectural decisions
 
 1. Agent identity outlives runs. One active execution slot per agent; agents execute concurrently with each other.
 2. Creating a child creates a separate owned conversation. Root/lead/explorer/developer are configurations and relationships, not lifecycle implementations.
@@ -78,14 +92,16 @@ This is a design proposal, not an implementation work order. A future cutover sh
 
 - Inventory legacy conversation graphs, prompts, approvals, obligations, settings, and completion notifications; preserve IDs and history wherever possible.
 - Define journal facts and projection ownership before changing physical storage. Avoid duplicate authoritative writers.
-- Unify runtime controls while preserving current behavior, then expose busy-child steering and shared hot reload.
+- Build on the shared runtime controls and busy-child steering from #402; do not introduce another execution or queue authority.
 - Introduce communication bindings prospectively. Do not invent exact historical child checkpoints where old data lacks them; mark those boundaries unavailable and require an explicit reconciliation choice.
 - Integrate journal-based human interaction, efficient branch loading, interest-scoped delivery, and coherent snapshot/cursor handling.
-- Retire execution-kind lifecycle branches only after behavior parity. Keep useful configured profiles and batch tools.
+- Preserve the configuration/policy-based cutover from #402. Keep useful configured profiles and batch tools, not kind-driven lifecycle branches.
 
-Future schema/storage migrations must use the migration framework, fresh/copied `NERVE_HOME` under `/tmp`, and explicit ports. Isolated desktop validation also needs separate Electron `userData`. This proposal makes no runtime or storage changes.
+Future schema/storage migrations must use the migration framework, fresh/copied `NERVE_HOME` under `/tmp`, and explicit ports. Isolated desktop validation also needs separate Electron `userData`. The remaining timeline/rewind/delivery proposal does not itself authorize runtime or storage migrations.
 
-## Behavioral acceptance criteria
+## Future proposal acceptance criteria
+
+These include timeline/rewind/delivery guarantees beyond #402. Restart reconstruction is not a promise to preserve interactions deliberately cancelled during graceful shutdown.
 
 - User and parent steering use the same agent runtime without concurrent execution or lost accepted input.
 - Configuration edits affect the next turn and record the effective revision, even within a long-running assignment.

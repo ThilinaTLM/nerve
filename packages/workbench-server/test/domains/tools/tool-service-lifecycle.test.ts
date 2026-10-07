@@ -1,10 +1,10 @@
+import { buildToolService, agent } from "./tool-service-test-fixture.js";
 import assert from "node:assert/strict";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, mkdir, symlink } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { AgentRecord } from "@nervekit/contracts/agents";
 import type { ToolCallRecord } from "@nervekit/contracts/tools";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import { ToolService } from "../../../src/domains/tools/execution/tool-service.js";
@@ -630,6 +630,83 @@ describe("tool service lifecycle", () => {
   });
 });
 
+it("preserves originating ordinary tool authority across configuration edits at approval/claim", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-tool-snapshot-"));
+  const current = {
+    ...agent("autonomous"),
+    projectDir: home,
+    workspaceScope: { roots: [home] },
+  };
+  const { service, journalCommit } = buildToolService(home, current);
+  const snapshot = structuredClone(current);
+  const permissionContext = await service.capturePermissionContext(snapshot);
+  // An edit while the model request is in flight affects the next turn only.
+  current.permissionLevel = "read_only";
+  current.tools = ["read"];
+  const pending = await service.requestTool(
+    current,
+    "write",
+    { path: "file.txt", content: "original turn" },
+    {
+      agentSnapshot: snapshot,
+      permissionContext,
+      forceApproval: true,
+      durableSuspend: true,
+    },
+  );
+  assert.equal(pending.toolCall.status, "waiting");
+  await service.projectApprovalDecision(
+    {
+      toolCallId: pending.toolCall.id,
+      ordinal: 0,
+      decision: "allow",
+      resolutionRequestId: "original-allow",
+    },
+    journalCommit,
+  );
+  const claimed = await service.claimApprovedExecution(pending.toolCall.id);
+  assert.equal(claimed.status, "running");
+  const nextTurn = await service.requestTool(current, "write", {
+    path: "file.txt",
+    content: "next turn",
+  });
+  assert.equal(nextTurn.toolCall.status, "denied");
+});
+
+it("checks live stop and read-only ceiling independently of approved ordinary policy", async () => {
+  for (const fence of ["paused", "readonly"] as const) {
+    const home = await mkdtemp(join(tmpdir(), "nerve-tool-live-fence-"));
+    const current = {
+      ...agent("autonomous"),
+      projectDir: home,
+      workspaceScope: { roots: [home] },
+    };
+    const { service, journalCommit } = buildToolService(home, current);
+    const pending = await service.requestTool(
+      current,
+      "write",
+      { path: "file.txt", content: "x" },
+      { forceApproval: true, durableSuspend: true },
+    );
+    await service.projectApprovalDecision(
+      {
+        toolCallId: pending.toolCall.id,
+        ordinal: 0,
+        decision: "allow",
+        resolutionRequestId: "allow",
+      },
+      journalCommit,
+    );
+    if (fence === "paused") current.activationState = "paused";
+    else current.readOnlyCeiling = true;
+    await assert.rejects(
+      service.claimApprovedExecution(pending.toolCall.id),
+      /paused|read-only authority/,
+    );
+    assert.equal(service.getToolCall(pending.toolCall.id).phase, "drafted");
+  }
+});
+
 function previewText(toolCall: ToolCallRecord | undefined): string {
   return (
     toolCall?.agentPreview?.blocks
@@ -639,92 +716,38 @@ function previewText(toolCall: ToolCallRecord | undefined): string {
   );
 }
 
-function buildToolService(
-  home: string,
-  testAgent: AgentRecord,
-  publisher?: { publish(type: string, data: unknown): Promise<unknown> },
-  pythonRuntime?: {
-    runtimeForProject(projectDir: string): Promise<undefined>;
-  },
-  logger?: {
-    info(message: string, context: unknown): Promise<void>;
-    warn(message: string, context: unknown): Promise<void>;
-  },
-) {
-  const events: Array<{ type: string; data: unknown }> = [];
-  const storage = {
-    paths: storagePaths(home),
-    settings: defaultSettings,
-    localToken: "test",
+it("blocks a child symlink target escape at execution claim even after user approval", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-tool-symlink-"));
+  const projectDir = join(home, "project");
+  const outside = await mkdtemp(join(tmpdir(), "nerve-tool-outside-"));
+  await mkdir(projectDir);
+  const current = {
+    ...agent("autonomous"),
+    projectDir,
+    parentAgentId: "agent_parent",
+    workspaceScope: { roots: [projectDir] },
   };
-  const journal = new ConversationJournalRepository(storage);
-  const resultPayloads = new ToolResultPayloadStore(home);
-  const service = new ToolService({
-    events: (publisher ?? {
-      publish: async (type: string, data: unknown) =>
-        events.push({ type, data }),
-    }) as never,
-    tasks: {} as never,
-    pythonRuntime: (pythonRuntime ?? {
-      runtimeForProject: async () => undefined,
-      isAvailableForProject: async () => false,
-      statusSnapshot: () => ({
-        available: false,
-        source: "unavailable",
-        error: "not used",
-      }),
-      refresh: async () => ({
-        available: false,
-        source: "unavailable",
-        error: "not used",
-      }),
-    }) as never,
-    startTask: async () => {
-      throw new Error("not used");
+  const { service, journalCommit } = buildToolService(home, current);
+  const pending = await service.requestTool(
+    current,
+    "write",
+    { path: "redirect/new-file.txt", content: "x" },
+    { forceApproval: true, durableSuspend: true },
+  );
+  assert.equal(pending.toolCall.status, "waiting");
+  await service.projectApprovalDecision(
+    {
+      toolCallId: pending.toolCall.id,
+      ordinal: 0,
+      decision: "allow",
+      resolutionRequestId: "allow",
     },
-    getAgent: () => testAgent,
-    runExplore: async () => {
-      throw new Error("not used");
-    },
-    getApiKey: async () => undefined,
-    resolveToolScope: async () => {
-      throw new Error("Integrations are not used by this test.");
-    },
-    explainImage: {} as never,
-    generateImage: {} as never,
-    storage,
-    plans: {} as never,
-    setAgentMode: async () => testAgent,
-    conversationRuntime: {} as never,
-    logger: logger as never,
-    journal,
-    resultPayloads,
-    toolCallRepository: new ToolCallRepository(journal, resultPayloads),
-  });
-  const journalCommit = async (
-    next: { conversationId: string },
-    journalEvents: import("@nervekit/contracts/conversations").ConversationJournalEvent[],
-  ) => {
-    await journal.commit(next.conversationId, {
-      kind: "tool_call.revised",
-      events: journalEvents,
-    });
-  };
-  return { service, events, journalCommit };
-}
-
-function agent(permissionLevel: AgentRecord["permissionLevel"]): AgentRecord {
-  return {
-    id: "agent_01HN0000000000000000000000",
-    conversationId: "conv_01HN0000000000000000000000",
-    projectId: "proj_01HN0000000000000000000000",
-    projectDir: "/tmp/project",
-    rootAgentId: "agent_01HN0000000000000000000000",
-    mode: "coding",
-    permissionLevel,
-    workspaceScope: { roots: ["/tmp/project"] },
-    budget: { depth: 0, maxDepth: 3 },
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-  };
-}
+    journalCommit,
+  );
+  await symlink(outside, join(projectDir, "redirect"), "dir");
+  await assert.rejects(
+    service.claimApprovedExecution(pending.toolCall.id),
+    /symbolic link/,
+  );
+  assert.equal(service.getToolCall(pending.toolCall.id).phase, "drafted");
+});

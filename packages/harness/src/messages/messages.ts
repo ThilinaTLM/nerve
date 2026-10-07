@@ -80,6 +80,7 @@ export interface HarnessMessage<T = unknown> {
   role: "harness";
   eventType: string;
   content: string;
+  images?: ImageContent[];
   details?: T;
   timestamp: number;
 }
@@ -235,7 +236,10 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
         case "harness":
           return {
             role: "user",
-            content: [{ type: "text" as const, text: harnessMessageToText(m) }],
+            content: [
+              { type: "text" as const, text: harnessMessageToText(m) },
+              ...(m.images ?? []),
+            ],
             timestamp: m.timestamp,
           };
         case "branchSummary":

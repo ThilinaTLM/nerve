@@ -17,7 +17,7 @@ import type {
 } from "@nervekit/contracts/permissions";
 import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type { AgentQueueItem } from "@nervekit/contracts/agents";
 import type {
   TodoItem,
   ToolCallTranscriptRecord,
@@ -105,6 +105,7 @@ export type ConversationComposerModel = {
   ) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: CapabilityConfiguration;
+  capabilityScopeLabel?: "agent" | "conversation";
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
@@ -131,7 +132,7 @@ export type ConversationPaneModel = {
   streamingText: string;
   sending: boolean;
   runActivity: ConversationRunActivityModel;
-  queuedPrompts: QueuedPromptRecord[];
+  queuedPrompts: AgentQueueItem[];
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];
@@ -196,12 +197,10 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (id: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
-  onForcePushQueuedPrompts?: (
-    prompt: QueuedPromptRecord,
-  ) => void | Promise<void>;
-  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onForcePushQueuedPrompts?: (prompt: AgentQueueItem) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: AgentQueueItem) => void | Promise<void>;
   onMoveQueuedPromptToComposer?: (
-    prompt: QueuedPromptRecord,
+    prompt: AgentQueueItem,
   ) => void | Promise<void>;
 };
 
@@ -220,7 +219,7 @@ export type TranscriptMenuTarget =
   | { kind: "system_event"; notice: SystemEventNotice }
   | {
       kind: "queued_prompt";
-      prompt: QueuedPromptRecord;
+      prompt: AgentQueueItem;
       busy: boolean;
       canForcePush: boolean;
       canEdit: boolean;

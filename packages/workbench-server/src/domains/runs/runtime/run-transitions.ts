@@ -56,6 +56,9 @@ export interface NewRunCommand {
   projectId: string;
   runId?: string;
   scopeId?: string;
+  initialInputId?: string;
+  /** Transient activation/authority fence, rechecked after detached cancellation settles. */
+  assertAdmission?(): Promise<void>;
 }
 
 export interface StartRunCommand extends NewRunCommand {
@@ -156,6 +159,9 @@ export function newRun(
     projectId: command.projectId,
     runId: command.runId ?? prefixed("run", ids.next()),
     scopeId,
+    ...(command.initialInputId
+      ? { initialInputId: command.initialInputId }
+      : {}),
     revision: 1,
     status: "starting",
     recoverability: "retryable",

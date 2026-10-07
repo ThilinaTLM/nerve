@@ -31,7 +31,13 @@ export function applySubagentTranscriptEvent(
   onGap?: () => void,
 ): ConversationRenderState {
   const mapped = mapEvent(state, event);
+  const staleTerminal = Boolean(
+    state.activeRun &&
+    ["run.completed", "run.failed", "run.cancelled"].includes(mapped.type) &&
+    mapped.data.runId !== state.activeRun.runId,
+  );
   return applyConversationEvent(state, mapped, {
+    consumeOnly: staleTerminal,
     consumeUnhandled: true,
     retainHiddenToolCalls: true,
     onGap,
@@ -80,6 +86,20 @@ function mapEvent(
         type: "conversation.live.content.done",
         data: canonical,
       };
+    case "agent.subagent_transcript.run.completed":
+      return data.status === "completed"
+        ? { ...base, type: "run.completed", data: canonical }
+        : data.status === "aborted"
+          ? {
+              ...base,
+              type: "run.cancelled",
+              data: { ...canonical, cancelledAt: data.completedAt },
+            }
+          : {
+              ...base,
+              type: "run.failed",
+              data: { ...canonical, failedAt: data.completedAt },
+            };
     default:
       return base;
   }

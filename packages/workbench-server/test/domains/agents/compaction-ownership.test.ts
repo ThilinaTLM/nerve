@@ -1,8 +1,13 @@
+import { join } from "node:path";
+import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
+import { AgentRepository } from "../../../src/domains/agents/agent.repository.js";
+import type { InitializedStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 import assert from "node:assert/strict";
+import { Conversation } from "@nervekit/harness/conversation";
 import test from "node:test";
 import type { AgentRecord } from "@nervekit/contracts/agents";
 import { ConversationRepository } from "../../../src/domains/conversations/conversation.repository.js";
-import { WorkbenchRunService } from "../../../src/domains/runs/application/workbench-run.service.js";
+import { WorkbenchAgentInputControls } from "../../../src/domains/runs/application/workbench-agent-input-controls.js";
 import { installIterationCompaction } from "../../../src/domains/agents/execution/iteration-compaction.js";
 import {
   CompactionStaleConflictError,
@@ -179,6 +184,7 @@ test("all lead agents resolve to one scope and explore owns its tree", () => {
       id: "agent_child",
       conversationId: "conv_scope",
       executionKind: "explore",
+      parentAgentId: "agent_a",
     } as AgentRecord).ownerAgentId,
     "agent_child",
   );
@@ -352,7 +358,7 @@ test("stable handoff model IDs can be reused after a model-only append without d
   );
 });
 
-test("manual canonical active lookup aggregates all lead agents but excludes child owners", async () => {
+test("canonical active lookup isolates persisted additional-root and child owners", async () => {
   const agents = new Map(
     ["root", "root", "explore"].map((kind, index) => [
       `agent_${index}`,
@@ -360,6 +366,8 @@ test("manual canonical active lookup aggregates all lead agents but excludes chi
         id: `agent_${index}`,
         conversationId: "conv_scope",
         executionKind: kind,
+        contextOwnerAgentId: index === 0 ? null : `agent_${index}`,
+        parentAgentId: index === 2 ? "agent_0" : undefined,
       },
     ]),
   );
@@ -377,16 +385,26 @@ test("manual canonical active lookup aggregates all lead agents but excludes chi
     },
   };
   assert.equal(
-    await WorkbenchRunService.prototype.hasNonterminalOwnerRun.call(
+    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
       service as never,
       "conv_scope",
     ),
-    true,
+    false,
   );
-  assert.deepEqual(queried, ["conv_scope:agent_0", "conv_scope:agent_1"]);
+  assert.deepEqual(queried, ["conv_scope:agent_0"]);
   queried.length = 0;
   assert.equal(
-    await WorkbenchRunService.prototype.hasNonterminalOwnerRun.call(
+    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
+      service as never,
+      "conv_scope",
+      "agent_1",
+    ),
+    true,
+  );
+  assert.deepEqual(queried, ["conv_scope:agent_1"]);
+  queried.length = 0;
+  assert.equal(
+    await WorkbenchAgentInputControls.prototype.hasNonterminalOwnerRun.call(
       service as never,
       "conv_scope",
       "agent_2",
@@ -440,5 +458,104 @@ test("protected query returns original pending provider IDs only for the request
       (id) => f.agents.get(id)!,
     ),
     ["original_provider|1"],
+  );
+});
+
+test("explicit context bindings isolate additional roots and preserve an already copied historical prefix", async (t) => {
+  const f = await fixture(t);
+  await f.seed("agent_0");
+  const store = new CanonicalStore(join(f.home, "data", "nerve.sqlite"), {
+    readerCount: 0,
+  });
+  await store.initialize();
+  t.after(() => store.close());
+  for (const [index, id] of ["agent_0", "agent_1"].entries()) {
+    await store.writeDocument({
+      namespace: "agent",
+      scopeId: "global",
+      documentId: id,
+      expectedRevision: 0,
+      now: "2026-01-01T00:00:00.000Z",
+      data: {
+        ...f.agents.get(id),
+        projectId: "proj_scope",
+        projectDir: "/source",
+        rootAgentId: id,
+        mode: "coding",
+        permissionLevel: "supervised",
+        workspaceScope: { roots: ["/source"] },
+        budget: { depth: 0, maxDepth: 3 },
+        thinkingLevel: "off",
+        createdAt: `2026-01-0${index + 1}T00:00:00.000Z`,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+  }
+  const migrated = await new AgentRepository({
+    canonicalStore: store,
+  } as InitializedStorage).loadAll();
+  for (const agent of migrated) f.agents.set(agent.id, agent);
+  assert.equal(f.agents.get("agent_0")!.contextOwnerAgentId, null);
+  assert.equal(f.agents.get("agent_1")!.contextOwnerAgentId, "agent_1");
+  for (const id of ["agent_2", "agent_3"])
+    f.agents.set(id, { ...f.agents.get(id)!, contextOwnerAgentId: id });
+  const historical = await f.journal.load("conv_scope");
+  await f.journal.commit("conv_scope", {
+    kind: "test.copied_historical_prefix",
+    events: [
+      ...historical.modelEntries.map((entry) => ({
+        kind: "model_context.entry_appended" as const,
+        conversationId: "conv_scope",
+        ownerAgentId: "agent_1",
+        entry,
+      })),
+      {
+        kind: "model_context.leaf_changed",
+        conversationId: "conv_scope",
+        ownerAgentId: "agent_1",
+        entryId: historical.modelLeafId!,
+      },
+    ],
+  });
+  const secondary = await f.storage.openAgentStorage(f.agents.get("agent_1")!);
+  assert.deepEqual(
+    (await secondary.getEntries()).map((entry) => entry.id),
+    historical.modelEntries.map((entry) => entry.id),
+  );
+  const secondaryConversation = new Conversation(secondary);
+  await secondaryConversation.appendMessage({
+    role: "user",
+    content: "Secondary private follow-up",
+    timestamp: 5,
+  });
+  await f.seed("agent_2");
+  await f.seed("agent_3");
+  const texts = await Promise.all(
+    ["agent_0", "agent_1", "agent_2", "agent_3"].map(async (id) =>
+      JSON.stringify(
+        await (
+          await f.storage.openAgentStorage(f.agents.get(id)!)
+        ).getEntries(),
+      ),
+    ),
+  );
+  assert.doesNotMatch(
+    texts[0]!,
+    /Secondary private follow-up|entry_recent_agent_[23]/,
+  );
+  assert.match(texts[1]!, /Secondary private follow-up/);
+  assert.doesNotMatch(texts[1]!, /entry_recent_agent_[23]/);
+  assert.doesNotMatch(
+    texts[2]!,
+    /Secondary private follow-up|entry_recent_agent_[03]/,
+  );
+  assert.doesNotMatch(
+    texts[3]!,
+    /Secondary private follow-up|entry_recent_agent_[02]/,
+  );
+  const orphan = { ...f.agents.get("agent_3")!, parentAgentId: undefined };
+  assert.equal(
+    resolveCompactionOwner("conv_scope", orphan).ownerAgentId,
+    orphan.id,
   );
 });

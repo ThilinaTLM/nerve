@@ -48,7 +48,8 @@ export type AsyncSubagentStatusDetails = AsyncSubagentView;
 export const asyncSubagentPromptDetailsSchema = z.object({
   agentId: z.string(),
   name: z.string(),
-  runId: z.string(),
+  runId: z.string().optional(),
+  inputId: z.string().optional(),
   accepted: z.literal(true),
 });
 export type AsyncSubagentPromptDetails = z.infer<
@@ -64,14 +65,50 @@ export type AsyncSubagentListDetails = z.infer<
   typeof asyncSubagentListDetailsSchema
 >;
 
+export const administrativeAgentActivationSchema = z
+  .object({
+    agentId: z.string().startsWith("agent_"),
+    parentAgentId: z.string().startsWith("agent_"),
+    parentStopGeneration: z.number().int().nonnegative().safe(),
+    childStopGeneration: z.number().int().nonnegative().safe(),
+    generation: z.number().int().nonnegative().safe(),
+    cause: z.enum(["user_resume", "user_interrupt"]),
+    runId: z.string().startsWith("run_").optional(),
+  })
+  .strict()
+  .superRefine((proof, context) => {
+    if (proof.agentId === proof.parentAgentId)
+      context.addIssue({
+        code: "custom",
+        path: ["parentAgentId"],
+        message: "Administrative activation must name a distinct parent.",
+      });
+  });
+export type AdministrativeAgentActivation = z.infer<
+  typeof administrativeAgentActivationSchema
+>;
+
 /** Durable admission and cancellation fences, independent of live harness objects. */
-export const asyncSubagentControlSchema = z.object({
-  agentId: z.string(),
-  generation: z.number().int().nonnegative(),
-  stopped: z.boolean(),
-  stopping: z.boolean(),
-  reservedRunId: z.string().optional(),
-});
+export const asyncSubagentControlSchema = z
+  .object({
+    agentId: z.string(),
+    generation: z.number().int().nonnegative(),
+    stopped: z.boolean(),
+    stopping: z.boolean(),
+    reservedRunId: z.string().optional(),
+    administrativeActivation: administrativeAgentActivationSchema.optional(),
+  })
+  .superRefine((control, context) => {
+    if (
+      control.administrativeActivation &&
+      control.administrativeActivation.agentId !== control.agentId
+    )
+      context.addIssue({
+        code: "custom",
+        path: ["administrativeActivation", "agentId"],
+        message: "Administrative activation must belong to this control agent.",
+      });
+  });
 export type AsyncSubagentControl = z.infer<typeof asyncSubagentControlSchema>;
 
 export const asyncSubagentCompletionSchema = z.object({
@@ -96,17 +133,6 @@ export function isAsyncSubagentTool(
   name: string,
 ): name is AsyncSubagentToolName {
   return (asyncSubagentToolNames as readonly string[]).includes(name);
-}
-
-/** Capability exclusions, not a replacement for the autonomous permission policy. */
-export function isDeveloperChildToolAllowed(name: string): boolean {
-  return (
-    name !== "ask_user" &&
-    name !== "explore" &&
-    !name.startsWith("plan_mode_") &&
-    !name.startsWith("subagent_") &&
-    !name.startsWith("task_")
-  );
 }
 
 /** A partially disabled group must never leave unmanaged child execution tools. */

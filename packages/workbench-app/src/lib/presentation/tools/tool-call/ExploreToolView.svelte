@@ -1,4 +1,6 @@
 <script lang="ts">
+import Bot from "@lucide/svelte/icons/bot";
+import { getConversationUiCapabilities } from "../../context.svelte";
 import FileText from "@lucide/svelte/icons/file-text";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -23,6 +25,7 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
 };
 let { draft, toolCall, view, onOpenFile }: Props = $props();
+const capabilities = getConversationUiCapabilities();
 
 type DisplayTask = ExploreTaskState | ExploreDraftTask;
 
@@ -221,11 +224,22 @@ const aggregateLabel = $derived.by(() => {
           </div>
 
           <div class="flex min-w-0 flex-wrap items-center gap-1.5">
+            {#if task.agentId && capabilities.openAgent}
+              <Button
+                size="xs"
+                variant="outline"
+                onclick={() => {
+                  void capabilities.openAgent?.(task.agentId!);
+                }}
+                aria-label={`Open agent ${taskTitle(task)}`}
+                ><Bot class="size-3" aria-hidden="true" />Open agent</Button
+              >
+            {/if}
             {#if task.agentId && toolCall?.agentId}
               <Button
                 size="xs"
                 variant="outline"
-                class="h-5 gap-1 rounded-sm px-1.5 text-xs shadow-none"
+                class="gap-1 rounded-sm text-xs shadow-none"
                 onclick={() => openTranscript(task)}
                 aria-label={`View transcript for ${taskTitle(task)}`}
               >
@@ -237,7 +251,7 @@ const aggregateLabel = $derived.by(() => {
               <Button
                 size="xs"
                 variant="outline"
-                class="h-5 gap-1 rounded-sm px-1.5 text-xs shadow-none"
+                class="gap-1 rounded-sm text-xs shadow-none"
                 onclick={() =>
                   task.report?.reportPath &&
                   onOpenFile?.(task.report.reportPath)}

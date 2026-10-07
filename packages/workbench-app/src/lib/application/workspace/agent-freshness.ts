@@ -4,7 +4,14 @@ export function isNewerAgent(
   candidate: AgentRecord,
   current: AgentRecord | undefined,
 ): boolean {
-  return !current || candidate.updatedAt >= current.updatedAt;
+  if (!current) return true;
+  const accepted = candidate.configurationRevision ?? 1;
+  const currentAccepted = current.configurationRevision ?? 1;
+  if (accepted !== currentAccepted) return accepted > currentAccepted;
+  const effective = candidate.effectiveConfigurationRevision ?? 0;
+  const currentEffective = current.effectiveConfigurationRevision ?? 0;
+  if (effective !== currentEffective) return effective > currentEffective;
+  return candidate.updatedAt >= current.updatedAt;
 }
 
 export function mergeAgentsByUpdatedAt(

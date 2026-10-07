@@ -10,6 +10,7 @@ import type { ModelSelection } from "@nervekit/contracts/models";
 export type {
   AgentRecord,
   QueuedPromptRecord,
+  AgentQueueItem,
 } from "@nervekit/contracts/agents";
 export type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 export type {

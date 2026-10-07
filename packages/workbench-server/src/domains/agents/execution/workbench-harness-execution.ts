@@ -1,9 +1,14 @@
+import { startWorkbenchLiveTurn } from "./workbench-live-turn.js";
+import {
+  prepareWorkbenchTurn,
+  dispatchWorkbenchTurn,
+} from "./workbench-turn-preparation.js";
 import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
 import { userPromptControls } from "./user-prompt-control.js";
 import { installIterationCompaction } from "./iteration-compaction.js";
 import { createWorkbenchAgentHarness } from "./workbench-agent-harness.js";
 import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
-import { type AnyModel, isAgentToolSuspension } from "@nervekit/harness/agent";
+import { type AnyModel } from "@nervekit/harness/agent";
 import { Conversation } from "@nervekit/harness/conversation";
 import { convertToLlm } from "@nervekit/harness/messages";
 import { resolveAgentModel } from "@nervekit/harness/models";
@@ -15,11 +20,7 @@ import { toolNameSchema } from "@nervekit/contracts/tools";
 import { HostHarnessFactory } from "./harness-factory.js";
 import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
-import { createAgentToolsForAgent } from "../../tools/orchestration/agent-tool-adapter.js";
-import {
-  toPublicToolCallArgsPreview,
-  toToolCallTranscriptRecord,
-} from "../../tools/artifacts/tool-call-transcript-preview.js";
+import { toPublicToolCallArgsPreview } from "../../tools/artifacts/tool-call-transcript-preview.js";
 import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
@@ -31,7 +32,7 @@ import {
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
 import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
-import { waitForSequentialToolInteractionBatch } from "./sequential-tool-approval-batch.js";
+import { handleWorkbenchHarnessError } from "./workbench-harness-outcome.js";
 import {
   LiveToolDraftReconciler,
   type LiveToolDraftState,
@@ -96,6 +97,9 @@ export async function executeWorkbenchHarness(
     currentLiveMessageId = undefined;
     liveToolDrafts.clear();
   };
+  let originatingTurn:
+    | import("./workbench-turn-preparation.js").WorkbenchOriginatingTurn
+    | undefined;
   try {
     await this.deps.logger.info("Agent run preparing", {
       agentId: agent.id,
@@ -106,11 +110,7 @@ export async function executeWorkbenchHarness(
     });
     const conversation = this.deps.state.getConversation(agent.conversationId);
     const settings = await this.effectiveSettings(agent.projectDir);
-    const project = this.deps.state.getProject(agent.projectId);
-    const storage =
-      agent.executionKind === "async_developer"
-        ? await this.deps.harnessStorage.openAgentStorage(agent)
-        : await this.deps.harnessStorage.openStorage(conversation);
+    const storage = await this.deps.harnessStorage.openAgentStorage(agent);
     const harnessConversation = new Conversation(storage);
     const initialHarnessEntryIds = new Set(
       (await storage.getEntries()).map((entry) => entry.id),
@@ -181,25 +181,17 @@ export async function executeWorkbenchHarness(
     );
     clearDraftProgress = () => toolDraftProgressScheduler.clear();
     let currentProviderForResponse: string | undefined;
+    let preparedTurnOrdinal = 0;
+    let effectiveTurn:
+      | import("@nervekit/contracts/agents").EffectiveTurnConfiguration
+      | undefined;
     const harnessFactory = new HostHarnessFactory({
       resolveModel: async () => model,
       resolveCredentials: async () => (requestModel: AnyModel) =>
         this.deps.auth.requestAuthForPiModel(requestModel),
       resolvePolicy: async () => ({
-        tools: createAgentToolsForAgent(agent, this.deps.tools, {
-          runId,
-          hidden: agent.executionKind === "async_developer",
-          resolveToolAnchor: (providerToolCallId) =>
-            this.deps.state.conversationRuntime.resolveToolAnchor(
-              runId,
-              providerToolCallId,
-            ),
-          onLifecycle: (toolCall) =>
-            coordinator.sink.upsertToolCalls([
-              toToolCallTranscriptRecord(toolCall),
-            ]),
-        }),
-        activeToolNames: capabilities.activeToolNames(),
+        tools: [],
+        activeToolNames: [],
       }),
       create: async ({ environment }) =>
         createWorkbenchAgentHarness({
@@ -213,6 +205,32 @@ export async function executeWorkbenchHarness(
           maxParallelToolCalls: this.deps.maxParallelToolsPerRun,
           getApiKeyAndHeaders: environment.credentials,
           systemPrompt: composeLatestSystemPrompt,
+          hasPendingTurnInput: async () =>
+            (await this.deps.agentInputs?.hasEligible(agent.id, runId)) ??
+            false,
+          prepareTurn: async () => {
+            const {
+              effective,
+              actor,
+              permissionContext,
+              toolAuthority,
+              ...snapshot
+            } = await prepareWorkbenchTurn({
+              mechanics: this,
+              conversation: harnessConversation,
+              initialPromptHasImages:
+                preparedTurnOrdinal === 0 && Boolean(request.images?.length),
+              agent,
+              coordinator,
+              runAbortController,
+              shellPath,
+              turnId: `prepared_${coordinator.run.executionId}_${++preparedTurnOrdinal}`,
+            });
+            currentTurnId = undefined;
+            originatingTurn = { actor, permissionContext, toolAuthority };
+            effectiveTurn = effective;
+            return snapshot;
+          },
         }),
     });
     const harness = await harnessFactory.create({
@@ -237,23 +255,31 @@ export async function executeWorkbenchHarness(
             undefined,
         ),
     );
-    const startLiveTurn = async () => {
-      const turn = this.deps.state.conversationRuntime.startTurn(runId);
-      currentTurnId = turn.turnId;
-      this.deps.events.publishBestEffort(
-        "conversation.live.turn.started",
-        {
-          conversationId: conversation.id,
-          agentId: agent.id,
-          projectId: project.id,
-          runId,
-          turnId: turn.turnId,
-          ordinal: turn.ordinal,
-        },
-        "conversation.live.turn.started",
+    // Provider lifecycle callbacks are awaited hooks, not observational subscriptions.
+    harness.on("before_provider_request", async (event) => {
+      if (!effectiveTurn)
+        throw new Error(
+          "Effective configuration is unavailable before provider dispatch",
+        );
+      currentTurnId ??= startWorkbenchLiveTurn(this, agent, runId);
+      await dispatchWorkbenchTurn(
+        this,
+        effectiveTurn,
+        currentTurnId,
+        coordinator,
+        runAbortController.signal,
       );
-      return turn.turnId;
-    };
+      currentProviderForResponse = event.model.provider;
+      this.deps.subscriptionUsage.touchProvider(event.model.provider);
+      return undefined;
+    });
+    harness.on("after_provider_response", async (event) => {
+      const responseProvider = currentProviderForResponse;
+      currentProviderForResponse = undefined;
+      if (responseProvider === "openai-codex")
+        this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
+      return undefined;
+    });
     harness.subscribe(async (event) => {
       if (event.type === "queue_drained") {
         for (const promptId of event.messageIds) {
@@ -261,22 +287,9 @@ export async function executeWorkbenchHarness(
         }
         return;
       }
-      if (event.type === "before_provider_request") {
-        currentProviderForResponse = event.model.provider;
-        this.deps.subscriptionUsage.touchProvider(event.model.provider);
-        return;
-      }
-      if (event.type === "after_provider_response") {
-        const responseProvider = currentProviderForResponse;
-        currentProviderForResponse = undefined;
-        if (responseProvider === "openai-codex") {
-          this.deps.subscriptionUsage.applyCodexHeaders(event.headers);
-        }
-        return;
-      }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);
-        await startLiveTurn();
+        currentTurnId = startWorkbenchLiveTurn(this, agent, runId);
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
         toolDraftProgressScheduler.clear();
@@ -337,7 +350,9 @@ export async function executeWorkbenchHarness(
         event.message.role === "assistant"
       ) {
         abandonMessage();
-        const turnId = currentTurnId ?? (await startLiveTurn());
+        const turnId =
+          currentTurnId ??
+          (currentTurnId = startWorkbenchLiveTurn(this, agent, runId));
         const started =
           this.deps.state.conversationRuntime.startAssistantMessage(
             runId,
@@ -555,7 +570,8 @@ export async function executeWorkbenchHarness(
         for (const entry of mirrored) {
           if (
             entry.role === "user" &&
-            agent.executionKind !== "async_developer"
+            resolveCompactionOwner(agent.conversationId, agent).ownerAgentId ===
+              undefined
           ) {
             await this.deps.messageMirror.maybeDeriveInitialConversationTitle(
               conversation.id,
@@ -639,23 +655,6 @@ export async function executeWorkbenchHarness(
       runAbortController.abort();
       harness.requestAbort();
     };
-    const updateAgentRuntimeConfig = async (updatedAgent: AgentRecord) => {
-      await capabilities.refreshActiveTools(updatedAgent);
-      const nextModel = resolveAgentModel(
-        updatedAgent.model,
-        await this.customModels(updatedAgent.projectDir),
-      );
-      const currentModel = harness.getModel();
-      if (
-        currentModel.provider !== nextModel.provider ||
-        currentModel.id !== nextModel.id
-      ) {
-        await harness.setModel(nextModel);
-      }
-      if (harness.getThinkingLevel() !== updatedAgent.thinkingLevel) {
-        await harness.setThinkingLevel(updatedAgent.thinkingLevel);
-      }
-    };
     const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
       expandExecutablePromptBlocks(
         (command, opts) =>
@@ -677,15 +676,8 @@ export async function executeWorkbenchHarness(
       },
       continue: async () => undefined,
       cancel: abort,
-      updateAgentRuntimeConfig,
-      appendExternalMessage: (input) => harness.appendExternalMessage(input),
-      enqueueHarnessMessage: (input) =>
-        harness.enqueueHarnessMessage({
-          id: input.id,
-          message: input.message,
-          timestamp: input.timestamp,
-          delivery: input.delivery,
-        }),
+      // Edits are persisted elsewhere and adopted only at prepareTurn.
+      updateAgentRuntimeConfig: async () => undefined,
     };
     const promptRequest = await expandBlocks(request.text, request.images);
     let continueAttempt = options.continue === true;
@@ -704,6 +696,13 @@ export async function executeWorkbenchHarness(
       this.deps.conversationService.setForAgent(agent.id, messages);
       if (forcePushGeneration > handledForcePushGeneration) {
         handledForcePushGeneration = forcePushGeneration;
+        continueAttempt = true;
+        continue;
+      }
+      if (
+        !runAbortController.signal.aborted &&
+        (await this.deps.agentInputs?.hasEligible(agent.id, runId))
+      ) {
         continueAttempt = true;
         continue;
       }
@@ -766,28 +765,15 @@ export async function executeWorkbenchHarness(
       };
     }
   } catch (error) {
-    if (isAgentToolSuspension(error)) {
-      await waitForSequentialToolInteractionBatch({
-        agent,
-        runId,
-        suspension: error.data,
-        deps: this.deps,
-        sink: coordinator.sink,
-        checkpointCommand: (boundary, interactionId) =>
-          coordinator.checkpointCommand(boundary, interactionId),
-      });
-      return { status: "suspended" };
-    }
-    return abortRequested
-      ? { status: "interrupted", message: "Agent run aborted." }
-      : {
-          status: "failed",
-          failure: {
-            code: "EXECUTION_FAILED",
-            ...normalizeRunFailure(error, "harness"),
-            retryable: true,
-          },
-        };
+    return handleWorkbenchHarnessError({
+      mechanics: this,
+      agent,
+      coordinator,
+      error,
+      originatingTurn,
+      abortRequested,
+      runAbortController,
+    });
   } finally {
     abandonMessage();
     this.finishAutoCompactionRun?.(runId);

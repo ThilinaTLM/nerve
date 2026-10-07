@@ -8,14 +8,163 @@ import {
   createAgentRequestSchema,
   updateAgentRequestSchema,
 } from "./agent.js";
-import { queuedPromptRecordSchema } from "./prompt.js";
+import { queuedPromptRecordSchema, promptImageSchema } from "./prompt.js";
+import { conversationEntrySchema } from "../conversations/conversation-state.js";
+import { conversationActiveRunSnapshotSchema } from "../conversations/live-state.js";
+import { agentActivitySnapshotSchema } from "./agent-obligation.js";
 import { subagentTranscriptSnapshotSchema } from "./subagent-transcript.js";
+import {
+  agentInputRecordSchema,
+  agentCompletionSchema,
+  effectiveTurnConfigurationSchema,
+} from "./agent-blueprint.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
 const emptyParamsSchema = z.object({}).optional();
 const agentIdSchema = z.string().startsWith("agent_");
-const queuedPromptIdSchema = z.string().startsWith("promptq_");
+export const agentQueueItemIdSchema = z.union([
+  z.string().startsWith("input_"),
+  z.string().startsWith("promptq_"),
+]);
+const queuedPromptIdSchema = agentQueueItemIdSchema;
+export const agentQueueItemSchema = z.union([
+  agentInputRecordSchema,
+  queuedPromptRecordSchema,
+]);
+export type AgentQueueItem = z.infer<typeof agentQueueItemSchema>;
+export const agentPromptQueueListResultSchema = z.object({
+  queuedPrompts: z.array(agentQueueItemSchema),
+});
+export const agentPromptQueueCancelResultSchema = z.object({
+  queuedPrompt: agentQueueItemSchema,
+});
+function validateAgentHistoryPath(
+  history: { activeEntryId?: string | null; activeEntryIds?: string[] },
+  context: z.RefinementCtx,
+): void {
+  const hasLeaf = history.activeEntryId !== undefined;
+  const hasPath = history.activeEntryIds !== undefined;
+  if (hasLeaf !== hasPath) {
+    context.addIssue({
+      code: "custom",
+      path: ["activeEntryIds"],
+      message: "Owner leaf and ancestry must be supplied together.",
+    });
+    return;
+  }
+  if (!hasPath) return;
+  const path = history.activeEntryIds!;
+  if (new Set(path).size !== path.length)
+    context.addIssue({
+      code: "custom",
+      path: ["activeEntryIds"],
+      message: "Owner ancestry cannot repeat an entry.",
+    });
+  if ((path.at(-1) ?? null) !== history.activeEntryId)
+    context.addIssue({
+      code: "custom",
+      path: ["activeEntryId"],
+      message:
+        "Owner leaf must be the final ancestry ID; empty ancestry has null leaf.",
+    });
+}
+
+function validateAgentHistorySnapshotOwnership(
+  history: {
+    agentId?: string;
+    conversationId?: string;
+    activeRun?: z.infer<typeof conversationActiveRunSnapshotSchema>;
+    activity?: z.infer<typeof agentActivitySnapshotSchema>;
+  },
+  context: z.RefinementCtx,
+): void {
+  for (const field of ["activeRun", "activity"] as const) {
+    const snapshot = history[field];
+    if (!snapshot) continue;
+    for (const identity of ["agentId", "conversationId"] as const) {
+      if (!history[identity] || snapshot[identity] !== history[identity]) {
+        context.addIssue({
+          code: "custom",
+          path: [field, identity],
+          message:
+            "History runtime snapshot must identify the selected agent and conversation.",
+        });
+      }
+    }
+  }
+  if (
+    history.activeRun &&
+    history.activity &&
+    history.activity.activeRunId !== history.activeRun.runId
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["activity", "activeRunId"],
+      message:
+        "Activity must identify the same run as the supplied active run snapshot.",
+    });
+  }
+}
+
+export const agentHistoryResultSchema = z
+  .object({
+    entries: z.array(conversationEntrySchema),
+    /** Owner model-tree leaf and ordered root-to-leaf ancestry, including hidden structural IDs. */
+    activeEntryId: z.string().startsWith("entry_").nullable().optional(),
+    activeEntryIds: z.array(z.string().startsWith("entry_")).optional(),
+    agentId: z.string().startsWith("agent_").optional(),
+    conversationId: z.string().startsWith("conv_").optional(),
+    toolCalls: z.array(toolCallRecordSchema).optional(),
+    /** Cursor and live state captured for this owner, without a parent-only endpoint. */
+    cursorSeq: z.number().int().nonnegative().safe().optional(),
+    activeRun: conversationActiveRunSnapshotSchema.optional(),
+    activity: agentActivitySnapshotSchema.optional(),
+    latestCompletion: agentCompletionSchema.nullable().optional(),
+    effectiveConfiguration: effectiveTurnConfigurationSchema
+      .nullable()
+      .optional(),
+  })
+  .superRefine(validateAgentHistoryPath)
+  .superRefine(validateAgentHistorySnapshotOwnership);
+export type AgentHistoryResult = z.infer<typeof agentHistoryResultSchema>;
+/** All new producers use the complete form; optional fields above read old wire responses. */
+export const completeAgentHistoryResultSchema = agentHistoryResultSchema
+  .required({
+    agentId: true,
+    conversationId: true,
+    toolCalls: true,
+    latestCompletion: true,
+    effectiveConfiguration: true,
+  })
+  .superRefine((history, context) => {
+    validateAgentHistoryPath(history, context);
+    validateAgentHistorySnapshotOwnership(history, context);
+    if (
+      history.latestCompletion &&
+      history.latestCompletion.agentId !== history.agentId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["latestCompletion", "agentId"],
+        message: "Latest completion must belong to the selected agent.",
+      });
+    }
+    if (
+      history.effectiveConfiguration &&
+      history.effectiveConfiguration.agentId !== history.agentId
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["effectiveConfiguration", "agentId"],
+        message: "Effective snapshot must belong to the selected agent.",
+      });
+    }
+  });
+export type CompleteAgentHistoryResult = z.infer<
+  typeof completeAgentHistoryResultSchema
+>;
+
 const agentIdParamsSchema = z.object({ agentId: agentIdSchema });
 const subagentTranscriptParamsSchema = z.object({
   parentAgentId: agentIdSchema,
@@ -29,7 +178,7 @@ const agentConfigureResultSchema = z.union([
   z.object({
     accepted: z.literal(true),
     agentId: agentIdSchema,
-    effectiveAt: z.enum(["immediate", "next_run"]),
+    effectiveAt: z.enum(["immediate", "next_turn", "next_run"]),
   }),
 ]);
 const agentPromptQueueParamsSchema = agentIdParamsSchema;
@@ -83,6 +232,45 @@ export const agentsOperationDefinitions = [
     "operation.agent.subagentTranscript.get",
   ),
   defineOperation(
+    "agent.history.get",
+    agentIdParamsSchema,
+    agentHistoryResultSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.agent.history.get",
+  ),
+  defineOperation(
+    "agent.stop",
+    agentIdParamsSchema,
+    z.object({ accepted: z.literal(true), agentId: agentIdSchema }),
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.agent.stop",
+  ),
+  defineOperation(
+    "agent.resume",
+    agentIdParamsSchema,
+    z.object({ accepted: z.literal(true), agentId: agentIdSchema }),
+    "accepted_async",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.agent.resume",
+  ),
+  defineOperation(
+    "agent.interrupt",
+    agentIdParamsSchema.extend({
+      text: z.string().min(1),
+      images: z.array(promptImageSchema).max(16).optional(),
+    }),
+    z.object({ accepted: z.literal(true), agentId: agentIdSchema }),
+    "accepted_async",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.agent.interrupt",
+  ),
+  defineOperation(
     "agent.configure",
     agentConfigureParamsSchema,
     agentConfigureResultSchema,
@@ -94,7 +282,7 @@ export const agentsOperationDefinitions = [
   defineOperation(
     "agent.promptQueue.list",
     agentPromptQueueParamsSchema,
-    z.object({ queuedPrompts: z.array(queuedPromptRecordSchema) }),
+    agentPromptQueueListResultSchema,
     "read",
     "none",
     ["workbench_server"] as const,
@@ -103,7 +291,7 @@ export const agentsOperationDefinitions = [
   defineOperation(
     "agent.promptQueue.cancel",
     agentPromptQueueCancelParamsSchema,
-    z.object({ queuedPrompt: queuedPromptRecordSchema }),
+    agentPromptQueueCancelResultSchema,
     "mutation",
     "recommended",
     ["workbench_server"] as const,

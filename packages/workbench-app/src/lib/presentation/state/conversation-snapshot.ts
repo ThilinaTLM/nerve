@@ -42,7 +42,7 @@ export function fromConversationSnapshot(
  * the snapshot entries removes persisted text/thinking while retaining an
  * unresolved tool slot through the durable-record handoff.
  */
-function drainedSnapshotActiveRun(
+export function drainedSnapshotActiveRun(
   activeRun: ConversationActiveRunSnapshot | undefined,
   entries: ConversationEntry[],
 ): ConversationActiveRunSnapshot | undefined {

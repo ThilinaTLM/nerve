@@ -14,7 +14,7 @@ export function compactionOwnerKey(
   return JSON.stringify([conversationId, ownerAgentId ?? "lead"]);
 }
 
-/** Root agents share a tree; every child kind owns its own model tree. */
+/** Persisted context binding owns storage; parent fallback is only for undecoded fixtures. */
 export function resolveCompactionOwner(
   conversationId: string,
   agent?: AgentRecord,
@@ -27,9 +27,11 @@ export function resolveCompactionOwner(
     );
   }
   const ownerAgentId =
-    agent && agent.executionKind !== "root" && agent.executionKind !== undefined
-      ? agent.id
-      : undefined;
+    agent?.contextOwnerAgentId !== undefined
+      ? (agent.contextOwnerAgentId ?? undefined)
+      : agent?.parentAgentId
+        ? agent.id
+        : undefined;
   return {
     conversationId,
     ownerAgentId,
