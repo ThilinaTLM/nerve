@@ -87,6 +87,11 @@ export interface AgentLoopTurnUpdate {
   thinkingLevel?: ThinkingLevel;
 }
 
+/** Preparation can supersede a candidate before any provider stream is acquired. */
+export type AgentLoopProviderPreparation =
+  | { kind: "ready" }
+  | { kind: "refresh"; update: AgentLoopTurnUpdate };
+
 export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {
   /** Whether completed tool execution naturally requires another provider turn. */
   hasMoreToolCalls: boolean;
@@ -94,6 +99,8 @@ export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
   model: AnyModel;
+
+  prepareProviderDispatch?: () => Promise<AgentLoopProviderPreparation>;
 
   /**
    * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.

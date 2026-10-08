@@ -1,4 +1,8 @@
-import type { AssistantMessage, ImageContent } from "@earendil-works/pi-ai";
+import {
+  createAssistantMessageEventStream,
+  type AssistantMessage,
+  type ImageContent,
+} from "@earendil-works/pi-ai";
 import { runAgentLoop } from "../../agent/loop/agent-loop.js";
 import { streamSimpleWithModel } from "../../models/model-streaming.js";
 import { isAgentToolSuspension } from "../../agent/suspension.js";
@@ -22,7 +26,11 @@ import { mergeHeaders } from "../configuration/stream-options.js";
 import type { BeforeAgentStartResult } from "../lifecycle/events.js";
 import { normalizeHookError } from "../lifecycle/event-hub.js";
 import { toError } from "../../result.js";
-import { createUserMessage } from "./run-messages.js";
+import { createFailureMessage, createUserMessage } from "./run-messages.js";
+
+export type HarnessStreamFn = StreamFn & {
+  prepareRequest: () => Promise<{ kind: "ready" } | { kind: "refresh" }>;
+};
 
 export function createHarnessStreamFn<
   TSkill extends Skill,
@@ -30,6 +38,9 @@ export function createHarnessStreamFn<
   TTool extends AgentTool,
 >(options: {
   getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>;
+  beforeProviderDispatch?: () => Promise<
+    { kind: "ready" } | { kind: "refresh" }
+  >;
   getApiKeyAndHeaders?: (
     model: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>["model"],
   ) => Promise<
@@ -55,9 +66,22 @@ export function createHarnessStreamFn<
     headers: Record<string, string>,
     signal?: AbortSignal,
   ) => Promise<void>;
-}): StreamFn {
-  return async (model, context, streamOptions) => {
+}): HarnessStreamFn {
+  type ReadyRequest = {
+    turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>;
+    requestModel: AgentHarnessTurnState<
+      TSkill,
+      TPromptTemplate,
+      TTool
+    >["model"];
+    requestOptions: AgentHarnessStreamOptions;
+    apiKey?: string;
+  };
+  let readyRequest: ReadyRequest | undefined;
+  const prepareRequest: HarnessStreamFn["prepareRequest"] = async () => {
+    readyRequest = undefined;
     const turnState = options.getTurnState();
+    const model = turnState.model;
     const auth = await options.getApiKeyAndHeaders?.(model);
     const requestModel = auth?.baseUrl
       ? { ...model, baseUrl: auth.baseUrl }
@@ -78,31 +102,68 @@ export function createHarnessStreamFn<
       turnState.conversationId,
       snapshotOptions,
     );
-    return streamSimpleWithModel(requestModel, context, {
-      cacheRetention: requestOptions.cacheRetention,
-      headers: requestOptions.headers,
-      maxRetries: requestOptions.maxRetries,
-      maxRetryDelayMs: requestOptions.maxRetryDelayMs,
-      metadata: requestOptions.metadata,
-      env: requestOptions.env,
-      onPayload: async (payload) =>
-        await options.emitBeforeProviderPayload(requestModel, payload),
-      onResponse: async (response) => {
-        const headers = { ...response.headers };
-        await options.emitAfterProviderResponse(
-          response.status,
-          headers,
-          streamOptions?.signal,
-        );
-      },
-      reasoning: streamOptions?.reasoning,
-      signal: streamOptions?.signal,
-      sessionId: turnState.conversationId,
-      timeoutMs: requestOptions.timeoutMs,
-      transport: requestOptions.transport,
+    const result = (await options.beforeProviderDispatch?.()) ?? {
+      kind: "ready" as const,
+    };
+    if (result.kind === "refresh") return result;
+    readyRequest = {
+      turnState,
+      requestModel,
+      requestOptions,
       apiKey: auth?.apiKey,
-    });
+    };
+    return result;
   };
+  const stream: StreamFn = async (model, context, streamOptions) => {
+    try {
+      const prepared = readyRequest;
+      readyRequest = undefined;
+      if (!prepared)
+        throw new AgentHarnessError(
+          "invalid_state",
+          "Provider request was not prepared",
+        );
+      const { turnState, requestModel, requestOptions, apiKey } = prepared;
+      return streamSimpleWithModel(requestModel, context, {
+        cacheRetention: requestOptions.cacheRetention,
+        headers: requestOptions.headers,
+        maxRetries: requestOptions.maxRetries,
+        maxRetryDelayMs: requestOptions.maxRetryDelayMs,
+        metadata: requestOptions.metadata,
+        env: requestOptions.env,
+        onPayload: async (payload) =>
+          await options.emitBeforeProviderPayload(requestModel, payload),
+        onResponse: async (response) => {
+          const headers = { ...response.headers };
+          await options.emitAfterProviderResponse(
+            response.status,
+            headers,
+            streamOptions?.signal,
+          );
+        },
+        reasoning: streamOptions?.reasoning,
+        signal: streamOptions?.signal,
+        sessionId: turnState.conversationId,
+        timeoutMs: requestOptions.timeoutMs,
+        transport: requestOptions.transport,
+        apiKey,
+      });
+    } catch (error) {
+      const failure = createFailureMessage(
+        model,
+        error,
+        streamOptions?.signal?.aborted ?? false,
+      );
+      const response = createAssistantMessageEventStream();
+      response.push({
+        type: "error",
+        reason: failure.stopReason === "aborted" ? "aborted" : "error",
+        error: failure,
+      });
+      return response;
+    }
+  };
+  return Object.assign(stream, { prepareRequest });
 }
 
 export interface HarnessTurnExecution<
@@ -131,10 +192,12 @@ export interface HarnessTurnExecution<
     setTurnState: (
       turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     ) => void,
+    streamFn: HarnessStreamFn,
+    initialSystemPrompt?: string,
   ) => AgentLoopConfig;
   createStreamFn: (
     getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-  ) => StreamFn;
+  ) => HarnessStreamFn;
   handleAgentEvent: (event: AgentEvent, signal: AbortSignal) => Promise<void>;
   emitRunFailure: (
     error: unknown,
@@ -190,16 +253,22 @@ export async function executeHarnessTurn<
 
   const runResultPromise = (async () => {
     try {
+      const streamFn = execution.createStreamFn(getTurnState);
       return await runAgentLoop(
         messages,
         execution.createContext(
           execution.turnState,
           beforeResult?.systemPrompt,
         ),
-        execution.createLoopConfig(getTurnState, setTurnState),
+        execution.createLoopConfig(
+          getTurnState,
+          setTurnState,
+          streamFn,
+          beforeResult?.systemPrompt,
+        ),
         (event) => execution.handleAgentEvent(event, abortController.signal),
         abortController.signal,
-        execution.createStreamFn(getTurnState),
+        streamFn,
       );
     } catch (error) {
       if (isAgentToolSuspension(error)) {

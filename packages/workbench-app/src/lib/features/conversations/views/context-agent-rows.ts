@@ -42,7 +42,11 @@ export function isAgentLive(
   activityById: Readonly<Record<string, AgentActivitySnapshot>> = {},
 ): boolean {
   const state = activityById[agent.id]?.state;
-  return state === "running" || state === "awaiting_user";
+  return (
+    state === "running" ||
+    state === "awaiting_user" ||
+    state === "awaiting_async"
+  );
 }
 
 function isAgentFailed(
@@ -172,9 +176,10 @@ export function agentAttention(
     needsYou: agents.filter(
       (agent) => activityById[agent.id]?.state === "awaiting_user",
     ).length,
-    working: agents.filter(
-      (agent) => activityById[agent.id]?.state === "running",
-    ).length,
+    working: agents.filter((agent) => {
+      const state = activityById[agent.id]?.state;
+      return state === "running" || state === "awaiting_async";
+    }).length,
   };
 }
 

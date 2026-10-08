@@ -96,13 +96,19 @@ export interface AgentHarnessOptions<
 > {
   env: ExecutionEnv;
   conversation: Conversation;
-  /** Atomic safe-boundary refresh, before initial and subsequent provider turns.
-   * Called only after the preceding provider request and its tool batch settle.
-   * Return a coherent snapshot; errors block dispatch rather than silently falling back.
-   */
   /** Lets a durable queue extend a final response without speculatively applying configuration to a nonexistent turn. */
   hasPendingTurnInput?: () => Promise<boolean>;
-  prepareTurn?: () => Promise<{
+  /** Runs after credentials and awaited request hooks, before acquiring the provider stream. */
+  beforeProviderDispatch?: () => Promise<
+    { kind: "ready" } | { kind: "refresh" }
+  >;
+  /**
+   * Return a coherent snapshot before initial/subsequent provider turns (refresh: false),
+   * or rebuild a superseded candidate of the same invocation (refresh: true).
+   * Completed requests and their tool batches settle before normal next-turn preparation.
+   * Errors block dispatch rather than silently falling back.
+   */
+  prepareTurn?: (context: { refresh: boolean }) => Promise<{
     model: AnyModel;
     thinkingLevel: ThinkingLevel;
     tools: TTool[];

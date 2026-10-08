@@ -3,6 +3,7 @@ import test from "node:test";
 import { AgentHarness } from "../../../src/harness/agent-harness.js";
 import { Conversation } from "../../../src/conversation/conversation.js";
 import { InMemoryConversationStorage } from "../../../src/conversation/adapters/in-memory-storage.js";
+import type { HarnessStreamFn } from "../../../src/harness/run/execution.js";
 import type {
   AgentLoopConfig,
   AnyModel,
@@ -39,11 +40,20 @@ test("a configuration-only edit after a final response cannot fail an otherwise 
     createLoopConfig(
       getState: () => unknown,
       setState: (state: unknown) => void,
+      streamFn: HarnessStreamFn,
     ): AgentLoopConfig;
   };
   const config = internal.createLoopConfig(
     () => ({ model, thinkingLevel: "off" }),
     () => undefined,
+    Object.assign(
+      () => {
+        throw new Error("no provider invocation expected");
+      },
+      {
+        prepareRequest: async () => ({ kind: "ready" as const }),
+      },
+    ),
   );
   const boundary = {
     hasMoreToolCalls: false,

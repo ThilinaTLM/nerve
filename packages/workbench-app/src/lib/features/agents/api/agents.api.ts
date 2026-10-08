@@ -18,8 +18,5 @@ export async function updateAgentConfig(
       ...patch,
     })
   ).result;
-  if (!("agent" in result)) {
-    throw new Error("Workbench agent configuration returned an async result");
-  }
   return result.agent;
 }

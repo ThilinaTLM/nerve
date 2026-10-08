@@ -2486,3 +2486,25 @@ test("mixed approval/question checkpoints release original effects only after bo
     );
   }
 });
+
+test("provider dispatch fence rejects a replaced attempt before dispatch bookkeeping", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  await waitUntil(async () => harness.executionInputs.length === 1);
+  const input = harness.executionInputs[0]!;
+  let dispatched = 0;
+  await input.withProviderDispatchFence!(async () => {
+    dispatched++;
+  });
+  assert.equal(dispatched, 1);
+  const transitions = harness.unitOfWork.transitions.get(run.runId)!;
+  const latest = transitions.at(-1)!;
+  latest.run.executionId = "exec_replacement";
+  await assert.rejects(
+    input.withProviderDispatchFence!(async () => {
+      dispatched++;
+    }),
+    /attempt is no longer current/,
+  );
+  assert.equal(dispatched, 1);
+});

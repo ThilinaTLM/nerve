@@ -1,6 +1,8 @@
 import { startWorkbenchLiveTurn } from "./workbench-live-turn.js";
 import {
   prepareWorkbenchTurn,
+  AgentTurnPreparationBlocker,
+  createWorkbenchPreparationSession,
   dispatchWorkbenchTurn,
 } from "./workbench-turn-preparation.js";
 import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
@@ -97,6 +99,7 @@ export async function executeWorkbenchHarness(
     currentLiveMessageId = undefined;
     liveToolDrafts.clear();
   };
+  let preparationBlocker: AgentTurnPreparationBlocker | undefined;
   let originatingTurn:
     | import("./workbench-turn-preparation.js").WorkbenchOriginatingTurn
     | undefined;
@@ -144,7 +147,6 @@ export async function executeWorkbenchHarness(
       agent.model,
       await this.customModels(agent.projectDir),
     );
-    this.deps.subscriptionUsage.touchProvider(model.provider);
     const shellPath = settings.runtime.shellPath;
     const env = new NodeExecutionEnv({ cwd: agent.projectDir, shellPath });
     const composeLatestSystemPrompt = async () => {
@@ -182,6 +184,7 @@ export async function executeWorkbenchHarness(
     clearDraftProgress = () => toolDraftProgressScheduler.clear();
     let currentProviderForResponse: string | undefined;
     let preparedTurnOrdinal = 0;
+    let preparationSession: import("./workbench-turn-preparation.js").WorkbenchPreparationSession;
     let effectiveTurn:
       | import("@nervekit/contracts/agents").EffectiveTurnConfiguration
       | undefined;
@@ -208,7 +211,36 @@ export async function executeWorkbenchHarness(
           hasPendingTurnInput: async () =>
             (await this.deps.agentInputs?.hasEligible(agent.id, runId)) ??
             false,
-          prepareTurn: async () => {
+          beforeProviderDispatch: async () => {
+            if (!effectiveTurn)
+              throw new Error(
+                "Effective configuration is unavailable before provider dispatch",
+              );
+            const result = await dispatchWorkbenchTurn(
+              this,
+              effectiveTurn,
+              () =>
+                (currentTurnId ??= startWorkbenchLiveTurn(this, agent, runId)),
+              coordinator,
+              runAbortController.signal,
+              agent,
+            );
+            if (result.kind === "ready") {
+              currentProviderForResponse =
+                effectiveTurn.configuration.model?.provider;
+              if (currentProviderForResponse)
+                this.deps.subscriptionUsage.touchProvider(
+                  currentProviderForResponse,
+                );
+            }
+            return result;
+          },
+          prepareTurn: async ({ refresh }: { refresh: boolean }) => {
+            if (!refresh)
+              preparationSession = createWorkbenchPreparationSession(
+                `prepared_${coordinator.run.executionId}_${++preparedTurnOrdinal}`,
+              );
+            else preparationSession.supersessions++;
             const {
               effective,
               actor,
@@ -219,12 +251,17 @@ export async function executeWorkbenchHarness(
               mechanics: this,
               conversation: harnessConversation,
               initialPromptHasImages:
-                preparedTurnOrdinal === 0 && Boolean(request.images?.length),
+                preparedTurnOrdinal === 1 && Boolean(request.images?.length),
               agent,
               coordinator,
               runAbortController,
               shellPath,
-              turnId: `prepared_${coordinator.run.executionId}_${++preparedTurnOrdinal}`,
+              turnId: preparationSession.turnId,
+              session: preparationSession,
+            }).catch((error: unknown) => {
+              if (error instanceof AgentTurnPreparationBlocker)
+                preparationBlocker = error;
+              throw error;
             });
             currentTurnId = undefined;
             originatingTurn = { actor, permissionContext, toolAuthority };
@@ -255,24 +292,6 @@ export async function executeWorkbenchHarness(
             undefined,
         ),
     );
-    // Provider lifecycle callbacks are awaited hooks, not observational subscriptions.
-    harness.on("before_provider_request", async (event) => {
-      if (!effectiveTurn)
-        throw new Error(
-          "Effective configuration is unavailable before provider dispatch",
-        );
-      currentTurnId ??= startWorkbenchLiveTurn(this, agent, runId);
-      await dispatchWorkbenchTurn(
-        this,
-        effectiveTurn,
-        currentTurnId,
-        coordinator,
-        runAbortController.signal,
-      );
-      currentProviderForResponse = event.model.provider;
-      this.deps.subscriptionUsage.touchProvider(event.model.provider);
-      return undefined;
-    });
     harness.on("after_provider_response", async (event) => {
       const responseProvider = currentProviderForResponse;
       currentProviderForResponse = undefined;
@@ -289,7 +308,7 @@ export async function executeWorkbenchHarness(
       }
       if (event.type === "turn_start") {
         coordinator.installControl(liveControl);
-        currentTurnId = startWorkbenchLiveTurn(this, agent, runId);
+        currentTurnId = undefined;
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
         toolDraftProgressScheduler.clear();
@@ -677,7 +696,6 @@ export async function executeWorkbenchHarness(
       continue: async () => undefined,
       cancel: abort,
       // Edits are persisted elsewhere and adopted only at prepareTurn.
-      updateAgentRuntimeConfig: async () => undefined,
     };
     const promptRequest = await expandBlocks(request.text, request.images);
     let continueAttempt = options.continue === true;
@@ -692,6 +710,7 @@ export async function executeWorkbenchHarness(
         agent,
         signal: runAbortController.signal,
       });
+      if (preparationBlocker) throw preparationBlocker;
       const messages = convertToLlm((await storage.buildContext()).messages);
       this.deps.conversationService.setForAgent(agent.id, messages);
       if (forcePushGeneration > handledForcePushGeneration) {

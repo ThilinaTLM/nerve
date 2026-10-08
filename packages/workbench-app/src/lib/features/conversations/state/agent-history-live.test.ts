@@ -111,18 +111,18 @@ for (const agentId of [
     assert.equal(view.readOnly, false);
     assert.notEqual(view.activeRun, history.activeRun);
     assert.deepEqual(
-      buffer.finish(history.cursorSeq!).map((item) => item.seq),
+      buffer.finish(history.cursorSeq).map((item) => item.seq),
       [86],
     );
+    view.stopping = true;
+    view.transient = {
+      stale: true,
+    } as unknown as ConversationViewState["transient"];
     const stopped = {
       ...history,
       cursorSeq: 87,
       activeRun: undefined,
-      activity: {
-        ...history.activity!,
-        state: "idle" as const,
-        activeRunId: undefined,
-      },
+      activity: undefined,
     };
     applyAgentHistory(
       view,
@@ -132,6 +132,11 @@ for (const agentId of [
     assert.equal(view.activeRun, undefined);
     assert.equal(view.sending, false);
     assert.equal(view.cursorSeq, 87);
+    assert.equal(view.stopping, false);
+    assert.equal(view.transient, undefined);
+    assert.deepEqual(view.toolCalls, []);
+    assert.equal(view.latestCompletion, null);
+    assert.equal(view.effectiveConfiguration, null);
   });
 }
 

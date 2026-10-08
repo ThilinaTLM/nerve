@@ -48,6 +48,9 @@ it("binds secondary roots to their own view and preserves inherited authors in s
       toolCalls: [],
       latestCompletion,
       effectiveConfiguration: null,
+      cursorSeq: 0,
+      activeEntryId: own.id,
+      activeEntryIds: [inherited.id, own.id],
     },
   );
   assert.deepEqual(
@@ -61,7 +64,17 @@ it("binds secondary roots to their own view and preserves inherited authors in s
       applyAgentHistory(
         view,
         { id: "agent_secondary", conversationId: "conv_shared" },
-        { entries: [], agentId: "agent_sibling" },
+        {
+          entries: [],
+          agentId: "agent_sibling",
+          conversationId: "conv_shared",
+          activeEntryId: null,
+          activeEntryIds: [],
+          cursorSeq: 0,
+          toolCalls: [],
+          latestCompletion: null,
+          effectiveConfiguration: null,
+        },
       ),
     /ownership/,
   );

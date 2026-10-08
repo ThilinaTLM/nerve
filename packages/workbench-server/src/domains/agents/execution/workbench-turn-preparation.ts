@@ -30,6 +30,23 @@ export class AgentTurnPreparationBlocker extends Error {
 }
 class SnapshotSuperseded extends Error {}
 
+export interface WorkbenchPreparationSession {
+  turnId: string;
+  cutoffSequence?: number;
+  budget: { remaining: number; hasImages: boolean };
+  supersessions: number;
+}
+
+export function createWorkbenchPreparationSession(
+  turnId: string,
+): WorkbenchPreparationSession {
+  return {
+    turnId,
+    budget: { remaining: 32, hasImages: false },
+    supersessions: 0,
+  };
+}
+
 export async function prepareWorkbenchTurn(
   options: Parameters<typeof resolveWorkbenchTurn>[0],
 ) {
@@ -50,10 +67,11 @@ export async function prepareWorkbenchTurn(
       Array.isArray(message.content) &&
       message.content.some((part) => part.type === "image"),
   );
-  const budget = {
-    remaining: 32,
-    hasImages: Boolean(options.initialPromptHasImages) || hasContextImages,
-  };
+  const session =
+    options.session ?? createWorkbenchPreparationSession(options.turnId);
+  const budget = session.budget;
+  budget.hasImages ||=
+    Boolean(options.initialPromptHasImages) || hasContextImages;
   const readCommitted = async () => {
     const document =
       await options.mechanics.deps.storage.canonicalStore?.readDocument<unknown>(
@@ -78,15 +96,14 @@ export async function prepareWorkbenchTurn(
       throw new Error("Committed agent configuration context scope is corrupt");
     return actor;
   };
-  let cutoffSequence: number | undefined;
   let failedRevision = 1;
-  for (let attempt = 0; attempt < 8; attempt++) {
+  while (session.supersessions < 8) {
     const cut = await options.mechanics.deps.agentInputs?.captureCut(
       options.agent.id,
       readCommitted,
     );
     const actor = cut?.actor ?? (await readCommitted());
-    cutoffSequence ??= cut?.cutoffSequence;
+    session.cutoffSequence ??= cut?.cutoffSequence;
     const captured = actor.configurationRevision ?? 1;
     failedRevision = captured;
     const generation = cut?.generation;
@@ -96,7 +113,7 @@ export async function prepareWorkbenchTurn(
         budget,
         generation,
         actor,
-        cutoffSequence,
+        session.cutoffSequence,
         readCommitted,
       );
     } catch (error) {
@@ -104,8 +121,10 @@ export async function prepareWorkbenchTurn(
       if (
         error instanceof SnapshotSuperseded ||
         captured !== ((await readCommitted()).configurationRevision ?? 1)
-      )
+      ) {
+        session.supersessions++;
         continue;
+      }
       throw new AgentTurnPreparationBlocker(
         error instanceof Error ? error.message : String(error),
         captured,
@@ -114,7 +133,7 @@ export async function prepareWorkbenchTurn(
   }
   throw new AgentTurnPreparationBlocker(
     "Configuration changed too frequently to prepare a coherent turn",
-    failedRevision,
+    (await readCommitted()).configurationRevision ?? failedRevision,
   );
 }
 
@@ -126,6 +145,7 @@ async function resolveWorkbenchTurn(
     runAbortController: AbortController;
     shellPath: string | undefined;
     turnId: string;
+    session?: WorkbenchPreparationSession;
     initialPromptHasImages?: boolean;
     conversation?: import("@nervekit/harness/conversation").Conversation;
   },
@@ -408,30 +428,54 @@ export async function commitWorkbenchTurn(
   );
   const snapshot = { ...effective, turnId };
   await sink.recordEffectiveTurnConfiguration(snapshot);
-  await mechanics.deps.commitEffectiveConfiguration?.(
-    effective.agentId,
-    effective.configurationRevision,
-    turnId,
-    effective.runId,
-  );
 }
 
 export async function dispatchWorkbenchTurn(
   mechanics: WorkbenchAgentMechanics,
   effective: import("@nervekit/contracts/agents").EffectiveTurnConfiguration,
-  turnId: string,
+  allocateTurn: () => string,
   coordinator: CoordinatorExecutionOptions,
   signal: AbortSignal,
-): Promise<void> {
+  scope: AgentRecord,
+): Promise<{ kind: "ready" } | { kind: "refresh" }> {
   const dispatch = async () => {
     await assertWorkbenchDispatch(mechanics, { id: effective.agentId }, signal);
-    await commitWorkbenchTurn(mechanics, effective, turnId, coordinator.sink);
-    await assertWorkbenchDispatch(mechanics, { id: effective.agentId }, signal);
-    await mechanics.deps.agentInputs?.recordProviderDispatch(effective.agentId);
+    const commit = async () => {
+      await assertWorkbenchDispatch(
+        mechanics,
+        { id: effective.agentId },
+        signal,
+      );
+      const liveTurnId = allocateTurn();
+      await commitWorkbenchTurn(
+        mechanics,
+        effective,
+        liveTurnId,
+        coordinator.sink,
+      );
+    };
+    return mechanics.deps.claimPreparedTurn(
+      {
+        ...scope,
+        id: effective.agentId,
+        configurationRevision: effective.configurationRevision,
+      },
+      commit,
+      async () => {
+        await assertWorkbenchDispatch(
+          mechanics,
+          { id: effective.agentId },
+          signal,
+        );
+        await mechanics.deps.agentInputs?.recordProviderDispatch(
+          effective.agentId,
+        );
+      },
+    );
   };
-  if (coordinator.withProviderDispatchFence)
-    await coordinator.withProviderDispatchFence(dispatch);
-  else await dispatch();
+  return coordinator.withProviderDispatchFence
+    ? coordinator.withProviderDispatchFence(dispatch)
+    : dispatch();
 }
 
 export async function createWorkbenchTurnTools(

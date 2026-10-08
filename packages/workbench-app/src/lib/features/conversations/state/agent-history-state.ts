@@ -13,9 +13,8 @@ export function applyAgentHistory(
   history: AgentHistoryResult,
 ): void {
   if (
-    (history.agentId && history.agentId !== agent.id) ||
-    (history.conversationId &&
-      history.conversationId !== agent.conversationId) ||
+    history.agentId !== agent.id ||
+    history.conversationId !== agent.conversationId ||
     (history.latestCompletion &&
       history.latestCompletion.agentId !== agent.id) ||
     (history.effectiveConfiguration &&
@@ -32,46 +31,31 @@ export function applyAgentHistory(
   )
     throw new Error("Agent history ownership mismatch");
   view.entries = history.entries;
-  view.activeEntryIds =
-    history.activeEntryIds ?? history.entries.map((entry) => entry.id);
-  view.activeEntryId =
-    history.activeEntryId !== undefined
-      ? (history.activeEntryId ?? undefined)
-      : history.entries.at(-1)?.id;
+  view.activeEntryIds = history.activeEntryIds;
+  view.activeEntryId = history.activeEntryId ?? undefined;
   view.treeNodes = history.entries.map((entry) => ({
     entry,
     childEntryIds: history.entries
       .filter((child) => child.parentEntryId === entry.id)
       .map((child) => child.id),
   }));
-  if (
-    history.cursorSeq !== undefined ||
-    history.activity !== undefined ||
-    history.activeRun !== undefined
-  ) {
-    const previousRunId = view.activeRun?.runId;
-    view.activeRun = drainedSnapshotActiveRun(
-      history.activeRun,
-      history.entries,
-    );
-    view.sending = history.activeRun
-      ? ["running", "executing_tools", "retrying", "aborting"].includes(
-          history.activeRun.status,
-        )
-      : history.activity?.state === "running";
-    view.stopping = stoppingAfterConversationSnapshot(
-      view.stopping,
-      previousRunId,
-      view.activeRun?.runId,
-    );
-    view.transient = undefined;
-    view.retainHiddenToolCalls = true;
-    view.readOnly = false;
-  }
-  if (history.cursorSeq !== undefined) view.cursorSeq = history.cursorSeq;
-  if (history.toolCalls !== undefined) view.toolCalls = history.toolCalls;
-  if (history.latestCompletion !== undefined)
-    view.latestCompletion = history.latestCompletion;
-  if (history.effectiveConfiguration !== undefined)
-    view.effectiveConfiguration = history.effectiveConfiguration;
+  const previousRunId = view.activeRun?.runId;
+  view.activeRun = drainedSnapshotActiveRun(history.activeRun, history.entries);
+  view.sending = history.activeRun
+    ? ["running", "executing_tools", "retrying", "aborting"].includes(
+        history.activeRun.status,
+      )
+    : history.activity?.state === "running";
+  view.stopping = stoppingAfterConversationSnapshot(
+    view.stopping,
+    previousRunId,
+    view.activeRun?.runId,
+  );
+  view.transient = undefined;
+  view.retainHiddenToolCalls = true;
+  view.readOnly = false;
+  view.cursorSeq = history.cursorSeq;
+  view.toolCalls = history.toolCalls;
+  view.latestCompletion = history.latestCompletion;
+  view.effectiveConfiguration = history.effectiveConfiguration;
 }

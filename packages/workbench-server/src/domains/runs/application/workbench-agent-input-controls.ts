@@ -23,7 +23,6 @@ import type {
   WorkbenchAgentControls,
   WorkbenchRunFeatureMechanics,
 } from "./workbench-run.service.js";
-
 /** Shared input/admission controls; no transport or orchestration-specific writers. */
 export class WorkbenchAgentInputControls {
   private readonly agentAdmissions = new KeyedSerialLock();
@@ -36,7 +35,6 @@ export class WorkbenchAgentInputControls {
     "RUNTIME_SHUTTING_DOWN",
     "Runtime is shutting down.",
   );
-
   get admissionsStopped(): boolean {
     return this.watcherShutdown.signal.aborted;
   }
@@ -215,7 +213,6 @@ export class WorkbenchAgentInputControls {
     );
     // Cancellation leaves uncertain tool inspection issues visible.
   }
-
   withAdmission<T>(agentId: string, action: () => Promise<T>): Promise<T> {
     return this.trackInputWork(
       this.agentAdmissions.exclusive(agentId, async () => {
@@ -240,8 +237,7 @@ export class WorkbenchAgentInputControls {
       }
     }
     pending.sort(
-      (a, b) =>
-        a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal,
+      (a, b) => a.createdAt.localeCompare(b.createdAt) || a.ordinal - b.ordinal,
     );
     for (const prompt of pending) {
       this.requireAgent(prompt.agentId);
@@ -270,7 +266,6 @@ export class WorkbenchAgentInputControls {
       await this.coordinator.cancelPrompt(prompt.runId, prompt.id);
     }
   }
-
   recoverAgentInputs(excludeAgentId?: string): Promise<void> {
     if (this.admissionsStopped) return Promise.resolve();
     return this.trackInputWork(this.performInputRecovery(excludeAgentId));

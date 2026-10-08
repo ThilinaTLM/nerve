@@ -149,6 +149,162 @@ describe("context agent rows", () => {
     });
   });
 
+  const discoveryStates: {
+    state: AgentActivitySnapshot["state"];
+    live: boolean;
+    needsYou: number;
+    working: number;
+    finished: number;
+    failed: number;
+  }[] = [
+    {
+      state: "running",
+      live: true,
+      needsYou: 0,
+      working: 1,
+      finished: 0,
+      failed: 0,
+    },
+    {
+      state: "awaiting_user",
+      live: true,
+      needsYou: 1,
+      working: 0,
+      finished: 0,
+      failed: 0,
+    },
+    {
+      state: "awaiting_async",
+      live: true,
+      needsYou: 0,
+      working: 1,
+      finished: 0,
+      failed: 0,
+    },
+    {
+      state: "idle",
+      live: false,
+      needsYou: 0,
+      working: 0,
+      finished: 1,
+      failed: 0,
+    },
+    {
+      state: "error",
+      live: false,
+      needsYou: 0,
+      working: 0,
+      finished: 0,
+      failed: 1,
+    },
+    {
+      state: "aborted",
+      live: false,
+      needsYou: 0,
+      working: 0,
+      finished: 0,
+      failed: 1,
+    },
+  ];
+
+  for (const expected of discoveryStates) {
+    it(`keeps ${expected.state} Explore discovery, fold, and attention consistent`, () => {
+      const child = agent("explore", { parentAgentId: "lead" });
+      const activityById = { explore: activity(child.id, expected.state) };
+      const groups = groupAgents([child], child.id, activityById);
+      assert.deepEqual(
+        groups.exploreLive.map(({ id }) => id),
+        expected.live ? [child.id] : [],
+      );
+      assert.deepEqual(
+        groups.exploreDone.map(({ id }) => id),
+        expected.live ? [] : [child.id],
+      );
+      assert.deepEqual(agentAttention([child], activityById), {
+        needsYou: expected.needsYou,
+        working: expected.working,
+      });
+      assert.deepEqual(exploreFoldSummary(groups.exploreDone, activityById), {
+        finished: expected.finished,
+        failed: expected.failed,
+        label: expected.finished
+          ? "1 finished"
+          : expected.failed
+            ? "1 failed"
+            : "",
+      });
+    });
+  }
+
+  it("ranks live Explore attention and unfolds an idle child when background work starts", () => {
+    const records = discoveryStates.map(({ state }) =>
+      agent(state, { parentAgentId: "lead" }),
+    );
+    const activityById = Object.fromEntries(
+      discoveryStates.map(({ state }) => [state, activity(state, state)]),
+    );
+    const groups = groupAgents(records, undefined, activityById);
+    assert.deepEqual(
+      groups.exploreLive.map(({ id }) => id),
+      ["awaiting_user", "running", "awaiting_async"],
+    );
+    assert.deepEqual(exploreFoldSummary(groups.exploreDone, activityById), {
+      finished: 1,
+      failed: 2,
+      label: "1 finished · 2 failed",
+    });
+    assert.deepEqual(agentAttention(records, activityById), {
+      needsYou: 1,
+      working: 2,
+    });
+
+    activityById.idle = activity("idle", "awaiting_async");
+    const resumed = groupAgents(records, "idle", activityById);
+    assert.ok(resumed.exploreLive.some(({ id }) => id === "idle"));
+    assert.ok(!resumed.exploreDone.some(({ id }) => id === "idle"));
+    assert.deepEqual(exploreFoldSummary(resumed.exploreDone, activityById), {
+      finished: 0,
+      failed: 2,
+      label: "2 failed",
+    });
+    assert.deepEqual(agentAttention(records, activityById), {
+      needsYou: 1,
+      working: 3,
+    });
+    assert.deepEqual(
+      agentStatusBadge(
+        records.find(({ id }) => id === "idle")!,
+        activityById.idle,
+      ),
+      {
+        variant: "warning",
+        text: "background work",
+      },
+    );
+  });
+
+  it("counts background work across lead, teammate, and Explore roles", () => {
+    const records = [
+      agent("lead"),
+      agent("mate", {
+        parentAgentId: "lead",
+        orchestrationPolicy: {
+          preset: "developer",
+          parentCancellation: "independent",
+          completionReporting: "parent",
+        },
+      }),
+      agent("explore", { parentAgentId: "lead" }),
+    ];
+    const activityById = Object.fromEntries(
+      records.map(({ id }) => [id, activity(id, "awaiting_async")]),
+    );
+    assert.deepEqual(agentAttention(records, activityById), {
+      needsYou: 0,
+      working: 3,
+    });
+  });
+
   it("summarizes failures from activity rather than agent records", () => {
     const done = [agent("ok"), agent("failed")];
     assert.deepEqual(

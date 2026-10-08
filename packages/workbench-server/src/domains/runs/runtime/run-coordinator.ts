@@ -965,7 +965,19 @@ export class RunCoordinator {
           images,
           signal: abort.signal,
           withProviderDispatchFence: (action) =>
-            this.withAgentDispatchFence(run.agentId, action),
+            this.withAgentDispatchFence(run.agentId, async () => {
+              const current = await this.require(run.runId);
+              if (
+                abort.signal.aborted ||
+                current.run.status !== "running" ||
+                current.run.executionId !== run.executionId ||
+                current.run.agentId !== run.agentId
+              )
+                throw new InvalidRunStateError(
+                  "Provider dispatch attempt is no longer current",
+                );
+              return action();
+            }),
         });
         if (outcome.status === "completed") {
           await this.complete(run.runId, run.executionId, outcome.result);

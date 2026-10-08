@@ -34,7 +34,7 @@ export async function saveAgentSettings(
     agentId: agent.id,
     ...patch,
   });
-  if ("agent" in result) upsertAgentRecordFresh(result.agent);
+  upsertAgentRecordFresh(result.agent);
   await refreshAgentView(agent);
 }
 

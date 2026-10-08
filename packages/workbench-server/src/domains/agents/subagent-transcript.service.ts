@@ -2,10 +2,10 @@ import { toolCallRecordSchema } from "@nervekit/contracts/tools";
 import { type ConversationTreeEntry } from "@nervekit/harness/conversation";
 import { conversationStream } from "@nervekit/contracts/events";
 import {
-  completeAgentHistoryResultSchema,
+  agentHistoryResultSchema,
   effectiveTurnConfigurationSchema,
   type AgentCompletion,
-  type CompleteAgentHistoryResult,
+  type AgentHistoryResult,
   SUBAGENT_TRANSCRIPT_MAX_ENTRIES,
   SUBAGENT_TRANSCRIPT_MAX_TEXT_CHARS,
   SUBAGENT_TRANSCRIPT_MAX_THINKING_BLOCKS,
@@ -301,7 +301,7 @@ export class SubagentTranscriptService {
     );
   }
 
-  async snapshot(agentId: string): Promise<CompleteAgentHistoryResult> {
+  async snapshot(agentId: string): Promise<AgentHistoryResult> {
     const agent = this.deps.getAgent(agentId);
     const captured = await this.deps.events.withCursor(
       conversationStream(agent.conversationId),
@@ -396,7 +396,7 @@ export class SubagentTranscriptService {
           activeEntryIds.unshift(ancestor);
           ancestor = entry.parentId;
         }
-        const complete = completeAgentHistoryResultSchema.parse({
+        return {
           agentId,
           conversationId: agent.conversationId,
           entries,
@@ -405,15 +405,12 @@ export class SubagentTranscriptService {
           toolCalls,
           latestCompletion: await this.deps.latestCompletion(agentId),
           effectiveConfiguration,
-        });
-        return {
-          ...complete,
           activeRun: this.deps.activeRun(agentId),
           activity: await this.deps.activityForAgent(agentId),
         };
       },
     );
-    return completeAgentHistoryResultSchema.parse({
+    return agentHistoryResultSchema.parse({
       ...captured.value,
       cursorSeq: captured.cursor.processedSeq,
     });

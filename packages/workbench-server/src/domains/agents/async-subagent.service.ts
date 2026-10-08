@@ -130,7 +130,6 @@ export class AsyncSubagentService {
           projectId: lead.projectId,
           projectDir: lead.projectDir,
           parentAgentId: lead.id,
-          executionKind: "async_developer",
           orchestrationPolicy: {
             preset: "developer",
             parentCancellation: "independent",

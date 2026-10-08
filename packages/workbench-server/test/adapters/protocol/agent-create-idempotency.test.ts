@@ -55,6 +55,7 @@ test("actual root/child creation returns canonical agent DTOs and replays durabl
       conversationId: conversation.id,
       model: { provider: "browser-live-provider", modelId: "original" },
       thinkingLevel: "off",
+      executionKind: kind === "root" ? "explore" : "async_developer",
       permissionLevel: kind === "root" ? "autonomous" : "read_only",
       permissionRuleSetId: kind === "root" ? "autonomous" : "read_only",
       ...(kind === "root"
@@ -69,6 +70,7 @@ test("actual root/child creation returns canonical agent DTOs and replays durabl
             },
           }),
     });
+    assert.equal("executionKind" in params, false);
     const key = `create-${kind}`;
     const operation = async () => {
       executions++;
@@ -109,6 +111,10 @@ test("actual root/child creation returns canonical agent DTOs and replays durabl
     assert.deepEqual(agent, JSON.parse(JSON.stringify(internal)));
     assert.equal(Object.hasOwn(agent, "systemPrompt"), false);
     assert.equal(Object.hasOwn(agent, "executionKind"), false);
+    assert.equal(
+      agent.orchestrationPolicy?.preset,
+      kind === "root" ? "standard" : "developer",
+    );
     assert.equal(agent.parentAgentId, kind === "root" ? undefined : parentId);
     const duplicate = await store.execute(
       "ui",
@@ -140,6 +146,7 @@ test("actual root/child creation returns canonical agent DTOs and replays durabl
     JSON.stringify(configured.outcome),
   );
   assert.ok(configured.outcome?.status === "success");
+  assert.deepEqual(Object.keys(configured.outcome.result as object), ["agent"]);
   const configuredAgent = (configured.outcome.result as { agent: AgentRecord })
     .agent;
   assert.equal(configuredAgent.configurationAcceptances?.length, 1);

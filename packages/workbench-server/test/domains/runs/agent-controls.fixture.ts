@@ -111,6 +111,7 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
       },
     } as never,
     {
+      listMetadata: async () => [...runs.values()].map((state) => state.run),
       list: async () =>
         [...runs.values()].map((state) => ({
           ...state,

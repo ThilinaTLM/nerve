@@ -62,7 +62,6 @@ function service(
     async () => undefined,
     async () => undefined,
     async () => undefined,
-    async () => undefined,
   );
 }
 

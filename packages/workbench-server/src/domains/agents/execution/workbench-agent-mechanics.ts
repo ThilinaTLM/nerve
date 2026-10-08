@@ -83,12 +83,19 @@ export interface WorkbenchAgentMechanicsDeps {
     | import("../../runs/runtime/run-unit-of-work.js").RunHydratedState
     | undefined
   >;
-  commitEffectiveConfiguration?: (
-    agentId: string,
-    revision: number,
-    turnId: string,
-    runId: string,
-  ) => Promise<void>;
+  claimPreparedTurn: (
+    agent: Pick<
+      AgentRecord,
+      | "id"
+      | "conversationId"
+      | "projectId"
+      | "parentAgentId"
+      | "rootAgentId"
+      | "configurationRevision"
+    >,
+    recordEffectiveTurn: () => Promise<void>,
+    recordProviderDispatch: () => Promise<void>,
+  ) => Promise<{ kind: "ready" } | { kind: "refresh" }>;
   storage: InitializedStorage;
   events: StreamLogRegistry;
   auth: AuthManager;

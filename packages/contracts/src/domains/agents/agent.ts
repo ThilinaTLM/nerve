@@ -206,7 +206,6 @@ export const createAgentRequestSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   projectDir: z.string().min(1).optional(),
   parentAgentId: z.string().startsWith("agent_").optional(),
-  executionKind: z.enum(["root", "explore", "async_developer"]).optional(),
   name: z.string().trim().min(1).max(80).optional(),
   task: z.string().optional(),
   mode: modeSchema.optional(),

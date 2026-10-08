@@ -1,3 +1,7 @@
+import {
+  expectAgentDetails,
+  expectSelectedAgent,
+} from "./agent-controls.helpers.js";
 import { expect, test, type Page } from "@playwright/test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
@@ -316,12 +320,15 @@ for (const preset of ["developer", "explore"] as const) {
           .first()
           .click();
       }
-      const controls = page.getByLabel("Agent controls", { exact: true });
-      await expect(controls).toContainText(
+      const childName =
         preset === "explore"
           ? "Live Explore evidence"
-          : "Live developer evidence",
-      );
+          : "Live developer evidence";
+      await page
+        .getByRole("tab", { name: "Context", exact: true })
+        .first()
+        .click();
+      await expectSelectedAgent(page, childName);
       await page
         .getByRole("button", { name: "Model and thinking level", exact: true })
         .click();
@@ -334,11 +341,11 @@ for (const preset of ["developer", "explore"] as const) {
               ?.modelId,
         )
         .toBe("replacement");
-      await expect(controls).toContainText("Pending next turn");
+      await expectAgentDetails(page, childName, "Pending next turn");
       const composer = page.getByRole("textbox").first();
       await composer.fill(steering);
       await composer.press("Enter");
-      await expect(controls).toContainText("pending input");
+      await expectAgentDetails(page, childName, "pending input");
       await expect
         .poll(async () =>
           (
@@ -413,8 +420,8 @@ for (const preset of ["developer", "explore"] as const) {
           (entry) => entry.role === "user" && entry.text === steering,
         ),
       ).toHaveLength(1);
-      await expect(controls).not.toContainText("pending input");
-      await expect(controls).not.toContainText("Pending next turn");
+      await expectAgentDetails(page, childName, "pending input", false);
+      await expectAgentDetails(page, childName, "Pending next turn", false);
       if (preset === "explore") {
         await expect
           .poll(

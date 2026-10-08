@@ -1,46 +1,17 @@
-import { expect, test, type Page } from "@playwright/test";
+import {
+  rpc,
+  agentAction,
+  expectAgentAction,
+  expectAgentDetails,
+  expectSelectedAgent,
+  mobileAgentAction,
+  expectMobileAgentAction,
+  returnToConversation,
+} from "./agent-controls.helpers.js";
+import { expect, test } from "@playwright/test";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type {
-  OperationName,
-  OperationParams,
-  OperationResult,
-} from "@nervekit/contracts/operations";
-
-async function rpc<M extends OperationName>(
-  page: Page,
-  method: M,
-  params: OperationParams<M>,
-): Promise<OperationResult<M>> {
-  const response = await page.request.post("/api/protocol/v1", {
-    headers: { "content-type": "application/vnd.nerve.protocol.v1+json" },
-    data: {
-      protocol: "nerve",
-      version: 1,
-      id: `msg_${crypto.randomUUID()}`,
-      kind: "request",
-      ts: new Date().toISOString(),
-      source: {
-        role: "ui",
-        id: "browser_agent_controls",
-        instanceId: "browser_agent_controls_instance",
-      },
-      target: { role: "workbench_server" },
-      data: {
-        method,
-        params,
-        ...(method.startsWith("run.")
-          ? { idempotencyKey: crypto.randomUUID() }
-          : {}),
-      },
-    },
-  });
-  const envelope = await response.json();
-  expect(envelope.kind, JSON.stringify(envelope)).toBe("response");
-  return envelope.data.result as OperationResult<M>;
-}
-
 test("ordinary controls select and administer developer and Explore identities sharing a conversation", async ({
   page,
 }) => {
@@ -121,10 +92,9 @@ test("ordinary controls select and administer developer and Explore identities s
       .click();
     await page.getByText(currentTitle, { exact: true }).first().click();
     const composer = page.getByRole("textbox").first();
-    const controls = page.getByLabel("Agent controls", { exact: true });
     const privateHistory = (id: string) =>
       page.getByText(`Private history ${id}`, { exact: true });
-    await expect(controls).toContainText("Lead agent");
+    await expectSelectedAgent(page, "Lead agent");
     await expect(privateHistory(root.id)).toBeVisible();
     // Context is the normal discovery surface, including completed Explore history.
     await page
@@ -138,24 +108,22 @@ test("ordinary controls select and administer developer and Explore identities s
           .first()
           .click();
       await page.getByText(child.name!, { exact: true }).first().click();
-      await expect(controls).toContainText(child.name!);
+      await expectSelectedAgent(page, child.name!);
       await expect(privateHistory(child.id)).toBeVisible();
       await expect(privateHistory(root.id)).toHaveCount(0);
       const sibling = child.id === developer.id ? explorer : developer;
       await expect(privateHistory(sibling.id)).toHaveCount(0);
-      await controls.getByRole("button", { name: "Pause agent" }).click();
-      await expect(
-        controls.getByRole("button", { name: "Resume agent" }),
-      ).toBeVisible();
+      await agentAction(page, child.name!, "Pause agent");
+      await expectAgentAction(page, child.name!, "Resume agent");
       await composer.fill(`Queued follow-up ${child.id}`);
       await composer.press("Enter");
-      await expect(controls).toContainText("pending input");
-      await controls.getByRole("button", { name: "Agent settings" }).click();
+      await expectAgentDetails(page, child.name!, "pending input");
+      await agentAction(page, child.name!, "Agent settings");
       await page
         .getByRole("textbox", { name: "Instructions", exact: true })
         .fill(`Next-turn instructions ${child.id}`);
       await page.getByRole("button", { name: "Save agent settings" }).click();
-      await expect(controls).toContainText("Pending next turn");
+      await expectAgentDetails(page, child.name!, "Pending next turn");
       await expect
         .poll(
           async () =>
@@ -163,7 +131,7 @@ test("ordinary controls select and administer developer and Explore identities s
               .instructions,
         )
         .toBe(`Next-turn instructions ${child.id}`);
-      await controls.getByRole("button", { name: "Resume agent" }).click();
+      await agentAction(page, child.name!, "Resume agent");
       await expect(
         page.getByText(`Queued follow-up ${child.id}`, { exact: true }),
       ).toBeVisible();
@@ -176,10 +144,10 @@ test("ordinary controls select and administer developer and Explore identities s
           );
         })
         .toBe(true);
-      await expect(controls).not.toContainText("pending input");
+      await expectAgentDetails(page, child.name!, "pending input", false);
     }
     await page.getByText("Lead agent", { exact: true }).last().click();
-    await expect(controls).toContainText("Lead agent");
+    await expectSelectedAgent(page, "Lead agent");
     const history = await rpc(page, "agent.history.get", { agentId: root.id });
     const text = `Private history ${root.id}`;
     const original = history.entries.find((entry) => entry.text === text);
@@ -281,8 +249,7 @@ test("idle children use the full composer, preserve separate drafts, and accept 
           .first()
           .click();
       await page.getByText(child.name!, { exact: true }).first().click();
-      const controls = page.getByLabel("Agent controls", { exact: true });
-      await expect(controls).toContainText(child.name!);
+      await expectSelectedAgent(page, child.name!);
       await expect(composer).not.toContainText("Unsent root draft");
       await composer.fill(`Unsent ${child.id}`);
       await page
@@ -321,15 +288,13 @@ test("idle children use the full composer, preserve separate drafts, and accept 
         (await rpc(page, "agent.get", { agentId: root.id })).agent.tools,
       ).toBeNull();
       await page.keyboard.press("Escape");
-      await controls.getByRole("button", { name: "Pause agent" }).click();
-      await expect(
-        controls.getByRole("button", { name: "Resume agent" }),
-      ).toBeVisible();
+      await agentAction(page, child.name!, "Pause agent");
+      await expectAgentAction(page, child.name!, "Resume agent");
       expect(
         (await rpc(page, "agent.get", { agentId: child.id })).agent
           .activationState,
       ).toBe("paused");
-      await controls.getByRole("button", { name: "Agent settings" }).click();
+      await agentAction(page, child.name!, "Agent settings");
       await page
         .getByRole("textbox", { name: "Instructions", exact: true })
         .fill(`Instructions for ${child.id}`);
@@ -341,11 +306,9 @@ test("idle children use the full composer, preserve separate drafts, and accept 
               .instructions,
         )
         .toBe(`Instructions for ${child.id}`);
-      await expect(controls).toContainText("Pending next turn");
-      await controls.getByRole("button", { name: "Resume agent" }).click();
-      await expect(
-        controls.getByRole("button", { name: "Pause agent" }),
-      ).toBeVisible();
+      await expectAgentDetails(page, child.name!, "Pending next turn");
+      await agentAction(page, child.name!, "Resume agent");
+      await expectAgentAction(page, child.name!, "Pause agent");
     }
     await page.getByText("Lead agent", { exact: true }).last().click();
     await expect(composer).toHaveText("Unsent root draft");
@@ -408,8 +371,7 @@ test("root and child palettes isolate configuration and preserve inherited skill
       .getByText("Inherited agent settings", { exact: true })
       .first()
       .click();
-    const controls = page.getByLabel("Agent controls", { exact: true });
-    await controls.getByRole("button", { name: "Agent settings" }).click();
+    await agentAction(page, "Lead agent", "Agent settings");
     await expect(
       page.getByRole("switch", { name: "Inherit resource skills" }),
     ).toBeChecked();
@@ -427,7 +389,7 @@ test("root and child palettes isolate configuration and preserve inherited skill
     expect(
       (await rpc(page, "agent.get", { agentId: root.id })).agent.skills,
     ).toBeNull();
-    await controls.getByRole("button", { name: "Agent settings" }).click();
+    await agentAction(page, "Lead agent", "Agent settings");
     await page.getByRole("switch", { name: "Use registered tools" }).uncheck();
     await page.getByRole("button", { name: "Save agent settings" }).click();
     await expect
@@ -500,7 +462,7 @@ test("root and child palettes isolate configuration and preserve inherited skill
     await expect(first).toBeChecked();
     await expect(second).toBeChecked();
     await page.keyboard.press("Escape");
-    await controls.getByRole("button", { name: "Agent settings" }).click();
+    await agentAction(page, child.name!, "Agent settings");
     await page
       .getByRole("textbox", { name: "Instructions", exact: true })
       .fill("Child instruction edit");
@@ -537,7 +499,7 @@ test("root and child palettes isolate configuration and preserve inherited skill
     await expect(
       page.getByText(/pending · user .*next run/).filter({ hasText: "#" }),
     ).toBeVisible();
-    await expect(controls).toContainText("pending input");
+    await expectAgentDetails(page, child.name!, "pending input");
     await page
       .getByRole("button", { name: "Discard queued prompt", exact: true })
       .last()
@@ -598,8 +560,7 @@ for (const preset of ["developer", "explore"] as const) {
       await mobileNavigation
         .getByRole("button", { name: new RegExp(`^${conversation.title}\\b`) })
         .click();
-      const controls = page.getByLabel("Agent controls", { exact: true });
-      await expect(controls).toContainText("Lead agent");
+      await expect(page.getByRole("textbox").first()).toBeVisible();
       await page.getByRole("textbox").first().fill("Mobile root draft");
       await page
         .getByRole("button", { name: "Conversation context", exact: true })
@@ -613,17 +574,16 @@ for (const preset of ["developer", "explore"] as const) {
       await expect(
         page.getByRole("heading", { name: "Context", exact: true }),
       ).toHaveCount(0);
-      await expect(controls).toBeVisible();
-      await expect(controls).toContainText(child.name!);
-      await controls.getByRole("button", { name: "Pause agent" }).click();
-      await expect(
-        controls.getByRole("button", { name: "Resume agent" }),
-      ).toBeVisible();
+      await expect(page.getByRole("textbox").first()).not.toHaveText(
+        "Mobile root draft",
+      );
+      await mobileAgentAction(page, child.name!, "Pause agent");
+      await expectMobileAgentAction(page, child.name!, "Resume agent");
       const composer = page.getByRole("textbox").first();
       const prompt = `Phone prompt ${child.id}`;
       await composer.fill(prompt);
       await composer.press("Enter");
-      await expect(controls).toContainText("1 pending input");
+      await expect(page.getByText(prompt, { exact: true })).toBeVisible();
       await expect
         .poll(async () =>
           (
@@ -650,12 +610,21 @@ for (const preset of ["developer", "explore"] as const) {
         expect(notice.text).toContain(child.id);
         expect(notice.text).not.toContain(prompt);
       }
-      await controls.getByRole("button", { name: "Agent settings" }).click();
+      await mobileAgentAction(page, child.name!, "Agent settings");
       await page
         .getByRole("textbox", { name: "Instructions", exact: true })
         .fill(`Phone instructions ${child.id}`);
       await page.getByRole("button", { name: "Save agent settings" }).click();
-      await expect(controls).toContainText("Pending next turn");
+      await returnToConversation(page);
+      await expect
+        .poll(async () => {
+          const agent = (await rpc(page, "agent.get", { agentId: child.id }))
+            .agent;
+          return (
+            agent.configurationRevision! > agent.effectiveConfigurationRevision!
+          );
+        })
+        .toBe(true);
       await expect
         .poll(
           async () =>
@@ -666,7 +635,7 @@ for (const preset of ["developer", "explore"] as const) {
       expect(
         (await rpc(page, "agent.get", { agentId: root.id })).agent.instructions,
       ).not.toBe(`Phone instructions ${child.id}`);
-      await controls.getByRole("button", { name: "Resume agent" }).click();
+      await mobileAgentAction(page, child.name!, "Resume agent");
       await expect(page.getByText(prompt, { exact: true })).toBeVisible();
       await expect
         .poll(
@@ -675,13 +644,27 @@ for (const preset of ["developer", "explore"] as const) {
               .latestCompletion?.outcome,
         )
         .toBe("completed");
-      await expect(controls).not.toContainText("pending input");
-      await expect(controls).not.toContainText("Pending next turn");
+      await expect
+        .poll(
+          async () =>
+            (await rpc(page, "agent.promptQueue.list", { agentId: child.id }))
+              .queuedPrompts.length,
+        )
+        .toBe(0);
+      await expect
+        .poll(async () => {
+          const agent = (await rpc(page, "agent.get", { agentId: child.id }))
+            .agent;
+          return (
+            agent.configurationRevision === agent.effectiveConfigurationRevision
+          );
+        })
+        .toBe(true);
       await page
         .getByRole("button", { name: "Conversation context", exact: true })
         .click();
       await page.getByRole("button", { name: /^Lead agent/ }).click();
-      await expect(controls).toContainText("Lead agent");
+      await expect(page.getByRole("textbox").first()).toBeVisible();
       await expect(composer).toHaveText("Mobile root draft");
       await expect(page.getByText(prompt, { exact: true })).toHaveCount(0);
     } finally {
@@ -727,7 +710,6 @@ test("switching lead and child during live runs keeps events and history agent-s
       .click();
     await page.getByText(conversation.title, { exact: true }).first().click();
     await page.getByRole("tab", { name: "Context", exact: true }).click();
-    const controls = page.getByLabel("Agent controls", { exact: true });
     const rootPrompt = `Live root ${root.id}`;
     const childPrompt = `Live child ${child.id}`;
     // The API requests and ordinary selection run concurrently. Both agents
@@ -737,11 +719,11 @@ test("switching lead and child during live runs keeps events and history agent-s
       rpc(page, "run.start", { agentId: child.id, text: childPrompt }),
       page.getByText(child.name!, { exact: true }).first().click(),
     ]);
-    await expect(controls).toContainText(child.name!);
+    await expectSelectedAgent(page, child.name!);
     await expect(page.getByText(childPrompt, { exact: true })).toBeVisible();
     await expect(page.getByText(rootPrompt, { exact: true })).toHaveCount(0);
     await page.getByText("Lead agent", { exact: true }).last().click();
-    await expect(controls).toContainText("Lead agent");
+    await expectSelectedAgent(page, "Lead agent");
     await expect(page.getByText(rootPrompt, { exact: true })).toBeVisible();
     await expect(page.getByText(childPrompt, { exact: true })).toHaveCount(0);
     const getHistory = (agentId: string) =>

@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parseOperationResult } from "../../src/operations/catalog.js";
-import {
-  agentHistoryResultSchema,
-  completeAgentHistoryResultSchema,
-} from "../../src/domains/agents/agent-operations.js";
+import { agentHistoryResultSchema } from "../../src/domains/agents/agent-operations.js";
 
 const now = "2026-10-07T00:00:00.000Z";
 function history(agentId = "agent_additional_root") {
@@ -16,6 +13,8 @@ function history(agentId = "agent_additional_root") {
     latestCompletion: null,
     effectiveConfiguration: null,
     cursorSeq: 42,
+    activeEntryId: null,
+    activeEntryIds: [],
     activeRun: {
       agentId,
       conversationId: "conv_shared",
@@ -42,7 +41,7 @@ function history(agentId = "agent_additional_root") {
 test("common operation result retains validated live history for additional roots and orphans without parent fallback", () => {
   for (const agentId of ["agent_additional_root", "agent_orphan"]) {
     const value = history(agentId);
-    assert.deepEqual(completeAgentHistoryResultSchema.parse(value), value);
+    assert.deepEqual(agentHistoryResultSchema.parse(value), value);
     assert.deepEqual(
       parseOperationResult(
         "agent.history.get",
@@ -54,34 +53,34 @@ test("common operation result retains validated live history for additional root
   }
 });
 
-test("legacy history and independently optional cursor/activity/active snapshots stay readable without invented state", () => {
-  assert.deepEqual(parseOperationResult("agent.history.get", { entries: [] }), {
-    entries: [],
-  });
-  assert.deepEqual(
-    agentHistoryResultSchema.parse({ entries: [], cursorSeq: 0 }),
-    { entries: [], cursorSeq: 0 },
-  );
-  const { activeRun, activity, cursorSeq, ...legacyComplete } = history();
-  assert.deepEqual(
-    completeAgentHistoryResultSchema.parse(legacyComplete),
-    legacyComplete,
-  );
+test("current history requires all durable owner fields while absent runtime snapshots mean none", () => {
+  const { activeRun, activity, ...idle } = history();
+  assert.deepEqual(agentHistoryResultSchema.parse(idle), idle);
+  for (const field of [
+    "agentId",
+    "conversationId",
+    "entries",
+    "toolCalls",
+    "activeEntryId",
+    "activeEntryIds",
+    "cursorSeq",
+    "latestCompletion",
+    "effectiveConfiguration",
+  ] as const) {
+    const incomplete = { ...idle, [field]: undefined };
+    assert.equal(
+      agentHistoryResultSchema.safeParse(incomplete).success,
+      false,
+      field,
+    );
+    assert.throws(() => parseOperationResult("agent.history.get", incomplete));
+  }
   assert.equal(
-    agentHistoryResultSchema.safeParse({ ...legacyComplete, activeRun })
-      .success,
+    agentHistoryResultSchema.safeParse({ ...idle, activeRun }).success,
     true,
   );
   assert.equal(
-    agentHistoryResultSchema.safeParse({ ...legacyComplete, activity }).success,
-    true,
-  );
-  assert.equal(
-    agentHistoryResultSchema.safeParse({
-      ...legacyComplete,
-      cursorSeq,
-      activity: { ...activity, state: "idle", activeRunId: undefined },
-    }).success,
+    agentHistoryResultSchema.safeParse({ ...idle, activity }).success,
     true,
   );
 });
@@ -108,10 +107,6 @@ test("history rejects foreign or unscoped snapshots and disagreements about the 
     { ...value, conversationId: undefined },
   ]) {
     assert.equal(agentHistoryResultSchema.safeParse(corrupt).success, false);
-    assert.equal(
-      completeAgentHistoryResultSchema.safeParse(corrupt).success,
-      false,
-    );
     assert.throws(() => parseOperationResult("agent.history.get", corrupt));
   }
 });

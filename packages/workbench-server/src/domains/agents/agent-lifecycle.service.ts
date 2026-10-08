@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import {
   resolveAgentBlueprint,
+  agentRecordSchema,
   agentConfigurationActorSchema,
   agentConfigurationAcceptanceSchema,
   type AgentConfigurationActor,
@@ -47,17 +48,12 @@ export class AgentLifecycleService {
     private readonly activeRunId: (
       agent: AgentRecord,
     ) => Promise<string | undefined>,
-    _updateLiveAgent: (runId: string, agent: AgentRecord) => Promise<void>,
-  ) {
-    // Accepted settings are adopted only by the common next-turn preparation hook.
-    void _updateLiveAgent;
-  }
+  ) {}
 
   async createAgent(
     request: CreateAgentRequest,
     options: {
       allowChildAuthorityExceed?: boolean;
-      allowAsyncDeveloper?: boolean;
       id?: string;
       parentConfigurationSnapshot?: ParentConfigurationSnapshot;
     } = {},
@@ -137,7 +133,6 @@ export class AgentLifecycleService {
       projectId: project.id,
       projectDir,
       parentAgentId: request.parentAgentId,
-      executionKind: request.executionKind,
       name: request.name,
       rootAgentId: parent?.rootAgentId ?? id,
       mode,
@@ -389,32 +384,92 @@ export class AgentLifecycleService {
     }
   }
 
+  /** Caller holds the coordinator dispatch fence; auth and observers stay outside. */
+  async claimPreparedTurn(
+    prepared: Pick<
+      AgentRecord,
+      | "id"
+      | "conversationId"
+      | "projectId"
+      | "parentAgentId"
+      | "rootAgentId"
+      | "configurationRevision"
+    >,
+    recordEffectiveTurn: () => Promise<void>,
+    recordProviderDispatch: () => Promise<void>,
+  ): Promise<{ kind: "ready" } | { kind: "refresh" }> {
+    return this.serializeConfiguration(prepared.id, async () => {
+      const current = await this.readCommittedAgent(prepared.id);
+      if (
+        current.conversationId !== prepared.conversationId ||
+        current.projectId !== prepared.projectId ||
+        current.parentAgentId !== prepared.parentAgentId ||
+        current.rootAgentId !== prepared.rootAgentId
+      )
+        throw new Error("Prepared agent configuration scope is corrupt");
+      if (current.activationState === "paused")
+        throw new Error("Agent dispatch is paused");
+      if (
+        (current.configurationRevision ?? 1) !==
+        (prepared.configurationRevision ?? 1)
+      )
+        return { kind: "refresh" };
+      await recordEffectiveTurn();
+      await this.setEffectiveConfigurationRevisionSerialized(
+        prepared.id,
+        prepared.configurationRevision ?? 1,
+      );
+      await recordProviderDispatch();
+      return { kind: "ready" };
+    });
+  }
+
+  private async readCommittedAgent(agentId: string): Promise<AgentRecord> {
+    const document = await this.storage.canonicalStore.readDocument<unknown>(
+      "agent",
+      "global",
+      agentId,
+    );
+    if (!document) throw new Error("Committed agent not found");
+    const agent = resolveAgentBlueprint(agentRecordSchema.parse(document.data));
+    if (agent.id !== agentId)
+      throw new Error("Committed agent identity is corrupt");
+    return agent;
+  }
+
   async setEffectiveConfigurationRevision(
     agentId: string,
     revision: number,
   ): Promise<AgentRecord> {
-    return this.serializeConfiguration(agentId, async () => {
-      const current = resolveAgentBlueprint(this.getAgent(agentId));
-      if (
-        !Number.isSafeInteger(revision) ||
-        revision < (current.effectiveConfigurationRevision ?? 0) ||
-        revision > (current.configurationRevision ?? 1)
-      ) {
-        throw new ApplicationError(
-          409,
-          "AGENT_CONFIGURATION_REVISION_CONFLICT",
-          "Effective revision must be an accepted, non-regressing configuration revision.",
-        );
-      }
-      const agent = {
-        ...current,
-        effectiveConfigurationRevision: revision,
-        updatedAt: new Date().toISOString(),
-      };
-      await this.updateAgent(agent);
-      await this.events.publish("agent.configured", { agent });
-      return agent;
-    });
+    return this.serializeConfiguration(agentId, () =>
+      this.setEffectiveConfigurationRevisionSerialized(agentId, revision),
+    );
+  }
+
+  private async setEffectiveConfigurationRevisionSerialized(
+    agentId: string,
+    revision: number,
+  ): Promise<AgentRecord> {
+    const current = await this.readCommittedAgent(agentId);
+    if (
+      !Number.isSafeInteger(revision) ||
+      revision < (current.effectiveConfigurationRevision ?? 0) ||
+      revision > (current.configurationRevision ?? 1)
+    ) {
+      throw new ApplicationError(
+        409,
+        "AGENT_CONFIGURATION_REVISION_CONFLICT",
+        "Effective revision must be an accepted, non-regressing configuration revision.",
+      );
+    }
+    const agent = {
+      ...current,
+      effectiveConfigurationRevision: revision,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.updateAgent(agent);
+    await this.events.publish("agent.configured", { agent });
+    return agent;
   }
 
   async setActivationState(
@@ -449,7 +504,7 @@ export class AgentLifecycleService {
     return updated;
   }
 
-  async updateAgent(agent: AgentRecord): Promise<void> {
+  private async updateAgent(agent: AgentRecord): Promise<void> {
     await this.writeAgent(agent);
     this.state.agents.set(agent.id, agent);
     this.queryCache.upsertAgent(agent);

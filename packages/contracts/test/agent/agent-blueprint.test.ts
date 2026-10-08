@@ -475,7 +475,7 @@ test("public queue operations preserve generalized input provenance and real ide
   );
 });
 
-test("scoped history result retains exact completion and resolved turn data while old entries-only responses remain readable", async () => {
+test("scoped history result retains exact completion and resolved turn data and rejects incomplete entries-only responses", async () => {
   const { agentHistoryResultSchema } =
     await import("../../src/domains/agents/agent-operations.js");
   const snapshot = {
@@ -496,6 +496,9 @@ test("scoped history result retains exact completion and resolved turn data whil
   };
   const complete = agentHistoryResultSchema.parse({
     entries: [],
+    activeEntryId: null,
+    activeEntryIds: [],
+    cursorSeq: 0,
     agentId: "agent_child",
     conversationId: "conv_shared",
     toolCalls: [],
@@ -505,9 +508,10 @@ test("scoped history result retains exact completion and resolved turn data whil
   assert.deepEqual(complete.toolCalls, []);
   assert.equal(complete.latestCompletion?.attemptId, "exec_final");
   assert.equal(complete.effectiveConfiguration?.configurationRevision, 1);
-  assert.deepEqual(agentHistoryResultSchema.parse({ entries: [] }), {
-    entries: [],
-  });
+  assert.equal(
+    agentHistoryResultSchema.safeParse({ entries: [] }).success,
+    false,
+  );
 });
 
 test("public create/update do not accept internal parent authority snapshots", async () => {
@@ -543,10 +547,10 @@ test("public create/update do not accept internal parent authority snapshots", a
 });
 
 test("complete scoped history producers cannot omit queue/runtime state or return another agent's completion", async () => {
-  const { completeAgentHistoryResultSchema } =
+  const { agentHistoryResultSchema } =
     await import("../../src/domains/agents/agent-operations.js");
   assert.equal(
-    completeAgentHistoryResultSchema.safeParse({ entries: [] }).success,
+    agentHistoryResultSchema.safeParse({ entries: [] }).success,
     false,
   );
   const history = {
@@ -556,13 +560,13 @@ test("complete scoped history producers cannot omit queue/runtime state or retur
     toolCalls: [],
     latestCompletion: null,
     effectiveConfiguration: null,
+    activeEntryId: null,
+    activeEntryIds: [],
+    cursorSeq: 0,
   };
+  assert.equal(agentHistoryResultSchema.safeParse(history).success, true);
   assert.equal(
-    completeAgentHistoryResultSchema.safeParse(history).success,
-    true,
-  );
-  assert.equal(
-    completeAgentHistoryResultSchema.safeParse({
+    agentHistoryResultSchema.safeParse({
       ...history,
       latestCompletion: {
         agentId: "agent_sibling",
@@ -573,5 +577,40 @@ test("complete scoped history producers cannot omit queue/runtime state or retur
       },
     }).success,
     false,
+  );
+});
+
+test("obsolete create kind is stripped and cannot override explicit new orchestration", async () => {
+  const { createAgentRequestSchema } =
+    await import("../../src/domains/agents/agent.js");
+  for (const executionKind of ["root", "explore", "async_developer"]) {
+    const created = createAgentRequestSchema.parse({
+      projectId: "proj_test",
+      conversationId: "conv_shared",
+      executionKind,
+      orchestrationPolicy: {
+        preset: "standard",
+        parentCancellation: "independent",
+        completionReporting: "none",
+      },
+    });
+    assert.equal("executionKind" in created, false);
+    assert.equal(created.orchestrationPolicy?.preset, "standard");
+  }
+});
+
+test("configure accepts only the current agent response, not async wire receipts", async () => {
+  const { parseOperationResult } =
+    await import("../../src/operations/catalog.js");
+  assert.deepEqual(
+    parseOperationResult("agent.configure", { agent: historical }),
+    { agent: agentRecordSchema.parse(historical) },
+  );
+  assert.throws(() =>
+    parseOperationResult("agent.configure", {
+      accepted: true,
+      agentId: historical.id,
+      effectiveAt: "next_turn",
+    }),
   );
 });

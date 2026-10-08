@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Turn preparation scenarios share a deterministic mechanics/input fixture. */
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,6 +14,7 @@ import {
 } from "@nervekit/contracts/agents";
 import {
   prepareWorkbenchTurn,
+  createWorkbenchPreparationSession,
   dispatchWorkbenchTurn,
 } from "../../../src/domains/agents/execution/workbench-turn-preparation.js";
 import {
@@ -105,11 +107,13 @@ function fixture(home: string) {
     turnId: string,
     conversation?: Parameters<typeof prepareWorkbenchTurn>[0]["conversation"],
     initialPromptHasImages = false,
+    session?: Parameters<typeof prepareWorkbenchTurn>[0]["session"],
   ) =>
     prepareWorkbenchTurn({
       mechanics,
       conversation,
       initialPromptHasImages,
+      session,
       agent: current,
       coordinator,
       runAbortController: new AbortController(),
@@ -382,9 +386,9 @@ test("committed configuration beats stale cache; late inputs cannot cross the ca
       compactedFor = input.text;
       return { status: "not_needed", reason: "below_threshold" };
     };
-    const preparing = harness.prepare("cut", {
-      buildContext: async () => ({ messages: [] }),
-    } as never);
+    const session = createWorkbenchPreparationSession("cut");
+    const context = { buildContext: async () => ({ messages: [] }) } as never;
+    const preparing = harness.prepare("cut", context, false, session);
     await ready;
     harness.setCommitted({
       ...harness.latest(),
@@ -407,6 +411,31 @@ test("committed configuration beats stale cache; late inputs cannot cross the ca
     assert.deepEqual(
       (await queue.list("agent_child")).map((input) => input.id),
       [late.id],
+    );
+    const remaining = session.budget.remaining;
+    harness.mechanics.maybeAutoCompactBeforeQueuedTurn = async () => ({
+      status: "not_needed",
+      reason: "below_threshold",
+    });
+    session.supersessions++;
+    const refreshed = await harness.prepare("cut", context, false, session);
+    assert.equal(refreshed.effective.turnId, snapshot.effective.turnId);
+    assert.equal(session.budget.remaining, remaining);
+    assert.deepEqual(inserted, [`entry_${first.id}`]);
+    assert.deepEqual(
+      (await queue.list("agent_child")).map((input) => input.id),
+      [late.id],
+    );
+    session.supersessions = 8;
+    await assert.rejects(
+      harness.prepare("cut", context, false, session),
+      (error) => {
+        assert.equal(
+          (error as { configurationRevision: number }).configurationRevision,
+          2,
+        );
+        return /changed too frequently/.test(String(error));
+      },
     );
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -471,9 +500,12 @@ test("stop winning before the actual dispatch barrier preserves delivered but un
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    h.mechanics.deps.commitEffectiveConfiguration = async () => {
+    h.mechanics.deps.claimPreparedTurn = async (_agent, commit, dispatch) => {
       entered();
       await gate;
+      await commit();
+      await dispatch();
+      return { kind: "ready" };
     };
     const coordinator = {
       sink: { recordEffectiveTurnConfiguration: async () => undefined },
@@ -481,9 +513,10 @@ test("stop winning before the actual dispatch barrier preserves delivered but un
     const dispatching = dispatchWorkbenchTurn(
       h.mechanics,
       prepared.effective,
-      "turn_actual",
+      () => "turn_actual",
       coordinator,
       new AbortController().signal,
+      h.latest(),
     );
     const rejected = assert.rejects(
       dispatching,
@@ -783,5 +816,45 @@ test("initial harness preparation preserves configuration blockers and accepted 
         await rm(home, { recursive: true, force: true });
       }
     });
+  }
+});
+
+test("superseded dispatch candidate never allocates live turn or binds input, effective snapshot, or provider dispatch", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-402-stale-claim-"));
+  try {
+    const h = fixture(home);
+    const prepared = await h.prepare("stable-prepared");
+    let effects = 0;
+    h.mechanics.deps.claimPreparedTurn = async () => ({ kind: "refresh" });
+    h.mechanics.deps.agentInputs = {
+      isPaused: async () => false,
+      bindTurn: async () => {
+        effects++;
+      },
+      recordProviderDispatch: async () => {
+        effects++;
+      },
+    } as never;
+    const result = await dispatchWorkbenchTurn(
+      h.mechanics,
+      prepared.effective,
+      () => {
+        effects++;
+        return "never-live";
+      },
+      {
+        sink: {
+          recordEffectiveTurnConfiguration: async () => {
+            effects++;
+          },
+        },
+      } as never,
+      new AbortController().signal,
+      h.latest(),
+    );
+    assert.deepEqual(result, { kind: "refresh" });
+    assert.equal(effects, 0);
+  } finally {
+    await rm(home, { recursive: true, force: true });
   }
 });

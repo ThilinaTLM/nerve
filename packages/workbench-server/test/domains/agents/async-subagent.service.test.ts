@@ -203,6 +203,7 @@ describe("shared parent controls and durable admission policy", () => {
     const view = await child(f);
     const agent = f.agents.get(view.agentId)!;
     assert.equal(agent.orchestrationPolicy?.preset, "developer");
+    assert.equal(Object.hasOwn(agent, "executionKind"), false);
     assert.equal(agent.projectDir, f.lead.projectDir);
     assert.equal(agent.parentAgentId, f.lead.id);
     await assert.rejects(child(f, " api "), /already exists/);

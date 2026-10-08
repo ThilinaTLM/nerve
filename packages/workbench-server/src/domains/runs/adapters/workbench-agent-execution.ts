@@ -89,8 +89,6 @@ export class WorkbenchAgentExecutionAdapter implements WorkbenchRunExecutionAdap
         if (forwardingPrompt) await forwardingPrompt;
         return (await installed?.removeQueuedPrompt(promptId)) ?? false;
       },
-      updateAgentRuntimeConfig: async (agent) =>
-        installed?.updateAgentRuntimeConfig?.(agent),
     };
 
     return {

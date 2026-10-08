@@ -127,7 +127,7 @@ it("creates a fresh persistent read-only blueprint and returns the exact submitt
   const request = f.requests[0]!;
   assert.equal(request.conversationId, parent.conversationId);
   assert.equal(request.parentAgentId, parent.id);
-  assert.equal(request.executionKind, undefined);
+  assert.equal(Object.hasOwn(request, "executionKind"), false);
   assert.equal(request.readOnlyCeiling, true);
   assert.equal(request.permissionLevel, "read_only");
   assert.deepEqual(request.workspaceScope, {

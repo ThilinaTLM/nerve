@@ -536,8 +536,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           `${agent.conversationId}:${agent.id}`,
         )
       )?.run.runId,
-    async (runId, agent) =>
-      runRuntime.live.get(runId)?.updateAgentRuntimeConfig?.(agent),
   );
   const plans = new PlanService(storage, getAgent, (agentId, mode, reason) =>
     agentLifecycle.setAgentModeInternal(agentId, mode, reason),
@@ -860,9 +858,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     subagentExecutions,
     agentInputs,
     loadRunState: (id) => runRuntime.unitOfWork.loadFresh(id),
-    commitEffectiveConfiguration: async (id, revision) => {
-      await agentLifecycle.setEffectiveConfigurationRevision(id, revision);
-    },
+    claimPreparedTurn: (agent, recordEffectiveTurn, recordProviderDispatch) =>
+      agentLifecycle.claimPreparedTurn(
+        agent,
+        recordEffectiveTurn,
+        recordProviderDispatch,
+      ),
     exploreRuntime: {
       submitRun: (agentId, text, parent, options) =>
         workbenchRun.submitAgentRun(agentId, text, parent, options),
@@ -1012,7 +1013,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     createAgent: (request, authorized, parentConfigurationSnapshot) =>
       createAgent(request, {
         allowChildAuthorityExceed: authorized,
-        allowAsyncDeveloper: true,
         parentConfigurationSnapshot,
       }),
     enabled: asyncSubagentsEnabled,

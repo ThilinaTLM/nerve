@@ -16,6 +16,12 @@ it("uses the owner ancestry rather than a detached visible entry as the current 
     createdAt: "2026-10-06T00:00:00.000Z",
   };
   applyAgentHistory(view, agent, {
+    agentId: agent.id,
+    conversationId: agent.conversationId,
+    cursorSeq: 0,
+    toolCalls: [],
+    latestCompletion: null,
+    effectiveConfiguration: null,
     entries: [entry],
     activeEntryId: "entry_hidden_leaf",
     activeEntryIds: ["entry_hidden_root", "entry_hidden_leaf"],
@@ -27,6 +33,12 @@ it("uses the owner ancestry rather than a detached visible entry as the current 
   assert.equal(view.activeEntryId, "entry_hidden_leaf");
   assert.equal(view.entries[0], entry);
   applyAgentHistory(view, agent, {
+    agentId: agent.id,
+    conversationId: agent.conversationId,
+    cursorSeq: 0,
+    toolCalls: [],
+    latestCompletion: null,
+    effectiveConfiguration: null,
     entries: [entry],
     activeEntryId: null,
     activeEntryIds: [],

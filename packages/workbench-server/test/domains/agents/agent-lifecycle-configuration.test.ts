@@ -5,6 +5,10 @@ import {
   resolveAgentBlueprint,
   type AgentRecord,
 } from "@nervekit/contracts/agents";
+import {
+  AgentInputService,
+  type AgentInputQueueState,
+} from "../../../src/domains/runs/runtime/agent-inputs.js";
 import { AgentLifecycleService } from "../../../src/domains/agents/agent-lifecycle.service.js";
 
 type Dependencies = ConstructorParameters<typeof AgentLifecycleService>;
@@ -33,9 +37,17 @@ function fixture() {
     persisted: AgentRecord | undefined;
   }[] = [];
   let failWrite = false;
-  let liveUpdates = 0;
+  let committed: AgentRecord | undefined;
   const service = new AgentLifecycleService(
-    {} as Dependencies[0],
+    {
+      canonicalStore: {
+        readDocument: async (
+          _namespace: string,
+          _scope: string,
+          id: string,
+        ) => ({ data: committed ?? agents.get(id) }),
+      },
+    } as unknown as Dependencies[0],
     {
       publish: async (type: string, data: { agent: AgentRecord }) => {
         published.push({ type, agent: data.agent, persisted: writes.at(-1) });
@@ -55,15 +67,13 @@ function fixture() {
         await Promise.resolve();
         if (failWrite) throw new Error("disk failure");
         writes.push(agent);
+        if (committed) committed = agent;
       },
     } as unknown as Dependencies[4],
     {} as Dependencies[5],
     async () => undefined,
     async () => undefined,
     async () => "run_active",
-    async () => {
-      liveUpdates++;
-    },
   );
   return {
     service,
@@ -71,15 +81,18 @@ function fixture() {
     writes,
     published,
     initial,
+    setCommitted: (agent: AgentRecord) => {
+      committed = agent;
+    },
+    committed: () => committed,
     fail: () => {
       failWrite = true;
     },
-    liveUpdates: () => liveUpdates,
   };
 }
 
 test("busy children accept complete configuration and serialize accepted revisions without changing an in-flight harness", async () => {
-  const { service, initial, writes, liveUpdates } = fixture();
+  const { service, initial, writes } = fixture();
   await Promise.all([
     service.configureAgent(initial.id, {
       mode: "planning",
@@ -106,7 +119,6 @@ test("busy children accept complete configuration and serialize accepted revisio
     writes.map((agent) => agent.configurationRevision),
     [2, 3],
   );
-  assert.equal(liveUpdates(), 0);
   await service.setEffectiveConfigurationRevision(initial.id, 2);
   assert.equal(service.getAgent(initial.id).configurationRevision, 3);
   assert.equal(service.getAgent(initial.id).effectiveConfigurationRevision, 2);
@@ -445,7 +457,6 @@ test("child creation inherits original model/mode/permissions/cwd/scope while im
     async () => undefined,
     async () => undefined,
     async () => undefined,
-    async () => undefined,
   );
   const request = {
     conversationId: original.conversationId,
@@ -520,7 +531,6 @@ test("live creation ignores legacy kind when resolving default or explicit confi
             async () => undefined,
             async () => undefined,
             async () => undefined,
-            async () => undefined,
           );
           const orchestrationPolicy = preset
             ? {
@@ -535,7 +545,7 @@ test("live creation ignores legacy kind when resolving default or explicit confi
           const agent = await service.createAgent({
             conversationId: "conv_shared",
             projectId: "proj_test",
-            executionKind,
+            ...{ executionKind },
             orchestrationPolicy,
             permissionLevel: preset === "explore" ? "read_only" : "supervised",
             tools: ["read_file"],
@@ -544,8 +554,8 @@ test("live creation ignores legacy kind when resolving default or explicit confi
           });
           assert.equal(
             agent.executionKind,
-            executionKind,
-            "legacy field remains metadata",
+            undefined,
+            "obsolete create metadata is not persisted",
           );
           assert.deepEqual(
             agent.orchestrationPolicy,
@@ -574,4 +584,191 @@ test("live creation ignores legacy kind when resolving default or explicit confi
       );
     }
   }
+});
+
+test("prepared revision claim orders configuration before and after dispatch without recursive queue deadlock", async () => {
+  const { service, initial, writes } = fixture();
+  const replacement = await service.configureAgent(initial.id, {
+    instructions: "new",
+  });
+  let commits = 0;
+  assert.deepEqual(
+    await service.claimPreparedTurn(
+      initial,
+      async () => {
+        commits++;
+      },
+      async () => undefined,
+    ),
+    { kind: "refresh" },
+  );
+  assert.equal(commits, 0);
+  assert.equal(writes.length, 1);
+  let entered!: () => void, release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const claim = service.claimPreparedTurn(
+    replacement,
+    async () => {
+      commits++;
+      entered();
+      await gate;
+    },
+    async () => undefined,
+  );
+  await ready;
+  const next = service.configureAgent(initial.id, { instructions: "later" });
+  release();
+  assert.deepEqual(await claim, { kind: "ready" });
+  const latest = await next;
+  assert.equal(commits, 1);
+  assert.equal(latest.configurationRevision, 3);
+  assert.equal(latest.effectiveConfigurationRevision, 2);
+  assert.equal(latest.instructions, "later");
+});
+
+test("effective write failure retains delivered context as undispatched after snapshot recording", async () => {
+  const { service, initial, fail, writes } = fixture();
+  const documents = new Map<string, AgentInputQueueState>();
+  let id = 0;
+  const queue = new AgentInputService(
+    {
+      load: async (key) => structuredClone(documents.get(key)),
+      save: async (key, value) => {
+        documents.set(key, structuredClone(value));
+      },
+    },
+    { next: () => String(++id) },
+    { now: () => new Date() },
+  );
+  await queue.accept(
+    initial.id,
+    initial.conversationId,
+    {
+      text: "durable input",
+      role: "user",
+      origin: { kind: "user", userId: "user" },
+      idempotencyKey: "failure-input",
+      eligibility: { kind: "next_turn" },
+      activation: "queue_only",
+    },
+    async () => undefined,
+  );
+  await queue.prepare(
+    {
+      agentId: initial.id,
+      conversationId: initial.conversationId,
+      runId: "run_test",
+      attemptId: "exec_test",
+      turnId: "prepared_test",
+    },
+    async () => undefined,
+    async () => false,
+  );
+  assert.equal(await queue.hasContextPending(initial.id), true);
+  let snapshots = 0,
+    dispatchClears = 0,
+    providerInvocations = 0;
+  fail();
+  await assert.rejects(
+    (async () => {
+      await service.claimPreparedTurn(
+        initial,
+        async () => {
+          snapshots++;
+        },
+        async () => {
+          dispatchClears++;
+          await queue.recordProviderDispatch(initial.id);
+        },
+      );
+      providerInvocations++;
+    })(),
+    /disk failure/,
+  );
+  assert.equal(snapshots, 1);
+  assert.equal(dispatchClears, 0);
+  assert.equal(providerInvocations, 0);
+  assert.equal(writes.length, 0);
+  assert.equal(service.getAgent(initial.id).effectiveConfigurationRevision, 0);
+  assert.equal(await queue.hasContextPending(initial.id), true);
+});
+
+test("claim and effective persistence use canonical configuration when cache is stale", async () => {
+  const { service, initial, setCommitted, committed, writes } = fixture();
+  const canonical = {
+    ...initial,
+    configurationRevision: 3,
+    instructions: "canonical latest",
+    tools: ["read"],
+    model: { provider: "canonical-provider", modelId: "canonical-model" },
+  };
+  setCommitted(canonical);
+  let snapshots = 0;
+  assert.deepEqual(
+    await service.claimPreparedTurn(
+      initial,
+      async () => {
+        snapshots++;
+      },
+      async () => undefined,
+    ),
+    { kind: "refresh" },
+  );
+  assert.equal(snapshots, 0);
+  assert.equal(writes.length, 0);
+  assert.deepEqual(
+    await service.claimPreparedTurn(
+      canonical,
+      async () => {
+        snapshots++;
+      },
+      async () => {
+        assert.equal(committed()?.effectiveConfigurationRevision, 3);
+      },
+    ),
+    { kind: "ready" },
+  );
+  assert.equal(snapshots, 1);
+  assert.equal(writes[0]?.instructions, "canonical latest");
+  assert.deepEqual(writes[0]?.model, canonical.model);
+  assert.deepEqual(writes[0]?.tools, canonical.tools);
+  assert.equal(service.getAgent(initial.id).configurationRevision, 3);
+  assert.equal(service.getAgent(initial.id).effectiveConfigurationRevision, 3);
+  // The public setter also reads canonical state rather than overwriting it with stale cache.
+  setCommitted({
+    ...canonical,
+    configurationRevision: 4,
+    instructions: "even newer",
+    effectiveConfigurationRevision: 3,
+  });
+  const adopted = await service.setEffectiveConfigurationRevision(
+    initial.id,
+    3,
+  );
+  assert.equal(adopted.configurationRevision, 4);
+  assert.equal(adopted.instructions, "even newer");
+});
+
+test("canonical scope mismatch rejects a claim even when cached scope matches", async () => {
+  const { service, initial, setCommitted } = fixture();
+  setCommitted({ ...initial, conversationId: "conv_corrupt" });
+  let effects = 0;
+  await assert.rejects(
+    service.claimPreparedTurn(
+      initial,
+      async () => {
+        effects++;
+      },
+      async () => {
+        effects++;
+      },
+    ),
+    /scope is corrupt/,
+  );
+  assert.equal(effects, 0);
 });

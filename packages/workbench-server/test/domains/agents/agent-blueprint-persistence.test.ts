@@ -477,7 +477,6 @@ test("lifecycle publishes persisted isolated ownership for a second independent 
     async () => undefined,
     async () => undefined,
     async () => undefined,
-    async () => undefined,
   );
   const request = {
     conversationId: "conv_shared",

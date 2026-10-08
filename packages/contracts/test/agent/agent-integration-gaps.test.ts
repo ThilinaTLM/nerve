@@ -10,10 +10,7 @@ import {
   agentAsyncObligationEntryId,
   assertAgentAsyncObligationReplacement,
 } from "../../src/domains/agents/agent-obligation.js";
-import {
-  agentHistoryResultSchema,
-  completeAgentHistoryResultSchema,
-} from "../../src/domains/agents/agent-operations.js";
+import { agentHistoryResultSchema } from "../../src/domains/agents/agent-operations.js";
 
 const now = "2026-10-06T00:00:00.000Z";
 test("run source input survives storage roundtrip and cannot be retroactively replaced or assigned", () => {
@@ -220,10 +217,11 @@ const history = {
   toolCalls: [],
   latestCompletion: null,
   effectiveConfiguration: null,
+  cursorSeq: 0,
 };
 
 test("owner active path is explicit and unaffected by full-tree order, detached branches or model-only prefix", () => {
-  const value = completeAgentHistoryResultSchema.parse({
+  const value = agentHistoryResultSchema.parse({
     ...history,
     activeEntryId: "entry_current",
     activeEntryIds: ["entry_root", "entry_current"],
@@ -234,18 +232,19 @@ test("owner active path is explicit and unaffected by full-tree order, detached 
   assert.equal(value.activeEntryIds?.includes("entry_newer_detached"), false);
   // Ancestry can contain non-rendered structural context IDs: do not infer path from display entries.
   assert.equal(
-    completeAgentHistoryResultSchema.safeParse({
+    agentHistoryResultSchema.safeParse({
       ...history,
       activeEntryId: "entry_hidden_model_leaf",
       activeEntryIds: ["entry_root", "entry_hidden_model_leaf"],
     }).success,
     true,
   );
-  assert.deepEqual(agentHistoryResultSchema.parse({ entries: [] }), {
-    entries: [],
-  });
   assert.equal(
-    completeAgentHistoryResultSchema.safeParse({
+    agentHistoryResultSchema.safeParse({ entries: [] }).success,
+    false,
+  );
+  assert.equal(
+    agentHistoryResultSchema.safeParse({
       ...history,
       activeEntryId: null,
       activeEntryIds: [],
@@ -266,8 +265,7 @@ test("owner active path is explicit and unaffected by full-tree order, detached 
     },
   ])
     assert.equal(
-      completeAgentHistoryResultSchema.safeParse({ ...history, ...path })
-        .success,
+      agentHistoryResultSchema.safeParse({ ...history, ...path }).success,
       false,
     );
 });
@@ -285,7 +283,7 @@ test("existing historical context entry details can retain frozen prefix tool re
       capturedToolResult: { toolName: "read", text: "Old result only" },
     },
   };
-  const parsed = completeAgentHistoryResultSchema.parse({
+  const parsed = agentHistoryResultSchema.parse({
     ...history,
     entries: [frozen],
     activeEntryId: frozen.id,
