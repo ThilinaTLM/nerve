@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import {
+  cp,
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   symlink,
   writeFile,
@@ -23,6 +25,14 @@ import {
   preflightSlot,
 } from "../slot-preflight.mjs";
 import { runOwned } from "../owned-processes.mjs";
+import { prepareDevelopmentSlot } from "../storage-preparation.js";
+import { acquireStorageHomeLock } from "../../../packages/workbench-server/src/infrastructure/storage-migrations/runner/home-lock.js";
+
+const supportedManifests = [
+  { format: "nerve-home", version: 1 },
+  { format: "nerve-home", version: 2, homeClass: "standard" },
+  { format: "nerve-home", version: 2, homeClass: "disposable" },
+];
 
 async function temporary(t) {
   const root = await mkdtemp(join(tmpdir(), "nerve-dev-slot-"));
@@ -138,6 +148,38 @@ test("redirected development directories fail before creating anything in their 
   await assert.rejects(assertSlotPaths(slot), /real directory/);
 });
 
+test("manually copied homes are preserved for startup migration regardless of home class", async (t) => {
+  for (const manifest of supportedManifests) {
+    const slot = resolveStorageSlot([], await temporary(t));
+    await mkdir(slot.home, { recursive: true });
+    const raw = JSON.stringify(manifest);
+    await writeFile(join(slot.home, "manifest.json"), raw);
+    await writeFile(join(slot.home, "migration-sentinel"), "unmigrated");
+    // No database/configuration is provided: preparation must leave existing
+    // storage alone so the owning daemon/desktop can run its migration workflow.
+    await prepareDevelopmentSlot(slot);
+    assert.equal(await readFile(join(slot.home, "manifest.json"), "utf8"), raw);
+    assert.equal(
+      await readFile(join(slot.home, "migration-sentinel"), "utf8"),
+      "unmigrated",
+    );
+    assert.deepEqual((await readdir(slot.home)).sort(), [
+      "manifest.json",
+      "migration-sentinel",
+    ]);
+  }
+});
+
+test("development preparation still rejects unsupported storage layouts", async (t) => {
+  const slot = resolveStorageSlot([], await temporary(t));
+  await mkdir(slot.home, { recursive: true });
+  await writeFile(
+    join(slot.home, "manifest.json"),
+    JSON.stringify({ format: "nerve-home", version: 999 }),
+  );
+  await assert.rejects(prepareDevelopmentSlot(slot), /manifest/);
+});
+
 async function daemonFixture(slot) {
   await mkdir(join(slot.home, "secrets"), { recursive: true });
   await writeFile(
@@ -145,7 +187,7 @@ async function daemonFixture(slot) {
     JSON.stringify({
       format: "nerve-home",
       version: 2,
-      homeClass: "disposable",
+      homeClass: "standard",
     }),
   );
   await writeFile(join(slot.home, "secrets", "daemon-token"), "slot-token");
@@ -192,6 +234,143 @@ test("only matching authenticated daemon metadata permits reuse and avoids probi
     inspectSlotDaemon(slot, request),
     /Invalid development daemon/,
   );
+});
+
+test("manual home copies discard only destination runtime metadata without contacting the source", async (t) => {
+  const root = await temporary(t);
+  const source = {
+    ...resolveStorageSlot([], root),
+    home: join(root, "production"),
+    httpPort: 3747,
+    httpsPort: 3748,
+  };
+  await daemonFixture(source);
+  await writeFile(
+    join(source.home, "persistent-data"),
+    "copied database contents",
+  );
+  const sourceMetadata = await readFile(
+    join(source.home, "daemon.json"),
+    "utf8",
+  );
+  const slot = resolveStorageSlot(["--slot", "3"], root);
+  await mkdir(slot.data, { recursive: true });
+  await cp(source.home, slot.home, { recursive: true });
+  const noSourceRequest = () =>
+    assert.fail("must not contact the source daemon");
+  assert.equal(await inspectSlotDaemon(slot, noSourceRequest), false);
+  // UI-only inspection is read-only, even for copied runtime metadata.
+  assert.equal(
+    await readFile(join(slot.home, "daemon.json"), "utf8"),
+    sourceMetadata,
+  );
+  const probes = [];
+  assert.equal(
+    await preflightSlot(slot, {
+      inspect: (s) => inspectSlotDaemon(s, noSourceRequest),
+      probe: async (port) => {
+        probes.push(port);
+        assert.equal(
+          await readFile(join(slot.home, "daemon.json"), "utf8"),
+          sourceMetadata,
+        );
+      },
+    }),
+    false,
+  );
+  assert.deepEqual(probes, [slot.httpPort, slot.httpsPort]);
+  await assert.rejects(readFile(join(slot.home, "daemon.json")), {
+    code: "ENOENT",
+  });
+  assert.equal(
+    await readFile(join(source.home, "daemon.json"), "utf8"),
+    sourceMetadata,
+  );
+  for (const file of [
+    "manifest.json",
+    "secrets/daemon-token",
+    "persistent-data",
+  ]) {
+    assert.deepEqual(
+      await readFile(join(slot.home, file)),
+      await readFile(join(source.home, file)),
+    );
+  }
+  process.kill(process.pid, 0); // The recorded live source process is untouched.
+  const lock = await acquireStorageHomeLock(slot.home, { timeoutMs: 0 });
+  await lock.release();
+  assert.equal(await preflightSlot(slot, { probe: async () => {} }), false);
+});
+
+test("copied metadata does not require the original home to exist, including another slot", async (t) => {
+  for (const dataDir of ["missing-production", "data/storage-2"]) {
+    const root = await temporary(t);
+    const slot = resolveStorageSlot([], root);
+    const daemon = await daemonFixture(slot);
+    daemon.dataDir = join(root, dataDir);
+    await writeFile(join(slot.home, "daemon.json"), JSON.stringify(daemon));
+    assert.equal(await preflightSlot(slot, { probe: async () => {} }), false);
+    await assert.rejects(readFile(join(slot.home, "daemon.json")), {
+      code: "ENOENT",
+    });
+  }
+});
+
+test("port conflicts and changed ownership records prevent copied metadata cleanup", async (t) => {
+  const slot = resolveStorageSlot([], await temporary(t));
+  const daemon = await daemonFixture(slot);
+  daemon.dataDir = join(slot.repo, "source");
+  const raw = JSON.stringify(daemon);
+  await writeFile(join(slot.home, "daemon.json"), raw);
+  await assert.rejects(
+    preflightSlot(slot, {
+      probe: async () => {
+        throw new Error("occupied");
+      },
+    }),
+    /occupied/,
+  );
+  assert.equal(await readFile(join(slot.home, "daemon.json"), "utf8"), raw);
+  daemon.dataDir = slot.home;
+  const replacement = JSON.stringify(daemon);
+  await assert.rejects(
+    preflightSlot(slot, {
+      probe: async () => {
+        await writeFile(join(slot.home, "daemon.json"), replacement);
+      },
+    }),
+    /changed during preflight/,
+  );
+  assert.equal(
+    await readFile(join(slot.home, "daemon.json"), "utf8"),
+    replacement,
+  );
+});
+
+test("linked daemon records are never used or removed", async (t) => {
+  const root = await temporary(t);
+  const source = resolveStorageSlot(["--slot", "2"], root);
+  await daemonFixture(source);
+  const slot = resolveStorageSlot([], root);
+  await mkdir(slot.home, { recursive: true });
+  await symlink(
+    join(source.home, "daemon.json"),
+    join(slot.home, "daemon.json"),
+  );
+  await assert.rejects(preflightSlot(slot), /non-linked file/);
+  assert.ok(await readFile(join(source.home, "daemon.json")));
+});
+
+test("authenticated slot daemons can be reused with any supported home manifest", async (t) => {
+  const slot = resolveStorageSlot([], await temporary(t));
+  await daemonFixture(slot);
+  for (const manifest of supportedManifests) {
+    await writeFile(join(slot.home, "manifest.json"), JSON.stringify(manifest));
+    assert.equal(
+      await inspectSlotDaemon(slot, async () => ({ ok: true })),
+      true,
+    );
+  }
 });
 
 test("failed health never adopts or replaces a live daemon", async (t) => {

@@ -33,7 +33,7 @@ Repository tooling follows the [scripts placement guide](scripts/README.md); kee
 ### Isolated development storage
 
 ```sh
-pnpm desktop:dev             # slot 1: desktop with disposable storage
+pnpm desktop:dev             # slot 1: desktop with checkout-local storage
 pnpm dev --slot 2            # slot 2: daemon + browser UI
 pnpm dev:ui --slot 2         # UI against the running slot 2 daemon
 pnpm storage:copy --slot 3   # stopped ~/.nerve -> unused slot 3
@@ -42,9 +42,11 @@ pnpm desktop:dev --slot 3
 
 Slots accept integers 1–100 (default 1). Paths resolve from the checkout root, not the current directory: `data/storage-N` is the daemon home and `data/desktop-profile-N` is Electron's separate profile. Git ignores `/data/`. HTTP uses `43967 + 2*(N-1)`, mobile HTTPS uses the next port, and Vite uses `5173 + (N-1)`. Occupied ports fail rather than silently choosing another port. Concurrent slots share build outputs; avoid concurrent rebuilds.
 
-`desktop:dev` and `dev` ignore ambient home/profile/target overrides and bind loopback. New homes are initialized as disposable. Existing standard or malformed slot homes are refused, never silently reclassified. Only an authenticated daemon recorded in this slot with matching paths and ports can be reused; it remains externally owned and is not stopped on exit. Mismatched metadata and occupied ports fail without stopping other processes. Development launchers use credentials from the slot, not from `~/.nerve`.
+`desktop:dev` and `dev` ignore ambient home/profile/target overrides and bind loopback. New homes use normal storage initialization. Manually copied homes with supported manifests are accepted regardless of home class and left unchanged for the daemon/desktop startup migration workflow; malformed layouts are still refused. No disposable label or special copy command is required. Only an authenticated daemon recorded in this slot with matching paths and ports can be reused; it remains externally owned and is not stopped on exit. Mismatched metadata and occupied ports fail without stopping other processes. Development launchers use credentials from the slot, not from `~/.nerve`.
 
 `storage:copy` always reads `~/.nerve`, regardless of ambient `NERVE_HOME`. Stop its owning desktop/daemon first. Copying holds startup locks, refuses live owners or malformed ownership metadata, excludes daemon records/backups/migration work, rejects linked storage content, and marks the result disposable. Existing destinations are refused even when empty; nothing is overwritten. Copied credentials and absolute project paths can still access real providers and files: storage isolation is **not** a sandbox.
+
+Manual filesystem copies into `data/storage-N` are supported without editing manifests or removing `daemon.json`. The launcher automatically discards the destination's copied daemon record when it names another home, without contacting or stopping the source daemon or changing its files. Matching slot records still permit authenticated reuse. Copy into a real directory, not a symlink to the source, and do not overwrite a running destination slot. Stop the source first or use a consistent snapshot when copying SQLite data; copying live database/WAL files independently may produce an inconsistent copy. `storage:copy` handles offline copying and exclusions automatically but is optional.
 
 Quit the development desktop/daemon before resetting a slot. Stop a reused daemon through its original owner. Once neither is running, remove `data/desktop-profile-N` to reset Electron state or `data/storage-N` to discard storage and recopy. Never delete a live home or stop a process merely because it occupies a slot port. For manual migration iteration, copy a slot, run the development build, inspect its logs, then discard/recopy when needed. Automated tests retain fresh temporary homes rather than shared persistent slots.
 

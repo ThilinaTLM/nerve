@@ -233,7 +233,7 @@ test("fresh disposable initialization is opt-in and never reclassifies existing 
   }
 });
 
-test("slot preparation initializes only fresh disposable homes and never upgrades or reclassifies existing copies", async (t) => {
+test("slot preparation uses normal initialization and never upgrades or reclassifies existing copies", async (t) => {
   const root = await mkdtemp(join(tmpdir(), "nerve-dev-preparation-"));
   t.after(() => rm(root, { recursive: true, force: true }));
   const slot = resolveStorageSlot([], root);
@@ -241,7 +241,7 @@ test("slot preparation initializes only fresh disposable homes and never upgrade
   assert.equal(
     JSON.parse(await readFile(join(slot.home, "manifest.json"), "utf8"))
       .homeClass,
-    "disposable",
+    "standard",
   );
   const database = await readFile(join(slot.home, "data", "nerve.sqlite"));
   await prepareDevelopmentSlot(slot);
@@ -249,16 +249,20 @@ test("slot preparation initializes only fresh disposable homes and never upgrade
     await readFile(join(slot.home, "data", "nerve.sqlite")),
     database,
   );
-  await writeFile(
-    join(slot.home, "manifest.json"),
-    JSON.stringify({ format: "nerve-home", version: 2, homeClass: "standard" }),
-  );
-  await assert.rejects(prepareDevelopmentSlot(slot), /never reclassified/);
-  assert.equal(
-    JSON.parse(await readFile(join(slot.home, "manifest.json"), "utf8"))
-      .homeClass,
-    "standard",
-  );
+  for (const manifest of [
+    { format: "nerve-home", version: 1 },
+    { format: "nerve-home", version: 2, homeClass: "standard" },
+    { format: "nerve-home", version: 2, homeClass: "disposable" },
+  ]) {
+    const raw = JSON.stringify(manifest);
+    await writeFile(join(slot.home, "manifest.json"), raw);
+    await prepareDevelopmentSlot(slot);
+    assert.equal(await readFile(join(slot.home, "manifest.json"), "utf8"), raw);
+    assert.deepEqual(
+      await readFile(join(slot.home, "data", "nerve.sqlite")),
+      database,
+    );
+  }
 });
 
 test("daemon-owned startup lock covers the gap from storage initialization to published ownership", async (t) => {

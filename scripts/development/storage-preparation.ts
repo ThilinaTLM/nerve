@@ -12,20 +12,10 @@ export async function prepareDevelopmentSlot(slot: {
   const inspection = await inspectNerveHome(slot.home);
   if (inspection.kind === "unsupported") throw new Error(inspection.reason);
   if (inspection.kind === "current") {
-    if (
-      inspection.manifest.version !== 2 ||
-      inspection.manifest.homeClass !== "disposable"
-    ) {
-      throw new Error(
-        "Development slots must be disposable. Stop the slot's owner, then discard and recopy this slot; existing homes are never reclassified.",
-      );
-    }
     // Existing-home migrations belong to the daemon/desktop startup workflow,
     // including its approval and draft-recovery handling, not this launcher.
     return;
   }
-  const storage = await initializeStorage(slot.home, {
-    freshHomeClass: "disposable",
-  });
+  const storage = await initializeStorage(slot.home);
   await storage.canonicalStore.close();
 }

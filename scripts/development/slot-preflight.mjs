@@ -1,25 +1,28 @@
-import { readFile, realpath } from "node:fs/promises";
+import { lstat, readFile, realpath, unlink } from "node:fs/promises";
 import { createServer } from "node:net";
 import { join, resolve } from "node:path";
+import { assertSlotPaths } from "./storage-slot.mjs";
 
-export async function inspectSlotDaemon(slot, request = fetch) {
+async function readSlotDaemon(slot) {
   let raw;
   try {
-    raw = await readFile(join(slot.home, "daemon.json"), "utf8");
+    const path = join(slot.home, "daemon.json");
+    const entry = await lstat(path);
+    if (!entry.isFile() || entry.isSymbolicLink()) {
+      throw new Error(
+        "Development daemon.json must be a regular, non-linked file.",
+      );
+    }
+    raw = await readFile(path, "utf8");
   } catch (error) {
-    if (error.code === "ENOENT") return false;
+    if (error.code === "ENOENT") return undefined;
     throw error;
   }
   const { nerveHomeManifestSchema } =
     await import("../../packages/contracts/src/domains/settings/home-configuration.js");
-  const manifest = nerveHomeManifestSchema.parse(
+  nerveHomeManifestSchema.parse(
     JSON.parse(await readFile(join(slot.home, "manifest.json"), "utf8")),
   );
-  if (manifest.version !== 2 || manifest.homeClass !== "disposable") {
-    throw new Error(
-      "Development daemon home must be disposable; stop its owner and recopy this slot.",
-    );
-  }
   const { daemonFileSchema } =
     await import("../../packages/contracts/src/domains/status/status.js");
   let daemon;
@@ -31,8 +34,15 @@ export async function inspectSlotDaemon(slot, request = fetch) {
       { cause },
     );
   }
+  return { daemon, raw, foreign: resolve(daemon.dataDir) !== slot.home };
+}
+
+async function inspectDaemonRecord(slot, record, request) {
+  // Copied runtime metadata describes the source, not an owner of this home.
+  // Never contact its URL, resolve its source path, or inspect/signal its PID.
+  if (!record || record.foreign) return false;
+  const { daemon } = record;
   if (
-    resolve(daemon.dataDir) !== slot.home ||
     (await realpath(daemon.dataDir)) !== (await realpath(slot.home)) ||
     daemon.host !== "127.0.0.1" ||
     daemon.port !== slot.httpPort ||
@@ -73,13 +83,35 @@ export async function inspectSlotDaemon(slot, request = fetch) {
   );
 }
 
+export async function inspectSlotDaemon(slot, request = fetch) {
+  await assertSlotPaths(slot);
+  return inspectDaemonRecord(slot, await readSlotDaemon(slot), request);
+}
+
 export async function preflightSlot(
   slot,
-  { inspect = inspectSlotDaemon, probe = assertPortFree } = {},
+  { inspect, probe = assertPortFree } = {},
 ) {
-  if (await inspect(slot)) return true;
+  await assertSlotPaths(slot);
+  const record = await readSlotDaemon(slot);
+  if (
+    await (inspect ? inspect(slot) : inspectDaemonRecord(slot, record, fetch))
+  )
+    return true;
   await probe(slot.httpPort);
   await probe(slot.httpsPort);
+  if (record?.foreign) {
+    // Remove only the destination's copied runtime record, after verifying its
+    // ports are free. Desktop discovery must not attach to the source daemon.
+    await assertSlotPaths(slot);
+    const current = await readSlotDaemon(slot);
+    if (!current?.foreign || current.raw !== record.raw) {
+      throw new Error(
+        "Development daemon.json changed during preflight; retry the launch.",
+      );
+    }
+    await unlink(join(slot.home, "daemon.json"));
+  }
   return false;
 }
 
