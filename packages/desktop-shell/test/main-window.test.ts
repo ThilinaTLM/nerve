@@ -58,6 +58,8 @@ describe("desktop main window", () => {
     assert.equal(options?.webPreferences?.nodeIntegration, false);
     assert.equal(options?.icon, "/test/icon.png");
     assert.equal(options?.webPreferences?.preload, "/test/preload.cjs");
+    assert.equal(options?.title, "Nerve");
+    assert.equal(options?.webPreferences?.additionalArguments, undefined);
     assert.equal(navigationInstalled, 1);
 
     let prevented = 0;
@@ -70,5 +72,41 @@ describe("desktop main window", () => {
     assert.equal(closeRequests, 1);
     assert.ok(webListeners.has("did-fail-load"));
     assert.ok(webListeners.has("render-process-gone"));
+  });
+
+  it("labels development windows and forwards the slot to the preload", () => {
+    let options: BrowserWindowConstructorOptions | undefined;
+    const window = {
+      on: () => window,
+      webContents: { on: () => undefined },
+    } as unknown as BrowserWindowType;
+    createDesktopMainWindow(
+      {
+        daemonUrl: () => undefined,
+        isTrustedShellUrl: () => true,
+        isAppQuitting: () => false,
+        closeWindowOrQuit: () => undefined,
+        sendWindowState: () => undefined,
+      },
+      {
+        createWindow: (value) => {
+          options = value;
+          return window;
+        },
+        shouldUseDarkColors: () => false,
+        resolveAppIconPath: () => "/test/icon.png",
+        resolvePreloadPath: () => "/test/preload.cjs",
+        platform: "linux",
+        developmentSlot: 3,
+        log: async () => undefined,
+        redactUrl: (url) => url,
+        installNavigationGuards: () => undefined,
+      },
+    );
+    assert.equal(options?.title, "Nerve (Dev 3)");
+    assert.deepEqual(options?.webPreferences?.additionalArguments, [
+      "--nerve-dev-slot=3",
+    ]);
+    assert.equal(options?.webPreferences?.sandbox, true);
   });
 });

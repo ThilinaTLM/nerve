@@ -11,7 +11,11 @@ import { runCommand } from "../../../scripts/development/owned-processes.mjs";
 
 try {
   const slot = resolveStorageSlot(process.argv.slice(2));
-  const env = developmentEnvironment(slot);
+  // Only this launcher labels the desktop UI as a development instance.
+  const env = {
+    ...developmentEnvironment(slot),
+    NERVE_DESKTOP_DEV_SLOT: String(slot.slot),
+  };
   const options = { cwd: slot.repo, env };
   await createSlotParent(slot);
   await runCommand("pnpm", ["-w", "build:native"], options);

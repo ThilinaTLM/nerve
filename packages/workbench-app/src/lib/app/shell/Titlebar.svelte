@@ -23,6 +23,8 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   desktop?: boolean;
+  /** Set for `pnpm desktop:dev` instances; replaces the brand mark. */
+  developmentSlot?: number;
   headerType?: ResolvedHeaderType;
   maximized?: boolean;
   closeToTray?: boolean;
@@ -51,6 +53,7 @@ let {
   activeProjectKey,
   homeDir,
   desktop = false,
+  developmentSlot,
   headerType = "linux",
   maximized = false,
   closeToTray = true,
@@ -89,9 +92,21 @@ let {
     {/if}
   {/snippet}
   {#snippet left()}
-    <span class="inline-flex items-center gap-1.5 text-foreground">
-      <span class="brand-mark"><NerveMark compact /></span>
-    </span>
+    {#if developmentSlot}
+      <span
+        class="inline-flex flex-none items-center gap-1 rounded-md bg-warning py-0.5 pr-1.5 pl-1 text-xs font-bold text-warning-foreground"
+        role="img"
+        aria-label={`Development instance, slot ${developmentSlot}`}
+        title={`Development instance (slot ${developmentSlot})`}
+      >
+        <span class="brand-mark"><NerveMark compact /></span>
+        <span aria-hidden="true">DEV {developmentSlot}</span>
+      </span>
+    {:else}
+      <span class="inline-flex items-center gap-1.5 text-foreground">
+        <span class="brand-mark"><NerveMark compact /></span>
+      </span>
+    {/if}
     <ProjectSwitcher
       items={projects}
       popoverItems={projectOptions}

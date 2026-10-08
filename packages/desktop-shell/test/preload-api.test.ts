@@ -12,6 +12,7 @@ const { createDesktopPreloadApi } = require("../src/preload-api.cjs") as {
     ipcRenderer: FakeIpcRenderer;
     webUtils: { getPathForFile(file: unknown): string };
     platform: string;
+    argv?: string[];
   }): DesktopPreloadApi;
 };
 
@@ -35,6 +36,7 @@ function preloadApiShape() {
   return {
     kind: "electron",
     platform: "test",
+    development: undefined as { slot: number } | undefined,
     window: {
       minimize: invoke,
       toggleMaximize: invoke,
@@ -63,7 +65,7 @@ function preloadApiShape() {
   };
 }
 
-function fixture(invoke?: FakeIpcRenderer["invoke"]) {
+function fixture(invoke?: FakeIpcRenderer["invoke"], argv?: string[]) {
   const invocations: { channel: string; args: unknown[] }[] = [];
   const listeners = new Map<string, Listener>();
   const removed: { channel: string; listener: Listener }[] = [];
@@ -83,6 +85,7 @@ function fixture(invoke?: FakeIpcRenderer["invoke"]) {
     ipcRenderer,
     webUtils: { getPathForFile: () => "/tmp/example.txt" },
     platform: "test",
+    argv,
   });
   return { api, invocations, listeners, removed };
 }
@@ -173,6 +176,22 @@ describe("desktop preload API", () => {
     assert.equal(api.files.getPathForFile({}), "/tmp/example.txt");
     assert.equal(api.kind, "electron");
     assert.equal(api.platform, "test");
+  });
+
+  it("marks development instances only from a valid slot argument", () => {
+    assert.deepEqual(
+      fixture(undefined, ["electron", "--nerve-dev-slot=2"]).api.development,
+      { slot: 2 },
+    );
+    for (const argv of [
+      undefined,
+      ["electron"],
+      ["--nerve-dev-slot=0"],
+      ["--nerve-dev-slot=abc"],
+      ["--nerve-dev-slot=101"],
+    ]) {
+      assert.equal(fixture(undefined, argv).api.development, undefined);
+    }
   });
 
   it("propagates rejected invoke promises unchanged", async () => {

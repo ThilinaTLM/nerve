@@ -4,10 +4,29 @@ function subscribe(ipcRenderer, channel, listener, selectValue) {
   return () => ipcRenderer.off(channel, handler);
 }
 
-function createDesktopPreloadApi({ ipcRenderer, webUtils, platform }) {
+// Mirrors DEVELOPMENT_SLOT_ARGUMENT in src/app/development-marker.ts.
+const DEVELOPMENT_SLOT_ARGUMENT = "--nerve-dev-slot=";
+
+function parseDevelopment(argv) {
+  const argument = argv.find((value) =>
+    value.startsWith(DEVELOPMENT_SLOT_ARGUMENT),
+  );
+  const raw = argument?.slice(DEVELOPMENT_SLOT_ARGUMENT.length);
+  if (!raw || !/^[1-9]\d*$/.test(raw)) return undefined;
+  const slot = Number(raw);
+  return slot <= 100 ? { slot } : undefined;
+}
+
+function createDesktopPreloadApi({
+  ipcRenderer,
+  webUtils,
+  platform,
+  argv = [],
+}) {
   return {
     kind: "electron",
     platform,
+    development: parseDevelopment(argv),
     window: {
       minimize: () => ipcRenderer.invoke("desktop.window.minimize"),
       toggleMaximize: () => ipcRenderer.invoke("desktop.window.toggleMaximize"),
