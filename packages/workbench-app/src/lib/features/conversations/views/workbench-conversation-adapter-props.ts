@@ -47,6 +47,7 @@ export type WorkbenchConversationAdapterProps = {
   transient?: ConversationTransientState;
   queuedPrompts?: AgentQueueItem[];
   recoveryIssues?: RecoveryIssue[];
+  error?: string;
   sending?: boolean;
   stopping?: boolean;
   teamRunning?: boolean;

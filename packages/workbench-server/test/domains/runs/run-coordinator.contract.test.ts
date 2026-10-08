@@ -2508,3 +2508,18 @@ test("provider dispatch fence rejects a replaced attempt before dispatch bookkee
   );
   assert.equal(dispatched, 1);
 });
+
+test("durable-input turn interruption does not require legacy prompts or cancel the run", async () => {
+  const harness = fixture();
+  const run = await start(harness.coordinator);
+  let committed = false;
+  await harness.coordinator.interruptTurn(run.runId, async () => {
+    committed = true;
+  });
+  assert.equal(committed, true);
+  assert.deepEqual(harness.forcePushAttempts, [1]);
+  assert.equal(
+    (await harness.coordinator.get(run.runId))?.run.status,
+    "running",
+  );
+});

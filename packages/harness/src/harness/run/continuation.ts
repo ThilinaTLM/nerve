@@ -81,9 +81,9 @@ export async function continueHarnessRun<
   ) => {
     activeTurnState = nextTurnState;
   };
+  state.runAbortController = abortController;
   try {
     activeTurnState = await state.createTurnState();
-    state.runAbortController = abortController;
     const streamFn = state.createStreamFn(getTurnState);
     const newMessages = await runAgentLoopContinue(
       state.createContext(activeTurnState),

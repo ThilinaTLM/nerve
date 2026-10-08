@@ -108,7 +108,10 @@ export interface AgentHarnessOptions<
    * Completed requests and their tool batches settle before normal next-turn preparation.
    * Errors block dispatch rather than silently falling back.
    */
-  prepareTurn?: (context: { refresh: boolean }) => Promise<{
+  prepareTurn?: (context: {
+    refresh: boolean;
+    signal?: AbortSignal;
+  }) => Promise<{
     model: AnyModel;
     thinkingLevel: ThinkingLevel;
     tools: TTool[];

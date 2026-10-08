@@ -52,11 +52,8 @@ it("shows pending user/system/next-run input in acceptance order even when pause
   );
   assert.equal(projection.queuedPrompts[0], parent);
   assert.equal(projection.queuedPrompts[1], system);
-  assert.match(
-    queueItemLabel(system),
-    /pending · system · completion \(run_original\) · next run after run_previous · #2 · queue only/,
-  );
-  assert.match(queueItemLabel(parent), /parent agent_root/);
+  assert.match(queueItemLabel(system), /Queued for next run/);
+  assert.equal(queueItemLabel(parent), "Queued for next turn");
   assert.equal(queueItemPending(cancelled), false);
   assert.equal(pendingQueueItems([obsolete]).length, 0);
   assert.match(queueItemRevision(system), /^pending:2:/);

@@ -497,3 +497,104 @@ test("terminal targeted claims settle without a replacement turn, preserving act
     assert.deepEqual(await queue.list(agentId), []);
   }
 });
+
+test("force-push commits ordered intent but does not acknowledge delivery and survives reopen", async () => {
+  const { queue, store } = fixture();
+  const first = await queue.accept(
+    agentId,
+    conversationId,
+    request("one"),
+    validate,
+  );
+  const second = await queue.accept(
+    agentId,
+    conversationId,
+    request("two", {
+      eligibility: { kind: "next_run", afterRunId: target.runId },
+    }),
+    validate,
+  );
+  const receipt = await queue.requestForcePush(
+    agentId,
+    target.runId,
+    target.attemptId,
+    "push_1",
+  );
+  assert.deepEqual(receipt.inputIds, [first.id, second.id]);
+  const restored = fixture(store).queue;
+  assert.deepEqual(
+    await restored.requestForcePush(
+      agentId,
+      target.runId,
+      target.attemptId,
+      "push_1",
+    ),
+    receipt,
+  );
+  await restored.acknowledgeForcePush(agentId, "push_1", target.attemptId);
+  assert.equal(
+    (
+      await restored.requestForcePush(
+        agentId,
+        target.runId,
+        target.attemptId,
+        "push_1",
+      )
+    ).interrupt,
+    false,
+  );
+  assert.equal((await restored.get(agentId, second.id))?.state, "pending");
+  assert.deepEqual((await restored.get(agentId, second.id))?.eligibility, {
+    kind: "next_turn",
+  });
+  assert.equal(
+    (await restored.get(agentId, first.id))?.interruptionRequested,
+    true,
+  );
+  await assert.rejects(
+    restored.requestForcePush(agentId, "run_other", "exec_other", "push_1"),
+    /earlier execution/,
+  );
+  await restored.setPaused(agentId, true);
+  await assert.rejects(
+    restored.requestForcePush(
+      agentId,
+      target.runId,
+      target.attemptId,
+      "push_2",
+    ),
+    /paused/,
+  );
+});
+
+test("shell preparation leaves the queue fence free for acceptance and cancellation", async () => {
+  const { queue } = fixture();
+  const input = await queue.accept(
+    agentId,
+    conversationId,
+    request("one"),
+    validate,
+  );
+  let started!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  const work = queue.prepareContent(
+    agentId,
+    input.id,
+    new AbortController().signal,
+    async (_input, signal) => {
+      started();
+      await new Promise<void>((resolve) =>
+        signal.addEventListener("abort", () => resolve(), { once: true }),
+      );
+      return "cancelled result";
+    },
+  );
+  await ready;
+  await queue.accept(agentId, conversationId, request("two"), validate);
+  await queue.cancel(agentId, input.id);
+  assert.equal(await work, "cancelled result");
+  assert.equal((await queue.get(agentId, input.id))?.state, "cancelled");
+  assert.equal((await queue.list(agentId)).length, 1);
+});

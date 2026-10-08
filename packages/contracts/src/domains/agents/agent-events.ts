@@ -46,6 +46,16 @@ const subagentTranscriptEvent = (name: string, schema: z.ZodType) =>
 
 export const agentEventDefinitions = [
   definePublicEvent(
+    "agent.inputs_changed",
+    z
+      .object({
+        agentId: agentIdSchema,
+        revision: z.number().int().nonnegative(),
+      })
+      .strict(),
+    { allowedSourceRoles: workbenchRoles, scope: ["agentId"] },
+  ),
+  definePublicEvent(
     "agent.activity_changed",
     z.object({ activity: agentActivitySnapshotSchema }).strict(),
     { allowedSourceRoles: workbenchRoles, scope: ["activity.agentId"] },

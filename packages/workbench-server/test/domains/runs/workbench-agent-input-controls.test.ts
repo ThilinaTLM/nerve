@@ -506,10 +506,7 @@ test("startup transfer includes terminal-run deferred followups, before newly ac
   });
   const pending = await h.inputs.list(h.agent.id);
   assert.equal(pending[0]?.text, "older deferred followup");
-  assert.deepEqual(pending[0]?.eligibility, {
-    kind: "next_run",
-    afterRunId: "run_1",
-  });
+  assert.deepEqual(pending[0]?.eligibility, { kind: "next_turn" });
   assert.equal(pending[1]?.text, "new user");
   assert.equal(old.prompts[0]?.status, "cancelled");
   await h.service.migrateLegacyInputs();
@@ -632,4 +629,23 @@ test("followup and reject-if-busy same-key retries remain idempotent across acti
   assert.equal(first?.id, again?.id);
   assert.deepEqual(first?.eligibility, again?.eligibility);
   assert.equal((await h.inputs.list(h.agent.id)).length, 2);
+});
+
+test("ordinary follow-ups use next-turn input while standalone commands retain explicit run deferral", async () => {
+  const harness = fixture();
+  await harness.service.wakeAgentFromHarness(harness.agent.id, true);
+  await harness.service.promptAgent(harness.agent.id, {
+    text: "follow now",
+    behavior: "follow-up",
+  });
+  await harness.service.promptAgent(harness.agent.id, {
+    text: "!printf standalone",
+  });
+  const pending = await harness.inputs.list(harness.agent.id);
+  assert.deepEqual(pending[0]?.eligibility, { kind: "next_turn" });
+  assert.deepEqual(pending[1]?.eligibility, {
+    kind: "next_run",
+    afterRunId: "run_1",
+  });
+  await harness.service.abortAgent(harness.agent.id);
 });

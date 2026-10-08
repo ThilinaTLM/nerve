@@ -40,6 +40,39 @@ function systemEventNoticeHeader(
 ): TranscriptNoticeModel {
   const details = detailsOf(notice);
   const type = textValue(details.type);
+  if (type === "conversation_error")
+    return {
+      kind: "system",
+      tone: "destructive",
+      glyph: "system",
+      badge: "conversation_error",
+      statusLabel: "Conversation request failed",
+    };
+  if (
+    type === "recovery_attention" ||
+    type === "snapshot_read_only" ||
+    type === "snapshot_stale"
+  ) {
+    return {
+      kind: "system",
+      tone: "warning",
+      glyph: "system",
+      badge: type,
+      statusLabel:
+        type === "recovery_attention"
+          ? "Recovery needs review"
+          : "Snapshot needs attention",
+    };
+  }
+  if (type === "user_intervention")
+    return {
+      kind: "subagent",
+      tone: "info",
+      glyph: "subagent",
+      badge: "user_intervention",
+      arg: textValue(details.childId),
+      statusLabel: "Authorized user changed a child agent",
+    };
   if (notice.kind === "branch_summary") {
     return {
       kind: "branch",

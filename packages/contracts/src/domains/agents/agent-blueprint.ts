@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { agentInputNoticeSchema } from "./agent-input-notice.js";
 import { promptImageSchema } from "./prompt.js";
 import { agentConfigurationSchema } from "./agent.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
@@ -35,6 +36,7 @@ const inputRequest = z.object({
   origin: agentInputOriginSchema,
   role: z.enum(["user", "system"]),
   text: z.string().min(1),
+  notice: agentInputNoticeSchema.optional(),
   images: z.array(promptImageSchema).max(16).optional(),
   eligibility: agentInputEligibilitySchema.default({ kind: "next_turn" }),
   activation: agentInputActivationSchema.default("wake_if_idle"),
@@ -43,6 +45,16 @@ function validateRole(
   value: z.infer<typeof inputRequest>,
   context: z.RefinementCtx,
 ): void {
+  if (
+    value.notice &&
+    (value.role !== "system" || value.origin.kind !== "system")
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["notice"],
+      message: "Only authenticated system inputs may carry notice metadata.",
+    });
+  }
   if (value.role === "system" && value.origin.kind !== "system") {
     context.addIssue({
       code: "custom",
@@ -63,6 +75,8 @@ export const agentInputRecordSchema = inputRequest
     sequence: z.number().int().nonnegative(),
     acceptedAt: z.string().datetime(),
     state: z.enum(["pending", "delivered", "cancelled", "obsolete"]),
+    preparation: z.enum(["preparing", "ready"]).optional(),
+    interruptionRequested: z.boolean().optional(),
     delivery: z
       .object({
         runId,

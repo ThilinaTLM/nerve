@@ -257,7 +257,7 @@ export class WorkbenchAgentInputControls {
           idempotencyKey: `legacy:${prompt.id}`,
           eligibility:
             prompt.behavior === "follow-up"
-              ? { kind: "next_run", afterRunId: prompt.runId }
+              ? { kind: "next_turn" }
               : { kind: "run", runId: prompt.runId },
           activation: "wake_if_idle",
         },

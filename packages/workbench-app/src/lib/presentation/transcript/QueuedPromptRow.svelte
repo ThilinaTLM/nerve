@@ -42,13 +42,16 @@ async function runAction(action: "force-push" | "edit" | "discard") {
   }
 }
 
+const interruptionPending = $derived(
+  "state" in prompt && prompt.interruptionRequested === true,
+);
 const editable = $derived(!("role" in prompt) || prompt.role === "user");
 const label = $derived(queueItemLabel(prompt));
 const menuTarget = $derived({
   kind: "queued_prompt" as const,
   prompt,
   busy: Boolean(pendingAction),
-  canForcePush: Boolean(onForcePush),
+  canForcePush: Boolean(onForcePush) && !interruptionPending,
   canEdit: editable && Boolean(onMoveToComposer),
   canDiscard: Boolean(onDiscard),
   onForcePush: () => void runAction("force-push"),
@@ -92,7 +95,9 @@ const menuTarget = $derived({
                 {...props}
                 variant="ghost"
                 size="icon-xs"
-                disabled={!onForcePush || Boolean(pendingAction)}
+                disabled={!onForcePush ||
+                  Boolean(pendingAction) ||
+                  interruptionPending}
                 ariaLabel="Force push all queued prompts"
                 onclick={() => void runAction("force-push")}
               >

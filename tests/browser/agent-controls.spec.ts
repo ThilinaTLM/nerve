@@ -133,7 +133,9 @@ test("ordinary controls select and administer developer and Explore identities s
         .toBe(`Next-turn instructions ${child.id}`);
       await agentAction(page, child.name!, "Resume agent");
       await expect(
-        page.getByText(`Queued follow-up ${child.id}`, { exact: true }),
+        page
+          .locator(".transcript-entry.user")
+          .getByText(`Queued follow-up ${child.id}`, { exact: true }),
       ).toBeVisible();
       await expect
         .poll(async () => {
@@ -497,7 +499,9 @@ test("root and child palettes isolate configuration and preserve inherited skill
     )!;
     expect(accepted.id).toMatch(/^input_/);
     await expect(
-      page.getByText(/pending · user .*next run/).filter({ hasText: "#" }),
+      page
+        .getByRole("article", { name: "Queued user prompt" })
+        .getByText("Queued for next turn", { exact: true }),
     ).toBeVisible();
     await expectAgentDetails(page, child.name!, "pending input");
     await page

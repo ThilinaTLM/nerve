@@ -43,6 +43,18 @@ export const agentInputQueueStateSchema = z
       .strict()
       .optional(),
     inputs: z.array(persistedQueueInputSchema),
+    forcePush: z
+      .object({
+        requestId: z.string().min(1).max(256),
+        runId: z.string().startsWith("run_"),
+        attemptId: z.string().min(1),
+        inputIds: z.array(z.string().startsWith("input_")).min(1),
+        cutoffSequence: z.number().int().nonnegative(),
+        requestedAt: z.string().datetime(),
+        signalled: z.boolean().optional(),
+        controlGeneration: z.number().int().nonnegative(),
+      })
+      .optional(),
     acceptedEligibilities: z
       .record(z.string(), agentInputEligibilitySchema)
       .optional(),
@@ -123,6 +135,26 @@ export const agentInputQueueStateSchema = z
         ["wakeRequested"],
         "Wake intent must reference pending general input or undispatched context.",
       );
+    if (state.forcePush) {
+      const receipt = state.forcePush;
+      if (
+        new Set(receipt.inputIds).size !== receipt.inputIds.length ||
+        receipt.inputIds.some(
+          (id) =>
+            !indexed.has(id) ||
+            indexed.get(id)!.sequence > receipt.cutoffSequence,
+        )
+      )
+        issue(
+          ["forcePush", "inputIds"],
+          "Force-push must identify an ordered captured input batch.",
+        );
+      if (receipt.controlGeneration > (state.controlGeneration ?? 0))
+        issue(
+          ["forcePush", "controlGeneration"],
+          "Force-push cannot reference a future control generation.",
+        );
+    }
     for (const [id, eligibility] of Object.entries(
       state.acceptedEligibilities ?? {},
     )) {

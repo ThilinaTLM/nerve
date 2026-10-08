@@ -85,7 +85,10 @@ export const agentMethodHandlers: WorkbenchMethodHandlerMapFor<AgentMethodContex
       ),
     }),
     "agent.promptQueue.forcePush": (state, params) =>
-      state.workbenchRun.forcePushQueuedPrompts(params.agentId),
+      state.workbenchRun.forcePushQueuedPrompts(
+        params.agentId,
+        params.requestId,
+      ),
     "agent.requestTool": (state, params) =>
       state.tools.requestTool(
         state.agentLifecycle.getAgent(params.agentId),

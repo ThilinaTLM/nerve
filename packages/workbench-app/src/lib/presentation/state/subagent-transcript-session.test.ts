@@ -192,7 +192,12 @@ describe("subagent transcript session", () => {
       id: "evt_2",
     });
     assert.equal(child.toolCalls.length, 1);
-    assert.equal(buildConversationRenderProjection(child).timeline.length, 1);
+    assert.equal(
+      buildConversationRenderProjection(child).timeline.filter(
+        (item) => item.kind === "tool",
+      ).length,
+      1,
+    );
   });
 
   it("reports canonical content-offset gaps without clearing current state", () => {

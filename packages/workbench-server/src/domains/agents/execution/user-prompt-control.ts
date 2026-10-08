@@ -1,3 +1,7 @@
+import {
+  expandExecutablePromptBlocks,
+  type PromptBlockCommandExecutor,
+} from "./prompt-block-expansion.js";
 import type { AgentHarness } from "@nervekit/harness";
 import type { Conversation } from "@nervekit/harness/conversation";
 import type { PromptRequest } from "@nervekit/contracts/agents";
@@ -37,11 +41,47 @@ export function userPromptControls(
   };
   return {
     steer: (prompt) => queue("steer", prompt),
-    followUp: (prompt) => queue("followUp", prompt),
+    followUp: (prompt) => queue("steer", prompt),
     removeQueuedPrompt: async (id) => {
       const removed = await harness.removeQueuedMessage(id);
       if (removed) storage.registerQueuedPromptAnchor(conversation, id);
       return removed;
     },
   };
+}
+
+export function createWorkbenchLiveControl(options: {
+  harness: AgentHarness;
+  conversation: Conversation;
+  storage: ConversationHarnessStorage;
+  execute: PromptBlockCommandExecutor;
+  signal: AbortSignal;
+  durableInputs: boolean;
+  onForcePush(): void;
+  clearDraftProgress(): void;
+  cancel(): Promise<void>;
+}) {
+  const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
+    expandExecutablePromptBlocks(
+      options.execute,
+      { text, images },
+      options.signal,
+    );
+  const control: WorkbenchLiveExecutionControl = {
+    ...userPromptControls(
+      options.harness,
+      options.conversation,
+      options.storage,
+      expandBlocks,
+    ),
+    forcePush: async () => {
+      options.onForcePush();
+      options.clearDraftProgress();
+      if (options.durableInputs) options.harness.interruptTurn();
+      else await options.harness.forcePush();
+    },
+    continue: async () => undefined,
+    cancel: options.cancel,
+  };
+  return { control, expandBlocks };
 }

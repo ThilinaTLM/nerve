@@ -256,6 +256,17 @@ export class AgentLifecycleService {
         assignment.documentId,
       );
     }
+    if (agent)
+      for (const preparation of await this.storage.canonicalStore.listDocuments<{
+        agentId: string;
+      }>("agent_input_preparation", agent.conversationId)) {
+        if (preparation.data.agentId === agentId)
+          await this.storage.canonicalStore.deleteDocument(
+            "agent_input_preparation",
+            agent.conversationId,
+            preparation.documentId,
+          );
+      }
     this.state.agents.delete(agentId);
     this.conversationService.deleteAgent(agentId);
     this.queryCache.removeAgent(agentId);

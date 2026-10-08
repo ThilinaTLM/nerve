@@ -287,7 +287,10 @@ export class AgentHarness<
   private async createTurnState(
     refresh = false,
   ): Promise<AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>> {
-    const snapshot = await this.prepareTurn?.({ refresh });
+    const snapshot = await this.prepareTurn?.({
+      refresh,
+      signal: this.runAbortController?.signal,
+    });
     if (snapshot) {
       const tools = createToolMap(snapshot.tools);
       this.validateToolNames(snapshot.activeToolNames, tools);
@@ -920,6 +923,11 @@ export class AgentHarness<
     this.streamOptions = cloneStreamOptions(streamOptions);
   }
 
+  /** Interrupt only the active turn; durable input remains owned by the caller. */
+  interruptTurn(): void {
+    interruptHarnessRun(this.configurationState());
+  }
+
   forcePush(): Promise<void> {
     if (promoteAllQueuedHarnessMessages(this.queueState()) === 0) {
       throw new AgentHarnessError(
@@ -928,7 +936,7 @@ export class AgentHarness<
       );
     }
     this.forceDrainAll = true;
-    interruptHarnessRun(this.configurationState());
+    this.interruptTurn();
     return Promise.resolve();
   }
 

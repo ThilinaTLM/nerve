@@ -1,3 +1,5 @@
+import { prepareAgentInputCommands } from "./agent-input-preparation.js";
+import { hasExecutableCommandBlocks } from "@nervekit/contracts/completions";
 import { stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { WorkbenchPermissionContext } from "../../tools/permission/types.js";
@@ -117,7 +119,11 @@ export async function prepareWorkbenchTurn(
         readCommitted,
       );
     } catch (error) {
-      if (options.runAbortController.signal.aborted) throw error;
+      if (
+        options.runAbortController.signal.aborted ||
+        options.turnSignal?.aborted
+      )
+        throw error;
       if (
         error instanceof SnapshotSuperseded ||
         captured !== ((await readCommitted()).configurationRevision ?? 1)
@@ -143,6 +149,7 @@ async function resolveWorkbenchTurn(
     agent: AgentRecord;
     coordinator: CoordinatorExecutionOptions;
     runAbortController: AbortController;
+    turnSignal?: AbortSignal;
     shellPath: string | undefined;
     turnId: string;
     session?: WorkbenchPreparationSession;
@@ -283,6 +290,7 @@ async function resolveWorkbenchTurn(
     throw new SnapshotSuperseded();
   if (budget.hasImages && !nextModel.input.includes("image"))
     throw new Error("Selected model does not support input images");
+  const preparedText = new Map<string, string>();
   if (options.conversation && mechanics.deps.agentInputs) {
     const pending = (await mechanics.deps.agentInputs.list(agent.id)).filter(
       (input) => input.sequence <= (cutoffSequence ?? Number.MAX_SAFE_INTEGER),
@@ -308,6 +316,51 @@ async function resolveWorkbenchTurn(
       eligible.push(input);
       if (eligible.length >= budget.remaining) break;
     }
+    for (const input of eligible) {
+      if (!hasExecutableCommandBlocks(input.text) || input.role !== "user") {
+        preparedText.set(input.id, input.text);
+        continue;
+      }
+      const text = await mechanics.deps.agentInputs.prepareContent(
+        agent.id,
+        input.id,
+        options.turnSignal ?? runAbortController.signal,
+        (record, signal) =>
+          prepareAgentInputCommands({
+            storage: mechanics.deps.storage,
+            input: record,
+            actor: resolvedActor,
+            runId,
+            attemptId: coordinator.run.executionId,
+            signal,
+            recover: (id, recordId) =>
+              recordId
+                ? mechanics.deps.tools.getToolCallDetails(recordId)
+                : mechanics.deps.tools.findToolCallByProviderToolCallId(id),
+            execute: (command, executionId, recordTool) =>
+              mechanics.deps.tools.requestToolAndWait(
+                resolvedActor,
+                "bash",
+                { command },
+                {
+                  runId,
+                  signal,
+                  agentSnapshot: resolvedActor,
+                  permissionContext,
+                  toolAuthority,
+                  providerToolCallId: executionId,
+                  onLifecycle: (tool) => recordTool(tool.id),
+                  hidden: true,
+                  useForegroundBash: false,
+                  continueAfterPromotedTask: false,
+                },
+              ),
+          }),
+      );
+      if (text !== undefined) preparedText.set(input.id, text);
+      if (options.turnSignal?.aborted || runAbortController.signal.aborted)
+        throw new Error("Turn interrupted during command preparation");
+    }
     // A config-only turn can switch to a smaller model after the iteration
     // hook ran. Check its resolved window even with no pending input rows.
     if (budget.remaining > 0)
@@ -316,7 +369,9 @@ async function resolveWorkbenchTurn(
         conversationId: agent.conversationId,
         agentId: agent.id,
         runId,
-        text: eligible.map((input) => input.text).join("\n"),
+        text: eligible
+          .map((input) => preparedText.get(input.id) ?? input.text)
+          .join("\n"),
         images: eligible.flatMap((input) => input.images ?? []),
         conversation: options.conversation,
         signal: runAbortController.signal,
@@ -342,7 +397,7 @@ async function resolveWorkbenchTurn(
         mechanics,
         current,
         coordinator,
-        input,
+        { ...input, text: preparedText.get(input.id) ?? input.text },
         id,
         insertionTarget,
       ),
@@ -542,9 +597,17 @@ export async function insertWorkbenchAgentInput(
     input.role === "system"
       ? {
           role: "harness",
-          eventType: "agent_notification",
+          eventType:
+            input.notice?.type === "user_intervention"
+              ? "subagent_event"
+              : (input.notice?.type ?? "agent_notification"),
           content: text,
-          details: { inputId: input.id, origin: input.origin },
+          details: {
+            ...input.notice,
+            inputId: input.id,
+            origin: input.origin,
+            displayText: input.text,
+          },
           images: input.images,
           timestamp: Date.parse(input.acceptedAt),
         }

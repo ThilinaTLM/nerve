@@ -291,6 +291,28 @@ export class RunCoordinator {
     return this.prompts.cancel(runId, promptId);
   }
 
+  /** Interrupt a live turn whose input is owned by the durable agent queue. */
+  async interruptTurn(
+    runId: string,
+    beforeInterrupt?: (run: RunRecord) => Promise<void | boolean>,
+  ): Promise<void> {
+    await this.exclusive(`run:${runId}`, async () => {
+      const state = await this.require(runId);
+      const execution = this.live.get(runId)?.execution;
+      if (
+        !ACTIVE_STATUSES.has(state.run.status) ||
+        state.run.status === "suspended" ||
+        state.interactions.some((item) => item.status === "pending") ||
+        !execution
+      )
+        throw new InvalidRunStateError(
+          "Run has no interruptible live turn; resolve pending interactions first",
+        );
+      if ((await beforeInterrupt?.(state.run)) === false) return;
+      await execution.control.forcePush();
+    });
+  }
+
   async forcePush(runId: string): Promise<readonly RunPromptRecord[]> {
     return this.exclusive(`run:${runId}`, async () => {
       const state = await this.require(runId);

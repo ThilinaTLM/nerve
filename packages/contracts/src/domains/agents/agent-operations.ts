@@ -265,7 +265,9 @@ export const agentsOperationDefinitions = [
   ),
   defineOperation(
     "agent.promptQueue.forcePush",
-    agentPromptQueueParamsSchema,
+    agentPromptQueueParamsSchema.extend({
+      requestId: z.string().min(1).max(256).optional(),
+    }),
     agentPromptQueueForcePushResultSchema,
     "mutation",
     "recommended",

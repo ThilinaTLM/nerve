@@ -767,6 +767,8 @@ test("initial harness preparation preserves configuration blockers and accepted 
             },
           },
         });
+        h.mechanics.executeInlinePromptBlockCommand = async () =>
+          assert.fail("Blocked preparation must never execute shell work");
         h.mechanics.runHarnessAttempt = async ({ harness, request }) => {
           attempted = true;
           assert.deepEqual((await storage.buildContext()).messages, []);
@@ -796,6 +798,7 @@ test("initial harness preparation preserves configuration blockers and accepted 
                 executionId: "exec_child",
                 initialInputId: accepted.id,
               },
+              installControl: () => undefined,
               signal: new AbortController().signal,
             } as never,
           },

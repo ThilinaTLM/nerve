@@ -49,7 +49,8 @@ it("detached task producer queues one authenticated untrusted notice while pause
     assert.equal(queue.length, 1, "task events must use the sole common queue");
     const notice = queue[0]!;
     assert.ok("origin" in notice);
-    assert.equal(notice.role, "user");
+    assert.equal(notice.role, "system");
+    assert.equal(notice.notice?.type, "task_event");
     assert.equal(notice.origin.kind, "system");
     assert.equal(notice.activation, "queue_only");
     assert.equal(
@@ -145,7 +146,7 @@ for (const outcome of ["ready", "timeout"] as const) {
         accepted.idempotencyKey,
         `task-notification:${task.id}:ready`,
       );
-      assert.equal(accepted.role, "user");
+      assert.equal(accepted.role, "system");
       assert.equal(accepted.origin.kind, "system");
       assert.equal(accepted.activation, "queue_only");
       assert.match(accepted.text, new RegExp(`cursor=${initialCursor}`));
@@ -229,6 +230,15 @@ for (const outcome of ["ready", "timeout"] as const) {
         ).length,
         1,
       );
+      const renderedNotice = history.entries.find(
+        (entry) => entry.id === delivered.delivery!.contextEntryId,
+      )!;
+      assert.equal(renderedNotice.kind, "task_event");
+      assert.equal(
+        (renderedNotice.details as { type: string }).type,
+        "task_event",
+      );
+      assert.doesNotMatch(renderedNotice.text, /\[Trusted notification/);
     } finally {
       await shutdownServerRuntime(runtime.runtime);
       await rm(home, { recursive: true, force: true });

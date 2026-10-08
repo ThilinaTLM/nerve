@@ -367,6 +367,7 @@ export class ToolService {
       this.dependencies.plans.hydrateFromToolCall(toolCall);
       this.todoState.hydrateFromToolCall(toolCall);
     });
+    await this.dependencies.journal.hydrateInteractionAdmission();
     await reconcileInterruptedToolCalls(
       this.dependencies.toolCallRepository.listActive(),
       (id, patch) => this.updateToolCall(id, patch),

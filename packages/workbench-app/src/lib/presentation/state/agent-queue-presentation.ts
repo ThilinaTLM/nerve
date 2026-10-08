@@ -13,23 +13,16 @@ export function queueItemAcceptedAt(item: AgentQueueItem): string {
 }
 export function queueItemRevision(item: AgentQueueItem): string {
   return "state" in item
-    ? `${item.state}:${item.sequence}:${item.delivery?.deliveredAt ?? item.acceptedAt}`
+    ? `${item.state}:${item.sequence}:${item.delivery?.deliveredAt ?? item.acceptedAt}:${item.preparation ?? ""}:${item.interruptionRequested ?? false}`
     : `${item.status}:${item.updatedAt}`;
 }
 export function queueItemLabel(item: AgentQueueItem): string {
-  if (!("state" in item))
-    return `${item.status} · ${item.behavior === "follow-up" ? "next run" : "next turn"} · user`;
-  const origin =
-    item.origin.kind === "system"
-      ? `${item.origin.producer} (${item.origin.correlationId})`
-      : item.origin.kind === "parent"
-        ? `parent ${item.origin.agentId}${item.origin.runId ? ` (${item.origin.runId})` : ""}`
-        : `user ${item.origin.userId}`;
+  if (!("state" in item)) return `${item.status} · next turn · user`;
+  if (item.preparation === "preparing") return "Preparing commands";
+  if (item.interruptionRequested) return "Interrupt requested";
   const eligibility =
-    item.eligibility.kind === "run"
-      ? `run ${item.eligibility.runId}`
-      : `${item.eligibility.kind.replaceAll("_", " ")}${item.eligibility.kind === "next_run" && item.eligibility.afterRunId ? ` after ${item.eligibility.afterRunId}` : ""}`;
-  return `${item.state} · ${item.role} · ${origin} · ${eligibility} · #${item.sequence} · ${item.activation === "queue_only" ? "queue only" : "wake if idle"}`;
+    item.eligibility.kind === "next_run" ? "next run" : "next turn";
+  return `Queued for ${eligibility}`;
 }
 export function pendingQueueItems(
   items: readonly AgentQueueItem[],

@@ -5,7 +5,6 @@ import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
 import { createConversationScrollController } from "../transcript/conversation-scroll.svelte.js";
 import AgentComposer from "./AgentComposer.svelte";
-import ConversationBanner from "./ConversationBanner.svelte";
 import ConversationEmptyState from "./ConversationEmptyState.svelte";
 import { hasTranscriptContent } from "../transcript/transcript-content.js";
 import type {
@@ -82,9 +81,6 @@ const scroll = createConversationScrollController({
   {/snippet}
   {#snippet transcript()}
     <div class="flex h-full min-h-0 flex-col">
-      {#if model.banner}
-        <ConversationBanner {...model.banner} />
-      {/if}
       <div class="min-h-0 flex-1">
         <TranscriptList
           bind:controller={scroll.controller}

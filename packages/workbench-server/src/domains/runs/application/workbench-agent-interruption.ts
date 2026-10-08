@@ -42,9 +42,8 @@ export async function interruptAgent(
         ? { kind: "parent", ...options.parent }
         : { kind: "system", producer: "controls", correlationId: key };
   const deferred =
-    request.behavior === "follow-up" ||
-    (options?.authority === "user_administration" &&
-      Boolean(parseInlineCommandPrompt(request.text)));
+    options?.authority === "user_administration" &&
+    Boolean(parseInlineCommandPrompt(request.text));
   const previous = request.idempotencyKey
     ? await deps.controls.inputs.acceptanceForKey(agentId, key)
     : undefined;

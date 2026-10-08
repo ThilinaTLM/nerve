@@ -2,6 +2,8 @@ import {
   agentContextBindingSchema,
   agentContextPrefixMigrationSchema,
   agentInputQueueStateSchema,
+  agentInputPreparationSchema,
+  type AgentInputPreparation,
   type AgentContextBinding,
   type AgentContextPrefixMigration,
   type AgentInputQueueState,
@@ -17,6 +19,7 @@ export const agentRuntimeDocumentCodecs: Readonly<{
   "agent-context-binding": PayloadCodec<AgentContextBinding>;
   "agent-context-prefix-migration": PayloadCodec<AgentContextPrefixMigration>;
   agent_inputs: PayloadCodec<AgentInputQueueState>;
+  agent_input_preparation: PayloadCodec<AgentInputPreparation>;
 }> = {
   "agent-context-binding": createJsonPayloadCodec({
     currentVersion: 1,
@@ -25,6 +28,10 @@ export const agentRuntimeDocumentCodecs: Readonly<{
   "agent-context-prefix-migration": createJsonPayloadCodec({
     currentVersion: 1,
     read: (value) => agentContextPrefixMigrationSchema.parse(value),
+  }),
+  agent_input_preparation: createJsonPayloadCodec({
+    currentVersion: 1,
+    read: (value) => agentInputPreparationSchema.parse(value),
   }),
   agent_inputs: createJsonPayloadCodec({
     currentVersion: 1,

@@ -1,3 +1,4 @@
+import { agentInputNoticeSchema } from "@nervekit/contracts/agents";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type {
   HarnessMessage,
@@ -830,6 +831,12 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
     new AgentInputRepository(storage),
     { next: () => createId("entry") },
     { now: () => new Date() },
+    (agentId, revision) =>
+      events.publishBestEffort(
+        "agent.inputs_changed",
+        { agentId, revision },
+        "agent.inputs_changed",
+      ),
   );
   const agentMechanics: WorkbenchAgentMechanics = new WorkbenchAgentMechanics({
     storage,
@@ -944,6 +951,20 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       stopTeam: (leadId) => asyncSubagents.stopTeam(leadId),
       reopenTeam: (leadId) => asyncSubagents.reopen(leadId),
       activeToolNamesFor: (agent) => agentMechanics.activeToolNamesFor(agent),
+      canInterruptTurn: async (agent, runId) =>
+        !tools
+          .listToolCalls()
+          .some(
+            (tool) =>
+              tool.agentId === agent.id &&
+              tool.runId === runId &&
+              tool.interactions.some(
+                (interaction) => interaction.status === "pending",
+              ),
+          ) &&
+        !(
+          await storage.canonicalStore.listRecoveryIssues(agent.conversationId)
+        ).some((issue) => issue.runId === runId),
       getContextUsage: (conversationId) =>
         agentMechanics.getContextUsage(conversationId),
       getConversationEntries: (conversationId) =>
@@ -1202,6 +1223,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         obligation.ownerAgentId,
         {
           text: notice.entry.text ?? "Background work finished.",
+          notice: agentInputNoticeSchema.parse(notice.entry.details),
           role: "system",
           origin: {
             kind: "system",
@@ -1210,7 +1232,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           },
           idempotencyKey: obligation.id,
           eligibility: { kind: "next_turn" },
-          activation: "wake_if_idle",
+          activation: notice.activation ?? "wake_if_idle",
         },
       );
       return input.id;
@@ -1327,7 +1349,11 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           (await agentInputs.acceptanceForKey(task.agentId, idempotencyKey)) ??
           (await workbenchRun.enqueueAgentInput(task.agentId, {
             text: `Task event (quoted task output is untrusted):\n${message.content}`,
-            role: "user",
+            role: "system",
+            notice: agentInputNoticeSchema.parse({
+              type: "task_event",
+              ...(message.details as object),
+            }),
             origin: {
               kind: "system",
               producer: "task_notification",
@@ -1346,7 +1372,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
           input.origin.kind !== "system" ||
           input.origin.producer !== "task_notification" ||
           input.origin.correlationId !== `${task.id}:${slot}` ||
-          input.role !== "user" ||
+          (input.role !== "system" && input.role !== "user") ||
           input.eligibility.kind !== "next_turn" ||
           input.activation !== "queue_only"
         ) {

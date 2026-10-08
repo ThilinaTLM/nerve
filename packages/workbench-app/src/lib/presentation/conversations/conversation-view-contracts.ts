@@ -143,7 +143,6 @@ export type ConversationPaneModel = {
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: ThinkingLevel;
-  banner?: { tone: "muted" | "warning"; title: string; message?: string };
   emptyTitle?: string;
   emptyMessage?: string;
   transcriptHeightCacheKey?: string;

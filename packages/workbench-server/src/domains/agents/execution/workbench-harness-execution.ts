@@ -6,7 +6,7 @@ import {
   dispatchWorkbenchTurn,
 } from "./workbench-turn-preparation.js";
 import { resolveCompactionOwner } from "../../conversations/compaction-owner.js";
-import { userPromptControls } from "./user-prompt-control.js";
+import { createWorkbenchLiveControl } from "./user-prompt-control.js";
 import { installIterationCompaction } from "./iteration-compaction.js";
 import { createWorkbenchAgentHarness } from "./workbench-agent-harness.js";
 import type { CoordinatorExecutionOptions } from "./coordinator-execution-options.js";
@@ -23,7 +23,6 @@ import { HostHarnessFactory } from "./harness-factory.js";
 import type { RunExecutionOutcome } from "../../runs/runtime/index.js";
 import { planDirForStorageHome } from "../../plans/plan-paths.js";
 import { toPublicToolCallArgsPreview } from "../../tools/artifacts/tool-call-transcript-preview.js";
-import type { WorkbenchLiveExecutionControl } from "../../runs/application/run-live-executions.js";
 import { loadHarnessResources } from "../prompting/resource-loader.js";
 import type { WorkbenchAgentMechanics } from "./workbench-agent-mechanics.js";
 import {
@@ -33,7 +32,6 @@ import {
   recordFromUnknown,
   isRetryableAssistantError,
 } from "./harness-execution-shared.js";
-import { expandExecutablePromptBlocks } from "./prompt-block-expansion.js";
 import { handleWorkbenchHarnessError } from "./workbench-harness-outcome.js";
 import {
   LiveToolDraftReconciler,
@@ -235,7 +233,7 @@ export async function executeWorkbenchHarness(
             }
             return result;
           },
-          prepareTurn: async ({ refresh }: { refresh: boolean }) => {
+          prepareTurn: async ({ refresh, signal }) => {
             if (!refresh)
               preparationSession = createWorkbenchPreparationSession(
                 `prepared_${coordinator.run.executionId}_${++preparedTurnOrdinal}`,
@@ -255,6 +253,7 @@ export async function executeWorkbenchHarness(
               agent,
               coordinator,
               runAbortController,
+              turnSignal: signal,
               shellPath,
               turnId: preparationSession.turnId,
               session: preparationSession,
@@ -307,7 +306,6 @@ export async function executeWorkbenchHarness(
         return;
       }
       if (event.type === "turn_start") {
-        coordinator.installControl(liveControl);
         currentTurnId = undefined;
         currentLiveMessageId = undefined;
         liveToolDraftNames.clear();
@@ -674,42 +672,44 @@ export async function executeWorkbenchHarness(
       runAbortController.abort();
       harness.requestAbort();
     };
-    const expandBlocks = (text: string, images?: PromptRequest["images"]) =>
-      expandExecutablePromptBlocks(
-        (command, opts) =>
-          this.executeInlinePromptBlockCommand(agent, command, opts),
-        { text, images },
-        runAbortController.signal,
-      );
-    const liveControl: WorkbenchLiveExecutionControl = {
-      ...userPromptControls(
-        harness,
-        harnessConversation,
-        this.deps.harnessStorage,
-        expandBlocks,
-      ),
-      forcePush: async () => {
-        forcePushGeneration += 1;
-        toolDraftProgressScheduler.clear();
-        await harness.forcePush();
-      },
-      continue: async () => undefined,
+    const { control: liveControl, expandBlocks } = createWorkbenchLiveControl({
+      harness,
+      conversation: harnessConversation,
+      storage: this.deps.harnessStorage,
+      execute: this.executeInlinePromptBlockCommand.bind(this, agent),
+      signal: runAbortController.signal,
+      durableInputs: Boolean(this.deps.agentInputs),
       cancel: abort,
-      // Edits are persisted elsewhere and adopted only at prepareTurn.
-    };
+      onForcePush: () => forcePushGeneration++,
+      clearDraftProgress: () => toolDraftProgressScheduler.clear(),
+    });
+    coordinator.installControl(liveControl);
     const promptRequest = await expandBlocks(request.text, request.images);
     let continueAttempt = options.continue === true;
     let handledForcePushGeneration = 0;
     while (true) {
-      const runAssistant = await this.runHarnessAttempt({
-        harness,
-        conversation: harnessConversation,
-        request: promptRequest,
-        continue: continueAttempt,
-        runId,
-        agent,
-        signal: runAbortController.signal,
-      });
+      let runAssistant;
+      try {
+        runAssistant = await this.runHarnessAttempt({
+          harness,
+          conversation: harnessConversation,
+          request: promptRequest,
+          continue: continueAttempt,
+          runId,
+          agent,
+          signal: runAbortController.signal,
+        });
+      } catch (error) {
+        if (
+          forcePushGeneration <= handledForcePushGeneration ||
+          runAbortController.signal.aborted ||
+          preparationBlocker
+        )
+          throw error;
+        handledForcePushGeneration = forcePushGeneration;
+        continueAttempt = true;
+        continue;
+      }
       if (preparationBlocker) throw preparationBlocker;
       const messages = convertToLlm((await storage.buildContext()).messages);
       this.deps.conversationService.setForAgent(agent.id, messages);

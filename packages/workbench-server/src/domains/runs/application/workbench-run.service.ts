@@ -1,3 +1,4 @@
+import { forcePushAgentInputs } from "./workbench-agent-force-push.js";
 import { waitForRun } from "./workbench-agent-run-results.js";
 import { assertApprovalCheckpointBranch } from "./approval-checkpoint-branch.js";
 export { activeBranchEndsWithCheckpointResults } from "./approval-checkpoint-branch.js";
@@ -49,6 +50,7 @@ export interface WorkbenchRunFeatureMechanics {
   reopenTeam?(leadId: string): Promise<void>;
   wakeChild?(childId: string): Promise<void>;
   activeToolNamesFor(agent: AgentRecord): Promise<ToolName[]>;
+  canInterruptTurn?(agent: AgentRecord, runId: string): Promise<boolean>;
   getContextUsage(conversationId: string): Promise<ContextUsage>;
   getConversationEntries(conversationId: string): Promise<ConversationEntry[]>;
   resolveRecoveryIssuesForRun?(runId: string): Promise<unknown>;
@@ -358,24 +360,23 @@ export class WorkbenchRunService {
     return this.coordinator.cancelPrompt(state.run.runId, promptId);
   }
 
-  async forcePushQueuedPrompts(agentId: string) {
+  forcePushQueuedPrompts(agentId: string, requestId: string = randomUUID()) {
     const agent = this.requireAgent(agentId);
-    const state = await this.unitOfWork.findActive(this.scopeId(agent));
-    if (!state) {
-      throw new ApplicationError(
-        409,
-        "AGENT_NOT_RUNNING",
-        "Agent has no active run.",
-      );
-    }
-    const prompts = this.controls
-      ? await this.controls.inputs.promote(agentId)
-      : await this.coordinator.forcePush(state.run.runId);
-    return {
-      accepted: true as const,
-      runId: state.run.runId,
-      queuedPromptIds: prompts.map((prompt) => prompt.id),
-    };
+    return forcePushAgentInputs(
+      {
+        inputs: this.controls?.inputs,
+        coordinator: this.coordinator,
+        canInterrupt: this.features.canInterruptTurn?.bind(
+          this.features,
+          agent,
+        ),
+        findActive: () => this.unitOfWork.findActive(this.scopeId(agent)),
+        withControl: (action) =>
+          this.inputControls.withControl(agentId, action),
+      },
+      agentId,
+      requestId,
+    );
   }
 
   promptAgent(agentId: string, request: PromptRequest) {
@@ -421,13 +422,11 @@ export class WorkbenchRunService {
         role: "user",
         origin: { kind: "user", userId: "authorized-user" },
         idempotencyKey: request.idempotencyKey ?? randomUUID(),
-        eligibility:
-          request.behavior === "follow-up" ||
-          parseInlineCommandPrompt(request.text)
-            ? previous?.eligibility.kind === "next_run"
-              ? previous.eligibility
-              : { kind: "next_run", afterRunId: active?.run.runId }
-            : { kind: "next_turn" },
+        eligibility: parseInlineCommandPrompt(request.text)
+          ? previous?.eligibility.kind === "next_run"
+            ? previous.eligibility
+            : { kind: "next_run", afterRunId: active?.run.runId }
+          : { kind: "next_turn" },
         activation: "wake_if_idle",
       });
     }

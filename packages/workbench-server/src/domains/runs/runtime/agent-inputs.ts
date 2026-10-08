@@ -38,10 +38,12 @@ export function agentInputContextEntryId(inputId: string): string {
 /** Sole durable input writer. Live queues are not acceptance authorities. */
 export class AgentInputService {
   private readonly locks = new KeyedSerialLock();
+  private readonly preparations = new Map<string, AbortController>();
   constructor(
     private readonly store: AgentInputStore,
     private readonly ids: IdPort,
     private readonly clock: ClockPort,
+    private readonly changed?: (agentId: string, revision: number) => void,
   ) {}
 
   private async load(agentId: string): Promise<AgentInputQueueState> {
@@ -63,6 +65,7 @@ export class AgentInputService {
       { ...state, revision: state.revision + 1 },
       state.revision,
     );
+    this.changed?.(agentId, state.revision + 1);
   }
   async accept(
     agentId: string,
@@ -175,9 +178,14 @@ export class AgentInputService {
   }
   async list(agentId: string): Promise<AgentInput[]> {
     return this.locks.exclusive(agentId, async () =>
-      (await this.load(agentId)).inputs.filter(
-        (input) => input.state === "pending",
-      ),
+      (await this.load(agentId)).inputs
+        .filter((input) => input.state === "pending")
+        .map((input) =>
+          input.preparation === "preparing" &&
+          !this.preparations.has(`${agentId}:${input.id}`)
+            ? { ...input, preparation: undefined }
+            : input,
+        ),
     );
   }
   async isPaused(agentId: string): Promise<boolean> {
@@ -194,6 +202,11 @@ export class AgentInputService {
     return this.locks.exclusive(agentId, async () => {
       const state = await this.load(agentId);
       state.paused = paused;
+      if (paused)
+        for (const input of state.inputs) delete input.interruptionRequested;
+      if (paused)
+        for (const [key, controller] of this.preparations)
+          if (key.startsWith(`${agentId}:`)) controller.abort();
       state.wakeRequested =
         !paused &&
         requestWake &&
@@ -324,6 +337,7 @@ export class AgentInputService {
           "Pending input not found or delivery already claimed",
         );
       input.state = "cancelled";
+      this.preparations.get(`${agentId}:${inputId}`)?.abort();
       if (
         !state.inputs.some(
           (item) => item.state === "pending" && item.eligibility.kind !== "run",
@@ -333,6 +347,43 @@ export class AgentInputService {
       await this.save(agentId, state);
       return input;
     });
+  }
+  /** Shell work is outside the queue fence; cancellation and stop stay responsive. */
+  async prepareContent(
+    agentId: string,
+    inputId: string,
+    signal: AbortSignal,
+    action: (input: AgentInput, signal: AbortSignal) => Promise<string>,
+  ): Promise<string | undefined> {
+    const controller = new AbortController();
+    const key = `${agentId}:${inputId}`;
+    const input = await this.locks.exclusive(agentId, async () => {
+      const state = await this.load(agentId);
+      const input = state.inputs.find((item) => item.id === inputId);
+      if (state.paused || input?.state !== "pending") return undefined;
+      if (this.preparations.has(key))
+        throw new AgentInputConflictError(
+          "Input preparation is already running",
+        );
+      input.preparation = "preparing";
+      await this.save(agentId, state);
+      this.preparations.set(key, controller);
+      return input;
+    });
+    if (!input) return undefined;
+    try {
+      return await action(input, AbortSignal.any([signal, controller.signal]));
+    } finally {
+      await this.locks.exclusive(agentId, async () => {
+        this.preparations.delete(key);
+        const state = await this.load(agentId);
+        const input = state.inputs.find((item) => item.id === inputId);
+        if (input?.state === "pending") {
+          input.preparation = "ready";
+          await this.save(agentId, state);
+        }
+      });
+    }
   }
   /** Insertion runs under the same fence as cancellation. Stable IDs recover a crash after insertion but before recording delivery. */
   async prepare(
@@ -458,6 +509,103 @@ export class AgentInputService {
       return delivered;
     });
   }
+  async requestForcePush(
+    agentId: string,
+    runId: string,
+    attemptId: string,
+    requestId: string,
+  ) {
+    return this.locks.exclusive(agentId, async () => {
+      const state = await this.load(agentId);
+      if (state.paused) throw new AgentInputConflictError("Agent is paused");
+      if (state.forcePush?.requestId === requestId) {
+        if (
+          state.forcePush.runId !== runId ||
+          state.forcePush.attemptId !== attemptId
+        )
+          throw new AgentInputConflictError(
+            "Force-push belongs to an earlier execution",
+          );
+        return {
+          ...state.forcePush,
+          interrupt:
+            !state.forcePush.signalled &&
+            state.inputs.some(
+              (input) =>
+                state.forcePush!.inputIds.includes(input.id) &&
+                input.state === "pending",
+            ),
+        };
+      }
+      if (
+        state.forcePush?.runId === runId &&
+        state.forcePush.attemptId === attemptId &&
+        state.forcePush.controlGeneration === (state.controlGeneration ?? 0) &&
+        state.inputs.some(
+          (input) =>
+            state.forcePush!.inputIds.includes(input.id) &&
+            input.state === "pending",
+        )
+      )
+        return {
+          ...state.forcePush,
+          interrupt:
+            !state.forcePush.signalled &&
+            state.inputs.some(
+              (input) =>
+                state.forcePush!.inputIds.includes(input.id) &&
+                input.state === "pending",
+            ),
+        };
+      const pending = state.inputs.filter(
+        (input) =>
+          input.state === "pending" &&
+          !state.insertionClaims?.[input.id] &&
+          (input.eligibility.kind !== "run" ||
+            input.eligibility.runId === runId),
+      );
+      if (!pending.length)
+        throw new AgentInputConflictError("No pending prompts to force push");
+      for (const input of pending) {
+        input.interruptionRequested = true;
+        if (input.eligibility.kind === "next_run") {
+          state.acceptedEligibilities ??= {};
+          state.acceptedEligibilities[input.id] ??= structuredClone(
+            input.eligibility,
+          );
+          input.eligibility = { kind: "next_turn" };
+        }
+      }
+      state.forcePush = {
+        requestId,
+        runId,
+        attemptId,
+        inputIds: pending.map((input) => input.id),
+        cutoffSequence: pending.at(-1)!.sequence,
+        requestedAt: this.clock.now().toISOString(),
+        controlGeneration: state.controlGeneration ?? 0,
+      };
+      await this.save(agentId, state);
+      return { ...state.forcePush, interrupt: true };
+    });
+  }
+  async acknowledgeForcePush(
+    agentId: string,
+    requestId: string,
+    attemptId: string,
+  ): Promise<void> {
+    await this.locks.exclusive(agentId, async () => {
+      const state = await this.load(agentId);
+      if (
+        state.forcePush?.requestId !== requestId ||
+        state.forcePush.attemptId !== attemptId ||
+        state.forcePush.signalled
+      )
+        return;
+      state.forcePush.signalled = true;
+      await this.save(agentId, state);
+    });
+  }
   async promote(agentId: string): Promise<AgentInput[]> {
     return this.locks.exclusive(agentId, async () => {
       const state = await this.load(agentId);
@@ -504,6 +652,11 @@ export class AgentInputService {
     await this.locks.exclusive(agentId, async () => {
       const state = await this.load(agentId);
       let dirty = false;
+      if (state.forcePush?.runId === runId) {
+        for (const input of state.inputs) delete input.interruptionRequested;
+        delete state.forcePush;
+        dirty = true;
+      }
       for (const input of state.inputs) {
         if (
           input.state === "pending" &&

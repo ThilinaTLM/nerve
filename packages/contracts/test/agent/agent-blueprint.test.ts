@@ -614,3 +614,33 @@ test("configure accepts only the current agent response, not async wire receipts
     }),
   );
 });
+
+test("typed notices cannot promote user or parent input into system authority", () => {
+  for (const origin of [
+    { kind: "user", userId: "u" },
+    { kind: "parent", agentId: "agent_parent" },
+  ]) {
+    assert.equal(
+      acceptAgentInputRequestSchema.safeParse({
+        ...request,
+        origin,
+        notice: { type: "agent_notification" },
+      }).success,
+      false,
+    );
+  }
+  const notice = acceptAgentInputRequestSchema.parse({
+    ...request,
+    role: "system",
+    origin: { kind: "system", producer: "task", correlationId: "task_1" },
+    notice: {
+      type: "task_event",
+      taskId: "task_1",
+      event: "completed",
+      status: "completed",
+      exitCode: 0,
+      output: "done",
+    },
+  });
+  assert.equal(notice.notice?.type, "task_event");
+});

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { backup, DatabaseSync } from "node:sqlite";
+
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { registerAgentScriptedProvider } from "@nervekit/harness/models";
@@ -149,13 +151,35 @@ for (const kind of ["approval", "question"] as const)
         1,
       );
       await assert.rejects(readFile(marker));
-      // Simulate daemon interruption, not an intentional attached-team stop.
-      runtime.services.asyncSubagents.settleTeam = async () => undefined;
+      await eventually(async () =>
+        (
+          await runtime.services.runRuntime.unitOfWork.findActive(
+            `${child.conversationId}:${child.id}`,
+          )
+        )?.run.status === "waiting"
+          ? true
+          : undefined,
+      );
+      // Capture a crash checkpoint before graceful shutdown deliberately cancels interactions.
+      const recoveredHome = join(root, "recovered-home");
+      await cp(home, recoveredHome, { recursive: true });
+      const recoveredSqlite = join(recoveredHome, "data", "nerve.sqlite");
+      for (const suffix of ["", "-wal", "-shm"])
+        await rm(`${recoveredSqlite}${suffix}`, { force: true });
+      await rm(join(recoveredHome, "cache"), { recursive: true, force: true });
+      const source = new DatabaseSync(join(home, "data", "nerve.sqlite"), {
+        readOnly: true,
+      });
+      try {
+        await backup(source, recoveredSqlite);
+      } finally {
+        source.close();
+      }
       await shutdownServerRuntime(runtime.runtime);
       runtime = createRuntimeFixture(
-        await initializeStorage(home),
+        await initializeStorage(recoveredHome),
         "127.0.0.1",
-        0,
+        39873,
       );
       await runtime.lifecycle.hydrate();
       assert.ok(

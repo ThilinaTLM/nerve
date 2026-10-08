@@ -60,27 +60,6 @@ export function conversationReviewBlocked(input: {
   );
 }
 
-export function conversationBanner(
-  state?: ConversationRenderState,
-): { tone: "muted" | "warning"; title: string; message?: string } | undefined {
-  if (!state) return undefined;
-  if (state.readOnly) {
-    return {
-      tone: "warning",
-      title: "Read-only snapshot.",
-      message: state.fallbackReason,
-    };
-  }
-  if (state.stale) {
-    return {
-      tone: "muted",
-      title: "Conversation may be stale.",
-      message: state.fallbackReason,
-    };
-  }
-  return undefined;
-}
-
 export function buildConversationView(state?: ConversationRenderState) {
   const projection = buildConversationRenderProjection(state);
   return {
@@ -89,6 +68,5 @@ export function buildConversationView(state?: ConversationRenderState) {
     hasContent:
       projection.timeline.length > 0 || Boolean(projection.streamingText),
     queuedPrompts: projection.queuedPrompts,
-    banner: conversationBanner(state),
   };
 }

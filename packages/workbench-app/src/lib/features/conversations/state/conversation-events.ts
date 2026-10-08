@@ -1,3 +1,5 @@
+const inputRevisions = new Map<string, number>();
+
 import {
   isSequencedEvent,
   onAnyEvent,
@@ -35,6 +37,19 @@ function handleConversationBusEvent(event: WorkbenchEvent): void {
     (candidate) => candidate.id === agentId,
   );
   const agentView = agentId ? conversationState.agentViews[agentId] : undefined;
+  if (event.type === "agent.inputs_changed" && agent) {
+    const revision = event.data.revision;
+    if (
+      typeof revision === "number" &&
+      Number.isSafeInteger(revision) &&
+      revision > (inputRevisions.get(agent.id) ?? -1)
+    ) {
+      inputRevisions.set(agent.id, revision);
+      if (agentView || isOpenConversation(agent.conversationId))
+        void reconcileAgentView(agent);
+    }
+    return;
+  }
   if (
     agent &&
     eventTargetsAgent(event, agent) &&

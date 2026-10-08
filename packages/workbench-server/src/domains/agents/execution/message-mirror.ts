@@ -336,7 +336,12 @@ function toolCallPlaceholder(rawNames: readonly unknown[]): string {
 }
 
 export function agentMessageText(message: AgentMessage): string {
-  if (message.role === "harness") return message.content;
+  if (message.role === "harness") {
+    const displayText = (
+      message.details as { displayText?: unknown } | undefined
+    )?.displayText;
+    return typeof displayText === "string" ? displayText : message.content;
+  }
   if (message.role === "user") {
     if (typeof message.content === "string") return message.content;
     return message.content

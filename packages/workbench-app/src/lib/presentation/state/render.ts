@@ -1,3 +1,4 @@
+import { conversationAttentionRows } from "./conversation-attention.js";
 import type { AgentQueueItem } from "@nervekit/contracts/agents";
 import { pendingQueueItems } from "./agent-queue-presentation";
 import { activeRunStreamingText } from "./active-run.js";
@@ -51,6 +52,7 @@ export function buildConversationRenderProjection(
       committed.context,
     ),
     ...liveItems,
+    ...conversationAttentionRows(state),
   ];
 
   return {

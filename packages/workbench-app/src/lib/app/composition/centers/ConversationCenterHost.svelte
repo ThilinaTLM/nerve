@@ -471,19 +471,13 @@ function forcePushQueuedPrompts(prompt: AgentQueueItem): Promise<void> {
     try {
       const { result } = await protocolRequest(
         "agent.promptQueue.forcePush",
-        { agentId: prompt.agentId },
+        { agentId: prompt.agentId, requestId: crypto.randomUUID() },
         { idempotencyKey: crypto.randomUUID() },
       );
-      const pushedIds = new Set(result.queuedPromptIds);
-      const targetView = queuedPromptView(prompt);
-      if (targetView)
-        targetView.queuedPrompts = targetView.queuedPrompts.filter(
-          (candidate) => !pushedIds.has(candidate.id),
-        );
       notify.success(
         result.queuedPromptIds.length === 1
-          ? "Queued prompt force pushed"
-          : `${result.queuedPromptIds.length} queued prompts force pushed`,
+          ? "Turn interruption requested"
+          : `Interruption requested for ${result.queuedPromptIds.length} queued prompts`,
       );
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : String(caught);
@@ -530,9 +524,6 @@ function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
 }
 </script>
 
-{#if view?.error}
-  <p role="alert" class="px-3 py-2 text-xs text-destructive">{view.error}</p>
-{/if}
 <WorkbenchConversationAdapter
   {active}
   {activeProject}
@@ -553,6 +544,7 @@ function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
   transient={view?.transient}
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
+  error={view?.error}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   teamRunning={workspaceState.agents.some(
     (agent) =>

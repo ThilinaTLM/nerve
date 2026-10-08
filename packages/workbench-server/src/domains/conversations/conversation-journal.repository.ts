@@ -149,6 +149,50 @@ export class ConversationJournalRepository {
   }
 
   private readonly states = new Map<string, ConversationJournalState>();
+  // Compact authoritative admission survives transcript cache eviction. Startup
+  // must not depend on opening a conversation (or waking its parent agent).
+  private readonly pendingInteractionAdmission = new Map<
+    string,
+    {
+      conversationId: string;
+      revision: number;
+    }
+  >();
+
+  async hydrateInteractionAdmission(): Promise<void> {
+    await this.ready;
+    this.pendingInteractionAdmission.clear();
+    const projections =
+      await this.canonical.listRunStates<ConversationRunProjection>([
+        "waiting",
+        "suspended",
+        "executing_tools",
+      ]);
+    for (const projection of projections) {
+      for (const interaction of projection.interactions) {
+        if (
+          interaction.status !== "pending" ||
+          !projection.checkpoints.some(
+            (checkpoint) =>
+              checkpoint.committed &&
+              checkpoint.checkpointId === interaction.checkpointId,
+          )
+        )
+          continue;
+        this.pendingInteractionAdmission.set(
+          interactionOrdinalKey(
+            interaction.toolCallId,
+            interaction.interactionOrdinal,
+          ),
+          {
+            conversationId: projection.run.conversationId,
+            revision: interaction.toolCallRevision,
+          },
+        );
+      }
+    }
+  }
+
   readonly deletions: ConversationJournalDeletion;
   private readonly pendingLoads = new Map<
     string,
@@ -188,6 +232,9 @@ export class ConversationJournalRepository {
       this.canonical.initialize(),
       (id, work) => this.exclusive(id, work),
       (id) => {
+        for (const [key, admission] of this.pendingInteractionAdmission)
+          if (admission.conversationId === id)
+            this.pendingInteractionAdmission.delete(key);
         this.states.delete(id);
         this.dirty.delete(id);
         this.encodedBytes.delete(id);
@@ -375,7 +422,16 @@ export class ConversationJournalRepository {
   ): boolean {
     if (!toolCall.runId) return true;
     const state = this.states.get(toolCall.conversationId);
-    if (!state) return false;
+    if (!state) {
+      const admission = this.pendingInteractionAdmission.get(
+        interactionOrdinalKey(toolCall.id, ordinal),
+      );
+      return (
+        admission?.conversationId === toolCall.conversationId &&
+        admission.revision === toolCall.revision &&
+        toolCall.interactions[ordinal]?.status === "pending"
+      );
+    }
     const interaction = state.interactionByToolCallOrdinal.get(
       interactionOrdinalKey(toolCall.id, ordinal),
     );
@@ -854,6 +910,33 @@ export class ConversationJournalRepository {
   }
 
   private touch(conversationId: string, state: ConversationJournalState): void {
+    for (const [key, admission] of this.pendingInteractionAdmission) {
+      if (admission.conversationId === conversationId)
+        this.pendingInteractionAdmission.delete(key);
+    }
+    for (const interaction of state.interactions.values()) {
+      const suspension = state.suspensions.get(interaction.suspensionId);
+      const member = suspension?.members.find(
+        (item) => item.interactionId === interaction.id,
+      );
+      if (
+        interaction.interaction.status !== "pending" ||
+        suspension?.status !== "open" ||
+        !member ||
+        member.toolCallRevision !== interaction.toolCallRevision
+      )
+        continue;
+      this.pendingInteractionAdmission.set(
+        interactionOrdinalKey(
+          interaction.toolCallId,
+          interaction.interaction.ordinal,
+        ),
+        {
+          conversationId,
+          revision: interaction.toolCallRevision,
+        },
+      );
+    }
     this.states.delete(conversationId);
     this.states.set(conversationId, state);
   }

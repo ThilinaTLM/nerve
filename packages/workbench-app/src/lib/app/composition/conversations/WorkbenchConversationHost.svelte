@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import { conversationAttentionRows } from "$lib/presentation/state/conversation-attention";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
@@ -46,6 +47,7 @@ let {
   transient,
   queuedPrompts = [],
   recoveryIssues = [],
+  error,
   sending = false,
   teamRunning = false,
   stopping: stoppingRequested = false,
@@ -179,7 +181,10 @@ const visibleCommitted = $derived(
     committed.context,
   ),
 );
-const timeline = $derived({ prefix: visibleCommitted, tail: liveItems });
+const timeline = $derived({
+  prefix: visibleCommitted,
+  tail: [...liveItems, ...conversationAttentionRows({ recoveryIssues, error })],
+});
 const compacting = $derived(transient?.compaction?.state === "running");
 const outcomeUnknownIds = $derived(outcomeUnknownToolCallIds(recoveryIssues));
 const stopping = $derived(
@@ -261,13 +266,6 @@ function menuForTranscript(
     planReviewModels,
     planReviewModelKey,
     planReviewThinkingLevel,
-    banner: recoveryIssues.length
-      ? {
-          tone: "warning",
-          title: "Recovery needs review",
-          message: `${recoveryIssues.length} external operation outcome${recoveryIssues.length === 1 ? " is" : "s are"} unknown. Nerve did not repeat the operation. Inspect the transcript${recoveryIssues.some((issue) => issue.actions.includes("authorize_retry")) ? ", then cancel or explicitly authorize another attempt" : " before taking any further action"}.`,
-        }
-      : undefined,
     emptyTitle: "Open a conversation or start a new one.",
     composer: {
       text: composerText,

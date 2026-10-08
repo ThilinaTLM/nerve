@@ -14,6 +14,7 @@ const phases = [
   "lifecycle_receipts",
   "lifecycle_runs",
   "records",
+  "input_preparation",
   "snapshots",
   "journal_heads",
   "journal_commits",
@@ -129,6 +130,7 @@ export function deleteConversationChunk(
       );
     } else {
       const namespace = {
+        input_preparation: "agent_input_preparation",
         snapshots: "conversation_state",
         journal_heads: "conversation_journal_head",
         journal_commits: "conversation_journal_commit",
