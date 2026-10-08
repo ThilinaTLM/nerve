@@ -78,6 +78,7 @@ describe("payload descriptor registry", () => {
     const sourceRoot = join(import.meta.dirname, "../../../../src");
     const sources = [
       join(sourceRoot, "domains"),
+      join(sourceRoot, "app"),
       join(sourceRoot, "infrastructure", "migrations"),
       join(sourceRoot, "infrastructure", "persistence", "canonical-sqlite"),
       join(sourceRoot, "infrastructure", "storage-migrations"),

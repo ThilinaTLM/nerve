@@ -92,6 +92,10 @@ The repository runtime-generalization implementation is verified by the final in
 
 Durable GitHub evidence publication remains pending matching committed/published source, test and acceptance links. No cutover commits, issue evidence update, task checkbox update or closure is claimed; this is not an already-completed publication gate. Unified timeline, coordinated rewind, physical per-agent conversations, subscription redesign and external exactly-once/rollback guarantees remain outside this completion contract. General pending input/settings durability does not promise survival of interactions deliberately cancelled by graceful shutdown.
 
+## Startup descriptor coverage correction
+
+A populated slot-1 home exposed two bootstrap-owned namespaces missing from the descriptor registry: `agent-run-completion` and `agent-delegation-input`. Both are now registered as preserved user-content with their owning contract read schemas. The namespace-reference regression check includes bootstrap/application sources, and the startup sweep test covers populated completion/delegation records, compatibility-field preservation, read-only validation, and rejection of a response belonging to another run. All six completion records in the affected home passed the corrected sweep after read-only copying into a fresh temporary database; the original home was not modified. Follow-up validation passed: `taskset -c 0,1 bash -c 'pnpm fix && pnpm check && pnpm test:focused'`, with **3,025 Node tests and 12 Rust tests**, zero failures, and only the previously noted CodeMirror warning. The desktop was not restarted against the original home during investigation.
+
 ## Transcript and input regression corrections
 
 The previous integrated evidence above did not cover all lead-agent UX regressions introduced by queue generalization. The correction keeps one common runtime and adds these owning-layer and integration assertions:

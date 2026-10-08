@@ -8,7 +8,10 @@ import {
   iterateCanonicalPayloadRecords,
 } from "../../../../src/infrastructure/persistence/payloads/canonical-sweep.js";
 import { createJsonPayloadCodec } from "../../../../src/infrastructure/persistence/payloads/codec.js";
-import type { PayloadDescriptor } from "../../../../src/infrastructure/persistence/payloads/descriptors.js";
+import {
+  payloadDescriptor,
+  type PayloadDescriptor,
+} from "../../../../src/infrastructure/persistence/payloads/descriptors.js";
 import {
   CANONICAL_MIGRATIONS,
   CANONICAL_SCHEMA_SQL,
@@ -85,6 +88,101 @@ describe("canonical payload sweep adapter", () => {
           .failures,
         [],
       );
+    } finally {
+      database.close();
+    }
+  });
+
+  it("reads populated run completions and delegation snapshots at startup without rewriting them", () => {
+    const database = currentCanonicalDatabase();
+    try {
+      const completion = {
+        agentId: "agent_child",
+        runId: "run_one",
+        attemptId: "exec_one",
+        outcome: "completed",
+        completedAt: "2026-10-08T00:00:00.000Z",
+        response: {
+          entryId: "entry_response",
+          runId: "run_one",
+          text: "Done",
+          complete: true,
+        },
+        futureCompatibilityField: { preserve: true },
+      };
+      const delegation = {
+        agentId: "agent_parent",
+        configurationRevision: 1,
+        configuration: {
+          mode: "coding",
+          permissionLevel: "read_only",
+          thinkingLevel: "off",
+          projectDir: "/tmp/project",
+          workspaceScope: { roots: ["/tmp/project"] },
+          instructions: "",
+          tools: [],
+          skills: [],
+        },
+        source: {
+          runId: "run_parent",
+          attemptId: "exec_parent",
+          toolCallId: "tool_delegation",
+        },
+      };
+      const documents = [
+        ["agent-run-completion", completion],
+        ["agent-delegation-input", delegation],
+      ] as const;
+      const insert = database.prepare(`INSERT INTO domain_documents
+        (namespace, scope_id, document_id, revision, payload_version, data, created_at_ms, updated_at_ms)
+        VALUES (?, 'agent_child', 'one', 1, 1, ?, 0, 0)`);
+      for (const [namespace, value] of documents)
+        insert.run(namespace, Buffer.from(JSON.stringify(value)));
+      const before = database.prepare("SELECT total_changes() AS value").get();
+      assert.doesNotThrow(() => assertPayloadDescriptorCoverage(database));
+      assert.deepEqual(
+        sweepStorageReadability(database, canonicalPayloadSweepDescriptors())
+          .failures,
+        [],
+      );
+      const records = [...decodeCanonicalPayloadRecords(database)].filter(
+        (record) =>
+          documents.some(
+            ([namespace]) => record.descriptor.location.namespace === namespace,
+          ),
+      );
+      assert.equal(records.length, documents.length);
+      for (const [namespace, value] of documents) {
+        assert.deepEqual(
+          records.find(
+            (record) => record.descriptor.location.namespace === namespace,
+          )?.value,
+          value,
+        );
+        assert.equal(
+          payloadDescriptor(`domain-document:${namespace}`)?.recordClass,
+          "user-content",
+        );
+      }
+      assert.deepEqual(
+        database.prepare("SELECT total_changes() AS value").get(),
+        before,
+      );
+      const invalid = {
+        ...completion,
+        response: { ...completion.response, runId: "run_other" },
+      };
+      database
+        .prepare(
+          "UPDATE domain_documents SET data = ? WHERE namespace = 'agent-run-completion'",
+        )
+        .run(Buffer.from(JSON.stringify(invalid)));
+      const failures = sweepStorageReadability(
+        database,
+        canonicalPayloadSweepDescriptors(),
+      ).failures;
+      assert.equal(failures.length, 1);
+      assert.match(failures[0]?.reason ?? "", /exact submitted run/);
     } finally {
       database.close();
     }
