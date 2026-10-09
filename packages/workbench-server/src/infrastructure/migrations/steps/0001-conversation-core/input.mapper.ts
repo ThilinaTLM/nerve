@@ -1,8 +1,8 @@
 import {
   findExecutableCommandBlocks,
   replaceExecutableCommandBlocks,
-} from "@nervekit/contracts/completions";
-import { commandPreparationSchema } from "@nervekit/contracts/core";
+} from "./commands.js";
+import { commandPreparationSchema } from "./shapes.js";
 import type { EventMapping } from "./events.mapper.js";
 import { iso, type Legacy } from "./legacy.reader.js";
 
@@ -61,7 +61,7 @@ export function importPendingInput(
   const preparedText = preparation
     ? replaceExecutableCommandBlocks(
         text,
-        preparation.blocks.map((block) => ({
+        preparation.blocks.map((block: Legacy) => ({
           block: blocks[block.index],
           text:
             block.result?.stdout ??
@@ -71,7 +71,7 @@ export function importPendingInput(
     : source === "system"
       ? null
       : text;
-  if (preparation?.blocks.some((block) => block.state !== "completed"))
+  if (preparation?.blocks.some((block: Legacy) => block.state !== "completed"))
     mapping.report.loss(
       "Pending command blocks settled without replaying external effects",
     );

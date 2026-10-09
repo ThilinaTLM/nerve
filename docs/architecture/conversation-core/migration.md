@@ -49,18 +49,23 @@ Other findings:
 | `task` documents from the UI                                                                                                                                                           | Dropped; launch instances are in memory                                                 |
 | Project/file-content trust documents                                                                                                                                                   | `TRUSTED_RESOURCE`                                                                      |
 | `scratch_notes`                                                                                                                                                                        | `SCRATCH_NOTE`                                                                          |
-| Conversation-level capability overrides and approval settlements                                                                                                                       | Existing files retained; capability conversion/permission relocation reported           |
+| Conversation-level capability overrides and approval settlements                                                                                                                       | Conversation config files; overlays normalized against user/trusted-project layers      |
 | Files on disk + `file_assets`                                                                                                                                                          | `ASSET`                                                                                 |
 | `durable_events`, `conversation_state`, journal documents, `lifecycle_*`, `run_lifecycle_records`, obligations, completions, projections, `rpc_idempotency`, query cache, empty tables | Dropped                                                                                 |
 
 ## Strategy
 
-- **New file, read-only import.** Create the new schema in a fresh database and fill it with a one-shot importer that only reads the old database. The old file is the backup.
-- **Per conversation.** Import one conversation tree at a time so failures are isolated and reportable.
-- **Settle in-flight work first.** Unfinished runs, interactions and tool calls are imported as `cancelled` or `indeterminate` responses with matching `execution_state` events; pending approvals do not survive cutover.
-- **No coexistence.** The old and new tool lifecycles are too different to run side by side. The runtime cuts over at once.
-- **Rehearse on copies.** Run the importer repeatedly against copies of both homes (`pnpm storage:copy --slot N`), compare conversation counts, context projections and asset coverage, then switch `~/.nerve`.
-- **After cutover**, core schema changes use the ordered SQL migrations in [`conversation-core/src/storage/migrations.ts`](../../../packages/conversation-core/src/storage/migrations.ts). The old home-wide migration framework and its proposal are removed.
+[Storage migrations](../migrations.md) is the binding startup design. Step 0001
+renames the legacy database to `data/nerve.sqlite.migrating`, reads it without
+loading snapshots/replay/journal documents, and creates the already-approved core
+schema in a new `data/nerve.sqlite`. Each conversation tree imports transactionally.
+An interrupted import restarts from the retained source; configuration rewrites
+are atomic and idempotent. Verification precedes removal of the source and legacy
+files. There is no retained database backup: rehearse on a copied, stopped home.
+
+Unfinished runs and calls become cancelled/indeterminate facts rather than resumed
+effects. After cutover, pure core schema changes use the core package's ordered SQL
+migrations; home-wide changes use the startup step registry.
 
 ## Replaced code (pre-cutover analysis)
 
@@ -74,35 +79,53 @@ Other findings:
 
 The app's inline display of child transcripts changes to navigation into child conversations.
 
-## Implemented importer
+## Implemented step 0001
 
 ```sh
-pnpm storage:import-core --home data/storage-2          # refuses if data/core.sqlite exists
-pnpm storage:import-core --home data/storage-2 --force  # replaces data/core.sqlite only
+pnpm storage:migrate --home data/storage-6 --dry-run
+pnpm storage:migrate --home data/storage-6
 ```
 
-[`importer.service.ts`](../../../packages/workbench-server/src/infrastructure/core-import/importer.service.ts) opens `data/nerve.sqlite` read-only and creates `data/core.sqlite`. Startup never imports automatically. `--force` removes the destination and its WAL/SHM files, not the source. Existing managed files are scanned/referenced, not rewritten.
+[`0001-conversation-core/step.ts`](../../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/step.ts)
+is registered as a draft migration. Its importer, SQL schema, row writers and
+capability helpers are frozen locally and use only Node built-ins (plus the
+framework context). The standalone importer and `storage:import-core` command are
+removed. Startup and this CLI run the same step under the home lock.
 
-The importer maps projects, root/child conversations and current config, event trees, tool responses, pending inputs, promoted bash, trusted resources, scratch notes and assets. It never loads old snapshots, replay streams, journals, projections or lifecycle-work documents. Each conversation tree imports transactionally; failed trees roll back independently, remaining trees continue, and the CLI exits nonzero. The report includes counts, skips, lossy mappings, failed trees and asset coverage.
+The step converts permission-level selection keys to rule-set IDs, user suggestion
+frontmatter to `when.permissionRuleSets`, suggestion enablement to
+`config/prompt-suggestions.json`, and validated predicate approvals to file-content
+trust. Project task definitions move to `.nerve/tasks/definitions.json`, preserving
+existing IDs. Legacy workspace budgets/roots are not retained; readonly scopes
+become `read_only`. Conversation overlays are normalized and copied to full-ID
+config paths, including child scopes and historical child tool allowlists.
 
-Unfinished calls become cancelled/indeterminate facts, not resumable approvals or effects. Missing assistant results are synthesized as indeterminate; results missing on a selected branch may be copied onto it. Imported bash has null `processRef`; no process is resumed.
+Promoted bash outputs are copied into conversation-owned storage before deleting
+task bundles. Selected histories, mapped heads, tool pairing, row counts, scanned
+asset coverage, foreign keys and SQLite integrity must pass before cleanup. A
+verified checkpoint bridges a crash between source removal and the ledger write.
+The disk floor is 4 GiB plus a runtime check for 15% of the old database size.
 
-The development-copy rehearsal imported 881 conversations (393 roots, 488 children), 105,526 events, 26,784 assets and 9 async bash rows, with no failed trees. All 26,748 scanned tool-call files were tracked; two already-missing task output files retained metadata. SQLite checks and selected-branch tool pairing passed. These results do not establish production-home coverage.
+Remaining historical losses: missing assistant results are settled indeterminate;
+selected-branch result gaps are copied from recorded results; dismissed resolutions
+remain in result details; notices become notifications; user images and legacy
+`instructions` have no matching current field. UI launch instances, approval
+workflow documents, old lifecycle projections and historical config-change entries
+are dropped. Unsupported/stale suggestion predicates require reapproval, never a
+guessed trust grant. Already-missing asset references retain metadata.
 
-### Known lossy mappings
+The final slot-8 rehearsal copied the stopped development home in 4.7 seconds,
+migrated in 74 seconds, and started `pnpm dev --slot 8` in 49 seconds. The channel
+listed all 881 conversations (393 roots, 488 children); the daemon was then stopped.
+Dry-run reported nothing pending. The new DB is 2,004,914,176 bytes (~1.87 GiB),
+versus ~15.3 GB source; the complete copied home is 2.3 GiB.
 
-- Legacy capability overrides are not folded into `enabledTools`/`enabledSkills`; lasting permission files are unchanged, and old owner paths needing relocation are reported.
-- Missing/deleted agent configuration uses historical model/conversation values/defaults. Missing assistant call blocks can be reconstructed.
-- Dismissed user-input resolutions have no equivalent typed resolution; original facts remain in result details.
-- Harness/task/subagent notices become notifications. Run records supply execution start/wait/retry/terminal events; other lifecycle transitions are dropped.
-- User image attachments and legacy `instructions` have no matching current prompt/config field and are reported.
-- UI launch tasks, approval-settlement workflow documents and historical config-change entries are dropped. Launch instances are memory-only.
-- Pending command blocks keep available completed receipts; uncertain/unstarted blocks are settled without repeating effects. Run-targeted inputs are retargeted after settlement and reported; the rehearsal had no pending inputs to exercise these paths.
-- Predicate-only prompt trust is skipped, not treated as file-content trust.
-
-### Production-import prerequisites
-
-1. Resolve **59 legacy conversation capability overlays** against the host's effective tool/skill baseline before production import; converting deny/default overrides without that baseline is unsafe.
-2. **Stop the daemon** before copying/importing the production home. The importer rejects a live PID in daemon metadata. Rehearse on a stopped copy and review counts, losses, branches and asset coverage before cutover.
-
-The legacy database remains available for backup/reference; this importer is not an atomic whole-home promotion or a general migration framework.
+Imported: 105,526 events, 26,784 assets, 9 async bash rows, 268 capability files and
+no conversation permission files. Eleven legacy project task definitions merged
+with existing file definitions. Selected history/tool pairing, foreign keys and
+integrity passed. Rehearsal project paths were redirected only in the copied DB,
+with project config files copied into the slot, avoiding writes to real workspaces.
+These results do not establish production-home coverage. See the step README for
+cleanup paths and limits. Evidence: `/tmp/m1-slot8-migrate.log`,
+`/tmp/m1-slot8-summary.json`, `/tmp/m1-slot8-dry-run.log`, and
+`/tmp/m1-slot8-channel.log`.

@@ -1,4 +1,4 @@
-import { conversationEventSchema } from "@nervekit/contracts/core";
+import { conversationEventSchema } from "./shapes.js";
 import type { AssetOwner } from "./assets.importer.js";
 import { collectAssets, insertAssets } from "./assets.importer.js";
 import {
@@ -502,9 +502,7 @@ export function importConversation(
       status: scope.status,
       statusEventSequence: scope.statusSequence,
     });
-    verifySelectedPath({
-      reader,
-      storage: mapping.storage,
+    const expectation = {
       conversationId: scope.id,
       oldLeafId,
       mappedLeafId: oldLeafId
@@ -515,8 +513,14 @@ export function importConversation(
         scope.id === rootId
           ? conversation.id
           : `${conversation.id}/${scope.sourceAgentId}`,
+    };
+    const oldUserDigests = verifySelectedPath({
+      ...expectation,
+      reader,
+      storage: mapping.storage,
       summary: mapping.report.selectedPaths,
     });
+    mapping.report.paths.push({ ...expectation, oldUserDigests });
   }
   for (const input of inputs)
     importPendingInput(mapping, owner(input.agentId).id, input);

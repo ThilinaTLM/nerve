@@ -1,4 +1,4 @@
-import { createId } from "@nervekit/contracts";
+import { createHash } from "node:crypto";
 import type { SelectedPathVerification } from "./selected-path.validation.js";
 import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
 
@@ -27,11 +27,13 @@ export function iso(
 
 export class ImportIds {
   private readonly ids = new Map<string, string>();
-  get(prefix: Parameters<typeof createId>[0], old: string): string {
+  get(prefix: string, old: string): string {
     const key = `${prefix}:${old}`;
     let id = this.ids.get(key);
     if (!id) {
-      id = old.startsWith(`${prefix}_`) ? old : createId(prefix);
+      id = old.startsWith(`${prefix}_`)
+        ? old
+        : `${prefix}_0${createHash("sha256").update(key).digest("hex").slice(0, 25).toUpperCase()}`;
       this.ids.set(key, id);
     }
     return id;
@@ -97,8 +99,16 @@ export class ImportReport {
     orphanToolResults: 0,
   };
   readonly skipped = new Map<string, number>();
-  readonly failures: string[] = [];
   readonly losses = new Map<string, number>();
+  readonly paths: {
+    conversationId: string;
+    oldLeafId: string | null;
+    mappedLeafId: string | null;
+    isRoot: boolean;
+    label: string;
+    oldUserDigests: string[];
+  }[] = [];
+  readonly missingAssetIds: string[] = [];
   diskFiles = 0;
   trackedFiles = 0;
   missingFiles = 0;

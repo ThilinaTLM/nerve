@@ -1,4 +1,4 @@
-import { assetSchema, type Asset } from "@nervekit/contracts/core";
+import { assetSchema, type Asset } from "./shapes.js";
 import { existsSync, lstatSync, readdirSync, realpathSync } from "node:fs";
 import { extname, isAbsolute, join, relative, resolve } from "node:path";
 import type { EventMapping } from "./events.mapper.js";
@@ -87,6 +87,7 @@ export function collectAssets(
         row?.media_type ?? (extension === ".json" ? "application/json" : null),
       createdAt: iso(row?.created_at_ms ?? stat?.birthtimeMs),
     });
+    if (!stat) mapping.report.missingAssetIds.push(asset.id);
     assets.set(logicalPath, asset);
     if (owner.toolCallId)
       mapping.toolAssets.set(owner.toolCallId, [

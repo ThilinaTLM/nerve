@@ -3,8 +3,8 @@ import {
   interactionResolutionSchema,
   supervisionSchema,
   type ConversationEvent,
-} from "@nervekit/contracts/core";
-import type { CoreStorage } from "@nervekit/conversation-core";
+} from "./shapes.js";
+import type { CoreStorage } from "./storage.js";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve } from "node:path";
 import {
@@ -299,7 +299,7 @@ export function insertEvent(
 ): void {
   mapping.storage.events.insert(event);
   if (event.type === "assistant_message") {
-    event.payload.content.forEach((block, contentIndex) => {
+    event.payload.content.forEach((block: Legacy, contentIndex: number) => {
       if (block.type === "toolCall")
         mapping.origins.set(block.id, {
           eventId: event.id,

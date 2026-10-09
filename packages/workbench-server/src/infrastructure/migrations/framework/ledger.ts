@@ -56,8 +56,10 @@ export async function readMigrationHome(
         "0010-deletion-indexes",
       ];
       if (
-        rows.length !== 10 ||
-        rows.some((row, index) => row.id !== baselineIds[index])
+        rows.length < baselineIds.length ||
+        rows
+          .slice(0, baselineIds.length)
+          .some((row, index) => row.id !== baselineIds[index])
       ) {
         throw new Error(FLOOR_ERROR);
       }

@@ -13,16 +13,12 @@ import {
   capabilityOverridesDocumentSchema,
   normalizeCapabilityOverrides,
   resolveCapabilitySelection,
+  userCapabilitySelection,
+  toolNames,
   type CapabilitySelection,
-} from "@nervekit/contracts/capabilities";
-import { defaultUserConfiguration } from "@nervekit/contracts/settings";
-import { permissionOverlayDocumentForOriginSchema } from "@nervekit/contracts/permissions";
-import type { CoreStorage } from "@nervekit/conversation-core";
-import { userCapabilitySelection } from "../../core-host/user-capability-selection.js";
-import {
-  settingsFromConfiguration,
-  HOME_CONFIGURATION_CODECS,
-} from "../configuration/index.js";
+} from "./capabilities.js";
+import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
+import type { CoreStorage } from "./storage.js";
 import type { ImportReport, Legacy } from "./legacy.reader.js";
 
 export interface ImportedConversationOverlays {
@@ -48,44 +44,17 @@ export class ConversationOverlaysImporter {
 
   private userSelection(): CapabilitySelection {
     if (this.user) return this.user;
-    const read = (id: keyof typeof HOME_CONFIGURATION_CODECS): unknown => {
+    const read = (name: string): Legacy => {
       try {
-        const document: Legacy = JSON.parse(
-          readFileSync(join(this.home, "config", `${id}.json`), "utf8"),
+        return JSON.parse(
+          readFileSync(join(this.home, "config", `${name}.json`), "utf8"),
         );
-        if (id === "harness") {
-          // Adapt archived selections only in memory. The capability baseline
-          // must not rewrite settings during the separate settings migration.
-          for (const selection of [document.defaults, document.lastSelection]) {
-            if (selection && Object.hasOwn(selection, "permissionLevel")) {
-              selection.permissionRuleSetId ??= selection.permissionLevel;
-              delete selection.permissionLevel;
-            }
-          }
-        }
-        return document;
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT")
-          return defaultUserConfiguration[id];
-        throw error;
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        return {};
       }
     };
-    this.user = userCapabilitySelection(
-      settingsFromConfiguration({
-        daemon: HOME_CONFIGURATION_CODECS.daemon.decode(read("daemon")),
-        harness: HOME_CONFIGURATION_CODECS.harness.decode(read("harness")),
-        ui: HOME_CONFIGURATION_CODECS.ui.decode(read("ui")),
-        permissions: HOME_CONFIGURATION_CODECS.permissions.decode(
-          read("permissions"),
-        ),
-        providers: HOME_CONFIGURATION_CODECS.providers.decode(
-          read("providers"),
-        ),
-        integrations: HOME_CONFIGURATION_CODECS.integrations.decode(
-          read("integrations"),
-        ),
-      }),
-    );
+    this.user = userCapabilitySelection(read("harness"), read("integrations"));
     return this.user;
   }
 
@@ -168,7 +137,12 @@ export class ConversationOverlaysImporter {
     }
   }
 
-  importConversation(projectId: string, oldId: string, newId: string): void {
+  importConversation(
+    projectId: string,
+    oldId: string,
+    newId: string,
+    enabledTools?: string[],
+  ): void {
     if (
       !/^conv_[A-Za-z0-9_-]+$/.test(oldId) ||
       !/^conv_[A-Za-z0-9_-]+$/.test(newId)
@@ -182,13 +156,40 @@ export class ConversationOverlaysImporter {
     const target = join(this.dataDir, "conversations", newId, "config");
     const capabilities = this.source(join(source, "capabilities.json"));
     const permissions = this.source(join(source, "permissions.json"));
-    const normalized =
-      capabilities === null
-        ? null
-        : normalizeCapabilityOverrides(
-            capabilityOverridesDocumentSchema.parse(JSON.parse(capabilities)),
-            this.inherited(projectId),
-          );
+    let normalized = null;
+    if (capabilities !== null || enabledTools) {
+      const inherited = this.inherited(projectId);
+      const document = capabilityOverridesDocumentSchema.parse(
+        capabilities === null ? { schemaVersion: 2 } : JSON.parse(capabilities),
+      );
+      if (enabledTools) {
+        const oldEffective = resolveCapabilitySelection({
+          user: inherited,
+          conversation: document,
+        });
+        for (const name of toolNames) {
+          const enabled =
+            name === "subagents"
+              ? [
+                  "subagent_new",
+                  "subagent_prompt",
+                  "subagent_list",
+                  "subagent_status",
+                  "subagent_stop",
+                ].every((tool) => enabledTools.includes(tool))
+              : name === "jira" || name === "confluence"
+                ? enabledTools.some((tool) => tool.startsWith(`${name}_`))
+                : enabledTools.includes(name);
+          const profileId = oldEffective.toolProfiles[name];
+          document.tools[name] = {
+            enabled,
+            ...(profileId ? { profileId } : {}),
+          };
+        }
+        Object.assign(document.toolSettings, oldEffective.toolSettings);
+      }
+      normalized = normalizeCapabilityOverrides(document, inherited);
+    }
     // Validate both before creating files; permission relocation preserves bytes.
     if (permissions !== null)
       permissionOverlayDocumentForOriginSchema("conversation").parse(

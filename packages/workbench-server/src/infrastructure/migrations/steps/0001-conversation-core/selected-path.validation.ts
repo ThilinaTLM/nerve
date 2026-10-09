@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { CoreStorage } from "@nervekit/conversation-core";
+import type { CoreStorage } from "./storage.js";
 import type { Legacy, LegacyReader } from "./legacy.reader.js";
 
 export interface SelectedPathVerification {
@@ -32,7 +32,8 @@ function digest(text: string): string {
 
 // Walk one row at a time and retain only digests/call IDs, never message bodies.
 export function verifySelectedPath(input: {
-  reader: LegacyReader;
+  reader?: LegacyReader;
+  oldUserDigests?: string[];
   storage: CoreStorage;
   conversationId: string;
   oldLeafId: string | null;
@@ -40,11 +41,14 @@ export function verifySelectedPath(input: {
   isRoot: boolean;
   label: string;
   summary: SelectedPathVerification;
-}): void {
+}): string[] {
   const { reader, storage, summary } = input;
   const oldUsers: string[] = [];
+  const seenOld = new Set<string>();
   let oldId = input.oldLeafId;
-  while (oldId) {
+  while (reader && oldId) {
+    if (seenOld.has(oldId)) throw new Error(`Source history cycle ${oldId}`);
+    seenOld.add(oldId);
     const record = reader.record(oldId);
     if (!record) throw new Error(`Missing source leaf/predecessor ${oldId}`);
     const context = record.modelContext?.entry;
@@ -57,6 +61,7 @@ export function verifySelectedPath(input: {
         ? context.parentId
         : (record.entry?.parentEntryId ?? null);
   }
+  if (!reader) oldUsers.push(...(input.oldUserDigests ?? []));
   const conversation = storage.conversations.get(input.conversationId)!;
   if (conversation.headEventId !== input.mappedLeafId)
     summary.headMismatches.push(input.label);
@@ -64,7 +69,11 @@ export function verifySelectedPath(input: {
   const calls = new Map<string, number>();
   const results = new Map<string, number>();
   let eventId = conversation.headEventId;
+  const seenNew = new Set<string>();
   while (eventId) {
+    if (seenNew.has(eventId))
+      throw new Error(`Imported history cycle ${eventId}`);
+    seenNew.add(eventId);
     const event = storage.events.get(eventId);
     if (!event) throw new Error(`Missing imported event ${eventId}`);
     if (event.type === "user_message")
@@ -97,4 +106,5 @@ export function verifySelectedPath(input: {
     summary.duplicateToolResults += Math.max(0, count - 1);
     summary.orphanToolResults += Math.max(0, count - (calls.get(id) ?? 0));
   }
+  return oldUsers;
 }

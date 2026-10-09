@@ -1,18 +1,17 @@
-import { openCoreStorage } from "@nervekit/conversation-core";
+import { openCoreStorage } from "./storage.js";
 import {
   projectSchema,
   scratchNoteSchema,
   trustedResourceSchema,
-} from "@nervekit/contracts/core";
-import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-} from "node:fs";
+} from "./shapes.js";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { setImmediate } from "node:timers/promises";
+import {
+  convertPromptTrust,
+  convertDocumentPreferences,
+} from "./configuration.js";
 import { importConversation } from "./conversation.importer.js";
 import {
   ConversationOverlaysImporter,
@@ -30,43 +29,19 @@ import {
 } from "./legacy.reader.js";
 
 export interface CoreImportSummary {
-  home: string;
+  paths: ImportReport["paths"];
+  preferences: { enablement: number; taskDefinitions: number };
   counts: Record<string, number>;
   skipped: Record<string, number>;
   lossyMappings: Record<string, number>;
-  failedTrees: string[];
   selectedPaths: SelectedPathVerification;
   overlays: ImportedConversationOverlays;
-  assets: { diskFiles: number; trackedFiles: number; missingFiles: number };
-}
-
-function pathExists(path: string): boolean {
-  try {
-    lstatSync(path);
-    return true;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
-    throw error;
-  }
-}
-
-function assertOffline(home: string): void {
-  const path = join(home, "daemon.json");
-  if (!existsSync(path)) return;
-  const daemon = JSON.parse(readFileSync(path, "utf8"));
-  if (!Number.isInteger(daemon.pid) || daemon.pid <= 0)
-    throw new Error(
-      "Invalid daemon metadata; verify the home is stopped before importing",
-    );
-  try {
-    process.kill(daemon.pid, 0);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
-    throw error;
-  }
-  throw new Error(
-    `A live daemon (${daemon.pid}) is using this home; import a stopped copy instead`,
-  );
+  assets: {
+    diskFiles: number;
+    trackedFiles: number;
+    missingFiles: number;
+    missingAssetIds: string[];
+  };
 }
 
 function loadByConversation(
@@ -85,9 +60,33 @@ function importTrust(
   reader: LegacyReader,
   mapping: EventMapping,
   home: string,
+  scratchDir: string,
 ): void {
   const insert = (namespace: string, data: Legacy, key: string): void => {
     const projectScoped = namespace.startsWith("project-");
+    if (!projectScoped) {
+      const converted = convertPromptTrust(data, home, scratchDir);
+      if (!converted) {
+        mapping.report.skip(
+          "Prompt trust could not be validated; needs reapproval",
+        );
+        return;
+      }
+      data = converted;
+      if (data.sourceKind === "project" && !data.projectId) {
+        for (const project of mapping.storage.sqlite
+          .prepare("SELECT id, directory FROM project")
+          .iterate())
+          if (data.path.startsWith(`${project.directory}/`)) {
+            data.projectId = project.id;
+            break;
+          }
+        if (!data.projectId) {
+          mapping.report.skip("Prompt trust for missing project");
+          return;
+        }
+      }
+    }
     const projectId = projectScoped
       ? mapping.ids.get("proj", key)
       : data.projectId
@@ -120,14 +119,6 @@ function importTrust(
       mapping.report.skip("Trust missing path or digest");
       return;
     }
-    if (!projectScoped && !data.contentDigest && !data.digest) {
-      // A predicate hash is not a digest of approved file content. Do not
-      // silently authorize changed code by treating the two as interchangeable.
-      mapping.report.skip(
-        "Prompt trust predicate hash is not a content digest",
-      );
-      return;
-    }
     if (mapping.storage.trustedResources.find(kind, projectId, path)) return;
     const createdAt = iso(data.trustedAt ?? data.createdAt);
     mapping.storage.trustedResources.insert(
@@ -141,7 +132,9 @@ function importTrust(
         path,
         name: data.name ?? null,
         contentDigest: data.digest ?? data.contentDigest,
-        status: data.status === "rejected" ? "rejected" : "trusted",
+        status: ["rejected", "denied"].includes(data.status)
+          ? "rejected"
+          : "trusted",
         createdAt,
         updatedAt: iso(data.updatedAt, createdAt),
       }),
@@ -174,31 +167,25 @@ function importTrust(
   }
 }
 
-export function importCoreStorage(input: {
+export async function importCoreStorage(input: {
   home: string;
-  force?: boolean;
-}): CoreImportSummary {
+  progress(conversationId: string): void;
+  scratchDir: string;
+}): Promise<CoreImportSummary> {
   const home = realpathSync(resolve(input.home));
-  assertOffline(home);
   const dataDir = realpathSync(join(home, "data"));
-  const oldPath = join(dataDir, "nerve.sqlite");
-  const newPath = join(dataDir, "core.sqlite");
+  const oldPath = join(dataDir, "nerve.sqlite.migrating");
+  const newPath = join(dataDir, "nerve.sqlite");
   if (!lstatSync(oldPath).isFile())
     throw new Error(
       "Legacy database must be a regular file, not a symbolic link",
     );
-  if (pathExists(newPath) && !input.force)
-    throw new Error("core.sqlite already exists; use --force to replace it");
-  if (pathExists(newPath) && !lstatSync(newPath).isFile())
-    throw new Error("Destination must be a regular file");
   const reader = new LegacyReader(oldPath);
   const report = new ImportReport();
   let storage;
   let overlays: ImportedConversationOverlays;
+  let preferences: CoreImportSummary["preferences"];
   try {
-    if (input.force)
-      for (const suffix of ["", "-wal", "-shm"])
-        rmSync(`${newPath}${suffix}`, { force: true });
     storage = openCoreStorage(newPath);
     const mapping: EventMapping = {
       storage,
@@ -221,7 +208,8 @@ export function importCoreStorage(input: {
         }),
       );
     }
-    importTrust(reader, mapping, home);
+    importTrust(reader, mapping, home, input.scratchDir);
+    preferences = convertDocumentPreferences(reader, storage, home);
     const overlayImporter = new ConversationOverlaysImporter(
       home,
       dataDir,
@@ -328,12 +316,23 @@ export function importCoreStorage(input: {
             conversation.id,
             mapping.ids.get("conv", conversation.id),
           );
+          for (const agent of agents.get(conversation.id) ?? []) {
+            if (agent.parentAgentId)
+              overlayImporter.importConversation(
+                mapping.ids.get("proj", conversation.projectId),
+                conversation.id,
+                mapping.ids.get("conv", agent.id),
+                Array.isArray(agent.tools) ? agent.tools : undefined,
+              );
+          }
         });
-        console.log(`Imported ${conversation.id}`);
+        input.progress(conversation.id);
+        await setImmediate();
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        report.failures.push(`${conversation.id}: ${reason}`);
-        console.error(`Skipped tree ${conversation.id}: ${reason}`);
+        throw new Error(`Import failed for ${conversation.id}: ${reason}`, {
+          cause: error,
+        });
       }
     }
     for (const [conversationId, orphanTasks] of tasks) {
@@ -369,19 +368,19 @@ export function importCoreStorage(input: {
     db.close();
   }
   const summary: CoreImportSummary = {
-    home,
+    paths: report.paths,
+    preferences,
     counts,
     skipped: Object.fromEntries(report.skipped),
     lossyMappings: Object.fromEntries(report.losses),
-    failedTrees: report.failures,
     selectedPaths: report.selectedPaths,
     overlays,
     assets: {
       diskFiles: report.diskFiles,
       trackedFiles: report.trackedFiles,
       missingFiles: report.missingFiles,
+      missingAssetIds: report.missingAssetIds,
     },
   };
-  console.log(JSON.stringify(summary, null, 2));
   return summary;
 }

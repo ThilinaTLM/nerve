@@ -1,7 +1,4 @@
-import {
-  conversationConfigSchema,
-  conversationSchema,
-} from "@nervekit/contracts/core";
+import { conversationConfigSchema, conversationSchema } from "./shapes.js";
 import type { EventMapping } from "./events.mapper.js";
 import { iso, type Legacy, type LegacyReader } from "./legacy.reader.js";
 
@@ -96,6 +93,7 @@ export function importConversationScopes(
           agent.thinkingLevel ?? conversation.thinkingLevel ?? "off",
         systemPrompt: agent.systemPrompt ?? null,
         permissionRuleSetId:
+          agent.workspaceScope?.readonly === true ||
           agent.executionKind === "explore" ||
           agent.orchestrationPolicy?.preset === "explore"
             ? "read_only"

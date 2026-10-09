@@ -165,6 +165,20 @@ void test("rejects unsupported baselines without modifying SQLite", async (t) =>
   });
 });
 
+void test("admits the required baseline prefix with later legacy migrations", async (t) => {
+  const home = await temporaryHome(t);
+  await baseline(home, [
+    ...baselineIds,
+    "0011-agent-intervention-obligations",
+    "0012-run-initial-input-lookup",
+  ]);
+  const registry = [entry("0001-example", async () => {})];
+  assert.deepEqual(await runMigrations(home, { registry, dryRun: true }), {
+    fresh: false,
+    pending: ["0001-example"],
+  });
+});
+
 void test("ledger rejects unknown IDs and released checksum drift", async (t) => {
   const home = await temporaryHome(t);
   const registry = [entry("0001-example", async () => {})];
