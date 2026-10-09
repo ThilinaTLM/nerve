@@ -291,3 +291,82 @@ test("active run lookup is rebuilt from conversation journals", async (t) => {
   assert.equal(active?.run.runId, runId);
   assert.deepEqual(await restarted.listMetadata(), [records.first.run]);
 });
+
+test("initial-input lookup returns first admitted metadata without enumerating or hydrating history", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-run-initial-input-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const journal = new ConversationJournalRepository({
+    paths: storagePaths(home),
+  });
+  t.after(() => journal.close());
+  const unit = new WorkbenchRunUnitOfWork(journal);
+  const initial = { ...run(1, startedAt), initialInputId: "input_lookup_test" };
+  const ids = { next: () => "lookup_test" };
+  await unit.commit(
+    0,
+    buildTransition(initial, "started", 0, {}, ids, { checksum: () => digest }),
+  );
+  await unit.commit(
+    0,
+    buildTransition(
+      {
+        ...initial,
+        runId: "run_later_lookup",
+        updatedAt: "2026-07-12T00:00:02.000Z",
+      },
+      "started",
+      0,
+      {},
+      { next: () => "later_lookup" },
+      { checksum: () => digest },
+    ),
+  );
+  const fail = async (): Promise<never> => {
+    throw new Error("unexpected historical read");
+  };
+  journal.listRunMetadata = fail;
+  journal.listRunStates = fail;
+  journal.readRunState = fail;
+  unit.load = fail;
+  assert.deepEqual(
+    await unit.findByInitialInputId(initial.agentId, initial.initialInputId),
+    initial,
+  );
+  assert.equal(
+    await unit.findByInitialInputId("agent_other", initial.initialInputId),
+    undefined,
+  );
+  assert.equal(
+    await unit.findByInitialInputId(initial.agentId, "input_absent"),
+    undefined,
+  );
+});
+
+test("initial-input repository validates owning schema and requested identity", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-run-input-validation-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const journal = new ConversationJournalRepository({
+    paths: storagePaths(home),
+  });
+  t.after(() => journal.close());
+  const unit = new WorkbenchRunUnitOfWork(journal);
+  const record = { ...run(1, startedAt), initialInputId: "input_lookup_test" };
+  journal.findRunByInitialInputId = async () => ({ ...record, revision: 0 });
+  await assert.rejects(
+    unit.findByInitialInputId(record.agentId, record.initialInputId),
+  );
+  for (const replacement of [
+    { agentId: "agent_other" },
+    { initialInputId: "input_other" },
+    { scopeId: "wrong" },
+  ]) {
+    journal.findRunByInitialInputId = async () => ({
+      ...record,
+      ...replacement,
+    });
+    await assert.rejects(
+      unit.findByInitialInputId(record.agentId, record.initialInputId),
+      /identity mismatch/,
+    );
+  }
+});

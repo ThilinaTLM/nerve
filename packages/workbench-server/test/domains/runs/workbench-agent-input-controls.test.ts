@@ -191,7 +191,9 @@ test("legacy pending prompts transfer once before new lanes, with follow-up elig
       updatedAt: new Date().toISOString(),
     },
   ];
+  harness.allowHistoricalMigration();
   await harness.service.migrateLegacyInputs();
+  harness.allowHistoricalMigration();
   await harness.service.migrateLegacyInputs();
   assert.equal(state.prompts[0]?.status, "cancelled");
   await harness.service.enqueueAgentInput(harness.agent.id, {
@@ -495,6 +497,7 @@ test("startup transfer includes terminal-run deferred followups, before newly ac
       updatedAt: new Date().toISOString(),
     },
   ];
+  h.allowHistoricalMigration();
   await h.service.migrateLegacyInputs();
   await h.service.enqueueAgentInput(h.agent.id, {
     text: "new user",
@@ -509,6 +512,7 @@ test("startup transfer includes terminal-run deferred followups, before newly ac
   assert.deepEqual(pending[0]?.eligibility, { kind: "next_turn" });
   assert.equal(pending[1]?.text, "new user");
   assert.equal(old.prompts[0]?.status, "cancelled");
+  h.allowHistoricalMigration();
   await h.service.migrateLegacyInputs();
   assert.equal((await h.inputs.list(h.agent.id)).length, 2);
 });

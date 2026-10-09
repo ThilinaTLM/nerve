@@ -9,6 +9,7 @@ import { assertPayloadDescriptorCoverage } from "../../persistence/payloads/inde
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import type { MigrationStepV1 } from "../kit/define-step/v1.js";
 import { STORAGE_MIGRATION_STEPS } from "../steps/index.js";
+import { CANONICAL_SCHEMA_STEP_IDS } from "./canonical-schema-steps.js";
 import { inspectLegacyAdoption } from "./adoption.js";
 import { createMigrationFiles, createMigrationRows } from "./kit-context.js";
 import {
@@ -222,17 +223,20 @@ function recordLegacySchemaCompatibility(
   metadata: RegisteredStorageMigration,
   appliedAtMs: number,
 ): void {
-  if (metadata.kind !== "schema" || metadata.ordinal > 7) return;
+  if (metadata.kind !== "schema") return;
+  const version = Number(
+    Object.entries(CANONICAL_SCHEMA_STEP_IDS).find(
+      ([, id]) => id === metadata.id,
+    )?.[0],
+  );
   const legacy =
-    metadata.ordinal === 1
+    version === 1
       ? {
           version: 1,
           name: CANONICAL_BASELINE_NAME,
           checksum: CANONICAL_BASELINE_CHECKSUM,
         }
-      : CANONICAL_MIGRATIONS.find(
-          (migration) => migration.version === metadata.ordinal,
-        );
+      : CANONICAL_MIGRATIONS.find((migration) => migration.version === version);
   if (!legacy) return;
   database
     .prepare(

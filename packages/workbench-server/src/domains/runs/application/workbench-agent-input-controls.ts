@@ -1,4 +1,8 @@
 import {
+  cancelAgentInputBinding,
+  resolveAgentInputBinding,
+} from "./workbench-agent-input-binding.js";
+import {
   interruptAgent,
   type AgentInterruptionOptions,
 } from "./workbench-agent-interruption.js";
@@ -10,10 +14,7 @@ import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type { AgentRecord, PromptRequest } from "@nervekit/contracts/agents";
 import type { ConversationEntry } from "@nervekit/contracts/conversations";
 import type { RunPromptRecord } from "@nervekit/contracts/runs";
-import {
-  AgentInputConflictError,
-  type AgentInputRequest,
-} from "../runtime/agent-inputs.js";
+import { type AgentInputRequest } from "../runtime/agent-inputs.js";
 import { KeyedSerialLock } from "../runtime/run-locks.js";
 import { TERMINAL_STATUSES, type RunCoordinator } from "../runtime/index.js";
 import { ApplicationError } from "../../../core/application-error.js";
@@ -23,7 +24,6 @@ import type {
   WorkbenchAgentControls,
   WorkbenchRunFeatureMechanics,
 } from "./workbench-run.service.js";
-/** Shared input/admission controls; no transport or orchestration-specific writers. */
 export class WorkbenchAgentInputControls {
   private readonly agentAdmissions = new KeyedSerialLock();
   private readonly controlLocks = new KeyedSerialLock();
@@ -558,6 +558,11 @@ export class WorkbenchAgentInputControls {
     options.signal?.throwIfAborted();
     let onAbort: (() => void) | undefined;
     let cancellation: Promise<void> | undefined;
+    const assertNotAborted = (error?: unknown) => {
+      if (!options.signal?.aborted) return;
+      onAbort?.();
+      throw options.signal.reason ?? error ?? new Error("Assignment cancelled");
+    };
     try {
       const accepted = await this.enqueueAgentInput(
         agentId,
@@ -593,28 +598,14 @@ export class WorkbenchAgentInputControls {
           accepted.id,
         );
         this.assertAdmissionsOpen();
-        const states = this.unitOfWork.list
-          ? await this.unitOfWork.list()
-          : await this.unitOfWork.listActive();
-        const bound = states.find(
-          (state) =>
-            state.run.initialInputId === accepted.id ||
-            state.run.runId === currentReceipt?.delivery?.runId,
+        const bound = await resolveAgentInputBinding(
+          this.unitOfWork,
+          this.requireAgent(agentId),
+          accepted.id,
+          currentReceipt,
         );
-        if (options.signal?.aborted) {
-          onAbort?.();
-          throw options.signal.reason ?? new Error("Assignment cancelled");
-        }
-        if (bound)
-          return {
-            agentId,
-            runId: bound.run.runId,
-            attemptId:
-              currentReceipt?.delivery?.attemptId ??
-              (await this.unitOfWork.loadFresh(bound.run.runId))
-                ?.transitions?.[0]?.run.executionId ??
-              bound.run.executionId,
-          };
+        assertNotAborted();
+        if (bound) return bound;
         if (
           !currentReceipt ||
           currentReceipt.state === "cancelled" ||
@@ -629,6 +620,19 @@ export class WorkbenchAgentInputControls {
         try {
           run = await this.withAdmission(agentId, async () => {
             const agent = this.requireAgent(agentId);
+            // A run may have committed and settled while this caller waited
+            // for admission. Re-read durable binding inside the same fence.
+            const receipt = await this.controls!.inputs.get(
+              agentId,
+              accepted.id,
+            );
+            const existing = await resolveAgentInputBinding(
+              this.unitOfWork,
+              agent,
+              accepted.id,
+              receipt,
+            );
+            if (existing) return existing;
             if (
               agent.activationState === "paused" ||
               (await this.controls!.inputs.isPaused(agentId))
@@ -643,13 +647,21 @@ export class WorkbenchAgentInputControls {
               accepted.id,
             );
             if (current?.state !== "pending") return undefined;
-            return this.admitAgentRun(agent, accepted.id, options.signal);
+            const admitted = await this.admitAgentRun(
+              agent,
+              accepted.id,
+              options.signal,
+            );
+            return admitted.initialInputId === accepted.id
+              ? {
+                  agentId,
+                  runId: admitted.runId,
+                  attemptId: admitted.executionId,
+                }
+              : undefined;
           });
         } catch (error) {
-          if (options.signal?.aborted) {
-            onAbort?.();
-            throw options.signal.reason ?? error;
-          }
+          assertNotAborted(error);
           if (
             !(
               error instanceof ApplicationError &&
@@ -658,9 +670,8 @@ export class WorkbenchAgentInputControls {
           )
             throw error;
         }
-        if (run && run.initialInputId === accepted.id)
-          return { agentId, runId: run.runId, attemptId: run.executionId };
-        // Wait outside control/admission locks; preserve the accepted identity.
+        assertNotAborted();
+        if (run) return run;
         await delay(25, undefined, {
           signal: options.signal
             ? AbortSignal.any([this.watcherShutdown.signal, options.signal])
@@ -676,30 +687,19 @@ export class WorkbenchAgentInputControls {
       await cancellation;
     }
   }
-  private async cancelAcceptedSubmission(
-    agentId: string,
-    inputId: string,
-  ): Promise<void> {
+  private async cancelAcceptedSubmission(agentId: string, inputId: string) {
     if (!this.controls) return;
-    // Fence admission commit; cancel only this input/run, never pause the agent.
-    const bound = await this.agentAdmissions.exclusive(agentId, async () => {
-      await this.controls!.inputs.cancel(agentId, inputId).catch((error) => {
-        if (!(error instanceof AgentInputConflictError)) throw error;
-      });
-      const receipt = await this.controls!.inputs.get(agentId, inputId);
-      const states = this.unitOfWork.list
-        ? await this.unitOfWork.list()
-        : await this.unitOfWork.listActive();
-      return states.find(
-        (state) =>
-          state.run.initialInputId === inputId ||
-          state.run.runId === receipt?.delivery?.runId,
-      );
-    });
-    if (bound) {
-      await this.coordinator.cancel(bound.run.runId, "Assignment cancelled");
-      await waitForRun(this.unitOfWork, bound.run.runId);
-    }
+    const bound = await this.agentAdmissions.exclusive(agentId, () =>
+      cancelAgentInputBinding(
+        this.unitOfWork,
+        this.controls!.inputs,
+        this.requireAgent(agentId),
+        inputId,
+      ),
+    );
+    if (!bound) return;
+    await this.coordinator.cancel(bound.runId, "Assignment cancelled");
+    await waitForRun(this.unitOfWork, bound.runId);
   }
   waitForAgentRun(
     identity: { agentId: string; runId: string; attemptId: string },

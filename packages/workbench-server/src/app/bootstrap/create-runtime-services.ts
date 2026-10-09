@@ -1197,7 +1197,6 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         data: completion,
       });
     },
-    turnConfigurations: persistedTurnConfigurations,
   });
   const completionSnapshot = (
     run: import("@nervekit/contracts/runs").RunRecord,

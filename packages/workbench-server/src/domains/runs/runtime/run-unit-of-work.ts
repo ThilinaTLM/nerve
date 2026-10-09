@@ -63,6 +63,11 @@ export interface RunUnitOfWorkPort {
   findByInteractionToolCallId(
     toolCallId: string,
   ): Promise<RunHydratedState | undefined>;
+  /** First canonical admission for this agent/input, including terminal runs; metadata only. */
+  findByInitialInputId(
+    agentId: string,
+    inputId: string,
+  ): Promise<RunRecord | undefined>;
   /** Resolves the active run containing the prompt, if any. */
   findByPromptId(promptId: string): Promise<RunHydratedState | undefined>;
   /**

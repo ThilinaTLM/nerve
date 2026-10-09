@@ -15,6 +15,7 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
   };
   const documents = new Map<string, AgentInputQueueState>();
   let sequence = 0;
+  let allowHistory = false;
   const inputs = new AgentInputService(
     {
       load: async (id) => structuredClone(documents.get(id)),
@@ -29,6 +30,9 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
     string,
     {
       prompts?: RunPromptRecord[];
+      transitions?: Array<{
+        run: { executionId: string } & Record<string, unknown>;
+      }>;
       run: {
         runId: string;
         agentId: string;
@@ -44,12 +48,17 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
     }
   >();
   const starts: string[] = [];
+  const cancelledRunIds: string[] = [];
   const commandPrompts: Array<string | undefined> = [];
   const continues: string[] = [];
+  const hydratedRunIds: string[] = [];
+  let afterStart: (() => void | Promise<void>) | undefined;
   let beforeStart: (() => Promise<void>) | undefined;
   let settledForAgent = async () => undefined;
   let beforeRunControl: (() => Promise<void>) | undefined;
   let beforeFindActive: (() => void) | undefined;
+  let beforeInitialInputLookup: (() => Promise<void>) | undefined;
+  let beforeCancel: (() => Promise<void>) | undefined;
   const start = async (
     command: {
       assertAdmission?: () => Promise<void>;
@@ -75,6 +84,7 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
       updatedAt: new Date().toISOString(),
     };
     runs.set(runId, { run });
+    await afterStart?.();
     return run;
   };
   const service = new WorkbenchRunService(
@@ -104,6 +114,8 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
         if (prompt) prompt.status = "cancelled";
       },
       cancel: async (runId: string) => {
+        await beforeCancel?.();
+        cancelledRunIds.push(runId);
         runs.get(runId)!.run.status = "cancelled";
       },
       scheduleContinuation: async (runId: string) => {
@@ -111,12 +123,22 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
       },
     } as never,
     {
-      listMetadata: async () => [...runs.values()].map((state) => state.run),
-      list: async () =>
-        [...runs.values()].map((state) => ({
-          ...state,
-          prompts: state.prompts ?? [],
-        })),
+      listMetadata: async () => {
+        if (!allowHistory)
+          throw new Error("Submission must not enumerate run metadata");
+        return [...runs.values()].map((state) => state.run);
+      },
+      list: async () => {
+        throw new Error("Submission must not hydrate historical runs");
+      },
+      findByInitialInputId: async (agentId: string, inputId: string) => {
+        await beforeInitialInputLookup?.();
+        return [...runs.values()].find(
+          (state) =>
+            state.run.agentId === agentId &&
+            state.run.initialInputId === inputId,
+        )?.run;
+      },
       listActive: async () =>
         [...runs.values()]
           .filter(
@@ -134,7 +156,10 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
             !["completed", "cancelled", "failed"].includes(state.run.status),
         );
       },
-      loadFresh: async (runId: string) => runs.get(runId),
+      loadFresh: async (runId: string) => {
+        hydratedRunIds.push(runId);
+        return runs.get(runId);
+      },
       load: async (runId: string) => runs.get(runId),
     } as never,
     {} as never,
@@ -170,10 +195,24 @@ export function fixture(options: Partial<WorkbenchAgentControls> = {}) {
   );
   return {
     service,
+    beforeCancel: (callback: () => Promise<void>) => {
+      beforeCancel = callback;
+    },
+    beforeInitialInputLookup: (callback: () => Promise<void>) => {
+      beforeInitialInputLookup = callback;
+    },
+    hydratedRunIds,
+    afterStart: (callback: () => void | Promise<void>) => {
+      afterStart = callback;
+    },
+    allowHistoricalMigration: () => {
+      allowHistory = true;
+    },
     inputs,
     agent,
     runs,
     starts,
+    cancelledRunIds,
     commandPrompts,
     continues,
     settledForAgent: (callback: () => Promise<void>) => {

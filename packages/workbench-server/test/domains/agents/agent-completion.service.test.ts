@@ -32,20 +32,6 @@ function fixture() {
       cost: 0.01,
     },
   };
-  let state = {
-    run,
-    transitions: [
-      {
-        revision: 1,
-        toolCalls: [],
-        run: { ...run, executionId: "exec_initial" },
-        entries: [
-          { ...response, id: "entry_old_attempt", text: "old attempt" },
-        ],
-      },
-      { revision: 2, toolCalls: [], run, entries: [response] },
-    ],
-  } as unknown as RunHydratedState;
   const snapshots = new Map<string, AgentCompletion>();
   const configuration = {
     projectDir: "/tmp",
@@ -71,6 +57,26 @@ function fixture() {
       configuration,
     },
   ];
+  let state = {
+    run,
+    transitions: [
+      {
+        revision: 1,
+        toolCalls: [],
+        run: { ...run, executionId: "exec_initial" },
+        entries: [
+          { ...response, id: "entry_old_attempt", text: "old attempt" },
+        ],
+      },
+      {
+        revision: 2,
+        toolCalls: [],
+        run,
+        entries: [response],
+        execution: { effectiveTurnConfigurations: turns },
+      },
+    ],
+  } as unknown as RunHydratedState;
   const ports = {
     loadRun: async () => state,
     readSnapshot: async (_agentId: string, runId: string) =>
@@ -78,7 +84,6 @@ function fixture() {
     writeSnapshot: async (value: AgentCompletion) => {
       snapshots.set(value.runId, structuredClone(value));
     },
-    turnConfigurations: async () => turns,
   };
   return {
     service: new AgentCompletionService(ports),
@@ -134,6 +139,8 @@ it("does not relabel an earlier attempt output when a retry failed without outpu
   assert.equal(completion.outcome, "failed");
   assert.equal(completion.attemptId, "exec_final");
   assert.equal(completion.response, undefined);
+  assert.equal(completion.model, undefined);
+  assert.equal(completion.thinkingLevel, undefined);
 });
 
 it("rejects nonterminal and wrong-agent result lookup", async () => {
@@ -147,4 +154,44 @@ it("rejects nonterminal and wrong-agent result lookup", async () => {
     f.service.snapshot("agent_child", "run_original"),
     /settled/,
   );
+});
+
+it("uses only owned terminal-attempt transition provenance, not unrelated or prior-attempt settings", async () => {
+  const f = fixture();
+  const terminal = f.state.transitions[1]!;
+  const effective = terminal.execution!.effectiveTurnConfigurations![0]!;
+  const foreign = [
+    { ...effective, agentId: "agent_foreign" },
+    { ...effective, runId: "run_foreign" },
+    { ...effective, attemptId: "exec_initial" },
+  ];
+  f.setState({
+    ...f.state,
+    transitions: [
+      {
+        ...f.state.transitions[0]!,
+        execution: {
+          ...terminal.execution!,
+          effectiveTurnConfigurations: [
+            { ...effective, attemptId: "exec_initial" },
+          ],
+        },
+      },
+      {
+        ...terminal,
+        execution: {
+          ...terminal.execution!,
+          effectiveTurnConfigurations: foreign,
+        },
+      },
+    ],
+  });
+  const completion = await f.service.snapshot(
+    "agent_child",
+    "run_original",
+    "exec_initial",
+  );
+  assert.equal(completion.response?.text, "original result");
+  assert.equal(completion.model, undefined);
+  assert.equal(completion.thinkingLevel, undefined);
 });

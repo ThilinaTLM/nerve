@@ -250,6 +250,7 @@ test("migrates legacy v2 configuration, conversations, credentials, payloads, an
     { version: 5, name: "async-subagent-completions-v5" },
     { version: 6, name: "explore-agent-names-v6" },
     { version: 7, name: "agent-async-obligations-v7" },
+    { version: 8, name: "run-initial-input-lookup-v8" },
   ]);
   const homeMigrations = JSON.parse(
     await readFile(storage.paths.migrationLedgerPath, "utf8"),

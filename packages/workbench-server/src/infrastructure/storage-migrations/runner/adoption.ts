@@ -7,6 +7,8 @@ import {
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import type { RegisteredStorageMigration } from "./planner.js";
 
+import { CANONICAL_SCHEMA_STEP_IDS } from "./canonical-schema-steps.js";
+
 const TOOL_RESULT_MIGRATION_ID = "tool-result-payload-reference-v2";
 const OBLIGATION_MARKER_ID = "agent-async-obligations-v1";
 
@@ -38,7 +40,7 @@ export async function inspectLegacyAdoption(
       );
     }
     const step = registry.find(
-      (candidate) => candidate.ordinal === row.version,
+      (candidate) => candidate.id === CANONICAL_SCHEMA_STEP_IDS[row.version],
     );
     if (!step) {
       throw new Error(

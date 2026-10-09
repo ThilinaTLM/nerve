@@ -11,6 +11,7 @@ import type {
 } from "@nervekit/contracts/runs";
 import {
   runEventDeliveryRecordSchema,
+  runRecordSchema,
   runTransitionRecordSchema,
 } from "@nervekit/contracts/runs";
 import { storagePaths } from "../../../infrastructure/storage-bootstrap/paths.js";
@@ -104,6 +105,23 @@ export class WorkbenchRunUnitOfWork implements RunUnitOfWorkPort {
     promptId: string,
   ): Promise<RunHydratedState | undefined> {
     return this.lookup.findByPromptId(promptId);
+  }
+
+  async findByInitialInputId(
+    agentId: string,
+    inputId: string,
+  ): Promise<RunRecord | undefined> {
+    const value = await this.journal.findRunByInitialInputId(agentId, inputId);
+    if (value === undefined) return undefined;
+    const record = runRecordSchema.parse(value);
+    if (
+      record.agentId !== agentId ||
+      record.initialInputId !== inputId ||
+      record.scopeId !== `${record.conversationId}:${agentId}`
+    ) {
+      throw new Error("Run initial input lookup identity mismatch");
+    }
+    return record;
   }
 
   async list(): Promise<readonly RunHydratedState[]> {

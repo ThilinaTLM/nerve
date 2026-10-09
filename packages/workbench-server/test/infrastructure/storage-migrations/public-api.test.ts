@@ -26,7 +26,8 @@ test("public migration adapters fingerprint and revalidate a current home", asyn
   const plan = await inspectStorageMigrationPlan(home);
   assert.equal(plan.outcome, "current");
   assert.match(plan.fingerprint, /^[a-f0-9]{64}$/);
-  assert.equal(plan.steps.length, 11);
+  assert.equal(plan.steps.length, 12);
+  assert.equal(plan.steps.at(-1)?.id, "0012-run-initial-input-lookup");
   assert.ok(plan.steps.every((step) => step.status === "applied"));
 
   const result = await applyStorageMigrationPlan(home, plan, {
@@ -50,6 +51,12 @@ test("released 0.32 homes are revalidated after reader contract changes", async 
     });
     const sqlitePath = join(home, "data", "nerve.sqlite");
     const database = new DatabaseSync(sqlitePath);
+    const priorCanonicalReceipts = database
+      .prepare("SELECT * FROM schema_migrations ORDER BY version")
+      .all();
+    const priorManagedReceipts = database
+      .prepare("SELECT * FROM storage_migrations ORDER BY ordinal")
+      .all();
     database.exec("DELETE FROM storage_read_sweeps");
     database
       .prepare(
@@ -65,7 +72,7 @@ test("released 0.32 homes are revalidated after reader contract changes", async 
       plan.steps
         .filter((step) => step.status === "pending")
         .map((step) => step.id),
-      ["0011-agent-intervention-obligations"],
+      ["0011-agent-intervention-obligations", "0012-run-initial-input-lookup"],
     );
     const result = await applyStorageMigrationPlan(
       home,
@@ -88,6 +95,34 @@ test("released 0.32 homes are revalidated after reader contract changes", async 
         .get("0011-agent-intervention-obligations")?.origin,
       "applied",
     );
+    assert.equal(
+      verified
+        .prepare("SELECT origin FROM storage_migrations WHERE id = ?")
+        .get("0012-run-initial-input-lookup")?.origin,
+      "applied",
+    );
+    const canonicalReceipts = verified
+      .prepare("SELECT * FROM schema_migrations ORDER BY version")
+      .all();
+    assert.deepEqual(
+      canonicalReceipts.slice(0, priorCanonicalReceipts.length),
+      priorCanonicalReceipts,
+    );
+    assert.equal(canonicalReceipts.at(-1)?.version, 8);
+    assert.equal(canonicalReceipts.at(-1)?.name, "run-initial-input-lookup-v8");
+    assert.deepEqual(
+      verified
+        .prepare("SELECT * FROM storage_migrations ORDER BY ordinal")
+        .all()
+        .slice(0, priorManagedReceipts.length),
+      priorManagedReceipts,
+    );
+    const index = verified
+      .prepare("PRAGMA index_list(conversation_records)")
+      .all()
+      .find((row) => row.name === "conversation_records_initial_input_lookup");
+    assert.equal(index?.unique, 0);
+    assert.equal(index?.partial, 1);
     assert.match(
       String(
         verified

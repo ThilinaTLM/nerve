@@ -60,6 +60,14 @@ class MemoryUnitOfWork implements RunUnitOfWorkPort {
       ),
     );
   }
+  async findByInitialInputId(agentId: string, inputId: string) {
+    for (const transitions of this.transitions.values()) {
+      const run = transitions.at(-1)?.run;
+      if (run?.agentId === agentId && run.initialInputId === inputId)
+        return run;
+    }
+    return undefined;
+  }
   async findByPromptId(promptId: string) {
     return (await this.listActive()).find((item) =>
       item.prompts.some((prompt) => prompt.id === promptId),

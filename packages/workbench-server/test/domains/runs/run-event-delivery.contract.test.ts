@@ -45,6 +45,9 @@ class DeliveryUnitOfWork implements RunUnitOfWorkPort {
   async findByInteractionToolCallId(): Promise<RunHydratedState | undefined> {
     return undefined;
   }
+  async findByInitialInputId() {
+    return undefined;
+  }
   async findByPromptId(): Promise<RunHydratedState | undefined> {
     return undefined;
   }

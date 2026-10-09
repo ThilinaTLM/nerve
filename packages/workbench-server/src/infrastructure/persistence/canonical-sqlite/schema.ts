@@ -1,4 +1,4 @@
-export const CANONICAL_SCHEMA_VERSION = 7;
+export const CANONICAL_SCHEMA_VERSION = 8;
 export const CANONICAL_BASELINE_VERSION = 1;
 export const CANONICAL_BASELINE_NAME = "nerve-home-v1";
 export const CANONICAL_BASELINE_CHECKSUM =
@@ -463,5 +463,19 @@ CREATE INDEX subagent_completions_conversation ON subagent_completions(conversat
     checksum:
       "6155dbcfcb6479fd5e223909fca39ecfd157a8eef2afdf793bf883b09e0e0c57",
     sql: AGENT_ASYNC_OBLIGATIONS_V7_SQL,
+  },
+  {
+    version: 8,
+    name: "run-initial-input-lookup-v8",
+    checksum:
+      "70537c60317baae69c2abf3df10cb84d314713087a1f51bf1931150ea87e4a82",
+    sql: `CREATE INDEX conversation_records_initial_input_lookup
+ON conversation_records (
+  agent_id,
+  json_extract(CAST(data AS TEXT), '$.run.initialInputId'),
+  sequence,
+  id
+)
+WHERE kind = 'run';`,
   },
 ];

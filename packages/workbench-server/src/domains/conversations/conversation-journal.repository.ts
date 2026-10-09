@@ -317,6 +317,14 @@ export class ConversationJournalRepository {
     return this.canonical.toolCallConversationId(toolCallId);
   }
 
+  async findRunByInitialInputId(
+    agentId: string,
+    inputId: string,
+  ): Promise<RunRecord | undefined> {
+    await this.ready;
+    return this.canonical.findRunByInitialInputId(agentId, inputId);
+  }
+
   async listRunMetadata(): Promise<RunRecord[]> {
     await this.ready;
     return this.canonical.listRunMetadata();

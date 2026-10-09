@@ -75,7 +75,7 @@ export type RunCancellationEvidence = z.infer<
 >;
 
 export const runRecordSchema = z.object({
-  /** Immutable originating durable input; absent on historical runs. */
+  /** Immutable within this run, not unique across runs (retained inputs may be admitted again); absent on historical runs. */
   initialInputId: z.string().startsWith("input_").optional(),
   stateEpoch: z.literal(RUN_STATE_EPOCH),
   conversationId: conversationIdSchema,

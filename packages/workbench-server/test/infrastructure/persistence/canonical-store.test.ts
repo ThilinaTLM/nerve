@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { performance } from "node:perf_hooks";
+import { agentInputQueueStateSchema } from "@nervekit/contracts/agents";
+import {
+  runRecordSchema,
+  runPromptRecordSchema,
+} from "@nervekit/contracts/runs";
+import { buildTransition } from "../../../src/domains/runs/runtime/index.js";
 import {
   CanonicalStore,
   encode,
@@ -380,4 +387,235 @@ test("deletion index repair fails transactionally for an incorrectly named index
     CANONICAL_SCHEMA_VERSION,
   );
   database.close();
+});
+
+test("copied v7 fixture upgrades by index only and reopens without changing authoritative bytes", async (t) => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-canonical-v7-upgrade-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const original = join(home, "v7.sqlite");
+  const path = join(home, "copy.sqlite");
+  const fixture = new DatabaseSync(original);
+  fixture.exec(CANONICAL_SCHEMA_SQL);
+  const ledger = fixture.prepare(
+    "INSERT INTO schema_migrations VALUES (?, ?, ?, 1, 0)",
+  );
+  ledger.run(
+    CANONICAL_BASELINE_VERSION,
+    CANONICAL_BASELINE_NAME,
+    CANONICAL_BASELINE_CHECKSUM,
+  );
+  for (const migration of CANONICAL_MIGRATIONS.filter(
+    (item) => item.version < 8,
+  )) {
+    fixture.exec(migration.sql);
+    ledger.run(migration.version, migration.name, migration.checksum);
+  }
+  const timestamp = "2026-10-08T00:00:00.000Z";
+  const selected = runRecordSchema.parse({
+    runId: "run_preserved",
+    conversationId: "conv_preserved",
+    agentId: "agent_preserved",
+    scopeId: "conv_preserved:agent_preserved",
+    initialInputId: "input_preserved",
+    stateEpoch: 1,
+    projectId: "proj_preserved",
+    revision: 3,
+    status: "completed",
+    recoverability: "none",
+    executionId: "exec_preserved",
+    attempt: 1,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    terminalAt: timestamp,
+    cancellationEvidence: [],
+  });
+  const insert = fixture.prepare(`INSERT INTO conversation_records
+    (id, conversation_id, agent_id, run_id, sequence, revision, kind, status,
+     payload_version, data, created_at_ms, updated_at_ms)
+    VALUES (?, ?, ?, ?, ?, 3, 'run', 'completed', 1, ?, 1, 2)`);
+  for (let index = 0; index < 128; index++) {
+    const run =
+      index === 0
+        ? selected
+        : runRecordSchema.parse({
+            ...selected,
+            runId: `run_history_${index}`,
+            initialInputId: `input_history_${index}`,
+            agentId: `agent_history_${index % 16}`,
+            conversationId: `conv_history_${index % 16}`,
+            scopeId: `conv_history_${index % 16}:agent_history_${index % 16}`,
+          });
+    const prompt = runPromptRecordSchema.parse({
+      id: `promptq_history_${index}`,
+      agentId: run.agentId,
+      conversationId: run.conversationId,
+      projectId: run.projectId,
+      runId: run.runId,
+      behavior: "steer",
+      status: "delivered",
+      text: "retained fixture content ".repeat(
+        Math.ceil((index === 0 ? 1024 * 1024 : 64 * 1024) / 25),
+      ),
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      ordinal: 0,
+      deliveryAttempts: 1,
+    });
+    const transition = buildTransition(
+      run,
+      "completed",
+      2,
+      { prompts: [prompt] },
+      { next: () => `history_${index}` },
+      { checksum: () => `sha256:${"0".repeat(64)}` },
+    );
+    insert.run(
+      run.runId,
+      run.conversationId,
+      run.agentId,
+      run.runId,
+      index + 1,
+      encode({
+        run,
+        state: {
+          run,
+          prompts: [prompt],
+          transitions: [transition],
+          interactions: [],
+          checkpoints: [],
+          deliveries: [],
+        },
+      }),
+    );
+  }
+  const retainedBytes = Number(
+    fixture
+      .prepare("SELECT sum(length(data)) AS bytes FROM conversation_records")
+      .get()?.bytes,
+  );
+  assert.ok(retainedBytes >= 8 * 1024 * 1024);
+  // Schema-valid accepted queue and exact delivery receipt: this test claims byte
+  // preservation only, not queue execution or delivery behavior.
+  const queue = agentInputQueueStateSchema.parse({
+    revision: 4,
+    nextSequence: 2,
+    paused: false,
+    inputs: [
+      {
+        id: "input_preserved",
+        sequence: 0,
+        agentId: selected.agentId,
+        conversationId: selected.conversationId,
+        idempotencyKey: "preserved",
+        origin: { kind: "user", userId: "user_fixture" },
+        role: "user",
+        text: "retained assignment",
+        eligibility: { kind: "next_turn" },
+        activation: "wake_if_idle",
+        acceptedAt: timestamp,
+        state: "delivered",
+        delivery: {
+          runId: selected.runId,
+          attemptId: selected.executionId,
+          turnId: "turn_preserved",
+          contextEntryId: "entry_input_preserved",
+          deliveredAt: timestamp,
+        },
+      },
+      {
+        id: "input_pending",
+        sequence: 1,
+        agentId: selected.agentId,
+        conversationId: selected.conversationId,
+        idempotencyKey: "pending",
+        origin: { kind: "user", userId: "user_fixture" },
+        role: "user",
+        text: "pending assignment",
+        eligibility: { kind: "next_turn" },
+        activation: "wake_if_idle",
+        acceptedAt: timestamp,
+        state: "pending",
+      },
+    ],
+  });
+  fixture
+    .prepare(`INSERT INTO domain_documents
+    (namespace, scope_id, document_id, revision, payload_version, data, created_at_ms, updated_at_ms)
+    VALUES ('agent_inputs', 'global', 'agent_preserved', 4, 1, ?, 1, 2)`)
+    .run(encode(queue));
+  const beforeRecords = fixture
+    .prepare("SELECT * FROM conversation_records")
+    .all();
+  const beforeDocuments = fixture
+    .prepare(
+      "SELECT * FROM domain_documents WHERE namespace = 'agent_inputs' AND scope_id = 'global' AND document_id = 'agent_preserved'",
+    )
+    .all();
+  const beforeLedger = fixture
+    .prepare("SELECT * FROM schema_migrations ORDER BY version")
+    .all();
+  fixture.close();
+  await copyFile(original, path);
+  for (let opening = 0; opening < 2; opening++) {
+    const store = new CanonicalStore(path);
+    const started = performance.now();
+    await store.initialize();
+    const initializeMs = performance.now() - started;
+    assert.deepEqual(
+      await store.findRunByInitialInputId(
+        selected.agentId,
+        selected.initialInputId!,
+      ),
+      selected,
+    );
+    await store.close();
+    const database = new DatabaseSync(path);
+    if (opening === 0) {
+      const migration = database
+        .prepare("SELECT duration_ms FROM schema_migrations WHERE version = 8")
+        .get();
+      const maintenanceStarted = performance.now();
+      database
+        .prepare("UPDATE conversation_records SET data = data WHERE id = ?")
+        .run(selected.runId);
+      t.diagnostic(
+        `v8 fixture: ${retainedBytes} authoritative bytes, 128 histories; index build ${migration?.duration_ms}ms; initialization ${initializeMs.toFixed(2)}ms; selected-record index maintenance ${(performance.now() - maintenanceStarted).toFixed(2)}ms`,
+      );
+    }
+    const plan = database
+      .prepare(`EXPLAIN QUERY PLAN SELECT id,
+      json_extract(CAST(data AS TEXT), '$.run') FROM conversation_records
+      WHERE kind = 'run' AND agent_id = ?
+      AND json_extract(CAST(data AS TEXT), '$.run.initialInputId') = ?
+      ORDER BY sequence, id LIMIT 1`)
+      .all(selected.agentId, selected.initialInputId!);
+    const details = plan.map((row) => String(row.detail)).join("\n");
+    assert.match(details, /SEARCH.*conversation_records_initial_input_lookup/i);
+    assert.doesNotMatch(details, /SCAN conversation_records|TEMP B-TREE/i);
+    assert.deepEqual(
+      database.prepare("SELECT * FROM conversation_records").all(),
+      beforeRecords,
+    );
+    assert.deepEqual(
+      database
+        .prepare(
+          "SELECT * FROM domain_documents WHERE namespace = 'agent_inputs' AND scope_id = 'global' AND document_id = 'agent_preserved'",
+        )
+        .all(),
+      beforeDocuments,
+    );
+    const migrations = database
+      .prepare("SELECT * FROM schema_migrations ORDER BY version")
+      .all();
+    assert.deepEqual(migrations.slice(0, 7), beforeLedger);
+    assert.equal(migrations.length, 8);
+    assert.equal(migrations[7]?.name, "run-initial-input-lookup-v8");
+    const index = database
+      .prepare("PRAGMA index_list(conversation_records)")
+      .all()
+      .find((row) => row.name === "conversation_records_initial_input_lookup");
+    assert.equal(index?.unique, 0);
+    assert.equal(index?.partial, 1);
+    database.close();
+  }
 });

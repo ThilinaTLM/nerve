@@ -30,11 +30,6 @@ import {
   initializeStorage,
   storagePaths,
 } from "../../../src/infrastructure/storage-bootstrap/index.js";
-import {
-  CANONICAL_BASELINE_CHECKSUM,
-  CANONICAL_BASELINE_NAME,
-  CANONICAL_MIGRATIONS,
-} from "../../../src/infrastructure/persistence/canonical-sqlite/schema.js";
 import { STORAGE_READ_COMPATIBILITY_ID } from "../../../src/infrastructure/storage-migrations/read-compatibility.js";
 
 const conversationId = "conv_payload_migration";
@@ -260,6 +255,7 @@ test("migrates legacy payload references and rechains conversation journals", as
       "0009-agent-async-obligations-backfill",
       "0010-deletion-indexes",
       "0011-agent-intervention-obligations",
+      "0012-run-initial-input-lookup",
     ].map((id) => ({
       id,
       origin:
@@ -726,17 +722,9 @@ function downgradeDatabase(database: DatabaseSync): void {
       payload.byteLength,
     );
 
-  // Recreate the pre-framework ownership state this fixture represents.
-  database.prepare("DELETE FROM schema_migrations").run();
-  const insertMigration = database.prepare(
-    `INSERT INTO schema_migrations (
-       version, name, checksum, applied_at_ms, duration_ms
-     ) VALUES (?, ?, ?, 1, 0)`,
-  );
-  insertMigration.run(1, CANONICAL_BASELINE_NAME, CANONICAL_BASELINE_CHECKSUM);
-  for (const migration of CANONICAL_MIGRATIONS) {
-    insertMigration.run(migration.version, migration.name, migration.checksum);
-  }
+  // Downgrade payloads and managed ownership, not the physical canonical schema.
+  // Retain its honest canonical receipts (including the existing v8 index).
+  // Canonical v8 must adopt managed 0012, never claim payload conversion 0008.
   database.exec(`
     DROP TABLE storage_read_sweeps;
     DROP TABLE storage_quarantine;

@@ -13,7 +13,6 @@ export interface AgentCompletionPorts {
     attemptId: string,
   ): Promise<AgentCompletion | undefined>;
   writeSnapshot(completion: AgentCompletion): Promise<void>;
-  turnConfigurations(agentId: string): Promise<readonly unknown[]>;
 }
 
 /** Immutable run-owned records, never the agent's current branch or settings. */
@@ -124,12 +123,12 @@ export class AgentCompletionService {
         turns: 0,
       },
     );
-    const configurations = [
-      ...transitions.flatMap(
+    // The selected run's transitions are the durable effective-turn authority.
+    // Completion must not enumerate agent histories to rediscover this evidence.
+    const configurations = transitions
+      .flatMap(
         (transition) => transition.execution?.effectiveTurnConfigurations ?? [],
-      ),
-      ...(await this.ports.turnConfigurations(agentId)),
-    ]
+      )
       .map((value) => effectiveTurnConfigurationSchema.safeParse(value))
       .filter((result) => result.success)
       .map((result) => result.data)

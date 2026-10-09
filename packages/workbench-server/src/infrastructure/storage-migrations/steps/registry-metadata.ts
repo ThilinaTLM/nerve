@@ -138,4 +138,13 @@ export const STORAGE_MIGRATION_REGISTRY_METADATA = [
     stage: "final",
     acceptedChecksums: [],
   },
+  {
+    id: "0012-run-initial-input-lookup",
+    ordinal: 12,
+    kind: "schema",
+    checksum:
+      "047750dbcd657ee01c90fcbb2ea7e5bb5bf4df9908da889ba955bf0fd48c35d0",
+    stage: "final",
+    acceptedChecksums: [],
+  },
 ] as const satisfies readonly StorageMigrationRegistryMetadata[];

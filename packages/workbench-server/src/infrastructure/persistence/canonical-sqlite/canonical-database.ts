@@ -48,6 +48,7 @@ import {
 } from "./canonical-idempotency-database.js";
 import {
   listCanonicalRunDeliveryRecoveryStates,
+  findCanonicalRunByInitialInputId,
   listCanonicalRunMetadata,
   listCanonicalRunStates,
   readCanonicalRunState,
@@ -608,6 +609,13 @@ export class CanonicalDatabase {
 
   toolCallConversationId(toolCallId: string): string | undefined {
     return canonicalToolCallConversationId(this.database, toolCallId);
+  }
+
+  findRunByInitialInputId(
+    agentId: string,
+    inputId: string,
+  ): unknown | undefined {
+    return findCanonicalRunByInitialInputId(this.database, agentId, inputId);
   }
 
   listRunMetadata(): unknown[] {

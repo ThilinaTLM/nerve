@@ -1,5 +1,54 @@
 import type { DatabaseSync } from "node:sqlite";
+import { runRecordSchema } from "@nervekit/contracts/runs";
 import { decode } from "./payload-codecs.js";
+
+/** Authoritative, bounded read: never returns or decodes the retained run state. */
+export function findCanonicalRunByInitialInputId(
+  database: DatabaseSync,
+  agentId: string,
+  inputId: string,
+): unknown | undefined {
+  const row = database
+    .prepare(
+      `SELECT id, run_id, agent_id, conversation_id, revision, status,
+            json_extract(CAST(data AS TEXT), '$.run') AS metadata
+     FROM conversation_records
+     WHERE kind = 'run' AND agent_id = ?
+       AND json_extract(CAST(data AS TEXT), '$.run.initialInputId') = ?
+     ORDER BY sequence, id LIMIT 1`,
+    )
+    .get(agentId, inputId) as
+    | {
+        id: string;
+        run_id: string | null;
+        agent_id: string;
+        conversation_id: string;
+        revision: number;
+        status: string;
+        metadata: string | null;
+      }
+    | undefined;
+  if (!row) return undefined;
+  const metadata: unknown = row.metadata === null ? null : decode(row.metadata);
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    throw new Error("Invalid run initial input lookup metadata");
+  }
+  const run = runRecordSchema.parse(metadata);
+  if (
+    run.runId !== row.id ||
+    run.runId !== row.run_id ||
+    run.agentId !== row.agent_id ||
+    run.agentId !== agentId ||
+    run.conversationId !== row.conversation_id ||
+    run.scopeId !== `${row.conversation_id}:${agentId}` ||
+    run.initialInputId !== inputId ||
+    run.revision !== row.revision ||
+    run.status !== row.status
+  ) {
+    throw new Error("Run initial input lookup source identity mismatch");
+  }
+  return run;
+}
 
 export function listCanonicalRunMetadata(database: DatabaseSync): unknown[] {
   const rows = database

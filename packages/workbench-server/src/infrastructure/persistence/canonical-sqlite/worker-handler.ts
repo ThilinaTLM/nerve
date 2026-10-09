@@ -135,6 +135,8 @@ export function executeCanonicalCommand(
       return database.listToolCallStartupRecords();
     case "tool_call_conversation_id":
       return database.toolCallConversationId(command.toolCallId);
+    case "find_run_by_initial_input_id":
+      return database.findRunByInitialInputId(command.agentId, command.inputId);
     case "list_run_metadata":
       return database.listRunMetadata();
     case "list_run_states":

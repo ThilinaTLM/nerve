@@ -484,6 +484,14 @@ export class CanonicalStore {
       toolCallId,
     });
   }
+  findRunByInitialInputId(agentId: string, inputId: string) {
+    return this.request<RunRecord | undefined>({
+      kind: "find_run_by_initial_input_id",
+      agentId,
+      inputId,
+    });
+  }
+
   listRunMetadata() {
     return this.request<RunRecord[]>({ kind: "list_run_metadata" });
   }

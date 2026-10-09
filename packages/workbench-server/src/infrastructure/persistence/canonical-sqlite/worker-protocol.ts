@@ -158,6 +158,7 @@ export type CanonicalCommand =
     }
   | { kind: "list_tool_call_startup_records" }
   | { kind: "tool_call_conversation_id"; toolCallId: string }
+  | { kind: "find_run_by_initial_input_id"; agentId: string; inputId: string }
   | { kind: "list_run_metadata" }
   | { kind: "list_run_states"; statuses: string[] }
   | { kind: "list_run_delivery_recovery_states" }
@@ -222,6 +223,7 @@ export const READ_COMMANDS = new Set<CanonicalCommand["kind"]>([
   "query_tool_call_projections",
   "list_tool_call_startup_records",
   "tool_call_conversation_id",
+  "find_run_by_initial_input_id",
   "list_run_metadata",
   "list_run_states",
   "list_run_delivery_recovery_states",
