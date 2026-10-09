@@ -131,7 +131,18 @@ describe("conversation render projection", () => {
         pendingAsyncCount: 0,
         updatedAt: ts,
       },
-      tree: { conversationId: "conv_workbench", rootEntryIds: [], nodes: [] },
+      tree: {
+        conversationId: "conv_workbench",
+        rootEntryIds: [],
+        nodes: [],
+        navigation: {
+          agentId: null,
+          ownerAgentId: null,
+          contextState: "unavailable",
+          activeModelEntryId: null,
+          canNavigateToRoot: false,
+        },
+      },
       entries: [
         {
           id: "entry_assistant",

@@ -205,6 +205,24 @@ export function buildCommittedTimeline(
     }
   }
   const consumedToolCallIds = new Set<string>();
+  const toolItemByRecordId = new Map<
+    string,
+    Extract<TimelineItem, { kind: "tool" }>
+  >();
+  function appendToolCard(
+    toolCall: ToolCallTranscriptRecord,
+    anchorEntryId: string | undefined,
+  ): void {
+    const item: Extract<TimelineItem, { kind: "tool" }> = {
+      kind: "tool",
+      key: toolTimelineKey(toolCall),
+      toolCall,
+      anchorEntryId,
+    };
+    items.push(item);
+    toolItemByRecordId.set(toolCall.id, item);
+    consumedToolCallIds.add(toolCall.id);
+  }
 
   // Transcript-derived hiding (persisted run-status entries). Run-derived
   // hiding is applied later, so this pass stays run-independent.
@@ -237,13 +255,7 @@ export function buildCommittedTimeline(
             )
         : [];
       for (const toolCall of anchored) {
-        items.push({
-          kind: "tool",
-          key: toolTimelineKey(toolCall),
-          toolCall,
-          anchorEntryId: item.id,
-        });
-        consumedToolCallIds.add(toolCall.id);
+        appendToolCard(toolCall, item.id);
       }
       return;
     }
@@ -306,14 +318,21 @@ export function buildCommittedTimeline(
       if (item.role === "assistant" && item.text.trim()) {
         items.push({ kind: "message", key: item.id ?? `msg-${index}`, item });
       }
-      if (consumedToolCallIds.has(toolCall.id)) return;
-      items.push({
-        kind: "tool",
-        key: toolTimelineKey(toolCall),
-        toolCall,
-        anchorEntryId: item.id,
-      });
-      consumedToolCallIds.add(toolCall.id);
+      if (consumedToolCallIds.has(toolCall.id)) {
+        // Preserve the stable card's position/key, but a settled card must use
+        // its actual committed result. This is the durable tool-record join
+        // mirrored by the server, not a transcript-parent/nearest-row guess.
+        if (
+          item.role === "system" &&
+          item.id &&
+          item.toolRecordId === toolCall.id
+        ) {
+          const card = toolItemByRecordId.get(toolCall.id);
+          if (card) card.anchorEntryId = item.id;
+        }
+        return;
+      }
+      appendToolCard(toolCall, item.id);
       return;
     }
 

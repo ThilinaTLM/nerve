@@ -95,6 +95,7 @@ const scroll = createConversationScrollController({
           sending={model.sending}
           runActivity={model.runActivity}
           queuedPrompts={model.queuedPrompts}
+          queueError={model.queueError}
           followBottom={active ? scroll.followBottom : false}
           activeProject={model.activeProject}
           activeProjectLabel={model.activeProjectLabel}

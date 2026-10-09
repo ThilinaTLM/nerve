@@ -1,3 +1,4 @@
+import { validateModelHistoryPath } from "./model-history-navigation.js";
 import {
   assertAgentAsyncObligationReplacement,
   type AgentAsyncObligation,
@@ -27,6 +28,23 @@ export function validateCommitEvents(
   const interactions = new Map<string, ConversationInteractionRecord>();
   const runProjections = new Map<string, ConversationRunProjection>();
   const modelEntries = new Map<string, ConversationTreeEntry>();
+  const prospectiveOwners = new Map<
+    string,
+    Map<string, ConversationTreeEntry>
+  >();
+  const ownerEntries = (ownerAgentId?: string) => {
+    const key = ownerAgentId ?? "";
+    let entries = prospectiveOwners.get(key);
+    if (!entries) {
+      entries = new Map(
+        ownerAgentId
+          ? state.agentModelEntryById.get(ownerAgentId)
+          : state.modelEntryById,
+      );
+      prospectiveOwners.set(key, entries);
+    }
+    return entries;
+  };
   const obligations = new Map<string, AgentAsyncObligation>();
 
   const toolCall = (id: string) => toolCalls.get(id) ?? state.toolCalls.get(id);
@@ -39,7 +57,15 @@ export function validateCommitEvents(
     validateEventIdentity(event, conversationId);
     switch (event.kind) {
       case "model_context.entry_appended": {
-        const entry = event.entry as unknown as ConversationTreeEntry;
+        const incoming = event.entry as unknown as ConversationTreeEntry;
+        const prospective = ownerEntries(event.ownerAgentId);
+        const entry =
+          event.ownerAgentId &&
+          incoming.type === "compaction" &&
+          incoming.parentId !== null &&
+          !prospective.has(incoming.parentId)
+            ? { ...incoming, parentId: null }
+            : incoming;
         const current = event.ownerAgentId
           ? state.agentModelEntryById.get(event.ownerAgentId)?.get(entry.id)
           : state.modelEntryById.get(entry.id);
@@ -72,8 +98,19 @@ export function validateCommitEvents(
           }
         }
         modelEntries.set(`${event.ownerAgentId ?? ""}:${entry.id}`, entry);
+        prospective.set(entry.id, entry);
+        validateModelHistoryPath(
+          prospective,
+          entry.type === "leaf" ? entry.targetId : entry.id,
+        );
         break;
       }
+      case "model_context.leaf_changed":
+        validateModelHistoryPath(
+          ownerEntries(event.ownerAgentId),
+          event.entryId,
+        );
+        break;
       case "tool_call.upserted": {
         const previous = toolCall(event.toolCall.id);
         if (previous && event.toolCall.revision < previous.revision) {

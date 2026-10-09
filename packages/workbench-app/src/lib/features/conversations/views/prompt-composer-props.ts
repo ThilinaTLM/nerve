@@ -22,6 +22,8 @@ export type Mode = AgentRecord["mode"];
 export type ThinkingLevel = AgentRecord["thinkingLevel"];
 
 export type PromptComposerProps = {
+  executionBlocked?: boolean;
+  contextError?: string;
   text?: string;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;

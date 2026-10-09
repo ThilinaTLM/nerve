@@ -24,6 +24,8 @@ import {
 import type { WorkbenchAgentMechanics } from "../../../src/domains/agents/execution/workbench-agent-mechanics.js";
 import { executeWorkbenchHarness } from "../../../src/domains/agents/execution/workbench-harness-execution.js";
 import { Conversation } from "@nervekit/harness/conversation";
+import type { AgentMessage } from "@nervekit/harness/agent";
+import { resolveCompactionOwner } from "../../../src/domains/conversations/compaction-owner.js";
 import { InMemoryConversationStorage } from "../../../../harness/src/conversation/adapters/in-memory-storage.js";
 function fixture(home: string) {
   const modelA = getRegisteredModels("openai").find((model) =>
@@ -39,6 +41,7 @@ function fixture(home: string) {
     projectDir: home,
     rootAgentId: "agent_parent",
     parentAgentId: "agent_parent",
+    contextOwnerAgentId: "agent_child",
     mode: "coding",
     permissionLevel: "read_only",
     workspaceScope: { roots: [home] },
@@ -62,6 +65,41 @@ function fixture(home: string) {
   let authorityGate: (() => Promise<void>) | undefined;
   let defaultModel: AgentRecord["model"];
   let committed: AgentRecord | undefined;
+  const scope = {
+    agentId: current.id,
+    conversationId: current.conversationId,
+    ownerAgentId: current.contextOwnerAgentId,
+  };
+  let modelStorage: ReturnType<Conversation["getStorage"]> =
+    new InMemoryConversationStorage();
+  const assertOwner = (actor: AgentRecord) => {
+    assert.equal(actor.id, scope.agentId);
+    assert.equal(actor.conversationId, scope.conversationId);
+    assert.equal(
+      resolveCompactionOwner(actor.conversationId, actor).ownerAgentId,
+      scope.ownerAgentId,
+    );
+  };
+  const modelStore = {
+    openAgentStorage: async (actor: AgentRecord) => {
+      assertOwner(actor);
+      return modelStorage;
+    },
+    appendAgentMessageWithId: async (
+      actor: AgentRecord,
+      entryId: string,
+      message: AgentMessage,
+      timestamp = new Date().toISOString(),
+    ) => {
+      assertOwner(actor);
+      await new Conversation(modelStorage).appendMessageWithId(
+        entryId,
+        message,
+        timestamp,
+      );
+      return { id: entryId, timestamp };
+    },
+  };
   const mechanics = {
     customModels: async () => [],
     effectiveSettings: async () => ({ runtime: {}, defaultModel }),
@@ -75,6 +113,7 @@ function fixture(home: string) {
             committed ? { data: committed } : undefined,
         },
       },
+      harnessStorage: modelStore,
       capabilities: { resolve: () => resolveSelection() },
       nerveSkills: { skills: [] },
       agentBrowserSkills: { skills: [] },
@@ -108,8 +147,12 @@ function fixture(home: string) {
     conversation?: Parameters<typeof prepareWorkbenchTurn>[0]["conversation"],
     initialPromptHasImages = false,
     session?: Parameters<typeof prepareWorkbenchTurn>[0]["session"],
-  ) =>
-    prepareWorkbenchTurn({
+  ) => {
+    // Real model contexts (including image/compaction fixtures) are the same
+    // owner tree checked by the integrity gate, not a parallel empty store.
+    if (conversation instanceof Conversation)
+      modelStorage = conversation.getStorage();
+    return prepareWorkbenchTurn({
       mechanics,
       conversation,
       initialPromptHasImages,
@@ -120,7 +163,10 @@ function fixture(home: string) {
       shellPath: undefined,
       turnId,
     });
+  };
   return {
+    modelStore,
+    modelConversation: () => new Conversation(modelStorage),
     prepare,
     captured,
     authorities,
@@ -337,13 +383,16 @@ test("committed configuration beats stale cache; late inputs cannot cross the ca
     harness.mechanics.deps.agentInputs = queue;
     const inserted: string[] = [];
     harness.mechanics.deps.harnessStorage = {
-      appendAgentMessageWithId: async (_actor: unknown, entryId: string) => {
-        inserted.push(entryId);
+      ...harness.modelStore,
+      appendAgentMessageWithId: async (
+        ...args: Parameters<typeof harness.modelStore.appendAgentMessageWithId>
+      ) => {
+        const appended = await harness.modelStore.appendAgentMessageWithId(
+          ...args,
+        );
+        inserted.push(appended.id);
+        return appended;
       },
-      openAgentStorage: async () => ({
-        getEntry: async () => undefined,
-        getEntries: async () => [],
-      }),
     } as never;
     harness.mechanics.deps.messageMirror = {
       mirrorNewHarnessEntries: async () => [],
@@ -387,7 +436,7 @@ test("committed configuration beats stale cache; late inputs cannot cross the ca
       return { status: "not_needed", reason: "below_threshold" };
     };
     const session = createWorkbenchPreparationSession("cut");
-    const context = { buildContext: async () => ({ messages: [] }) } as never;
+    const context = harness.modelConversation();
     const preparing = harness.prepare("cut", context, false, session);
     await ready;
     harness.setCommitted({
@@ -403,6 +452,15 @@ test("committed configuration beats stale cache; late inputs cannot cross the ca
     assert.equal(snapshot.model.provider, harness.modelB.provider);
     assert.match(snapshot.systemPrompt, /committed new instructions/);
     assert.deepEqual(inserted, [`entry_${first.id}`]);
+    assert.equal(await context.getLeafId(), `entry_${first.id}`);
+    assert.match(
+      JSON.stringify((await context.buildContext()).messages),
+      /before-cut/,
+    );
+    assert.doesNotMatch(
+      JSON.stringify((await context.buildContext()).messages),
+      /after-cut/,
+    );
     assert.equal(
       compactedFor,
       "before-cut",
@@ -488,11 +546,21 @@ test("stop winning before the actual dispatch barrier preserves delivered but un
         attemptId: "exec_child",
         turnId: "prepared_child",
       },
-      async () => undefined,
+      async (input, entryId) => {
+        await h.modelStore.appendAgentMessageWithId(h.latest(), entryId, {
+          role: "user",
+          content: input.text,
+          timestamp: Date.now(),
+        });
+      },
       async () => false,
     );
     h.mechanics.deps.agentInputs = queue;
     const prepared = await h.prepare("prepared");
+    assert.match(
+      JSON.stringify((await h.modelConversation().buildContext()).messages),
+      /must reach a provider/,
+    );
     let entered!: () => void, release!: () => void;
     const ready = new Promise<void>((resolve) => {
       entered = resolve;
@@ -565,18 +633,19 @@ test("unsupported config committed during insertion retains durable undispatched
     );
     let inserted = 0;
     h.mechanics.deps.harnessStorage = {
-      appendAgentMessageWithId: async () => {
+      ...h.modelStore,
+      appendAgentMessageWithId: async (
+        ...args: Parameters<typeof h.modelStore.appendAgentMessageWithId>
+      ) => {
+        const appended = await h.modelStore.appendAgentMessageWithId(...args);
         inserted++;
         h.setCommitted({
           ...h.latest(),
           configurationRevision: 2,
           model: { provider: "unsupported", modelId: "unavailable" },
         });
+        return appended;
       },
-      openAgentStorage: async () => ({
-        getEntry: async () => undefined,
-        getEntries: async () => [],
-      }),
     } as never;
     h.mechanics.deps.messageMirror = {
       mirrorNewHarnessEntries: async () => [],
@@ -750,7 +819,7 @@ test("initial harness preparation preserves configuration blockers and accepted 
           },
           async () => undefined,
         );
-        const storage = new InMemoryConversationStorage();
+        const storage = await h.modelStore.openAgentStorage(startingAgent);
         let attempted = false;
         let credentialRequests = 0;
         Object.assign(h.mechanics.deps.state, {
@@ -758,7 +827,7 @@ test("initial harness preparation preserves configuration blockers and accepted 
         });
         Object.assign(h.mechanics.deps, {
           logger: { info: async () => undefined },
-          harnessStorage: { openAgentStorage: async () => storage },
+          harnessStorage: h.modelStore,
           subscriptionUsage: { touchProvider: () => undefined },
           auth: {
             requestAuthForPiModel: async () => {

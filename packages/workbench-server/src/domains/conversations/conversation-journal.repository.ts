@@ -1,3 +1,8 @@
+import { validateNavigationCommitGuard } from "./conversation-navigation-guard.js";
+import {
+  StaleNavigationError,
+  type NavigationCommitGuard,
+} from "./model-history-navigation.js";
 import {
   CompactionStaleConflictError,
   type CompactionCommitGuard,
@@ -617,6 +622,7 @@ export class ConversationJournalRepository {
       /** Guard and advance the active leaf atomically with a result entry. */
       expectedActiveBranchParentEntryId?: string | null;
       compactionGuard?: CompactionCommitGuard;
+      navigationGuard?: NavigationCommitGuard;
       guardedModelMessage?: { message: AgentMessage; ownerAgentId?: string };
       lifecycle?: {
         aggregate?: {
@@ -643,6 +649,7 @@ export class ConversationJournalRepository {
       }
       const expected = expectedRevision ?? state.revision;
       if (state.revision !== expected) {
+        if (input.navigationGuard) throw new StaleNavigationError();
         throw new ConversationJournalRevisionConflictError(
           conversationId,
           expected,
@@ -651,6 +658,12 @@ export class ConversationJournalRepository {
       }
       const prepareStartedAt = performance.now();
       let events = input.events;
+      if (input.navigationGuard)
+        await validateNavigationCommitGuard(
+          this.canonical,
+          state,
+          input.navigationGuard,
+        );
       if (input.compactionGuard) {
         const guard = input.compactionGuard;
         const leaf = guard.ownerAgentId
@@ -1099,11 +1112,19 @@ function applyEvent(
         const tree =
           state.agentModelTrees.get(event.ownerAgentId) ??
           new ConversationTreeState();
-        tree.setLeafId(event.entryId);
+        tree.setLeafId(
+          event.entryId === null || tree.getEntry(event.entryId)
+            ? event.entryId
+            : null,
+        );
         state.agentModelTrees.set(event.ownerAgentId, tree);
       } else {
         state.modelLeafId = event.entryId;
-        state.modelTree.setLeafId(event.entryId);
+        state.modelTree.setLeafId(
+          event.entryId === null || state.modelEntryById.has(event.entryId)
+            ? event.entryId
+            : null,
+        );
       }
       return;
     case "tool_call.upserted": {

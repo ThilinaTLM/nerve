@@ -7,6 +7,7 @@ import type {
   AgentRecord,
   CompletionItem,
   ConversationTreeNode,
+  ConversationTree,
   AgentQueueItem,
 } from "$lib/api";
 import type { RecoveryIssue } from "@nervekit/contracts/runs";
@@ -36,6 +37,16 @@ export type {
  * operates on the canonical subset; app effects own the rest.
  */
 export interface ConversationViewState extends ConversationRenderState {
+  navigation?: ConversationTree["navigation"];
+  historyHealth?: {
+    agentId: string;
+    state: "pending" | "verified" | "error";
+    cursorSeq: number;
+    error?: string;
+  };
+  historyRefreshId?: number;
+  queuedPromptsStale?: boolean;
+  queueError?: string;
   latestCompletion?: AgentCompletion | null;
   effectiveConfiguration?: EffectiveTurnConfiguration | null;
   conversationId: string;

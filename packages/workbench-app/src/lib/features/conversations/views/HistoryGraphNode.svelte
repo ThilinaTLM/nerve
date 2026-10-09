@@ -49,14 +49,27 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
     {
       label: "Branch from here",
       icon: GitBranch,
-      onSelect: () => entryData.actions?.onNavigateToEntry?.(entry.id),
+      disabled:
+        !entryData.row.node.navigation.continueTarget ||
+        !entryData.actions?.onNavigateToEntry,
+      onSelect: () => {
+        const target = entryData.row.node.navigation.continueTarget;
+        if (target)
+          entryData.actions?.onNavigateToEntry?.(target.activeEntryId);
+      },
     },
   ];
   if (entry.role === "user") {
     items.push({
       label: "Edit and resend",
       icon: Pencil,
-      onSelect: () => entryData.actions?.onEditEntry?.(entry),
+      disabled:
+        !entryData.row.node.navigation.editTarget ||
+        !entryData.actions?.onEditEntry,
+      onSelect: () => {
+        const target = entryData.row.node.navigation.editTarget;
+        if (target) entryData.actions?.onEditEntry?.(entry, target);
+      },
     });
   }
   items.push(
@@ -72,9 +85,11 @@ function entryMenu(entryData: HistoryEntryNodeData): ContextMenuItem[] {
 
 function branch(data: HistoryFlowNodeData) {
   if (data.kind === "entry") {
-    data.actions?.onNavigateToEntry?.(data.row.node.entry.id);
+    const target = data.row.node.navigation.continueTarget;
+    if (target) data.actions?.onNavigateToEntry?.(target.activeEntryId);
   } else if (data.kind === "root") {
-    data.actions?.onNavigateToEntry?.(undefined);
+    if (data.actions?.canNavigateToRoot)
+      data.actions?.onNavigateToEntry?.(null);
   }
 }
 </script>
@@ -230,6 +245,8 @@ function branch(data: HistoryFlowNodeData) {
             class="nodrag nopan"
             variant="ghost"
             size="icon-xs"
+            disabled={!data.row.node.navigation.continueTarget ||
+              !data.actions?.onNavigateToEntry}
             ariaLabel="Branch from here"
             title="Branch from here"
             onclick={(event) => {
@@ -244,11 +261,15 @@ function branch(data: HistoryFlowNodeData) {
               class="nodrag nopan"
               variant="ghost"
               size="icon-xs"
+              disabled={!data.row.node.navigation.editTarget ||
+                !data.actions?.onEditEntry}
               ariaLabel="Edit and resend"
               title="Edit and resend"
               onclick={(event) => {
                 stop(event);
-                data.actions?.onEditEntry?.(data.row.node.entry);
+                const target = data.row.node.navigation.editTarget;
+                if (target)
+                  data.actions?.onEditEntry?.(data.row.node.entry, target);
               }}
             >
               <Pencil class="size-3.5" strokeWidth={2} />

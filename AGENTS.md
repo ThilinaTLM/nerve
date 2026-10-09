@@ -1,10 +1,10 @@
 **Development and validation**
 
-- Isolation: for SQLite schema, storage-layout, or migration changes, test/debug with a fresh/copied `NERVE_HOME` under `/tmp` and explicit ports. Otherwise, the existing home is fine. Fully isolated desktop tests also need separate Electron `userData` outside `NERVE_HOME`.
-- Test important behavior, not static exports, pass-through adapters, cosmetics, or behavior already covered at its owning layer.
-- Local testing: use `pnpm test:focused --base HEAD` for uncommitted changes; omit `--base` to include branch changes against `origin/main`. Add `--dry-run` to preview scope. Browser tests: `pnpm test:browser` when relevant. See `CONTRIBUTING.md` for selection details and automatic fallbacks.
-- Completion: docs-only changes (including `AGENTS.md`) need diff/path/command review, not code validation. Otherwise run `pnpm fix && pnpm check && pnpm test:focused` in one Bash invocation. Fix failures and rerun the chain. Do not routinely add `test:full`; broader validation belongs in CI. Run broader suites locally only for a specific concern (such as suspected selection gaps, cross-package runtime coupling, or reproducing a CI failure) or an explicit request.
-- UI: `pnpm dev` and `pnpm desktop:dev` use checkout-local repo `data/storage-1` (HTTP `43967`, HTTPS `43968`); `--slot N` selects another home/profile and port pair. `pnpm dev:ui --slot N` targets that slot. To target another local daemon, set both `NERVE_HOME` and `NERVE_API_TARGET`; Vite reads its token from that home. Only explicit `pnpm desktop:prod` uses real user data by default. Automated storage tests still use fresh `/tmp` homes and explicit ports/profiles.
+- Testing: run only unit tests for touched code: `cd packages/<pkg> && pnpm exec tsx --test <file>.test.ts`. Add/update tests for important behavior only (not exports, pass-through adapters, cosmetics, or behavior covered at its owning layer).
+- Suites (`test:focused`, `test:full`, `test:browser`, `*.integration.test.ts`): only when the user asks. CI covers them.
+- Completion: code changes: `pnpm fix && pnpm check` plus relevant unit tests; fix and rerun until green. Docs-only: review diff, no validation.
+- Dev instances: `pnpm dev` / `pnpm desktop:dev` use repo-local `data/storage-1` (HTTP `43967`, HTTPS `43968`), never `~/.nerve`; `--slot N` picks another slot, `pnpm dev:ui --slot N` targets it. Other daemon: set `NERVE_HOME` + `NERVE_API_TARGET`. Only `pnpm desktop:prod` uses real data.
+- DB schema/migration changes only: test on a copied/fresh slot (`pnpm storage:copy --slot N`), not slot 1.
 - Use `gh` for GitHub operations.
 
 **Architecture**

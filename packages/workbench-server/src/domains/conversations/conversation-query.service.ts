@@ -48,6 +48,7 @@ export interface ConversationQueryServiceDeps {
   ) => Promise<ConversationEntry[]>;
   getConversationRevision: (conversationId: string) => Promise<number>;
   getConversationTree: (conversationId: string) => ConversationTree;
+  enrichConversationTree: (tree: ConversationTree) => Promise<ConversationTree>;
   getContextUsage: (conversationId: string) => Promise<ContextUsage>;
   listToolCallPreviews: (
     conversationId: string,
@@ -85,7 +86,7 @@ export class ConversationQueryService {
       conversationRevision,
       entries,
       activeEntryIds,
-      tree: this.deps.getConversationTree(conversationId),
+      tree: await this.getConversationTree(conversationId),
       toolCalls: await this.activeBranchToolCalls(
         conversationId,
         entries,
@@ -96,6 +97,12 @@ export class ConversationQueryService {
       cursorSeq,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  async getConversationTree(conversationId: string): Promise<ConversationTree> {
+    return this.deps.enrichConversationTree(
+      this.deps.getConversationTree(conversationId),
+    );
   }
 
   async activeBranchToolCalls(

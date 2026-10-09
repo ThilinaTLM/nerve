@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
+import { ModelHistoryInvalidError } from "../../../src/domains/conversations/model-history-navigation.js";
 import {
   agentHistoryResultSchema,
   type AgentRecord,
@@ -192,3 +193,65 @@ it("returns true owner leaf ancestry, frozen compaction/tool prefix, and model-o
   assert.ok(!JSON.stringify(result).includes("FUTURE"));
   assert.equal(agentHistoryResultSchema.parse(result).cursorSeq, 12);
 });
+
+for (const corruption of [
+  "missing-leaf",
+  "missing-ancestor",
+  "cycle",
+] as const) {
+  it(`owner history rejects ${corruption} with the common typed integrity error`, async () => {
+    const agent = {
+      id: "agent_history_invalid",
+      conversationId: "conv_history_invalid",
+      contextOwnerAgentId: "agent_history_invalid",
+    } as AgentRecord;
+    const leaf = "entry_owned_leaf";
+    const model = [
+      {
+        id: leaf,
+        parentId:
+          corruption === "cycle"
+            ? leaf
+            : corruption === "missing-ancestor"
+              ? "entry_foreign"
+              : null,
+        type: "message",
+        timestamp: "2026-10-09T00:00:00.000Z",
+        message: { role: "user", content: "owned context", timestamp: 1 },
+      },
+    ];
+    const service = new SubagentTranscriptService({
+      getAgent: () => agent,
+      harnessStorage: {
+        modelEntries: async (_conversationId: string, owner: string) => {
+          assert.equal(owner, agent.id);
+          return model;
+        },
+        openAgentStorage: async () => ({
+          getLeafId: async () =>
+            corruption === "missing-leaf" ? "entry_run_status_failed" : leaf,
+        }),
+      },
+      storage: { canonicalStore: { readConversationEntries: async () => [] } },
+      tools: { queryToolCallPreviews: async () => ({ toolCalls: [] }) },
+      events: {
+        withCursor: async (_stream: string, read: () => Promise<unknown>) => ({
+          value: await read(),
+          cursor: { processedSeq: 0 },
+        }),
+      },
+      turnConfigurations: async () => [],
+      latestCompletion: async () => null,
+      activeRun: () => undefined,
+      activityForAgent: async () => {
+        throw new Error("invalid history cannot publish verified activity");
+      },
+    } as unknown as SubagentTranscriptServiceDeps);
+    await assert.rejects(
+      service.snapshot(agent.id),
+      (error: unknown) =>
+        error instanceof ModelHistoryInvalidError &&
+        error.code === "MODEL_HISTORY_INVALID",
+    );
+  });
+}

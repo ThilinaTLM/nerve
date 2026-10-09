@@ -1,148 +1,144 @@
+import type { RunRecord } from "@nervekit/contracts/runs";
 import type { ConversationTreeEntry } from "@nervekit/harness/conversation";
 import type {
-  ConversationActiveRunSnapshot,
-  ConversationEntry,
   ConversationRecord,
   NavigateConversationRequest,
 } from "@nervekit/contracts/conversations";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../../core/application-error.js";
 import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { ConversationHarnessStorage } from "../conversation-harness-storage.js";
-import type { AppendConversationEntry } from "./compaction-service.js";
+import {
+  JournalBackedNavigation,
+  type BranchSummary,
+  type NavigationSnapshot,
+} from "../journal-backed-navigation.js";
+import {
+  StaleNavigationError,
+  validateModelHistoryPath,
+  validateNavigationTarget,
+} from "../model-history-navigation.js";
 import { buildExtractiveSummary } from "./summary.js";
 
+export interface NavigationServiceDeps {
+  navigation: JournalBackedNavigation;
+  withAdmission<T>(agentId: string, action: () => Promise<T>): Promise<T>;
+  getActiveRunStatus(agentId: string): Promise<RunRecord["status"] | undefined>;
+  rebuildConversation(conversationId: string, agentId: string): Promise<void>;
+  events: StreamLogRegistry;
+  reportDerivedFailure?(error: unknown): void;
+}
+
 export class NavigationService {
-  constructor(
-    private readonly getConversation: (
-      conversationId: string,
-    ) => ConversationRecord,
-    private readonly getProject: (projectId: string) => ProjectRecord,
-    private readonly conversationEntries:
-      | Map<string, ConversationEntry[]>
-      | ((conversationId: string) => Promise<ConversationEntry[]>),
-    private readonly updateConversation: (
-      conversation: ConversationRecord,
-    ) => Promise<void>,
-    private readonly appendEntry: AppendConversationEntry,
-    private readonly harnessStorage: ConversationHarnessStorage,
-    private readonly rebuildConversation: (
-      conversationId: string,
-    ) => Promise<void>,
-    private readonly events: StreamLogRegistry,
-    private readonly getActiveRunStatus: (
-      conversationId: string,
-    ) => Promise<ConversationActiveRunSnapshot["status"] | undefined>,
-  ) {}
+  constructor(private readonly deps: NavigationServiceDeps) {}
 
   async navigateConversation(
     conversationId: string,
     request: NavigateConversationRequest,
   ): Promise<ConversationRecord> {
-    const conversation = this.getConversation(conversationId);
-    const entries =
-      typeof this.conversationEntries === "function"
-        ? await this.conversationEntries(conversationId)
-        : (this.conversationEntries.get(conversationId) ?? []);
-    const activeEntryId = request.activeEntryId ?? undefined;
-    if (conversation.activeEntryId !== activeEntryId) {
-      const activeRunStatus = await this.getActiveRunStatus(conversationId);
-      if (activeRunStatus && activeRunStatus !== "interrupted") {
-        throw new ApplicationError(
-          409,
-          "CONVERSATION_RUN_ACTIVE",
-          "Stop or interrupt the active run before branching from conversation history.",
+    const initial = await this.deps.navigation.capture(conversationId);
+    const targetEntryId = request.activeEntryId ?? null;
+    const navigate = async () => {
+      const snapshot = await this.deps.navigation.capture(conversationId);
+      if (snapshot.agent?.id !== initial.agent?.id)
+        throw new StaleNavigationError();
+      validateNavigationTarget(snapshot.entriesById, targetEntryId);
+      const changed =
+        (snapshot.conversation.activeEntryId ?? null) !== targetEntryId ||
+        snapshot.modelLeafId !== targetEntryId;
+      if (changed && snapshot.agent) {
+        const status = await this.deps.getActiveRunStatus(snapshot.agent.id);
+        if (status && status !== "interrupted")
+          throw new ApplicationError(
+            409,
+            "CONVERSATION_RUN_ACTIVE",
+            "Stop or interrupt the active run before branching from conversation history.",
+          );
+      }
+      const summary = request.summarize
+        ? this.createBranchSummary(
+            snapshot,
+            targetEntryId,
+            request.summaryInstructions,
+          )
+        : undefined;
+      return this.deps.navigation.commit(snapshot, targetEntryId, summary);
+    };
+    const result = initial.agent
+      ? await this.deps.withAdmission(initial.agent.id, navigate)
+      : await navigate();
+    if (!result.committed) return result.conversation;
+    // Durable navigation already succeeded and its runtime projection was applied
+    // inside admission. Derived work is outside both locks, never a rollback.
+    await this.derived(() =>
+      this.deps.rebuildConversation(conversationId, result.agentId!),
+    );
+    if (result.summaryEntry)
+      await this.derived(() =>
+        this.deps.events.publish("conversation.branch_summarized", {
+          conversationId,
+          fromEntryId: result.fromEntryId,
+          targetEntryId: result.targetEntryId ?? undefined,
+          entryId: result.summaryEntry!.id,
+        }),
+      );
+    // Navigation is an action reference, not a current-metadata snapshot.
+    // Its existing consumer refreshes authority. A delayed conversation.updated
+    // payload could otherwise regress a newer metadata/branch commit.
+    await this.derived(() =>
+      this.deps.events.publish("conversation.navigated", {
+        conversationId,
+        activeEntryId: result.conversation.activeEntryId,
+        targetEntryId: result.targetEntryId ?? undefined,
+      }),
+    );
+    return result.conversation;
+  }
+
+  private async derived(action: () => Promise<unknown>): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      try {
+        if (this.deps.reportDerivedFailure)
+          this.deps.reportDerivedFailure(error);
+        else
+          process.emitWarning(
+            `Committed conversation navigation derived update failed: ${String(error)}`,
+          );
+      } catch {
+        process.emitWarning(
+          `Committed conversation navigation failure reporting failed: ${String(error)}`,
         );
       }
     }
-    if (activeEntryId && !entries.some((entry) => entry.id === activeEntryId)) {
-      throw new ApplicationError(404, "ENTRY_NOT_FOUND", "Entry not found.");
-    }
-
-    let summaryEntry: ConversationEntry | undefined;
-    if (request.summarize && conversation.activeEntryId !== activeEntryId) {
-      summaryEntry = await this.createBranchSummaryEntry(
-        conversation,
-        activeEntryId,
-        request.summaryInstructions,
-      );
-    }
-
-    const nextActiveEntryId = summaryEntry?.id ?? activeEntryId;
-    const updated = {
-      ...this.getConversation(conversationId),
-      activeEntryId: nextActiveEntryId,
-      updatedAt: new Date().toISOString(),
-    };
-    await this.updateConversation(updated);
-    await this.harnessStorage.setLeaf(updated, nextActiveEntryId);
-    await this.rebuildConversation(conversationId);
-    await this.events.publish("conversation.navigated", {
-      conversationId: conversation.id,
-      activeEntryId: nextActiveEntryId,
-      targetEntryId: activeEntryId,
-    });
-    return updated;
   }
 
-  async createBranchSummaryEntry(
-    conversation: ConversationRecord,
-    targetEntryId: string | undefined,
+  private createBranchSummary(
+    snapshot: NavigationSnapshot,
+    targetEntryId: string | null,
     instructions?: string,
-  ): Promise<ConversationEntry | undefined> {
-    const storage = await this.harnessStorage.openStorage(conversation);
-    const oldLeafId = await storage.getLeafId();
-    if (oldLeafId === (targetEntryId ?? null)) return undefined;
-
-    const oldBranch = oldLeafId ? await storage.getPathToRoot(oldLeafId) : [];
-    const targetBranch = targetEntryId
-      ? await storage.getPathToRoot(targetEntryId)
-      : [];
-    const targetIds = new Set(targetBranch.map((entry) => entry.id));
-    const entriesToSummarize = oldBranch.filter(
+  ): BranchSummary | undefined {
+    const oldBranch = validateModelHistoryPath(
+      snapshot.entriesById,
+      snapshot.modelLeafId,
+    );
+    if (snapshot.modelLeafId === targetEntryId) return undefined;
+    const targetIds = new Set(
+      validateNavigationTarget(snapshot.entriesById, targetEntryId).map(
+        (entry) => entry.id,
+      ),
+    );
+    const messages = oldBranch.filter(
       (entry): entry is Extract<ConversationTreeEntry, { type: "message" }> =>
         !targetIds.has(entry.id) && entry.type === "message",
     );
-    if (entriesToSummarize.length === 0) return undefined;
-
-    const summary = buildExtractiveSummary({
-      title: "Branch summary",
-      messages: entriesToSummarize.map((entry) => entry.message),
-      instructions,
-    });
-    const entry = await this.appendEntry(
-      {
-        conversationId: conversation.id,
-        parentEntryId: targetEntryId ?? null,
-        role: "system",
-        kind: "branch_summary",
-        text: summary,
-        summary,
-        fromEntryId: oldLeafId ?? undefined,
-        details: {
-          generatedBy: "orchestrator-extractive",
-          summarizedEntryIds: entriesToSummarize.map((item) => item.id),
-          targetEntryId,
-        },
-      },
-      { mirrorToHarness: false },
-    );
-    await storage.setLeafId(targetEntryId ?? null);
-    await storage.appendEntry({
-      type: "branch_summary",
-      id: entry.id,
-      parentId: targetEntryId ?? null,
-      timestamp: entry.createdAt,
-      fromId: oldLeafId ?? "root",
-      summary,
-      details: entry.details,
-    });
-    await this.events.publish("conversation.branch_summarized", {
-      conversationId: conversation.id,
-      fromEntryId: oldLeafId,
-      targetEntryId,
-      entryId: entry.id,
-    });
-    return entry;
+    if (!messages.length) return undefined;
+    return {
+      text: buildExtractiveSummary({
+        title: "Branch summary",
+        messages: messages.map((entry) => entry.message),
+        instructions,
+      }),
+      summarizedEntryIds: messages.map((entry) => entry.id),
+    };
   }
 }

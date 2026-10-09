@@ -76,6 +76,28 @@ test("active transcript includes run-status children without moving the model le
   );
 });
 
+test("structural transcript tree cannot infer model navigation capabilities", () => {
+  const repository = new EntryRepository({} as ConversationJournalRepository);
+  const entry: ConversationEntry = {
+    id: "entry_transcript_only",
+    conversationId,
+    role: "user",
+    kind: "message",
+    text: "accepted",
+    createdAt: timestamp,
+  };
+  const tree = repository.getConversationTree(
+    new Map([[conversationId, [entry]]]),
+    conversation(entry.id),
+  );
+  assert.equal(tree.navigation.contextState, "unavailable");
+  assert.equal(tree.navigation.canNavigateToRoot, false);
+  assert.deepEqual(tree.nodes[0]?.navigation, {
+    continueTarget: null,
+    editTarget: null,
+  });
+});
+
 test("agent-attributed compaction replaces the shared model context", async (t) => {
   const home = await mkdtemp(join(tmpdir(), "nerve-compaction-scope-"));
   t.after(() => rm(home, { recursive: true, force: true }));

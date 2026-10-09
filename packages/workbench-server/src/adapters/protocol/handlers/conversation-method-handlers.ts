@@ -59,7 +59,7 @@ export const conversationMethodHandlers: WorkbenchMethodHandlerMapFor<Conversati
         params.conversationId,
       );
       return {
-        tree: state.conversationLifecycle.getConversationTree(
+        tree: await state.conversationQuery.getConversationTree(
           params.conversationId,
         ),
       };

@@ -1,10 +1,11 @@
 <script lang="ts">
+import type { EditHistoryEntry } from "./history-navigation";
 import Copy from "@lucide/svelte/icons/copy";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
-import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
+import type { ToolCallTranscriptRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/renderers/plain-text/PlainText.svelte";
@@ -20,15 +21,17 @@ import { HISTORY_ICONS, HISTORY_TONE_TEXT } from "./history-icons";
 import type { HistorySelection } from "./history-segments";
 
 type Props = {
+  canNavigateToRoot?: boolean;
   selection?: HistorySelection;
   toolCallsById: Map<string, ToolCallTranscriptRecord>;
-  onNavigateToEntry?: (entryId: string | undefined) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null) => void;
+  onEditEntry?: EditHistoryEntry;
   onSelectRow?: (row: HistoryGraphRow) => void;
   onExpandSegment?: (id: string) => void;
 };
 
 let {
+  canNavigateToRoot = false,
   selection,
   toolCallsById,
   onNavigateToEntry,
@@ -39,6 +42,9 @@ let {
 
 const entry = $derived(
   selection?.kind === "entry" ? selection.row.node.entry : undefined,
+);
+const navigation = $derived(
+  selection?.kind === "entry" ? selection.row.node.navigation : undefined,
 );
 const view = $derived(
   entry && selection?.kind === "entry"
@@ -82,7 +88,11 @@ async function copyId(id: string) {
       the tree.
     </p>
     <div>
-      <Button size="sm" onclick={() => onNavigateToEntry?.(undefined)}>
+      <Button
+        size="sm"
+        disabled={!canNavigateToRoot || !onNavigateToEntry}
+        onclick={() => onNavigateToEntry?.(null)}
+      >
         <GitBranch class="size-4" strokeWidth={2} />
         New branch from beginning
       </Button>
@@ -199,7 +209,14 @@ async function copyId(id: string) {
         </button>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button size="sm" onclick={() => onNavigateToEntry?.(entry.id)}>
+        <Button
+          size="sm"
+          disabled={!navigation?.continueTarget || !onNavigateToEntry}
+          onclick={() => {
+            if (navigation?.continueTarget)
+              onNavigateToEntry?.(navigation.continueTarget.activeEntryId);
+          }}
+        >
           <GitBranch class="size-4" strokeWidth={2} />
           Branch from here
         </Button>
@@ -207,7 +224,11 @@ async function copyId(id: string) {
           <Button
             variant="outline"
             size="sm"
-            onclick={() => onEditEntry?.(entry)}
+            disabled={!navigation?.editTarget || !onEditEntry}
+            onclick={() => {
+              if (navigation?.editTarget)
+                onEditEntry?.(entry, navigation.editTarget);
+            }}
           >
             <Pencil class="size-4" strokeWidth={2} />
             Edit & resend

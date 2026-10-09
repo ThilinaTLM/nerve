@@ -79,6 +79,10 @@ export function updateTreeNodesForEntry(
           }
         : node,
     ),
-    { entry, childEntryIds: [] },
+    {
+      entry,
+      childEntryIds: [],
+      navigation: { continueTarget: null, editTarget: null },
+    },
   ];
 }

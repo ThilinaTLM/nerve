@@ -9,6 +9,7 @@ export type ComposerAvailabilityInput = {
   sending: boolean;
   commandMode: boolean;
   voiceSubmitPending: boolean;
+  executionBlocked?: boolean;
 };
 
 export type ComposerAvailability = {
@@ -30,7 +31,7 @@ export function deriveComposerAvailability(
     !input.compacting &&
     !input.stopping,
   );
-  const canPrompt = canEdit && input.hasModels;
+  const canPrompt = canEdit && input.hasModels && !input.executionBlocked;
   return {
     hasTarget,
     canEdit,

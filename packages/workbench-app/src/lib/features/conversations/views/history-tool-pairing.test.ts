@@ -74,17 +74,24 @@ function tree(
   return [
     {
       entry: entry("user", "user", undefined),
+      navigation: { continueTarget: null, editTarget: null },
       childEntryIds: ["entry_request"],
     },
     {
       entry: entry("request", "assistant", "user", requestDetails),
+      navigation: { continueTarget: null, editTarget: null },
       childEntryIds: ["entry_result"],
     },
     {
       entry: entry("result", "system", "request", resultDetails),
+      navigation: { continueTarget: null, editTarget: null },
       childEntryIds: ["entry_after"],
     },
-    { entry: entry("after", "assistant", "result"), childEntryIds: [] },
+    {
+      entry: entry("after", "assistant", "result"),
+      navigation: { continueTarget: null, editTarget: null },
+      childEntryIds: [],
+    },
   ];
 }
 
@@ -182,6 +189,7 @@ describe("conversation history tool pairing", () => {
         toolRecordId: "tool_pair",
         toolName: "bash",
       }),
+      navigation: { continueTarget: null, editTarget: null },
       childEntryIds: [],
     });
     assert.equal(
@@ -196,4 +204,21 @@ describe("conversation history tool pairing", () => {
       4,
     );
   });
+});
+
+it("paired finished-tool graph navigation uses the explicit committed-result model target, with no request/id fallback", () => {
+  const records = new Map([["tool_pair", toolRecord()]]);
+  const nodes = tree();
+  nodes[1].navigation.continueTarget = { activeEntryId: "entry_model_request" };
+  nodes[2].navigation.continueTarget = { activeEntryId: "entry_model_result" };
+  const paired = buildHistoryGraph(nodes, "entry_result", records).rows[1];
+  assert.deepEqual(paired.node.navigation.continueTarget, {
+    activeEntryId: "entry_model_result",
+  });
+  nodes[2].navigation.continueTarget = null;
+  assert.equal(
+    buildHistoryGraph(nodes, "entry_result", records).rows[1].node.navigation
+      .continueTarget,
+    null,
+  );
 });

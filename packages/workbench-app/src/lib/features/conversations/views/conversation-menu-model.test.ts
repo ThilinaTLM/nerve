@@ -8,7 +8,7 @@ function menuFor(target: TranscriptMenuTarget, selection?: string) {
   const quotes: string[] = [];
   const copies: string[] = [];
   const items = transcriptMenuModel(target, selection, {
-    treeEntriesById: new Map(),
+    treeNodesById: new Map(),
     quoteInComposer: (text) => {
       quotes.push(text);
     },
@@ -84,4 +84,107 @@ describe("transcript menu quoting", () => {
       false,
     );
   });
+});
+
+import type { ConversationTreeNode } from "$lib/api";
+import { editHistoryMessage } from "./history-navigation";
+
+function branchFixture(navigation: ConversationTreeNode["navigation"]) {
+  const node: ConversationTreeNode = {
+    entry: {
+      id: "entry_user_transcript",
+      conversationId: "conv_branch",
+      role: "user",
+      kind: "message",
+      text: "Edit this prompt",
+      parentEntryId: "entry_status_transcript_parent",
+      createdAt: "2026-10-09T00:00:00.000Z",
+    },
+    childEntryIds: [],
+    navigation,
+  };
+  const navigations: Array<string | null> = [];
+  const edits: Array<string | null> = [];
+  const items = transcriptMenuModel(
+    {
+      kind: "message",
+      item: { id: node.entry.id, role: "user", text: node.entry.text },
+    },
+    undefined,
+    {
+      treeNodesById: new Map([[node.entry.id, node]]),
+      copyText: () => undefined,
+      quoteInComposer: () => undefined,
+      onNavigateToEntry: (id) => navigations.push(id),
+      onEditEntry: (_entry, target) => edits.push(target.activeEntryId),
+    },
+  );
+  return { node, items, navigations, edits };
+}
+
+it("uses explicit model continuation/edit capabilities rather than transcript ids or parents", () => {
+  const f = branchFixture({
+    continueTarget: { activeEntryId: "entry_owned_model" },
+    editTarget: { activeEntryId: "entry_actual_model_parent" },
+  });
+  select(f.items, "Continue from here");
+  select(f.items, "Edit message");
+  assert.deepEqual(f.navigations, ["entry_owned_model"]);
+  assert.deepEqual(f.edits, ["entry_actual_model_parent"]);
+});
+
+it("distinguishes unsupported user-row editing from an explicit null-root edit", () => {
+  const unsupported = branchFixture({ continueTarget: null, editTarget: null });
+  assert.equal(
+    unsupported.items.some(
+      (item) =>
+        "label" in item &&
+        ["Edit message", "Continue from here"].includes(item.label),
+    ),
+    false,
+  );
+  const root = branchFixture({
+    continueTarget: { activeEntryId: null },
+    editTarget: { activeEntryId: null },
+  });
+  select(root.items, "Edit message");
+  select(root.items, "Continue from here");
+  assert.deepEqual(root.edits, [null]);
+  assert.deepEqual(root.navigations, [null]);
+});
+
+it("fills the composer only after successful model-parent navigation, including root", async () => {
+  const f = branchFixture({
+    continueTarget: null,
+    editTarget: { activeEntryId: null },
+  });
+  const calls: Array<string | null> = [];
+  const filled: string[] = [];
+  assert.equal(
+    await editHistoryMessage(
+      f.node.entry,
+      f.node.navigation.editTarget!,
+      async (id) => {
+        calls.push(id);
+        return false;
+      },
+      (text) => filled.push(text),
+    ),
+    false,
+  );
+  assert.equal(filled.length, 0);
+  assert.equal(
+    await editHistoryMessage(
+      f.node.entry,
+      f.node.navigation.editTarget!,
+      async (id) => {
+        calls.push(id);
+        return true;
+      },
+      (text) => filled.push(text),
+    ),
+    true,
+  );
+  assert.deepEqual(calls, [null, null]);
+  assert.deepEqual(filled, [f.node.entry.text]);
 });

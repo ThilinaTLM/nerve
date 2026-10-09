@@ -1,17 +1,18 @@
+import type { EditHistoryEntry } from "./history-navigation";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { ConversationEntry } from "$lib/api";
+import type { ConversationEntry, ConversationTreeNode } from "$lib/api";
 import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 
 export type ConversationMenuHandlers = {
   copyText: (text: string, label?: string) => void | Promise<void>;
   quoteInComposer: (text: string) => void;
-  onNavigateToEntry?: (entryId: string | undefined) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null) => void;
+  onEditEntry?: EditHistoryEntry;
   onOpenHistory?: () => void;
 };
 
 type ConversationMenuContext = ConversationMenuHandlers & {
-  treeEntriesById: Map<string, ConversationEntry>;
+  treeNodesById: Map<string, ConversationTreeNode>;
 };
 
 type TargetDetails = {
@@ -45,13 +46,13 @@ function joinDetails(parts: Array<string | undefined>): string | undefined {
 
 function targetDetails(
   target: TranscriptMenuTarget,
-  treeEntriesById: Map<string, ConversationEntry>,
+  treeNodesById: Map<string, ConversationTreeNode>,
 ): TargetDetails {
   switch (target.kind) {
     case "message":
     case "thinking": {
       const entryId = baseEntryId(target.item.id);
-      const entry = entryId ? treeEntriesById.get(entryId) : undefined;
+      const entry = entryId ? treeNodesById.get(entryId)?.entry : undefined;
       return {
         content: target.item.text,
         id: target.item.id,
@@ -90,6 +91,7 @@ function targetDetails(
         ]),
         id: target.notice.runId,
         idLabel: "run id",
+        entryId: target.notice.entryId,
       };
     case "compaction":
       return {
@@ -101,6 +103,7 @@ function targetDetails(
         ]),
         id: target.notice.id,
         idLabel: "compaction id",
+        entryId: target.notice.entryId,
       };
     case "task_event":
       return {
@@ -117,12 +120,14 @@ function targetDetails(
         ]),
         id: target.notice.taskId ?? target.notice.entryId,
         idLabel: target.notice.taskId ? "task id" : "entry id",
+        entryId: target.notice.entryId,
       };
     case "system_event":
       return {
         content: joinDetails([target.notice.summary, target.notice.text]),
         id: target.notice.entryId,
         idLabel: "entry id",
+        entryId: target.notice.entryId,
       };
     case "queued_prompt":
       return {
@@ -147,7 +152,7 @@ export function transcriptMenuModel(
   selectedText: string | undefined,
   context: ConversationMenuContext,
 ): ContextMenuItem[] {
-  const details = targetDetails(target, context.treeEntriesById);
+  const details = targetDetails(target, context.treeNodesById);
   const content = details.content?.trim() ? details.content : undefined;
   const selection = selectedText?.trim() ? selectedText : undefined;
 
@@ -174,15 +179,23 @@ export function transcriptMenuModel(
     });
   }
 
+  const capabilities = details.entryId
+    ? context.treeNodesById.get(details.entryId)?.navigation
+    : undefined;
   const actionGroup: ContextMenuItem[] = [];
   if (
     target.kind === "message" &&
     details.entry?.role === "user" &&
+    capabilities?.editTarget &&
     context.onEditEntry
   ) {
     actionGroup.push({
       label: "Edit message",
-      onSelect: () => context.onEditEntry?.(details.entry as ConversationEntry),
+      onSelect: () =>
+        context.onEditEntry?.(
+          details.entry as ConversationEntry,
+          capabilities!.editTarget!,
+        ),
     });
   }
   if (target.kind === "queued_prompt") {
@@ -205,10 +218,13 @@ export function transcriptMenuModel(
       },
     );
   }
-  if (details.entryId && context.onNavigateToEntry) {
+  if (capabilities?.continueTarget && context.onNavigateToEntry) {
     actionGroup.push({
       label: "Continue from here",
-      onSelect: () => context.onNavigateToEntry?.(details.entryId),
+      onSelect: () =>
+        context.onNavigateToEntry?.(
+          capabilities!.continueTarget!.activeEntryId,
+        ),
     });
   }
 

@@ -26,6 +26,7 @@ import type { ConversationHarnessStorage } from "../conversations/conversation-h
 import type { ToolService } from "../tools/execution/tool-service.js";
 import { projectHarnessMessageEntry } from "./execution/message-mirror.js";
 import { resolveCompactionOwner } from "../conversations/compaction-owner.js";
+import { validateModelHistoryPath } from "../conversations/model-history-navigation.js";
 
 const MAX_PROJECTED_TEXT_CHARS = 2 * 1024 * 1024;
 
@@ -383,19 +384,10 @@ export class SubagentTranscriptService {
         const activeEntryId = modelStorage
           ? await modelStorage.getLeafId()
           : null;
-        const activeEntryIds: string[] = [];
-        let ancestor = activeEntryId;
-        while (ancestor) {
-          if (activeEntryIds.includes(ancestor))
-            throw new Error("Owner history contains an ancestry cycle");
-          const entry = modelById.get(ancestor);
-          if (!entry)
-            throw new Error(
-              "Owner history leaf/ancestor is missing from its model tree",
-            );
-          activeEntryIds.unshift(ancestor);
-          ancestor = entry.parentId;
-        }
+        const activeEntryIds = validateModelHistoryPath(
+          modelById,
+          activeEntryId,
+        ).map((entry) => entry.id);
         return {
           agentId,
           conversationId: agent.conversationId,

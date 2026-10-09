@@ -47,3 +47,8 @@ export {
   refreshConversationView,
 } from "./state/conversation-selection";
 export { registerConversationEventHandlers } from "./state/conversation-events";
+
+export {
+  editHistoryMessage,
+  type HistoryNavigationTarget,
+} from "./views/history-navigation";

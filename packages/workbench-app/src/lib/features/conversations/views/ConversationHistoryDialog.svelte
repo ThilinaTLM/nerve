@@ -1,5 +1,9 @@
 <script lang="ts">
 import type {
+  EditHistoryEntry,
+  HistoryNavigationTarget,
+} from "./history-navigation";
+import type {
   ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
@@ -9,16 +13,18 @@ import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
 
 type Props = {
+  canNavigateToRoot?: boolean;
   open?: boolean;
   activeConversation?: ConversationRecord;
   treeNodes?: ConversationTreeNode[];
   toolCalls?: ToolCallTranscriptRecord[];
-  onNavigateToEntry?: (entryId: string | undefined) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null) => void;
+  onEditEntry?: EditHistoryEntry;
   onOpenChange?: (open: boolean) => void;
 };
 
 let {
+  canNavigateToRoot = false,
   open = $bindable(false),
   activeConversation,
   treeNodes = [],
@@ -33,14 +39,17 @@ function handleOpenChange(next: boolean) {
   onOpenChange?.(next);
 }
 
-function navigateAndClose(entryId: string | undefined) {
+function navigateAndClose(entryId: string | null) {
   onNavigateToEntry?.(entryId);
   open = false;
   onOpenChange?.(false);
 }
 
-function editAndClose(entry: ConversationEntry) {
-  onEditEntry?.(entry);
+function editAndClose(
+  entry: ConversationEntry,
+  target: HistoryNavigationTarget,
+) {
+  onEditEntry?.(entry, target);
   open = false;
   onOpenChange?.(false);
 }
@@ -56,6 +65,7 @@ function editAndClose(entry: ConversationEntry) {
 >
   <div data-tour-id="conversation-history" class="h-full min-h-0">
     <ConversationHistoryGraph
+      {canNavigateToRoot}
       {activeConversation}
       {treeNodes}
       {toolCalls}

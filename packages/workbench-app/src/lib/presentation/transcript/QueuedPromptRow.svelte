@@ -13,6 +13,7 @@ import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 
 type Props = {
   prompt: AgentQueueItem;
+  queueError?: string;
   onForcePush?: (prompt: AgentQueueItem) => void | Promise<void>;
   onDiscard?: (prompt: AgentQueueItem) => void | Promise<void>;
   onMoveToComposer?: (prompt: AgentQueueItem) => void | Promise<void>;
@@ -21,6 +22,7 @@ type Props = {
 
 let {
   prompt,
+  queueError,
   onForcePush,
   onDiscard,
   onMoveToComposer,
@@ -50,6 +52,7 @@ const label = $derived(queueItemLabel(prompt));
 const menuTarget = $derived({
   kind: "queued_prompt" as const,
   prompt,
+  queueError,
   busy: Boolean(pendingAction),
   canForcePush: Boolean(onForcePush) && !interruptionPending,
   canEdit: editable && Boolean(onMoveToComposer),
@@ -78,6 +81,9 @@ const menuTarget = $derived({
     >
       <ListPlus size={13} strokeWidth={2.2} aria-hidden="true" />
       <span>{label}</span>
+      {#if queueError}
+        <span class="text-warning" title={queueError}>Last known queue</span>
+      {/if}
     </div>
     <div class="min-w-0 text-sm text-foreground">
       <UserMessageContent text={prompt.text} />

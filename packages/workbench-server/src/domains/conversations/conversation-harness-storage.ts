@@ -1,3 +1,4 @@
+import { validateModelHistoryPath } from "./model-history-navigation.js";
 import {
   applyPromptCompactionAnchor,
   withPromptCompactionAnchor,
@@ -334,20 +335,32 @@ class JournalConversationStorage implements ConversationStorage<ConversationMeta
   }
 
   async getPathToRoot(leafId: string | null): Promise<ConversationTreeEntry[]> {
-    return (await this.tree()).getPathToRoot(leafId);
+    const tree = await this.tree();
+    return validateModelHistoryPath(
+      new Map(tree.entries().map((entry) => [entry.id, entry])),
+      leafId,
+    );
   }
 
   async getContextPath(leafId?: string | null) {
     const tree = await this.tree();
-    return tree.getContextPath(leafId === undefined ? tree.leafId : leafId);
+    const selected = leafId === undefined ? await this.getLeafId() : leafId;
+    validateModelHistoryPath(
+      new Map(tree.entries().map((entry) => [entry.id, entry])),
+      selected,
+    );
+    return tree.getContextPath(selected);
   }
 
   async buildContext(leafId?: string | null) {
     const startedAt = performance.now();
     const tree = await this.tree();
-    const context = tree.buildContext(
-      leafId === undefined ? tree.leafId : leafId,
+    const selected = leafId === undefined ? await this.getLeafId() : leafId;
+    validateModelHistoryPath(
+      new Map(tree.entries().map((entry) => [entry.id, entry])),
+      selected,
     );
+    const context = tree.buildContext(selected);
     this.diagnostics.duration(
       "conversation.contextBuild",
       performance.now() - startedAt,

@@ -1,3 +1,9 @@
+import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import { ModelNavigationCapabilities } from "../../domains/conversations/model-navigation-capabilities.js";
+import {
+  JournalBackedNavigation,
+  resolveConversationNavigationAgent,
+} from "../../domains/conversations/journal-backed-navigation.js";
 import { agentInputNoticeSchema } from "@nervekit/contracts/agents";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type {
@@ -394,19 +400,76 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
       };
     },
   );
-  const navigationService = new NavigationService(
-    getConversation,
-    getProject,
-    (conversationId) =>
-      conversationLifecycle.ensureConversationEntries(conversationId),
-    updateConversation,
-    appendEntry,
-    harnessStorage,
-    rebuildConversation,
+  const resolveNavigationAgent = (conversation: ConversationRecord) =>
+    resolveConversationNavigationAgent(
+      storage.canonicalStore,
+      conversation,
+      (agentId) => state.agents.get(agentId),
+    );
+  const navigationCapabilities = new ModelNavigationCapabilities({
+    journal: conversationJournal,
+    resolveControlAgent: (conversationId) =>
+      resolveNavigationAgent(getConversation(conversationId)),
+  });
+  const navigationService = new NavigationService({
+    navigation: new JournalBackedNavigation(
+      conversationJournal,
+      resolveNavigationAgent,
+      (conversation, entries) =>
+        conversationLifecycle.applyCommittedNavigation(conversation, entries),
+    ),
+    withAdmission: (agentId, action) =>
+      workbenchRun.withAgentAdmission(agentId, action),
+    getActiveRunStatus: async (agentId) => {
+      const agent = getAgent(agentId);
+      return (
+        await runRuntime.unitOfWork.findActive(
+          `${agent.conversationId}:${agent.id}`,
+        )
+      )?.run.status;
+    },
+    rebuildConversation: async (conversationId, agentId) => {
+      const requireBoundAgent = () => {
+        const agent = state.agents.get(agentId);
+        if (
+          !agent ||
+          agent.id !== agentId ||
+          agent.conversationId !== conversationId ||
+          agent.contextOwnerAgentId !== null ||
+          agent.parentAgentId
+        )
+          throw new Error(
+            "Committed navigation control agent is unavailable for derived context rebuild.",
+          );
+        return agent;
+      };
+      requireBoundAgent();
+      const conversation = getConversation(conversationId);
+      const project = getProject(conversation.projectId);
+      const entries =
+        await conversationLifecycle.ensureConversationEntries(conversationId);
+      // Preserve the command's exact persisted owner. Root navigation does not
+      // repopulate isolated-child caches or enumerate the home actor registry.
+      await conversationService.rebuildConversation(
+        project,
+        conversation,
+        [requireBoundAgent()],
+        entries,
+      );
+      try {
+        requireBoundAgent();
+      } catch (error) {
+        conversationService.deleteAgent(agentId);
+        throw error;
+      }
+    },
     events,
-    async (conversationId) =>
-      (await runQuery.activeForConversation(conversationId))?.status,
-  );
+    reportDerivedFailure: (error) => {
+      void logger.warn("Committed navigation derived update failed", {
+        error: String(error),
+      });
+    },
+  });
   const exportService = new ExportService(
     getConversation,
     getProject,
@@ -510,6 +573,7 @@ export function createRuntimeServices(state: RuntimeState, deps: RuntimeDeps) {
         conversationJournal.readConversationRevision(conversationId),
       getConversationTree: (conversationId) =>
         conversationLifecycle.getConversationTree(conversationId),
+      enrichConversationTree: (tree) => navigationCapabilities.enrich(tree),
       getContextUsage: (conversationId) =>
         workbenchRun.getContextUsage(conversationId),
       listToolCallPreviews: (conversationId) =>

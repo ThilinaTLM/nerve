@@ -107,6 +107,10 @@ describe("RuntimeLifecycle conversation branches", () => {
           projectId: project.id,
           title: "Branch projection",
         });
+      const lead = await state.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+      });
 
       const first = await appendConversationEntry(state, {
         conversationId: conversation.id,
@@ -124,12 +128,40 @@ describe("RuntimeLifecycle conversation branches", () => {
         text: "C",
       });
 
+      const child = await state.services.agentLifecycle.createAgent({
+        projectId: project.id,
+        conversationId: conversation.id,
+        parentAgentId: lead.id,
+      });
+      assert.equal(child.contextOwnerAgentId, child.id);
+      const isolatedMessages = [
+        {
+          role: "user" as const,
+          content: "isolated child context",
+          timestamp: Date.parse(createdAt),
+        },
+      ];
+      state.services.conversationService.setForAgent(
+        child.id,
+        isolatedMessages,
+      );
       await state.services.navigationService.navigateConversation(
         conversation.id,
         {
           activeEntryId: second.id,
         },
       );
+      assert.equal(
+        state.services.conversationService.getForAgent(child.id),
+        isolatedMessages,
+        "root branch navigation cannot retarget an isolated child's cached context",
+      );
+      const leadMessages = state.services.conversationService.getForAgent(
+        lead.id,
+      )!;
+      assert.equal(leadMessages.length, 2);
+      assert.equal(leadMessages[0]?.content, "A");
+      assert.equal(leadMessages[1]?.content, "B");
       assert.equal(
         state.services.conversationLifecycle.getConversation(conversation.id)
           .activeEntryId,

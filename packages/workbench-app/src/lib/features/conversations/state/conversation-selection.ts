@@ -1,6 +1,10 @@
+import { applyRequestedHistoryRefresh } from "./requested-history-refresh";
 import { modelKey } from "$lib/presentation/utils/model";
 import { protocolRequest } from "@nervekit/protocol/adapters";
-import { fromConversationSnapshot } from "$lib/presentation/state";
+import {
+  applyCanonicalConversationSnapshot,
+  applyQueueRefresh,
+} from "./conversation-refresh";
 import {
   type AgentRecord,
   type ConversationRecord,
@@ -13,7 +17,6 @@ import { installEventCursors } from "$lib/application/event-routing/stream-curso
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
 import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { stoppingAfterConversationSnapshot } from "$lib/features/conversations/state/conversation-terminal-state";
 import {
   upsertConversationActivity,
   upsertAgentActivity,
@@ -29,7 +32,11 @@ import {
 } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { agentUsesConversationView } from "./agent-history-ownership";
-import { applyAgentHistory } from "./agent-history-state";
+import {
+  beginHistoryRefresh,
+  failHistoryRefresh,
+  settleConversationRefresh,
+} from "./history-health";
 import { mainAgentForConversation } from "./main-agent";
 import {
   selectedConversationAgent,
@@ -140,7 +147,11 @@ export function refreshConversationView(conversationId: string): Promise<void> {
           agent.conversationId === conversationId &&
           agentUsesConversationView(agent),
       );
-      const [response, queue, history] = await Promise.all([
+      const token = rootAgent
+        ? beginHistoryRefresh(view, rootAgent.id)
+        : undefined;
+      const baselineCursor = view.cursorSeq;
+      const results = await settleConversationRefresh(
         getConversationSnapshotWithCursor(conversationId),
         rootAgent
           ? protocolRequest("agent.promptQueue.list", { agentId: rootAgent.id })
@@ -148,42 +159,70 @@ export function refreshConversationView(conversationId: string): Promise<void> {
         rootAgent
           ? protocolRequest("agent.history.get", { agentId: rootAgent.id })
           : Promise.resolve(undefined),
-      ]);
-      const snapshot = response.snapshot;
-      // Canonical state comes straight from the shared snapshot ingestion
-      // (which drains already-materialized active-run messages).
-      const canonical = fromConversationSnapshot(snapshot);
-      const previousRunId = view.activeRun?.runId;
-      view.activeEntryId = snapshot.tree.activeEntryId;
-      view.activeEntryIds = canonical.activeEntryIds;
-      view.entries = canonical.entries;
-      view.toolCalls = canonical.toolCalls;
-      view.treeNodes = snapshot.tree.nodes;
-      view.activeRun = canonical.activeRun;
-      view.transient = undefined;
-      view.optimisticMessages = [];
-      view.queuedPrompts =
-        queue?.result.queuedPrompts ?? canonical.queuedPrompts ?? [];
-      clearContextUsageRefresh(conversationId);
-      view.contextUsage = canonical.contextUsage;
-      view.cursorSeq = canonical.cursorSeq;
-      view.stopping = stoppingAfterConversationSnapshot(
-        view.stopping,
-        previousRunId,
-        canonical.activeRun?.runId,
       );
+      // Navigation can invalidate an in-flight pre-commit read, including its errors.
+      if (token !== undefined && view.historyRefreshId !== token) return;
+      if (results.snapshot.status === "rejected") {
+        view.error =
+          results.snapshot.reason instanceof Error
+            ? results.snapshot.reason.message
+            : String(results.snapshot.reason);
+        if (rootAgent && token !== undefined)
+          failHistoryRefresh(
+            view,
+            rootAgent.id,
+            token,
+            baselineCursor,
+            results.snapshot.reason,
+          );
+        return;
+      }
+      const response = results.snapshot.value;
+      const snapshot = response.snapshot;
+      if (!applyCanonicalConversationSnapshot(view, snapshot)) return;
+      applyQueueRefresh(
+        view,
+        results.queue.status === "fulfilled"
+          ? {
+              status: "fulfilled",
+              value: results.queue.value?.result.queuedPrompts,
+            }
+          : results.queue,
+        rootAgent?.id,
+      );
+      clearContextUsageRefresh(conversationId);
       workspaceState.conversations = workspaceState.conversations.map(
         (candidate) =>
           candidate.id === conversationId ? snapshot.conversation : candidate,
       );
       upsertConversationActivity(snapshot.activity);
-      view.sending = canonical.sending ?? false;
-      if (history && rootAgent) {
-        applyAgentHistory(view, rootAgent, history.result);
-        if (history.result.activity)
-          upsertAgentActivity(history.result.activity);
-        // Keep the full tree used by the ordinary lead's branch navigation.
-        view.treeNodes = snapshot.tree.nodes;
+      if (rootAgent && token !== undefined) {
+        const historyResult =
+          results.history.status === "fulfilled"
+            ? {
+                status: "fulfilled" as const,
+                value: results.history.value?.result,
+              }
+            : results.history;
+        if (
+          applyRequestedHistoryRefresh(
+            view,
+            rootAgent,
+            token,
+            snapshot.cursorSeq,
+            historyResult,
+            snapshot.tree.navigation.agentId,
+          ) &&
+          historyResult.status === "fulfilled" &&
+          historyResult.value
+        ) {
+          const history = historyResult.value;
+          // Keep canonical transcript/tree display even when owner history is
+          // unavailable. Only verified attempt metadata enriches this snapshot.
+          view.latestCompletion = history.latestCompletion;
+          view.effectiveConfiguration = history.effectiveConfiguration;
+          if (history.activity) upsertAgentActivity(history.activity);
+        }
       }
       installEventCursors(response.cursor.streams);
       if (
@@ -193,6 +232,8 @@ export function refreshConversationView(conversationId: string): Promise<void> {
       ) {
         selection.entryId = view.activeEntryId;
       }
+    } catch (caught) {
+      view.error = caught instanceof Error ? caught.message : String(caught);
     } finally {
       view.loading = false;
     }

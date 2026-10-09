@@ -64,6 +64,7 @@ describe("ConversationQueryService", () => {
           rootEntryIds: ["entry_selected"],
           nodes: [],
         }) as never,
+      enrichConversationTree: async (tree) => tree,
       getContextUsage: async () => undefined as never,
       getActivity: async () => ({
         conversationId: "conv_test",

@@ -1,4 +1,9 @@
 <script lang="ts">
+import { historyExecutionError } from "$lib/features/conversations/state/history-health";
+import {
+  editHistoryMessage,
+  type HistoryNavigationTarget,
+} from "$lib/features/conversations/views/history-navigation";
 import { type AgentQueueItem } from "$lib/api";
 import { SvelteSet } from "svelte/reactivity";
 import { protocolRequest } from "@nervekit/protocol/adapters";
@@ -358,7 +363,7 @@ async function runActivePaneAction<T>(action: () => T | Promise<T>) {
 }
 
 async function jumpToConversationEntry(
-  entryId: string | undefined,
+  entryId: string | null,
   summarize = false,
 ) {
   const navigated = await runActivePaneAction(() =>
@@ -367,16 +372,17 @@ async function jumpToConversationEntry(
   if (navigated) focusComposer();
 }
 
-async function editConversationEntry(entry: {
-  parentEntryId?: string;
-  text: string;
-}) {
-  const navigated = await runActivePaneAction(() =>
-    navigateToEntry(entry.parentEntryId),
+async function editConversationEntry(
+  entry: { text: string },
+  target: HistoryNavigationTarget,
+) {
+  const edited = await editHistoryMessage(
+    entry,
+    target,
+    (parent) => runActivePaneAction(() => navigateToEntry(parent)),
+    setPaneComposerText,
   );
-  if (!navigated) return;
-  setPaneComposerText(entry.text);
-  focusComposer();
+  if (edited) focusComposer();
 }
 
 function openTaskFromNotice(taskId: string) {
@@ -465,6 +471,9 @@ function queuedPromptView(prompt: AgentQueueItem) {
 
 function forcePushQueuedPrompts(prompt: AgentQueueItem): Promise<void> {
   return runActivePaneAction(async () => {
+    const targetView = queuedPromptView(prompt);
+    if (!targetView || historyExecutionError(targetView, prompt.agentId))
+      return;
     const key = prompt.agentId;
     if (forcePushesInFlight.has(key)) return;
     forcePushesInFlight.add(key);
@@ -545,6 +554,11 @@ function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
   error={view?.error}
+  contextError={view ? historyExecutionError(view, activeAgent?.id) : undefined}
+  queueError={view?.queueError}
+  executionBlocked={Boolean(
+    view && historyExecutionError(view, activeAgent?.id),
+  )}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   teamRunning={workspaceState.agents.some(
     (agent) =>
@@ -640,8 +654,8 @@ function moveQueuedPromptToComposer(prompt: AgentQueueItem) {
   onNavigateToEntry={(entryId, summarize) => {
     void jumpToConversationEntry(entryId, summarize);
   }}
-  onEditEntry={(entry) => {
-    void editConversationEntry(entry);
+  onEditEntry={(entry, target) => {
+    void editConversationEntry(entry, target);
   }}
   onOpenHistory={() => {
     void runActivePaneAction(openConversationHistory);

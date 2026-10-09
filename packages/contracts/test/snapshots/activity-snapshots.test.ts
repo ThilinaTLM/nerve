@@ -69,6 +69,13 @@ test("conversation snapshots require their conversation activity", () => {
     tree: {
       conversationId: "conv_1",
       rootEntryIds: [],
+      navigation: {
+        agentId: null,
+        ownerAgentId: null,
+        contextState: "unavailable",
+        activeModelEntryId: null,
+        canNavigateToRoot: false,
+      },
       nodes: [],
     },
     toolCalls: [],

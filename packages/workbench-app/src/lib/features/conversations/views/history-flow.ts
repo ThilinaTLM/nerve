@@ -1,6 +1,6 @@
+import type { EditHistoryEntry } from "./history-navigation";
 import dagre from "@dagrejs/dagre";
 import type { Edge, Node, Position } from "@xyflow/svelte";
-import type { ConversationEntry } from "$lib/api";
 import type { HistoryEntryView } from "./history-entry-view";
 import type { HistoryGraphRow } from "./history-graph";
 import type {
@@ -29,9 +29,10 @@ export const HISTORY_NODE_GEOMETRY = {
 export type HistoryZoomTier = "overview" | "summary" | "detail";
 
 export type HistoryGraphNodeActions = {
+  canNavigateToRoot?: boolean;
   onToggleSegment: (segment: HistorySegment) => void;
-  onNavigateToEntry?: (entryId: string | undefined) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null) => void;
+  onEditEntry?: EditHistoryEntry;
 };
 
 type SharedNodeData = {

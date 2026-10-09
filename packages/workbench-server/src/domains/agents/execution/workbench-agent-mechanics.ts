@@ -64,7 +64,9 @@ import { executeWorkbenchHarness } from "./workbench-harness-execution.js";
 import {
   insertWorkbenchAgentInput,
   assertWorkbenchDispatch,
+  assertWorkbenchModelHistory,
 } from "./workbench-turn-preparation.js";
+import { ModelHistoryInvalidError } from "../../conversations/model-history-navigation.js";
 import { AutoCompactionRunner } from "./auto-compaction-runner.js";
 import { compactionSettingsForAgent } from "./subagent-compaction-settings.js";
 import { InlineCommandRunner } from "./inline-command-runner.js";
@@ -279,6 +281,27 @@ export class WorkbenchAgentMechanics {
     ): Promise<import("../../runs/runtime/index.js").CheckpointCommand>;
   }): Promise<RunExecutionOutcome> {
     const agent = this.deps.state.getAgent(input.run.agentId);
+    // This common boundary also precedes standalone inline-shell preparation.
+    // Admission is durable, but invalid selected history cannot consume input.
+    try {
+      await assertWorkbenchModelHistory(this, agent);
+    } catch (error) {
+      if (!(error instanceof ModelHistoryInvalidError)) throw error;
+      await this.deps.agentInputs?.recordAdmissionBlocker(
+        agent.id,
+        error.message,
+        agent.configurationRevision ?? 1,
+      );
+      return {
+        status: "failed",
+        failure: {
+          code: "MODEL_HISTORY_INVALID",
+          message: error.message,
+          retryable: false,
+          continuable: false,
+        },
+      };
+    }
     const inline =
       input.command === "start"
         ? parseInlineCommandPrompt(input.prompt ?? "")

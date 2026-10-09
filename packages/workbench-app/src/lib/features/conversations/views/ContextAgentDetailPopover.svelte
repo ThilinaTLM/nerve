@@ -1,4 +1,5 @@
 <script lang="ts">
+import { historyExecutionError } from "../state/history-health";
 import Info from "@lucide/svelte/icons/info";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -117,7 +118,9 @@ let settingsOpen = $state(false);
           <Button
             variant="outline"
             size="sm"
-            disabled={view.stopping}
+            disabled={view.stopping ||
+              (agent.activationState === "paused" &&
+                Boolean(historyExecutionError(view, agent.id)))}
             onclick={() =>
               void controlAgent(
                 agent,
@@ -132,7 +135,9 @@ let settingsOpen = $state(false);
           <Button
             variant="outline"
             size="sm"
-            disabled={view.stopping || !view.composerText.trim()}
+            disabled={view.stopping ||
+              !view.composerText.trim() ||
+              Boolean(historyExecutionError(view, agent.id))}
             onclick={() => void interruptAgentWithDraft(agent)}
             >Interrupt and replace</Button
           >

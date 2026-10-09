@@ -80,3 +80,13 @@ it("binds secondary roots to their own view and preserves inherited authors in s
   );
   assert.equal(view.entries.length, 2);
 });
+
+it("a shared-context child still has actor-scoped history and cannot branch its parent's conversation", () => {
+  assert.equal(
+    agentUsesConversationView({
+      parentAgentId: "agent_parent",
+      contextOwnerAgentId: null,
+    }),
+    false,
+  );
+});

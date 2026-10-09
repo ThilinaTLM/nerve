@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { EditHistoryEntry } from "./history-navigation";
 import X from "@lucide/svelte/icons/x";
 import { SvelteSet } from "svelte/reactivity";
 import {
@@ -9,7 +10,6 @@ import {
   type Viewport,
 } from "@xyflow/svelte";
 import type {
-  ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
   ToolCallTranscriptRecord,
@@ -37,14 +37,16 @@ import {
 } from "./history-segments";
 
 type Props = {
+  canNavigateToRoot?: boolean;
   activeConversation?: ConversationRecord;
   treeNodes?: ConversationTreeNode[];
   toolCalls?: ToolCallTranscriptRecord[];
-  onNavigateToEntry?: (entryId: string | undefined) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null) => void;
+  onEditEntry?: EditHistoryEntry;
 };
 
 let {
+  canNavigateToRoot = false,
   activeConversation,
   treeNodes = [],
   toolCalls = [],
@@ -111,6 +113,7 @@ const baseFlow = $derived(
   }),
 );
 const actions = $derived({
+  canNavigateToRoot,
   onToggleSegment: toggleSegment,
   onNavigateToEntry,
   onEditEntry,
@@ -323,6 +326,7 @@ function minimapNodeColor(node: Node): string {
             <HistoryDetailPane
               {selection}
               {toolCallsById}
+              {canNavigateToRoot}
               {onNavigateToEntry}
               {onEditEntry}
               onSelectRow={selectRow}

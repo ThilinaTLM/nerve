@@ -1,4 +1,9 @@
 import { prepareAgentInputCommands } from "./agent-input-preparation.js";
+import {
+  ModelHistoryInvalidError,
+  modelHistoryIntegrityError,
+  validateModelHistoryPath,
+} from "../../conversations/model-history-navigation.js";
 import { hasExecutableCommandBlocks } from "@nervekit/contracts/completions";
 import { stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -30,6 +35,18 @@ export class AgentTurnPreparationBlocker extends Error {
     super(message);
   }
 }
+export type WorkbenchTurnPreparationFailure =
+  | AgentTurnPreparationBlocker
+  | ModelHistoryInvalidError;
+
+export function isWorkbenchTurnPreparationFailure(
+  error: unknown,
+): error is WorkbenchTurnPreparationFailure {
+  return (
+    error instanceof AgentTurnPreparationBlocker ||
+    error instanceof ModelHistoryInvalidError
+  );
+}
 class SnapshotSuperseded extends Error {}
 
 export interface WorkbenchPreparationSession {
@@ -49,9 +66,37 @@ export function createWorkbenchPreparationSession(
   };
 }
 
+/** Read the persisted context owner, never the transcript/cache or agent kind. */
+export async function assertWorkbenchModelHistory(
+  mechanics: WorkbenchAgentMechanics,
+  agent: AgentRecord,
+): Promise<void> {
+  try {
+    const storage = await mechanics.deps.harnessStorage.openAgentStorage(agent);
+    const entries = await storage.getEntries();
+    validateModelHistoryPath(
+      new Map(entries.map((entry) => [entry.id, entry])),
+      await storage.getLeafId(),
+    );
+  } catch (error) {
+    throw modelHistoryIntegrityError(error) ?? error;
+  }
+}
+
 export async function prepareWorkbenchTurn(
   options: Parameters<typeof resolveWorkbenchTurn>[0],
 ) {
+  try {
+    return await prepareVerifiedWorkbenchTurn(options);
+  } catch (error) {
+    throw modelHistoryIntegrityError(error) ?? error;
+  }
+}
+
+async function prepareVerifiedWorkbenchTurn(
+  options: Parameters<typeof resolveWorkbenchTurn>[0],
+) {
+  await assertWorkbenchModelHistory(options.mechanics, options.agent);
   const sourceId = options.coordinator.run.initialInputId;
   if (sourceId) {
     const source = await options.mechanics.deps.agentInputs?.get(
@@ -119,9 +164,12 @@ export async function prepareWorkbenchTurn(
         readCommitted,
       );
     } catch (error) {
+      const invalidHistory = modelHistoryIntegrityError(error);
+      if (invalidHistory) throw invalidHistory;
       if (
         options.runAbortController.signal.aborted ||
-        options.turnSignal?.aborted
+        options.turnSignal?.aborted ||
+        error instanceof ModelHistoryInvalidError
       )
         throw error;
       if (

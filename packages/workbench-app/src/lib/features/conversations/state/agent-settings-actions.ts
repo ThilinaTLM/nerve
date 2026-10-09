@@ -1,3 +1,4 @@
+import { historyExecutionError } from "./history-health";
 import type {
   AgentRecord,
   UpdateAgentRequest,
@@ -44,7 +45,7 @@ export async function interruptAgentWithDraft(
 ): Promise<void> {
   const view = ensureAgentView(agent);
   const text = view.composerText.trim();
-  if (!text || view.stopping) return;
+  if (!text || view.stopping || historyExecutionError(view, agent.id)) return;
   view.stopping = true;
   view.error = undefined;
   try {

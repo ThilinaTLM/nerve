@@ -10,6 +10,10 @@ import {
 import { isAgentToolSuspension } from "@nervekit/harness/agent";
 import { AgentHarnessError } from "@nervekit/harness";
 import { waitForSequentialToolInteractionBatch } from "./sequential-tool-approval-batch.js";
+import {
+  ModelHistoryInvalidError,
+  modelHistoryIntegrityError,
+} from "../../conversations/model-history-navigation.js";
 
 export async function handleWorkbenchHarnessError(options: {
   mechanics: WorkbenchAgentMechanics;
@@ -31,17 +35,24 @@ export async function handleWorkbenchHarnessError(options: {
   // Foreground preparation is normalized by the harness before invocation;
   // later iteration boundaries can throw the blocker directly. Recover only
   // this known wrapper so both paths retain the captured failed revision.
-  const error =
+  const source =
     options.error instanceof AgentHarnessError &&
-    options.error.cause instanceof AgentTurnPreparationBlocker
+    (options.error.cause instanceof AgentTurnPreparationBlocker ||
+      modelHistoryIntegrityError(options.error.cause))
       ? options.error.cause
       : options.error;
+  const error = modelHistoryIntegrityError(source) ?? source;
   const runId = coordinator.run.runId;
-  if (error instanceof AgentTurnPreparationBlocker)
+  const preparationBlocked =
+    error instanceof AgentTurnPreparationBlocker ||
+    error instanceof ModelHistoryInvalidError;
+  if (preparationBlocked)
     await mechanics.deps.agentInputs?.recordAdmissionBlocker(
       agent.id,
       error.message,
-      error.configurationRevision,
+      error instanceof AgentTurnPreparationBlocker
+        ? error.configurationRevision
+        : (agent.configurationRevision ?? 1),
     );
   if (isAgentToolSuspension(error)) {
     if (!originatingTurn)
@@ -68,11 +79,16 @@ export async function handleWorkbenchHarnessError(options: {
         status: "failed",
         failure: {
           code:
-            error instanceof AgentTurnPreparationBlocker
-              ? "AGENT_CONFIGURATION_BLOCKED"
-              : "EXECUTION_FAILED",
+            error instanceof ModelHistoryInvalidError
+              ? "MODEL_HISTORY_INVALID"
+              : error instanceof AgentTurnPreparationBlocker
+                ? "AGENT_CONFIGURATION_BLOCKED"
+                : "EXECUTION_FAILED",
           ...normalizeRunFailure(error, "harness"),
-          retryable: !(error instanceof AgentTurnPreparationBlocker),
+          retryable: !preparationBlocked,
+          ...(error instanceof ModelHistoryInvalidError
+            ? { continuable: false }
+            : {}),
         },
       };
 }

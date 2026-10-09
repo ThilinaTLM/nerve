@@ -267,6 +267,23 @@ export class ConversationLifecycleService {
     );
   }
 
+  /** Apply a journal-committed cursor without another metadata write. */
+  applyCommittedNavigation(
+    conversation: ConversationRecord,
+    entries: ConversationEntry[],
+  ): void {
+    this.state.conversations.set(conversation.id, conversation);
+    this.state.setConversationEntries(conversation.id, entries);
+    this.touchConversationEntries(conversation.id, entries);
+    try {
+      this.queryCache.upsertConversation(conversation);
+    } catch (error) {
+      process.emitWarning(
+        `Committed navigation cache update failed: ${String(error)}`,
+      );
+    }
+  }
+
   async updateConversation(conversation: ConversationRecord): Promise<void> {
     this.state.conversations.set(conversation.id, conversation);
     this.queryCache.upsertConversation(conversation);

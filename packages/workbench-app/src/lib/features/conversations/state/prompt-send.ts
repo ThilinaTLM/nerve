@@ -1,3 +1,4 @@
+import { historyExecutionError } from "./history-health";
 import { deriveConversationTitle } from "@nervekit/contracts/conversations";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { scopedUsableModelOptions } from "$lib/presentation/utils/model";
@@ -101,6 +102,7 @@ export async function ensureAgent(): Promise<string> {
     selection.agentId = agent.id;
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await reloadWorkspace();
+    await refreshConversationView(agent.conversationId);
     return agent.id;
   }
   workspaceState.projectPickerMode = "recent";
@@ -211,6 +213,11 @@ async function sendPendingPrompt(
         ? []
         : [optimisticUserMessage(text)],
       start: async () => {
+        const historyError = historyExecutionError(
+          ensureConversationView(conversation.id),
+          agent.id,
+        );
+        if (historyError) throw new Error(historyError);
         await protocolRequest(
           "run.start",
           { agentId: agent.id, text, idempotencyKey },
@@ -260,6 +267,7 @@ export async function sendPromptText(
     notifyPromptError("Select a project directory", message);
     return;
   }
+  if (historyExecutionError(view, selection.agentId)) return;
   if (!hasUsableModel()) {
     void openSettingsPane();
     const message =
@@ -287,6 +295,8 @@ export async function sendPromptText(
   }
   try {
     const agentId = await ensureAgent();
+    const historyError = historyExecutionError(view, agentId);
+    if (historyError) throw new Error(historyError);
     if (clearComposer) {
       view.composerText = "";
       composerDraft.text = "";

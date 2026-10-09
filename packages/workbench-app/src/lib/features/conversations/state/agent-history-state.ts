@@ -4,6 +4,7 @@ import type {
 } from "@nervekit/contracts/agents";
 import type { ConversationViewState } from "./conversation-state.svelte";
 import { drainedSnapshotActiveRun } from "$lib/presentation/state/conversation-snapshot";
+import { validateAgentHistory, verifyAgentHistory } from "./history-health";
 import { stoppingAfterConversationSnapshot } from "./conversation-terminal-state";
 
 /** History is scoped by durable context ownership, NOT the authors of cloned entries. */
@@ -11,30 +12,14 @@ export function applyAgentHistory(
   view: ConversationViewState,
   agent: Pick<AgentRecord, "id" | "conversationId">,
   history: AgentHistoryResult,
-): void {
-  if (
-    history.agentId !== agent.id ||
-    history.conversationId !== agent.conversationId ||
-    (history.latestCompletion &&
-      history.latestCompletion.agentId !== agent.id) ||
-    (history.effectiveConfiguration &&
-      history.effectiveConfiguration.agentId !== agent.id) ||
-    (history.activeRun &&
-      (history.activeRun.agentId !== agent.id ||
-        history.activeRun.conversationId !== agent.conversationId)) ||
-    (history.activity &&
-      (history.activity.agentId !== agent.id ||
-        history.activity.conversationId !== agent.conversationId)) ||
-    (history.activeRun &&
-      history.activity &&
-      history.activity.activeRunId !== history.activeRun.runId)
-  )
-    throw new Error("Agent history ownership mismatch");
+): boolean {
+  if (!validateAgentHistory(view, agent, history)) return false;
   view.entries = history.entries;
   view.activeEntryIds = history.activeEntryIds;
   view.activeEntryId = history.activeEntryId ?? undefined;
   view.treeNodes = history.entries.map((entry) => ({
     entry,
+    navigation: { continueTarget: null, editTarget: null },
     childEntryIds: history.entries
       .filter((child) => child.parentEntryId === entry.id)
       .map((child) => child.id),
@@ -58,4 +43,6 @@ export function applyAgentHistory(
   view.toolCalls = history.toolCalls;
   view.latestCompletion = history.latestCompletion;
   view.effectiveConfiguration = history.effectiveConfiguration;
+  verifyAgentHistory(view, agent.id, history.cursorSeq);
+  return true;
 }

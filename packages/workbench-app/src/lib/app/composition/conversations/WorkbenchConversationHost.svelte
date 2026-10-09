@@ -48,6 +48,9 @@ let {
   queuedPrompts = [],
   recoveryIssues = [],
   error,
+  contextError,
+  queueError,
+  executionBlocked = false,
   sending = false,
   teamRunning = false,
   stopping: stoppingRequested = false,
@@ -183,7 +186,7 @@ const visibleCommitted = $derived(
 );
 const timeline = $derived({
   prefix: visibleCommitted,
-  tail: [...liveItems, ...conversationAttentionRows({ recoveryIssues, error })],
+  tail: [...liveItems, ...conversationAttentionRows({ recoveryIssues })],
 });
 const compacting = $derived(transient?.compaction?.state === "running");
 const outcomeUnknownIds = $derived(outcomeUnknownToolCallIds(recoveryIssues));
@@ -191,8 +194,8 @@ const stopping = $derived(
   stoppingRequested || activeRun?.status === "aborting",
 );
 const streamingText = $derived(activeRunStreamingText(rendered.activeRun));
-const treeEntriesById = $derived(
-  new Map(treeNodes.map((node) => [node.entry.id, node.entry])),
+const treeNodesById = $derived(
+  new Map(treeNodes.map((node) => [node.entry.id, node])),
 );
 
 async function copyText(text: string, label = "message") {
@@ -233,7 +236,7 @@ function menuForTranscript(
   selectedText?: string,
 ) {
   return transcriptMenu(target, selectedText, {
-    treeEntriesById,
+    treeNodesById,
     copyText,
     quoteInComposer,
     onNavigateToEntry,
@@ -257,6 +260,7 @@ function menuForTranscript(
       stopping,
     },
     queuedPrompts: rendered.queuedPrompts,
+    queueError,
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,
     pendingPlanReviews: rendered.pendingPlanReviews,
@@ -307,8 +311,10 @@ function menuForTranscript(
     onAcceptPlanReview,
     onAcceptPlanReviewInNewChat,
     onRejectPlanReview,
-    onContinueFromFailure,
-    onForcePushQueuedPrompts,
+    onContinueFromFailure: executionBlocked ? undefined : onContinueFromFailure,
+    onForcePushQueuedPrompts: executionBlocked
+      ? undefined
+      : onForcePushQueuedPrompts,
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,
   }}
@@ -317,6 +323,8 @@ function menuForTranscript(
   {#snippet composer()}
     <WorkbenchComposerAdapter
       text={composerText}
+      {executionBlocked}
+      contextError={error ?? contextError}
       {activeProject}
       {activeConversation}
       {activeAgent}
@@ -354,7 +362,9 @@ function menuForTranscript(
       onChange={onComposerChange}
       {onSubmit}
       {onAbort}
-      onCompact={activeConversation ? onCompact : undefined}
+      onCompact={activeConversation && !executionBlocked
+        ? onCompact
+        : undefined}
       {onModelChange}
       {onThinkingLevelChange}
       {onModeChange}

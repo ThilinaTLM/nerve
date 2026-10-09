@@ -128,7 +128,8 @@ export class WorkbenchRunService {
   /** Fence automatic admission without changing durable agent activation. */
   stopAdmissions = () => this.inputControls.stopAdmissions();
   settledInputWork = () => this.inputControls.settledInputWork();
-
+  withAgentAdmission = <T>(agentId: string, action: () => Promise<T>) =>
+    this.inputControls.withAdmission(agentId, action);
   enqueueAgentInput = (agentId: string, request: AgentInputRequest) =>
     this.inputControls.withInputWork(() =>
       this.inputControls.enqueueAgentInput(agentId, request),

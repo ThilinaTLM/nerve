@@ -133,6 +133,8 @@ export type ConversationPaneModel = {
   sending: boolean;
   runActivity: ConversationRunActivityModel;
   queuedPrompts: AgentQueueItem[];
+  /** A failed refresh means these rows are the last known queue. */
+  queueError?: string;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];
   pendingPlanReviews?: PlanReviewRecord[];

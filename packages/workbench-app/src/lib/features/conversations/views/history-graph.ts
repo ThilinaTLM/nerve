@@ -465,6 +465,15 @@ export function pairToolHistoryRows(
     consumed.add(result.id);
     paired.push({
       ...row,
+      // A finished request/result card continues after its committed result,
+      // using only the result's server capability, never its transcript ID.
+      node: {
+        ...row.node,
+        navigation: {
+          ...row.node.navigation,
+          continueTarget: resultRow.node.navigation.continueTarget,
+        },
+      },
       pairedResultEntry: result,
       underlyingEntryIds: [request.id, result.id],
       index: paired.length + 1,

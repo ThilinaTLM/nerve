@@ -1,3 +1,4 @@
+import type { EditHistoryEntry } from "./history-navigation";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -28,6 +29,9 @@ import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type WorkbenchConversationAdapterProps = {
+  executionBlocked?: boolean;
+  contextError?: string;
+  queueError?: string;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
@@ -124,10 +128,7 @@ export type WorkbenchConversationAdapterProps = {
     prompt: AgentQueueItem,
   ) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
-  onNavigateToEntry?: (
-    entryId: string | undefined,
-    summarize?: boolean,
-  ) => void;
-  onEditEntry?: (entry: ConversationEntry) => void;
+  onNavigateToEntry?: (entryId: string | null, summarize?: boolean) => void;
+  onEditEntry?: EditHistoryEntry;
   onOpenHistory?: () => void;
 };

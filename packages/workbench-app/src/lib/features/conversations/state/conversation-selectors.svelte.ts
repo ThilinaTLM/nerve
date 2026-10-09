@@ -155,6 +155,9 @@ const conversationSelectorsValue = {
   get toolCalls() {
     return activeView()?.toolCalls ?? [];
   },
+  get navigation() {
+    return activeView()?.navigation;
+  },
   get treeNodes() {
     return activeView()?.treeNodes ?? [];
   },

@@ -19,7 +19,13 @@ import { workspaceState } from "$lib/application/workspace/workspace-state.svelt
 import { modelKey } from "$lib/presentation/utils/model";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { agentUsesConversationView } from "./agent-history-ownership";
+import { applyQueueRefresh } from "./conversation-refresh";
 import { applyAgentHistory } from "./agent-history-state";
+import {
+  beginHistoryRefresh,
+  failHistoryRefresh,
+  historyExecutionError,
+} from "./history-health";
 import { refreshConversationView } from "./conversation-selection";
 import { mainAgentForConversation } from "./main-agent";
 import { AgentEventBuffer } from "./agent-event-buffer";
@@ -151,22 +157,43 @@ export function refreshAgentView(agent: AgentRecord): Promise<void> {
   return refreshes.run(agent.id, async () => {
     const view = ensureAgentView(agent);
     view.loading = true;
+    const token = beginHistoryRefresh(view, agent.id);
+    const baselineCursor = view.cursorSeq;
+    let historyFailure: { error: unknown } | undefined;
     eventBuffer(agent.id).begin();
     notificationBuffers.set(agent.id, []);
     try {
-      const [history, queue] = await Promise.all([
+      const [history, queue] = await Promise.allSettled([
         protocolRequest("agent.history.get", { agentId: agent.id }),
         protocolRequest("agent.promptQueue.list", { agentId: agent.id }),
       ]);
-      applyAgentHistory(view, agent, history.result);
-      if (history.result.activity) upsertAgentActivity(history.result.activity);
-      view.queuedPrompts = queue.result.queuedPrompts;
-      view.optimisticMessages = [];
-      view.error = undefined;
-      for (const event of eventBuffer(agent.id).finish(
-        history.result.cursorSeq ?? -1,
-      ))
-        applyEventToView(agent, event);
+      applyQueueRefresh(
+        view,
+        queue.status === "fulfilled"
+          ? { status: "fulfilled", value: queue.value.result.queuedPrompts }
+          : queue,
+        agent.id,
+      );
+      if (history.status === "rejected") {
+        historyFailure = { error: history.reason };
+      } else {
+        try {
+          if (applyAgentHistory(view, agent, history.value.result)) {
+            if (history.value.result.activity)
+              upsertAgentActivity(history.value.result.activity);
+            view.optimisticMessages = [];
+            view.error = undefined;
+            for (const event of eventBuffer(agent.id).finish(
+              history.value.result.cursorSeq ?? -1,
+            ))
+              applyEventToView(agent, event);
+          }
+        } catch (error) {
+          // Do not adopt the payload's claimed owner. This current request is
+          // unverified for its requested actor; stale generations stay guarded.
+          historyFailure = { error };
+        }
+      }
     } catch (error) {
       view.error = error instanceof Error ? error.message : String(error);
     } finally {
@@ -176,6 +203,16 @@ export function refreshAgentView(agent: AgentRecord): Promise<void> {
       notificationBuffers.delete(agent.id);
       for (const notification of notifications)
         applyAgentViewNotification(agent, notification);
+      // A buffered newer event can prove this failed fetch stale. Do not let
+      // that response poison an already verified selected actor's health.
+      if (historyFailure)
+        failHistoryRefresh(
+          view,
+          agent.id,
+          token,
+          baselineCursor,
+          historyFailure.error,
+        );
       view.loading = false;
     }
   });
@@ -211,6 +248,8 @@ export async function controlAgent(
   operation: "agent.stop" | "agent.resume",
 ): Promise<void> {
   const view = ensureAgentView(agent);
+  if (operation === "agent.resume" && historyExecutionError(view, agent.id))
+    return;
   if (view.stopping) return;
   view.stopping = true;
   view.error = undefined;

@@ -11,7 +11,7 @@ import {
   transcriptMenuModel,
   type ConversationMenuHandlers,
 } from "./conversation-menu-model";
-import type { ConversationEntry } from "$lib/api";
+import type { ConversationTreeNode } from "$lib/api";
 
 export type { ConversationMenuHandlers } from "./conversation-menu-model";
 
@@ -45,7 +45,7 @@ export function transcriptMenu(
   target: TranscriptMenuTarget,
   selectedText: string | undefined,
   context: ConversationMenuHandlers & {
-    treeEntriesById: Map<string, ConversationEntry>;
+    treeNodesById: Map<string, ConversationTreeNode>;
   },
 ): ContextMenuItem[] {
   return addIcons(transcriptMenuModel(target, selectedText, context));

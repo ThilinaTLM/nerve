@@ -531,3 +531,47 @@ describe("buildConversationTimeline committed transcript", () => {
     ]);
   });
 });
+
+it("retains the placeholder card's key/order but promotes its navigation anchor to its explicitly joined committed result", () => {
+  const call = toolCall(
+    "tool_settled",
+    "2026-01-01T00:00:01.000Z",
+    "ls",
+    "provider_ls",
+    { liveMessageId: "msg_tool_request" },
+  );
+  const request: TranscriptItem = {
+    id: "entry_request",
+    liveMessageId: "msg_tool_request",
+    role: "assistant",
+    text: "[Tool call: ls()]",
+  };
+  const result: TranscriptItem = {
+    id: "entry_committed_result",
+    role: "system",
+    kind: "tool_result",
+    text: "Directory result",
+    toolRecordId: call.id,
+    toolCallId: "provider_ls",
+  };
+  const before = buildCommittedTimeline([request], [call]).items;
+  const after = buildCommittedTimeline([request, result], [call]).items;
+  assert.equal(before.length, 1);
+  assert.equal(after.length, 1);
+  assert.equal(after[0]?.key, before[0]?.key);
+  assert.equal(before[0]?.kind, "tool");
+  assert.equal(after[0]?.kind, "tool");
+  if (before[0]?.kind === "tool" && after[0]?.kind === "tool") {
+    assert.equal(before[0].anchorEntryId, request.id);
+    assert.equal(after[0].anchorEntryId, result.id);
+  }
+  // A provider alias alone is not proof that an already paired card's durable
+  // result changed: never choose a nearest row or guess another tool's result.
+  const unrelated = buildCommittedTimeline(
+    [request, { ...result, toolRecordId: "tool_foreign" }],
+    [call],
+  ).items;
+  assert.equal(unrelated[0]?.kind, "tool");
+  if (unrelated[0]?.kind === "tool")
+    assert.equal(unrelated[0].anchorEntryId, request.id);
+});

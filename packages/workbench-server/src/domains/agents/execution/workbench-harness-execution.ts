@@ -1,7 +1,9 @@
 import { startWorkbenchLiveTurn } from "./workbench-live-turn.js";
 import {
   prepareWorkbenchTurn,
-  AgentTurnPreparationBlocker,
+  isWorkbenchTurnPreparationFailure,
+  type WorkbenchTurnPreparationFailure,
+  type WorkbenchOriginatingTurn,
   createWorkbenchPreparationSession,
   dispatchWorkbenchTurn,
 } from "./workbench-turn-preparation.js";
@@ -97,10 +99,8 @@ export async function executeWorkbenchHarness(
     currentLiveMessageId = undefined;
     liveToolDrafts.clear();
   };
-  let preparationBlocker: AgentTurnPreparationBlocker | undefined;
-  let originatingTurn:
-    | import("./workbench-turn-preparation.js").WorkbenchOriginatingTurn
-    | undefined;
+  let preparationBlocker: WorkbenchTurnPreparationFailure | undefined;
+  let originatingTurn: WorkbenchOriginatingTurn | undefined;
   try {
     await this.deps.logger.info("Agent run preparing", {
       agentId: agent.id,
@@ -258,7 +258,7 @@ export async function executeWorkbenchHarness(
               turnId: preparationSession.turnId,
               session: preparationSession,
             }).catch((error: unknown) => {
-              if (error instanceof AgentTurnPreparationBlocker)
+              if (isWorkbenchTurnPreparationFailure(error))
                 preparationBlocker = error;
               throw error;
             });

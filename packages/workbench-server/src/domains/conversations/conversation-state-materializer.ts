@@ -66,7 +66,11 @@ export function deserializeState(
 ): ConversationJournalState {
   const interactions = new Map(state.interactions);
   const modelTree = new ConversationTreeState(state.modelEntries);
-  modelTree.setLeafId(state.modelLeafId);
+  modelTree.setLeafId(
+    state.modelLeafId === null || modelTree.getEntry(state.modelLeafId)
+      ? state.modelLeafId
+      : null,
+  );
   const agentModelLeafIds = new Map(state.agentModelLeafIds);
   const agentModelEntries = new Map(
     state.agentModelEntries.map(([agentId, entries]) => [
@@ -77,7 +81,8 @@ export function deserializeState(
   const agentModelTrees = new Map(
     [...agentModelEntries].map(([agentId, entries]) => {
       const tree = new ConversationTreeState(entries);
-      tree.setLeafId(agentModelLeafIds.get(agentId) ?? null);
+      const leafId = agentModelLeafIds.get(agentId) ?? null;
+      tree.setLeafId(leafId === null || tree.getEntry(leafId) ? leafId : null);
       return [agentId, tree] as const;
     }),
   );

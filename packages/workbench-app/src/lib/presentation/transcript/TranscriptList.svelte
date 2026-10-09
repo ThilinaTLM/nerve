@@ -52,6 +52,7 @@ type Props = {
   sending: boolean;
   runActivity: ConversationRunActivityModel;
   queuedPrompts: AgentQueueItem[];
+  queueError?: string;
   followBottom?: boolean;
   activeProject?: ProjectRecord;
   activeProjectLabel?: string;
@@ -113,6 +114,7 @@ let {
   sending,
   runActivity,
   queuedPrompts,
+  queueError,
   followBottom = true,
   activeProject,
   activeProjectLabel,
@@ -392,6 +394,7 @@ $effect(() => {
         {:else}
           <QueuedPromptRow
             prompt={item.prompt}
+            {queueError}
             onForcePush={onForcePushQueuedPrompts}
             onDiscard={onDiscardQueuedPrompt}
             onMoveToComposer={onMoveQueuedPromptToComposer}

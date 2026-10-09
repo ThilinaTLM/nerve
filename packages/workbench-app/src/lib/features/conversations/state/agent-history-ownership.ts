@@ -5,7 +5,8 @@ export function agentUsesConversationView(
   agent: Pick<AgentRecord, "contextOwnerAgentId" | "parentAgentId">,
 ): boolean {
   return (
-    agent.contextOwnerAgentId === null ||
-    (agent.contextOwnerAgentId === undefined && !agent.parentAgentId)
+    !agent.parentAgentId &&
+    (agent.contextOwnerAgentId === null ||
+      agent.contextOwnerAgentId === undefined)
   );
 }

@@ -152,9 +152,43 @@ export const conversationEntrySchema = z.object({
 });
 export type ConversationEntry = z.infer<typeof conversationEntrySchema>;
 
+/** Null is unsupported; an object containing null explicitly targets the root. */
+export const conversationNavigationTargetSchema = z.object({
+  activeEntryId: z.string().startsWith("entry_").nullable(),
+});
+export type ConversationNavigationTarget = z.infer<
+  typeof conversationNavigationTargetSchema
+>;
+
+export const conversationTreeNavigationSchema = z.object({
+  agentId: z.string().startsWith("agent_").nullable(),
+  ownerAgentId: z.string().startsWith("agent_").nullable(),
+  contextState: z.enum(["valid", "invalid", "unavailable"]),
+  activeModelEntryId: z.string().startsWith("entry_").nullable(),
+  canNavigateToRoot: z.boolean(),
+  problem: z
+    .object({
+      code: z.string().min(1).max(128),
+      message: z.string().min(1).max(500),
+    })
+    .optional(),
+});
+export type ConversationTreeNavigation = z.infer<
+  typeof conversationTreeNavigationSchema
+>;
+
+export const conversationTreeNodeNavigationSchema = z.object({
+  continueTarget: conversationNavigationTargetSchema.nullable(),
+  editTarget: conversationNavigationTargetSchema.nullable(),
+});
+export type ConversationTreeNodeNavigation = z.infer<
+  typeof conversationTreeNodeNavigationSchema
+>;
+
 export const conversationTreeNodeSchema = z.object({
   entry: conversationEntrySchema,
   childEntryIds: z.array(z.string().startsWith("entry_")),
+  navigation: conversationTreeNodeNavigationSchema,
 });
 export type ConversationTreeNode = z.infer<typeof conversationTreeNodeSchema>;
 
@@ -163,6 +197,7 @@ export const conversationTreeSchema = z.object({
   activeEntryId: z.string().startsWith("entry_").optional(),
   rootEntryIds: z.array(z.string().startsWith("entry_")),
   nodes: z.array(conversationTreeNodeSchema),
+  navigation: conversationTreeNavigationSchema,
 });
 export type ConversationTree = z.infer<typeof conversationTreeSchema>;
 

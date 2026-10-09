@@ -54,6 +54,8 @@ import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.sve
 
 let {
   text = "",
+  executionBlocked = false,
+  contextError,
   activeProject,
   activeConversation,
   activeAgent,
@@ -354,6 +356,7 @@ const availability = $derived(
     sending,
     commandMode,
     voiceSubmitPending,
+    executionBlocked,
   }),
 );
 const canPrompt = $derived(availability.canPrompt);
@@ -403,21 +406,23 @@ const sendAriaLabel = $derived(
               : "Send prompt",
 );
 const sendTitle = $derived(
-  voiceSubmitPending
-    ? "Transcribing audio, then sending prompt"
-    : recording
-      ? "Stop recording, transcribe, and send prompt"
-      : compacting
-        ? "Compacting context"
-        : availability.canEdit && models.length === 0
-          ? "Models are loading; you can continue drafting"
-          : commandMode
-            ? sending
-              ? "Wait for the current agent turn before running a command"
-              : "Run command"
-            : sending
-              ? "Queue prompt for the next agent turn"
-              : "Send prompt",
+  executionBlocked
+    ? `Sending is unavailable: ${contextError ?? "agent history has not been verified"}`
+    : voiceSubmitPending
+      ? "Transcribing audio, then sending prompt"
+      : recording
+        ? "Stop recording, transcribe, and send prompt"
+        : compacting
+          ? "Compacting context"
+          : availability.canEdit && models.length === 0
+            ? "Models are loading; you can continue drafting"
+            : commandMode
+              ? sending
+                ? "Wait for the current agent turn before running a command"
+                : "Run command"
+              : sending
+                ? "Queue prompt for the next agent turn"
+                : "Send prompt",
 );
 
 function formatElapsed(ms: number): string {
@@ -622,7 +627,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onComposerChange: onChange,
     onSubmit: submitComposer,
     onAbort,
-    onCompact,
+    onCompact: executionBlocked ? undefined : onCompact,
     onModelChange,
     onThinkingLevelChange,
     onModeChange,
@@ -649,7 +654,7 @@ function handleMicContextMenu(event: MouseEvent) {
     {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
       <PromptSuggestionChips
         suggestions={composerSuggestions}
-        disabled={sending}
+        disabled={sending || executionBlocked}
         onSend={onSendSuggestion}
         onDraft={onDraftSuggestion}
       />

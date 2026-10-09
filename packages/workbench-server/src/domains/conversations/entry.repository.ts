@@ -160,9 +160,17 @@ export class EntryRepository {
       conversationId: conversation.id,
       activeEntryId: conversation.activeEntryId,
       rootEntryIds,
+      navigation: {
+        agentId: null,
+        ownerAgentId: null,
+        contextState: "unavailable",
+        activeModelEntryId: null,
+        canNavigateToRoot: false,
+      },
       nodes: entries.map((entry) => ({
         entry,
         childEntryIds: children.get(entry.id) ?? [],
+        navigation: { continueTarget: null, editTarget: null },
       })),
     };
   }

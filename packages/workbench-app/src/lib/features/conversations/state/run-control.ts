@@ -1,3 +1,4 @@
+import { historyExecutionError } from "./history-health";
 import { agentUsesConversationView } from "./agent-history-ownership";
 import { cancelConversationCompaction, compactConversation } from "$lib/api";
 import { protocolRequest } from "@nervekit/protocol/adapters";
@@ -17,9 +18,10 @@ import {
 } from "./agent-selection.svelte";
 import { ensureConversationView } from "./conversation-view-actions";
 import { openConversation } from "./conversation-tabs";
+import { refreshConversationView } from "./conversation-selection";
 
 export async function navigateToEntry(
-  entryId: string | undefined,
+  entryId: string | null | undefined,
   summarize = false,
 ): Promise<boolean> {
   if (!selection.conversationId) return false;
@@ -36,20 +38,44 @@ export async function navigateToEntry(
     return false;
   }
   const conversationId = selection.conversationId;
+  const navigationAgentId = selectedConversationAgent(conversationId)?.id;
+  const navigationView = selectedConversationView(conversationId);
+  let committed = false;
   try {
     await protocolRequest("conversation.navigate", {
       conversationId,
       activeEntryId: entryId ?? null,
       summarize,
     });
+    committed = true;
+    // Committed navigation changes execution context. Old history verification
+    // is not proof about the new cursor, even if derived reload later fails.
+    if (navigationAgentId) {
+      navigationView.historyRefreshId =
+        (navigationView.historyRefreshId ?? 0) + 1;
+      navigationView.historyHealth = {
+        agentId: navigationAgentId,
+        state: "pending",
+        cursorSeq: navigationView.cursorSeq,
+      };
+    }
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await reloadWorkspace();
     await openConversation(conversationId);
+    // An open can join a pre-navigation single-flight read. If that read was
+    // invalidated above, fetch fresh authority after it has drained.
+    if (navigationView.historyHealth?.state === "pending")
+      await refreshConversationView(conversationId);
     return true;
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
-    notify.error("Could not branch conversation", { description: message });
-    return false;
+    if (committed)
+      notify.message("Branch changed; refresh unavailable", {
+        description: message,
+      });
+    else
+      notify.error("Could not branch conversation", { description: message });
+    return committed;
   }
 }
 
@@ -68,6 +94,13 @@ export async function compactActiveConversation() {
     return;
   }
   const conversationId = selection.conversationId;
+  if (
+    historyExecutionError(
+      selectedConversationView(conversationId),
+      selection.agentId,
+    )
+  )
+    return;
   compactionCancellationRequested.delete(conversationId);
   const view = ensureConversationView(conversationId);
   const notice: CompactionNotice = {
@@ -146,6 +179,7 @@ export async function continueFromFailure(runId: string) {
   const agentId = selection.agentId;
   const conversationId = selection.conversationId;
   const view = selectedConversationView(conversationId);
+  if (historyExecutionError(view, agentId)) return;
   view.sending = true;
   view.error = undefined;
   workspaceState.error = undefined;
@@ -153,6 +187,8 @@ export async function continueFromFailure(runId: string) {
     // The user may have selected a replacement model specifically to recover
     // this run. Ensure that configuration is authoritative before resuming.
     await flushAgentConfigChanges(agentId);
+    const historyError = historyExecutionError(view, agentId);
+    if (historyError) throw new Error(historyError);
     await protocolRequest(
       "run.continue",
       {

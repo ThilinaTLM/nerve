@@ -1,5 +1,9 @@
 <script lang="ts">
 import {
+  editHistoryMessage,
+  type HistoryNavigationTarget,
+} from "$lib/features/conversations";
+import {
   composerSignals,
   conversationSelectors,
   focusComposer,
@@ -25,17 +29,23 @@ const activeConversation = $derived(conversationSelectors.activeConversation);
 const treeNodes = $derived(conversationSelectors.treeNodes);
 const toolCalls = $derived(conversationSelectors.toolCalls);
 
-async function branchFromConversationEntry(entryId: string | undefined) {
+async function branchFromConversationEntry(entryId: string | null) {
   if (await navigateToEntry(entryId)) focusComposer();
 }
 
-async function editConversationEntry(entry: {
-  parentEntryId?: string;
-  text: string;
-}) {
-  if (!(await navigateToEntry(entry.parentEntryId))) return;
-  setActiveComposerText(entry.text);
-  focusComposer();
+async function editConversationEntry(
+  entry: { text: string },
+  target: HistoryNavigationTarget,
+) {
+  if (
+    await editHistoryMessage(
+      entry,
+      target,
+      navigateToEntry,
+      setActiveComposerText,
+    )
+  )
+    focusComposer();
 }
 </script>
 
@@ -57,11 +67,13 @@ async function editConversationEntry(entry: {
   bind:open={composerSignals.historyDialogOpen}
   {activeConversation}
   {treeNodes}
+  canNavigateToRoot={conversationSelectors.navigation?.canNavigateToRoot ??
+    false}
   {toolCalls}
   onNavigateToEntry={(entryId) => {
     void branchFromConversationEntry(entryId);
   }}
-  onEditEntry={(entry) => {
-    void editConversationEntry(entry);
+  onEditEntry={(entry, target) => {
+    void editConversationEntry(entry, target);
   }}
 />
