@@ -62,7 +62,7 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Branch summary     | Not an event type; a new branch may append a compaction.                                                                                                                                                                             |
 | Idempotency        | Retries are safe through caller-supplied IDs (entities, inputs, interaction resolutions) and set-style updates. No RPC receipt table; no exactly-once guarantee for external effects.                                                |
 | Trust              | One `TRUSTED_RESOURCE` table: a resource is trusted for the exact file content approved.                                                                                                                                             |
-| Prompt suggestions | Removed; to be redesigned on top of conversation events.                                                                                                                                                                             |
+| Prompt suggestions | Kept. Markdown definitions from built-ins, user and project; trust via `TRUSTED_RESOURCE`; served on the workbench channel.                                                                                                          |
 | Background work    | Promoted bash calls become conversation-owned async bash. User-started launch configurations are a workbench feature; running instances are in memory.                                                                               |
 | Channels           | Separate conversation and workbench connections. Conversation replay uses event sequence; workbench and global list updates are in-memory snapshots plus change notices.                                                             |
 | Assets             | `ASSET` tracks conversation-owned files only.                                                                                                                                                                                        |
@@ -75,11 +75,11 @@ Subagents copy the parent's conversation file; explore children disable configur
 
 ## Implementation status
 
-The portable core, host ports, conversation channel, workbench channel and app cutover are implemented. The old journal, agent/run storage and `/ws` endpoint are removed. Startup opens `core.sqlite`; it does not automatically import `nerve.sqlite`.
+The portable core, host ports, conversation channel, workbench channel and app cutover are implemented. The old journal, agent/run storage and `/ws` endpoint are removed.
 
-The offline importer is available as `pnpm storage:import-core`. A copied development home imported to about 1.9 GB with no failed trees. Production import still requires stopping the daemon and resolving 59 legacy capability overlays; see [migration](migration.md).
+Existing 0.34.1 homes are converted automatically at startup by migration step 0001; see [storage migrations](../migrations.md) and [migration](migration.md).
 
-Prompt-suggestion discovery, evaluation and UI are removed; a future redesign is not part of this cutover.
+Prompt suggestions are kept and evaluate against the conversation (title, mode, rule set, reasoning level, status) and git state; they are served on the workbench channel.
 
 ## Non-goals
 

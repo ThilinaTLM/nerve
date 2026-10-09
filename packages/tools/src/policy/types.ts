@@ -1,9 +1,4 @@
-import type {
-  PermissionException,
-  PermissionLevel,
-  ToolRisk,
-} from "@nervekit/contracts/permissions";
-import type { ToolName } from "@nervekit/contracts/tools";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 
 export interface ShellCommandSegmentAssessment {
   tokens: string[];
@@ -17,58 +12,4 @@ export interface ShellCommandAssessment {
   summary: string;
   segments: ShellCommandSegmentAssessment[];
   supported: boolean;
-}
-
-export type PermissionTarget =
-  | {
-      kind: "path";
-      access: "read" | "write";
-      scope: "exact" | "tree";
-      absolutePath: string;
-      projectRelativePath?: string;
-    }
-  | {
-      kind: "web_url";
-      url: string;
-    }
-  | {
-      kind: "command_segment";
-      normalizedTokens: string[];
-      risk: "read" | "command";
-    };
-
-export interface ToolRiskAssessment {
-  risk: ToolRisk;
-  source: "manifest" | "arguments";
-  summary: string;
-  command?: ShellCommandAssessment;
-}
-
-export interface ToolPolicyConstraint {
-  decision: "deny";
-  reason: string;
-}
-
-export interface ToolPermissionInput {
-  toolName: ToolName;
-  args: Record<string, unknown>;
-  permissionLevel: PermissionLevel;
-  context?: {
-    cwd?: string;
-    projectDir?: string;
-  };
-  exceptions?: readonly PermissionException[];
-  constraints?: readonly ToolPolicyConstraint[];
-  normalizedArgs?: Record<string, unknown>;
-}
-
-export interface ToolPermissionEvaluation {
-  decision: "allow" | "approval" | "deny";
-  assessment: ToolRiskAssessment;
-  targets: PermissionTarget[];
-  risk: ToolRisk;
-  reason: string;
-  normalizedArgs: Record<string, unknown>;
-  matchedExceptionIds: string[];
-  suggestedExceptions: PermissionException[];
 }

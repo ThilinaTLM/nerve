@@ -65,15 +65,8 @@ const activeRun = $derived(entry.activeRuns[0]);
 const cleanableRuns = $derived(
   entry.runs.filter((run) => run.isRemovable && run.run.id !== latest?.id),
 );
-const recoveryHint = $derived(
-  entry.needsRecovery
-    ? latest?.status === "recovered"
-      ? "Process recovered; live output disconnected."
-      : "Process identity needs recovery review."
-    : undefined,
-);
 const tooltip = $derived(
-  [command, cwd, port ? `TCP port ${port}` : undefined, recoveryHint]
+  [command, cwd, port ? `TCP port ${port}` : undefined]
     .filter(Boolean)
     .join("\n"),
 );
@@ -119,7 +112,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
         disabled: !capabilities.cancel,
         onSelect: () => onCancel?.(activeRun.id),
       });
-    if (activeRun.status === "recovered" || activeRun.status === "stopping")
+    if (activeRun.status === "stopping")
       items.push({
         label: "Force kill",
         icon: Skull,

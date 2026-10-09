@@ -3,6 +3,7 @@ import type { Settings, UpdateSettingsRequest } from "$lib/api";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import StoragePageActions from "$lib/features/settings/views/pages/storage/StoragePageActions.svelte";
+import SuggestionsPageActions from "./suggestions/SuggestionsPageActions.svelte";
 import type { SettingsPageControllers } from "./settings-page-controllers.svelte";
 
 /** Header actions owned by a settings page (import, refresh, cleanup). */
@@ -25,6 +26,8 @@ let {
 {#if settingsDraft}
   {#if page.id === "models"}
     <ModelsPageActions {settingsDraft} {onSettingsChange} />
+  {:else if page.id === "suggestions"}
+    <SuggestionsPageActions pageState={controllers.suggestionsPageState} />
   {:else if page.id === "storage"}
     <StoragePageActions controller={controllers.storageController} />
   {/if}

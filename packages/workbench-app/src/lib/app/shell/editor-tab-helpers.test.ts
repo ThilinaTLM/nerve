@@ -16,7 +16,6 @@ function task(patch: Partial<TaskRecord> = {}): TaskRecord {
     logsPath: "/tmp/logs",
     startedAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
-    origin: { kind: "api" },
     visibility: "background",
     ...patch,
   };

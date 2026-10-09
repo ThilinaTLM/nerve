@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
+import { asyncSubagentToolNames } from "../../src/domains/tools/async-subagents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultSettings } from "../../src/domains/settings/settings.js";

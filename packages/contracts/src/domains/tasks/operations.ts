@@ -11,9 +11,7 @@ import { defineOperation } from "../../operations/definition.js";
 const emptyParamsSchema = z.object({}).optional();
 const taskIdSchema = z.string().startsWith("task_");
 const taskIdParamsSchema = z.object({ taskId: taskIdSchema });
-const taskRestartParamsSchema = taskIdParamsSchema.extend({
-  confirmUnverifiedReplacement: z.boolean().optional(),
-});
+const taskRestartParamsSchema = taskIdParamsSchema.extend({});
 const taskDefinitionLaunchParamsSchema = z.object({
   definitionId: z.string().startsWith("taskdef_"),
   terminateListeners: z.array(taskPortConflictListenerSchema).min(1).optional(),

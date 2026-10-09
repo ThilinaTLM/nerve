@@ -1,5 +1,5 @@
 import { lstat, readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 export interface SizeTally {
   bytes: number;
@@ -10,19 +10,6 @@ export const SQLITE_SIDECAR_SUFFIXES = ["", "-wal", "-shm"] as const;
 
 export function sqliteFilePaths(path: string): string[] {
   return SQLITE_SIDECAR_SUFFIXES.map((suffix) => `${path}${suffix}`);
-}
-
-export function queryCacheFilePaths(path: string): string[] {
-  return [
-    ...sqliteFilePaths(path),
-    ...sqliteFilePaths(`${path}.cleanup-backup`),
-  ];
-}
-
-export function queryCacheFileNames(path: string): Set<string> {
-  return new Set(
-    queryCacheFilePaths(path).map((candidate) => basename(candidate)),
-  );
 }
 
 export async function pathsSize(paths: Iterable<string>): Promise<SizeTally> {

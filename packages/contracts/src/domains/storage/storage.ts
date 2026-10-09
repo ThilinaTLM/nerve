@@ -19,7 +19,6 @@ export const storageCategoryKeySchema = z.enum([
   "agentResources",
   "logs",
   "crashReports",
-  "queryCache",
   "cache",
   "temporaryFiles",
   "migrations",
@@ -48,7 +47,6 @@ export const storageCleanupTargetSchema = z.enum([
   "crashReports",
   "cache",
   "tmp",
-  "searchIndex",
 ]);
 export type StorageCleanupTarget = z.infer<typeof storageCleanupTargetSchema>;
 
@@ -103,7 +101,6 @@ export const storageCleanupRequestSchema = z
     clearCrashReports: z.boolean().optional(),
     clearCache: z.boolean().optional(),
     clearTmp: z.boolean().optional(),
-    rebuildSearchIndex: z.boolean().optional(),
   })
   .refine(
     (value) =>

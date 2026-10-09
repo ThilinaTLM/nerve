@@ -2,13 +2,14 @@
 
 ```sh
 pnpm storage:import-core --home data/storage-2
-# Rehearse again, replacing only the destination SQLite files:
+# Replace the destination DB and regenerate imported overlays (originals unchanged):
 pnpm storage:import-core --home data/storage-2 --force
 ```
 
 Entry point: `importCoreStorage(input: { home: string; force?: boolean }): CoreImportSummary`
 in `importer.service.ts`. The summary exposes table counts, skipped-item reason
-counts, lossy-mapping reason counts, failed trees, and asset coverage. Failed trees
+counts, lossy-mapping reason counts, failed trees, asset coverage, and overlay-file
+counts. Failed trees
 roll back independently; the CLI finishes the remaining trees and exits nonzero.
 
 The source is opened read-only with `query_only`. A live home is rejected. Rows
@@ -48,10 +49,8 @@ Foreign-key checks were empty and `quick_check` returned `ok`. A streaming walk
 of every selected branch found zero unmatched assistant calls and zero orphan
 model tool results.
 
-Owned-file formatting and ESLint pass. `packages/workbench-server` type checking
-passed early in implementation; the final rerun is blocked by concurrent cutover
-errors in other packages/server components. There were no importer diagnostics.
-No tests or repository-wide checks were run.
+Owned-file formatting, ESLint, and `cd packages/workbench-server && pnpm check`
+pass. No tests or repository-wide checks were run.
 
 ## Selected-branch correction and verification
 
@@ -88,14 +87,40 @@ ESLint passed. No tests were run. Evidence: `/tmp/i1-branches-before.json`,
 `/tmp/i1-branches-check-final.log`. This follow-up read/wrote only the copied
 `data/storage-2` databases, never either original home.
 
+## File-owned capability and permission overlays
+
+Legacy capabilities are parsed through `capabilityOverridesDocumentSchema` and
+written as version 2 documents under
+`data/conversations/<mappedConversationId>/config/capabilities.json`. Overrides
+are normalized against the effective user/project selection using the host's
+`userCapabilitySelection` and the shared resolution/normalization helpers. Only
+project files trusted for their exact current digest participate. User settings
+and project files are read-only; implicit project trust paths now use the host's
+`.nerve/config/` locations. Archived harness selection `permissionLevel` fields
+are projected to rule-set IDs only in memory while deriving this baseline; the
+separate settings migration retains ownership of settings-file changes.
+
+Conversation permission overlays are validated for conversation scope and copied
+byte-for-byte to `data/conversations/<mappedConversationId>/config/permissions.json`.
+Original legacy files are retained. SQLite configuration no longer maps
+`enabledTools` or `enabledSkills`.
+
+Final slot-2 re-import wrote **59 capability files** and **0 permission files**
+(no legacy conversation permission overlays were present). A read-only check
+against `CapabilityService.configuration` verified all 59 version-2 documents
+were normalized and preserved the effective legacy selection: **0 failures**.
+The standalone verifier still reports **393 roots + 488 children**, **0 message
+mismatches**, and **0 unanswered / duplicate / orphan tool results**. Owned-file
+formatting/ESLint and the final server package check pass; the earlier concurrent
+cleanup blocker has been resolved. No tests or slot-5 import were run.
+
+Evidence: `/tmp/i1-capabilities-import-final.log`,
+`/tmp/i1-capabilities-verification.json`,
+`/tmp/i1-capability-files-verification.json`, and
+`/tmp/i1-capabilities-check-final.log`.
+
 ## Known lossy mappings / cutover follow-up
 
-- 59 legacy conversation capability overlays remain unchanged on disk, but are
-  **not folded into current enabled-tools/skills lists**. Converting deny/default
-  overrides requires the host's effective tool/skill baseline; resolve before
-  production cutover. Likewise, any conversation permission overlay encountered
-  is reported if its old managed-owner path needs relocation. None were present
-  in this rehearsal.
 - One root agent had been deleted. Its conversation survives with the latest
   historical assistant model; unavailable configuration fields use conversation
   values/defaults. One missing assistant tool-call block was reconstructed.

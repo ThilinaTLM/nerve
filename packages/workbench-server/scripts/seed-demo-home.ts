@@ -236,15 +236,14 @@ async function seedConversation(
     projectId,
     title: demo.title,
     mode: demo.mode,
-    permissionLevel: demo.permissionLevel,
+    permissionRuleSetId: demo.permissionRuleSetId,
   });
   const agent = await services.agentLifecycle.createAgent({
     conversationId: conversation.id,
     projectId,
     projectDir: workspace,
     mode: demo.mode,
-    permissionLevel: demo.permissionLevel,
-    workspaceScope: { roots: [workspace] },
+    permissionRuleSetId: demo.permissionRuleSetId,
     model: DEMO_MODEL,
     thinkingLevel: "medium",
   });
@@ -255,7 +254,6 @@ async function seedConversation(
       projectDir: workspace,
       parentAgentId: agent.id,
       task: `Explore task ${index + 1}`,
-      workspaceScope: { roots: [workspace] },
       model: DEMO_MODEL,
     });
   }

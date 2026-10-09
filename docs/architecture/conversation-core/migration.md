@@ -98,7 +98,7 @@ The development-copy rehearsal imported 881 conversations (393 roots, 488 childr
 - User image attachments and legacy `instructions` have no matching current prompt/config field and are reported.
 - UI launch tasks, approval-settlement workflow documents and historical config-change entries are dropped. Launch instances are memory-only.
 - Pending command blocks keep available completed receipts; uncertain/unstarted blocks are settled without repeating effects. Run-targeted inputs are retargeted after settlement and reported; the rehearsal had no pending inputs to exercise these paths.
-- Predicate-only prompt trust is skipped, not treated as file-content trust. The trust kind remains, but prompt suggestions are removed pending redesign.
+- Predicate-only prompt trust is skipped, not treated as file-content trust.
 
 ### Production-import prerequisites
 

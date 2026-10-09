@@ -1,13 +1,6 @@
 import { z } from "zod";
 import { toolNameSchema } from "../tools/tool-name.js";
 
-export const permissionLevelSchema = z.enum([
-  "autonomous",
-  "supervised",
-  "read_only",
-]);
-export type PermissionLevel = z.infer<typeof permissionLevelSchema>;
-
 export const toolRiskSchema = z.enum([
   "read",
   "workspace_write",

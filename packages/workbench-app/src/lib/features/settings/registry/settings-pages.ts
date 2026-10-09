@@ -5,6 +5,7 @@ import HardDrive from "@lucide/svelte/icons/hard-drive";
 import Keyboard from "@lucide/svelte/icons/keyboard";
 import Library from "@lucide/svelte/icons/library";
 import Monitor from "@lucide/svelte/icons/monitor";
+import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
@@ -89,6 +90,14 @@ export const settingsPages: SettingsPageDef[] = [
       { id: "model", label: "Model" },
       { id: "context", label: "Context" },
     ],
+  },
+  {
+    id: "suggestions",
+    label: "Suggestions",
+    icon: Lightbulb,
+    description:
+      "Project suggestions override user and built-in suggestions with the same name.",
+    sections: [{ id: "suggestions", label: "Suggestions" }],
   },
   {
     id: "notifications",

@@ -165,10 +165,7 @@ async function confirmForceKill(): Promise<void> {
 function requestForceKill(taskId: string): void {
   const task = model.tasks.find((run) => run.id === taskId);
   if (!task) return;
-  if (task.status === "recovered") {
-    // The user never asked to terminate a recovered run, so confirm first.
-    forceKillTask = task;
-  } else {
+  else {
     // Stuck-stopping runs were already stopped once; kill immediately.
     void panelActions.forceKillTask(taskId);
   }
@@ -444,7 +441,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
   bind:open={confirmPruneOpen}
   destructive
   title="Prune launch history"
-  description="This removes completed ad-hoc launch runs and their captured logs. Saved launches and recovery warnings are retained."
+  description="This removes completed ad-hoc launch runs and their captured logs. Saved launches are retained."
   confirmLabel="Prune"
   onConfirm={() => void panelActions.pruneTasks()}
 />

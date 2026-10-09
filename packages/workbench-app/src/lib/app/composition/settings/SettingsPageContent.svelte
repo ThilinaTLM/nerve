@@ -11,6 +11,8 @@ import type {
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
+import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import { SettingsEmptyState } from "$lib/presentation/settings";
@@ -54,6 +56,7 @@ let {
   daemonRestarting = false,
   models = [],
   authProviders = [],
+  activeProject,
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -153,6 +156,11 @@ let {
     <ShortcutsSettingsPage />
   {:else if page.id === "compaction"}
     <CompactionSettingsPage {settingsDraft} {onSettingsChange} />
+  {:else if page.id === "suggestions"}
+    <SuggestionsSettingsPage
+      pageState={controllers.suggestionsPageState}
+      activeProject={activeProject ? projectView(activeProject) : undefined}
+    />
   {:else if page.id === "models"}
     <ModelsSettingsPage
       {settingsDraft}

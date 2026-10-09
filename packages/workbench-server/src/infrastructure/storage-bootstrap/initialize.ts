@@ -3,14 +3,14 @@ import { dirname } from "node:path";
 import { type DaemonStartupProgress } from "@nervekit/contracts/storage";
 import {
   defaultSettings,
-  NERVE_HOME_MANIFEST,
   type Settings,
   type NerveHomeClass,
   settingsSchema,
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
-import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
+import { pathExists, writeTextFileIfMissing } from "./json.js";
+import { runMigrations } from "../migrations/framework/runner.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import {
   configurationWithSettings,
@@ -99,24 +99,22 @@ export async function initializeStorage(
     options.startupLock ?? (await acquireStorageStartupLock(home));
   try {
     const homeInspectionStartedAt = performance.now();
-    const inspection = await inspectNerveHome(home);
+    const migrationResult = await runMigrations(home, {
+      lock: startupLock,
+      freshHomeClass: options.freshHomeClass,
+      onProgress: ({ step, phase, done, total }) =>
+        options.reportStartupProgress?.({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: `${step}: ${phase}${done === undefined ? "" : ` (${done}/${total ?? "?"})`}`,
+        }),
+    });
     const homeInspectionMs = Math.round(
       performance.now() - homeInspectionStartedAt,
     );
-    if (inspection.kind === "unsupported") throw new Error(inspection.reason);
-    const fresh = inspection.kind === "missing" || inspection.kind === "empty";
+    const fresh = migrationResult.fresh;
     await mkdir(paths.home, { recursive: true, mode: 0o700 });
     await chmod(paths.home, 0o700).catch(() => undefined);
-    if (fresh) {
-      await atomicWriteJson(
-        paths.manifestPath,
-        {
-          ...NERVE_HOME_MANIFEST,
-          homeClass: options.freshHomeClass ?? "standard",
-        },
-        0o600,
-      );
-    }
     for (const [key, mode] of HOME_DIRECTORIES) {
       const directory = paths[key];
       await mkdir(directory, { recursive: true, mode });

@@ -12,14 +12,12 @@ import { defineOperation } from "../../operations/definition.js";
 const okResultSchema = z.object({ ok: z.literal(true) });
 const projectIdSchema = z.string().startsWith("proj_");
 const conversationIdSchema = z.string().startsWith("conv_");
-const agentIdSchema = z.string().startsWith("agent_");
 const promptSuggestionStatusesParamsSchema = z
   .object({ projectId: projectIdSchema.optional() })
   .optional();
 const projectIdParamsSchema = z.object({ projectId: projectIdSchema });
 const promptSuggestionListParamsSchema = projectIdParamsSchema.extend({
   conversationId: conversationIdSchema.optional(),
-  agentId: agentIdSchema.optional(),
 });
 
 export const promptSuggestionsOperationDefinitions = [

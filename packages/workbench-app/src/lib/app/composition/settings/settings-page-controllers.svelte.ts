@@ -1,3 +1,4 @@
+import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
 import {
   emptyCapabilityOverrides,
   type CapabilityConfiguration,
@@ -171,6 +172,7 @@ export function createSettingsPageControllers(deps: {
     return retained.release;
   });
   const storageController = new StoragePageController();
+  const suggestionsPageState = new SuggestionsPageState();
   function readComposerSelection(): Settings["lastAgentSelection"] {
     const saved = settingsState.settingsDraft?.lastAgentSelection;
     if (!saved) throw new Error("Settings not loaded");
@@ -199,6 +201,7 @@ export function createSettingsPageControllers(deps: {
     patchProjectCapabilities,
     resetProjectCapabilities,
     setProjectCapabilityTrust,
+    suggestionsPageState,
     storageController,
     readComposerSelection,
   };

@@ -1,3 +1,4 @@
+import { promptSuggestionsOperationDefinitions } from "../domains/prompt-suggestions/operations.js";
 import { conversationChannelOperations } from "../domains/core/channel.js";
 import { projectsOperationDefinitions } from "../domains/projects/operations.js";
 import { maintenanceOperationDefinitions } from "../domains/maintenance/maintenance-operations.js";
@@ -24,6 +25,7 @@ import { usageOperationDefinitions } from "../domains/usage/operations.js";
 const methodDefinitions = [
   ...conversationChannelOperations,
   ...projectsOperationDefinitions,
+  ...promptSuggestionsOperationDefinitions,
   ...maintenanceOperationDefinitions,
   ...authOperationDefinitions,
   ...completionsOperationDefinitions,

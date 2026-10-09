@@ -45,21 +45,6 @@ export function resolveToolAvailability(
       if (enabledGroups && !enabledGroups.has(definition.group)) return false;
       if (disabledGroups.has(definition.group)) return false;
       if (unavailable.has(definition.name)) return false;
-      if (
-        input.permissionLevel === "read_only" &&
-        definition.name !== "explore" &&
-        (definition.traits.includes("write_capable") ||
-          [
-            "command",
-            "network",
-            "secret",
-            "destructive",
-            "agent_spawn",
-            "deployment",
-          ].includes(definition.baseRisk))
-      ) {
-        return false;
-      }
       return true;
     })
     .map((definition) => definition.name);

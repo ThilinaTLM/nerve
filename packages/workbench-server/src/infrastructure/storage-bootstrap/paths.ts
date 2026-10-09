@@ -34,9 +34,7 @@ export interface StoragePaths {
   logsPath: string;
   crashesPath: string;
   migrationsPath: string;
-  migrationLedgerPath: string;
   migrationWorkPath: string;
-  migrationPromotionJournalPath: string;
   migrationFailureReportPath: string;
   backupsPath: string;
   storageBackupsPath: string;
@@ -73,7 +71,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     credentialsPath: join(secretsPath, "credentials.enc"),
     localTokenPath: join(secretsPath, "daemon-token"),
     dataPath,
-    sqlitePath: join(dataPath, "core.sqlite"),
+    sqlitePath: join(dataPath, "nerve.sqlite"),
     conversationsPath: join(dataPath, "conversations"),
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),
@@ -88,9 +86,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     logsPath: join(home, "logs"),
     crashesPath: join(home, "crashes"),
     migrationsPath,
-    migrationLedgerPath: join(migrationsPath, "ledger.json"),
     migrationWorkPath: join(migrationsPath, "work"),
-    migrationPromotionJournalPath: join(migrationsPath, "promotion.json"),
     migrationFailureReportPath: join(migrationsPath, "last-failure.json"),
     backupsPath: join(home, "backups"),
     storageBackupsPath: join(home, "backups", "storage"),

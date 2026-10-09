@@ -1,4 +1,4 @@
-import type { ConversationLiveToolOutputStream } from "@nervekit/contracts/conversations";
+import type { ToolOutputStream } from "@nervekit/contracts/tools";
 import type {
   ToolContentBlockPayload,
   ToolExecutionResultPayload,
@@ -10,7 +10,7 @@ import type { KrokiToolSettings } from "@nervekit/contracts/settings";
 
 export type ToolExecutionOutputUpdate = {
   kind: "output";
-  stream: ConversationLiveToolOutputStream;
+  stream: ToolOutputStream;
   chunk: string;
 };
 

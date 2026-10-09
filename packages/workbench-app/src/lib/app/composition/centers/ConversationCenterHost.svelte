@@ -1,4 +1,18 @@
 <script lang="ts">
+import { untrack } from "svelte";
+import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
+import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
+import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
+import Sparkles from "@lucide/svelte/icons/sparkles";
+import { gitState } from "$lib/features/git/state/git-state.svelte";
+import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
+import {
+  promptSuggestionsState,
+  refreshPromptSuggestions,
+} from "$lib/features/prompt-suggestions";
+import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
+import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import type {
@@ -84,7 +98,12 @@ $effect(() => {
   const id = conversationId;
   store = undefined;
   tree = [];
-  composerText = "";
+  composerText = untrack(() => {
+    const draft = composerSignals.createdConversationDraft;
+    if (!draft || draft.conversationId !== id) return "";
+    composerSignals.createdConversationDraft = undefined;
+    return draft.text;
+  });
   editTarget = undefined;
   if (!id) return;
   const retained = retainConversationStore(id);
@@ -190,9 +209,50 @@ const contextWindow = $derived(
 const activeComposerText = $derived(
   activePendingConversation?.composerText ?? composerText,
 );
-const composerSuggestions: [] = [];
-const sendSuggestion = undefined;
-const applySuggestion = undefined;
+const builtinSuggestionIcons = {
+  "commit-changes": GitCommitHorizontal,
+  "commit-on-feature-branch": GitBranchPlus,
+  "create-pull-request": GitPullRequest,
+} as const;
+const composerSuggestions = $derived.by<ComposerSuggestion[]>(() =>
+  promptSuggestionsState.suggestions.map((suggestion) => ({
+    id: `prompt:${suggestion.id}`,
+    label: suggestion.label,
+    prompt: suggestion.prompt,
+    icon:
+      suggestion.source.kind === "builtin"
+        ? (builtinSuggestionIcons[
+            suggestion.name as keyof typeof builtinSuggestionIcons
+          ] ?? Sparkles)
+        : Sparkles,
+  })),
+);
+const promptSuggestionRefreshKey = $derived.by(() => {
+  const ctx = gitState.gitContext;
+  return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
+});
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
+    return;
+  void promptSuggestionRefreshKey;
+  void store?.snapshot?.config;
+  void store?.snapshot?.conversation.status;
+  void store?.snapshot?.conversation.title;
+  void refreshPromptSuggestions(activeProject.id, { conversationId });
+});
+function applySuggestion(suggestion: { prompt: string }) {
+  const current = activeComposerText.trim();
+  setPaneComposerText(
+    current
+      ? `${activeComposerText}\n\n${suggestion.prompt}`
+      : suggestion.prompt,
+  );
+}
+function sendSuggestion(suggestion: { prompt: string }) {
+  void runActivePaneAction(() =>
+    submitPrompt(suggestion.prompt, { clearComposer: false }),
+  );
+}
 function setPaneComposerText(text: string) {
   if (activePendingConversation) activePendingConversation.composerText = text;
   else composerText = text;
@@ -216,8 +276,10 @@ async function configure(
     p.permissionRuleSetId = p.config.permissionRuleSetId;
   } else await store?.configure(patch);
 }
-async function submitPrompt() {
-  const text = activeComposerText;
+async function submitPrompt(
+  text = activeComposerText,
+  options: { clearComposer?: boolean } = {},
+) {
   if (!text.trim()) return;
   const pending = activePendingConversation;
   if (pending) {
@@ -247,6 +309,11 @@ async function submitPrompt() {
         text,
         source: "user",
       });
+      if (options.clearComposer === false)
+        composerSignals.createdConversationDraft = {
+          conversationId: snapshot.conversation.id,
+          text: pending.composerText,
+        };
       workspaceState.conversations = [
         ...workspaceState.conversations,
         {
@@ -280,7 +347,8 @@ async function submitPrompt() {
   if (!store) return;
   if (editTarget) await store.selectHead(editTarget.parentEntryId ?? null);
   await store.submit(text);
-  if (composerText === text) composerText = "";
+  if (options.clearComposer !== false && composerText === text)
+    composerText = "";
   editTarget = undefined;
 }
 async function abortActiveRun() {
@@ -544,3 +612,5 @@ const teamRunning = $derived(
     void runActivePaneAction(openConversationHistory);
   }}
 />
+
+<PromptSuggestionTrustDialog projectId={activeProject?.id} {conversationId} />

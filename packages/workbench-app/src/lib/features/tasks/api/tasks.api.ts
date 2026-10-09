@@ -36,14 +36,10 @@ export async function cancelTask(
   return (await requestWorkbench("launch.cancel", { taskId, ...request })).task;
 }
 
-export async function restartTask(
-  taskId: string,
-  confirmUnverifiedReplacement = false,
-): Promise<TaskRecord> {
+export async function restartTask(taskId: string): Promise<TaskRecord> {
   return (
     await requestWorkbench("launch.restart", {
       taskId,
-      confirmUnverifiedReplacement: confirmUnverifiedReplacement || undefined,
     })
   ).task;
 }

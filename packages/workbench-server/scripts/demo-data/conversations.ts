@@ -50,7 +50,7 @@ export interface DemoBranch {
 export interface DemoConversation {
   readonly title: string;
   readonly mode: "coding" | "planning";
-  readonly permissionLevel: "read_only" | "supervised" | "autonomous";
+  readonly permissionRuleSetId: "read_only" | "supervised" | "autonomous";
   /** Hours before the seed clock that this conversation started. */
   readonly ageHours: number;
   readonly pinned?: boolean;
@@ -64,7 +64,7 @@ export interface DemoConversation {
 const rateLimiting: DemoConversation = {
   title: "Add rate limiting to the booking API",
   mode: "coding",
-  permissionLevel: "supervised",
+  permissionRuleSetId: "supervised",
   ageHours: 2,
   pinned: true,
   steps: [
@@ -192,7 +192,7 @@ const rateLimiting: DemoConversation = {
 const flakyDeploy: DemoConversation = {
   title: "Investigate flaky staging deploys",
   mode: "coding",
-  permissionLevel: "supervised",
+  permissionRuleSetId: "supervised",
   ageHours: 26,
   exploreChildren: 2,
   steps: [
@@ -364,7 +364,7 @@ const flakyDeploy: DemoConversation = {
 const designTokens: DemoConversation = {
   title: "Move the venue card onto design tokens",
   mode: "coding",
-  permissionLevel: "supervised",
+  permissionRuleSetId: "supervised",
   ageHours: 50,
   steps: [
     {
@@ -417,7 +417,7 @@ const designTokens: DemoConversation = {
 const planning: DemoConversation = {
   title: "Plan the fleet-wide rate limiter",
   mode: "planning",
-  permissionLevel: "supervised",
+  permissionRuleSetId: "supervised",
   ageHours: 5,
   steps: [
     {
@@ -435,7 +435,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Why is the availability endpoint slow?",
     mode: "coding",
-    permissionLevel: "read_only",
+    permissionRuleSetId: "read_only",
     ageHours: 8,
     steps: [
       {
@@ -451,7 +451,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Tidy the compose build contexts",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 30,
     completed: true,
     steps: [
@@ -468,7 +468,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Empty state copy for the mobile booking list",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 74,
     completed: true,
     steps: [
@@ -485,7 +485,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Review the booking cancellation endpoint",
     mode: "coding",
-    permissionLevel: "read_only",
+    permissionRuleSetId: "read_only",
     ageHours: 96,
     steps: [
       {
@@ -501,7 +501,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Add a staging smoke task",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 120,
     steps: [
       {
@@ -517,7 +517,7 @@ const shortConversations: readonly DemoConversation[] = [
   {
     title: "Timezone handling in booking windows",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 150,
     steps: [
       {
@@ -536,7 +536,7 @@ const northstarConversations: readonly DemoConversation[] = [
   {
     title: "Finish the seasonal crop summary",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 14,
     pinned: true,
     steps: [
@@ -596,7 +596,7 @@ const northstarConversations: readonly DemoConversation[] = [
   {
     title: "Review offline journal recovery",
     mode: "planning",
-    permissionLevel: "read_only",
+    permissionRuleSetId: "read_only",
     ageHours: 70,
     steps: [
       {
@@ -615,7 +615,7 @@ const relayboardConversations: readonly DemoConversation[] = [
   {
     title: "Add machine-readable handoff export",
     mode: "coding",
-    permissionLevel: "supervised",
+    permissionRuleSetId: "supervised",
     ageHours: 9,
     pinned: true,
     steps: [
@@ -681,7 +681,7 @@ const relayboardConversations: readonly DemoConversation[] = [
   {
     title: "Make empty handoffs explicit",
     mode: "coding",
-    permissionLevel: "read_only",
+    permissionRuleSetId: "read_only",
     ageHours: 81,
     completed: true,
     steps: [

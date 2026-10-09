@@ -1,4 +1,4 @@
-import type { CheckpointDetails } from "@nervekit/contracts/conversations";
+import type { CheckpointDetails } from "@nervekit/contracts/core";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import {
   createBranchSummaryMessage,

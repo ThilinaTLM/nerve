@@ -1,4 +1,4 @@
-import type { CheckpointDetails } from "@nervekit/contracts/conversations";
+import type { CheckpointDetails } from "@nervekit/contracts/core";
 
 /** File-operation details stored on generated compaction entries. */
 export interface CompactionDetails extends CheckpointDetails {

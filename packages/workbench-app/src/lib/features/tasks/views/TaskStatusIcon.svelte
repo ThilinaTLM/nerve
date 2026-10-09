@@ -2,14 +2,10 @@
 import Ban from "@lucide/svelte/icons/ban";
 import Bookmark from "@lucide/svelte/icons/bookmark";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
-import CircleHelp from "@lucide/svelte/icons/circle-help";
 import CirclePlay from "@lucide/svelte/icons/circle-play";
-import CircleStop from "@lucide/svelte/icons/circle-stop";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import Radio from "@lucide/svelte/icons/radio";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import TimerOff from "@lucide/svelte/icons/timer-off";
-import Unplug from "@lucide/svelte/icons/unplug";
 import type { TaskStatus } from "@nervekit/contracts/tasks";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -56,18 +52,6 @@ const presentation = $derived.by(() => {
       return { icon: TimerOff, label: "Timed out", color: "text-destructive" };
     case "cancelled":
       return { icon: Ban, label: "Cancelled", color: "text-muted-foreground" };
-    case "interrupted":
-      return { icon: CircleStop, label: "Interrupted", color: "text-warning" };
-    case "recovered":
-      return { icon: RotateCcw, label: "Recovered", color: "text-warning" };
-    case "orphaned":
-      return { icon: Unplug, label: "Orphaned", color: "text-destructive" };
-    case "recovery_unknown":
-      return {
-        icon: CircleHelp,
-        label: "Recovery unknown",
-        color: "text-destructive",
-      };
   }
 });
 

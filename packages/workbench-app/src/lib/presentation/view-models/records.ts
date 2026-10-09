@@ -21,11 +21,7 @@ export type AgentRecord = {
   conversationId: string;
   projectId: string;
   projectDir: string;
-  rootAgentId?: string;
   mode: "planning" | "coding";
-  permissionLevel?: "autonomous" | "supervised" | "read_only";
-  workspaceScope?: { roots: string[]; readonly?: boolean | undefined };
-  budget?: { depth: number; maxDepth: number };
   thinkingLevel:
     | "off"
     | "minimal"
@@ -74,7 +70,6 @@ export type AgentActivitySnapshot = {
   pendingInteractionCount: number;
   pendingAsyncCount: number;
   updatedAt: string;
-  activeRunId?: string | undefined;
 };
 
 export type ConversationRecord = {
@@ -82,7 +77,6 @@ export type ConversationRecord = {
   projectId: string;
   title: string;
   mode: "planning" | "coding";
-  permissionLevel?: "autonomous" | "supervised" | "read_only";
   createdAt: string;
   updatedAt: string;
   activeAgentId?: string | undefined;

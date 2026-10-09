@@ -3,7 +3,7 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const childTarget = {
   name: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),
-  agentId: Type.Optional(Type.String({ pattern: "^agent_" })),
+  agentId: Type.Optional(Type.String({ pattern: "^conv_" })),
 };
 // Preserve an object root while requiring exactly one child target.
 const childTargetOptions = {
@@ -33,7 +33,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Assign or steer one owned child: agentId (including Explore) or case-insensitive developer teammate name, never both. Running children accept durable next-turn input after their tool batch settles; stopped children require resume=true. Optional configuration applies next turn under the delegated configure grant and parent/workspace ceilings: model, thinkingLevel, tools, skills, instructions, systemPrompt, mode, permissionLevel, permissionRuleSetId, projectDir, workspaceScope. Include findings, paths, constraints and expected outcomes: children cannot see your conversation but share the worktree and retain their own context.",
+      "Assign or steer one owned child: agentId (including Explore) or case-insensitive developer teammate name, never both. Running children accept durable next-turn input after their tool batch settles; stopped children require resume=true. Optional configuration applies next turn to the child conversation: model, thinkingLevel, tools, skills, instructions, systemPrompt, mode, permissionRuleSetId, projectDir. Include findings, paths, constraints and expected outcomes: children cannot see your conversation but share the worktree and retain their own context.",
     parameters: Type.Object(
       {
         ...childTarget,
@@ -43,7 +43,7 @@ export const subagentToolDefinitions = [
           Type.Record(
             Type.String({
               pattern:
-                "^(model|thinkingLevel|tools|skills|instructions|systemPrompt|mode|permissionLevel|permissionRuleSetId|projectDir|workspaceScope)$",
+                "^(model|thinkingLevel|tools|skills|instructions|systemPrompt|mode|permissionRuleSetId|projectDir)$",
             }),
             Type.Unknown(),
             { additionalProperties: false },

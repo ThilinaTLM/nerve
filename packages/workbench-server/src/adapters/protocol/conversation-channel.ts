@@ -148,7 +148,7 @@ export function createConversationProtocolSession(
     "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
     "trust.decide": (input) => core.trust.decide(input),
     "trust.delete": ({ trustedResourceId }) => {
-      core.trust.delete(trustedResourceId);
+      state.capabilities.deleteTrust(trustedResourceId);
       return null;
     },
     "conversation.create": async (input) => {

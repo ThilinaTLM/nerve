@@ -11,8 +11,8 @@ it("rejects ambiguous targets and promptless controls before backend side effect
   for (const tool of ["subagent_prompt", "subagent_status", "subagent_stop"]) {
     for (const target of [
       {},
-      { name: "Researcher", agentId: "agent_explorer" },
-      { agentId: "conv_wrong" },
+      { name: "Researcher", agentId: "conv_explorer" },
+      { agentId: "invalid_wrong" },
       { agentId: "" },
     ]) {
       await assert.rejects(
@@ -27,7 +27,7 @@ it("rejects ambiguous targets and promptless controls before backend side effect
   ]) {
     await assert.rejects(
       handlers.subagent_prompt!(
-        { agentId: "agent_explorer", ...control },
+        { agentId: "conv_explorer", ...control },
         {} as never,
       ),
       /prompt/,
@@ -35,7 +35,7 @@ it("rejects ambiguous targets and promptless controls before backend side effect
   }
 });
 
-it("accepts named developer or agent-ID child controls with one target", () => {
+it("accepts named developer or conversation-ID child controls with one target", () => {
   for (const tool of ["subagent_prompt", "subagent_status", "subagent_stop"]) {
     const schema = subagentToolDefinitions.find(
       (item) => item.name === tool,
@@ -44,7 +44,7 @@ it("accepts named developer or agent-ID child controls with one target", () => {
       tool === "subagent_prompt" ? { prompt: "Inspect the changes" } : {};
     for (const target of [
       { name: "Researcher" },
-      { agentId: "agent_explorer" },
+      { agentId: "conv_explorer" },
     ]) {
       assert.equal(Check(schema, { ...target, ...input }), true, tool);
       assert.equal(
@@ -55,11 +55,11 @@ it("accepts named developer or agent-ID child controls with one target", () => {
     }
     for (const target of [
       {},
-      { name: "Researcher", agentId: "agent_explorer" },
+      { name: "Researcher", agentId: "conv_explorer" },
       { name: "" },
       { name: "a".repeat(81) },
-      { agentId: "conv_wrong" },
-      { id: "agent_explorer" },
+      { agentId: "invalid_wrong" },
+      { id: "conv_explorer" },
     ]) {
       assert.equal(
         Check(schema, { ...target, ...input }),
@@ -75,7 +75,7 @@ it("accepts next-turn shared configuration and explicit resume without authority
     (item) => item.name === "subagent_prompt",
   )!.parameters;
   const assignment = {
-    agentId: "agent_explorer",
+    agentId: "conv_explorer",
     prompt: "Inspect the updated schema",
     resume: true,
     configuration: {
@@ -86,10 +86,8 @@ it("accepts next-turn shared configuration and explicit resume without authority
       instructions: "Report findings only",
       systemPrompt: null,
       mode: "coding",
-      permissionLevel: "autonomous",
       permissionRuleSetId: "rules_test",
       projectDir: "/tmp/project",
-      workspaceScope: { roots: ["/tmp/project"], readonly: true },
     },
   };
   assert.equal(Check(schema, assignment), true);

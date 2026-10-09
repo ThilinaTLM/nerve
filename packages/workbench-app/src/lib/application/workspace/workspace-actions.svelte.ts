@@ -352,7 +352,6 @@ async function createConversationForProject(
     selectedModelKey: defaults.selectedModelKey,
     thinkingLevel: config.reasoningLevel,
     mode: config.mode,
-    permissionLevel: "autonomous",
     permissionRuleSetId: config.permissionRuleSetId,
     sending: false,
     createdAt: new Date().toISOString(),

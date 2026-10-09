@@ -35,12 +35,7 @@ export class LaunchService extends TaskService {
     if (this.closing) throw new Error("Launch service is shutting down.");
     const launch = await super.start({
       ...request,
-      conversationId: undefined,
-      agentId: undefined,
-      origin: { kind: "utility_panel" },
       visibility: "background",
-      completion: undefined,
-      notifications: undefined,
       onOutput: undefined,
     });
     this.schedulePortPoll(launch.id);

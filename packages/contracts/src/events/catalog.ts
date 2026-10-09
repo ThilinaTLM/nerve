@@ -1,3 +1,4 @@
+import { promptSuggestionEventDefinitions } from "../domains/prompt-suggestions/events.js";
 import { conversationChannelEvents } from "../domains/core/channel.js";
 import { z } from "zod";
 import { scratchNoteEventDefinitions } from "../domains/scratch-notes/events.js";
@@ -25,6 +26,7 @@ export type {
 
 const definitions: PublicEventDefinition[] = [
   ...conversationChannelEvents,
+  ...promptSuggestionEventDefinitions,
   ...launchEventDefinitions,
   ...scratchNoteEventDefinitions,
   ...taskDefinitionEventDefinitions,

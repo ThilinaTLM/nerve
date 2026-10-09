@@ -11,6 +11,22 @@ const defineProjectMethodHandlers =
 
 export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodContext> =
   defineProjectMethodHandlers({
+    "promptSuggestion.listForProject": (state, params) =>
+      state.promptSuggestions.listForProject(params.projectId, params),
+    "promptSuggestion.statuses.list": async (state, params) => ({
+      statuses: await state.promptSuggestions.listStatuses(params?.projectId),
+    }),
+    "promptSuggestion.create": async (state, params) => ({
+      suggestion: await state.promptSuggestions.create(params),
+    }),
+    "promptSuggestion.enabled.update": async (state, params) => {
+      await state.promptSuggestions.updateEnabled(params);
+      return { ok: true };
+    },
+    "promptSuggestion.trust.update": async (state, params) => {
+      await state.promptSuggestions.updateTrust(params);
+      return { ok: true };
+    },
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

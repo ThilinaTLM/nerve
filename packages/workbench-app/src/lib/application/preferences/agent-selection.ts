@@ -30,10 +30,7 @@ export function effectiveNewAgentDefaults(settings: Settings) {
     ? settings.lastAgentSelection
     : {
         mode: "coding" as const,
-        permissionLevel: settings.defaultPermissionLevel,
-        permissionRuleSetId:
-          settings.defaultPermissionRuleSetId ??
-          settings.defaultPermissionLevel,
+        permissionRuleSetId: settings.defaultPermissionRuleSetId,
         model: settings.defaultModel,
         thinkingLevel: settings.defaultThinkingLevel,
       };
@@ -63,7 +60,6 @@ export function resolveNewAgentComposerSelection(
       fallbackModel,
     ),
     selectedMode: defaults.mode,
-    selectedPermissionRuleSetId:
-      defaults.permissionRuleSetId ?? defaults.permissionLevel,
+    selectedPermissionRuleSetId: defaults.permissionRuleSetId,
   };
 }

@@ -192,7 +192,7 @@ The physical schema and migrations live in [`conversation-core/src/storage`](../
 
 ## Trusted resources
 
-A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` trust kind remains in the schema/importer, but suggestion discovery, evaluation and UI are removed pending redesign.
+A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` kind records trust in a prompt suggestion's JavaScript predicate.
 
 ## Idempotency without a receipt table
 

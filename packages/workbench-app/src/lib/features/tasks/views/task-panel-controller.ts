@@ -18,20 +18,12 @@ const ACTIVE_TASK_STATUSES = new Set([
   "stopping",
 ]);
 
-/** Statuses that still occupy a run slot, including recovered supervision. */
+/** Statuses that still occupy a run slot, while the process is active. */
 const RUNNING_LIKE_STATUSES = new Set([
   "starting",
   "running",
   "ready",
   "stopping",
-  "recovered",
-]);
-
-/** Statuses that need a human recovery decision before destructive actions. */
-const RECOVERY_STATUSES = new Set([
-  "recovered",
-  "recovery_unknown",
-  "orphaned",
 ]);
 
 const REMOVABLE_STATUSES = new Set([
@@ -39,8 +31,6 @@ const REMOVABLE_STATUSES = new Set([
   "failed",
   "timed_out",
   "cancelled",
-  "orphaned",
-  "interrupted",
 ]);
 
 const DEFINITION_ALPHABETICAL_WEIGHT = 0.7;
@@ -52,18 +42,13 @@ const definitionCollator = new Intl.Collator(undefined, {
 
 export type TaskGroups = {
   running: TaskRecord[];
-  orphaned: TaskRecord[];
   finished: TaskRecord[];
 };
 
 export function groupTasks(tasks: readonly TaskRecord[]): TaskGroups {
   return {
     running: tasks.filter((task) => ACTIVE_TASK_STATUSES.has(task.status)),
-    orphaned: tasks.filter((task) => task.status === "orphaned"),
-    finished: tasks.filter(
-      (task) =>
-        !ACTIVE_TASK_STATUSES.has(task.status) && task.status !== "orphaned",
-    ),
+    finished: tasks.filter((task) => !ACTIVE_TASK_STATUSES.has(task.status)),
   };
 }
 
@@ -204,7 +189,7 @@ export function formatTaskRunTime(startedAt: string): string {
 /**
  * Projects the panel into its two sections: saved definitions with their own runs
  * nested underneath, and the ad-hoc runs that no definition started. Both are
- * newest first with recovery concerns hoisted to the top.
+ * newest first.
  */
 export function projectTaskPanel(
   definitions: readonly TaskPanelDefinition[],
@@ -230,10 +215,8 @@ export function projectTaskPanel(
   const runEntries = tasks
     .filter((run) => !run.definitionId)
     .map((run) => toRunEntry(run))
-    .sort(
-      (left, right) =>
-        Number(right.needsRecovery) - Number(left.needsRecovery) ||
-        right.run.startedAt.localeCompare(left.run.startedAt),
+    .sort((left, right) =>
+      right.run.startedAt.localeCompare(left.run.startedAt),
     );
 
   return { definitions: definitionEntries, runs: runEntries };
@@ -279,7 +262,6 @@ function sortDefinitionEntries(
   return [...entries].sort(
     (left, right) =>
       score(left) - score(right) ||
-      Number(right.needsRecovery) - Number(left.needsRecovery) ||
       definitionCollator.compare(
         definitionSortLabel(left),
         definitionSortLabel(right),
@@ -298,9 +280,8 @@ export function toRunEntry(
     run,
     definition,
     isActive: RUNNING_LIKE_STATUSES.has(run.status),
-    canForceKill: run.status === "recovered" || run.status === "stopping",
+    canForceKill: run.status === "stopping",
     isRemovable: REMOVABLE_STATUSES.has(run.status),
-    needsRecovery: RECOVERY_STATUSES.has(run.status),
   };
 }
 
@@ -319,7 +300,6 @@ function buildDefinitionEntry(
       .filter((entry) => entry.isActive)
       .map((entry) => entry.run),
     latestRun: sorted[0]?.run,
-    needsRecovery: sorted.some((entry) => entry.needsRecovery),
   };
 }
 

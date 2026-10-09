@@ -5,8 +5,6 @@ const terminalStatuses = new Set<TaskRecord["status"]>([
   "failed",
   "timed_out",
   "cancelled",
-  "orphaned",
-  "interrupted",
 ]);
 
 export function isTerminalTaskStatus(status: TaskRecord["status"]): boolean {
@@ -18,15 +16,10 @@ export function isActiveTaskStatus(status: TaskRecord["status"]): boolean {
     status === "starting" ||
     status === "running" ||
     status === "ready" ||
-    status === "stopping" ||
-    status === "recovered"
+    status === "stopping"
   );
 }
 
-export function isOrphanedTaskStatus(status: TaskRecord["status"]): boolean {
-  return status === "orphaned" || status === "recovery_unknown";
-}
-
 export function isStoppableTaskStatus(status: TaskRecord["status"]): boolean {
-  return isActiveTaskStatus(status) || isOrphanedTaskStatus(status);
+  return isActiveTaskStatus(status);
 }

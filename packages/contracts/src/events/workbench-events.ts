@@ -15,6 +15,7 @@ export function isWorkbenchEvent(type: string): boolean {
     "maintenance.",
     "usage.",
     "scratchNote.",
+    "prompt_suggestions.",
     "applicationLog.",
     "plan.written",
   ].some((prefix) => type.startsWith(prefix));
@@ -29,6 +30,7 @@ export function isWorkbenchOperation(method: string): boolean {
     "git.",
     "github.",
     "scratchNote.",
+    "promptSuggestion.",
     "launch.",
     "taskDefinition.",
     "settings.",

@@ -1,4 +1,4 @@
-import type { CheckpointAnchor } from "@nervekit/contracts/conversations";
+import type { CheckpointAnchor } from "@nervekit/contracts/core";
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { AgentMessage } from "../agent/contracts/index.js";
 import type { ConversationContext } from "./context.js";

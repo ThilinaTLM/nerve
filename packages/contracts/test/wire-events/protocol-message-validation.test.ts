@@ -25,7 +25,7 @@ import {
   WORKSPACE_STREAM,
   type EventEnvelope,
 } from "../../src/events/index.js";
-import { conversationLiveToolOutputStreamSchema } from "../../src/domains/conversations/index.js";
+import { toolOutputStreamSchema } from "../../src/domains/tools/index.js";
 import {
   eventBatchDataSchema,
   eventBatchMessageSchema,
@@ -92,15 +92,9 @@ describe("run cancellation events", () => {
 describe("live tool output streams", () => {
   it("accepts model thinking and text channels", () => {
     for (const stream of ["thinking", "text"] as const) {
-      assert.equal(
-        conversationLiveToolOutputStreamSchema.safeParse(stream).success,
-        true,
-      );
+      assert.equal(toolOutputStreamSchema.safeParse(stream).success, true);
     }
-    assert.equal(
-      conversationLiveToolOutputStreamSchema.safeParse("reasoning").success,
-      false,
-    );
+    assert.equal(toolOutputStreamSchema.safeParse("reasoning").success, false);
   });
 });
 

@@ -19,9 +19,11 @@ import { defaultUserConfiguration } from "@nervekit/contracts/settings";
 import { permissionOverlayDocumentForOriginSchema } from "@nervekit/contracts/permissions";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { userCapabilitySelection } from "../../core-host/user-capability-selection.js";
-import { settingsFromConfiguration } from "../configuration/home-configuration.js";
-import { HOME_CONFIGURATION_CODECS } from "../configuration/home-configuration-codecs.js";
-import type { ImportReport } from "./legacy.reader.js";
+import {
+  settingsFromConfiguration,
+  HOME_CONFIGURATION_CODECS,
+} from "../configuration/index.js";
+import type { ImportReport, Legacy } from "./legacy.reader.js";
 
 export interface ImportedConversationOverlays {
   capabilitiesWritten: number;
@@ -48,9 +50,20 @@ export class ConversationOverlaysImporter {
     if (this.user) return this.user;
     const read = (id: keyof typeof HOME_CONFIGURATION_CODECS): unknown => {
       try {
-        return JSON.parse(
+        const document: Legacy = JSON.parse(
           readFileSync(join(this.home, "config", `${id}.json`), "utf8"),
         );
+        if (id === "harness") {
+          // Adapt archived selections only in memory. The capability baseline
+          // must not rewrite settings during the separate settings migration.
+          for (const selection of [document.defaults, document.lastSelection]) {
+            if (selection && Object.hasOwn(selection, "permissionLevel")) {
+              selection.permissionRuleSetId ??= selection.permissionLevel;
+              delete selection.permissionLevel;
+            }
+          }
+        }
+        return document;
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT")
           return defaultUserConfiguration[id];
@@ -133,16 +146,17 @@ export class ConversationOverlaysImporter {
 
   private write(path: string, content: string): void {
     let parent = dirname(path);
-    while (true) {
+    while (parent !== this.dataDir) {
       try {
-        lstatSync(parent);
-        break;
+        if (lstatSync(parent).isSymbolicLink())
+          throw new Error(
+            "Conversation overlay destination must not use symbolic links",
+          );
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        parent = dirname(parent);
       }
+      parent = dirname(parent);
     }
-    this.assertContained(parent);
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.assertContained(dirname(path));
     const temporary = `${path}.import-${randomUUID()}`;

@@ -20,7 +20,6 @@ export {
 export { isPathInDirectoryTree } from "./model/task-scope.js";
 export {
   isActiveTaskStatus,
-  isOrphanedTaskStatus,
   isStoppableTaskStatus,
 } from "./model/task-status.js";
 export type {

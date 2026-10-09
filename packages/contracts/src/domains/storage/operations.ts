@@ -20,15 +20,6 @@ export const storageOperationDefinitions = [
     "operation.storage.info",
   ),
   defineOperation(
-    "storage.rebuildIndex",
-    emptyParamsSchema,
-    maintenanceStartResponseSchema,
-    "accepted_async",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.storage.rebuildIndex",
-  ),
-  defineOperation(
     "storage.usage.get",
     emptyParamsSchema,
     storageUsageResponseSchema,

@@ -10,7 +10,7 @@ export type ProjectRecord = Project & { dir: string };
 export type ConversationRecord = ConversationSummary & {
   pinned: boolean;
   activeAgentId: string;
-  permissionLevel: string;
+  permissionRuleSetId: string;
 };
 export type AgentRecord = {
   id: string;
@@ -18,7 +18,6 @@ export type AgentRecord = {
   mode: ConversationConfig["mode"];
   model?: ConversationConfig["model"];
   permissionRuleSetId?: string;
-  permissionLevel?: string;
 };
 export type ConversationActivityState = {
   indicator:

@@ -25,7 +25,6 @@ function run(id: string, patch: Partial<TaskRecord> = {}): TaskRecord {
     logsPath: "/tmp/logs",
     startedAt: now,
     updatedAt: now,
-    origin: { kind: "api" },
     visibility: "background",
     ...patch,
   };
@@ -195,47 +194,17 @@ test("keeps definitions without runs and ad-hoc runs without definitions", () =>
   assert.equal(projected.runs[0]?.isActive, false);
 });
 
-test("sorts runs with recovery concerns first, then newest first", () => {
-  const projected = projectTaskPanel(
-    [],
-    [
-      run("task_old", {
-        status: "completed",
-        startedAt: "2026-01-01T00:00:00Z",
-      }),
-      run("task_new", {
-        status: "completed",
-        startedAt: "2026-01-03T00:00:00Z",
-      }),
-      run("task_lost", {
-        status: "orphaned",
-        startedAt: "2026-01-02T00:00:00Z",
-      }),
-    ],
-  );
-  assert.deepEqual(
-    projected.runs.map((entry) => entry.key),
-    ["task_lost", "task_new", "task_old"],
-  );
-  assert.equal(projected.runs[0]?.needsRecovery, true);
-});
-
 test("projects force-kill and removal safety from explicit statuses", () => {
   const projected = projectTaskPanel(
     [],
     [
-      run("task_recovered", { status: "recovered" }),
       run("task_stopping", { status: "stopping" }),
-      run("task_unknown", { status: "recovery_unknown" }),
       run("task_done", { status: "cancelled" }),
     ],
   );
   const entries = new Map(projected.runs.map((entry) => [entry.key, entry]));
 
-  assert.equal(entries.get("task_recovered")?.canForceKill, true);
   assert.equal(entries.get("task_stopping")?.canForceKill, true);
-  assert.equal(entries.get("task_unknown")?.canForceKill, false);
-  assert.equal(entries.get("task_unknown")?.isRemovable, false);
   assert.equal(entries.get("task_done")?.isRemovable, true);
 });
 

@@ -31,7 +31,7 @@ input.submit input.cancel interaction.resolve asyncBash.cancel
 model.list permissionRuleSet.list skill.list tool.list completion.slash.list
 ```
 
-Prompt suggestions have no channel API; discovery/evaluation/UI were removed pending redesign.
+Prompt suggestions use the workbench channel (`promptSuggestion.*`) because they also need git state.
 
 | Surface                   | Initial state                                                                 | Updates                                        | Replay                |
 | ------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------- | --------------------- |

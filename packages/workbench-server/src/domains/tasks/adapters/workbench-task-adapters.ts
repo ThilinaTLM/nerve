@@ -523,12 +523,6 @@ export function createWorkbenchTaskResources(
               exitedAt: new Date().toISOString(),
             };
       },
-      inspectPorts: async (task) => {
-        if (!task.runtime) return "unavailable";
-        return (
-          await supervisor.inspectRuntimeListeningPorts(task.runtime)
-        ).map((listener) => listener.port);
-      },
     },
   };
 

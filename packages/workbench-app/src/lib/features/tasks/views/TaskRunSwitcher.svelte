@@ -39,8 +39,7 @@ let expanded = $state(false);
 let cleanupOpen = $state(false);
 const current = $derived(runs.find((run) => run.id === currentTaskId));
 const active = $derived(
-  current &&
-    ["starting", "running", "ready", "recovered"].includes(current.status),
+  current && ["starting", "running", "ready"].includes(current.status),
 );
 const sortedRuns = $derived(
   [...runs].sort((left, right) =>
@@ -51,14 +50,7 @@ const cleanableRuns = $derived(
   sortedRuns.filter(
     (run) =>
       run.id !== currentTaskId &&
-      [
-        "completed",
-        "failed",
-        "timed_out",
-        "cancelled",
-        "orphaned",
-        "interrupted",
-      ].includes(run.status),
+      ["completed", "failed", "timed_out", "cancelled"].includes(run.status),
   ),
 );
 

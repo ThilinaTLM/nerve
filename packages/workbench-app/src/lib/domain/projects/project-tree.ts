@@ -81,9 +81,7 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
 export function conversationMeta(row: ConversationRow): string {
   const mode = row.agent?.mode ?? row.conversation.mode;
   const permission =
-    row.agent?.permissionRuleSetId ??
-    row.agent?.permissionLevel ??
-    row.conversation.permissionLevel;
+    row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId;
   return `${mode} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
 }
 

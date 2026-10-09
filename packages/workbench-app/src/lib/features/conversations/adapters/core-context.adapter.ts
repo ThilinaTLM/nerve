@@ -61,7 +61,6 @@ export function agentView(
     projectId: c.projectId,
     projectDir: config.workingDirectory,
     parentAgentId: child ? snapshot.conversation.id : undefined,
-    rootAgentId: snapshot.conversation.id,
     name: child?.title,
     executionKind: child
       ? toolName === "explore"

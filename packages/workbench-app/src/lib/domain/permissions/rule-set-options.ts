@@ -1,6 +1,5 @@
 import type { Mode } from "@nervekit/contracts/settings";
 import type {
-  PermissionLevel,
   PermissionRuleSetId,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
@@ -56,12 +55,6 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
     },
   ];
 
-const LEGACY_BUILT_INS = new Set<PermissionRuleSetId>([
-  "read_only",
-  "supervised",
-  "autonomous",
-]);
-
 export function selectablePermissionRuleSets(
   summaries: readonly PermissionRuleSetSummary[],
   mode: Mode,
@@ -113,12 +106,6 @@ export function selectedPermissionRuleSetSummary(
       diagnostic: "Selected permission rule set is unavailable.",
     }
   );
-}
-
-export function legacyPermissionLevelForRuleSet(
-  id: PermissionRuleSetId,
-): PermissionLevel | undefined {
-  return LEGACY_BUILT_INS.has(id) ? (id as PermissionLevel) : undefined;
 }
 
 export function permissionRuleSetDisplayName(id: string): string {

@@ -1,5 +1,5 @@
 import { subagentTeammatePreviewSchema } from "@nervekit/contracts/tools";
-import { type AsyncSubagentToolName } from "@nervekit/contracts/agents";
+import { type AsyncSubagentToolName } from "@nervekit/contracts/tools";
 import {
   subagentListToolResultPreviewSchema,
   subagentPromptToolResultPreviewSchema,

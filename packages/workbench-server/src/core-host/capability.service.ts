@@ -281,6 +281,18 @@ export class CapabilityService {
     });
   }
 
+  deleteTrust(trustedResourceId: string) {
+    const project = this.core.projects
+      .list()
+      .find((project) =>
+        this.core.trust
+          .list(project.id, "project_capabilities")
+          .some((resource) => resource.id === trustedResourceId),
+      );
+    this.core.trust.delete(trustedResourceId);
+    if (project) this.changed(project.id);
+  }
+
   trust(projectId: string, expectedDigest: string) {
     return this.write(() => this.trustProject(projectId, expectedDigest));
   }

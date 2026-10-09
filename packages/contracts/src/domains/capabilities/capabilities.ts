@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   asyncSubagentToolNames,
   isAsyncSubagentTool,
-} from "../agents/async-subagents.js";
+} from "../tools/async-subagents.js";
 import {
   asyncSubagentSettingsSchema,
   exploreAgentSettingsSchema,

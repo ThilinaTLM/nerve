@@ -181,9 +181,6 @@ export function composeServerRuntime(
     getOperations: () => ({
       pruneConversationsAcrossProjects: (request, execution) =>
         pruneConversationsAcrossProjects(services, request, execution),
-      rebuildSearchIndex: async () => {
-        throw new Error("Core history does not use a search index");
-      },
     }),
   });
   const maintenance = new MaintenanceService({

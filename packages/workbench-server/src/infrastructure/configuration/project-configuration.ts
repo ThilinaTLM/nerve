@@ -227,8 +227,8 @@ function applyHarnessEnvironment(
     ...harness,
     defaults: {
       ...harness.defaults,
-      ...(env.NERVE_DEFAULT_PERMISSION_LEVEL
-        ? { permissionLevel: env.NERVE_DEFAULT_PERMISSION_LEVEL }
+      ...(env.NERVE_DEFAULT_PERMISSION_RULE_SET_ID
+        ? { permissionRuleSetId: env.NERVE_DEFAULT_PERMISSION_RULE_SET_ID }
         : {}),
       ...(env.NERVE_DEFAULT_MODEL_PROVIDER && env.NERVE_DEFAULT_MODEL_ID
         ? {
@@ -252,7 +252,7 @@ function applyHarnessArguments(
   const values = new Map(
     argv.flatMap((argument) => {
       const match =
-        /^--(default-permission-level|default-model|default-thinking-level)=(.+)$/.exec(
+        /^--(default-permission-rule-set-id|default-model|default-thinking-level)=(.+)$/.exec(
           argument,
         );
       return match ? [[match[1], match[2]] as const] : [];
@@ -263,8 +263,8 @@ function applyHarnessArguments(
     ...harness,
     defaults: {
       ...harness.defaults,
-      ...(values.get("default-permission-level")
-        ? { permissionLevel: values.get("default-permission-level") }
+      ...(values.get("default-permission-rule-set-id")
+        ? { permissionRuleSetId: values.get("default-permission-rule-set-id") }
         : {}),
       ...(model?.[0] && model[1]
         ? { model: { provider: model[0], modelId: model[1] } }

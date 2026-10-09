@@ -171,3 +171,5 @@ export async function listTools() {
 }
 export * from "./features/tasks/api/tasks.api";
 export * from "./features/usage/api/usage.api";
+
+export * from "./features/prompt-suggestions/api/prompt-suggestions.api";

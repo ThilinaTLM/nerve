@@ -73,31 +73,6 @@ function vocabularyFor(notice: TaskEventNotice): EventVocabulary {
         spokenLabel: "task cancelled",
         impliedStatuses: ["cancelled", "stopped", "aborted"],
       };
-    case "interrupted":
-      return {
-        tone: "warning",
-        glyph: "bell-dot",
-        badge: "task_interrupted",
-        spokenLabel: "task interrupted",
-        impliedStatuses: ["interrupted", "stopped"],
-      };
-    case "orphaned":
-    case "recovery_unknown":
-      return {
-        tone: "destructive",
-        glyph: "bell-dot",
-        badge: "task_state_unknown",
-        spokenLabel: "task state unknown",
-        impliedStatuses: ["orphaned", "recovery_unknown"],
-      };
-    case "recovered":
-      return {
-        tone: "info",
-        glyph: "bell-ring",
-        badge: "task_recovered",
-        spokenLabel: "task recovered",
-        impliedStatuses: ["recovered", "running", "ready"],
-      };
     default:
       return {
         tone: "neutral",

@@ -34,10 +34,6 @@
       "types": "./dist/operations/index.d.ts",
       "import": "./dist/operations/index.js"
     },
-    "./agents": {
-      "types": "./dist/domains/agents/index.d.ts",
-      "import": "./dist/domains/agents/index.js"
-    },
     "./auth": {
       "types": "./dist/domains/auth/index.d.ts",
       "import": "./dist/domains/auth/index.js"
@@ -49,10 +45,6 @@
     "./completions": {
       "types": "./dist/domains/completions/index.d.ts",
       "import": "./dist/domains/completions/index.js"
-    },
-    "./conversations": {
-      "types": "./dist/domains/conversations/index.d.ts",
-      "import": "./dist/domains/conversations/index.js"
     },
     "./core": {
       "types": "./dist/domains/core/index.d.ts",

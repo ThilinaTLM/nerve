@@ -55,7 +55,6 @@ export class TaskDefinitionOperations {
         ),
         command: definition.command,
         displayName: definition.label ?? definition.command,
-        origin: { kind: "utility_panel" },
       });
     }
     throw new Error("Task definition not found.");

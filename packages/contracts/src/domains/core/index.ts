@@ -140,3 +140,5 @@ export type {
   UpdateConversationRequest,
   ResolveInteractionRequest,
 } from "./core-operations.js";
+
+export * from "./compaction-accounting.js";

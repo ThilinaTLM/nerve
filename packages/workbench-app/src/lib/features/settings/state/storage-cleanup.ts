@@ -14,7 +14,6 @@ export interface StorageCleanupSelection {
   crashReports: boolean;
   cache: boolean;
   tmp: boolean;
-  searchIndex: boolean;
 }
 
 export const EMPTY_CLEANUP_SELECTION: StorageCleanupSelection = {
@@ -27,7 +26,6 @@ export const EMPTY_CLEANUP_SELECTION: StorageCleanupSelection = {
   crashReports: false,
   cache: false,
   tmp: false,
-  searchIndex: false,
 };
 
 export function recommendedCleanupSelection(): StorageCleanupSelection {
@@ -55,7 +53,6 @@ export function allCleanupSelection(
     crashReports: true,
     cache: true,
     tmp: true,
-    searchIndex: true,
   };
 }
 
@@ -92,7 +89,6 @@ export function buildCleanupRequest(
   if (selection.crashReports) request.clearCrashReports = true;
   if (selection.cache) request.clearCache = true;
   if (selection.tmp) request.clearTmp = true;
-  if (selection.searchIndex) request.rebuildSearchIndex = true;
   return Object.keys(request).length > 0 ? request : undefined;
 }
 
@@ -107,7 +103,6 @@ export function selectedTargets(
   if (selection.crashReports) targets.push("crashReports");
   if (selection.cache) targets.push("cache");
   if (selection.tmp) targets.push("tmp");
-  if (selection.searchIndex) targets.push("searchIndex");
   return targets;
 }
 
@@ -136,7 +131,6 @@ export function targetLabel(target: StorageCleanupTarget): string {
       crashReports: "Crash reports",
       cache: "Cache",
       tmp: "Temporary files",
-      searchIndex: "Search index",
     } satisfies Record<StorageCleanupTarget, string>
   )[target];
 }

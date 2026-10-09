@@ -25,7 +25,7 @@ export function sidebarConversations(
       ...row,
       pinned: row.pinnedAt !== null,
       activeAgentId: row.id,
-      permissionLevel: row.permissionRuleSetId,
+      permissionRuleSetId: row.permissionRuleSetId,
     }));
 }
 export function sidebarAgents(rows: ConversationRecord[]): AgentRecord[] {

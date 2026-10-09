@@ -85,12 +85,6 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         tasks: 0,
       },
     }),
-    "storage.rebuildIndex": async (state) => ({
-      operation: await state.maintenance.start({
-        kind: "storage_cleanup",
-        parameters: { rebuildSearchIndex: true },
-      }),
-    }),
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),
     "storage.cleanup": async (state, parameters) => ({
       operation: await state.maintenance.start({

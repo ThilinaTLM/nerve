@@ -11,7 +11,7 @@ import type {
   ConversationRunRecoverySnapshot,
 } from "./run-review";
 import type { ThinkingLevel } from "@nervekit/contracts/models";
-import type { ConversationLiveToolOutputStream } from "@nervekit/contracts/conversations";
+import type { ToolOutputStream } from "@nervekit/contracts/tools";
 
 export interface ConversationLiveToolDraftProgressSnapshot {
   path?: string;
@@ -112,7 +112,7 @@ export interface SubagentTranscriptSnapshot {
 }
 
 export interface ConversationLiveToolOutputChunkSnapshot {
-  stream: ConversationLiveToolOutputStream;
+  stream: ToolOutputStream;
   text: string;
   ts: string;
 }

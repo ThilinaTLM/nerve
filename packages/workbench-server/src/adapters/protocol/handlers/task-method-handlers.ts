@@ -31,10 +31,7 @@ export const taskMethodHandlers: WorkbenchMethodHandlerMapFor<TaskMethodContext>
     "launch.restart": async (state, params) => {
       await state.launches.require(params.taskId);
       return {
-        task: await state.launches.restart(params.taskId, {
-          confirmUnverifiedReplacement:
-            params.confirmUnverifiedReplacement ?? false,
-        }),
+        task: await state.launches.restart(params.taskId),
       };
     },
     "launch.prune": async (state) => ({

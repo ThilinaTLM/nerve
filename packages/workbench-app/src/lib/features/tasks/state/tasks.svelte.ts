@@ -31,19 +31,13 @@ export async function cancelSelectedTask(
   taskId: string,
   request: CancelTaskRequest = {},
 ) {
-  const wasOrphaned =
-    taskState.tasks.find((task) => task.id === taskId)?.status === "orphaned";
   await cancelTask(taskId, request);
   await refreshWorkbenchTasks();
   if (taskState.selectedTaskId) {
     await loadTaskLogWindow(taskState.selectedTaskId);
   }
   notify.success(
-    request.signal === "SIGKILL"
-      ? "Launch force killed"
-      : wasOrphaned
-        ? "Orphaned launch cleanup completed"
-        : "Launch cancelled",
+    request.signal === "SIGKILL" ? "Launch force killed" : "Launch cancelled",
   );
 }
 

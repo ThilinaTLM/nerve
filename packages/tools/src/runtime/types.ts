@@ -1,7 +1,4 @@
-import type {
-  PermissionLevel,
-  ToolRisk,
-} from "@nervekit/contracts/permissions";
+import type { ToolRisk } from "@nervekit/contracts/permissions";
 import type { ToolGroupName, ToolName } from "@nervekit/contracts/tools";
 import type {
   ToolExecutionContext,
@@ -31,7 +28,6 @@ export type ToolHandler = (
 export type ToolHandlerRegistry = Partial<Record<ToolName, ToolHandler>>;
 
 export type ToolAvailabilityInput = {
-  permissionLevel?: PermissionLevel;
   enabledNames?: readonly ToolName[];
   disabledNames?: readonly ToolName[];
   enabledGroups?: readonly ToolGroupName[];
@@ -63,13 +59,11 @@ export type ToolLifecycleHooks = {
 };
 
 export type RuntimeToolPermissionInput = {
-  permissionLevel: PermissionLevel;
-  permissionRuleSetId?: string;
+  permissionRuleSetId: string;
   projectDir?: string;
   nerveHome?: string;
   cwd?: string;
   conversationId?: string;
-  groupRequireApproval?: "never" | "risky" | "always";
 };
 
 export class ToolRuntimeError extends Error {

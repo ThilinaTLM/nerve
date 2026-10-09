@@ -1,3 +1,7 @@
+import {
+  PromptSuggestionService,
+  PromptSuggestionTrustRepository,
+} from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
@@ -92,10 +96,32 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       void logger.warn(message, { error });
     },
   });
-  return {
-    promptSuggestionEnablement: new PromptSuggestionEnablementService(
-      storage.paths.configPath,
+  const promptSuggestionEnablement = new PromptSuggestionEnablementService(
+    storage.paths.configPath,
+  );
+  const promptSuggestions = new PromptSuggestionService({
+    storage,
+    events,
+    trustRepository: new PromptSuggestionTrustRepository(
+      conversationCore.trust,
     ),
+    enablementRepository: promptSuggestionEnablement,
+    git: gitService,
+    getProject: (id) => {
+      const project = getProject(id);
+      return { id: project.id, name: project.name, dir: project.directory };
+    },
+    listProjects: () =>
+      listProjects().map((project) => ({
+        id: project.id,
+        name: project.name,
+        dir: project.directory,
+      })),
+    getConversation: (id) => conversationCore.getSnapshot(id),
+  });
+  return {
+    promptSuggestionEnablement,
+    promptSuggestions,
     conversationCore,
     capabilities,
     coreStorage,

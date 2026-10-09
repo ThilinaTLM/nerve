@@ -31,9 +31,7 @@ let {
 const dotActivity = $derived(activity ?? idleConversationActivity);
 const mode = $derived(row.agent?.mode ?? row.conversation.mode);
 const permission = $derived(
-  row.agent?.permissionRuleSetId ??
-    row.agent?.permissionLevel ??
-    row.conversation.permissionLevel,
+  row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId,
 );
 const tooltip = $derived(
   [

@@ -1,4 +1,4 @@
-import type { AsyncSubagentToolName } from "@nervekit/contracts/agents";
+import type { AsyncSubagentToolName } from "@nervekit/contracts/tools";
 
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
 import type { MetaItem } from "../../cards/card-presentation";

@@ -1,7 +1,7 @@
 import {
   asyncSubagentToolNames,
   type AsyncSubagentToolName,
-} from "@nervekit/contracts/agents";
+} from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../../execution/execution-context.js";
 import { type ToolHandlerRegistry, ToolValidationError } from "../types.js";
 import { requiredString } from "./args.js";
@@ -25,8 +25,8 @@ export function createSubagentHandlers(
           );
         if (args.agentId !== undefined) {
           requiredString(args.agentId, "agentId");
-          if (!String(args.agentId).startsWith("agent_"))
-            throw new ToolValidationError("agentId must start with agent_.");
+          if (!String(args.agentId).startsWith("conv_"))
+            throw new ToolValidationError("agentId must start with conv_.");
         } else requiredString(args.name, "name");
       }
       if (name === "subagent_prompt") requiredString(args.prompt, "prompt");

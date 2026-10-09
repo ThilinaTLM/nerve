@@ -10,7 +10,6 @@ export type PendingConversationState = {
   selectedModelKey: string;
   thinkingLevel: ConversationConfig["reasoningLevel"];
   mode: ConversationConfig["mode"];
-  permissionLevel: "autonomous";
   permissionRuleSetId: string;
   capabilityOverrides?: CapabilityOverridesDocument;
   sending: boolean;

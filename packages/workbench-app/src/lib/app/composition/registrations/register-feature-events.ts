@@ -1,3 +1,4 @@
+import { registerPromptSuggestionEventHandlers } from "$lib/features/prompt-suggestions";
 import { registerGitEventHandlers } from "$lib/features/git";
 import {
   registerProviderCatalogEventHandlers,
@@ -13,6 +14,7 @@ export function registerFeatureEventHandlers(): () => void {
     registerProviderCatalogEventHandlers(),
     registerUsageEventHandlers(),
     registerGitEventHandlers(),
+    registerPromptSuggestionEventHandlers(),
   ];
   return () => {
     for (const dispose of unregister.splice(0)) dispose();

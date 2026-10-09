@@ -6,7 +6,7 @@ import {
   type ConversationSnapshot,
   type UpdateConversationRequest,
 } from "@nervekit/contracts/core";
-import { deriveConversationTitle } from "@nervekit/contracts/conversations";
+import { deriveConversationTitle } from "./conversation-title.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import type { AsyncBashService } from "../async-bash/async-bash.service.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";

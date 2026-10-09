@@ -1,6 +1,5 @@
 import { mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import {
   ConversationCore,
   openCoreStorage,
@@ -26,7 +25,7 @@ import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generati
 export function createConversationCore(deps: RuntimeDeps) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
-  const storage = openCoreStorage(join(dataDir, "core.sqlite"));
+  const storage = openCoreStorage(deps.storage.paths.sqlitePath);
   const models = createModelPort(deps.auth, deps.providerCatalog, (name) =>
     deps.secrets.get(name),
   );

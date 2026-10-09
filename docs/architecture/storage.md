@@ -15,7 +15,7 @@ Nerve separates portable configuration, secrets, core relational data, managed f
 ├── config/                 # daemon, harness, UI, providers, integrations, permissions
 ├── secrets/                # master.key, credentials.enc, daemon-token
 ├── data/
-│   ├── core.sqlite
+│   ├── nerve.sqlite
 │   ├── conversations/      # owned tool files, bash output, permission overlays
 │   ├── launches/           # workbench launch logs
 │   ├── reports/
@@ -34,12 +34,12 @@ Optional directories are created lazily. `manifest.json` identifies the home for
 
 - `config/` contains validated, atomically replaced human-readable settings.
 - `secrets/` holds restricted encrypted credentials and authentication material; plaintext secret values do not belong in configuration or SQLite.
-- `data/core.sqlite` owns projects, conversations, durable history and unfinished work.
+- `data/nerve.sqlite` owns projects, conversations, durable history and unfinished work.
 - Managed conversation files and overlays are deleted with their owner. Core asset references are relative to `data/`.
 - Launch definitions are project files at `.nerve/tasks/definitions.json`, not home database rows. Launch logs are files; instance identity/status/environment are in memory.
 - `cache/` and `tmp/` are rebuildable; logs, crashes and backups have separate retention rules.
 
-Old `nerve.sqlite`, task bundles and migration directories may remain on imported homes. Startup does not open the legacy database or run the retired general migration framework.
+Homes from 0.34.1 are converted to this layout by the first [storage migration](migrations.md).
 
 ## Core SQLite
 
@@ -58,7 +58,7 @@ The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives
 - `conversations/<conversationId>/tool-calls/<toolCallId>/...`
 - `conversations/<conversationId>/bash/<bashId>/...`
 
-`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Reports, images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](../decisions/tool-result-projection.md).
+`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Reports, images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](tool-result-projection.md).
 
 [`core-host/permission.adapter.ts`](../../packages/workbench-server/src/core-host/permission.adapter.ts) composes the selected rule set with overlays at:
 
@@ -66,7 +66,7 @@ The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives
 - Project: `<project>/.nerve/config/permissions.json`
 - Conversation: `data/conversations/<conversationId>/config/permissions.json`
 
-Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permission rule sets](../proposals/permission-rule-sets.md).
+Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permissions](permissions.md).
 
 Tool and skill capabilities use the same three layers, also as files:
 
@@ -76,7 +76,7 @@ Tool and skill capabilities use the same three layers, also as files:
 
 See [capabilities](conversation-core/README.md#capabilities) for the override rules.
 
-Prompt-suggestion discovery, evaluation and UI are removed pending redesign. Retained trust kinds/enablement files are not an active suggestion service.
+Prompt suggestions are Markdown files (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`). Trust in a suggestion's JavaScript predicate is a `TRUSTED_RESOURCE` row for its exact content; enabled/disabled choices live in `config/prompt-suggestions.json`.
 
 ## In-memory state and restart
 
@@ -88,8 +88,6 @@ Prompt-suggestion discovery, evaluation and UI are removed pending redesign. Ret
 
 Stopping a conversation pauses it and cascades through descendants/async bash. Deletion stops work before removing files and rows; project deletion leaves project-authored files untouched.
 
-## Legacy import
+## Migrations
 
-`pnpm storage:import-core --home <stopped-copy>` reads `data/nerve.sqlite` and creates `data/core.sqlite`; startup never imports automatically. The source and managed files are not rewritten. `--force` replaces destination core SQLite files only.
-
-See [migration](conversation-core/migration.md) for measured legacy volume, importer behavior, lossy mappings and production prerequisites: resolve 59 capability overlays and stop the daemon before copying/importing production data. Retaining the source database is not an atomic whole-home rollback guarantee.
+See [storage migrations](migrations.md).
