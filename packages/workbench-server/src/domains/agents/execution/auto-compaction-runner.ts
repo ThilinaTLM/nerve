@@ -27,15 +27,31 @@ export class AutoCompactionRunner {
 
   constructor(readonly deps: WorkbenchAgentMechanicsDeps) {}
 
-  /** Compute compaction-aware context-window usage for a conversation. */
-  async getContextUsage(conversationId: string): Promise<ContextUsage> {
+  /** Compute usage for the root conversation, or an explicitly selected agent owner. */
+  async getContextUsage(
+    conversationId: string,
+    agentId?: string,
+  ): Promise<ContextUsage> {
     const conversation = this.deps.state.getConversation(conversationId);
-    const storage = await this.deps.harnessStorage.openStorage(conversation);
+    const agent =
+      agentId !== undefined
+        ? this.deps.state.agents.get(agentId)
+        : conversation.activeAgentId
+          ? this.deps.state.agents.get(conversation.activeAgentId)
+          : undefined;
+    if (
+      agentId !== undefined &&
+      (!agent || agent.conversationId !== conversationId)
+    )
+      throw new Error(
+        "Context usage agent does not belong to the conversation.",
+      );
+    const storage =
+      agentId !== undefined && agent
+        ? await this.deps.harnessStorage.openAgentStorage(agent)
+        : await this.deps.harnessStorage.openStorage(conversation);
     const branch = await storage.getContextPath();
     const messages = (await storage.buildContext()).messages;
-    const agent = conversation.activeAgentId
-      ? this.deps.state.agents.get(conversation.activeAgentId)
-      : undefined;
     const contextWindow = getModelContextWindow(
       agent?.model,
       (await this.deps.customModels?.(agent?.projectDir)) ?? [],
@@ -48,7 +64,7 @@ export class AutoCompactionRunner {
     agentId: string,
     runId: string,
   ): Promise<void> {
-    const contextUsage = await this.getContextUsage(conversationId);
+    const contextUsage = await this.getContextUsage(conversationId, agentId);
     await this.deps.events.publish("conversation.context.updated", {
       conversationId,
       agentId,
