@@ -299,6 +299,7 @@ export class WorkbenchAgentMechanics {
   }): Promise<AssistantMessage> {
     const latestAgent = () =>
       this.deps.state.agents.get(input.agent.id) ?? input.agent;
+    input.signal?.throwIfAborted();
     if (!input.continue) {
       await this.autoCompaction.maybeCompactBeforePrompt({
         conversationId: input.agent.conversationId,
@@ -310,15 +311,19 @@ export class WorkbenchAgentMechanics {
         signal: input.signal,
       });
     }
+    input.signal?.throwIfAborted();
     let assistant = input.continue
       ? await input.harness.continue()
       : await withPromptCompactionAnchor(
           input.agent,
           await foregroundPromptAnchor(input.conversation, input.agent),
-          () =>
-            input.harness.prompt(input.request.text, {
+          () => {
+            // Anchor preparation can yield while the run is cancelled.
+            input.signal?.throwIfAborted();
+            return input.harness.prompt(input.request.text, {
               images: input.request.images,
-            }),
+            });
+          },
         );
     const contextWindow = getModelContextWindow(
       latestAgent().model,
@@ -330,8 +335,10 @@ export class WorkbenchAgentMechanics {
         assistant,
         contextWindow,
       );
-      if (recovered.status === "compacted")
+      if (recovered.status === "compacted") {
+        input.signal?.throwIfAborted();
         assistant = await input.harness.continue();
+      }
     }
     return assistant;
   }

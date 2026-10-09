@@ -215,6 +215,98 @@ it("compacts projected prompt usage before the first provider iteration", async 
   assert.equal(compactions[0]?.contextTokens, 405_000);
 });
 
+it("publishes executing-owner usage while keeping default queries root-scoped", async () => {
+  const lead = agentRecord("lead", "openai", "gpt-5.6-sol");
+  const child = {
+    ...agentRecord("child", "xai", "grok-4.5"),
+    executionKind: "async_developer",
+  };
+  const calls: string[] = [];
+  const events: Array<{
+    agentId: string;
+    contextUsage: { tokens: number | null; contextWindow: number };
+  }> = [];
+  const branch = (text: string) => [
+    {
+      type: "message",
+      id: text,
+      parentId: null,
+      timestamp: "2026-07-18T00:00:00.000Z",
+      message: { role: "user", content: text, timestamp: 0 },
+    },
+  ];
+  const rootBranch = branch("root".repeat(100));
+  let childBranch: unknown[] = branch("child".repeat(1000));
+  const storage = (entries: unknown[]) => ({
+    getContextPath: async () => entries,
+    buildContext: async () => buildConversationContext(entries as never),
+  });
+  const runner = new AutoCompactionRunner({
+    state: {
+      getConversation: () => ({
+        id: lead.conversationId,
+        activeAgentId: lead.id,
+      }),
+      agents: new Map([
+        [lead.id, lead],
+        [child.id, child],
+      ]),
+    },
+    harnessStorage: {
+      openStorage: async () => {
+        calls.push("root");
+        return storage(rootBranch);
+      },
+      openAgentStorage: async (agent: AgentRecord) => {
+        calls.push(agent.id);
+        return storage(agent.id === child.id ? childBranch : rootBranch);
+      },
+    },
+    events: {
+      publish: async (_type: string, data: (typeof events)[number]) => {
+        events.push(data);
+      },
+    },
+  } as never);
+  const root = await runner.getContextUsage(lead.conversationId);
+  await runner.publishContextUsage(child.conversationId, child.id, "child-run");
+  await runner.publishContextUsage(lead.conversationId, lead.id, "lead-run");
+  assert.deepEqual(calls, ["root", "child", "lead"]);
+  assert.equal(events[0]?.agentId, child.id);
+  assert.equal(events[0]?.contextUsage.contextWindow, 500_000);
+  assert.ok(events[0]!.contextUsage.tokens! > root.tokens!);
+  assert.notEqual(events[0]?.contextUsage.contextWindow, root.contextWindow);
+  assert.deepEqual(events[1]?.contextUsage, root);
+
+  childBranch = [
+    ...childBranch,
+    {
+      type: "compaction",
+      id: "checkpoint",
+      parentId: null,
+      timestamp: "2026-07-18T00:00:01.000Z",
+      summary: "summary",
+      firstKeptEntryId: childBranch[0] && (childBranch[0] as { id: string }).id,
+      tokensBefore: 1000,
+    },
+  ];
+  await runner.publishContextUsage(child.conversationId, child.id, "child-run");
+  assert.deepEqual(events[2]?.contextUsage, {
+    tokens: null,
+    percent: null,
+    contextWindow: 500_000,
+  });
+  await assert.rejects(
+    runner.publishContextUsage(lead.conversationId, "missing", "run"),
+    /does not belong/,
+  );
+  await assert.rejects(
+    runner.publishContextUsage("another-conversation", child.id, "run"),
+    /does not belong/,
+  );
+  assert.equal(events.length, 3);
+});
+
 function agentRecord(
   id: string,
   provider: string,
