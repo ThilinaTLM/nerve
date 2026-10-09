@@ -26,6 +26,7 @@ export interface TurnResourcesPort {
     conversation: Conversation;
     config: ConversationConfig;
     projectDir: string;
+    coreTools?: ToolDefinition[];
   }): Promise<{ systemPrompt: string; tools: ToolDefinition[] }>;
 }
 

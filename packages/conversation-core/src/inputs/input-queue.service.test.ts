@@ -44,8 +44,7 @@ test("user input resumes a paused conversation with a complete summary", () => {
         systemPrompt: null,
         permissionRuleSetId: "baseline",
         mode: "coding",
-        enabledTools: null,
-        enabledSkills: [],
+
         workingDirectory: "/tmp",
       },
     );

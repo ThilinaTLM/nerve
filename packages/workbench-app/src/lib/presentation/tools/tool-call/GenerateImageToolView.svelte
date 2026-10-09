@@ -27,6 +27,6 @@ let { toolCall, view, expanded = false, onOpenFile }: Props = $props();
       />
     {/each}
   </div>
-{:else if toolCall.state === "completed"}
+{:else if toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No image file returned.</p>
 {/if}

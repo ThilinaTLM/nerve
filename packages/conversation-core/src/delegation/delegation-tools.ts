@@ -8,6 +8,11 @@ import { createExploreTool } from "./explore-tool.js";
 
 export function createDelegationTools(
   core: ConversationCore,
+  initializeChild: (
+    parentId: string,
+    childId: string,
+    explore: boolean,
+  ) => Promise<void>,
 ): CoreToolHandler[] {
   const exploring = new Set<string>();
   const children = (parentId: string) => core.getSnapshot(parentId).children;
@@ -89,6 +94,11 @@ export function createDelegationTools(
             config,
           })
         ).conversation;
+        await initializeChild(
+          call.conversationId,
+          (value as { id: string }).id,
+          false,
+        );
       } else if (name === "subagent_list")
         value = children(call.conversationId);
       else {
@@ -133,6 +143,6 @@ export function createDelegationTools(
       return { kind: "completed", result: { content: JSON.stringify(value) } };
     },
   }));
-  handlers.push(createExploreTool(core, exploring));
+  handlers.push(createExploreTool(core, exploring, initializeChild));
   return handlers;
 }

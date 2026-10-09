@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
   planReviewRequestSchema,
@@ -103,6 +104,14 @@ export function createCoreToolHandlers(
           request: planReviewRequestSchema.parse({
             assetId: asset.id,
             path: options.assets.path(asset.logicalPath),
+            title: basename(path),
+            summary: content
+              .split(/\r?\n/)
+              .slice(0, 6)
+              .join("\n")
+              .trim()
+              .slice(0, 2_000),
+            content,
           }),
         },
       };

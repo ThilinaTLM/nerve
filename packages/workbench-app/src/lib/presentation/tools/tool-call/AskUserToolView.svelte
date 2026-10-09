@@ -7,7 +7,7 @@ import X from "@lucide/svelte/icons/x";
 import { notify } from "@nervekit/ui-kit/browser/notifications";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import ComposerEditor from "$lib/presentation/composer/ComposerEditor.svelte";
-import type { UserQuestion } from "../../state/tool-types";
+import type { UserQuestionRecord } from "../../state/tool-types";
 import type {
   ToolCallDisplayRecord,
   ToolView,
@@ -27,7 +27,7 @@ const AudioInputAuthRequiredDialog = voice?.AudioAuthDialog;
 type Props = {
   toolCall: ToolCallDisplayRecord;
   view: Extract<ToolView, { kind: "ask_user" }>;
-  questionRecord?: UserQuestion;
+  questionRecord?: UserQuestionRecord;
   detailsAction?: { label: string; onClick: () => void };
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (
@@ -69,7 +69,7 @@ let unregisterVoiceTarget: (() => void) | undefined;
 const micShortcut = voice?.micShortcutLabel;
 const micShortcutAria = voice?.micShortcutAria;
 const pending = $derived(
-  toolCall.state === "awaiting_input" && questionRecord?.status === "pending",
+  toolCall.status === "waiting" && questionRecord?.status === "pending",
 );
 const question = $derived(questionRecord?.question ?? view.question);
 const context = $derived(questionRecord?.context ?? view.context);
@@ -98,7 +98,7 @@ const dismissedReason = $derived(
 );
 const trimmedAnswer = $derived(answer.trim());
 const voiceTargetId = $derived(
-  pending && questionRecord ? questionRecord.toolCallId : undefined,
+  pending && questionRecord ? questionRecord.id : undefined,
 );
 
 const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
@@ -186,11 +186,10 @@ $effect(() => {
 });
 
 $effect(() => {
-  const questionId =
-    pending && questionRecord ? questionRecord.toolCallId : undefined;
+  const questionId = pending && questionRecord ? questionRecord.id : undefined;
   if (!questionId || questionId === lastAutoFocusedQuestionId) return;
   lastAutoFocusedQuestionId = questionId;
-  if (pending && questionRecord?.toolCallId === questionId) {
+  if (pending && questionRecord?.id === questionId) {
     replyFocusToken += 1;
   }
 });
@@ -208,7 +207,7 @@ async function sendAnswer(text: string) {
   if (!pending || !questionRecord || submitting || !onAnswerUserQuestion) {
     return;
   }
-  const questionId = questionRecord.toolCallId;
+  const questionId = questionRecord.id;
   submitting = "answer";
   submitError = undefined;
   try {
@@ -234,7 +233,7 @@ async function dismissQuestion() {
   if (!pending || !questionRecord || submitting || !onDismissUserQuestion) {
     return;
   }
-  const questionId = questionRecord.toolCallId;
+  const questionId = questionRecord.id;
   submitting = "dismiss";
   submitError = undefined;
   try {

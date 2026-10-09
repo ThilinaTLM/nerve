@@ -2,6 +2,7 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { TaskRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import {
   conversationLastUserPromptAt,
@@ -9,7 +10,11 @@ import {
   projectKey,
   shortProjectLabel,
 } from "$lib/domain/projects/project-tree";
-import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+type ConversationActivity = Pick<
+  ConversationActivityState,
+  "indicator" | "tone" | "busy" | "needsUser"
+>;
 
 export type ProjectActivitySummary = {
   needsUser: number;
@@ -24,7 +29,7 @@ export type ProjectTaskSummary = {
 
 export type ProjectSwitcherItem = {
   key: string;
-  project: Project;
+  project: ProjectRecord;
   projectIds: string[];
   label: string;
   sortAt: string;
@@ -49,7 +54,8 @@ export function summarizeProjectActivity(
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
     else if (activity.tone === "destructive") summary.failed += 1;
-    else if (activity.indicator === "needs-user") summary.awaitingAsync += 1;
+    else if (activity.indicator === "awaiting-async")
+      summary.awaitingAsync += 1;
     else if (activity.busy) summary.running += 1;
   }
   return summary;
@@ -165,8 +171,10 @@ export function buildProjectSwitcherItems(input: {
     )[0];
     const projectIds = projects.map((candidate) => candidate.id);
     const idSet = new Set(projectIds);
-    const conversations = input.conversations.filter((conversation) =>
-      idSet.has(conversation.projectId),
+    const conversations = input.conversations.filter(
+      (conversation) =>
+        idSet.has(conversation.projectId) &&
+        conversation.parentConversationId === null,
     );
     const latestConversation = conversations
       .map(conversationLastUserPromptAt)
@@ -174,7 +182,7 @@ export function buildProjectSwitcherItems(input: {
     const folder = projectFolderName(project.directory);
     return {
       key,
-      project,
+      project: { ...project, dir: project.directory },
       projectIds,
       label:
         (folderCounts.get(folder) ?? 0) > 1

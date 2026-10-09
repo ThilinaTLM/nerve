@@ -53,6 +53,41 @@ passed early in implementation; the final rerun is blocked by concurrent cutover
 errors in other packages/server components. There were no importer diagnostics.
 No tests or repository-wide checks were run.
 
+## Selected-branch correction and verification
+
+The follow-up reproduced 16 root conversations with incorrect user-message
+sequences (including the abandoned first attempt in
+`conv_01M2CYDH37DY13W0QX1V12EGMT`). Explicit Pi `parentId: null` now starts a
+separate branch. Transcript predecessors are used only when an operational
+record has no Pi parent field, never in place of an explicit null.
+
+Execution starts are inserted at their first source entry's predecessor;
+wait/retry/end facts extend that run's last source entry, not whichever branch
+was appended most recently. Heads select the mapped old leaf. A source record
+can expand into message plus execution/settlement facts, so its mapping names
+the segment tail; only facts directly extending that segment can advance it.
+Child heads use their recorded agent leaf (or latest source entry when absent).
+
+Every import now reports `selectedPaths` verification and the CLI exits nonzero
+for message-sequence, head-selection or tool-pairing mismatches. The independent
+read-only comparison is:
+
+```sh
+pnpm exec tsx scripts/storage-migrations/verify-core-import.ts --home data/storage-2
+```
+
+Final copied-slot re-import completed with no failed trees. Both comparisons
+checked 393 roots and 488 children: **0 user-message mismatches**, **0 unmapped
+children**, and **0 head-mapping mismatches** in the importer. Across all 881
+selected paths: **0 unanswered tool calls, 0 duplicate results, 0 orphan
+results**. Foreign-key checks were empty; `quick_check` was `ok`.
+
+Final `cd packages/workbench-server && pnpm check`, owned-file formatting and
+ESLint passed. No tests were run. Evidence: `/tmp/i1-branches-before.json`,
+`/tmp/i1-branches-after.json`, `/tmp/i1-branches-import-final.log`, and
+`/tmp/i1-branches-check-final.log`. This follow-up read/wrote only the copied
+`data/storage-2` databases, never either original home.
+
 ## Known lossy mappings / cutover follow-up
 
 - 59 legacy conversation capability overlays remain unchanged on disk, but are

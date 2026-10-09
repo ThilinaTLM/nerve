@@ -69,7 +69,7 @@ const visibleGroups = $derived.by(() => {
   </div>
 {/snippet}
 
-{#if view.matchCount === 0 && toolCall.state === "completed"}
+{#if view.matchCount === 0 && toolCall.status === "completed"}
   <p class="note">No matches.</p>
 {:else if view.matchCount > 0}
   {@render matchGroups(visibleGroups)}

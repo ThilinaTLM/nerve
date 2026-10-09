@@ -27,10 +27,62 @@ import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
 import { liveDeltaSchema } from "./live.js";
 
+import {
+  capabilityConfigurationSchema,
+  capabilityOverridesDocumentSchema,
+  capabilityPatchSchema,
+  capabilityOriginSchema,
+} from "../capabilities/capabilities.js";
+
 const emptyParams = z.object({}).optional();
 const host = ["workbench_server"] as const;
 
+const capabilityScope = z.object({
+  projectId: z.string(),
+  conversationId: z.string().optional(),
+});
 export const conversationChannelOperations = [
+  defineOperation(
+    "capabilities.get",
+    capabilityScope,
+    capabilityConfigurationSchema,
+    "read",
+    "none",
+    host,
+    "operation.capabilities.get",
+  ),
+  defineOperation(
+    "capabilities.update",
+    capabilityScope.extend({
+      layer: capabilityOriginSchema,
+      patch: capabilityPatchSchema.optional(),
+      replace: capabilityOverridesDocumentSchema.optional(),
+      expectedDigest: z.string().optional(),
+    }),
+    capabilityConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.capabilities.update",
+  ),
+  defineOperation(
+    "capabilities.reset",
+    capabilityScope.extend({ layer: capabilityOriginSchema }),
+    capabilityConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.capabilities.reset",
+  ),
+  defineOperation(
+    "capabilities.trust",
+    z.object({ projectId: z.string(), digest: z.string() }),
+    capabilityConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.capabilities.trust",
+  ),
   defineOperation(
     "project.create",
     coreOperationSchemas["project.create"].params,
@@ -331,6 +383,7 @@ export const conversationChannelOperations = [
 ] as const;
 
 export const conversationChannelEventSchemas = {
+  "capabilities.changed": capabilityScope,
   "conversation.event": conversationEventSchema,
   "conversation.head": z.object({
     conversationId: z.string(),
@@ -370,6 +423,11 @@ export const conversationChannelEventSchemas = {
 } as const;
 
 export const conversationChannelEvents = [
+  defineContentEvent(
+    "capabilities.changed",
+    conversationChannelEventSchemas["capabilities.changed"],
+    { delivery: "ephemeral", scope: ["projectId"] },
+  ),
   defineContentEvent(
     "conversation.event",
     conversationChannelEventSchemas["conversation.event"],

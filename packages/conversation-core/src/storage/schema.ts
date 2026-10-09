@@ -33,8 +33,7 @@ CREATE TABLE conversation_config (
   model TEXT NOT NULL CHECK(json_valid(model)),
   reasoning_level TEXT NOT NULL CHECK(reasoning_level IN ('off','minimal','low','medium','high','xhigh','max')),
   system_prompt TEXT, permission_rule_set_id TEXT NOT NULL, mode TEXT NOT NULL CHECK(mode IN ('planning','coding')),
-  enabled_tools TEXT CHECK(enabled_tools IS NULL OR json_valid(enabled_tools)),
-  enabled_skills TEXT CHECK(enabled_skills IS NULL OR json_valid(enabled_skills)), working_directory TEXT NOT NULL
+  working_directory TEXT NOT NULL
 ) STRICT;
 CREATE TABLE conversation_event (
   id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,

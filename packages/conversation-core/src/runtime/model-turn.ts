@@ -26,30 +26,22 @@ export class ModelTurn {
   ) {}
   async run(input: ModelTurnInput) {
     const resolved = await this.models.resolve(input.config.model);
-    const resources = await this.resources.prepare(input);
+    const resources = await this.resources.prepare({
+      ...input,
+      coreTools: this.coreDefinitions(),
+    });
     input.signal.throwIfAborted();
-    const tools = new Map(
-      [...resources.tools, ...this.coreDefinitions()].map((tool) => [
-        tool.name,
-        tool,
-      ]),
-    );
+    const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
     const stream = streamSimpleWithModel(
       resolved.model,
       {
         systemPrompt: input.config.systemPrompt ?? resources.systemPrompt,
         messages: buildModelMessages(input.path),
-        tools: [...tools.values()]
-          .filter(
-            (tool) =>
-              input.config.enabledTools === null ||
-              input.config.enabledTools.includes(tool.name),
-          )
-          .map(({ name, description, parameters }) => ({
-            name,
-            description,
-            parameters,
-          })),
+        tools: [...tools.values()].map(({ name, description, parameters }) => ({
+          name,
+          description,
+          parameters,
+        })),
       },
       {
         apiKey: resolved.apiKey,

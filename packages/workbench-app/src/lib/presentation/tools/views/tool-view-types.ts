@@ -7,6 +7,7 @@ import type {
   ConfluenceRestrictionSummaryPayload,
   ConfluencePublishOutcomePayload,
   ConfluenceSpaceSummaryPayload,
+  ExploreReportSummaryPayload,
   FileEntry,
   GrepMatch,
   JiraAttachmentSummaryPayload,
@@ -74,6 +75,88 @@ export type GroupedMatches = {
   path: string;
   openPath?: string;
   matches: GrepMatchView[];
+};
+
+export type SubagentToolAction = "new" | "prompt" | "list" | "status" | "stop";
+
+/** One async teammate row; `state` is unknown until the tool settles. */
+export type SubagentTeammateView = {
+  agentId?: string;
+  name: string;
+  state?: "idle" | "running" | "stopping";
+  outcome?: "completed" | "cancelled" | "failed" | "interrupted";
+  runId?: string;
+};
+
+export type ExploreProgressView = {
+  type: "explore_progress";
+  timestamp: string;
+  agentId?: string;
+  taskIndex?: number;
+  taskCount?: number;
+  label?: string;
+  model?: string;
+  thinkingLevel?: string;
+  phase:
+    | "queued"
+    | "started"
+    | "tool_call"
+    | "tool_result"
+    | "assistant"
+    | "completed"
+    | "failed";
+  message: string;
+  report?: ExploreReportSummaryPayload;
+};
+
+export type ExploreTaskStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "aborted";
+
+export type ExploreTaskAction = {
+  text: string;
+  mono: boolean;
+};
+
+export type ExploreTaskState = {
+  /** Stable key so rows never reshuffle. */
+  key: string;
+  index?: number;
+  count?: number;
+  label?: string;
+  task?: string;
+  agentId?: string;
+  model?: string;
+  thinkingLevel?: string;
+  status: ExploreTaskStatus;
+  /** Latest progress/report revision used for open transcript refreshes. */
+  revision: string;
+  /** De-noised latest activity while running. */
+  currentAction?: string;
+  /** Whether currentAction is a concrete tool action (render as mono). */
+  currentActionMono: boolean;
+  /** Recent display-safe activity lines while running. */
+  recentActions: ExploreTaskAction[];
+  /** Latest three display messages for the sub-agent card. */
+  recentMessages: ExploreTaskAction[];
+  /** Count of tool_call updates seen (activity meter). */
+  actionCount: number;
+  report?: ExploreReportSummaryPayload;
+  error?: string;
+};
+
+export type ExploreSummary = {
+  total: number;
+  completed: number;
+  failed: number;
+  aborted: number;
+  running: number;
+  totalTurns: number;
+  totalTokens: number;
+  done: boolean;
 };
 
 export type ToolView =
@@ -234,6 +317,24 @@ export type ToolView =
       nextCursor?: number;
       mode?: string;
       previewUnavailable: boolean;
+    }
+  | {
+      kind: "subagent";
+      action: SubagentToolAction;
+      teammates: SubagentTeammateView[];
+      response?: { text: string; complete: boolean; runId: string };
+      /** Preview truncation reported by the record's `previewOverflow`. */
+      hidden?: { count: number; noun: "lines" | "characters" | "teammates" };
+      runId?: string;
+      hasMore: boolean;
+      previewUnavailable: boolean;
+    }
+  | {
+      kind: "explore";
+      task?: string;
+      reports: ExploreReportSummaryPayload[];
+      liveUpdates: ExploreProgressView[];
+      liveLog?: string;
     }
   | {
       kind: "plan_mode";

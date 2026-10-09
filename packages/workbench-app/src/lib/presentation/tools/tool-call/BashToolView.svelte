@@ -26,11 +26,11 @@ const commandIsMultiline = $derived(Boolean(view.command?.match(/[\r\n]/)));
         text={view.output}
         direction="tail"
         {expanded}
-        live={toolCall.state === "running"}
+        live={toolCall.status === "running"}
         terminal
       />
     </section>
-  {:else if toolCall.state === "completed"}
+  {:else if toolCall.status === "completed"}
     <p class="m-0 text-xs text-muted-foreground">No output.</p>
   {/if}
 </div>

@@ -28,7 +28,7 @@ let {
       activateLabel="Open exported diagram in a file tab"
     />
   </section>
-{:else if toolCall.state === "completed"}
+{:else if toolCall.status === "completed"}
   <section class="grid gap-1" aria-label="Exported diagram">
     <p class="m-0 text-xs text-muted-foreground">No diagram file returned.</p>
   </section>

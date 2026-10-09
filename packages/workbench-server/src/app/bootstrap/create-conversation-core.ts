@@ -12,6 +12,7 @@ import {
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
+import { CapabilityService } from "../../core-host/capability.service.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
@@ -37,8 +38,9 @@ export function createConversationCore(deps: RuntimeDeps) {
   ]);
   const tools = createToolHostPort(
     processes,
-    async (cwd): Promise<ToolExecutionContext> => {
-      const settings = await resolveProjectSettings(deps.storage, cwd);
+    async (cwd, conversationId): Promise<ToolExecutionContext> => {
+      const projectId = core.getSnapshot(conversationId).conversation.projectId;
+      const settings = await capabilities.settings(projectId, conversationId);
       const atlassian = (provider: "jira" | "confluence") =>
         settings.providers.atlassianProfiles.find(
           (profile) => profile.id === settings.tools[provider].profileId,
@@ -107,7 +109,7 @@ export function createConversationCore(deps: RuntimeDeps) {
         : null;
     },
   );
-  const core = new ConversationCore({
+  const core: ConversationCore = new ConversationCore({
     storage,
     dataDir,
     models,
@@ -117,7 +119,11 @@ export function createConversationCore(deps: RuntimeDeps) {
     turnResources: createTurnResourcesPort({
       home: deps.storage.paths.home,
       tools: tools.definitions,
-      skills: [...deps.nerveSkills.skills, ...deps.agentBrowserSkills.skills],
+      skills: deps.nerveSkills.skills,
+      agentBrowserSkills: deps.agentBrowserSkills.skills,
+      get capabilities(): CapabilityService {
+        return capabilities;
+      },
     }),
     defaultConfig: async (projectId) => {
       const project = storage.projects.get(projectId);
@@ -137,18 +143,29 @@ export function createConversationCore(deps: RuntimeDeps) {
         systemPrompt: null,
         permissionRuleSetId: settings.defaultPermissionRuleSetId ?? "baseline",
         mode: settings.lastAgentSelection.mode,
-        enabledTools: null,
-        enabledSkills: null,
+
         workingDirectory: project.directory,
       };
     },
     readPlan: ({ path, signal }) =>
       readFile(path, { encoding: "utf8", signal }),
   });
+  const capabilities: CapabilityService = new CapabilityService(
+    deps.storage,
+    core,
+  );
   for (const handler of [
-    ...createDelegationTools(core),
+    ...createDelegationTools(core, (parentId, childId, explore) =>
+      capabilities.initializeChild(
+        parentId,
+        childId,
+        explore,
+        deps.nerveSkills.skills,
+        deps.agentBrowserSkills.skills,
+      ),
+    ),
     ...createAsyncBashTools(core),
   ])
     core.registerCoreTool(handler);
-  return { core, storage };
+  return { core, storage, capabilities };
 }

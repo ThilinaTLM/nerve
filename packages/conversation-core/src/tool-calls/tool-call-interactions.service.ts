@@ -6,6 +6,7 @@ import type {
 import type { CoreToolContext } from "./core-tool.js";
 import type { ToolCallServiceOptions } from "./tool-call.service.js";
 import type { ToolCallSettlement } from "./tool-call-settlement.service.js";
+import { effectivePermissionRuleSetId } from "./permission-rule-set.js";
 
 export interface ResolveInteraction {
   toolCallId: string;
@@ -113,11 +114,20 @@ export class ToolCallInteractions {
         const { projectDir, config } = this.options.context(
           call.conversationId,
         );
+        // A mode change must not move a planning approval into the coding overlay.
+        const authority = call.supervision?.authority;
+        const ruleSetId =
+          authority &&
+          typeof authority === "object" &&
+          !Array.isArray(authority) &&
+          typeof authority.ruleSetId === "string"
+            ? authority.ruleSetId
+            : effectivePermissionRuleSetId(config);
         await this.options.permissions.addRule({
           scope: input.resolution.persistScope,
           conversationId: call.conversationId,
           projectDir,
-          ruleSetId: config.permissionRuleSetId,
+          ruleSetId,
           rule,
         });
       }

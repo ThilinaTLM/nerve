@@ -154,6 +154,10 @@ export class ConversationService {
       conversationId: id,
       config: updated,
     });
+    this.options.emit({
+      kind: "conversation_changed",
+      summary: this.options.storage.conversations.getSummary(id)!,
+    });
     return updated;
   }
   assertQuiescent(id: string): void {

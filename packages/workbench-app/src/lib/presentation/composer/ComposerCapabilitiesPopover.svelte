@@ -79,7 +79,6 @@ const skillSourceItemLabels: Record<SkillSource, string> = {
 };
 type Props = {
   configuration?: CapabilityConfiguration;
-  scopeLabel?: "agent" | "conversation";
   skills?: CapabilitySkillRow[];
   loading?: boolean;
   error?: string;
@@ -93,7 +92,6 @@ type Props = {
 };
 let {
   configuration,
-  scopeLabel = "conversation",
   skills = [],
   loading = false,
   error,
@@ -170,7 +168,7 @@ const triggerTitle = $derived(
     ? "Tools and skills: loading"
     : error
       ? `Tools and skills unavailable: ${error}`
-      : `Tools and skills: ${enabledTools} of ${toolGroups.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? ` · ${scopeLabel} overrides` : ""}`,
+      : `Tools and skills: ${enabledTools} of ${toolGroups.length} optional tools, ${enabledSkills} of ${skills.length} skills enabled${overrideCount > 0 ? " · conversation overrides" : ""}`,
 );
 
 const toolStates = $derived(
@@ -204,10 +202,7 @@ const toolRows = $derived<Row[]>(
         enabled: state.enabled,
         overridden: state.stored,
         origin: state.stored ? "conversation" : state.inheritedFrom,
-        detail:
-          scopeLabel === "agent" && state.stored
-            ? "Agent configuration"
-            : state.originLabel,
+        detail: state.originLabel,
         warning: state.profileMissing
           ? "Profile not found on this machine"
           : state.needsProfile
@@ -242,16 +237,12 @@ const skillRows = $derived<Row[]>(
     overridden: skill.overridden,
     origin: skill.overridden ? "conversation" : skill.inheritedFrom,
     icon: skillSourceIcons[skill.source],
-    detail: `${skillSourceItemLabels[skill.source]} · ${
-      scopeLabel === "agent"
-        ? "Agent configuration"
-        : capabilityOriginLabel({
-            level: "conversation",
-            stored: skill.overridden,
-            matchesInherited: skill.matchesInherited,
-            inheritedFrom: skill.inheritedFrom,
-          })
-    }`,
+    detail: `${skillSourceItemLabels[skill.source]} · ${capabilityOriginLabel({
+      level: "conversation",
+      stored: skill.overridden,
+      matchesInherited: skill.matchesInherited,
+      inheritedFrom: skill.inheritedFrom,
+    })}`,
     toggle: (enabled: boolean) =>
       onPatch?.({ skills: { [skill.kind]: { [skill.name]: enabled } } }),
     reset: () =>
@@ -309,10 +300,9 @@ function openSettings(): void {
         <Button
           size="icon-xs"
           variant="ghost"
-          ariaLabel={`Reset ${scopeLabel} tool and skill overrides`}
-          title={`Reset ${overrideCount} ${scopeLabel} override${overrideCount === 1 ? "" : "s"}`}
+          ariaLabel="Reset conversation tool and skill overrides"
+          title={`Reset ${overrideCount} conversation override${overrideCount === 1 ? "" : "s"}`}
           onclick={() => onReset?.()}
-          disabled={disabled || loading}
         >
           <RotateCcw class="size-3.5" aria-hidden="true" />
         </Button>
@@ -361,12 +351,6 @@ function openSettings(): void {
   </PopoverSearch>
 
   <PopoverBody class="gap-0" stableHeight={bodyHeight}>
-    {#if scopeLabel === "agent"}<p
-        class="px-1.5 pb-2 text-xs text-muted-foreground"
-      >
-        Tool and skill switches configure this agent. Profiles and tool-specific
-        defaults are shared by this conversation.
-      </p>{/if}
     {#if error}
       <p class="px-1.5 text-warning" role="alert">{error}</p>
     {:else if loading && !configuration}
@@ -414,9 +398,7 @@ function openSettings(): void {
             <span
               class="inline-flex flex-none text-primary"
               role="img"
-              aria-label={scopeLabel === "agent"
-                ? "Agent configuration"
-                : "Conversation override"}
+              aria-label="Conversation override"
               title={row.detail}
             >
               <MessagesSquare class="size-3.5" aria-hidden="true" />
@@ -428,16 +410,13 @@ function openSettings(): void {
               size="xs"
               label={`Reset ${row.label} to the inherited setting`}
               onclick={row.reset}
-              disabled={disabled || loading}
             />
           {/if}
           {#if row.configure}
             <IconAction
               icon={Settings2}
               size="xs"
-              label={scopeLabel === "agent"
-                ? `Shared defaults for ${row.label}`
-                : `Configure ${row.label}`}
+              label={`Configure ${row.label}`}
               onclick={row.configure}
             />
           {/if}
@@ -445,7 +424,7 @@ function openSettings(): void {
             size="sm"
             checked={row.enabled}
             disabled={disabled || loading}
-            aria-label={`Enable ${row.label} for this ${scopeLabel}`}
+            aria-label={`Enable ${row.label} for this conversation`}
             onCheckedChange={row.toggle}
           />
         </div>

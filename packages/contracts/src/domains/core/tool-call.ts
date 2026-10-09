@@ -43,6 +43,9 @@ export const userInputRequestSchema = z.object({
 export const planReviewRequestSchema = z.object({
   assetId: z.string(),
   path: z.string(),
+  title: z.string().optional(),
+  summary: z.string().optional(),
+  content: z.string().optional(),
 });
 export const interactionSchema = z.discriminatedUnion("kind", [
   z.object({

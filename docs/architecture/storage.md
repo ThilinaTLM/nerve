@@ -64,9 +64,17 @@ The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives
 
 - User: `config/permissions.json`
 - Project: `<project>/.nerve/config/permissions.json`
-- Conversation: `data/conversations/<conversationId>/permissions.json`
+- Conversation: `data/conversations/<conversationId>/config/permissions.json`
 
 Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permission rule sets](../proposals/permission-rule-sets.md).
+
+Tool and skill capabilities use the same three layers, also as files:
+
+- User: `settings.tools` and `settings.skills` in user settings.
+- Project: `<project>/.nerve/config/capabilities.json`, applied only when trusted for its exact content.
+- Conversation: `data/conversations/<conversationId>/config/capabilities.json`; a missing file inherits everything.
+
+See [capabilities](conversation-core/README.md#capabilities) for the override rules.
 
 Prompt-suggestion discovery, evaluation and UI are removed pending redesign. Retained trust kinds/enablement files are not an active suggestion service.
 

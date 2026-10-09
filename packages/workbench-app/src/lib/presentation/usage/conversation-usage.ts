@@ -1,4 +1,4 @@
-import type { ConversationEvent } from "@nervekit/contracts/core";
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 
 export interface ConversationUsageSummary {
   responseCount: number;
@@ -31,19 +31,18 @@ export function emptyConversationUsage(): ConversationUsageSummary {
 }
 
 export function summarizeConversationUsage(
-  entries: readonly ConversationEvent[],
+  entries: readonly Pick<ConversationEntry, "usage">[],
 ): ConversationUsageSummary {
   const summary = emptyConversationUsage();
   for (const entry of entries) {
-    if (entry.type !== "assistant_message") continue;
-    const usage = entry.payload.usage;
+    if (!entry.usage) continue;
     summary.responseCount += 1;
-    summary.input += usage.input;
-    summary.output += usage.output;
-    summary.cacheRead += usage.cacheRead;
-    summary.cacheWrite += usage.cacheWrite;
-    summary.totalTokens += usage.totalTokens;
-    summary.cost += usage.cost.total;
+    summary.input += entry.usage.input;
+    summary.output += entry.usage.output;
+    summary.cacheRead += entry.usage.cacheRead;
+    summary.cacheWrite += entry.usage.cacheWrite;
+    summary.totalTokens += entry.usage.totalTokens;
+    summary.cost += entry.usage.cost;
   }
   return summary;
 }

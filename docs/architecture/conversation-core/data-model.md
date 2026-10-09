@@ -77,8 +77,6 @@ erDiagram
         string system_prompt "Nullable; null selects the generated default"
         string permission_rule_set_id "Baseline rule set; overlays apply on top; not a database foreign key"
         enum mode "planning | coding"
-        json enabled_tools "Nullable tool-name list; availability, not authorization; empty disables all"
-        json enabled_skills "Nullable skill-name list; empty disables all"
         string working_directory "Start directory for commands and relative paths; not an access boundary"
     }
 
@@ -190,7 +188,7 @@ The physical schema and migrations live in [`conversation-core/src/storage`](../
 - `paused` is separate from derived status: idle does not tell the scheduler whether it may start queued work. Pause is a current control, not a rewindable event.
 - `status` is rebuilt from `execution_state` events and unfinished tool calls. A rebuilt failed or interrupted status is shown only when its event is newer than `status_cleared_at`; the next execution start supersedes it anyway.
 - `last_user_message_at` changes only when a `user_message` event is delivered. Compaction summaries, tool results and notices never update it, even though some reach providers as user-role messages.
-- Configuration has no revision. Edits are schema-validated current values; rewinding does not restore them. Permission supervision is recorded on each tool call.
+- Configuration has no revision and no tool or skill columns. Edits are schema-validated current values; rewinding does not restore them. Tools and skills come from capability files; see [storage](../storage.md#files-and-permissions). Permission supervision is recorded on each tool call.
 
 ## Trusted resources
 
@@ -212,7 +210,7 @@ A queued input cancelled and then retried with the same ID can be accepted again
 Deleting a conversation deletes its children recursively. For each affected conversation:
 
 1. Stop processing and settle unfinished tool calls and async bash as cancelled.
-2. Delete asset files and the conversation data directory, which also holds the conversation-level permission overlay.
+2. Delete asset files and the conversation data directory, which also holds the conversation-level capability and permission overlays under `config/`.
 3. Delete asset, async bash, tool-call, queue, event and configuration rows, then the conversation.
 
 Asset rows with null `event_id` whose producer no longer exists are orphans and may be cleaned up at any time. Deleting a project deletes its conversations, scratch notes and project-scoped trusted resources; project files on disk are untouched.

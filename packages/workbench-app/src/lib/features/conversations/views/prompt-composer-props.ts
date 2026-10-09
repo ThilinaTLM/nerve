@@ -1,0 +1,73 @@
+import type {
+  PermissionRuleSetId,
+  PermissionRuleSetSummary,
+} from "@nervekit/contracts/permissions";
+
+import type { TodoItem } from "@nervekit/contracts/tools";
+import type { ApprovalWithToolCall } from "$lib/presentation/view-models/conversation";
+import type {
+  AgentRecord,
+  ConversationRecord,
+  PlanReviewRecord,
+  ProjectRecord,
+  UserQuestionRecord,
+} from "$lib/presentation/view-models/conversation";
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
+import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
+import type { ComposerSuggestion } from "./composer-suggestion";
+import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
+
+export type Mode = AgentRecord["mode"];
+export type ThinkingLevel = AgentRecord["thinkingLevel"];
+
+export type PromptComposerProps = {
+  text?: string;
+  activeProject?: ProjectRecord;
+  activeConversation?: ConversationRecord;
+  activePendingConversation?: PendingConversationState;
+  pendingConversationActive?: boolean;
+  approvals?: ApprovalWithToolCall[];
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
+  interactive?: boolean;
+  sending?: boolean;
+  stopping?: boolean;
+  teamRunning?: boolean;
+  compacting?: boolean;
+  models?: ModelInfo[];
+  selectedModelKey?: string;
+  contextUsage?: ContextUsage;
+  conversationUsage?: ConversationUsageSummary;
+  contextWindow?: number;
+  todos?: TodoItem[];
+  focusToken?: number;
+  composerEscapeToken?: number;
+  micShortcutToken?: number;
+  thinkingLevel?: ThinkingLevel;
+  mode?: Mode;
+  permissionRuleSetId?: PermissionRuleSetId;
+  permissionRuleSets?: PermissionRuleSetSummary[];
+  permissionRuleSetsLoading?: boolean;
+  permissionRuleSetsError?: string;
+  slashCompletions?: CompletionItem[];
+  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+  referenceCompletions?: (
+    kind: "task" | "pull_request",
+    query: string,
+  ) => Promise<CompletionItem[]>;
+  composerSuggestions?: ComposerSuggestion[];
+  onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
+  onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;
+  onChange?: (value: string) => void;
+  onSubmit?: () => void;
+  onAbort?: () => void;
+  onCompact?: () => void;
+  onModelChange?: (value: string) => void;
+  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onModeChange?: (value: Mode) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
+  onRefreshPermissionRuleSets?: () => void;
+  onOpenPermissionSettings?: () => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
+};

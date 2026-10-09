@@ -22,7 +22,7 @@ const visible = $derived(
 );
 </script>
 
-{#if view.count === 0 && toolCall.state === "completed"}
+{#if view.count === 0 && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No files found.</p>
 {:else if view.count > 0}
   <ul

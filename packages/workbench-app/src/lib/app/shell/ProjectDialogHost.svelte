@@ -1,11 +1,15 @@
 <script lang="ts">
 import {
   composerSignals,
-  ConversationHistoryDialog,
+  focusComposer,
   retainConversationStore,
   type ConversationStore,
 } from "$lib/features/conversations";
+import { ConversationHistoryDialog } from "$lib/features/conversations";
 import { selection } from "$lib/application/workspace/selection.svelte";
+import { conversationView } from "$lib/features/conversations";
+import { conversationTranscript } from "$lib/features/conversations";
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import ProjectDirectoryPicker from "$lib/app/composition/dialogs/ProjectDirectoryPicker.svelte";
 import {
   createConversationForDirectory,
@@ -29,9 +33,39 @@ $effect(() => {
   }
   const retained = retainConversationStore(id);
   store = retained.store;
-  void retained.ready.catch(() => undefined);
+  void retained.ready
+    .then(() => retained.store.loadHistoryTree())
+    .catch(() => undefined);
   return retained.release;
 });
+const activeConversation = $derived(
+  store?.snapshot ? conversationView(store.snapshot) : undefined,
+);
+const projection = $derived(
+  store?.snapshot
+    ? conversationTranscript({
+        snapshot: store.snapshot,
+        events: store.historyEvents ?? store.events,
+        liveBlocks: store.liveBlocks,
+        toolOutput: store.toolOutput,
+      })
+    : undefined,
+);
+const treeNodes = $derived(projection?.treeNodes ?? []);
+const toolCalls = $derived(projection?.toolCalls ?? []);
+
+async function branchFromConversationEntry(entryId: string | undefined) {
+  if (!store) return;
+  await store.selectHead(entryId ?? null);
+  focusComposer();
+}
+
+async function editConversationEntry(entry: ConversationEntry) {
+  if (!store) return;
+  await store.selectHead(entry.parentEntryId ?? null);
+  composerSignals.editEntry = entry;
+  focusComposer();
+}
 </script>
 
 <ProjectDirectoryPicker
@@ -48,9 +82,15 @@ $effect(() => {
   onForget={(id) => void deleteProjectAndRefresh(id)}
 />
 
-{#if store}
-  <ConversationHistoryDialog
-    bind:open={composerSignals.historyDialogOpen}
-    {store}
-  />
-{/if}
+<ConversationHistoryDialog
+  bind:open={composerSignals.historyDialogOpen}
+  {activeConversation}
+  {treeNodes}
+  {toolCalls}
+  onNavigateToEntry={(entryId) => {
+    void branchFromConversationEntry(entryId);
+  }}
+  onEditEntry={(entry) => {
+    void editConversationEntry(entry);
+  }}
+/>

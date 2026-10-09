@@ -1,3 +1,4 @@
+import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
 import {
@@ -128,6 +129,8 @@ export async function closeCenterTabs(
 
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
+    if (tab.kind === "pending-conversation")
+      pendingConversations.delete(tab.id);
     if (tab.kind === "file")
       workspaceFeaturePorts().filesystem.commands.discardFileView(tab.id);
     if (tab.kind === "mermaid")

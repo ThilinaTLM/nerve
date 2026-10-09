@@ -51,14 +51,6 @@ export function childDefinition(name: string): ToolDefinition {
                 systemPrompt: { type: ["string", "null"] },
                 permissionRuleSetId: { type: "string" },
                 mode: { enum: ["planning", "coding"] },
-                enabledTools: {
-                  type: ["array", "null"],
-                  items: { type: "string" },
-                },
-                enabledSkills: {
-                  type: ["array", "null"],
-                  items: { type: "string" },
-                },
                 workingDirectory: { type: "string" },
               },
             },

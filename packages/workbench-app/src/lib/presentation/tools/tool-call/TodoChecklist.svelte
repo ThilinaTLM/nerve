@@ -1,6 +1,7 @@
 <script lang="ts">
 import Circle from "@lucide/svelte/icons/circle";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
+
 import type { TodoItem } from "@nervekit/contracts/tools";
 import { untrack } from "svelte";
 import { StreamingText } from "@nervekit/ui-kit/components/composites/streaming-text";

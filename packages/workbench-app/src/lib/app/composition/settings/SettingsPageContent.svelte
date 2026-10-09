@@ -24,6 +24,7 @@ import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
+import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
@@ -94,7 +95,33 @@ let {
 </script>
 
 {#if settingsDraft}
-  {#if scope === "project"}
+  {#if scope === "project" && page.id === "tools"}
+    <ProjectToolsSettingsPage
+      configuration={controllers.capabilityConfiguration}
+      loading={controllers.capabilityLoading}
+      error={controllers.capabilityError}
+      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
+      onReset={() => void controllers.resetProjectCapabilities()}
+      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
+      onRetry={() => void controllers.loadProjectCapabilities()}
+    />
+  {:else if scope === "project" && page.id === "skills"}
+    <SkillsSettingsPage
+      scope="project"
+      configuration={controllers.capabilityConfiguration}
+      {settingsDraft}
+      {skills}
+      loading={controllers.capabilityLoading || skillsLoading}
+      error={controllers.capabilityError ?? skillsError}
+      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
+      onReset={() => void controllers.resetProjectCapabilities()}
+      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
+      onRetry={() => {
+        onSkillsRetry?.();
+        void controllers.loadProjectCapabilities();
+      }}
+    />
+  {:else if scope === "project"}
     <SettingsEmptyState
       variant="card"
       icon={UserCog}

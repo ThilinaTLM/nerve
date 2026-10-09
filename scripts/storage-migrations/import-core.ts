@@ -14,7 +14,16 @@ try {
       "Usage: pnpm storage:import-core --home <NERVE_HOME> [--force]",
     );
   const summary = importCoreStorage({ home: values.home, force: values.force });
-  if (summary.failedTrees.length) process.exitCode = 1;
+  const paths = summary.selectedPaths;
+  if (
+    summary.failedTrees.length ||
+    paths.userMessageMismatches.length ||
+    paths.headMismatches.length ||
+    paths.unansweredToolCalls ||
+    paths.duplicateToolResults ||
+    paths.orphanToolResults
+  )
+    process.exitCode = 1;
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;

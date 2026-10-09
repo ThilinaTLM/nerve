@@ -3,6 +3,8 @@ import type {
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
@@ -13,16 +15,35 @@ import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
+import type { PlanReviewRecord } from "@nervekit/contracts/plans";
+import type { ProjectRecord } from "@nervekit/contracts/projects";
+
+import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
+
+import type { TodoItem } from "@nervekit/contracts/tools";
 import type {
-  QueuedInput,
-  ConversationSummary,
-  InteractionResolution,
-} from "@nervekit/contracts/core";
-import type { CapabilitySkillRow } from "../composer/capability-skill-row";
-import type { CapabilityToolGroup } from "../composer/capability-tool-labels";
-import type { ConversationUsageSummary } from "../usage/conversation-usage";
-import type { CoreTimelineRow } from "../state/transcript-types";
+  ToolCallTranscriptRecord,
+  UserQuestionRecord,
+} from "$lib/presentation/view-models/conversation";
+
+import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
+import type { TimelineItem } from "../state/timeline.js";
+import type { ConversationRunOutcome } from "../state/conversation-render-state.js";
+import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
+import type {
+  ApprovalWithToolCall,
+  PlanReviewResolveOptions,
+} from "../state/tool-types.js";
+import type {
+  CompactionNotice,
+  RunStatusNotice,
+  TaskEventNotice,
+  SystemEventNotice,
+  TranscriptItem,
+} from "../state/transcript-types.js";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
+
 export type ConversationComposerCapabilities = {
   voice?: boolean;
   imagePaste?: boolean;
@@ -78,7 +99,7 @@ export type ConversationComposerModel = {
   modelShortcut?: string;
   thinkingShortcut?: string;
   modelEmptyMessage?: string;
-  todos?: import("@nervekit/contracts/tools").TodoItem[];
+  todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
@@ -87,34 +108,52 @@ export type ConversationComposerModel = {
   ) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: CapabilityConfiguration;
-  capabilityScopeLabel?: "agent" | "conversation";
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
+};
+
+export type ConversationTimelineSections = {
+  prefix: TimelineItem[];
+  tail: TimelineItem[];
+};
+
+/** Run state behind the transcript's tail activity slot. */
+export type ConversationRunActivityModel = {
+  activeRun?: ConversationActiveRunSnapshot;
+  lastRunOutcome?: ConversationRunOutcome;
+  /** A local Stop request is in flight or the run is aborting. */
+  stopping: boolean;
 };
 
 export type ConversationPaneModel = {
   conversationId?: string;
   open: boolean;
   active?: boolean;
-  timeline: { prefix: CoreTimelineRow[]; tail: CoreTimelineRow[] };
-  sending: boolean;
+  timeline: ConversationTimelineSections;
   streamingText: string;
-  queuedPrompts: QueuedInput[];
-  children: ConversationSummary[];
-  error?: string;
-  loadingOlder?: boolean;
-  hasOlder?: boolean;
-  parent?: { id: string; title: string };
-  title?: string;
+  sending: boolean;
+  runActivity: ConversationRunActivityModel;
+  queuedPrompts: QueuedPromptRecord[];
+  approvals?: ApprovalWithToolCall[];
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
+  /** Tool calls whose external outcome recovery could not determine. */
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
+  activeProject?: ProjectRecord;
+  activeProjectLabel?: string;
+  planReviewModels?: ModelInfo[];
+  planReviewModelKey?: string;
+  planReviewThinkingLevel?: ThinkingLevel;
+  banner?: { tone: "muted" | "warning"; title: string; message?: string };
+  emptyTitle?: string;
+  emptyMessage?: string;
+  transcriptHeightCacheKey?: string;
+  transcriptLabel?: string;
   composer: ConversationComposerModel;
 };
+
 export type ConversationPaneActions = {
-  onEditMessage?: (
-    eventId: string,
-    text: string,
-    previousEventId: string | null,
-  ) => void;
   onComposerChange?: (text: string) => void;
   onSubmit?: () => void;
   onAbort?: () => void;
@@ -122,11 +161,12 @@ export type ConversationPaneActions = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;
-  onPermissionRuleSetChange?: (value: string) => void;
+  onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
@@ -135,21 +175,64 @@ export type ConversationPaneActions = {
   onReadClipboardText?: () => Promise<string>;
   onWriteClipboardText?: (text: string) => Promise<void>;
   onClipboardError?: (action: "copy" | "cut" | "paste") => void;
-  onResolve?: (
-    toolCallId: string,
-    resolution: InteractionResolution,
-  ) => Promise<unknown>;
-  onContinueFromFailure?: () => void;
-  onLoadOlder?: () => void;
   onOpenFile?: (path: string, line?: number) => void;
-  onReadFile?: (path: string) => Promise<string>;
-  onOpenConversation?: (id: string) => void;
-  onPeekConversation?: (id: string, title: string) => void;
-  onForcePushQueuedPrompts?: (input: QueuedInput) => void | Promise<void>;
-  onDiscardQueuedPrompt?: (input: QueuedInput) => void | Promise<void>;
-  onMoveQueuedPromptToComposer?: (input: QueuedInput) => void | Promise<void>;
+  onOpenTask?: (taskId: string) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
+  onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
+  onDismissUserQuestion?: (id: string) => void | Promise<void>;
+  onGrantApproval?: (
+    id: string,
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
+  ) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void | Promise<void>;
+  onAcceptPlanReview?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onContinueFromFailure?: (runId: string) => void;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onMoveQueuedPromptToComposer?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
 };
-export type TranscriptMenuTarget = CoreTimelineRow;
+
+export type TranscriptMenuTarget =
+  | { kind: "message"; item: TranscriptItem }
+  | { kind: "thinking"; item: TranscriptItem }
+  | {
+      kind: "tool";
+      anchorEntryId?: string;
+      toolCall: ToolCallTranscriptRecord;
+    }
+  | { kind: "tool_result_error"; toolName: string; error: string }
+  | { kind: "run_status"; notice: RunStatusNotice }
+  | { kind: "compaction"; notice: CompactionNotice }
+  | { kind: "task_event"; notice: TaskEventNotice }
+  | { kind: "system_event"; notice: SystemEventNotice }
+  | {
+      kind: "queued_prompt";
+      prompt: QueuedPromptRecord;
+      busy: boolean;
+      canForcePush: boolean;
+      canEdit: boolean;
+      canDiscard: boolean;
+      onForcePush: () => void;
+      onEdit: () => void;
+      onDiscard: () => void;
+    };
+
 export type ConversationMenuBuilders = {
   transcriptMenu: (
     target: TranscriptMenuTarget,

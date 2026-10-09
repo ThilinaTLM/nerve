@@ -1,8 +1,8 @@
 import type { AvailableSkillsResponse } from "@nervekit/contracts/skills";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestConversation } from "$lib/application/startup/conversation-connection";
 
 export async function listAvailableSkills(
   projectId?: string,
 ): Promise<AvailableSkillsResponse> {
-  return (await protocolRequest("skill.list", { projectId })).result;
+  return requestConversation("skill.list", { projectId });
 }

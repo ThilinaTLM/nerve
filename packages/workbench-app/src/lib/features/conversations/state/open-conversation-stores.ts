@@ -34,3 +34,7 @@ export function retainConversationStore(conversationId: string): {
     },
   };
 }
+
+export function retainedConversationStores(): ConversationStore[] {
+  return [...openStores.values()].map((entry) => entry.store);
+}

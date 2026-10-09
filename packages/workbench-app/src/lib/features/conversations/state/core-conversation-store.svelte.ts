@@ -30,6 +30,7 @@ const HISTORY_PAGE_SIZE = 100;
 export class ConversationStore {
   snapshot: ConversationSnapshot | undefined = $state();
   events: ConversationEvent[] = $state([]);
+  historyEvents: ConversationEvent[] | undefined = $state();
   liveBlocks = $state<LiveAssistantBlock[]>([]);
   toolOutput = $state<Record<string, string>>({});
   activity = $state<string>();
@@ -136,7 +137,19 @@ export class ConversationStore {
     snapshot.conversation.headEventId = events[0]?.id ?? null;
     this.snapshot = snapshot;
     this.events = chronological(events);
+    if (this.historyEvents)
+      this.historyEvents = [
+        ...Object.values(
+          Object.fromEntries(
+            [...this.historyEvents, ...events].map((event) => [
+              event.id,
+              event,
+            ]),
+          ),
+        ),
+      ].sort((a, b) => a.sequence - b.sequence);
     this.hasOlder = events.length === HISTORY_PAGE_SIZE;
+    await this.loadAllHistory();
     this.connected = true;
     this.deleted = false;
     installConversationReplaySequence(
@@ -146,6 +159,11 @@ export class ConversationStore {
   }
 
   private append(event: ConversationEvent): void {
+    if (
+      this.historyEvents &&
+      !this.historyEvents.some((item) => item.id === event.id)
+    )
+      this.historyEvents = [...this.historyEvents, event];
     const snapshot = this.snapshot;
     if (!snapshot) return;
     const included = this.events.some((item) => item.id === event.id);
@@ -298,12 +316,34 @@ export class ConversationStore {
           continue;
         }
         this.events = chronological(events);
+        if (this.historyEvents)
+          this.historyEvents = [
+            ...Object.values(
+              Object.fromEntries(
+                [...this.historyEvents, ...events].map((event) => [
+                  event.id,
+                  event,
+                ]),
+              ),
+            ),
+          ].sort((a, b) => a.sequence - b.sequence);
         this.hasOlder = events.length === HISTORY_PAGE_SIZE;
+        await this.loadAllHistory();
       }
     })().finally(() => {
       this.historyRefresh = undefined;
     });
     return this.historyRefresh;
+  }
+
+  /** Original transcript and usage views consume the complete selected path. */
+  async loadAllHistory(): Promise<void> {
+    while (!this.disposed && this.hasOlder && !this.loadingOlder) {
+      const firstId = this.events[0]?.id;
+      await this.loadOlder();
+      // An error or a concurrent head change must not spin on the same page.
+      if (this.events[0]?.id === firstId) break;
+    }
   }
 
   async loadOlder(): Promise<void> {
@@ -394,6 +434,21 @@ export class ConversationStore {
       eventId,
     });
   }
+  async loadHistoryTree(): Promise<void> {
+    this.historyEvents ??= [...this.events];
+    const events = await requestConversation("conversation.getEventsSince", {
+      conversationId: this.conversationId,
+      sequence: 0,
+    });
+    if (this.disposed) return;
+    const byId = Object.fromEntries(
+      [...events, ...this.historyEvents].map((event) => [event.id, event]),
+    );
+    this.historyEvents = Object.values(byId).sort(
+      (a, b) => a.sequence - b.sequence,
+    );
+  }
+
   tree() {
     return requestConversation("conversation.getTree", {
       conversationId: this.conversationId,

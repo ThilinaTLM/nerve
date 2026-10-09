@@ -1,6 +1,7 @@
 <script lang="ts">
 import FileIcon from "@lucide/svelte/icons/file";
 import Folder from "@lucide/svelte/icons/folder";
+
 import type { FileEntry } from "@nervekit/contracts/tools";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
@@ -28,7 +29,7 @@ const sorted = $derived(sortEntries(view.entries));
 const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 </script>
 
-{#if view.total === 0 && toolCall.state === "completed"}
+{#if view.total === 0 && toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
 {:else if view.total > 0}
   <ul

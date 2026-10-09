@@ -7,6 +7,7 @@ import { iso, type Legacy, type LegacyReader } from "./legacy.reader.js";
 
 export interface ImportScope {
   id: string;
+  sourceAgentId: string;
   head: string | null;
   sequence: number;
   lastUserMessageAt: string | null;
@@ -53,6 +54,7 @@ export function importConversationScopes(
     const id = parent ? mapping.ids.get("conv", agent.id) : rootId;
     const scope: ImportScope = {
       id,
+      sourceAgentId: agent.id,
       head: null,
       sequence: 0,
       lastUserMessageAt: null,
@@ -103,8 +105,6 @@ export function importConversationScopes(
               conversation.permissionLevel ??
               "supervised"),
         mode: agent.mode ?? conversation.mode ?? "coding",
-        enabledTools: agent.tools ?? null,
-        enabledSkills: agent.skills ?? null,
         workingDirectory: agent.projectDir ?? project.directory,
       }),
     );

@@ -10,6 +10,7 @@ import {
 } from "./events.mapper.js";
 import { iso, type Legacy, type LegacyReader } from "./legacy.reader.js";
 import { importPendingInput } from "./input.mapper.js";
+import { verifySelectedPath } from "./selected-path.validation.js";
 import {
   importConversationScopes,
   type ImportScope,
@@ -54,9 +55,10 @@ export function importConversation(
   // Metadata only: no message bodies or run transition snapshots accumulate.
   const predecessors = new Map<string, { id: string | null; scope: string }>();
   const selected = new Map<string, string | null>();
+  const latestSources = new Map<string, string>();
   for (const row of reader.db
     .prepare(
-      "SELECT agent_id, active_record_id FROM agent_context_leaves WHERE conversation_id = ?",
+      "SELECT agent_id, active_record_id FROM agent_context_leaves WHERE conversation_id = ? ORDER BY CASE WHEN agent_id = 'agent_conversation' THEN 1 ELSE 0 END",
     )
     .iterate(conversation.id)) {
     selected.set(
@@ -71,9 +73,14 @@ export function importConversation(
     run: Legacy;
     executionId: string;
     transitions: Legacy[];
+    started: boolean;
+    finished: boolean;
+    lastSourceId: string | null;
   }[] = [];
+  const runs = new Map<string, (typeof runEnds)[number]>();
   const eventParents = new Map<string, string | null>();
   const responseProviders = new Map<string, string>();
+  const selectedLeafSources = new Map<string, string>();
   const append = (scope: ImportScope, event: Legacy): void => {
     const parsed = conversationEventSchema.parse({
       ...event,
@@ -88,6 +95,16 @@ export function importConversation(
     });
     insertEvent(mapping, parsed);
     eventParents.set(parsed.id, parsed.previousEventId);
+    const selectedSource = selectedLeafSources.get(scope.id);
+    const mappedLeaf = selectedSource ? predecessors.get(selectedSource) : null;
+    // Only facts extending this exact leaf segment advance its source mapping.
+    // Appending to another branch must never change the selected head.
+    if (
+      selectedSource &&
+      mappedLeaf?.id &&
+      parsed.previousEventId === mappedLeaf.id
+    )
+      predecessors.set(selectedSource, { id: parsed.id, scope: scope.id });
     if (parsed.type === "tool_call_response" && parsed.payload.providerCallId)
       responseProviders.set(parsed.id, parsed.payload.providerCallId);
     scope.head = parsed.id;
@@ -136,63 +153,167 @@ export function importConversation(
       },
     });
   };
-  for (const { row, data } of reader.records(conversation.id)) {
+  for (const { row, data } of reader.records(conversation.id, "run")) {
     const scope = owner(row.agent_id);
-    if (row.kind === "run") {
-      const run = data.run ?? data.state?.run;
-      if (!run) {
-        mapping.report.skip("Run record without run state");
+    const run = data.run ?? data.state?.run;
+    if (!run) {
+      mapping.report.skip("Run record without run state");
+      continue;
+    }
+    const executionId = mapping.ids.get("evt", `execution:${row.id}`);
+
+    const transitions: Legacy[] = [];
+    for (const transition of data.state?.transitions ?? []) {
+      if (!["waiting", "retrying", "retry_exhausted"].includes(transition.kind))
         continue;
-      }
-      const executionId = mapping.ids.get("evt", `execution:${row.id}`);
+      const failure = transition.run?.failure ?? transition.execution?.failure;
+      transitions.push({
+        id: mapping.ids.get("evt", transition.transitionId),
+        createdAt: iso(transition.committedAt),
+        payload: {
+          subtype: "execution_state",
+          transition: transition.kind === "waiting" ? "waiting" : "retrying",
+          executionId,
+          ...(failure
+            ? {
+                failure: {
+                  message:
+                    typeof failure.message === "string"
+                      ? failure.message
+                      : JSON.stringify(failure),
+                },
+              }
+            : {}),
+        },
+      });
+    }
+    const importedRun = {
+      scope,
+      run,
+      executionId,
+      transitions,
+      started: false,
+      finished: false,
+      lastSourceId: null as string | null,
+    };
+    runEnds.push(importedRun);
+    runs.set(String(row.id), importedRun);
+    runs.set(run.runId, importedRun);
+  }
+  for (const row of reader.db
+    .prepare(
+      "SELECT id, run_id FROM conversation_records WHERE conversation_id = ? AND kind IN ('message', 'summary') ORDER BY sequence",
+    )
+    .iterate(conversation.id)) {
+    const run = runs.get(String(row.run_id));
+    if (run) run.lastSourceId = String(row.id);
+  }
+  const finishRun = (importedRun: (typeof runEnds)[number]): void => {
+    if (importedRun.finished) return;
+    importedRun.finished = true;
+    const { scope, run, executionId, transitions, lastSourceId } = importedRun;
+    scope.head = lastSourceId
+      ? (predecessors.get(lastSourceId)?.id ?? null)
+      : null;
+    if (!importedRun.started) {
       append(scope, {
         id: executionId,
+        previousEventId: scope.head,
         type: "system_event",
         llmRepresentation: "none",
         createdAt: iso(run.startedAt ?? run.createdAt),
         payload: { subtype: "execution_state", transition: "started" },
       });
-      const transitions: Legacy[] = [];
-      for (const transition of data.state?.transitions ?? []) {
-        if (
-          !["waiting", "retrying", "retry_exhausted"].includes(transition.kind)
-        )
-          continue;
-        const failure =
-          transition.run?.failure ?? transition.execution?.failure;
-        transitions.push({
-          id: mapping.ids.get("evt", transition.transitionId),
-          createdAt: iso(transition.committedAt),
-          payload: {
-            subtype: "execution_state",
-            transition: transition.kind === "waiting" ? "waiting" : "retrying",
-            executionId,
-            ...(failure
-              ? {
-                  failure: {
-                    message:
-                      typeof failure.message === "string"
-                        ? failure.message
-                        : JSON.stringify(failure),
-                  },
-                }
-              : {}),
-          },
-        });
-      }
-      runEnds.push({ scope, run, executionId, transitions });
-      continue;
     }
+    for (const transition of transitions)
+      append(scope, {
+        ...transition,
+        payload: { ...transition.payload, executionId },
+        type: "system_event",
+        llmRepresentation: "none",
+      });
+    const transition = [
+      "completed",
+      "failed",
+      "cancelled",
+      "interrupted",
+    ].includes(run.status)
+      ? run.status
+      : "interrupted";
+    append(scope, {
+      id: mapping.ids.get("evt", `execution-end:${run.runId}`),
+      type: "system_event",
+      llmRepresentation: "none",
+      createdAt: iso(run.terminalAt ?? run.updatedAt),
+      payload: {
+        subtype: "execution_state",
+        transition,
+        executionId,
+        ...(run.error || run.failure
+          ? {
+              failure: {
+                message:
+                  typeof run.error === "string"
+                    ? run.error
+                    : JSON.stringify(run.error ?? run.failure),
+              },
+            }
+          : {}),
+      },
+    });
+    scope.status =
+      transition === "failed"
+        ? "failed"
+        : transition === "interrupted" || transition === "cancelled"
+          ? "interrupted"
+          : "idle";
+    scope.statusSequence = scope.sequence;
+    if (lastSourceId)
+      predecessors.set(lastSourceId, { id: scope.head, scope: scope.id });
+  };
+  for (const { row, data } of reader.records(conversation.id)) {
+    const scope = owner(row.agent_id);
+    if (row.kind === "run") continue;
     if (row.kind === "tool_call" || row.kind === "tool_batch") continue;
+    latestSources.set(scope.id, String(row.id));
     const entry = data.entry ?? {};
     const context = data.modelContext?.entry;
-    const oldParent = context?.parentId ?? entry.parentEntryId ?? row.parent_id;
+    // Null is an explicit branch root, not a missing predecessor.
+    const oldParent =
+      context && "parentId" in context
+        ? context.parentId
+        : "parentEntryId" in entry
+          ? entry.parentEntryId
+          : row.parent_id;
     const predecessor = oldParent ? predecessors.get(oldParent) : undefined;
     let previousEventId = oldParent
       ? predecessor?.scope === scope.id
         ? predecessor.id
         : null
-      : scope.head;
+      : null;
+    const importedRun = runs.get(String(row.run_id ?? entry.runId));
+    const currentOnly = [
+      "model_change",
+      "thinking_level_change",
+      "active_tools_change",
+    ].includes(entry.kind ?? context?.type);
+    if (importedRun && !currentOnly && (!importedRun.started || !oldParent)) {
+      if (importedRun.started)
+        importedRun.executionId = mapping.ids.get(
+          "evt",
+          `execution:${importedRun.run.runId}:root:${row.id}`,
+        );
+      append(scope, {
+        id: importedRun.executionId,
+        previousEventId,
+        type: "system_event",
+        llmRepresentation: "none",
+        createdAt: iso(importedRun.run.startedAt ?? importedRun.run.createdAt),
+        payload: { subtype: "execution_state", transition: "started" },
+      });
+      importedRun.started = true;
+      previousEventId = scope.head;
+    }
     if (oldParent && !predecessor)
       mapping.report.loss(
         "Missing predecessor; imported as separate branch root",
@@ -256,15 +377,20 @@ export function importConversation(
         id: previousEventId,
         scope: scope.id,
       });
+    if (importedRun?.lastSourceId === String(row.id)) finishRun(importedRun);
   }
+  for (const run of runEnds) finishRun(run);
   // Choose the original selected leaf before adding settlement facts. Explicit
   // empty selection stays empty; inactive branches are never silently selected.
   for (const scope of scopes.values()) {
+    if (!selected.has(scope.id))
+      selected.set(scope.id, latestSources.get(scope.id) ?? null);
     if (selected.has(scope.id)) {
       const oldHead = selected.get(scope.id);
       scope.head = oldHead ? (predecessors.get(oldHead)?.id ?? null) : null;
       if (oldHead && !scope.head)
         mapping.report.loss("Selected leaf is missing from imported records");
+      if (oldHead) selectedLeafSources.set(scope.id, oldHead);
     }
   }
   for (const { row, data } of reader.records(conversation.id, "tool_call")) {
@@ -279,10 +405,8 @@ export function importConversation(
     let cursor = selectedHead;
     while (cursor && cursor !== origin?.eventId)
       cursor = eventParents.get(cursor) ?? null;
-    const historical = ["completed", "failed", "denied", "cancelled"].includes(
-      call.status,
-    );
-    const preserveSelection = historical && (!origin || !cursor);
+
+    const preserveSelection = !origin || !cursor;
     if (preserveSelection) scope.head = origin?.eventId ?? null;
     ensureOrigin(scope, call);
     const payload = responsePayload(mapping, call);
@@ -368,57 +492,32 @@ export function importConversation(
       "Selected branch lacked a result recorded elsewhere; result copied onto selected branch",
     );
   }
-  for (const { scope, run, executionId, transitions } of runEnds) {
-    for (const transition of transitions)
-      append(scope, {
-        ...transition,
-        type: "system_event",
-        llmRepresentation: "none",
-      });
-    const transition = [
-      "completed",
-      "failed",
-      "cancelled",
-      "interrupted",
-    ].includes(run.status)
-      ? run.status
-      : "interrupted";
-    append(scope, {
-      id: mapping.ids.get("evt", `execution-end:${run.runId}`),
-      type: "system_event",
-      llmRepresentation: "none",
-      createdAt: iso(run.terminalAt ?? run.updatedAt),
-      payload: {
-        subtype: "execution_state",
-        transition,
-        executionId,
-        ...(run.error || run.failure
-          ? {
-              failure: {
-                message:
-                  typeof run.error === "string"
-                    ? run.error
-                    : JSON.stringify(run.error ?? run.failure),
-              },
-            }
-          : {}),
-      },
-    });
-    scope.status =
-      transition === "failed"
-        ? "failed"
-        : transition === "interrupted" || transition === "cancelled"
-          ? "interrupted"
-          : "idle";
-    scope.statusSequence = scope.sequence;
-  }
-  for (const scope of scopes.values())
+  for (const scope of scopes.values()) {
+    const oldLeafId = selected.get(scope.id) ?? null;
+    // Select the mapped source leaf, never the last event appended in this scope.
+    scope.head = oldLeafId ? (predecessors.get(oldLeafId)?.id ?? null) : null;
     mapping.storage.conversations.update(scope.id, {
       headEventId: scope.head,
       lastUserMessageAt: scope.lastUserMessageAt,
       status: scope.status,
       statusEventSequence: scope.statusSequence,
     });
+    verifySelectedPath({
+      reader,
+      storage: mapping.storage,
+      conversationId: scope.id,
+      oldLeafId,
+      mappedLeafId: oldLeafId
+        ? (predecessors.get(oldLeafId)?.id ?? null)
+        : null,
+      isRoot: scope.id === rootId,
+      label:
+        scope.id === rootId
+          ? conversation.id
+          : `${conversation.id}/${scope.sourceAgentId}`,
+      summary: mapping.report.selectedPaths,
+    });
+  }
   for (const input of inputs)
     importPendingInput(mapping, owner(input.agentId).id, input);
   for (const task of tasks) {

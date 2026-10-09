@@ -4,32 +4,55 @@ import type { ToolDefinition } from "@nervekit/tools/catalog";
 import { promptGuidelinesForTools } from "@nervekit/tools/catalog";
 import { loadHarnessResources } from "./resource-loader.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
+import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
+import type { CapabilityService } from "./capability.service.js";
 import { join } from "node:path";
 
 export function createTurnResourcesPort(options: {
   home: string;
   tools(): ToolDefinition[];
   skills: readonly Skill[];
+  agentBrowserSkills: readonly Skill[];
+  capabilities: CapabilityService;
 }): TurnResourcesPort {
   return {
-    async prepare({ config, projectDir }) {
-      const tools = options
-        .tools()
-        .filter(
-          (tool) =>
-            config.enabledTools === null ||
-            config.enabledTools.includes(tool.name),
+    async prepare({ conversation, config, projectDir, coreTools = [] }) {
+      const { effective, availableTools, toolProfileOptions } =
+        await options.capabilities.configuration(
+          conversation.projectId,
+          conversation.id,
         );
+      const tools = [...options.tools(), ...coreTools].filter((tool) => {
+        const name = tool.name.startsWith("subagent_")
+          ? "subagents"
+          : tool.name.startsWith("jira_")
+            ? "jira"
+            : tool.name.startsWith("confluence_")
+              ? "confluence"
+              : tool.name;
+        const parsed = capabilityToolNameSchema.safeParse(name);
+        if (
+          (name === "jira" || name === "confluence") &&
+          !toolProfileOptions[name].some(
+            (profile) => profile.id === effective.toolProfiles[name],
+          )
+        )
+          return false;
+        return (
+          !parsed.success ||
+          (availableTools.includes(parsed.data) &&
+            !effective.disabledTools.includes(parsed.data))
+        );
+      });
       const resources = await loadHarnessResources(projectDir, {
         storageHome: options.home,
         nerveSkills: options.skills,
-        enabledNerveSkillNames: options.skills.map((skill) => skill.name),
+        agentBrowserSkills: options.agentBrowserSkills,
+        enabledNerveSkillNames: effective.enabledNerveSkills,
+        enabledAgentBrowserSkillNames: effective.enabledAgentBrowserSkills,
+        disabledSkillNames: effective.disabledFileSkills,
       });
-      const skills = resources.skills.filter(
-        (skill) =>
-          config.enabledSkills === null ||
-          config.enabledSkills.includes(skill.name),
-      );
+      const skills = resources.skills;
       return {
         tools,
         systemPrompt:

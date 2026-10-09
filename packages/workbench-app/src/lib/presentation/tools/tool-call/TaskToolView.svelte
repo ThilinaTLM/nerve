@@ -34,7 +34,7 @@ const hasResult = $derived(
 
 {#if hasResult}
   <div class="grid gap-1.5">
-    {#if toolCall.state === "completed"}
+    {#if toolCall.status === "completed"}
       <p class="m-0 text-xs font-medium text-muted-foreground">
         {completionMessage}
       </p>
@@ -83,7 +83,7 @@ const hasResult = $derived(
       </p>
     {/if}
   </div>
-{:else if toolCall.state === "completed" && view.previewUnavailable}
+{:else if toolCall.status === "completed" && view.previewUnavailable}
   <p class="m-0 text-xs text-warning">
     Task result preview unavailable. Open Details to inspect the full result.
   </p>

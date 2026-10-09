@@ -1,132 +1,153 @@
 <script lang="ts">
-import type { ConversationStore } from "../state/core-conversation-store.svelte";
-import { conversationContext } from "../adapters/core-context.adapter";
-import { requestConversation } from "$lib/application/startup/conversation-connection";
-import type { ModelInfo } from "@nervekit/contracts/models";
+import Copy from "@lucide/svelte/icons/copy";
+import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
-  PanelView,
-  PanelHeader,
-  PanelSectionHeader,
-  PanelPropertyRow,
-  PanelEmpty,
   PanelBanner,
+  PanelHeader,
+  PanelToolbarButton,
+  PanelView,
 } from "$lib/presentation/panels";
-let { store }: { store?: ConversationStore } = $props();
-let models = $state<ModelInfo[]>([]);
-$effect(() => {
-  const id = store?.conversationId;
-  if (!id) {
-    models = [];
-    return;
+import type { ContextUsage } from "@nervekit/contracts/models";
+
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+  ConversationRecord,
+  ProjectRecord,
+} from "$lib/presentation/view-models/conversation";
+import type { StatusResponse } from "@nervekit/contracts/status";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
+import ContextAgentsSection from "./ContextAgentsSection.svelte";
+import ContextConversationUsage from "./ContextConversationUsage.svelte";
+import ContextExportMenu from "./ContextExportMenu.svelte";
+import ContextSessionSection from "./ContextSessionSection.svelte";
+import ContextUsageStrip from "./ContextUsageStrip.svelte";
+import { sessionFields, sessionFieldsText } from "./context-session-fields";
+
+type Props = {
+  status?: StatusResponse;
+  contextUsage?: ContextUsage;
+  conversationUsage: ConversationUsageSummary;
+  contextWindow?: number;
+  activeProject?: ProjectRecord;
+  activeConversation?: ConversationRecord;
+  activeAgent?: AgentRecord;
+  conversationAgents?: AgentRecord[];
+  agentActivities?: Readonly<Record<string, AgentActivitySnapshot>>;
+  compacting?: boolean;
+  exportUrl?: (kind: "json" | "md" | "html") => string | undefined;
+  systemPromptUrl?: () => string | undefined;
+  onSelectAgent?: (agent: AgentRecord) => void;
+  /** Opens a read-only live transcript of a subagent row. */
+  onOpenTranscript?: (agent: AgentRecord) => void;
+  onCompact?: () => void;
+};
+
+let {
+  status,
+  contextUsage,
+  conversationUsage,
+  contextWindow = 0,
+  activeProject,
+  activeConversation,
+  activeAgent,
+  conversationAgents = [],
+  agentActivities = {},
+  compacting = false,
+  exportUrl,
+  systemPromptUrl,
+  onSelectAgent,
+  onOpenTranscript,
+  onCompact,
+}: Props = $props();
+
+let confirmCompactOpen = $state(false);
+
+const fields = $derived(
+  sessionFields({ status, activeProject, activeConversation }),
+);
+
+const compactTitle = $derived(
+  activeConversation
+    ? compacting
+      ? "Conversation compaction is in progress"
+      : "Summarize earlier messages to reduce context usage"
+    : "Select a conversation to compact its context",
+);
+
+async function copySession(): Promise<void> {
+  try {
+    await writeClipboardText(sessionFieldsText(fields));
+    notify.success("Copied session details");
+  } catch {
+    notify.error("Could not copy to clipboard");
   }
-  let current = true;
-  void requestConversation("model.list", {})
-    .then((result) => {
-      if (current) models = result.models;
-    })
-    .catch(() => {
-      if (current) models = [];
-    });
-  return () => {
-    current = false;
-  };
-});
-const context = $derived(
-  store?.snapshot
-    ? conversationContext(store.snapshot, store.events)
-    : undefined,
-);
-const contextWindow = $derived(
-  models.find(
-    (model) =>
-      model.provider === context?.requestModel.provider &&
-      model.modelId === context?.requestModel.modelId,
-  )?.contextWindow ?? 0,
-);
-const requestUsage = $derived(
-  context?.requestTokens === null || context?.requestTokens === undefined
-    ? context?.compacted
-      ? "Awaiting response after compaction"
-      : "Unknown until first response"
-    : `${context.requestTokens.toLocaleString()}${contextWindow > 0 ? ` / ${contextWindow.toLocaleString()} (${Math.round((context.requestTokens / contextWindow) * 100)}%)` : " tokens"}`,
-);
+}
 </script>
-<PanelView>
-  {#snippet banner()}<PanelHeader title="Context" />{/snippet}
-  {#if context}
-    {#if store?.error}<PanelBanner tone="destructive">{store.error}</PanelBanner
-      >{/if}
-    <PanelSectionHeader title="Conversation" />
-    <PanelPropertyRow label="Conversation" value={context.conversation.title} />
-    <PanelPropertyRow
-      label="Status"
-      value={context.conversation.paused
-        ? "Paused"
-        : context.conversation.status}
-    />
-    <PanelPropertyRow label="Model" value={context.config.model.modelId} />
-    <PanelPropertyRow label="Reasoning" value={context.config.reasoningLevel} />
-    <PanelPropertyRow label="Mode" value={context.config.mode} />
-    <PanelPropertyRow
-      label="Permission rule set"
-      value={context.config.permissionRuleSetId}
-    />
-    <PanelPropertyRow
-      label="Working directory"
-      value={context.config.workingDirectory}
-    />
-    <PanelSectionHeader title="Context window" />
-    <PanelPropertyRow label="Last request" value={requestUsage} />
-    {#if context.requestTokens !== null}<PanelPropertyRow
-        label="Request model"
-        value={context.requestModel.modelId}
-      />{/if}
-    <PanelPropertyRow
-      label="Queued inputs"
-      value={String(context.queuedCount)}
-    />
-    <PanelPropertyRow
-      label="Open tool calls"
-      value={String(context.openToolCount)}
-    />
-    <PanelPropertyRow
-      label="Background commands"
-      value={String(context.activeBashCount)}
-    />
-    <PanelSectionHeader
-      title={store?.hasOlder ? "Loaded history usage" : "History usage"}
-    />
-    <PanelPropertyRow
-      label="Responses"
-      value={context.usage.responseCount.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Input tokens"
-      value={context.usage.input.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Output tokens"
-      value={context.usage.output.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Cache read"
-      value={context.usage.cacheRead.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Cache write"
-      value={context.usage.cacheWrite.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Total tokens"
-      value={context.usage.totalTokens.toLocaleString()}
-    />
-    <PanelPropertyRow
-      label="Cost"
-      value={`$${context.usage.cost.toFixed(4)}`}
-    />
-  {:else}<PanelEmpty
-      title={store?.loading
-        ? "Loading conversation…"
-        : "No conversation selected"}
-    />{/if}
+
+<PanelView padded={false}>
+  {#snippet banner()}
+    <PanelHeader title="Context">
+      {#snippet trailing()}
+        <PanelToolbarButton
+          icon={Copy}
+          label="Copy session details"
+          disabled={!activeProject}
+          onclick={() => void copySession()}
+        />
+        {#if exportUrl?.("md") || systemPromptUrl?.()}
+          <ContextExportMenu
+            {activeConversation}
+            {exportUrl}
+            {systemPromptUrl}
+          />
+        {/if}
+      {/snippet}
+    </PanelHeader>
+    {#if !activeProject}
+      <PanelBanner tone="neutral">Select a project to view context.</PanelBanner
+      >
+    {/if}
+  {/snippet}
+
+  {#if activeProject}
+    <div class="flex flex-col gap-4 py-1">
+      <ContextUsageStrip {contextUsage} {contextWindow}>
+        <Button
+          size="xs"
+          variant="outline"
+          class="rounded-full"
+          title={compactTitle}
+          disabled={!activeConversation || compacting}
+          onclick={() => (confirmCompactOpen = true)}
+        >
+          <FoldVertical />
+          {compacting ? "Compacting…" : "Compact"}
+        </Button>
+      </ContextUsageStrip>
+      <div class="flex min-w-0 flex-col">
+        <ContextSessionSection {fields} />
+      </div>
+      <ContextConversationUsage {conversationUsage} />
+      <ContextAgentsSection
+        {conversationAgents}
+        {activeAgent}
+        {agentActivities}
+        {onSelectAgent}
+        {onOpenTranscript}
+      />
+    </div>
+  {/if}
 </PanelView>
+
+<ConfirmDialog
+  bind:open={confirmCompactOpen}
+  title="Compact conversation"
+  description="This summarizes earlier messages to reduce context size. The full history stays available in the branch tree."
+  confirmLabel="Compact context"
+  onConfirm={() => onCompact?.()}
+/>

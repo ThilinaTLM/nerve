@@ -37,8 +37,7 @@ export const conversationConfigSchema = z.object({
   systemPrompt: z.string().nullable(),
   permissionRuleSetId: z.string(),
   mode: modeSchema,
-  enabledTools: z.array(z.string()).nullable(),
-  enabledSkills: z.array(z.string()).nullable(),
+
   workingDirectory: z.string(),
 });
 export const conversationSummarySchema = conversationSchema
@@ -47,7 +46,12 @@ export const conversationSummarySchema = conversationSchema
     statusEventSequence: true,
     nextInputSequence: true,
   })
-  .extend({ childCount: z.number().int().nonnegative() });
+  .extend({
+    childCount: z.number().int().nonnegative(),
+    mode: modeSchema,
+    model: modelSelectionSchema,
+    permissionRuleSetId: z.string(),
+  });
 export const conversationSnapshotSchema = z.object({
   conversation: conversationSchema,
   lastSequence: z.number().int().nonnegative(),

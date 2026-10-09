@@ -5,18 +5,15 @@ import { definition } from "./delegation-tool-definitions.js";
 import { finalAssistantText } from "./child-report.js";
 
 const EXPLORE_CONCURRENCY = 3;
-const EXPLORE_TOOLS = [
-  "read",
-  "grep",
-  "find",
-  "ls",
-  "task_status",
-  "task_logs",
-];
 
 export function createExploreTool(
   core: ConversationCore,
   exploring: Set<string>,
+  initializeChild: (
+    parentId: string,
+    childId: string,
+    explore: boolean,
+  ) => Promise<void>,
 ): CoreToolHandler {
   const base = definition("explore");
   const tasks = { ...base.parameters.properties.tasks };
@@ -62,12 +59,13 @@ export function createExploreTool(
             config: {
               ...config,
               permissionRuleSetId: "read_only",
-              enabledTools: EXPLORE_TOOLS,
+
               systemPrompt:
                 "You are a read-only research teammate. Investigate the assigned task and return a clear report with relevant paths and findings. Do not modify files.",
             },
           });
           const id = child.conversation.id;
+          await initializeChild(call.conversationId, id, true);
           exploring.add(id);
           active.add(id);
           try {

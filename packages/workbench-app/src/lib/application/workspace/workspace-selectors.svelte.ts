@@ -1,3 +1,4 @@
+import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import { projectKey } from "$lib/domain/projects/project-tree";
@@ -175,7 +176,26 @@ export const workspaceSelectors = {
     return tabs;
   },
   get openPendingConversationTabs(): PendingConversationTabModel[] {
-    return [];
+    return [...pendingConversations.values()]
+      .filter((p) =>
+        workspaceState.openCenterTabs.some(
+          (t) => t.kind === "pending-conversation" && t.id === p.id,
+        ),
+      )
+      .map((p) => ({
+        kind: "pending-conversation",
+        id: p.id,
+        title: p.title,
+        project: workspaceState.projects.find(
+          (project) => project.id === p.projectId,
+        ),
+        projectDir: p.projectDir,
+        active: activeTabMatches("pending-conversation", p.id),
+        hasDraft: !!p.composerText,
+        sending: p.sending,
+        activity: idleConversationActivity,
+        error: p.error,
+      }));
   },
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];

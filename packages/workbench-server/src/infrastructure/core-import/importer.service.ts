@@ -14,7 +14,12 @@ import {
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { importConversation } from "./conversation.importer.js";
+import {
+  ConversationOverlaysImporter,
+  type ImportedConversationOverlays,
+} from "./conversation-overlays.importer.js";
 import type { EventMapping } from "./events.mapper.js";
+import type { SelectedPathVerification } from "./selected-path.validation.js";
 import {
   decode,
   ImportIds,
@@ -30,6 +35,8 @@ export interface CoreImportSummary {
   skipped: Record<string, number>;
   lossyMappings: Record<string, number>;
   failedTrees: string[];
+  selectedPaths: SelectedPathVerification;
+  overlays: ImportedConversationOverlays;
   assets: { diskFiles: number; trackedFiles: number; missingFiles: number };
 }
 
@@ -103,6 +110,7 @@ function importTrust(
         ? join(
             project.directory,
             ".nerve",
+            "config",
             kind === "project_permissions"
               ? "permissions.json"
               : "capabilities.json",
@@ -186,6 +194,7 @@ export function importCoreStorage(input: {
   const reader = new LegacyReader(oldPath);
   const report = new ImportReport();
   let storage;
+  let overlays: ImportedConversationOverlays;
   try {
     if (input.force)
       for (const suffix of ["", "-wal", "-shm"])
@@ -213,6 +222,13 @@ export function importCoreStorage(input: {
       );
     }
     importTrust(reader, mapping, home);
+    const overlayImporter = new ConversationOverlaysImporter(
+      home,
+      dataDir,
+      storage,
+      report,
+    );
+    overlays = overlayImporter.counts;
     for (const { row, data } of reader.documents("scratch_notes")) {
       const notes: Legacy[] = Array.isArray(data) ? data : (data.notes ?? []);
       for (const note of notes) {
@@ -291,38 +307,12 @@ export function importCoreStorage(input: {
     const seenConversations = new Set<string>();
     for (const { data: conversation } of reader.documents("conversation")) {
       seenConversations.add(conversation.id);
-      if (
-        existsSync(
-          join(
-            dataDir,
-            "conversations",
-            conversation.id.replace(/^conv_/, ""),
-            "capabilities.json",
-          ),
-        )
-      )
-        report.loss(
-          "Legacy conversation capability overlay retained on disk but not folded into current tools/skills configuration",
-        );
-      if (
-        existsSync(
-          join(
-            dataDir,
-            "conversations",
-            conversation.id.replace(/^conv_/, ""),
-            "permissions.json",
-          ),
-        )
-      )
-        report.loss(
-          "Legacy conversation permission overlay retained at old managed-owner path; host must relocate before cutover",
-        );
       mapping.origins.clear();
       mapping.toolAssets.clear();
       mapping.responseEvents.clear();
       mapping.providerResponseEvents.clear();
       try {
-        storage.transaction(() =>
+        storage.transaction(() => {
           importConversation(
             reader,
             mapping,
@@ -332,8 +322,13 @@ export function importCoreStorage(input: {
               (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
             ),
             tasks.get(conversation.id) ?? [],
-          ),
-        );
+          );
+          overlayImporter.importConversation(
+            mapping.ids.get("proj", conversation.projectId),
+            conversation.id,
+            mapping.ids.get("conv", conversation.id),
+          );
+        });
         console.log(`Imported ${conversation.id}`);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
@@ -379,6 +374,8 @@ export function importCoreStorage(input: {
     skipped: Object.fromEntries(report.skipped),
     lossyMappings: Object.fromEntries(report.losses),
     failedTrees: report.failures,
+    selectedPaths: report.selectedPaths,
+    overlays,
     assets: {
       diskFiles: report.diskFiles,
       trackedFiles: report.trackedFiles,

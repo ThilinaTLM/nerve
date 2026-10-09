@@ -3,6 +3,7 @@ import AskUserToolView from "../tool-call/AskUserToolView.svelte";
 import BashToolView from "../tool-call/BashToolView.svelte";
 import ConfluenceToolView from "../tool-call/ConfluenceToolView.svelte";
 import EditToolView from "../tool-call/EditToolView.svelte";
+import ExploreToolView from "../tool-call/ExploreToolView.svelte";
 import ExplainImageToolView from "../tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../tool-call/FindToolView.svelte";
 import GenericToolView from "../tool-call/GenericToolView.svelte";
@@ -14,6 +15,7 @@ import LsToolView from "../tool-call/LsToolView.svelte";
 import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
 import ReadToolView from "../tool-call/ReadToolView.svelte";
+import SubagentToolView from "../tool-call/SubagentToolView.svelte";
 import TaskStatusToolView from "../tool-call/TaskStatusToolView.svelte";
 import TaskLogsToolView from "../tool-call/TaskLogsToolView.svelte";
 import TaskToolView from "../tool-call/TaskToolView.svelte";
@@ -40,6 +42,8 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   task_action: TaskToolView,
   task_status: TaskStatusToolView,
   task_logs: TaskLogsToolView,
+  explore: ExploreToolView,
+  subagent: SubagentToolView,
   plan_mode: PlanModeToolView,
   jira: JiraToolView,
   confluence: ConfluenceToolView,

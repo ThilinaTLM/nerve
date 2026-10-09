@@ -18,6 +18,7 @@ export function createToolHostPort(
   processes: CoreProcessHost,
   context: (
     cwd: string,
+    conversationId: string,
   ) => ToolExecutionContext | Promise<ToolExecutionContext>,
   promotionDelayMs: (cwd: string) => Promise<number | null>,
 ) {
@@ -57,7 +58,7 @@ export function createToolHostPort(
         advertisedToolNames: new Set(definitions.map((tool) => tool.name)),
         hostHandlers: handlers,
         contextFor: async () => ({
-          ...(await context(input.cwd)),
+          ...(await context(input.cwd, input.conversationId)),
           cwd: input.cwd,
           artifactDir: input.artifactDir,
           signal: input.signal,

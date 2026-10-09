@@ -1,3 +1,4 @@
+import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import {
   conversationChannelOperations,
@@ -110,6 +111,20 @@ export function createConversationProtocolSession(
     return { stream, latestSeq, earliestAvailableSeq: 0 };
   };
   const handlers = {
+    "capabilities.get": ({ projectId, conversationId }) => {
+      projects.add(projectId);
+      return state.capabilities.configuration(projectId, conversationId);
+    },
+    "capabilities.update": ({ replace, ...input }) =>
+      state.capabilities.update({
+        ...input,
+        ...(replace !== undefined
+          ? { replace: capabilityOverridesDocumentSchema.parse(replace) }
+          : {}),
+      }),
+    "capabilities.reset": (input) => state.capabilities.reset(input),
+    "capabilities.trust": ({ projectId, digest }) =>
+      state.capabilities.trust(projectId, digest),
     "project.create": (input) => {
       const project = core.projects.create(input);
       projects.add(project.id);
@@ -312,7 +327,16 @@ export function createConversationProtocolSession(
     session
       .notify({ id: createId("evt"), ts: new Date().toISOString(), type, data })
       .catch(failed);
-  unsubscribe = core.subscribe((change) => {
+  const unsubscribeCapabilities = state.capabilities.subscribe((change) => {
+    if (projects.has(change.projectId))
+      void notify("capabilities.changed", change);
+  });
+  const unsubscribeSettings = state.events.subscribeNotify((event) => {
+    if (event.type === "settings.updated")
+      for (const projectId of projects)
+        void notify("capabilities.changed", { projectId });
+  });
+  const unsubscribeCore = core.subscribe((change) => {
     switch (change.kind) {
       case "event_appended":
         if (activatingStreams.has(conversationStream(change.conversationId)))
@@ -383,6 +407,11 @@ export function createConversationProtocolSession(
         break;
     }
   });
+  unsubscribe = () => {
+    unsubscribeCapabilities();
+    unsubscribeSettings();
+    unsubscribeCore();
+  };
   return {
     closed,
     dispose,

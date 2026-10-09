@@ -54,7 +54,7 @@ const filteredPopoverItems = $derived.by(() => {
     (item) =>
       item.label.toLowerCase().includes(q) ||
       item.project.name.toLowerCase().includes(q) ||
-      item.project.directory.toLowerCase().includes(q),
+      item.project.dir.toLowerCase().includes(q),
   );
 });
 function rowId(item: ProjectSwitcherItem): string {
@@ -183,7 +183,7 @@ function handleSubmit(event: Event) {
                   </span>
                 </span>
                 <span class="min-w-0 truncate font-mono text-muted-foreground">
-                  {tildePath(item.project.directory, homeDir)}
+                  {tildePath(item.project.dir, homeDir)}
                 </span>
               </span>
             </ItemSurface>

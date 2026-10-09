@@ -1,4 +1,5 @@
-import { toolNameSchema, type ToolName } from "@nervekit/contracts/tools";
+import { toolNameSchema } from "@nervekit/contracts/tools";
+import { type ToolName } from "@nervekit/contracts/tools";
 import {
   toolArgumentSource,
   type ToolArgumentSourceInput,

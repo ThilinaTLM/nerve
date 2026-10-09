@@ -16,6 +16,7 @@ import type {
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { CoreToolContext, CoreToolHandler } from "./core-tool.js";
 import { ToolCallSettlement } from "./tool-call-settlement.service.js";
+import { effectivePermissionRuleSetId } from "./permission-rule-set.js";
 import {
   ToolCallInteractions,
   type ResolveInteraction,
@@ -142,7 +143,8 @@ export class ToolCallService {
 
   async close(): Promise<void> {
     this.closed = true;
-    for (const controller of this.controllers.values()) controller.abort(shutdownReason);
+    for (const controller of this.controllers.values())
+      controller.abort(shutdownReason);
     await this.settlement.close();
   }
 
@@ -339,7 +341,7 @@ export class ToolCallService {
         const supervision = await this.options.permissions.evaluate({
           conversationId: call.conversationId,
           projectDir,
-          ruleSetId: config.permissionRuleSetId,
+          ruleSetId: effectivePermissionRuleSetId(config),
           toolName: call.toolName,
           args,
           cwd: config.workingDirectory,
@@ -382,12 +384,19 @@ export class ToolCallService {
       let result;
       if (handler) result = await handler.execute(call, ctx);
       else {
-        const artifactDir = await this.options.assets.directory(`conversations/${call.conversationId}/tool-calls/${call.id}/files`);
+        const artifactDir = await this.options.assets.directory(
+          `conversations/${call.conversationId}/tool-calls/${call.id}/files`,
+        );
         if (controller.signal.aborted) return;
         result = await this.options.host.execute({
-          toolCallId: call.id, conversationId: call.conversationId,
-          toolName: call.toolName, args, cwd: config.workingDirectory,
-          signal: ctx.signal, onProgress: ctx.onProgress, artifactDir,
+          toolCallId: call.id,
+          conversationId: call.conversationId,
+          toolName: call.toolName,
+          args,
+          cwd: config.workingDirectory,
+          signal: ctx.signal,
+          onProgress: ctx.onProgress,
+          artifactDir,
         });
       }
       if (controller.signal.aborted || !this.holdsClaim(call)) {

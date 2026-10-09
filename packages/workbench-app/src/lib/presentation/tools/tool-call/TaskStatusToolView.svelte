@@ -10,7 +10,7 @@ type Props = {
 let { toolCall, view }: Props = $props();
 </script>
 
-{#if view.tasks.length === 0 && toolCall.state === "completed"}
+{#if view.tasks.length === 0 && toolCall.status === "completed"}
   <p
     class="m-0 text-xs"
     class:text-warning={view.previewUnavailable}

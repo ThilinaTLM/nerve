@@ -1,6 +1,14 @@
 <script lang="ts">
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
+import {
+  sidebarProjects,
+  sidebarConversations,
+  sidebarAgents,
+  sidebarActivity,
+  updateConversationStateAndRefresh,
+  pruneProjectConversationsAndRefresh,
+} from "$lib/features/projects/adapters/conversation-sidebar.adapter";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
@@ -11,26 +19,29 @@ import {
   newConversationInProject,
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
-  updateConversationStateAndRefresh,
 } from "$lib/application/workspace/workspace-actions.svelte";
 
 const status = $derived(workspaceSelectors.status);
 const projectIds = $derived(new Set(workspaceSelectors.selectedProjectIds));
 const projects = $derived(
-  workspaceSelectors.projects.filter((project) => projectIds.has(project.id)),
+  sidebarProjects(
+    workspaceSelectors.projects.filter((project) => projectIds.has(project.id)),
+  ),
 );
-const conversations = $derived(workspaceSelectors.selectedProjectConversations);
+const conversations = $derived(
+  sidebarConversations(workspaceSelectors.selectedProjectConversations),
+);
+const agents = $derived(sidebarAgents(conversations));
 const openConversationTabIds = $derived(
   workspaceSelectors.openConversationTabIds,
 );
-const conversationActivityById = $derived(
-  workspaceSelectors.conversationActivityById,
-);
+const conversationActivityById = $derived(sidebarActivity(conversations));
 </script>
 
 <ProjectConversationNavigator
   {projects}
   {conversations}
+  {agents}
   homeDir={status?.storage.userHome}
   selectedProjectId={selection.projectId}
   selectedConversationId={selection.conversationId}
@@ -50,4 +61,6 @@ const conversationActivityById = $derived(
   onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
   onUpdateConversationState={(id, request) =>
     void updateConversationStateAndRefresh(id, request)}
+  onPruneProjectConversations={(id, request) =>
+    void pruneProjectConversationsAndRefresh(id, request)}
 />

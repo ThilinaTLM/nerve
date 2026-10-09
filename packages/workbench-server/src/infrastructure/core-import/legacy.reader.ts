@@ -1,4 +1,5 @@
 import { createId } from "@nervekit/contracts";
+import type { SelectedPathVerification } from "./selected-path.validation.js";
 import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
 
 // The archive contains several historical payload versions. Only the destination
@@ -86,6 +87,15 @@ export class LegacyReader {
 }
 
 export class ImportReport {
+  readonly selectedPaths: SelectedPathVerification = {
+    roots: 0,
+    children: 0,
+    userMessageMismatches: [],
+    headMismatches: [],
+    unansweredToolCalls: 0,
+    duplicateToolResults: 0,
+    orphanToolResults: 0,
+  };
   readonly skipped = new Map<string, number>();
   readonly failures: string[] = [];
   readonly losses = new Map<string, number>();

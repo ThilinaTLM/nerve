@@ -2,12 +2,18 @@
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
+import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import {
   buildProjectMenu,
+  countAgeEligible,
+  countCompletedEligible,
+  countKeepEligible,
   countProjectConversations,
+  PruneConversationsDialog,
   type DeleteTarget,
   type ProjectSwitcherItem,
   type ProjectTreeMenuContext,
+  type PruneTarget,
 } from "$lib/features/projects";
 import {
   closeDesktopWindow,
@@ -32,16 +38,23 @@ import {
   workspaceSelectors,
   workspaceState,
 } from "$lib/application/workspace";
+import {
+  sidebarConversations,
+  pruneProjectConversationsAndRefresh,
+} from "$lib/features/projects";
 import { quickProjectItems } from "$lib/features/projects";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import { resolveHeaderType } from "$lib/app/shell/header-type";
 
 const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const status = $derived(workspaceSelectors.status);
-const conversations = $derived(workspaceSelectors.conversations);
+const conversations = $derived(
+  sidebarConversations(workspaceSelectors.conversations),
+);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let pendingPrune = $state<PruneTarget | undefined>();
 const quickLimit = $derived(
   responsive.isPhone ? 1 : responsive.isCompact ? 2 : 5,
 );
@@ -77,6 +90,12 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     void openProjectInEditorAndNotify(projectId, editor),
   onOpenProjectInTerminal: (projectId) =>
     void openProjectInTerminalAndNotify(projectId),
+  requestPrune: (project) => {
+    pendingPrune = {
+      id: project.id,
+      label: shortProjectLabel(project.dir, status?.storage.userHome),
+    };
+  },
   requestDelete: (target) => (pendingDelete = target),
 });
 
@@ -87,6 +106,14 @@ function projectMenuItems(item: ProjectSwitcherItem) {
 function confirmDelete() {
   if (pendingDelete?.kind === "project" && !maintenance.active) {
     void deleteProjectAndRefresh(pendingDelete.id);
+  }
+}
+
+function confirmPrune(
+  request: Parameters<typeof pruneProjectConversationsAndRefresh>[1],
+) {
+  if (pendingPrune && !maintenance.active) {
+    void pruneProjectConversationsAndRefresh(pendingPrune.id, request);
   }
 }
 
@@ -120,7 +147,6 @@ async function handleDesktopClose() {
   activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
   desktop={desktopRuntime.isDesktop}
-  developmentSlot={desktopRuntime.developmentSlot}
   {headerType}
   maximized={desktopRuntime.windowState.maximized}
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}
@@ -155,5 +181,24 @@ async function handleDesktopClose() {
   onConfirm={confirmDelete}
   onOpenChange={(open) => {
     if (!open) pendingDelete = undefined;
+  }}
+/>
+
+<PruneConversationsDialog
+  open={!!pendingPrune}
+  projectLabel={pendingPrune?.label ?? ""}
+  totalCount={pendingPrune
+    ? countProjectConversations(conversations, pendingPrune.id)
+    : 0}
+  ageEligible={(days) =>
+    pendingPrune ? countAgeEligible(conversations, pendingPrune.id, days) : 0}
+  keepEligible={(keep) =>
+    pendingPrune ? countKeepEligible(conversations, pendingPrune.id, keep) : 0}
+  completedEligible={() =>
+    pendingPrune ? countCompletedEligible(conversations, pendingPrune.id) : 0}
+  disabled={maintenance.active}
+  onConfirm={confirmPrune}
+  onOpenChange={(open) => {
+    if (!open) pendingPrune = undefined;
   }}
 />

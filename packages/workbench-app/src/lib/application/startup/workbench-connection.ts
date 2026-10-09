@@ -27,6 +27,24 @@ import {
 } from "$lib/application/events/workbench-event-bus";
 
 let connection: ProtocolClientConnection | undefined;
+let channelReady = false;
+const readyListeners = new Set<(ready: boolean) => void>();
+
+export function onWorkbenchChannelReadyChange(
+  listener: (ready: boolean) => void,
+): () => void {
+  readyListeners.add(listener);
+  return () => {
+    readyListeners.delete(listener);
+  };
+}
+
+function notifyReadyChange(ready: boolean): void {
+  if (channelReady === ready) return;
+  channelReady = ready;
+  for (const listener of readyListeners) listener(ready);
+}
+
 const capabilities = [
   "encoding.json",
   "event.notify",
@@ -96,6 +114,7 @@ export async function connectWorkbenchChannel(
   connection = new ProtocolClientConnection({
     transport: browserWebSocketTransportFactory(url),
     onStateChange: (state) => {
+      notifyReadyChange(state === "ready");
       if (state !== "ready") beginWorkbenchRecovery();
     },
     onError: (error) => console.warn("Workbench connection failed", error),
@@ -139,5 +158,6 @@ export async function connectWorkbenchChannel(
 export function disconnectWorkbenchChannel(): void {
   void connection?.close();
   connection = undefined;
+  notifyReadyChange(false);
   beginWorkbenchRecovery();
 }

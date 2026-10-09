@@ -64,19 +64,15 @@ const lifecycle = $derived.by<
 >(() => {
   if (draftPhase) return "running";
   switch (status) {
-    case "ready":
+    case "committed":
       return "queued";
-    case "awaiting_approval":
-    case "awaiting_input":
-    case "supervising":
-    case "drafting":
+    case "waiting":
     case "running":
       return "running";
     case "completed":
       return "complete";
     case "failed":
     case "denied":
-    case "indeterminate":
       return "error";
     case "cancelled":
       return "idle";
@@ -87,10 +83,9 @@ const lifecycle = $derived.by<
 const toolStatusLabel = $derived.by(() => {
   if (draftPhase) return "Preparing tool call";
   switch (status) {
-    case "awaiting_approval":
-    case "awaiting_input":
+    case "waiting":
       return "Needs approval";
-    case "ready":
+    case "committed":
       return "Approved · queued";
     case "running":
       return "Executing tool call";

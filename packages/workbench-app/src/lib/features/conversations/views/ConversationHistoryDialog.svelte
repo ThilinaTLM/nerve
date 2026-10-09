@@ -1,54 +1,94 @@
 <script lang="ts">
-import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import type {
+  ConversationEntry,
+  ConversationRecord,
+  ConversationTreeNode,
+  ToolCallTranscriptRecord,
+} from "$lib/presentation/view-models/conversation";
 import type { ConversationStore } from "../state/core-conversation-store.svelte";
-import type { EventTreeNode } from "@nervekit/contracts/core";
+import { conversationTranscript } from "../adapters/core-transcript.adapter";
+import { conversationView } from "../adapters/core-context.adapter";
+import { composerSignals } from "../state/composer-signals.svelte";
+import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
+
+type Props = {
+  store?: ConversationStore;
+  open?: boolean;
+  activeConversation?: ConversationRecord;
+  treeNodes?: ConversationTreeNode[];
+  toolCalls?: ToolCallTranscriptRecord[];
+  onNavigateToEntry?: (entryId: string | undefined) => void;
+  onEditEntry?: (entry: ConversationEntry) => void;
+  onOpenChange?: (open: boolean) => void;
+};
+
 let {
   open = $bindable(false),
   store,
-}: { open?: boolean; store: ConversationStore } = $props();
-let tree = $state<EventTreeNode[]>([]);
-let error = $state<string>();
+  activeConversation: providedConversation,
+  treeNodes: providedTree,
+  toolCalls: providedTools,
+  onNavigateToEntry,
+  onEditEntry,
+  onOpenChange,
+}: Props = $props();
+
 $effect(() => {
-  if (!open) return;
-  let current = true;
-  error = undefined;
-  void store
-    .tree()
-    .then((value) => {
-      if (current) tree = value;
-    })
-    .catch((e) => {
-      if (current) error = String(e);
-    });
-  return () => {
-    current = false;
-  };
+  if (open && store) void store.loadHistoryTree().catch(() => undefined);
 });
-async function select(id: string | null) {
-  try {
-    await store.selectHead(id);
-    open = false;
-  } catch (e) {
-    error = e instanceof Error ? e.message : String(e);
-  }
+const projection = $derived(
+  store?.snapshot
+    ? conversationTranscript({
+        snapshot: store.snapshot,
+        events: store.historyEvents ?? store.events,
+        liveBlocks: store.liveBlocks,
+        toolOutput: store.toolOutput,
+      })
+    : undefined,
+);
+const activeConversation = $derived(
+  providedConversation ??
+    (store?.snapshot ? conversationView(store.snapshot) : undefined),
+);
+const treeNodes = $derived(providedTree ?? projection?.treeNodes ?? []);
+const toolCalls = $derived(providedTools ?? projection?.toolCalls ?? []);
+
+function handleOpenChange(next: boolean) {
+  open = next;
+  onOpenChange?.(next);
+}
+
+function navigateAndClose(entryId: string | undefined) {
+  if (onNavigateToEntry) onNavigateToEntry(entryId);
+  else void store?.selectHead(entryId ?? null);
+  open = false;
+  onOpenChange?.(false);
+}
+
+function editAndClose(entry: ConversationEntry) {
+  if (onEditEntry) onEditEntry(entry);
+  else composerSignals.editEntry = entry;
+  open = false;
+  onOpenChange?.(false);
 }
 </script>
-<DialogShell
+
+<Dialog
+  flush
   bind:open
+  size="viewport"
   title="Conversation history"
-  description="Select an event to continue from that branch."
-  class="max-w-5xl"
+  description="Explore branches, inspect message and tool details, then branch from any point."
+  onOpenChange={handleOpenChange}
 >
-  <div class="h-96">
+  <div data-tour-id="conversation-history" class="h-full min-h-0">
     <ConversationHistoryGraph
-      treeNodes={tree}
-      headEventId={store.snapshot?.conversation.headEventId}
-      disabled={Boolean(store.snapshot?.toolCalls.length) ||
-        store.snapshot?.conversation.status === "running" ||
-        store.snapshot?.conversation.status === "waiting"}
-      onSelect={select}
+      {activeConversation}
+      {treeNodes}
+      {toolCalls}
+      onNavigateToEntry={navigateAndClose}
+      onEditEntry={editAndClose}
     />
   </div>
-  {#if error}<p class="text-xs text-destructive" role="alert">{error}</p>{/if}
-</DialogShell>
+</Dialog>

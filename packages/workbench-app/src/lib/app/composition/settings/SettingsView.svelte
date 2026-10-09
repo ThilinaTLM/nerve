@@ -91,7 +91,10 @@ let {
 }: Props = $props();
 
 let settingsScope = $state<SettingsScope>("user");
-const controllers = createSettingsPageControllers();
+const controllers = createSettingsPageControllers({
+  activeProject: () => activeProject,
+  scope: () => settingsScope,
+});
 
 /** Skills sections mirror the sources the current scope actually renders. */
 const skillSections = $derived(

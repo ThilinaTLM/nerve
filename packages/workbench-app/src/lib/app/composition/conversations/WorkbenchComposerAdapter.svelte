@@ -1,300 +1,626 @@
 <script lang="ts">
-import {
-  fileCompletions,
-  referenceCompletions,
-} from "./composer-reference-completions";
-import { untrack } from "svelte";
-import { composerSignals } from "$lib/features/conversations/state/composer-signals.svelte";
+import { onDestroy, untrack } from "svelte";
+import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
-import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
-import { appendTranscriptText } from "$lib/features/conversations/audio/voice-input-target";
+import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
+import {
+  listIntegrationHealth,
+  listTools,
+  uploadClipboardImage,
+} from "$lib/api";
+import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
+import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
+import { readClipboardText } from "$lib/platform/clipboard/read-text";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
+import {
+  voiceInputSession,
+  type VoiceInputTarget,
+} from "$lib/features/conversations/audio/voice-input-session.svelte";
+import { AgentComposer } from "$lib/presentation/conversations";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
 } from "$lib/features/audio";
-import { uploadClipboardImage } from "$lib/features/filesystem";
+import PromptSuggestionChips from "$lib/features/conversations/views/PromptSuggestionChips.svelte";
+import {
+  getShortcutAriaLabel,
+  getShortcutLabel,
+} from "$lib/application/commands/command-registry";
+import type { PromptComposerProps } from "$lib/features/conversations/views/prompt-composer-props";
+import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
+import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import {
+  getCapabilityConfiguration,
+  updateCapabilities,
+} from "$lib/features/conversations/adapters/core-capabilities.adapter";
+import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
+import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
+import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import { requestConversation } from "$lib/application/startup/conversation-connection";
-import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
-import { AgentComposer } from "$lib/presentation/conversations";
-import type {
-  ConversationComposerModel,
-  ConversationPaneActions,
-} from "$lib/presentation/conversations/conversation-view-contracts";
-import type { ModelInfo } from "@nervekit/contracts/models";
-import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
-import type { CompletionItem } from "@nervekit/contracts/completions";
-import { modelKey, parseModelKey } from "$lib/presentation/utils/model";
-import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { Checkbox } from "@nervekit/ui-kit/components/ui/checkbox";
-import { readClipboardText } from "$lib/platform/clipboard/read-text";
-import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import {
+  ComposerCapabilityController,
+  type ComposerCapabilityState,
+} from "./composer-capability-controller";
+import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
+import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
+
 let {
-  store,
-  active = true,
-  text = $bindable(""),
-  onOpenHistory,
-  onSubmitText,
-  editing = false,
-  onCancelEdit,
-}: {
-  store: ConversationStore;
-  active?: boolean;
-  text?: string;
-  onOpenHistory?: () => void;
-  onSubmitText?: (text: string) => Promise<unknown>;
-  editing?: boolean;
-  onCancelEdit?: () => void;
-} = $props();
-let models = $state<ModelInfo[]>([]);
-let ruleSets = $state<PermissionRuleSetSummary[]>([]);
-let completions = $state<CompletionItem[]>([]);
-let error = $state<string>();
-let submitting = $state(false);
-let capabilityOpen = $state(false);
-let tools = $state<{ name: string; description?: string }[]>([]);
-let skills = $state<{ name: string; description?: string }[]>([]);
-let lastMicToken = untrack(() => composerSignals.micToken);
-$effect(() => {
-  const token = composerSignals.micToken;
-  const changed = token !== lastMicToken;
-  lastMicToken = token;
-  if (changed && active) void toggleVoice();
-});
-const config = $derived(store.snapshot?.config);
-let audioAuthOpen = $state(false);
-const voiceTarget = $derived({
-  kind: "conversation" as const,
-  id: store.conversationId,
-});
-const recording = $derived(
-  voiceInputSession.isTargetActive(voiceTarget) && voiceInputSession.recording,
+  text = "",
+  activeProject,
+  activeConversation,
+  activePendingConversation,
+  pendingConversationActive = false,
+  approvals = [],
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
+  interactive = true,
+  sending = false,
+  teamRunning = false,
+  stopping = false,
+  compacting = false,
+  models = [],
+  selectedModelKey = "",
+  contextUsage,
+  conversationUsage,
+  contextWindow = 0,
+  todos = [],
+  focusToken = 0,
+  composerEscapeToken = 0,
+  micShortcutToken = 0,
+  thinkingLevel = "off",
+  mode = "coding",
+  permissionRuleSetId = "autonomous",
+  permissionRuleSets = [],
+  permissionRuleSetsLoading = false,
+  permissionRuleSetsError,
+  slashCompletions = [],
+  fileCompletions,
+  referenceCompletions,
+  composerSuggestions = [],
+  onSendSuggestion,
+  onDraftSuggestion,
+  onChange,
+  onSubmit,
+  onAbort,
+  onCompact,
+  onModelChange,
+  onThinkingLevelChange,
+  onModeChange,
+  onPermissionRuleSetChange,
+  onRefreshPermissionRuleSets,
+  onOpenPermissionSettings,
+  onOpenCapabilitySettings,
+}: PromptComposerProps = $props();
+
+// A newly created pending conversation opens directly into its first prompt,
+// so its editor should be ready for typing as soon as it mounts.
+let editorFocusToken = $state(
+  untrack(() => (pendingConversationActive ? 1 : 0)),
 );
-const transcribing = $derived(
-  voiceInputSession.isTargetActive(voiceTarget) &&
-    voiceInputSession.transcribing,
-);
-$effect(() => {
-  const target = voiceTarget;
-  const release = voiceInputSession.registerTargetHandlers(target, {
-    appendTranscript: (transcript) =>
-      (text = appendTranscriptText(text, transcript)),
-    onError: (message) => (error = message),
-  });
-  return () => {
-    release();
-    void voiceInputSession.cancelIfTarget(target);
-  };
+let voiceSubmitPending = $state(false);
+let lastFocusToken: number | undefined;
+let lastComposerEscapeToken: number | undefined;
+let lastMicShortcutToken: number | undefined;
+let audioAuthDialogOpen = $state(false);
+let capabilityState = $state<ComposerCapabilityState>({
+  skills: [],
+  loading: false,
+  mutating: false,
 });
-async function toggleVoice() {
-  if (!chatGptAudioAuth.configured) {
-    audioAuthOpen = true;
-    return;
-  }
-  await act(() => voiceInputSession.toggle(voiceTarget));
+const capabilityController = new ComposerCapabilityController({
+  getConfiguration: getCapabilityConfiguration,
+  listSkills: listAvailableSkills,
+  updateConfiguration: updateCapabilities,
+  onStateChange: (state) => {
+    capabilityState = state;
+  },
+});
+const capabilityConfiguration = $derived(capabilityState.configuration);
+const capabilitySkills = $derived(capabilityState.skills);
+const capabilityLoading = $derived(
+  capabilityState.loading || capabilityState.mutating,
+);
+const capabilityError = $derived(capabilityState.error);
+let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
+/** Tool group whose conversation-level settings dialog is open. */
+let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
+
+function refreshProfileHealth(): void {
+  void listIntegrationHealth()
+    .then((profiles) => {
+      capabilityProfileHealth = profiles;
+    })
+    .catch(() => undefined);
 }
 
-async function act(fn: () => Promise<unknown>) {
-  error = undefined;
-  try {
-    await fn();
-  } catch (e) {
-    error = e instanceof Error ? e.message : String(e);
-  }
-}
-async function loadCatalogs() {
-  const [m, p, c, t, s] = await Promise.all([
-    requestConversation("model.list", {}),
-    requestConversation("permissionRuleSet.list", {}),
-    requestConversation("completion.slash.list", {}),
-    requestConversation("tool.list", {}),
-    requestConversation("skill.list", {
-      projectId: store.snapshot?.conversation.projectId,
-    }),
-  ]);
-  models = m.models;
-  ruleSets = p.ruleSets.map((rule) => ({
-    id: rule.id,
-    name: rule.name,
-    source: rule.source,
-    enabled: rule.enabled,
-    available: rule.enabled,
-    description: rule.description,
-  }));
-  completions = c.items;
-  tools = t.tools;
-  skills = s.skills;
-}
 $effect(() => {
-  const projectId = store.snapshot?.conversation.projectId;
-  if (!projectId) return;
-  void act(loadCatalogs);
-  const offSettings = onEvent("settings.updated", () => void act(loadCatalogs));
-  const offAuth = onEvent(
-    "auth.integration_health_changed",
-    () => void act(loadCatalogs),
-  );
+  const progressive = workbenchStartupState.progressiveActive;
+  const project = activeProject;
+  const conversation = activeConversation;
+  const pending = activePendingConversation;
+  // A settings dialog belongs to the conversation it was opened for.
+  configuringToolGroup = undefined;
+  if (!progressive || !project) {
+    capabilityController.setScope(undefined);
+  } else if (conversation) {
+    capabilityController.setScope({
+      kind: "conversation",
+      key: `project:${project.id}:conversation:${conversation.id}`,
+      projectId: project.id,
+      conversationId: conversation.id,
+    });
+  } else if (pending) {
+    capabilityController.setScope({
+      kind: "pending",
+      key: `project:${project.id}:pending:${pending.id}`,
+      projectId: project.id,
+      pendingId: pending.id,
+      overrides: pending.capabilityOverrides,
+      onOverridesChange: (overrides) => {
+        pending.capabilityOverrides = overrides;
+      },
+    });
+  } else {
+    capabilityController.setScope(undefined);
+  }
+});
+
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !activeProject) return;
+  void listTools()
+    .then((tools) => {
+      conversationCatalog.toolRisks = Object.fromEntries(
+        tools.map((tool) => [tool.name, tool.risk]),
+      );
+    })
+    .catch(() => undefined);
+});
+
+onDestroy(() => capabilityController.setScope(undefined));
+
+/* Project and user level changes made elsewhere must not leave the composer
+ * showing a stale effective state. */
+$effect(() => {
+  const unsubscribes = [
+    observeConversationChannel({
+      recover: () => capabilityController.refresh(),
+      disconnected() {},
+      event() {},
+      notice(notice) {
+        if (notice.type !== "capabilities.changed") return;
+        const data = notice.data;
+        if (data.projectId !== activeProject?.id) return;
+        if (
+          data.conversationId !== undefined &&
+          data.conversationId !== activeConversation?.id
+        )
+          return;
+        void capabilityController.refresh();
+      },
+    }),
+    onEvent("settings.updated", () => {
+      void capabilityController.refresh();
+    }),
+    onEvent("auth.integration_health_changed", refreshProfileHealth),
+  ];
   return () => {
-    offSettings();
-    offAuth();
+    for (const unsubscribe of unsubscribes) unsubscribe();
   };
 });
-async function toggle(
-  kind: "enabledTools" | "enabledSkills",
-  name: string,
-  checked: boolean,
-) {
-  const catalog = kind === "enabledTools" ? tools : skills;
-  const enabled = config?.[kind] ?? catalog.map((item) => item.name);
-  await act(() =>
-    store.configure({
-      [kind]: checked
-        ? [...new Set([...enabled, name])]
-        : enabled.filter((value) => value !== name),
-    }),
-  );
+
+function patchCapabilities(patch: CapabilityPatch): Promise<void> {
+  return capabilityController.patch(patch);
 }
-const model = $derived<ConversationComposerModel>({
-  text,
-  focusToken: active ? composerSignals.focusToken : 0,
-  models,
-  selectedModelKey: config ? modelKey(config.model) : "",
-  thinkingLevel: config?.reasoningLevel ?? "off",
-  mode: config?.mode ?? "coding",
-  permissionRuleSetId: config?.permissionRuleSetId ?? "autonomous",
-  permissionRuleSets: ruleSets,
-  slashCompletions: completions,
-  fileCompletions: (query) =>
-    fileCompletions(store.snapshot?.conversation.projectId, query),
-  referenceCompletions: (kind, query) =>
-    referenceCompletions(store.snapshot?.conversation.projectId, kind, query),
-  sending: store.snapshot?.conversation.status === "running",
-  showStop:
-    store.snapshot?.conversation.status === "running" ||
-    store.snapshot?.conversation.status === "waiting",
-  disabled: !store.connected,
-  submitDisabled: !store.connected || submitting,
-  controlsDisabled: !store.connected,
-  modelDisabled: !store.connected || models.length === 0,
-  pendingApproval: store.snapshot?.toolCalls.some(
-    (call) => call.state === "awaiting_approval",
-  ),
-  pendingQuestion: store.snapshot?.toolCalls.some(
-    (call) => call.interaction?.kind === "user_input",
-  ),
-  pendingPlan: store.snapshot?.toolCalls.some(
-    (call) => call.interaction?.kind === "plan_review",
-  ),
+
+function resetCapabilities(): Promise<void> {
+  return capabilityController.reset();
+}
+
+const micShortcut = getShortcutLabel("composer.toggleMic");
+const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
+const cancelMicShortcut = getShortcutLabel("composer.cancelMic");
+const modeShortcut = getShortcutLabel("composer.toggleMode");
+const modeShortcutAria = getShortcutAriaLabel("composer.toggleMode");
+const modelShortcut = getShortcutLabel("composer.cycleModel");
+const permissionShortcut = getShortcutLabel("composer.cyclePermission");
+const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
+const thinkingShortcut = getShortcutLabel("composer.cycleThinking");
+const stopShortcut = getShortcutLabel("composer.stopRun");
+const stopShortcutAria = getShortcutAriaLabel("composer.stopRun");
+
+const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
+  if (activeConversation)
+    return { kind: "conversation", id: activeConversation.id };
+  if (activePendingConversation)
+    return { kind: "pending-conversation", id: activePendingConversation.id };
+  return undefined;
 });
-const actions: ConversationPaneActions = {
-  onComposerChange: (value) => (text = value),
-  onSubmit: () => {
-    const submitted = text;
-    if (!submitted.trim() || submitting) return;
-    submitting = true;
-    void act(async () => {
-      try {
-        if (onSubmitText) await onSubmitText(submitted);
-        else {
-          await store.submit(submitted);
-          if (text === submitted) text = "";
-        }
-      } finally {
-        submitting = false;
-      }
-    });
-  },
-  onAbort: () => void act(() => store.control("stop")),
-  onCompact: () => void act(() => store.control("compact")),
-  onModelChange: (value) => {
-    const model = parseModelKey(value);
-    if (model) void act(() => store.configure({ model }));
-  },
-  onThinkingLevelChange: (reasoningLevel) =>
-    void act(() => store.configure({ reasoningLevel })),
-  onModeChange: (mode) => void act(() => store.configure({ mode })),
-  onPermissionRuleSetChange: (permissionRuleSetId) =>
-    void act(() => store.configure({ permissionRuleSetId })),
-  onRefreshPermissionRuleSets: () => void act(loadCatalogs),
-  onOpenCapabilitySettings: () => (capabilityOpen = true),
-  onPasteImage: uploadClipboardImage,
-  onReadClipboardText: readClipboardText,
-  onWriteClipboardText: writeClipboardText,
-};
+const recording = $derived(
+  Boolean(
+    voiceTarget &&
+    voiceInputSession.isTargetActive(voiceTarget) &&
+    voiceInputSession.recording,
+  ),
+);
+const transcribing = $derived(
+  Boolean(
+    voiceTarget &&
+    voiceInputSession.isTargetActive(voiceTarget) &&
+    voiceInputSession.transcribing,
+  ),
+);
+const voiceBusyElsewhere = $derived(
+  Boolean(voiceTarget && voiceInputSession.isBusyForOtherTarget(voiceTarget)),
+);
+
+const pendingApproval = $derived(approvals.length > 0);
+const pendingQuestion = $derived(pendingUserQuestions.length > 0);
+const pendingPlan = $derived(pendingPlanReviews.length > 0);
+const blockedForReview = $derived(
+  pendingApproval || pendingQuestion || pendingPlan,
+);
+const commandMode = $derived(isInlineCommandPrompt(text));
+const availability = $derived(
+  deriveComposerAvailability({
+    interactive,
+    hasProject: Boolean(activeProject),
+    hasConversation: Boolean(activeConversation || pendingConversationActive),
+    hasModels: models.length > 0,
+    blockedForReview,
+    compacting,
+    stopping,
+    sending,
+    commandMode,
+    voiceSubmitPending,
+  }),
+);
+const canPrompt = $derived(availability.canPrompt);
+const editorDisabled = $derived(!availability.canEdit);
+const submitDisabled = $derived(!availability.canSubmit);
+const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
+const fileDropSupported = $derived(Boolean(getDesktopBridge()?.files));
+const supportsAudioRecording = $derived(voiceInputSession.isSupported());
+const micDisabled = $derived(
+  !interactive ||
+    stopping ||
+    !voiceTarget ||
+    voiceInputSession.pending ||
+    (!recording &&
+      (!canPrompt || !supportsAudioRecording || voiceBusyElsewhere)),
+);
+const micTitle = $derived(
+  recording
+    ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
+    : voiceBusyElsewhere
+      ? "Voice recording is active in another conversation"
+      : voiceInputSession.retryAttempt > 0 &&
+          voiceTarget &&
+          voiceInputSession.isTargetActive(voiceTarget)
+        ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
+        : transcribing
+          ? "Transcribing audio…"
+          : !chatGptAudioConfigured
+            ? "Connect ChatGPT to use voice input"
+            : micShortcut
+              ? `Record voice prompt (${micShortcut})`
+              : "Record voice prompt",
+);
+const sendAriaLabel = $derived(
+  voiceSubmitPending
+    ? "Transcribing and sending prompt"
+    : recording
+      ? "Transcribe and send prompt"
+      : compacting
+        ? "Compacting context"
+        : availability.canEdit && models.length === 0
+          ? "Waiting for an available model"
+          : commandMode
+            ? "Run command"
+            : sending
+              ? "Queue prompt"
+              : "Send prompt",
+);
+const sendTitle = $derived(
+  voiceSubmitPending
+    ? "Transcribing audio, then sending prompt"
+    : recording
+      ? "Stop recording, transcribe, and send prompt"
+      : compacting
+        ? "Compacting context"
+        : availability.canEdit && models.length === 0
+          ? "Models are loading; you can continue drafting"
+          : commandMode
+            ? sending
+              ? "Wait for the current agent turn before running a command"
+              : "Run command"
+            : sending
+              ? "Queue prompt for the next agent turn"
+              : "Send prompt",
+);
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+}
+
+async function submitComposer() {
+  if (!availability.canSubmit) return;
+
+  if (recording && voiceTarget) {
+    voiceSubmitPending = true;
+    try {
+      const transcribed = await voiceInputSession.stop(voiceTarget);
+      if (transcribed) onSubmit?.();
+    } finally {
+      voiceSubmitPending = false;
+    }
+    return;
+  }
+
+  onSubmit?.();
+}
+
+async function pasteImage(file: File): Promise<string> {
+  return uploadClipboardImage(file);
+}
+
+async function dropFiles(files: readonly File[]): Promise<readonly string[]> {
+  try {
+    const bridge = getDesktopBridge();
+    if (!bridge?.files || !activeProject) {
+      throw new Error("Native file paths are unavailable in this window.");
+    }
+    return resolveDroppedPaths(
+      files,
+      activeProject.dir,
+      bridge.files.getPathForFile,
+    );
+  } catch (caught) {
+    const description =
+      caught instanceof Error ? caught.message : String(caught);
+    notify.error("Could not add dropped paths", { description });
+    throw caught;
+  }
+}
+
+const controlsDisabled = $derived(
+  !interactive ||
+    !(activeConversation || pendingConversationActive) ||
+    stopping ||
+    compacting ||
+    blockedForReview,
+);
+const modeDisabled = $derived(
+  !interactive || !(activeConversation || pendingConversationActive),
+);
+const capabilityDisabled = $derived(!availability.canConfigureRuntime);
+const modelDisabled = $derived(capabilityDisabled || models.length === 0);
+const modelRuntimeChangeHint = $derived(
+  sending ? "Changes apply to the next model request" : undefined,
+);
+
+function toggleRecording() {
+  if (!interactive || micDisabled || compacting || stopping || !voiceTarget)
+    return;
+  if (!recording && !chatGptAudioConfigured) {
+    audioAuthDialogOpen = true;
+    return;
+  }
+  void voiceInputSession.toggle(voiceTarget);
+}
+
+function cancelRecordingShortcut() {
+  if (!recording || !voiceTarget) return false;
+  void voiceInputSession.cancel(voiceTarget);
+  return true;
+}
+
+$effect(() => {
+  if (lastFocusToken === undefined || !interactive) {
+    lastFocusToken = focusToken;
+    return;
+  }
+  if (focusToken === lastFocusToken) return;
+  lastFocusToken = focusToken;
+  editorFocusToken += 1;
+});
+
+$effect(() => {
+  if (lastComposerEscapeToken === undefined || !interactive) {
+    lastComposerEscapeToken = composerEscapeToken;
+    return;
+  }
+  if (composerEscapeToken === lastComposerEscapeToken) return;
+  lastComposerEscapeToken = composerEscapeToken;
+  if (!cancelRecordingShortcut()) editorFocusToken += 1;
+});
+
+$effect(() => {
+  if (lastMicShortcutToken === undefined || !interactive) {
+    lastMicShortcutToken = micShortcutToken;
+    return;
+  }
+  if (micShortcutToken === lastMicShortcutToken) return;
+  lastMicShortcutToken = micShortcutToken;
+  toggleRecording();
+});
+
+function handleMicContextMenu(event: MouseEvent) {
+  if (!recording || !voiceTarget) return;
+  event.preventDefault();
+  void voiceInputSession.cancel(voiceTarget);
+}
 </script>
-<AgentComposer {model} {actions}>
+
+<AgentComposer
+  model={{
+    text,
+    disabled: editorDisabled,
+    editorDisabled,
+    submitDisabled,
+    sending,
+    stopping,
+    compacting,
+    showStop: sending || stopping || compacting || teamRunning,
+    pendingApproval,
+    pendingQuestion,
+    pendingPlan,
+    models,
+    selectedModelKey,
+    thinkingLevel,
+    mode,
+    permissionRuleSetId,
+    permissionRuleSets,
+    permissionRuleSetsLoading,
+    permissionRuleSetsError,
+    contextUsage,
+    conversationUsage,
+    contextWindow,
+    placeholder: pendingApproval
+      ? "Approval required before the agent can continue"
+      : pendingPlan
+        ? "Review the plan in the transcript before the agent can continue"
+        : pendingQuestion
+          ? "Reply in the transcript before the agent can continue"
+          : compacting
+            ? "Compacting context…"
+            : sending
+              ? "Queue a prompt for the next agent turn"
+              : "Ask the local Nerve agent",
+    focusToken: editorFocusToken,
+    controlsDisabled,
+    modeDisabled,
+    modelDisabled,
+    capabilityDisabled,
+    runtimeChangeHint: modelRuntimeChangeHint,
+    sendAriaLabel,
+    sendTitle,
+    stopAriaLabel: compacting ? "Stop compaction" : "Stop generation",
+    stopShortcutAria,
+    stopTitle: stopping
+      ? compacting
+        ? "Stopping compaction"
+        : "Stopping generation"
+      : compacting
+        ? stopShortcut
+          ? `Stop compaction (${stopShortcut})`
+          : "Stop compaction"
+        : stopShortcut
+          ? `Stop generation (${stopShortcut})`
+          : "Stop generation",
+    permissionShortcut,
+    permissionShortcutAria,
+    modeShortcut,
+    modeShortcutAria,
+    modelShortcut,
+    thinkingShortcut,
+    todos,
+    slashCompletions,
+    fileCompletions,
+    referenceCompletions,
+    capabilityConfiguration,
+    capabilitySkills,
+    capabilityLoading,
+    capabilityError,
+    capabilities: {
+      voice: true,
+      imagePaste: true,
+      fileDrop: fileDropSupported,
+      completions: true,
+      suggestions: true,
+      shortcuts: true,
+      todos: true,
+      queueing: true,
+    },
+  }}
+  actions={{
+    onComposerChange: onChange,
+    onSubmit: submitComposer,
+    onAbort,
+    onCompact,
+    onModelChange,
+    onThinkingLevelChange,
+    onModeChange,
+    onPermissionRuleSetChange,
+    onRefreshPermissionRuleSets,
+    onOpenPermissionSettings,
+    onOpenCapabilitySettings,
+    onCapabilityPatch: (patch) => void patchCapabilities(patch),
+    onConfigureCapabilityTool: (group) => {
+      configuringToolGroup = group;
+      refreshProfileHealth();
+    },
+    onResetCapabilities: () => void resetCapabilities(),
+    onRefreshCapabilities: () => void capabilityController.refresh(),
+    onPasteImage: pasteImage,
+    onDropFiles: fileDropSupported ? dropFiles : undefined,
+    onReadClipboardText: readClipboardText,
+    onWriteClipboardText: writeClipboardText,
+    onClipboardError: (action: "copy" | "cut" | "paste") =>
+      notify.error(`Could not ${action} using the clipboard`),
+  }}
+>
   {#snippet header()}
-    {#if editing}<div
-        class="flex items-center justify-between gap-2 text-xs text-muted-foreground"
-      >
-        <span>Editing earlier message · sending creates a new branch</span
-        ><Button
-          variant="ghost"
-          size="xs"
-          disabled={submitting}
-          onclick={onCancelEdit}>Cancel edit</Button
-        >
-      </div>{/if}
-    <div class="flex items-center justify-between gap-2">
-      <span class="text-xs text-destructive" role="alert">{error ?? ""}</span>
-      <div class="flex gap-1">
-        <Button
-          variant="ghost"
-          size="xs"
-          onclick={() => (capabilityOpen = true)}>Tools & skills</Button
-        ><Button variant="ghost" size="xs" onclick={onOpenHistory}
-          >History</Button
-        >
-      </div>
-    </div>{/snippet}
-  {#snippet sendLeading()}<TranscriptionActivity
+    {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
+      <PromptSuggestionChips
+        suggestions={composerSuggestions}
+        disabled={sending}
+        onSend={onSendSuggestion}
+        onDraft={onDraftSuggestion}
+      />
+    {/if}
+  {/snippet}
+
+  {#snippet sendLeading()}
+    <TranscriptionActivity
       {recording}
       {transcribing}
       elapsedMs={voiceInputSession.elapsedMs}
       maxDurationMs={voiceInputSession.maxDurationMs}
-      retryAttempt={voiceInputSession.retryAttempt}
+      retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget)
+        ? voiceInputSession.retryAttempt
+        : 0}
       maxRetries={voiceInputSession.maxRetries}
-    /><Button
-      variant="ghost"
+      class="composer-transcription-status"
+    />
+    <Button
+      variant={recording ? "destructive" : "outline"}
       size="icon-sm"
-      aria-label={recording ? "Stop recording" : "Record voice prompt"}
-      disabled={transcribing ||
-        voiceInputSession.isBusyForOtherTarget(voiceTarget)}
-      onclick={toggleVoice}><Mic size={14} /></Button
-    >{/snippet}
+      class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
+      type="button"
+      disabled={micDisabled}
+      onclick={toggleRecording}
+      oncontextmenu={handleMicContextMenu}
+      aria-label={recording
+        ? "Stop recording; right-click to cancel"
+        : chatGptAudioConfigured
+          ? "Record voice prompt"
+          : "Connect ChatGPT to use voice input"}
+      aria-keyshortcuts={micShortcutAria}
+      title={micTitle}
+    >
+      {#if transcribing}
+        <Spinner class="size-3.5" />
+      {:else}
+        <Mic size={14} strokeWidth={2.4} />
+      {/if}
+    </Button>
+  {/snippet}
 </AgentComposer>
-<AudioInputAuthRequiredDialog bind:open={audioAuthOpen} />
-<DialogShell
-  bind:open={capabilityOpen}
-  title="Conversation tools and skills"
-  description="Changes apply to the next model request."
->
-  <div class="max-h-96 space-y-4 overflow-y-auto">
-    <div>
-      <h3 class="mb-2 text-sm font-semibold">Tools</h3>
-      {#each tools as tool (tool.name)}<label
-          class="flex items-center gap-2 py-1 text-sm"
-          ><Checkbox
-            checked={config?.enabledTools === null ||
-              config?.enabledTools.includes(tool.name)}
-            onCheckedChange={(checked) =>
-              toggle("enabledTools", tool.name, checked === true)}
-          />{tool.name}</label
-        >{/each}
-    </div>
-    <div>
-      <h3 class="mb-2 text-sm font-semibold">Skills</h3>
-      {#each skills as skill (skill.name)}<label
-          class="flex items-center gap-2 py-1 text-sm"
-          ><Checkbox
-            checked={config?.enabledSkills === null ||
-              config?.enabledSkills.includes(skill.name)}
-            onCheckedChange={(checked) =>
-              toggle("enabledSkills", skill.name, checked === true)}
-          />{skill.name}</label
-        >{/each}
-    </div>
-  </div>
-</DialogShell>
+
+<AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
+
+<ConversationToolSettingsDialog
+  configuration={capabilityConfiguration}
+  group={configuringToolGroup}
+  profileHealth={capabilityProfileHealth}
+  onPatch={(patch) => void patchCapabilities(patch)}
+  onClose={() => (configuringToolGroup = undefined)}
+/>

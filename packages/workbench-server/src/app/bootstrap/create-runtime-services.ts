@@ -44,8 +44,11 @@ export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   const { storage, events, auth, logger } = deps;
-  const { core: conversationCore, storage: coreStorage } =
-    createConversationCore(deps);
+  const {
+    core: conversationCore,
+    storage: coreStorage,
+    capabilities,
+  } = createConversationCore(deps);
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
@@ -94,6 +97,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       storage.paths.configPath,
     ),
     conversationCore,
+    capabilities,
     coreStorage,
     launches,
     taskDefinitions,

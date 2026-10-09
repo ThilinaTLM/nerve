@@ -1,15 +1,16 @@
 import {
-  type TodoItem,
   toolExecutionResultSchema,
   toolOutputLimitsSchema,
   truncationDetailsSchema,
 } from "@nervekit/contracts/tools";
+import { type TodoItem } from "@nervekit/contracts/tools";
 import {
   relativePathForDisplay,
   resolveDisplayPath,
 } from "@nervekit/ui-kit/display/path-links";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-type ConversationLiveToolOutputSnapshot = { text: string; updatedAt?: string };
+
+import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown in the bounded transcript preview. */

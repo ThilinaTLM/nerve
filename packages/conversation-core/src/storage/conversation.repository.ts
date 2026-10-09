@@ -91,7 +91,7 @@ export class ConversationRepository {
   getSummary(id: string): ConversationSummary | null {
     const row = this.db.sqlite
       .prepare(
-        "SELECT c.*, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.id = ?",
+        "SELECT c.*, config.mode, config.model, config.permission_rule_set_id, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?",
       )
       .get(id);
     return row ? mapSummary(row) : null;
@@ -103,7 +103,7 @@ export class ConversationRepository {
   }): ConversationSummary[] {
     return this.db.sqlite
       .prepare(
-        "SELECT c.*, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id",
+        "SELECT c.*, config.mode, config.model, config.permission_rule_set_id, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id",
       )
       .all(input.projectId, input.parentConversationId ?? null)
       .map(mapSummary);
@@ -137,8 +137,8 @@ export class ConversationRepository {
     const row = conversationConfigSchema.parse(input);
     this.db.sqlite
       .prepare(`INSERT INTO conversation_config
-      (conversation_id, model, reasoning_level, system_prompt, permission_rule_set_id, mode, enabled_tools, enabled_skills, working_directory)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      (conversation_id, model, reasoning_level, system_prompt, permission_rule_set_id, mode, working_directory)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(
         row.conversationId,
         JSON.stringify(row.model),
@@ -146,8 +146,7 @@ export class ConversationRepository {
         row.systemPrompt,
         row.permissionRuleSetId,
         row.mode,
-        row.enabledTools === null ? null : JSON.stringify(row.enabledTools),
-        row.enabledSkills === null ? null : JSON.stringify(row.enabledSkills),
+
         row.workingDirectory,
       );
     return row;
@@ -163,15 +162,14 @@ export class ConversationRepository {
     const row = conversationConfigSchema.parse({ ...existing, ...patch });
     this.db.sqlite
       .prepare(`UPDATE conversation_config SET model = ?, reasoning_level = ?, system_prompt = ?, permission_rule_set_id = ?,
-      mode = ?, enabled_tools = ?, enabled_skills = ?, working_directory = ? WHERE conversation_id = ?`)
+      mode = ?, working_directory = ? WHERE conversation_id = ?`)
       .run(
         JSON.stringify(row.model),
         row.reasoningLevel,
         row.systemPrompt,
         row.permissionRuleSetId,
         row.mode,
-        row.enabledTools === null ? null : JSON.stringify(row.enabledTools),
-        row.enabledSkills === null ? null : JSON.stringify(row.enabledSkills),
+
         row.workingDirectory,
         conversationId,
       );
@@ -187,6 +185,9 @@ function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
   return conversationSummarySchema.parse({
     ...mapConversation(row),
     childCount: row.child_count,
+    mode: row.mode,
+    model: JSON.parse(String(row.model)),
+    permissionRuleSetId: row.permission_rule_set_id,
   });
 }
 
@@ -219,12 +220,6 @@ function mapConfig(row: Record<string, SQLOutputValue>): ConversationConfig {
     systemPrompt: row.system_prompt,
     permissionRuleSetId: row.permission_rule_set_id,
     mode: row.mode,
-    enabledTools:
-      row.enabled_tools === null ? null : JSON.parse(String(row.enabled_tools)),
-    enabledSkills:
-      row.enabled_skills === null
-        ? null
-        : JSON.parse(String(row.enabled_skills)),
     workingDirectory: row.working_directory,
   });
 }

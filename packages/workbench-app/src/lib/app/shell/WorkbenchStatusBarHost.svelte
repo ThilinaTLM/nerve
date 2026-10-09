@@ -14,6 +14,8 @@ import {
   togglePanelDock,
 } from "$lib/app/shell/shell-layout.svelte";
 import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
+import { sidebarProjects } from "$lib/features/projects";
+import { ShellChannelStatus } from "./shell-channel-status.svelte";
 import { gitSelectors } from "$lib/features/git";
 import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors } from "$lib/features/settings";
@@ -21,17 +23,26 @@ import { setUiZoomLevel } from "$lib/application/settings";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
 
-const activeProject = $derived(workspaceSelectors.activeProject);
-const connection = $derived(workspaceSelectors.connection);
-const live = $derived(
-  workspaceSelectors.selectedProjectConversations.some(
-    (row) => row.status === "running",
-  ),
+const activeProject = $derived(
+  sidebarProjects(
+    workspaceSelectors.activeProject ? [workspaceSelectors.activeProject] : [],
+  )[0],
 );
+const channels = new ShellChannelStatus();
+$effect(() => channels.observe());
+const connection = $derived(
+  channels.connected
+    ? "connected"
+    : workspaceSelectors.connection === "connected"
+      ? "reconnecting"
+      : workspaceSelectors.connection,
+);
+const live = $derived(channels.connected);
 const pendingApprovals = $derived.by(() => {
   if (!activeProject) return [];
   return workspaceSelectors.conversations.filter(
-    (row) => row.projectId === activeProject.id && row.status === "waiting",
+    (approval) =>
+      approval.projectId === activeProject.id && approval.status === "waiting",
   );
 });
 const pendingApprovalCount = $derived(pendingApprovals.length);
@@ -79,8 +90,8 @@ const dockToggles = $derived<DockToggle[]>(
   {activeProject}
   {connection}
   {live}
-  waitingConversations={pendingApprovalCount}
-  onOpenWaitingConversation={openPendingApproval}
+  pendingApprovals={pendingApprovalCount}
+  onOpenPendingApproval={openPendingApproval}
   {tasks}
   {gitStatus}
   {subscriptionUsages}

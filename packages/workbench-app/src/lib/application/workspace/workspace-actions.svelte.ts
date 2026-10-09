@@ -1,3 +1,7 @@
+import {
+  pendingConversations,
+  type PendingConversationState,
+} from "./pending-conversations.svelte";
 import type { Project, ConversationConfig } from "@nervekit/contracts/core";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import {
@@ -17,7 +21,6 @@ import {
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
 import { resolveNewAgentComposerSelection } from "$lib/application/preferences/agent-selection";
 import { parseModelKey } from "$lib/presentation/utils/model";
-import { createId } from "@nervekit/contracts";
 import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { registerWorkspaceCommands } from "./workspace-commands";
@@ -331,23 +334,33 @@ async function createConversationForProject(
     throw new Error(
       "Choose a model in settings before creating a conversation",
     );
-  const snapshot = await requestConversation("conversation.create", {
-    id: createId("conv"),
+  const id = crypto.randomUUID();
+  const config = {
+    model,
+    reasoningLevel: defaults.selectedThinkingLevel,
+    mode: initialMode ?? defaults.selectedMode,
+    permissionRuleSetId: defaults.selectedPermissionRuleSetId,
+    systemPrompt: null,
+    workingDirectory: project.directory,
+  };
+  const pending = $state<PendingConversationState>({
+    id,
     projectId: project.id,
+    projectDir: project.directory,
     title: "New Conversation",
-    config: {
-      model,
-      reasoningLevel: defaults.selectedThinkingLevel,
-      mode: initialMode ?? defaults.selectedMode,
-      permissionRuleSetId: defaults.selectedPermissionRuleSetId,
-      systemPrompt: null,
-      enabledTools: null,
-      enabledSkills: null,
-      workingDirectory: project.directory,
-    },
+    composerText: "",
+    selectedModelKey: defaults.selectedModelKey,
+    thinkingLevel: config.reasoningLevel,
+    mode: config.mode,
+    permissionLevel: "autonomous",
+    permissionRuleSetId: config.permissionRuleSetId,
+    sending: false,
+    createdAt: new Date().toISOString(),
+    config,
   });
-  await loadWorkspaceState();
-  await openConversation(snapshot.conversation.id);
+  pendingConversations.set(id, pending);
+  addCenterTab({ kind: "pending-conversation", id });
+  await selectCenterTab({ kind: "pending-conversation", id });
 }
 
 export async function createConversationForDirectory(

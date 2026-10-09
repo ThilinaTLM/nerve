@@ -133,7 +133,6 @@ function submit(): void {
       onOpenPermissionSettings={actions.onOpenPermissionSettings}
       onOpenCapabilitySettings={actions.onOpenCapabilitySettings}
       capabilityConfiguration={model.capabilityConfiguration}
-      capabilityScopeLabel={model.capabilityScopeLabel}
       capabilitySkills={model.capabilitySkills}
       capabilityLoading={model.capabilityLoading}
       capabilityDisabled={model.capabilityDisabled ?? controlsDisabled}

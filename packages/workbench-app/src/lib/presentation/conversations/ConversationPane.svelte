@@ -1,17 +1,19 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
-import { createConversationScrollController } from "../transcript/conversation-scroll.svelte";
+import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
+import { createConversationScrollController } from "../transcript/conversation-scroll.svelte.js";
 import AgentComposer from "./AgentComposer.svelte";
+import ConversationBanner from "./ConversationBanner.svelte";
 import ConversationEmptyState from "./ConversationEmptyState.svelte";
+import { hasTranscriptContent } from "../transcript/transcript-content.js";
 import type {
-  ConversationPaneModel,
-  ConversationPaneActions,
   ConversationMenuBuilders,
-} from "./conversation-view-contracts";
+  ConversationPaneActions,
+  ConversationPaneModel,
+} from "./conversation-view-contracts.js";
+
 let {
   model,
   actions,
@@ -21,66 +23,130 @@ let {
 }: {
   model: ConversationPaneModel;
   actions: ConversationPaneActions;
-  menus?: ConversationMenuBuilders;
+  menus: ConversationMenuBuilders;
   composer?: Snippet;
   emptyExtension?: Snippet;
 } = $props();
+
+const active = $derived(model.active ?? true);
+const lastTimelineKey = $derived(
+  model.timeline.tail.at(-1)?.key ?? model.timeline.prefix.at(-1)?.key,
+);
+const pendingApprovals = $derived(
+  model.approvals?.filter((approval) => approval.status === "pending") ?? [],
+);
+const pendingApprovalId = $derived(pendingApprovals[0]?.id);
+const pendingApprovalCount = $derived(pendingApprovals.length);
+const pendingQuestionIds = $derived(
+  model.pendingUserQuestions
+    ?.filter((question) => question.status === "pending")
+    .map((question) => question.id) ?? [],
+);
+const pendingPlanReviewIds = $derived(
+  model.pendingPlanReviews
+    ?.filter((review) => review.status === "pending")
+    .map((review) => review.id) ?? [],
+);
+const transcriptHasContent = $derived(
+  hasTranscriptContent({
+    timelineLength: model.timeline.prefix.length + model.timeline.tail.length,
+    streamingText: model.streamingText,
+    sending: model.sending,
+    queuedPromptCount: model.queuedPrompts.length,
+  }),
+);
 const scroll = createConversationScrollController({
-  active: () => model.active ?? true,
+  active: () => active,
   conversationOpen: () => model.open,
   conversationId: () => model.conversationId,
-  contentReady: () =>
-    model.timeline.prefix.length + model.timeline.tail.length > 0,
+  contentReady: () => transcriptHasContent,
 });
 </script>
 
 <ConversationPaneLayout
   open={model.open}
-  showScrollButton={!scroll.atEnd}
+  showScrollButton={active && !scroll.atEnd}
   composerHeight={scroll.composerHeight}
-  bind:composerWrapRef={scroll.composerWrapEl}
   onJumpToBottom={() => scroll.jumpToBottom()}
+  bind:composerWrapRef={scroll.composerWrapEl}
 >
+  {#snippet announcer()}
+    <TranscriptAnnouncer
+      {active}
+      sending={model.sending}
+      {pendingApprovalId}
+      {pendingApprovalCount}
+      {pendingQuestionIds}
+      {pendingPlanReviewIds}
+    />
+  {/snippet}
   {#snippet transcript()}
     <div class="flex h-full min-h-0 flex-col">
-      {#if model.parent}
-        <nav
-          class="flex min-w-0 items-center gap-1 px-4 py-2 text-xs text-muted-foreground"
-          aria-label="Conversation breadcrumb"
-        >
-          <Button
-            variant="ghost"
-            size="xs"
-            class="min-w-0 truncate text-muted-foreground"
-            onclick={() => actions.onOpenConversation?.(model.parent!.id)}
-            >{model.parent.title}</Button
-          >
-          <ChevronRight size={12} /><span class="truncate">{model.title}</span>
-        </nav>
+      {#if model.banner}
+        <ConversationBanner {...model.banner} />
       {/if}
-      <TranscriptList
-        bind:controller={scroll.controller}
-        bind:atEnd={scroll.atEnd}
-        followBottom={scroll.followBottom}
-        heightCacheKey={model.conversationId}
-        rows={[...model.timeline.prefix, ...model.timeline.tail]}
-        queuedPrompts={model.queuedPrompts}
-        children={model.children}
-        {actions}
-        {menus}
-        sending={model.sending}
-        hasOlder={model.hasOlder}
-        loadingOlder={model.loadingOlder}
-      />
-      {#if model.error}<p class="px-4 text-xs text-destructive" role="alert">
-          {model.error}
-        </p>{/if}
+      <div class="min-h-0 flex-1">
+        <TranscriptList
+          bind:controller={scroll.controller}
+          bind:atEnd={scroll.atEnd}
+          paddingEnd={18}
+          heightCacheKey={model.transcriptHeightCacheKey ??
+            model.conversationId}
+          transcriptLabel={model.transcriptLabel}
+          timelinePrefix={model.timeline.prefix}
+          timelineTail={model.timeline.tail}
+          streamingText={model.streamingText}
+          sending={model.sending}
+          runActivity={model.runActivity}
+          queuedPrompts={model.queuedPrompts}
+          followBottom={active ? scroll.followBottom : false}
+          activeProject={model.activeProject}
+          activeProjectLabel={model.activeProjectLabel}
+          approvals={model.approvals}
+          pendingUserQuestions={model.pendingUserQuestions}
+          pendingPlanReviews={model.pendingPlanReviews}
+          outcomeUnknownToolCallIds={model.outcomeUnknownToolCallIds}
+          {active}
+          planReviewModels={model.planReviewModels}
+          planReviewModelKey={model.planReviewModelKey}
+          planReviewThinkingLevel={model.planReviewThinkingLevel}
+          {lastTimelineKey}
+          onOpenFile={actions.onOpenFile}
+          onOpenTask={actions.onOpenTask}
+          onOpenMermaid={actions.onOpenMermaid}
+          onAnswerUserQuestion={actions.onAnswerUserQuestion}
+          onDismissUserQuestion={actions.onDismissUserQuestion}
+          onGrantApproval={actions.onGrantApproval}
+          onDenyApproval={actions.onDenyApproval}
+          onAcceptPlanReview={actions.onAcceptPlanReview}
+          onAcceptPlanReviewInNewChat={actions.onAcceptPlanReviewInNewChat}
+          onRejectPlanReview={actions.onRejectPlanReview}
+          onContinueFromFailure={actions.onContinueFromFailure}
+          onForcePushQueuedPrompts={actions.onForcePushQueuedPrompts}
+          onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
+          onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
+          transcriptMenu={menus.transcriptMenu}
+        />
+      </div>
     </div>
   {/snippet}
-  {#snippet composer()}{#if composerExtension}{@render composerExtension()}{:else}<AgentComposer
-        model={model.composer}
-        {actions}
-      />{/if}{/snippet}
-  {#snippet empty()}{#if emptyExtension}{@render emptyExtension()}{:else}<ConversationEmptyState
-      />{/if}{/snippet}
+
+  {#snippet composer()}
+    {#if composerExtension}
+      {@render composerExtension()}
+    {:else}
+      <AgentComposer model={model.composer} {actions} />
+    {/if}
+  {/snippet}
+
+  {#snippet empty()}
+    {#if emptyExtension}
+      {@render emptyExtension()}
+    {:else}
+      <ConversationEmptyState
+        title={model.emptyTitle}
+        message={model.emptyMessage}
+      />
+    {/if}
+  {/snippet}
 </ConversationPaneLayout>

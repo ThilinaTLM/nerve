@@ -5,6 +5,8 @@ import {
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
+} from "@nervekit/contracts/tools";
+import {
   type TaskCancelOutcomePreviewPayload,
   type TaskToolSummaryPayload,
 } from "@nervekit/contracts/tools";

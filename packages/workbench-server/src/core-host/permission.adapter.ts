@@ -31,6 +31,7 @@ export function createPermissionPort(
       "data",
       "conversations",
       conversationId,
+      "config",
       "permissions.json",
     ),
   });

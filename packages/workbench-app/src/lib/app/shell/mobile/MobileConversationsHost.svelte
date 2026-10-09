@@ -12,6 +12,11 @@ import {
   buildConversationSections,
   conversationLastUserPromptAt,
 } from "$lib/domain/projects/project-tree";
+import {
+  sidebarConversations,
+  sidebarAgents,
+  sidebarActivity,
+} from "$lib/features/projects";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
@@ -40,14 +45,17 @@ const projectIds = $derived(
   )?.projectIds ?? [projectId],
 );
 const conversations = $derived(
-  workspaceSelectors.conversations.filter((conversation) =>
-    projectIds.includes(conversation.projectId),
+  sidebarConversations(
+    workspaceSelectors.conversations.filter((conversation) =>
+      projectIds.includes(conversation.projectId),
+    ),
   ),
 );
-const activityById = $derived(workspaceSelectors.conversationActivityById);
+const activityById = $derived(sidebarActivity(conversations));
 const sections = $derived(
   buildConversationSections({
     conversations,
+    agents: sidebarAgents(conversations),
     projectIds,
     filter: query,
     hideCompleted: conversationListPreferences.hideCompleted,

@@ -1,122 +1,416 @@
 <script lang="ts">
+import { SvelteMap } from "svelte/reactivity";
+import type {
+  AgentRecord,
+  ApprovalWithToolCall,
+  ModelInfo,
+  PlanReviewRecord,
+  PlanReviewResolveOptions,
+  ProjectRecord,
+  QueuedPromptRecord,
+  UserQuestionRecord,
+} from "../state/tool-types";
+import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import {
   VirtualScroller,
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/composites/virtual-list";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import type {
-  QueuedInput,
-  ConversationSummary,
-} from "@nervekit/contracts/core";
-import type { CoreTimelineRow } from "../state/transcript-types";
-import type {
-  ConversationPaneActions,
-  ConversationMenuBuilders,
-} from "../conversations/conversation-view-contracts";
-import TranscriptRow from "./TranscriptRow.svelte";
+import type { TimelineItem } from "../state/timeline";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
+import ConversationSignal from "../conversations/ConversationSignal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
-let {
-  rows,
-  queuedPrompts = [],
-  children = [],
-  actions = {},
-  menus,
-  sending = false,
-  hasOlder = false,
-  loadingOlder = false,
-  controller = $bindable(),
-  atEnd = $bindable(true),
-  followBottom = true,
-  heightCacheKey,
-}: {
-  rows: CoreTimelineRow[];
-  queuedPrompts?: QueuedInput[];
-  children?: ConversationSummary[];
-  actions?: ConversationPaneActions;
-  menus?: ConversationMenuBuilders;
-  sending?: boolean;
-  hasOlder?: boolean;
-  loadingOlder?: boolean;
+import TranscriptRow from "./TranscriptRow.svelte";
+import RunActivitySlot from "./activity/RunActivitySlot.svelte";
+import { createRunActivityTracker } from "./activity/run-activity-tracker.svelte";
+import type { ConversationRunActivityModel } from "../conversations/conversation-view-contracts.js";
+import { groupConsecutiveThinking } from "./transcript-presentation";
+import {
+  entranceEligible,
+  measurementVersionForRow,
+  type TimelineRowItem,
+  type TranscriptRowItem,
+  uniqueRowKey,
+} from "./transcript-row-model";
+import {
+  TranscriptEntryMotionLedger,
+  type TranscriptEntranceMotion,
+} from "./transcript-entry-motion";
+import { ConversationMotionBudget } from "./conversation-motion-budget";
+import { provideConversationMotionBudget } from "./conversation-motion-context.svelte";
+import { hasTranscriptContent } from "./transcript-content";
+
+type Props = {
   controller?: VirtualScrollerController;
   atEnd?: boolean;
-  followBottom?: boolean;
+  paddingEnd?: number;
   heightCacheKey?: string;
-} = $props();
-type Row =
-  | { kind: "timeline"; key: string; row: CoreTimelineRow }
-  | { kind: "queue"; key: string; input: QueuedInput }
-  | { kind: "older" | "activity"; key: string };
-const items = $derived<Row[]>([
-  ...(hasOlder ? [{ kind: "older" as const, key: "older" }] : []),
-  ...rows.map((row) => ({ kind: "timeline" as const, key: row.key, row })),
-  ...queuedPrompts.map((input) => ({
-    kind: "queue" as const,
-    key: `queue:${input.inputId}`,
-    input,
-  })),
-  ...(sending ? [{ kind: "activity" as const, key: "activity" }] : []),
-]);
+  contentVisibility?: boolean;
+  transcriptLabel?: string;
+  timelinePrefix: TimelineItem[];
+  timelineTail: TimelineItem[];
+  streamingText: string;
+  sending: boolean;
+  runActivity: ConversationRunActivityModel;
+  queuedPrompts: QueuedPromptRecord[];
+  followBottom?: boolean;
+  activeProject?: ProjectRecord;
+  activeProjectLabel?: string;
+  approvals?: ApprovalWithToolCall[];
+  pendingUserQuestions?: UserQuestionRecord[];
+  pendingPlanReviews?: PlanReviewRecord[];
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
+  active?: boolean;
+  planReviewModels?: ModelInfo[];
+  planReviewModelKey?: string;
+  planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
+  lastTimelineKey?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
+  onAnswerUserQuestion?: (questionId: string, answer: string) => void;
+  onDismissUserQuestion?: (questionId: string) => void;
+  onGrantApproval?: (
+    id: string,
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
+  ) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void;
+  onAcceptPlanReview?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onContinueFromFailure?: (runId: string) => void;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onMoveQueuedPromptToComposer?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
+  transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
+};
+
+let {
+  controller = $bindable(),
+  atEnd = $bindable(true),
+  paddingEnd = 0,
+  heightCacheKey,
+  // Transcript rows change height in place as tool results hydrate and wrap.
+  // Let the virtualizer observe their real layout continuously: applying
+  // content-visibility here can leave a row reporting its stale intrinsic
+  // height while its newly rendered body paints over the following row.
+  contentVisibility = false,
+  transcriptLabel = "Conversation transcript",
+  timelinePrefix,
+  timelineTail,
+  streamingText,
+  sending,
+  runActivity,
+  queuedPrompts,
+  followBottom = true,
+  activeProject,
+  activeProjectLabel,
+  approvals = [],
+  pendingUserQuestions = [],
+  pendingPlanReviews = [],
+  outcomeUnknownToolCallIds = new Set(),
+  active = true,
+  planReviewModels = [],
+  planReviewModelKey = "",
+  planReviewThinkingLevel = "off",
+  lastTimelineKey,
+  onOpenFile,
+  onOpenTask,
+  onOpenMermaid,
+  onAnswerUserQuestion,
+  onDismissUserQuestion,
+  onGrantApproval,
+  onDenyApproval,
+  onAcceptPlanReview,
+  onAcceptPlanReviewInNewChat,
+  onRejectPlanReview,
+  onContinueFromFailure,
+  onForcePushQueuedPrompts,
+  onDiscardQueuedPrompt,
+  onMoveQueuedPromptToComposer,
+  transcriptMenu,
+}: Props = $props();
+
+const motionBudget = new ConversationMotionBudget();
+provideConversationMotionBudget(motionBudget);
+const entranceLedger = new TranscriptEntryMotionLedger((count) =>
+  motionBudget.allocateBatch(count),
+);
+let motionScope: string | undefined;
+
+type PrefixRows = {
+  revision: number;
+  rows: TimelineRowItem[];
+  seenKeys: Map<string, number>;
+};
+
+let prefixRevision = 0;
+const prefixRows = $derived.by<PrefixRows>(() => {
+  const seenKeys = new Map<string, number>();
+  const rows = groupConsecutiveThinking(timelinePrefix).map((node) => ({
+    kind: "timeline" as const,
+    key: uniqueRowKey(node.key, seenKeys),
+    node,
+  }));
+  prefixRevision += 1;
+  return { revision: prefixRevision, rows, seenKeys };
+});
+const tailDisplayNodes = $derived(groupConsecutiveThinking(timelineTail));
+const prefixCompactionRunning = $derived(
+  timelinePrefix.some(
+    (item) => item.kind === "compaction" && item.notice.state === "running",
+  ),
+);
+const tailCompactionRunning = $derived(
+  timelineTail.some(
+    (item) => item.kind === "compaction" && item.notice.state === "running",
+  ),
+);
+const compactionRunning = $derived(
+  prefixCompactionRunning || tailCompactionRunning,
+);
+const runActivityTracker = createRunActivityTracker(() => ({
+  sending,
+  activeRun: runActivity.activeRun,
+  lastRunOutcome: runActivity.lastRunOutcome,
+  stopping: runActivity.stopping,
+  compactionRunning,
+  tail: timelineTail.at(-1) ?? timelinePrefix.at(-1),
+}));
+const activityMounted = $derived(runActivityTracker.view.mounted);
+
+let motionProjectionKey: string | undefined;
+let projectedEntranceMotions: ReadonlyMap<string, TranscriptEntranceMotion> =
+  new SvelteMap();
+const rows = $derived.by<TranscriptRowItem[]>(() => {
+  const seenKeys = new SvelteMap(prefixRows.seenKeys);
+  const stableRows = [...prefixRows.rows];
+  const liveNodes = [...tailDisplayNodes];
+
+  // Thinking can materialize into the durable prefix while the next reasoning
+  // block is still live. Preserve the original flat grouping at this one seam.
+  const lastPrefix = stableRows.at(-1);
+  const firstTail = liveNodes[0];
+  if (
+    lastPrefix?.node.kind === "thinking_group" &&
+    firstTail?.kind === "thinking_group"
+  ) {
+    stableRows.pop();
+    liveNodes.shift();
+    const count = seenKeys.get(lastPrefix.node.key) ?? 0;
+    if (count <= 1) seenKeys.delete(lastPrefix.node.key);
+    else seenKeys.set(lastPrefix.node.key, count - 1);
+    liveNodes.unshift({
+      kind: "thinking_group",
+      key: lastPrefix.node.key,
+      items: [...lastPrefix.node.items, ...firstTail.items],
+    });
+  }
+
+  const liveRows: TimelineRowItem[] = liveNodes.map((node) => ({
+    kind: "timeline",
+    key: uniqueRowKey(node.key, seenKeys),
+    node,
+  }));
+  const timelineRows = [...stableRows, ...liveRows];
+  const scope = heightCacheKey ?? "__default-transcript__";
+  if (scope !== motionScope) {
+    motionScope = scope;
+    motionBudget.reset();
+  }
+  const liveStructure = liveRows
+    .map((row) => `${row.key}:${entranceEligible(row.node) ? 1 : 0}`)
+    .join("|");
+  const nextMotionKey = `${scope}\0${prefixRows.revision}\0${liveStructure}`;
+  if (nextMotionKey !== motionProjectionKey) {
+    motionProjectionKey = nextMotionKey;
+    projectedEntranceMotions = entranceLedger.project(
+      scope,
+      timelineRows.map((row) => ({
+        key: row.key,
+        eligible: entranceEligible(row.node),
+      })),
+    );
+  }
+  const result: TranscriptRowItem[] = [
+    ...stableRows,
+    ...liveRows.map((row) => ({
+      ...row,
+      entranceMotion: projectedEntranceMotions.get(row.key),
+    })),
+  ];
+  // One persistent run-activity row for the whole run (and its brief
+  // completion cue); its content changes in place, never its identity.
+  if (activityMounted) {
+    result.push({ kind: "activity", key: "__activity__" });
+  }
+  for (const prompt of queuedPrompts) {
+    result.push({ kind: "queued", key: `__queued__:${prompt.id}`, prompt });
+  }
+  return result;
+});
+const approvalsByToolCallId = $derived(
+  new Map(approvals.map((item) => [item.toolCallId, item])),
+);
+const questionsByToolCallId = $derived(
+  new Map(pendingUserQuestions.map((item) => [item.toolCallId, item])),
+);
+const reviewsByToolCallId = $derived(
+  new Map(pendingPlanReviews.map((item) => [item.toolCallId, item])),
+);
+const structureVersion = $derived(
+  `${prefixRows.revision}\0${tailDisplayNodes
+    .map((node) => node.key)
+    .join("|")}\0${activityMounted ? "activity" : ""}\0${queuedPrompts
+    .map((prompt) => prompt.id)
+    .join("|")}`,
+);
+
+function claimEntrance(key: string, token: string): boolean {
+  return entranceLedger.claim(key, token);
+}
+
+function getMeasurementVersionForRow(row: TranscriptRowItem): string {
+  return measurementVersionForRow(row, {
+    approvalsByToolCallId,
+    questionsByToolCallId,
+    reviewsByToolCallId,
+    outcomeUnknownToolCallIds,
+    active,
+  });
+}
+
+const showEmptyRun = $derived(
+  !hasTranscriptContent({
+    timelineLength: timelinePrefix.length + timelineTail.length,
+    streamingText,
+    sending,
+    queuedPromptCount: queuedPrompts.length,
+  }),
+);
+
+let canScrollUp = $state(false);
+let canScrollDown = $state(false);
+
+function updateScrollShadows(viewport: HTMLElement) {
+  canScrollUp = viewport.scrollTop > 2;
+  canScrollDown =
+    viewport.scrollTop + viewport.clientHeight < viewport.scrollHeight - 2;
+}
+
 $effect(() => {
   const viewport = controller?.getViewportElement();
   if (!viewport) return;
-  const load = () => {
-    if (viewport.scrollTop < 60 && hasOlder && !loadingOlder)
-      actions.onLoadOlder?.();
+  const update = () => updateScrollShadows(viewport);
+  update();
+  viewport.addEventListener("scroll", update, { passive: true });
+  const observer = new ResizeObserver(update);
+  observer.observe(viewport);
+  const spacer = viewport.firstElementChild;
+  if (spacer instanceof HTMLElement) observer.observe(spacer);
+  return () => {
+    viewport.removeEventListener("scroll", update);
+    observer.disconnect();
   };
-  viewport.addEventListener("scroll", load, { passive: true });
-  return () => viewport.removeEventListener("scroll", load);
 });
 </script>
-<div class="relative h-full min-h-0 overflow-hidden">
-  <VirtualScroller
-    bind:controller
-    bind:atEnd
-    {heightCacheKey}
-    {items}
-    getKey={(item) => item.key}
-    getMeasurementVersion={(item) =>
-      item.kind === "timeline"
-        ? JSON.stringify(item.row)
-        : item.kind === "queue"
-          ? item.input.inputId
-          : item.key}
-    estimateSize={() => 120}
-    overscan={10}
-    anchor="end"
-    followOutput={followBottom}
-    scrollEndThreshold={32}
-    paddingStart={12}
-    paddingEnd={18}
-    gap={2}
-    viewportTabIndex={0}
-    viewportAriaLabel="Conversation transcript"
-    viewportClass="@container h-full px-3"
-  >
-    {#snippet row({ item })}
-      {#if item.kind === "older"}<div class="flex justify-center">
-          <Button
-            variant="ghost"
-            size="xs"
-            disabled={loadingOlder}
-            onclick={actions.onLoadOlder}
-            >{loadingOlder ? "Loading…" : "Load older messages"}</Button
-          >
-        </div>
-      {:else if item.kind === "timeline"}<TranscriptRow
-          row={item.row}
-          {children}
-          {actions}
-          {menus}
-        />
-      {:else if item.kind === "queue"}<QueuedPromptRow
-          prompt={item.input}
-          onForcePush={actions.onForcePushQueuedPrompts}
-          onDiscard={actions.onDiscardQueuedPrompt}
-          onMoveToComposer={actions.onMoveQueuedPromptToComposer}
-        />
-      {:else}<p class="px-3 text-xs text-muted-foreground" aria-live="polite">
-          Working…
-        </p>{/if}
-    {/snippet}
-  </VirtualScroller>
-</div>
+
+{#if showEmptyRun}
+  <ConversationSignal
+    title="The cursor is yours."
+    message="Bring the question. Nerve will bring the map, the tools, and the follow-through."
+    projectLabel={activeProjectLabel}
+    projectPath={activeProject?.dir}
+  />
+{:else}
+  <div class="relative h-full min-h-0 overflow-hidden">
+    <VirtualScroller
+      bind:controller
+      bind:atEnd
+      items={rows}
+      getKey={(row) => row.key}
+      {structureVersion}
+      {heightCacheKey}
+      getMeasurementVersion={getMeasurementVersionForRow}
+      {contentVisibility}
+      estimateSize={() => 120}
+      overscan={10}
+      anchor="end"
+      followOutput={followBottom}
+      scrollEndThreshold={32}
+      paddingStart={12}
+      {paddingEnd}
+      gap={2}
+      viewportTabIndex={0}
+      viewportAriaLabel={transcriptLabel}
+      viewportClass="@container h-full px-3"
+    >
+      {#snippet row({ item, visible })}
+        {#if item.kind === "timeline"}
+          <TranscriptRow
+            node={item.node}
+            {visible}
+            entranceMotion={item.entranceMotion}
+            onClaimEntrance={(token) => claimEntrance(item.key, token)}
+            {sending}
+            hydrateToolBodies={active}
+            {activeProject}
+            {approvalsByToolCallId}
+            {questionsByToolCallId}
+            {reviewsByToolCallId}
+            {outcomeUnknownToolCallIds}
+            {lastTimelineKey}
+            {planReviewModels}
+            {planReviewModelKey}
+            {planReviewThinkingLevel}
+            {onOpenFile}
+            {onOpenTask}
+            {onOpenMermaid}
+            {onAnswerUserQuestion}
+            {onDismissUserQuestion}
+            {onGrantApproval}
+            {onDenyApproval}
+            {onAcceptPlanReview}
+            {onAcceptPlanReviewInNewChat}
+            {onRejectPlanReview}
+            {onContinueFromFailure}
+            {transcriptMenu}
+          />
+        {:else if item.kind === "activity"}
+          <RunActivitySlot view={runActivityTracker.view} />
+        {:else}
+          <QueuedPromptRow
+            prompt={item.prompt}
+            onForcePush={onForcePushQueuedPrompts}
+            onDiscard={onDiscardQueuedPrompt}
+            onMoveToComposer={onMoveQueuedPromptToComposer}
+            {transcriptMenu}
+          />
+        {/if}
+      {/snippet}
+    </VirtualScroller>
+    <div
+      class="pointer-events-none absolute top-0 right-3 left-0 z-2 h-6 bg-linear-to-b from-background to-transparent opacity-0 transition-opacity duration-150"
+      class:opacity-100={canScrollUp}
+      aria-hidden="true"
+    ></div>
+    <div
+      class="pointer-events-none absolute right-3 bottom-0 left-0 z-2 h-6 bg-linear-to-t from-background to-transparent opacity-0 transition-opacity duration-150"
+      class:opacity-100={canScrollDown}
+      aria-hidden="true"
+    ></div>
+  </div>
+{/if}

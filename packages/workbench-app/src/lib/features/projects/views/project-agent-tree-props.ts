@@ -1,8 +1,12 @@
-import type { ConversationUpdate } from "$lib/application/workspace/workspace-actions.svelte";
+import type {
+  AgentRecord,
+  ConversationRecord,
+  ProjectRecord,
+  PruneProjectConversationsRequest,
+  UpdateConversationStateRequest,
+} from "$lib/domain/projects/sidebar-view-models";
 import type { ProjectEditor, StatusResponse } from "$lib/api";
-import type { ConversationSummary } from "@nervekit/contracts/core";
-import type { Project } from "@nervekit/contracts/core";
-import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
 
 export type DeleteTarget = {
   kind: "project" | "conversation";
@@ -16,13 +20,14 @@ export type PruneTarget = {
 };
 
 export type ProjectAgentTreeProps = {
-  projects?: Project[];
-  conversations?: ConversationSummary[];
+  projects?: ProjectRecord[];
+  conversations?: ConversationRecord[];
+  agents?: AgentRecord[];
   homeDir?: string;
   selectedProjectId?: string;
   selectedConversationId?: string;
   openConversationTabIds?: Set<string>;
-  conversationActivityById?: Record<string, ConversationActivity>;
+  conversationActivityById?: Record<string, ConversationActivityState>;
   searchFocusToken?: number;
   editorAvailability?: StatusResponse["runtime"]["editors"];
   terminalAvailability?: StatusResponse["runtime"]["terminal"];
@@ -35,6 +40,10 @@ export type ProjectAgentTreeProps = {
   onDeleteConversation?: (conversationId: string) => void;
   onUpdateConversationState?: (
     conversationId: string,
-    request: ConversationUpdate,
+    request: UpdateConversationStateRequest,
+  ) => void;
+  onPruneProjectConversations?: (
+    projectId: string,
+    request: PruneProjectConversationsRequest,
   ) => void;
 };

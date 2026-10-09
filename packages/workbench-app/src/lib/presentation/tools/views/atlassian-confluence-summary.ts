@@ -1,9 +1,4 @@
-type ToolArgumentDraft = {
-  args?: Record<string, unknown>;
-  argsText?: string;
-  toolName: string;
-  done?: boolean;
-};
+import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -17,6 +12,7 @@ import {
   appendList,
   appendMutationOptions,
   appendPayloadSummary,
+  appendPreviewHint,
   compactLines,
   countLabel,
   draftArgSource,
@@ -83,7 +79,7 @@ export function confluenceToolSummaryBody(
     stageTitle(
       "Confluence",
       CONFLUENCE_ACTION_LABELS[view.action],
-      toolCall.state,
+      toolCall.status,
       view.dryRun,
     ),
   ];
@@ -91,12 +87,13 @@ export function confluenceToolSummaryBody(
   appendConfluenceRequestLines(lines, view.action, source, view, budget);
   appendConfluenceOutcomeLines(lines, view, details, budget);
   appendArtifactLines(lines, view, budget);
+  appendPreviewHint(lines, toolCall, options);
 
   return compactLines(lines).join("\n");
 }
 
 export function confluenceDraftSummaryBody(
-  draft: ToolArgumentDraft,
+  draft: ConversationLiveToolDraftBlockSnapshot,
   options: AtlassianSummaryOptions = {},
 ): string | undefined {
   const action = confluenceActionFromToolName(draft.toolName);

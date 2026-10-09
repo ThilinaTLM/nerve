@@ -71,7 +71,7 @@ function outcomeTitle(text: string): string {
 }
 </script>
 
-{#if toolCall.state === "completed"}
+{#if toolCall.status === "completed"}
   <AtlassianResultSurface>
     {#if view.action === "search_issues"}
       {#each view.issues.slice(0, limit) as issue (issue.key)}

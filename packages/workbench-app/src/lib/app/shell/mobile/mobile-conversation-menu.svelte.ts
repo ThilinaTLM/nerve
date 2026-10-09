@@ -6,11 +6,16 @@ import {
   type DeleteTarget,
   type ProjectTreeMenuContext,
 } from "$lib/features/projects";
+import {
+  sidebarConversations,
+  sidebarProjects,
+  sidebarActivity,
+  updateConversationStateAndRefresh,
+} from "$lib/features/projects";
 import { openConversation } from "$lib/application/workspace";
 import {
   maintenance,
   newConversationInProject,
-  updateConversationStateAndRefresh,
   workspaceSelectors,
 } from "$lib/application/workspace";
 
@@ -31,18 +36,28 @@ export function mobileConversationMenu(
   const context: ProjectTreeMenuContext = {
     homeDir: workspaceSelectors.status?.storage.userHome,
     conversationCount: (projectId) =>
-      countProjectConversations(workspaceSelectors.conversations, projectId),
+      countProjectConversations(
+        sidebarConversations(workspaceSelectors.conversations),
+        projectId,
+      ),
     maintenanceActive: maintenance.active,
     conversationActivity: (conversationId) =>
-      workspaceSelectors.conversationActivityById[conversationId],
+      sidebarActivity(sidebarConversations(workspaceSelectors.conversations))[
+        conversationId
+      ],
     onOpenConversation: (conversationId) =>
       void openConversation(conversationId),
     onNewConversationInProject: newConversationInProject,
     onUpdateConversationState: (conversationId, request) =>
       void updateConversationStateAndRefresh(conversationId, request),
+    requestPrune: () => {},
     requestDelete: (target) => {
       mobileConversationDelete.target = target;
     },
   };
-  return buildConversationMenu(project, conversation, context);
+  return buildConversationMenu(
+    sidebarProjects([project])[0],
+    sidebarConversations([conversation])[0],
+    context,
+  );
 }

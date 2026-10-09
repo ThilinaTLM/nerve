@@ -18,7 +18,7 @@ const visible = $derived(
 );
 </script>
 
-{#if view.previewUnavailable && toolCall.state === "completed"}
+{#if view.previewUnavailable && toolCall.status === "completed"}
   <p class="m-0 text-xs text-warning">
     Log preview is incomplete. Open Details to inspect the full result.
   </p>
@@ -45,7 +45,7 @@ const visible = $derived(
       </div>
     {/each}
   </div>
-{:else if toolCall.state === "completed" && !view.previewUnavailable}
+{:else if toolCall.status === "completed" && !view.previewUnavailable}
   <p class="m-0 text-xs text-muted-foreground">
     No matching log events{view.task
       ? ` for ${view.task.name ?? view.task.id} (${view.task.status})`

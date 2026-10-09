@@ -11,3 +11,6 @@ export {
   openConversationHistory,
   toggleComposerMic,
 } from "./state/composer-signals.svelte";
+
+export { conversationView } from "./adapters/core-context.adapter";
+export { conversationTranscript } from "./adapters/core-transcript.adapter";

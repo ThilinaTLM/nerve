@@ -8,7 +8,8 @@ import {
   confluenceResultDetailsSchema,
   confluenceSpaceSummarySchema,
 } from "@nervekit/contracts/tools";
-type ConversationLiveToolOutputSnapshot = { text: string; updatedAt?: string };
+
+import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   asRecord,

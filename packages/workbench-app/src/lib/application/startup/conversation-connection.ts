@@ -45,6 +45,24 @@ export interface ConversationChannelObserver {
 }
 
 let connection: ProtocolClientConnection | undefined;
+let channelReady = false;
+const readyListeners = new Set<(ready: boolean) => void>();
+
+export function onConversationChannelReadyChange(
+  listener: (ready: boolean) => void,
+): () => void {
+  readyListeners.add(listener);
+  return () => {
+    readyListeners.delete(listener);
+  };
+}
+
+function notifyReadyChange(ready: boolean): void {
+  if (channelReady === ready) return;
+  channelReady = ready;
+  for (const listener of readyListeners) listener(ready);
+}
+
 const observers = new Set<ConversationChannelObserver>();
 const cursors = new Map<string, number>();
 let recovery: Promise<void> | undefined;
@@ -169,6 +187,7 @@ export async function connectConversationChannel(wsUrl: string): Promise<void> {
   connection = new ProtocolClientConnection({
     transport: browserWebSocketTransportFactory(url),
     onStateChange: (state) => {
+      notifyReadyChange(state === "ready");
       if (state !== "ready")
         for (const observer of observers) observer.disconnected();
     },
@@ -250,5 +269,6 @@ export async function connectConversationChannel(wsUrl: string): Promise<void> {
 export function disconnectConversationChannel(): void {
   void connection?.close();
   connection = undefined;
+  notifyReadyChange(false);
   for (const observer of observers) observer.disconnected();
 }

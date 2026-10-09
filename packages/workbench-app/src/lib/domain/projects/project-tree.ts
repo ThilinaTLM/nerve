@@ -1,14 +1,21 @@
-import type { ConversationSummary } from "@nervekit/contracts/core";
-import type { Project } from "@nervekit/contracts/core";
+import type { AgentRecord } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationRecord } from "$lib/domain/projects/sidebar-view-models";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
+import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
+
+function shortModelLabel(modelId: string): string {
+  return modelId.replace(/^claude-/, "claude ").replace(/^gpt-/, "gpt ");
+}
 
 export type ConversationRow = {
-  conversation: ConversationSummary;
+  conversation: ConversationRecord;
+  agent?: AgentRecord;
 };
 
 export type ProjectGroup = {
   key: string;
-  project: Project;
-  projects: Project[];
+  project: ProjectRecord;
+  projects: ProjectRecord[];
   rows: ConversationRow[];
   hiddenRows: number;
   totalRows: number;
@@ -25,8 +32,11 @@ export type ProjectGroupResult = {
 export const MAX_PROJECTS = 20;
 export const MAX_ROWS_PER_PROJECT = 6;
 
-export function projectKey(project: Project): string {
-  return project.directory.replace(/[\\/]+$/, "") || project.directory;
+export function projectKey(
+  project: { dir: string } | { directory: string },
+): string {
+  const dir = "dir" in project ? project.dir : project.directory;
+  return dir.replace(/[\\/]+$/, "") || dir;
 }
 
 /** Last path segment (folder name) of a project directory. */
@@ -63,8 +73,18 @@ export function shortProjectLabel(dir: string, homeDir?: string): string {
     .join("/");
 }
 
+export function shortAgentModel(agent: AgentRecord | undefined): string {
+  if (!agent?.model) return "model pending";
+  return shortModelLabel(agent.model.modelId);
+}
+
 export function conversationMeta(row: ConversationRow): string {
-  return row.conversation.status;
+  const mode = row.agent?.mode ?? row.conversation.mode;
+  const permission =
+    row.agent?.permissionRuleSetId ??
+    row.agent?.permissionLevel ??
+    row.conversation.permissionLevel;
+  return `${mode} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
 }
 
 export function groupIsActive(
@@ -82,11 +102,11 @@ export function projectGroupMatches(
   const normalized = query.toLowerCase();
   return (
     group.project.name.toLowerCase().includes(normalized) ||
-    group.project.directory.toLowerCase().includes(normalized) ||
+    group.project.dir.toLowerCase().includes(normalized) ||
     group.projects.some(
       (project) =>
         project.name.toLowerCase().includes(normalized) ||
-        project.directory.toLowerCase().includes(normalized),
+        project.dir.toLowerCase().includes(normalized),
     ) ||
     group.rows.some(
       (row) =>
@@ -96,15 +116,25 @@ export function projectGroupMatches(
   );
 }
 
+export function activeConversationAgent(
+  conversation: ConversationRecord,
+  agents: AgentRecord[],
+): AgentRecord | undefined {
+  return (
+    agents.find((agent) => agent.id === conversation.activeAgentId) ??
+    agents.find((agent) => agent.conversationId === conversation.id)
+  );
+}
+
 export function conversationLastUserPromptAt(
-  conversation: ConversationSummary,
+  conversation: Pick<ConversationRecord, "lastUserMessageAt" | "createdAt">,
 ): string {
   return conversation.lastUserMessageAt ?? conversation.createdAt;
 }
 
 function compareConversationsByLastUserPromptDesc(
-  a: ConversationSummary,
-  b: ConversationSummary,
+  a: ConversationRecord,
+  b: ConversationRecord,
 ): number {
   const sortCompare = conversationLastUserPromptAt(b).localeCompare(
     conversationLastUserPromptAt(a),
@@ -126,19 +156,16 @@ function compareProjectGroupsDesc(a: ProjectGroup, b: ProjectGroup): number {
 }
 
 export function buildConversationRows(options: {
-  conversations: ConversationSummary[];
+  conversations: ConversationRecord[];
+  agents: AgentRecord[];
   projectIds: Iterable<string>;
   filter?: string;
 }): ConversationRow[] {
-  const { conversations } = options;
+  const { conversations, agents } = options;
   const projectIds = new Set(options.projectIds);
   const query = options.filter?.trim().toLowerCase() ?? "";
   return conversations
-    .filter(
-      (conversation) =>
-        projectIds.has(conversation.projectId) &&
-        conversation.parentConversationId === null,
-    )
+    .filter((conversation) => projectIds.has(conversation.projectId))
     .filter(
       (conversation) =>
         !query ||
@@ -147,6 +174,7 @@ export function buildConversationRows(options: {
     )
     .map((conversation) => ({
       conversation,
+      agent: activeConversationAgent(conversation, agents),
     }))
     .sort((a, b) =>
       compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
@@ -186,7 +214,7 @@ function startOfLocalDay(value: Date): Date {
 }
 
 function conversationDateSectionKey(
-  conversation: ConversationSummary,
+  conversation: ConversationRecord,
   now: Date,
 ): Exclude<ConversationSection["key"], "pinned"> {
   const lastUserPrompt = new Date(conversationLastUserPromptAt(conversation));
@@ -205,7 +233,8 @@ function conversationDateSectionKey(
 }
 
 export function buildConversationSections(options: {
-  conversations: ConversationSummary[];
+  conversations: ConversationRecord[];
+  agents: AgentRecord[];
   projectIds: Iterable<string>;
   filter?: string;
   now?: Date;
@@ -217,7 +246,7 @@ export function buildConversationSections(options: {
   const now = options.now ?? new Date();
   const byKey = new Map<ConversationSection["key"], ConversationRow[]>();
   for (const row of rows) {
-    const key = row.conversation.pinnedAt
+    const key = row.conversation.pinned
       ? "pinned"
       : conversationDateSectionKey(row.conversation, now);
     const sectionRows = byKey.get(key) ?? [];
@@ -261,14 +290,15 @@ export function limitConversationSections(
 }
 
 export function buildProjectGroups(options: {
-  projects: Project[];
-  conversations: ConversationSummary[];
+  projects: ProjectRecord[];
+  conversations: ConversationRecord[];
+  agents: AgentRecord[];
   filter?: string;
   homeDir?: string;
   maxProjects?: number;
   maxRowsPerProject?: number;
 }): ProjectGroupResult {
-  const { projects, conversations, homeDir } = options;
+  const { projects, conversations, agents, homeDir } = options;
   const query = options.filter?.trim() ?? "";
   const maxProjects = options.maxProjects ?? MAX_PROJECTS;
   const maxRowsPerProject = options.maxRowsPerProject ?? MAX_ROWS_PER_PROJECT;
@@ -292,7 +322,7 @@ export function buildProjectGroups(options: {
         rows: [],
         hiddenRows: 0,
         totalRows: 0,
-        label: projectFolderName(project.directory),
+        label: projectFolderName(project.dir),
         sortAt: project.createdAt,
       });
     }
@@ -309,11 +339,12 @@ export function buildProjectGroups(options: {
       rows: [],
       hiddenRows: 0,
       totalRows: 0,
-      label: projectFolderName(project.directory),
+      label: projectFolderName(project.dir),
       sortAt: project.createdAt,
     };
     group.rows.push({
       conversation,
+      agent: activeConversationAgent(conversation, agents),
     });
     const conversationSortAt = conversationLastUserPromptAt(conversation);
     if (conversationSortAt > group.sortAt) group.sortAt = conversationSortAt;
@@ -330,7 +361,7 @@ export function buildProjectGroups(options: {
   // only when two visible projects share the same folder name.
   const folderNameCounts = new Map<string, number>();
   for (const group of sorted) {
-    const folder = projectFolderName(group.project.directory);
+    const folder = projectFolderName(group.project.dir);
     folderNameCounts.set(folder, (folderNameCounts.get(folder) ?? 0) + 1);
   }
 
@@ -338,10 +369,10 @@ export function buildProjectGroups(options: {
     const rows = group.rows.sort((a, b) =>
       compareConversationsByLastUserPromptDesc(a.conversation, b.conversation),
     );
-    const folder = projectFolderName(group.project.directory);
+    const folder = projectFolderName(group.project.dir);
     const label =
       (folderNameCounts.get(folder) ?? 0) > 1
-        ? shortProjectLabel(group.project.directory, homeDir)
+        ? shortProjectLabel(group.project.dir, homeDir)
         : folder;
     return {
       ...group,

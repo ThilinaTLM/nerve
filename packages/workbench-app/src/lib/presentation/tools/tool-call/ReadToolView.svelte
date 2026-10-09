@@ -30,6 +30,6 @@ const language = $derived(extname(view.relPath));
   </button>
 {:else if view.content !== undefined && view.content.length > 0}
   <ToolOutputBlock text={view.content} {language} {expanded} />
-{:else if toolCall.state === "completed"}
+{:else if toolCall.status === "completed"}
   <p class="m-0 text-xs text-muted-foreground">Empty file.</p>
 {/if}

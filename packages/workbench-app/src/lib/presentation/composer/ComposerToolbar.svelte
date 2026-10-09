@@ -19,6 +19,7 @@ import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
+
 import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
@@ -71,7 +72,6 @@ type Props = {
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   capabilityConfiguration?: CapabilityConfiguration;
-  capabilityScopeLabel?: "agent" | "conversation";
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
@@ -118,7 +118,6 @@ let {
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   capabilityConfiguration,
-  capabilityScopeLabel,
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
@@ -301,7 +300,6 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 
     <ComposerCapabilitiesPopover
       configuration={capabilityConfiguration}
-      scopeLabel={capabilityScopeLabel}
       skills={capabilitySkills}
       loading={capabilityLoading}
       error={capabilityError}

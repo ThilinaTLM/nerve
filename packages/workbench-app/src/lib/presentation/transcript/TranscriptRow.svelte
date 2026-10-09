@@ -1,144 +1,425 @@
 <script lang="ts">
-import Pencil from "@lucide/svelte/icons/pencil";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import type { CoreTimelineRow } from "../state/transcript-types";
-import type { ConversationSummary } from "@nervekit/contracts/core";
 import type {
-  ConversationPaneActions,
-  ConversationMenuBuilders,
-} from "../conversations/conversation-view-contracts";
-import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+  AgentRecord,
+  ApprovalWithToolCall,
+  ModelInfo,
+  PlanReviewRecord,
+  PlanReviewResolveOptions,
+  ProjectRecord,
+  UserQuestionRecord,
+} from "../state/tool-types";
+import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
 import ToolCallCard from "../tools/ToolCallCard.svelte";
+import ToolResultErrorCard from "../tools/tool-call/ToolResultErrorCard.svelte";
+import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
+import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
+import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
+import CompactionNoticeCard from "./notice/CompactionNoticeCard.svelte";
 import UserMessageContent from "./UserMessageContent.svelte";
+import TaskNoticeCard from "./notice/TaskNoticeCard.svelte";
+import SystemEventNoticeCard from "./notice/SystemEventNoticeCard.svelte";
 import RunStatusNoticeCard from "./notice/RunStatusNoticeCard.svelte";
-import NoticeCard from "./notice/NoticeCard.svelte";
+import ThinkingGroup from "./ThinkingGroup.svelte";
+import type { TranscriptDisplayNode } from "./transcript-presentation";
+import type { TranscriptEntranceMotion } from "./transcript-entry-motion";
 import TranscriptContextMenu from "./TranscriptContextMenu.svelte";
+import { HeightFollow } from "@nervekit/ui-kit/components/composites/height-follow";
+import { getConversationMotionBudget } from "./conversation-motion-context.svelte";
+
+type Props = {
+  node: TranscriptDisplayNode;
+  sending: boolean;
+  activeProject?: ProjectRecord;
+  approvalsByToolCallId?: ReadonlyMap<string, ApprovalWithToolCall>;
+  questionsByToolCallId?: ReadonlyMap<string, UserQuestionRecord>;
+  reviewsByToolCallId?: ReadonlyMap<string, PlanReviewRecord>;
+  outcomeUnknownToolCallIds?: ReadonlySet<string>;
+  hydrateToolBodies?: boolean;
+  /** Row is inside the viewport (overscan excluded); off-screen rows never animate height. */
+  visible?: boolean;
+  entranceMotion?: TranscriptEntranceMotion;
+  onClaimEntrance?: (token: string) => boolean;
+  planReviewModels?: ModelInfo[];
+  planReviewModelKey?: string;
+  planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
+  lastTimelineKey?: string;
+  onOpenFile?: (path: string, line?: number) => void;
+  onOpenTask?: (taskId: string) => void;
+  onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
+  onAnswerUserQuestion?: (questionId: string, answer: string) => void;
+  onDismissUserQuestion?: (questionId: string) => void;
+  onGrantApproval?: (
+    id: string,
+    scope?:
+      | "single_call"
+      | "always_conversation"
+      | "always_project"
+      | "always_user",
+  ) => void | Promise<void>;
+  onDenyApproval?: (id: string) => void;
+  onAcceptPlanReview?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onAcceptPlanReviewInNewChat?: (
+    id: string,
+    options?: PlanReviewResolveOptions,
+  ) => void | Promise<void>;
+  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onContinueFromFailure?: (runId: string) => void;
+  transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
+};
+
 let {
-  row,
-  children = [],
-  actions = {},
-  menus,
-}: {
-  row: CoreTimelineRow;
-  children?: ConversationSummary[];
-  actions?: ConversationPaneActions;
-  menus?: ConversationMenuBuilders;
-} = $props();
-const notice = $derived.by(() => {
-  if (row.kind === "message" || row.kind === "tool") return undefined;
-  if (row.kind === "run_status") return undefined;
-  if (row.kind === "compaction")
-    return {
-      kind: "compaction",
-      tone: "neutral" as const,
-      glyph: "compaction" as const,
-      busy: false,
-      badge: "compacted",
-      statusLabel: "Completed",
-      summary: row.notice.summary,
-      chips: [
-        { text: `${row.notice.tokensBefore.toLocaleString()} tokens before` },
-      ],
-    };
-  if (row.kind === "task_event")
-    return {
-      kind: "task_event",
-      tone:
-        row.notice.status === "failed"
-          ? ("destructive" as const)
-          : ("neutral" as const),
-      glyph: "bell" as const,
-      busy: false,
-      badge: row.notice.event,
-      statusLabel: row.notice.status,
-      summary: row.notice.output,
-      chips:
-        row.notice.exitCode !== undefined
-          ? [{ text: `exit ${row.notice.exitCode}` }]
-          : [],
-    };
+  node,
+  sending,
+  activeProject,
+  approvalsByToolCallId = new Map(),
+  questionsByToolCallId = new Map(),
+  reviewsByToolCallId = new Map(),
+  outcomeUnknownToolCallIds = new Set(),
+  hydrateToolBodies = true,
+  visible = true,
+  entranceMotion,
+  onClaimEntrance,
+  planReviewModels = [],
+  planReviewModelKey = "",
+  planReviewThinkingLevel = "off",
+  lastTimelineKey,
+  onOpenFile,
+  onOpenTask,
+  onOpenMermaid,
+  onAnswerUserQuestion,
+  onDismissUserQuestion,
+  onGrantApproval,
+  onDenyApproval,
+  onAcceptPlanReview,
+  onAcceptPlanReviewInNewChat,
+  onRejectPlanReview,
+  onContinueFromFailure,
+  transcriptMenu,
+}: Props = $props();
+
+const thinkingMenuTarget = $derived.by(() => {
+  if (node.kind !== "thinking_group") return undefined;
+  const first = node.items[0]?.item;
+  if (!first) return undefined;
   return {
-    kind: "system_event",
-    tone: "neutral" as const,
-    glyph: row.notice.childConversationId
-      ? ("subagent" as const)
-      : ("system" as const),
-    busy: false,
-    badge: row.notice.kind,
-    statusLabel: "Received",
-    summary: row.notice.text,
-    action:
-      row.notice.childConversationId && actions.onOpenConversation
-        ? {
-            label: "Open",
-            onClick: () =>
-              actions.onOpenConversation?.(row.notice.childConversationId!),
-          }
-        : undefined,
+    kind: "thinking" as const,
+    item: {
+      ...first,
+      text: node.items.map((member) => member.item.text).join("\n\n"),
+    },
   };
 });
+
+const messageState = $derived.by<"running" | "complete" | "static">(() => {
+  if (node.kind !== "message") return "static";
+  const item = node.item;
+  if (item.role === "assistant" && item.live) {
+    return item.done ? "complete" : "running";
+  }
+  return "static";
+});
+
+// Markdown uses callback identity to retain its lazy Mermaid enhancement. Keep
+// this handler stable so unrelated transcript updates do not remount diagrams.
+function openMessageMermaid(block: MermaidMarkdownBlock): void {
+  if (node.kind !== "message" || node.item.role !== "assistant") return;
+  onOpenMermaid?.(block, node.item.liveMessageId ?? node.item.id ?? node.key);
+}
+
+// Height motion: the row is the single owner. It follows content growth while
+// the row is in flight and for a short window after, so completion milestones
+// (result bodies, footer chips) grow in too. Idle rows resize instantly.
+const ACTIVE_LINGER_MS = 1000;
+const LIVE_TOOL_STATUSES = new Set(["waiting", "committed", "running"]);
+const inFlight = $derived.by(() => {
+  switch (node.kind) {
+    case "tool":
+      return (
+        Boolean(node.draft) ||
+        Boolean(node.liveOutput) ||
+        LIVE_TOOL_STATUSES.has(node.toolCall?.status ?? "")
+      );
+    case "message":
+      return Boolean(node.item.live);
+    case "thinking_group":
+      return node.items.some((member) => member.item.live && !member.item.done);
+    default:
+      return false;
+  }
+});
+let lingering = $state(false);
+let wasInFlight = false;
+$effect(() => {
+  const current = inFlight;
+  const settledNow = wasInFlight && !current;
+  wasInFlight = current;
+  if (!settledNow) return;
+  lingering = true;
+  const timer = setTimeout(() => (lingering = false), ACTIVE_LINGER_MS);
+  return () => clearTimeout(timer);
+});
+const motionBudget = getConversationMotionBudget();
+const readMotionProfile = () => motionBudget?.currentProfile() ?? "standard";
+
+let entering = $state(false);
+let activeEntrance = $state<TranscriptEntranceMotion>();
+let claimedEntranceToken: string | undefined;
+$effect(() => {
+  const motion = entranceMotion;
+  if (!motion || motion.token === claimedEntranceToken) return;
+  claimedEntranceToken = motion.token;
+  if (onClaimEntrance?.(motion.token)) {
+    activeEntrance = motion;
+    entering = true;
+  }
+});
 </script>
-<TranscriptContextMenu
-  target={row}
-  menu={menus?.transcriptMenu ?? (() => [])}
-  triggerClass="block select-text"
+
+<div
+  class="transcript-row-content"
+  class:transcript-enter-standard={entering &&
+    activeEntrance?.profile === "standard"}
+  class:transcript-enter-compact={entering &&
+    activeEntrance?.profile === "compact"}
+  class:transcript-enter-minimal={entering &&
+    activeEntrance?.profile === "minimal"}
+  style:--transcript-enter-delay={activeEntrance
+    ? `${activeEntrance.delayMs}ms`
+    : undefined}
+  onanimationend={(event) => {
+    if (event.target !== event.currentTarget) return;
+    entering = false;
+    activeEntrance = undefined;
+  }}
 >
-  {#if row.kind === "message"}
-    <article
-      class={`transcript-entry ${row.item.role} ${row.item.displayKind === "thinking" ? "thinking-entry" : ""} ${row.item.live ? "streaming" : ""}`}
-      data-state={row.item.live ? "running" : "static"}
-    >
-      <div class="message-body">
-        <div class="message-content">
-          {#if row.item.role === "user"}<UserMessageContent
-              text={row.item.text}
-            />
-            {#if row.item.preparedText}<details
-                class="mt-2 text-xs text-muted-foreground"
-              >
-                <summary>Prepared prompt</summary><UserMessageContent
-                  text={row.item.preparedText}
-                />
-              </details>{/if}
-          {:else if row.item.displayKind === "thinking"}<details>
-              <summary class="text-xs text-muted-foreground">Thinking</summary
-              ><Markdown text={row.item.text} streaming={row.item.live} />
-            </details>
-          {:else}<Markdown
-              text={row.item.text}
-              streaming={row.item.live}
-            />{/if}
-        </div>
+  <HeightFollow
+    active={inFlight || lingering}
+    {visible}
+    profile={readMotionProfile}
+  >
+    {#if node.kind === "tool"}
+      <div class="relative min-w-0 px-3">
+        <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
+         (not removed) while only a draft exists, so the handoff to the real
+         tool menu causes no layout shift. -->
+        <TranscriptContextMenu
+          target={node.toolCall
+            ? {
+                kind: "tool",
+                anchorEntryId: node.anchorEntryId,
+                toolCall: node.toolCall,
+              }
+            : {
+                kind: "tool_result_error",
+                toolName: node.draft?.block.toolName ?? "tool",
+                error: "",
+              }}
+          menu={transcriptMenu}
+          disabled={!node.toolCall}
+          triggerClass="block min-w-0 select-text"
+        >
+          <ToolCallCard
+            draft={node.draft}
+            toolCall={node.toolCall}
+            liveOutput={node.liveOutput}
+            cwd={activeProject?.dir}
+            pendingApproval={node.toolCall &&
+            approvalsByToolCallId.get(node.toolCall.id)?.status === "pending"
+              ? approvalsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            pendingUserQuestion={node.toolCall
+              ? questionsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            hydrateBody={hydrateToolBodies}
+            outcomeUnknown={node.toolCall
+              ? outcomeUnknownToolCallIds.has(node.toolCall.id)
+              : false}
+            pendingPlanReview={node.toolCall
+              ? reviewsByToolCallId.get(node.toolCall.id)
+              : undefined}
+            {onOpenFile}
+            {onOpenTask}
+            {planReviewModels}
+            {planReviewModelKey}
+            {planReviewThinkingLevel}
+            {onAnswerUserQuestion}
+            {onDismissUserQuestion}
+            {onGrantApproval}
+            {onDenyApproval}
+            {onAcceptPlanReview}
+            {onAcceptPlanReviewInNewChat}
+            {onRejectPlanReview}
+          />
+        </TranscriptContextMenu>
       </div>
-      {#if row.item.role === "user" && row.item.previousEventId !== undefined && actions.onEditMessage}
-        <div class="flex justify-end">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Edit and resend"
-            onclick={() => {
-              if (row.item.previousEventId !== undefined)
-                actions.onEditMessage?.(
-                  row.item.id,
-                  row.item.text,
-                  row.item.previousEventId,
-                );
-            }}><Pencil size={14} /></Button
-          >
+    {:else if node.kind === "tool_result_error"}
+      <TranscriptContextMenu
+        target={{
+          kind: "tool_result_error",
+          toolName: node.toolName,
+          error: node.error,
+        }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <ToolResultErrorCard toolName={node.toolName} error={node.error} />
         </div>
-      {/if}
-    </article>
-  {:else if row.kind === "tool"}<div class="relative min-w-0 px-3">
-      <ToolCallCard toolCall={row.toolCall} {children} {actions} />
-    </div>
-  {:else if row.kind === "run_status"}
-    <div class="relative min-w-0 px-3">
-      <RunStatusNoticeCard
-        notice={row.notice}
-        onContinue={actions.onContinueFromFailure}
-      />
-    </div>
-  {:else if notice}<div class="relative min-w-0 px-3">
-      <NoticeCard {notice} />
-    </div>{/if}
-</TranscriptContextMenu>
+      </TranscriptContextMenu>
+    {:else if node.kind === "run_status"}
+      <TranscriptContextMenu
+        target={{ kind: "run_status", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <RunStatusNoticeCard
+            notice={node.notice}
+            isLast={node.key === lastTimelineKey}
+            {sending}
+            {onContinueFromFailure}
+          />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "compaction"}
+      <TranscriptContextMenu
+        target={{ kind: "compaction", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <CompactionNoticeCard notice={node.notice} />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "task_event"}
+      <TranscriptContextMenu
+        target={{ kind: "task_event", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <TaskNoticeCard notice={node.notice} {onOpenTask} />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "system_event"}
+      <TranscriptContextMenu
+        target={{ kind: "system_event", notice: node.notice }}
+        menu={transcriptMenu}
+        triggerClass="block select-text"
+      >
+        <div class="relative min-w-0 px-3">
+          <SystemEventNoticeCard notice={node.notice} />
+        </div>
+      </TranscriptContextMenu>
+    {:else if node.kind === "thinking_group" && thinkingMenuTarget}
+      <TranscriptContextMenu
+        target={thinkingMenuTarget}
+        menu={transcriptMenu}
+        triggerClass="select-text"
+      >
+        <article
+          class="transcript-entry assistant thinking-entry"
+          data-state="static"
+        >
+          <div class="message-body">
+            <ThinkingGroup items={node.items.map((member) => member.item)} />
+          </div>
+        </article>
+      </TranscriptContextMenu>
+    {:else if node.kind === "message"}
+      <TranscriptContextMenu
+        target={{ kind: "message", item: node.item }}
+        menu={transcriptMenu}
+        triggerClass={`select-text ${node.item.role === "user" ? "block" : ""}`}
+      >
+        <article
+          class={`transcript-entry ${node.item.role} ${node.item.live ? "streaming" : ""}`}
+          data-state={messageState}
+        >
+          <div class="message-body">
+            {#if node.item.text}
+              <div class="message-content">
+                {#if node.item.role === "user"}
+                  <UserMessageContent
+                    text={node.item.text}
+                    pending={Boolean(node.item.optimistic)}
+                  />
+                {:else}
+                  <Markdown
+                    text={node.item.text}
+                    trimCodeBlocks={node.item.role !== "assistant"}
+                    streaming={Boolean(node.item.live && !node.item.done)}
+                    reveal={node.item.role === "assistant"}
+                    caret={Boolean(node.item.live && !node.item.done)}
+                    linkBasePath={activeProject?.dir}
+                    {onOpenFile}
+                    onOpenMermaid={node.item.role === "assistant" &&
+                    onOpenMermaid
+                      ? openMessageMermaid
+                      : undefined}
+                    onCopy={notifyCopyResult}
+                  />
+                {/if}
+              </div>
+            {/if}
+            {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
+              <pre
+                class="mt-2 whitespace-pre-wrap break-words rounded-md border border-destructive/40 bg-destructive/10 p-3 font-mono text-xs text-destructive">{node.item.errorMessage.trim()}</pre>
+            {/if}
+          </div>
+        </article>
+      </TranscriptContextMenu>
+    {/if}
+  </HeightFollow>
+</div>
+
+<style>
+.transcript-row-content {
+  min-width: 0;
+}
+
+.transcript-entry {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  padding: 0.75rem;
+  border-bottom: 0;
+}
+
+.transcript-entry.user {
+  width: fit-content;
+  max-width: 70%;
+  margin-left: auto;
+  border: 1px solid color-mix(in oklab, var(--primary) 16%, var(--border));
+  border-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-sm);
+  background: color-mix(in oklab, var(--primary) 12%, var(--card));
+  padding: 0.55rem 0.8rem;
+}
+
+@container (max-width: 40rem) {
+  .transcript-entry.user {
+    max-width: 88%;
+  }
+}
+
+.message-body {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.message-content {
+  min-width: 0;
+  color: color-mix(in oklab, var(--foreground) 92%, transparent);
+  font-size: var(--text-sm);
+}
+
+.transcript-entry.user .message-content {
+  color: var(--foreground);
+}
+</style>

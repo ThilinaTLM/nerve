@@ -51,7 +51,7 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Last user message  | Updated only by delivered `user_message` events, human or parent submitted. Never by compaction, tool results or notices.                                                                                                            |
 | Status dismissal   | `status_cleared_at` keeps a dismissed failed or interrupted badge hidden across status rebuilds.                                                                                                                                     |
 | Child policy       | None stored. Deliberately stopping a parent stops its children. No budgets, depth or concurrency limits, grants or orchestration policies.                                                                                           |
-| Configuration      | Model, reasoning level, system prompt, permission rule set, mode, tools, skills, working directory. No `instructions`, permission level, workspace roots, read-only flag or revisions.                                               |
+| Configuration      | Model, reasoning level, system prompt, permission rule set, mode, working directory. Tools and skills are host-resolved file capabilities. No `instructions`, permission level, workspace roots, read-only flag or revisions.        |
 | Permissions        | Baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level.                                                                                                                   |
 | Approval grants    | "Always allow" writes a rule into the matching overlay file. No table.                                                                                                                                                               |
 | Event types        | `user_message`, `assistant_message`, `system_event`, `tool_call_response`, `compaction`. No tool-request, branch-summary or explore-report events.                                                                                   |
@@ -66,6 +66,12 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Background work    | Promoted bash calls become conversation-owned async bash. User-started launch configurations are a workbench feature; running instances are in memory.                                                                               |
 | Channels           | Separate conversation and workbench connections. Conversation replay uses event sequence; workbench and global list updates are in-memory snapshots plus change notices.                                                             |
 | Assets             | `ASSET` tracks conversation-owned files only.                                                                                                                                                                                        |
+
+### Capabilities
+
+The host resolves tools and skills per turn from user settings → trusted project overrides → conversation overrides. Each override replaces a whole tool entry (enabled state and configuration) or skill flag; saving drops entries equal to the parent. Core tools stay available and permissions authorize their use. Configurable tools default on except image explanation/generation, Kroki, subagents, Jira and Confluence. File skills default on; built-in Nerve and agent-browser skills default off.
+
+Subagents copy the parent's conversation file; explore children disable configurable tools and skills and use `read_only`. Capability state is not stored in SQLite. The conversation channel exposes `capabilities.get/update/reset/trust` and ephemeral `capabilities.changed`; user settings remain on the workbench channel. See [storage](../storage.md#files-and-permissions) for paths.
 
 ## Implementation status
 

@@ -57,6 +57,7 @@ export function createServerAdapterContexts(
     platform: {
       ...infrastructure,
       conversationCore: services.conversationCore,
+      capabilities: services.capabilities,
       fileCompletions: services.fileCompletions,
       workspaceMonitor: services.workspaceMonitor,
       integrationHealth: services.integrationHealth,
@@ -86,6 +87,7 @@ export function createServerAdapterContexts(
     websocket: {
       ...protocolAdapter,
       conversationCore: services.conversationCore,
+      capabilities: services.capabilities,
       host: infrastructure.host,
       port: infrastructure.port,
       events: infrastructure.events,
