@@ -108,6 +108,12 @@ impl ContainmentGuard {
     ) -> Option<TerminationResult> {
         #[cfg(unix)]
         {
+            if target.identity.starts_with("exited:") {
+                return Some(TerminationResult::not_attempted(
+                    TerminationMethod::None,
+                    None,
+                ));
+            }
             Some(signal_target(target, signal))
         }
         #[cfg(windows)]
@@ -177,7 +183,7 @@ pub(crate) fn spawn_contained(
         let pid = child
             .id()
             .ok_or_else(|| "Spawned process did not expose a PID".to_string())?;
-        let identity = match identity(pid) {
+        let identity = match spawned_identity(&mut child, pid, identity(pid)) {
             Ok(identity) => identity,
             Err(error) => {
                 unsafe {
@@ -392,6 +398,25 @@ fn identity(pid: u32) -> Result<String, String> {
 }
 
 #[cfg(unix)]
+fn spawned_identity(
+    child: &mut Child,
+    pid: u32,
+    identity: Result<String, String>,
+) -> Result<String, String> {
+    match identity {
+        Ok(identity) => Ok(identity),
+        Err(error) => match child.try_wait() {
+            // A fast command can exit before the OS exposes its identity (notably
+            // on macOS). Tokio caches the status, so normal wait/output handling
+            // still works. This marker must never authorize a signal to this PID
+            // or process group, which may already have been reused.
+            Ok(Some(_)) => Ok(format!("exited:{pid}")),
+            _ => Err(error),
+        },
+    }
+}
+
+#[cfg(unix)]
 fn posix_signal(signal: &str) -> Result<i32, String> {
     match signal {
         "SIGKILL" => Ok(libc::SIGKILL),
@@ -455,6 +480,72 @@ fn signal_name(signal: i32) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn preserves_status_and_output_when_identity_collection_loses_exit_race() {
+        use tokio::io::AsyncReadExt;
+
+        let mut child = tokio::process::Command::new("sh")
+            .args(["-c", "printf completed; exit 7"])
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        let pid = child.id().unwrap();
+        // Force the race deterministically instead of depending on scheduling.
+        assert_eq!(child.wait().await.unwrap().code(), Some(7));
+        let identity = super::spawned_identity(&mut child, pid, Err("missing".into())).unwrap();
+        assert_eq!(identity, format!("exited:{pid}"));
+        assert_eq!(child.wait().await.unwrap().code(), Some(7));
+        let mut output = String::new();
+        child
+            .stdout
+            .take()
+            .unwrap()
+            .read_to_string(&mut output)
+            .await
+            .unwrap();
+        assert_eq!(output, "completed");
+
+        let target = crate::process::ManagedTarget {
+            pid,
+            process_group_id: Some(pid),
+            containment: crate::process::Containment::ProcessGroup,
+            identity,
+        };
+        #[cfg(target_os = "linux")]
+        let guard = super::ContainmentGuard(None);
+        #[cfg(target_os = "macos")]
+        let guard = super::ContainmentGuard;
+        // An invalid signal would yield an error if the signaling path ran.
+        let result = guard.terminate(&target, "invalid").unwrap();
+        assert_eq!(
+            result,
+            crate::process::TerminationResult::not_attempted(
+                crate::process::TerminationMethod::None,
+                None,
+            )
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn identity_failure_for_a_live_child_remains_an_error() {
+        let mut child = tokio::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let pid = child.id().unwrap();
+        assert_eq!(
+            super::spawned_identity(&mut child, pid, Ok("stable".into())),
+            Ok("stable".into())
+        );
+        assert_eq!(
+            super::spawned_identity(&mut child, pid, Err("denied".into())),
+            Err("denied".into())
+        );
+        child.kill().await.unwrap();
+    }
+
     #[cfg(unix)]
     #[test]
     fn translates_supported_posix_signals() {
