@@ -6,12 +6,12 @@ import type {
   ColorMode,
   ColorTheme,
   ModelInfo,
-  ProjectRecord,
   Settings,
   StatusResponse,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import type { Project } from "@nervekit/contracts/core";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -50,7 +50,7 @@ type Props = {
   activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -91,10 +91,7 @@ let {
 }: Props = $props();
 
 let settingsScope = $state<SettingsScope>("user");
-const controllers = createSettingsPageControllers({
-  activeProject: () => activeProject,
-  scope: () => settingsScope,
-});
+const controllers = createSettingsPageControllers();
 
 /** Skills sections mirror the sources the current scope actually renders. */
 const skillSections = $derived(

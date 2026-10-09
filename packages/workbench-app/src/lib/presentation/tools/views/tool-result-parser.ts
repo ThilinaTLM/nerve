@@ -3,30 +3,23 @@ import {
   bashResultDetailsSchema,
   editOperationResultDetailsSchema,
   explainImageResultDetailsSchema,
-  exploreResultPreviewSchema,
   pythonResultDetailsSchema,
   todosResultSchema,
-  webFetchResultDetailsSchema,
   webSearchResultDetailsSchema,
 } from "@nervekit/contracts/tools";
-import type {
-  ToolCallRecord,
-  ToolCallTranscriptRecord,
-} from "../../state/tool-types";
-export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
+import type { CoreToolCard } from "../../state/tool-types";
+export type ToolCallDisplayRecord = CoreToolCard;
 
 import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+type ConversationLiveToolOutputSnapshot = { text: string; updatedAt?: string };
 import {
   redactStructuredValue,
   toolArgumentSource,
 } from "../lifecycle/argument-source";
 import { parseConfluenceView } from "./confluence-result-view";
-import { parseExploreProgressLog } from "./explore-progress";
 import { parseGenerateImageView } from "./generate-image-result-view";
 import { parseKrokiView } from "./kroki-result-view";
 import { parseJiraView } from "./jira-result-view";
-import { parseSubagentResult } from "./subagent-result-parser";
 import {
   parseTaskControlResult,
   parseTaskLogsResult,
@@ -53,7 +46,6 @@ import {
 } from "./tool-view-helpers";
 import type { ToolView } from "./tool-view-types";
 
-export { aggregateExploreTasks } from "./explore-progress";
 // Re-export the supporting modules so existing consumers that import from this
 // file (via tool-result-view) keep a single, stable surface.
 export {
@@ -68,10 +60,6 @@ export {
   tailLogicalText,
 } from "./tool-view-helpers";
 export type {
-  ExploreProgressView,
-  ExploreSummary,
-  ExploreTaskState,
-  ExploreTaskStatus,
   GrepMatchView,
   GroupedMatches,
   ToolView,
@@ -91,27 +79,6 @@ function nonnegativeIntegerField(value: unknown): number | undefined {
     : undefined;
 }
 
-function previewOverflowHidden(
-  toolCall: ToolCallDisplayRecord,
-  noun: string,
-  direction?: "head" | "tail" | "mixed",
-): number {
-  const overflow =
-    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
-  if (!overflow || overflow.noun !== noun) return 0;
-  if (direction && overflow.direction !== direction) return 0;
-  return overflow.hidden;
-}
-
-function actualPreviewCount(
-  visible: number,
-  toolCall: ToolCallDisplayRecord,
-  noun: string,
-  direction?: "head" | "tail" | "mixed",
-): number {
-  return visible + previewOverflowHidden(toolCall, noun, direction);
-}
-
 function modelDisplayedLines(
   outputLimits: ReturnType<typeof outputLimitsFromDetails>,
 ): number | undefined {
@@ -125,10 +92,7 @@ function actualTextLineCount(
   direction?: "head" | "tail" | "mixed",
   outputLimits?: ReturnType<typeof outputLimitsFromDetails>,
 ): number {
-  return (
-    modelDisplayedLines(outputLimits) ??
-    actualPreviewCount(countLogicalLines(text), toolCall, noun, direction)
-  );
+  return modelDisplayedLines(outputLimits) ?? countLogicalLines(text);
 }
 
 // Memoize the (zod-heavy) tool-result projection. parseToolView re-runs on
@@ -158,16 +122,14 @@ function toolViewSignature(
     resultPreview?: unknown;
   };
   const mode = "result" in toolCall || "args" in toolCall ? "full" : "preview";
-  const overflow =
-    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
   return [
     toolCall.id,
-    toolCall.status,
+    toolCall.state,
     toolCall.updatedAt,
     mode,
     payloadSignature(payloads.argsPreview ?? payloads.args),
     payloadSignature(payloads.resultPreview ?? payloads.result),
-    overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
+
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
   ].join("\0");
@@ -199,7 +161,7 @@ export function parseToolView(
   const rawArgs = payloads.argsPreview ?? payloads.args;
   const rawResult = payloads.resultPreview ?? payloads.result;
   const args = asRecord(rawArgs);
-  const cwd = toolCall.cwd;
+  const cwd = toolCall.cwd ?? "";
   const result = parseToolExecutionResult(rawResult);
   const outputLimits = outputLimitsFromDetails(result?.details);
   const outputArtifacts = outputArtifactsFromDetails(result?.details);
@@ -298,9 +260,7 @@ export function parseToolView(
         savedTo: details.success ? details.data.fullOutputPath : undefined,
         truncated: detailsTruncated(result?.details),
         live: !result && Boolean(liveOutput?.text),
-        outputLimits: liveOutput?.outputLimits
-          ? { ...outputLimits, live: { ...liveOutput.outputLimits } }
-          : outputLimits,
+        outputLimits,
         outputArtifacts,
       };
     }
@@ -318,9 +278,7 @@ export function parseToolView(
         cwd,
       );
       const output = resultOutputText(result, rawResult, liveOutput);
-      const codeLineCount = code
-        ? actualPreviewCount(countLogicalLines(code), toolCall, "lines", "head")
-        : 0;
+      const codeLineCount = code ? countLogicalLines(code) : 0;
       const outputLineCount = actualTextLineCount(
         output,
         toolCall,
@@ -360,9 +318,7 @@ export function parseToolView(
         artifactDir: details.success ? details.data.artifactDir : undefined,
         artifacts: details.success ? details.data.artifacts : undefined,
         streams: details.success ? details.data.streams : undefined,
-        outputLimits: liveOutput?.outputLimits
-          ? { ...outputLimits, live: { ...liveOutput.outputLimits } }
-          : outputLimits,
+        outputLimits,
         outputArtifacts,
       };
     }
@@ -379,12 +335,7 @@ export function parseToolView(
       const diff = details.success
         ? details.data.diff
         : stringField(rawDetails.diff);
-      const diffLineCount = actualPreviewCount(
-        countLogicalLines(diff),
-        toolCall,
-        "lines",
-        "tail",
-      );
+      const diffLineCount = countLogicalLines(diff);
       const { additions, deletions } = diffStats(diff);
       return {
         kind: "edit",
@@ -410,14 +361,7 @@ export function parseToolView(
       const byteMatch = result?.content?.match(/Wrote (\d+) bytes/);
       const bytes = byteMatch ? Number(byteMatch[1]) : undefined;
       const lineCount =
-        content === undefined
-          ? undefined
-          : actualPreviewCount(
-              countLogicalLines(content),
-              toolCall,
-              "lines",
-              "tail",
-            );
+        content === undefined ? undefined : countLogicalLines(content);
       const charCount = content?.length;
       return {
         kind: "write",
@@ -446,12 +390,7 @@ export function parseToolView(
       return {
         kind: "grep",
         pattern,
-        matchCount: actualPreviewCount(
-          matches.length,
-          toolCall,
-          "matches",
-          "head",
-        ),
+        matchCount: matches.length,
         fileCount: all.length,
         allMatches: all,
       };
@@ -473,7 +412,7 @@ export function parseToolView(
         pattern,
         paths,
         openPaths,
-        count: actualPreviewCount(paths.length, toolCall, "files", "head"),
+        count: paths.length,
       };
     }
 
@@ -489,7 +428,7 @@ export function parseToolView(
         path,
         relPath,
         entries,
-        total: actualPreviewCount(entries.length, toolCall, "entries", "head"),
+        total: entries.length,
       };
     }
 
@@ -549,7 +488,7 @@ export function parseToolView(
 
     case "task_status": {
       const data = parseTaskStatusResult(rawResult);
-      const hiddenTaskCount = previewOverflowHidden(toolCall, "tasks", "head");
+      const hiddenTaskCount = 0;
       return {
         kind: "task_status",
         ...data,
@@ -558,38 +497,12 @@ export function parseToolView(
       };
     }
 
-    case "subagent_new":
-    case "subagent_prompt":
-    case "subagent_list":
-    case "subagent_status":
-    case "subagent_stop":
-      return parseSubagentResult(toolCall, toolCall.toolName, args, rawResult);
-
     case "task_logs": {
       const data = parseTaskLogsResult(rawResult);
       return {
         kind: "task_logs",
         ...data,
-        eventCount: actualPreviewCount(
-          data.events.length,
-          toolCall,
-          "events",
-          "tail",
-        ),
-      };
-    }
-
-    case "explore": {
-      const parsed = exploreResultPreviewSchema.safeParse(rawResult);
-      const data = parsed.success ? parsed.data : undefined;
-      const task = stringField(args.task);
-      const liveProgress = parseExploreProgressLog(liveOutput?.text);
-      return {
-        kind: "explore",
-        task,
-        reports: data?.reports ?? [],
-        liveUpdates: liveProgress.updates,
-        liveLog: liveProgress.fallback,
+        eventCount: data.events.length,
       };
     }
 
@@ -607,9 +520,7 @@ export function parseToolView(
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
-      const interactionSummary = toolCall.interactions.find(
-        (interaction) => interaction.kind === "plan_review",
-      )?.request.summary;
+
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
       const outcome =
@@ -622,7 +533,7 @@ export function parseToolView(
         planPreview:
           stringField(review.content) ??
           stringField(review.summary) ??
-          interactionSummary,
+          undefined,
         planPath,
         outcome,
       };
@@ -695,28 +606,8 @@ export function parseToolView(
         data?.path ?? result?.path ?? stringField(args.path),
         cwd,
       );
-      const live = toolCall.status === "running" && Boolean(liveOutput);
-      const boundedLiveChunks = (() => {
-        if (!liveOutput) return [];
-        let remaining = liveOutput.text.length;
-        const chunks = [] as typeof liveOutput.chunks;
-        for (let index = liveOutput.chunks.length - 1; index >= 0; index -= 1) {
-          if (remaining <= 0) break;
-          const chunk = liveOutput.chunks[index];
-          if (!chunk) continue;
-          const text = chunk.text.slice(
-            Math.max(0, chunk.text.length - remaining),
-          );
-          chunks.unshift({ ...chunk, text });
-          remaining -= text.length;
-        }
-        return chunks;
-      })();
-      const liveText = (stream: "thinking" | "text") =>
-        boundedLiveChunks
-          .filter((chunk) => chunk.stream === stream)
-          .map((chunk) => chunk.text)
-          .join("");
+      const live = toolCall.state === "running" && Boolean(liveOutput);
+      const liveExplanation = liveOutput?.text ?? "";
       return {
         kind: "explain_image",
         path,
@@ -725,44 +616,10 @@ export function parseToolView(
           ? undefined
           : (data?.explanation ?? resultOutputText(result, rawResult)) ||
             undefined,
-        thinking: live ? liveText("thinking") : undefined,
-        liveExplanation: live ? liveText("text") : undefined,
+        thinking: undefined,
+        liveExplanation: live ? liveExplanation : undefined,
         live,
-        outputLimits: liveOutput?.outputLimits
-          ? {
-              ...outputLimits,
-              live: {
-                capped: liveOutput.outputLimits.capped,
-                direction: liveOutput.outputLimits.direction,
-                maxChars: liveOutput.outputLimits.maxChars,
-                maxChunks: liveOutput.outputLimits.maxChunks,
-                totalChars: liveOutput.outputLimits.totalChars,
-                displayedChars: liveOutput.outputLimits.displayedChars,
-                omittedChars: liveOutput.outputLimits.omittedChars,
-                totalLines: liveOutput.outputLimits.totalLines,
-                displayedLines: liveOutput.outputLimits.displayedLines,
-                omittedLines: liveOutput.outputLimits.omittedLines,
-              },
-            }
-          : outputLimits,
-      };
-    }
-
-    case "web_fetch": {
-      const details = webFetchResultDetailsSchema.safeParse(result?.details);
-      const data = details.success ? details.data : undefined;
-      const url = data?.url ?? stringField(args.url);
-      return {
-        kind: "web_fetch",
-        url,
-        status: data?.status,
-        contentType: data?.contentType,
-        size: data?.size,
-        savedTo: data?.savedTo,
-        converted: data?.converted ?? false,
-        content: result?.content,
         outputLimits,
-        outputArtifacts,
       };
     }
 

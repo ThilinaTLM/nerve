@@ -10,43 +10,43 @@ const defineTaskMethodHandlers =
 
 export const taskMethodHandlers: WorkbenchMethodHandlerMapFor<TaskMethodContext> =
   defineTaskMethodHandlers({
-    "task.list": (state) => ({ tasks: state.tasks.listTasks() }),
-    "task.start": async (state, params) => ({
-      task: await state.tasks.startTask(params),
+    "launch.list": (state) => ({ tasks: state.launches.listLaunches() }),
+    "launch.start": async (state, params) => ({
+      task: await state.launches.start(params),
     }),
-    "task.launchDefinition": (state, params) =>
+    "launch.launchDefinition": (state, params) =>
       state.taskDefinitionOperations.launch(
         params.definitionId,
         params.terminateListeners,
       ),
-    "task.get": (state, params) => ({
-      task: state.tasks.getTask(params.taskId),
+    "launch.get": async (state, params) => ({
+      task: await state.launches.require(params.taskId),
     }),
-    "task.cancel": async (state, params) => {
-      state.tasks.getTask(params.taskId);
+    "launch.cancel": async (state, params) => {
+      await state.launches.require(params.taskId);
       return {
-        task: await state.tasks.cancelTask(params.taskId, params),
+        task: await state.launches.cancel(params.taskId, params),
       };
     },
-    "task.restart": async (state, params) => {
-      state.tasks.getTask(params.taskId);
+    "launch.restart": async (state, params) => {
+      await state.launches.require(params.taskId);
       return {
-        task: await state.tasks.restartTask(params.taskId, {
+        task: await state.launches.restart(params.taskId, {
           confirmUnverifiedReplacement:
             params.confirmUnverifiedReplacement ?? false,
         }),
       };
     },
-    "task.prune": async (state) => ({
-      removed: await state.tasks.pruneTasks(),
+    "launch.prune": async (state) => ({
+      removed: await state.launches.prune(),
     }),
-    "task.delete": async (state, params) => {
-      state.tasks.getTask(params.taskId);
-      await state.tasks.removeTask(params.taskId);
+    "launch.delete": async (state, params) => {
+      await state.launches.require(params.taskId);
+      await state.launches.delete(params.taskId);
       return { removed: true };
     },
-    "task.logs": (state, params) => {
+    "launch.logs": (state, params) => {
       const { taskId, ...query } = params;
-      return state.tasks.queryLogs(taskId, query);
+      return state.launches.queryLogs(taskId, query);
     },
   });

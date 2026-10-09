@@ -3,22 +3,7 @@ import {
   defineContentEvent,
   definePublicEvent,
 } from "../../events/definition.js";
-import {
-  taskListeningPortSchema,
-  taskRecordSchema,
-  taskRuntimeSchema,
-} from "./task.js";
-
-const workbenchRoles = ["workbench_server"] as const;
-const cleanupMethodSchema = z.enum([
-  "job-object",
-  "process-group",
-  "process-tree",
-  "direct-child",
-  "taskkill",
-  "none",
-]);
-const taskSignalSchema = z.enum(["SIGTERM", "SIGINT", "SIGKILL"]);
+import { taskRecordSchema, taskRuntimeSchema } from "./task.js";
 
 // Full task records carry authoritative executable command content, not a
 // command preview. Use the existing content-sized event policy without changing
@@ -33,32 +18,32 @@ const taskPayloadSchema = z.object({
   reason: z.string().max(1_024).optional(),
 });
 
-export const taskEventDefinitions = [
+export const launchEventDefinitions = [
   ...[
-    "task.created",
-    "task.started",
-    "task.ready",
-    "task.stop_requested",
-    "task.completed",
-    "task.failed",
-    "task.timed_out",
-    "task.readiness_failed",
-    "task.cancelled",
-    "task.orphaned",
-    "task.recovered",
-    "task.interrupted",
-    "task.recovery_unknown",
-    "task.updated",
+    "launch.created",
+    "launch.started",
+    "launch.ready",
+    "launch.stop_requested",
+    "launch.completed",
+    "launch.failed",
+    "launch.timed_out",
+    "launch.readiness_failed",
+    "launch.cancelled",
+    "launch.updated",
+    "launch.runtime_updated",
   ].map((name) =>
-    defineContentEvent(name, taskPayloadSchema, { scope: ["task.id"] }),
+    defineContentEvent(name, taskPayloadSchema, {
+      delivery: "ephemeral",
+      scope: ["task.id"],
+    }),
   ),
   definePublicEvent(
-    "task.removed",
+    "launch.removed",
     z.object({ taskId: z.string().startsWith("task_") }),
-    { scope: ["taskId"] },
+    { delivery: "ephemeral", scope: ["taskId"] },
   ),
   definePublicEvent(
-    "task.output",
+    "launch.output",
     z.object({
       taskId: z.string().startsWith("task_"),
       stream: z.enum(["stdout", "stderr", "combined"]),
@@ -66,40 +51,8 @@ export const taskEventDefinitions = [
     }),
     {
       delivery: "ephemeral",
-      coalescing: {
-        strategy: "concat_delta",
-        field: "text",
-        maxChars: 16_384,
-      },
+      coalescing: { strategy: "concat_delta", field: "text", maxChars: 16_384 },
       scope: ["taskId", "stream"],
     },
-  ),
-  ...["task.promoted", "task.runtime_updated"].map((name) =>
-    defineContentEvent(name, z.object({ task: taskRecordSchema }), {
-      allowedSourceRoles: workbenchRoles,
-      scope: ["task.id"],
-    }),
-  ),
-  defineContentEvent(
-    "task.orphan_cleanup_succeeded",
-    z.object({
-      task: taskRecordSchema,
-      runtime: taskRuntimeSchema,
-      signal: taskSignalSchema,
-      method: cleanupMethodSchema.optional(),
-      releasedPorts: z.array(taskListeningPortSchema).max(256).optional(),
-    }),
-    { allowedSourceRoles: workbenchRoles, scope: ["task.id"] },
-  ),
-  defineContentEvent(
-    "task.cleanup_failed",
-    z.object({
-      task: taskRecordSchema,
-      error: z.string().min(1).max(4_096),
-      orphaned: z.literal(true),
-      method: cleanupMethodSchema.optional(),
-      signal: taskSignalSchema.optional(),
-    }),
-    { allowedSourceRoles: workbenchRoles, scope: ["task.id"] },
   ),
 ];

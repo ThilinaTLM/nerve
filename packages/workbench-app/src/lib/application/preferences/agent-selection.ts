@@ -1,3 +1,4 @@
+import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
   modelKey,
   scopedUsableModelOptions,
@@ -6,13 +7,8 @@ import {
   clampThinkingLevelForModel,
   supportedThinkingLevelsForModel,
   THINKING_LEVEL_ORDER,
-} from "$lib/presentation/state";
-import type {
-  AgentRecord,
-  AuthProviderMetadata,
-  ModelInfo,
-  Settings,
-} from "$lib/api";
+} from "./thinking-levels";
+import type { AuthProviderMetadata, ModelInfo, Settings } from "$lib/api";
 
 export {
   clampThinkingLevelForModel,
@@ -22,10 +18,11 @@ export {
 
 export type NewAgentComposerSelection = {
   selectedModelKey: string;
-  selectedThinkingLevel: AgentRecord["thinkingLevel"];
-  selectedMode: AgentRecord["mode"];
-  selectedPermissionLevel: AgentRecord["permissionLevel"];
-  selectedPermissionRuleSetId: NonNullable<AgentRecord["permissionRuleSetId"]>;
+  selectedThinkingLevel: ConversationConfig["reasoningLevel"];
+  selectedMode: ConversationConfig["mode"];
+  selectedPermissionRuleSetId: NonNullable<
+    ConversationConfig["permissionRuleSetId"]
+  >;
 };
 
 export function effectiveNewAgentDefaults(settings: Settings) {
@@ -66,7 +63,6 @@ export function resolveNewAgentComposerSelection(
       fallbackModel,
     ),
     selectedMode: defaults.mode,
-    selectedPermissionLevel: defaults.permissionLevel,
     selectedPermissionRuleSetId:
       defaults.permissionRuleSetId ?? defaults.permissionLevel,
   };

@@ -23,7 +23,7 @@ export function createFilesystemContentRoutes(
             path: c.req.query("path"),
             line: c.req.query("line"),
           },
-          (projectId) => state.projectLifecycle.getProject(projectId).dir,
+          (projectId) => state.getProject(projectId).directory,
         ),
       ),
     ),
@@ -34,7 +34,7 @@ export function createFilesystemContentRoutes(
       c.json(
         await saveFileContent(
           await c.req.json(),
-          (projectId) => state.projectLifecycle.getProject(projectId).dir,
+          (projectId) => state.getProject(projectId).directory,
         ),
       ),
     ),

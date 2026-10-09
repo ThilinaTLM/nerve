@@ -24,17 +24,15 @@ import type {
   GitProjectFileStatusResponse,
   GitStashArea,
 } from "@nervekit/contracts/git";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
 export async function discoverGitRepos(
   projectId: string,
 ): Promise<GitDiscoveryResponse> {
-  return (
-    await protocolRequest("git.repos.discover", {
-      projectId,
-    })
-  ).result;
+  return await requestWorkbench("git.repos.discover", {
+    projectId,
+  });
 }
 
 export function syncGitRepositoryMonitor(
@@ -64,31 +62,26 @@ export async function getGitOverview(
   projectId: string,
   repo: string,
 ): Promise<GitOverviewResponse> {
-  return (
-    await protocolRequest("git.overview.get", {
-      projectId,
-      repo,
-    })
-  ).result;
+  return await requestWorkbench("git.overview.get", {
+    projectId,
+    repo,
+  });
 }
 
 export async function getProjectGitFileStatus(
   projectId: string,
 ): Promise<GitProjectFileStatusResponse> {
-  return (await protocolRequest("git.project.files.status.get", { projectId }))
-    .result;
+  return await requestWorkbench("git.project.files.status.get", { projectId });
 }
 
 export async function listGitBranches(
   projectId: string,
   repo: string,
 ): Promise<GitBranchListResponse> {
-  return (
-    await protocolRequest("git.branches.list", {
-      projectId,
-      repo,
-    })
-  ).result;
+  return await requestWorkbench("git.branches.list", {
+    projectId,
+    repo,
+  });
 }
 
 export async function createGitBranch(
@@ -96,13 +89,11 @@ export async function createGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.branch.create", {
-      projectId,
-      repo,
-      name,
-    })
-  ).result;
+  return await requestWorkbench("git.branch.create", {
+    projectId,
+    repo,
+    name,
+  });
 }
 
 export async function switchGitBranch(
@@ -110,13 +101,11 @@ export async function switchGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.branch.switch", {
-      projectId,
-      repo,
-      name,
-    })
-  ).result;
+  return await requestWorkbench("git.branch.switch", {
+    projectId,
+    repo,
+    name,
+  });
 }
 
 export async function deleteGitBranch(
@@ -124,41 +113,39 @@ export async function deleteGitBranch(
   repo: string,
   name: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.branch.delete", {
-      projectId,
-      repo,
-      name,
-    })
-  ).result;
+  return await requestWorkbench("git.branch.delete", {
+    projectId,
+    repo,
+    name,
+  });
 }
 
 export async function syncGitBranch(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (await protocolRequest("git.sync", { projectId, repo })).result;
+  return await requestWorkbench("git.sync", { projectId, repo });
 }
 
 export async function pushGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (await protocolRequest("git.push", { projectId, repo })).result;
+  return await requestWorkbench("git.push", { projectId, repo });
 }
 
 export async function pullGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (await protocolRequest("git.pull", { projectId, repo })).result;
+  return await requestWorkbench("git.pull", { projectId, repo });
 }
 
 export async function fetchGit(
   projectId: string,
   repo: string,
 ): Promise<GitMutationResponse> {
-  return (await protocolRequest("git.fetch", { projectId, repo })).result;
+  return await requestWorkbench("git.fetch", { projectId, repo });
 }
 
 export async function switchBaseAndPullGit(
@@ -166,13 +153,11 @@ export async function switchBaseAndPullGit(
   repo: string,
   baseBranch?: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.switchBaseAndPull", {
-      projectId,
-      repo,
-      baseBranch,
-    })
-  ).result;
+  return await requestWorkbench("git.switchBaseAndPull", {
+    projectId,
+    repo,
+    baseBranch,
+  });
 }
 
 export async function createGitStash(
@@ -181,14 +166,12 @@ export async function createGitStash(
   area: GitStashArea,
   paths?: readonly string[],
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.stash.create", {
-      projectId,
-      repo,
-      area,
-      ...(paths ? { paths: [...paths] } : {}),
-    })
-  ).result;
+  return await requestWorkbench("git.stash.create", {
+    projectId,
+    repo,
+    area,
+    ...(paths ? { paths: [...paths] } : {}),
+  });
 }
 
 export async function applyGitStash(
@@ -197,14 +180,12 @@ export async function applyGitStash(
   index: number,
   expectedHash: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.stash.apply", {
-      projectId,
-      repo,
-      index,
-      expectedHash,
-    })
-  ).result;
+  return await requestWorkbench("git.stash.apply", {
+    projectId,
+    repo,
+    index,
+    expectedHash,
+  });
 }
 
 export async function dropGitStash(
@@ -213,14 +194,12 @@ export async function dropGitStash(
   index: number,
   expectedHash: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.stash.drop", {
-      projectId,
-      repo,
-      index,
-      expectedHash,
-    })
-  ).result;
+  return await requestWorkbench("git.stash.drop", {
+    projectId,
+    repo,
+    index,
+    expectedHash,
+  });
 }
 
 export async function getGitFileDiff(
@@ -229,14 +208,12 @@ export async function getGitFileDiff(
   path: string,
   area: GitDiffArea,
 ): Promise<GitFileDiffResponse> {
-  return (
-    await protocolRequest("git.file.diff.get", {
-      projectId,
-      repo,
-      path,
-      area,
-    })
-  ).result;
+  return await requestWorkbench("git.file.diff.get", {
+    projectId,
+    repo,
+    path,
+    area,
+  });
 }
 
 export async function stageGitFile(
@@ -244,13 +221,11 @@ export async function stageGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.file.stage", {
-      projectId,
-      repo,
-      path,
-    })
-  ).result;
+  return await requestWorkbench("git.file.stage", {
+    projectId,
+    repo,
+    path,
+  });
 }
 
 export async function unstageGitFile(
@@ -258,13 +233,11 @@ export async function unstageGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.file.unstage", {
-      projectId,
-      repo,
-      path,
-    })
-  ).result;
+  return await requestWorkbench("git.file.unstage", {
+    projectId,
+    repo,
+    path,
+  });
 }
 
 export async function discardGitFile(
@@ -272,37 +245,31 @@ export async function discardGitFile(
   repo: string,
   path: string,
 ): Promise<GitMutationResponse> {
-  return (
-    await protocolRequest("git.file.discard", {
-      projectId,
-      repo,
-      path,
-    })
-  ).result;
+  return await requestWorkbench("git.file.discard", {
+    projectId,
+    repo,
+    path,
+  });
 }
 
 export async function getGithubStatus(
   projectId: string,
   repo: string,
 ): Promise<GithubStatusResponse> {
-  return (
-    await protocolRequest("github.status.get", {
-      projectId,
-      repo,
-    })
-  ).result;
+  return await requestWorkbench("github.status.get", {
+    projectId,
+    repo,
+  });
 }
 
 export async function listGithubPrHeads(
   projectId: string,
   repo: string,
 ): Promise<GithubPrHeadsResponse> {
-  return (
-    await protocolRequest("github.pr.heads.list", {
-      projectId,
-      repo,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.heads.list", {
+    projectId,
+    repo,
+  });
 }
 
 export async function listGithubPrs(
@@ -310,13 +277,11 @@ export async function listGithubPrs(
   repo: string,
   filters: GithubPrListFilters,
 ): Promise<GithubPrListResponse> {
-  return (
-    await protocolRequest("github.pr.list", {
-      projectId,
-      repo,
-      filters,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.list", {
+    projectId,
+    repo,
+    filters,
+  });
 }
 
 async function getGithubPrSection<T>(
@@ -330,8 +295,7 @@ async function getGithubPrSection<T>(
   repo: string,
   number: number,
 ): Promise<T> {
-  return (await protocolRequest(operation, { projectId, repo, number }))
-    .result as T;
+  return (await requestWorkbench(operation, { projectId, repo, number })) as T;
 }
 
 export async function getGithubPrInitial(
@@ -339,13 +303,11 @@ export async function getGithubPrInitial(
   repo: string,
   number: number,
 ): Promise<GithubPrInitial> {
-  return (
-    await protocolRequest("github.pr.initial.get", {
-      projectId,
-      repo,
-      number,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.initial.get", {
+    projectId,
+    repo,
+    number,
+  });
 }
 
 export const getGithubPrCore = (
@@ -394,21 +356,19 @@ export async function getGithubPrFileDiff(input: {
   expectedHeadRefOid: string;
   expectedHeadRepository?: string;
 }): Promise<GithubPrFileDiffResponse> {
-  return (
-    await protocolRequest("github.pr.file.diff.get", {
-      projectId: input.projectId,
-      repo: input.repo,
-      number: input.number,
-      path: input.path,
-      ...(input.previousPath ? { previousPath: input.previousPath } : {}),
-      status: input.status,
-      expectedBaseRefOid: input.expectedBaseRefOid,
-      expectedHeadRefOid: input.expectedHeadRefOid,
-      ...(input.expectedHeadRepository
-        ? { expectedHeadRepository: input.expectedHeadRepository }
-        : {}),
-    })
-  ).result;
+  return await requestWorkbench("github.pr.file.diff.get", {
+    projectId: input.projectId,
+    repo: input.repo,
+    number: input.number,
+    path: input.path,
+    ...(input.previousPath ? { previousPath: input.previousPath } : {}),
+    status: input.status,
+    expectedBaseRefOid: input.expectedBaseRefOid,
+    expectedHeadRefOid: input.expectedHeadRefOid,
+    ...(input.expectedHeadRepository
+      ? { expectedHeadRepository: input.expectedHeadRepository }
+      : {}),
+  });
 }
 
 export async function getGithubPrFiles(
@@ -416,13 +376,11 @@ export async function getGithubPrFiles(
   repo: string,
   number: number,
 ): Promise<GithubPrFilesResponse> {
-  return (
-    await protocolRequest("github.pr.files.get", {
-      projectId,
-      repo,
-      number,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.files.get", {
+    projectId,
+    repo,
+    number,
+  });
 }
 
 export async function mergeGithubPr(
@@ -432,15 +390,13 @@ export async function mergeGithubPr(
   method: GithubPrMergeMethod,
   expectedHeadOid: string,
 ): Promise<GithubPrMergeResponse> {
-  return (
-    await protocolRequest("github.pr.merge", {
-      projectId,
-      repo,
-      number,
-      method,
-      expectedHeadOid,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.merge", {
+    projectId,
+    repo,
+    number,
+    method,
+    expectedHeadOid,
+  });
 }
 
 export async function checkoutGithubPr(
@@ -448,11 +404,9 @@ export async function checkoutGithubPr(
   repo: string,
   number: number,
 ): Promise<GithubPrCheckoutResponse> {
-  return (
-    await protocolRequest("github.pr.checkout", {
-      projectId,
-      repo,
-      number,
-    })
-  ).result;
+  return await requestWorkbench("github.pr.checkout", {
+    projectId,
+    repo,
+    number,
+  });
 }

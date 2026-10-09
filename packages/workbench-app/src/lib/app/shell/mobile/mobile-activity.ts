@@ -1,5 +1,5 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 
@@ -33,7 +33,7 @@ type ActivityLike = {
   busy: boolean;
 };
 
-type ProjectLike = { id: string; name: string; dir: string };
+type ProjectLike = { id: string; name: string; directory: string };
 
 export type MobileActivityConversation = {
   conversationId: string;
@@ -61,7 +61,7 @@ export type MobileActivityModel = {
 };
 
 export type MobileActivityInput = {
-  conversations: readonly ConversationRecord[];
+  conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ActivityLike>>;
   tasks: readonly TaskRecord[];
   projects: readonly ProjectLike[];
@@ -89,8 +89,8 @@ export function taskProject<P extends ProjectLike>(
   }
   // Deepest matching directory wins for nested projects.
   return projects
-    .filter((project) => isPathInDirectory(task.cwd, project.dir))
-    .sort((left, right) => right.dir.length - left.dir.length)[0];
+    .filter((project) => isPathInDirectory(task.cwd, project.directory))
+    .sort((left, right) => right.directory.length - left.directory.length)[0];
 }
 
 /**

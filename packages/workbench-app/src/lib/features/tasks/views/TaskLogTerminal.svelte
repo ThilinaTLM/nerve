@@ -91,7 +91,7 @@ $effect(() => {
 <div
   class="relative h-full min-h-0 bg-well font-mono text-xs"
   role="log"
-  aria-label="Task output"
+  aria-label="Launch output"
 >
   <VirtualScroller
     bind:controller
@@ -109,7 +109,7 @@ $effect(() => {
     paddingStart={12}
     paddingEnd={12}
     viewportTabIndex={0}
-    viewportAriaLabel="Scrollable task output"
+    viewportAriaLabel="Scrollable launch output"
     viewportClass="h-full px-3"
   >
     {#snippet row({ item })}

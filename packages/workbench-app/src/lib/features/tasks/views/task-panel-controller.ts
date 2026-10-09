@@ -128,7 +128,7 @@ export function taskPortConflictDescription(
       ]),
     ).values(),
   ];
-  return `${processes.join(", ")} is listening on TCP port ${conflict.port}. Terminate ${processes.length === 1 ? "it" : "them"} and run this task?`;
+  return `${processes.join(", ")} is listening on TCP port ${conflict.port}. Terminate ${processes.length === 1 ? "it" : "them"} and run this launch?`;
 }
 
 /** The center tab a run belongs to: its definition, restart chain, or itself. */

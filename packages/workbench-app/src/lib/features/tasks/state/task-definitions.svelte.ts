@@ -1,4 +1,5 @@
-import { SvelteMap } from "svelte/reactivity";
+import { onWorkbenchReconnect } from "$lib/application/events/workbench-event-bus";
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { getTaskDefinitions, type TaskDefinition } from "$lib/api";
 
 type FetchTaskDefinitions = (projectId: string) => Promise<TaskDefinition[]>;
@@ -63,7 +64,13 @@ export function createTaskDefinitionStore(
   };
 }
 
+const loadedProjects = new SvelteSet<string>();
 const taskDefinitionStore = createTaskDefinitionStore(getTaskDefinitions);
+onWorkbenchReconnect(async () => {
+  await Promise.all(
+    [...loadedProjects].map((projectId) => taskDefinitionStore.load(projectId)),
+  );
+});
 
 export function cachedTaskDefinitions(
   projectId: string | undefined,
@@ -73,6 +80,7 @@ export function cachedTaskDefinitions(
 
 /** Revalidates one project while sharing any request already in flight. */
 export function loadTaskDefinitions(projectId: string): Promise<void> {
+  loadedProjects.add(projectId);
   return taskDefinitionStore.load(projectId);
 }
 

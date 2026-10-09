@@ -1,3 +1,7 @@
+import {
+  onEvent,
+  onWorkbenchReconnect,
+} from "$lib/application/events/workbench-event-bus";
 import type { ScratchNote } from "@nervekit/contracts/scratch-notes";
 import { SvelteMap } from "svelte/reactivity";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -35,6 +39,20 @@ const store = $state({
 });
 const mutationQueue = new KeyedSerialQueue();
 const loadPromises = new SvelteMap<string, Promise<void>>();
+onWorkbenchReconnect(async () => {
+  await Promise.all(
+    Object.keys(store.projects).map((projectId) =>
+      loadScratchNotes(projectId, true),
+    ),
+  );
+});
+
+onEvent("scratchNote.changed", (event) => {
+  const projectId = event.data?.projectId;
+  if (typeof projectId === "string" && store.projects[projectId]) {
+    void loadScratchNotes(projectId, true);
+  }
+});
 
 /** Shared scratch-note state that survives utility-tab and project switches. */
 export const scratchNotesUi = store;
@@ -95,7 +113,17 @@ export function loadScratchNotes(
   const promise = listScratchNotes(projectId)
     .then((notes) => {
       if (token !== project.loadToken) return;
-      project.notes = notes.map(toEntry);
+      project.notes = notes.map((note) => {
+        const existing = project.notes.find((entry) => entry.id === note.id);
+        return existing && existing.draftContent !== existing.savedContent
+          ? {
+              ...existing,
+              ...note,
+              draftContent: existing.draftContent,
+              savedContent: note.content,
+            }
+          : toEntry(note);
+      });
       project.loadStatus = "loaded";
     })
     .catch(() => {
@@ -122,7 +150,8 @@ export async function createScratchNote(
   try {
     await loadScratchNotes(projectId);
     const note = await createScratchNoteRequest(projectId);
-    project.notes.push(toEntry(note));
+    if (!project.notes.some((entry) => entry.id === note.id))
+      project.notes.push(toEntry(note));
     project.loadStatus = "loaded";
     return note.id;
   } catch {

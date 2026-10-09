@@ -1,4 +1,3 @@
-export * from "./infrastructure/workspace.api";
 export {
   centerTabsExcept,
   centerTabsToLeftOf,
@@ -24,15 +23,13 @@ export {
   createConversationForDirectory,
   deleteConversationAndRefresh,
   deleteProjectAndRefresh,
-  exportUrl,
   newConversation,
   newConversationInProject,
   openProjectDirectory,
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
-  pruneProjectConversationsAndRefresh,
   selectProject,
-  systemPromptUrl,
+  openConversation,
   updateConversationStateAndRefresh,
 } from "./workspace-actions.svelte";
 export { maintenance } from "../maintenance/maintenance-state.svelte";

@@ -78,7 +78,7 @@ function outcomeTone(destructive = false, warning = false) {
 }
 </script>
 
-{#if toolCall.status === "completed"}
+{#if toolCall.state === "completed"}
   <AtlassianResultSurface>
     {#if view.action === "search_spaces"}
       {#each view.spaces.slice(0, limit) as space (space.id)}

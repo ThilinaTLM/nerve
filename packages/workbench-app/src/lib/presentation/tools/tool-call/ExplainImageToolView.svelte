@@ -35,6 +35,6 @@ const liveText = $derived.by(() => {
   </div>
 {:else if view.explanation}
   <ToolOutputBlock text={view.explanation} direction="head" />
-{:else if toolCall.status === "completed"}
+{:else if toolCall.state === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No explanation returned.</p>
 {/if}

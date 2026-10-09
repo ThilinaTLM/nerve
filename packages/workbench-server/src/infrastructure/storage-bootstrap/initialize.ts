@@ -10,10 +10,8 @@ import {
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
-import { version } from "../../app/version.js";
 import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
 import {
   configurationWithSettings,
   initializeHomeConfiguration,
@@ -27,14 +25,6 @@ import {
   type StorageStartupLock,
 } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
-import { writeStorageMigrationFailureReport } from "../storage-migrations/runner/failure-report.js";
-import { legacyReadCompatibilityReleases } from "../storage-migrations/read-compatibility-evidence.js";
-import { STORAGE_READ_COMPATIBILITY_ID } from "../storage-migrations/read-compatibility.js";
-import {
-  createFreshStorage,
-  prepareExistingStorage,
-} from "../storage-migrations/runner/service.js";
-
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
   ["secretsPath", 0o700],
@@ -66,7 +56,6 @@ export interface InitializedStorage {
   /** Runtime projection used by the existing application feature APIs. */
   settings: Settings;
   localToken: string;
-  canonicalStore: CanonicalStore;
   timings: StorageInitializationTimings;
 }
 
@@ -127,8 +116,6 @@ export async function initializeStorage(
         },
         0o600,
       );
-    } else if (!(await pathExists(paths.sqlitePath))) {
-      throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
     }
     for (const [key, mode] of HOME_DIRECTORIES) {
       const directory = paths[key];
@@ -145,60 +132,13 @@ export async function initializeStorage(
     } else {
       await secretProvider.validate();
     }
-    const sqliteMigrationCheckStartedAt = performance.now();
-    const identity = storageBuildIdentity();
-    const reportMigration = (progress: { message: string }) =>
-      options.reportStartupProgress?.({
-        type: "nerve.startup.progress",
-        phase: "storage-migration",
-        message: progress.message,
-      });
-    try {
-      if (fresh) {
-        reportMigration({ message: "Creating verified storage" });
-        await createFreshStorage({ paths, ...identity });
-      } else {
-        await prepareExistingStorage({
-          paths,
-          ...identity,
-          report: reportMigration,
-        });
-      }
-    } catch (error) {
-      await writeStorageMigrationFailureReport(
-        paths.migrationFailureReportPath,
-        {
-          runId: crypto.randomUUID(),
-          failedAt: new Date(),
-          failure: {
-            code:
-              error instanceof Error ? error.name : "STORAGE_MIGRATION_ERROR",
-            phase: "apply",
-            message: error instanceof Error ? error.message : String(error),
-            retryable: true,
-            appVersion: identity.appVersion,
-            ...(identity.gitSha ? { gitSha: identity.gitSha } : {}),
-          },
-          steps: [],
-        },
-      ).catch(() => undefined);
-      throw error;
-    }
-    const sqliteMigrationApplyMs = Math.round(
-      performance.now() - sqliteMigrationCheckStartedAt,
-    );
+    const sqliteMigrationApplyMs = 0;
     const sqliteMigrationCheckMs = 0;
-    const canonicalOpenStartedAt = performance.now();
-    const canonicalStore = new CanonicalStore(paths.sqlitePath);
-    await canonicalStore.initialize();
-    const canonicalOpenMs = Math.round(
-      performance.now() - canonicalOpenStartedAt,
-    );
+    const canonicalOpenMs = 0;
     const settings = settingsFromConfiguration(configuration);
 
     if (!(await pathExists(paths.localTokenPath))) {
       if (!fresh) {
-        await canonicalStore.close();
         throw new Error("Nerve daemon token is missing.");
       }
       const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
@@ -211,7 +151,6 @@ export async function initializeStorage(
     await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
     const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
     if (!localToken) {
-      await canonicalStore.close();
       throw new Error(
         `The local authentication token at ${paths.localTokenPath} is empty.`,
       );
@@ -222,7 +161,6 @@ export async function initializeStorage(
       configuration,
       settings,
       localToken,
-      canonicalStore,
       timings: {
         homeInspectionMs,
         sqliteMigrationCheckMs,
@@ -233,27 +171,6 @@ export async function initializeStorage(
   } finally {
     if (!options.startupLock) await startupLock.release();
   }
-}
-
-function storageBuildIdentity(): {
-  buildId: string;
-  readCompatibilityId: string;
-  legacyReadCompatibilityReleases: readonly string[];
-  appVersion: string;
-  gitSha?: string;
-} {
-  const appVersion = version;
-  const gitSha = process.env.NERVE_GIT_SHA?.trim() || undefined;
-  const developmentMarker = process.env.NODE_ENV === "production" ? "" : ":dev";
-  return {
-    appVersion,
-    ...(gitSha ? { gitSha } : {}),
-    buildId: `${appVersion}:${gitSha ?? "source"}${developmentMarker}`,
-    readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
-    legacyReadCompatibilityReleases: legacyReadCompatibilityReleases(
-      STORAGE_READ_COMPATIBILITY_ID,
-    ),
-  };
 }
 
 export async function writeSettings(

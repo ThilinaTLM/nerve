@@ -15,6 +15,6 @@ const language = $derived(view.converted ? "markdown" : undefined);
 
 {#if view.content !== undefined && view.content.length > 0}
   <ToolOutputBlock text={view.content} {language} {expanded} />
-{:else if toolCall.status === "completed"}
+{:else if toolCall.state === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No content.</p>
 {/if}

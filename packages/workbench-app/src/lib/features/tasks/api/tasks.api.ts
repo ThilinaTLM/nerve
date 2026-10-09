@@ -6,44 +6,34 @@ import type {
   TaskPortConflictListener,
   TaskRecord,
 } from "@nervekit/contracts/tasks";
-import { apiGet, apiPathSegment } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 export async function getTaskLogs(
   taskId: string,
   query: TaskLogQuery = {},
 ): Promise<TaskLogQueryResponse> {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) params.set(key, String(value));
-  }
-  return apiGet<TaskLogQueryResponse>(
-    `/api/tasks/${apiPathSegment(taskId)}/logs?${params.toString()}`,
-  );
+  return await requestWorkbench("launch.logs", { taskId, ...query });
 }
 
 export async function startTask(body: StartTaskRequest): Promise<TaskRecord> {
-  return (await protocolRequest("task.start", body)).result.task;
+  return (await requestWorkbench("launch.start", body)).task;
 }
 
 export async function launchTaskDefinition(
   definitionId: string,
   terminateListeners?: TaskPortConflictListener[],
 ) {
-  return (
-    await protocolRequest("task.launchDefinition", {
-      definitionId,
-      terminateListeners,
-    })
-  ).result;
+  return await requestWorkbench("launch.launchDefinition", {
+    definitionId,
+    terminateListeners,
+  });
 }
 
 export async function cancelTask(
   taskId: string,
   request: CancelTaskRequest = {},
 ): Promise<TaskRecord> {
-  return (await protocolRequest("task.cancel", { taskId, ...request })).result
-    .task;
+  return (await requestWorkbench("launch.cancel", { taskId, ...request })).task;
 }
 
 export async function restartTask(
@@ -51,17 +41,17 @@ export async function restartTask(
   confirmUnverifiedReplacement = false,
 ): Promise<TaskRecord> {
   return (
-    await protocolRequest("task.restart", {
+    await requestWorkbench("launch.restart", {
       taskId,
       confirmUnverifiedReplacement: confirmUnverifiedReplacement || undefined,
     })
-  ).result.task;
+  ).task;
 }
 
 export async function deleteTask(taskId: string): Promise<void> {
-  await protocolRequest("task.delete", { taskId });
+  await requestWorkbench("launch.delete", { taskId });
 }
 
 export async function pruneTasks(): Promise<{ removed: string[] }> {
-  return (await protocolRequest("task.prune", {})).result;
+  return await requestWorkbench("launch.prune", {});
 }

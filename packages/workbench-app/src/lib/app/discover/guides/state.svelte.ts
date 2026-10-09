@@ -7,7 +7,6 @@ import {
   type ShellPresentationSnapshot,
 } from "$lib/app/shell/shell-layout.svelte";
 import { hasChatGptAudioAuth } from "$lib/features/audio";
-import { conversationSelectors } from "$lib/features/conversations";
 import { openConversationHistory } from "$lib/features/conversations/state/composer-signals.svelte";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import { atlassianProfileReady } from "$lib/features/settings/views/pages/providers/provider-profiles";
@@ -251,7 +250,7 @@ async function prepareTourStep(step: TourStep): Promise<void> {
       await tick();
     }
   } else if (step.id === "history") {
-    if (conversationSelectors.activeConversation) openConversationHistory();
+    if (workspaceSelectors.activeConversation) openConversationHistory();
   }
   await settlePreparation();
   await settleTargetAnimations(visibleTarget(step.targetId));
@@ -383,7 +382,7 @@ function beginWorkbenchTour(): void {
     completedVersion,
     completedVersion >= definition.version,
   ).filter(
-    (step) => step.id !== "history" || conversationSelectors.activeConversation,
+    (step) => step.id !== "history" || workspaceSelectors.activeConversation,
   );
   if (guideState.runSteps.length === 0) guideState.runSteps = [...tourSteps];
   guideState.activeGuideId = "workbench";

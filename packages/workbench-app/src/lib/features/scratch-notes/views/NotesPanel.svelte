@@ -1,8 +1,9 @@
 <script lang="ts">
+import type { Project } from "@nervekit/contracts/core";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Plus from "@lucide/svelte/icons/plus";
-import type { ProjectRecord } from "$lib/api";
+
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
@@ -23,7 +24,7 @@ import {
 } from "../state/scratch-notes-state.svelte";
 
 type Props = {
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
 };
 
 let { activeProject }: Props = $props();

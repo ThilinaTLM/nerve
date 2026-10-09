@@ -1,12 +1,14 @@
 import {
   onEvent,
+  onWorkbenchReconnect,
   type WorkbenchEvent,
-} from "$lib/application/events/event-bus";
+} from "$lib/application/events/workbench-event-bus";
 import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
 import { gitEventRefreshRequest } from "./git-event-policy";
 import {
   invalidateGitOverviewFromFilesystem,
   scheduleAutomaticGitRefresh,
+  refreshWorkbenchGit,
 } from "./git-panel.svelte";
 
 type ScheduleRefresh = (
@@ -31,9 +33,11 @@ export function registerGitEventHandlers(
       // Event reducers must not prevent workspace cursor advancement.
     }
   };
+  const unregisterReconnect = onWorkbenchReconnect(refreshWorkbenchGit);
   const unregisterInvalidated = onEvent("git.repository.invalidated", handle);
   const unregisterChanged = onEvent("git.repository.changed", handle);
   return () => {
+    unregisterReconnect();
     unregisterInvalidated();
     unregisterChanged();
   };

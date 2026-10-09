@@ -1,7 +1,7 @@
 import {
   onEvent,
   type WorkbenchEvent,
-} from "$lib/application/events/event-bus";
+} from "$lib/application/events/workbench-event-bus";
 
 export type FileExplorerChange = {
   generation: number;

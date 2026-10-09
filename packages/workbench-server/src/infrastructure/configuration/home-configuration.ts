@@ -13,7 +13,7 @@ import {
   pathExists,
   readJsonFile,
 } from "../storage-bootstrap/json.js";
-import { mergePreservingUnknown } from "../persistence/payloads/merge.js";
+import { mergePreservingUnknown } from "./merge.js";
 import {
   HOME_CONFIGURATION_CODECS,
   type HomeConfigurationDocumentId,
@@ -83,7 +83,7 @@ async function readConfigDocument<K extends HomeConfigurationDocumentId>(
   try {
     return HOME_CONFIGURATION_CODECS[documentId].decode(
       await readJsonFile<unknown>(path),
-    );
+    ) as UserConfiguration[K];
   } catch (cause) {
     throw new HomeConfigurationDocumentError(documentId, path, cause);
   }

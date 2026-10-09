@@ -1,5 +1,7 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
+import type { TaskRecord } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 import {
   conversationLastUserPromptAt,
@@ -7,7 +9,7 @@ import {
   projectKey,
   shortProjectLabel,
 } from "$lib/domain/projects/project-tree";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
 
 export type ProjectActivitySummary = {
   needsUser: number;
@@ -22,7 +24,7 @@ export type ProjectTaskSummary = {
 
 export type ProjectSwitcherItem = {
   key: string;
-  project: ProjectRecord;
+  project: Project;
   projectIds: string[];
   label: string;
   sortAt: string;
@@ -33,8 +35,8 @@ export type ProjectSwitcherItem = {
 };
 
 export function summarizeProjectActivity(
-  conversations: ConversationRecord[],
-  activityById: Record<string, ConversationActivityState>,
+  conversations: ConversationSummary[],
+  activityById: Record<string, ConversationActivity>,
 ): ProjectActivitySummary {
   const summary: ProjectActivitySummary = {
     needsUser: 0,
@@ -47,8 +49,7 @@ export function summarizeProjectActivity(
     if (!activity) continue;
     if (activity.needsUser) summary.needsUser += 1;
     else if (activity.tone === "destructive") summary.failed += 1;
-    else if (activity.indicator === "awaiting-async")
-      summary.awaitingAsync += 1;
+    else if (activity.indicator === "needs-user") summary.awaitingAsync += 1;
     else if (activity.busy) summary.running += 1;
   }
   return summary;
@@ -99,14 +100,14 @@ export function projectActivitySignal(
 }
 
 export function buildProjectSwitcherItems(input: {
-  projects: ProjectRecord[];
-  conversations: ConversationRecord[];
+  projects: Project[];
+  conversations: ConversationSummary[];
   tasks: readonly TaskRecord[];
-  activityById: Record<string, ConversationActivityState>;
+  activityById: Record<string, ConversationActivity>;
   homeDir?: string;
   recency?: Record<string, number>;
 }): ProjectSwitcherItem[] {
-  const byKey = new Map<string, ProjectRecord[]>();
+  const byKey = new Map<string, Project[]>();
   for (const project of input.projects) {
     const key = projectKey(project);
     byKey.set(key, [...(byKey.get(key) ?? []), project]);
@@ -136,7 +137,7 @@ export function buildProjectSwitcherItems(input: {
     if (!key) {
       let longestMatch = -1;
       for (const [candidateKey, projects] of byKey) {
-        const dir = projects[0]?.dir;
+        const dir = projects[0]?.directory;
         if (
           dir &&
           dir.length > longestMatch &&
@@ -154,7 +155,7 @@ export function buildProjectSwitcherItems(input: {
 
   const folderCounts = new Map<string, number>();
   for (const projects of byKey.values()) {
-    const folder = projectFolderName(projects[0].dir);
+    const folder = projectFolderName(projects[0].directory);
     folderCounts.set(folder, (folderCounts.get(folder) ?? 0) + 1);
   }
 
@@ -170,14 +171,14 @@ export function buildProjectSwitcherItems(input: {
     const latestConversation = conversations
       .map(conversationLastUserPromptAt)
       .sort((a, b) => b.localeCompare(a))[0];
-    const folder = projectFolderName(project.dir);
+    const folder = projectFolderName(project.directory);
     return {
       key,
       project,
       projectIds,
       label:
         (folderCounts.get(folder) ?? 0) > 1
-          ? shortProjectLabel(project.dir, input.homeDir)
+          ? shortProjectLabel(project.directory, input.homeDir)
           : folder,
       sortAt:
         latestConversation && latestConversation > project.updatedAt

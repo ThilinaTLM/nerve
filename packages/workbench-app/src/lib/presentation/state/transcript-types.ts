@@ -1,137 +1,99 @@
 import type {
-  ConversationEntry,
-  ConversationCompactionFailedData,
-} from "@nervekit/contracts/conversations";
-import type { RunFailureCategory } from "@nervekit/contracts/runs";
-
-export type TranscriptDisplayKind = "message" | "thinking";
-
-export type CompactionNoticeState =
-  | "running"
-  | "completed"
-  | "cancelled"
-  | "failed";
-
-export type CompactionNotice = {
-  id: string;
-  state: CompactionNoticeState;
-  reason?: "manual" | "threshold" | "overflow";
-  entryId?: string;
-  conversationId?: string;
-  agentId?: string;
-  runId?: string;
-  text?: string;
-  summary?: string;
-  tokensBefore?: number;
-  tokensAfter?: number;
-  freedTokens?: number;
-  contextWindow?: number;
-  contextTokens?: number;
-  thresholdTokens?: number;
-  triggerReserveTokens?: number;
-  keepRecentTokens?: number;
-  firstKeptEntryId?: string;
-  failedEntryId?: string;
-  errorMessage?: string;
-  code?: ConversationCompactionFailedData["code"];
-  details?: unknown;
-  /** Tail of the summary text while it streams (running state only). */
-  summaryPreview?: string;
-  /** Last applied progress snapshot counter; guards out-of-order snapshots. */
-  previewSequence?: number;
-  generatedLines?: number;
-  generatedChars?: number;
-  createdAt?: string;
-  completedAt?: string;
-};
-
-export type RunStatusNotice = {
-  entryId?: string;
-  conversationId?: string;
-  agentId?: string;
-  runId?: string;
-  state: "retrying" | "retry_exhausted" | "failed" | "interrupted";
-  failedEntryId?: string;
-  attempt?: number;
-  maxRetries?: number;
-  delayMs?: number;
-  retryAt?: string;
-  errorMessage?: string;
-  failureCategory?: RunFailureCategory;
-  httpStatus?: number;
-  retryable?: boolean;
-  createdAt?: string;
-};
-
-export type TaskEventNotice = {
-  entryId?: string;
-  conversationId?: string;
-  agentId?: string;
-  runId?: string;
-  taskId?: string;
-  taskName?: string;
-  groupId?: string;
-  groupName?: string;
-  event?: string;
-  status?: string;
-  exitCode?: number;
-  signal?: string;
-  commandPreview?: string;
-  command?: string;
-  output?: string;
-  nextCursor?: number;
-  createdAt?: string;
-};
-
-export type SystemEventNotice = {
-  entryId: string;
-  kind: ConversationEntry["kind"];
-  text: string;
-  summary?: string;
-  fromEntryId?: string;
-  details?: unknown;
-  createdAt: string;
-};
-
-export type TranscriptItem = {
+  ToolCall,
+  ToolCallResponsePayload,
+  ToolCallOutcome,
+  ToolCallState,
+} from "@nervekit/contracts/core";
+/** Presentation coordinates no longer carry agent IDs or run IDs. */
+export interface CoreToolCard {
   id?: string;
-  runId?: string;
-  role: "user" | "assistant" | "system";
-  kind?: ConversationEntry["kind"];
-  displayKind?: TranscriptDisplayKind;
-  text: string;
-  createdAt?: string;
-  optimistic?: boolean;
-  live?: boolean;
-  done?: boolean;
-  redacted?: boolean;
-  contentIndex?: number;
-  /** Turn coordinates retained across live and durable presentation. */
+  providerCallId?: string;
+  conversationId: string;
   turnId?: string;
-  liveMessageId?: string;
-  messageOrdinal?: number;
-  toolCallId?: string;
-  toolRecordId?: string;
-  toolName?: string;
-  isToolError?: boolean;
-  usage?: ConversationEntry["usage"];
-  stopReason?: "error" | "aborted";
-  errorMessage?: string;
-  /** Legacy failed attempt retained as ordinary substantive assistant content. */
-  legacyFailedAttempt?: boolean;
-  runStatus?: RunStatusNotice;
-  compaction?: CompactionNotice;
-  taskEvent?: TaskEventNotice;
-  systemEvent?: SystemEventNotice;
-};
+  contentIndex?: number;
+  toolName: string;
+  argsPreview: unknown;
+  resultPreview?: ToolCallResponsePayload["result"];
+  state: ToolCallState | ToolCallOutcome | "drafting";
+  statusLabel: string;
+  interaction?: ToolCall["interaction"];
+  supervision?: ToolCall["supervision"];
+  createdAt?: string;
+  updatedAt?: string;
+  liveOutput?: string;
+  partialArgsText?: string;
+  cwd?: string;
+}
 
-/**
- * Frontend-only presentation state for events that do not belong to the
- * canonical active-run snapshot (e.g. compaction progress, which can run
- * without an active run).
- */
-export type ConversationTransientState = {
-  compaction?: CompactionNotice;
-  /** Completion removes the live card but must still reject late progress. */
-  compactionCompleted?: boolean;
-};
+export type CoreTimelineRow =
+  | {
+      kind: "message";
+      key: string;
+      item: {
+        id: string;
+        role: "user" | "assistant";
+        text: string;
+        preparedText?: string;
+        previousEventId?: string | null;
+        displayKind?: "thinking";
+        redacted?: boolean;
+        live?: boolean;
+        createdAt?: string;
+        turnId?: string;
+        contentIndex?: number;
+      };
+    }
+  | { kind: "tool"; key: string; toolCall: CoreToolCard }
+  | {
+      kind: "run_status";
+      key: string;
+      notice: {
+        entryId: string;
+        conversationId: string;
+        state: "retrying" | "retry_exhausted" | "failed" | "interrupted";
+        canContinue: boolean;
+        attempt?: number;
+        maxRetries?: number;
+        delayMs?: number;
+        retryAt?: string;
+        errorMessage?: string;
+        createdAt: string;
+      };
+    }
+  | {
+      kind: "compaction";
+      key: string;
+      notice: {
+        id: string;
+        state: "completed";
+        summary: string;
+        tokensBefore: number;
+        firstKeptEntryId?: string;
+        createdAt: string;
+      };
+    }
+  | {
+      kind: "task_event";
+      key: string;
+      notice: {
+        entryId: string;
+        conversationId: string;
+        bashId: string;
+        event: string;
+        status: string;
+        exitCode?: number;
+        output: string;
+        createdAt: string;
+      };
+    }
+  | {
+      kind: "system_event";
+      key: string;
+      notice: {
+        entryId: string;
+        kind: string;
+        text: string;
+        childConversationId?: string;
+        createdAt: string;
+      };
+    };

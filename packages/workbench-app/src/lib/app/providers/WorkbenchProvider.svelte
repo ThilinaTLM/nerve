@@ -20,16 +20,18 @@ import {
 } from "$lib/app/shell/shell-layout.svelte";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
-  abortActiveRun,
-  cancelActiveCompaction,
-  conversationSelectors,
+  retainConversationStore,
+  type ConversationStore,
   escapeComposer,
-  setComposerMode,
-  setComposerModel,
-  setComposerPermissionRuleSet,
-  setComposerThinkingLevel,
   toggleComposerMic,
 } from "$lib/features/conversations";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import {
+  modelKey,
+  parseModelKey,
+  scopedUsableModelOptions,
+} from "$lib/presentation/utils/model";
 import { focusProjectSearch } from "$lib/features/projects";
 import { createAppShortcuts } from "$lib/application/commands/app-shortcuts.svelte";
 import {
@@ -73,18 +75,26 @@ const unregisterWorkspaceReadModels = registerWorkspaceReadModels();
 onDestroy(unregisterWorkspaceReadModels);
 
 const activeProject = $derived(workspaceSelectors.activeProject);
-const activeConversation = $derived(conversationSelectors.activeConversation);
+let activeStore = $state<ConversationStore>();
+$effect(() => {
+  const id = selection.conversationId;
+  activeStore = undefined;
+  if (!id) return;
+  const retained = retainConversationStore(id);
+  activeStore = retained.store;
+  void retained.ready.catch(() => undefined);
+  return retained.release;
+});
+const config = $derived(activeStore?.snapshot?.config);
+const activeConversation = $derived(activeStore?.snapshot?.conversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
 const hasDirtyFiles = $derived(hasDirtyFileViews());
-const pendingConversationActive = $derived(
-  conversationSelectors.pendingConversationActive,
-);
-const selectedMode = $derived(conversationSelectors.selectedMode);
-const selectedModelKey = $derived(conversationSelectors.selectedModelKey);
+const selectedMode = $derived(config?.mode ?? "coding");
+const selectedModelKey = $derived(config ? modelKey(config.model) : "");
 const selectedPermissionRuleSetId = $derived(
   effectivePermissionRuleSetId(
-    conversationSelectors.selectedPermissionRuleSetId,
+    config?.permissionRuleSetId ?? "supervised",
     selectedMode,
   ),
 );
@@ -94,13 +104,16 @@ const permissionRuleSetIds = $derived(
     selectedMode,
   ).map((ruleSet) => ruleSet.id),
 );
-const selectedThinkingLevel = $derived(
-  conversationSelectors.selectedThinkingLevel,
-);
-const sending = $derived(conversationSelectors.sending);
-const compacting = $derived(conversationSelectors.compacting);
+const selectedThinkingLevel = $derived(config?.reasoningLevel ?? "off");
+const sending = $derived(activeConversation?.status === "running");
 const settingsDraft = $derived(settingsSelectors.settingsDraft);
-const usableModels = $derived(conversationSelectors.usableModels);
+const usableModels = $derived(
+  scopedUsableModelOptions(
+    settingsState.models,
+    settingsState.authProviders,
+    settingsDraft?.scopedModels,
+  ),
+);
 const currentZoomLevel = $derived(
   settingsDraft?.ui.zoomLevel ?? zoomState.level,
 );
@@ -147,23 +160,32 @@ const appShortcuts = createAppShortcuts({
   centerTabsExcept,
   refreshCenterTab,
   focusProjectSearch: focusProjectSearchShortcut,
-  hasConversationComposer: () =>
-    Boolean(activeConversation || pendingConversationActive),
-  sending: () => sending || compacting,
-  abortActiveRun: () =>
-    compacting ? cancelActiveCompaction() : abortActiveRun(),
+  hasConversationComposer: () => Boolean(config),
+  sending: () => sending,
+  abortActiveRun: async () => {
+    await activeStore?.control("stop");
+  },
   composerEscape: escapeComposer,
   toggleMic: toggleComposerMic,
   selectedPermissionRuleSetId: () => selectedPermissionRuleSetId,
   permissionRuleSetIds: () => permissionRuleSetIds,
-  setComposerPermissionRuleSet,
+  setComposerPermissionRuleSet: async (permissionRuleSetId) => {
+    await activeStore?.configure({ permissionRuleSetId });
+  },
   usableModels: () => usableModels,
   selectedModelKey: () => selectedModelKey,
-  setComposerModel,
+  setComposerModel: async (key) => {
+    const model = parseModelKey(key);
+    if (model) await activeStore?.configure({ model });
+  },
   selectedThinkingLevel: () => selectedThinkingLevel,
-  setComposerThinkingLevel,
+  setComposerThinkingLevel: async (reasoningLevel) => {
+    await activeStore?.configure({ reasoningLevel });
+  },
   selectedMode: () => selectedMode,
-  setComposerMode,
+  setComposerMode: async (mode) => {
+    await activeStore?.configure({ mode });
+  },
   togglePanelDock: (dock) => togglePanelDock(dock, responsive.isCompact),
 });
 

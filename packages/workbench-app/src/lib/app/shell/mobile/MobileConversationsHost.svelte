@@ -12,7 +12,6 @@ import {
   buildConversationSections,
   conversationLastUserPromptAt,
 } from "$lib/domain/projects/project-tree";
-import { conversationSelectors } from "$lib/features/conversations";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
@@ -45,11 +44,10 @@ const conversations = $derived(
     projectIds.includes(conversation.projectId),
   ),
 );
-const activityById = $derived(conversationSelectors.conversationActivityById);
+const activityById = $derived(workspaceSelectors.conversationActivityById);
 const sections = $derived(
   buildConversationSections({
     conversations,
-    agents: workspaceSelectors.agents,
     projectIds,
     filter: query,
     hideCompleted: conversationListPreferences.hideCompleted,

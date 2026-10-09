@@ -1,18 +1,16 @@
 <script lang="ts">
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
-import { conversationSelectors } from "$lib/features/conversations/state/conversation-selectors.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { maintenance } from "$lib/application/maintenance/maintenance-state.svelte";
-import { openConversation } from "$lib/features/conversations/state/conversation-tabs";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import {
   deleteConversationAndRefresh,
   deleteProjectAndRefresh,
   newConversationInProject,
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
-  pruneProjectConversationsAndRefresh,
   updateConversationStateAndRefresh,
 } from "$lib/application/workspace/workspace-actions.svelte";
 
@@ -22,19 +20,17 @@ const projects = $derived(
   workspaceSelectors.projects.filter((project) => projectIds.has(project.id)),
 );
 const conversations = $derived(workspaceSelectors.selectedProjectConversations);
-const agents = $derived(workspaceSelectors.agents);
 const openConversationTabIds = $derived(
   workspaceSelectors.openConversationTabIds,
 );
 const conversationActivityById = $derived(
-  conversationSelectors.conversationActivityById,
+  workspaceSelectors.conversationActivityById,
 );
 </script>
 
 <ProjectConversationNavigator
   {projects}
   {conversations}
-  {agents}
   homeDir={status?.storage.userHome}
   selectedProjectId={selection.projectId}
   selectedConversationId={selection.conversationId}
@@ -54,6 +50,4 @@ const conversationActivityById = $derived(
   onDeleteConversation={(id) => void deleteConversationAndRefresh(id)}
   onUpdateConversationState={(id, request) =>
     void updateConversationStateAndRefresh(id, request)}
-  onPruneProjectConversations={(id, request) =>
-    void pruneProjectConversationsAndRefresh(id, request)}
 />

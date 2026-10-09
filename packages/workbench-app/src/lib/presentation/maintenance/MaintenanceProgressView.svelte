@@ -67,7 +67,7 @@ const progress = $derived.by(() => {
       </p>
       {#if operation.project}<p
           class="truncate text-xs text-muted-foreground"
-          title={operation.project.dir}
+          title={operation.project.directory}
         >
           {operation.project.name}
         </p>{/if}

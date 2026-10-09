@@ -13,7 +13,7 @@
     "build": "pnpm -r build && node scripts/build/copy-workbench-app-dist-to-workbench-server.mjs && node scripts/checks/check-built-package-exports.mjs",
     "build:native": "pnpm --filter @nervekit/native build:native",
     "build:workbench-runtime": "pnpm --filter @nervekit/workbench-app... --filter @nervekit/workbench-server... build && node scripts/build/copy-workbench-app-dist-to-workbench-server.mjs",
-    "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt && node scripts/storage-migrations/update-read-compatibility.mjs",
+    "fix": "pnpm --filter @nervekit/native fix:native && oxfmt && eslint . --fix && oxfmt",
     "check": "oxfmt --check && eslint . && node scripts/checks/check-package-boundaries.mjs && pnpm -r check",
     "test:focused": "node scripts/testing/run-focused-tests.mjs",
     "test:full": "pnpm build:native && node --test \"scripts/**/*.test.mjs\" && pnpm --workspace-concurrency=4 -r --if-present test",
@@ -22,10 +22,9 @@
     "dev": "tsx scripts/development/dev-workbench.mjs all",
     "dev:ui": "tsx scripts/development/dev-workbench.mjs ui",
     "desktop:dev": "tsx packages/desktop-shell/scripts/dev-desktop.mjs",
-    "migrations:new": "node scripts/storage-migrations/new.mjs",
-    "migrations:finalize": "node scripts/storage-migrations/finalize.mjs",
     "desktop:prod": "pnpm --filter @nervekit/desktop-shell dev:prod --",
-    "storage:copy": "tsx scripts/storage-migrations/storage-copy.ts"
+    "storage:copy": "tsx scripts/storage-migrations/storage-copy.ts",
+    "storage:import-core": "tsx scripts/storage-migrations/import-core.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

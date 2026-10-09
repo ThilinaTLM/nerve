@@ -55,18 +55,6 @@ else
   fi
 fi
 
-migration_release_tool="${script_dir}/../storage-migrations/release-lifecycle.mjs"
-release_fixture="packages/workbench-server/test/fixtures/storage/releases/${version}"
-node "${migration_release_tool}" check
-if [[ ! -e "${release_fixture}" ]]; then
-  pnpm --dir "${script_dir}/../.." --filter @nervekit/contracts exec tsc -b --force
-  pnpm --dir "${script_dir}/../.." exec tsx \
-    "${script_dir}/../storage-migrations/generate-release-fixture.ts" \
-    "${repo_root}" \
-    "${version}"
-fi
-node "${migration_release_tool}" check-fixture "${version}"
-
 node --input-type=module - \
   "${repo_root}" \
   "${version}" \
@@ -108,16 +96,11 @@ if (discover.changedPath) {
 }
 NODE
 
-node "${migration_release_tool}" stamp "${version}"
-
 git add -- \
   package.json \
   packages/*/package.json \
   packages/workbench-app/src/lib/app/discover/content/news.ts \
   packages/native/native/Cargo.toml \
-  packages/workbench-server/src/infrastructure/storage-migrations/migrations.lock.json \
-  packages/workbench-server/src/infrastructure/storage-migrations/steps/registry-metadata.ts \
-  "${release_fixture}" \
   Cargo.lock
 
 if git diff --cached --quiet; then

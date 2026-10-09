@@ -77,6 +77,6 @@ function hostname(url: string): string {
       </li>
     {/each}
   </ul>
-{:else if !view.answer && toolCall.status === "completed"}
+{:else if !view.answer && toolCall.state === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No results.</p>
 {/if}

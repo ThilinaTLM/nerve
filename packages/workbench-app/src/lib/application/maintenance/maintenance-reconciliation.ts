@@ -1,13 +1,9 @@
-import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
 import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { workspaceFeaturePorts } from "$lib/application/workspace/workspace-feature-ports.svelte";
+import { closeCenterTabs } from "$lib/application/workspace/center-tab-actions.svelte";
 import { removeTabsFromAllSessions } from "$lib/application/workspace/workspace-tab-sessions";
-import { projectKey } from "$lib/domain/projects/project-tree";
-export async function reconcileMaintenance(
-  operation: MaintenanceOperation,
-): Promise<void> {
+export async function reconcileMaintenance(): Promise<void> {
   const previousIds = workspaceState.conversations.map(
     (conversation) => conversation.id,
   );
@@ -29,14 +25,7 @@ export async function reconcileMaintenance(
     (tab) => tab.kind === "conversation" && removed.has(tab.id),
   );
   if (removed.size)
-    await workspaceFeaturePorts().conversations.commands.removeConversationTabs(
-      [...removed],
+    await closeCenterTabs(
+      [...removed].map((id) => ({ kind: "conversation", id })),
     );
-  if (
-    operation.project &&
-    !workspaceState.projects.some(
-      (project) => project.id === operation.project?.id,
-    )
-  )
-    delete workspaceState.projectTabSessions[projectKey(operation.project)];
 }

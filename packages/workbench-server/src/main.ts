@@ -18,7 +18,6 @@ import {
   shutdownServerRuntime,
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";
-import { RUNTIME_BOOTSTRAP_STAGE_MESSAGES } from "./app/bootstrap/hydrate-runtime.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonLeaseMonitor,
@@ -232,43 +231,12 @@ async function main() {
   const agentSkillsDurationMs = Math.round(
     performance.now() - agentSkillsStartedAt,
   );
-  const runtimeCapabilitiesReady = state.lifecycle.refreshRuntimeCapabilities();
-  const eventHydrateStartedAt = Date.now();
-  await state.events.hydrate();
-  const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
-  const workspaceBounds = await state.events.bounds("workspace");
-  await state.logger.info("Event streams hydrated", {
-    durationMs: eventsHydrateDurationMs,
-    context: {
-      latestSeq: workspaceBounds.latestSeq,
-      earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
-    },
-  });
   reportStartupProgress({
     type: "nerve.startup.progress",
     phase: "runtime-hydration",
-    message: "Starting runtime services",
+    message: "Starting conversation core",
   });
-  const [registryTimings] = await Promise.all([
-    state.lifecycle.hydrate((stage) => {
-      const message = RUNTIME_BOOTSTRAP_STAGE_MESSAGES[stage];
-      if (!message) return;
-      reportStartupProgress({
-        type: "nerve.startup.progress",
-        phase: "runtime-hydration",
-        message,
-      });
-    }),
-    state.maintenance.hydrate(),
-  ]);
-  await state.logger.info("Registry hydrated", {
-    durationMs: registryTimings.stateDurationMs,
-  });
-  await state.logger.info("Index rebuilt", {
-    durationMs: registryTimings.indexDurationMs,
-    context: { ...state.queryCache.counts() },
-  });
-  await runtimeCapabilitiesReady;
+  await Promise.all([state.lifecycle.hydrate(), state.maintenance.hydrate()]);
   state.subscriptionUsage.start();
   const mobileTls = mobileHttpsEnabled
     ? await ensureMobileHttpsTlsMaterial(
@@ -341,25 +309,6 @@ async function main() {
         ...storage.timings,
         loggerHydrateDurationMs,
         agentSkillsDurationMs,
-        eventsHydrateDurationMs,
-        registryStateDurationMs: registryTimings.stateDurationMs,
-        indexDurationMs: registryTimings.indexDurationMs,
-        storesHydrationDurationMs: registryTimings.storesHydrationDurationMs,
-        storeDurationsMs: registryTimings.storeDurationsMs,
-        hydrationCounts: registryTimings.counts,
-        agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
-        initialDeliveryFlushDurationMs:
-          registryTimings.initialDeliveryFlushDurationMs,
-        runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
-        finalDeliveryFlushDurationMs:
-          registryTimings.finalDeliveryFlushDurationMs,
-        humanInputRecoveryDurationMs:
-          registryTimings.humanInputRecoveryDurationMs,
-        projectorDurationMs: registryTimings.projectorDurationMs,
-        taskNotificationsDurationMs:
-          registryTimings.taskNotificationsDurationMs,
-        bootstrapStageDurationsMs: registryTimings.bootstrapStageDurationsMs,
-        toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({
         enabled: performanceDiagnosticsEnabled,
@@ -367,16 +316,11 @@ async function main() {
         sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
         getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
-          ...registryTimings.counts,
           projects:
-            state.adapterContexts.snapshot.projectLifecycle.listProjects()
-              .length,
+            state.lifecycle.services.conversationCore.projects.list().length,
           conversations:
-            state.adapterContexts.snapshot.conversationLifecycle.listConversations()
-              .length,
-          agents:
-            state.adapterContexts.snapshot.agentLifecycle.listAgents().length,
-          tasks: state.adapterContexts.snapshot.tasks.listTasks().length,
+            state.lifecycle.services.coreStorage.conversations.listAll().length,
+          launches: state.lifecycle.services.launches.listLaunches().length,
         }),
         warn: (error) => {
           void state.logger.warn("Daemon performance sampling failed", {
@@ -384,7 +328,6 @@ async function main() {
           });
         },
       });
-      setImmediate(() => state.lifecycle.startBackgroundMaintenance());
     },
   );
 

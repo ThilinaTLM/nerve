@@ -12,7 +12,7 @@ import {
   jiraWorklogSummarySchema,
   jiraUserSummarySchema,
 } from "@nervekit/contracts/tools";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+type ConversationLiveToolOutputSnapshot = { text: string; updatedAt?: string };
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   asRecord,
@@ -288,18 +288,6 @@ function countLines(text: string | undefined): number {
   return text.length === 0 ? 0 : text.split("\n").length;
 }
 
-function previewOverflowHidden(
-  toolCall: ToolCallDisplayRecord,
-  noun: string,
-  direction?: "head" | "tail" | "mixed",
-): number {
-  const overflow =
-    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
-  if (!overflow || overflow.noun !== noun) return 0;
-  if (direction && overflow.direction !== direction) return 0;
-  return overflow.hidden;
-}
-
 function actualTextLineCount(
   text: string | undefined,
   toolCall: ToolCallDisplayRecord,
@@ -307,10 +295,7 @@ function actualTextLineCount(
   direction: "head" | "tail" | "mixed",
   outputLimits: ReturnType<typeof outputLimitsFromDetails>,
 ): number {
-  return (
-    outputLimits?.model?.displayedLines ??
-    countLines(text) + previewOverflowHidden(toolCall, noun, direction)
-  );
+  return outputLimits?.model?.displayedLines ?? countLines(text) + 0;
 }
 
 function arrayField(value: unknown): unknown[] {

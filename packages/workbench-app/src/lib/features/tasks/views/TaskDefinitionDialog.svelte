@@ -58,16 +58,16 @@ let port = $state<number | undefined>(source?.port);
 let runPolicy = $state<"single" | "concurrent">(source?.runPolicy ?? "single");
 
 const dialogTitle = $derived(
-  title ?? (definition ? "Edit task" : "Create task"),
+  title ?? (definition ? "Edit launch" : "Create launch"),
 );
 const dialogDescription = $derived(
   description ??
     (definition
-      ? "Update this task definition and its launch policy. Existing runs keep their original command."
-      : "Create a reusable task definition for this workspace."),
+      ? "Update this launch configuration and its launch policy. Existing runs keep their original command."
+      : "Create a reusable launch configuration for this workspace."),
 );
 const dialogSubmitLabel = $derived(
-  submitLabel ?? (definition ? "Save task" : "Create task"),
+  submitLabel ?? (definition ? "Save launch" : "Create launch"),
 );
 const portValid = $derived(isValidTaskPort(port));
 const request = $derived(
@@ -129,7 +129,7 @@ function submit() {
         aria-invalid={!portValid}
       />
       <p class="text-xs text-muted-foreground">
-        Optional TCP port to check before this task starts.
+        Optional TCP port to check before this launch starts.
       </p>
     </div>
 
@@ -137,7 +137,7 @@ function submit() {
       <Label for="task-run-policy">Run policy</Label>
       <SelectField
         bind:value={runPolicy}
-        ariaLabel="Task run policy"
+        ariaLabel="Launch run policy"
         items={[
           { value: "single", label: "Single run" },
           { value: "concurrent", label: "Concurrent runs" },

@@ -1,5 +1,8 @@
-import type { AsyncSubagentToolName } from "@nervekit/contracts/agents";
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
+type AsyncSubagentToolName = Extract<
+  OrchestrationToolName,
+  `subagent_${string}`
+>;
 import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
 import {

@@ -4,7 +4,7 @@ import {
   type SubscriptionUsageProvider,
 } from "@nervekit/contracts/usage";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
+import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { AuthManager } from "../auth/index.js";
 import { fetchAnthropicUsage as defaultFetchAnthropicUsage } from "./anthropic-client.js";
 import {
@@ -27,7 +27,7 @@ type FetchUsage = (
 
 export interface SubscriptionUsageServiceDeps {
   auth: AuthManager;
-  events: StreamLogRegistry;
+  events: WorkbenchNoticePublisher;
   /** Directory for persisted usage caches (e.g. `<dataDir>/cache/usage`). */
   cacheDir: string;
   logger?: ApplicationLogger;

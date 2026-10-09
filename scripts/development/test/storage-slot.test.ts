@@ -26,13 +26,9 @@ import {
 } from "../slot-preflight.mjs";
 import { runOwned } from "../owned-processes.mjs";
 import { prepareDevelopmentSlot } from "../storage-preparation.js";
-import { acquireStorageHomeLock } from "../../../packages/workbench-server/src/infrastructure/storage-migrations/runner/home-lock.js";
+import { acquireStorageHomeLock } from "../../../packages/workbench-server/src/infrastructure/storage-bootstrap/home-lock.js";
 
-const supportedManifests = [
-  { format: "nerve-home", version: 1 },
-  { format: "nerve-home", version: 2, homeClass: "standard" },
-  { format: "nerve-home", version: 2, homeClass: "disposable" },
-];
+const supportedManifests = [{ format: "nerve-home", version: 1 }];
 
 async function temporary(t) {
   const root = await mkdtemp(join(tmpdir(), "nerve-dev-slot-"));

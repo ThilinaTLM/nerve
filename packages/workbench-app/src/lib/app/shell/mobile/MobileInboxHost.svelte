@@ -1,17 +1,10 @@
 <script lang="ts">
-import Check from "@lucide/svelte/icons/check";
-import MessageSquare from "@lucide/svelte/icons/message-square";
-import X from "@lucide/svelte/icons/x";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import {
   MobileInboxView,
   MobileScreen,
   type MobileInboxItem,
 } from "$lib/presentation/shell";
-import {
-  denyApproval,
-  grantApproval,
-} from "$lib/application/conversations/interactions";
 import { workspaceSelectors } from "$lib/application/workspace";
 import MobileRootActions from "./MobileRootActions.svelte";
 import MobileStatusStrip from "./MobileStatusStrip.svelte";
@@ -46,29 +39,7 @@ function menu(item: MobileInboxItem): ContextMenuItem[] {
   const conversationItems = conversation
     ? mobileConversationMenu(conversation)
     : [];
-  const interaction = item.interaction;
-  if (interaction?.kind !== "approval") return conversationItems;
-  return [
-    {
-      label: "Allow once",
-      icon: Check,
-      onSelect: () => void grantApproval(interaction.id, "single_call"),
-    },
-    {
-      label: "Deny",
-      icon: X,
-      destructive: true,
-      onSelect: () => void denyApproval(interaction.id),
-    },
-    {
-      label: "Open conversation",
-      icon: MessageSquare,
-      onSelect: () => open(item),
-    },
-    ...(conversationItems.length
-      ? [{ type: "separator" } as const, ...conversationItems]
-      : []),
-  ];
+  return conversationItems;
 }
 </script>
 

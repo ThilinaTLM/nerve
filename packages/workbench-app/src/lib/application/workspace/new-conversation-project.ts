@@ -1,8 +1,8 @@
-import type { ProjectRecord } from "$lib/api";
+import type { Project } from "@nervekit/contracts/core";
 
 export function projectForNewConversation(
-  projects: readonly ProjectRecord[],
+  projects: readonly Project[],
   projectDir: string,
-): ProjectRecord | undefined {
-  return projects.find((project) => project.dir === projectDir);
+): Project | undefined {
+  return projects.find((project) => project.directory === projectDir);
 }

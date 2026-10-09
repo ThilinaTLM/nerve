@@ -61,7 +61,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 1,
     title: "Write the first prompt",
     description:
-      "The tour has opened a pending conversation. Type a prompt here, drop files into the composer, paste images, or use suggestions to begin.",
+      "The tour has opened a conversation. Type a prompt here, drop files into the composer, or paste images to begin.",
     targetId: "composer",
   },
   {
@@ -175,7 +175,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 1,
     title: "Customize Nerve",
     description:
-      "Settings is the central place for workbench preferences, scoped models, agent defaults, suggestions, tools, skills, storage, and system options.",
+      "Settings is the central place for workbench preferences, scoped models, conversation defaults, tools, skills, storage, and system options.",
     targetId: "settings",
   },
   {

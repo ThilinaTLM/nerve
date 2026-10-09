@@ -1,9 +1,11 @@
 <script lang="ts">
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import { Input } from "@nervekit/ui-kit/components/ui/input";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
-import type { ProjectRecord } from "$lib/api";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
@@ -22,14 +24,10 @@ import {
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
-import PruneConversationsDialog from "./PruneConversationsDialog.svelte";
+import { conversationLists } from "$lib/application/workspace/conversation-lists.svelte";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
 import {
   buildConversationMenu,
-  countAgeEligible,
-  countCompletedEligible,
-  countKeepEligible,
-  countProjectConversations,
   type ProjectTreeMenuContext,
 } from "./project-tree-menus";
 import type {
@@ -44,7 +42,6 @@ import {
 let {
   projects = [],
   conversations = [],
-  agents = [],
   selectedProjectId,
   selectedConversationId,
   openConversationTabIds,
@@ -61,15 +58,16 @@ let {
   onDeleteProject,
   onDeleteConversation,
   onUpdateConversationState,
-  onPruneProjectConversations,
 }: ProjectAgentTreeProps = $props();
 
 const MAX_LISTED_CONVERSATIONS = 100;
 
 let pendingDelete = $state<DeleteTarget | undefined>();
+let renameTarget = $state<ConversationSummary>();
+let renameTitle = $state("");
+let renameOpen = $state(false);
 let allConversationsOpen = $state(false);
 let settingsOpen = $state(false);
-let cleanUpOpen = $state(false);
 
 const activeProject = $derived(
   projects.find((project) => project.id === selectedProjectId) ?? projects[0],
@@ -78,7 +76,6 @@ const projectIds = $derived(projects.map((project) => project.id));
 const sections = $derived(
   buildConversationSections({
     conversations,
-    agents,
     projectIds,
     hideCompleted: conversationListPreferences.hideCompleted,
   }),
@@ -123,12 +120,12 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   onNewConversationInProject,
   onOpenProjectInEditor,
   onOpenProjectInTerminal,
-  requestPrune: (project: ProjectRecord) =>
-    onPruneProjectConversations?.(project.id, {
-      strategy: "keepLatest",
-      keepLatest: 20,
-    }),
   requestDelete: (target) => (pendingDelete = target),
+  requestRename: (conversation) => {
+    renameTarget = conversation;
+    renameTitle = conversation.title;
+    renameOpen = true;
+  },
 });
 </script>
 
@@ -151,7 +148,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
             disabled={!activeProject || !onNewConversationInProject}
             onclick={() => {
               if (activeProject)
-                onNewConversationInProject?.(activeProject.dir);
+                onNewConversationInProject?.(activeProject.directory);
             }}
           />
         </span>
@@ -174,7 +171,8 @@ const menuContext = $derived<ProjectTreeMenuContext>({
           <Button
             variant="outline"
             size="xs"
-            onclick={() => onNewConversationInProject?.(activeProject.dir)}
+            onclick={() =>
+              onNewConversationInProject?.(activeProject.directory)}
           >
             <Plus />
             New chat
@@ -201,6 +199,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                 projects.find(
                   (project) => project.id === row.conversation.projectId,
                 ) ?? activeProject}
+              {@const list = conversationLists.get(row.conversation.projectId)}
               <ProjectAgentTreeNode
                 {row}
                 isOpen={openConversationTabIds?.has(row.conversation.id) ??
@@ -213,7 +212,27 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                   menuContext,
                 )}
                 {onOpenConversation}
+                expanded={list?.expanded[row.conversation.id] ?? false}
+                onToggleChildren={() => {
+                  void list?.toggleChildren(row.conversation.id);
+                }}
               />
+              {#if list?.expanded[row.conversation.id]}
+                {#each list.children[row.conversation.id] ?? [] as child (child.id)}
+                  <ProjectAgentTreeNode
+                    row={{ conversation: child }}
+                    child
+                    isOpen={openConversationTabIds?.has(child.id) ?? false}
+                    isActive={child.id === selectedConversationId}
+                    menuItems={buildConversationMenu(
+                      rowProject,
+                      child,
+                      menuContext,
+                    )}
+                    {onOpenConversation}
+                  />
+                {/each}
+              {/if}
             {/each}
           </PanelList>
         {/each}
@@ -221,34 +240,35 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     {/if}
   </PanelView>
 </Tooltip.Provider>
+<DialogShell
+  bind:open={renameOpen}
+  title="Rename conversation"
+  description="Choose a title for this conversation."
+>
+  <form
+    class="flex flex-col gap-3"
+    onsubmit={(event) => {
+      event.preventDefault();
+      if (!renameTarget || !renameTitle.trim()) return;
+      onUpdateConversationState?.(renameTarget.id, {
+        title: renameTitle.trim(),
+      });
+      renameOpen = false;
+    }}
+  >
+    <Input bind:value={renameTitle} aria-label="Conversation title" />
+    <div class="flex justify-end">
+      <Button type="submit" size="sm" disabled={!renameTitle.trim()}
+        >Save</Button
+      >
+    </div>
+  </form>
+</DialogShell>
 <ConversationListSettingsDialog
   bind:open={settingsOpen}
   hideCompleted={conversationListPreferences.hideCompleted}
-  cleanUpDisabled={maintenanceActive ||
-    !activeProject ||
-    countProjectConversations(conversations, activeProject.id) === 0}
   onHideCompletedChange={setHideCompletedConversations}
-  onCleanUp={() => (cleanUpOpen = true)}
 />
-
-{#if activeProject}
-  <PruneConversationsDialog
-    bind:open={cleanUpOpen}
-    projectLabel={activeProject.name}
-    totalCount={countProjectConversations(conversations, activeProject.id)}
-    ageEligible={(days) =>
-      countAgeEligible(conversations, activeProject.id, days)}
-    keepEligible={(keep) =>
-      countKeepEligible(conversations, activeProject.id, keep)}
-    completedEligible={() =>
-      countCompletedEligible(conversations, activeProject.id)}
-    disabled={maintenanceActive}
-    onConfirm={(request) => {
-      if (!maintenanceActive)
-        onPruneProjectConversations?.(activeProject.id, request);
-    }}
-  />
-{/if}
 
 <AlertDialog
   open={pendingDelete?.kind === "project"}
@@ -291,7 +311,6 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     project={activeProject}
     {projectIds}
     {conversations}
-    {agents}
     {selectedConversationId}
     {openConversationTabIds}
     {conversationActivityById}

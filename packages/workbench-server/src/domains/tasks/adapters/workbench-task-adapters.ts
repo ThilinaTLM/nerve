@@ -13,13 +13,8 @@ import type {
   TaskRecord,
 } from "@nervekit/contracts/tasks";
 import type { ApplicationLogger } from "../../../infrastructure/diagnostics/index.js";
-import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../../infrastructure/persistence/query-cache/index.js";
+import type { WorkbenchNoticePublisher } from "../../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../../infrastructure/storage-bootstrap/index.js";
-import {
-  type TaskLaunchConfigStore,
-  UnconfiguredTaskLaunchConfigStore,
-} from "../persistence/task-launch-config.store.js";
 import {
   createTaskLogCursor,
   type TaskLogCursor,
@@ -97,6 +92,12 @@ class WorkbenchReadinessCoordinator {
       ) => void;
     }
   >();
+
+  forget(taskId: string): void {
+    this.output.delete(taskId);
+    this.waiters.get(taskId)?.resolve("timeout");
+    this.waiters.delete(taskId);
+  }
 
   capture(taskId: string, text: string): void {
     const combined = `${this.output.get(taskId) ?? ""}${text}`.slice(
@@ -213,38 +214,37 @@ export type WorkbenchTaskResources = {
   repository: TaskRepository;
   logs: TaskLogService;
   supervisor: TaskSupervisor;
-  launchConfigs: TaskLaunchConfigStore;
   ports: TaskServicePorts;
 };
 
 export type WorkbenchTaskAdapterOptions = {
   supervisor?: TaskSupervisor;
-  launchConfigs?: TaskLaunchConfigStore;
   diagnostics?: PerformanceDiagnosticsPort;
 };
 
 export function createWorkbenchTaskResources(
   storage: InitializedStorage,
-  events: StreamLogRegistry,
-  queryCache: RuntimeQueryCache,
+  events: WorkbenchNoticePublisher,
   logger: ApplicationLogger | undefined,
   options: WorkbenchTaskAdapterOptions,
 ): WorkbenchTaskResources {
   const tasks = new Map<string, TaskRecord>();
   const managed = new Map<string, WorkbenchManagedTask>();
   const repository = new TaskRepository(storage);
+  const environments = new Map<string, Record<string, string>>();
   const logs = new TaskLogService(events, {
     publishOutputEvents: false,
     diagnostics: options.diagnostics,
   });
   const supervisor = options.supervisor ?? defaultTaskSupervisor;
-  const launchConfigs =
-    options.launchConfigs ?? new UnconfiguredTaskLaunchConfigStore();
   const readiness = new WorkbenchReadinessCoordinator();
 
   const eventPublisher: DomainEventPublisherPort = {
     publish: async (event) => {
-      await events.publish(event.type, event.data);
+      await events.publish(
+        event.type.replace(/^task\./, "launch."),
+        event.data,
+      );
       if (event.type === "task.output")
         options.diagnostics?.count("task.outputPublication");
     },
@@ -278,14 +278,13 @@ export function createWorkbenchTaskResources(
       list: async () => [...tasks.values()],
       save: async (task) => {
         tasks.set(task.id, task);
-        queryCache.upsertTask(task);
-        await repository.write(task);
+        await repository.bundles.initializeTask(task.id);
       },
       remove: async (id) => {
         tasks.delete(id);
         managed.delete(id);
-        queryCache.deleteTask(id);
-        await repository.remove(id);
+        readiness.forget(id);
+        await repository.bundles.remove(id);
       },
     },
     logs: {
@@ -338,23 +337,14 @@ export function createWorkbenchTaskResources(
       wait: (task, request) => readiness.wait(task, request),
     },
     launchConfigs: {
-      save: async (taskId, env) => {
-        if (!env) return;
-        const now = new Date().toISOString();
-        await launchConfigs.write(taskId, {
-          version: 1,
-          env,
-          createdAt: now,
-          updatedAt: now,
-        });
+      persisted: false,
+      save: async (id, env) => {
+        if (env) environments.set(id, { ...env });
       },
-      load: async (task) => {
-        const config = await launchConfigs.read(task.id);
-        if (task.envInfo?.persisted && !config)
-          throw new Error("Task launch env is missing.");
-        return config?.env;
+      load: async (task) => environments.get(task.id),
+      remove: async (task) => {
+        environments.delete(task.id);
       },
-      remove: (task) => launchConfigs.remove(task.id),
     },
     process: {
       spawn: async (input, callbacks = {}) => {
@@ -450,6 +440,7 @@ export function createWorkbenchTaskResources(
               async () => undefined,
             );
           await callbacks.onExit?.(exit);
+          readiness.forget(input.taskId);
           resolveTerminal(tasks.get(input.taskId));
         };
         void closed.then((result) => {
@@ -539,20 +530,7 @@ export function createWorkbenchTaskResources(
         ).map((listener) => listener.port);
       },
     },
-    capabilities: {
-      prepareOrphan: async (task) => ({
-        visibility: "background",
-        error: `Task supervision was lost. Use task_control with action "stop" for process-tree cleanup before restart or removal.`,
-        runtime: task.runtime,
-        notifications: task.notifications
-          ? { ...task.notifications, enabled: true, terminal: true }
-          : task.notifications,
-        completion: task.completion
-          ? { ...task.completion, inject: true }
-          : task.completion,
-      }),
-    },
   };
 
-  return { tasks, managed, repository, logs, supervisor, launchConfigs, ports };
+  return { tasks, managed, repository, logs, supervisor, ports };
 }

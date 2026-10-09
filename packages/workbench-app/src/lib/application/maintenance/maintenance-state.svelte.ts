@@ -1,14 +1,13 @@
 import { SvelteSet } from "svelte/reactivity";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { protocolRequest } from "$lib/application/startup/workbench-connection";
 import {
   isMaintenanceActive,
   maintenanceUpdatedEventSchema,
   type MaintenanceOperation,
   type MaintenanceRequest,
 } from "@nervekit/contracts/maintenance";
-import type { PruneProjectConversationsRequest } from "@nervekit/contracts/projects";
 import type { StorageCleanupRequest } from "@nervekit/contracts/storage";
-import { onEvent } from "$lib/application/events/event-bus";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { MaintenanceController } from "./maintenance-controller";
 import { reconcileMaintenance } from "./maintenance-reconciliation";
@@ -22,16 +21,7 @@ async function start(
   if (request.kind === "storage_cleanup")
     return (await protocolRequest("storage.cleanup", request.parameters)).result
       .operation;
-  if (request.kind === "delete_project")
-    return (
-      await protocolRequest("project.delete", { projectId: request.projectId })
-    ).result.operation;
-  return (
-    await protocolRequest("project.conversations.prune", {
-      projectId: request.projectId,
-      ...request.parameters,
-    })
-  ).result.operation;
+  throw new Error("Only storage cleanup uses maintenance");
 }
 const controller = new MaintenanceController({
   get: async () =>
@@ -64,7 +54,7 @@ const controller = new MaintenanceController({
             : `Cleanup completed; ${operation.removedConversationCount} conversations removed`,
         );
     }
-    await reconcileMaintenance(operation);
+    await reconcileMaintenance();
   },
   error: (message, error) =>
     notify.error(message, {
@@ -83,17 +73,6 @@ export const maintenance = {
   reconnect: () => controller.reconnect(),
   load: () => controller.load(),
   cancel: () => controller.cancel(),
-  startDelete: (projectId: string) =>
-    controller.startRequest({ kind: "delete_project", projectId }),
-  startPrune: (
-    projectId: string,
-    parameters: PruneProjectConversationsRequest,
-  ) =>
-    controller.startRequest({
-      kind: "prune_conversations",
-      projectId,
-      parameters,
-    }),
   startCleanup: (parameters: StorageCleanupRequest) =>
     controller.startRequest({ kind: "storage_cleanup", parameters }),
   subscribe(listener: () => void): () => void {

@@ -5,17 +5,17 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 ## Current architecture
 
 - [Codebase architecture](architecture/codebase.md) — package ownership, dependencies, naming, and runtime composition boundaries.
-- [Storage architecture](architecture/storage.md) — implemented `NERVE_HOME`, canonical SQLite, file ownership, journal, and migration boundaries.
+- [Storage architecture](architecture/storage.md) — implemented `NERVE_HOME`, core SQLite, managed files, overlays, in-memory state and offline import boundaries.
+- [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, channels and legacy import.
 
 ## Accepted decisions
 
 - [Tool-result projection](decisions/tool-result-projection.md) — why complete results, agent projections, and transcript previews are separate.
+- [Permission rule sets](proposals/permission-rule-sets.md) — implemented permission architecture and rule-set-scoped overlay model.
 
 ## Active proposals
 
-- [Conversation core redesign](proposals/conversation-core/README.md) — conversation as the portable agent core, simplified storage model, tool-call lifecycle, input queue, and separate conversation and workbench channels.
-- [Storage migration framework](proposals/storage-migration-framework.md) — one framework for schema migrations, data conversions, and startup repairs.
-- [Permission rule sets](proposals/permission-rule-sets.md) — implemented permission architecture and rule-set-scoped overlay model.
+None.
 
 ## Maintainer runbooks
 

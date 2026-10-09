@@ -1,15 +1,11 @@
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { SvelteSet } from "svelte/reactivity";
-import type { AgentRecord } from "$lib/api";
 import { projectKey } from "$lib/domain/projects/project-tree";
 import { buildProjectSwitcherItems } from "$lib/features/projects";
-import { agentRunningTone } from "@nervekit/ui-kit/display/status";
 import {
-  conversationViewKey,
   diffViewKey,
   fileViewKey,
   mermaidViewKey,
-  pendingConversationKey,
   prViewKey,
 } from "$lib/domain/navigation/view-keys";
 import {
@@ -17,14 +13,10 @@ import {
   fileRenderKind,
 } from "@nervekit/ui-kit/display/file-display";
 import {
-  buildConversationActivityById,
   idleConversationActivity,
-} from "$lib/domain/conversations/activity";
-import {
-  pendingApprovals,
-  pendingPlanReviews,
-  pendingUserQuestions,
-} from "$lib/features/tools";
+  summaryActivity,
+} from "./conversation-activity";
+import { conversationLists } from "./conversation-lists.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
   type CenterTabIdentity,
@@ -69,43 +61,26 @@ function activeTabMatches(
   );
 }
 
-function activePendingConversation() {
-  const active = workspaceState.activeCenterTab;
-  if (active?.kind !== "pending-conversation") return undefined;
-  return workspaceFeaturePorts().conversations.read.pendingConversations[
-    pendingConversationKey(active.id)
-  ];
-}
-
 function isActiveTaskStatus(status: string): boolean {
   return ["starting", "running", "ready", "stopping"].includes(status);
 }
 
 const conversationActivityById = $derived.by(() =>
-  buildConversationActivityById({
-    conversations: workspaceState.conversations,
-    agents: workspaceState.agents,
-    activities: workspaceState.conversationActivities,
-    views: workspaceFeaturePorts().conversations.read.conversationViews,
-  }),
+  Object.fromEntries(
+    [
+      ...workspaceState.conversations,
+      ...[...conversationLists.values()].flatMap((list) => [
+        ...list.roots,
+        ...Object.values(list.children).flat(),
+      ]),
+    ].map((row) => [row.id, summaryActivity(row)]),
+  ),
 );
-
 function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}\0${tab.id}`;
 }
 
 export const workspaceSelectors = {
-  get activeConversationBranchDepth() {
-    const conversationId =
-      selection.conversationId ??
-      workspaceFeaturePorts().conversations.read.activeConversationTabId;
-    if (!conversationId) return 0;
-    return (
-      workspaceFeaturePorts().conversations.read.conversationViews[
-        conversationViewKey(conversationId)
-      ]?.treeNodes.length ?? 0
-    );
-  },
   get status() {
     return workspaceState.status;
   },
@@ -113,40 +88,16 @@ export const workspaceSelectors = {
     return workspaceState.connection;
   },
   get error() {
-    const conversationId =
-      selection.conversationId ??
-      workspaceFeaturePorts().conversations.read.activeConversationTabId;
-    const activeView = conversationId
-      ? workspaceFeaturePorts().conversations.read.conversationViews[
-          conversationViewKey(conversationId)
-        ]
-      : undefined;
-    return (
-      activePendingConversation()?.error ??
-      activeView?.error ??
-      workspaceState.error
-    );
+    return workspaceState.error;
   },
   get projects() {
     return workspaceState.projects;
   },
   get conversations() {
-    return workspaceState.conversations;
-  },
-  get agents() {
-    return workspaceState.agents;
-  },
-  get agentActivities() {
-    return workspaceState.agentActivities;
-  },
-  get approvals() {
-    return pendingApprovals(workspaceState.pendingToolCalls);
-  },
-  get userQuestions() {
-    return pendingUserQuestions(workspaceState.pendingToolCalls);
-  },
-  get planReviews() {
-    return pendingPlanReviews(workspaceState.pendingToolCalls);
+    return [...conversationLists.values()].flatMap((list) => [
+      ...list.roots,
+      ...Object.values(list.children).flat(),
+    ]);
   },
   get activeProject() {
     return (
@@ -166,14 +117,14 @@ export const workspaceSelectors = {
   },
   get selectedProjectConversations() {
     const ids = new SvelteSet(this.selectedProjectIds);
-    return workspaceState.conversations.filter((conversation) =>
+    return this.conversations.filter((conversation) =>
       ids.has(conversation.projectId),
     );
   },
   get projectSwitcherItems() {
     return buildProjectSwitcherItems({
       projects: workspaceState.projects,
-      conversations: workspaceState.conversations,
+      conversations: this.conversations,
       tasks: workspaceFeaturePorts().tasks.read.tasks,
       activityById: this.conversationActivityById,
       homeDir: workspaceState.status?.storage.userHome,
@@ -183,11 +134,6 @@ export const workspaceSelectors = {
   get activeConversation() {
     return workspaceState.conversations.find(
       (conversation) => conversation.id === selection.conversationId,
-    );
-  },
-  get activeAgent() {
-    return workspaceState.agents.find(
-      (agent) => agent.id === selection.agentId,
     );
   },
   get conversationActivityById() {
@@ -204,34 +150,14 @@ export const workspaceSelectors = {
     const projectsById = Object.fromEntries(
       workspaceState.projects.map((project) => [project.id, project]),
     );
-    const agentsById = Object.fromEntries(
-      workspaceState.agents.map((agent) => [agent.id, agent]),
-    );
-    const agentsByConversationId: Record<string, AgentRecord> =
-      Object.create(null);
-    for (const agent of workspaceState.agents) {
-      if (
-        agent.conversationId &&
-        !agentsByConversationId[agent.conversationId]
-      ) {
-        agentsByConversationId[agent.conversationId] = agent;
-      }
-    }
     const activityById = conversationActivityById;
 
-    for (const conversationId of workspaceFeaturePorts().conversations.read
-      .openConversationTabIds) {
+    for (const conversationId of workspaceState.openCenterTabs
+      .filter((tab) => tab.kind === "conversation")
+      .map((tab) => tab.id)) {
       const conversation = conversationsById[conversationId];
       if (!conversation) continue;
       const project = projectsById[conversation.projectId];
-      const agent =
-        (conversation.activeAgentId
-          ? agentsById[conversation.activeAgentId]
-          : undefined) ?? agentsByConversationId[conversation.id];
-      const view =
-        workspaceFeaturePorts().conversations.read.conversationViews[
-          conversationViewKey(conversation.id)
-        ];
       const activity =
         activityById[conversation.id] ?? idleConversationActivity;
       tabs.push({
@@ -239,53 +165,17 @@ export const workspaceSelectors = {
         id: conversation.id,
         conversation,
         project,
-        agent,
         active: activeTabMatches("conversation", conversation.id),
-        hasDraft: Boolean(view?.composerText.trim()),
+        hasDraft: false,
         sending: activity.busy,
         activity,
-        error:
-          view?.error ??
-          (activity.indicator === "error" ? "Agent error" : undefined),
+        error: activity.indicator === "error" ? "Agent error" : undefined,
       });
     }
     return tabs;
   },
   get openPendingConversationTabs(): PendingConversationTabModel[] {
-    const tabs: PendingConversationTabModel[] = [];
-    for (const tab of workspaceState.openCenterTabs) {
-      if (tab.kind !== "pending-conversation") continue;
-      const pending =
-        workspaceFeaturePorts().conversations.read.pendingConversations[
-          pendingConversationKey(tab.id)
-        ];
-      if (!pending) continue;
-      tabs.push({
-        kind: "pending-conversation",
-        id: pending.id,
-        title: pending.title,
-        project: workspaceState.projects.find(
-          (candidate) => candidate.id === pending.projectId,
-        ),
-        projectDir: pending.projectDir,
-        active: activeTabMatches("pending-conversation", pending.id),
-        hasDraft: Boolean(pending.composerText.trim()),
-        sending: pending.sending,
-        activity: pending.sending
-          ? {
-              indicator: "running",
-              tone: agentRunningTone(pending.mode),
-              pulse: true,
-              label: "Agent running",
-              busy: true,
-              needsUser: false,
-              source: "local-overlay",
-            }
-          : idleConversationActivity,
-        error: pending.error,
-      });
-    }
-    return tabs;
+    return [];
   },
   get openTaskTabs(): TaskTabModel[] {
     const tabs: TaskTabModel[] = [];

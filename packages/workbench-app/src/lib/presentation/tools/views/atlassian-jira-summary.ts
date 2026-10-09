@@ -1,4 +1,9 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+type ToolArgumentDraft = {
+  args?: Record<string, unknown>;
+  argsText?: string;
+  toolName: string;
+  done?: boolean;
+};
 import {
   type ArgSource,
   type AtlassianSummaryOptions,
@@ -12,7 +17,6 @@ import {
   appendList,
   appendMutationOptions,
   appendPayloadSummary,
-  appendPreviewHint,
   appendRecordKeys,
   appendResolvedAssignee,
   asRecord,
@@ -98,7 +102,7 @@ export function jiraToolSummaryBody(
     stageTitle(
       "Jira",
       JIRA_ACTION_LABELS[view.action],
-      toolCall.status,
+      toolCall.state,
       view.dryRun,
     ),
   ];
@@ -106,13 +110,12 @@ export function jiraToolSummaryBody(
   appendJiraRequestLines(lines, view.action, source, view, budget);
   appendJiraOutcomeLines(lines, view, details, budget);
   appendArtifactLines(lines, view, budget);
-  appendPreviewHint(lines, toolCall, options);
 
   return compactLines(lines).join("\n");
 }
 
 export function jiraDraftSummaryBody(
-  draft: ConversationLiveToolDraftBlockSnapshot,
+  draft: ToolArgumentDraft,
   options: AtlassianSummaryOptions = {},
 ): string | undefined {
   const action = jiraActionFromToolName(draft.toolName);

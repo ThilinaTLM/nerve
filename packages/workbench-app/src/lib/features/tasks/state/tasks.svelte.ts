@@ -20,7 +20,7 @@ import {
   setTaskEntryRun,
   taskEntryKey,
 } from "$lib/features/tasks/state/task-tabs.svelte";
-import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
+import { refreshWorkbenchTasks } from "./task-events";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export async function selectTask(taskId: string) {
   taskState.selectedTaskId = taskId;
@@ -34,16 +34,16 @@ export async function cancelSelectedTask(
   const wasOrphaned =
     taskState.tasks.find((task) => task.id === taskId)?.status === "orphaned";
   await cancelTask(taskId, request);
-  await loadWorkspaceState();
+  await refreshWorkbenchTasks();
   if (taskState.selectedTaskId) {
     await loadTaskLogWindow(taskState.selectedTaskId);
   }
   notify.success(
     request.signal === "SIGKILL"
-      ? "Task force killed"
+      ? "Launch force killed"
       : wasOrphaned
-        ? "Orphaned task cleanup completed"
-        : "Task cancelled",
+        ? "Orphaned launch cleanup completed"
+        : "Launch cancelled",
   );
 }
 
@@ -52,9 +52,9 @@ export async function restartSelectedTask(taskId: string) {
   const restarted = await restartTask(taskId);
   setTaskEntryRun(entryId, restarted.id);
   taskState.selectedTaskId = restarted.id;
-  await loadWorkspaceState();
+  await refreshWorkbenchTasks();
   await loadTaskLogWindow(restarted.id);
-  notify.success("Task restarted", {
+  notify.success("Launch restarted", {
     description: restarted.name ?? restarted.command ?? restarted.id,
   });
 }
@@ -85,8 +85,8 @@ function forgetTask(taskId: string) {
 export async function removeTask(taskId: string) {
   await deleteTask(taskId);
   forgetTask(taskId);
-  await loadWorkspaceState();
-  notify.success("Task removed");
+  await refreshWorkbenchTasks();
+  notify.success("Launch removed");
 }
 
 export async function cleanupTaskRuns(taskIds: readonly string[]) {
@@ -99,20 +99,20 @@ export async function cleanupTaskRuns(taskIds: readonly string[]) {
   );
   const failed = ids.length - removed.length;
   for (const id of removed) forgetTask(id);
-  await loadWorkspaceState();
+  await refreshWorkbenchTasks();
 
   if (removed.length > 0) {
     notify.success(
       removed.length === 1
-        ? "Removed 1 old task run"
-        : `Removed ${removed.length} old task runs`,
+        ? "Removed 1 old launch run"
+        : `Removed ${removed.length} old launch runs`,
     );
   }
   if (failed > 0) {
     notify.error(
       failed === 1
-        ? "Could not remove 1 old task run"
-        : `Could not remove ${failed} old task runs`,
+        ? "Could not remove 1 old launch run"
+        : `Could not remove ${failed} old launch runs`,
     );
   }
 }
@@ -120,11 +120,11 @@ export async function cleanupTaskRuns(taskIds: readonly string[]) {
 export async function pruneFinishedTasks() {
   const { removed } = await pruneTasks();
   for (const id of removed) forgetTask(id);
-  await loadWorkspaceState();
+  await refreshWorkbenchTasks();
   notify.success(
     removed.length === 1
-      ? "Removed 1 finished task"
-      : `Removed ${removed.length} finished tasks`,
+      ? "Removed 1 finished launch"
+      : `Removed ${removed.length} finished launches`,
   );
 }
 
@@ -135,7 +135,7 @@ export async function runTaskCommand(input: {
   name?: string;
 }) {
   const task = await startTask(input);
-  await loadWorkspaceState();
+  await refreshWorkbenchTasks();
   await selectTask(task.id);
   notify.success("Command started", {
     description: input.name ?? input.command,

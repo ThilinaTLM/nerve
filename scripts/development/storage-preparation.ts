@@ -12,10 +12,8 @@ export async function prepareDevelopmentSlot(slot: {
   const inspection = await inspectNerveHome(slot.home);
   if (inspection.kind === "unsupported") throw new Error(inspection.reason);
   if (inspection.kind === "current") {
-    // Existing-home migrations belong to the daemon/desktop startup workflow,
-    // including its approval and draft-recovery handling, not this launcher.
+    // The daemon opens core.sqlite and applies core migrations on startup.
     return;
   }
-  const storage = await initializeStorage(slot.home);
-  await storage.canonicalStore.close();
+  await initializeStorage(slot.home);
 }

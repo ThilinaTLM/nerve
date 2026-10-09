@@ -78,7 +78,7 @@ const tooltip = $derived(
     .join("\n"),
 );
 const runLabel = $derived(
-  concurrent && activeRun ? "Start another run" : "Run task",
+  concurrent && activeRun ? "Start another run" : "Run launch",
 );
 
 const menuItems = $derived.by<ContextMenuItem[]>(() => {
@@ -131,19 +131,19 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 
   if (items.length > 0) items.push({ type: "separator" });
   items.push({
-    label: "Edit task",
+    label: "Edit launch",
     icon: Pencil,
     disabled: !capabilities.manageDefinitions,
     onSelect: () => onEdit?.(),
   });
   items.push({
-    label: "Duplicate task",
+    label: "Duplicate launch",
     icon: Copy,
     disabled: !capabilities.manageDefinitions,
     onSelect: () => onDuplicate?.(),
   });
   items.push({
-    label: "Delete task",
+    label: "Delete launch",
     icon: Trash2,
     destructive: true,
     disabled: !capabilities.manageDefinitions,
@@ -199,7 +199,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       {#if activeRun?.status === "stopping"}
         <PanelToolbarButton
           icon={Skull}
-          label="Force kill task"
+          label="Force kill launch"
           dense
           disabled={!capabilities.cancel}
           onclick={() => onForceKill?.(activeRun.id)}
@@ -207,14 +207,14 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       {:else if activeRun}
         <PanelToolbarButton
           icon={RotateCw}
-          label="Restart task"
+          label="Restart launch"
           dense
           disabled={!capabilities.restart}
           onclick={() => onRestart?.(activeRun.id)}
         />
         <PanelToolbarButton
           icon={Square}
-          label="Stop task"
+          label="Stop launch"
           dense
           disabled={!capabilities.cancel}
           onclick={() => onCancel?.(activeRun.id)}

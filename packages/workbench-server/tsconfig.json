@@ -24,6 +24,9 @@
     },
     {
       "path": "../tools"
+    },
+    {
+      "path": "../conversation-core"
     }
   ],
   "include": ["src/**/*.ts"]

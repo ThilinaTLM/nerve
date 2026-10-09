@@ -45,7 +45,7 @@ let {
   onRerunDefinition?: () => void;
   onRemove?: (taskId: string) => void;
   onCopy?: (text: string) => void;
-  onSaveAsDefinition?: (task: TaskRecord) => void;
+  onSaveAsDefinition?: (launch: TaskRecord) => void;
 } = $props();
 
 const run = $derived(entry.run);
@@ -104,7 +104,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     items.push(
       { type: "separator" },
       {
-        label: "Save as task",
+        label: "Save as launch",
         icon: Save,
         disabled: !capabilities.manageDefinitions,
         onSelect: () => onSaveAsDefinition?.(run),

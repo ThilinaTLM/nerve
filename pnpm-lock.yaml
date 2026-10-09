@@ -62,6 +62,34 @@ importers:
         specifier: 5.9.3
         version: 5.9.3
 
+  packages/conversation-core:
+    dependencies:
+      '@nervekit/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@nervekit/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@nervekit/native':
+        specifier: workspace:*
+        version: link:../native
+      '@nervekit/skills':
+        specifier: workspace:*
+        version: link:../skills
+      '@nervekit/tools':
+        specifier: workspace:*
+        version: link:../tools
+      zod:
+        specifier: 4.1.12
+        version: 4.1.12
+    devDependencies:
+      '@types/node':
+        specifier: 24.10.1
+        version: 24.10.1
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/desktop-shell:
     dependencies:
       '@nervekit/contracts':
@@ -519,6 +547,9 @@ importers:
       '@nervekit/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@nervekit/conversation-core':
+        specifier: workspace:*
+        version: link:../conversation-core
       '@nervekit/harness':
         specifier: workspace:*
         version: link:../harness

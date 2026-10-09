@@ -40,10 +40,7 @@ const scope = $derived(
     ? mobileSettingsScope.current
     : "user",
 );
-const controllers = createSettingsPageControllers({
-  activeProject: () => activeProject,
-  scope: () => scope,
-});
+const controllers = createSettingsPageControllers();
 const saveLabel = $derived.by(() => {
   const message = settingsSelectors.settingsMessage;
   if (message) return message;

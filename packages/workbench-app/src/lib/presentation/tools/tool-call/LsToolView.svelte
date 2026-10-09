@@ -28,7 +28,7 @@ const sorted = $derived(sortEntries(view.entries));
 const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 </script>
 
-{#if view.total === 0 && toolCall.status === "completed"}
+{#if view.total === 0 && toolCall.state === "completed"}
   <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
 {:else if view.total > 0}
   <ul

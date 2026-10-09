@@ -3,6 +3,7 @@ import {
   type OperationName,
   type OperationParams,
 } from "@nervekit/contracts/operations";
+import { isWorkbenchOperation } from "@nervekit/contracts/events";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 
@@ -89,8 +90,10 @@ export function combineWorkbenchMethodHandlerGroups(
     );
   }
   const expectedMethods = allOperationDefinitions()
-    .filter((definition) =>
-      definition.allowedTargetRoles.includes("workbench_server"),
+    .filter(
+      (definition) =>
+        definition.allowedTargetRoles.includes("workbench_server") &&
+        isWorkbenchOperation(definition.method),
     )
     .map((definition) => definition.method);
   const expected = new Set(expectedMethods);

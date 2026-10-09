@@ -50,11 +50,11 @@ const argsBody = $derived({
     </div>
   {:else if resultBody}
     <ToolArgumentBody body={resultBody} />
-  {:else if toolCall.status === "completed"}
+  {:else if toolCall.state === "completed"}
     <p class="m-0 text-xs text-muted-foreground">No output.</p>
   {/if}
 
-  {#if view.args.length > 0 && (toolCall.status === "failed" || toolCall.status === "denied" || toolCall.status === "cancelled")}
+  {#if view.args.length > 0 && (toolCall.state === "failed" || toolCall.state === "denied" || toolCall.state === "cancelled")}
     <div class="grid gap-1.5">
       <p class="m-0 text-xs font-medium text-muted-foreground">
         Recorded arguments

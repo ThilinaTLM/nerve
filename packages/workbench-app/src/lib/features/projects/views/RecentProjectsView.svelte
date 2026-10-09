@@ -68,9 +68,13 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
     {
       label: "New chat",
       icon: MessageSquarePlus,
-      onSelect: () => onNewChat(project.dir),
+      onSelect: () => onNewChat(project.directory),
     },
-    { label: "Copy path", icon: Copy, onSelect: () => onCopyPath(project.dir) },
+    {
+      label: "Copy path",
+      icon: Copy,
+      onSelect: () => onCopyPath(project.directory),
+    },
   ];
   if (onForget) {
     menuItems.push(
@@ -165,7 +169,7 @@ function projectMenu(item: ProjectSwitcherItem): ContextMenuItem[] {
               <span
                 class="min-w-0 truncate font-mono text-xs text-muted-foreground"
               >
-                {tildePath(item.project.dir, homeDir)}
+                {tildePath(item.project.directory, homeDir)}
               </span>
             </span>
           </ItemSurface>

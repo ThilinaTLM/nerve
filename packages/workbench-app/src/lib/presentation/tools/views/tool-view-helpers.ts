@@ -9,7 +9,7 @@ import {
   resolveDisplayPath,
 } from "@nervekit/ui-kit/display/path-links";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+type ConversationLiveToolOutputSnapshot = { text: string; updatedAt?: string };
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown in the bounded transcript preview. */

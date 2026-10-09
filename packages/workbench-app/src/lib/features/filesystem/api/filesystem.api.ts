@@ -14,7 +14,7 @@ import {
   apiPut,
   fileToBase64,
 } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
 export async function uploadClipboardImage(file: File): Promise<string> {
@@ -33,16 +33,16 @@ export async function listDirectories(
   path?: string,
   showHidden = false,
 ): Promise<FilesystemDirectoryResponse> {
-  return (
-    await protocolRequest("filesystem.directories.list", { path, showHidden })
-  ).result;
+  return await requestWorkbench("filesystem.directories.list", {
+    path,
+    showHidden,
+  });
 }
 
 export async function listProjectEntries(
   query: FilesystemProjectEntriesQuery,
 ): Promise<FilesystemProjectEntriesResponse> {
-  return (await protocolRequest("filesystem.project.entries.list", query))
-    .result;
+  return await requestWorkbench("filesystem.project.entries.list", query);
 }
 
 export function syncProjectMonitor(
@@ -59,8 +59,7 @@ export function clearProjectMonitor(projectId: string): Promise<void> {
 export async function createProjectEntry(
   request: FilesystemProjectEntryCreateRequest,
 ): Promise<FilesystemProjectEntryCreateResponse> {
-  return (await protocolRequest("filesystem.project.entries.create", request))
-    .result;
+  return await requestWorkbench("filesystem.project.entries.create", request);
 }
 
 export async function getFileContent(

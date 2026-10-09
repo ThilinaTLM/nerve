@@ -11,7 +11,7 @@ import {
   type OperationParams,
   type OperationResult,
 } from "@nervekit/contracts/operations";
-import { type SnapshotCursor } from "@nervekit/contracts/snapshots";
+import { type SnapshotCursor } from "@nervekit/contracts/wire";
 import { protocolClientId, protocolInstanceId } from "./browser-id-store.js";
 import { createMessageFactory } from "../messages/message-factory.js";
 import { prepareOperationRequest } from "../rpc/operation-request.js";

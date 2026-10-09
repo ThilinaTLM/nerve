@@ -6,7 +6,7 @@
 
 The shipped evaluator combines named permission rule sets, catalog and argument-sensitive risk assessment, normalized targets, and rule-set-bound user/project/conversation overlays. Policy decisions are `allow`, `prompt`, or `deny`; the host projects `prompt` to an approval interaction.
 
-The transport-neutral contracts live in [`permission-rule-sets.ts`](../../packages/contracts/src/domains/permissions/permission-rule-sets.ts), pure composition and evaluation live in [`permission-policy.ts`](../../packages/tools/src/policy/permission-policy.ts), and storage/trust resolution lives in [`permission-policy.service.ts`](../../packages/workbench-server/src/domains/permissions/permission-policy.service.ts).
+The transport-neutral contracts live in [`permission-rule-sets.ts`](../../packages/contracts/src/domains/permissions/permission-rule-sets.ts), pure composition and evaluation live in [`permission-policy.ts`](../../packages/tools/src/policy/permission-policy.ts), and overlay loading, trust checks and rule writes live in the host's [`permission.adapter.ts`](../../packages/workbench-server/src/core-host/permission.adapter.ts).
 
 ## Purpose
 

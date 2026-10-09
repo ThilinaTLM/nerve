@@ -1,4 +1,9 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+type ToolArgumentDraft = {
+  args?: Record<string, unknown>;
+  argsText?: string;
+  toolName: string;
+  done?: boolean;
+};
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type { ToolView } from "./tool-view-types";
 
@@ -66,13 +71,11 @@ export function toolArgSource(toolCall: ToolCallDisplayRecord): ArgSource {
   };
   return {
     args: asRecord(payloads.args ?? payloads.argsPreview),
-    status: toolCall.status,
+    status: toolCall.state,
   };
 }
 
-export function draftArgSource(
-  draft: ConversationLiveToolDraftBlockSnapshot,
-): ArgSource {
+export function draftArgSource(draft: ToolArgumentDraft): ArgSource {
   return {
     args: draft.args ?? parseJsonRecord(draft.argsText),
     argsText: draft.argsText,
@@ -210,18 +213,6 @@ export function appendArtifactLines(
   }
   if (artifacts.length > budget.itemLimit) {
     lines.push(`… ${artifacts.length - budget.itemLimit} more artifacts`);
-  }
-}
-
-export function appendPreviewHint(
-  lines: string[],
-  toolCall: ToolCallDisplayRecord,
-  options: AtlassianSummaryOptions,
-): void {
-  const overflow =
-    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
-  if (!options.expanded && overflow?.hidden) {
-    lines.push(`… open Details for ${overflow.hidden} more ${overflow.noun}`);
   }
 }
 

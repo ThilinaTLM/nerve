@@ -1,10 +1,6 @@
-import { pendingConversationKey } from "$lib/domain/navigation/view-keys";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { ensureConversationView } from "$lib/features/conversations/state/conversation-view-actions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { TranscriptionController } from "./transcription-controller.svelte";
 import {
-  appendTranscriptText,
   type VoiceInputTarget,
   voiceInputTargetKey,
   voiceInputTargetsEqual,
@@ -174,21 +170,6 @@ class VoiceInputSession {
     if (handlers?.appendTranscript) {
       handlers.appendTranscript(text);
       return;
-    }
-
-    if (target.kind === "conversation") {
-      const view = ensureConversationView(target.id);
-      view.composerText = appendTranscriptText(view.composerText, text);
-      return;
-    }
-
-    if (target.kind === "pending-conversation") {
-      const pending =
-        conversationState.pendingConversations[
-          pendingConversationKey(target.id)
-        ];
-      if (pending)
-        pending.composerText = appendTranscriptText(pending.composerText, text);
     }
   }
 }

@@ -1,24 +1,15 @@
 <script lang="ts">
-import { type ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
+import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { PanelRow, PanelRowCard } from "$lib/presentation/panels";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
-import { idleConversationActivity } from "$lib/domain/conversations/activity";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
+import ChevronDown from "@lucide/svelte/icons/chevron-down";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
-import { shortAgentModel } from "$lib/domain/projects/project-tree";
-import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
+import {
+  summaryActivity,
+  type ConversationActivity,
+} from "$lib/application/workspace/conversation-activity";
 import ConversationStatusIndicator from "./ConversationStatusIndicator.svelte";
-
-type Props = {
-  row: ConversationRow;
-  /** Conversation has an open center tab; fills dot-based indicators. */
-  isOpen?: boolean;
-  /** Conversation currently shown in the main pane. */
-  isActive?: boolean;
-  activity?: ConversationActivityState;
-  menuItems: ContextMenuItem[];
-  onOpenConversation?: (conversationId: string) => void;
-};
-
 let {
   row,
   isOpen = false,
@@ -26,40 +17,51 @@ let {
   activity,
   menuItems,
   onOpenConversation,
-}: Props = $props();
-
-const dotActivity = $derived(activity ?? idleConversationActivity);
-const mode = $derived(row.agent?.mode ?? row.conversation.mode);
-const permission = $derived(
-  row.agent?.permissionRuleSetId ??
-    row.agent?.permissionLevel ??
-    row.conversation.permissionLevel,
-);
-const tooltip = $derived(
-  [
-    row.conversation.title,
-    `status: ${dotActivity.label ?? "idle"}`,
-    `mode: ${mode} · rule set: ${permissionRuleSetDisplayName(permission)}`,
-    `model: ${shortAgentModel(row.agent)}`,
-    row.conversation.id,
-  ].join("\n"),
-);
+  expanded = false,
+  onToggleChildren,
+  child = false,
+}: {
+  row: ConversationRow;
+  isOpen?: boolean;
+  isActive?: boolean;
+  activity?: ConversationActivity;
+  menuItems: ContextMenuItem[];
+  onOpenConversation?: (id: string) => void;
+  expanded?: boolean;
+  onToggleChildren?: () => void;
+  child?: boolean;
+} = $props();
+const dotActivity = $derived(activity ?? summaryActivity(row.conversation));
 </script>
-
-<PanelRowCard
-  selected={isActive}
-  {menuItems}
-  onclick={() => onOpenConversation?.(row.conversation.id)}
->
-  <PanelRow
-    label={row.conversation.title}
-    labelLines={2}
-    title={tooltip}
-    class="px-2"
-    active={isActive}
+<div class={child ? "pl-4" : ""}>
+  <PanelRowCard
+    selected={isActive}
+    {menuItems}
+    onclick={() => onOpenConversation?.(row.conversation.id)}
   >
-    {#snippet leading()}
-      <ConversationStatusIndicator activity={dotActivity} {isOpen} />
-    {/snippet}
-  </PanelRow>
-</PanelRowCard>
+    <PanelRow
+      label={row.conversation.title}
+      labelLines={2}
+      title={`${row.conversation.title}\nstatus: ${dotActivity.label ?? "idle"}`}
+      class="px-2"
+      active={isActive}
+    >
+      {#snippet leading()}
+        {#if !child && row.conversation.childCount > 0}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label={expanded ? "Collapse children" : "Expand children"}
+            onclick={(event) => {
+              event.stopPropagation();
+              onToggleChildren?.();
+            }}
+          >
+            {#if expanded}<ChevronDown />{:else}<ChevronRight />{/if}
+          </Button>
+        {/if}
+        <ConversationStatusIndicator activity={dotActivity} {isOpen} />
+      {/snippet}
+    </PanelRow>
+  </PanelRowCard>
+</div>

@@ -1,3 +1,4 @@
+import type { OperationIdempotency } from "@nervekit/contracts/operations";
 import {
   operationDefinition,
   parseOperationParams,
@@ -55,7 +56,10 @@ export function prepareOperationRequest<M extends OperationName>(
       },
     };
   }
-  if (operation.idempotency === "required" && !options.idempotencyKey) {
+  if (
+    (operation.idempotency as OperationIdempotency) === "required" &&
+    !options.idempotencyKey
+  ) {
     return {
       ok: false,
       error: {

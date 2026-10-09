@@ -13,10 +13,7 @@ import {
   shellSheets,
   togglePanelDock,
 } from "$lib/app/shell/shell-layout.svelte";
-import {
-  conversationSelectors,
-  openConversation,
-} from "$lib/features/conversations";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import { gitSelectors } from "$lib/features/git";
 import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors } from "$lib/features/settings";
@@ -26,17 +23,19 @@ import { maintenance, workspaceSelectors } from "$lib/application/workspace";
 
 const activeProject = $derived(workspaceSelectors.activeProject);
 const connection = $derived(workspaceSelectors.connection);
-const live = $derived(conversationSelectors.live);
+const live = $derived(
+  workspaceSelectors.selectedProjectConversations.some(
+    (row) => row.status === "running",
+  ),
+);
 const pendingApprovals = $derived.by(() => {
   if (!activeProject) return [];
-  return workspaceSelectors.approvals.filter(
-    (approval) => approval.projectId === activeProject.id,
+  return workspaceSelectors.conversations.filter(
+    (row) => row.projectId === activeProject.id && row.status === "waiting",
   );
 });
 const pendingApprovalCount = $derived(pendingApprovals.length);
-const pendingApprovalConversationId = $derived(
-  pendingApprovals[0]?.conversationId,
-);
+const pendingApprovalConversationId = $derived(pendingApprovals[0]?.id);
 const tasks = $derived(taskSelectors.scopedTasks);
 const gitStatus = $derived(gitSelectors.gitStatus);
 const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);
@@ -80,8 +79,8 @@ const dockToggles = $derived<DockToggle[]>(
   {activeProject}
   {connection}
   {live}
-  pendingApprovals={pendingApprovalCount}
-  onOpenPendingApproval={openPendingApproval}
+  waitingConversations={pendingApprovalCount}
+  onOpenWaitingConversation={openPendingApproval}
   {tasks}
   {gitStatus}
   {subscriptionUsages}

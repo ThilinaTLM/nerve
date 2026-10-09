@@ -14,13 +14,6 @@ export function parseConversationStream(stream: string): string | null {
   return conversationId.length > 0 ? conversationId : null;
 }
 
-const workspaceConversationEvents = new Set([
-  "conversation.created",
-  "conversation.updated",
-  "conversation.deleted",
-  "conversation.imported",
-]);
-
 /**
  * Routes catalog-backed sequenced events to their authoritative durable log.
  * Ephemeral events intentionally have no stream and must use event.notify.
@@ -31,8 +24,6 @@ export function streamForEvent(type: string, payload: unknown): string {
   if (definition.delivery !== "sequenced") {
     throw new Error(`Ephemeral event ${type} does not have a stream`);
   }
-  if (workspaceConversationEvents.has(type)) return WORKSPACE_STREAM;
-
   if (isRecord(payload) && typeof payload.conversationId === "string") {
     return conversationStream(payload.conversationId);
   }
@@ -47,7 +38,9 @@ export function subscriptionStreamForNotification(
   const definition = publicEventDefinition(type);
   if (!definition || definition.delivery !== "ephemeral") return undefined;
   if (
-    type.startsWith("conversation.live.") &&
+    type.startsWith("conversation.") &&
+    definition.scope.includes("conversationId") &&
+    !definition.scope.includes("projectId") &&
     isRecord(payload) &&
     typeof payload.conversationId === "string"
   ) {

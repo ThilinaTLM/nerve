@@ -1,5 +1,4 @@
 <script lang="ts">
-import { conversationSelectors } from "$lib/features/conversations";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
@@ -17,7 +16,9 @@ const status = $derived(workspaceSelectors.status);
 <div class="flex flex-wrap items-center gap-1.5 px-3 pb-1 pt-2">
   <StatusPopover
     connection={workspaceSelectors.connection}
-    live={conversationSelectors.live}
+    live={workspaceSelectors.conversations.some(
+      (row) => row.status === "running",
+    )}
     {status}
     side="bottom"
   />

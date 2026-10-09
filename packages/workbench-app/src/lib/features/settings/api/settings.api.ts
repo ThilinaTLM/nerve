@@ -5,7 +5,7 @@ import type {
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "@nervekit/contracts/settings";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 export type SettingsResponse = Settings;
 export type {
@@ -16,22 +16,21 @@ export type {
 };
 
 export async function getSettings(): Promise<Settings> {
-  return (await protocolRequest("settings.get", {})).result;
+  return await requestWorkbench("settings.get", {});
 }
 
 export async function updateSettings(
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {
-  return (await protocolRequest("settings.update", patch)).result.settings;
+  return (await requestWorkbench("settings.update", patch)).settings;
 }
 
 export async function getApplicationConfiguration(): Promise<ApplicationConfigurationSnapshot> {
-  return (await protocolRequest("applicationConfiguration.get", {})).result;
+  return await requestWorkbench("applicationConfiguration.get", {});
 }
 
 export async function updateApplicationConfiguration(
   patch: UpdateApplicationConfigurationRequest,
 ): Promise<ApplicationConfigurationSnapshot> {
-  return (await protocolRequest("applicationConfiguration.update", patch))
-    .result;
+  return await requestWorkbench("applicationConfiguration.update", patch);
 }

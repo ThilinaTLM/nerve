@@ -1,3 +1,4 @@
+import type { Project } from "@nervekit/contracts/core";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import {
   locateExecutable,
@@ -8,7 +9,6 @@ import type { ExternalTerminalStatus } from "@nervekit/contracts/status";
 import type {
   OpenProjectInTerminalRequest,
   OpenProjectInTerminalResponse,
-  ProjectRecord,
 } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
@@ -59,7 +59,7 @@ export class ProjectTerminalService {
   private status: ExternalTerminalStatus = unavailableStatus();
 
   constructor(
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    private readonly getProject: (projectId: string) => Project,
     options: ProjectTerminalServiceOptions = {},
   ) {
     this.platform = options.platform ?? process.platform;

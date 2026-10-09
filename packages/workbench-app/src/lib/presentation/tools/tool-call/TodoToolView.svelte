@@ -14,6 +14,6 @@ let { toolCall, view }: Props = $props();
 
 {#if view.items.length > 0}
   <TodoChecklist items={view.items} />
-{:else if toolCall.status === "completed"}
+{:else if toolCall.state === "completed"}
   <TodoChecklist items={[]} emptyLabel="No todos." />
 {/if}

@@ -73,7 +73,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     credentialsPath: join(secretsPath, "credentials.enc"),
     localTokenPath: join(secretsPath, "daemon-token"),
     dataPath,
-    sqlitePath: join(dataPath, "nerve.sqlite"),
+    sqlitePath: join(dataPath, "core.sqlite"),
     conversationsPath: join(dataPath, "conversations"),
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),

@@ -7,7 +7,7 @@ import {
   workspaceState,
   type CenterTabIdentity,
 } from "$lib/application/workspace";
-import { openConversation } from "$lib/features/conversations";
+import { openConversation } from "$lib/application/workspace";
 import { settingsSelectors } from "$lib/features/settings";
 import { openTaskTab, taskSelectors } from "$lib/features/tasks";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
@@ -132,10 +132,10 @@ export async function openMobileConversation(
  */
 export async function startMobileConversation(project: {
   id: string;
-  dir: string;
+  directory: string;
 }): Promise<void> {
   await suppressMobileFollower(() => selectProject(project.id));
-  newConversationInProject(project.dir);
+  newConversationInProject(project.directory);
 }
 
 /**

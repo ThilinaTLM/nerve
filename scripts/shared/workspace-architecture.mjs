@@ -5,6 +5,17 @@ const definitions = [
   ["harness", "@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
   ["skills", "@nervekit/skills", ["@nervekit/harness"]],
   ["tools", "@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
+  [
+    "conversation-core",
+    "@nervekit/conversation-core",
+    [
+      "@nervekit/contracts",
+      "@nervekit/native",
+      "@nervekit/harness",
+      "@nervekit/skills",
+      "@nervekit/tools",
+    ],
+  ],
   ["ui-kit", "@nervekit/ui-kit", []],
   ["website", "@nervekit/website", []],
   [
@@ -17,6 +28,7 @@ const definitions = [
       "@nervekit/harness",
       "@nervekit/skills",
       "@nervekit/tools",
+      "@nervekit/conversation-core",
     ],
   ],
   [

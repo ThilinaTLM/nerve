@@ -1,5 +1,5 @@
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
-import { getPermissionPolicyConfiguration } from "$lib/api";
+import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { BUILT_IN_PERMISSION_RULE_SET_SUMMARIES } from "$lib/domain/permissions/rule-set-options";
 
 type CatalogEntry = {
@@ -66,10 +66,20 @@ class PermissionRuleSetCatalog {
       error: undefined,
     };
 
-    const request = getPermissionPolicyConfiguration(projectId)
+    const request = requestConversation("permissionRuleSet.list", {})
       .then((configuration) => {
-        this.install(projectId, configuration.ruleSets);
-        return [...configuration.ruleSets];
+        const summaries = configuration.ruleSets.map(
+          ({ id, name, source, enabled, description }) => ({
+            id,
+            name,
+            source,
+            enabled,
+            description,
+            available: enabled,
+          }),
+        );
+        this.install(projectId, summaries);
+        return summaries;
       })
       .catch((error: unknown) => {
         const entry = this.entries[projectId];

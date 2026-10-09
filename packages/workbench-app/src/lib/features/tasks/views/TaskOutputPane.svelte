@@ -77,9 +77,9 @@ let {
       class="grid min-h-full place-content-center gap-1 text-center text-muted-foreground"
     >
       <Terminal class="mx-auto size-7 text-primary" strokeWidth={1.7} />
-      <p class="mt-1 text-foreground">Task not found.</p>
+      <p class="mt-1 text-foreground">Launch not found.</p>
       <span class="text-xs">
-        The task may have been removed or is no longer available.
+        The launch may have been removed or is no longer available.
       </span>
     </div>
   {/if}

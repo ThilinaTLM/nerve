@@ -4,11 +4,7 @@ import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
 import type { DetailsActionInfo } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { countLogicalLines } from "./tool-view-helpers";
-import {
-  aggregateExploreTasks,
-  COLLAPSED_LINES,
-  type ToolView,
-} from "./tool-result-view";
+import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -82,7 +78,7 @@ export function statusDot(
   tone: StatusTone;
   pulse: boolean;
 } {
-  switch (toolCall.status) {
+  switch (toolCall.state) {
     case "failed":
     case "denied":
       return { tone: "destructive", pulse: false };
@@ -90,10 +86,11 @@ export function statusDot(
       return { tone: "warning", pulse: false };
     case "running":
       return { tone: "info", pulse: true };
-    case "committed":
+    case "ready":
       // Approved but not dispatched: no executing motion.
       return { tone: "info", pulse: false };
-    case "waiting":
+    case "awaiting_approval":
+    case "awaiting_input":
       return { tone: "warning", pulse: true };
     default:
       break;
@@ -102,12 +99,6 @@ export function statusDot(
     (view.kind === "bash" || view.kind === "python") &&
     view.exitCode !== undefined &&
     view.exitCode !== 0
-  ) {
-    return { tone: "destructive", pulse: false };
-  }
-  if (
-    view.kind === "explore" &&
-    aggregateExploreTasks(view).summary.failed > 0
   ) {
     return { tone: "destructive", pulse: false };
   }

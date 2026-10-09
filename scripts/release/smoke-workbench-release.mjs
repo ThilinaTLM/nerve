@@ -124,7 +124,7 @@ try {
   client = new ProtocolClientConnection({
     transport: nodeWebSocketTransportFactory(
       () =>
-        new WebSocket(`ws://127.0.0.1:${port}/ws`, {
+        new WebSocket(`ws://127.0.0.1:${port}/ws/workbench`, {
           headers: { authorization: `Bearer ${token}` },
         }),
     ),
@@ -134,15 +134,11 @@ try {
         createMessage: messages,
         capabilities: [
           "encoding.json",
-          "event.batch",
-          "event.replay",
-          "event.ack.processed",
-          "flow.backpressure",
-          "snapshot.workspace",
+          "event.notify",
           "operation.settings.get",
         ],
-        requiredCapabilities: ["encoding.json", "event.batch"],
-        cursors: () => [{ stream: "local", processedSeq: 0 }],
+        requiredCapabilities: ["encoding.json", "event.notify"],
+        cursors: () => [],
         send,
         onDisconnect,
         applyEvent: () => undefined,

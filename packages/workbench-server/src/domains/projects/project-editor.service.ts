@@ -1,3 +1,4 @@
+import type { Project } from "@nervekit/contracts/core";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
@@ -16,7 +17,6 @@ import type {
   OpenProjectInEditorRequest,
   OpenProjectInEditorResponse,
   ProjectEditor,
-  ProjectRecord,
 } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
@@ -120,7 +120,7 @@ export class ProjectEditorService {
   private statuses: ExternalEditorStatuses = unavailableStatuses();
 
   constructor(
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    private readonly getProject: (projectId: string) => Project,
     options: ProjectEditorServiceOptions = {},
   ) {
     this.spawnCommand =

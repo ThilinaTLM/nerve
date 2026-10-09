@@ -1,77 +1,21 @@
 <script lang="ts">
-import type { AgentRecord } from "$lib/api";
 import {
-  compactActiveConversation,
   ConversationContextPanel,
-  conversationSelectors,
+  retainConversationStore,
+  type ConversationStore,
 } from "$lib/features/conversations";
-import { selectConversationAgent } from "$lib/features/conversations/state/agent-selection.svelte";
-import { agentRowLabel } from "$lib/features/conversations/views/context-agent-rows";
-import {
-  exportUrl,
-  systemPromptUrl,
-  workspaceSelectors,
-} from "$lib/application/workspace";
-import { responsive } from "$lib/app/shell/responsive.svelte";
-import { revealPanelView } from "$lib/app/shell/shell-layout.svelte";
-import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
-import SubagentTranscriptDialog from "$lib/presentation/tools/tool-call/SubagentTranscriptDialog.svelte";
-import { workbenchConversationUiCapabilities } from "../conversations/conversation-capabilities.svelte";
-
-// The transcript dialog renders tool cards that read conversation capabilities.
-setConversationUiCapabilities(workbenchConversationUiCapabilities());
-
-const status = $derived(workspaceSelectors.status);
-const activeProject = $derived(workspaceSelectors.activeProject);
-const activeConversation = $derived(conversationSelectors.activeConversation);
-const activeAgent = $derived(conversationSelectors.activeAgent);
-const conversationAgents = $derived(conversationSelectors.conversationAgents);
-const agentActivities = $derived(workspaceSelectors.agentActivities);
-const compacting = $derived(conversationSelectors.compacting);
-const contextUsage = $derived(conversationSelectors.activeContextUsage);
-const conversationUsage = $derived(
-  conversationSelectors.activeConversationUsage,
-);
-const contextWindow = $derived(conversationSelectors.activeContextWindow);
-
-let transcriptAgent = $state<AgentRecord>();
-let transcriptOpen = $state(false);
-
-function selectAgent(agent: AgentRecord) {
-  void selectConversationAgent(agent);
-  revealPanelView("context", responsive.isCompact);
-}
-
-function openTranscript(agent: AgentRecord) {
-  if (!agent.parentAgentId) return;
-  transcriptAgent = agent;
-  transcriptOpen = true;
-}
+import { selection } from "$lib/application/workspace/selection.svelte";
+let store = $state<ConversationStore>();
+$effect(() => {
+  const id = selection.conversationId;
+  if (!id) {
+    store = undefined;
+    return;
+  }
+  const retained = retainConversationStore(id);
+  store = retained.store;
+  void retained.ready.catch(() => undefined);
+  return retained.release;
+});
 </script>
-
-<ConversationContextPanel
-  {status}
-  {contextUsage}
-  {conversationUsage}
-  {contextWindow}
-  {activeProject}
-  {activeConversation}
-  {activeAgent}
-  {conversationAgents}
-  {agentActivities}
-  {compacting}
-  {exportUrl}
-  {systemPromptUrl}
-  onSelectAgent={selectAgent}
-  onOpenTranscript={openTranscript}
-  onCompact={() => void compactActiveConversation()}
-/>
-
-{#if transcriptAgent}
-  <SubagentTranscriptDialog
-    bind:open={transcriptOpen}
-    parentAgentId={transcriptAgent.parentAgentId}
-    childAgentId={transcriptAgent.id}
-    label={agentRowLabel(transcriptAgent)}
-  />
-{/if}
+<ConversationContextPanel {store} />

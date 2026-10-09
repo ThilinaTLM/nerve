@@ -28,11 +28,11 @@ const inlineCodeIsMultiline = $derived(
         text={view.output}
         direction="tail"
         {expanded}
-        live={toolCall.status === "running"}
+        live={toolCall.state === "running"}
         terminal
       />
     </section>
-  {:else if toolCall.status === "completed"}
+  {:else if toolCall.state === "completed"}
     <section class="grid gap-1" aria-label="Python output">
       <p class="m-0 text-xs text-muted-foreground">No output.</p>
     </section>

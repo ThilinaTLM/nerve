@@ -1,27 +1,30 @@
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import type { CreateTaskDefinitionRequest } from "@nervekit/contracts/task-definitions";
 import type { TaskPortConflictListener } from "@nervekit/contracts/tasks";
-import type { WorkbenchTaskService } from "../tasks/adapters/workbench-task-service.js";
+import type { LaunchService } from "../tasks/application/launch.service.js";
 import { resolveTaskWorkingDirectory } from "../tasks/model/task-working-directory.js";
 import type { TaskDefinitionService } from "./task-definition.service.js";
 
 export class TaskDefinitionOperations {
   constructor(
     private readonly definitions: TaskDefinitionService,
-    private readonly tasks: WorkbenchTaskService,
-    private readonly listProjects: () => ProjectRecord[],
+    private readonly launches: LaunchService,
+    private readonly listProjects: () => Project[],
   ) {}
 
   async create(projectId: string, request: CreateTaskDefinitionRequest) {
     if (request.sourceTaskId) {
-      const source = this.tasks.getTask(request.sourceTaskId);
+      const source = await this.launches.require(request.sourceTaskId);
       if (source.projectId !== projectId)
         throw new Error("Source task does not belong to this project.");
     }
     const definition = await this.definitions.create(projectId, request);
     if (!request.sourceTaskId) return definition;
     try {
-      await this.tasks.associateDefinition(request.sourceTaskId, definition.id);
+      await this.launches.associateDefinition(
+        request.sourceTaskId,
+        definition.id,
+      );
       return definition;
     } catch (error) {
       await this.definitions
@@ -40,15 +43,15 @@ export class TaskDefinitionOperations {
         (item) => item.id === definitionId,
       );
       if (!definition) continue;
-      return this.tasks.launchDefinition({
+      return this.launches.launchDefinition({
         definitionId: definition.id,
         definitionRunPolicy: definition.runPolicy,
         definitionPort: definition.port,
         terminateListeners,
         projectId: project.id,
         cwd: resolveTaskWorkingDirectory(
-          definition.cwd ?? project.dir,
-          project.dir,
+          definition.cwd ?? project.directory,
+          project.directory,
         ),
         command: definition.command,
         displayName: definition.label ?? definition.command,

@@ -1,3 +1,4 @@
+import type { OperationIdempotency } from "@nervekit/contracts/operations";
 import {
   operationDefinition,
   type OperationName,
@@ -101,7 +102,10 @@ export class RpcDispatcher {
         `Operation ${method} does not accept an idempotency key`,
       );
     }
-    if (operation.idempotency === "required" && !idempotencyKey) {
+    if (
+      (operation.idempotency as OperationIdempotency) === "required" &&
+      !idempotencyKey
+    ) {
       return failure(
         "VALIDATION_FAILED",
         `Operation ${method} requires an idempotency key`,

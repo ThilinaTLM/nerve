@@ -6,7 +6,7 @@ import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import { onMount } from "svelte";
 import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
-import { onEvent } from "$lib/application/events/event-bus";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import {
   atlassianHealthBadge,
   atlassianHealthDetail,

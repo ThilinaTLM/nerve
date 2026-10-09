@@ -4,14 +4,14 @@ import {
   type UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts/task-definitions";
 import { createId } from "@nervekit/contracts";
-import { type ProjectRecord } from "@nervekit/contracts/projects";
+import { type Project } from "@nervekit/contracts/core";
 import { ApplicationError } from "../../core/application-error.js";
 import type { TaskDefinitionRepository } from "./task-definition.repository.js";
 
 export class TaskDefinitionService {
   constructor(
     private readonly repository: TaskDefinitionRepository,
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    private readonly getProject: (projectId: string) => Project,
     private readonly publish?: (
       type: string,
       data: Record<string, unknown>,

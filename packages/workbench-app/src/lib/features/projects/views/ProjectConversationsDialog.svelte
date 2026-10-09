@@ -1,9 +1,10 @@
 <script lang="ts">
-import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import {
@@ -16,16 +17,15 @@ import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 type Props = {
   open?: boolean;
   projectLabel?: string;
-  project?: ProjectRecord;
+  project?: Project;
   projectIds?: string[];
-  conversations?: ConversationRecord[];
-  agents?: AgentRecord[];
+  conversations?: ConversationSummary[];
   selectedConversationId?: string;
   openConversationTabIds?: Set<string>;
-  conversationActivityById?: Record<string, ConversationActivityState>;
+  conversationActivityById?: Record<string, ConversationActivity>;
   hideCompleted?: boolean;
   onOpenConversation?: (conversationId: string) => void;
-  buildMenu?: (conversation: ConversationRecord) => ContextMenuItem[];
+  buildMenu?: (conversation: ConversationSummary) => ContextMenuItem[];
   onOpenChange?: (open: boolean) => void;
 };
 
@@ -34,7 +34,6 @@ let {
   projectLabel = "",
   projectIds = [],
   conversations = [],
-  agents = [],
   selectedConversationId,
   openConversationTabIds,
   conversationActivityById = {},
@@ -54,7 +53,6 @@ type ConversationListItem =
 const sections = $derived(
   buildConversationSections({
     conversations,
-    agents,
     projectIds,
     filter,
     hideCompleted,

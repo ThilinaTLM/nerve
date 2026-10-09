@@ -19,6 +19,6 @@ let { toolCall, view, expanded = false }: Props = $props();
     direction="tail"
     {expanded}
   />
-{:else if toolCall.status === "completed"}
+{:else if toolCall.state === "completed"}
   <p class="m-0 text-xs text-muted-foreground">No changes.</p>
 {/if}

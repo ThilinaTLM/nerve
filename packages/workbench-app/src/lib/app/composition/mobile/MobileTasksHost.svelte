@@ -150,7 +150,7 @@ function openSaveRun(entry: TaskRunEntry) {
     source: {
       label: run.displayName ?? run.name,
       command: run.command,
-      cwd: run.cwd === project?.dir ? undefined : run.cwd,
+      cwd: run.cwd === project?.directory ? undefined : run.cwd,
     },
     submit: async (request) => {
       await taskActions.createDefinition({ ...request, sourceTaskId: run.id });
@@ -298,7 +298,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
         {@const name = taskDefinitionLabel(entry)}
         <MobileListRow
           title={name.text}
-          detail={definitionRowDetail(entry, project?.dir)}
+          detail={definitionRowDetail(entry, project?.directory)}
           meta={entry.latestRun
             ? relativeTimeLabel(entry.latestRun.startedAt)
             : undefined}
@@ -371,7 +371,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
       title={form.title}
       submitLabel={form.submitLabel}
       source={form.source}
-      projectDir={project?.dir}
+      projectDir={project?.directory}
       onSubmit={form.submit}
       onClose={() => (form = undefined)}
     />

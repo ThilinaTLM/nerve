@@ -37,9 +37,8 @@ When a useful result overflows and an available readable artifact becomes author
 
 - Projection contracts and profile identifiers: [`packages/contracts/src/domains/tools/tool-agent-projection.ts`](../../packages/contracts/src/domains/tools/tool-agent-projection.ts)
 - Tool policies, profiles, and projection strategies: [`packages/tools/src/result-projection/`](../../packages/tools/src/result-projection/)
-- Host artifact validation, preparation, payload storage, and projection: [`packages/workbench-server/src/domains/tools/artifacts/`](../../packages/workbench-server/src/domains/tools/artifacts/)
+- Result preparation, payload storage and projection in the core: [`tool-result.service.ts`](../../packages/conversation-core/src/tool-calls/tool-result.service.ts) and [`asset-store.ts`](../../packages/conversation-core/src/assets/asset-store.ts)
 - Projection tests: [`packages/tools/test/result-projection/result-projection.test.ts`](../../packages/tools/test/result-projection/result-projection.test.ts)
-- Host trust tests: [`packages/workbench-server/test/domains/tools/tool-result-artifact-validator.test.ts`](../../packages/workbench-server/test/domains/tools/tool-result-artifact-validator.test.ts)
 
 Do not copy the profile inventory, exact budgets, or tool count into this decision record. Those values evolve with the owning catalog and contracts.
 

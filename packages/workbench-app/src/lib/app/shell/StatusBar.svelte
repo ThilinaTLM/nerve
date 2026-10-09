@@ -16,9 +16,9 @@ import {
 import type {
   MaintenanceOperation,
   TaskRecord,
-  ProjectRecord,
   StatusResponse,
 } from "$lib/api";
+import type { Project } from "@nervekit/contracts/core";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import StatusPopover from "./StatusPopover.svelte";
@@ -40,11 +40,11 @@ type GitStatus = {
 };
 
 type Props = {
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   connection?: string;
   live?: boolean;
-  pendingApprovals?: number;
-  onOpenPendingApproval?: () => void;
+  waitingConversations?: number;
+  onOpenWaitingConversation?: () => void;
   tasks?: TaskRecord[];
   gitStatus?: GitStatus;
   subscriptionUsages?: SubscriptionUsageEntry[];
@@ -61,8 +61,8 @@ let {
   activeProject,
   connection = "connecting",
   live = false,
-  pendingApprovals = 0,
-  onOpenPendingApproval,
+  waitingConversations = 0,
+  onOpenWaitingConversation,
   tasks = [],
   gitStatus,
   subscriptionUsages = [],
@@ -81,7 +81,7 @@ const activeTasks = $derived(
   ).length,
 );
 const projectPath = $derived(
-  activeProject ? tildePath(activeProject.dir, homeDir) : "No project",
+  activeProject ? tildePath(activeProject.directory, homeDir) : "No project",
 );
 // Phones have no room for a path, and truncating one from the left hides the
 // part that identifies the project, so show the project name instead.
@@ -115,7 +115,7 @@ function gitStatusTitle(status: GitStatus): string {
   {#snippet left()}
     <span
       class={cn(STATUS_BAR_CHIP, "min-w-0 shrink")}
-      title={activeProject?.dir}
+      title={activeProject?.directory}
     >
       <span class="truncate">{projectLabel}</span>
     </span>
@@ -187,7 +187,7 @@ function gitStatusTitle(status: GitStatus): string {
       </span>
     {/if}
 
-    {#if pendingApprovals > 0}
+    {#if waitingConversations > 0}
       <Button
         variant="ghost"
         size="xs"
@@ -195,12 +195,12 @@ function gitStatusTitle(status: GitStatus): string {
           STATUS_BAR_CHIP_BUTTON,
           "text-warning hover:text-warning focus-visible:text-warning",
         )}
-        ariaLabel={`Open ${pendingApprovals === 1 ? "pending approval" : "pending approvals"}`}
-        title={`${pendingApprovals} ${pendingApprovals === 1 ? "pending approval" : "pending approvals"} · Open conversation`}
-        onclick={() => onOpenPendingApproval?.()}
+        ariaLabel={`Open ${waitingConversations === 1 ? "waiting conversation" : "waiting conversations"}`}
+        title={`${waitingConversations} ${waitingConversations === 1 ? "waiting conversation" : "waiting conversations"} · Open conversation`}
+        onclick={() => onOpenWaitingConversation?.()}
       >
         <TriangleAlert size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{pendingApprovals}</span>
+        <span>{waitingConversations}</span>
       </Button>
     {/if}
   {/snippet}

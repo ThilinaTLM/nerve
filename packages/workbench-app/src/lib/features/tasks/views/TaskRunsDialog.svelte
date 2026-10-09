@@ -71,7 +71,7 @@ function openRun(taskId: string): void {
   bind:open
   size="wide"
   title="Runs"
-  description={`${runs.length} task runs`}
+  description={`${runs.length} launch runs`}
   class="h-[min(40rem,calc(100vh-6rem))]"
   onOpenChange={handleOpenChange}
 >

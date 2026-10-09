@@ -1,5 +1,7 @@
+import type { ConversationUpdate } from "$lib/application/workspace/workspace-actions.svelte";
 import MessageSquarePlus from "@lucide/svelte/icons/message-square-plus";
 import MessageSquareText from "@lucide/svelte/icons/message-square-text";
+import Pencil from "@lucide/svelte/icons/pencil";
 import Copy from "@lucide/svelte/icons/copy";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import Pin from "@lucide/svelte/icons/pin";
@@ -8,18 +10,14 @@ import CircleCheck from "@lucide/svelte/icons/circle-check";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import CircleOff from "@lucide/svelte/icons/circle-off";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type {
-  ConversationRecord,
-  ProjectEditor,
-  ProjectRecord,
-  StatusResponse,
-  UpdateConversationStateRequest,
-} from "$lib/api";
+import type { ProjectEditor, StatusResponse } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
 import { buildExternalLaunchMenu } from "$lib/presentation/brand/external-launch-menu";
 
 export type ProjectTreeMenuContext = {
@@ -32,20 +30,20 @@ export type ProjectTreeMenuContext = {
   onOpenConversation?: (conversationId: string) => void;
   conversationActivity?: (
     conversationId: string,
-  ) => ConversationActivityState | undefined;
+  ) => ConversationActivity | undefined;
   onUpdateConversationState?: (
     conversationId: string,
-    request: UpdateConversationStateRequest,
+    request: ConversationUpdate,
   ) => void;
   onNewConversationInProject?: (projectDir: string) => void;
   onOpenProjectInEditor?: (projectId: string, editor: ProjectEditor) => void;
   onOpenProjectInTerminal?: (projectId: string) => void;
-  requestPrune: (project: ProjectRecord) => void;
   requestDelete: (target: DeleteTarget) => void;
+  requestRename?: (conversation: ConversationSummary) => void;
 };
 
 export function countProjectConversations(
-  conversations: ConversationRecord[],
+  conversations: ConversationSummary[],
   projectId: string,
 ): number {
   return conversations.filter(
@@ -54,7 +52,7 @@ export function countProjectConversations(
 }
 
 export function countAgeEligible(
-  conversations: ConversationRecord[],
+  conversations: ConversationSummary[],
   projectId: string,
   days: number,
 ): number {
@@ -70,7 +68,7 @@ export function countAgeEligible(
 }
 
 export function countCompletedEligible(
-  conversations: ConversationRecord[],
+  conversations: ConversationSummary[],
   projectId: string,
 ): number {
   return conversations.filter(
@@ -80,7 +78,7 @@ export function countCompletedEligible(
 }
 
 export function countKeepEligible(
-  conversations: ConversationRecord[],
+  conversations: ConversationSummary[],
   projectId: string,
   keep: number,
 ): number {
@@ -100,7 +98,7 @@ async function copyToClipboard(text: string, label: string): Promise<void> {
 }
 
 function projectLaunchMenu(
-  project: ProjectRecord,
+  project: Project,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
   return buildExternalLaunchMenu({
@@ -113,7 +111,7 @@ function projectLaunchMenu(
 }
 
 export function buildProjectMenu(
-  project: ProjectRecord,
+  project: Project,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
   const launchItems = projectLaunchMenu(project, ctx);
@@ -122,7 +120,7 @@ export function buildProjectMenu(
       label: "New chat",
       icon: MessageSquarePlus,
       shortcut: ctx.newConversationShortcut,
-      onSelect: () => ctx.onNewConversationInProject?.(project.dir),
+      onSelect: () => ctx.onNewConversationInProject?.(project.directory),
     },
   ];
   if (launchItems.length > 0) {
@@ -133,15 +131,7 @@ export function buildProjectMenu(
     {
       label: "Copy path",
       icon: Copy,
-      onSelect: () => void copyToClipboard(project.dir, "path"),
-    },
-    {
-      label: "Clean up conversations",
-      icon: Trash2,
-      destructive: true,
-      disabled:
-        ctx.maintenanceActive || ctx.conversationCount(project.id) === 0,
-      onSelect: () => ctx.requestPrune(project),
+      onSelect: () => void copyToClipboard(project.directory, "path"),
     },
     {
       label: "Remove project",
@@ -152,7 +142,7 @@ export function buildProjectMenu(
         ctx.requestDelete({
           kind: "project",
           id: project.id,
-          label: shortProjectLabel(project.dir, ctx.homeDir),
+          label: shortProjectLabel(project.directory, ctx.homeDir),
         }),
     },
   );
@@ -160,18 +150,18 @@ export function buildProjectMenu(
 }
 
 export function buildConversationMenu(
-  project: ProjectRecord,
-  conversation: ConversationRecord,
+  project: Project,
+  conversation: ConversationSummary,
   ctx: ProjectTreeMenuContext,
 ): ContextMenuItem[] {
   const activity = ctx.conversationActivity?.(conversation.id);
   const stateItems: ContextMenuItem[] = [
     {
-      label: conversation.pinned ? "Unpin" : "Pin",
-      icon: conversation.pinned ? PinOff : Pin,
+      label: conversation.pinnedAt ? "Unpin" : "Pin",
+      icon: conversation.pinnedAt ? PinOff : Pin,
       onSelect: () =>
         ctx.onUpdateConversationState?.(conversation.id, {
-          pinned: !conversation.pinned,
+          pinned: !conversation.pinnedAt,
         }),
     },
     {
@@ -189,7 +179,7 @@ export function buildConversationMenu(
       icon: CircleOff,
       onSelect: () =>
         ctx.onUpdateConversationState?.(conversation.id, {
-          clearRuntimeStatus: true,
+          clearStatus: true,
         }),
     });
   }
@@ -203,7 +193,13 @@ export function buildConversationMenu(
       label: "New chat",
       icon: MessageSquarePlus,
       shortcut: ctx.newConversationShortcut,
-      onSelect: () => ctx.onNewConversationInProject?.(project.dir),
+      onSelect: () => ctx.onNewConversationInProject?.(project.directory),
+    },
+    {
+      label: "Rename",
+      icon: Pencil,
+      onSelect: () => ctx.requestRename?.(conversation),
+      disabled: !ctx.requestRename,
     },
     { type: "separator" },
     ...stateItems,

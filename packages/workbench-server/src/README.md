@@ -1,17 +1,16 @@
-# Workbench server module ownership
+# Workbench server
 
-The server owns local authority and runtime effects: HTTP/WebSocket adapters, local auth, canonical persistence, host use cases, tasks, tool composition, and run coordination.
+The composition root in `app/bootstrap` combines the portable conversation core
+with environment host ports and workbench services.
 
-- Root `index.ts` and `main.ts` are package entrypoints only.
-- `app/bootstrap/` constructs and hydrates services. `app/runtime/` owns process-lifetime resources, lifecycle, and mutable runtime projections.
-- `adapters/http/` owns middleware, routes, request/response translation, cookies, HTML, and static files.
-- `adapters/protocol/` owns WebSocket dispatch, snapshots, idempotency, the verified operation registry, and thin domain-grouped handlers. Bootstrap binds each handler group to a narrow capability context before combining the verified registry; adapters never receive `RuntimeServices` or process lifecycle ownership.
-- `domains/<area>/` owns business behavior. Large task/tool/run slices use explicit `model`, `application`, `persistence`, `artifacts`, `orchestration`, `execution`, or `adapters` areas.
-- `domains/agents/execution/` owns prompts, harness integration, subagents/explore, approvals, and streaming. It is distinct from durable run lifecycle.
-- `domains/runs/runtime/` owns the port-driven run state machine and may not depend on transports, persistence implementations, UI, or process drivers.
-- `infrastructure/persistence/canonical-sqlite/` is authoritative storage; `persistence/query-cache/` is a disposable read model. `storage-bootstrap/` owns paths, locks, layout, initialization, and file mutations. `migrations/` owns compatibility upgrades.
-- `core/application-error.ts` and `core/ports.ts` remain transport-neutral boundaries.
+- `core-host/` resolves models, resources, permissions, local tools and processes.
+- `conversation-core` owns projects, trusted resources, conversations and history
+  in `data/core.sqlite`. The legacy `data/nerve.sqlite` is never opened by runtime.
+- `domains/tasks/application/launch.service.ts` owns in-memory workbench launches;
+  saved definitions remain project files. Launches are not recovered after restart.
+- `infrastructure/events/` publishes best-effort workbench notices with no durable
+  event log or retained payloads.
+- `infrastructure/core-import/` is the explicit, independent legacy import path.
 
-`RuntimeLifecycle` keeps its service graph private and owns hydration, maintenance, and domain shutdown. `ServerRuntime` exposes process resources, prebuilt adapter contexts, and idempotent disposal; HTTP/WebSocket socket and session teardown remains in `main.ts`.
-
-`ProtocolServerSession` is session authority. `RunCoordinator`, task application services, host tool orchestration, and Git services provide host semantics. Shared schemas stay in `@nervekit/contracts`, protocol lifecycle in `@nervekit/protocol`, agent mechanics in `@nervekit/harness`, and canonical tool execution/security in `@nervekit/tools`.
+`/ws/workbench` serves workbench RPC and ephemeral notices. Conversation channel
+endpoint integration is separate from the removed legacy `/ws` endpoint.

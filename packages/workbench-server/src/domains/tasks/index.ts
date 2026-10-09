@@ -1,10 +1,4 @@
 export { TaskRepository } from "./persistence/task.repository.js";
-export type { TaskLaunchConfigStore } from "./persistence/task-launch-config.store.js";
-export {
-  SecretTaskLaunchConfigStore,
-  taskLaunchConfigSecretName,
-  UnconfiguredTaskLaunchConfigStore,
-} from "./persistence/task-launch-config.store.js";
 export type {
   TaskLogCursor,
   TaskLogStream,
@@ -14,7 +8,6 @@ export {
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
 } from "./application/task-log.service.js";
-export { TaskNotificationService } from "./application/task-notification.service.js";
 export type { TaskPortInspector } from "./adapters/task-port-inspector.js";
 export {
   dedupeListeningPorts,

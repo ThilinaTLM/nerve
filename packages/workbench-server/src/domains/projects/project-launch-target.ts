@@ -1,14 +1,14 @@
 import { realpath, stat } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import { ApplicationError } from "../../core/application-error.js";
 
 export async function resolveProjectLaunchTarget(
-  project: ProjectRecord,
+  project: Project,
   rawPath?: string,
   options: { directory?: boolean } = {},
 ): Promise<string> {
-  const root = await canonicalPath(project.dir, "PROJECT_PATH_NOT_FOUND");
+  const root = await canonicalPath(project.directory, "PROJECT_PATH_NOT_FOUND");
   const normalized = normalizeRelativePath(rawPath);
   const lexicalTarget = normalized
     ? resolve(root, ...normalized.split("/"))

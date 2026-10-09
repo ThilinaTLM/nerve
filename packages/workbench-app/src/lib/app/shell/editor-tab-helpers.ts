@@ -71,8 +71,8 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
   if (tab.kind === "settings") return "Workbench settings";
   if (tab.kind === "logs") return "Nerve application logs";
   if (tab.kind === "discover") return "Discover Nerve";
-  const project = tab.project?.dir
-    ? shortProjectLabel(tab.project.dir, homeDir)
+  const project = tab.project?.directory
+    ? shortProjectLabel(tab.project.directory, homeDir)
     : tab.kind === "pending-conversation"
       ? shortProjectLabel(tab.projectDir, homeDir)
       : "Unknown project";

@@ -1,76 +1,54 @@
 <script lang="ts">
-import type {
-  EditHistoryEntry,
-  HistoryNavigationTarget,
-} from "./history-navigation";
-import type {
-  ConversationEntry,
-  ConversationRecord,
-  ConversationTreeNode,
-  ToolCallTranscriptRecord,
-} from "$lib/api";
-import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
+import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
+import type { ConversationStore } from "../state/core-conversation-store.svelte";
+import type { EventTreeNode } from "@nervekit/contracts/core";
 import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
-
-type Props = {
-  canNavigateToRoot?: boolean;
-  open?: boolean;
-  activeConversation?: ConversationRecord;
-  treeNodes?: ConversationTreeNode[];
-  toolCalls?: ToolCallTranscriptRecord[];
-  onNavigateToEntry?: (entryId: string | null) => void;
-  onEditEntry?: EditHistoryEntry;
-  onOpenChange?: (open: boolean) => void;
-};
-
 let {
-  canNavigateToRoot = false,
   open = $bindable(false),
-  activeConversation,
-  treeNodes = [],
-  toolCalls = [],
-  onNavigateToEntry,
-  onEditEntry,
-  onOpenChange,
-}: Props = $props();
-
-function handleOpenChange(next: boolean) {
-  open = next;
-  onOpenChange?.(next);
-}
-
-function navigateAndClose(entryId: string | null) {
-  onNavigateToEntry?.(entryId);
-  open = false;
-  onOpenChange?.(false);
-}
-
-function editAndClose(
-  entry: ConversationEntry,
-  target: HistoryNavigationTarget,
-) {
-  onEditEntry?.(entry, target);
-  open = false;
-  onOpenChange?.(false);
+  store,
+}: { open?: boolean; store: ConversationStore } = $props();
+let tree = $state<EventTreeNode[]>([]);
+let error = $state<string>();
+$effect(() => {
+  if (!open) return;
+  let current = true;
+  error = undefined;
+  void store
+    .tree()
+    .then((value) => {
+      if (current) tree = value;
+    })
+    .catch((e) => {
+      if (current) error = String(e);
+    });
+  return () => {
+    current = false;
+  };
+});
+async function select(id: string | null) {
+  try {
+    await store.selectHead(id);
+    open = false;
+  } catch (e) {
+    error = e instanceof Error ? e.message : String(e);
+  }
 }
 </script>
-
-<Dialog
-  flush
+<DialogShell
   bind:open
-  size="viewport"
   title="Conversation history"
-  description="Explore branches, inspect message and tool details, then branch from any point."
-  onOpenChange={handleOpenChange}
+  description="Select an event to continue from that branch."
+  class="max-w-5xl"
 >
-  <div data-tour-id="conversation-history" class="h-full min-h-0">
+  <div class="h-96">
     <ConversationHistoryGraph
-      {canNavigateToRoot}
-      {activeConversation}
-      {treeNodes}
-      {toolCalls}
-      onNavigateToEntry={navigateAndClose}
-      onEditEntry={editAndClose}
+      treeNodes={tree}
+      headEventId={store.snapshot?.conversation.headEventId}
+      disabled={Boolean(store.snapshot?.toolCalls.length) ||
+        store.snapshot?.conversation.status === "running" ||
+        store.snapshot?.conversation.status === "waiting"}
+      onSelect={select}
     />
   </div>
-</Dialog>
+  {#if error}<p class="text-xs text-destructive" role="alert">{error}</p>{/if}
+</DialogShell>
