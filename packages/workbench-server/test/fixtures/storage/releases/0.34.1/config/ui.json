@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "appearance": {
+    "theme": "nerve",
+    "colorMode": "system",
+    "zoomLevel": 0
+  },
+  "desktop": {
+    "closeToTray": true,
+    "headerType": "auto"
+  },
+  "notifications": {
+    "systemEnabled": true,
+    "soundsEnabled": true,
+    "events": {
+      "question": "bell",
+      "planReview": "chime",
+      "approval": "bell",
+      "completed": "success",
+      "failed": "alert"
+    }
+  },
+  "transcription": {
+    "model": "gpt-4o-transcribe",
+    "languages": [],
+    "vocabulary": []
+  }
+}
