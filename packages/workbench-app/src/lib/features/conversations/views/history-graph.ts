@@ -290,11 +290,7 @@ export function classifyHistoryEntry(
     const humanLoop =
       INTERACTION_TOOLS.has(toolName) ||
       record?.risk === "interaction" ||
-      Boolean(
-        record?.interactions.some(
-          (interaction) => interaction.kind === "approval",
-        ),
-      );
+      record?.interaction?.kind === "approval";
     if (humanLoop) {
       badges.push({ icon: "hand", label: "human", tone: "warning" });
     }

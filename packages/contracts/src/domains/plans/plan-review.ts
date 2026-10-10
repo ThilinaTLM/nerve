@@ -24,7 +24,6 @@ export const planReviewStatusSchema = z.enum([
 export type PlanReviewStatus = z.infer<typeof planReviewStatusSchema>;
 
 export const planReviewRecordSchema = z.object({
-  id: z.string().startsWith("plan_review_"),
   toolCallId: z.string().startsWith("tool_"),
   agentId: z.string().startsWith("agent_"),
   conversationId: z.string().startsWith("conv_"),

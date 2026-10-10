@@ -37,14 +37,14 @@ type Props = {
   detailsAction?: { label: string; onClick: () => void };
   onOpenFile?: (path: string, line?: number) => void;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
 };
 let {
   toolCall,
@@ -176,7 +176,7 @@ async function acceptSame(options?: PlanReviewResolveOptions) {
   accepting = "same";
   actionError = undefined;
   try {
-    await onAcceptPlanReview(planReview.id, options);
+    await onAcceptPlanReview(planReview.toolCallId, options);
   } catch (error) {
     actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
@@ -197,7 +197,7 @@ async function acceptCompact(options?: PlanReviewResolveOptions) {
   accepting = "compact";
   actionError = undefined;
   try {
-    await onAcceptPlanReview(planReview.id, {
+    await onAcceptPlanReview(planReview.toolCallId, {
       ...options,
       compactBeforeImplementation: true,
     });
@@ -221,7 +221,7 @@ async function acceptNewChat(options?: PlanReviewResolveOptions) {
   accepting = "new-chat";
   actionError = undefined;
   try {
-    await onAcceptPlanReviewInNewChat(planReview.id, options);
+    await onAcceptPlanReviewInNewChat(planReview.toolCallId, options);
   } catch (error) {
     actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
@@ -263,7 +263,7 @@ async function rejectPlan() {
   rejecting = true;
   actionError = undefined;
   try {
-    await onRejectPlanReview(planReview.id);
+    await onRejectPlanReview(planReview.toolCallId);
   } catch (error) {
     actionError = errorMessage(error, "Could not reject the plan.");
   } finally {

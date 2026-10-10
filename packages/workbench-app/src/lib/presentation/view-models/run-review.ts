@@ -3,7 +3,6 @@ import type { ToolCallTranscriptRecord } from "./tool-records";
 import type { ThinkingLevel, ModelSelection } from "@nervekit/contracts/models";
 
 export type ApprovalRecord = {
-  id: string;
   toolCallId: string;
   agentId: string;
   conversationId: string;
@@ -194,7 +193,6 @@ export type ApprovalRecord = {
 };
 
 export type UserQuestionRecord = {
-  id: string;
   toolCallId: string;
   agentId: string;
   conversationId: string;
@@ -206,7 +204,6 @@ export type UserQuestionRecord = {
   context?: string | undefined;
   recommendation?: string | undefined;
   answer?: string | undefined;
-  dismissedReason?: string | undefined;
   resolvedAt?: string | undefined;
 };
 

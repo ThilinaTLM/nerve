@@ -35,17 +35,17 @@ const lastTimelineKey = $derived(
 const pendingApprovals = $derived(
   model.approvals?.filter((approval) => approval.status === "pending") ?? [],
 );
-const pendingApprovalId = $derived(pendingApprovals[0]?.id);
+const pendingApprovalId = $derived(pendingApprovals[0]?.toolCallId);
 const pendingApprovalCount = $derived(pendingApprovals.length);
 const pendingQuestionIds = $derived(
   model.pendingUserQuestions
     ?.filter((question) => question.status === "pending")
-    .map((question) => question.id) ?? [],
+    .map((question) => question.toolCallId) ?? [],
 );
 const pendingPlanReviewIds = $derived(
   model.pendingPlanReviews
     ?.filter((review) => review.status === "pending")
-    .map((review) => review.id) ?? [],
+    .map((review) => review.toolCallId) ?? [],
 );
 const transcriptHasContent = $derived(
   hasTranscriptContent({

@@ -1,9 +1,8 @@
 /** Presentation-owned tool interactions shapes. No runtime schemas. */
 import type { JsonValue } from "./records";
 
-export type ToolCallInteractions = (
+export type ToolCallInteraction =
   | {
-      ordinal: number;
       status: "cancelled" | "pending" | "resolved";
       requestedAt: string;
       updatedAt: string;
@@ -217,7 +216,6 @@ export type ToolCallInteractions = (
         | undefined;
     }
   | {
-      ordinal: number;
       status: "cancelled" | "pending" | "resolved";
       requestedAt: string;
       updatedAt: string;
@@ -241,7 +239,6 @@ export type ToolCallInteractions = (
         | undefined;
     }
   | {
-      ordinal: number;
       status: "cancelled" | "pending" | "resolved";
       requestedAt: string;
       updatedAt: string;
@@ -270,8 +267,7 @@ export type ToolCallInteractions = (
             compactBeforeImplementation?: boolean | undefined;
           }
         | undefined;
-    }
-)[];
+    };
 
 export type ToolPermissionEvaluation =
   | {

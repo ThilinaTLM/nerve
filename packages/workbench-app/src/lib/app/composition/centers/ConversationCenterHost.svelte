@@ -404,24 +404,28 @@ function setComposerPermissionRuleSet(value: string) {
   rememberLastAgentSelection({ permissionRuleSetId: value });
   return configure({ permissionRuleSetId: value });
 }
-async function resolve(id: string, resolution: InteractionResolution) {
-  await store?.resolve(id, resolution);
+async function resolve(toolCallId: string, resolution: InteractionResolution) {
+  await store?.resolve(toolCallId, resolution);
 }
-function answerUserQuestionById(id: string, answer: string) {
-  return resolve(id, { kind: "user_input", answers: { answer } });
+function answerUserQuestion(toolCallId: string, answer: string) {
+  return resolve(toolCallId, { kind: "user_input", answers: { answer } });
 }
-function dismissUserQuestionById(id: string) {
-  return resolve(id, { kind: "user_input", answers: { answer: "" } });
+function dismissUserQuestion(toolCallId: string) {
+  return resolve(toolCallId, {
+    kind: "user_input",
+    answers: {},
+    dismissed: true,
+  });
 }
 function grantApproval(
-  id: string,
+  toolCallId: string,
   scope?:
     | "single_call"
     | "always_conversation"
     | "always_project"
     | "always_user",
 ) {
-  return resolve(id, {
+  return resolve(toolCallId, {
     kind: "approval",
     decision: "approve",
     persistScope:
@@ -434,11 +438,11 @@ function grantApproval(
             : undefined,
   });
 }
-function denyApproval(id: string) {
-  return resolve(id, { kind: "approval", decision: "deny" });
+function denyApproval(toolCallId: string) {
+  return resolve(toolCallId, { kind: "approval", decision: "deny" });
 }
 async function acceptPendingPlanReview(
-  id: string,
+  toolCallId: string,
   options?: PlanReviewResolveOptions,
 ) {
   if (options?.compactBeforeImplementation)
@@ -454,15 +458,15 @@ async function acceptPendingPlanReview(
       ? { reasoningLevel: options.implementationThinkingLevel }
       : {}),
   });
-  await resolve(id, {
+  await resolve(toolCallId, {
     kind: "plan_review",
     decision: "approve",
     feedback: options?.feedback,
   });
 }
 
-function rejectPendingPlanReview(id: string) {
-  return resolve(id, { kind: "plan_review", decision: "reject" });
+function rejectPendingPlanReview(toolCallId: string) {
+  return resolve(toolCallId, { kind: "plan_review", decision: "reject" });
 }
 const continueFromFailure: (runId: string) => Promise<null> | undefined = () =>
   store?.control("continue");
@@ -556,8 +560,8 @@ const teamRunning = $derived(
   onSubmit={() => {
     void runActivePaneAction(submitPrompt);
   }}
-  onAnswerUserQuestion={answerUserQuestionById}
-  onDismissUserQuestion={dismissUserQuestionById}
+  onAnswerUserQuestion={answerUserQuestion}
+  onDismissUserQuestion={dismissUserQuestion}
   onAbort={() => {
     void runActivePaneAction(
       view?.transient?.compaction?.state === "running"
@@ -593,7 +597,7 @@ const teamRunning = $derived(
   onOpenCapabilitySettings={(page) => void openSettingsPane(page)}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
-  onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}
+  onAcceptPlanReview={acceptPendingPlanReview}
   onAcceptPlanReviewInNewChat={undefined}
   onRejectPlanReview={rejectPendingPlanReview}
   onContinueFromFailure={(runId) => {

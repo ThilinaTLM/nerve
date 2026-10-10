@@ -4,6 +4,7 @@ import {
   planReviewRequestSchema,
   userInputRequestSchema,
 } from "@nervekit/contracts/core";
+import type { AskUserResult } from "@nervekit/contracts/tools";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import type { AssetStore } from "../assets/asset-store.js";
 import type { CoreToolHandler } from "./core-tool.js";
@@ -20,6 +21,18 @@ export interface CoreToolHandlerOptions {
     path: string;
     signal: AbortSignal;
   }): Promise<string>;
+}
+
+// The UI sends a single `answer`; any other shape is rendered as `key: value` lines.
+function answerText(
+  answers: Record<string, string | readonly string[]>,
+): string {
+  const join = (value: string | readonly string[]) =>
+    typeof value === "string" ? value : value.join(", ");
+  if (answers.answer !== undefined) return join(answers.answer);
+  return Object.entries(answers)
+    .map(([key, value]) => `${key}: ${join(value)}`)
+    .join("\n");
 }
 
 export function createCoreToolHandlers(
@@ -44,13 +57,20 @@ export function createCoreToolHandlers(
         },
       };
     },
-    async resolve(_call, resolution) {
+    async resolve(call, resolution) {
       if (resolution.kind !== "user_input")
         throw new Error("Expected user-input answer");
-      return {
-        content: JSON.stringify(resolution.answers),
-        details: { answers: resolution.answers },
+      const { question, context, recommendation } =
+        userInputRequestSchema.parse(call.arguments);
+      const result: AskUserResult = {
+        question,
+        context,
+        recommendation,
+        ...(resolution.dismissed
+          ? { dismissed: true }
+          : { response: answerText(resolution.answers) }),
       };
+      return { content: JSON.stringify(result) };
     },
   });
   register("plan_mode_enter", {

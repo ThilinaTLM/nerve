@@ -243,10 +243,8 @@ async function main() {
           throw new Error(`Approval ${command.index} missing`);
         const receipt = await services.toolInteractions.resolve({
           toolCallId: target.id,
-          interactionOrdinal: 0,
-          expectedRevision: target.revision,
           resolutionRequestId: command.requestId,
-          resolution: { kind: "approval", action: "allow" },
+          resolution: { kind: "approval", decision: "approve" },
         });
         send({
           event: "decided",

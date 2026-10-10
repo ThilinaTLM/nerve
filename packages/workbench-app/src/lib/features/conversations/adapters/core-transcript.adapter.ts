@@ -181,17 +181,16 @@ function toolRecord(
       ? "failed"
       : source.payload.outcome;
   const time = open ? source.updatedAt : source.createdAt;
-  const interactions: ToolCallTranscriptRecord["interactions"] = [];
+  let interaction: ToolCallTranscriptRecord["interaction"];
   if (open && source.interaction && !source.interaction.resolution) {
     const i = source.interaction;
     const base = {
-      ordinal: 0,
       status: "pending" as const,
       requestedAt: source.updatedAt,
       updatedAt: source.updatedAt,
     };
     if (i.kind === "approval")
-      interactions.push({
+      interaction = {
         ...base,
         kind: "approval",
         request: {
@@ -209,15 +208,15 @@ function toolRecord(
             return parsed.success ? [parsed.data] : [];
           }),
         },
-      });
+      };
     if (i.kind === "user_input")
-      interactions.push({
+      interaction = {
         ...base,
         kind: "user_input",
         request: { ...i.request, required: true },
-      });
+      };
     if (i.kind === "plan_review")
-      interactions.push({
+      interaction = {
         ...base,
         kind: "plan_review",
         request: {
@@ -227,7 +226,7 @@ function toolRecord(
           slug: source.id,
           allowNewConversation: false,
         },
-      });
+      };
   }
 
   return {
@@ -268,7 +267,7 @@ function toolRecord(
     cwd: snapshot.config.workingDirectory,
     revision: 1,
     attempt: 1,
-    interactions,
+    interaction,
     providerToolCallId: p.providerCallId ?? undefined,
     contentIndex: p.contentIndex ?? undefined,
     turnId: source.turnId ?? undefined,

@@ -24,6 +24,7 @@ export const interactionResolutionSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("user_input"),
     answers: z.record(z.string(), z.union([z.string(), z.array(z.string())])),
+    dismissed: z.literal(true).optional(),
   }),
   z.object({
     kind: z.literal("plan_review"),

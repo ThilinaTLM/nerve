@@ -1,7 +1,7 @@
 import type { ToolView } from "../tools/views/tool-view-types";
 /** Presentation-owned tool records shapes. No runtime schemas. */
 import type {
-  ToolCallInteractions,
+  ToolCallInteraction,
   ToolPermissionEvaluation,
 } from "./tool-interactions";
 
@@ -46,7 +46,7 @@ export type ToolCallRecord = {
     | "denied";
   revision: number;
   attempt: number;
-  interactions: ToolCallInteractions;
+  interaction?: ToolCallInteraction | undefined;
   createdAt: string;
   updatedAt: string;
   sourceToolCallId?: string | undefined;

@@ -69,17 +69,15 @@ type DeriveToolActivitySectionsInput = {
 export function deriveToolLifecycleVisualStage(input: {
   draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
   toolCall?: Pick<ToolCallTranscriptRecord, "status"> &
-    Partial<Pick<ToolCallTranscriptRecord, "interactions">>;
+    Partial<Pick<ToolCallTranscriptRecord, "interaction">>;
   outcomeUnknown?: boolean;
 }): ToolLifecycleVisualStage {
   if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
   if (input.outcomeUnknown) return "outcome_unknown";
   switch (input.toolCall.status) {
     case "waiting":
-      return (input.toolCall.interactions ?? []).some(
-        (interaction) =>
-          interaction.status === "pending" && interaction.kind === "approval",
-      )
+      return input.toolCall.interaction?.status === "pending" &&
+        input.toolCall.interaction.kind === "approval"
         ? "approval"
         : "interaction";
     case "committed":

@@ -460,8 +460,9 @@ export function buildUserProjection(
   result: unknown,
 ): ToolUserProjection {
   let publicResult = withoutProducerArtifactClaims(result);
-  // Core delegation and async bash return JSON text rather than the old details records.
+  // Core delegation, ask_user and async bash return JSON text rather than the old details records.
   if (
+    toolName === "ask_user" ||
     toolName === "explore" ||
     toolName.startsWith("task_") ||
     toolName.startsWith("subagent_")

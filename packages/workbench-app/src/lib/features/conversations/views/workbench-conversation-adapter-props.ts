@@ -82,10 +82,10 @@ export type WorkbenchConversationAdapterProps = {
   onComposerChange?: (value: string) => void;
   onSubmit?: () => void;
   onAnswerUserQuestion?: (
-    questionId: string,
+    toolCallId: string,
     answer: string,
   ) => void | Promise<void>;
-  onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
+  onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onAbort?: () => void;
   onCompact?: () => void;
   onNewConversationInProject?: (
@@ -104,23 +104,23 @@ export type WorkbenchConversationAdapterProps = {
   onOpenPermissionSettings?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;

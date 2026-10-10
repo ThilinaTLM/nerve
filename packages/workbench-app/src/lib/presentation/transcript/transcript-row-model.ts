@@ -115,9 +115,9 @@ export function measurementVersionForRow(
       node.toolCall.status === "failed" || node.toolCall.status === "denied"
         ? "activity-error"
         : "activity-visible",
-      approval ? `${approval.id}:${approval.status}` : "no-approval",
-      question ? `${question.id}:${question.status}` : "no-question",
-      plan ? `${plan.id}:${plan.status}` : "no-plan",
+      approval ? `${approval.toolCallId}:${approval.status}` : "no-approval",
+      question ? `${question.toolCallId}:${question.status}` : "no-question",
+      plan ? `${plan.toolCallId}:${plan.status}` : "no-plan",
       context.outcomeUnknownToolCallIds?.has(toolCallId)
         ? "outcome-unknown"
         : "outcome-known",

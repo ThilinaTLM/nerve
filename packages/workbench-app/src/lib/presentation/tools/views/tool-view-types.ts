@@ -284,7 +284,6 @@ export type ToolView =
       recommendation?: string;
       answer?: string;
       dismissed: boolean;
-      dismissedReason?: string;
     }
   | {
       kind: "todos";

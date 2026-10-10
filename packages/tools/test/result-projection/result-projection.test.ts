@@ -719,6 +719,21 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(output, new RegExp(feedback));
   });
 
+  it("shows ask_user answers and dismissals readably to the agent", () => {
+    const project = (result: object) =>
+      text(
+        projectAgentResult(
+          context("ask_user", { content: JSON.stringify(result) }),
+          agentResultPolicyForTool("ask_user"),
+        ).blocks,
+      );
+    assert.equal(project({ question: "Which?", response: "Blue" }), "Blue");
+    assert.match(
+      project({ question: "Which?", dismissed: true }),
+      /user dismissed the question/,
+    );
+  });
+
   it("distinguishes denial sources and preserves cancellation outcomes", () => {
     const terminal = (
       status: CandidateContext["status"],

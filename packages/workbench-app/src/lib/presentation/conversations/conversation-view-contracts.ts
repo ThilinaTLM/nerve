@@ -179,25 +179,25 @@ export type ConversationPaneActions = {
   onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
-  onDismissUserQuestion?: (id: string) => void | Promise<void>;
+  onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,

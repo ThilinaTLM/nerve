@@ -513,7 +513,6 @@ export function parseToolView(
           data?.recommendation ?? stringField(args.recommendation),
         answer: data?.response,
         dismissed: Boolean(data?.dismissed),
-        dismissedReason: data?.dismissedReason,
       };
     }
 
@@ -616,9 +615,10 @@ export function parseToolView(
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
-      const interactionSummary = toolCall.interactions.find(
-        (interaction) => interaction.kind === "plan_review",
-      )?.request.summary;
+      const interactionSummary =
+        toolCall.interaction?.kind === "plan_review"
+          ? toolCall.interaction.request.summary
+          : undefined;
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
       const outcome =
