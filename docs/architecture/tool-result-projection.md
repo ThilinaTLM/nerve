@@ -70,16 +70,17 @@ A `tool_call_response` event stores the agent projection, the user projection, t
 
 ## Transfer
 
-| What                               | When                                 | Contains                                                          |
-| ---------------------------------- | ------------------------------------ | ----------------------------------------------------------------- |
-| History pages, replay, live events | Always                               | Events with the user projection; the agent projection is left out |
-| `toolCall.getDetails`              | When the user opens a card's details | Agent projection and complete result for one call                 |
+| What                               | When                                       | Contains                                                          |
+| ---------------------------------- | ------------------------------------------ | ----------------------------------------------------------------- |
+| History pages, replay, live events | Always                                     | Events with the user projection; the agent projection is left out |
+| `toolCall.getDetails`              | When the user opens a card's details       | Agent projection and complete result for one call                 |
+| `GET /api/assets/:assetId`         | When a card or details view shows an image | The image bytes                                                   |
 
 Pages are limited by size as well as count, so one large conversation cannot exceed the channel's message limit. An oversized reply fails that request with a clear error; it never ends the session.
 
 ## Images
 
-The model sees an image only when it asked for one: a `read` of an image file, or a tool such as `explain_image`. Nothing attaches images to a request implicitly. The image is stored once as an asset; when the core builds the model request it inlines that asset's bytes into the tool result the model asked for. Transcript cards show a thumbnail loaded from the asset.
+The model sees an image only when it asked for one: a `read` of an image file, or a tool such as `explain_image`. Nothing attaches images to a request implicitly. The image is stored once as an asset; when the core builds the model request it inlines that asset's bytes into the tool result the model asked for. Transcript cards and the details view load images over HTTP from `/api/assets/:assetId`; image bytes never travel inside events or RPC replies.
 
 ## Ownership
 
