@@ -1,5 +1,4 @@
 export type ComposerAvailabilityInput = {
-  executionBlocked?: boolean;
   interactive: boolean;
   hasProject: boolean;
   hasConversation: boolean;

@@ -206,7 +206,7 @@ test("profile IDs are only accepted for profiled tools and empty entries are rej
   );
 });
 
-test("patches equal to the inherited value are pruned field by field", () => {
+test("tool overrides keep whole entries until all fields match the parent", () => {
   const inherited: CapabilitySelection = {
     ...user,
     disabledTools: ["jira"],
@@ -217,7 +217,9 @@ test("patches equal to the inherited value are pruned field by field", () => {
     { tools: { jira: { enabled: true, profileId: "ner" } } },
     inherited,
   );
-  assert.deepEqual(document.tools, { jira: { enabled: true } });
+  assert.deepEqual(document.tools, {
+    jira: { enabled: true, profileId: "ner" },
+  });
 
   const back = applyCapabilityPatch(
     document,

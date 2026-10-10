@@ -1,6 +1,10 @@
 import { createRuntimeFixture } from "../../support/runtime-fixture.js";
 import { serve } from "@hono/node-server";
-import type { ProtocolV1Message } from "@nervekit/contracts/wire";
+import {
+  STREAM_SUBSCRIPTION_CAPABILITY,
+  type ProtocolV1Message,
+} from "@nervekit/contracts/wire";
+import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import { ProtocolCodec, createMessageFactory } from "@nervekit/protocol";
 import assert from "node:assert/strict";
 import type { Server } from "node:http";
@@ -9,7 +13,6 @@ import WebSocket, { WebSocketServer } from "ws";
 import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
-import { PROTOCOL_CAPABILITIES } from "../../../src/adapters/protocol/constants.js";
 import { orchestratorSource } from "../../../src/adapters/protocol/messages.js";
 import {
   installProtocolWebSocketUpgrade,
@@ -68,7 +71,6 @@ async function fixture() {
   const runtimeFixture = createRuntimeFixture(storage, "127.0.0.1", 0);
   const state = runtimeFixture.runtime;
   await state.logger.hydrate();
-  await state.events.hydrate();
   await runtimeFixture.lifecycle.hydrate();
   const server = await new Promise<Server>((resolve) => {
     const started = serve(
@@ -125,10 +127,11 @@ async function fixture() {
   });
   return {
     state,
+    services: runtimeFixture.services,
     sessions,
     token: storage.localToken,
     httpUrl: `http://127.0.0.1:${address.port}`,
-    wsUrl: `ws://127.0.0.1:${address.port}/ws`,
+    wsUrl: `ws://127.0.0.1:${address.port}/ws/workbench`,
   };
 }
 
@@ -182,22 +185,30 @@ async function handshake(
     codec.encode(
       messages("hello", {
         requestedVersion: 1,
-        capabilities: [...PROTOCOL_CAPABILITIES],
-        requiredCapabilities: ["snapshot.workspace"],
+        capabilities: [
+          "encoding.json",
+          "event.notify",
+          STREAM_SUBSCRIPTION_CAPABILITY,
+          ...allOperationDefinitions()
+            .map((definition) => definition.requiredCapability)
+            .filter((value): value is string => Boolean(value)),
+        ],
+        requiredCapabilities: [STREAM_SUBSCRIPTION_CAPABILITY],
         encodings: ["json"],
       }) as ProtocolV1Message,
     ),
   );
   const welcome = await peer.next("welcome");
   assert.equal(welcome.data.acceptingPeer.role, "workbench_server");
-  assert(welcome.data.capabilities.includes("snapshot.workspace"));
+  assert(welcome.data.capabilities.includes(STREAM_SUBSCRIPTION_CAPABILITY));
   return welcome;
 }
 
-async function subscribeWorkspace(
+async function subscribeConversation(
   peer: Awaited<ReturnType<typeof open>>,
   messages: ReturnType<typeof clientMessages>,
   sessionId: string,
+  stream: string,
   processedSeq = 0,
 ) {
   peer.socket.send(
@@ -205,46 +216,27 @@ async function subscribeWorkspace(
       messages("stream.subscription.set", {
         sessionId,
         subscriptionId: `sub_${crypto.randomUUID()}`,
-        streams: [{ stream: "workspace", processedSeq }],
+        streams: [{ stream, processedSeq }],
       }) as ProtocolV1Message,
     ),
   );
   return peer.next("stream.subscription.updated");
 }
 
-function projectCreatedData(id: string) {
-  const now = new Date().toISOString();
-  return {
-    project: {
-      id,
-      name: id,
-      dir: `/tmp/${id}`,
-      createdAt: now,
-      updatedAt: now,
-    },
-  };
-}
-
-test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispatch", async () => {
+test("workbench adapter gates notices until ready and shares HTTP/WS dispatch", async () => {
   const host = await fixture();
   const peer = await open(host.wsUrl, host.token);
   const messages = clientMessages(host.state.daemonId);
   const welcome = await handshake(peer, messages);
-  assert.equal(host.sessions.size, 1);
-
-  const event = await host.state.events.publish(
-    "project.created",
-    projectCreatedData("proj_handshake"),
-  );
+  await host.state.events.publish("daemon.stopped", {
+    daemonId: host.state.daemonId,
+    signal: "SIGTERM",
+  });
   await new Promise((resolve) => setTimeout(resolve, 30));
   assert.equal(
-    peer.messages.some(
-      (message) =>
-        message.kind === "event.batch" || message.kind === "response",
-    ),
+    peer.messages.some((message) => message.kind === "event.notify"),
     false,
   );
-
   peer.socket.send(
     codec.encode(
       messages("ready", {
@@ -252,71 +244,119 @@ test("real adapter gates live/RPC until ready and shares canonical HTTP/WS dispa
       }) as ProtocolV1Message,
     ),
   );
-  const updated = await subscribeWorkspace(
-    peer,
-    messages,
-    welcome.data.sessionId,
-  );
-  assert.equal(updated.data.streams[0]?.mode, "replay");
-  const batch = await peer.next("event.batch");
-  assert.equal(
-    batch.data.events.some((candidate) => candidate.id === event.id),
-    true,
-  );
   const request = messages("request", {
-    method: "snapshot.workspace.get",
+    method: "providerCatalog.get",
     params: {},
   });
   peer.socket.send(codec.encode(request as ProtocolV1Message));
   const response = await peer.next("response");
   assert.equal(response.replyTo, request.id);
-
-  const httpRequest = messages("request", {
-    method: "snapshot.workspace.get",
-    params: {},
+  await host.state.events.publish("daemon.stopped", {
+    daemonId: host.state.daemonId,
+    signal: "SIGTERM",
   });
+  const notice = await peer.next("event.notify");
+  assert.equal(notice.data.events[0]?.type, "daemon.stopped");
+  const headers = {
+    authorization: `Bearer ${host.token}`,
+    "content-type": "application/vnd.nerve.protocol.v1+json",
+  };
   const http = await fetch(`${host.httpUrl}/api/protocol/v1`, {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${host.token}`,
-      "content-type": "application/vnd.nerve.protocol.v1+json",
-    },
-    body: JSON.stringify(httpRequest),
+    headers,
+    body: JSON.stringify(
+      messages("request", { method: "providerCatalog.get", params: {} }),
+    ),
   });
   assert.equal(http.status, 200);
   const httpResponse = codec.decode(await http.text());
   assert.equal(httpResponse.kind, "response");
-  assert.deepEqual(
-    (httpResponse.data.result as { snapshot: unknown }).snapshot,
-    (response.data.result as { snapshot: unknown }).snapshot,
-  );
-
-  const monitorRequest = messages("request", {
-    method: "filesystem.project.monitor.sync",
-    params: { projectId: "proj_session_required", directories: [""] },
-  });
+  assert.deepEqual(httpResponse.data.result, response.data.result);
   const monitorHttp = await fetch(`${host.httpUrl}/api/protocol/v1`, {
     method: "POST",
-    headers: {
-      authorization: `Bearer ${host.token}`,
-      "content-type": "application/vnd.nerve.protocol.v1+json",
-    },
-    body: JSON.stringify(monitorRequest),
+    headers,
+    body: JSON.stringify(
+      messages("request", {
+        method: "filesystem.project.monitor.sync",
+        params: { projectId: "proj_session_required", directories: [""] },
+      }),
+    ),
   });
   assert.equal(monitorHttp.status, 400);
   const monitorError = codec.decode(await monitorHttp.text());
   assert.equal(monitorError.kind, "error");
   assert.equal(monitorError.data.code, "SESSION_REQUIRED");
-  assert.equal(monitorError.data.retryable, false);
-
-  const serverSession = [...host.sessions][0];
-  assert.ok(serverSession);
+  const binding = [...host.sessions][0];
   peer.socket.close();
-  await new Promise<void>((resolve) =>
-    peer.socket.once("close", () => resolve()),
-  );
-  await serverSession.closed;
+  await binding.closed;
   assert.equal(host.sessions.size, 0);
+});
+
+test("conversation adapter replays durable events from the requested cursor", async () => {
+  const host = await fixture();
+  const core = host.services.conversationCore;
+  const project = core.projects.create({
+    name: "Replay fixture",
+    directory: await tempHome("nerve-replay-project-"),
+  });
+  const snapshot = await core.createConversation({
+    id: "conv_replay",
+    projectId: project.id,
+    title: "Replay fixture",
+    config: {
+      model: { provider: "nerve-faux", modelId: "faux-fast" },
+      reasoningLevel: "off",
+      systemPrompt: null,
+      mode: "coding",
+      permissionRuleSetId: "read_only",
+      workingDirectory: project.directory,
+    },
+  });
+  for (const index of [1, 2])
+    host.services.coreStorage.events.append({
+      id: `evt_replay_${index}`,
+      conversationId: snapshot.conversation.id,
+      type: "user_message",
+      llmRepresentation: "user",
+      turnId: null,
+      inputId: null,
+      createdAt: new Date().toISOString(),
+      payload: {
+        text: `Prompt ${index}`,
+        originalText: `Prompt ${index}`,
+        source: "user",
+        senderConversationId: null,
+        commandPreparation: null,
+      },
+    });
+  const peer = await open(
+    host.wsUrl.replace("/workbench", "/conversations"),
+    host.token,
+  );
+  const messages = clientMessages(host.state.daemonId);
+  const welcome = await handshake(peer, messages);
+  peer.socket.send(
+    codec.encode(
+      messages("ready", {
+        sessionId: welcome.data.sessionId,
+      }) as ProtocolV1Message,
+    ),
+  );
+  const updated = await subscribeConversation(
+    peer,
+    messages,
+    welcome.data.sessionId,
+    "conv/conv_replay",
+    1,
+  );
+  assert.equal(updated.data.streams[0]?.mode, "replay");
+  const batch = await peer.next("event.batch");
+  assert.deepEqual(
+    batch.data.events.map((event) => event.seq),
+    [2],
+  );
+  assert.equal(batch.data.events[0]?.type, "conversation.event");
+  assert.equal(batch.data.events[0]?.data.sequence, 2);
 });
 
 test("invalid frames close and dispose the real socket binding", async () => {
@@ -330,10 +370,10 @@ test("invalid frames close and dispose the real socket binding", async () => {
   );
   assert.equal(close.code, 1002);
   assert.equal(host.sessions.size, 0);
-  await host.state.events.publish(
-    "project.created",
-    projectCreatedData("proj_after_close"),
-  );
+  await host.state.events.publish("daemon.stopped", {
+    daemonId: host.state.daemonId,
+    signal: "SIGTERM",
+  });
 });
 
 test("graceful adapter shutdown sends goodbye and closes cleanly", async () => {

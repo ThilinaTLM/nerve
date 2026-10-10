@@ -1,4 +1,5 @@
 import { createId } from "@nervekit/contracts";
+import type { NotifyEvent } from "@nervekit/contracts/events";
 import { type TaskLogEvent, type TaskRecord } from "@nervekit/contracts/tasks";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -10,7 +11,7 @@ import {
   MAX_BUFFERED_LOG_LINE_CHARS,
   TaskLogService,
 } from "../../../src/domains/tasks/application/task-log.service.js";
-import { StreamLogRegistry } from "../../../src/infrastructure/events/index.js";
+import { WorkbenchNoticePublisher } from "../../../src/infrastructure/events/index.js";
 import { PerformanceMetricsCollector } from "../../../src/infrastructure/diagnostics/performance-metrics.js";
 
 const roots: string[] = [];
@@ -23,7 +24,7 @@ after(async () => {
 
 describe("task log service line buffering", () => {
   it("keeps stdout and stderr buffers separate", async () => {
-    const { record, service, cursor, onLog, emitted, metrics } =
+    const { record, service, cursor, onLog, emitted, metrics, notices } =
       await createFixture();
 
     await service.captureOutput(record, cursor, "stdout", "out-", onLog);
@@ -38,6 +39,8 @@ describe("task log service line buffering", () => {
         ["stderr", "err-line"],
       ],
     );
+    assert.ok(notices.length > 0);
+    assert.ok(notices.every((notice) => notice.type === "launch.output"));
     const snapshot = metrics.snapshotAndReset();
     assert.equal(snapshot.metrics["task.outputChunk"]?.count, 4);
     assert.equal(snapshot.metrics["task.outputBytes"]?.count, 18);
@@ -262,6 +265,7 @@ async function createFixture(
   emitted: TaskLogEvent[];
   onLog: (event: TaskLogEvent) => Promise<void>;
   metrics: PerformanceMetricsCollector;
+  notices: NotifyEvent[];
 }> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-log-"));
   roots.push(root);
@@ -283,7 +287,10 @@ async function createFixture(
   };
   const emitted: TaskLogEvent[] = [];
   const metrics = new PerformanceMetricsCollector();
-  const service = new TaskLogService(new StreamLogRegistry(root), {
+  const notices: NotifyEvent[] = [];
+  const publisher = new WorkbenchNoticePublisher();
+  publisher.subscribeNotify((event) => notices.push(event));
+  const service = new TaskLogService(publisher, {
     diagnostics: metrics,
     ...options,
   });
@@ -293,6 +300,7 @@ async function createFixture(
     cursor: createTaskLogCursor(),
     emitted,
     metrics,
+    notices,
     onLog: async (event) => {
       emitted.push(event);
     },

@@ -374,7 +374,7 @@ export class TaskLogService {
     for (const event of events) {
       this.options.diagnostics?.count("task.outputLine");
       if (this.options.publishOutputEvents !== false) {
-        await this.events.publish("task.output", {
+        await this.events.publish("launch.output", {
           taskId: record.id,
           stream: event.stream,
           text: event.line.slice(-16_384),

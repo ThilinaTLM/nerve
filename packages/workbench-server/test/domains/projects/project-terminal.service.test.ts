@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import type { ResolvedExecutable } from "@nervekit/tools/execution";
 import { ProjectTerminalService } from "../../../src/domains/projects/project-terminal.service.js";
 
@@ -15,11 +15,11 @@ function childProcessStub(): ChildProcess {
   return child;
 }
 
-function projectAt(dir: string): ProjectRecord {
+function projectAt(dir: string): Project {
   return {
     id: "proj_terminal",
     name: "Terminal project",
-    dir,
+    directory: dir,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };

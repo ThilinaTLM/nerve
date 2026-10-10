@@ -25,7 +25,8 @@
   },
   "scripts": {
     "build": "tsc -b",
-    "check": "tsc -b --pretty false"
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "@nervekit/contracts": "workspace:*",

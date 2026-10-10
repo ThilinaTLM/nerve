@@ -28,7 +28,7 @@ class MemoryStreams {
 
   append(
     stream: string,
-    type = "project.created",
+    type = "conversation.event",
     data: unknown = {},
   ): EventEnvelope {
     const events = this.streams.get(stream) ?? [];
@@ -301,10 +301,10 @@ describe("subscription-only replay and recovery", () => {
   it("atomically swaps conversation subscriptions", async () => {
     const logs = new MemoryStreams();
     logs.append("workspace");
-    logs.append("conv/conv_one", "conversation.entry.appended", {
+    logs.append("conv/conv_one", "conversation.event", {
       conversationId: "conv_one",
     });
-    logs.append("conv/conv_two", "conversation.entry.appended", {
+    logs.append("conv/conv_two", "conversation.event", {
       conversationId: "conv_two",
     });
     const applied: string[] = [];
@@ -342,7 +342,7 @@ describe("subscription-only replay and recovery", () => {
         batchId: "batch_gap",
         reason: "live",
         events: [
-          { seq: 2, id: "evt_gap", ts, type: "project.created", data: {} },
+          { seq: 2, id: "evt_gap", ts, type: "conversation.event", data: {} },
         ],
         firstSeq: 2,
         lastSeq: 2,
@@ -391,7 +391,7 @@ describe("subscription-only replay and recovery", () => {
     void pair.server.publish(blocker, logs.append(blocker));
     void pair.server.publish(
       conversation,
-      logs.append(conversation, "run.started", {
+      logs.append(conversation, "conversation.event", {
         conversationId: "conv_test",
         agentId: "agent_test",
         projectId: "proj_test",
@@ -402,20 +402,17 @@ describe("subscription-only replay and recovery", () => {
     await sendBlocked.promise;
 
     void pair.server.publish(conversation, logs.append(conversation));
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_tool_output",
       ts,
-      type: "conversation.live.tool_output.delta",
+      type: "conversation.live",
       data: {
         conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        toolCallId: "tool_test",
-        toolName: "Bash",
-        stream: "stdout",
-        offset: 0,
-        delta: "tick 1\n",
+        delta: {
+          type: "tool_progress",
+          toolCallId: "tool_test",
+          update: { stream: "stdout", chunk: "tick 1\n" },
+        },
       },
     });
     releaseSend.resolve();
@@ -437,7 +434,9 @@ describe("subscription-only replay and recovery", () => {
       (message) =>
         message.kind === "event.batch" &&
         message.data.stream === conversation &&
-        message.data.events.some((event) => event.type === "run.started"),
+        message.data.events.some(
+          (event) => event.type === "conversation.event",
+        ),
     );
     const outputIndex = delivered.findIndex(
       (message) => message.kind === "event.notify",
@@ -449,7 +448,7 @@ describe("subscription-only replay and recovery", () => {
   it("replays run state before notifications queued during subscription activation", async () => {
     const logs = new MemoryStreams();
     const conversation = "conv/conv_test";
-    logs.append(conversation, "run.started", {
+    logs.append(conversation, "conversation.event", {
       conversationId: "conv_test",
       agentId: "agent_test",
       projectId: "proj_test",
@@ -484,20 +483,17 @@ describe("subscription-only replay and recovery", () => {
       { stream: conversation, processedSeq: 0 },
     ]);
     await acknowledgementBlocked.promise;
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_tool_output_during_subscription",
       ts,
-      type: "conversation.live.tool_output.delta",
+      type: "conversation.live",
       data: {
         conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        toolCallId: "tool_test",
-        toolName: "explore",
-        stream: "stdout",
-        offset: 0,
-        delta: "progress\n",
+        delta: {
+          type: "tool_progress",
+          toolCallId: "tool_test",
+          update: { stream: "stdout", chunk: "progress\n" },
+        },
       },
     });
     releaseAcknowledgement.resolve();
@@ -505,8 +501,8 @@ describe("subscription-only replay and recovery", () => {
     await pair.server.flush();
 
     assert.deepEqual(deliveryOrder, [
-      "event:run.started",
-      "notify:conversation.live.tool_output.delta",
+      "event:conversation.event",
+      "notify:conversation.live",
     ]);
   });
 
@@ -518,13 +514,13 @@ describe("subscription-only replay and recovery", () => {
     });
     await start(pair);
     await pair.client.subscribe([{ stream: "workspace", processedSeq: 0 }]);
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_notify_1",
       ts,
       type: "usage.subscription.updated",
       data: { provider: "one" },
     });
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_notify_2",
       ts,
       type: "usage.subscription.updated",
@@ -549,14 +545,10 @@ describe("subscription-only replay and recovery", () => {
     const liveTurn: NotifyEvent = {
       id: "evt_live_turn",
       ts,
-      type: "conversation.live.turn.started",
+      type: "conversation.live",
       data: {
         conversationId: "conv_test",
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        turnId: "turn_test",
-        ordinal: 0,
+        delta: { type: "execution_activity", activity: "running" },
       },
     };
     await pair.server.notify(liveTurn);
@@ -580,16 +572,16 @@ describe("subscription-only replay and recovery", () => {
     });
     await start(pair);
     await pair.client.subscribe([{ stream: "workspace", processedSeq: 0 }]);
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_output_1",
       ts,
-      type: "task.output",
+      type: "launch.output",
       data: { taskId: "task_1", stream: "stdout", text: "hello " },
     });
-    void pair.server.notify({
+    await pair.server.notify({
       id: "evt_output_2",
       ts,
-      type: "task.output",
+      type: "launch.output",
       data: { taskId: "task_1", stream: "stdout", text: "world" },
     });
     await pair.server.flush();

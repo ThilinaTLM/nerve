@@ -121,6 +121,7 @@ export class ProtocolServerSession {
         await options.diagnostics?.publish({ type: "heartbeat" });
         await this.shutdown("idle_timeout", "Protocol heartbeat timed out");
       },
+      onError: () => this.dispose(),
     });
     this.#handshakeTimeout = this.#timers.setTimeout(() => {
       if (this.state === "awaiting_hello" || this.state === "awaiting_ready") {

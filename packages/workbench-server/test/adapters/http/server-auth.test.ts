@@ -15,7 +15,7 @@ import type {
   CredentialKeyResponse,
   EncryptedSecretEnvelope,
 } from "@nervekit/contracts/auth";
-import {} from "../../../src/app/runtime/server-runtime.js";
+import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import { createApp } from "../../../src/app/server.js";
 import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -153,7 +153,7 @@ describe("server credential route auth", () => {
       assert.equal(bearerMutation.status, 200);
       assert.equal(await state.auth.getApiKey("groq"), "sk-bearer");
     } finally {
-      state.queryCache.close();
+      await shutdownServerRuntime(state);
     }
   });
 });

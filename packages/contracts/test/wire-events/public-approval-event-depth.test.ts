@@ -2,62 +2,52 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { publicEventDataGuardSchema } from "../../src/events/bounded-public-data.js";
 import { validatePublicEvent } from "../../src/events/catalog.js";
+import { conversationChannelEventSchemas } from "../../src/domains/core/channel.js";
+import { toolCallSchema } from "../../src/domains/core/tool-call.js";
+import { assistantEvent, toolCall } from "./core-event-fixtures.js";
 
-describe("public approval event depth", () => {
-  it("retains conversation revisions on parsed conversation events", () => {
-    const parsed = validatePublicEvent(
-      "run.started",
-      {
-        conversationId: "conv_test",
-        conversationRevision: 7,
-        agentId: "agent_test",
-        projectId: "proj_test",
-        runId: "run_test",
-        startedAt: "2026-08-23T00:00:00.000Z",
-      },
-      "workbench_server",
-    ) as { conversationRevision?: number };
-    assert.equal(parsed.conversationRevision, 7);
+describe("public conversation events", () => {
+  it("retains the durable sequence on parsed conversation events", () => {
+    const event = assistantEvent();
+    const parsed = conversationChannelEventSchemas["conversation.event"].parse(
+      validatePublicEvent("conversation.event", event, "workbench_server"),
+    );
+    assert.equal(parsed.sequence, 7);
   });
-
-  it("retains revisions for strict conversation event payloads", () => {
-    const parsed = validatePublicEvent(
-      "agent.subagent_transcript.run.started",
-      {
-        conversationId: "conv_test",
-        conversationRevision: 8,
-        projectId: "proj_test",
-        parentAgentId: "agent_parent",
-        childAgentId: "agent_child",
-        runId: "run_test",
-        startedAt: "2026-08-23T00:00:00.000Z",
-      },
-      "workbench_server",
-    ) as { conversationRevision?: number };
-    assert.equal(parsed.conversationRevision, 8);
+  it("accepts canonical approval rules on tool-call notices", () => {
+    const call = toolCall();
+    const parsed = conversationChannelEventSchemas[
+      "conversation.toolCall"
+    ].parse(
+      validatePublicEvent(
+        "conversation.toolCall",
+        { conversationId: "conv_test", toolCall: call },
+        "workbench_server",
+      ),
+    );
+    assert.deepEqual(parsed.toolCall, call);
   });
-
-  it("accepts canonical approval rules", () => {
-    const result = publicEventDataGuardSchema.safeParse({
-      conversationId: "conv_test",
-      toolCall: {
-        id: "tool_test",
-        interactions: [
-          {
-            ordinal: 0,
-            kind: "approval",
-            request: {
-              suggestedExceptions: [
-                { tool: "bash", effect: "allow", rule: "pnpm test*" },
-              ],
-            },
-          },
-        ],
-      },
-    });
-    assert.equal(result.success, true);
+  it("requires provider references only for model-origin calls", () => {
+    const call = toolCall();
+    assert.equal(
+      toolCallSchema.safeParse({ ...call, providerCallId: null }).success,
+      false,
+    );
+    assert.equal(
+      toolCallSchema.safeParse({ ...call, origin: "user" }).success,
+      false,
+    );
+    assert.equal(
+      toolCallSchema.safeParse({
+        ...call,
+        origin: "user",
+        providerCallId: null,
+        assistantEventId: null,
+        contentIndex: null,
+      }).success,
+      true,
+    );
   });
-
   it("retains a finite depth ceiling", () => {
     let nested: unknown = "value";
     for (let index = 0; index < 14; index += 1) nested = { child: nested };

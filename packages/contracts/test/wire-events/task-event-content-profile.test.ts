@@ -5,14 +5,14 @@ import {
   PUBLIC_EVENT_MAX_STRING_CHARS,
   validatePublicEvent,
 } from "../../src/events/index.js";
-import { taskEventDefinitions } from "../../src/domains/tasks/events.js";
+import { launchEventDefinitions } from "../../src/domains/tasks/events.js";
 
 function task(command: string) {
   return {
     id: "task_content",
     cwd: "/workspace",
     command,
-    status: "interrupted",
+    status: "failed",
     readiness: { outcome: "pending" },
     stdoutPath: "/tmp/task.stdout",
     stderrPath: "/tmp/task.stderr",
@@ -22,38 +22,19 @@ function task(command: string) {
   };
 }
 
-const runtime = {
-  version: 2,
-  platform: "linux",
-  childPid: 1234,
-  detached: true,
-  shell: true,
-  containment: "process-group",
-  spawnedAt: "2026-10-05T00:00:00.000Z",
-  identity: { kind: "linux", startTimeTicks: 100 },
-  capabilities: { identity: true, processTree: true, listeningPorts: true },
-};
-
-function payload(name: string, command: string) {
-  return {
-    task: task(command),
-    ...(name === "task.orphan_cleanup_succeeded"
-      ? { runtime, signal: "SIGTERM" }
-      : name === "task.cleanup_failed"
-        ? { error: "cleanup unavailable", orphaned: true }
-        : {}),
-  };
+function payload(command: string) {
+  return { task: task(command) };
 }
 
-describe("task event content policy", () => {
+describe("launch event content policy", () => {
   it("preserves long commands across every full-record event", () => {
     // Exceeds both the metadata string cap and its 64 KiB total byte cap.
     const command = "echo " + "x".repeat(70_000);
-    for (const { name } of taskEventDefinitions) {
-      if (["task.output", "task.removed"].includes(name)) continue;
+    for (const { name } of launchEventDefinitions) {
+      if (["launch.output", "launch.removed"].includes(name)) continue;
       const parsed = validatePublicEvent(
         name,
-        payload(name, command),
+        payload(command),
         "workbench_server",
       ) as { task: { command: string } };
       assert.equal(parsed.task.command, command, name);
@@ -63,8 +44,8 @@ describe("task event content policy", () => {
   it("retains the content byte ceiling", () => {
     assert.throws(() =>
       validatePublicEvent(
-        "task.interrupted",
-        payload("task.interrupted", "x".repeat(PUBLIC_EVENT_MAX_CONTENT_BYTES)),
+        "launch.failed",
+        payload("x".repeat(PUBLIC_EVENT_MAX_CONTENT_BYTES)),
         "workbench_server",
       ),
     );
@@ -73,7 +54,7 @@ describe("task event content policy", () => {
   it("retains public-data safety checks", () => {
     assert.throws(() =>
       validatePublicEvent(
-        "task.interrupted",
+        "launch.failed",
         {
           task: {
             ...task("echo safe"),
@@ -88,7 +69,7 @@ describe("task event content policy", () => {
   it("keeps output events on the strict policy", () => {
     assert.throws(() =>
       validatePublicEvent(
-        "task.output",
+        "launch.output",
         {
           taskId: "task_content",
           stream: "stdout",

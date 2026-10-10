@@ -96,22 +96,3 @@ describe("composer availability", () => {
     );
   });
 });
-
-it("unverified history blocks execution without blocking drafting or corrective configuration", () => {
-  for (const sending of [false, true]) {
-    const unavailable = deriveComposerAvailability({
-      ...ready,
-      sending,
-      executionBlocked: true,
-    });
-    assert.equal(unavailable.canEdit, true);
-    assert.equal(unavailable.canConfigureRuntime, true);
-    assert.equal(unavailable.canPrompt, false);
-    assert.equal(unavailable.canSubmit, false);
-    assert.equal(
-      deriveComposerAvailability({ ...ready, sending, executionBlocked: false })
-        .canSubmit,
-      true,
-    );
-  }
-});
