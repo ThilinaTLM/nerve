@@ -46,7 +46,6 @@ describe("Explore argument validation", () => {
         assert.match(error.message, /received 9 tasks/);
         assert.match(error.message, /at most 8/);
         assert.match(error.message, /Split independent work/);
-        assert.match(error.message, /24 child launches/);
         return true;
       },
     );

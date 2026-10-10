@@ -85,6 +85,7 @@ test("contract changes expand through all reverse dependents", () => {
   );
   assert.deepEqual(impact.packages, [
     "@nervekit/contracts",
+    "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
     "@nervekit/harness",
     "@nervekit/protocol",
@@ -135,6 +136,7 @@ test("known operational scripts map to their owning runtime", () => {
   );
   assert.equal(skills.full, false);
   assert.deepEqual(skills.packages, [
+    "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
     "@nervekit/skills",
     "@nervekit/workbench-server",

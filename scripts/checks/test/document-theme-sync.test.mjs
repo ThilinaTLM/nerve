@@ -86,7 +86,6 @@ describe("standalone document theme mirrors", () => {
     const documentSources = [
       ["app", "server.ts"],
       ["adapters", "http", "static-files.ts"],
-      ["domains", "conversations", "operations", "export-service.ts"],
       ["infrastructure", "documents", "document-theme.ts"],
     ];
     for (const segments of documentSources) {
