@@ -261,3 +261,37 @@ void test("free disk check fails before executing; home locks exclude another wr
     await lock.release();
   }
 });
+
+void test("structured progress carries step metadata and logs phase timing and summary", async (t) => {
+  const home = await temporaryHome(t);
+  await baseline(home);
+  const logs: string[] = [];
+  const progress: unknown[] = [];
+  await runMigrations(home, {
+    registry: [
+      entry("0001-example", async (ctx) => {
+        ctx.progress("import", 0, 100, "Importing conversations");
+        ctx.progress("import", 5, 100, "Importing conversations");
+        ctx.progress("import", 10, 100, "Importing conversations");
+      }),
+    ],
+    onLog: (line) => logs.push(line),
+    onProgress: (value) => progress.push(value),
+  });
+  assert.deepEqual(progress[2], {
+    step: "0001-example",
+    description: "0001-example",
+    phase: "import",
+    done: 5,
+    total: 100,
+    label: "Importing conversations",
+  });
+  assert.match(logs[0], /Starting; steps pending: 0001-example/);
+  assert.equal(logs.filter((line) => line.includes(" of 100")).length, 1);
+  assert(
+    logs.some((line) =>
+      /previous: Importing conversations, [\d.]+s/.test(line),
+    ),
+  );
+  assert.match(logs.at(-1)!, /Complete in [\d.]+s/);
+});

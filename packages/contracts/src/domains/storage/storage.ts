@@ -6,6 +6,17 @@ export const daemonStartupProgressSchema = z.object({
   type: z.literal("nerve.startup.progress"),
   phase: z.enum(["storage-check", "storage-migration", "runtime-hydration"]),
   message: z.string().min(1),
+  migration: z
+    .object({
+      step: z.string(),
+      description: z.string(),
+      phase: z.string(),
+      label: z.string().optional(),
+      done: z.number().nonnegative().optional(),
+      total: z.number().nonnegative().optional(),
+    })
+    .optional(),
+  log: z.string().optional(),
 });
 export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 

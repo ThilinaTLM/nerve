@@ -1,4 +1,6 @@
 import { assertProjectedPayload } from "./result-projection.js";
+import { setImmediate } from "node:timers/promises";
+import { rm } from "node:fs/promises";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -38,7 +40,7 @@ const verifiedPath = (ctx: StepContext) =>
   join(ctx.scratchDir, "verified.json");
 const sourcePath = (ctx: StepContext) => `${ctx.paths.sqlitePath}.migrating`;
 
-function preserveBashOutputs(ctx: StepContext): void {
+async function preserveBashOutputs(ctx: StepContext): Promise<void> {
   const storage = new CoreStorage(ctx.paths.sqlitePath, false);
   try {
     for (const row of storage.sqlite
@@ -46,6 +48,7 @@ function preserveBashOutputs(ctx: StepContext): void {
         "SELECT id, conversation_id, async_bash_id, logical_path FROM asset WHERE logical_path LIKE 'tasks/%'",
       )
       .iterate()) {
+      await setImmediate();
       const old = join(ctx.paths.dataPath, String(row.logical_path));
       assert(
         !String(row.logical_path).split("/").includes(".."),
@@ -80,10 +83,10 @@ function* files(path: string): Generator<string> {
     else if (entry.isFile()) yield child;
   }
 }
-function check(
+async function check(
   ctx: StepContext,
   summary: CoreImportSummary,
-): SelectedPathVerification {
+): Promise<SelectedPathVerification> {
   const storage = new CoreStorage(ctx.paths.sqlitePath, false);
   const reader =
     existsSync(sourcePath(ctx)) && !existsSync(verifiedPath(ctx))
@@ -109,8 +112,10 @@ function check(
       createHash("sha256").update(coreSchemaV1).digest("hex"),
       "Core schema checksum mismatch",
     );
-    for (const path of summary.paths)
+    for (const path of summary.paths) {
+      await setImmediate();
       verifySelectedPath({ ...path, reader, storage, summary: selected });
+    }
     assert(
       selected.userMessageMismatches.length === 0 &&
         selected.headMismatches.length === 0 &&
@@ -148,6 +153,7 @@ function check(
     for (const row of storage.sqlite
       .prepare("SELECT event_type AS type, payload FROM conversation_event")
       .iterate()) {
+      if (payloadCount % 100 === 0) await setImmediate();
       const text = String(row.payload),
         payload = JSON.parse(text),
         bytes = Buffer.byteLength(text);
@@ -209,6 +215,7 @@ function check(
     for (const row of storage.sqlite
       .prepare("SELECT id, logical_path, byte_length FROM asset")
       .iterate()) {
+      if (paths.size % 100 === 0) await setImmediate();
       const logical = String(row.logical_path);
       assert(!logical.startsWith("/") && !logical.split("/").includes(".."));
       paths.add(logical);
@@ -232,6 +239,7 @@ function check(
     if (reader) {
       let scanned = 0;
       for (const { data } of reader.documents("conversation")) {
+        await setImmediate();
         assert(/^conv_[A-Za-z0-9_-]+$/.test(data.id));
         for (const path of files(
           join(ctx.paths.conversationsPath, data.id.slice(5), "tool-calls"),
@@ -245,6 +253,7 @@ function check(
             `Untracked source asset: ${path}`,
           );
           scanned++;
+          if (scanned % 100 === 0) await setImmediate();
         }
       }
       assert.equal(
@@ -273,10 +282,13 @@ function check(
     storage.close();
   }
 }
-function cleanup(ctx: StepContext, summary: CoreImportSummary): void {
+async function cleanup(
+  ctx: StepContext,
+  summary: CoreImportSummary,
+): Promise<void> {
   for (const logical of Object.keys(summary.assets.relocatedPayloads)) {
     assert(!isAbsolute(logical) && !logical.split(/[\\/]/).includes(".."));
-    rmSync(join(ctx.paths.dataPath, logical), { force: true });
+    await rm(join(ctx.paths.dataPath, logical), { force: true });
   }
   // All referenced task outputs have verified replacements in conversation storage.
   for (const path of [
@@ -289,11 +301,11 @@ function cleanup(ctx: StepContext, summary: CoreImportSummary): void {
     join(ctx.paths.dataPath, "state.sqlite"),
     join(ctx.paths.dataPath, "core.sqlite"),
   ]) {
-    rmSync(path, { recursive: true, force: true });
+    await rm(path, { recursive: true, force: true });
   }
   for (const name of readdirSync(ctx.paths.migrationsPath)) {
     if (name !== "work" && name !== "last-failure.json")
-      rmSync(join(ctx.paths.migrationsPath, name), {
+      await rm(join(ctx.paths.migrationsPath, name), {
         recursive: true,
         force: true,
       });
@@ -302,10 +314,10 @@ function cleanup(ctx: StepContext, summary: CoreImportSummary): void {
     join(ctx.paths.dataPath, "migrations"),
     join(ctx.paths.home, "migration-journal.json"),
   ])
-    rmSync(path, { recursive: true, force: true });
+    await rm(path, { recursive: true, force: true });
   // Source is last: a crash during cleanup is resumed from the verified checkpoint.
   for (const suffix of ["-wal", "-shm", ""])
-    rmSync(`${sourcePath(ctx)}${suffix}`, { force: true });
+    await rm(`${sourcePath(ctx)}${suffix}`, { force: true });
 }
 
 export default defineStep({
@@ -319,7 +331,13 @@ export default defineStep({
       ctx.log("Resuming verified cleanup");
       return;
     }
-    ctx.progress("rename-source");
+    ctx.progress(
+      "rename-source",
+      undefined,
+      undefined,
+      "Preparing the source database",
+    );
+    await setImmediate();
     const source = sourcePath(ctx),
       original = ctx.paths.sqlitePath;
     const old = existsSync(source) ? source : original;
@@ -362,7 +380,13 @@ export default defineStep({
     }
     for (const suffix of suffixes)
       rmSync(`${original}${suffix}`, { force: true });
-    ctx.progress("configuration");
+    ctx.progress(
+      "configuration",
+      undefined,
+      undefined,
+      "Upgrading configuration",
+    );
+    await setImmediate();
     const conversions = convertConfiguration(ctx.paths.home, ctx.scratchDir);
     ctx.log(`Configuration conversions: ${JSON.stringify(conversions)}`);
     const reader = new LegacyReader(source);
@@ -379,13 +403,22 @@ export default defineStep({
       reader.close();
     }
     let done = 0;
+    ctx.progress("import", 0, total, "Importing conversations");
+    await setImmediate();
     const summary = await importCoreStorage({
       home: ctx.paths.home,
       scratchDir: ctx.scratchDir,
-      progress: () => ctx.progress("import", ++done, total),
+      progress: () =>
+        ctx.progress("import", ++done, total, "Importing conversations"),
     });
-    ctx.progress("preserve-task-outputs");
-    preserveBashOutputs(ctx);
+    ctx.progress(
+      "preserve-task-outputs",
+      undefined,
+      undefined,
+      "Preserving task outputs",
+    );
+    await setImmediate();
+    await preserveBashOutputs(ctx);
     writeJson(summaryPath(ctx), summary);
     ctx.log(
       `Imported: ${JSON.stringify({ counts: summary.counts, overlays: summary.overlays, preferences: summary.preferences, assets: summary.assets, losses: summary.lossyMappings, skipped: summary.skipped })}`,
@@ -393,8 +426,14 @@ export default defineStep({
   },
   async verify(ctx) {
     const summary = readJson(summaryPath(ctx)) as CoreImportSummary;
-    ctx.progress("verify-history-and-assets");
-    const selected = check(ctx, summary);
+    ctx.progress(
+      "verify-history-and-assets",
+      undefined,
+      undefined,
+      "Verifying migrated history",
+    );
+    await setImmediate();
+    const selected = await check(ctx, summary);
     ctx.log(
       `Verified: ${JSON.stringify(selected)}; foreign keys clean; quick_check ok`,
     );
@@ -406,7 +445,13 @@ export default defineStep({
       ctx.paths.manifestPath,
       `${JSON.stringify({ ...manifest, version: 2, homeClass: manifest.homeClass ?? "standard" }, null, 2)}\n`,
     );
-    ctx.progress("delete-legacy");
-    cleanup(ctx, summary);
+    ctx.progress(
+      "delete-legacy",
+      undefined,
+      undefined,
+      "Removing old storage files",
+    );
+    await setImmediate();
+    await cleanup(ctx, summary);
   },
 });

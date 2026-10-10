@@ -2,7 +2,9 @@ import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 
 export interface MigrationProgress {
   step: string;
+  description: string;
   phase: string;
+  label?: string;
   done?: number;
   total?: number;
 }
@@ -10,7 +12,7 @@ export interface MigrationProgress {
 export interface StepContext {
   paths: StoragePaths;
   scratchDir: string;
-  progress(phase: string, done?: number, total?: number): void;
+  progress(phase: string, done?: number, total?: number, label?: string): void;
   log(message: string): void;
 }
 

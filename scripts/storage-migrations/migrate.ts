@@ -28,14 +28,7 @@ try {
     );
     if (!values["dry-run"]) {
       if (plan.fresh) await initializeStorage(home, { startupLock: lock });
-      else
-        await runMigrations(home, {
-          lock,
-          onProgress: ({ step, phase, done, total }) =>
-            console.error(
-              `${step}: ${phase}${done === undefined ? "" : ` ${done}/${total ?? "?"}`}`,
-            ),
-        });
+      else await runMigrations(home, { lock });
     }
     console.log(
       plan.fresh

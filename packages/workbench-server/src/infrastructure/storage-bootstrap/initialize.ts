@@ -102,11 +102,19 @@ export async function initializeStorage(
     const migrationResult = await runMigrations(home, {
       lock: startupLock,
       freshHomeClass: options.freshHomeClass,
-      onProgress: ({ step, phase, done, total }) =>
+      onLog: (log) =>
         options.reportStartupProgress?.({
           type: "nerve.startup.progress",
           phase: "storage-migration",
-          message: `${step}: ${phase}${done === undefined ? "" : ` (${done}/${total ?? "?"})`}`,
+          message: "Upgrading local storage",
+          log,
+        }),
+      onProgress: (migration) =>
+        options.reportStartupProgress?.({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: "Upgrading local storage",
+          migration,
         }),
     });
     const homeInspectionMs = Math.round(

@@ -19,6 +19,7 @@ export async function assertFreeDisk(
 export function createStepContext(
   paths: StoragePaths,
   id: string,
+  description: string,
   onProgress: (progress: MigrationProgress) => void,
 ): { context: StepContext; flushLog(): Promise<void> } {
   const scratchDir = join(paths.migrationWorkPath, id);
@@ -28,8 +29,8 @@ export function createStepContext(
   const context: StepContext = {
     paths,
     scratchDir,
-    progress: (phase, done, total) =>
-      onProgress({ step: id, phase, done, total }),
+    progress: (phase, done, total, label) =>
+      onProgress({ step: id, description, phase, done, total, label }),
     log(message) {
       logging = logging
         .then(async () => {

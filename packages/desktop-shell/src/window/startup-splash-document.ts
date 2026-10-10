@@ -153,6 +153,15 @@ instead of snapping between sentences. */
 #startup-splash-status.is-swapping {
 animation: splash-status-swap 200ms ease-out both;
 }
+#startup-splash-detail {
+margin: 0.375rem 0 0;
+color: var(--splash-muted);
+font-size: 0.75rem;
+line-height: 1.25rem;
+}
+#startup-splash [hidden] {
+display: none;
+}
 #startup-splash-meter {
 width: min(21rem, calc(100vw - 3rem));
 height: 0.25rem;
@@ -264,6 +273,7 @@ export function startupSplashMarkup(statusText: string): string {
 </div>
 <div id="startup-splash-word" aria-hidden="true"><span>n</span><span>e</span><span>r</span><span>v</span><span>e</span></div>
 <p id="startup-splash-status" aria-live="polite">${escapeHtml(statusText)}</p>
+<p id="startup-splash-detail" hidden aria-live="polite"></p>
 <div id="startup-splash-meter" role="progressbar" aria-label="Starting Nerve">
 <span id="startup-splash-fill"></span>
 </div>

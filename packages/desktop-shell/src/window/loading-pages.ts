@@ -63,11 +63,48 @@ ${startupSplashMarkup(status)}
 </html>`;
 }
 
-export function loadingStatusScript(statusText: string): string {
+export function loadingStatusScript(
+  statusText: string,
+  migration?: {
+    label?: string;
+    phase: string;
+    done?: number;
+    total?: number;
+  },
+): string {
+  const known =
+    migration?.done !== undefined &&
+    migration.total !== undefined &&
+    migration.total > 0;
+  const detail = migration
+    ? `${migration.label ?? migration.phase}${known ? ` · ${migration.done} of ${migration.total}` : ""}`
+    : "";
   return `(() => {
     const status = document.getElementById("startup-splash-status");
     if (!status) return false;
-    ${swapStatusText(statusText)}
+    if (status.textContent !== ${JSON.stringify(statusText)}) {
+      ${swapStatusText(statusText)}
+    }
+    const detail = document.getElementById("startup-splash-detail");
+    if (detail) {
+      detail.textContent = ${JSON.stringify(detail)};
+      detail.hidden = ${!migration};
+    }
+    const meter = document.getElementById("startup-splash-meter");
+    const fill = document.getElementById("startup-splash-fill");
+    if (meter && fill) {
+      if (${known}) {
+        meter.setAttribute("aria-valuemin", "0");
+        meter.setAttribute("aria-valuemax", ${JSON.stringify(String(migration?.total ?? 0))});
+        meter.setAttribute("aria-valuenow", ${JSON.stringify(String(migration?.done ?? 0))});
+        fill.style.animation = "none";
+        fill.style.transform = "scaleX(${known ? Math.max(0, Math.min(1, migration!.done! / migration!.total!)) : 0})";
+      } else {
+        meter.removeAttribute("aria-valuenow");
+        fill.style.animation = "";
+        fill.style.transform = "";
+      }
+    }
     return true;
   })()`;
 }
@@ -92,6 +129,7 @@ export function loadingStageScript(stage: LoadingStage): string {
   return `(() => {
     const status = document.getElementById("startup-splash-status");
     if (!status) return false;
+    document.getElementById("startup-splash-detail")?.setAttribute("hidden", "");
     ${swapStatusText(LOADING_STAGES[stage])}${completion}
     return true;
   })()`;

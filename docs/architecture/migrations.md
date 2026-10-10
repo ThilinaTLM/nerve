@@ -38,7 +38,11 @@ export default defineStep({
 });
 ```
 
-The context provides only what every step needs: home `paths`, a per-step `scratchDir` for checkpoints, `progress(phase, done?, total?)` and `log(message)`. Steps use `node:fs/promises` and `node:sqlite` directly.
+The context provides only what every step needs: home `paths`, a per-step `scratchDir` for checkpoints, `progress(...)` and `log(message)`. Steps use `node:fs/promises` and `node:sqlite` directly.
+
+## Progress
+
+A migration can take minutes, so the user must always see what is happening. A step reports each phase with a plain-language label and, when it knows them, a count and total ("Importing conversations", 120 of 393). The desktop splash shows "Upgrading local storage" with that label and count under it, and fills its progress bar while a count is known. The terminal (`pnpm desktop:*`, the daemon log and `pnpm storage:migrate`) logs the start, every phase change with the previous phase's duration, periodic progress during long phases and a final summary or the failure with the path of its report. Long loops yield to the event loop so progress keeps arriving.
 
 Writing a resumable step:
 

@@ -45,24 +45,25 @@ export interface CoreImportSummary {
   };
 }
 
-function loadByConversation(
+async function loadByConversation(
   reader: LegacyReader,
   namespace: string,
-): Map<string, Legacy[]> {
+): Promise<Map<string, Legacy[]>> {
   const result = new Map<string, Legacy[]>();
   for (const { data } of reader.documents(namespace)) {
+    await setImmediate();
     const id = data.conversationId;
     if (id) result.set(id, [...(result.get(id) ?? []), data]);
   }
   return result;
 }
 
-function importTrust(
+async function importTrust(
   reader: LegacyReader,
   mapping: EventMapping,
   home: string,
   scratchDir: string,
-): void {
+): Promise<void> {
   const insert = (namespace: string, data: Legacy, key: string): void => {
     const projectScoped = namespace.startsWith("project-");
     if (!projectScoped) {
@@ -147,8 +148,10 @@ function importTrust(
     "prompt_suggestion_trust",
     "prompt-suggestion-trust",
   ]) {
-    for (const { row, data } of reader.documents(namespace))
+    for (const { row, data } of reader.documents(namespace)) {
+      await setImmediate();
       insert(namespace, data, String(row.document_id));
+    }
   }
   const cachePath = join(home, "cache", "query-cache.sqlite");
   if (!existsSync(cachePath)) return;
@@ -157,12 +160,14 @@ function importTrust(
     if (cache.hasTable("prompt_suggestion_trust"))
       for (const row of cache.db
         .prepare("SELECT trust_id, json FROM prompt_suggestion_trust")
-        .iterate())
+        .iterate()) {
+        await setImmediate();
         insert(
           "prompt_suggestion_trust",
           decode(row.json),
           String(row.trust_id),
         );
+      }
   } finally {
     cache.close();
   }
@@ -201,6 +206,7 @@ export async function importCoreStorage(input: {
       providerResponseEvents: new Map(),
     };
     for (const { data } of reader.documents("project")) {
+      await setImmediate();
       storage.projects.insert(
         projectSchema.parse({
           id: mapping.ids.get("proj", data.id),
@@ -211,7 +217,7 @@ export async function importCoreStorage(input: {
         }),
       );
     }
-    importTrust(reader, mapping, home, input.scratchDir);
+    await importTrust(reader, mapping, home, input.scratchDir);
     preferences = convertDocumentPreferences(reader, storage, home);
     const overlayImporter = new ConversationOverlaysImporter(
       home,
@@ -221,8 +227,10 @@ export async function importCoreStorage(input: {
     );
     overlays = overlayImporter.counts;
     for (const { row, data } of reader.documents("scratch_notes")) {
+      await setImmediate();
       const notes: Legacy[] = Array.isArray(data) ? data : (data.notes ?? []);
       for (const note of notes) {
+        await setImmediate();
         const projectId = mapping.ids.get(
           "proj",
           note.projectId ?? String(row.scope_id),
@@ -253,9 +261,10 @@ export async function importCoreStorage(input: {
           .get()!.count,
       ),
     );
-    const agents = loadByConversation(reader, "agent");
+    const agents = await loadByConversation(reader, "agent");
     const tasks = new Map<string, Legacy[]>();
     for (const { data } of reader.documents("task")) {
+      await setImmediate();
       if (data.origin?.kind !== "agent_tool") {
         report.skip("UI launch task");
         continue;
@@ -278,16 +287,20 @@ export async function importCoreStorage(input: {
       ]);
     }
     const preparations = new Map<string, Legacy>();
-    for (const { data } of reader.documents("agent_input_preparation"))
+    for (const { data } of reader.documents("agent_input_preparation")) {
+      await setImmediate();
       preparations.set(data.inputId, data);
+    }
     const agentsById = new Map(
       [...agents.values()].flat().map((agent) => [agent.id, agent]),
     );
     const inputs = new Map<string, Legacy[]>();
     for (const { row, data } of reader.documents("agent_inputs")) {
+      await setImmediate();
       const agent = agentsById.get(String(row.document_id));
       if (data.paused && agent) agent.activationState = "paused";
       for (const queued of data.inputs ?? []) {
+        await setImmediate();
         queued.importPreparation = preparations.get(queued.id);
         inputs.set(queued.conversationId, [
           ...(inputs.get(queued.conversationId) ?? []),
