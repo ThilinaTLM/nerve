@@ -31,24 +31,24 @@ Each tool has a profile with two budgets: an **inline** budget and an **overflow
 
 Explore is the exception: every requested report is checked separately against the `delegated_reports` budget, and a report that does not fit is replaced by a pointer to its file.
 
-| Profile | Tools | Inline budget | Overflow budget |
-| --- | --- | --- | --- |
-| `source_text` | `read` | 202 lines, 24 KB (200 content lines) | same |
-| `human_response` | `ask_user`, plan review | 202 lines, 24 KB (200 content lines) | same |
-| `process_diagnostics` | `bash`, `python_exec` | 84 lines, 12 KB | 16 lines, 4 KB (8 items of up to 1 KB) |
-| `search_matches` | `grep` | 80 lines, 16 KB | same |
-| `file_listing` | `find`, `ls` | 120 lines, 12 KB, 120 items | same |
-| `search_summaries` | `web_search`, Jira/Confluence search | 120 lines, 12 KB, 10 items | same |
-| `network_prose` | `web_fetch` without a saved page | 120 lines, 16 KB | 12 lines, 3 KB |
-| `primary_file_result` | `web_fetch` with a saved page, `kroki_export`, downloads | 80 lines, 8 KB | 12 lines, 3 KB |
-| `resource_detail` | Jira issue/project/board, Confluence page | 160 lines, 16 KB | same |
-| `mutation_acknowledgement` | `edit`, `write`, plan mode, Jira/Confluence changes | 40 lines, 4 KB | same |
-| `lifecycle_state` | async bash, subagents, todos | 80 lines, 8 KB | same |
-| `task_logs` | `task_logs` | 60 lines, 10 KB, 60 items of up to 512 bytes | same |
-| `delegated_reports` | `explore` (per report) | 60 lines, 6 KB | 12 lines, 3 KB (512-byte items) |
-| `vision_explanation` | `explain_image`, `generate_image` | 100 lines, 12 KB | same |
-| `terminal_outcome` | any failed, denied, cancelled or interrupted call | 40 lines, 4 KB | same |
-| `conservative_fallback` | unknown tools | 200 lines, 24 KB | same |
+| Profile                    | Tools                                                    | Inline budget                                | Overflow budget                        |
+| -------------------------- | -------------------------------------------------------- | -------------------------------------------- | -------------------------------------- |
+| `source_text`              | `read`                                                   | 202 lines, 24 KB (200 content lines)         | same                                   |
+| `human_response`           | `ask_user`, plan review                                  | 202 lines, 24 KB (200 content lines)         | same                                   |
+| `process_diagnostics`      | `bash`, `python_exec`                                    | 84 lines, 12 KB                              | 16 lines, 4 KB (8 items of up to 1 KB) |
+| `search_matches`           | `grep`                                                   | 80 lines, 16 KB                              | same                                   |
+| `file_listing`             | `find`, `ls`                                             | 120 lines, 12 KB, 120 items                  | same                                   |
+| `search_summaries`         | `web_search`, Jira/Confluence search                     | 120 lines, 12 KB, 10 items                   | same                                   |
+| `network_prose`            | `web_fetch` without a saved page                         | 120 lines, 16 KB                             | 12 lines, 3 KB                         |
+| `primary_file_result`      | `web_fetch` with a saved page, `kroki_export`, downloads | 80 lines, 8 KB                               | 12 lines, 3 KB                         |
+| `resource_detail`          | Jira issue/project/board, Confluence page                | 160 lines, 16 KB                             | same                                   |
+| `mutation_acknowledgement` | `edit`, `write`, plan mode, Jira/Confluence changes      | 40 lines, 4 KB                               | same                                   |
+| `lifecycle_state`          | async bash, subagents, todos                             | 80 lines, 8 KB                               | same                                   |
+| `task_logs`                | `task_logs`                                              | 60 lines, 10 KB, 60 items of up to 512 bytes | same                                   |
+| `delegated_reports`        | `explore` (per report)                                   | 60 lines, 6 KB                               | 12 lines, 3 KB (512-byte items)        |
+| `vision_explanation`       | `explain_image`, `generate_image`                        | 100 lines, 12 KB                             | same                                   |
+| `terminal_outcome`         | any failed, denied, cancelled or interrupted call        | 40 lines, 4 KB                               | same                                   |
+| `conservative_fallback`    | unknown tools                                            | 200 lines, 24 KB                             | same                                   |
 
 The numbers live in [`profiles.ts`](../../packages/tools/src/result-projection/profiles.ts) and the tool-to-profile mapping in [`policies/index.ts`](../../packages/tools/src/result-projection/policies/index.ts); update this table when they change.
 

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { toolExecutionResultSchema } from "../tools/tool-results.js";
 import { commandPreparationSchema, systemNoticeSchema } from "./input.js";
 import {
   interactionResolutionSchema,
@@ -40,6 +39,29 @@ export const assistantContentSchema = z.discriminatedUnion("type", [
 export const modelContentSchema = z.array(
   z.discriminatedUnion("type", [textContentSchema, imageContentSchema]),
 );
+export const agentProjectionSchema = z.array(
+  z.discriminatedUnion("type", [
+    textContentSchema,
+    z.object({
+      type: z.literal("image"),
+      assetId: z.string(),
+      mimeType: z.string(),
+    }),
+  ]),
+);
+export const toolUserProjectionSchema = z.object({
+  argsPreview: z.json(),
+  resultPreview: z.json(),
+  previewOverflow: z
+    .object({
+      hidden: z.number().nonnegative(),
+      noun: z.string(),
+      direction: z.enum(["head", "tail", "mixed"]).optional(),
+    })
+    .optional(),
+});
+export type AgentProjection = z.infer<typeof agentProjectionSchema>;
+export type ToolUserProjection = z.infer<typeof toolUserProjectionSchema>;
 export const usageSchema = z.object({
   input: z.number(),
   output: z.number(),
@@ -153,8 +175,8 @@ export const toolCallResponsePayloadSchema = z.object({
   assistantEventId: z.string().nullable(),
   contentIndex: z.number().int().nonnegative().nullable(),
   outcome: toolCallOutcomeSchema,
-  result: toolExecutionResultSchema,
-  modelContent: modelContentSchema,
+  agentProjection: agentProjectionSchema,
+  userProjection: toolUserProjectionSchema,
   supervision: supervisionSchema.nullable(),
   interactionResolution: interactionResolutionSchema.nullable(),
   resolutionRequestId: z.string().nullable(),
@@ -284,3 +306,24 @@ export type LlmRepresentation = z.infer<typeof llmRepresentationSchema>;
 export type ConversationEventType = z.infer<typeof conversationEventTypeSchema>;
 export type ConversationEvent = z.infer<typeof conversationEventSchema>;
 export type EventTreeNode = z.infer<typeof eventTreeNodeSchema>;
+
+export const transferredConversationEventSchema = z.discriminatedUnion("type", [
+  conversationEventSchema.options[0],
+  conversationEventSchema.options[1],
+  conversationEventSchema.options[2],
+  conversationEventSchema.options[4],
+  conversationEventSchema.options[3].extend({
+    payload: toolCallResponsePayloadSchema.omit({ agentProjection: true }),
+  }),
+]);
+export type TransferredConversationEvent = z.infer<
+  typeof transferredConversationEventSchema
+>;
+export function transferConversationEvent(
+  event: ConversationEvent,
+): TransferredConversationEvent {
+  if (event.type !== "tool_call_response") return event;
+  const { agentProjection, ...payload } = event.payload;
+  void agentProjection;
+  return { ...event, payload };
+}

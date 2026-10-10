@@ -22,7 +22,7 @@ export type AgentRecord = {
   projectId: string;
   projectDir: string;
   mode: "planning" | "coding";
-  thinkingLevel:
+  thinkingLevel?:
     | "off"
     | "minimal"
     | "low"

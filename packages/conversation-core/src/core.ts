@@ -1,7 +1,8 @@
+import { toolExecutionResultSchema } from "@nervekit/contracts/tools";
+import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type {
-  ConversationEvent,
   QueuedInput,
   ToolCall,
   ConversationSnapshot,
@@ -171,8 +172,10 @@ export class ConversationCore {
       options.turnResources,
       () => [...this.coreTools.values()].map((handler) => handler.definition),
       emit,
+      this.assets,
     );
     this.runner = new ConversationRunner({
+      assets: this.assets,
       storage: options.storage,
       inputs: this.inputs,
       toolCalls: this.toolCalls,
@@ -237,11 +240,32 @@ export class ConversationCore {
   getHistory(
     id: string,
     page: { beforeEventId?: string; limit: number },
-  ): ConversationEvent[] {
-    return this.options.storage.events.pathFromHead(id, page);
+  ): TransferredConversationEvent[] {
+    return this.options.storage.events.historyPage(id, page);
   }
-  getEventsSince(id: string, sequence: number): ConversationEvent[] {
-    return this.options.storage.events.since(id, sequence);
+  getEventsSince(id: string, sequence: number): TransferredConversationEvent[] {
+    return this.options.storage.events.sincePage(id, sequence);
+  }
+  async getToolCallDetails(conversationId: string, toolCallId: string) {
+    const event = this.options.storage.events.toolResponse(
+      conversationId,
+      toolCallId,
+    );
+    if (!event) throw new Error("Tool call response not found in conversation");
+    const payload = this.options.storage.assets
+      .list(conversationId)
+      .find(
+        (asset) =>
+          asset.toolCallId === toolCallId &&
+          asset.logicalPath.endsWith("/result.json"),
+      );
+    if (!payload) throw new Error("Complete tool result asset not found");
+    return {
+      agentProjection: event.payload.agentProjection,
+      result: toolExecutionResultSchema.parse(
+        JSON.parse((await this.assets.read(payload.id)).toString("utf8")),
+      ),
+    };
   }
   getTree(id: string) {
     return this.options.storage.events.treeNodes(id);

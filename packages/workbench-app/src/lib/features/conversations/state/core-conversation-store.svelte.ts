@@ -1,6 +1,6 @@
 import type {
   ConversationConfig,
-  ConversationEvent,
+  TransferredConversationEvent,
   ConversationSnapshot,
   InteractionResolution,
   LiveDelta,
@@ -29,8 +29,8 @@ const HISTORY_PAGE_SIZE = 100;
 /** One store serves a full pane or a read-only child peek. */
 export class ConversationStore {
   snapshot: ConversationSnapshot | undefined = $state();
-  events: ConversationEvent[] = $state([]);
-  historyEvents: ConversationEvent[] | undefined = $state();
+  events: TransferredConversationEvent[] = $state([]);
+  historyEvents: TransferredConversationEvent[] | undefined = $state();
   liveBlocks = $state<LiveAssistantBlock[]>([]);
   toolOutput = $state<Record<string, string>>({});
   activity = $state<string>();
@@ -44,7 +44,7 @@ export class ConversationStore {
   private refreshing: Promise<void> | undefined;
   private historyRefresh: Promise<void> | undefined;
   private historyDirty = false;
-  private buffered: (ConversationNotice | ConversationEvent)[] = [];
+  private buffered: (ConversationNotice | TransferredConversationEvent)[] = [];
   private readonly unobserve: () => void;
 
   constructor(readonly conversationId: string) {
@@ -148,7 +148,7 @@ export class ConversationStore {
           ),
         ),
       ].sort((a, b) => a.sequence - b.sequence);
-    this.hasOlder = events.length === HISTORY_PAGE_SIZE;
+    this.hasOlder = events.length > 0;
     await this.loadAllHistory();
     this.connected = true;
     this.deleted = false;
@@ -158,7 +158,7 @@ export class ConversationStore {
     );
   }
 
-  private append(event: ConversationEvent): void {
+  private append(event: TransferredConversationEvent): void {
     if (
       this.historyEvents &&
       !this.historyEvents.some((item) => item.id === event.id)
@@ -327,7 +327,7 @@ export class ConversationStore {
               ),
             ),
           ].sort((a, b) => a.sequence - b.sequence);
-        this.hasOlder = events.length === HISTORY_PAGE_SIZE;
+        this.hasOlder = events.length > 0;
         await this.loadAllHistory();
       }
     })().finally(() => {
@@ -365,7 +365,7 @@ export class ConversationStore {
         ...chronological(older).filter((event) => !ids.includes(event.id)),
         ...this.events,
       ];
-      this.hasOlder = older.length === HISTORY_PAGE_SIZE;
+      this.hasOlder = older.length > 0;
     } catch (error) {
       this.error = errorMessage(error);
     } finally {
@@ -436,17 +436,28 @@ export class ConversationStore {
   }
   async loadHistoryTree(): Promise<void> {
     this.historyEvents ??= [...this.events];
-    const events = await requestConversation("conversation.getEventsSince", {
-      conversationId: this.conversationId,
-      sequence: 0,
-    });
-    if (this.disposed) return;
-    const byId = Object.fromEntries(
-      [...events, ...this.historyEvents].map((event) => [event.id, event]),
-    );
-    this.historyEvents = Object.values(byId).sort(
-      (a, b) => a.sequence - b.sequence,
-    );
+    let sequence = 0;
+    while (!this.disposed) {
+      const events = await requestConversation("conversation.getEventsSince", {
+        conversationId: this.conversationId,
+        sequence,
+      });
+      if (this.disposed || events.length === 0) return;
+      const nextSequence = Math.max(...events.map((event) => event.sequence));
+      if (nextSequence <= sequence)
+        throw new Error("History replay did not advance");
+      const byId: Record<string, TransferredConversationEvent> =
+        Object.fromEntries(
+          [...events, ...(this.historyEvents ?? [])].map((event) => [
+            event.id,
+            event,
+          ]),
+        );
+      this.historyEvents = Object.values(byId).sort(
+        (a, b) => a.sequence - b.sequence,
+      );
+      sequence = nextSequence;
+    }
   }
 
   tree() {
@@ -477,7 +488,9 @@ export class ConversationStore {
   }
 }
 
-function chronological(events: ConversationEvent[]): ConversationEvent[] {
+function chronological(
+  events: TransferredConversationEvent[],
+): TransferredConversationEvent[] {
   return [...events].sort((a, b) => a.sequence - b.sequence);
 }
 function errorMessage(error: unknown): string {

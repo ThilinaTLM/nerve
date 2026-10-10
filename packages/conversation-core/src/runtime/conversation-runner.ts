@@ -1,3 +1,5 @@
+import { loadProjectionOptions } from "../context/asset-projection.js";
+import type { AssetStore } from "../assets/asset-store.js";
 import { setTimeout as delay } from "node:timers/promises";
 import { createId } from "@nervekit/contracts";
 import {
@@ -31,6 +33,7 @@ export class ConversationRunner {
   constructor(
     private readonly options: {
       storage: CoreStorage;
+      assets?: AssetStore;
       inputs: InputQueueService;
       toolCalls: ToolCallService;
       models: ModelPort;
@@ -52,9 +55,14 @@ export class ConversationRunner {
       this.options.models.resolve(config.model),
       signal,
     );
+    const path = this.path(id);
+    const projectionOptions = this.options.assets
+      ? await loadProjectionOptions(path, this.options.assets)
+      : {};
     const payload = await abortable(
       runCompaction({
-        path: this.path(id),
+        path,
+        ...projectionOptions,
         ...resolved,
         reasoningLevel: config.reasoningLevel,
         signal,

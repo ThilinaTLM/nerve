@@ -160,6 +160,10 @@ export function createLocalProtocolSession(
     createMessage: messages,
     capabilities: WORKBENCH_CAPABILITIES,
     limits: PROTOCOL_SESSION_LIMITS,
+    onMessageTooLarge: (message) =>
+      state.logger
+        .warn(`Oversized ${message.kind} skipped or resync required`)
+        .catch(() => undefined),
     heartbeat: PROTOCOL_HEARTBEAT,
     sessionId: () => `ses_${crypto.randomUUID()}`,
     send: async (message): Promise<void> => {
@@ -176,6 +180,7 @@ export function createLocalProtocolSession(
   });
   const connection = new ProtocolConnection({
     transport,
+    limits: PROTOCOL_SESSION_LIMITS,
     onMessage: async (message): Promise<void> => {
       workbenchConnection?.receive(message);
       await session.receive(message);

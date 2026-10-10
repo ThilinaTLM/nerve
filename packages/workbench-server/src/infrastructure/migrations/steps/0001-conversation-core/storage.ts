@@ -95,7 +95,10 @@ export class CoreStorage {
   readonly scratchNotes = {
     insert: (row: Legacy) => this.insert("scratch_note", row),
   };
-  readonly assets = { insert: (row: Legacy) => this.insert("asset", row) };
+  readonly assets = {
+    insert: (row: Legacy) => this.insert("asset", row),
+    get: (id: string) => this.get("asset", "id", id),
+  };
   readonly asyncBash = {
     insert: (row: Legacy) => this.insert("async_bash", row),
   };

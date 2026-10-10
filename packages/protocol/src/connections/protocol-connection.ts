@@ -1,4 +1,7 @@
-import type { ProtocolV1Message } from "@nervekit/contracts/wire";
+import type {
+  ProtocolLimits,
+  ProtocolV1Message,
+} from "@nervekit/contracts/wire";
 import { ProtocolCodec, ProtocolDecodeError } from "../transports/codec.js";
 import type { TransportConnection } from "../transports/transport.js";
 
@@ -10,6 +13,7 @@ export interface ProtocolReceiveContext {
 export interface ProtocolConnectionOptions {
   readonly transport: TransportConnection;
   readonly codec?: ProtocolCodec;
+  readonly limits?: Pick<ProtocolLimits, "maxMessageBytes">;
   readonly onMessage: (
     message: ProtocolV1Message,
     context: ProtocolReceiveContext,
@@ -31,11 +35,15 @@ export class ProtocolConnection {
 
   constructor(private readonly options: ProtocolConnectionOptions) {
     this.#transport = options.transport;
-    this.#codec = options.codec ?? new ProtocolCodec();
+    this.#codec = options.codec ?? new ProtocolCodec(options.limits);
     this.#dispose = [
       this.#transport.onMessage((frame) => this.#enqueue(frame)),
       this.#transport.onError((error) => this.#reportError(error)),
     ];
+  }
+
+  setLimits(limits: Pick<ProtocolLimits, "maxMessageBytes">): void {
+    this.#codec.setMaxMessageBytes(limits.maxMessageBytes);
   }
 
   send(message: ProtocolV1Message): void | Promise<void> {

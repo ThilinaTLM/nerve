@@ -30,6 +30,7 @@ export function importConversation(
     conversation,
     agents,
   );
+  mapping.generatedAssets.clear();
   const tools = new Map<string, AssetOwner>();
   const providerTools = new Map<string, string>();
   for (const { row, data } of reader.records(conversation.id, "tool_call")) {
@@ -51,6 +52,9 @@ export function importConversation(
     rootId,
     tools,
     tasks,
+  );
+  mapping.sourceAssets = new Map(
+    assets.map((asset) => [asset.logicalPath, asset]),
   );
   // Metadata only: no message bodies or run transition snapshots accumulate.
   const predecessors = new Map<string, { id: string | null; scope: string }>();
@@ -409,7 +413,7 @@ export function importConversation(
     const preserveSelection = !origin || !cursor;
     if (preserveSelection) scope.head = origin?.eventId ?? null;
     ensureOrigin(scope, call);
-    const payload = responsePayload(mapping, call);
+    const payload = responsePayload(mapping, call, scope.id);
     append(scope, {
       id: mapping.ids.get("evt", `response:${row.id}`),
       type: "tool_call_response",
@@ -437,7 +441,7 @@ export function importConversation(
       error:
         "No durable result existed for this call at migration; its outcome is indeterminate and it was not replayed.",
     };
-    const payload = responsePayload(mapping, call);
+    const payload = responsePayload(mapping, call, scope.id);
     append(scope, {
       id: mapping.ids.get(
         "evt",
@@ -548,5 +552,5 @@ export function importConversation(
       finishedAt: iso(task.finishedAt ?? task.updatedAt),
     });
   }
-  insertAssets(mapping, assets);
+  insertAssets(mapping, [...assets, ...mapping.generatedAssets.values()]);
 }

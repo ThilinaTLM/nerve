@@ -32,7 +32,14 @@ export function createDelegationTools(
     const snapshot = core.getSnapshot(result.conversationId);
     const parentId = snapshot.conversation.parentConversationId;
     if (!parentId) return;
-    const events = core.getEventsSince(result.conversationId, 0);
+    const events: ReturnType<ConversationCore["getEventsSince"]> = [];
+    let sequence = 0;
+    for (;;) {
+      const page = core.getEventsSince(result.conversationId, sequence);
+      if (!page.length) break;
+      events.push(...page);
+      sequence = page[page.length - 1].sequence;
+    }
     const start = events.find((event) => event.id === result.executionId);
     if (!start) return;
     const report = finalAssistantText(core, result);

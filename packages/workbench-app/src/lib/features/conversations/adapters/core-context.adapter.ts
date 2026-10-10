@@ -1,5 +1,5 @@
 import type {
-  ConversationEvent,
+  TransferredConversationEvent,
   ConversationSnapshot,
   ConversationSummary,
   Project,
@@ -35,11 +35,10 @@ export function conversationView(
 export function agentView(
   snapshot: ConversationSnapshot,
   child?: ConversationSummary,
-  events: readonly ConversationEvent[] = [],
-  childSnapshot?: ConversationSnapshot,
+  events: readonly TransferredConversationEvent[] = [],
 ): AgentRecord {
   const c = child ?? snapshot.conversation;
-  const config = childSnapshot?.config ?? snapshot.config;
+  const config = snapshot.config;
   const origin = child?.parentToolCallId
     ? (snapshot.toolCalls.find((call) => call.id === child.parentToolCallId)
         ?.toolName ??
@@ -73,18 +72,16 @@ export function agentView(
     permissionRuleSetId:
       child?.permissionRuleSetId ?? config.permissionRuleSetId,
     model: child?.model ?? config.model,
-    thinkingLevel: child && !childSnapshot ? "off" : config.reasoningLevel,
-    systemPrompt:
-      child && !childSnapshot ? undefined : (config.systemPrompt ?? undefined),
+    thinkingLevel: child ? undefined : config.reasoningLevel,
+    systemPrompt: child ? undefined : (config.systemPrompt ?? undefined),
     createdAt: c.createdAt,
     updatedAt: c.updatedAt,
   };
 }
 export function conversationContext(
   snapshot: ConversationSnapshot,
-  events: readonly ConversationEvent[],
+  events: readonly TransferredConversationEvent[],
   models: readonly ModelInfo[] = [],
-  childSnapshots: Readonly<Record<string, ConversationSnapshot>> = {},
 ) {
   const boundary = events.findLast(
     (e) => e.type === "assistant_message" || e.type === "compaction",
@@ -104,9 +101,7 @@ export function conversationContext(
     : null;
   const conversationAgents = [
     agentView(snapshot),
-    ...snapshot.children.map((child) =>
-      agentView(snapshot, child, events, childSnapshots[child.id]),
-    ),
+    ...snapshot.children.map((child) => agentView(snapshot, child, events)),
   ];
   const agentActivities: Record<string, AgentActivitySnapshot> = {};
   for (const c of [snapshot.conversation, ...snapshot.children])

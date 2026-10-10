@@ -58,8 +58,9 @@ export const conversationEventSchema = shape((value) => {
       }
     }
   } else if (value.type === "tool_call_response") {
-    assert(Array.isArray(payload.modelContent));
-    object(payload.result);
+    assert(Array.isArray(payload.agentProjection));
+    object(payload.userProjection);
+    assert(!("result" in payload) && !("modelContent" in payload));
     assert(
       ["completed", "failed", "denied", "cancelled", "indeterminate"].includes(
         payload.outcome,

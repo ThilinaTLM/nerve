@@ -109,6 +109,7 @@ export class ImportReport {
     oldUserDigests: string[];
   }[] = [];
   readonly missingAssetIds: string[] = [];
+  readonly relocatedPayloads: Record<string, string> = {};
   diskFiles = 0;
   trackedFiles = 0;
   missingFiles = 0;

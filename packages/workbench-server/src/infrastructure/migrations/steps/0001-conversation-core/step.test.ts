@@ -421,3 +421,172 @@ void test("0001 verification failure keeps the source and task bundles; verified
   );
   assert.deepEqual(await readdir(join(home, "migrations/work")), []);
 });
+
+async function addToolResults(
+  home: string,
+): Promise<{ image: string; source: string }> {
+  const image = Buffer.alloc(128 * 1024, 42).toString("base64");
+  const source = "conversations/one/tool-calls/file/result.json";
+  const result = {
+    content: Array.from({ length: 1000 }, (_, i) => `output line ${i}`).join(
+      "\n",
+    ),
+    contentBlocks: [{ type: "image", data: image, mimeType: "image/png" }],
+  };
+  await mkdir(join(home, "data", "conversations/one/tool-calls/file"), {
+    recursive: true,
+  });
+  await writeFile(join(home, "data", source), JSON.stringify({ result }));
+  const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+  try {
+    for (const [index, id] of ["tool_inline", "tool_file"].entries()) {
+      const call = {
+        id,
+        toolName: "read",
+        args: { path: "fixture.png" },
+        status: "completed",
+        settledAt: timestamp,
+        ...(index ? { resultPayload: { logicalPath: source } } : { result }),
+      };
+      db.prepare(
+        "INSERT INTO conversation_records VALUES (?, 'conv_one', 'agent_one', 'tool_call', ?, NULL, NULL, 1, ?)",
+      ).run(id, 10 + index, Buffer.from(JSON.stringify({ toolCall: call })));
+    }
+  } finally {
+    db.close();
+  }
+  return { image, source };
+}
+
+void test("0001 externalizes inline/file results and image blocks, builds bounded previews, and retries without changing source files", async (t) => {
+  const home = await fixture(t),
+    { image, source } = await addToolResults(home);
+  const original = await readFile(join(home, "data", source), "utf8");
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress: ({ phase }) => {
+        if (phase === "preserve-task-outputs")
+          throw new Error("crash after result files");
+      },
+    }),
+    /crash after result files/,
+  );
+  assert.equal(await readFile(join(home, "data", source), "utf8"), original);
+  const logs: string[] = [];
+  const logged = {
+    ...step,
+    async verify(ctx: StepContext) {
+      await step.verify!({ ...ctx, log: (message) => logs.push(message) });
+    },
+  };
+  await runMigrations(home, { registry: [{ ...registry[0], step: logged }] });
+  assert(!existsSync(join(home, "data", source)));
+  const db = new DatabaseSync(join(home, "data/nerve.sqlite"), {
+    readOnly: true,
+  });
+  try {
+    const responses = db
+      .prepare(
+        "SELECT payload FROM conversation_event WHERE event_type='tool_call_response'",
+      )
+      .all();
+    assert.equal(responses.length, 2);
+    for (const row of responses) {
+      const text = String(row.payload),
+        payload = JSON.parse(text);
+      assert(!text.includes(image));
+      assert(!("result" in payload));
+      assert(!("modelContent" in payload));
+      assert(Buffer.byteLength(text) < 16000);
+      assert.equal(payload.agentProjection[0].type, "image");
+      assert.equal(
+        payload.userProjection.resultPreview.contentBlocks[0].assetId,
+        payload.agentProjection[0].assetId,
+      );
+      assert(payload.userProjection.previewOverflow.hidden > 0);
+      const assets = payload.assetIds.map(
+        (id: string) => db.prepare("SELECT * FROM asset WHERE id=?").get(id)!,
+      );
+      const resultAsset = assets.find(
+        (asset: Record<string, unknown>) => asset.category === "payload",
+      )!;
+      const complete = JSON.parse(
+        await readFile(
+          join(home, "data", String(resultAsset.logical_path)),
+          "utf8",
+        ),
+      );
+      assert(complete.content.includes("output line 999"));
+      assert.deepEqual(complete.contentBlocks[0], payload.agentProjection[0]);
+      const imageAsset = assets.find(
+        (asset: Record<string, unknown>) => asset.category === "image",
+      )!;
+      assert.equal(imageAsset.id, payload.agentProjection[0].assetId);
+      assert.deepEqual(
+        await readFile(join(home, "data", String(imageAsset.logical_path))),
+        Buffer.from(image, "base64"),
+      );
+    }
+    assert.equal(
+      db.prepare("SELECT count(*) n FROM asset WHERE category='image'").get()!
+        .n,
+      2,
+    );
+    assert(
+      logs.some(
+        (line) =>
+          line.startsWith("Payload bytes:") &&
+          line.includes('"max":') &&
+          line.includes('"avg":'),
+      ),
+    );
+    t.diagnostic(logs.find((line) => line.startsWith("Payload bytes:"))!);
+  } finally {
+    db.close();
+  }
+});
+
+void test("0001 rejects inline result or base64 image payloads before deleting the legacy source", async (t) => {
+  for (const field of ["result", "image"]) {
+    const home = await fixture(t);
+    await addToolResults(home);
+    await assert.rejects(
+      runMigrations(home, {
+        registry,
+        onProgress: ({ phase }) => {
+          if (phase !== "verify") return;
+          const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+          try {
+            const row = db
+              .prepare(
+                "SELECT id, payload FROM conversation_event WHERE event_type='tool_call_response' LIMIT 1",
+              )
+              .get()!;
+            const payload = JSON.parse(String(row.payload));
+            if (field === "result") payload.result = { content: "forbidden" };
+            else
+              payload.agentProjection.push({
+                type: "image",
+                mimeType: "image/png",
+                data: "Zm9v",
+              });
+            db.prepare(
+              "UPDATE conversation_event SET payload=? WHERE id=?",
+            ).run(JSON.stringify(payload), row.id);
+          } finally {
+            db.close();
+          }
+        },
+      }),
+      /Inline complete result|Inline base64 image/,
+    );
+    assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
+    assert(
+      existsSync(
+        join(home, "data/conversations/one/tool-calls/file/result.json"),
+      ),
+    );
+    await runMigrations(home, { registry });
+  }
+});

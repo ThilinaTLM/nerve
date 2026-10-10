@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toolExecutionResultSchema } from "../tools/tool-results.js";
 import { projectSchema } from "./project.js";
 import {
   trustedResourceSchema,
@@ -9,7 +10,11 @@ import {
   conversationSnapshotSchema,
   conversationSummarySchema,
 } from "./conversation.js";
-import { conversationEventSchema, eventTreeNodeSchema } from "./event.js";
+import {
+  transferredConversationEventSchema,
+  agentProjectionSchema,
+  eventTreeNodeSchema,
+} from "./event.js";
 import { submitInputRequestSchema } from "./input.js";
 import { interactionResolutionSchema } from "./tool-call.js";
 
@@ -100,7 +105,14 @@ export const coreOperationSchemas = {
       beforeEventId: z.string().optional(),
       limit: z.number().int().positive(),
     }),
-    result: z.array(conversationEventSchema),
+    result: z.array(transferredConversationEventSchema),
+  },
+  "toolCall.getDetails": {
+    params: conversationId.extend({ toolCallId: z.string() }),
+    result: z.object({
+      agentProjection: agentProjectionSchema,
+      result: toolExecutionResultSchema,
+    }),
   },
   "conversation.getTree": {
     params: conversationId,
@@ -108,7 +120,7 @@ export const coreOperationSchemas = {
   },
   "conversation.getEventsSince": {
     params: conversationId.extend({ sequence: z.number().int().nonnegative() }),
-    result: z.array(conversationEventSchema),
+    result: z.array(transferredConversationEventSchema),
   },
   "conversation.configure": {
     params: configureConversationRequestSchema,

@@ -291,7 +291,7 @@ export type ToolCallRecord = {
               type: "image";
               mimeType: string;
               byteLength: number;
-              digest: string;
+              digest?: string;
               resultContentBlockIndex: number;
             }
         )[];
@@ -322,7 +322,7 @@ export type ToolCallTranscriptRecord = Omit<
   previewOverflow?: {
     hidden: number;
     noun: string;
-    direction: "head" | "tail" | "mixed";
+    direction?: "head" | "tail" | "mixed";
   };
 };
 

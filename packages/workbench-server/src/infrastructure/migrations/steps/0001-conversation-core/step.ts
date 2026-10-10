@@ -1,3 +1,4 @@
+import { assertProjectedPayload } from "./result-projection.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
@@ -10,7 +11,7 @@ import {
   rmSync,
   statfsSync,
 } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { defineStep, type StepContext } from "../../framework/step.js";
 import {
   importCoreStorage,
@@ -22,7 +23,7 @@ import {
   readJson,
   writeJson,
 } from "./configuration.js";
-import { LegacyReader } from "./legacy.reader.js";
+import { LegacyReader, type Legacy } from "./legacy.reader.js";
 import { CoreStorage } from "./storage.js";
 import { coreSchemaV1 } from "./schema.js";
 import {
@@ -138,6 +139,71 @@ function check(
       "ok",
       "Integrity failure",
     );
+    let payloadCount = 0,
+      payloadTotal = 0,
+      payloadMax = 0,
+      responseCount = 0,
+      responseTotal = 0,
+      responseMax = 0;
+    for (const row of storage.sqlite
+      .prepare("SELECT event_type AS type, payload FROM conversation_event")
+      .iterate()) {
+      const text = String(row.payload),
+        payload = JSON.parse(text),
+        bytes = Buffer.byteLength(text);
+      assertProjectedPayload(payload);
+      payloadCount++;
+      payloadTotal += bytes;
+      payloadMax = Math.max(payloadMax, bytes);
+      if (row.type === "tool_call_response") {
+        assert(
+          !("result" in payload) && !("modelContent" in payload),
+          "Inline complete result in event",
+        );
+        assert(
+          Array.isArray(payload.agentProjection) && payload.userProjection,
+          "Missing projections",
+        );
+        const assets = payload.assetIds.map((id: string) =>
+          storage.assets.get(id),
+        );
+        assert(assets.every(Boolean), "Missing response asset row");
+        const result = assets.find(
+          (asset: Legacy) =>
+            asset.category === "payload" &&
+            asset.logicalPath.endsWith("/result.json"),
+        );
+        assert(result, "Missing complete result asset");
+        const complete = readJson(join(ctx.paths.dataPath, result.logicalPath));
+        assertProjectedPayload(complete);
+        const refs = (value: unknown): void => {
+          if (!value || typeof value !== "object") return;
+          if (Array.isArray(value)) {
+            value.forEach(refs);
+            return;
+          }
+          const record = value as Legacy;
+          if (record.type === "image")
+            assert(
+              assets.some(
+                (asset: Legacy) =>
+                  asset.id === record.assetId && asset.category === "image",
+              ),
+              "Untracked image reference",
+            );
+          Object.values(record).forEach(refs);
+        };
+        refs(payload.agentProjection);
+        refs(payload.userProjection);
+        refs(complete);
+        responseCount++;
+        responseTotal += bytes;
+        responseMax = Math.max(responseMax, bytes);
+      }
+    }
+    ctx.log(
+      `Payload bytes: ${JSON.stringify({ events: { count: payloadCount, max: payloadMax, avg: payloadCount ? payloadTotal / payloadCount : 0 }, toolResponses: { count: responseCount, max: responseMax, avg: responseCount ? responseTotal / responseCount : 0 } })}`,
+    );
     const paths = new Set<string>(),
       missing = new Set(summary.assets.missingAssetIds);
     for (const row of storage.sqlite
@@ -171,7 +237,11 @@ function check(
           join(ctx.paths.conversationsPath, data.id.slice(5), "tool-calls"),
         )) {
           assert(
-            paths.has(relative(ctx.paths.dataPath, path).split("\\").join("/")),
+            paths.has(
+              summary.assets.relocatedPayloads[
+                relative(ctx.paths.dataPath, path).split("\\").join("/")
+              ] ?? relative(ctx.paths.dataPath, path).split("\\").join("/"),
+            ),
             `Untracked source asset: ${path}`,
           );
           scanned++;
@@ -203,7 +273,11 @@ function check(
     storage.close();
   }
 }
-function cleanup(ctx: StepContext): void {
+function cleanup(ctx: StepContext, summary: CoreImportSummary): void {
+  for (const logical of Object.keys(summary.assets.relocatedPayloads)) {
+    assert(!isAbsolute(logical) && !logical.split(/[\\/]/).includes(".."));
+    rmSync(join(ctx.paths.dataPath, logical), { force: true });
+  }
   // All referenced task outputs have verified replacements in conversation storage.
   for (const path of [
     ctx.paths.tasksPath,
@@ -333,6 +407,6 @@ export default defineStep({
       `${JSON.stringify({ ...manifest, version: 2, homeClass: manifest.homeClass ?? "standard" }, null, 2)}\n`,
     );
     ctx.progress("delete-legacy");
-    cleanup(ctx);
+    cleanup(ctx, summary);
   },
 });

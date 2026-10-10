@@ -1,8 +1,8 @@
 import {
   conversationChannelOperations,
   conversationChannelEventSchemas,
-  conversationEventSchema,
-  type ConversationEvent,
+  transferredConversationEventSchema,
+  type TransferredConversationEvent,
 } from "@nervekit/contracts/core";
 import type {
   OperationParams,
@@ -39,7 +39,7 @@ export type ConversationOperation =
 export interface ConversationChannelObserver {
   recover(conversationId?: string): Promise<void>;
   disconnected(): void;
-  event(event: ConversationEvent): void;
+  event(event: TransferredConversationEvent): void;
   notice(notice: ConversationNotice): void;
   unavailable?(conversationId: string): void;
 }
@@ -242,7 +242,7 @@ export async function connectConversationChannel(wsUrl: string): Promise<void> {
         applyEvent: (_stream, envelope) => {
           if (envelope.type !== "conversation.event")
             throw new Error(`Unexpected conversation event: ${envelope.type}`);
-          const event = conversationEventSchema.parse(envelope.data);
+          const event = transferredConversationEventSchema.parse(envelope.data);
           if (
             _stream !== `conv/${event.conversationId}` ||
             envelope.seq !== event.sequence

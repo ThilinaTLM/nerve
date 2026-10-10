@@ -1,3 +1,5 @@
+import type { AssetStore } from "../assets/asset-store.js";
+import { loadProjectionOptions } from "../context/asset-projection.js";
 import { streamSimpleWithModel } from "@nervekit/harness/models";
 import type {
   Conversation,
@@ -23,6 +25,7 @@ export class ModelTurn {
     private readonly resources: TurnResourcesPort,
     private readonly coreDefinitions: () => ToolDefinition[],
     private readonly emit: CoreEmitter,
+    private readonly assets?: AssetStore,
   ) {}
   async run(input: ModelTurnInput) {
     const resolved = await this.models.resolve(input.config.model);
@@ -36,7 +39,12 @@ export class ModelTurn {
       resolved.model,
       {
         systemPrompt: input.config.systemPrompt ?? resources.systemPrompt,
-        messages: buildModelMessages(input.path),
+        messages: buildModelMessages(
+          input.path,
+          this.assets
+            ? await loadProjectionOptions(input.path, this.assets)
+            : {},
+        ),
         tools: [...tools.values()].map(({ name, description, parameters }) => ({
           name,
           description,

@@ -1,4 +1,8 @@
-import type { ConversationEvent, ModelContent } from "@nervekit/contracts/core";
+import type {
+  AgentProjection,
+  ConversationEvent,
+  ModelContent,
+} from "@nervekit/contracts/core";
 import {
   convertToLlm,
   createCompactionSummaryMessage,
@@ -8,6 +12,7 @@ import {
 export type Message = ReturnType<typeof convertToLlm>[number];
 export interface ProjectionOptions {
   /** The host resolves image paths in prompt text; core performs no file I/O. */
+  resolveAgentProjection?: (projection: AgentProjection) => ModelContent;
   resolveUserContent?: (text: string, event: ConversationEvent) => ModelContent;
 }
 export interface ProjectedMessage {
@@ -97,7 +102,7 @@ export function projectModelMessages(
             toolCallId: block.id,
             toolName: block.name,
             content: valid
-              ? response.payload.modelContent
+              ? resolveProjection(response.payload.agentProjection, options)
               : [{ type: "text", text: "Tool call was interrupted" }],
             isError: !valid || response.payload.outcome !== "completed",
             timestamp: valid ? Date.parse(response.createdAt) : timestamp,
@@ -113,7 +118,7 @@ export function projectModelMessages(
           // The durable response's model content includes the command/output framing.
           add(event, {
             role: "user",
-            content: event.payload.modelContent,
+            content: resolveProjection(event.payload.agentProjection, options),
             timestamp,
           });
         }
@@ -148,4 +153,17 @@ export function buildModelMessages(
   options: ProjectionOptions = {},
 ): Message[] {
   return projectModelMessages(path, options).map(({ message }) => message);
+}
+
+function resolveProjection(
+  projection: AgentProjection,
+  options: ProjectionOptions,
+): ModelContent {
+  if (options.resolveAgentProjection)
+    return options.resolveAgentProjection(projection);
+  return projection.map((block) =>
+    block.type === "text"
+      ? block
+      : { type: "text", text: `[Image asset: ${block.assetId}]` },
+  );
 }

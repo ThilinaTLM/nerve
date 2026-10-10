@@ -1,22 +1,21 @@
 import { type AgentRecord } from "$lib/presentation/view-models/conversation";
 import { type ModelInfo, thinkingLevels } from "@nervekit/contracts/models";
 
-export const THINKING_LEVEL_ORDER: AgentRecord["thinkingLevel"][] = [
-  ...thinkingLevels,
-];
+export const THINKING_LEVEL_ORDER: NonNullable<AgentRecord["thinkingLevel"]>[] =
+  [...thinkingLevels];
 
 export function supportedThinkingLevelsForModel(
   model: ModelInfo | undefined,
-): AgentRecord["thinkingLevel"][] {
+): NonNullable<AgentRecord["thinkingLevel"]>[] {
   return model?.supportedThinkingLevels?.length
     ? model.supportedThinkingLevels
     : ["off"];
 }
 
 export function clampThinkingLevelForModel(
-  level: AgentRecord["thinkingLevel"],
+  level: NonNullable<AgentRecord["thinkingLevel"]>,
   model: ModelInfo | undefined,
-): AgentRecord["thinkingLevel"] {
+): NonNullable<AgentRecord["thinkingLevel"]> {
   const supported = supportedThinkingLevelsForModel(model);
   if (supported.includes(level)) return level;
 

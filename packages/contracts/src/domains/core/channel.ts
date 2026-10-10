@@ -17,7 +17,7 @@ import { availableSkillsResponseSchema } from "../skills/skill.js";
 import { toolDescriptorSchema } from "../tools/records.js";
 import { completionItemSchema } from "../completions/completion.js";
 import { coreOperationSchemas } from "./core-operations.js";
-import { conversationEventSchema } from "./event.js";
+import { transferredConversationEventSchema } from "./event.js";
 import {
   conversationConfigSchema,
   conversationSummarySchema,
@@ -42,6 +42,15 @@ const capabilityScope = z.object({
   conversationId: z.string().optional(),
 });
 export const conversationChannelOperations = [
+  defineOperation(
+    "toolCall.getDetails",
+    coreOperationSchemas["toolCall.getDetails"].params,
+    coreOperationSchemas["toolCall.getDetails"].result,
+    "read",
+    "none",
+    host,
+    "operation.toolCall.getDetails",
+  ),
   defineOperation(
     "capabilities.get",
     capabilityScope,
@@ -384,7 +393,7 @@ export const conversationChannelOperations = [
 
 export const conversationChannelEventSchemas = {
   "capabilities.changed": capabilityScope,
-  "conversation.event": conversationEventSchema,
+  "conversation.event": transferredConversationEventSchema,
   "conversation.head": z.object({
     conversationId: z.string(),
     headEventId: z.string().nullable(),

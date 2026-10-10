@@ -6,7 +6,7 @@ export const MIGRATION_REGISTRY: readonly RegisteredStep[] = Object.freeze([
   {
     step: conversationCore,
     checksum:
-      "a575190298e627c663a3443231aa41c8da08402981140fb2d4a869d234ea9bb8",
+      "da556c83048c4c785dd6bf97e341beb21089ee530030265e841e9af577302f51",
     stage: "draft",
   },
 ]);

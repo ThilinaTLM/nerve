@@ -95,7 +95,9 @@ export type WorkbenchConversationAdapterProps = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
+  onThinkingLevelChange?: (
+    value: NonNullable<AgentRecord["thinkingLevel"]>,
+  ) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;

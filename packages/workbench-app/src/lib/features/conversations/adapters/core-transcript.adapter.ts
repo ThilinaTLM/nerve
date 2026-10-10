@@ -2,7 +2,7 @@ import { asyncBashToolView } from "./core-async-bash-tool.adapter";
 import { conversationCatalog } from "../state/conversation-catalog.svelte";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
 import type {
-  ConversationEvent,
+  TransferredConversationEvent,
   ConversationSnapshot,
   EventTreeNode,
   ToolCall,
@@ -21,7 +21,25 @@ import type {
 import type { ConversationRunOutcome } from "$lib/presentation/state/conversation-render-state";
 import type { LiveAssistantBlock } from "../state/core-conversation-store.svelte";
 
-export function eventEntry(event: ConversationEvent): ConversationEntry {
+function toolPreviewText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  if ("content" in value && typeof value.content === "string")
+    return value.content;
+  if ("contentBlocks" in value && Array.isArray(value.contentBlocks))
+    return value.contentBlocks
+      .flatMap((block) =>
+        block?.type === "text" && typeof block.text === "string"
+          ? [block.text]
+          : [],
+      )
+      .join("\n");
+  return "";
+}
+
+export function eventEntry(
+  event: TransferredConversationEvent,
+): ConversationEntry {
   const base: ConversationEntry = {
     id: event.id,
     conversationId: event.conversationId,
@@ -76,10 +94,7 @@ export function eventEntry(event: ConversationEvent): ConversationEntry {
       return {
         ...base,
         kind: "tool_result",
-        text: event.payload.modelContent
-          .filter((b) => b.type === "text")
-          .map((b) => b.text)
-          .join("\n"),
+        text: toolPreviewText(event.payload.userProjection.resultPreview),
         details: {
           toolCallId: event.payload.providerCallId,
           toolRecordId: event.payload.toolCallId,
@@ -149,7 +164,9 @@ export function eventEntry(event: ConversationEvent): ConversationEntry {
 
 function toolRecord(
   snapshot: ConversationSnapshot,
-  source: ToolCall | Extract<ConversationEvent, { type: "tool_call_response" }>,
+  source:
+    | ToolCall
+    | Extract<TransferredConversationEvent, { type: "tool_call_response" }>,
 ): ToolCallTranscriptRecord {
   const open = "state" in source;
   const p = open ? source : source.payload;
@@ -219,15 +236,26 @@ function toolRecord(
     conversationId: snapshot.conversation.id,
     agentId: snapshot.conversation.id,
     toolName: p.toolName,
-    argsPreview: p.arguments,
+    argsPreview: open
+      ? source.arguments
+      : source.payload.userProjection.argsPreview,
     error:
       !open && source.payload.outcome === "failed"
-        ? source.payload.result.content
+        ? toolPreviewText(source.payload.userProjection.resultPreview)
         : undefined,
-    resultPreview: open ? undefined : source.payload.result,
+    resultPreview: open
+      ? undefined
+      : source.payload.userProjection.resultPreview,
+    previewOverflow: open
+      ? undefined
+      : source.payload.userProjection.previewOverflow,
     asyncBashView:
       !open && source.payload.outcome === "completed"
-        ? asyncBashToolView(p.toolName, source.payload.result)
+        ? asyncBashToolView(
+            p.toolName,
+            source.payload.userProjection.resultPreview,
+            source.payload.userProjection.previewOverflow,
+          )
         : undefined,
     status,
     phase:
@@ -254,7 +282,7 @@ function toolRecord(
 
 export function conversationTranscript(input: {
   snapshot: ConversationSnapshot;
-  events: readonly ConversationEvent[];
+  events: readonly TransferredConversationEvent[];
   liveBlocks: readonly LiveAssistantBlock[];
   toolOutput: Readonly<Record<string, string>>;
   tree?: readonly EventTreeNode[];
@@ -525,7 +553,9 @@ export function conversationTranscript(input: {
               id: event.id,
               conversationId: event.conversationId,
               code: "outcome_unknown" as const,
-              message: event.payload.result.content ?? "",
+              message: toolPreviewText(
+                event.payload.userProjection.resultPreview,
+              ),
               actions: ["inspect" as const],
               createdAt: event.createdAt,
               proposalId: event.payload.toolCallId,

@@ -21,7 +21,7 @@ import {
   supportedThinkingLevelsForModel,
 } from "../../state/thinking-levels";
 
-type ThinkingLevel = AgentRecord["thinkingLevel"];
+type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
 
 type Props = {
   open?: boolean;

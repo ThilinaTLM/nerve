@@ -2,7 +2,8 @@ import { lstat, readdir } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 import type {
   Asset,
-  ModelContent,
+  AgentProjection,
+  ToolUserProjection,
   ToolCall,
   ToolCallOutcome,
 } from "@nervekit/contracts/core";
@@ -15,7 +16,10 @@ import {
   toolDefinitionByName,
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
-import { projectAgentResult } from "@nervekit/tools/result-projection";
+import {
+  buildUserProjection,
+  projectAgentResult,
+} from "@nervekit/tools/result-projection";
 import type { AssetStore } from "../assets/asset-store.js";
 
 export async function prepareToolResult(
@@ -24,9 +28,48 @@ export async function prepareToolResult(
   outcome: ToolCallOutcome,
   result: ToolExecutionResultPayload,
   definition?: ToolDefinition,
-) {
+): Promise<{
+  agentProjection: AgentProjection;
+  userProjection: ToolUserProjection;
+  assetIds: string[];
+}> {
   const base = `conversations/${call.conversationId}/tool-calls/${call.id}`;
-  const full = JSON.stringify(result);
+  const imageAssets: Asset[] = [];
+  const imageRefs = new Map<
+    string,
+    Extract<AgentProjection[number], { type: "image" }>
+  >();
+  async function saveImage(block: { data: string; mimeType: string }) {
+    const key = `${block.mimeType}:${block.data}`;
+    const existing = imageRefs.get(key);
+    if (existing) return existing;
+    const image = await assets.write({
+      conversationId: call.conversationId,
+      toolCallId: call.id,
+      category: "image",
+      logicalPath: `${base}/images/${imageAssets.length}`,
+      content: Buffer.from(block.data, "base64"),
+      mediaType: block.mimeType,
+    });
+    imageAssets.push(image);
+    const ref = {
+      type: "image" as const,
+      assetId: image.id,
+      mimeType: block.mimeType,
+    };
+    imageRefs.set(key, ref);
+    return ref;
+  }
+  const completeBlocks = [];
+  for (const block of result.contentBlocks ?? [])
+    completeBlocks.push(
+      block.type === "image" ? await saveImage(block) : block,
+    );
+  const completeResult = {
+    ...result,
+    ...(result.contentBlocks ? { contentBlocks: completeBlocks } : {}),
+  };
+  const full = JSON.stringify(completeResult);
   const payload = await assets.write({
     conversationId: call.conversationId,
     toolCallId: call.id,
@@ -113,26 +156,31 @@ export async function prepareToolResult(
     },
     (definition ?? toolDefinitionByName(call.toolName))?.agentResult,
   );
-  const modelContent: ModelContent =
+  const blocks: AgentProjection = [];
+  for (const block of projection.blocks)
+    blocks.push(block.type === "image" ? await saveImage(block) : block);
+  const agentProjection: AgentProjection =
     call.origin === "user"
       ? [
           {
             type: "text",
             text: `Ran \`${String(call.arguments.command ?? "")}\`\n`,
           },
-          ...projection.blocks,
+          ...blocks,
         ]
-      : projection.blocks;
+      : blocks;
   return {
-    result:
-      Buffer.byteLength(full) > 256 * 1024
-        ? {
-            contentBlocks: projection.blocks,
-            details: { payloadAssetId: payload.id },
-          }
-        : result,
-    modelContent,
-    assetIds: [payload.id, ...artifactAssets.map((asset) => asset.id)],
+    agentProjection,
+    userProjection: buildUserProjection(
+      call.toolName,
+      call.arguments,
+      completeResult,
+    ),
+    assetIds: [
+      payload.id,
+      ...artifactAssets.map((asset) => asset.id),
+      ...imageAssets.map((asset) => asset.id),
+    ],
   };
 }
 

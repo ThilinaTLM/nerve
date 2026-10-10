@@ -1,8 +1,7 @@
 <script lang="ts">
-import type {
-  AgentPreviewSnapshot,
-  AgentProjectionSnapshot,
-} from "@nervekit/contracts/tools";
+import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
+import type { ToolCallRecord } from "../../view-models/tool-records";
+type AgentPreviewSnapshot = NonNullable<ToolCallRecord["agentPreview"]>;
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type Props = {

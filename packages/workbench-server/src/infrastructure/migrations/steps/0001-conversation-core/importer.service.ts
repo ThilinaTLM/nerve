@@ -41,6 +41,7 @@ export interface CoreImportSummary {
     trackedFiles: number;
     missingFiles: number;
     missingAssetIds: string[];
+    relocatedPayloads: Record<string, string>;
   };
 }
 
@@ -194,6 +195,8 @@ export async function importCoreStorage(input: {
       dataDir,
       origins: new Map(),
       toolAssets: new Map(),
+      sourceAssets: new Map(),
+      generatedAssets: new Map(),
       responseEvents: new Map(),
       providerResponseEvents: new Map(),
     };
@@ -380,6 +383,7 @@ export async function importCoreStorage(input: {
       trackedFiles: report.trackedFiles,
       missingFiles: report.missingFiles,
       missingAssetIds: report.missingAssetIds,
+      relocatedPayloads: report.relocatedPayloads,
     },
   };
   return summary;

@@ -19,7 +19,7 @@ import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type Mode = AgentRecord["mode"];
-export type ThinkingLevel = AgentRecord["thinkingLevel"];
+export type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
 
 export type PromptComposerProps = {
   text?: string;

@@ -4,8 +4,6 @@ import FileDown from "@lucide/svelte/icons/file-down";
 import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import GitBranch from "@lucide/svelte/icons/git-branch";
-import type { ConversationSnapshot } from "@nervekit/contracts/core";
-import { requestConversation } from "$lib/application/startup/conversation-connection";
 import type { AgentRecord } from "$lib/presentation/view-models/conversation";
 import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
 import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
@@ -53,39 +51,9 @@ $effect(() => {
   void retained.ready.catch(() => undefined);
   return retained.release;
 });
-let childSnapshots = $state<Record<string, ConversationSnapshot>>({});
-$effect(() => {
-  const snapshot = store?.snapshot;
-  childSnapshots = {};
-  if (!snapshot) return;
-  let current = true;
-  void Promise.all(
-    snapshot.children.map(
-      async (child) =>
-        [
-          child.id,
-          await requestConversation("conversation.getSnapshot", {
-            conversationId: child.id,
-          }),
-        ] as const,
-    ),
-  )
-    .then((children) => {
-      if (current) childSnapshots = Object.fromEntries(children);
-    })
-    .catch(() => undefined);
-  return () => {
-    current = false;
-  };
-});
 const context = $derived(
   store?.snapshot
-    ? conversationContext(
-        store.snapshot,
-        store.events,
-        settingsState.models,
-        childSnapshots,
-      )
+    ? conversationContext(store.snapshot, store.events, settingsState.models)
     : undefined,
 );
 const conversation = $derived(context?.activeConversation);

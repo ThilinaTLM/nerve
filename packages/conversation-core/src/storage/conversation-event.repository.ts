@@ -1,6 +1,8 @@
 import type { SQLOutputValue } from "node:sqlite";
 import {
   conversationEventSchema,
+  transferConversationEvent,
+  type TransferredConversationEvent,
   type ConversationEvent,
   type EventTreeNode,
 } from "@nervekit/contracts/core";
@@ -156,6 +158,42 @@ export class ConversationEventRepository {
       .map(mapEvent);
   }
 
+  historyPage(
+    conversationId: string,
+    page: HistoryPage,
+  ): TransferredConversationEvent[] {
+    return byteLimitedEvents(this.pathFromHead(conversationId, page));
+  }
+
+  sincePage(
+    conversationId: string,
+    sequence: number,
+  ): TransferredConversationEvent[] {
+    const rows = this.db.sqlite
+      .prepare(
+        "SELECT * FROM conversation_event WHERE conversation_id = ? AND sequence > ? ORDER BY sequence LIMIT 100",
+      )
+      .iterate(conversationId, sequence);
+    return byteLimitedEvents(
+      (function* () {
+        for (const row of rows) yield mapEvent(row);
+      })(),
+    );
+  }
+
+  toolResponse(
+    conversationId: string,
+    toolCallId: string,
+  ): Extract<ConversationEvent, { type: "tool_call_response" }> | null {
+    const row = this.db.sqlite
+      .prepare(
+        "SELECT * FROM conversation_event WHERE conversation_id = ? AND event_type = 'tool_call_response' AND json_extract(payload, '$.toolCallId') = ? LIMIT 1",
+      )
+      .get(conversationId, toolCallId);
+    const event = row ? mapEvent(row) : null;
+    return event?.type === "tool_call_response" ? event : null;
+  }
+
   treeNodes(conversationId: string): EventTreeNode[] {
     return this.db.sqlite
       .prepare(
@@ -221,4 +259,22 @@ function preview(event: ConversationEvent): string {
       break;
   }
   return text.replace(/\s+/g, " ").slice(0, 120);
+}
+
+export const EVENT_PAGE_BYTES = 512 * 1024;
+export function byteLimitedEvents(
+  events: Iterable<ConversationEvent>,
+  maxBytes = EVENT_PAGE_BYTES,
+): TransferredConversationEvent[] {
+  const page: TransferredConversationEvent[] = [];
+  let bytes = 2;
+  for (const event of events) {
+    const transferred = transferConversationEvent(event);
+    const size =
+      Buffer.byteLength(JSON.stringify(transferred)) + (page.length ? 1 : 0);
+    if (page.length && bytes + size > maxBytes) break;
+    page.push(transferred);
+    bytes += size;
+  }
+  return page;
 }

@@ -2,7 +2,9 @@ import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilit
 import { createId } from "@nervekit/contracts";
 import {
   conversationChannelOperations,
+  transferConversationEvent,
   type ConversationEvent,
+  type TransferredConversationEvent,
 } from "@nervekit/contracts/core";
 import {
   conversationStream,
@@ -45,13 +47,18 @@ const capabilities = [
   ),
 ];
 
-function eventEnvelope(event: ConversationEvent): EventEnvelope {
+function eventEnvelope(
+  event: ConversationEvent | TransferredConversationEvent,
+): EventEnvelope {
   return {
     seq: event.sequence,
     id: event.id,
     ts: event.createdAt,
     type: "conversation.event",
-    data: event,
+    data:
+      event.type === "tool_call_response" && "agentProjection" in event.payload
+        ? transferConversationEvent(event as ConversationEvent)
+        : event,
   };
 }
 
@@ -165,6 +172,8 @@ export function createConversationProtocolSession(
       core.getSnapshot(conversationId),
     "conversation.getHistory": ({ conversationId, ...page }) =>
       core.getHistory(conversationId, page),
+    "toolCall.getDetails": ({ conversationId, toolCallId }) =>
+      core.getToolCallDetails(conversationId, toolCallId),
     "conversation.getTree": ({ conversationId }) =>
       core.getTree(conversationId),
     "conversation.getEventsSince": ({ conversationId, sequence }) =>
@@ -256,6 +265,10 @@ export function createConversationProtocolSession(
     createMessage: messages,
     capabilities,
     limits: PROTOCOL_SESSION_LIMITS,
+    onMessageTooLarge: (message) =>
+      state.logger
+        .warn(`Oversized ${message.kind} skipped or resync required`)
+        .catch(() => undefined),
     heartbeat: PROTOCOL_HEARTBEAT,
     sessionId: () => `ses_${crypto.randomUUID()}`,
     send: (message) => connection.send(message as ProtocolV1Message),
@@ -292,10 +305,16 @@ export function createConversationProtocolSession(
         // activating, the feed is suppressed; these facts come from the core log.
         for (const state of states) {
           const id = parseConversationStream(state.stream)!;
-          for (const event of core.getEventsSince(id, state.latestSeq))
-            void session
-              .publish(state.stream, eventEnvelope(event))
-              .catch(failed);
+          let sequence = state.latestSeq;
+          for (;;) {
+            const page = core.getEventsSince(id, sequence);
+            if (!page.length) break;
+            for (const event of page)
+              void session
+                .publish(state.stream, eventEnvelope(event))
+                .catch(failed);
+            sequence = page[page.length - 1].sequence;
+          }
         }
         activatingStreams.clear();
       },
@@ -314,6 +333,7 @@ export function createConversationProtocolSession(
   });
   const connection: ProtocolConnection = new ProtocolConnection({
     transport,
+    limits: PROTOCOL_SESSION_LIMITS,
     onMessage: (message) => session.receive(message),
     onProtocolError: () => {
       void connection

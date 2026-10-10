@@ -1,4 +1,7 @@
-import { asyncBashSchema, type AsyncBash } from "@nervekit/contracts/core";
+import {
+  asyncBashSchema,
+  type ToolUserProjection,
+} from "@nervekit/contracts/core";
 import type { ToolView } from "$lib/presentation/tools/views/tool-view-types";
 import type { TaskToolSummaryPayload } from "$lib/presentation/view-models/task";
 
@@ -7,46 +10,66 @@ export type AsyncBashToolView = Extract<
   { kind: "task_action" | "task_status" | "task_logs" }
 >;
 
-function summary(row: AsyncBash): TaskToolSummaryPayload {
+// Public task previews intentionally carry fewer fields than stored bash rows.
+const projectedBashSchema = asyncBashSchema
+  .pick({ id: true, command: true, status: true })
+  .extend({
+    cwd: asyncBashSchema.shape.workingDirectory.optional(),
+    workingDirectory: asyncBashSchema.shape.workingDirectory.optional(),
+    startedAt: asyncBashSchema.shape.workingDirectory.optional(),
+    finishedAt: asyncBashSchema.shape.finishedAt.optional(),
+    exitCode: asyncBashSchema.shape.exitCode.optional(),
+  });
+function summary(
+  row: ReturnType<typeof projectedBashSchema.parse>,
+): TaskToolSummaryPayload {
   return {
     id: row.id,
-    cwd: row.workingDirectory,
+    cwd: row.cwd ?? row.workingDirectory,
     command: row.command,
     status: row.status,
     timing: {
       startedAt: row.startedAt,
       finishedAt: row.finishedAt ?? undefined,
     },
-    termination: row.exitCode === null ? undefined : { exitCode: row.exitCode },
+    termination: row.exitCode == null ? undefined : { exitCode: row.exitCode },
   };
 }
 
 /** Converts actual core responses into display data, without rewriting raw results. */
 export function asyncBashToolView(
   toolName: string,
-  result: { content?: string },
+  result: unknown,
+  overflow?: ToolUserProjection["previewOverflow"],
 ): AsyncBashToolView | undefined {
   if (
-    typeof result.content !== "string" ||
     !["task_start", "task_status", "task_logs", "task_control"].includes(
       toolName,
     )
   )
     return;
-  let value: unknown;
-  try {
-    value = JSON.parse(result.content);
-  } catch {
-    return;
+  let value: unknown = result;
+  if (
+    result &&
+    typeof result === "object" &&
+    "content" in result &&
+    typeof result.content === "string"
+  ) {
+    try {
+      value = JSON.parse(result.content);
+    } catch {
+      return;
+    }
   }
   if (toolName === "task_status") {
-    const rows = asyncBashSchema.array().safeParse(value);
+    const rows = projectedBashSchema.array().safeParse(value);
     if (!rows.success) return;
     return {
       kind: "task_status",
       tasks: rows.data.map(summary),
-      taskCount: rows.data.length,
-      hiddenTaskCount: 0,
+      taskCount:
+        rows.data.length + (overflow?.noun === "tasks" ? overflow.hidden : 0),
+      hiddenTaskCount: overflow?.noun === "tasks" ? overflow.hidden : 0,
       previewUnavailable: false,
     };
   }
@@ -73,7 +96,9 @@ export function asyncBashToolView(
     "asyncBash" in value
       ? value
       : undefined;
-  const row = asyncBashSchema.safeParse(started ? started.asyncBash : value);
+  const row = projectedBashSchema.safeParse(
+    started ? started.asyncBash : value,
+  );
   if (!row.success) return;
   const task = summary(row.data);
   if (

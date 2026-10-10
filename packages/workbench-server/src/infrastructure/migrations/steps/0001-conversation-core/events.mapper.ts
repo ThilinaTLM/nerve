@@ -1,3 +1,4 @@
+import { prepareImportedResult } from "./result-projection.js";
 import {
   conversationEventSchema,
   interactionResolutionSchema,
@@ -31,6 +32,8 @@ export interface EventMapping {
   dataDir: string;
   origins: Map<string, AssistantOrigin>;
   toolAssets: Map<string, string[]>;
+  sourceAssets: Map<string, Legacy>;
+  generatedAssets: Map<string, Legacy>;
   responseEvents: Map<string, string>;
   providerResponseEvents: Map<string, string>;
 }
@@ -53,6 +56,7 @@ export function readPayload(
 export function responsePayload(
   mapping: EventMapping,
   call: Legacy,
+  conversationId: string,
   message?: Legacy,
 ): Legacy {
   const id = mapping.ids.get(
@@ -162,6 +166,20 @@ export function responsePayload(
     mapping.report.loss(
       "Legacy interaction retained in result details rather than typed resolution",
     );
+  const toolName = call.toolName ?? message?.toolName ?? "unknown";
+  const args = providerCallId
+    ? (origin?.arguments ?? call.args ?? {})
+    : { command: call.args?.command ?? "" };
+  const projections = prepareImportedResult(
+    mapping,
+    conversationId,
+    id,
+    toolName,
+    args,
+    result,
+    modelContent,
+    call.resultPayload?.logicalPath,
+  );
   return {
     toolCallId: id,
     providerCallId,
@@ -173,12 +191,10 @@ export function responsePayload(
     assistantEventId: origin?.eventId ?? null,
     contentIndex: origin?.contentIndex ?? null,
     outcome: call.status ? outcome : message?.isError ? "failed" : "completed",
-    result,
-    modelContent,
+    ...projections,
     supervision: supervision?.success ? supervision.data : null,
     interactionResolution: resolution.success ? resolution.data : null,
     resolutionRequestId: resolved?.resolutionRequestId ?? null,
-    assetIds: mapping.toolAssets.get(id) ?? [],
   };
 }
 
@@ -239,6 +255,7 @@ export function mapMessage(
     const payload = responsePayload(
       mapping,
       call ?? { id: entry.details?.toolRecordId },
+      base.conversationId,
       fallback,
     );
     event = {

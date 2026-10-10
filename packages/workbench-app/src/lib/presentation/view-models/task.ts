@@ -8,10 +8,12 @@ import type {
 /** View data preserves async-bash IDs/statuses and omits unreported readiness. */
 export type TaskToolSummaryPayload = Omit<
   ContractTaskSummary,
-  "status" | "readiness"
+  "status" | "readiness" | "cwd" | "timing"
 > & {
   status: ContractTaskSummary["status"] | AsyncBash["status"];
   readiness?: ContractTaskSummary["readiness"];
+  cwd?: string;
+  timing: { startedAt?: string; finishedAt?: string };
 };
 
 export type TaskCancelOutcomePreviewPayload = Omit<
