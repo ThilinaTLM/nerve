@@ -223,7 +223,10 @@ export function parseToolView(
           path,
           relPath,
           image: {
-            dataUrl: imageDataUrl(imageBlock.mimeType, imageBlock.data),
+            dataUrl:
+              "assetId" in imageBlock
+                ? `/api/assets/${encodeURIComponent(imageBlock.assetId)}`
+                : imageDataUrl(imageBlock.mimeType, imageBlock.data),
             mimeType: imageBlock.mimeType,
           },
           truncated: false,

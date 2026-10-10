@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { toolExecutionResultSchema } from "../tools/tool-results.js";
 import { projectSchema } from "./project.js";
 import {
   trustedResourceSchema,
@@ -13,6 +12,7 @@ import {
 import {
   transferredConversationEventSchema,
   agentProjectionSchema,
+  storedToolResultSchema,
   eventTreeNodeSchema,
 } from "./event.js";
 import { submitInputRequestSchema } from "./input.js";
@@ -111,7 +111,7 @@ export const coreOperationSchemas = {
     params: conversationId.extend({ toolCallId: z.string() }),
     result: z.object({
       agentProjection: agentProjectionSchema,
-      result: toolExecutionResultSchema,
+      result: storedToolResultSchema,
     }),
   },
   "conversation.getTree": {

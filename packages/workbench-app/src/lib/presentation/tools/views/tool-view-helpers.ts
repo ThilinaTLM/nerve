@@ -1,3 +1,4 @@
+import { storedToolResultSchema } from "@nervekit/contracts/core";
 import {
   toolExecutionResultSchema,
   toolOutputLimitsSchema,
@@ -110,17 +111,21 @@ function executionResultFromAgentToolResult(
   return result;
 }
 
+const displayedToolResultSchema = storedToolResultSchema.or(
+  toolExecutionResultSchema,
+);
+
 export function parseToolExecutionResult(value: unknown) {
-  const direct = toolExecutionResultSchema.safeParse(value);
+  const direct = displayedToolResultSchema.safeParse(value);
   if (direct.success) return direct.data;
   const parsedRecord = asRecord(value);
   if (Object.keys(parsedRecord).length === 0) return undefined;
   const agentResult = executionResultFromAgentToolResult(parsedRecord);
   if (agentResult) {
-    const parsedAgentResult = toolExecutionResultSchema.safeParse(agentResult);
+    const parsedAgentResult = displayedToolResultSchema.safeParse(agentResult);
     if (parsedAgentResult.success) return parsedAgentResult.data;
   }
-  const parsed = toolExecutionResultSchema.safeParse(parsedRecord);
+  const parsed = displayedToolResultSchema.safeParse(parsedRecord);
   return parsed.success ? parsed.data : undefined;
 }
 

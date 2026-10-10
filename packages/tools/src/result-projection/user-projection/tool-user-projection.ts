@@ -666,7 +666,8 @@ export function buildUserProjection(
           id: row.id,
           status: row.status,
           command: row.command,
-          cwd: row.cwd,
+          cwd: row.workingDirectory ?? row.cwd,
+          startedAt: row.startedAt,
           exitCode: row.exitCode,
           finishedAt: row.finishedAt,
         };

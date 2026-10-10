@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { toolExecutionResultSchema } from "../tools/tool-results.js";
 import { commandPreparationSchema, systemNoticeSchema } from "./input.js";
 import {
   interactionResolutionSchema,
@@ -49,6 +50,23 @@ export const agentProjectionSchema = z.array(
     }),
   ]),
 );
+// Stored results and UI details reference image assets; executors still return bytes.
+export const storedToolResultSchema = toolExecutionResultSchema.extend({
+  contentBlocks: z
+    .array(
+      z.union([
+        textContentSchema,
+        z.object({
+          type: z.literal("image"),
+          assetId: z.string(),
+          mimeType: z.string(),
+          byteLength: z.number().nonnegative().optional(),
+        }),
+      ]),
+    )
+    .optional(),
+});
+export type StoredToolResult = z.infer<typeof storedToolResultSchema>;
 export const toolUserProjectionSchema = z.object({
   argsPreview: z.json(),
   resultPreview: z.json(),

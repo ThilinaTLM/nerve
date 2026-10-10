@@ -135,6 +135,23 @@ export class AssetStore {
     for (const id of assetIds) this.storage.assets.update(id, { eventId });
   }
 
+  async readImage(
+    assetId: string,
+  ): Promise<{ bytes: Buffer; mediaType: string } | null> {
+    const asset = this.storage.assets.get(assetId);
+    if (
+      !asset ||
+      asset.category !== "image" ||
+      !this.storage.conversations.get(asset.conversationId) ||
+      !asset.mediaType ||
+      !["image/png", "image/jpeg", "image/gif", "image/webp"].includes(
+        asset.mediaType,
+      )
+    )
+      return null;
+    return { bytes: await this.read(assetId), mediaType: asset.mediaType };
+  }
+
   async read(assetId: string): Promise<Buffer> {
     const asset = this.storage.assets.get(assetId);
     if (!asset) throw new Error(`Asset not found: ${assetId}`);

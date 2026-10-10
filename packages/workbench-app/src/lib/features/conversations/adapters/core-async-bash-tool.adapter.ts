@@ -16,7 +16,7 @@ const projectedBashSchema = asyncBashSchema
   .extend({
     cwd: asyncBashSchema.shape.workingDirectory.optional(),
     workingDirectory: asyncBashSchema.shape.workingDirectory.optional(),
-    startedAt: asyncBashSchema.shape.workingDirectory.optional(),
+    startedAt: asyncBashSchema.shape.startedAt.optional(),
     finishedAt: asyncBashSchema.shape.finishedAt.optional(),
     exitCode: asyncBashSchema.shape.exitCode.optional(),
   });

@@ -1,4 +1,4 @@
-import { toolExecutionResultSchema } from "@nervekit/contracts/tools";
+import { storedToolResultSchema } from "@nervekit/contracts/core";
 import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
@@ -260,12 +260,20 @@ export class ConversationCore {
           asset.logicalPath.endsWith("/result.json"),
       );
     if (!payload) throw new Error("Complete tool result asset not found");
-    return {
-      agentProjection: event.payload.agentProjection,
-      result: toolExecutionResultSchema.parse(
-        JSON.parse((await this.assets.read(payload.id)).toString("utf8")),
-      ),
-    };
+    const result = storedToolResultSchema.parse(
+      JSON.parse((await this.assets.read(payload.id)).toString("utf8")),
+    );
+    for (const block of result.contentBlocks ?? []) {
+      if (block.type !== "image") continue;
+      const image = this.options.storage.assets.get(block.assetId);
+      if (
+        image?.conversationId !== conversationId ||
+        image.toolCallId !== toolCallId
+      )
+        throw new Error("Image asset does not belong to tool call");
+      block.byteLength = image.byteLength;
+    }
+    return { agentProjection: event.payload.agentProjection, result };
   }
   getTree(id: string) {
     return this.options.storage.events.treeNodes(id);

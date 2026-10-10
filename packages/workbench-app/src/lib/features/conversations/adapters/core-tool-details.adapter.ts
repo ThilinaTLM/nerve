@@ -1,5 +1,7 @@
-import type { AgentProjection } from "@nervekit/contracts/core";
-import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
+import type {
+  AgentProjection,
+  StoredToolResult,
+} from "@nervekit/contracts/core";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import type {
   ToolCallDetails,
@@ -19,33 +21,27 @@ const cache = new WeakMap<
 
 function agentPreview(
   projection: AgentProjection,
-  result: ToolExecutionResultPayload,
+  result: StoredToolResult,
 ): ToolCallRecord["agentPreview"] {
-  const images = (result.contentBlocks ?? []).flatMap((block, index) =>
-    block.type === "image" ? [{ block, index }] : [],
-  );
-  const refs = projection.filter((block) => block.type === "image");
-  // Projection strategies retain media in source order. Never attach an
-  // unrelated result image if that correspondence is unavailable.
-  if (
-    refs.length !== images.length ||
-    refs.some((ref, index) => ref.mimeType !== images[index].block.mimeType)
-  )
-    return;
-  let imageIndex = 0;
-  return {
-    version: 1,
-    blocks: projection.map((block) => {
-      if (block.type === "text") return block;
-      const image = images[imageIndex++];
-      return {
-        type: "image" as const,
-        mimeType: block.mimeType,
-        byteLength: atob(image.block.data).length,
-        resultContentBlockIndex: image.index,
-      };
-    }),
-  };
+  const blocks: NonNullable<ToolCallRecord["agentPreview"]>["blocks"] = [];
+  for (const block of projection) {
+    if (block.type === "text") {
+      blocks.push(block);
+      continue;
+    }
+    const index = result.contentBlocks?.findIndex(
+      (image) => image.type === "image" && image.assetId === block.assetId,
+    );
+    if (index === undefined || index < 0) return;
+    const image = result.contentBlocks?.[index];
+    blocks.push({
+      type: "image",
+      mimeType: block.mimeType,
+      byteLength: image?.type === "image" ? (image.byteLength ?? 0) : 0,
+      resultContentBlockIndex: index,
+    });
+  }
+  return { version: 1, blocks };
 }
 
 async function loadDetails(toolCallId: string): Promise<LoadedDetails> {
