@@ -1,7 +1,7 @@
 <script lang="ts">
 import ExternalLink from "@lucide/svelte/icons/external-link";
 
-import type { TaskToolSummaryPayload } from "@nervekit/contracts/tools";
+import type { TaskToolSummaryPayload } from "../../view-models/task";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";

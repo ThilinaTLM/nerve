@@ -1,3 +1,4 @@
+import { asyncBashToolView } from "./core-async-bash-tool.adapter";
 import { conversationCatalog } from "../state/conversation-catalog.svelte";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
 import type {
@@ -224,6 +225,10 @@ function toolRecord(
         ? source.payload.result.content
         : undefined,
     resultPreview: open ? undefined : source.payload.result,
+    asyncBashView:
+      !open && source.payload.outcome === "completed"
+        ? asyncBashToolView(p.toolName, source.payload.result)
+        : undefined,
     status,
     phase:
       status === "committed"
@@ -301,17 +306,19 @@ export function conversationTranscript(input: {
       tools.set(e.payload.toolCallId, toolRecord(snapshot, e));
   for (const call of snapshot.toolCalls)
     tools.set(call.id, toolRecord(snapshot, call));
-  const queuedPrompts: QueuedPromptRecord[] = snapshot.queue.map((q) => ({
-    id: q.inputId,
-    agentId: snapshot.conversation.id,
-    conversationId: snapshot.conversation.id,
-    projectId: snapshot.conversation.projectId,
-    text: typeof q.content === "string" ? q.content : q.content.text,
-    behavior: "follow-up",
-    status: "queued",
-    createdAt: q.acceptedAt,
-    updatedAt: q.acceptedAt,
-  }));
+  const queuedPrompts: QueuedPromptRecord[] = snapshot.queue
+    .filter((q) => q.source === "user")
+    .map((q) => ({
+      id: q.inputId,
+      agentId: snapshot.conversation.id,
+      conversationId: snapshot.conversation.id,
+      projectId: snapshot.conversation.projectId,
+      text: typeof q.content === "string" ? q.content : q.content.text,
+      behavior: "follow-up",
+      status: "queued",
+      createdAt: q.acceptedAt,
+      updatedAt: q.acceptedAt,
+    }));
   const execution = events.findLast(
     (e) => e.type === "system_event" && e.payload.subtype === "execution_state",
   );

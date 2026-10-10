@@ -1,4 +1,9 @@
 import type {
+  TaskCancelOutcomePreviewPayload,
+  TaskToolSummaryPayload,
+  TaskLogDisplayEvent,
+} from "../../view-models/task";
+import type {
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -24,13 +29,11 @@ import type {
   JiraWorklogSummaryPayload,
   ProcessStreamResultDetails,
   PythonArtifactResultDetails,
-  TaskCancelOutcomePreviewPayload,
-  TaskToolSummaryPayload,
   TodoItem,
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
-import type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
+import type { TaskRecord } from "@nervekit/contracts/tasks";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
 
 export type ToolOutputInfo = {
@@ -312,8 +315,8 @@ export type ToolView =
   | {
       kind: "task_logs";
       task?: TaskToolSummaryPayload;
-      events: TaskLogEvent[];
-      eventCount: number;
+      events: TaskLogDisplayEvent[];
+      eventCount?: number;
       nextCursor?: number;
       mode?: string;
       previewUnavailable: boolean;

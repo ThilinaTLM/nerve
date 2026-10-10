@@ -364,7 +364,10 @@ export function toolPresentation(
       };
 
     case "task_logs": {
-      const meta: MetaItem[] = [{ text: plural(view.eventCount, "event") }];
+      const meta: MetaItem[] =
+        view.eventCount === undefined
+          ? []
+          : [{ text: plural(view.eventCount, "event") }];
       if (view.mode) meta.push({ text: view.mode });
       return {
         ...base,
@@ -374,7 +377,9 @@ export function toolPresentation(
         meta,
         detailsAction:
           previewDetailsAction ??
-          detailsActionFor(view.eventCount, "events", "tail"),
+          (view.eventCount === undefined
+            ? undefined
+            : detailsActionFor(view.eventCount, "events", "tail")),
       };
     }
 

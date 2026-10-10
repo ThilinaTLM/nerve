@@ -168,6 +168,7 @@ function toolViewSignature(
     mode,
     payloadSignature(payloads.argsPreview ?? payloads.args),
     payloadSignature(payloads.resultPreview ?? payloads.result),
+    toolCall.asyncBashView?.kind ?? "",
     overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
@@ -191,6 +192,10 @@ export function parseToolView(
   toolCall: ToolCallDisplayRecord,
   liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
+  if (toolCall.asyncBashView)
+    return toolCall.asyncBashView.kind === "task_action"
+      ? { ...toolCall.asyncBashView, liveLog: liveOutput?.text }
+      : toolCall.asyncBashView;
   const payloads = toolCall as ToolCallDisplayRecord & {
     args?: unknown;
     result?: unknown;
