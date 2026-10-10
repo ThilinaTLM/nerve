@@ -23,7 +23,7 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   desktop?: boolean;
-  /** Set for `pnpm desktop:dev` instances; replaces the brand mark. */
+  /** Set for `pnpm desktop:dev` instances; replaces the version indicator. */
   developmentSlot?: number;
   headerType?: ResolvedHeaderType;
   maximized?: boolean;

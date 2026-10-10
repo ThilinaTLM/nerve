@@ -147,6 +147,7 @@ async function handleDesktopClose() {
   activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
   desktop={desktopRuntime.isDesktop}
+  developmentSlot={desktopRuntime.developmentSlot}
   {headerType}
   maximized={desktopRuntime.windowState.maximized}
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}

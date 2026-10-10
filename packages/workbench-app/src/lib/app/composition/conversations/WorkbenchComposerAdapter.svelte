@@ -48,6 +48,7 @@ import {
 } from "./composer-capability-controller";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
+import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
   text = "",
@@ -240,6 +241,18 @@ const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
     return { kind: "pending-conversation", id: activePendingConversation.id };
   return undefined;
 });
+$effect(() => {
+  const target = voiceTarget;
+  if (!target) return;
+  return bindComposerVoiceInput(voiceInputSession, target, {
+    read: () => text,
+    update: (next) => onChange?.(next),
+    focus: () => {
+      editorFocusToken += 1;
+    },
+  });
+});
+
 const recording = $derived(
   Boolean(
     voiceTarget &&
