@@ -92,21 +92,9 @@ let {
     {/if}
   {/snippet}
   {#snippet left()}
-    {#if developmentSlot}
-      <span
-        class="inline-flex flex-none items-center gap-1 rounded-md bg-warning py-0.5 pr-1.5 pl-1 text-xs font-bold text-warning-foreground"
-        role="img"
-        aria-label={`Development instance, slot ${developmentSlot}`}
-        title={`Development instance (slot ${developmentSlot})`}
-      >
-        <span class="brand-mark"><NerveMark compact /></span>
-        <span aria-hidden="true">DEV {developmentSlot}</span>
-      </span>
-    {:else}
-      <span class="inline-flex items-center gap-1.5 text-foreground">
-        <span class="brand-mark"><NerveMark compact /></span>
-      </span>
-    {/if}
+    <span class="inline-flex items-center gap-1.5 text-foreground">
+      <span class="brand-mark"><NerveMark compact /></span>
+    </span>
     <ProjectSwitcher
       items={projects}
       popoverItems={projectOptions}
@@ -123,7 +111,17 @@ let {
       class="flex min-w-0 flex-none items-center gap-1.5 [-webkit-app-region:no-drag]"
       aria-label="Application actions"
     >
-      {#if currentVersion}
+      <!-- Dev builds report the package.json version, so show the storage slot instead. -->
+      {#if developmentSlot}
+        <span
+          class="inline-flex flex-none items-center rounded-sm bg-warning px-1.5 py-0.5 text-xs leading-none font-bold text-warning-foreground"
+          role="img"
+          aria-label={`Development instance, slot ${developmentSlot}`}
+          title={`Development instance (slot ${developmentSlot})`}
+        >
+          <span aria-hidden="true">DEV {developmentSlot}</span>
+        </span>
+      {:else if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
       <Button
