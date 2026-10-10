@@ -11,7 +11,7 @@ The five event types describe application facts, independent of how providers pa
 | `user_message`       | `user`                                                                   | Delivered prompt, original submitted text, submitter and command-preparation receipts.                                                                                                                         |
 | `assistant_message`  | `assistant`                                                              | Ordered text, thinking and tool-call blocks with arguments, usage, stop reason and response provenance.                                                                                                        |
 | `system_event`       | `none` or `user`                                                         | Typed notice or execution transition. Application provenance grants no provider-system authority.                                                                                                              |
-| `tool_call_response` | `tool_result` for model calls; `user` or `none` for direct user commands | Internal and provider call IDs, tool name, final `arguments`, origin, originating assistant event and content index, outcome, result content, supervision record, interaction resolution and asset references. |
+| `tool_call_response` | `tool_result` for model calls; `user` or `none` for direct user commands | Internal and provider call IDs, tool name, final `arguments`, origin, originating assistant event and content index, outcome, agent projection, user projection, supervision record, interaction resolution and asset references. The complete result is an asset, not part of the event; see [tool-result projection](../tool-result-projection.md). |
 | `compaction`         | `user`                                                                   | Summary text and retained-history boundary.                                                                                                                                                                    |
 
 `llm_representation` states how an event can contribute, not whether it appears in a given request; the selected branch and compaction decide inclusion. Because it restates what `event_type` and payload imply, validation rejects contradictory combinations.
@@ -21,7 +21,7 @@ The five event types describe application facts, independent of how providers pa
 The configured system prompt is supplied separately. The context projection produces Pi-compatible messages, and Pi's provider adapter builds the wire request. Provider switching rebuilds messages without rewriting history.
 
 - Tool-call blocks in an assistant message become Pi `toolCall` content; a tool call never creates another assistant message.
-- Tool responses become Pi `toolResult` messages, ordered by originating content index, not completion order. Every tool-call block is followed by exactly one result.
+- Tool responses become Pi `toolResult` messages built from their agent projection, ordered by originating content index, not completion order. Every tool-call block is followed by exactly one result. Image blocks reference assets; their bytes are inlined only while building the request.
 - Direct user commands included in context are projected as user content, not as orphan tool results.
 - Neither Anthropic's user-role result packaging nor OpenAI's tool-role packaging is persisted as application meaning.
 

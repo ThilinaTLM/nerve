@@ -9,7 +9,7 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 - [Storage migrations](architecture/migrations.md) — how a home is upgraded between releases.
 - [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, channels and legacy import.
 - [Permissions](architecture/permissions.md) — permission rule sets, overlays and the evaluator.
-- [Tool-result projection](architecture/tool-result-projection.md) — why complete results, agent projections, and transcript previews are separate.
+- [Tool-result projection](architecture/tool-result-projection.md) — complete result, agent projection and user projection: purpose, storage and transfer.
 
 ## Maintainer runbooks
 

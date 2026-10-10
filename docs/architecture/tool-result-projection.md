@@ -1,47 +1,60 @@
 # Tool-result projection
 
-> **Status:** Implemented. Contracts, catalog policy, implementation, and focused tests are authoritative for current profiles and limits.
+> **Status:** Being reworked on `feat/conversation-core`. This document is the target design.
 
-## Decision
+A tool can return anything from one line to megabytes of output or an image. Neither the model nor the UI should receive that raw. Every tool call therefore has three forms of its result, one per reader:
 
-A tool call has three distinct result forms:
+| Form | Reader | Purpose |
+| --- | --- | --- |
+| **Complete result** | Details view, recovery | Exact data, never truncated. |
+| **Agent projection** | The model | Useful context without flooding the context window. |
+| **User projection** | The transcript | A small, fast, real-time view of what the call did. |
 
-1. the complete durable result or managed file artifact;
-2. the bounded projection returned to the agent model;
-3. the compact public transcript preview shown in the UI.
+The three forms have different limits and must not share one.
 
-These forms have different consumers and must not share one accidental limit. Complete data preserves recovery, agent projections preserve useful context, and transcript previews preserve a safe, readable workbench history.
+## Agent projection
 
-```mermaid
-flowchart LR
-  Complete[Complete result] --> Prepare[Validate and prepare artifacts]
-  Prepare --> Agent[Agent projection]
-  Prepare --> Transcript[Transcript preview]
-  Complete --> Details[Complete details read]
-```
+The agent projection is what the model sees in every later request. Its purpose is to protect the context window: each oversized result costs context on every following turn, crowds out the conversation's instructions and history, brings compaction closer, and makes the agent noticeably less capable.
 
-## Rationale and invariants
+- A result that fits its tool's budget is returned unchanged.
+- A larger result is reduced to the useful part (status, errors, the relevant lines, counts) and states that the complete result is saved, where it is, and how to read more with `read` or `grep`.
+- Status, errors, exit codes and continuation hints are kept before bulk output.
+- Each call has its own budget; parallel calls do not share one.
 
-- **Semantic selection precedes bounding.** A projector selects the useful representation before applying line, byte, or item limits; it does not serialize every duplicate field and truncate the aggregate.
-- **Small results stay intact.** If the canonical agent candidate fits its profile, it is returned unchanged. Artifact presence alone does not force a path-only response.
-- **Every call has an independent budget.** Parallel and batched siblings do not compete for one allowance. Delegated Explore reports are independently bounded per requested report.
-- **Recovery is exact.** Truncation retains a continuation mechanism or a verified, agent-readable complete payload/artifact path. Externalization completes before a truncated projection is exposed.
-- **Status and continuation outrank bulk output.** Failures, warnings, exit state, affected resources, cursors, omitted counts, and next actions remain visible.
-- **Artifact trust is explicit.** Host code validates ownership, logical paths, availability, readability, and integrity before an artifact can become a recovery source.
-- **Unknown tools fail conservatively.** Historical or newly encountered names use the fallback projection policy and never fabricate recovery for bytes that were not preserved.
-- **Projection never weakens the complete result.** Changing model-facing output does not mutate or delete canonical data.
+Budgets and per-tool strategies are owned by [`packages/tools/src/result-projection/`](../../packages/tools/src/result-projection/) and the tool catalog; this document does not copy them.
 
-When a useful result overflows and an available readable artifact becomes authoritative, the projection becomes a compact status, summary, size/count, path, and inspection guide rather than a large excerpt that the agent must reread. Without such an artifact, the normal bounded inline strategy remains and must include exact continuation or a readable complete-result payload.
+## User projection
+
+The user projection is what a transcript card shows. Its purpose is a fast UI: the transcript renders hundreds of calls, updates live, and pages through long histories, so each card's data must be small and ready to draw.
+
+- Usually six lines of output, the first or the last six depending on the tool, plus counts such as lines or entries and the status.
+- Tools with a better summary use it, for example the diff of an `edit`.
+- It is built once, when the call finishes. While a call runs, live output deltas show progress and are not stored.
+
+## Complete result
+
+The complete result is written once to the conversation's managed files (`data/conversations/<id>/tool-calls/<toolCallId>/result.json`, plus any files the tool produced) and tracked by `ASSET` rows. It is never copied into an event. The details view and the agent's own `read`/`grep` use it.
+
+## Storage
+
+A `tool_call_response` event stores the agent projection, the user projection, the call's metadata (tool, arguments, outcome, supervision) and the IDs of its assets. Binary content such as images is stored as an asset and referenced by ID from both projections, never inlined as base64.
+
+## Transfer
+
+| What | When | Contains |
+| --- | --- | --- |
+| History pages, replay, live events | Always | Events with the user projection; the agent projection is left out |
+| `toolCall.getDetails` | When the user opens a card's details | Agent projection and complete result for one call |
+
+Pages are limited by size as well as count, so one large conversation cannot exceed the channel's message limit. An oversized reply fails that request with a clear error; it never ends the session.
+
+## Images
+
+The model sees an image only when it asked for one: a `read` of an image file, or a tool such as `explain_image`. Nothing attaches images to a request implicitly. The image is stored once as an asset; when the core builds the model request it inlines that asset's bytes into the tool result the model asked for. Transcript cards show a thumbnail loaded from the asset.
 
 ## Ownership
 
-- Projection contracts and profile identifiers: [`packages/contracts/src/domains/tools/tool-agent-projection.ts`](../../packages/contracts/src/domains/tools/tool-agent-projection.ts)
-- Tool policies, profiles, and projection strategies: [`packages/tools/src/result-projection/`](../../packages/tools/src/result-projection/)
-- Result preparation, payload storage and projection in the core: [`tool-result.service.ts`](../../packages/conversation-core/src/tool-calls/tool-result.service.ts) and [`asset-store.ts`](../../packages/conversation-core/src/assets/asset-store.ts)
-- Projection tests: [`packages/tools/test/result-projection/result-projection.test.ts`](../../packages/tools/test/result-projection/result-projection.test.ts)
-
-Do not copy the profile inventory, exact budgets, or tool count into this document. Those values evolve with the owning catalog and contracts.
-
-## Public guidance
-
-See [Tool output lifecycle](https://nerve.tlmtech.dev/developers/tool-output-lifecycle/) for the current developer-facing behavior.
+- Projection contracts: [`tool-agent-projection.ts`](../../packages/contracts/src/domains/tools/tool-agent-projection.ts)
+- Agent projection strategies: [`packages/tools/src/result-projection/`](../../packages/tools/src/result-projection/)
+- Building both projections and writing the complete result: [`tool-result.service.ts`](../../packages/conversation-core/src/tool-calls/tool-result.service.ts) and [`asset-store.ts`](../../packages/conversation-core/src/assets/asset-store.ts)
+- Building model requests from events: [events and context](conversation-core/events-and-context.md)
