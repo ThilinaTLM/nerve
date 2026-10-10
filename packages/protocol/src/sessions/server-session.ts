@@ -125,12 +125,7 @@ export class ProtocolServerSession {
     });
     this.#handshakeTimeout = this.#timers.setTimeout(() => {
       if (this.state === "awaiting_hello" || this.state === "awaiting_ready") {
-        // A disconnect can race the deadline. Shutdown still finalizes the
-        // session when sending goodbye fails; the timer must consume that error.
-        void this.shutdown(
-          "idle_timeout",
-          "Protocol handshake timed out",
-        ).catch(() => undefined);
+        void this.shutdown("idle_timeout", "Protocol handshake timed out");
       }
     }, options.heartbeat.timeoutMs);
   }
@@ -405,6 +400,9 @@ export class ProtocolServerSession {
           ),
         );
       }
+    } catch {
+      // Goodbye is best-effort: the transport may already be closed, including
+      // when shutdown is triggered by a failed send. Always finalize locally.
     } finally {
       this.#finalize(new Error(message ?? reason));
     }
