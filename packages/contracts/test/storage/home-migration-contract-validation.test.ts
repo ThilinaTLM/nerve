@@ -69,6 +69,14 @@ describe("home manifest contracts", () => {
         version: 1,
         homeClass: "standard",
       }).success,
+      true,
+    );
+    assert.equal(
+      nerveHomeManifestV1Schema.safeParse({
+        format: "nerve-home",
+        version: 1,
+        disposable: false,
+      }).success,
       false,
     );
     assert.equal(

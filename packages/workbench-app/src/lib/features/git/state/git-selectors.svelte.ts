@@ -1,25 +1,17 @@
-import { modelKey } from "$lib/presentation/utils/model";
 import {
   gitProjectStateKey,
   gitRepoStateKey,
   prViewKey,
 } from "$lib/domain/navigation/view-keys";
-import type { AgentRecord } from "$lib/api";
 
 export interface GitSelectorWorkspaceReadModel {
   readonly activeCenterTab: { kind: string; id: string } | undefined;
   readonly activeProjectId: string | undefined;
-  readonly activeConversationBranchDepth: number;
-  readonly agents: AgentRecord[];
-  readonly selectedAgentId: string | undefined;
 }
 
 const unregisteredWorkspaceReadModel: GitSelectorWorkspaceReadModel = {
   activeCenterTab: undefined,
   activeProjectId: undefined,
-  activeConversationBranchDepth: 0,
-  agents: [],
-  selectedAgentId: undefined,
 };
 
 let workspaceReadModel = unregisteredWorkspaceReadModel;
@@ -81,9 +73,6 @@ export const gitSelectors = {
       repoCount: state.repos.length,
     };
   },
-  get branchDepth() {
-    return workspaceReadModel.activeConversationBranchDepth;
-  },
 };
 
 /** Checked-out branch of one repository, used to detect PR checkout state. */
@@ -97,15 +86,4 @@ export function gitCurrentBranch(
     state.repoStates[gitRepoStateKey(relativePath)]?.repoSummary ??
     state.repos.find((candidate) => candidate.relativePath === relativePath);
   return repo?.currentBranch ?? undefined;
-}
-
-export function activeModelKeyForGit(): string {
-  return modelKey(
-    workspaceReadModel.agents.find(
-      (agent) => agent.id === workspaceReadModel.selectedAgentId,
-    )?.model ?? {
-      provider: "",
-      modelId: "",
-    },
-  );
 }

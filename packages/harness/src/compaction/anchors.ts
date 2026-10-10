@@ -2,7 +2,7 @@ import type {
   AnchorOverflow,
   CheckpointAnchor,
   CheckpointDetails,
-} from "@nervekit/contracts/conversations";
+} from "@nervekit/contracts/core";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import { estimateRetainedContextTokens } from "./usage.js";
 import { createCompactionSummaryMessage } from "../messages/messages.js";

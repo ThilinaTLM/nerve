@@ -1,7 +1,7 @@
 <script lang="ts">
 import { HeightFollow } from "@nervekit/ui-kit/components/composites/height-follow";
-import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
-import type { EventEnvelope } from "@nervekit/contracts/events";
+
+import type { SubagentTranscriptSnapshot } from "$lib/presentation/view-models/conversation";
 import DialogShell from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -10,10 +10,7 @@ import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import { getConversationUiCapabilities } from "../../context.svelte";
-import {
-  applySubagentTranscriptEvent,
-  fromSubagentTranscriptSnapshot,
-} from "../../state/subagent-transcript-session";
+import { fromSubagentTranscriptSnapshot } from "../../state/subagent-transcript-session";
 import { buildConversationRenderProjection } from "../../state/render";
 import type { ConversationRenderState } from "../../state/conversation-render-state";
 import { createConversationScrollController } from "../../transcript/conversation-scroll.svelte.js";
@@ -129,15 +126,6 @@ $effect(() => {
       renderState = fromSubagentTranscriptSnapshot(next);
       loading = false;
       error = undefined;
-    },
-    event: (event: EventEnvelope<Record<string, unknown>>) => {
-      if (!renderState) return;
-      let gap = false;
-      renderState = applySubagentTranscriptEvent(renderState, event, () => {
-        gap = true;
-        error = "Live activity was interrupted; recovering the transcript.";
-      });
-      return !gap;
     },
     error: (message) => {
       loading = false;

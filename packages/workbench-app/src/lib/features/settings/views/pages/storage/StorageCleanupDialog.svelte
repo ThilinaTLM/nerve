@@ -36,7 +36,6 @@ let openGroups = $state<Record<string, boolean>>({
   history: true,
   logs: false,
   disposable: false,
-  index: false,
 });
 
 const request = $derived(buildCleanupRequest(selection));
@@ -50,7 +49,6 @@ const groupTargets: Record<string, StorageCleanupTarget[]> = {
   history: ["conversations"],
   logs: ["datedLogs", "rotatedEventLog"],
   disposable: ["exploreReports", "crashReports", "cache", "tmp"],
-  index: ["searchIndex"],
 };
 
 function groupCount(group: string): number {
@@ -210,29 +208,13 @@ function start(): void {
           id="cleanup-cache"
           bind:checked={selection.cache}
           title="Cache"
-          description={`Disposable non-query cached data · ${targetFootprint("cache")}`}
+          description={`Disposable cached data · ${targetFootprint("cache")}`}
         />
         <StorageCleanupChoice
           id="cleanup-tmp"
           bind:checked={selection.tmp}
           title="Temporary files"
           description={`Scratch files · ${targetFootprint("tmp")}`}
-        />
-      </Collapsible.Content>
-    </Collapsible.Root>
-
-    <Collapsible.Root bind:open={openGroups.index}>
-      {@render groupHeader(
-        "index",
-        "Query cache",
-        "Rebuild the disposable read model without changing canonical data.",
-      )}
-      <Collapsible.Content class="mt-0.5 rounded-md border border-border/60">
-        <StorageCleanupChoice
-          id="cleanup-index"
-          bind:checked={selection.searchIndex}
-          title="Rebuild query cache"
-          description={`Recreate from canonical records · ${targetFootprint("searchIndex")}`}
         />
       </Collapsible.Content>
     </Collapsible.Root>

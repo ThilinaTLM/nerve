@@ -10,16 +10,15 @@ import CircleOff from "@lucide/svelte/icons/circle-off";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import type {
   ConversationRecord,
-  ProjectEditor,
   ProjectRecord,
-  StatusResponse,
   UpdateConversationStateRequest,
-} from "$lib/api";
+} from "$lib/domain/projects/sidebar-view-models";
+import type { ProjectEditor, StatusResponse } from "$lib/api";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
 import { buildExternalLaunchMenu } from "$lib/presentation/brand/external-launch-menu";
 
 export type ProjectTreeMenuContext = {

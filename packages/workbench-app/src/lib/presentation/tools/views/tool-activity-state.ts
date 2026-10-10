@@ -1,13 +1,15 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
+
 import type {
   ToolCallStatus,
   ToolCallTranscriptRecord,
-} from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
 import type {
   ToolArgumentRegion,
   ToolResultPlaceholder,
 } from "../lifecycle/tool-lifecycle-contracts";
-import type { RecoveryIssue } from "@nervekit/contracts/runs";
+
+import type { RecoveryIssue } from "$lib/presentation/view-models/conversation";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { CardGlyph, MetaItem } from "../../cards/card-presentation";
 
@@ -67,17 +69,15 @@ type DeriveToolActivitySectionsInput = {
 export function deriveToolLifecycleVisualStage(input: {
   draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
   toolCall?: Pick<ToolCallTranscriptRecord, "status"> &
-    Partial<Pick<ToolCallTranscriptRecord, "interactions">>;
+    Partial<Pick<ToolCallTranscriptRecord, "interaction">>;
   outcomeUnknown?: boolean;
 }): ToolLifecycleVisualStage {
   if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
   if (input.outcomeUnknown) return "outcome_unknown";
   switch (input.toolCall.status) {
     case "waiting":
-      return (input.toolCall.interactions ?? []).some(
-        (interaction) =>
-          interaction.status === "pending" && interaction.kind === "approval",
-      )
+      return input.toolCall.interaction?.status === "pending" &&
+        input.toolCall.interaction.kind === "approval"
         ? "approval"
         : "interaction";
     case "committed":

@@ -105,15 +105,14 @@ describe("shared tool runtime contract", () => {
   });
 
   it("applies shared availability and permission semantics", () => {
-    const readOnly = resolveToolAvailability({ permissionLevel: "read_only" });
+    const readOnly = resolveToolAvailability();
     assert.ok(readOnly.activeToolNames.includes("read"));
-    assert.ok(!readOnly.activeToolNames.includes("write"));
     assert.equal(
       evaluateRuntimeToolPermission(
         "bash",
         { command: "rm -rf dist" },
         {
-          permissionLevel: "supervised",
+          permissionRuleSetId: "supervised",
         },
       ).decision,
       "approval",
@@ -123,27 +122,8 @@ describe("shared tool runtime contract", () => {
         "write",
         {},
         {
-          permissionLevel: "read_only",
+          permissionRuleSetId: "read_only",
         },
-      ).decision,
-      "deny",
-    );
-  });
-
-  it("applies explicit tool-group approval requirements after baseline policy", () => {
-    assert.equal(
-      evaluateRuntimeToolPermission(
-        "write",
-        { path: "x", content: "x" },
-        { permissionLevel: "autonomous", groupRequireApproval: "always" },
-      ).decision,
-      "approval",
-    );
-    assert.equal(
-      evaluateRuntimeToolPermission(
-        "write",
-        { path: "x", content: "x" },
-        { permissionLevel: "read_only", groupRequireApproval: "always" },
       ).decision,
       "deny",
     );

@@ -1,6 +1,7 @@
 <script lang="ts">
 import { tick } from "svelte";
-import type { CreatePromptSuggestionRequest, ProjectRecord } from "$lib/api";
+import type { CreatePromptSuggestionRequest } from "../api/prompt-suggestions.api";
+import type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 import {
   PROMPT_SUGGESTION_DESCRIPTION_MAX_LENGTH,
   PROMPT_SUGGESTION_LABEL_MAX_LENGTH,

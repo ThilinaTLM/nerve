@@ -1,139 +1,93 @@
 # Storage architecture
 
-> **Status:** Current implementation. Owning paths, schemas, repositories, and tests remain authoritative.
+> **Status:** Current implementation. Owning schemas, repositories and host adapters are authoritative.
 
-Nerve separates portable configuration, secrets, canonical application data, user-authored agent resources, and disposable state. `NERVE_HOME` defaults to `~/.nerve`; tests and diagnostics must use an isolated home under `/tmp` rather than the live home.
+Nerve separates portable configuration, secrets, core relational data, managed files and disposable state. `NERVE_HOME` defaults to `~/.nerve`; development uses repo-local `data/storage-N`, not the live home.
 
 ## Home boundaries
 
-The path inventory is owned by [`storage-bootstrap/paths.ts`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.ts).
+[`storage-bootstrap/paths.ts`](../../packages/workbench-server/src/infrastructure/storage-bootstrap/paths.ts) owns home paths. The active layout includes:
 
 ```text
 <NERVE_HOME>/
 ├── manifest.json
 ├── daemon.json
-├── config/
-│   ├── daemon.json
-│   ├── harness.json
-│   ├── ui.json
-│   ├── permissions.json
-│   ├── providers.json
-│   └── integrations.json
-├── secrets/
-│   ├── master.key
-│   ├── credentials.enc
-│   └── daemon-token
+├── config/                 # daemon, harness, UI, providers, integrations, permissions
+├── secrets/                # master.key, credentials.enc, daemon-token
 ├── data/
 │   ├── nerve.sqlite
-│   ├── conversations/
-│   ├── tasks/
+│   ├── conversations/      # owned tool files, bash output, permission overlays
+│   ├── launches/           # workbench launch logs
 │   ├── reports/
 │   ├── images/
 │   └── plans/
-├── agent/
+├── agent/                  # user-authored instructions and skills
 ├── tls/
 ├── tmp/
 ├── cache/
 ├── logs/
 ├── crashes/
-├── migrations/
 └── backups/
 ```
 
-`manifest.json` version 2 identifies the home as `standard` or `disposable`. Version-1 manifests remain valid and are classified as standard without being rewritten. A disposable marker is never accepted at the default `~/.nerve` path. Optional directories are created lazily. Electron's `userData` profile is outside `NERVE_HOME` and must be isolated separately in desktop tests that require full browser-state isolation.
+Optional directories are created lazily. `manifest.json` identifies the home format; homes without it, or with an older layout, are rejected rather than imported. Electron's profile lives outside this boundary and needs separate test isolation.
 
-### Ownership
+- `config/` contains validated, atomically replaced human-readable settings.
+- `secrets/` holds restricted encrypted credentials and authentication material; plaintext secret values do not belong in configuration or SQLite.
+- `data/nerve.sqlite` owns projects, conversations, durable history and unfinished work.
+- Managed conversation files and overlays are deleted with their owner. Core asset references are relative to `data/`.
+- Launch definitions are project files at `.nerve/tasks/definitions.json`, not home database rows. Launch logs are files; instance identity/status/environment are in memory.
+- `cache/` and `tmp/` are rebuildable; logs, crashes and backups have separate retention rules.
 
-- `config/` contains versioned, human-readable portable settings. Writers validate and atomically replace these files.
-- `secrets/` contains the restricted master key, encrypted credentials, and daemon token. Plaintext secret values do not belong in configuration or SQLite.
-- `data/nerve.sqlite` is authoritative for relational, historical, transactional, and internal state.
-- `data/conversations/` contains owner-scoped complete tool-result payloads and managed tool-call files.
-- `data/tasks/` contains append-heavy task output bundles; task identity and lifecycle metadata remain in SQLite.
-- `data/reports/`, `data/images/`, and `data/plans/` hold durable files authored or imported for those explicit categories.
-- `agent/` contains user-authored harness resources such as instructions, skills, and suggestions.
-- `cache/` and `tmp/` are rebuildable or disposable. Logs, crash reports, migrations, and backups have separate retention and cleanup rules.
+Homes from 0.34.1 are converted to this layout by the first [storage migration](migrations.md).
 
-Persisted records use logical home-relative references. Runtime code resolves those references against the active `NERVE_HOME`, so moving a complete home does not preserve obsolete absolute paths.
+## Core SQLite
 
-## Canonical SQLite
+[`conversation-core/src/storage`](../../packages/conversation-core/src/storage/) owns the database, SQL migrations and repositories. It uses synchronous `node:sqlite` on the main thread, WAL, foreign keys and small indexed queries. Transactions use `BEGIN IMMEDIATE`; nested calls join the outer transaction and asynchronous callbacks are rejected. JSON is validated by [`contracts/core`](../../packages/contracts/src/domains/core/) at repository boundaries.
 
-The physical schema is owned by [`canonical-sqlite/schema.ts`](../../packages/workbench-server/src/infrastructure/persistence/canonical-sqlite/schema.ts). Its main tables are:
+There are **11 tables**, covering foundation records, conversation state/history/work and scratch notes. See [data model](conversation-core/data-model.md) for the table relationships rather than a second schema here. The core has no agent/run tables, domain-document store, journal/checkpoints, projections, RPC receipt table or separate durable notification store.
 
-| Table                                              | Role                                                                                |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `storage_migrations`                               | Unified ordered schema/data/file/config migration ledger.                           |
-| `storage_read_sweeps`                              | Persisted-reader compatibility identities already verified against this home.       |
-| `storage_quarantine`                               | Retained originals and visibility flags for isolated malformed records.             |
-| `schema_migrations`                                | Read-only compatibility evidence for pre-framework homes during rollout.            |
-| `conversation_records`                             | Ordered, versioned messages, summaries, runs, tool calls, and tool batches.         |
-| `conversation_record_projections`                  | Query projections for message, summary, and run records.                            |
-| `tool_call_projections`                            | Queryable tool-call status, interaction, and ownership fields.                      |
-| `agent_context_leaves`                             | Active branch leaf for each conversation agent.                                     |
-| `durable_event_stream_counters` / `durable_events` | Ordered reliable notification streams; events are not canonical conversation state. |
-| `file_assets`                                      | Logical path, owner, category, size, digest, and media metadata for managed files.  |
-| `rpc_idempotency`                                  | Bounded RPC outcomes for safe retries.                                              |
-| `domain_documents`                                 | Versioned domain records that do not require dedicated relational tables.           |
+Current configuration is separate from append-only event history. Every event links into the tree, even operational facts; selected-head history drives the transcript and model projection. Durable replay uses event sequence across all branches. Tool-call settlement and input delivery append facts and delete unfinished rows transactionally. See [events and context](conversation-core/events-and-context.md), [tool-call lifecycle](conversation-core/tool-call-lifecycle.md) and [input queue](conversation-core/input-queue.md).
 
-Projects, conversations, agents, settings, tasks, and other domain state use repositories backed by `domain_documents` where a dedicated query table is unnecessary. The older conceptual `PROJECT`/`CONVERSATION`/`AGENT` ERD is therefore not the physical database model.
+`schema_migrations` records ordered SQL versions and checksums. Opening core storage applies missing steps transactionally and rejects unknown versions or changed checksums. This is not the old home-wide staging/promotion framework.
 
-### Additive deletion access paths
+## Files and permissions
 
-Unified step `0010-deletion-indexes` installs and verifies
-`durable_events_record(record_id)` and
-`agent_context_leaves_active_record(active_record_id)`. These indexes prevent
-foreign-key checks from scanning unrelated history for every deleted record.
-Existing definitions are adopted only when they match exactly; an incompatible
-index fails planning before the active database is replaced.
+The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives under:
 
-Conversation deletion uses bounded writer commands and yields between them. A
-`conversation_deletion` document records committed deletion intent before the
-first destructive chunk. Startup finishes pending deletions before hydrating
-runtime projections; it does not resume the remaining bulk cleanup candidates.
-The intent remains until stream and payload cleanup succeeds. A failed recovery
-blocks startup instead of hydrating a partially deleted journal as healthy data.
+- `conversations/<conversationId>/tool-calls/<toolCallId>/...`
+- `conversations/<conversationId>/bash/<bashId>/...`
 
-## Conversation journal
+`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Reports, images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](tool-result-projection.md).
 
-A conversation is hydrated from a checkpoint plus ordered journal commits:
+[`core-host/permission.adapter.ts`](../../packages/workbench-server/src/core-host/permission.adapter.ts) composes the selected rule set with overlays at:
 
-- `conversation_state` documents are full checkpoints used for cold hydration, import, and repair.
-- `conversation_journal_head` documents hold the current revision and checksum for compare-and-swap.
-- `conversation_journal_commit` documents hold validated revision-keyed deltas.
-- A hot transaction appends the delta, advances the head, updates affected records and context leaves, and appends its durable notification atomically.
-- Graceful checkpointing folds loaded deltas into a new checkpoint and deletes only covered commits. Interrupted checkpointing leaves retained commits available for recovery.
+- User: `config/permissions.json`
+- Project: `<project>/.nerve/config/permissions.json`
+- Conversation: `data/conversations/<conversationId>/config/permissions.json`
 
-These names are `domain_documents` namespaces, not standalone SQL tables. Hot commits must remain proportional to the current change and affected records rather than unrelated conversation history.
+Custom rule sets are JSON files under `config/rule-sets/`. Project overlays apply only when file-content trust matches their digest. “Always allow” writes the selected overlay; there is no grant table. See [permissions](permissions.md).
 
-```mermaid
-flowchart LR
-  Checkpoint[Conversation checkpoint] --> Hydrate[Hydrated aggregate]
-  Commits[Ordered journal commits] --> Hydrate
-  Hydrate --> Transaction[Atomic hot transaction]
-  Transaction --> Records[Canonical records and projections]
-  Transaction --> Head[Journal head]
-  Transaction --> Events[Durable events]
-```
+Tool and skill capabilities use the same three layers, also as files:
 
-## Complete tool results and task output
+- User: `settings.tools` and `settings.skills` in user settings.
+- Project: `<project>/.nerve/config/capabilities.json`, applied only when trusted for its exact content.
+- Conversation: `data/conversations/<conversationId>/config/capabilities.json`; a missing file inherits everything.
 
-Tool execution has separate complete-result, agent-projection, and transcript-preview concerns. When the complete result needs externalization, the server prepares and validates an owner-scoped payload beneath `data/conversations/`, records its logical reference and integrity metadata, and only then exposes bounded projections. See [Tool-result projection](../decisions/tool-result-projection.md).
+See [capabilities](conversation-core/README.md#capabilities) for the override rules.
 
-Task output is byte-faithful and append-heavy, so bundles live beneath `data/tasks/<task-id>/`. SQLite remains authoritative for task definitions, execution state, and ownership.
+Prompt suggestions are Markdown files (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`). Trust in a suggestion's JavaScript predicate is a `TRUSTED_RESOURCE` row for its exact content; enabled/disabled choices live in `config/prompt-suggestions.json`.
 
-## Migration boundary
+## In-memory state and restart
 
-Ordinary startup acquires one PID-aware home lock, recovers any interrupted promotion, and plans against SQLite read-only. Schema, data, managed-file, and cross-document configuration changes share the ordered registry and `storage_migrations` ledger under [`infrastructure/storage-migrations/`](../../packages/workbench-server/src/infrastructure/storage-migrations/).
+- Streaming text/thinking, argument drafts, tool progress and channel notices are ephemeral.
+- Workbench file and git monitors, integration health and the latest maintenance operation live in service memory. Reconnect re-fetches snapshots; no workspace replay is persisted.
+- Launch instances start empty after daemon restart; graceful shutdown cancels them. A crash may leave detached processes, intentionally without recovery.
+- Async bash identity/status/output references are durable, but native process handles are instance-local. Failed verified reattachment marks running rows `lost`; effects are not blindly replayed.
+- Execution slots and in-progress command preparation live in memory; after a restart, the unfinished tool-call and input rows drive recovery. Pause is stored and survives restarts. See [async bash and launches](conversation-core/async-bash-and-launches.md) and [channels](conversation-core/channels.md).
 
-Pending work runs against `migrations/work/<run-id>/nerve.sqlite`, created with `VACUUM INTO`, plus staged configuration and additive managed files. Verification runs SQLite integrity/foreign-key checks, step invariants, descriptor coverage, and the current payload readers. Promotion is journaled; the replaced database and configuration become `backups/storage/<timestamp>-before-<step>/`. A pre-commit failure discards the workspace and leaves active storage unchanged.
+Stopping a conversation pauses it and cascades through descendants/async bash. Deletion stops work before removing files and rows; project deletion leaves project-authored files untouched.
 
-Every persisted JSON/BLOB location is registered by [`persistence/payloads/descriptors.ts`](../../packages/workbench-server/src/infrastructure/persistence/payloads/descriptors.ts). Versioned codecs upgrade old payloads on read and preserve unknown fields through known-field updates. Build sweeps decode registered records once per build. Isolated malformed derived records can be quarantined; user content and configuration require exact fingerprinted approval, and impact thresholds stop unexpectedly broad quarantine.
+## Migrations
 
-Released/final steps are immutable. Draft steps run only on explicitly disposable homes. Homes upgraded by unknown newer steps fail closed. Standard-home restore is an explicit CLI action with export and confirmation, not an automatic startup fallback.
-
-The one offline legacy import path remains separate: it accepts only the released `nerve-workbench-state` version `2` layout with its checksummed ledger through `0012-remove-workers`, imports into staging, validates, promotes, and retains the original tree under `backups/`. Logs, caches, task runtime state, daemon metadata, TLS identity, and generated diagnostics are regenerated rather than imported.
-
-## Public guidance
-
-- [Storage, cleanup, and migration](https://nerve.tlmtech.dev/operations/storage-migration/)
-- [Data formats and locations](https://nerve.tlmtech.dev/reference/data-formats/)
-- [Persistence and security boundaries](https://nerve.tlmtech.dev/developers/persistence-security/)
+See [storage migrations](migrations.md).

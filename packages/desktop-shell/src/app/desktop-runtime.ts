@@ -1,3 +1,4 @@
+import { StartupProgressThrottle } from "./startup-progress-throttle.js";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { defaultSettings } from "@nervekit/contracts/settings";
@@ -51,7 +52,7 @@ function daemonStartupStatus(progress: DaemonStartupProgress): string {
     case "storage-check":
       return "Checking local storage";
     case "storage-migration":
-      return "Preparing local storage";
+      return "Upgrading local storage";
     case "runtime-hydration":
       return "Starting runtime services";
   }
@@ -146,6 +147,19 @@ export class DesktopRuntime {
     }
     let rendererCoreReadyReported = false;
     let lastReportedStartupStatus: string | undefined;
+    const migrationUpdates = new StartupProgressThrottle<{
+      window: BrowserWindowType;
+      progress: DaemonStartupProgress;
+    }>(
+      () => this.ports.now(),
+      ({ window, progress }) => {
+        void updateLoadingStatus(
+          window,
+          daemonStartupStatus(progress),
+          progress.migration,
+        );
+      },
+    );
     // Nested lifecycle callbacks deliberately capture the owning instance.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const runtime = this;
@@ -436,7 +450,16 @@ export class DesktopRuntime {
                     runtime.#desktopConfiguration.values.maxOldSpaceMb,
                   ...desktopOptions,
                   onStartupProgress: (progress) => {
-                    reportStartupStatus(window, daemonStartupStatus(progress));
+                    if (progress.log) {
+                      reportStartupToTerminal(progress.log);
+                    } else if (progress.migration) {
+                      migrationUpdates.report({ window, progress });
+                    } else {
+                      reportStartupStatus(
+                        window,
+                        daemonStartupStatus(progress),
+                      );
+                    }
                   },
                 }),
               );
@@ -554,6 +577,7 @@ export class DesktopRuntime {
       window: BrowserWindowType,
       message: string,
     ): void {
+      migrationUpdates.cancel();
       reportStartupToTerminal(message);
       void updateLoadingStatus(window, message);
     }
@@ -561,11 +585,12 @@ export class DesktopRuntime {
     async function updateLoadingStatus(
       window: BrowserWindowType,
       message: string,
+      migration?: DaemonStartupProgress["migration"],
     ): Promise<void> {
       if (window.isDestroyed()) return;
       try {
         await window.webContents.executeJavaScript(
-          loadingStatusScript(message),
+          loadingStatusScript(message, migration),
         );
       } catch (error) {
         if (window.isDestroyed()) return;
@@ -580,6 +605,7 @@ export class DesktopRuntime {
       window: BrowserWindowType,
       phase: StartupProgressPhase,
     ): Promise<void> {
+      migrationUpdates.cancel();
       if (window.isDestroyed()) return;
       const stage: LoadingStage =
         phase === "daemon-ready" ? "preparing" : "opening";

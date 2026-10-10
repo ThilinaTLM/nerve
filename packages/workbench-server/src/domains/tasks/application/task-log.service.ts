@@ -9,7 +9,7 @@ import { taskLogEventSchema } from "@nervekit/contracts/tasks";
 import { queryTaskLogEvents } from "./task-log-query.js";
 import { mkdir, open } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { StreamLogRegistry } from "../../../infrastructure/events/index.js";
+import type { WorkbenchNoticePublisher } from "../../../infrastructure/events/index.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import {
   appendJsonLines,
@@ -65,7 +65,7 @@ export function createTaskLogCursor(logSeq = 0): TaskLogCursor {
 
 export class TaskLogService {
   constructor(
-    private readonly events: StreamLogRegistry,
+    private readonly events: WorkbenchNoticePublisher,
     private readonly options: {
       publishOutputEvents?: boolean;
       diagnostics?: PerformanceDiagnosticsPort;
@@ -374,7 +374,7 @@ export class TaskLogService {
     for (const event of events) {
       this.options.diagnostics?.count("task.outputLine");
       if (this.options.publishOutputEvents !== false) {
-        await this.events.publish("task.output", {
+        await this.events.publish("launch.output", {
           taskId: record.id,
           stream: event.stream,
           text: event.line.slice(-16_384),

@@ -4,7 +4,11 @@ import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { listIntegrationHealth, uploadClipboardImage } from "$lib/api";
+import {
+  listIntegrationHealth,
+  listTools,
+  uploadClipboardImage,
+} from "$lib/api";
 import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
@@ -33,15 +37,18 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import {
   getCapabilityConfiguration,
   updateCapabilities,
-} from "$lib/features/projects/api/projects.api";
+} from "$lib/features/conversations/adapters/core-capabilities.adapter";
 import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
-import { onEvent } from "$lib/application/events/event-bus";
+import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
+import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import {
   ComposerCapabilityController,
   type ComposerCapabilityState,
 } from "./composer-capability-controller";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
+import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
   text = "",
@@ -164,24 +171,38 @@ $effect(() => {
   }
 });
 
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || !activeProject) return;
+  void listTools()
+    .then((tools) => {
+      conversationCatalog.toolRisks = Object.fromEntries(
+        tools.map((tool) => [tool.name, tool.risk]),
+      );
+    })
+    .catch(() => undefined);
+});
+
 onDestroy(() => capabilityController.setScope(undefined));
 
 /* Project and user level changes made elsewhere must not leave the composer
  * showing a stale effective state. */
 $effect(() => {
   const unsubscribes = [
-    onEvent("project.capabilities.changed", (event) => {
-      const data = event.data as {
-        projectId?: string;
-        conversationId?: string;
-      };
-      if (data.projectId !== activeProject?.id) return;
-      if (
-        data.conversationId !== undefined &&
-        data.conversationId !== activeConversation?.id
-      )
-        return;
-      void capabilityController.refresh();
+    observeConversationChannel({
+      recover: () => capabilityController.refresh(),
+      disconnected() {},
+      event() {},
+      notice(notice) {
+        if (notice.type !== "capabilities.changed") return;
+        const data = notice.data;
+        if (data.projectId !== activeProject?.id) return;
+        if (
+          data.conversationId !== undefined &&
+          data.conversationId !== activeConversation?.id
+        )
+          return;
+        void capabilityController.refresh();
+      },
     }),
     onEvent("settings.updated", () => {
       void capabilityController.refresh();
@@ -220,6 +241,18 @@ const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
     return { kind: "pending-conversation", id: activePendingConversation.id };
   return undefined;
 });
+$effect(() => {
+  const target = voiceTarget;
+  if (!target) return;
+  return bindComposerVoiceInput(voiceInputSession, target, {
+    read: () => text,
+    update: (next) => onChange?.(next),
+    focus: () => {
+      editorFocusToken += 1;
+    },
+  });
+});
+
 const recording = $derived(
   Boolean(
     voiceTarget &&

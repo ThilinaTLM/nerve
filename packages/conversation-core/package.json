@@ -1,0 +1,46 @@
+{
+  "name": "@nervekit/conversation-core",
+  "version": "0.34.1",
+  "private": true,
+  "description": "Portable conversation contracts, storage, and runtime.",
+  "author": "ThilinaTLM",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThilinaTLM/nerve.git",
+    "directory": "packages/conversation-core"
+  },
+  "homepage": "https://github.com/ThilinaTLM/nerve#readme",
+  "files": [
+    "dist/**",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "check": "tsc -b --pretty false",
+    "test": "tsx --test \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@nervekit/contracts": "workspace:*",
+    "@nervekit/native": "workspace:*",
+    "@nervekit/harness": "workspace:*",
+    "@nervekit/skills": "workspace:*",
+    "@nervekit/tools": "workspace:*",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  }
+}

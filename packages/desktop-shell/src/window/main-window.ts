@@ -1,4 +1,5 @@
 import { DESKTOP_APP_NAME } from "../desktop-identity.js";
+import { DEVELOPMENT_SLOT_ARGUMENT } from "../app/development-marker.js";
 import type { BrowserWindowConstructorOptions } from "electron";
 import type { BrowserWindowType } from "../platform/electron/electron-api.js";
 import type { QuitSource } from "../app/quit-contracts.js";
@@ -18,6 +19,8 @@ export interface MainWindowDependencies {
   resolveAppIconPath(): string;
   resolvePreloadPath(): string;
   readonly platform: NodeJS.Platform;
+  /** Set only by `pnpm desktop:dev`; labels the window as a dev instance. */
+  readonly developmentSlot?: number;
   log(
     level: "info" | "warn" | "error",
     component: string,
@@ -36,6 +39,7 @@ export function createDesktopMainWindow(
   callbacks: MainWindowCallbacks,
   dependencies: MainWindowDependencies,
 ): BrowserWindowType {
+  const { developmentSlot } = dependencies;
   const window = dependencies.createWindow({
     width: 1320,
     height: 860,
@@ -43,7 +47,9 @@ export function createDesktopMainWindow(
     minHeight: 640,
     autoHideMenuBar: true,
     frame: false,
-    title: DESKTOP_APP_NAME,
+    title: developmentSlot
+      ? `${DESKTOP_APP_NAME} (Dev ${developmentSlot})`
+      : DESKTOP_APP_NAME,
     backgroundColor: loadingWindowBackground(
       dependencies.shouldUseDarkColors(),
     ),
@@ -55,6 +61,13 @@ export function createDesktopMainWindow(
       nodeIntegration: false,
       preload: dependencies.resolvePreloadPath(),
       sandbox: true,
+      ...(developmentSlot
+        ? {
+            additionalArguments: [
+              `${DEVELOPMENT_SLOT_ARGUMENT}${developmentSlot}`,
+            ],
+          }
+        : {}),
     },
   });
 

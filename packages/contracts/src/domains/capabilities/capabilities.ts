@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   asyncSubagentToolNames,
   isAsyncSubagentTool,
-} from "../agents/async-subagents.js";
+} from "../tools/async-subagents.js";
 import {
   asyncSubagentSettingsSchema,
   exploreAgentSettingsSchema,
@@ -117,7 +117,7 @@ const skillOverridesSchema = z
       });
   });
 
-/** Sparse per-tool override: each absent field inherits from the parent level. */
+/** Stored tool entries replace enabled state and complete configuration together. */
 export const capabilityToolOverrideSchema = z
   .object({
     enabled: z.boolean().optional(),
@@ -310,26 +310,30 @@ export function applyCapabilityPatch(
   for (const [key, change] of Object.entries(patch.tools ?? {})) {
     if (!change) continue;
     const name = key as CapabilityToolName;
-    const entry: CapabilityToolOverride = { ...next.tools[name] };
-    if (change.enabled !== undefined) {
-      if (
-        change.enabled === null ||
-        change.enabled === capabilityToolEnabled(inherited, name)
-      )
-        delete entry.enabled;
-      else entry.enabled = change.enabled;
-    }
+    const entry: CapabilityToolOverride = next.tools[name]
+      ? { ...next.tools[name] }
+      : {
+          enabled: capabilityToolEnabled(inherited, name),
+          ...(isProfiledCapabilityTool(name) && inherited.toolProfiles[name]
+            ? { profileId: inherited.toolProfiles[name] }
+            : {}),
+        };
+    if (change.enabled !== undefined)
+      entry.enabled = change.enabled ?? capabilityToolEnabled(inherited, name);
     if (change.profileId !== undefined) {
-      const inheritedProfile = isProfiledCapabilityTool(name)
-        ? inherited.toolProfiles[name]
-        : undefined;
-      if (change.profileId === null || change.profileId === inheritedProfile)
-        delete entry.profileId;
-      else entry.profileId = change.profileId;
+      const profileId =
+        change.profileId ??
+        (isProfiledCapabilityTool(name)
+          ? inherited.toolProfiles[name]
+          : undefined);
+      if (profileId) entry.profileId = profileId;
+      else delete entry.profileId;
     }
-    if (entry.enabled === undefined && entry.profileId === undefined)
-      delete next.tools[name];
-    else next.tools[name] = entry;
+    next.tools[name] = entry;
+    if (isConfigurableCapabilityTool(name) && !next.toolSettings[name])
+      Object.assign(next.toolSettings, {
+        [name]: inherited.toolSettings[name],
+      });
   }
   const toolSettings: Partial<Record<ConfigurableCapabilityToolName, unknown>> =
     next.toolSettings;
@@ -357,6 +361,55 @@ export function applyCapabilityPatch(
       else next.skills[kind][name] = value;
     }
   }
+  return normalizeCapabilityOverrides(next, inherited);
+}
+
+/** Store whole tool entries, and drop entries identical to their parent. */
+export function normalizeCapabilityOverrides(
+  document: CapabilityOverridesDocument,
+  inherited: CapabilitySelection,
+): CapabilityOverridesDocument {
+  const effective = resolveCapabilitySelection({
+    user: inherited,
+    conversation: document,
+  });
+  const next = emptyCapabilityOverrides();
+  const names = new Set([
+    ...Object.keys(document.tools),
+    ...Object.keys(document.toolSettings),
+  ]);
+  for (const key of names) {
+    const name = key as CapabilityToolName;
+    const enabled = capabilityToolEnabled(effective, name);
+    const profileId = isProfiledCapabilityTool(name)
+      ? effective.toolProfiles[name]
+      : undefined;
+    const settings = isConfigurableCapabilityTool(name)
+      ? effective.toolSettings[name]
+      : undefined;
+    if (
+      enabled === capabilityToolEnabled(inherited, name) &&
+      (!isProfiledCapabilityTool(name) ||
+        profileId === inherited.toolProfiles[name]) &&
+      (!isConfigurableCapabilityTool(name) ||
+        sameSettings(settings, inherited.toolSettings[name]))
+    )
+      continue;
+    next.tools[name] = { enabled, ...(profileId ? { profileId } : {}) };
+    if (isConfigurableCapabilityTool(name))
+      Object.assign(next.toolSettings, { [name]: settings });
+  }
+  for (const kind of ["file", "nerve", "agentBrowser"] as const) {
+    for (const [name, enabled] of Object.entries(document.skills[kind])) {
+      const parent =
+        kind === "file"
+          ? !inherited.disabledFileSkills.includes(name)
+          : kind === "nerve"
+            ? inherited.enabledNerveSkills.includes(name)
+            : inherited.enabledAgentBrowserSkills.includes(name);
+      if (enabled !== parent) next.skills[kind][name] = enabled;
+    }
+  }
   return capabilityOverridesDocumentSchema.parse(next);
 }
 
@@ -380,8 +433,11 @@ export function resolveCapabilitySelection(input: {
       const name = key as CapabilityToolName;
       if (override.enabled === true) disabledTools.delete(name);
       else if (override.enabled === false) disabledTools.add(name);
-      if (override.profileId !== undefined && isProfiledCapabilityTool(name))
-        toolProfiles[name] = override.profileId;
+      if (isProfiledCapabilityTool(name)) {
+        if (override.profileId !== undefined)
+          toolProfiles[name] = override.profileId;
+        else delete toolProfiles[name];
+      }
     }
     Object.assign(toolSettings, document.toolSettings);
     for (const [name, enabled] of Object.entries(document.skills.file)) {

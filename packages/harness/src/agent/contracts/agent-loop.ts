@@ -77,6 +77,8 @@ export interface ShouldStopAfterTurnContext {
 
 /** Replacement runtime state used by the agent loop before starting another provider request. */
 export interface AgentLoopTurnUpdate {
+  /** Durable input inserted at this boundary requires another request, even after a final response. */
+  continue?: boolean;
   /** Context for the next provider request. */
   context?: AgentContext;
   /** Model for the next provider request. */
@@ -85,6 +87,11 @@ export interface AgentLoopTurnUpdate {
   thinkingLevel?: ThinkingLevel;
 }
 
+/** Preparation can supersede a candidate before any provider stream is acquired. */
+export type AgentLoopProviderPreparation =
+  | { kind: "ready" }
+  | { kind: "refresh"; update: AgentLoopTurnUpdate };
+
 export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {
   /** Whether completed tool execution naturally requires another provider turn. */
   hasMoreToolCalls: boolean;
@@ -92,6 +99,8 @@ export interface PrepareNextTurnContext extends ShouldStopAfterTurnContext {
 
 export interface AgentLoopConfig extends SimpleStreamOptions {
   model: AnyModel;
+
+  prepareProviderDispatch?: () => Promise<AgentLoopProviderPreparation>;
 
   /**
    * Converts AgentMessage[] to LLM-compatible Message[] before each LLM call.

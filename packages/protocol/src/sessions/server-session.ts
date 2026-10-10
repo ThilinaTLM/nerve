@@ -41,7 +41,12 @@ import {
 } from "../streams/notification-buffer.js";
 import { OutgoingBufferBudget } from "../streams/outgoing-buffer-budget.js";
 import { matchesNegotiatedPeerBinding } from "./peer-binding.js";
-import { dispatchInboundRpc, handleInboundRpcResponse } from "./inbound-rpc.js";
+import {
+  dispatchInboundRpc,
+  handleInboundRpcResponse,
+  sendRpcResponse,
+} from "./inbound-rpc.js";
+import { ProtocolDecodeError } from "../transports/codec.js";
 import type {
   ServerSessionOptions,
   ServerSessionState,
@@ -116,6 +121,7 @@ export class ProtocolServerSession {
         await options.diagnostics?.publish({ type: "heartbeat" });
         await this.shutdown("idle_timeout", "Protocol heartbeat timed out");
       },
+      onError: () => this.dispose(),
     });
     this.#handshakeTimeout = this.#timers.setTimeout(() => {
       if (this.state === "awaiting_hello" || this.state === "awaiting_ready") {
@@ -236,7 +242,11 @@ export class ProtocolServerSession {
       this.#options.createMessage,
     );
     if (this.state !== "ready") return;
-    await this.#sendControl(response);
+    await sendRpcResponse(
+      response,
+      (reply) => this.#sendControl(reply),
+      this.#options.createMessage,
+    );
   }
 
   async publish(stream: string, event: EventEnvelope): Promise<void> {
@@ -317,16 +327,37 @@ export class ProtocolServerSession {
       }
       const notifyEvents = this.#notifications.take();
       if (notifyEvents.length > 0) {
-        await this.#sender.send(
-          this.#options.createMessage(
-            "event.notify",
-            { events: notifyEvents },
-            {
-              target: this.peer,
-            },
-          ),
-          "live",
-        );
+        await this.#sendNotifications(notifyEvents);
+      }
+    }
+  }
+
+  async #sendNotifications(events: readonly NotifyEvent[]): Promise<void> {
+    if (this.state !== "ready") return;
+    const message = this.#options.createMessage(
+      "event.notify",
+      { events: [...events] },
+      { target: this.peer },
+    );
+    try {
+      await this.#sender.send(message, "live");
+    } catch (error) {
+      if (
+        !(error instanceof ProtocolDecodeError) ||
+        error.code !== "MESSAGE_TOO_LARGE"
+      )
+        throw error;
+      if (events.length > 1) {
+        const middle = Math.floor(events.length / 2);
+        await this.#sendNotifications(events.slice(0, middle));
+        await this.#sendNotifications(events.slice(middle));
+      } else {
+        await this.#options.onMessageTooLarge?.(message);
+        await this.#options.diagnostics?.publish({
+          type: "notify",
+          code: "MESSAGE_TOO_LARGE",
+          count: 1,
+        });
       }
     }
   }
@@ -369,6 +400,9 @@ export class ProtocolServerSession {
           ),
         );
       }
+    } catch {
+      // Goodbye is best-effort: the transport may already be closed, including
+      // when shutdown is triggered by a failed send. Always finalize locally.
     } finally {
       this.#finalize(new Error(message ?? reason));
     }
@@ -553,6 +587,7 @@ export class ProtocolServerSession {
         return;
       }
       await this.#sendEvents(cursor.stream, events, "replay", "replay");
+      if (this.state !== "ready") return;
       nextSeq = (events.at(-1) as EventEnvelope).seq + 1;
     }
   }
@@ -568,13 +603,25 @@ export class ProtocolServerSession {
       this.#options.limits.maxBatchEvents,
       this.#options.limits.maxBatchBytes,
     )) {
+      if (this.state !== "ready") return;
       const batch = buildEventBatch(chunk, { stream, reason });
-      await this.#sender.send(
-        this.#options.createMessage("event.batch", batch, {
-          target: this.peer,
-        }),
-        priority,
-      );
+      const message = this.#options.createMessage("event.batch", batch, {
+        target: this.peer,
+      });
+      try {
+        await this.#sender.send(message, priority);
+      } catch (error) {
+        if (
+          !(error instanceof ProtocolDecodeError) ||
+          error.code !== "MESSAGE_TOO_LARGE"
+        )
+          throw error;
+        await this.#options.onMessageTooLarge?.(message);
+        await this.#overflow(
+          `Event batch exceeds the byte limit for ${stream}`,
+        );
+        return;
+      }
     }
   }
 

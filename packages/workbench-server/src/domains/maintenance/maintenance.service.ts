@@ -4,7 +4,7 @@ import {
   type MaintenanceOperation,
   type MaintenanceRequest,
 } from "@nervekit/contracts/maintenance";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import type {
   MaintenanceExecution,
   MaintenanceProgressPatch,
@@ -20,7 +20,7 @@ export interface MaintenanceServiceDeps {
     request: MaintenanceRequest,
     execution: MaintenanceExecution,
   ): Promise<void>;
-  getProject(projectId: string): ProjectRecord;
+  getProject(projectId: string): Project;
   reserveProject(projectId: string): () => void;
   warn(error: unknown): Promise<unknown>;
 }

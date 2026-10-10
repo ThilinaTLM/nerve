@@ -1,8 +1,8 @@
 <script lang="ts">
+import type { ProjectRecord } from "$lib/presentation/view-models/conversation";
 import Copy from "@lucide/svelte/icons/copy";
 import type {
   CreatePromptSuggestionRequest,
-  ProjectRecord,
   PromptSuggestionSourceKind,
   PromptSuggestionStatus,
 } from "$lib/api";

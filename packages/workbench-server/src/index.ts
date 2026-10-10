@@ -7,12 +7,6 @@ export { createApp } from "./app/server.js";
 export { version } from "./app/version.js";
 export * from "./infrastructure/network/index.js";
 export * from "./infrastructure/configuration/index.js";
-export * from "./infrastructure/migrations/index.js";
-export {
-  applyStorageMigrationPlan,
-  inspectStorageMigrationPlan,
-  type StorageMigrationOperationOptions,
-} from "./infrastructure/storage-migrations/public-api.js";
 export {
   inspectNerveHome,
   initializeStorage,

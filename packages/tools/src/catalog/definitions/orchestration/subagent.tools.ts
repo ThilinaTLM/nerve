@@ -1,11 +1,15 @@
 import { Type } from "typebox";
 import type { ToolDefinition } from "../../contracts.js";
 
-const teammateName = Type.String({
-  minLength: 1,
-  maxLength: 80,
-  description: "Name of a teammate owned by this lead (case-insensitive).",
-});
+const childTarget = {
+  name: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),
+  agentId: Type.Optional(Type.String({ pattern: "^conv_" })),
+};
+// Preserve an object root while requiring exactly one child target.
+const childTargetOptions = {
+  additionalProperties: false,
+  oneOf: [{ required: ["name"] }, { required: ["agentId"] }],
+};
 export const subagentToolDefinitions = [
   {
     name: "subagent_new",
@@ -15,7 +19,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_new",
     description:
-      "Create an idle autonomous developer teammate with a unique name within your team.",
+      "Create an idle reusable developer teammate with a unique team name and inherited authority. An explicitly user-approved spawn may grant autonomous coding authority, but never bypasses a read-only preset ceiling.",
     parameters: Type.Object(
       { name: Type.String({ minLength: 1, maxLength: 80 }) },
       { additionalProperties: false },
@@ -29,10 +33,24 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Start an assignment only with an idle teammate. Prompts for running or stopping teammates are rejected, never queued. The teammate cannot see your conversation history or discoveries unless you include them in the prompt. Provide relevant findings, file paths, constraints, and the expected outcome. It can inspect the shared worktree and retains its own context from earlier assignments.",
+      "Assign or steer one owned child: agentId (including Explore) or case-insensitive developer teammate name, never both. Running children accept durable next-turn input after their tool batch settles; stopped children require resume=true. Optional configuration applies next turn to the child conversation: model, thinkingLevel, tools, skills, instructions, systemPrompt, mode, permissionRuleSetId, projectDir. Include findings, paths, constraints and expected outcomes: children cannot see your conversation but share the worktree and retain their own context.",
     parameters: Type.Object(
-      { name: teammateName, prompt: Type.String({ minLength: 1 }) },
-      { additionalProperties: false },
+      {
+        ...childTarget,
+        prompt: Type.String({ minLength: 1 }),
+        resume: Type.Optional(Type.Boolean()),
+        configuration: Type.Optional(
+          Type.Record(
+            Type.String({
+              pattern:
+                "^(model|thinkingLevel|tools|skills|instructions|systemPrompt|mode|permissionRuleSetId|projectDir)$",
+            }),
+            Type.Unknown(),
+            { additionalProperties: false },
+          ),
+        ),
+      },
+      childTargetOptions,
     ),
   },
   {
@@ -60,11 +78,8 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_status",
     description:
-      "Inspect a teammate's state and, when idle, its last response and run identity.",
-    parameters: Type.Object(
-      { name: teammateName },
-      { additionalProperties: false },
-    ),
+      "Inspect an owned child's state and, when idle, last response/run. Supply agentId (including Explore) or case-insensitive developer name, never both.",
+    parameters: Type.Object({ ...childTarget }, childTargetOptions),
   },
   {
     name: "subagent_stop",
@@ -74,10 +89,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_stop",
     description:
-      "Stop a teammate's current assignment without deleting its history.",
-    parameters: Type.Object(
-      { name: teammateName },
-      { additionalProperties: false },
-    ),
+      "Pause an owned child, preserving history and pending input until explicit resume. Supply agentId (including Explore) or case-insensitive developer name, never both.",
+    parameters: Type.Object({ ...childTarget }, childTargetOptions),
   },
 ] satisfies ToolDefinition[];

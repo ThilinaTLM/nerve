@@ -1,7 +1,7 @@
 <script lang="ts">
-import { clampThinkingLevelForModel } from "$lib/application/preferences/agent-selection";
+import type { ConversationConfig } from "@nervekit/contracts/core";
+import { clampThinkingLevelForModel } from "$lib/application/preferences/thinking-levels";
 import type {
-  AgentRecord,
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
@@ -20,7 +20,7 @@ import {
 import type { SettingsChange } from "../settings-change";
 import ScopedModelCatalog from "./ScopedModelCatalog.svelte";
 
-type ThinkingLevel = AgentRecord["thinkingLevel"];
+type ThinkingLevel = ConversationConfig["reasoningLevel"];
 
 type Props = {
   settingsDraft: Settings;

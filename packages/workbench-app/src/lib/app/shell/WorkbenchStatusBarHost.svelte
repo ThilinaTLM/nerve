@@ -13,10 +13,9 @@ import {
   shellSheets,
   togglePanelDock,
 } from "$lib/app/shell/shell-layout.svelte";
-import {
-  conversationSelectors,
-  openConversation,
-} from "$lib/features/conversations";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
+import { sidebarProjects } from "$lib/features/projects";
+import { ShellChannelStatus } from "./shell-channel-status.svelte";
 import { gitSelectors } from "$lib/features/git";
 import { taskSelectors } from "$lib/features/tasks";
 import { settingsSelectors } from "$lib/features/settings";
@@ -24,19 +23,30 @@ import { setUiZoomLevel } from "$lib/application/settings";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
 
-const activeProject = $derived(workspaceSelectors.activeProject);
-const connection = $derived(workspaceSelectors.connection);
-const live = $derived(conversationSelectors.live);
+const activeProject = $derived(
+  sidebarProjects(
+    workspaceSelectors.activeProject ? [workspaceSelectors.activeProject] : [],
+  )[0],
+);
+const channels = new ShellChannelStatus();
+$effect(() => channels.observe());
+const connection = $derived(
+  channels.connected
+    ? "connected"
+    : workspaceSelectors.connection === "connected"
+      ? "reconnecting"
+      : workspaceSelectors.connection,
+);
+const live = $derived(channels.connected);
 const pendingApprovals = $derived.by(() => {
   if (!activeProject) return [];
-  return workspaceSelectors.approvals.filter(
-    (approval) => approval.projectId === activeProject.id,
+  return workspaceSelectors.conversations.filter(
+    (approval) =>
+      approval.projectId === activeProject.id && approval.status === "waiting",
   );
 });
 const pendingApprovalCount = $derived(pendingApprovals.length);
-const pendingApprovalConversationId = $derived(
-  pendingApprovals[0]?.conversationId,
-);
+const pendingApprovalConversationId = $derived(pendingApprovals[0]?.id);
 const tasks = $derived(taskSelectors.scopedTasks);
 const gitStatus = $derived(gitSelectors.gitStatus);
 const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);

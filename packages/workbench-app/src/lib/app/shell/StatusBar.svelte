@@ -16,9 +16,9 @@ import {
 import type {
   MaintenanceOperation,
   TaskRecord,
-  ProjectRecord,
   StatusResponse,
 } from "$lib/api";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import type { SubscriptionUsageEntry } from "$lib/features/usage";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import StatusPopover from "./StatusPopover.svelte";

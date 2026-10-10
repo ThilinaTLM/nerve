@@ -1,11 +1,12 @@
 <script lang="ts">
-import type { ProjectRecord, TaskRecord } from "$lib/api";
+import type { Project } from "@nervekit/contracts/core";
+import type { TaskRecord } from "$lib/api";
 import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import { createWorkbenchTaskPanelAdapter } from "$lib/features/tasks/state/workbench-task-panel-adapter.svelte";
 import { TasksPanel } from "$lib/features/tasks";
 
 type Props = {
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   tasks?: TaskRecord[];
   selectedTask?: TaskRecord;
   homeDir?: string;

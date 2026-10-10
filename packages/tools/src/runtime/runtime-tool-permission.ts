@@ -37,43 +37,27 @@ export function evaluateRuntimeToolPermission(
     const baseRisk = permissionMetadataForTool(name).baseRisk;
     return {
       decision: "deny",
-      risk: legacyRisk(baseRisk),
+      risk: toolRisk(baseRisk),
       reason: `Permission request validation failed: ${
         error instanceof Error ? error.message : String(error)
       }`,
       normalizedArgs: { ...args },
     };
   }
-  const selected = builtInPermissionRuleSet(
-    input.permissionRuleSetId ?? input.permissionLevel,
-  );
+  const selected = builtInPermissionRuleSet(input.permissionRuleSetId);
   const evaluated = evaluatePermissionRequest({
     request,
     policy: composeEffectivePermissionPolicy({ selectedRuleSet: selected }),
   });
-  const risk = legacyRisk(evaluated.baseRisk);
-  let decision: ToolDecision["decision"] =
+  const risk = toolRisk(evaluated.baseRisk);
+  const decision: ToolDecision["decision"] =
     evaluated.decision === "prompt" ? "approval" : evaluated.decision;
-  let { reason } = evaluated;
-
-  if (input.groupRequireApproval === "always" && decision !== "deny") {
-    decision = "approval";
-    reason = "The tool group requires approval.";
-  } else if (
-    input.groupRequireApproval === "risky" &&
-    ["destructive", "secret", "deployment", "agent_spawn"].includes(
-      evaluated.baseRisk,
-    ) &&
-    decision === "allow"
-  ) {
-    decision = "approval";
-    reason = "The tool group requires approval for risky operations.";
-  }
+  const { reason } = evaluated;
 
   return { decision, risk, reason, normalizedArgs: request.args };
 }
 
-function legacyRisk(risk: StaticToolRisk): ToolRisk {
+function toolRisk(risk: StaticToolRisk): ToolRisk {
   if (risk === "write") return "workspace_write";
   if (risk === "unknown") return "command";
   return risk;

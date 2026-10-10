@@ -16,7 +16,7 @@ export HTTP_PROXY=$HTTPS_PROXY
 export NO_PROXY=localhost,127.0.0.1,::1
 export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
 pnpm --filter @nervekit/desktop-shell rebuild electron
-pnpm desktop
+pnpm desktop:dev
 ```
 
 PowerShell:
@@ -28,7 +28,7 @@ $env:HTTP_PROXY = $env:HTTPS_PROXY
 $env:NO_PROXY = "localhost,127.0.0.1,::1"
 $env:NODE_EXTRA_CA_CERTS = "C:\path\to\corporate-ca.pem"
 pnpm --filter @nervekit/desktop-shell rebuild electron
-pnpm desktop
+pnpm desktop:dev
 ```
 
 Set `NODE_EXTRA_CA_CERTS` only for a real TLS-interception CA. If your company mirrors Electron artifacts, set `ELECTRON_MIRROR` before rebuild. Clear a partial Electron cache if the same corrupt download is reused.

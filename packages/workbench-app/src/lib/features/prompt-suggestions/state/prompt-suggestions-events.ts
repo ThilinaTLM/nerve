@@ -1,4 +1,7 @@
-import { onEvent } from "$lib/application/events/event-bus";
+import {
+  onEvent,
+  onWorkbenchReconnect,
+} from "$lib/application/events/workbench-event-bus";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
   refreshPromptSuggestionStatuses,
@@ -10,13 +13,13 @@ export function registerPromptSuggestionEventHandlers(): () => void {
     void refreshPromptSuggestionStatuses(selection.projectId);
     void refreshPromptSuggestions(selection.projectId, {
       conversationId: selection.conversationId,
-      agentId: selection.agentId,
     });
   };
   const dispose = [
     onEvent("prompt_suggestions.trust_updated", refresh),
     onEvent("prompt_suggestions.enabled_updated", refresh),
     onEvent("prompt_suggestions.created", refresh),
+    onWorkbenchReconnect(refresh),
   ];
   return () => {
     for (const unregister of dispose) unregister();

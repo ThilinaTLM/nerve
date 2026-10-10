@@ -1,11 +1,8 @@
-import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
-import { listAvailableModels } from "@nervekit/harness/models";
 import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
 import {
   providerApiKeySecretName,
   providerOAuthSecretName,
 } from "../../../domains/auth/index.js";
-import { listAvailableSkills } from "../../../domains/agents/prompting/resource-loader.js";
 import {
   createProjectEntry,
   directoryListing,
@@ -16,10 +13,6 @@ import {
   resolveApplicationConfiguration,
 } from "../../../infrastructure/configuration/index.js";
 import { writeSettings } from "../../../infrastructure/storage-bootstrap/index.js";
-import {
-  getConversationSnapshotResponse,
-  getWorkspaceSnapshotResponse,
-} from "../snapshots.js";
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
@@ -34,25 +27,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
   definePlatformMethodHandlers({
     "status.latestRelease.get": (state) =>
       state.latestRelease.getLatestRelease(),
-    "snapshot.workspace.get": (state) => getWorkspaceSnapshotResponse(state),
-    "snapshot.conversation.get": (state, params) =>
-      getConversationSnapshotResponse(state, params.conversationId),
     "settings.get": (state) => state.storage.settings,
     "settings.update": (state, params) =>
       updateSettings(state, params as Record<string, unknown>),
     "applicationConfiguration.get": (state) => state.applicationConfiguration,
     "applicationConfiguration.update": (state, params) =>
       updateApplicationConfiguration(state, params),
-    "skill.list": (state, params) => {
-      const projectDir = params?.projectId
-        ? state.projectLifecycle.getProject(params.projectId).dir
-        : undefined;
-      return listAvailableSkills(projectDir, {
-        storageHome: state.storage.paths.home,
-        nerveSkills: state.nerveSkills.skills,
-        agentBrowserSkills: state.agentBrowserSkills.skills,
-      });
-    },
     "auth.providers.list": async (state) => ({
       providers: await state.auth.listProviderMetadata(
         state.providerCatalog.providerDisplayNames(),
@@ -98,13 +78,12 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "storage.info": (state) => ({
       dataDir: state.storage.paths.home,
       sqlitePath: state.storage.paths.sqlitePath,
-      counts: state.queryCache.counts(),
-    }),
-    "storage.rebuildIndex": async (state) => ({
-      operation: await state.maintenance.start({
-        kind: "storage_cleanup",
-        parameters: { rebuildSearchIndex: true },
-      }),
+      counts: {
+        projects: state.conversationCore.projects.list().length,
+        conversations: 0,
+        entries: 0,
+        tasks: 0,
+      },
     }),
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),
     "storage.cleanup": async (state, parameters) => ({
@@ -117,12 +96,8 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "maintenance.cancel": async (state, params) => ({
       operation: await state.maintenance.cancel(params.operationId),
     }),
-    "model.list": (state) => ({ models: listModels(state) }),
     "usage.subscription.get": async (state) => ({
       usage: await state.subscriptionUsage.getSnapshots({ refresh: true }),
-    }),
-    "completion.slash.list": () => ({
-      items: [...slashCommandCompletionItems],
     }),
     "completion.files.list": async (state, params) => ({
       items: await state.fileCompletions.completeFiles(
@@ -136,14 +111,14 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "filesystem.project.entries.list": (state, params) =>
       projectDirectoryEntries(
         params,
-        (projectId) => state.projectLifecycle.getProject(projectId).dir,
+        (projectId) => requireProject(state, projectId).directory,
       ),
     "filesystem.project.monitor.sync": async (state, params, invocation) => {
-      const project = state.projectLifecycle.getProject(params.projectId);
+      const project = requireProject(state, params.projectId);
       return state.workspaceMonitor.syncProject(
         monitorOwner(invocation.monitorOwner),
         project.id,
-        project.dir,
+        project.directory,
         params.directories,
       );
     },
@@ -159,7 +134,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "filesystem.project.entries.create": (state, params) =>
       createProjectEntry(
         params,
-        (projectId) => state.projectLifecycle.getProject(projectId).dir,
+        (projectId) => requireProject(state, projectId).directory,
       ),
     "applicationLog.prune": (state, params) => state.logger.prune(params),
   });
@@ -168,23 +143,6 @@ function monitorOwner(owner: string | undefined): string {
   if (!owner)
     throw new Error("Filesystem monitoring requires a live protocol session");
   return owner;
-}
-
-function listModels(state: PlatformMethodContext) {
-  return listAvailableModels(state.providerCatalog.resolvedModels()).map(
-    (model) => ({
-      provider: model.provider,
-      modelId: model.modelId,
-      name: model.name,
-      label: model.provider === "nerve-faux" ? "Nerve Faux Fast" : model.name,
-      reasoning: model.reasoning,
-      input: model.input,
-      supportedThinkingLevels: model.supportedThinkingLevels,
-      faux: model.provider === "nerve-faux",
-      contextWindow: model.contextWindow,
-      maxOutputTokens: model.maxOutputTokens,
-    }),
-  );
 }
 
 async function updateSettings(
@@ -198,13 +156,6 @@ async function updateSettings(
     );
   }
   const settings = await writeSettings(state.storage, patch);
-  if (
-    patch.runtime &&
-    typeof patch.runtime === "object" &&
-    "pythonExecutablePath" in patch.runtime
-  ) {
-    await state.pythonRuntime.refresh();
-  }
   await state.events.publish("settings.updated", { settings });
   return { settings };
 }
@@ -265,4 +216,10 @@ async function publishProviderCatalogChanged(
 ): Promise<void> {
   await state.events.publish("providers.catalog_changed", { provider });
   await state.events.publish("auth.providers_changed", { provider });
+}
+
+function requireProject(state: PlatformMethodContext, id: string) {
+  const project = state.conversationCore.projects.get(id);
+  if (!project) throw new Error(`Project not found: ${id}`);
+  return project;
 }

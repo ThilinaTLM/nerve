@@ -61,6 +61,7 @@ export interface ServerSessionOptions {
   readonly sessionId: () => string;
   readonly send: (message: NerveMessage) => void | Promise<void>;
   readonly close?: (code: number, reason: string) => void | Promise<void>;
+  readonly onMessageTooLarge?: (message: NerveMessage) => void | Promise<void>;
   readonly maxBufferedEvents?: number;
   readonly maxBufferedBytes?: number;
   readonly notifyQueueLimit?: number;

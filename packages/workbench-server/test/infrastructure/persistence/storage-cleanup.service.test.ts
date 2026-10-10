@@ -1,275 +1,141 @@
-import { MaintenanceRepository } from "../../../src/domains/maintenance/maintenance.repository.js";
-import { MaintenanceService } from "../../../src/domains/maintenance/maintenance.service.js";
-import type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { after, describe, it } from "node:test";
-import {
-  StorageCleanupExecutor,
-  StorageUsageService,
-} from "../../../src/domains/storage/index.js";
-import { CanonicalStore } from "../../../src/infrastructure/persistence/canonical-sqlite/index.js";
+import test from "node:test";
+import { StorageCleanupExecutor } from "../../../src/domains/storage/storage-cleanup.service.js";
+import { StorageUsageService } from "../../../src/domains/storage/storage-usage.service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
+import type {
+  MaintenanceExecution,
+  MaintenanceProgressPatch,
+} from "../../../src/domains/maintenance/maintenance-execution.js";
 
-const roots: string[] = [];
-after(async () =>
-  Promise.all(roots.map((root) => rm(root, { recursive: true, force: true }))),
-);
-
-async function seedHome(): Promise<string> {
+async function fixture(t: import("node:test").TestContext) {
   const home = await mkdtemp(join(tmpdir(), "nerve-cleanup-"));
-  roots.push(home);
-  const write = async (relative: string, bytes: number) => {
-    const path = join(home, relative);
-    await mkdir(join(path, ".."), { recursive: true });
-    await writeFile(path, "x".repeat(bytes));
-  };
-  await write("logs/events.jsonl.1", 1_200);
-  await write("logs/tool-calls.jsonl", 400);
-  await write("logs/application-2020-01-01.jsonl", 300);
-  await write("crashes/report.json", 500);
-  await write("cache/value.json", 250);
-  await write("cache/query-cache.sqlite", 600);
-  await write("cache/query-cache.sqlite.cleanup-backup", 80);
-  await write("tmp/scratch.txt", 60);
-  await write("secrets/daemon-token", 40);
-  return home;
-}
-
-async function makeService(
-  home: string,
-  overrides: {
-    prune?: () => Promise<{
-      removedConversationCount: number;
-      skippedCount: number;
-    }>;
-    rebuild?: () => Promise<void>;
-  } = {},
-) {
+  t.after(() => rm(home, { recursive: true, force: true }));
   const paths = storagePaths(home);
-  const registry = {
-    listConversations: () => [],
-    pruneConversationsAcrossProjects:
-      overrides.prune ??
-      (async () => ({ removedConversationCount: 0, skippedCount: 0 })),
-    rebuildSearchIndex: overrides.rebuild ?? (async () => {}),
-    tools: {
-      async compactToolCallLog() {
-        await writeFile(join(home, "logs", "tool-calls.jsonl"), "x".repeat(20));
-      },
-      toolCallLogPath() {
-        return join(home, "logs", "tool-calls.jsonl");
-      },
+  const updates: MaintenanceProgressPatch[] = [];
+  let cancelled = false;
+  const execution: MaintenanceExecution = {
+    operationId: "maintenanceop_test",
+    cancelled: () => cancelled,
+    report: async (patch) => {
+      updates.push(patch);
     },
   };
-  const usage = new StorageUsageService({ paths, getSource: () => registry });
-  const canonicalStore = new CanonicalStore(paths.sqlitePath);
-  await canonicalStore.initialize();
-  const repository = new MaintenanceRepository(canonicalStore);
+  const usage = new StorageUsageService({
+    paths,
+    getSource: () => ({ listConversations: () => [] }),
+  });
+  const pruneRequests: number[] = [];
   const executor = new StorageCleanupExecutor({
     paths,
     usage,
-    getOperations: () => registry,
+    getOperations: () => ({
+      pruneConversationsAcrossProjects: async (request) => {
+        pruneRequests.push(request.olderThanDays);
+        return { removedConversationCount: 2, skippedCount: 1 };
+      },
+    }),
   });
-  const service = new MaintenanceService({
-    repository,
-    publish: async () => {},
-    getProject: () => {
-      throw new Error("not project cleanup");
+  return {
+    home,
+    paths,
+    usage,
+    updates,
+    execution,
+    executor,
+    pruneRequests,
+    cancel: () => {
+      cancelled = true;
     },
-    reserveProject: () => () => {},
-    warn: async () => {},
-    execute: async (request, context) => {
-      if (request.kind === "storage_cleanup")
-        await executor.execute(request.parameters, context);
-    },
-  });
-  return { service, repository, usage };
+  };
 }
 
-async function waitForTerminal(service: MaintenanceService, timeoutMs = 2_000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const operation = service.get();
-    if (
-      operation &&
-      ["succeeded", "failed", "cancelled"].includes(operation.status)
-    )
-      return operation;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+test("clears disposable files, keeps external symlink targets, and invalidates usage", async (t) => {
+  const f = await fixture(t);
+  await mkdir(f.paths.cachePath, { recursive: true });
+  await mkdir(f.paths.tmpPath, { recursive: true });
+  const external = join(f.home, "external");
+  await writeFile(external, "keep");
+  await writeFile(join(f.paths.cachePath, "models.json"), "cache");
+  await symlink(external, join(f.paths.cachePath, "link"));
+  await writeFile(join(f.paths.tmpPath, "scratch"), "temp");
+  const before = await f.usage.computeUsage();
+  await f.executor.execute({ clearCache: true, clearTmp: true }, f.execution);
+  await access(external);
+  await access(f.paths.cachePath);
+  await assert.rejects(access(join(f.paths.cachePath, "models.json")));
+  await assert.rejects(access(join(f.paths.tmpPath, "scratch")));
+  const last = f.updates.at(-1)!;
+  assert.equal(last.result?.kind, "storage_cleanup");
+  if (last.result?.kind === "storage_cleanup") {
+    assert.deepEqual(
+      last.result.targets.map((target) => [
+        target.target,
+        target.removedItems,
+        target.skipped,
+      ]),
+      [
+        ["cache", 1, 1],
+        ["tmp", 1, 0],
+      ],
+    );
   }
-  throw new Error("cleanup did not finish");
-}
-
-describe("StorageCleanupService", () => {
-  it("accepts immediately, clears selected data, and persists detailed results", async () => {
-    const home = await seedHome();
-    const { service, repository, usage } = await makeService(home);
-    await service.hydrate();
-    const before = await usage.computeUsage(true);
-    assert.equal(
-      before.categories.find((category) => category.key === "crashReports")
-        ?.bytes,
-      500,
-    );
-    assert.equal(
-      before.cleanupTargets.find((target) => target.target === "crashReports")
-        ?.bytes,
-      500,
-    );
-
-    const queued = await service.start({
-      kind: "storage_cleanup",
-      parameters: {
-        logsOlderThanDays: 7,
-        truncateEventLog: true,
-        clearCrashReports: true,
-        clearCache: true,
-        clearTmp: true,
-      },
-    });
-    assert.equal(queued.status, "queued");
-    assert.equal(queued.totalTargets, 5);
-
-    const result = await waitForTerminal(service);
-    assert.equal(result.status, "succeeded", result.error);
-    assert.equal(storageResults(result).length, 5);
-    assert.ok(result.freedBytes >= 300 + 1_200 + 500 + 250 + 60);
-    await assert.rejects(readdir(join(home, "crashes")), /ENOENT/);
-    assert.deepEqual(await readdir(join(home, "cache")), [
-      "query-cache.sqlite",
-      "query-cache.sqlite.cleanup-backup",
-    ]);
-    await assert.rejects(readdir(join(home, "tmp")), /ENOENT/);
-    assert.deepEqual(await readdir(join(home, "secrets")), ["daemon-token"]);
-    assert.equal((await repository.read())?.id, result.id);
-  });
-
-  it("keeps generic cache and query-cache rebuild disjoint", async () => {
-    const home = await seedHome();
-    const { service, usage } = await makeService(home, {
-      rebuild: async () => {
-        await writeFile(
-          join(home, "cache", "query-cache.sqlite"),
-          "x".repeat(100),
-        );
-        await rm(join(home, "cache", "query-cache.sqlite.cleanup-backup"), {
-          force: true,
-        });
-      },
-    });
-    await service.hydrate();
-
-    const before = await usage.computeUsage(true);
-    assert.equal(
-      before.cleanupTargets.find((target) => target.target === "cache")?.bytes,
-      250,
-    );
-    assert.equal(
-      before.cleanupTargets.find((target) => target.target === "searchIndex")
-        ?.bytes,
-      680,
-    );
-
-    await service.start({
-      kind: "storage_cleanup",
-      parameters: { clearCache: true, rebuildSearchIndex: true },
-    });
-    const result = await waitForTerminal(service);
-    assert.equal(result.status, "succeeded", result.error);
-    assert.equal(
-      storageResults(result).find((item) => item.target === "cache")
-        ?.freedBytes,
-      250,
-    );
-    assert.equal(
-      storageResults(result).find((item) => item.target === "searchIndex")
-        ?.freedBytes,
-      580,
-    );
-    assert.deepEqual(await readdir(join(home, "cache")), [
-      "query-cache.sqlite",
-    ]);
-  });
-
-  it("cancels at a target boundary and leaves later targets untouched", async () => {
-    const home = await seedHome();
-    let release!: () => void;
-    const blocked = new Promise<void>((resolve) => {
-      release = resolve;
-    });
-    const { service } = await makeService(home, {
-      prune: async () => {
-        await blocked;
-        return { removedConversationCount: 0, skippedCount: 0 };
-      },
-    });
-    await service.hydrate();
-    const queued = await service.start({
-      kind: "storage_cleanup",
-      parameters: {
-        conversationsOlderThanDays: 30,
-        clearCache: true,
-      },
-    });
-    while (service.get()?.currentTarget !== "conversations")
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    const cancelling = await service.cancel(queued.id);
-    assert.equal(cancelling.status, "cancelling");
-    release();
-
-    const result = await waitForTerminal(service);
-    assert.equal(result.status, "cancelled");
-    assert.equal(
-      storageResults(result).find((item) => item.target === "cache")?.outcome,
-      "cancelled",
-    );
-    assert.deepEqual(await readdir(join(home, "cache")), [
-      "query-cache.sqlite",
-      "query-cache.sqlite.cleanup-backup",
-      "value.json",
-    ]);
-  });
-
-  it("marks an active persisted operation interrupted during hydrate", async () => {
-    const home = await seedHome();
-    const { service, repository } = await makeService(home);
-    const now = new Date().toISOString();
-    await repository.write({
-      id: "storageop_TEST",
-      kind: "storage_cleanup",
-      revision: 1,
-      phase: "cache",
-      warnings: [],
-      completedItems: 0,
-      removedConversationCount: 0,
-      removedTaskCount: 0,
-      skippedActiveAgentCount: 0,
-      skippedActiveTaskCount: 0,
-      request: { kind: "storage_cleanup", parameters: { clearCache: true } },
-      status: "running",
-      createdAt: now,
-      updatedAt: now,
-      startedAt: now,
-      message: "Clearing cache…",
-      completedTargets: 0,
-      totalTargets: 1,
-      cancellable: true,
-      cancellationRequested: false,
-      freedBytes: 0,
-      result: { kind: "storage_cleanup", targets: [] },
-    });
-    await service.hydrate();
-    assert.equal(service.get()?.status, "failed");
-    assert.match(service.get()?.error ?? "", /daemon stopped/i);
-  });
+  assert.ok((await f.usage.computeUsage()).totalBytes < before.totalBytes);
 });
 
-function storageResults(operation: MaintenanceOperation) {
-  assert.equal(operation.result?.kind, "storage_cleanup");
-  return operation.result?.kind === "storage_cleanup"
-    ? operation.result.targets
-    : [];
-}
+test("prunes only old dated logs and the explicitly selected rotated event log", async (t) => {
+  const f = await fixture(t);
+  await mkdir(f.paths.logsPath, { recursive: true });
+  for (const name of [
+    "application-2000-01-01.jsonl",
+    "desktop-2999-01-01.jsonl",
+    "events.jsonl",
+    "events.jsonl.1",
+  ])
+    await writeFile(join(f.paths.logsPath, name), "log");
+  await f.executor.execute(
+    { logsOlderThanDays: 7, truncateEventLog: true },
+    f.execution,
+  );
+  await assert.rejects(
+    access(join(f.paths.logsPath, "application-2000-01-01.jsonl")),
+  );
+  await assert.rejects(access(join(f.paths.logsPath, "events.jsonl.1")));
+  await access(join(f.paths.logsPath, "events.jsonl"));
+  await access(join(f.paths.logsPath, "desktop-2999-01-01.jsonl"));
+});
+
+test("delegates conversation pruning and reports skipped active conversations", async (t) => {
+  const f = await fixture(t);
+  await f.executor.execute({ conversationsOlderThanDays: 30 }, f.execution);
+  assert.deepEqual(f.pruneRequests, [30]);
+  const result = f.updates.at(-1)?.result;
+  assert.equal(result?.kind, "storage_cleanup");
+  if (result?.kind === "storage_cleanup") {
+    assert.equal(result.targets[0]?.removedItems, 2);
+    assert.equal(result.targets[0]?.skipped, 1);
+  }
+});
+
+test("cancellation leaves targets untouched and reports cancelled outcomes", async (t) => {
+  const f = await fixture(t);
+  await mkdir(f.paths.cachePath, { recursive: true });
+  await writeFile(join(f.paths.cachePath, "keep"), "cache");
+  f.cancel();
+  await f.executor.execute({ clearCache: true }, f.execution);
+  await access(join(f.paths.cachePath, "keep"));
+  const result = f.updates.at(-1)?.result;
+  assert.equal(result?.kind, "storage_cleanup");
+  if (result?.kind === "storage_cleanup")
+    assert.equal(result.targets[0]?.outcome, "cancelled");
+});

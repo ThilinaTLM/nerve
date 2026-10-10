@@ -100,8 +100,8 @@ describe("StorageUsageService", () => {
       usage.categories.some((category) => category.key === "runtimeState"),
       false,
     );
-    assert.equal(categoryBytes(usage, "queryCache"), 48);
-    assert.equal(categoryBytes(usage, "cache"), 18);
+    assert.equal(categoryBytes(usage, "queryCache"), undefined);
+    assert.equal(categoryBytes(usage, "cache"), 66);
     assert.equal(categoryBytes(usage, "other"), 55);
     assert.deepEqual(usage.database, {
       dbBytes: 10,
@@ -116,8 +116,8 @@ describe("StorageUsageService", () => {
       ],
     });
 
-    assert.equal(targetBytes(usage, "cache"), 18);
-    assert.equal(targetBytes(usage, "searchIndex"), 48);
+    assert.equal(targetBytes(usage, "cache"), 66);
+    assert.equal(targetBytes(usage, "searchIndex"), undefined);
     assert.equal(targetBytes(usage, "conversations"), 18);
     assert.equal(targetBytes(usage, "datedLogs"), 12);
     assert.equal(targetBytes(usage, "rotatedEventLog"), 13);

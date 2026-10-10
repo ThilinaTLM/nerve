@@ -1,29 +1,27 @@
 import type {
-  AgentRecord,
-  ConversationRecord,
   FilesystemFileResponse,
   GithubChecksSummary,
-  ProjectRecord,
   TaskRecord,
 } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import type {
   FileDisplayMode,
   FileRenderKind,
 } from "@nervekit/ui-kit/display/file-display";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
 
 export type ConversationTabModel = {
   kind: "conversation";
   id: string;
-  conversation: ConversationRecord;
-  project?: ProjectRecord;
-  agent?: AgentRecord;
+  conversation: ConversationSummary;
+  project?: Project;
   active: boolean;
   hasDraft: boolean;
   sending: boolean;
-  activity: ConversationActivityState;
+  activity: ConversationActivity;
   error?: string;
 };
 
@@ -31,12 +29,12 @@ export type PendingConversationTabModel = {
   kind: "pending-conversation";
   id: string;
   title: "New Conversation";
-  project?: ProjectRecord;
+  project?: Project;
   projectDir: string;
   active: boolean;
   hasDraft: boolean;
   sending: boolean;
-  activity: ConversationActivityState;
+  activity: ConversationActivity;
   error?: string;
 };
 

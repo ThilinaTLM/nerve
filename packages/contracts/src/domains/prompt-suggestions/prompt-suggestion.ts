@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { permissionLevelSchema } from "../permissions/permissions.js";
 import { modeSchema } from "../settings/settings.js";
 
 export const PROMPT_SUGGESTION_NAME_MAX_LENGTH = 64;
@@ -175,6 +174,6 @@ export const promptSuggestionWhenSchema = z.object({
   hasRepos: z.boolean().optional(),
   githubAuthenticated: z.boolean().optional(),
   modes: z.array(modeSchema).optional(),
-  permissionLevels: z.array(permissionLevelSchema).optional(),
+  permissionRuleSets: z.array(z.string().min(1)).optional(),
 });
 export type PromptSuggestionWhen = z.infer<typeof promptSuggestionWhenSchema>;

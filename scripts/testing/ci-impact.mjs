@@ -14,6 +14,7 @@ const CORE_PACKAGES = new Set([
   "@nervekit/protocol",
   "@nervekit/skills",
   "@nervekit/tools",
+  "@nervekit/conversation-core",
   "@nervekit/ui-kit",
   "@nervekit/workbench-app",
   "@nervekit/workbench-server",
@@ -23,6 +24,7 @@ const HOST_PACKAGES = new Set([
   "@nervekit/harness",
   "@nervekit/skills",
   "@nervekit/tools",
+  "@nervekit/conversation-core",
   "@nervekit/workbench-server",
 ]);
 const WORKBENCH_PACKAGES = new Set([

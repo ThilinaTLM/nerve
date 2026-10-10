@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { PruneProjectConversationsRequest } from "$lib/api";
+import type { PruneProjectConversationsRequest } from "$lib/domain/projects/sidebar-view-models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import RadioGroupField, {

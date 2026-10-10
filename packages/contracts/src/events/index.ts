@@ -4,3 +4,4 @@ export * from "./event-routing.js";
 export * from "./envelope.js";
 export * from "./lifecycle.js";
 export * from "./catalog.js";
+export * from "./workbench-events.js";

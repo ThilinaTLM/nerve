@@ -1,4 +1,4 @@
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
 import { activeRunStreamingText } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {

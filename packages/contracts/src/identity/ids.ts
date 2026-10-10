@@ -33,6 +33,10 @@ export type IdPrefix =
   | "promptq"
   | "pin"
   | "note"
+  | "input"
+  | "asset"
+  | "bash"
+  | "trust"
   | "storageop"
   | "projectop";
 

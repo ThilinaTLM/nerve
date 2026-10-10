@@ -1,3 +1,4 @@
+import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
 import {
@@ -128,20 +129,14 @@ export async function closeCenterTabs(
 
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
+    if (tab.kind === "pending-conversation")
+      pendingConversations.delete(tab.id);
     if (tab.kind === "file")
       workspaceFeaturePorts().filesystem.commands.discardFileView(tab.id);
     if (tab.kind === "mermaid")
       workspaceFeaturePorts().filesystem.commands.discardMermaidView(tab.id);
     if (tab.kind === "diff")
       workspaceFeaturePorts().git.commands.discardDiffView(tab.id);
-    if (tab.kind === "conversation")
-      workspaceFeaturePorts().conversations.commands.discardConversationView(
-        tab.id,
-      );
-    if (tab.kind === "pending-conversation")
-      workspaceFeaturePorts().conversations.commands.discardPendingConversation(
-        tab.id,
-      );
   }
 
   const selectedTaskId = workspaceFeaturePorts().tasks.read.selectedTaskId;
@@ -151,27 +146,6 @@ export async function closeCenterTabs(
   ) {
     workspaceFeaturePorts().tasks.commands.setSelectedTaskId(undefined);
     workspaceFeaturePorts().tasks.commands.clearTaskLogs();
-  }
-
-  const remainingConversationIds = remainingTabs
-    .filter(
-      (tab): tab is Extract<CenterTabIdentity, { kind: "conversation" }> =>
-        tab.kind === "conversation",
-    )
-    .map((tab) => tab.id);
-  const activeConversationTabId =
-    workspaceFeaturePorts().conversations.read.activeConversationTabId;
-  if (
-    activeConversationTabId &&
-    targets.has(
-      centerTabKey({ kind: "conversation", id: activeConversationTabId }),
-    )
-  ) {
-    workspaceFeaturePorts().conversations.commands.setActiveConversationTab(
-      fallback?.kind === "conversation"
-        ? fallback.id
-        : remainingConversationIds[0],
-    );
   }
 
   if (

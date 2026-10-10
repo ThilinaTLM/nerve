@@ -16,7 +16,8 @@ import type {
 export type ToolCallDisplayRecord = ToolCallRecord | ToolCallTranscriptRecord;
 
 import { LruCache } from "@nervekit/ui-kit/collections/lru-cache";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+
+import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 import {
   redactStructuredValue,
   toolArgumentSource,
@@ -167,6 +168,7 @@ function toolViewSignature(
     mode,
     payloadSignature(payloads.argsPreview ?? payloads.args),
     payloadSignature(payloads.resultPreview ?? payloads.result),
+    toolCall.asyncBashView?.kind ?? "",
     overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
@@ -190,6 +192,10 @@ export function parseToolView(
   toolCall: ToolCallDisplayRecord,
   liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
+  if (toolCall.asyncBashView)
+    return toolCall.asyncBashView.kind === "task_action"
+      ? { ...toolCall.asyncBashView, liveLog: liveOutput?.text }
+      : toolCall.asyncBashView;
   const payloads = toolCall as ToolCallDisplayRecord & {
     args?: unknown;
     result?: unknown;
@@ -217,7 +223,10 @@ export function parseToolView(
           path,
           relPath,
           image: {
-            dataUrl: imageDataUrl(imageBlock.mimeType, imageBlock.data),
+            dataUrl:
+              "assetId" in imageBlock
+                ? `/api/assets/${encodeURIComponent(imageBlock.assetId)}`
+                : imageDataUrl(imageBlock.mimeType, imageBlock.data),
             mimeType: imageBlock.mimeType,
           },
           truncated: false,
@@ -504,7 +513,6 @@ export function parseToolView(
           data?.recommendation ?? stringField(args.recommendation),
         answer: data?.response,
         dismissed: Boolean(data?.dismissed),
-        dismissedReason: data?.dismissedReason,
       };
     }
 
@@ -607,9 +615,10 @@ export function parseToolView(
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
-      const interactionSummary = toolCall.interactions.find(
-        (interaction) => interaction.kind === "plan_review",
-      )?.request.summary;
+      const interactionSummary =
+        toolCall.interaction?.kind === "plan_review"
+          ? toolCall.interaction.request.summary
+          : undefined;
       const planPath =
         stringField(review.planPath) ?? stringField(args.file_path);
       const outcome =

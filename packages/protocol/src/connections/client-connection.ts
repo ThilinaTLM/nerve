@@ -130,6 +130,12 @@ export class ProtocolClientConnection {
         transport,
         onMessage: async (message) => {
           if (generation !== this.#generation) return;
+          if (
+            message.kind === "welcome" &&
+            this.session.state === "hello_sent"
+          ) {
+            this.#connection?.setLimits(message.data.limits);
+          }
           await this.session.receive(message);
           if (this.session.state === "closed") {
             this.#disconnectTransport(new Error("Protocol session closed"));

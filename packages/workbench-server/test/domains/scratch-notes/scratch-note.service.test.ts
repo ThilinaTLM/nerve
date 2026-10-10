@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ApplicationError } from "../../../src/core/application-error.js";
+import { shutdownServerRuntime } from "../../../src/app/runtime/server-runtime.js";
 import {
   createAuthenticatedApp,
   tempHome,
@@ -10,8 +10,9 @@ describe("orchestrator scratch notes", () => {
   it("creates, partially updates, and deletes multiple notes", async () => {
     const { runtime, services } = await createAuthenticatedApp();
     try {
-      const project = await services.projectLifecycle.createProject({
-        dir: await tempHome("nerve-scratch-project-"),
+      const project = services.conversationCore.projects.create({
+        name: "Scratch project",
+        directory: await tempHome("nerve-scratch-project-"),
       });
 
       assert.deepEqual(await services.scratchNotes.list(project.id), []);
@@ -55,28 +56,28 @@ describe("orchestrator scratch notes", () => {
           title: "Missing",
         }),
         (error: unknown) =>
-          error instanceof ApplicationError &&
-          error.status === 404 &&
-          error.code === "SCRATCH_NOTE_NOT_FOUND",
+          error instanceof Error && error.message === "Scratch note not found",
       );
       await assert.rejects(
         services.scratchNotes.remove(project.id, "note_missing"),
         (error: unknown) =>
-          error instanceof ApplicationError && error.status === 404,
+          error instanceof Error && error.message === "Scratch note not found",
       );
     } finally {
-      runtime.queryCache.close();
+      await shutdownServerRuntime(runtime);
     }
   });
 
   it("keeps note collections isolated between projects", async () => {
     const { runtime, services } = await createAuthenticatedApp();
     try {
-      const projectA = await services.projectLifecycle.createProject({
-        dir: await tempHome("nerve-scratch-a-"),
+      const projectA = services.conversationCore.projects.create({
+        name: "Scratch project",
+        directory: await tempHome("nerve-scratch-a-"),
       });
-      const projectB = await services.projectLifecycle.createProject({
-        dir: await tempHome("nerve-scratch-b-"),
+      const projectB = services.conversationCore.projects.create({
+        name: "Scratch project",
+        directory: await tempHome("nerve-scratch-b-"),
       });
 
       const noteA = await services.scratchNotes.create(projectA.id, {
@@ -88,7 +89,7 @@ describe("orchestrator scratch notes", () => {
         noteA.id,
       );
     } finally {
-      runtime.queryCache.close();
+      await shutdownServerRuntime(runtime);
     }
   });
 });

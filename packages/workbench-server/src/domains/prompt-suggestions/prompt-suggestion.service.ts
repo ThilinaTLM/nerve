@@ -1,11 +1,7 @@
 import { mkdir, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { GitService } from "@nervekit/tools/git";
-import type {
-  AgentActivitySnapshot,
-  AgentRecord,
-} from "@nervekit/contracts/agents";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ConversationSnapshot, Project } from "@nervekit/contracts/core";
 import type {
   CreatePromptSuggestionRequest,
   PromptSuggestionListResponse,
@@ -13,12 +9,11 @@ import type {
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
 } from "@nervekit/contracts/prompt-suggestions";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
+import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import { builtinPromptSuggestionDefinitions } from "./prompt-suggestion-builtins.js";
-import type { PromptSuggestionEnablementRepository } from "./prompt-suggestion-enablement.repository.js";
+import type { PromptSuggestionEnablementService } from "./prompt-suggestion-enablement.service.js";
 import { evaluatePromptSuggestions } from "./prompt-suggestion-evaluator.js";
 import {
   loadPromptSuggestionDefinitions,
@@ -27,53 +22,54 @@ import {
 import type { PromptSuggestionTrustRepository } from "./prompt-suggestion-trust.repository.js";
 import type { PromptSuggestionDefinition } from "./prompt-suggestion-types.js";
 
+type SuggestionProject = Pick<Project, "id" | "name"> & { dir: string };
+
 const NERVE_DIR_NAME = ".nerve";
 
 export type PromptSuggestionServiceDeps = {
   storage: InitializedStorage;
-  events: StreamLogRegistry;
+  events: WorkbenchNoticePublisher;
   trustRepository: PromptSuggestionTrustRepository;
-  enablementRepository: PromptSuggestionEnablementRepository;
+  enablementRepository: PromptSuggestionEnablementService;
   git: GitService;
-  getProject: (projectId: string) => ProjectRecord;
-  listProjects: () => ProjectRecord[];
-  getConversation: (conversationId: string) => ConversationRecord;
-  getAgent: (agentId: string) => AgentRecord;
-  activityForAgent(agentId: string): Promise<AgentActivitySnapshot>;
+  getProject: (projectId: string) => SuggestionProject;
+  listProjects: () => SuggestionProject[];
+  getConversation: (conversationId: string) => ConversationSnapshot;
 };
 
 export class PromptSuggestionService {
   constructor(private readonly deps: PromptSuggestionServiceDeps) {}
 
-  async hydrate(): Promise<void> {
-    await this.deps.trustRepository.hydrateIndex();
-  }
-
   async listForProject(
     projectId: string,
-    options: { conversationId?: string; agentId?: string } = {},
+    options: { conversationId?: string } = {},
   ): Promise<PromptSuggestionListResponse> {
     const project = this.deps.getProject(projectId);
     const loaded = await this.discoverDefinitions(project);
     const definitions = await this.applyEnablement(loaded.definitions);
     const effective = effectiveDefinitions(definitions);
-    const trustRecords = await this.deps.trustRepository.list();
+    const trustRecords = this.deps.trustRepository.list(projectId);
     const git = await this.gitContext(projectId);
-    const conversation = options.conversationId
-      ? safeGet(() => this.deps.getConversation(options.conversationId!))
+    const snapshot = options.conversationId
+      ? this.deps.getConversation(options.conversationId)
       : undefined;
-    const agent = options.agentId
-      ? safeGet(() => this.deps.getAgent(options.agentId!))
-      : undefined;
-    const agentActivity = agent
-      ? await this.deps.activityForAgent(agent.id)
+    if (snapshot && snapshot.conversation.projectId !== projectId) {
+      throw new Error("Conversation does not belong to this project.");
+    }
+    const conversation = snapshot
+      ? {
+          id: snapshot.conversation.id,
+          title: snapshot.conversation.title,
+          status: snapshot.conversation.status,
+          mode: snapshot.config.mode,
+          permissionRuleSetId: snapshot.config.permissionRuleSetId,
+          reasoningLevel: snapshot.config.reasoningLevel,
+        }
       : undefined;
     const evaluated = evaluatePromptSuggestions(
       {
         project,
         conversation,
-        agent,
-        agentActivity,
         git,
         definitions: effective,
       },
@@ -94,7 +90,7 @@ export class PromptSuggestionService {
     const project = projectId ? this.deps.getProject(projectId) : undefined;
     const loaded = await this.discoverDefinitions(project);
     const definitions = await this.applyEnablement(loaded.definitions);
-    const trustRecords = await this.deps.trustRepository.list();
+    const trustRecords = this.deps.trustRepository.list(projectId);
     return mergeStatuses(
       statusesFor(definitions, trustRecords),
       staleStatuses(trustRecords, definitions),
@@ -175,7 +171,16 @@ export class PromptSuggestionService {
     request: UpdatePromptSuggestionTrustRequest,
   ): Promise<void> {
     if (request.status === "unset") {
-      await this.deps.trustRepository.remove(request.trustId);
+      const records = [
+        ...this.deps.trustRepository.list(),
+        ...this.deps
+          .listProjects()
+          .flatMap((project) => this.deps.trustRepository.list(project.id)),
+      ];
+      const record = records.find(
+        (record) => record.trustId === request.trustId,
+      );
+      if (record) this.deps.trustRepository.remove(record);
     } else {
       const pending = await this.findDefinitionByTrustId(request.trustId);
       if (
@@ -185,9 +190,10 @@ export class PromptSuggestionService {
       ) {
         throw new Error("Prompt suggestion trust target was not found.");
       }
-      await this.deps.trustRepository.set({
+      this.deps.trustRepository.set({
         trustId: pending.trustId,
         sourceKind: pending.source.kind,
+        projectId: pending.source.projectId,
         path: pending.source.path,
         name: pending.name,
         label: pending.label,
@@ -225,7 +231,7 @@ export class PromptSuggestionService {
     return definitions.find((definition) => definition.trustId === trustId);
   }
 
-  private async discoverDefinitions(project?: ProjectRecord) {
+  private async discoverDefinitions(project?: SuggestionProject) {
     const inputs = [
       ...(project
         ? [
@@ -248,7 +254,7 @@ export class PromptSuggestionService {
     };
   }
 
-  private async discoverProjectDefinitions(project: ProjectRecord) {
+  private async discoverProjectDefinitions(project: SuggestionProject) {
     return (
       await loadPromptSuggestionDefinitions([
         {
@@ -263,16 +269,10 @@ export class PromptSuggestionService {
   private async applyEnablement(
     definitions: PromptSuggestionDefinition[],
   ): Promise<PromptSuggestionDefinition[]> {
-    const overrides = new Map(
-      (await this.deps.enablementRepository.list()).map((record) => [
-        record.definitionKey,
-        record.enabled,
-      ]),
-    );
+    const overrides = await this.deps.enablementRepository.list();
     return definitions.map((definition) => ({
       ...definition,
-      enabled:
-        overrides.get(definition.definitionKey) ?? definition.defaultEnabled,
+      enabled: overrides[definition.definitionKey] ?? definition.defaultEnabled,
     }));
   }
 
@@ -353,14 +353,6 @@ function statusesFor(
       predicateHash: definition.predicateHash,
     };
   });
-}
-
-function safeGet<T>(operation: () => T): T | undefined {
-  try {
-    return operation();
-  } catch {
-    return undefined;
-  }
 }
 
 function sortSuggestions(

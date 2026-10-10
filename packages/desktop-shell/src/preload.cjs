@@ -9,5 +9,6 @@ contextBridge.exposeInMainWorld(
     ipcRenderer,
     webUtils,
     platform: process.platform,
+    argv: process.argv,
   }),
 );

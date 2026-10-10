@@ -1,10 +1,11 @@
 import {
   type ConversationActiveRunSnapshot,
   type ConversationLiveToolOutputSnapshot,
-} from "@nervekit/contracts/conversations";
+} from "$lib/presentation/view-models/conversation";
 import { isTerminalToolStatus } from "@nervekit/contracts/events";
-import { normalizeRunFailure } from "@nervekit/contracts/runs";
-import { type ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+import { normalizeRunFailure } from "$lib/presentation/view-models/failure-category";
+
+import { type ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import { type ToolDraftViewModel } from "./active-run.js";
 import { buildActiveRunTimeline } from "./active-run-timeline.js";
 import {

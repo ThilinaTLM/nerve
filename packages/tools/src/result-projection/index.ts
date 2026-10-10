@@ -8,3 +8,5 @@ export * from "./profiles.js";
 export * from "./projector.js";
 export * from "./strategies.js";
 export * from "./types.js";
+
+export { buildUserProjection } from "./user-projection/tool-user-projection.js";

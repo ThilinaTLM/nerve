@@ -17,6 +17,8 @@ export interface DesktopProjectEntryTarget {
 export interface NerveDesktopBridge {
   kind: "electron";
   platform: string;
+  /** Present only for `pnpm desktop:dev` instances. */
+  development?: { slot: number };
   window: {
     minimize: () => Promise<void>;
     toggleMaximize: () => Promise<void>;
@@ -74,11 +76,13 @@ const initialDesktopBridge = getDesktopBridge();
 export const desktopRuntime = $state<{
   isDesktop: boolean;
   platform?: string;
+  developmentSlot?: number;
   quitting: boolean;
   windowState: DesktopWindowState;
 }>({
   isDesktop: initialDesktopBridge !== undefined,
   platform: initialDesktopBridge?.platform,
+  developmentSlot: initialDesktopBridge?.development?.slot,
   quitting: false,
   windowState: {
     maximized: false,
@@ -101,6 +105,7 @@ export function initializeDesktopRuntime(): () => void {
   const bridge = getDesktopBridge();
   desktopRuntime.isDesktop = bridge !== undefined;
   desktopRuntime.platform = bridge?.platform;
+  desktopRuntime.developmentSlot = bridge?.development?.slot;
   if (!bridge) return () => undefined;
 
   let unsubscribeWindowState: () => void = () => undefined;

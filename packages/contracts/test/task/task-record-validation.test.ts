@@ -4,8 +4,6 @@ import {
   taskControlToolResultSchema,
   taskStartToolResultSchema,
   taskStatusToolResultSchema,
-  toolCallRecordSchema,
-  toolNameSchema,
 } from "../../src/domains/tools/index.js";
 import {
   taskEnvInfoSchema,
@@ -90,57 +88,6 @@ describe("tool task result metadata", () => {
       }).success,
       false,
     );
-  });
-
-  it("accepts structured tool error metadata", () => {
-    const parsed = toolCallRecordSchema.safeParse({
-      id: "tool_test",
-      agentId: "agent_test",
-      conversationId: "conv_test",
-      projectId: "proj_test",
-      toolName: "task_status",
-      risk: "read",
-      args: { taskId: "missing" },
-      cwd: "/tmp/project",
-      status: "failed",
-      revision: 1,
-      attempt: 1,
-      interactions: [],
-      settledAt: "2026-01-02T03:04:06.000Z",
-      error: "Task 'missing' not found.",
-      errorDetails: {
-        code: "TASK_NOT_FOUND",
-        message: "Task 'missing' not found.",
-        details: { ref: "missing" },
-      },
-      createdAt: "2026-01-02T03:04:05.000Z",
-      updatedAt: "2026-01-02T03:04:06.000Z",
-    });
-
-    assert.equal(parsed.success, true);
-  });
-
-  it("keeps records for removed tools readable without making them active", () => {
-    const parsed = toolCallRecordSchema.safeParse({
-      id: "tool_legacy",
-      agentId: "agent_test",
-      conversationId: "conv_test",
-      projectId: "proj_test",
-      toolName: "task_list",
-      risk: "read",
-      args: { activeOnly: true },
-      cwd: "/tmp/project",
-      status: "completed",
-      revision: 1,
-      attempt: 1,
-      interactions: [],
-      settledAt: "2026-01-02T03:04:06.000Z",
-      createdAt: "2026-01-02T03:04:05.000Z",
-      updatedAt: "2026-01-02T03:04:06.000Z",
-    });
-
-    assert.equal(parsed.success, true);
-    assert.equal(toolNameSchema.safeParse("task_list").success, false);
   });
 });
 

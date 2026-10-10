@@ -15,8 +15,6 @@ import {
   dirSize,
   fileSize,
   pathsSize,
-  queryCacheFileNames,
-  queryCacheFilePaths,
   sqliteFilePaths,
   type SizeTally,
 } from "./storage-files.js";
@@ -92,16 +90,9 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: true,
     protected: false,
   },
-  queryCache: {
-    label: "Query cache",
-    description:
-      "A rebuildable SQLite read model sourced from canonical records.",
-    cleanable: true,
-    protected: false,
-  },
   cache: {
     label: "Cache",
-    description: "Disposable cached data other than the query cache.",
+    description: "Disposable cached data.",
     cleanable: true,
     protected: false,
   },
@@ -148,7 +139,6 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "agentResources",
   "logs",
   "crashReports",
-  "queryCache",
   "cache",
   "temporaryFiles",
   "migrations",
@@ -189,10 +179,6 @@ export class StorageUsageService {
     };
 
     const databaseTally = await pathsSize(sqliteFilePaths(paths.sqlitePath));
-    const queryCacheTally = await pathsSize(
-      queryCacheFilePaths(paths.queryCachePath),
-    );
-    const queryCacheNames = queryCacheFileNames(paths.queryCachePath);
     const conversationRoot = paths.conversationsPath;
     const conversationPayloadTally = await dirSize(conversationRoot);
 
@@ -205,8 +191,7 @@ export class StorageUsageService {
     add("agentResources", await dirSize(paths.agentPath));
     add("logs", await dirSize(paths.logsPath));
     add("crashReports", await dirSize(paths.crashesPath));
-    add("queryCache", queryCacheTally);
-    add("cache", await dirSize(paths.cachePath, queryCacheNames));
+    add("cache", await dirSize(paths.cachePath));
     add("temporaryFiles", await dirSize(paths.tmpPath));
     add("migrations", await dirSize(paths.migrationsPath));
     add("backups", await dirSize(paths.backupsPath));
@@ -295,7 +280,6 @@ export class StorageUsageService {
     };
     const cleanupTargets = await this.cleanupTargetUsage(
       totals,
-      queryCacheTally,
       conversationPayloadTally,
     );
     const value: StorageUsageResponse = {
@@ -313,7 +297,6 @@ export class StorageUsageService {
 
   private async cleanupTargetUsage(
     totals: Map<StorageCategoryKey, SizeTally>,
-    queryCache: SizeTally,
     conversationPayloads: SizeTally,
   ): Promise<StorageCleanupTargetUsage[]> {
     const logEntries = await readdir(this.deps.paths.logsPath, {
@@ -373,12 +356,6 @@ export class StorageUsageService {
         bytes: category("temporaryFiles").bytes,
         itemCount: category("temporaryFiles").files,
         estimate: "exact",
-      },
-      {
-        target: "searchIndex",
-        bytes: queryCache.bytes,
-        itemCount: queryCache.files,
-        estimate: "upTo",
       },
     ];
   }

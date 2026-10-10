@@ -1,14 +1,6 @@
-import { SvelteMap } from "svelte/reactivity";
-import type {
-  AgentActivitySnapshot,
-  AgentRecord,
-  ClientConfig,
-  ConversationActivitySnapshot,
-  ConversationRecord,
-  ProjectRecord,
-  StatusResponse,
-  ToolCallTranscriptRecord,
-} from "$lib/api";
+import type { ClientConfig, StatusResponse } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 
 export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
@@ -32,15 +24,9 @@ export const workspaceState = $state({
   status: undefined as StatusResponse | undefined,
   config: undefined as ClientConfig | undefined,
   connection: "connecting",
-  eventCursors: new SvelteMap<string, number>(),
-  protocolSessionId: undefined as string | undefined,
   error: undefined as string | undefined,
-  projects: [] as ProjectRecord[],
-  conversations: [] as ConversationRecord[],
-  agents: [] as AgentRecord[],
-  agentActivities: {} as Record<string, AgentActivitySnapshot>,
-  conversationActivities: {} as Record<string, ConversationActivitySnapshot>,
-  pendingToolCalls: [] as ToolCallTranscriptRecord[],
+  projects: [] as Project[],
+  conversations: [] as ConversationSummary[],
   selectedProjectId: undefined as string | undefined,
   selectedProjectKey: undefined as string | undefined,
   projectRecency: {} as Record<string, number>,

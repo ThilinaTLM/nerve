@@ -4,7 +4,7 @@ import test from "node:test";
 import { createMessageFactory } from "../../src/index.js";
 import {
   ProtocolClientConnection,
-  type ProtocolClientSession,
+  ProtocolClientSession,
   ReconnectPolicy,
 } from "../../src/client.js";
 import { ManualRuntime, ManualTransport } from "../test-runtime.js";
@@ -72,4 +72,84 @@ test("client waits for an old in-flight generation before reconnecting", async (
   await tick();
   assert.equal(transports.length, 2);
   await connection.close();
+});
+
+test("client codec accepts messages above 1 MiB after negotiating a 4 MiB limit", async () => {
+  const runtime = new ManualRuntime();
+  const transport = new ManualTransport();
+  let receiveFrame!: (frame: string) => void;
+  transport.onMessage = (listener) => {
+    receiveFrame = listener;
+    return () => undefined;
+  };
+  const notices: string[] = [];
+  const errors: unknown[] = [];
+  const clientMessages = createMessageFactory({
+    source: { role: "ui", id: "ui_generation" },
+    target: { role: "workbench_server", id: "server_generation" },
+  });
+  const connection = new ProtocolClientConnection({
+    transport: { connect: () => transport },
+    timers: runtime,
+    onError: (error) => {
+      errors.push(error);
+    },
+    createSession: ({ send, onDisconnect }) =>
+      new ProtocolClientSession({
+        createMessage: clientMessages,
+        capabilities: ["encoding.json", "event.notify"],
+        timers: runtime,
+        send,
+        onDisconnect,
+        onNotify: (events) => {
+          notices.push(...events.map((event) => event.id));
+        },
+      }),
+  });
+  try {
+    await connection.start();
+    receiveFrame(
+      JSON.stringify(
+        messages("welcome", {
+          sessionId: "session_generation",
+          acceptingPeer: { role: "workbench_server", id: "server_generation" },
+          acceptedVersion: 1,
+          capabilities: [
+            "encoding.json",
+            "event.notify",
+            "stream.subscription.v1",
+          ],
+          encoding: "json",
+          limits: {
+            maxMessageBytes: 4 * 1024 * 1024,
+            maxBatchEvents: 100,
+            maxBatchBytes: 512 * 1024,
+          },
+          heartbeat: { intervalMs: 60_000, timeoutMs: 120_000 },
+        }),
+      ),
+    );
+    await tick();
+    assert.equal(connection.state, "ready");
+    receiveFrame(
+      JSON.stringify(
+        messages("event.notify", {
+          events: [
+            {
+              id: "evt_large",
+              ts: "2026-01-01T00:00:00.000Z",
+              type: "capabilities.changed",
+              data: { projectId: "x".repeat(2_047_842) },
+            },
+          ],
+        }),
+      ),
+    );
+    await tick();
+    assert.deepEqual(notices, ["evt_large"]);
+    assert.deepEqual(errors, []);
+    assert.equal(connection.state, "ready");
+  } finally {
+    await connection.close();
+  }
 });

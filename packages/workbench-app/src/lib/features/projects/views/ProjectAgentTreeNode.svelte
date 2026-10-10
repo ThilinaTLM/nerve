@@ -1,8 +1,8 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { PanelRow, PanelRowCard } from "$lib/presentation/panels";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
-import { idleConversationActivity } from "$lib/domain/conversations/activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+import { idleConversationActivity } from "$lib/domain/projects/sidebar-view-models";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
@@ -31,9 +31,7 @@ let {
 const dotActivity = $derived(activity ?? idleConversationActivity);
 const mode = $derived(row.agent?.mode ?? row.conversation.mode);
 const permission = $derived(
-  row.agent?.permissionRuleSetId ??
-    row.agent?.permissionLevel ??
-    row.conversation.permissionLevel,
+  row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId,
 );
 const tooltip = $derived(
   [

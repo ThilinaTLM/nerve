@@ -6,6 +6,17 @@ export const daemonStartupProgressSchema = z.object({
   type: z.literal("nerve.startup.progress"),
   phase: z.enum(["storage-check", "storage-migration", "runtime-hydration"]),
   message: z.string().min(1),
+  migration: z
+    .object({
+      step: z.string(),
+      description: z.string(),
+      phase: z.string(),
+      label: z.string().optional(),
+      done: z.number().nonnegative().optional(),
+      total: z.number().nonnegative().optional(),
+    })
+    .optional(),
+  log: z.string().optional(),
 });
 export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 
@@ -19,7 +30,6 @@ export const storageCategoryKeySchema = z.enum([
   "agentResources",
   "logs",
   "crashReports",
-  "queryCache",
   "cache",
   "temporaryFiles",
   "migrations",
@@ -48,7 +58,6 @@ export const storageCleanupTargetSchema = z.enum([
   "crashReports",
   "cache",
   "tmp",
-  "searchIndex",
 ]);
 export type StorageCleanupTarget = z.infer<typeof storageCleanupTargetSchema>;
 
@@ -103,7 +112,6 @@ export const storageCleanupRequestSchema = z
     clearCrashReports: z.boolean().optional(),
     clearCache: z.boolean().optional(),
     clearTmp: z.boolean().optional(),
-    rebuildSearchIndex: z.boolean().optional(),
   })
   .refine(
     (value) =>

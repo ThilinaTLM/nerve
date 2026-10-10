@@ -1,4 +1,4 @@
-import type { CheckpointAnchor } from "@nervekit/contracts/conversations";
+import type { CheckpointAnchor } from "@nervekit/contracts/core";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
 import type { TaskReadiness, TaskStatus } from "@nervekit/contracts/tasks";
 import type { AgentMessage } from "../agent/contracts/index.js";
@@ -80,6 +80,7 @@ export interface HarnessMessage<T = unknown> {
   role: "harness";
   eventType: string;
   content: string;
+  images?: ImageContent[];
   details?: T;
   timestamp: number;
 }
@@ -235,7 +236,10 @@ export function convertToLlm(messages: AgentMessage[]): Message[] {
         case "harness":
           return {
             role: "user",
-            content: [{ type: "text" as const, text: harnessMessageToText(m) }],
+            content: [
+              { type: "text" as const, text: harnessMessageToText(m) },
+              ...(m.images ?? []),
+            ],
             timestamp: m.timestamp,
           };
         case "branchSummary":

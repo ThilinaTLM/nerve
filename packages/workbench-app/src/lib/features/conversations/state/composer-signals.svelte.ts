@@ -1,7 +1,12 @@
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 // Cross-component composer signals. Shortcut handlers (registered at the app
 // level) bump these tokens; the composer/shell components watch them to focus,
 // reset, or toggle the mic without the app layer holding refs into the tree.
 export const composerSignals = $state({
+  createdConversationDraft: undefined as
+    | { conversationId: string; text: string }
+    | undefined,
+  editEntry: undefined as ConversationEntry | undefined,
   focusToken: 0,
   escapeToken: 0,
   micToken: 0,

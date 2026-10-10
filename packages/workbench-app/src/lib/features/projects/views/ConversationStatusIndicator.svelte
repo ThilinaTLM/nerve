@@ -5,7 +5,7 @@ import CircleCheck from "@lucide/svelte/icons/circle-check";
 import CircleStop from "@lucide/svelte/icons/circle-stop";
 import Hourglass from "@lucide/svelte/icons/hourglass";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
 
 let {
   activity,

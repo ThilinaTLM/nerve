@@ -85,3 +85,8 @@ export const eventBatchMessageSchema = typedMessageSchema(
   "event.batch",
   eventBatchDataSchema,
 );
+
+export const snapshotCursorSchema = z.object({
+  streams: z.array(streamCursorSchema),
+});
+export type SnapshotCursor = z.infer<typeof snapshotCursorSchema>;

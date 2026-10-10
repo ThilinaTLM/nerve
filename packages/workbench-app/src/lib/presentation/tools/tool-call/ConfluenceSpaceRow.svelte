@@ -1,5 +1,6 @@
 <script lang="ts">
 import Database from "@lucide/svelte/icons/database";
+
 import type { ConfluenceSpaceSummaryPayload } from "@nervekit/contracts/tools";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { confluenceStatusBadgeVariant } from "../views/confluence-display";

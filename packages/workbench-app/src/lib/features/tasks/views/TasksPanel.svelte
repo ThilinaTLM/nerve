@@ -165,10 +165,7 @@ async function confirmForceKill(): Promise<void> {
 function requestForceKill(taskId: string): void {
   const task = model.tasks.find((run) => run.id === taskId);
   if (!task) return;
-  if (task.status === "recovered") {
-    // The user never asked to terminate a recovered run, so confirm first.
-    forceKillTask = task;
-  } else {
+  else {
     // Stuck-stopping runs were already stopped once; kill immediately.
     void panelActions.forceKillTask(taskId);
   }
@@ -191,12 +188,12 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
         projected.runs.length > 0}
     >
       {#if model.definitionsLoading && model.definitions.length === 0}
-        <p class="py-1 text-xs text-muted-foreground">Loading tasks…</p>
+        <p class="py-1 text-xs text-muted-foreground">Loading launches…</p>
       {:else if projected.definitions.length === 0}
         <PanelEmpty
           icon={ListTodo}
-          title="No saved tasks"
-          description="Create a task to run it anytime."
+          title="No launch configurations yet"
+          description="Create a launch configuration to run it anytime."
         >
           {#snippet action()}
             <Button
@@ -206,7 +203,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               onclick={() => (taskDialog = { kind: "create" })}
             >
               <Plus />
-              New task
+              New launch
             </Button>
           {/snippet}
         </PanelEmpty>
@@ -251,7 +248,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
             <PanelToolbarButton
               icon={Trash2}
               label="Prune history"
-              title="Prune finished ad-hoc task runs"
+              title="Prune finished ad-hoc launch runs"
               disabled={!model.capabilities.prune.enabled || prunableRuns === 0}
               onclick={() => (confirmPruneOpen = true)}
             />
@@ -293,7 +290,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
   <PanelView scroll={false} padded={false}>
     {#snippet banner()}
       <PanelHeader
-        title="Tasks"
+        title="Launches"
         count={model.availability.available
           ? projected.definitions.length
           : undefined}
@@ -302,7 +299,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
           {#if model.availability.available}
             <PanelToolbarButton
               icon={Plus}
-              label="Create task"
+              label="Create launch"
               disabled={!model.capabilities.manageDefinitions.enabled}
               onclick={() => (taskDialog = { kind: "create" })}
             />
@@ -324,7 +321,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
               {@render taskList()}
             </div>
           </Pane>
-          <PaneResizer aria-label="Resize task output" />
+          <PaneResizer aria-label="Resize launch output" />
           <Pane defaultSize={62} minSize={30}>
             <TaskOutputPane
               task={model.selectedTask}
@@ -370,19 +367,19 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
       initial={dialogInitial(session)}
       projectCwd={model.defaultCwd}
       title={session.kind === "duplicate"
-        ? "Duplicate task"
+        ? "Duplicate launch"
         : session.kind === "save-run"
-          ? "Save as task definition"
+          ? "Save as launch configuration"
           : undefined}
       description={session.kind === "duplicate"
-        ? "Create a new task definition from this saved task."
+        ? "Create a new launch configuration from this saved launch."
         : session.kind === "save-run"
           ? "Create a reusable definition from this run. The run stays linked to it."
           : undefined}
       submitLabel={session.kind === "duplicate"
         ? "Create duplicate"
         : session.kind === "save-run"
-          ? "Save task"
+          ? "Save launch"
           : undefined}
       {saving}
       onSave={(input) => void saveDefinition(input)}
@@ -407,8 +404,8 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 <ConfirmDialog
   open={Boolean(forceKillTask)}
   destructive
-  title="Force kill task?"
-  description={`Immediately terminates ${forceKillTask?.displayName ?? forceKillTask?.name ?? forceKillTask?.command ?? "this task"}. Buffered output and process cleanup may be lost.`}
+  title="Force kill launch?"
+  description={`Immediately terminates ${forceKillTask?.displayName ?? forceKillTask?.name ?? forceKillTask?.command ?? "this launch"}. Buffered output and process cleanup may be lost.`}
   confirmLabel="Force kill"
   onConfirm={() => void confirmForceKill()}
   onCancel={() => (forceKillTask = undefined)}
@@ -419,7 +416,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 <ConfirmDialog
   open={cleanupRunIds.length > 0}
   destructive
-  title="Clean up old task runs?"
+  title="Clean up old launch runs?"
   description={`This removes ${cleanupRunIds.length} old finished ${cleanupRunIds.length === 1 ? "run" : "runs"} and their captured logs. The latest run is retained.`}
   confirmLabel="Clean up"
   onConfirm={() => void cleanupRuns()}
@@ -431,7 +428,7 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 <ConfirmDialog
   open={Boolean(deleteDefinition)}
   destructive
-  title="Delete saved task?"
+  title="Delete saved launch?"
   description="The saved definition is removed. Existing run history and logs are retained."
   confirmLabel="Delete"
   onConfirm={() => void removeDefinition()}
@@ -443,8 +440,8 @@ function rerunDefinition(entry: { definition?: TaskPanelDefinition }): void {
 <ConfirmDialog
   bind:open={confirmPruneOpen}
   destructive
-  title="Prune task history"
-  description="This removes completed ad-hoc task runs and their captured logs. Saved tasks and recovery warnings are retained."
+  title="Prune launch history"
+  description="This removes completed ad-hoc launch runs and their captured logs. Saved launches are retained."
   confirmLabel="Prune"
   onConfirm={() => void panelActions.pruneTasks()}
 />

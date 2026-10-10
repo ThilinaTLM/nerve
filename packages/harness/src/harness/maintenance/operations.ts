@@ -1,7 +1,7 @@
 import type {
   CheckpointDetails,
   CompactionAccounting,
-} from "@nervekit/contracts/conversations";
+} from "@nervekit/contracts/core";
 import type {
   AgentTool,
   AnyModel,

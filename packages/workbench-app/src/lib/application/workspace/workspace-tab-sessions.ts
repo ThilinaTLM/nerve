@@ -1,7 +1,9 @@
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
-import type { ConversationRecord, ProjectRecord, TaskRecord } from "$lib/api";
+import type { TaskRecord } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { Project } from "@nervekit/contracts/core";
 import { projectKey } from "$lib/domain/projects/project-tree";
 import {
   diffViewKey,
@@ -23,7 +25,6 @@ import {
 } from "./tab-session-helpers";
 
 const storageKey = "nerve.workspaceTabs.v2";
-const legacyStorageKey = "nerve.conversationTabs.v1";
 const maxSessions = 24;
 const maxTabs = 30;
 const globalKinds = new Set<CenterTabIdentity["kind"]>([
@@ -378,44 +379,10 @@ function readPayload(): StoredPayload | undefined {
   }
 }
 
-function legacySessions(
-  projects: ProjectRecord[],
-  conversations: ConversationRecord[],
-): Record<string, ProjectTabSession> {
-  if (typeof localStorage === "undefined") return {};
-  try {
-    const raw = JSON.parse(
-      localStorage.getItem(legacyStorageKey) ?? "null",
-    ) as { tabIds?: unknown; activeId?: unknown } | null;
-    const ids = Array.isArray(raw?.tabIds)
-      ? raw.tabIds.filter((id): id is string => typeof id === "string")
-      : [];
-    const sessions: Record<string, ProjectTabSession> = {};
-    for (const id of ids) {
-      const conversation = conversations.find(
-        (candidate) => candidate.id === id,
-      );
-      const project =
-        conversation &&
-        projects.find((candidate) => candidate.id === conversation.projectId);
-      if (!project) continue;
-      const key = projectKey(project);
-      sessions[key] ??= { tabs: [], mru: [] };
-      const tab = { kind: "conversation" as const, id };
-      sessions[key].tabs.push(tab);
-      sessions[key].mru.push(tabKey(tab));
-      if (raw?.activeId === id) sessions[key].active = tab;
-    }
-    return sessions;
-  } catch {
-    return {};
-  }
-}
-
 export function hydrateWorkspaceTabSessions(
   input: {
-    projects: ProjectRecord[];
-    conversations: ConversationRecord[];
+    projects: Project[];
+    conversations: ConversationSummary[];
     tasks: TaskRecord[];
   },
   options: { deferActivation?: boolean } = {},
@@ -423,15 +390,13 @@ export function hydrateWorkspaceTabSessions(
   if (hydrated) return;
   hydrated = true;
   const projectKeys = new Set(input.projects.map(projectKey));
-  const conversationIds = new Set(input.conversations.map((item) => item.id));
   const taskIds = new Set(
     input.tasks.map(
       (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
     ),
   );
   const stored = readPayload();
-  const rawSessions =
-    stored?.sessions ?? legacySessions(input.projects, input.conversations);
+  const rawSessions = stored?.sessions ?? {};
   const sessions: Record<string, ProjectTabSession> = {};
   for (const [key, raw] of Object.entries(rawSessions).slice(0, maxSessions)) {
     if (!projectKeys.has(key)) continue;
@@ -459,7 +424,7 @@ export function hydrateWorkspaceTabSessions(
         return Boolean(
           workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
         );
-      if (tab.kind === "conversation") return conversationIds.has(tab.id);
+      if (tab.kind === "conversation") return true;
       if (tab.kind === "task") return taskIds.has(tab.id);
       return true;
     });
@@ -484,9 +449,7 @@ export function hydrateWorkspaceTabSessions(
     stored?.selectedProjectKey && projectKeys.has(stored.selectedProjectKey)
       ? stored.selectedProjectKey
       : undefined;
-  if (typeof localStorage !== "undefined" && !stored)
-    localStorage.removeItem(legacyStorageKey);
-  return desiredTab;
+  if (typeof localStorage !== "undefined" && !stored) return desiredTab;
 }
 
 export function persistWorkspaceTabSessions(): void {

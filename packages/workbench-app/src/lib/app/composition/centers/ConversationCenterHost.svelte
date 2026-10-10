@@ -1,104 +1,82 @@
 <script lang="ts">
-import { type QueuedPromptRecord } from "$lib/api";
-import { SvelteSet } from "svelte/reactivity";
-import { protocolRequest } from "@nervekit/protocol/adapters";
-import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import { composerDraft } from "$lib/application/workspace/selection.svelte";
-import { selectCenterTab } from "$lib/application/workspace/center-tabs.svelte";
-import type { CenterTabIdentity } from "$lib/application/workspace";
-import {
-  conversationViewKey,
-  gitProjectStateKey,
-  gitRepoStateKey,
-  pendingConversationKey,
-} from "$lib/domain/navigation/view-keys";
-import {
-  modelKey,
-  scopedUsableModelOptions,
-} from "$lib/presentation/utils/model";
-import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import { openSettingsPane } from "$lib/application/settings";
-import WorkbenchConversationAdapter from "$lib/app/composition/conversations/WorkbenchConversationHost.svelte";
-import {
-  composerSignals,
-  focusComposer,
-  openConversationHistory,
-} from "$lib/features/conversations/state/composer-signals.svelte";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import {
-  abortActiveRun,
-  cancelActiveCompaction,
-  compactActiveConversation,
-  continueFromFailure,
-  navigateToEntry,
-} from "$lib/features/conversations/state/run-control";
-import {
-  acceptPendingPlanReview,
-  acceptPendingPlanReviewInNewChat,
-  answerUserQuestionById,
-  denyApproval,
-  dismissUserQuestionById,
-  grantApproval,
-  rejectPendingPlanReview,
-} from "$lib/application/conversations/interactions";
-import {
-  sendPrompt,
-  sendPromptText,
-  setActiveComposerText,
-} from "$lib/features/conversations/state/prompt-send";
-import { agentConfigOverride } from "$lib/features/conversations/state/agent-config-mutations.svelte";
-import {
-  setComposerMode,
-  setComposerModel,
-  setComposerPermissionRuleSet,
-  setComposerThinkingLevel,
-} from "$lib/features/conversations/state/composer-config.svelte";
-import { ensureConversationView } from "$lib/features/conversations/state/conversation-view-actions";
-import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+import { untrack } from "svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import { gitState } from "$lib/features/git/state/git-state.svelte";
-import { gitPanelState } from "$lib/features/git/state/git-panel-state.svelte";
-import {
-  refreshGitProject,
-  refreshPrs,
-} from "$lib/features/git/state/git-panel-refresh.svelte";
-import { PR_STALE_MS } from "$lib/features/git/state/git-refresh-policy";
-import { taskSelectors } from "$lib/features/tasks/state/task-selectors.svelte";
-import { openTaskTab } from "$lib/features/tasks";
-import {
-  pullRequestReferenceCompletions,
-  taskReferenceCompletions,
-} from "$lib/app/composition/conversations/composer-reference-completions";
 import { gitContextFingerprint } from "$lib/features/git/state/git-context.svelte";
-import { promptSuggestionsState } from "$lib/features/prompt-suggestions/state/prompt-suggestions-state.svelte";
-import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { refreshPromptSuggestions } from "$lib/features/prompt-suggestions/state/prompt-suggestions-actions.svelte";
-import { notify } from "$lib/application/notifications/notify.svelte";
+import {
+  promptSuggestionsState,
+  refreshPromptSuggestions,
+} from "$lib/features/prompt-suggestions";
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
 import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
+import { createId } from "@nervekit/contracts";
+import type {
+  ConversationConfig,
+  InteractionResolution,
+  EventTreeNode,
+} from "@nervekit/contracts/core";
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type {
+  QueuedPromptRecord,
+  ConversationEntry,
+  PlanReviewResolveOptions,
+} from "$lib/presentation/view-models/conversation";
+import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
+import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
+import {
+  replaceOpenCenterTabs,
+  selectCenterTab,
+} from "$lib/application/workspace/center-tabs.svelte";
+import type { CenterTabIdentity } from "$lib/application/workspace";
+import { newConversationInProject } from "$lib/application/workspace/workspace-actions.svelte";
+import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
+import {
+  modelKey,
+  parseModelKey,
+  scopedUsableModelOptions,
+} from "$lib/presentation/utils/model";
+import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import {
+  openSettingsPane,
+  rememberLastAgentSelection,
+} from "$lib/application/settings";
+import WorkbenchConversationAdapter from "$lib/app/composition/conversations/WorkbenchConversationHost.svelte";
+import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
+import {
+  composerSignals,
+  focusComposer,
+  openConversationHistory,
+} from "$lib/features/conversations/state/composer-signals.svelte";
+import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
+import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
+import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
+import { updateCapabilities } from "$lib/features/conversations/adapters/core-capabilities.adapter";
+import {
+  conversationContext,
+  projectView,
+} from "$lib/features/conversations/adapters/core-context.adapter";
+import { requestConversation } from "$lib/application/startup/conversation-connection";
+import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
+import { openTaskTab } from "$lib/features/tasks";
+import {
+  fileCompletions,
+  referenceCompletions,
+} from "$lib/app/composition/conversations/composer-reference-completions";
+import { notify } from "$lib/application/notifications/notify.svelte";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
   effectivePermissionRuleSetId,
   selectablePermissionRuleSets,
 } from "$lib/domain/permissions/rule-set-options";
-import {
-  completeFiles,
-  newConversation,
-  newConversationInProject,
-} from "$lib/application/workspace/workspace-actions.svelte";
-
-type Props = {
-  tab?: CenterTabIdentity;
-  active?: boolean;
-};
-
-let { tab, active = true }: Props = $props();
-
+let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
+  $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
 const conversationId = $derived(
   paneTab?.kind === "conversation" ? paneTab.id : undefined,
@@ -106,133 +84,88 @@ const conversationId = $derived(
 const pendingId = $derived(
   paneTab?.kind === "pending-conversation" ? paneTab.id : undefined,
 );
-const view = $derived(
-  conversationId
-    ? conversationState.conversationViews[conversationViewKey(conversationId)]
-    : undefined,
-);
 const activePendingConversation = $derived(
-  pendingId
-    ? conversationState.pendingConversations[pendingConversationKey(pendingId)]
+  pendingId ? pendingConversations.get(pendingId) : undefined,
+);
+const pendingConversationActive = $derived(!!activePendingConversation);
+let store = $state<ConversationStore>();
+let tree = $state<EventTreeNode[]>([]);
+let composerText = $state("");
+let stopping = $state(false);
+let compacting = $state(false);
+let editTarget = $state<ConversationEntry>();
+$effect(() => {
+  const id = conversationId;
+  store = undefined;
+  tree = [];
+  composerText = untrack(() => {
+    const draft = composerSignals.createdConversationDraft;
+    if (!draft || draft.conversationId !== id) return "";
+    composerSignals.createdConversationDraft = undefined;
+    return draft.text;
+  });
+  editTarget = undefined;
+  if (!id) return;
+  const retained = retainConversationStore(id);
+  store = retained.store;
+  void retained.ready.catch((e) => notify.error(String(e)));
+  return retained.release;
+});
+const view = $derived(
+  store?.snapshot
+    ? {
+        ...conversationTranscript({
+          snapshot: store.snapshot,
+          events: store.events,
+          liveBlocks: store.liveBlocks,
+          toolOutput: store.toolOutput,
+          tree,
+        }),
+        stopping,
+        transient: compacting
+          ? { compaction: { id: "compact", state: "running" as const } }
+          : undefined,
+      }
     : undefined,
 );
-const activeConversation = $derived(
-  conversationId
-    ? workspaceState.conversations.find(
-        (conversation) => conversation.id === conversationId,
-      )
+const context = $derived(
+  store?.snapshot
+    ? conversationContext(store.snapshot, store.events, settingsState.models)
     : undefined,
 );
-const activeAgent = $derived(
-  activeConversation
-    ? workspaceState.agents.find(
-        (agent) =>
-          agent.id === activeConversation.activeAgentId ||
-          agent.conversationId === activeConversation.id,
-      )
-    : undefined,
-);
+const activeConversation = $derived(context?.activeConversation);
+const activeAgent = $derived(context?.activeAgent);
 const activeProject = $derived.by(() => {
-  const projectId =
-    activePendingConversation?.projectId ?? activeConversation?.projectId;
-  if (projectId)
-    return workspaceState.projects.find((project) => project.id === projectId);
-  return paneTab ? undefined : workspaceSelectors.activeProject;
+  const id =
+    activePendingConversation?.projectId ??
+    store?.snapshot?.conversation.projectId;
+  const project = id
+    ? workspaceState.projects.find((p) => p.id === id)
+    : workspaceSelectors.activeProject;
+  return project ? projectView(project) : undefined;
 });
-const pendingConversationActive = $derived(Boolean(activePendingConversation));
-const pendingUserQuestions = $derived.by(() => {
-  const agentId = activeAgent?.id;
-  return workspaceSelectors.userQuestions.filter((question) => {
-    if (conversationId && question.conversationId === conversationId)
-      return true;
-    return Boolean(agentId && question.agentId === agentId);
-  });
-});
-const pendingPlanReviews = $derived.by(() => {
-  const agentId = activeAgent?.id;
-  return workspaceSelectors.planReviews.filter((review) => {
-    if (conversationId && review.conversationId === conversationId) return true;
-    return Boolean(agentId && review.agentId === agentId);
-  });
-});
-const activeApprovals = $derived.by(() => {
-  const agentId = activeAgent?.id;
-  return workspaceSelectors.approvals.filter((approval) => {
-    if (conversationId && approval.conversationId === conversationId)
-      return true;
-    return Boolean(agentId && approval.agentId === agentId);
-  });
-});
-const planReviewAgent = $derived(
-  pendingPlanReviews[0]
-    ? workspaceState.agents.find(
-        (agent) => agent.id === pendingPlanReviews[0]?.agentId,
-      )
-    : undefined,
-);
-// A pending desired override is the immediate display value while an
-// `agent.configure` mutation is in flight; the authoritative agent record
-// takes over once the mutation settles.
-const activeAgentConfigOverride = $derived(
-  agentConfigOverride(activeAgent?.id),
-);
+const activeApprovals = $derived(view?.approvals ?? []);
+const pendingUserQuestions = $derived(view?.pendingUserQuestions ?? []);
+const pendingPlanReviews = $derived(view?.pendingPlanReviews ?? []);
 const selectedModelKey = $derived(
   activePendingConversation?.selectedModelKey ??
-    (activeAgentConfigOverride?.model
-      ? modelKey(activeAgentConfigOverride.model)
-      : activeAgent?.model
-        ? modelKey(activeAgent.model)
-        : conversationState.selectedModelKey),
-);
-const selectedModelInfo = $derived(
-  settingsState.models.find((model) => modelKey(model) === selectedModelKey),
-);
-const activeAgentModel = $derived(activeAgent?.model);
-const activeModelInfo = $derived(
-  activeAgentModel
-    ? settingsState.models.find(
-        (model) => modelKey(model) === modelKey(activeAgentModel),
-      )
-    : undefined,
+    (store?.snapshot ? modelKey(store.snapshot.config.model) : ""),
 );
 const selectedThinkingLevel = $derived(
   activePendingConversation?.thinkingLevel ??
-    activeAgentConfigOverride?.thinkingLevel ??
-    activeAgent?.thinkingLevel ??
+    store?.snapshot?.config.reasoningLevel ??
     "off",
 );
 const selectedMode = $derived(
-  activePendingConversation?.mode ??
-    activeAgentConfigOverride?.mode ??
-    activeAgent?.mode ??
-    activeConversation?.mode ??
-    conversationState.selectedMode,
-);
-const selectedCodingPermissionRuleSetId = $derived(
-  activePendingConversation?.permissionRuleSetId ??
-    activeAgentConfigOverride?.permissionRuleSetId ??
-    activeAgent?.permissionRuleSetId ??
-    activeAgent?.permissionLevel ??
-    activeConversation?.permissionLevel ??
-    conversationState.selectedPermissionRuleSetId,
-);
-const permissionRuleSets = $derived(
-  selectablePermissionRuleSets(
-    permissionRuleSetCatalog.summaries(activeProject?.id),
-    selectedMode,
-  ),
+  activePendingConversation?.mode ?? store?.snapshot?.config.mode ?? "coding",
 );
 const selectedPermissionRuleSetId = $derived(
-  effectivePermissionRuleSetId(selectedCodingPermissionRuleSetId, selectedMode),
-);
-const permissionRuleSetsLoading = $derived(
-  permissionRuleSetCatalog.loading(activeProject?.id),
-);
-const permissionRuleSetsError = $derived(
-  permissionRuleSetCatalog.error(activeProject?.id),
-);
-const activeComposerText = $derived(
-  activePendingConversation?.composerText ?? view?.composerText ?? "",
+  effectivePermissionRuleSetId(
+    activePendingConversation?.permissionRuleSetId ??
+      store?.snapshot?.config.permissionRuleSetId ??
+      "autonomous",
+    selectedMode,
+  ),
 );
 const usableModels = $derived(
   scopedUsableModelOptions(
@@ -241,20 +174,40 @@ const usableModels = $derived(
     settingsState.settingsDraft?.scopedModels,
   ),
 );
-const planReviewModelKey = $derived(
-  planReviewAgent?.model ? modelKey(planReviewAgent.model) : selectedModelKey,
+const planReviewModelKey = $derived(selectedModelKey);
+const planReviewThinkingLevel = $derived(selectedThinkingLevel);
+const permissionRuleSets = $derived(
+  selectablePermissionRuleSets(
+    permissionRuleSetCatalog.summaries(activeProject?.id),
+    selectedMode,
+  ),
 );
-const planReviewThinkingLevel = $derived(
-  planReviewAgent?.thinkingLevel ?? selectedThinkingLevel,
+const permissionRuleSetsLoading = $derived(
+  permissionRuleSetCatalog.loading(activeProject?.id),
+);
+const permissionRuleSetsError = $derived(
+  permissionRuleSetCatalog.error(activeProject?.id),
+);
+let slashCompletions = $state<CompletionItem[]>([]);
+$effect(() => {
+  if (!activeProject) return;
+  void requestConversation("completion.slash.list", {}).then((r) => {
+    slashCompletions = r.items;
+    conversationCatalog.slashCompletions = r.items;
+  });
+  void permissionRuleSetCatalog.refresh(activeProject.id);
+});
+const conversationUsage = $derived(
+  context?.conversationUsage ?? summarizeConversationUsage([]),
 );
 const contextWindow = $derived(
-  selectedModelInfo?.contextWindow ??
-    activeModelInfo?.contextWindow ??
-    view?.contextUsage?.contextWindow ??
+  context?.contextWindow ??
+    settingsState.models.find((m) => modelKey(m) === selectedModelKey)
+      ?.contextWindow ??
     0,
 );
-const conversationUsage = $derived(
-  summarizeConversationUsage(view?.entries ?? []),
+const activeComposerText = $derived(
+  activePendingConversation?.composerText ?? composerText,
 );
 const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
@@ -278,121 +231,15 @@ const promptSuggestionRefreshKey = $derived.by(() => {
   const ctx = gitState.gitContext;
   return ctx ? `${ctx.projectId}:${gitContextFingerprint(ctx)}` : "none";
 });
-const slashCompletions = $derived(
-  active ? conversationState.slashCompletions : [],
-);
-
-async function completeReferences(
-  kind: "task" | "pull_request",
-  query: string,
-) {
-  if (kind === "task")
-    return taskReferenceCompletions(taskSelectors.scopedTasks, query);
-  if (!activeProject) return [];
-
-  let projectState =
-    gitPanelState.projects[gitProjectStateKey(activeProject.id)];
-  if (!projectState?.loaded) {
-    await refreshGitProject(activeProject, { silent: true, loadDetails: true });
-    projectState = gitPanelState.projects[gitProjectStateKey(activeProject.id)];
-  }
-  const repo = projectState?.selectedRepo;
-  if (!repo) return [];
-  let repoState = projectState.repoStates[gitRepoStateKey(repo)];
-  if (
-    !repoState?.prsLoadedAt ||
-    Date.now() - repoState.prsLoadedAt >= PR_STALE_MS
-  ) {
-    await refreshPrs(activeProject.id, repo, true);
-    repoState = projectState.repoStates[gitRepoStateKey(repo)];
-  }
-  return pullRequestReferenceCompletions(repoState?.prs ?? [], repo, query);
-}
-
-function tabsEqual(
-  left: CenterTabIdentity | undefined,
-  right: CenterTabIdentity | undefined,
-): boolean {
-  return Boolean(
-    left && right && left.kind === right.kind && left.id === right.id,
-  );
-}
-
-async function ensurePaneSelected() {
-  const target = paneTab;
-  if (!target || tabsEqual(workspaceState.activeCenterTab, target)) return;
-  await selectCenterTab(target);
-}
-
-function setPaneComposerText(value: string) {
-  const pending = activePendingConversation;
-  if (pending) {
-    pending.composerText = value;
-    return;
-  }
-  if (conversationId) {
-    ensureConversationView(conversationId).composerText = value;
-    return;
-  }
-  if (active && tabsEqual(workspaceState.activeCenterTab, paneTab)) {
-    setActiveComposerText(value);
-    return;
-  }
-  composerDraft.text = value;
-}
-
-async function runActivePaneAction<T>(action: () => T | Promise<T>) {
-  await ensurePaneSelected();
-  return action();
-}
-
-async function jumpToConversationEntry(
-  entryId: string | undefined,
-  summarize = false,
-) {
-  const navigated = await runActivePaneAction(() =>
-    navigateToEntry(entryId, summarize),
-  );
-  if (navigated) focusComposer();
-}
-
-async function editConversationEntry(entry: {
-  parentEntryId?: string;
-  text: string;
-}) {
-  const navigated = await runActivePaneAction(() =>
-    navigateToEntry(entry.parentEntryId),
-  );
-  if (!navigated) return;
-  setPaneComposerText(entry.text);
-  focusComposer();
-}
-
-function openTaskFromNotice(taskId: string) {
-  void openTaskTab(taskId);
-}
-
-function openToolFile(path: string, line?: number) {
-  if (!activeProject) return;
-  void openFilePane({ projectId: activeProject.id, path, line });
-}
-
-$effect(() => {
-  if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
-    return;
-  void permissionRuleSetCatalog.ensure(activeProject.id);
-});
-
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !active || !activeProject?.id)
     return;
   void promptSuggestionRefreshKey;
-  void refreshPromptSuggestions(activeProject.id, {
-    conversationId,
-    agentId: activeAgent?.id,
-  });
+  void store?.snapshot?.config;
+  void store?.snapshot?.conversation.status;
+  void store?.snapshot?.conversation.title;
+  void refreshPromptSuggestions(activeProject.id, { conversationId });
 });
-
 function applySuggestion(suggestion: { prompt: string }) {
   const current = activeComposerText.trim();
   setPaneComposerText(
@@ -401,80 +248,265 @@ function applySuggestion(suggestion: { prompt: string }) {
       : suggestion.prompt,
   );
 }
-
 function sendSuggestion(suggestion: { prompt: string }) {
   void runActivePaneAction(() =>
-    sendPromptText(suggestion.prompt, { clearComposer: false }),
+    submitPrompt(suggestion.prompt, { clearComposer: false }),
   );
 }
-
-const forcePushesInFlight = new SvelteSet<string>();
-
-function forcePushQueuedPrompts(prompt: QueuedPromptRecord): Promise<void> {
-  return runActivePaneAction(async () => {
-    const key = prompt.runId ?? prompt.agentId;
-    if (forcePushesInFlight.has(key)) return;
-    forcePushesInFlight.add(key);
-    try {
-      const { result } = await protocolRequest(
-        "agent.promptQueue.forcePush",
-        { agentId: prompt.agentId },
-        { idempotencyKey: crypto.randomUUID() },
-      );
-      const pushedIds = new Set(result.queuedPromptIds);
-      const targetView = ensureConversationView(prompt.conversationId);
-      targetView.queuedPrompts = targetView.queuedPrompts.filter(
-        (candidate) => !pushedIds.has(candidate.id),
-      );
-      notify.success(
-        result.queuedPromptIds.length === 1
-          ? "Queued prompt force pushed"
-          : `${result.queuedPromptIds.length} queued prompts force pushed`,
-      );
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : String(caught);
-      notify.error("Queued prompt action failed", { description: message });
-    } finally {
-      forcePushesInFlight.delete(key);
-    }
-  });
+function setPaneComposerText(text: string) {
+  if (activePendingConversation) activePendingConversation.composerText = text;
+  else composerText = text;
 }
-
-async function cancelQueuedPrompt(
-  prompt: QueuedPromptRecord,
-): Promise<boolean> {
+async function runActivePaneAction(action: () => unknown | Promise<unknown>) {
   try {
-    await protocolRequest("agent.promptQueue.cancel", {
-      agentId: prompt.agentId,
-      queuedPromptId: prompt.id,
-    });
-    const targetView = ensureConversationView(prompt.conversationId);
-    targetView.queuedPrompts = targetView.queuedPrompts.filter(
-      (candidate) => candidate.id !== prompt.id,
-    );
-    return true;
-  } catch (caught) {
-    const message = caught instanceof Error ? caught.message : String(caught);
-    notify.error("Queued prompt action failed", { description: message });
-    return false;
+    await action();
+  } catch (e) {
+    notify.error(e instanceof Error ? e.message : String(e));
   }
 }
+async function configure(
+  patch: Partial<Omit<ConversationConfig, "conversationId">>,
+) {
+  const p = activePendingConversation;
+  if (p) {
+    Object.assign(p.config, patch);
+    p.selectedModelKey = modelKey(p.config.model);
+    p.thinkingLevel = p.config.reasoningLevel;
+    p.mode = p.config.mode;
+    p.permissionRuleSetId = p.config.permissionRuleSetId;
+  } else await store?.configure(patch);
+}
+async function submitPrompt(
+  text = activeComposerText,
+  options: { clearComposer?: boolean } = {},
+) {
+  if (!text.trim()) return;
+  const pending = activePendingConversation;
+  if (pending) {
+    if (pending.sending) return;
+    pending.sending = true;
+    try {
+      const snapshot = pending.createdConversationId
+        ? await requestConversation("conversation.getSnapshot", {
+            conversationId: pending.createdConversationId,
+          })
+        : await requestConversation("conversation.create", {
+            id: createId("conv"),
+            projectId: pending.projectId,
+            title: pending.title,
+            config: pending.config,
+          });
+      pending.createdConversationId = snapshot.conversation.id;
+      await updateCapabilities({
+        projectId: pending.projectId,
+        conversationId: snapshot.conversation.id,
+        layer: "conversation",
+        replace: pending.capabilityOverrides ?? emptyCapabilityOverrides(),
+      });
+      await requestConversation("input.submit", {
+        conversationId: snapshot.conversation.id,
+        inputId: createId("input"),
+        text,
+        source: "user",
+      });
+      if (options.clearComposer === false)
+        composerSignals.createdConversationDraft = {
+          conversationId: snapshot.conversation.id,
+          text: pending.composerText,
+        };
+      workspaceState.conversations = [
+        ...workspaceState.conversations,
+        {
+          ...snapshot.conversation,
+          childCount: 0,
+          mode: snapshot.config.mode,
+          model: snapshot.config.model,
+          permissionRuleSetId: snapshot.config.permissionRuleSetId,
+        },
+      ];
+      replaceOpenCenterTabs(
+        workspaceState.openCenterTabs.map((t) =>
+          t.kind === "pending-conversation" && t.id === pending.id
+            ? { kind: "conversation", id: snapshot.conversation.id }
+            : t,
+        ),
+      );
+      pendingConversations.delete(pending.id);
+      await selectCenterTab({
+        kind: "conversation",
+        id: snapshot.conversation.id,
+      });
+    } catch (e) {
+      pending.error = String(e);
+      throw e;
+    } finally {
+      pending.sending = false;
+    }
+    return;
+  }
+  if (!store) return;
+  if (editTarget) await store.selectHead(editTarget.parentEntryId ?? null);
+  await store.submit(text);
+  if (options.clearComposer !== false && composerText === text)
+    composerText = "";
+  editTarget = undefined;
+}
+async function abortActiveRun() {
+  stopping = true;
+  try {
+    await store?.control("stop");
+  } finally {
+    stopping = false;
+  }
+}
+async function compactActiveConversation() {
+  compacting = true;
+  try {
+    await store?.control("compact");
+  } finally {
+    compacting = false;
+  }
+}
+const cancelActiveCompaction = abortActiveRun;
+function openToolFile(path: string, line?: number) {
+  if (activeProject)
+    void openFilePane({ projectId: activeProject.id, path, line });
+}
+function openTaskFromNotice(id: string) {
+  void openTaskTab(id);
+}
+function setComposerModel(key: string) {
+  const model = parseModelKey(key);
+  if (model) {
+    const reasoningLevel = clampThinkingLevelForModel(
+      selectedThinkingLevel,
+      settingsState.models.find((candidate) => modelKey(candidate) === key),
+    );
+    rememberLastAgentSelection({ model, thinkingLevel: reasoningLevel });
+    return configure({ model, reasoningLevel });
+  }
+}
+function setComposerThinkingLevel(value: ConversationConfig["reasoningLevel"]) {
+  const reasoningLevel = clampThinkingLevelForModel(
+    value,
+    settingsState.models.find(
+      (candidate) => modelKey(candidate) === selectedModelKey,
+    ),
+  );
+  rememberLastAgentSelection({ thinkingLevel: reasoningLevel });
+  return configure({ reasoningLevel });
+}
+function setComposerMode(value: ConversationConfig["mode"]) {
+  rememberLastAgentSelection({ mode: value });
+  return configure({ mode: value });
+}
+function setComposerPermissionRuleSet(value: string) {
+  rememberLastAgentSelection({ permissionRuleSetId: value });
+  return configure({ permissionRuleSetId: value });
+}
+async function resolve(toolCallId: string, resolution: InteractionResolution) {
+  await store?.resolve(toolCallId, resolution);
+}
+function answerUserQuestion(toolCallId: string, answer: string) {
+  return resolve(toolCallId, { kind: "user_input", answers: { answer } });
+}
+function dismissUserQuestion(toolCallId: string) {
+  return resolve(toolCallId, {
+    kind: "user_input",
+    answers: {},
+    dismissed: true,
+  });
+}
+function grantApproval(
+  toolCallId: string,
+  scope?:
+    | "single_call"
+    | "always_conversation"
+    | "always_project"
+    | "always_user",
+) {
+  return resolve(toolCallId, {
+    kind: "approval",
+    decision: "approve",
+    persistScope:
+      scope === "always_conversation"
+        ? "conversation"
+        : scope === "always_project"
+          ? "project"
+          : scope === "always_user"
+            ? "user"
+            : undefined,
+  });
+}
+function denyApproval(toolCallId: string) {
+  return resolve(toolCallId, { kind: "approval", decision: "deny" });
+}
+async function acceptPendingPlanReview(
+  toolCallId: string,
+  options?: PlanReviewResolveOptions,
+) {
+  if (options?.compactBeforeImplementation)
+    throw new Error(
+      "Compacting a pending plan is not supported by the conversation core",
+    );
+  await configure({
+    mode: "coding",
+    ...(options?.implementationModel
+      ? { model: options.implementationModel }
+      : {}),
+    ...(options?.implementationThinkingLevel
+      ? { reasoningLevel: options.implementationThinkingLevel }
+      : {}),
+  });
+  await resolve(toolCallId, {
+    kind: "plan_review",
+    decision: "approve",
+    feedback: options?.feedback,
+  });
+}
 
+function rejectPendingPlanReview(toolCallId: string) {
+  return resolve(toolCallId, { kind: "plan_review", decision: "reject" });
+}
+const continueFromFailure: (runId: string) => Promise<null> | undefined = () =>
+  store?.control("continue");
+function forcePushQueuedPrompts() {
+  return store?.control("forcePush").then(() => undefined);
+}
 function discardQueuedPrompt(prompt: QueuedPromptRecord) {
-  void runActivePaneAction(async () => {
-    if (!(await cancelQueuedPrompt(prompt))) return;
-    notify.message("Queued prompt discarded");
-  });
+  return store?.cancelInput(prompt.id).then(() => undefined);
 }
-
-function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
-  void runActivePaneAction(async () => {
-    if (!(await cancelQueuedPrompt(prompt))) return;
-    setPaneComposerText(prompt.text);
+async function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
+  const text = await store?.moveInputToComposer(prompt.id);
+  if (text !== undefined) {
+    setPaneComposerText(text);
     focusComposer();
-    notify.success("Moved queued prompt to composer");
-  });
+  }
 }
+const jumpToConversationEntry: (
+  id: string | undefined,
+  summarize?: boolean,
+) => Promise<void> = async (id) => {
+  await store?.selectHead(id ?? null);
+};
+async function editConversationEntry(entry: ConversationEntry) {
+  editTarget = entry;
+  setPaneComposerText(entry.text);
+  focusComposer();
+}
+$effect(() => {
+  const entry = composerSignals.editEntry;
+  if (active && entry && entry.conversationId === conversationId) {
+    composerSignals.editEntry = undefined;
+    void editConversationEntry(entry);
+  }
+});
+const completeFiles = (q: string) => fileCompletions(activeProject?.id, q);
+const completeReferences = (kind: "task" | "pull_request", q: string) =>
+  referenceCompletions(activeProject?.id, kind, q);
+const teamRunning = $derived(
+  store?.snapshot?.children.some((c) => c.status === "running") ?? false,
+);
 </script>
 
 <WorkbenchConversationAdapter
@@ -498,19 +530,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   queuedPrompts={view?.queuedPrompts ?? []}
   recoveryIssues={view?.recoveryIssues ?? []}
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
-  teamRunning={workspaceState.agents.some(
-    (agent) =>
-      agent.parentAgentId === activeAgent?.id &&
-      agent.executionKind === "async_developer" &&
-      (workspaceState.agentActivities[agent.id]?.state === "running" ||
-        taskSelectors.tasks.some(
-          (task) =>
-            task.agentId === agent.id &&
-            ["starting", "running", "ready", "stopping", "recovered"].includes(
-              task.status,
-            ),
-        )),
-  )}
+  {teamRunning}
   stopping={view?.stopping ?? false}
   composerText={activeComposerText}
   {composerSuggestions}
@@ -528,7 +548,7 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   {permissionRuleSetsLoading}
   {permissionRuleSetsError}
   {slashCompletions}
-  contextUsage={view?.contextUsage}
+  contextUsage={context?.contextUsage}
   {conversationUsage}
   {contextWindow}
   composerFocusToken={composerSignals.focusToken}
@@ -538,10 +558,10 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   referenceCompletions={active ? completeReferences : undefined}
   onComposerChange={setPaneComposerText}
   onSubmit={() => {
-    void runActivePaneAction(() => sendPrompt({ newConversation }));
+    void runActivePaneAction(submitPrompt);
   }}
-  onAnswerUserQuestion={answerUserQuestionById}
-  onDismissUserQuestion={dismissUserQuestionById}
+  onAnswerUserQuestion={answerUserQuestion}
+  onDismissUserQuestion={dismissUserQuestion}
   onAbort={() => {
     void runActivePaneAction(
       view?.transient?.compaction?.state === "running"
@@ -577,9 +597,8 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   onOpenCapabilitySettings={(page) => void openSettingsPane(page)}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
-  onAcceptPlanReview={(id, options) => acceptPendingPlanReview(id, options)}
-  onAcceptPlanReviewInNewChat={(id, options) =>
-    acceptPendingPlanReviewInNewChat(id, options)}
+  onAcceptPlanReview={acceptPendingPlanReview}
+  onAcceptPlanReviewInNewChat={undefined}
   onRejectPlanReview={rejectPendingPlanReview}
   onContinueFromFailure={(runId) => {
     void runActivePaneAction(() => continueFromFailure(runId));
@@ -598,8 +617,4 @@ function moveQueuedPromptToComposer(prompt: QueuedPromptRecord) {
   }}
 />
 
-<PromptSuggestionTrustDialog
-  projectId={activeProject?.id}
-  {conversationId}
-  agentId={activeAgent?.id}
-/>
+<PromptSuggestionTrustDialog projectId={activeProject?.id} {conversationId} />

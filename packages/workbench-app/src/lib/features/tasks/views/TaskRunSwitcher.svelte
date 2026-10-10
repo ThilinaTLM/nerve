@@ -39,8 +39,7 @@ let expanded = $state(false);
 let cleanupOpen = $state(false);
 const current = $derived(runs.find((run) => run.id === currentTaskId));
 const active = $derived(
-  current &&
-    ["starting", "running", "ready", "recovered"].includes(current.status),
+  current && ["starting", "running", "ready"].includes(current.status),
 );
 const sortedRuns = $derived(
   [...runs].sort((left, right) =>
@@ -51,14 +50,7 @@ const cleanableRuns = $derived(
   sortedRuns.filter(
     (run) =>
       run.id !== currentTaskId &&
-      [
-        "completed",
-        "failed",
-        "timed_out",
-        "cancelled",
-        "orphaned",
-        "interrupted",
-      ].includes(run.status),
+      ["completed", "failed", "timed_out", "cancelled"].includes(run.status),
   ),
 );
 
@@ -77,7 +69,7 @@ function selectRun(taskId: string): void {
         variant="ghost"
         size="sm"
         class="min-w-0 flex-1 justify-start rounded-none px-2 text-xs aria-expanded:bg-transparent aria-expanded:text-card-foreground"
-        ariaLabel="Show task run history"
+        ariaLabel="Show launch run history"
         aria-expanded={expanded}
         onclick={() => (expanded = !expanded)}
       >
@@ -89,15 +81,15 @@ function selectRun(taskId: string): void {
       <div
         class="flex shrink-0 items-center gap-0.5 pr-1"
         role="group"
-        aria-label="Task actions"
+        aria-label="Launch actions"
       >
         <Button
           variant="ghost"
           size="icon-xs"
           class="size-5 rounded-sm aria-expanded:bg-transparent aria-expanded:text-card-foreground"
           ariaLabel={expanded
-            ? "Hide task run history"
-            : "Show task run history"}
+            ? "Hide launch run history"
+            : "Show launch run history"}
           aria-expanded={expanded}
           onclick={() => (expanded = !expanded)}
         >
@@ -112,7 +104,7 @@ function selectRun(taskId: string): void {
             variant="ghost"
             size="icon-xs"
             class="size-5 rounded-sm"
-            ariaLabel="Force kill task"
+            ariaLabel="Force kill launch"
             disabled={!canCancel}
             onclick={() => void onForceKillRun?.(current.id)}
           >
@@ -123,7 +115,7 @@ function selectRun(taskId: string): void {
             variant="ghost"
             size="icon-xs"
             class="size-5 rounded-sm"
-            ariaLabel="Restart task"
+            ariaLabel="Restart launch"
             disabled={!canRestart}
             onclick={() => void onRestartRun?.(current.id)}
           >
@@ -133,7 +125,7 @@ function selectRun(taskId: string): void {
             variant="ghost"
             size="icon-xs"
             class="size-5 rounded-sm"
-            ariaLabel="Stop task"
+            ariaLabel="Stop launch"
             disabled={!canCancel}
             onclick={() => void onCancelRun?.(current.id)}
           >
@@ -144,7 +136,7 @@ function selectRun(taskId: string): void {
             variant="ghost"
             size="icon-xs"
             class="size-5 rounded-sm"
-            ariaLabel="Restart task"
+            ariaLabel="Restart launch"
             disabled={!canRestart}
             onclick={() => void onRestartRun?.(current.id)}
           >
@@ -169,7 +161,7 @@ function selectRun(taskId: string): void {
         class="max-h-64 overflow-y-auto border-t border-border py-1"
         transition:slide={{ duration: 140 }}
         role="list"
-        aria-label="Task run history"
+        aria-label="Launch run history"
       >
         {#each sortedRuns as run (run.id)}
           <button
@@ -198,7 +190,7 @@ function selectRun(taskId: string): void {
 <ConfirmDialog
   bind:open={cleanupOpen}
   destructive
-  title="Clean up old task runs?"
+  title="Clean up old launch runs?"
   description={`This removes ${cleanableRuns.length} old finished ${cleanableRuns.length === 1 ? "run" : "runs"} and their captured logs. The current run is retained.`}
   confirmLabel="Clean up"
   onConfirm={() => void onCleanupRuns?.(cleanableRuns.map((run) => run.id))}

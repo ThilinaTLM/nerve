@@ -4,9 +4,9 @@ import type {
   OperationResult,
 } from "@nervekit/contracts/operations";
 import {
-  isLiveProtocolReady,
-  requestLiveProtocol,
-} from "$lib/application/protocol/live-protocol-client";
+  isWorkbenchReady,
+  requestWorkbench,
+} from "$lib/application/startup/workbench-connection";
 
 type ProtocolRequest = <M extends OperationName>(
   method: M,
@@ -202,6 +202,6 @@ function parseRepositoryKey(key: string): {
 }
 
 export const workspaceMonitorDemand = new WorkspaceMonitorDemandCoordinator({
-  request: requestLiveProtocol,
-  isReady: isLiveProtocolReady,
+  request: requestWorkbench,
+  isReady: isWorkbenchReady,
 });

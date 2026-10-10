@@ -1,7 +1,7 @@
 import {
   asyncSubagentToolNames,
   normalizeAsyncSubagentTools,
-} from "../agents/async-subagents.js";
+} from "../tools/async-subagents.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import {
@@ -13,7 +13,6 @@ import {
   permissionOverlayDocumentSchema,
   permissionRuleSetIdSchema,
 } from "../permissions/permission-rule-sets.js";
-import { permissionLevelSchema } from "../permissions/permissions.js";
 import {
   modelCostSchema,
   piApiSchema,
@@ -40,10 +39,22 @@ import {
   electronOzonePlatformSchema,
 } from "./application-configuration.js";
 
+const homeMigrationLedgerSchema = z.array(
+  z
+    .object({
+      id: z.string(),
+      checksum: z.string().regex(/^[a-f0-9]{64}$/),
+      appliedAt: z.iso.datetime(),
+    })
+    .strict(),
+);
+
 export const nerveHomeManifestV1Schema = z
   .object({
     format: z.literal("nerve-home"),
     version: z.literal(1),
+    homeClass: z.enum(["standard", "disposable"]).optional(),
+    migrations: homeMigrationLedgerSchema.optional(),
   })
   .strict();
 export type NerveHomeManifestV1 = z.infer<typeof nerveHomeManifestV1Schema>;
@@ -56,6 +67,7 @@ export const nerveHomeManifestV2Schema = z
     format: z.literal("nerve-home"),
     version: z.literal(2),
     homeClass: nerveHomeClassSchema,
+    migrations: homeMigrationLedgerSchema.optional(),
   })
   .strict();
 export type NerveHomeManifestV2 = z.infer<typeof nerveHomeManifestV2Schema>;
@@ -77,8 +89,8 @@ export const NERVE_HOME_MANIFEST: NerveHomeManifestV2 = {
 const agentSelectionConfigSchema = z
   .object({
     mode: modeSchema,
-    permissionLevel: permissionLevelSchema,
-    permissionRuleSetId: permissionRuleSetIdSchema.optional(),
+
+    permissionRuleSetId: permissionRuleSetIdSchema,
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema,
   })
@@ -225,14 +237,14 @@ export const defaultHarnessConfig: HarnessConfig = {
   version: 3,
   defaults: {
     mode: "coding",
-    permissionLevel: "autonomous",
+
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
   rememberLastSelection: false,
   lastSelection: {
     mode: "coding",
-    permissionLevel: "autonomous",
+
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },

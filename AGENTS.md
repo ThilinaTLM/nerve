@@ -1,10 +1,11 @@
 **Development and validation**
 
-- Isolation: for SQLite schema, storage-layout, or migration changes, test/debug with a fresh/copied `NERVE_HOME` under `/tmp` and explicit ports. Otherwise, the existing home is fine. Fully isolated desktop tests also need separate Electron `userData` outside `NERVE_HOME`.
-- Test important behavior, not static exports, pass-through adapters, cosmetics, or behavior already covered at its owning layer.
-- Local testing: use `pnpm test:focused --base HEAD` for uncommitted changes; omit `--base` to include branch changes against `origin/main`. Add `--dry-run` to preview scope. Browser tests: `pnpm test:browser` when relevant. See `CONTRIBUTING.md` for selection details and automatic fallbacks.
-- Completion: docs-only changes (including `AGENTS.md`) need diff/path/command review, not code validation. Otherwise run `pnpm fix && pnpm check && pnpm test:focused` in one Bash invocation. Fix failures and rerun the chain. Do not routinely add `test:affected` or `test:full`; broader validation belongs in CI. Run broader suites locally only for a specific concern (such as suspected selection gaps, cross-package runtime coupling, or reproducing a CI failure) or an explicit request.
-- UI: `NERVE_API_TARGET=http://127.0.0.1:3747 pnpm dev:ui` targets an existing daemon (default HTTP `3747`, optional mobile HTTPS `3748`). For an isolated daemon, set its `NERVE_HOME` and target its port; Vite reads the token from that home.
+- Testing: run only unit tests for touched code: `cd packages/<pkg> && pnpm exec tsx --test <file>.test.ts`. Add/update tests for important behavior only (not exports, pass-through adapters, cosmetics, or behavior covered at its owning layer).
+- Suites (`test:focused`, `test:full`, `test:browser`, `*.integration.test.ts`): only when the user asks. CI covers them.
+- Completion: code changes: `pnpm fix && pnpm check` plus relevant unit tests; fix and rerun until green. Docs-only: review diff, no validation.
+- Dev instances: `pnpm dev` / `pnpm desktop:dev` use repo-local `data/storage-1` (HTTP `43967`, HTTPS `43968`), never `~/.nerve`; `--slot N` picks another slot, `pnpm dev:ui --slot N` targets it. Other daemon: set `NERVE_HOME` + `NERVE_API_TARGET`. Only `pnpm desktop:prod` uses real data.
+- DB schema changes are sensitive; the schema must stay small. Before planning any table/column change, discuss alternatives (files, memory, existing columns) and justify the change with the user, and get explicit approval.
+- DB schema/migration changes only: test on a copied/fresh slot (`pnpm storage:copy --slot N`), not slot 1.
 - Use `gh` for GitHub operations.
 
 **Architecture**

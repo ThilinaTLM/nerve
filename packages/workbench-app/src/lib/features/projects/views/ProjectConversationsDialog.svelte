@@ -1,9 +1,13 @@
 <script lang="ts">
-import type { AgentRecord, ConversationRecord, ProjectRecord } from "$lib/api";
+import type {
+  AgentRecord,
+  ConversationRecord,
+  ProjectRecord,
+} from "$lib/domain/projects/sidebar-view-models";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import {

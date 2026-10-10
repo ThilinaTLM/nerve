@@ -22,13 +22,13 @@ The server rule above is deliberately specific to run runtime. Concrete domain r
 
 ## Behavioral validation
 
-For package-scoped changes, run:
+For code changes, run:
 
 ```sh
-pnpm fix && pnpm check && pnpm run test:affected
+pnpm fix && pnpm check && pnpm test:focused
 ```
 
-For root, workspace, or test-infrastructure changes, replace the last command with `pnpm run test:full`. Release work additionally validates built package exports and artifact smoke tests. Use fresh temporary `NERVE_HOME`, explicit ports, and a separate Electron `userData` profile for tests that launch a runtime.
+Fix failures and rerun the chain. Docs-only changes need diff/path/command review, not code validation. Focused testing selects relevant tests and automatically falls back to broader suites when needed. Use `--base HEAD` for uncommitted changes; the default includes branch changes against `origin/main`. Broader validation belongs in CI; run `pnpm test:full` locally only for a specific concern or explicit request. Release work additionally validates built package exports and artifact smoke tests. Use fresh temporary `NERVE_HOME`, explicit ports, and a separate Electron `userData` profile for tests that launch a runtime.
 
 Generate source-mapped TypeScript coverage with `pnpm test:coverage`. The report is written to `coverage/` and intentionally excludes generated files, declarations, fixtures, Rust, and Svelte template execution. Packages or surfaces outside that measurement are unmeasured, not implicitly 100% covered. Coverage is review evidence rather than a global numeric gate.
 

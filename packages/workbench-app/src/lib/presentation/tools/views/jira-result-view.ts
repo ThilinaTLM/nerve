@@ -12,7 +12,8 @@ import {
   jiraWorklogSummarySchema,
   jiraUserSummarySchema,
 } from "@nervekit/contracts/tools";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+
+import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
   asRecord,

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { compactionAccountingSchema } from "@nervekit/contracts/conversations";
+import { compactionAccountingSchema } from "@nervekit/contracts/core";
 import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
 import ResultCodeBlock from "../../tools/tool-call/ResultCodeBlock.svelte";

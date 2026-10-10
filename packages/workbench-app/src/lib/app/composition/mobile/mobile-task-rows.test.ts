@@ -28,11 +28,10 @@ test("maps run status families onto row signals", () => {
     assert.deepEqual(taskRunSignal(status), { tone: "info", pulse: true });
   }
   assert.deepEqual(taskRunSignal("ready"), { tone: "success", pulse: false });
-  assert.deepEqual(taskRunSignal("recovered").tone, "warning");
-  for (const status of ["failed", "timed_out", "orphaned"] as const) {
+  for (const status of ["failed", "timed_out"] as const) {
     assert.equal(taskRunSignal(status).tone, "destructive");
   }
-  for (const status of ["completed", "cancelled", "interrupted"] as const) {
+  for (const status of ["completed", "cancelled"] as const) {
     assert.equal(taskRunSignal(status).tone, "neutral");
   }
   assert.equal(definitionRowSignal({}), undefined);

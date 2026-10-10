@@ -13,7 +13,7 @@ import {
   pathExists,
   readJsonFile,
 } from "../storage-bootstrap/json.js";
-import { mergePreservingUnknown } from "../persistence/payloads/merge.js";
+import { mergePreservingUnknown } from "./merge.js";
 import {
   HOME_CONFIGURATION_CODECS,
   type HomeConfigurationDocumentId,
@@ -83,7 +83,7 @@ async function readConfigDocument<K extends HomeConfigurationDocumentId>(
   try {
     return HOME_CONFIGURATION_CODECS[documentId].decode(
       await readJsonFile<unknown>(path),
-    );
+    ) as UserConfiguration[K];
   } catch (cause) {
     throw new HomeConfigurationDocumentError(documentId, path, cause);
   }
@@ -128,7 +128,6 @@ export function settingsFromConfiguration(
 ): Settings {
   const { daemon, harness, ui, integrations } = configuration;
   return settingsSchema.parse({
-    defaultPermissionLevel: harness.defaults.permissionLevel,
     defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
     defaultModel: harness.defaults.model,
     defaultThinkingLevel: harness.defaults.thinkingLevel,
@@ -206,7 +205,6 @@ export function configurationWithSettings(
         defaults: {
           // New agents always start in coding mode; planning is a per-agent choice.
           mode: "coding",
-          permissionLevel: parsed.defaultPermissionLevel,
           permissionRuleSetId: parsed.defaultPermissionRuleSetId,
           model: parsed.defaultModel,
           thinkingLevel: parsed.defaultThinkingLevel,

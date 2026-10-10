@@ -1,4 +1,7 @@
-import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+} from "$lib/presentation/view-models/conversation";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import {
   relativeTimeLabel,
@@ -56,7 +59,7 @@ function isAgentFailed(
 export function agentRuleSetId(agent: AgentRecord): string {
   return agent.mode === "planning"
     ? "planning"
-    : (agent.permissionRuleSetId ?? agent.permissionLevel);
+    : (agent.permissionRuleSetId ?? "");
 }
 
 /** Model plus thinking level, e.g. `gpt 5.6-luna (low)`. */
@@ -250,12 +253,6 @@ export function agentDetailFields(agent: AgentRecord): AgentDetailField[] {
     },
     { label: "Mode", value: agent.mode === "planning" ? "Planning" : "Coding" },
     { label: "Rule set", value: permissionRuleSetLabel(agentRuleSetId(agent)) },
-    {
-      label: "Depth",
-      value: agent.budget
-        ? `${agent.budget.depth} / ${agent.budget.maxDepth}`
-        : "—",
-    },
     {
       label: "Started",
       value: relativeTimeLabel(agent.createdAt) || "—",

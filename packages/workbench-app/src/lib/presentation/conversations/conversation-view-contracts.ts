@@ -17,13 +17,16 @@ import type {
 } from "@nervekit/contracts/permissions";
 import type { PlanReviewRecord } from "@nervekit/contracts/plans";
 import type { ProjectRecord } from "@nervekit/contracts/projects";
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
+
+import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
+
+import type { TodoItem } from "@nervekit/contracts/tools";
 import type {
-  TodoItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts/tools";
-import type { ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
+} from "$lib/presentation/view-models/conversation";
+
+import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
 import type { TimelineItem } from "../state/timeline.js";
 import type { ConversationRunOutcome } from "../state/conversation-render-state.js";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
@@ -176,25 +179,25 @@ export type ConversationPaneActions = {
   onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
   onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
-  onDismissUserQuestion?: (id: string) => void | Promise<void>;
+  onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,

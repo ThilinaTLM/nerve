@@ -1,4 +1,7 @@
-import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
+import type {
+  ConversationEntry,
+  ToolCallTranscriptRecord,
+} from "$lib/presentation/view-models/conversation";
 import {
   classifyHistoryEntry,
   parseToolCallNames,

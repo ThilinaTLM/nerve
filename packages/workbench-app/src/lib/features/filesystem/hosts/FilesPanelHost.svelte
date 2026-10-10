@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Project } from "@nervekit/contracts/core";
 import Copy from "@lucide/svelte/icons/copy";
 import ExternalLink from "@lucide/svelte/icons/external-link";
 import FilePlus from "@lucide/svelte/icons/file-plus";
@@ -12,7 +13,7 @@ import Locate from "@lucide/svelte/icons/locate";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type { ProjectEditor, ProjectRecord, StatusResponse } from "$lib/api";
+import type { ProjectEditor, StatusResponse } from "$lib/api";
 import type { FilesystemProjectEntry } from "@nervekit/contracts/filesystem";
 import type { GitProjectFileStatus } from "@nervekit/contracts/git";
 import ContextMenuList, {
@@ -93,7 +94,7 @@ let {
   onOpenInEditor,
   onOpenInTerminal,
 }: {
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   editorAvailability?: StatusResponse["runtime"]["editors"];
   terminalAvailability?: StatusResponse["runtime"]["terminal"];
   onOpenInEditor?: (
@@ -237,7 +238,7 @@ async function runNativeAction(
   if (!bridge) return;
   try {
     await bridge.files[action]({
-      root: activeProject.dir,
+      root: activeProject.directory,
       relativePath: entry.path,
     });
   } catch (caught) {
@@ -300,7 +301,7 @@ async function movePendingToTrash(): Promise<void> {
     )
       return;
     await bridge.files.trashProjectEntry({
-      root: currentProject.dir,
+      root: currentProject.directory,
       relativePath: entry.path,
     });
     closeFileTabsAtPath({
@@ -347,7 +348,7 @@ function rootMenu(): ContextMenuItem[] {
       createFolder: () => requestCreate("directory", entry),
       openDefault: () => void runNativeAction("openProjectEntry", entry),
       reveal: () => void runNativeAction("revealProjectEntry", entry),
-      copyPath: () => void copyPath(activeProject.dir, "path"),
+      copyPath: () => void copyPath(activeProject.directory, "path"),
     },
     desktopRuntime.isDesktop,
     {
@@ -367,7 +368,7 @@ function itemMenu(item: FileExplorerTreeItem): ContextMenuItem[] {
   if (item.type !== "entry" || !activeProject) return [];
   const entry = item.entry;
   const absolutePath = absoluteProjectPath(
-    activeProject.dir,
+    activeProject.directory,
     entry.path,
     desktopRuntime.platform,
   );

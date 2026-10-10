@@ -2,24 +2,24 @@ import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
+
 import type { TodoItem } from "@nervekit/contracts/tools";
+import type { ApprovalWithToolCall } from "$lib/presentation/view-models/conversation";
 import type {
   AgentRecord,
-  ApprovalWithToolCall,
-  CompletionItem,
-  ContextUsage,
   ConversationRecord,
-  ModelInfo,
   PlanReviewRecord,
   ProjectRecord,
   UserQuestionRecord,
-} from "$lib/api";
-import type { PendingConversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+} from "$lib/presentation/view-models/conversation";
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
+import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
 export type Mode = AgentRecord["mode"];
-export type ThinkingLevel = AgentRecord["thinkingLevel"];
+export type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
 
 export type PromptComposerProps = {
   text?: string;

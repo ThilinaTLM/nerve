@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { ConversationConfig } from "@nervekit/contracts/core";
 import Star from "@lucide/svelte/icons/star";
 import Popover, {
   PopoverBody,
@@ -6,10 +7,10 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { cn } from "@nervekit/ui-kit/utils";
-import { supportedThinkingLevelsForModel } from "$lib/application/preferences/agent-selection";
-import type { AgentRecord, ModelInfo } from "$lib/api";
+import { supportedThinkingLevelsForModel } from "$lib/application/preferences/thinking-levels";
+import type { ModelInfo } from "$lib/api";
 
-type ThinkingLevel = AgentRecord["thinkingLevel"];
+type ThinkingLevel = ConversationConfig["reasoningLevel"];
 
 type Props = {
   label: string;

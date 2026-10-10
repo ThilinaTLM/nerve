@@ -3,8 +3,9 @@ import type {
   ConversationLiveMessageSnapshot,
   ConversationLiveToolOutputSnapshot,
   ConversationLiveTurnSnapshot,
-} from "@nervekit/contracts/conversations";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
+
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import {
   liveBlockKey,
   orderedBlocks,

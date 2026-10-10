@@ -31,7 +31,6 @@ export interface TaskRunEntry {
   readonly isActive: boolean;
   readonly canForceKill: boolean;
   readonly isRemovable: boolean;
-  readonly needsRecovery: boolean;
 }
 
 /** A saved task definition together with every run it has produced. */
@@ -42,7 +41,6 @@ export interface TaskDefinitionEntry {
   readonly runs: readonly TaskRunEntry[];
   readonly activeRuns: readonly TaskRecord[];
   readonly latestRun?: TaskRecord;
-  readonly needsRecovery: boolean;
 }
 
 export interface TaskPanelCapabilities {

@@ -1,4 +1,4 @@
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 
 export interface ConversationUsageSummary {
   responseCount: number;

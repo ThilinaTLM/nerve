@@ -1,4 +1,5 @@
 <script lang="ts">
+import { getConversationUiCapabilities } from "../../context.svelte";
 import Check from "@lucide/svelte/icons/check";
 import type {
   AgentRecord,
@@ -20,6 +21,9 @@ import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelt
 import { planReviewContent, planReviewPreview } from "./plan-mode-preview";
 import CardFooter from "../../cards/CardFooter.svelte";
 
+const compactPlanSupported =
+  getConversationUiCapabilities().canCompactPlanBeforeImplementation !== false;
+
 type PlanAcceptTarget = "same" | "compact" | "new-chat";
 
 type Props = {
@@ -33,14 +37,14 @@ type Props = {
   detailsAction?: { label: string; onClick: () => void };
   onOpenFile?: (path: string, line?: number) => void;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
 };
 let {
   toolCall,
@@ -172,7 +176,7 @@ async function acceptSame(options?: PlanReviewResolveOptions) {
   accepting = "same";
   actionError = undefined;
   try {
-    await onAcceptPlanReview(planReview.id, options);
+    await onAcceptPlanReview(planReview.toolCallId, options);
   } catch (error) {
     actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
@@ -193,7 +197,7 @@ async function acceptCompact(options?: PlanReviewResolveOptions) {
   accepting = "compact";
   actionError = undefined;
   try {
-    await onAcceptPlanReview(planReview.id, {
+    await onAcceptPlanReview(planReview.toolCallId, {
       ...options,
       compactBeforeImplementation: true,
     });
@@ -217,7 +221,7 @@ async function acceptNewChat(options?: PlanReviewResolveOptions) {
   accepting = "new-chat";
   actionError = undefined;
   try {
-    await onAcceptPlanReviewInNewChat(planReview.id, options);
+    await onAcceptPlanReviewInNewChat(planReview.toolCallId, options);
   } catch (error) {
     actionError = errorMessage(error, "Could not accept the plan.");
   } finally {
@@ -259,7 +263,7 @@ async function rejectPlan() {
   rejecting = true;
   actionError = undefined;
   try {
-    await onRejectPlanReview(planReview.id);
+    await onRejectPlanReview(planReview.toolCallId);
   } catch (error) {
     actionError = errorMessage(error, "Could not reject the plan.");
   } finally {
@@ -316,12 +320,14 @@ async function rejectPlan() {
             >
               Accept & implement
             </DropdownMenu.Item>
-            <DropdownMenu.Item
-              disabled={actionsDisabled}
-              onSelect={() => void acceptCompact()}
-            >
-              Compact & implement
-            </DropdownMenu.Item>
+            {#if compactPlanSupported}
+              <DropdownMenu.Item
+                disabled={actionsDisabled}
+                onSelect={() => void acceptCompact()}
+              >
+                Compact & implement
+              </DropdownMenu.Item>
+            {/if}
             {#if onAcceptPlanReviewInNewChat}
               <DropdownMenu.Item
                 disabled={actionsDisabled}
@@ -337,12 +343,14 @@ async function rejectPlan() {
             >
               Choose model & implement
             </DropdownMenu.Item>
-            <DropdownMenu.Item
-              disabled={actionsDisabled}
-              onSelect={openCompactModelDialog}
-            >
-              Choose model & compact
-            </DropdownMenu.Item>
+            {#if compactPlanSupported}
+              <DropdownMenu.Item
+                disabled={actionsDisabled}
+                onSelect={openCompactModelDialog}
+              >
+                Choose model & compact
+              </DropdownMenu.Item>
+            {/if}
             {#if onAcceptPlanReviewInNewChat}
               <DropdownMenu.Item
                 disabled={actionsDisabled}

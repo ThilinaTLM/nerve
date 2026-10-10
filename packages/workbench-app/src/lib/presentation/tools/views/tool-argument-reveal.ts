@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import { revealBoundary } from "@nervekit/ui-kit/scheduling/streaming-reveal";
 
 const BACKSLASH = 0x5c;

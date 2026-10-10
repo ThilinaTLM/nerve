@@ -1,18 +1,17 @@
 import { join } from "node:path";
-import { projectRecordSchema } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import {
   taskDefinitionFileSchema,
   taskDefinitionSchema,
   type TaskDefinition,
 } from "@nervekit/contracts/task-definitions";
-import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   atomicWriteJson,
   readJsonFile,
 } from "../../infrastructure/storage-bootstrap/index.js";
 
 export class TaskDefinitionRepository {
-  constructor(private readonly storage: InitializedStorage) {}
+  constructor(private readonly getProject: (id: string) => Project) {}
 
   async list(projectId: string): Promise<TaskDefinition[]> {
     const path = await this.path(projectId);
@@ -48,13 +47,7 @@ export class TaskDefinitionRepository {
   }
 
   private async path(projectId: string): Promise<string> {
-    const document = await this.storage.canonicalStore.readDocument<unknown>(
-      "project",
-      "global",
-      projectId,
-    );
-    if (!document) throw new Error("Project not found.");
-    const project = projectRecordSchema.parse(document.data);
-    return join(project.dir, ".nerve", "tasks", "definitions.json");
+    const project = this.getProject(projectId);
+    return join(project.directory, ".nerve", "tasks", "definitions.json");
   }
 }

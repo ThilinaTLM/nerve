@@ -1,4 +1,13 @@
-import { recoverAndRefreshConversation } from "$lib/features/conversations";
+import { retainConversationStore } from "$lib/features/conversations";
+async function refreshConversation(id: string) {
+  const retained = retainConversationStore(id);
+  try {
+    await retained.ready;
+    await retained.store.recover();
+  } finally {
+    retained.release();
+  }
+}
 import { refreshFilePane, refreshMermaidPane } from "$lib/features/filesystem";
 import { refreshDiffPane, refreshPrPane } from "$lib/features/git";
 import { requestLogsRefresh } from "$lib/features/logs";
@@ -7,7 +16,7 @@ import { selectCenterTab } from "$lib/application/workspace";
 import { createCenterTabRefresh } from "./center-tab-refresh";
 
 export const refreshCenterTab = createCenterTabRefresh({
-  refreshConversation: (id) => void recoverAndRefreshConversation(id),
+  refreshConversation: (id) => void refreshConversation(id),
   selectTab: (tab) => void selectCenterTab(tab),
   refreshFile: (id) => void refreshFilePane(id),
   refreshMermaid: (id) => void refreshMermaidPane(id),

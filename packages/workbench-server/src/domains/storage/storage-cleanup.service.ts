@@ -7,20 +7,13 @@ import type {
 } from "@nervekit/contracts/storage";
 import type { StoragePaths } from "../../infrastructure/storage-bootstrap/index.js";
 import type { MaintenanceExecution } from "../maintenance/maintenance-execution.js";
-import {
-  dirSize,
-  fileSize,
-  pathsSize,
-  queryCacheFileNames,
-  queryCacheFilePaths,
-} from "./storage-files.js";
+import { dirSize, fileSize } from "./storage-files.js";
 import type { StorageUsageService } from "./storage-usage.service.js";
 export interface StorageCleanupOperations {
   pruneConversationsAcrossProjects(
     request: { strategy: "olderThanDays"; olderThanDays: number },
     execution: MaintenanceExecution,
   ): Promise<{ removedConversationCount: number; skippedCount: number }>;
-  rebuildSearchIndex(): Promise<void>;
 }
 export interface StorageCleanupExecutorDeps {
   paths: StoragePaths;
@@ -58,7 +51,7 @@ export class StorageCleanupExecutor {
         phase: plan.target,
         message: plan.message,
         currentTarget: plan.target,
-        cancellable: plan.target !== "searchIndex",
+        cancellable: true,
       });
       let result: StorageCleanupResult;
       try {
@@ -181,7 +174,7 @@ export class StorageCleanupExecutor {
           this.clearDirContents(
             execution,
             this.deps.paths.cachePath,
-            queryCacheFileNames(this.deps.paths.queryCachePath),
+            new Set(),
             true,
           ),
       });
@@ -191,23 +184,6 @@ export class StorageCleanupExecutor {
         message: "Clearing temporary files…",
         run: () => this.clearDirContents(execution, this.deps.paths.tmpPath),
       });
-    if (request.rebuildSearchIndex) {
-      plans.push({
-        target: "searchIndex",
-        message: "Rebuilding the search index…",
-        run: async () => {
-          const before = await this.indexFootprint();
-          await this.deps.getOperations().rebuildSearchIndex();
-          const after = await this.indexFootprint();
-          return {
-            freedBytes: Math.max(0, before - after),
-            removedItems: 0,
-            skipped: 0,
-            note: "Rebuilt from canonical records.",
-          };
-        },
-      });
-    }
     return plans;
   }
 
@@ -292,11 +268,5 @@ export class StorageCleanupExecutor {
         throw error;
     });
     return { freedBytes, removedItems, skipped };
-  }
-
-  private async indexFootprint(): Promise<number> {
-    return (
-      await pathsSize(queryCacheFilePaths(this.deps.paths.queryCachePath))
-    ).bytes;
   }
 }

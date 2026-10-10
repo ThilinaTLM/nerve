@@ -1,29 +1,28 @@
-import type { TaskRecord } from "@nervekit/contracts/tasks";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { refreshTaskLogWindow } from "./task-logs.svelte";
-import { onEvent } from "$lib/application/events/event-bus";
+import {
+  onEvent,
+  onWorkbenchReconnect,
+} from "$lib/application/events/workbench-event-bus";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { applyVisibleTaskRecord } from "./task-reducers";
 import { taskState } from "./task-state.svelte";
 
 export function registerTaskEventHandlers(): () => void {
   const disposers = [
-    onEvent("task.output", handleTaskLogEvent),
-    onEvent("task.removed", handleTaskRemovedEvent),
-    onEvent("task.created", handleTaskRecordEvent),
-    onEvent("task.started", handleTaskRecordEvent),
-    onEvent("task.runtime_updated", handleTaskRecordEvent),
-    onEvent("task.ready", handleTaskRecordEvent),
-    onEvent("task.timed_out", handleTaskRecordEvent),
-    onEvent("task.promoted", handleTaskRecordEvent),
-    onEvent("task.completed", handleTaskRecordEvent),
-    onEvent("task.failed", handleTaskRecordEvent),
-    onEvent("task.cancelled", handleTaskRecordEvent),
-    onEvent("task.orphaned", handleTaskRecordEvent),
-    onEvent("task.recovered", handleTaskRecordEvent),
-    onEvent("task.interrupted", handleTaskRecordEvent),
-    onEvent("task.recovery_unknown", handleTaskRecordEvent),
-    onEvent("task.updated", handleTaskRecordEvent),
-    onEvent("task.orphan_cleanup_succeeded", handleTaskRecordEvent),
+    onWorkbenchReconnect(refreshWorkbenchTasks),
+    onEvent("launch.output", handleTaskLogEvent),
+    onEvent("launch.removed", handleTaskRemovedEvent),
+    onEvent("launch.created", handleTaskRecordEvent),
+    onEvent("launch.started", handleTaskRecordEvent),
+    onEvent("launch.runtime_updated", handleTaskRecordEvent),
+    onEvent("launch.ready", handleTaskRecordEvent),
+    onEvent("launch.stop_requested", handleTaskRecordEvent),
+    onEvent("launch.readiness_failed", handleTaskRecordEvent),
+    onEvent("launch.timed_out", handleTaskRecordEvent),
+    onEvent("launch.completed", handleTaskRecordEvent),
+    onEvent("launch.failed", handleTaskRecordEvent),
+    onEvent("launch.cancelled", handleTaskRecordEvent),
+    onEvent("launch.updated", handleTaskRecordEvent),
   ];
   return () => {
     for (const dispose of disposers.splice(0)) dispose();
@@ -33,9 +32,8 @@ export function registerTaskEventHandlers(): () => void {
 function handleTaskRecordEvent(event: {
   data?: Record<string, unknown>;
 }): void {
-  const task = event.data?.task as TaskRecord | undefined;
-  if (!task?.id) return;
-  taskState.tasks = applyVisibleTaskRecord(taskState.tasks, task);
+  if (!event.data?.task) return;
+  void refreshWorkbenchTasks().catch(() => undefined);
 }
 
 function handleTaskRemovedEvent(event: {
@@ -61,4 +59,17 @@ function handleTaskLogEvent(event: { data?: Record<string, unknown> }): void {
   if (taskId && taskId === taskState.selectedTaskId && viewingTask) {
     void refreshTaskLogWindow(taskId).catch(() => undefined);
   }
+}
+
+export async function refreshWorkbenchTasks(): Promise<void> {
+  taskState.tasks = (await requestWorkbench("launch.list", {})).tasks;
+  if (
+    taskState.selectedTaskId &&
+    !taskState.tasks.some((task) => task.id === taskState.selectedTaskId)
+  ) {
+    taskState.selectedTaskId = undefined;
+    taskState.taskLogs = undefined;
+  }
+  if (taskState.selectedTaskId)
+    await refreshTaskLogWindow(taskState.selectedTaskId);
 }

@@ -11,8 +11,6 @@ import type { AtlassianProfile } from "@nervekit/contracts/settings";
 import { checkAtlassianConnection } from "@nervekit/tools/execution";
 import { z } from "zod";
 
-const NAMESPACE = "integration-health";
-const SCOPE = "atlassian";
 const services = ["jira", "confluence"] as const;
 
 const storedResultSchema = integrationHealthResultSchema.extend({
@@ -20,30 +18,13 @@ const storedResultSchema = integrationHealthResultSchema.extend({
   credentialDigest: z.string(),
 });
 type StoredResult = z.infer<typeof storedResultSchema>;
-const storedHealthSchema = z.object({
-  version: z.literal(1),
-  jira: storedResultSchema.optional(),
-  confluence: storedResultSchema.optional(),
-});
-type StoredHealth = z.infer<typeof storedHealthSchema>;
-
-type DocumentStore = {
-  readDocument<T>(
-    namespace: string,
-    scopeId: string,
-    documentId: string,
-  ): Promise<{ data: T; revision: number } | undefined>;
-  writeDocument<T>(input: {
-    namespace: string;
-    scopeId: string;
-    documentId: string;
-    data: T;
-    expectedRevision?: number;
-  }): Promise<unknown>;
+type StoredHealth = {
+  version: 1;
+  jira?: StoredResult;
+  confluence?: StoredResult;
 };
 
 export type IntegrationHealthDeps = {
-  store: DocumentStore;
   /** Atlassian profiles shown in user settings. */
   profiles: () => readonly AtlassianProfile[];
   getToken: (profileId: string) => Promise<string | undefined>;
@@ -59,6 +40,7 @@ export type IntegrationHealthDeps = {
  * produced it, so editing a profile or replacing its token invalidates it.
  */
 export class IntegrationHealthService {
+  readonly #health = new Map<string, StoredHealth>();
   readonly #queues = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: IntegrationHealthDeps) {}
@@ -158,13 +140,7 @@ export class IntegrationHealthService {
   }
 
   async #read(profileId: string): Promise<StoredHealth | undefined> {
-    const document = await this.deps.store.readDocument<unknown>(
-      NAMESPACE,
-      SCOPE,
-      profileId,
-    );
-    const parsed = storedHealthSchema.safeParse(document?.data);
-    return parsed.success ? parsed.data : undefined;
+    return this.#health.get(profileId);
   }
 
   #write(
@@ -174,15 +150,9 @@ export class IntegrationHealthService {
     result: Pick<IntegrationHealthResult, "status" | "source" | "message">,
   ): Promise<void> {
     return this.#exclusive(profile.id, async () => {
-      const document = await this.deps.store.readDocument<unknown>(
-        NAMESPACE,
-        SCOPE,
-        profile.id,
-      );
-      const parsed = storedHealthSchema.safeParse(document?.data);
-      const next: StoredHealth = parsed.success
-        ? { ...parsed.data }
-        : { version: 1 };
+      const next: StoredHealth = {
+        ...(this.#health.get(profile.id) ?? { version: 1 }),
+      };
       next[service] = storedResultSchema.parse({
         status: result.status,
         source: result.source,
@@ -192,13 +162,7 @@ export class IntegrationHealthService {
         email: profile.email,
         credentialDigest: digest(token),
       });
-      await this.deps.store.writeDocument({
-        namespace: NAMESPACE,
-        scopeId: SCOPE,
-        documentId: profile.id,
-        data: next,
-        expectedRevision: document?.revision ?? 0,
-      });
+      this.#health.set(profile.id, next);
     });
   }
 

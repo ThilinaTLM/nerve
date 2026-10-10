@@ -1,10 +1,12 @@
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { EventEnvelope } from "@nervekit/contracts/events";
-import type { SubagentTranscriptSnapshot } from "@nervekit/contracts/agents";
+
+import type { SubagentTranscriptSnapshot } from "$lib/presentation/view-models/conversation";
+
 import type {
   ToolCallDetails,
   ToolCallResultChunk,
-} from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
 import type { Component } from "svelte";
 import { getContext, setContext } from "svelte";
 
@@ -66,7 +68,7 @@ export interface AtlassianLinkCapability {
 export interface SubagentTranscriptObserver {
   snapshot: (snapshot: SubagentTranscriptSnapshot) => void;
   /** Return false when canonical offset validation requests reconciliation. */
-  event: (event: EventEnvelope<Record<string, unknown>>) => boolean | void;
+  event?: (event: EventEnvelope<Record<string, unknown>>) => boolean | void;
   error: (message: string) => void;
 }
 
@@ -88,6 +90,7 @@ export interface AskReplyComposerCapability {
 }
 
 export interface ConversationUiCapabilities {
+  canCompactPlanBeforeImplementation?: boolean;
   /** Fetch canonical bounded details without loading the complete result. */
   fetchToolCall?: (toolCallId: string) => Promise<ToolCallDetails>;
   /** Read one bounded UTF-8 chunk of the complete result. */

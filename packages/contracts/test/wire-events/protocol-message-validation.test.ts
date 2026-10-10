@@ -25,7 +25,7 @@ import {
   WORKSPACE_STREAM,
   type EventEnvelope,
 } from "../../src/events/index.js";
-import { conversationLiveToolOutputStreamSchema } from "../../src/domains/conversations/index.js";
+import { toolOutputStreamSchema } from "../../src/domains/tools/index.js";
 import {
   eventBatchDataSchema,
   eventBatchMessageSchema,
@@ -35,6 +35,8 @@ import {
   streamSubscriptionUpdatedMessageSchema,
   type EventBatchData,
 } from "../../src/wire/index.js";
+
+import { assistantEvent } from "./core-event-fixtures.js";
 
 const ts = "2026-06-26T12:00:00.000Z";
 
@@ -66,41 +68,12 @@ describe("daemon lifecycle events", () => {
   });
 });
 
-describe("run cancellation events", () => {
-  it("requires the current project-scoped payload", () => {
-    const current = {
-      conversationId: "conv_test",
-      agentId: "agent_test",
-      runId: "run_test",
-      projectId: "proj_test",
-      cancelledAt: ts,
-    };
-    assert.deepEqual(
-      validatePublicEvent("run.cancelled", current, "workbench_server"),
-      current,
-    );
-    assert.throws(() =>
-      validatePublicEvent(
-        "run.cancelled",
-        { ...current, projectId: undefined },
-        "workbench_server",
-      ),
-    );
-  });
-});
-
 describe("live tool output streams", () => {
   it("accepts model thinking and text channels", () => {
     for (const stream of ["thinking", "text"] as const) {
-      assert.equal(
-        conversationLiveToolOutputStreamSchema.safeParse(stream).success,
-        true,
-      );
+      assert.equal(toolOutputStreamSchema.safeParse(stream).success, true);
     }
-    assert.equal(
-      conversationLiveToolOutputStreamSchema.safeParse("reasoning").success,
-      false,
-    );
+    assert.equal(toolOutputStreamSchema.safeParse("reasoning").success, false);
   });
 });
 
@@ -122,8 +95,8 @@ function event(seq: number): EventEnvelope {
     seq,
     id: `evt_${seq}`,
     ts,
-    type: "project.created",
-    data: {},
+    type: "conversation.event",
+    data: { ...assistantEvent(), sequence: seq },
   };
 }
 
@@ -138,94 +111,6 @@ function batch(overrides: Partial<EventBatchData> = {}): EventBatchData {
     ...overrides,
   };
 }
-
-describe("compact explore payloads", () => {
-  it("strips legacy full report fields from completion events", () => {
-    const parsed = validatePublicEvent(
-      "agent.explore_completed",
-      {
-        parentAgentId: "agent_01H00000000000000000000000",
-        reports: [
-          {
-            agentId: "agent_02H00000000000000000000000",
-            task: "Inspect the tool output boundary",
-            status: "completed",
-            report: "legacy full report text",
-            steps: [{ type: "assistant", message: "legacy detail" }],
-            reportPath: "/tmp/explore/report.md",
-            summaryPreview: "Boundary summary",
-          },
-        ],
-      },
-      "workbench_server",
-    ) as { reports: Array<Record<string, unknown>> };
-    assert.equal(parsed.reports[0]?.report, undefined);
-    assert.equal(parsed.reports[0]?.steps, undefined);
-  });
-});
-
-describe("summary lifecycle event references", () => {
-  it("keeps generated summary text out of public completion events", () => {
-    const compacted = validatePublicEvent(
-      "conversation.compacted",
-      {
-        conversationId: "conv_test",
-        entryId: "entry_compaction",
-        tokensBefore: 20_000,
-        firstKeptEntryId: "entry_recent",
-      },
-      "workbench_server",
-    ) as Record<string, unknown>;
-    assert.equal(compacted.entryId, "entry_compaction");
-    assert.equal(compacted.entry, undefined);
-
-    assert.doesNotThrow(() =>
-      validatePublicEvent(
-        "conversation.branch_summarized",
-        {
-          conversationId: "conv_test",
-          fromEntryId: "entry_old",
-          targetEntryId: "entry_target",
-          entryId: "entry_summary",
-        },
-        "workbench_server",
-      ),
-    );
-    assert.doesNotThrow(() =>
-      validatePublicEvent(
-        "conversation.navigated",
-        {
-          conversationId: "conv_test",
-          activeEntryId: "entry_summary",
-          targetEntryId: "entry_target",
-        },
-        "workbench_server",
-      ),
-    );
-
-    const oversizedEntry = {
-      id: "entry_summary",
-      conversationId: "conv_test",
-      role: "system",
-      kind: "branch_summary",
-      text: "x".repeat(20_000),
-      summary: "x".repeat(20_000),
-      createdAt: ts,
-    };
-    assert.throws(() =>
-      validatePublicEvent(
-        "conversation.compacted",
-        {
-          conversationId: "conv_test",
-          entry: oversizedEntry,
-          tokensBefore: 20_000,
-          firstKeptEntryId: "entry_recent",
-        },
-        "workbench_server",
-      ),
-    );
-  });
-});
 
 describe("Protocol v1 shared schemas", () => {
   it("validates exact-set subscriptions with per-stream modes", () => {
@@ -318,59 +203,22 @@ describe("Protocol v1 shared schemas", () => {
       }),
       { method: "project.get", params: { projectId: "proj_1" } },
     );
-    const projectRemovalOperation = {
-      id: "maintenanceop_1",
-      revision: 1,
-      kind: "delete_project",
-      request: { kind: "delete_project", projectId: "proj_1" },
-      cancellable: false,
-      cancellationRequested: false,
-      completedTargets: 0,
-      totalTargets: 0,
-      freedBytes: 0,
-      warnings: [],
-      project: {
-        id: "proj_1",
-        name: "Example",
-        dir: "/tmp/example",
-        createdAt: "2025-01-01T00:00:00.000Z",
-        updatedAt: "2025-01-01T00:00:00.000Z",
-      },
-      status: "queued",
-      phase: "queued",
-      message: "Project removal is queued.",
-      createdAt: "2025-01-01T00:00:00.000Z",
-      updatedAt: "2025-01-01T00:00:00.000Z",
-      completedItems: 0,
-      removedConversationCount: 0,
-      removedTaskCount: 0,
-      skippedActiveAgentCount: 0,
-      skippedActiveTaskCount: 0,
-    };
-    assert.deepEqual(
-      parseOperationResult("project.delete", {
-        operation: projectRemovalOperation,
-      }),
-      { operation: projectRemovalOperation },
-    );
+    assert.equal(parseOperationResult("project.delete", null), null);
     assert.throws(() => parseOperationResult("project.delete", { ok: true }));
     assert.deepEqual(
-      parseOperationParams("conversation.compaction.cancel", {
+      parseOperationParams("conversation.compact", {
         conversationId: "conv_1",
       }),
       { conversationId: "conv_1" },
     );
-    assert.deepEqual(
-      parseOperationResult("conversation.compaction.cancel", { ok: true }),
-      { ok: true },
-    );
-    assert.deepEqual(
+    assert.equal(parseOperationResult("conversation.compact", null), null);
+    assert.equal(
       parseProtocolResponseData("project.delete", {
         ok: true,
         method: "project.delete",
-        result: { operation: projectRemovalOperation },
+        result: null,
       }).result,
-      { operation: projectRemovalOperation },
+      null,
     );
   });
 
@@ -500,16 +348,10 @@ describe("Protocol v1 shared schemas", () => {
   });
 
   it("validates public envelopes and sequenced batches against catalog metadata", () => {
-    const publicEvent = {
-      seq: 1,
-      id: "evt_git_1",
-      ts,
-      type: "git.repository.changed",
-      data: { repo: ".", reason: "commit" },
-    };
+    const publicEvent = event(1);
     assert.equal(
       parsePublicEventEnvelope(publicEvent, "workbench_server").type,
-      "git.repository.changed",
+      "conversation.event",
     );
     const invalidation = {
       projectId: "proj_test",
@@ -566,7 +408,7 @@ describe("Protocol v1 shared schemas", () => {
     assert.throws(
       () =>
         parsePublicEventEnvelope(
-          { ...publicEvent, type: "task.output" },
+          { ...publicEvent, type: "launch.output" },
           "workbench_server",
         ),
       /cannot use event.batch/,
@@ -593,35 +435,22 @@ describe("Protocol v1 shared schemas", () => {
       new Set(definitions.map((definition) => definition.name)).size,
       definitions.length,
     );
-    const turnStarted = definitions.find(
-      (definition) => definition.name === "conversation.live.turn.started",
+    const durable = definitions.find(
+      (definition) => definition.name === "conversation.event",
     );
-    assert.equal(turnStarted?.delivery, "ephemeral");
-    assert.equal(turnStarted?.supersedable, false);
-    const liveDone = definitions.find(
-      (definition) => definition.name === "conversation.live.content.done",
+    assert.equal(durable?.delivery, "sequenced");
+    assert.equal(durable?.supersedable, false);
+    const live = definitions.find(
+      (definition) => definition.name === "conversation.live",
     );
-    assert.equal(liveDone?.delivery, "ephemeral");
-    assert.equal(liveDone?.supersedable, false);
-    const canonicalLifecycle = definitions.find(
-      (definition) => definition.name === "conversation.compaction.started",
+    assert.equal(live?.delivery, "ephemeral");
+    assert.equal(live?.supersedable, false);
+    const head = definitions.find(
+      (definition) => definition.name === "conversation.head",
     );
-    assert.equal(canonicalLifecycle?.supersedable, false);
-    const compactionProgress = definitions.find(
-      (definition) => definition.name === "conversation.compaction.progress",
-    );
-    assert.equal(compactionProgress?.delivery, "sequenced");
-    assert.equal(compactionProgress?.supersedable, true);
-    const delta = definitions.find(
-      (definition) => definition.name === "conversation.live.content.delta",
-    );
-    assert.equal(delta?.delivery, "ephemeral");
-    assert.deepEqual(delta?.coalescing, {
-      strategy: "concat_delta",
-      field: "delta",
-      offsetField: "offset",
-      maxChars: 16_384,
-    });
+    assert.equal(head?.delivery, "ephemeral");
+    assert.equal(head?.supersedable, true);
+    assert.deepEqual(head?.coalescing, { strategy: "latest_by_scope" });
     for (const definition of definitions) {
       assert.ok(["sequenced", "ephemeral"].includes(definition.delivery));
       assert.equal(
@@ -630,7 +459,9 @@ describe("Protocol v1 shared schemas", () => {
       );
       assert.notEqual(definition.payloadSchema, boundedPublicObjectSchema);
       if (definition.delivery === "sequenced") {
-        assert.doesNotThrow(() => streamForEvent(definition.name, {}));
+        assert.doesNotThrow(() =>
+          streamForEvent(definition.name, { conversationId: "conv_1" }),
+        );
       }
       if (definition.coalescing) {
         assert.equal(definition.delivery, "ephemeral");
@@ -645,21 +476,23 @@ describe("Protocol v1 shared schemas", () => {
   });
 
   it("routes workspace and conversation streams", () => {
-    assert.equal(streamForEvent("project.created", {}), WORKSPACE_STREAM);
-    assert.equal(
-      streamForEvent("conversation.deleted", { conversationId: "conv_1" }),
-      WORKSPACE_STREAM,
+    assert.throws(
+      () => streamForEvent("git.repository.changed", {}),
+      /does not have a stream/,
+    );
+    assert.throws(
+      () =>
+        streamForEvent("conversation.deleted", { conversationId: "conv_1" }),
+      /does not have a stream/,
     );
     assert.equal(
-      streamForEvent("conversation.entry.appended", {
-        conversationId: "conv_1",
-      }),
+      streamForEvent("conversation.event", { conversationId: "conv_1" }),
       conversationStream("conv_1"),
     );
     assert.equal(parseConversationStream("conv/conv_1"), "conv_1");
     assert.equal(parseConversationStream(WORKSPACE_STREAM), null);
     assert.throws(
-      () => streamForEvent("task.output", {}),
+      () => streamForEvent("launch.output", {}),
       /does not have a stream/,
     );
   });
@@ -696,47 +529,5 @@ describe("Protocol v1 shared schemas", () => {
       "failed",
       "cancelled",
     ]);
-  });
-});
-
-describe("compaction request targeting and warning codes", () => {
-  it("accepts legacy lead requests and optional child owners", () => {
-    for (const method of [
-      "conversation.compact",
-      "conversation.compaction.cancel",
-    ] as const) {
-      const lead = { conversationId: "conv_test" };
-      assert.deepEqual(parseOperationParams(method, lead), lead);
-      const child = { ...lead, agentId: "agent_child" };
-      assert.deepEqual(parseOperationParams(method, child), child);
-      assert.throws(() =>
-        parseOperationParams(method, { ...lead, agentId: "invalid" }),
-      );
-    }
-  });
-
-  it("accepts old failures and only the four typed warning codes", () => {
-    const legacy = {
-      conversationId: "conv_test",
-      reason: "manual",
-      failedAt: ts,
-      message: "Could not compact",
-    };
-    const validate = (data: unknown) =>
-      validatePublicEvent(
-        "conversation.compaction.failed",
-        data,
-        "workbench_server",
-      );
-    assert.deepEqual(validate(legacy), legacy);
-    for (const code of [
-      "ineffective",
-      "stale",
-      "pending_work",
-      "no_new_history",
-    ]) {
-      assert.deepEqual(validate({ ...legacy, code }), { ...legacy, code });
-    }
-    assert.throws(() => validate({ ...legacy, code: "unexpected" }));
   });
 });

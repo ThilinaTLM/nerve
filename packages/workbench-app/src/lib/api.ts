@@ -1,10 +1,10 @@
-export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 export type {
-  AgentActivitySnapshot,
-  AgentRecord,
-  ConversationActivitySnapshot,
-  QueuedPromptRecord,
-} from "@nervekit/contracts/agents";
+  Project,
+  ConversationSummary,
+  ConversationConfig,
+  ConversationSnapshot,
+} from "@nervekit/contracts/core";
+export type { MaintenanceOperation } from "@nervekit/contracts/maintenance";
 export type {
   ApplicationLogLevel,
   ApplicationLogPruneRequest,
@@ -12,14 +12,7 @@ export type {
   ApplicationLogQueryResponse,
   ApplicationLogSource,
 } from "@nervekit/contracts/logs";
-export type {
-  ApprovalRecord,
-  ToolCallRecord,
-  ToolCallTranscriptRecord,
-  ToolDescriptor,
-  ToolInteractionResolution,
-  UserQuestionRecord,
-} from "@nervekit/contracts/tools";
+export type { ToolDescriptor } from "@nervekit/contracts/tools";
 export { openAiCodexImageSizeSchema } from "@nervekit/contracts/settings";
 export type {
   AtlassianProfile,
@@ -60,16 +53,6 @@ export type {
   ModelSelection,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
-export type {
-  ConversationActiveRunSnapshot,
-  ConversationEntry,
-  ConversationLiveToolDraftProgressSnapshot,
-  ConversationRecord,
-  ConversationSnapshot,
-  ConversationTree,
-  ConversationTreeNode,
-  UpdateConversationStateRequest,
-} from "@nervekit/contracts/conversations";
 export type {
   CreateTaskDefinitionRequest,
   TaskDefinition,
@@ -120,24 +103,11 @@ export type {
 export type {
   OpenProjectInEditorResponse,
   ProjectEditor,
-  ProjectRecord,
-  ProjectPermissions,
-  PruneProjectConversationsRequest,
 } from "@nervekit/contracts/projects";
-export type { PlanReviewRecord } from "@nervekit/contracts/plans";
-export type {
-  PromptSuggestion,
-  PromptSuggestionDiagnostic,
-  PromptSuggestionListResponse,
-  PromptSuggestionStatus,
-  PromptSuggestionTrustRequest,
-  UpdatePromptSuggestionTrustRequest,
-} from "@nervekit/contracts/prompt-suggestions";
 export type {
   ScratchNote,
   UpdateScratchNoteRequest,
 } from "@nervekit/contracts/scratch-notes";
-export type { SnapshotCursor } from "@nervekit/contracts/snapshots";
 export type {
   StartTaskRequest,
   TaskLogEvent,
@@ -168,35 +138,38 @@ export type {
   ProjectPermissionTrust,
 } from "@nervekit/contracts/permissions";
 
-import type {
-  ToolCallRecord as ToolCallRecordType,
-  ToolCallTranscriptRecord as ToolCallTranscriptRecordType,
-} from "@nervekit/contracts/tools";
-
-export type ToolCallDisplayRecord =
-  | ToolCallRecordType
-  | ToolCallTranscriptRecordType;
 export * from "$lib/platform/http/api-client";
-export type {
-  ApprovalWithToolCall,
-  PlanReviewResolveOptions,
-} from "./presentation/state/tool-types";
-export * from "./features/agents/api/agents.api";
-export * from "./features/agents/api/subagent-transcripts.api";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";
 export * from "./features/auth/api/provider-catalog.api";
-export * from "./features/config/api/config.api";
-export * from "./features/conversations/api/conversations.api";
+export {
+  getClientConfig,
+  getFileCompletions,
+} from "./features/config/api/config.api";
+export type {
+  ClientConfig,
+  ModelOption,
+} from "./features/config/api/config.api";
 export * from "./features/filesystem/api/filesystem.api";
 export * from "./features/git/api/git.api";
 export * from "./features/logs/api/logs.api";
 export * from "./features/projects/api/projects.api";
-export * from "./features/prompt-suggestions/api/prompt-suggestions.api";
 export * from "./features/scratch-notes/api/scratch-notes.api";
 export * from "./features/settings/api/settings.api";
-export * from "./features/skills/api/skills.api";
+import { requestConversation } from "./application/startup/conversation-connection";
+export async function getModels() {
+  return (await requestConversation("model.list", {})).models;
+}
+export async function getSlashCompletions() {
+  return (await requestConversation("completion.slash.list", {})).items;
+}
+export function listAvailableSkills(projectId?: string) {
+  return requestConversation("skill.list", { projectId });
+}
+export async function listTools() {
+  return (await requestConversation("tool.list", {})).tools;
+}
 export * from "./features/tasks/api/tasks.api";
-export * from "./features/tools/api/tools.api";
 export * from "./features/usage/api/usage.api";
-export * from "./application/workspace/infrastructure/workspace.api";
+
+export * from "./features/prompt-suggestions/api/prompt-suggestions.api";

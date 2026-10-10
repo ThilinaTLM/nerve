@@ -2,12 +2,29 @@ import type { ToolResultMessage } from "@earendil-works/pi-ai";
 import type {
   AgentContext,
   AgentLoopConfig,
+  AgentLoopTurnUpdate,
   AgentMessage,
   StreamFn,
 } from "../contracts/index.js";
 import type { AgentEventSink } from "./loop-events.js";
 import { streamAssistantResponse } from "./assistant-stream.js";
 import { executeToolCalls } from "./tool-execution.js";
+
+function applyTurnUpdate(
+  config: AgentLoopConfig,
+  update: AgentLoopTurnUpdate,
+): AgentLoopConfig {
+  return {
+    ...config,
+    model: update.model ?? config.model,
+    reasoning:
+      update.thinkingLevel === undefined
+        ? config.reasoning
+        : update.thinkingLevel === "off"
+          ? undefined
+          : update.thinkingLevel,
+  };
+}
 
 /**
  * Main loop logic shared by runAgentLoop and runAgentLoopContinue.
@@ -42,13 +59,25 @@ export async function runLoop(
       }
     }
 
-    const message = await streamAssistantResponse(
-      currentContext,
-      config,
-      signal,
-      emit,
-      streamFn,
-    );
+    let response;
+    let refreshes = 0;
+    do {
+      response = await streamAssistantResponse(
+        currentContext,
+        config,
+        signal,
+        emit,
+        streamFn,
+      );
+      if (response.kind === "refresh") {
+        // Applications can impose a stricter combined preparation/dispatch budget.
+        if (++refreshes > 64)
+          throw new Error("Provider preparation exceeded refresh limit");
+        currentContext = response.update.context ?? currentContext;
+        config = applyTurnUpdate(config, response.update);
+      }
+    } while (response.kind === "refresh");
+    const message = response.message;
     newMessages.push(message);
 
     if (message.stopReason === "error" || message.stopReason === "aborted") {
@@ -90,16 +119,7 @@ export async function runLoop(
     const nextTurnSnapshot = await config.prepareNextTurn?.(nextTurnContext);
     if (nextTurnSnapshot) {
       currentContext = nextTurnSnapshot.context ?? currentContext;
-      config = {
-        ...config,
-        model: nextTurnSnapshot.model ?? config.model,
-        reasoning:
-          nextTurnSnapshot.thinkingLevel === undefined
-            ? config.reasoning
-            : nextTurnSnapshot.thinkingLevel === "off"
-              ? undefined
-              : nextTurnSnapshot.thinkingLevel,
-      };
+      config = applyTurnUpdate(config, nextTurnSnapshot);
     }
 
     if (signal?.aborted) {
@@ -122,7 +142,7 @@ export async function runLoop(
       return;
     }
 
-    if (hasMoreToolCalls) continue;
+    if (hasMoreToolCalls || nextTurnSnapshot?.continue) continue;
 
     pendingMessages = (await config.getFollowUpMessages?.()) || [];
     if (pendingMessages.length > 0) continue;

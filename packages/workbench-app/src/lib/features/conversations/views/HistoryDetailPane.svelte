@@ -4,7 +4,11 @@ import GitBranch from "@lucide/svelte/icons/git-branch";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import UnfoldVertical from "@lucide/svelte/icons/unfold-vertical";
-import type { ConversationEntry, ToolCallTranscriptRecord } from "$lib/api";
+
+import type {
+  ConversationEntry,
+  ToolCallTranscriptRecord,
+} from "$lib/presentation/view-models/conversation";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import PlainText from "@nervekit/ui-kit/renderers/plain-text/PlainText.svelte";

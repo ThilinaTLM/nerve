@@ -3,20 +3,20 @@ import type {
   PromptSuggestionStatus,
   UpdatePromptSuggestionEnabledRequest,
   UpdatePromptSuggestionTrustRequest,
-} from "$lib/api";
+} from "../api/prompt-suggestions.api";
 import {
   requestPromptSuggestionCreation,
   getPromptSuggestionStatuses,
   getPromptSuggestions,
   updatePromptSuggestionEnabled,
   updatePromptSuggestionTrust,
-} from "$lib/api";
+} from "../api/prompt-suggestions.api";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { promptSuggestionsState } from "./prompt-suggestions-state.svelte";
 
 export async function refreshPromptSuggestions(
   projectId: string | undefined,
-  options: { conversationId?: string; agentId?: string } = {},
+  options: { conversationId?: string } = {},
 ): Promise<void> {
   if (!projectId) {
     promptSuggestionsState.suggestions = [];

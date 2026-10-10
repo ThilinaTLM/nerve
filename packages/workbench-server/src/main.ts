@@ -18,7 +18,6 @@ import {
   shutdownServerRuntime,
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";
-import { RUNTIME_BOOTSTRAP_STAGE_MESSAGES } from "./app/bootstrap/hydrate-runtime.js";
 import { createApp } from "./app/server.js";
 import {
   type DaemonLeaseMonitor,
@@ -48,6 +47,10 @@ import {
   initializeStorage,
   resolveDataDir,
 } from "./infrastructure/storage-bootstrap/index.js";
+import {
+  acquireStorageStartupLock,
+  type StorageStartupLock,
+} from "./infrastructure/storage-bootstrap/startup-lock.js";
 import { ensureMobileHttpsTlsMaterial } from "./infrastructure/tls/lan-certificate.js";
 import { installProtocolWebSocketUpgrade } from "./adapters/protocol/protocol-websocket.js";
 
@@ -84,6 +87,13 @@ function prepareEnterpriseNetworkEnvironment(): void {
 }
 
 let leaseMonitor: DaemonLeaseMonitor | undefined;
+let startupLock: StorageStartupLock | undefined;
+
+async function releaseStartupLock(): Promise<void> {
+  const lock = startupLock;
+  startupLock = undefined;
+  await lock?.release();
+}
 let performanceMonitor: DaemonPerformanceMonitor | undefined;
 const processStartupStartedAt = performance.now();
 
@@ -128,8 +138,13 @@ async function main() {
     );
   };
   const storageStartedAt = performance.now();
+  // Keep initialization and publication atomic with offline clone/migration
+  // tooling. No writer may slip into the gap before daemon.json identifies us.
+  await mkdir(dirname(dataDir), { recursive: true, mode: 0o700 });
+  startupLock = await acquireStorageStartupLock(dataDir);
   const storage = await initializeStorage(dataDir, {
     reportStartupProgress,
+    startupLock,
   });
   const storageDurationMs = Math.round(performance.now() - storageStartedAt);
   installNodeDiagnosticReports(dataDir);
@@ -216,43 +231,12 @@ async function main() {
   const agentSkillsDurationMs = Math.round(
     performance.now() - agentSkillsStartedAt,
   );
-  const runtimeCapabilitiesReady = state.lifecycle.refreshRuntimeCapabilities();
-  const eventHydrateStartedAt = Date.now();
-  await state.events.hydrate();
-  const eventsHydrateDurationMs = Date.now() - eventHydrateStartedAt;
-  const workspaceBounds = await state.events.bounds("workspace");
-  await state.logger.info("Event streams hydrated", {
-    durationMs: eventsHydrateDurationMs,
-    context: {
-      latestSeq: workspaceBounds.latestSeq,
-      earliestAvailableSeq: workspaceBounds.earliestAvailableSeq,
-    },
-  });
   reportStartupProgress({
     type: "nerve.startup.progress",
     phase: "runtime-hydration",
-    message: "Starting runtime services",
+    message: "Starting conversation core",
   });
-  const [registryTimings] = await Promise.all([
-    state.lifecycle.hydrate((stage) => {
-      const message = RUNTIME_BOOTSTRAP_STAGE_MESSAGES[stage];
-      if (!message) return;
-      reportStartupProgress({
-        type: "nerve.startup.progress",
-        phase: "runtime-hydration",
-        message,
-      });
-    }),
-    state.maintenance.hydrate(),
-  ]);
-  await state.logger.info("Registry hydrated", {
-    durationMs: registryTimings.stateDurationMs,
-  });
-  await state.logger.info("Index rebuilt", {
-    durationMs: registryTimings.indexDurationMs,
-    context: { ...state.queryCache.counts() },
-  });
-  await runtimeCapabilitiesReady;
+  await Promise.all([state.lifecycle.hydrate(), state.maintenance.hydrate()]);
   state.subscriptionUsage.start();
   const mobileTls = mobileHttpsEnabled
     ? await ensureMobileHttpsTlsMaterial(
@@ -289,6 +273,7 @@ async function main() {
       if (mobileTls)
         updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
       await leaseMonitor?.publish(toDaemonFile(state));
+      await releaseStartupLock();
       await state.events.publish("daemon.started", {
         daemonId: state.daemonId,
         pid: process.pid,
@@ -324,25 +309,6 @@ async function main() {
         ...storage.timings,
         loggerHydrateDurationMs,
         agentSkillsDurationMs,
-        eventsHydrateDurationMs,
-        registryStateDurationMs: registryTimings.stateDurationMs,
-        indexDurationMs: registryTimings.indexDurationMs,
-        storesHydrationDurationMs: registryTimings.storesHydrationDurationMs,
-        storeDurationsMs: registryTimings.storeDurationsMs,
-        hydrationCounts: registryTimings.counts,
-        agentsHydrationDurationMs: registryTimings.agentsHydrationDurationMs,
-        initialDeliveryFlushDurationMs:
-          registryTimings.initialDeliveryFlushDurationMs,
-        runRecoveryDurationMs: registryTimings.runRecoveryDurationMs,
-        finalDeliveryFlushDurationMs:
-          registryTimings.finalDeliveryFlushDurationMs,
-        humanInputRecoveryDurationMs:
-          registryTimings.humanInputRecoveryDurationMs,
-        projectorDurationMs: registryTimings.projectorDurationMs,
-        taskNotificationsDurationMs:
-          registryTimings.taskNotificationsDurationMs,
-        bootstrapStageDurationsMs: registryTimings.bootstrapStageDurationsMs,
-        toolCallHydrationSource: registryTimings.toolCallHydrationSource,
       });
       performanceMonitor ??= installDaemonPerformanceMonitor({
         enabled: performanceDiagnosticsEnabled,
@@ -350,16 +316,11 @@ async function main() {
         sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
         getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
         getCounts: () => ({
-          ...registryTimings.counts,
           projects:
-            state.adapterContexts.snapshot.projectLifecycle.listProjects()
-              .length,
+            state.lifecycle.services.conversationCore.projects.list().length,
           conversations:
-            state.adapterContexts.snapshot.conversationLifecycle.listConversations()
-              .length,
-          agents:
-            state.adapterContexts.snapshot.agentLifecycle.listAgents().length,
-          tasks: state.adapterContexts.snapshot.tasks.listTasks().length,
+            state.lifecycle.services.coreStorage.conversations.listAll().length,
+          launches: state.lifecycle.services.launches.listLaunches().length,
         }),
         warn: (error) => {
           void state.logger.warn("Daemon performance sampling failed", {
@@ -367,7 +328,6 @@ async function main() {
           });
         },
       });
-      setImmediate(() => state.lifecycle.startBackgroundMaintenance());
     },
   );
 
@@ -461,6 +421,7 @@ async function main() {
         : []),
     ]);
     await leaseMonitor?.close();
+    await releaseStartupLock();
     process.exit(0);
   };
   const requestShutdown = (signal: NodeJS.Signals) => {
@@ -597,7 +558,8 @@ function formatHostForUrl(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
+  await releaseStartupLock().catch(() => undefined);
   console.error(error);
   if (isDaemonLeaseConflictError(error)) {
     process.exit(1);

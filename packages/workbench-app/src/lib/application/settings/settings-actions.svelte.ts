@@ -1,14 +1,4 @@
-import {
-  modelKey,
-  scopedUsableModelOptions,
-} from "$lib/presentation/utils/model";
-import type {
-  AgentRecord,
-  ColorMode,
-  ColorTheme,
-  ModelInfo,
-  Settings,
-} from "$lib/api";
+import type { ColorMode, ColorTheme, Settings } from "$lib/api";
 import {
   getApplicationConfiguration,
   getAuthProviders,
@@ -29,12 +19,6 @@ import {
   applyZoomLevel,
   clampZoomLevel,
 } from "$lib/platform/appearance/appearance.svelte";
-import {
-  clampThinkingLevelForModel,
-  resolveNewAgentComposerSelection,
-} from "$lib/application/preferences/agent-selection";
-import { composerConfigurationCommands } from "$lib/features/conversations/composer-configuration-commands.svelte";
-import { conversationWorkspaceReadModel } from "$lib/features/conversations/workspace-read-model.svelte";
 import {
   getDesktopDaemonCapability,
   restartDesktopDaemon,
@@ -78,17 +62,6 @@ let skillsRequestId = 0;
 let coreSettingsLoadInFlight: Promise<void> | undefined;
 let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
-
-function currentActiveAgent(): AgentRecord | undefined {
-  return workspaceState.agents.find((agent) => agent.id === selection.agentId);
-}
-
-function currentSelectedModelInfo(): ModelInfo | undefined {
-  return settingsState.models.find(
-    (model) =>
-      modelKey(model) === conversationWorkspaceReadModel.selectedModelKey,
-  );
-}
 
 function targetSettingsPage(pageId?: string, sectionId?: string) {
   if (pageId) settingsState.activePageId = pageId;
@@ -162,7 +135,6 @@ async function performCoreSettingsLoad(): Promise<void> {
   applyZoomLevel(settings.ui.zoomLevel);
   settingsState.models = modelList;
   settingsState.authProviders = auth;
-  reconcileComposerSelectionFromSettings();
   if (!hasPendingSettingsSave()) {
     savedServerSettingsSinceLoad = false;
     settingsState.settingsSaveStatus = "idle";
@@ -176,68 +148,6 @@ export function loadCoreSettings(): Promise<void> {
     coreSettingsLoadInFlight = undefined;
   });
   return coreSettingsLoadInFlight;
-}
-
-export function reconcileComposerSelectionFromSettings(): void {
-  const settings = settingsState.settingsDraft;
-  if (!settings) return;
-  const modelList = settingsState.models;
-  const auth = settingsState.authProviders;
-  const usable = scopedUsableModelOptions(
-    modelList,
-    auth,
-    settings.scopedModels,
-  );
-  const defaultSelection = resolveNewAgentComposerSelection(
-    settings,
-    modelList,
-    auth,
-  );
-  const activeAgent = currentActiveAgent();
-  if (activeAgent) {
-    composerConfigurationCommands.setMode(activeAgent.mode);
-    composerConfigurationCommands.setPermissionLevel(
-      activeAgent.permissionLevel,
-    );
-    composerConfigurationCommands.setPermissionRuleSetId(
-      activeAgent.permissionRuleSetId ?? activeAgent.permissionLevel,
-    );
-    const activeModel = activeAgent.model;
-    if (
-      activeModel &&
-      usable.some((model) => modelKey(model) === modelKey(activeModel))
-    ) {
-      composerConfigurationCommands.setModelKey(modelKey(activeModel));
-      composerConfigurationCommands.setThinkingLevel(activeAgent.thinkingLevel);
-    } else {
-      composerConfigurationCommands.setModelKey(
-        defaultSelection.selectedModelKey,
-      );
-      composerConfigurationCommands.setThinkingLevel(
-        defaultSelection.selectedThinkingLevel,
-      );
-    }
-  } else {
-    composerConfigurationCommands.setMode(defaultSelection.selectedMode);
-    composerConfigurationCommands.setPermissionLevel(
-      defaultSelection.selectedPermissionLevel,
-    );
-    composerConfigurationCommands.setPermissionRuleSetId(
-      defaultSelection.selectedPermissionRuleSetId,
-    );
-    composerConfigurationCommands.setModelKey(
-      defaultSelection.selectedModelKey,
-    );
-    composerConfigurationCommands.setThinkingLevel(
-      defaultSelection.selectedThinkingLevel,
-    );
-  }
-  composerConfigurationCommands.setThinkingLevel(
-    clampThinkingLevelForModel(
-      conversationWorkspaceReadModel.selectedThinkingLevel,
-      currentSelectedModelInfo(),
-    ),
-  );
 }
 
 export function refreshAncillarySettingsData(): void {
@@ -437,40 +347,11 @@ export function hasPendingSettingsSave(): boolean {
   return Boolean(pendingSettingsPatch || saveTimer || saveInFlight);
 }
 
-function reconcileSelectedModelForScope(
-  scopedModels: UpdateSettingsRequest["scopedModels"],
-) {
-  const usable = scopedUsableModelOptions(
-    settingsState.models,
-    settingsState.authProviders,
-    scopedModels,
-  );
-  if (
-    usable.some(
-      (model) =>
-        modelKey(model) === conversationWorkspaceReadModel.selectedModelKey,
-    )
-  ) {
-    return;
-  }
-  composerConfigurationCommands.setModelKey(
-    usable.length > 0 ? modelKey(usable[0]) : "",
-  );
-  composerConfigurationCommands.setThinkingLevel(
-    clampThinkingLevelForModel(
-      conversationWorkspaceReadModel.selectedThinkingLevel,
-      currentSelectedModelInfo(),
-    ),
-  );
-}
-
 export function queueSettingsSave(
   patch: UpdateSettingsRequest,
   options: SettingsSaveOptions = {},
 ) {
   pendingSettingsPatch = mergeSettingsPatch(pendingSettingsPatch, patch);
-  if ("scopedModels" in patch)
-    reconcileSelectedModelForScope(patch.scopedModels);
   settingsState.settingsSaveStatus = "dirty";
   settingsState.settingsMessage = "Unsaved changes";
   clearSaveTimer();

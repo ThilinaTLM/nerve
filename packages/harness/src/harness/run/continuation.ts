@@ -8,13 +8,13 @@ import type {
   AgentMessage,
   AgentTool,
   AnyModel,
-  StreamFn,
 } from "../../agent/contracts/index.js";
 import { AgentHarnessError } from "../../errors.js";
 import { normalizeHarnessError } from "../lifecycle/event-hub.js";
 import type { PromptTemplate, Skill } from "../configuration/options.js";
 import { toError } from "../../result.js";
 import type { AgentHarnessTurnState } from "../configuration/turn-state.js";
+import type { HarnessStreamFn } from "./execution.js";
 import type { AgentHarnessPhase } from "../lifecycle/events.js";
 
 export type HarnessContinuationState<
@@ -36,11 +36,12 @@ export type HarnessContinuationState<
     setTurnState: (
       turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     ) => void,
+    streamFn: HarnessStreamFn,
   ): AgentLoopConfig;
   handleAgentEvent(event: AgentEvent, signal?: AbortSignal): Promise<void>;
   createStreamFn(
     getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-  ): StreamFn;
+  ): HarnessStreamFn;
   emitRunFailure(
     model: AnyModel,
     error: unknown,
@@ -80,15 +81,16 @@ export async function continueHarnessRun<
   ) => {
     activeTurnState = nextTurnState;
   };
+  state.runAbortController = abortController;
   try {
     activeTurnState = await state.createTurnState();
-    state.runAbortController = abortController;
+    const streamFn = state.createStreamFn(getTurnState);
     const newMessages = await runAgentLoopContinue(
       state.createContext(activeTurnState),
-      state.createLoopConfig(getTurnState, setTurnState),
+      state.createLoopConfig(getTurnState, setTurnState, streamFn),
       (event) => state.handleAgentEvent(event, abortController.signal),
       abortController.signal,
-      state.createStreamFn(getTurnState),
+      streamFn,
     );
     for (const message of [...newMessages].reverse()) {
       if (message.role === "assistant") return message;

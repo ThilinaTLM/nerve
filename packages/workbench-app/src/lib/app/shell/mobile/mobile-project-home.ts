@@ -1,5 +1,5 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 
 /**
  * Project home on a phone: the few conversations worth reopening first, then
@@ -11,7 +11,7 @@ export const PROJECT_HOME_RECENT_LIMIT = 5;
 type ActivityLike = { tone: StatusTone; label?: string; busy: boolean };
 
 export type MobileProjectHomeInput = {
-  conversations: readonly ConversationRecord[];
+  conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ActivityLike | undefined>>;
   liveTaskCount: number;
   git?: { changeCount: number; branch?: string };
@@ -19,14 +19,14 @@ export type MobileProjectHomeInput = {
 };
 
 export type MobileProjectHomeModel = {
-  recent: ConversationRecord[];
+  recent: ConversationSummary[];
   conversationCount: number;
   tasksDetail: string;
   gitDetail: string;
   pullRequestsDetail: string;
 };
 
-function lastPromptAt(conversation: ConversationRecord): string {
+function lastPromptAt(conversation: ConversationSummary): string {
   return conversation.lastUserMessageAt ?? conversation.createdAt;
 }
 

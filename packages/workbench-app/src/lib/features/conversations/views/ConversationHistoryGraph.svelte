@@ -8,12 +8,13 @@ import {
   type Node,
   type Viewport,
 } from "@xyflow/svelte";
+
 import type {
   ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
   ToolCallTranscriptRecord,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { buildHistoryEntryView } from "./history-entry-view";
 import {

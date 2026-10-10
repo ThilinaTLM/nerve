@@ -46,7 +46,7 @@ type Dependencies = {
   updateConfiguration: (input: {
     projectId: string;
     conversationId: string;
-    origin: "conversation";
+    layer: "conversation";
     patch?: CapabilityPatch;
     replace?: CapabilityOverridesDocument;
     expectedDigest?: string;
@@ -186,7 +186,7 @@ export class ComposerCapabilityController {
         context.configuration = await this.dependencies.updateConfiguration({
           projectId: scope.projectId,
           conversationId: scope.conversationId,
-          origin: "conversation",
+          layer: "conversation",
           ...change,
           expectedDigest: configuration.conversationDigest,
         });

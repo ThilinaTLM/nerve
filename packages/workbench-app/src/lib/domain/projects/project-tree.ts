@@ -1,6 +1,6 @@
-import type { AgentRecord } from "@nervekit/contracts/agents";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { AgentRecord } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationRecord } from "$lib/domain/projects/sidebar-view-models";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
 
 function shortModelLabel(modelId: string): string {
@@ -32,8 +32,11 @@ export type ProjectGroupResult = {
 export const MAX_PROJECTS = 20;
 export const MAX_ROWS_PER_PROJECT = 6;
 
-export function projectKey(project: ProjectRecord): string {
-  return project.dir.replace(/[\\/]+$/, "") || project.dir;
+export function projectKey(
+  project: { dir: string } | { directory: string },
+): string {
+  const dir = "dir" in project ? project.dir : project.directory;
+  return dir.replace(/[\\/]+$/, "") || dir;
 }
 
 /** Last path segment (folder name) of a project directory. */
@@ -78,9 +81,7 @@ export function shortAgentModel(agent: AgentRecord | undefined): string {
 export function conversationMeta(row: ConversationRow): string {
   const mode = row.agent?.mode ?? row.conversation.mode;
   const permission =
-    row.agent?.permissionRuleSetId ??
-    row.agent?.permissionLevel ??
-    row.conversation.permissionLevel;
+    row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId;
   return `${mode} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
 }
 
@@ -124,7 +125,7 @@ export function activeConversationAgent(
 }
 
 export function conversationLastUserPromptAt(
-  conversation: ConversationRecord,
+  conversation: Pick<ConversationRecord, "lastUserMessageAt" | "createdAt">,
 ): string {
   return conversation.lastUserMessageAt ?? conversation.createdAt;
 }

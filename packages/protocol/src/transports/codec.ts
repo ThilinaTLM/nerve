@@ -29,10 +29,14 @@ export interface ProtocolCodecOptions {
 }
 
 export class ProtocolCodec {
-  readonly #maxMessageBytes: number;
+  #maxMessageBytes: number;
 
   constructor(options: ProtocolCodecOptions = {}) {
     this.#maxMessageBytes = options.maxMessageBytes ?? 1_048_576;
+  }
+
+  setMaxMessageBytes(maxMessageBytes: number): void {
+    this.#maxMessageBytes = maxMessageBytes;
   }
 
   encode(message: ProtocolV1Message | NerveMessage): string {

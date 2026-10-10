@@ -6,12 +6,14 @@ import type {
   ColorMode,
   ColorTheme,
   ModelInfo,
-  ProjectRecord,
   Settings,
   StatusResponse,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
+import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
+import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 import { SettingsEmptyState } from "$lib/presentation/settings";
 import UserCog from "@lucide/svelte/icons/user-cog";
@@ -19,17 +21,15 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
-import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
-import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
+import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
-import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
 import type {
   SettingsPageControllers,
   SettingsScope,
@@ -82,7 +82,7 @@ let {
   daemonRestarting?: boolean;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -124,7 +124,7 @@ let {
         void controllers.loadProjectCapabilities();
       }}
     />
-  {:else if scope === "project" && page.id !== "permissions"}
+  {:else if scope === "project"}
     <SettingsEmptyState
       variant="card"
       icon={UserCog}
@@ -159,7 +159,7 @@ let {
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
-      {activeProject}
+      activeProject={activeProject ? projectView(activeProject) : undefined}
     />
   {:else if page.id === "models"}
     <ModelsSettingsPage
@@ -177,12 +177,10 @@ let {
       {onSettingsChange}
     />
   {:else if page.id === "permissions"}
-    <PermissionsSettingsPage
-      {scope}
-      {settingsDraft}
-      {activeProject}
-      controller={controllers.permissionsPageState}
-      {onSettingsChange}
+    <SettingsEmptyState
+      variant="card"
+      title="Conversation permission rules"
+      description="Select the permission rule set in the conversation composer. Permission overlays are managed in their permissions.json files."
     />
   {:else if page.id === "tools"}
     <ToolsSettingsPage

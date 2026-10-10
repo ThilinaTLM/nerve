@@ -1,4 +1,4 @@
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 import { isKnownToolName, type ToolArgumentBody } from "../lifecycle/registry";
 
 export type DraftArgsPreview = {

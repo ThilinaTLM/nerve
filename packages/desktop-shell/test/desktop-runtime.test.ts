@@ -297,7 +297,7 @@ describe("DesktopRuntime", () => {
     secondAcquire.resolve(daemon);
     await daemonShown.promise;
     assert.equal(acquireCount, 2);
-    assert.ok(terminalProgress.includes("Preparing local storage"));
+    assert.ok(terminalProgress.includes("Upgrading local storage"));
     assert.equal(
       terminalProgress.some((message) => message.includes("/private/home")),
       false,

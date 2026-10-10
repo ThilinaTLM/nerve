@@ -6,8 +6,6 @@ import type {
 } from "@nervekit/contracts/prompt-suggestions";
 import type { PromptSuggestionTrustRecord } from "./prompt-suggestion-trust.repository.js";
 import {
-  activeMode,
-  activePermissionLevel,
   anyDirtyRepo,
   type PromptSuggestionDefinition,
   type PromptSuggestionDiagnostic,
@@ -69,7 +67,11 @@ export function evaluatePromptSuggestions(
         statuses.push(statusFor(definition));
         continue;
       }
-      if (trustRecord.status === "denied") {
+      if (
+        trustRecord.status !== "allowed" ||
+        trustRecord.predicateHash !== definition.predicateHash ||
+        trustRecord.path !== definition.source.path
+      ) {
         statuses.push(statusFor(definition, trustRecord));
         continue;
       }
@@ -100,31 +102,15 @@ export function buildEnableContext(
   input: PromptSuggestionEvaluationInput,
 ): PromptSuggestionEnableContext {
   return deepFreeze({
-    now: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
     platform: process.platform,
     project: {
       id: input.project.id,
       name: input.project.name,
       dir: input.project.dir,
     },
-    git: input.git,
-    conversation: input.conversation
-      ? {
-          id: input.conversation.id,
-          title: input.conversation.title,
-          mode: input.conversation.mode,
-          permissionLevel: input.conversation.permissionLevel,
-        }
-      : undefined,
-    agent: input.agent
-      ? {
-          id: input.agent.id,
-          mode: input.agent.mode,
-          permissionLevel: input.agent.permissionLevel,
-          status: input.agentActivity?.state ?? "idle",
-          thinkingLevel: input.agent.thinkingLevel,
-        }
-      : undefined,
+    git: structuredClone(input.git),
+    conversation: input.conversation ? { ...input.conversation } : undefined,
   });
 }
 
@@ -153,12 +139,13 @@ function matchesWhen(
   ) {
     return false;
   }
-  const mode = activeMode(input);
+  const mode = input.conversation?.mode;
   if (when.modes && (!mode || !when.modes.includes(mode))) return false;
-  const permissionLevel = activePermissionLevel(input);
+  const permissionRuleSetId = input.conversation?.permissionRuleSetId;
   if (
-    when.permissionLevels &&
-    (!permissionLevel || !when.permissionLevels.includes(permissionLevel))
+    when.permissionRuleSets &&
+    (!permissionRuleSetId ||
+      !when.permissionRuleSets.includes(permissionRuleSetId))
   ) {
     return false;
   }

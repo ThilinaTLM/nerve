@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { splitLogicalLines, tailLogicalText } from "./tool-view-helpers.js";
+import {
+  parseToolExecutionResult,
+  splitLogicalLines,
+  tailLogicalText,
+} from "./tool-view-helpers.js";
 
 describe("tailLogicalText", () => {
   it("matches the existing split-and-tail semantics", () => {
@@ -22,5 +26,16 @@ describe("tailLogicalText", () => {
         assert.equal(tailLogicalText(sample, count), expected);
       }
     }
+  });
+});
+
+describe("stored image results", () => {
+  it("retains asset references without requiring inline image bytes", () => {
+    const result = {
+      contentBlocks: [
+        { type: "image", assetId: "asset_image", mimeType: "image/png" },
+      ],
+    };
+    assert.deepEqual(parseToolExecutionResult(result), result);
   });
 });

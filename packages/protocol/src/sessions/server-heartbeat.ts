@@ -14,6 +14,7 @@ export class ServerHeartbeat {
       isReady: () => boolean;
       send: () => void | Promise<void>;
       timeout: () => void | Promise<void>;
+      onError: (error: unknown) => void;
     },
   ) {}
 
@@ -25,7 +26,7 @@ export class ServerHeartbeat {
     this.stop();
     this.received();
     this.#interval = this.options.timers.setInterval(() => {
-      if (this.options.isReady()) void this.options.send();
+      if (this.options.isReady()) this.#invoke(this.options.send);
     }, this.options.intervalMs);
     this.#watchdog = this.options.timers.setInterval(
       () => {
@@ -34,10 +35,19 @@ export class ServerHeartbeat {
           this.options.clock.now() - this.#lastReceivedAt >
             this.options.timeoutMs
         )
-          void this.options.timeout();
+          this.#invoke(this.options.timeout);
       },
       Math.min(this.options.intervalMs, this.options.timeoutMs),
     );
+  }
+
+  #invoke(callback: () => void | Promise<void>): void {
+    void Promise.resolve()
+      .then(callback)
+      .catch((error: unknown) => {
+        this.stop();
+        this.options.onError(error);
+      });
   }
 
   stop(): void {

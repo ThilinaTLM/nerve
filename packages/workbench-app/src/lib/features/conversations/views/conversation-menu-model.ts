@@ -1,5 +1,6 @@
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { ConversationEntry } from "$lib/api";
+
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 
 export type ConversationMenuHandlers = {

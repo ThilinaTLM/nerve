@@ -25,7 +25,7 @@ There is no dedicated in-app crash-report list/download route. Inspect the direc
 
 ## Developer performance diagnostics
 
-Unpackaged source desktop launches (`pnpm desktop`) automatically write content-free 10-second process, event-loop, and subsystem activity samples to `<NERVE_HOME>/logs/performance-<session-id>.jsonl`. Each desktop launch gets a separate timestamped file shared with its owned daemon; daemon restarts during that launch remain in the same file. When CPU becomes high, note the time and ask the coding agent to inspect the recent samples. No alternate profile, ports, or launch flags are required.
+Unpackaged source desktop launches (`pnpm desktop:dev`) automatically write content-free 10-second process, event-loop, and subsystem activity samples to `<NERVE_HOME>/logs/performance-<session-id>.jsonl`. Each desktop launch gets a separate timestamped file shared with its owned daemon; daemon restarts during that launch remain in the same file. When CPU becomes high, note the time and ask the coding agent to inspect the recent samples. No alternate profile, ports, or launch flags are required.
 
 Packaged/released Nerve does not enable performance sampling automatically. Configure it under **Settings → System → Diagnostics**. Unpackaged source launches use sampling as a fallback until a saved choice exists; `NERVE_PERFORMANCE_DIAGNOSTICS=0` or `1` always overrides it. Samples remain local, contain no prompts or task output, and are never uploaded.
 

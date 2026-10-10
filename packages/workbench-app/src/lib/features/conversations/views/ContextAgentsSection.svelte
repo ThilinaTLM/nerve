@@ -14,7 +14,11 @@ import {
   PanelRow,
   PanelSectionHeader,
 } from "$lib/presentation/panels";
-import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
+
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+} from "$lib/presentation/view-models/conversation";
 import ContextAgentDetailPopover from "./ContextAgentDetailPopover.svelte";
 import {
   agentAttention,

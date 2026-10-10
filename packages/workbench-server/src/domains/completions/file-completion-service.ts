@@ -3,7 +3,7 @@ import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
 } from "@nervekit/contracts/completions";
-import { type ProjectRecord } from "@nervekit/contracts/projects";
+import { type Project } from "@nervekit/contracts/core";
 import {
   directDirectoryCompletionItems,
   discoverCandidates,
@@ -44,7 +44,7 @@ export class FileCompletionService {
   private readonly now: () => number;
 
   constructor(
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    private readonly getProject: (projectId: string) => Project,
     options: FileCompletionServiceOptions = {},
   ) {
     this.discover = options.discover ?? discoverCandidates;
@@ -58,7 +58,7 @@ export class FileCompletionService {
   ): Promise<CompletionItem[]> {
     if (!projectId) return [];
     const project = this.getProject(projectId);
-    const root = resolve(project.dir);
+    const root = resolve(project.directory);
     const normalizedQuery = normalizeCompletionQuery(query);
     const limit = Math.min(
       options.limit ?? FILE_COMPLETION_RESULT_LIMIT,

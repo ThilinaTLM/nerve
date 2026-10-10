@@ -33,19 +33,24 @@ import {
   newConversationInProject,
   openProjectInEditorAndNotify,
   openProjectInTerminalAndNotify,
-  pruneProjectConversationsAndRefresh,
   maintenance,
   selectProject,
   workspaceSelectors,
   workspaceState,
 } from "$lib/application/workspace";
+import {
+  sidebarConversations,
+  pruneProjectConversationsAndRefresh,
+} from "$lib/features/projects";
 import { quickProjectItems } from "$lib/features/projects";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import { resolveHeaderType } from "$lib/app/shell/header-type";
 
 const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const status = $derived(workspaceSelectors.status);
-const conversations = $derived(workspaceSelectors.conversations);
+const conversations = $derived(
+  sidebarConversations(workspaceSelectors.conversations),
+);
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
 let pendingDelete = $state<DeleteTarget | undefined>();
@@ -142,6 +147,7 @@ async function handleDesktopClose() {
   activeProjectKey={workspaceState.selectedProjectKey}
   homeDir={status?.storage.userHome}
   desktop={desktopRuntime.isDesktop}
+  developmentSlot={desktopRuntime.developmentSlot}
   {headerType}
   maximized={desktopRuntime.windowState.maximized}
   closeToTray={settingsDraft?.desktop.closeToTray ?? true}

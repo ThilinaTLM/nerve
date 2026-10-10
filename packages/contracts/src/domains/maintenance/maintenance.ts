@@ -1,8 +1,6 @@
+import { projectSchema } from "../core/project.js";
 import { z } from "zod";
-import {
-  projectRecordSchema,
-  pruneProjectConversationsRequestSchema,
-} from "../projects/project.js";
+import { pruneProjectConversationsRequestSchema } from "../projects/project.js";
 import {
   storageCleanupRequestSchema,
   storageCleanupResultSchema,
@@ -54,7 +52,7 @@ export const maintenanceOperationSchema = z
     revision: count,
     kind: z.enum(["storage_cleanup", "prune_conversations", "delete_project"]),
     request: maintenanceRequestSchema,
-    project: projectRecordSchema.optional(),
+    project: projectSchema.optional(),
     status: z.enum([
       "queued",
       "running",

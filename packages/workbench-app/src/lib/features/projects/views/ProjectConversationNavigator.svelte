@@ -3,7 +3,7 @@ import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
-import type { ProjectRecord } from "$lib/api";
+import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";

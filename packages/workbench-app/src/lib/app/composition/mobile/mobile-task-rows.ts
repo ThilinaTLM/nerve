@@ -14,17 +14,11 @@ const PULSING = new Set<TaskRecord["status"]>([
   "running",
   "stopping",
 ]);
-const FAILED = new Set<TaskRecord["status"]>([
-  "failed",
-  "timed_out",
-  "orphaned",
-  "recovery_unknown",
-]);
+const FAILED = new Set<TaskRecord["status"]>(["failed", "timed_out"]);
 
 export function taskRunSignal(status: TaskRecord["status"]): TaskRowSignal {
   if (PULSING.has(status)) return { tone: "info", pulse: true };
   if (status === "ready") return { tone: "success", pulse: false };
-  if (status === "recovered") return { tone: "warning", pulse: false };
   if (FAILED.has(status)) return { tone: "destructive", pulse: false };
   return { tone: "neutral", pulse: false };
 }

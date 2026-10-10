@@ -1,119 +1,58 @@
-import type { PromptSuggestionTrustStatus } from "@nervekit/contracts/prompt-suggestions";
-import { z } from "zod";
-import { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
-import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
-import type {
-  RuntimeQueryCache,
-  PromptSuggestionTrustCacheRecord,
-} from "../../infrastructure/persistence/query-cache/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { createHash } from "node:crypto";
+import type { TrustedResourceService } from "@nervekit/conversation-core";
 
-const trustRecordSchema = z.object({
-  trustId: z.string().min(1),
-  sourceKind: z.enum(["user", "project"]),
-  path: z.string().min(1),
-  name: z.string().min(1),
-  label: z.string().min(1),
-  predicateHash: z.string().min(1),
-  status: z.enum(["allowed", "denied"]),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
-});
+export type PromptSuggestionTrustRecord = {
+  trustId: string;
+  resourceId?: string;
+  sourceKind: "user" | "project";
+  projectId?: string;
+  path: string;
+  name: string;
+  label: string;
+  predicateHash: string;
+  status: "allowed" | "denied";
+};
 
-export type PromptSuggestionTrustRecord = z.infer<typeof trustRecordSchema>;
-
+/** Maps the feature's predicate identity to the core's path/content trust. */
 export class PromptSuggestionTrustRepository {
-  private readonly store: CanonicalStore;
-  private readonly ready: Promise<void>;
+  constructor(private readonly trust: TrustedResourceService) {}
 
-  constructor(
-    storage: InitializedStorage,
-    // Kept in the constructor until the remaining query-only RuntimeQueryCache APIs
-    // are removed; canonical SQLite is authoritative.
-    private readonly queryCache: RuntimeQueryCache,
-  ) {
-    this.store =
-      storage.canonicalStore ??
-      new CanonicalStore(
-        storage.paths.sqlitePath ?? storagePaths(storage.paths.home).sqlitePath,
-      );
-    this.ready = storage.canonicalStore
-      ? Promise.resolve()
-      : this.store.initialize();
-  }
-
-  async hydrateIndex(): Promise<void> {
-    this.queryCache.replacePromptSuggestionTrust(await this.list());
-  }
-
-  async list(): Promise<PromptSuggestionTrustRecord[]> {
-    await this.ready;
-    return (
-      await this.store.listDocuments<unknown>(
-        "prompt_suggestion_trust",
-        "global",
-      )
-    ).map((document) => trustRecordSchema.parse(document.data));
-  }
-
-  async get(trustId: string): Promise<PromptSuggestionTrustRecord | undefined> {
-    await this.ready;
-    const document = await this.store.readDocument<unknown>(
-      "prompt_suggestion_trust",
-      "global",
-      trustId,
-    );
-    return document ? trustRecordSchema.parse(document.data) : undefined;
-  }
-
-  async set(
-    input: Omit<
-      PromptSuggestionTrustRecord,
-      "createdAt" | "updatedAt" | "status"
-    > & {
-      status: Exclude<
-        PromptSuggestionTrustStatus,
-        "unset" | "stale" | "not_required"
-      >;
-    },
-  ): Promise<PromptSuggestionTrustRecord> {
-    const now = new Date().toISOString();
-    await this.ready;
-    const current = await this.store.readDocument<unknown>(
-      "prompt_suggestion_trust",
-      "global",
-      input.trustId,
-    );
-    const existing = current
-      ? trustRecordSchema.parse(current.data)
-      : undefined;
-    const next = trustRecordSchema.parse({
-      ...input,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
+  list(projectId?: string): PromptSuggestionTrustRecord[] {
+    return [
+      ...this.trust.list(null, "prompt_suggestion"),
+      ...(projectId ? this.trust.list(projectId, "prompt_suggestion") : []),
+    ].map((resource) => {
+      const sourceKind = resource.projectId ? "project" : "user";
+      return {
+        trustId: createHash("sha256")
+          .update(
+            `${sourceKind}\0${resource.path}\0${resource.name}\0${resource.contentDigest}`,
+          )
+          .digest("hex"),
+        resourceId: resource.id,
+        sourceKind,
+        projectId: resource.projectId ?? undefined,
+        path: resource.path,
+        name: resource.name ?? resource.path,
+        label: resource.name ?? resource.path,
+        predicateHash: resource.contentDigest,
+        status: resource.status === "trusted" ? "allowed" : "denied",
+      };
     });
-    await this.store.writeDocument({
-      namespace: "prompt_suggestion_trust",
-      scopeId: "global",
-      documentId: input.trustId,
-      data: next,
-      expectedRevision: current?.revision ?? 0,
-      now,
+  }
+
+  set(record: PromptSuggestionTrustRecord): void {
+    this.trust.decide({
+      kind: "prompt_suggestion",
+      projectId: record.projectId ?? null,
+      path: record.path,
+      name: record.name,
+      contentDigest: record.predicateHash,
+      status: record.status === "allowed" ? "trusted" : "rejected",
     });
-    this.queryCache.upsertPromptSuggestionTrust(next);
-    return next;
   }
 
-  async remove(trustId: string): Promise<void> {
-    await this.store.deleteDocument(
-      "prompt_suggestion_trust",
-      "global",
-      trustId,
-    );
-    this.queryCache.deletePromptSuggestionTrust(trustId);
-  }
-
-  async statusesFromCache(): Promise<PromptSuggestionTrustCacheRecord[]> {
-    return (await this.list()).map((record) => ({ ...record }));
+  remove(record: PromptSuggestionTrustRecord): void {
+    if (record.resourceId) this.trust.delete(record.resourceId);
   }
 }

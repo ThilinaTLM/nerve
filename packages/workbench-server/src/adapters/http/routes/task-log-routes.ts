@@ -23,7 +23,7 @@ export function createTaskLogRoutes(state: TaskLogRoutesContext): Hono {
       });
       const taskId = routeParam(c, "taskId");
       try {
-        state.tasks.getTask(taskId);
+        await state.launches.require(taskId);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (/Task not found/i.test(message)) {
@@ -35,7 +35,7 @@ export function createTaskLogRoutes(state: TaskLogRoutesContext): Hono {
         }
         throw error;
       }
-      return c.json(await state.tasks.queryLogs(taskId, query));
+      return c.json(await state.launches.queryLogs(taskId, query));
     }),
   );
   return app;

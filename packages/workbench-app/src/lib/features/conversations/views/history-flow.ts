@@ -1,6 +1,7 @@
 import dagre from "@dagrejs/dagre";
 import type { Edge, Node, Position } from "@xyflow/svelte";
-import type { ConversationEntry } from "$lib/api";
+
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import type { HistoryEntryView } from "./history-entry-view";
 import type { HistoryGraphRow } from "./history-graph";
 import type {

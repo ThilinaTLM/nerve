@@ -1,5 +1,5 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import {
   discoverGitRepos,
@@ -145,7 +145,7 @@ export function scheduleAutomaticProjectGitRefresh(
 }
 
 export async function refreshGitProject(
-  project: ProjectRecord,
+  project: Project,
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitProjectState(project);
@@ -579,7 +579,7 @@ export function autoRefreshPrsIfStale(projectId: string, repo: string): void {
   scheduleAutomaticGitRefresh(projectId, repo, { prs: true });
 }
 
-export function selectGitProject(project: ProjectRecord): void {
+export function selectGitProject(project: Project): void {
   const state = ensureGitProjectState(project);
   if (!state.loaded) {
     void refreshGitProject(project);
@@ -630,7 +630,7 @@ export async function invalidateGitPanel(
         await refreshGitProject(
           {
             id,
-            dir: project.projectDir,
+            directory: project.projectDir,
             name: project.projectDir,
             createdAt: "",
             updatedAt: "",
@@ -638,6 +638,16 @@ export async function invalidateGitPanel(
           { force: true, silent: project.loaded },
         );
       }
+    }),
+  );
+}
+
+export async function refreshWorkbenchGit(): Promise<void> {
+  await Promise.all(
+    [...visibleOverviewDemand].map(async (key) => {
+      const [projectId, repo] = JSON.parse(key) as [string, string];
+      await refreshGitOverview(projectId, repo, { force: true, silent: true });
+      await refreshPrs(projectId, repo, true, true);
     }),
   );
 }

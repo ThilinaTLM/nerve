@@ -1,25 +1,17 @@
 import { Type } from "typebox";
-import { EXPLORE_MAX_TASKS_PER_CALL } from "@nervekit/contracts/agents";
+import { EXPLORE_MAX_TASKS_PER_CALL } from "@nervekit/contracts/tools";
 import type { ToolDefinition } from "../../contracts.js";
 
 const exploreTaskParameters = Type.Object(
   {
     task: Type.String({
-      description: "Specific independent codebase exploration task",
       minLength: 15,
     }),
     label: Type.String({
       minLength: 3,
       maxLength: 40,
-      description:
-        'Required 2–5 word noun phrase shown as this explore agent\'s name in the UI, e.g. "Settings schema defaults". Do not start with a verb like Research/Investigate.',
     }),
-    context: Type.Optional(
-      Type.String({
-        description:
-          "Optional focused evidence or instructions specific to this task",
-      }),
-    ),
+    context: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -29,17 +21,13 @@ const exploreParameters = Type.Object(
     tasks: Type.Array(exploreTaskParameters, {
       minItems: 1,
       maxItems: EXPLORE_MAX_TASKS_PER_CALL,
-      description: `One task launches one child. Two to ${EXPLORE_MAX_TASKS_PER_CALL} independent tasks require split_rationale and launch subject to the shared Explore concurrency limit.`,
     }),
     context: Type.String({
       minLength: 40,
-      description:
-        "Required. Summarize the parent agent's own quick grep/find/read lookup, what it found, and what remains unresolved. Mention relevant files or symbols when possible.",
     }),
     split_rationale: Type.Optional(
       Type.String({
         minLength: 40,
-        description: `Required when tasks contains 2–${EXPLORE_MAX_TASKS_PER_CALL} items. Explain why the tasks are independent enough to split and why this is the right number of sub-agents.`,
       }),
     ),
   },
@@ -54,8 +42,7 @@ export const exploreToolDefinitions = [
     traits: ["long_running"],
     executionKind: "host",
     label: "explore",
-    description:
-      "Delegate substantial read-only codebase research to child agents after an initial lookup.",
+    description: `Delegate substantial read-only research after your initial lookup. Required context summarizes that grep/find/read evidence and unresolved questions, with files/symbols. Each task launches a fresh isolated child; label is a 2–5 word noun phrase (e.g. Settings schema defaults), not a verb. Per-task context adds focused evidence/instructions. For 2–${EXPLORE_MAX_TASKS_PER_CALL} independent tasks, provide split_rationale explaining independence and count; shared concurrency limits apply. Waits for exactly the submitted runs and returns reports; children remain steerable/configurable under immutable read-only authority.`,
     parameters: exploreParameters,
     executionMode: "parallel",
   },

@@ -3,7 +3,6 @@ import { posix } from "node:path";
 export const GENERIC_SOURCE_NAME_EXCEPTIONS = new Set([
   "packages/contracts/src/domains/auth/operations.ts",
   "packages/contracts/src/domains/completions/operations.ts",
-  "packages/contracts/src/domains/conversations/operations.ts",
   "packages/contracts/src/domains/filesystem/operations.ts",
   "packages/contracts/src/domains/git/operations.ts",
   "packages/contracts/src/domains/logs/operations.ts",

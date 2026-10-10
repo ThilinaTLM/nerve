@@ -7,15 +7,14 @@ import type {
   CredentialKeyService,
   OAuthFlowManager,
 } from "../../domains/auth/index.js";
-import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
+import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import type { ProviderCatalogStore } from "../../domains/providers/index.js";
 import type { StorageUsageService } from "../../domains/storage/index.js";
 import type { LatestReleaseService } from "../../domains/status/latest-release-service.js";
 import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
 import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
+import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import type { RuntimeServices } from "./create-runtime-services.js";
@@ -25,10 +24,9 @@ interface AdapterInfrastructure {
   host: string;
   port: number;
   storage: InitializedStorage;
-  events: StreamLogRegistry;
+  events: WorkbenchNoticePublisher;
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
-  queryCache: RuntimeQueryCache;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
   latestRelease: LatestReleaseService;
@@ -50,75 +48,31 @@ export function createServerAdapterContexts(
   services: RuntimeServices,
   infrastructure: AdapterInfrastructure,
 ) {
-  const snapshot = {
-    events: infrastructure.events,
-    projectLifecycle: services.projectLifecycle,
-    conversationLifecycle: services.conversationLifecycle,
-    conversationQuery: services.conversationQuery,
-    agentActivity: services.agentActivity,
-    humanInput: services.humanInput,
-    agentLifecycle: services.agentLifecycle,
-    tasks: services.tasks,
-    tools: services.tools,
+  const getProject = (id: string) => {
+    const project = services.conversationCore.projects.get(id);
+    if (!project) throw new Error(`Project not found: ${id}`);
+    return project;
   };
   const protocol = {
     platform: {
-      ...snapshot,
-      nerveSkills: infrastructure.nerveSkills,
-      agentBrowserSkills: infrastructure.agentBrowserSkills,
-      applicationConfiguration: infrastructure.applicationConfiguration,
-      auth: infrastructure.auth,
-      latestRelease: infrastructure.latestRelease,
-      logger: infrastructure.logger,
-      providerCatalog: infrastructure.providerCatalog,
-      queryCache: infrastructure.queryCache,
-      secrets: infrastructure.secrets,
-      storage: infrastructure.storage,
-      maintenance: infrastructure.maintenance,
-      storageUsage: infrastructure.storageUsage,
-      subscriptionUsage: infrastructure.subscriptionUsage,
+      ...infrastructure,
+      conversationCore: services.conversationCore,
+      capabilities: services.capabilities,
       fileCompletions: services.fileCompletions,
       workspaceMonitor: services.workspaceMonitor,
-      pythonRuntime: services.pythonRuntime,
       integrationHealth: services.integrationHealth,
-    },
-    interactions: {
-      tools: services.tools,
-      toolInteractions: services.toolInteractions,
-    },
-    conversations: {
-      conversationLifecycle: services.conversationLifecycle,
-      conversationQuery: services.conversationQuery,
-      importService: services.importService,
-      navigationService: services.navigationService,
-      compactionService: services.compactionService,
-      workbenchRun: services.workbenchRun,
-      runReconciliation: services.runReconciliation,
-    },
-    agents: {
-      agentLifecycle: services.agentLifecycle,
-      subagentTranscripts: services.subagentTranscripts,
-      tools: services.tools,
-      workbenchRun: services.workbenchRun,
     },
     projects: {
       editors: services.editors,
-      fileCompletions: services.fileCompletions,
-      permissionExceptions: services.permissionExceptions,
-      permissionPolicy: services.permissionPolicy,
-      capabilities: services.capabilities,
-      projectLifecycle: services.projectLifecycle,
-      maintenance: infrastructure.maintenance,
-      promptSuggestions: services.promptSuggestions,
-      pruneConversations: services.pruneConversations,
+      terminal: services.terminal,
       scratchNotes: services.scratchNotes,
+      promptSuggestions: services.promptSuggestions,
       taskDefinitionOperations: services.taskDefinitionOperations,
       taskDefinitions: services.taskDefinitions,
-      terminal: services.terminal,
     },
     tasks: {
       taskDefinitionOperations: services.taskDefinitionOperations,
-      tasks: services.tasks,
+      launches: services.launches,
     },
     git: { git: services.git, workspaceMonitor: services.workspaceMonitor },
   };
@@ -131,14 +85,14 @@ export function createServerAdapterContexts(
   return {
     protocol,
     protocolAdapter,
-    snapshot,
     websocket: {
       ...protocolAdapter,
+      conversationCore: services.conversationCore,
+      capabilities: services.capabilities,
       host: infrastructure.host,
       port: infrastructure.port,
       events: infrastructure.events,
       logger: infrastructure.logger,
-      conversationLifecycle: services.conversationLifecycle,
     },
     http: {
       status: {
@@ -160,23 +114,16 @@ export function createServerAdapterContexts(
         storage: infrastructure.storage,
       },
       logs: { logger: infrastructure.logger },
-      taskLogs: { tasks: services.tasks },
+      taskLogs: { launches: services.launches },
       filesystem: {
-        projectLifecycle: services.projectLifecycle,
+        getProject,
         storage: infrastructure.storage,
       },
+      conversationAssets: { assets: services.conversationCore.assets },
       projectAssets: { projectIcons: services.projectIcons },
-      conversationExport: { exportService: services.exportService },
       staticFiles: {
         host: infrastructure.host,
         port: infrastructure.port,
-        storage: infrastructure.storage,
-      },
-      agentArtifacts: {
-        nerveSkills: infrastructure.nerveSkills,
-        agentBrowserSkills: infrastructure.agentBrowserSkills,
-        agentLifecycle: services.agentLifecycle,
-        pythonRuntime: services.pythonRuntime,
         storage: infrastructure.storage,
       },
     },

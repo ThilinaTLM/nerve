@@ -1,7 +1,7 @@
 export * from "./api/projects.api";
+export { default as PruneConversationsDialog } from "./views/PruneConversationsDialog.svelte";
 export { default as ProjectIcon } from "./views/ProjectIcon.svelte";
 export { default as ProjectSwitcher } from "./views/ProjectSwitcher.svelte";
-export { default as PruneConversationsDialog } from "./views/PruneConversationsDialog.svelte";
 export type {
   DeleteTarget,
   PruneTarget,
@@ -36,3 +36,12 @@ export {
   conversationListPreferences,
   setHideCompletedConversations,
 } from "./state/conversation-list-preferences.svelte";
+
+export {
+  sidebarProjects,
+  sidebarConversations,
+  sidebarAgents,
+  sidebarActivity,
+  updateConversationStateAndRefresh,
+  pruneProjectConversationsAndRefresh,
+} from "./adapters/conversation-sidebar.adapter";

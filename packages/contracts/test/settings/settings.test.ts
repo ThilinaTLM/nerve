@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "../../src/domains/agents/async-subagents.js";
+import { asyncSubagentToolNames } from "../../src/domains/tools/async-subagents.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
@@ -132,7 +132,7 @@ describe("settings schema", () => {
     assert.equal(
       settingsSchema.safeParse({
         defaultMode: "coding",
-        defaultPermissionLevel: "autonomous",
+        defaultPermissionRuleSetId: "autonomous",
       }).success,
       false,
     );

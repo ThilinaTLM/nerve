@@ -7,7 +7,6 @@ export {
   openSettingsPane,
   queueSettingsSave,
   rememberLastAgentSelection,
-  reconcileComposerSelectionFromSettings,
   refreshAncillarySettingsData,
   refreshSubscriptionUsage,
   restartOwnedDaemon,

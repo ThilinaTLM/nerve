@@ -34,7 +34,11 @@ import type {
 } from "../runtime/ports.js";
 import { RpcClient } from "../rpc/rpc-client.js";
 import { SessionStateError } from "../runtime/session-errors.js";
-import { dispatchInboundRpc, handleInboundRpcResponse } from "./inbound-rpc.js";
+import {
+  dispatchInboundRpc,
+  handleInboundRpcResponse,
+  sendRpcResponse,
+} from "./inbound-rpc.js";
 import { matchesAddressedPeer, samePeer } from "./peer-binding.js";
 import {
   systemProtocolClock,
@@ -172,12 +176,14 @@ export class ProtocolClientSession {
 
     const rpcHandled = handleInboundRpcResponse(this.#rpc, message);
     if (message.kind === "request" && this.#options.rpcDispatcher) {
-      await this.#options.send(
+      await sendRpcResponse(
         await dispatchInboundRpc(
           message,
           this.#options.rpcDispatcher,
           this.#options.createMessage,
         ),
+        this.#options.send,
+        this.#options.createMessage,
       );
       return;
     }

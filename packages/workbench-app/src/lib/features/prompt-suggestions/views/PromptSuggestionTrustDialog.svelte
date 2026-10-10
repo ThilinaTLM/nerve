@@ -12,10 +12,9 @@ import {
 type Props = {
   projectId?: string;
   conversationId?: string;
-  agentId?: string;
 };
 
-let { projectId, conversationId, agentId }: Props = $props();
+let { projectId, conversationId }: Props = $props();
 let saving = $state(false);
 const requests = $derived(promptSuggestionsState.trustRequests);
 const open = $derived(requests.length > 0);
@@ -27,7 +26,7 @@ async function apply(status: "allowed" | "denied") {
       await setPromptSuggestionTrust({ trustId: request.trustId, status });
     }
     if (projectId)
-      await refreshPromptSuggestions(projectId, { conversationId, agentId });
+      await refreshPromptSuggestions(projectId, { conversationId });
   } finally {
     saving = false;
   }

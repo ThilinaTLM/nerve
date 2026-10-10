@@ -1,8 +1,9 @@
 import type {
   ConversationEntry,
   ConversationCompactionFailedData,
-} from "@nervekit/contracts/conversations";
-import type { RunFailureCategory } from "@nervekit/contracts/runs";
+} from "$lib/presentation/view-models/conversation";
+
+import type { RunFailureCategory } from "$lib/presentation/view-models/conversation";
 
 export type TranscriptDisplayKind = "message" | "thinking";
 

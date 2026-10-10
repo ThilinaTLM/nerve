@@ -1,4 +1,4 @@
-import type { ToolCallTranscriptRecord } from "$lib/api";
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import { buildHistoryEntryView } from "./history-entry-view";
 import type {
   HistoryGraphRow,

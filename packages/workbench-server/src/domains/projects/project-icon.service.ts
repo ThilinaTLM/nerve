@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { Dirent } from "node:fs";
 import { realpath, readdir, readFile, stat } from "node:fs/promises";
 import { extname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import { resizeImage, type ResizedImage } from "@nervekit/harness/node";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1_000;
@@ -128,7 +128,7 @@ export class ProjectIconService {
   private readonly maxCacheEntries: number;
 
   constructor(
-    private readonly getProject: (projectId: string) => ProjectRecord,
+    private readonly getProject: (projectId: string) => Project,
     options: ProjectIconServiceOptions = {},
   ) {
     this.now = options.now ?? Date.now;
@@ -150,7 +150,7 @@ export class ProjectIconService {
     }
     if (cached) this.cache.delete(projectId);
 
-    const value = this.discover(project.dir).catch((error: unknown) => {
+    const value = this.discover(project.directory).catch((error: unknown) => {
       this.cache.delete(projectId);
       throw error;
     });

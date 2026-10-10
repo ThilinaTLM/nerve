@@ -8,6 +8,15 @@ import { DESKTOP_APP_ID, DESKTOP_APP_NAME } from "./desktop-identity.js";
 import { app } from "./platform/electron/electron-api.js";
 
 const desktopOptions = parseDesktopOptions(process.argv.slice(1));
+const explicitElectronProfile = process.env.NERVE_ELECTRON_USER_DATA?.trim();
+if (explicitElectronProfile) {
+  if (!isAbsolute(explicitElectronProfile)) {
+    throw new Error("NERVE_ELECTRON_USER_DATA must be an absolute path.");
+  }
+  // Electron scopes its single-instance lock to userData. Set it before the
+  // lock (and before any sessions) so development can coexist with production.
+  app.setPath("userData", explicitElectronProfile);
+}
 const desktopDataDir = resolveDataDir();
 const electronProfileDir = resolve(app.getPath("userData"));
 const profileRelativeToHome = relative(

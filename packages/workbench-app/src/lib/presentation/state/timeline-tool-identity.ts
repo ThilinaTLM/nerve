@@ -1,4 +1,4 @@
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import { toolSlotKey } from "./active-run.js";
 
 export function toolCallAliasIds(toolCall: ToolCallTranscriptRecord): string[] {

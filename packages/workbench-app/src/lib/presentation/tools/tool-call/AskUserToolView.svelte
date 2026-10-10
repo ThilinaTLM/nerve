@@ -31,10 +31,10 @@ type Props = {
   detailsAction?: { label: string; onClick: () => void };
   onOpenFile?: (path: string, line?: number) => void;
   onAnswerUserQuestion?: (
-    questionId: string,
+    toolCallId: string,
     answer: string,
   ) => void | Promise<void>;
-  onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
+  onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
 };
 let {
   toolCall,
@@ -61,7 +61,7 @@ let localResolution = $state<
 >();
 let audioAuthDialogOpen = $state(false);
 let replyFocusToken = $state(0);
-let lastAutoFocusedQuestionId: string | undefined;
+let lastAutoFocusedToolCallId: string | undefined;
 let registeredTargetKey: string | undefined;
 let registeredTarget: VoiceInputTarget | undefined;
 let unregisterVoiceTarget: (() => void) | undefined;
@@ -93,12 +93,9 @@ const dismissed = $derived(
     view.dismissed ||
     localResolution?.kind === "dismissed",
 );
-const dismissedReason = $derived(
-  questionRecord?.dismissedReason ?? view.dismissedReason,
-);
 const trimmedAnswer = $derived(answer.trim());
 const voiceTargetId = $derived(
-  pending && questionRecord ? questionRecord.id : undefined,
+  pending && questionRecord ? questionRecord.toolCallId : undefined,
 );
 
 const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
@@ -186,10 +183,11 @@ $effect(() => {
 });
 
 $effect(() => {
-  const questionId = pending && questionRecord ? questionRecord.id : undefined;
-  if (!questionId || questionId === lastAutoFocusedQuestionId) return;
-  lastAutoFocusedQuestionId = questionId;
-  if (pending && questionRecord?.id === questionId) {
+  const toolCallId =
+    pending && questionRecord ? questionRecord.toolCallId : undefined;
+  if (!toolCallId || toolCallId === lastAutoFocusedToolCallId) return;
+  lastAutoFocusedToolCallId = toolCallId;
+  if (pending && questionRecord?.toolCallId === toolCallId) {
     replyFocusToken += 1;
   }
 });
@@ -207,11 +205,11 @@ async function sendAnswer(text: string) {
   if (!pending || !questionRecord || submitting || !onAnswerUserQuestion) {
     return;
   }
-  const questionId = questionRecord.id;
+  const toolCallId = questionRecord.toolCallId;
   submitting = "answer";
   submitError = undefined;
   try {
-    await onAnswerUserQuestion(questionId, text);
+    await onAnswerUserQuestion(toolCallId, text);
     localResolution = { kind: "answered", answer: text };
   } catch (error) {
     submitError = actionErrorMessage(error, "Could not send the reply.");
@@ -233,11 +231,11 @@ async function dismissQuestion() {
   if (!pending || !questionRecord || submitting || !onDismissUserQuestion) {
     return;
   }
-  const questionId = questionRecord.id;
+  const toolCallId = questionRecord.toolCallId;
   submitting = "dismiss";
   submitError = undefined;
   try {
-    await onDismissUserQuestion(questionId);
+    await onDismissUserQuestion(toolCallId);
     localResolution = { kind: "dismissed" };
   } catch (error) {
     submitError = actionErrorMessage(error, "Could not dismiss the question.");
@@ -454,7 +452,7 @@ function replyFieldKeydown(node: HTMLElement) {
         class="mr-1 font-mono text-xs uppercase tracking-wide text-muted-foreground/80"
         >dismissed</span
       >
-      {dismissedReason ?? "No answer provided"}
+      No answer provided
     </p>
   {/if}
 </div>

@@ -111,3 +111,21 @@ describe("loading status scripts", () => {
     );
   });
 });
+
+it("shows migration labels and determinate counts", () => {
+  const script = loadingStatusScript("Upgrading local storage", {
+    phase: "import",
+    label: "Importing conversations",
+    done: 120,
+    total: 393,
+  });
+  assert.match(script, /Importing conversations · 120 of 393/);
+  assert.match(script, /aria-valuenow/);
+  const unknown = loadingStatusScript("Upgrading local storage", {
+    phase: "verify",
+    label: "Verifying migrated history",
+  });
+  assert.match(unknown, /Verifying migrated history"/);
+  assert.match(unknown, /if \(false\)/);
+  assert.doesNotMatch(unknown, /meter\.hidden/);
+});

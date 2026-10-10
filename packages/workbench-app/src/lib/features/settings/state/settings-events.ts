@@ -1,7 +1,8 @@
 import {
   onAnyEvent,
+  onWorkbenchReconnect,
   type WorkbenchEvent,
-} from "$lib/application/events/event-bus";
+} from "$lib/application/events/workbench-event-bus";
 import { shouldRefreshSettings } from "$lib/application/workspace/workspace-event-policy";
 import {
   hasPendingSettingsSave,
@@ -9,13 +10,18 @@ import {
 } from "$lib/application/settings";
 
 export function registerSettingsEventHandlers(): () => void {
-  return onAnyEvent(handleSettingsEvent);
+  const unregisterEvents = onAnyEvent(handleSettingsEvent);
+  const unregisterReconnect = onWorkbenchReconnect(loadSettingsPanel);
+  return () => {
+    unregisterEvents();
+    unregisterReconnect();
+  };
 }
 
 function handleSettingsEvent(event: WorkbenchEvent): void {
   if (
     (event.type === "applicationConfiguration.updated" ||
-      shouldRefreshSettings(event.type)) &&
+      shouldRefreshSettings(event)) &&
     !(event.type.startsWith("settings.") && hasPendingSettingsSave())
   ) {
     void loadSettingsPanel();

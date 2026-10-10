@@ -96,6 +96,30 @@ export interface AgentHarnessOptions<
 > {
   env: ExecutionEnv;
   conversation: Conversation;
+  /** Lets a durable queue extend a final response without speculatively applying configuration to a nonexistent turn. */
+  hasPendingTurnInput?: () => Promise<boolean>;
+  /** Runs after credentials and awaited request hooks, before acquiring the provider stream. */
+  beforeProviderDispatch?: () => Promise<
+    { kind: "ready" } | { kind: "refresh" }
+  >;
+  /**
+   * Return a coherent snapshot before initial/subsequent provider turns (refresh: false),
+   * or rebuild a superseded candidate of the same invocation (refresh: true).
+   * Completed requests and their tool batches settle before normal next-turn preparation.
+   * Errors block dispatch rather than silently falling back.
+   */
+  prepareTurn?: (context: {
+    refresh: boolean;
+    signal?: AbortSignal;
+  }) => Promise<{
+    model: AnyModel;
+    thinkingLevel: ThinkingLevel;
+    tools: TTool[];
+    activeToolNames: string[];
+    resources: AgentHarnessResources<TSkill, TPromptTemplate>;
+    systemPrompt: string;
+    env?: ExecutionEnv;
+  }>;
   tools?: TTool[];
   /**
    * Concrete resources available to explicit invocation methods and system-prompt callbacks.

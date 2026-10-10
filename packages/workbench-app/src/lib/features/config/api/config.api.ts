@@ -1,8 +1,9 @@
+import { protocolRequest as conversationRequest } from "@nervekit/protocol/adapters";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import { apiGet } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { protocolRequest } from "$lib/application/startup/workbench-connection";
 
 export type ClientConfig = {
   url: string;
@@ -19,11 +20,11 @@ export async function getClientConfig(): Promise<ClientConfig> {
 }
 
 export async function getModels(): Promise<ModelInfo[]> {
-  return (await protocolRequest("model.list", {})).result.models;
+  return (await conversationRequest("model.list", {})).result.models;
 }
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
-  return (await protocolRequest("completion.slash.list", {})).result.items;
+  return (await conversationRequest("completion.slash.list", {})).result.items;
 }
 
 export async function getFileCompletions(

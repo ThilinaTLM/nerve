@@ -11,7 +11,7 @@ import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
 } from "../pr-filters";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
@@ -58,7 +58,7 @@ const unsupported = disabledCapability(
 const emptyCollapsedFolders: ReadonlySet<string> = new Set();
 
 export function createWorkbenchGitPanelAdapter(
-  activeProject: () => ProjectRecord | undefined,
+  activeProject: () => Project | undefined,
   enabled: () => boolean = () => true,
   pullRequestsEnabled: () => boolean = enabled,
 ): { readonly model: GitPanelModel; readonly actions: GitPanelActions } {

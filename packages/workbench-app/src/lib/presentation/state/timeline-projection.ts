@@ -1,5 +1,6 @@
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
+
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import type { TranscriptItem } from "./transcript-types.js";
 import { buildCommittedTimeline, type CommittedTimeline } from "./timeline.js";
 import { entriesToTranscript } from "./transcript.js";

@@ -1,7 +1,7 @@
 import {
   asyncSubagentToolNames,
   normalizeAsyncSubagentTools,
-} from "../agents/async-subagents.js";
+} from "../tools/async-subagents.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
@@ -11,10 +11,7 @@ import {
   defaultApplicationSettings,
 } from "./application-configuration.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
-import {
-  permissionExceptionSchema,
-  permissionLevelSchema,
-} from "../permissions/permissions.js";
+import { permissionExceptionSchema } from "../permissions/permissions.js";
 import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 
 export const modeSchema = z.enum(["planning", "coding"]);
@@ -41,8 +38,8 @@ export type HeaderType = z.infer<typeof headerTypeSchema>;
 
 export const agentSelectionSettingsSchema = z.object({
   mode: modeSchema,
-  permissionLevel: permissionLevelSchema,
-  permissionRuleSetId: permissionRuleSetIdSchema.optional(),
+
+  permissionRuleSetId: permissionRuleSetIdSchema,
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema,
 });
@@ -387,8 +384,7 @@ export const transcriptionSettingsSchema = z.object({
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
 export const settingsSchema = z.object({
-  defaultPermissionLevel: permissionLevelSchema,
-  defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
+  defaultPermissionRuleSetId: permissionRuleSetIdSchema,
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema,
   rememberLastAgentSelection: z.boolean(),
@@ -436,13 +432,12 @@ export const settingsSchema = z.object({
 export type Settings = z.infer<typeof settingsSchema>;
 
 export const defaultSettings: Settings = {
-  defaultPermissionLevel: "autonomous",
   defaultPermissionRuleSetId: "autonomous",
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
     mode: "coding",
-    permissionLevel: "autonomous",
+
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
@@ -517,7 +512,6 @@ export const defaultSettings: Settings = {
 };
 
 export const updateSettingsRequestSchema = z.object({
-  defaultPermissionLevel: permissionLevelSchema.optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
@@ -525,7 +519,7 @@ export const updateSettingsRequestSchema = z.object({
   lastAgentSelection: z
     .object({
       mode: modeSchema.optional(),
-      permissionLevel: permissionLevelSchema.optional(),
+
       permissionRuleSetId: permissionRuleSetIdSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),

@@ -64,13 +64,6 @@ export interface TaskProcessPort {
     task: TaskRecord,
     timeoutMs: number,
   ): Promise<TaskCapabilityResult<TaskProcessExit | "timeout">>;
-  inspectPorts?(
-    task: TaskRecord,
-  ): Promise<TaskCapabilityResult<readonly number[]>>;
-  releasePorts?(
-    task: TaskRecord,
-    ports: readonly number[],
-  ): Promise<TaskCapabilityResult<readonly number[]>>;
 }
 
 export interface TaskLogPort {
@@ -110,29 +103,11 @@ export interface TaskCancelOptions {
   readonly reason?: string;
 }
 
-export interface TaskNotificationPort {
-  notify(
-    task: TaskRecord,
-    event: "ready" | "completed" | "failed",
-  ): Promise<void>;
-}
-
 export interface TaskLaunchConfigPort {
+  readonly persisted?: boolean;
   save(taskId: string, env: Record<string, string> | undefined): Promise<void>;
   load(task: TaskRecord): Promise<Record<string, string> | undefined>;
   remove(task: TaskRecord): Promise<void>;
-}
-
-export interface TaskOptionalCapabilitiesPort {
-  promoteForeground?(
-    task: TaskRecord,
-  ): Promise<TaskCapabilityResult<TaskRecord>>;
-  injectCompletion?(task: TaskRecord): Promise<TaskCapabilityResult<void>>;
-  prepareOrphan?(
-    task: TaskRecord,
-  ): Promise<Partial<Omit<TaskRecord, "id" | "startedAt">>>;
-  afterSaved?(task: TaskRecord): Promise<void>;
-  afterRemoved?(task: TaskRecord): Promise<void>;
 }
 
 export interface TaskTimerPort {
@@ -147,9 +122,7 @@ export interface TaskServicePorts {
   readonly events: DomainEventPublisherPort;
   readonly clock: ClockPort;
   readonly ids: IdPort;
-  readonly notifications?: TaskNotificationPort;
   readonly launchConfigs?: TaskLaunchConfigPort;
-  readonly capabilities?: TaskOptionalCapabilitiesPort;
   readonly timers?: TaskTimerPort;
   readonly diagnostics?: DiagnosticPort;
   readonly definitionPortGuard?: TaskDefinitionPortGuard;
@@ -157,10 +130,7 @@ export interface TaskServicePorts {
 }
 
 export type TaskStartInput = StartTaskRequest & {
-  readonly origin?: TaskRecord["origin"];
   readonly visibility?: TaskRecord["visibility"];
-  readonly completion?: TaskRecord["completion"];
-  readonly notifications?: TaskRecord["notifications"];
   readonly restartedFromTaskId?: string;
   readonly restartRootTaskId?: string;
   readonly restartGeneration?: number;
@@ -197,7 +167,6 @@ export class TaskService {
       transitionIfPresent: (id, change) => this.transitionIfPresent(id, change),
       save: (task) => this.save(task),
       publish: (type, data, delivery) => this.publish(type, data, delivery),
-      safeNotify: (task, event) => this.safeNotify(task, event),
       now: () => this.now(),
       finishFromExit: (id, exit, forcedStatus, reason) =>
         this.finishFromExit(id, exit, forcedStatus, reason),
@@ -233,14 +202,14 @@ export class TaskService {
       groupId: request.groupId,
       groupName: request.groupName,
       projectId: request.projectId,
-      conversationId: request.conversationId,
-      agentId: request.agentId,
       cwd,
       command: request.command,
       envInfo: request.env
         ? {
             keys: Object.keys(request.env).sort(),
-            persisted: Boolean(this.ports.launchConfigs),
+            persisted:
+              Boolean(this.ports.launchConfigs) &&
+              this.ports.launchConfigs?.persisted !== false,
             redacted: true,
           }
         : undefined,
@@ -262,10 +231,7 @@ export class TaskService {
       startedAt: now,
       updatedAt: now,
       timeoutMs: request.timeoutMs,
-      origin: request.origin ?? { kind: "api" },
       visibility: request.visibility ?? "background",
-      completion: request.completion,
-      notifications: request.notifications,
       restartedFromTaskId: request.restartedFromTaskId,
       restartRootTaskId: request.restartRootTaskId ?? id,
       restartGeneration: request.restartGeneration ?? 0,
@@ -326,7 +292,6 @@ export class TaskService {
         current.updatedAt = current.finishedAt;
         await this.save(current);
         await this.publish("task.failed", { task: current });
-        await this.safeNotify(current, "failed");
         this.startCallbacks.delete(id);
         return current;
       });
@@ -349,9 +314,7 @@ export class TaskService {
     const active = (await this.list()).find(
       (task) =>
         task.definitionId === request.definitionId &&
-        ["starting", "running", "ready", "stopping", "recovered"].includes(
-          task.status,
-        ),
+        ["starting", "running", "ready", "stopping"].includes(task.status),
     );
     if (active) return { task: active, disposition: "focused_existing" };
     const pending = this.definitionLaunches.get(request.definitionId);
@@ -394,11 +357,8 @@ export class TaskService {
   }
 
   async list(
-    filter: Partial<
-      Pick<TaskRecord, "projectId" | "conversationId" | "agentId" | "groupId">
-    > = {},
+    filter: Partial<Pick<TaskRecord, "projectId" | "groupId">> = {},
   ): Promise<TaskRecord[]> {
-    await this.reconcileOrphans(true);
     const records = await this.ports.repository.list();
     return records
       .filter((record) =>
@@ -420,11 +380,7 @@ export class TaskService {
   ): Promise<TaskRecord> {
     let requested = false;
     const initial = await this.transition(id, async (task) => {
-      if (task.status === "recovery_unknown")
-        throw new Error(
-          "Task process identity is unverified; refusing to signal a possibly reused PID",
-        );
-      if (isTerminalTaskStatus(task.status) && task.status !== "orphaned") {
+      if (isTerminalTaskStatus(task.status)) {
         return task;
       }
       const hardEscalation =
@@ -466,18 +422,8 @@ export class TaskService {
     return (await this.get(id)) ?? initial;
   }
 
-  async restart(
-    id: string,
-    options: { confirmUnverifiedReplacement?: boolean } = {},
-  ): Promise<TaskRecord> {
+  async restart(id: string): Promise<TaskRecord> {
     const previous = await this.require(id);
-    if (
-      previous.status === "recovery_unknown" &&
-      !options.confirmUnverifiedReplacement
-    )
-      throw new Error(
-        "Task process identity is unverified; confirm starting a replacement without stopping it",
-      );
     if (previous.envInfo && !previous.envInfo.persisted)
       throw new Error(
         "Task launch environment was not persisted; restart is unavailable",
@@ -485,10 +431,7 @@ export class TaskService {
     if (previous.envInfo?.persisted && !this.ports.launchConfigs)
       throw new Error("Persisted task launch environment is unavailable");
     const env = await this.ports.launchConfigs?.load(previous);
-    if (
-      !isTerminalTaskStatus(previous.status) &&
-      previous.status !== "recovery_unknown"
-    ) {
+    if (!isTerminalTaskStatus(previous.status)) {
       const stopped = await this.cancel(id, { reason: "restart" });
       if (!isTerminalTaskStatus(stopped.status))
         throw new Error("Task is still running and cannot be restarted");
@@ -500,8 +443,6 @@ export class TaskService {
       groupId: previous.groupId,
       groupName: previous.groupName,
       projectId: previous.projectId,
-      conversationId: previous.conversationId,
-      agentId: previous.agentId,
       cwd: previous.cwd,
       command: previous.command,
       env,
@@ -510,121 +451,11 @@ export class TaskService {
       readyOnUrl: previous.readiness.readyOnUrl,
       readyPattern: previous.readiness.readyPattern,
       readyTimeoutMs: previous.readiness.timeoutMs,
-      origin: previous.origin,
       visibility: previous.visibility,
-      completion: previous.completion
-        ? {
-            inject: previous.completion.inject,
-            outputTailLineCount: previous.completion.outputTailLineCount,
-          }
-        : undefined,
-      notifications: previous.notifications
-        ? {
-            enabled: previous.notifications.enabled,
-            ready: previous.notifications.ready,
-            terminal: previous.notifications.terminal,
-            outputTailLineCount: previous.notifications.outputTailLineCount,
-          }
-        : undefined,
       restartedFromTaskId: previous.id,
       restartRootTaskId: previous.restartRootTaskId ?? previous.id,
       restartGeneration: (previous.restartGeneration ?? 0) + 1,
     });
-  }
-
-  async reconcileOrphans(onlyRecovered = false): Promise<TaskRecord[]> {
-    const orphaned: TaskRecord[] = [];
-    for (const task of await this.ports.repository.list()) {
-      if (
-        isTerminalTaskStatus(task.status) ||
-        (onlyRecovered && task.status !== "recovered")
-      )
-        continue;
-      const evidence = await this.ports.process.inspect(task);
-      if (
-        evidence === "running" ||
-        (task.status === "recovered" &&
-          (evidence === "unsupervised_running" ||
-            evidence === "alive_verified"))
-      )
-        continue;
-      const recovery =
-        evidence === "unsupervised_running" || evidence === "alive_verified"
-          ? {
-              status: "recovered" as const,
-              event: "task.recovered" as const,
-              error:
-                "Process recovered after supervision was interrupted. Live output is disconnected.",
-            }
-          : evidence === "exited" ||
-              evidence === "exited_verified" ||
-              evidence === "identity_mismatch"
-            ? {
-                status: "interrupted" as const,
-                event: "task.interrupted" as const,
-                error:
-                  evidence === "identity_mismatch"
-                    ? "Original process identity no longer matches; the PID was reused."
-                    : "Process exited while supervision was unavailable.",
-              }
-            : {
-                status: "recovery_unknown" as const,
-                event: "task.recovery_unknown" as const,
-                error: "Process identity could not be verified safely.",
-              };
-      const result = await this.transition(task.id, async (current) => {
-        if (isTerminalTaskStatus(current.status)) return current;
-        Object.assign(
-          current,
-          (await this.ports.capabilities?.prepareOrphan?.(current)) ?? {},
-        );
-        current.status = recovery.status;
-        current.error = recovery.error;
-        current.finishedAt =
-          recovery.status === "interrupted" ? this.now() : undefined;
-        current.updatedAt = this.now();
-        await this.save(current);
-        await this.publish(recovery.event, { task: current });
-        return current;
-      });
-      if (["recovered", "recovery_unknown"].includes(result.status))
-        orphaned.push(result);
-    }
-    return orphaned;
-  }
-
-  async inspectPorts(
-    id: string,
-  ): Promise<TaskCapabilityResult<readonly number[]>> {
-    const task = await this.require(id);
-    return this.ports.process.inspectPorts?.(task) ?? "unavailable";
-  }
-
-  async releasePorts(
-    id: string,
-    ports: readonly number[],
-  ): Promise<TaskCapabilityResult<readonly number[]>> {
-    const task = await this.require(id);
-    return this.ports.process.releasePorts?.(task, ports) ?? "unavailable";
-  }
-
-  async backgroundActiveTask(
-    id: string,
-    patch: Pick<TaskRecord, "visibility" | "completion" | "notifications">,
-  ): Promise<TaskRecord> {
-    return this.transition(id, async (task) => {
-      if (isTerminalTaskStatus(task.status)) return task;
-      Object.assign(task, patch, { updatedAt: this.now() });
-      await this.save(task);
-      return task;
-    });
-  }
-
-  async promoteForeground(
-    id: string,
-  ): Promise<TaskCapabilityResult<TaskRecord>> {
-    const task = await this.require(id);
-    return this.ports.capabilities?.promoteForeground?.(task) ?? "unavailable";
   }
 
   async prune(): Promise<string[]> {
@@ -646,7 +477,6 @@ export class TaskService {
       await this.ports.logs.remove(task);
       await this.ports.launchConfigs?.remove(task);
       this.startCallbacks.delete(id);
-      await this.ports.capabilities?.afterRemoved?.(task);
       await this.publish("task.removed", { taskId: id });
     });
   }
@@ -694,14 +524,6 @@ export class TaskService {
       await this.publish(`task.${status}`, { task });
       this.stopReasons.delete(id);
       this.startCallbacks.delete(id);
-      if (status === "completed") {
-        await this.safeNotify(task, "completed");
-        await this.ports.capabilities
-          ?.injectCompletion?.(task)
-          .catch(() => undefined);
-      } else if (status === "failed" || status === "timed_out") {
-        await this.safeNotify(task, "failed");
-      }
       return task;
     });
   }
@@ -747,20 +569,12 @@ export class TaskService {
 
   private async save(task: TaskRecord): Promise<void> {
     await this.ports.repository.save(task);
-    await this.ports.capabilities?.afterSaved?.(task);
-  }
-
-  private async safeNotify(
-    task: TaskRecord,
-    event: "ready" | "completed" | "failed",
-  ): Promise<void> {
-    await this.ports.notifications?.notify(task, event).catch(() => undefined);
   }
 
   private publish(
     type: string,
     data: unknown,
-    delivery: "sequenced" | "ephemeral" = "sequenced",
+    delivery: "sequenced" | "ephemeral" = "ephemeral",
   ): Promise<void> {
     return this.ports.events.publish({
       type,

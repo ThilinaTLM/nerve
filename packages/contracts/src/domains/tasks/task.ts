@@ -9,10 +9,6 @@ export const taskStatusSchema = z.enum([
   "failed",
   "timed_out",
   "cancelled",
-  "orphaned",
-  "recovered",
-  "interrupted",
-  "recovery_unknown",
 ]);
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
 
@@ -111,43 +107,6 @@ export const taskLaunchConfigSchema = z.object({
 });
 export type TaskLaunchConfig = z.infer<typeof taskLaunchConfigSchema>;
 
-export const taskOriginSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("api") }),
-  z.object({ kind: z.literal("utility_panel") }),
-  z.object({
-    kind: z.literal("agent_tool"),
-    toolCallId: z.string().startsWith("tool_"),
-    providerToolCallId: z.string().min(1).optional(),
-    runId: z.string().startsWith("run_").optional(),
-    turnId: z.string().startsWith("turn_").optional(),
-    liveMessageId: z.string().startsWith("msg_").optional(),
-    contentIndex: z.number().int().nonnegative().optional(),
-  }),
-]);
-export type TaskOrigin = z.infer<typeof taskOriginSchema>;
-
-export const taskCompletionInjectionSchema = z.object({
-  inject: z.boolean().default(false),
-  entryId: z.string().startsWith("entry_").optional(),
-  injectedAt: z.string().datetime().optional(),
-  outputTailLineCount: z.number().int().positive().max(200).default(80),
-});
-export type TaskCompletionInjection = z.infer<
-  typeof taskCompletionInjectionSchema
->;
-
-export const taskNotificationStateSchema = z.object({
-  enabled: z.boolean().default(false),
-  ready: z.boolean().default(false),
-  terminal: z.boolean().default(false),
-  readyEntryId: z.string().startsWith("entry_").optional(),
-  terminalEntryId: z.string().startsWith("entry_").optional(),
-  readyDeliveredAt: z.string().datetime().optional(),
-  terminalDeliveredAt: z.string().datetime().optional(),
-  outputTailLineCount: z.number().int().positive().max(200).default(80),
-});
-export type TaskNotificationState = z.infer<typeof taskNotificationStateSchema>;
-
 export const taskOutputRetentionSchema = z.object({
   totalBytes: z.number().int().nonnegative(),
   retainedBytes: z.number().int().nonnegative(),
@@ -170,8 +129,6 @@ export const taskRecordSchema = z.object({
   groupId: z.string().startsWith("taskgrp_").optional(),
   groupName: z.string().min(1).optional(),
   projectId: z.string().startsWith("proj_").optional(),
-  conversationId: z.string().startsWith("conv_").optional(),
-  agentId: z.string().startsWith("agent_").optional(),
   cwd: z.string().min(1),
   command: z.string().min(1),
   envInfo: taskEnvInfoSchema.optional(),
@@ -192,10 +149,6 @@ export const taskRecordSchema = z.object({
   restartRootTaskId: z.string().startsWith("task_").optional(),
   restartGeneration: z.number().int().nonnegative().optional(),
   runtime: taskRuntimeSchema.optional(),
-  lastOrphanCleanupReleasedPorts: z.array(taskListeningPortSchema).optional(),
-  origin: taskOriginSchema.default({ kind: "api" }),
-  completion: taskCompletionInjectionSchema.optional(),
-  notifications: taskNotificationStateSchema.optional(),
   outputRetention: taskOutputRetentionSchema.optional(),
   visibility: taskVisibilitySchema.default("background"),
 });
@@ -209,8 +162,6 @@ export const startTaskRequestSchema = z.object({
   groupId: z.string().startsWith("taskgrp_").optional(),
   groupName: z.string().min(1).optional(),
   projectId: z.string().startsWith("proj_").optional(),
-  conversationId: z.string().startsWith("conv_").optional(),
-  agentId: z.string().startsWith("agent_").optional(),
   cwd: z.string().min(1),
   command: z.string().min(1),
   env: z.record(z.string(), z.string()).optional(),
@@ -219,8 +170,6 @@ export const startTaskRequestSchema = z.object({
   readyPattern: z.string().min(1).optional(),
   readyTimeoutMs: z.number().int().nonnegative().max(60_000).optional(),
   timeoutMs: z.number().int().positive().max(86_400_000).optional(),
-  notify: z.boolean().optional(),
-  injectCompletion: z.boolean().optional(),
 });
 export type StartTaskRequest = z.infer<typeof startTaskRequestSchema>;
 

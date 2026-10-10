@@ -4,7 +4,6 @@ import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import {
   BUILT_IN_PERMISSION_RULE_SET_SUMMARIES,
   effectivePermissionRuleSetId,
-  legacyPermissionLevelForRuleSet,
   selectablePermissionRuleSets,
   selectedPermissionRuleSetSummary,
 } from "./rule-set-options";
@@ -68,11 +67,5 @@ describe("permission rule-set options", () => {
     );
     assert.equal(selected.id, "missing-custom");
     assert.equal(selected.available, false);
-  });
-
-  it("mirrors only legacy coding built-ins into permissionLevel", () => {
-    assert.equal(legacyPermissionLevelForRuleSet("supervised"), "supervised");
-    assert.equal(legacyPermissionLevelForRuleSet("careful-coding"), undefined);
-    assert.equal(legacyPermissionLevelForRuleSet("planning"), undefined);
   });
 });

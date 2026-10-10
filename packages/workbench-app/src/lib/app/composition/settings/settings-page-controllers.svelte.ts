@@ -1,35 +1,32 @@
-import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
-import type { ProjectRecord, Settings } from "$lib/api";
-import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
-import { parseModelKey } from "$lib/presentation/utils/model";
-import { PermissionsPageState } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
-import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
 import {
-  getPermissionPolicyConfiguration,
-  updatePermissionOverlay,
-  updateProjectPermissionTrust,
+  emptyCapabilityOverrides,
+  type CapabilityConfiguration,
+  type CapabilityPatch,
+} from "@nervekit/contracts/capabilities";
+import type { Project } from "@nervekit/contracts/core";
+import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
+import {
   getCapabilityConfiguration,
   updateCapabilities,
-  updateCapabilityTrust,
-} from "$lib/features/projects/api/projects.api";
+  trustCapabilities,
+} from "$lib/features/conversations/adapters/core-capabilities.adapter";
+import {
+  observeConversationChannel,
+  requestConversation,
+} from "$lib/application/startup/conversation-connection";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import type { Settings } from "$lib/api";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import {
+  retainConversationStore,
+  type ConversationStore,
+} from "$lib/features/conversations";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
-import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-
 export type SettingsScope = "user" | "project";
-
-/**
- * Per-view settings page state: project capability configuration and the
- * page controllers that own async loading. Shared by the desktop settings
- * shell and the phone settings pages so both render the same page bodies.
- * Must be created during component initialisation.
- */
 export function createSettingsPageControllers(deps: {
-  activeProject: () => ProjectRecord | undefined;
+  activeProject: () => Project | undefined;
   scope: () => SettingsScope;
 }) {
   let capabilityConfiguration = $state<CapabilityConfiguration>();
@@ -93,7 +90,7 @@ export function createSettingsPageControllers(deps: {
     await runCapabilityMutation(() =>
       updateCapabilities({
         projectId: project.id,
-        origin: "project",
+        layer: "project",
         patch,
         expectedDigest: capabilityConfiguration?.projectDigest,
       }),
@@ -106,7 +103,7 @@ export function createSettingsPageControllers(deps: {
     await runCapabilityMutation(() =>
       updateCapabilities({
         projectId: project.id,
-        origin: "project",
+        layer: "project",
         replace: emptyCapabilityOverrides(),
         expectedDigest: capabilityConfiguration?.projectDigest,
       }),
@@ -117,40 +114,79 @@ export function createSettingsPageControllers(deps: {
     const project = deps.activeProject();
     if (!project || !capabilityConfiguration) return;
     await runCapabilityMutation(async () => {
-      await updateCapabilityTrust(
-        project.id,
-        trusted,
-        capabilityConfiguration?.projectDigest,
-      );
+      const digest = capabilityConfiguration?.projectDigest;
+      if (!digest)
+        throw new Error("Project capability configuration is not loaded.");
+      if (trusted) return trustCapabilities(project.id, digest);
+      const resources = await requestConversation("trust.list", {
+        projectId: project.id,
+        kind: "project_capabilities",
+      });
+      const path =
+        project.directory.replaceAll("\\", "/").replace(/\/$/, "") +
+        "/.nerve/config/capabilities.json";
+      for (const resource of resources) {
+        if (resource.path.replaceAll("\\", "/") === path)
+          await requestConversation("trust.delete", {
+            trustedResourceId: resource.id,
+          });
+      }
+      return getCapabilityConfiguration(project.id);
     });
   }
 
-  const permissionsPageState = new PermissionsPageState({
-    getConfiguration: getPermissionPolicyConfiguration,
-    updateOverlay: updatePermissionOverlay,
-    updateTrust: async (projectId, trusted) => {
-      await updateProjectPermissionTrust(projectId, trusted);
-    },
-    onConfigurationLoaded: (projectId, configuration) => {
-      permissionRuleSetCatalog.install(projectId, configuration.ruleSets);
-    },
-  });
-
-  const suggestionsPageState = new SuggestionsPageState();
-  const storageController = new StoragePageController();
-
-  /** The composer's live selection is what "remember my last selection" saves. */
-  function readComposerSelection(): Settings["lastAgentSelection"] {
-    const model = parseModelKey(conversationState.selectedModelKey);
-    return {
-      mode: conversationState.selectedMode,
-      permissionLevel: conversationState.selectedPermissionLevel,
-      permissionRuleSetId: conversationState.selectedPermissionRuleSetId,
-      ...(model ? { model } : {}),
-      thinkingLevel: conversationState.selectedThinkingLevel,
+  $effect(() => {
+    const refresh = () =>
+      deps.scope() === "project"
+        ? loadProjectCapabilities()
+        : Promise.resolve();
+    const stop = observeConversationChannel({
+      recover: refresh,
+      disconnected() {},
+      event() {},
+      notice(notice) {
+        if (
+          notice.type === "capabilities.changed" &&
+          notice.data.projectId === deps.activeProject()?.id &&
+          !notice.data.conversationId
+        )
+          void refresh();
+      },
+    });
+    const stopSettings = onEvent("settings.updated", () => void refresh());
+    return () => {
+      stop();
+      stopSettings();
     };
+  });
+  let activeStore = $state<ConversationStore>();
+  $effect(() => {
+    const id = selection.conversationId;
+    if (!id) {
+      activeStore = undefined;
+      return;
+    }
+    const retained = retainConversationStore(id);
+    activeStore = retained.store;
+    void retained.ready.catch(() => undefined);
+    return retained.release;
+  });
+  const storageController = new StoragePageController();
+  const suggestionsPageState = new SuggestionsPageState();
+  function readComposerSelection(): Settings["lastAgentSelection"] {
+    const saved = settingsState.settingsDraft?.lastAgentSelection;
+    if (!saved) throw new Error("Settings not loaded");
+    const config = activeStore?.snapshot?.config;
+    return config
+      ? {
+          ...saved,
+          mode: config.mode,
+          model: config.model,
+          thinkingLevel: config.reasoningLevel,
+          permissionRuleSetId: config.permissionRuleSetId,
+        }
+      : { ...saved };
   }
-
   return {
     get capabilityConfiguration() {
       return capabilityConfiguration;
@@ -165,13 +201,11 @@ export function createSettingsPageControllers(deps: {
     patchProjectCapabilities,
     resetProjectCapabilities,
     setProjectCapabilityTrust,
-    permissionsPageState,
     suggestionsPageState,
     storageController,
     readComposerSelection,
   };
 }
-
 export type SettingsPageControllers = ReturnType<
   typeof createSettingsPageControllers
 >;

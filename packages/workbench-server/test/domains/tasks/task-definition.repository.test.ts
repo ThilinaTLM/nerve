@@ -3,16 +3,12 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import { TaskDefinitionRepository } from "../../../src/domains/task-definitions/task-definition.repository.js";
-import { ProjectRepository } from "../../../src/domains/projects/project.repository.js";
-import { initializeStorage } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
 const roots: string[] = [];
-const stores: Array<{ close(): Promise<void> }> = [];
 
 afterEach(async () => {
-  await Promise.all(stores.splice(0).map((store) => store.close()));
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -21,8 +17,10 @@ afterEach(async () => {
 describe("project task definition storage", () => {
   it("derives runtime scope from the local project and writes portable files", async () => {
     const { project, repository } = await setup();
-    const path = join(project.dir, ".nerve", "tasks", "definitions.json");
-    await mkdir(join(project.dir, ".nerve", "tasks"), { recursive: true });
+    const path = join(project.directory, ".nerve", "tasks", "definitions.json");
+    await mkdir(join(project.directory, ".nerve", "tasks"), {
+      recursive: true,
+    });
     const now = new Date().toISOString();
     await writeFile(
       path,
@@ -68,7 +66,7 @@ describe("project task definition storage", () => {
 
   it("rejects unsupported project task definition files", async () => {
     const { project, repository } = await setup();
-    const dir = join(project.dir, ".nerve", "tasks");
+    const dir = join(project.directory, ".nerve", "tasks");
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, "definitions.json"),
@@ -83,22 +81,19 @@ describe("project task definition storage", () => {
 });
 
 async function setup(): Promise<{
-  project: ProjectRecord;
+  project: Project;
   repository: TaskDefinitionRepository;
 }> {
   const root = await mkdtemp(join(tmpdir(), "nerve-task-definitions-"));
   roots.push(root);
-  const storage = await initializeStorage(join(root, "home"));
-  stores.push(storage.canonicalStore);
   const now = new Date().toISOString();
-  const project: ProjectRecord = {
+  const project: Project = {
     id: "proj_local_installation",
     name: "Portable project",
-    dir: join(root, "project"),
+    directory: join(root, "project"),
     createdAt: now,
     updatedAt: now,
   };
-  await mkdir(project.dir, { recursive: true });
-  await new ProjectRepository(storage).write(project);
-  return { project, repository: new TaskDefinitionRepository(storage) };
+  await mkdir(project.directory, { recursive: true });
+  return { project, repository: new TaskDefinitionRepository(() => project) };
 }

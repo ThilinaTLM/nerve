@@ -1,11 +1,14 @@
 import type { ContextUsage } from "@nervekit/contracts/models";
+
 import type {
   ConversationActiveRunSnapshot,
   ConversationEntry,
-  ConversationSnapshot,
-} from "@nervekit/contracts/conversations";
-import type { QueuedPromptRecord } from "@nervekit/contracts/agents";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
+import type { ConversationSnapshot } from "@nervekit/contracts/core";
+
+import type { QueuedPromptRecord } from "$lib/presentation/view-models/conversation";
+
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 import type { ConversationTransientState } from "./transcript-types.js";
 
 /**

@@ -1,5 +1,5 @@
-import type { ConversationEntry } from "@nervekit/contracts/conversations";
-import { runFailureCategorySchema } from "@nervekit/contracts/runs";
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
+import { failureCategory } from "$lib/presentation/view-models/failure-category";
 import type {
   CompactionNotice,
   RunStatusNotice,
@@ -9,11 +9,6 @@ import type {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function failureCategory(value: unknown) {
-  const parsed = runFailureCategorySchema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
 }
 
 function startsWithToolPrefix(value: unknown): string | undefined {

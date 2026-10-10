@@ -1,9 +1,6 @@
-import {
-  closeConversationTab,
-  closePendingConversationTab,
-  openConversation,
-  selectPendingConversation,
-} from "$lib/features/conversations/state/conversation-flow.svelte";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { setActiveCenterTab } from "$lib/application/workspace/center-tabs.svelte";
+import { closeCenterTabs } from "$lib/application/workspace/center-tab-actions.svelte";
 import {
   closeFileTab,
   selectCenterFileTab,
@@ -40,8 +37,11 @@ import { registerCenterTabDispatch } from "$lib/application/workspace/center-tab
 
 registerCenterTabDispatch({
   select: {
-    conversation: (tab) => openConversation(tab.id),
-    "pending-conversation": (tab) => selectPendingConversation(tab.id),
+    conversation: (tab) => {
+      selection.conversationId = tab.id;
+      setActiveCenterTab(tab);
+    },
+    "pending-conversation": (tab) => setActiveCenterTab(tab),
     task: (tab) => selectCenterTaskTab(tab.id),
     file: (tab) => selectCenterFileTab(tab.id),
     mermaid: (tab) => selectCenterMermaidTab(tab.id),
@@ -52,8 +52,8 @@ registerCenterTabDispatch({
     discover: () => selectCenterDiscoverTab(),
   },
   close: {
-    conversation: (tab) => closeConversationTab(tab.id),
-    "pending-conversation": (tab) => closePendingConversationTab(tab.id),
+    conversation: (tab) => closeCenterTabs([tab]),
+    "pending-conversation": (tab) => closeCenterTabs([tab]),
     task: (tab) => closeTaskTab(tab.id),
     file: (tab) => closeFileTab(tab.id),
     mermaid: (tab) => closeMermaidTab(tab.id),

@@ -1,10 +1,6 @@
 import { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import { MaintenanceRepository } from "../../domains/maintenance/maintenance.repository.js";
-import {
-  pruneProgress,
-  type MaintenanceExecution,
-} from "../../domains/maintenance/maintenance-execution.js";
-import { ProjectRemovalExecutor } from "../../domains/projects/project-removal-executor.js";
+import { type MaintenanceExecution } from "../../domains/maintenance/maintenance-execution.js";
 import { join } from "node:path";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { registerManagedProvider } from "@nervekit/harness/models";
@@ -29,7 +25,7 @@ import {
 } from "../../domains/auth/index.js";
 import { PiAiCredentialStore } from "../../domains/auth/pi-ai-credential-store.js";
 import { PiAiModelsStore } from "../../domains/auth/pi-ai-models-store.js";
-import { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
+import { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { ProviderCatalogStore } from "../../domains/providers/index.js";
 import {
   StorageCleanupExecutor,
@@ -44,9 +40,7 @@ import {
   PerformanceMetricsCollector,
 } from "../../infrastructure/diagnostics/index.js";
 import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
-import { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
-import type { CanonicalStore } from "../../infrastructure/persistence/canonical-sqlite/index.js";
+import { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import {
   EncryptedFileSecretProvider,
   type SecretProvider,
@@ -67,13 +61,11 @@ export interface ServerRuntime {
   port: number;
   mobileHttps?: MobileHttpsInfo & { caCertPem: string; hosts: string[] };
   storage: InitializedStorage;
-  events: StreamLogRegistry;
+  events: WorkbenchNoticePublisher;
   logger: ApplicationLogger;
   applicationLogsEnabled: boolean;
   lifecycle: RuntimeLifecycle;
   adapterContexts: ServerAdapterContexts;
-  queryCache: RuntimeQueryCache;
-  canonicalStore: CanonicalStore;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
   latestRelease: LatestReleaseService;
@@ -119,9 +111,6 @@ export function composeServerRuntime(
   lifecycle: RuntimeLifecycle;
   services: RuntimeServices;
 } {
-  // Rebuildable read model; data/nerve.sqlite remains authoritative.
-  const queryCache = new RuntimeQueryCache(storage.paths.queryCachePath);
-  queryCache.initialize();
   const performanceDiagnostics = options.performanceDiagnosticsEnabled
     ? new PerformanceMetricsCollector(
         allOperationDefinitions().map((definition) => definition.method),
@@ -136,63 +125,7 @@ export function composeServerRuntime(
     maxBufferedLogs: storage.settings.logging.maxBufferedLogs,
     enabled: options.applicationLogsEnabled ?? false,
   });
-  const events = new StreamLogRegistry(storage.paths.home, {
-    canonicalStore: storage.canonicalStore,
-    diagnostics: performanceDiagnostics.enabled
-      ? performanceDiagnostics
-      : undefined,
-    onFsync: () => performanceDiagnostics.count("event.fsync"),
-    onPublishFailed: ({ type, context, error }) =>
-      logger.error("Best-effort event publication failed", {
-        context: {
-          eventType: type,
-          operation: context,
-          error: error instanceof Error ? error.message : String(error),
-        },
-      }),
-    onFlushCompleted: (observation) => {
-      performanceDiagnostics.duration(
-        "event.streamFlush",
-        observation.durationMs,
-      );
-      performanceDiagnostics.count(
-        "event.streamFlushEvents",
-        observation.eventCount,
-      );
-      if (observation.compaction) {
-        performanceDiagnostics.count("event.streamCompaction");
-        performanceDiagnostics.count(
-          "event.streamCompactionBytesBefore",
-          observation.compaction.bytesBefore,
-        );
-        performanceDiagnostics.count(
-          "event.streamCompactionBytesAfter",
-          observation.compaction.bytesAfter,
-        );
-      }
-      if (observation.durationMs < 50) return;
-      void logger.warn("Slow event stream flush", {
-        durationMs: Math.round(observation.durationMs),
-        context: {
-          stream: observation.stream,
-          eventCount: observation.eventCount,
-          succeeded: observation.succeeded,
-          compaction: observation.compaction,
-        },
-      });
-    },
-    renameDependencies: {
-      onRenameRetry: (observation) => {
-        if (observation.attempt < 2) return;
-        void logger.warn("Event stream rename retry", {
-          context: {
-            attempt: observation.attempt,
-            delayMs: observation.delayMs,
-          },
-        });
-      },
-    },
-  });
+  const events = new WorkbenchNoticePublisher();
   const secrets = new EncryptedFileSecretProvider(storage.paths.home);
   const piCredentials = new PiAiCredentialStore(secrets);
   const piModels = builtinModels({
@@ -219,10 +152,9 @@ export function composeServerRuntime(
   });
   const nerveSkills = new NerveSkillCatalog();
   const agentBrowserSkills = new AgentBrowserSkillCatalog();
-  const { lifecycle, services } = RuntimeLifecycle.compose(
+  const { lifecycle, services } = RuntimeLifecycle.compose({
     storage,
     events,
-    queryCache,
     auth,
     secrets,
     subscriptionUsage,
@@ -231,16 +163,15 @@ export function composeServerRuntime(
     agentBrowserSkills,
     providerCatalog,
     performanceDiagnostics,
-    options.resources ?? {
+    resources: options.resources ?? {
       ...DEFAULT_RESOURCE_LIMITS,
       controlWorkConcurrency: 4,
     },
-  );
+  });
   const storageUsage = new StorageUsageService({
     paths: storage.paths,
     getSource: () => ({
-      listConversations: () =>
-        services.conversationLifecycle.listConversations(),
+      listConversations: () => services.coreStorage.conversations.listAll(),
     }),
   });
   const latestRelease = new LatestReleaseService();
@@ -250,46 +181,34 @@ export function composeServerRuntime(
     getOperations: () => ({
       pruneConversationsAcrossProjects: (request, execution) =>
         pruneConversationsAcrossProjects(services, request, execution),
-      rebuildSearchIndex: () => lifecycle.rebuildIndex(),
     }),
   });
-  const projectRemoval = new ProjectRemovalExecutor({
-    projects: services.projectLifecycle,
-    listConversations: () => services.conversationLifecycle.listConversations(),
-    removeConversation: (id, options) =>
-      services.conversationLifecycle.removeConversation(id, options),
-  });
   const maintenance = new MaintenanceService({
-    repository: new MaintenanceRepository(storage.canonicalStore),
+    repository: new MaintenanceRepository(),
     publish: (operation) =>
       events.publish("maintenance.updated", { operation }),
-    getProject: (id) => services.projectLifecycle.getProject(id),
-    reserveProject: (id) => services.maintenanceScopes.reserveProject(id),
+    getProject: (id) => {
+      const project = services.conversationCore.projects.get(id);
+      if (!project) throw new Error("Project not found");
+      return project;
+    },
+    reserveProject: () => () => undefined,
     warn: (error) => logger.warn("Maintenance failed", { error }),
     execute: async (request, execution) => {
       if (request.kind === "storage_cleanup")
         return storageCleanup.execute(request.parameters, execution);
-      if (request.kind === "delete_project")
-        return projectRemoval.execute(request.projectId, execution);
-      const result =
-        await services.pruneConversations.pruneProjectConversations(
-          request.projectId,
-          request.parameters,
-          pruneProgress(execution),
-        );
+      if (request.kind === "delete_project") {
+        await services.conversationCore.projects.delete(request.projectId);
+        return;
+      }
+      const result = await pruneConversationsAcrossProjects(
+        services,
+        request.parameters,
+        execution,
+        request.projectId,
+      );
       await execution.report({
         removedConversationCount: result.removedConversationCount,
-        removedTaskCount: result.removedTaskCount,
-        skippedActiveAgentCount: result.skippedActiveAgentCount,
-        skippedActiveTaskCount: result.skippedActiveTaskCount,
-        result: {
-          kind: "prune_conversations",
-          removedConversationCount: result.removedConversationCount,
-          removedTaskCount: result.removedTaskCount,
-        },
-        warnings: result.skipped.length
-          ? [`Skipped ${result.skipped.length} active conversations.`]
-          : [],
       });
     },
   });
@@ -310,7 +229,6 @@ export function composeServerRuntime(
     events,
     logger,
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
-    queryCache,
     storageUsage,
     maintenance,
     latestRelease,
@@ -337,8 +255,6 @@ export function composeServerRuntime(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     lifecycle,
     adapterContexts: createServerAdapterContexts(services, infrastructure),
-    queryCache,
-    canonicalStore: storage.canonicalStore,
     storageUsage,
     maintenance,
     latestRelease,
@@ -365,25 +281,37 @@ export function composeServerRuntime(
 
 async function pruneConversationsAcrossProjects(
   services: RuntimeServices,
-  request: { strategy: "olderThanDays"; olderThanDays: number },
+  request:
+    | { strategy: "olderThanDays"; olderThanDays: number }
+    | { strategy: "keepLatest"; keepLatest: number }
+    | { strategy: "completed" },
   execution: MaintenanceExecution,
+  projectId?: string,
 ): Promise<{ removedConversationCount: number; skippedCount: number }> {
-  const results = await services.pruneConversations.pruneAcrossProjects(
-    services.projectLifecycle.listProjects(),
-    request,
-    pruneProgress(execution),
-  );
-  return {
-    removedConversationCount: results.reduce(
-      (sum, result) => sum + result.removedConversationCount,
-      0,
-    ),
-    skippedCount: results.reduce(
-      (sum, result) =>
-        sum + result.skippedActiveAgentCount + result.skippedActiveTaskCount,
-      0,
-    ),
-  };
+  const cutoff =
+    request.strategy === "olderThanDays"
+      ? Date.now() - request.olderThanDays * 86_400_000
+      : Infinity;
+  const candidates = services.coreStorage.conversations
+    .listAll()
+    .filter((row) => !projectId || row.projectId === projectId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  let removedConversationCount = 0;
+  let skippedCount = 0;
+  for (const [index, conversation] of candidates.entries()) {
+    if (request.strategy === "keepLatest" && index < request.keepLatest)
+      continue;
+    if (request.strategy === "completed" && !conversation.completedAt) continue;
+    if (Date.parse(conversation.updatedAt) >= cutoff) continue;
+    if (conversation.status !== "idle" || conversation.pinnedAt) {
+      skippedCount++;
+      continue;
+    }
+    if (execution.cancelled()) break;
+    await services.conversationCore.delete(conversation.id);
+    removedConversationCount++;
+  }
+  return { removedConversationCount, skippedCount };
 }
 
 const shutdownStates = new WeakSet<ServerRuntime>();
@@ -391,7 +319,7 @@ const shutdownStates = new WeakSet<ServerRuntime>();
 /**
  * Idempotent owner of server-runtime teardown: lifecycle timers,
  * subscription-usage polling, storage-cleanup scheduling, logger flush, and
- * queryCache close. HTTP/WebSocket session shutdown stays with the server entry;
+ * core storage close. HTTP/WebSocket session shutdown stays with the server entry;
  * call this afterwards, once state-owned logging has finished.
  */
 export async function shutdownServerRuntime(
@@ -403,10 +331,7 @@ export async function shutdownServerRuntime(
   await state.lifecycle.shutdown();
   await state.agentBrowserSkills.shutdown().catch(() => undefined);
   state.subscriptionUsage.stop();
-  await state.events.shutdown();
   await state.logger.flush();
-  state.queryCache.close();
-  await state.canonicalStore.close();
 }
 
 export function toDaemonFile(state: ServerRuntime): DaemonFile {
@@ -446,14 +371,13 @@ export function statusResponse(state: ServerRuntime): StatusResponse {
       home: state.storage.paths.home,
       userHome: state.storage.paths.userHome,
       sqlitePath: state.storage.paths.sqlitePath,
-      indexHealthy: state.queryCache.isHealthy,
+      indexHealthy: true,
     },
     capabilities: {
       applicationLogs: state.applicationLogsEnabled,
     },
     runtime: {
-      python:
-        state.adapterContexts.protocol.platform.pythonRuntime.statusSnapshot(),
+      python: { available: false, source: "unavailable" },
       editors: state.adapterContexts.protocol.projects.editors.statusSnapshot(),
       terminal:
         state.adapterContexts.protocol.projects.terminal.statusSnapshot(),

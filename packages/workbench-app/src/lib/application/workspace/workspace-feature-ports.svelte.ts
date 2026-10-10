@@ -1,10 +1,4 @@
-import type {
-  AgentRecord,
-  CompletionItem,
-  FilesystemFileResponse,
-  ProjectRecord,
-  TaskRecord,
-} from "$lib/api";
+import type { FilesystemFileResponse, TaskRecord } from "$lib/api";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
@@ -20,26 +14,6 @@ export type DeepReadonly<T> = T extends (...args: never[]) => unknown
 type VoiceInputTarget =
   | { kind: "conversation"; id: string }
   | { kind: "pending-conversation"; id: string };
-
-interface ConversationWorkspaceView {
-  readonly treeNodes: readonly unknown[];
-  readonly composerText: string;
-  readonly error?: string;
-  readonly activeRun?: { readonly status: string };
-  readonly transient?: { readonly compaction?: { readonly state: string } };
-  readonly sending?: boolean;
-}
-
-interface PendingConversationWorkspaceView {
-  readonly id: string;
-  readonly projectId: string;
-  readonly projectDir: string;
-  readonly title: "New Conversation";
-  readonly composerText: string;
-  readonly mode: AgentRecord["mode"];
-  readonly sending: boolean;
-  readonly error?: string;
-}
 
 interface FileWorkspaceView {
   readonly id: string;
@@ -102,40 +76,8 @@ interface PrWorkspaceView {
 
 export interface WorkspaceFeaturePorts {
   conversations: {
-    read: {
-      readonly activeConversationTabId: string | undefined;
-      readonly conversationViews: Readonly<
-        Record<string, ConversationWorkspaceView>
-      >;
-      readonly pendingConversations: Readonly<
-        Record<string, PendingConversationWorkspaceView>
-      >;
-      readonly openConversationTabIds: readonly string[];
-      readonly slashCompletions: readonly CompletionItem[];
-      readonly selectedModelKey: string;
-      readonly selectedThinkingLevel: AgentRecord["thinkingLevel"];
-      readonly selectedMode: AgentRecord["mode"];
-      readonly selectedPermissionLevel: AgentRecord["permissionLevel"];
-      readonly selectedPermissionRuleSetId: string;
-    };
     commands: {
-      setOpenConversationTabIds(ids: string[]): void;
-      setSlashCompletions(completions: CompletionItem[]): void;
-      discardConversationView(id: string): void;
-      discardPendingConversation(id: string): void;
-      setActiveConversationTab(id: string | undefined): void;
-      applyAgentConfiguration(agent: AgentRecord): void;
-      applyConversationConfiguration(input: {
-        mode: AgentRecord["mode"];
-        permissionLevel: AgentRecord["permissionLevel"];
-        permissionRuleSetId?: string;
-      }): void;
       cancelVoiceInputTargets(targets: VoiceInputTarget[]): Promise<void>;
-      openPendingConversation(
-        project: ProjectRecord,
-        initialMode?: AgentRecord["mode"],
-      ): void;
-      removeConversationTabs(conversationIds: string[]): Promise<void>;
     };
   };
   filesystem: {

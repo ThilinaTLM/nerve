@@ -1,297 +1,34 @@
-import type { Message } from "@earendil-works/pi-ai";
-import type { ResourceLimits } from "@nervekit/contracts/settings";
-import type { NerveSkillCatalog } from "@nervekit/skills";
-import type { AuthManager } from "../../domains/auth/index.js";
-import type { AgentBrowserSkillCatalog } from "../../domains/agents/prompting/agent-browser-skills.js";
-import type { ProviderCatalogStore } from "../../domains/providers/index.js";
-import type { SubscriptionUsageService } from "../../domains/usage/subscription-usage-service.js";
-import type { PerformanceDiagnosticsPort } from "../../core/ports/diagnostics.js";
-import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.js";
-import type { StreamLogRegistry } from "../../infrastructure/events/index.js";
-import type { RuntimeQueryCache } from "../../infrastructure/persistence/query-cache/index.js";
-import type { SecretProvider } from "../../infrastructure/secrets/index.js";
-import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
 import {
   createRuntimeServices,
+  type RuntimeDeps,
   type RuntimeServices,
 } from "../bootstrap/create-runtime-services.js";
-import { RuntimeState } from "./runtime-projections.js";
-import {
-  RuntimeHydrator,
-  type RuntimeBootstrapStage,
-  type RuntimeHydrationTimings,
-  type StoreHydrationOperation,
-} from "../bootstrap/hydrate-runtime.js";
-
-export type {
-  RuntimeHydrationCounts,
-  RuntimeHydrationTimings,
-  StoreHydrationDurations,
-} from "../bootstrap/hydrate-runtime.js";
-export { settleMeasuredHydrationOperations } from "../bootstrap/hydrate-runtime.js";
 
 export class RuntimeLifecycle {
-  private readonly state = new RuntimeState();
-  readonly projects = this.state.projects;
-  readonly conversations = this.state.conversations;
-  readonly agents = this.state.agents;
-  readonly entries = this.state.entries;
-  readonly conversationRuntime = this.state.conversationRuntime;
-
-  get agentConversationMessages(): Map<string, Message[]> {
-    return this.state.agentConversationMessages;
-  }
-  private readonly services: RuntimeServices;
-  private readonly backgroundOperations = new Set<Promise<void>>();
-  private shuttingDown = false;
+  readonly services: RuntimeServices;
   private shutdownOperation?: Promise<void>;
 
-  static compose(
-    storage: InitializedStorage,
-    events: StreamLogRegistry,
-    queryCache: RuntimeQueryCache,
-    auth: AuthManager,
-    secrets: SecretProvider,
-    subscriptionUsage: SubscriptionUsageService,
-    logger: ApplicationLogger,
-    nerveSkills: NerveSkillCatalog,
-    agentBrowserSkills: AgentBrowserSkillCatalog,
-    providerCatalog: ProviderCatalogStore,
-    performanceDiagnostics: PerformanceDiagnosticsPort,
-    resources: ResourceLimits & { controlWorkConcurrency: number },
-  ): { lifecycle: RuntimeLifecycle; services: RuntimeServices } {
-    const lifecycle = new RuntimeLifecycle(
-      storage,
-      events,
-      queryCache,
-      auth,
-      secrets,
-      subscriptionUsage,
-      logger,
-      nerveSkills,
-      agentBrowserSkills,
-      providerCatalog,
-      performanceDiagnostics,
-      resources,
-    );
+  static compose(deps: RuntimeDeps) {
+    const lifecycle = new RuntimeLifecycle(deps);
     return { lifecycle, services: lifecycle.services };
   }
 
-  private constructor(
-    storage: InitializedStorage,
-    private readonly events: StreamLogRegistry,
-    private readonly queryCache: RuntimeQueryCache,
-    private readonly auth: AuthManager,
-    secrets: SecretProvider,
-    subscriptionUsage: SubscriptionUsageService,
-    private readonly logger: ApplicationLogger,
-    nerveSkills: NerveSkillCatalog,
-    agentBrowserSkills: AgentBrowserSkillCatalog,
-    providerCatalog: ProviderCatalogStore,
-    performanceDiagnostics: PerformanceDiagnosticsPort,
-    resources: ResourceLimits & { controlWorkConcurrency: number },
-  ) {
-    this.services = createRuntimeServices(this.state, {
-      storage,
-      events,
-      queryCache,
-      auth,
-      secrets,
-      providerCatalog,
-      subscriptionUsage,
-      logger,
-      nerveSkills,
-      agentBrowserSkills,
-      performanceDiagnostics,
-      resources,
-    });
-    this.hydrator = new RuntimeHydrator({
-      withUpdatesDeferred: (operation) =>
-        this.queryCache.withUpdatesDeferred(operation),
-      hydrateStores: [
-        {
-          name: "auth",
-          run: () => this.auth.refreshModels({ allowNetwork: false }),
-        },
-        { name: "providers", run: () => providerCatalog.load() },
-        { name: "tasks", run: () => this.services.tasks.hydrate() },
-        { name: "tools", run: () => this.services.tools.hydrate() },
-        { name: "plans", run: () => this.services.plans.hydrate() },
-        {
-          name: "projects",
-          run: () => this.services.projectLifecycle.loadProjects(),
-        },
-        {
-          name: "conversations",
-          run: () => this.services.conversationLifecycle.loadConversations(),
-        },
-      ] as const satisfies readonly StoreHydrationOperation[],
-      loadAgents: () => this.services.agentLifecycle.loadAgents(),
-      flushRunDelivery: () => this.services.runRuntime.delivery.flush(),
-      recoverRuns: async () => {
-        await this.services.runRuntime.coordinator.recover({
-          canResumeCheckpoint: (run) =>
-            this.services.agentLifecycle.getAgent(run.agentId).executionKind !==
-            "async_developer",
-        });
-      },
-      recoverHumanInput: async () => {
-        await this.services.runReconciliation.reconcileStartup();
-      },
-      rebuildProjector: async () => {
-        const activeStates =
-          await this.services.runRuntime.unitOfWork.listActive();
-        const runRecords =
-          await this.services.runRuntime.unitOfWork.listMetadata();
-        await this.services.runRuntime.projector.rebuild({
-          activeStates,
-          runRecords,
-        });
-        return {
-          runMetadata: runRecords.length,
-          activeRuns: activeStates.length,
-        };
-      },
-      counts: () => ({
-        projects: this.services.projectLifecycle.listProjects().length,
-        conversations:
-          this.services.conversationLifecycle.listConversations().length,
-        agents: this.services.agentLifecycle.listAgents().length,
-        tasks: this.services.tasks.listTasks().length,
-        toolCalls: this.services.tools.countToolCalls(),
-      }),
-      recoverTaskNotifications: async () => {
-        await this.services.asyncSubagents.reconcile();
-        await this.services.taskNotifications.recoverPendingNotifications();
-      },
-      rebuildIndex: () => this.rebuildIndex(),
-      hydratePromptSuggestions: () => this.services.promptSuggestions.hydrate(),
-      toolCallHydrationSource: this.services.tools.toolCallHydrationSource,
-    });
+  private constructor(private readonly deps: RuntimeDeps) {
+    this.services = createRuntimeServices(deps);
   }
 
-  private readonly hydrator: RuntimeHydrator;
+  async hydrate(): Promise<void> {
+    await this.deps.auth.refreshModels({ allowNetwork: false });
+    await this.deps.providerCatalog.load();
+    await this.services.conversationCore.start();
+    await this.deps.logger.info("Conversation core started");
+  }
 
-  /**
-   * Stops lifecycle timers and waits for run executions, transition
-   * projections, event deliveries, and journal publications to settle so no
-   * writer races teardown.
-   */
   shutdown(): Promise<void> {
-    this.shuttingDown = true;
-    this.shutdownOperation ??= this.performShutdown();
-    return this.shutdownOperation;
-  }
-
-  private async performShutdown(): Promise<void> {
-    this.services.lifecycleDispatcher.stop();
-    this.services.taskNotifications.stop();
-    await this.services.agentActivityPublisher.stop();
-    await this.services.asyncObligationRuntime.stop();
-    for (const agent of this.services.agentLifecycle
-      .listAgents()
-      .filter((agent) => !agent.parentAgentId)) {
-      await this.services.asyncSubagents.settleTeam(agent.id);
-    }
-    await this.services.workspaceMonitor.close();
-    await this.services.tasks.shutdown();
-    await Promise.allSettled([...this.backgroundOperations]);
-    await this.services.lifecycleDispatcher.settled();
-    await this.services.runRuntime.coordinator.settled();
-    await this.services.runRuntime.delivery.settled();
-    await this.events.settled();
-    await this.services.conversationJournal
-      .checkpointLoaded()
-      .catch(async (error: unknown) => {
-        await this.logger.warn(
-          "Conversation checkpoint failed during shutdown",
-          {
-            error,
-          },
-        );
-      });
-  }
-
-  async hydrate(
-    reportStage?: (stage: RuntimeBootstrapStage) => void,
-  ): Promise<RuntimeHydrationTimings> {
-    reportStage?.("recovering-conversation-deletions");
-    await this.services.conversationLifecycle.recoverDeletions();
-    this.services.taskNotifications.start();
-    try {
-      const timings = await this.hydrator.hydrate(reportStage);
-      await this.services.agentActivityPublisher.start();
-      await this.services.asyncObligationRuntime.start();
-      // Provider and tool work can be arbitrarily long-running. Start its drain
-      // only after canonical hydration, and never gate daemon readiness on it.
-      if (!this.shuttingDown) this.services.lifecycleDispatcher.start();
-      return timings;
-    } catch (error) {
-      this.services.taskNotifications.stop();
-      await this.services.agentActivityPublisher.stop();
-      await this.services.asyncObligationRuntime.stop();
-      this.services.lifecycleDispatcher.stop();
-      throw error;
-    }
-  }
-  async refreshRuntimeCapabilities(): Promise<void> {
-    if (this.shuttingDown) return;
-    const operations = [
-      ["Python runtime discovery", this.services.pythonRuntime.refresh()],
-      ["Editor discovery", this.services.editors.refresh()],
-      ["Terminal discovery", this.services.terminal.refresh()],
-    ] as const;
-    await this.logSettledOperations(operations);
-  }
-
-  startBackgroundMaintenance(): void {
-    if (this.shuttingDown) return;
-    const operations = [
-      ["Network model refresh", this.auth.refreshModels()],
-      [
-        "Tool-result payload reconciliation",
-        this.services.tools.reconcileResultPayloads(),
-      ],
-      [
-        "Conversation projection backfill",
-        this.services.conversationJournal.backfillMissingProjections(),
-      ],
-    ] as const;
-    this.trackBackgroundOperation(this.logSettledOperations(operations));
-  }
-
-  private async logSettledOperations(
-    operations: readonly (readonly [string, Promise<unknown>])[],
-  ): Promise<void> {
-    const results = await Promise.allSettled(
-      operations.map(([, operation]) => operation),
-    );
-    const warnings: Promise<void>[] = [];
-    for (const [index, result] of results.entries()) {
-      if (result.status !== "rejected") continue;
-      warnings.push(
-        this.logger.warn(`${operations[index]?.[0]} failed`, {
-          error: result.reason,
-        }),
-      );
-    }
-    await Promise.all(warnings);
-  }
-
-  private trackBackgroundOperation(operation: Promise<void>): void {
-    this.backgroundOperations.add(operation);
-    void operation
-      .catch(() => undefined)
-      .finally(() => this.backgroundOperations.delete(operation));
-  }
-
-  /** Rebuild the disposable derived SQLite queryCache from repositories. */
-  async rebuildIndex(): Promise<void> {
-    await this.queryCache.rebuildIncrementally(() => ({
-      projects: this.services.projectLifecycle.listProjects(),
-      conversations: this.services.conversationLifecycle.listConversations(),
-      agents: this.services.agentLifecycle.listAgents(),
-      tasks: this.services.tasks.listTasks(),
-    }));
+    return (this.shutdownOperation ??= (async () => {
+      await this.services.workspaceMonitor.close();
+      await this.services.launches.shutdown();
+      await this.services.conversationCore.close();
+    })());
   }
 }

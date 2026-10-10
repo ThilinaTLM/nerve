@@ -12,13 +12,7 @@ export function statusTone(status: string | undefined): StatusTone {
   if (status === "running" || status === "ready" || status === "starting") {
     return "info";
   }
-  if (
-    status === "error" ||
-    status === "failed" ||
-    status === "timed_out" ||
-    status === "orphaned" ||
-    status === "recovery_unknown"
-  ) {
+  if (status === "error" || status === "failed" || status === "timed_out") {
     return "destructive";
   }
   if (
@@ -69,16 +63,9 @@ export function agentActivityPulse(
 // as muted (neutral) rather than "success" (green), which is misleading for a
 // task that is no longer running.
 export function taskTone(status: string | undefined): StatusTone {
-  if (status === "running" || status === "ready" || status === "recovered")
-    return "success";
+  if (status === "running" || status === "ready") return "success";
   if (status === "starting" || status === "stopping") return "warning";
-  if (
-    status === "failed" ||
-    status === "timed_out" ||
-    status === "orphaned" ||
-    status === "recovery_unknown"
-  )
-    return "destructive";
+  if (status === "failed" || status === "timed_out") return "destructive";
   return "neutral";
 }
 
@@ -87,8 +74,7 @@ export function taskPulse(status: string | undefined): boolean {
     status === "running" ||
     status === "ready" ||
     status === "starting" ||
-    status === "stopping" ||
-    status === "recovered"
+    status === "stopping"
   );
 }
 

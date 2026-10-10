@@ -1,7 +1,5 @@
-import {
-  asyncSubagentStatusSchema,
-  type AsyncSubagentToolName,
-} from "@nervekit/contracts/agents";
+import { subagentTeammatePreviewSchema } from "@nervekit/contracts/tools";
+import { type AsyncSubagentToolName } from "@nervekit/contracts/tools";
 import {
   subagentListToolResultPreviewSchema,
   subagentPromptToolResultPreviewSchema,
@@ -98,7 +96,7 @@ function fromPreview(
 }
 
 function fullTeammate(value: unknown): SubagentTeammateView | undefined {
-  const parsed = asyncSubagentStatusSchema.safeParse(value);
+  const parsed = subagentTeammatePreviewSchema.safeParse(value);
   if (!parsed.success) return undefined;
   const agentId = record(value)?.agentId;
   return {
@@ -149,7 +147,10 @@ function fromFullResult(
   if (!teammate) return undefined;
   const response =
     toolName === "subagent_status"
-      ? asyncSubagentStatusSchema.parse(details).response
+      ? subagentStatusToolResultPreviewSchema.safeParse({
+          teammate,
+          response: details.response,
+        }).data?.response
       : undefined;
   return {
     teammates: [teammate],

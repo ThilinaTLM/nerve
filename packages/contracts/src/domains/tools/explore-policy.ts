@@ -1,0 +1,1 @@
+export const EXPLORE_MAX_TASKS_PER_CALL = 8;

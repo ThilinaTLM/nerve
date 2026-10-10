@@ -1,5 +1,5 @@
 <script lang="ts">
-import { conversationSelectors } from "$lib/features/conversations";
+import { ShellChannelStatus } from "../shell-channel-status.svelte";
 import { SubscriptionUsageChip } from "$lib/features/usage";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
@@ -12,12 +12,18 @@ import StatusPopover from "$lib/app/shell/StatusPopover.svelte";
  * lives on the Workspace tab.
  */
 const status = $derived(workspaceSelectors.status);
+const channels = new ShellChannelStatus();
+$effect(() => channels.observe());
 </script>
 
 <div class="flex flex-wrap items-center gap-1.5 px-3 pb-1 pt-2">
   <StatusPopover
-    connection={workspaceSelectors.connection}
-    live={conversationSelectors.live}
+    connection={channels.connected
+      ? "connected"
+      : workspaceSelectors.connection === "connected"
+        ? "reconnecting"
+        : workspaceSelectors.connection}
+    live={channels.connected}
     {status}
     side="bottom"
   />

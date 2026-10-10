@@ -1,8 +1,7 @@
 <script lang="ts">
-import type {
-  AgentPreviewSnapshot,
-  AgentProjectionSnapshot,
-} from "@nervekit/contracts/tools";
+import type { AgentProjectionSnapshot } from "@nervekit/contracts/tools";
+import type { ToolCallRecord } from "../../view-models/tool-records";
+type AgentPreviewSnapshot = NonNullable<ToolCallRecord["agentPreview"]>;
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type Props = {
@@ -21,7 +20,11 @@ function imageData(index: number, mimeType: string): string | undefined {
   if (!block || typeof block !== "object" || Array.isArray(block)) return;
   const record = block as Record<string, unknown>;
   if (record.type !== "image" || record.mimeType !== mimeType) return;
-  return typeof record.data === "string" ? record.data : undefined;
+  if (typeof record.assetId === "string")
+    return `/api/assets/${encodeURIComponent(record.assetId)}`;
+  return typeof record.data === "string"
+    ? `data:${mimeType};base64,${record.data}`
+    : undefined;
 }
 
 function supportedImageMime(mimeType: string): boolean {
@@ -60,7 +63,7 @@ function supportedImageMime(mimeType: string): boolean {
               {#if data && supportedImageMime(block.mimeType)}
                 <img
                   class="max-h-80 max-w-full rounded-sm object-contain"
-                  src={`data:${block.mimeType};base64,${data}`}
+                  src={data}
                   alt="Supplied to the agent"
                 />
               {/if}

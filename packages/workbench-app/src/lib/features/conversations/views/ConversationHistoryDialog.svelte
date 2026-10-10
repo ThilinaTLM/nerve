@@ -4,11 +4,16 @@ import type {
   ConversationRecord,
   ConversationTreeNode,
   ToolCallTranscriptRecord,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
+import type { ConversationStore } from "../state/core-conversation-store.svelte";
+import { conversationTranscript } from "../adapters/core-transcript.adapter";
+import { conversationView } from "../adapters/core-context.adapter";
+import { composerSignals } from "../state/composer-signals.svelte";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ConversationHistoryGraph from "./ConversationHistoryGraph.svelte";
 
 type Props = {
+  store?: ConversationStore;
   open?: boolean;
   activeConversation?: ConversationRecord;
   treeNodes?: ConversationTreeNode[];
@@ -20,13 +25,34 @@ type Props = {
 
 let {
   open = $bindable(false),
-  activeConversation,
-  treeNodes = [],
-  toolCalls = [],
+  store,
+  activeConversation: providedConversation,
+  treeNodes: providedTree,
+  toolCalls: providedTools,
   onNavigateToEntry,
   onEditEntry,
   onOpenChange,
 }: Props = $props();
+
+$effect(() => {
+  if (open && store) void store.loadHistoryTree().catch(() => undefined);
+});
+const projection = $derived(
+  store?.snapshot
+    ? conversationTranscript({
+        snapshot: store.snapshot,
+        events: store.historyEvents ?? store.events,
+        liveBlocks: store.liveBlocks,
+        toolOutput: store.toolOutput,
+      })
+    : undefined,
+);
+const activeConversation = $derived(
+  providedConversation ??
+    (store?.snapshot ? conversationView(store.snapshot) : undefined),
+);
+const treeNodes = $derived(providedTree ?? projection?.treeNodes ?? []);
+const toolCalls = $derived(providedTools ?? projection?.toolCalls ?? []);
 
 function handleOpenChange(next: boolean) {
   open = next;
@@ -34,13 +60,15 @@ function handleOpenChange(next: boolean) {
 }
 
 function navigateAndClose(entryId: string | undefined) {
-  onNavigateToEntry?.(entryId);
+  if (onNavigateToEntry) onNavigateToEntry(entryId);
+  else void store?.selectHead(entryId ?? null);
   open = false;
   onOpenChange?.(false);
 }
 
 function editAndClose(entry: ConversationEntry) {
-  onEditEntry?.(entry);
+  if (onEditEntry) onEditEntry(entry);
+  else composerSignals.editEntry = entry;
   open = false;
   onOpenChange?.(false);
 }

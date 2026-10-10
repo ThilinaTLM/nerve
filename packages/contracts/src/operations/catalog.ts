@@ -1,3 +1,6 @@
+import { promptSuggestionsOperationDefinitions } from "../domains/prompt-suggestions/operations.js";
+import { conversationChannelOperations } from "../domains/core/channel.js";
+import { projectsOperationDefinitions } from "../domains/projects/operations.js";
 import { maintenanceOperationDefinitions } from "../domains/maintenance/maintenance-operations.js";
 import { z } from "zod";
 export type {
@@ -5,52 +8,37 @@ export type {
   OperationIdempotency,
   OperationKind,
 } from "./definition.js";
-import { agentsOperationDefinitions } from "../domains/agents/agent-operations.js";
-import { runOperationDefinitions } from "../domains/agents/run-operations.js";
 import { authOperationDefinitions } from "../domains/auth/operations.js";
 import { completionsOperationDefinitions } from "../domains/completions/operations.js";
-import { conversationsOperationDefinitions } from "../domains/conversations/operations.js";
 import { filesystemOperationDefinitions } from "../domains/filesystem/operations.js";
 import { gitOperationDefinitions } from "../domains/git/operations.js";
 import { logsOperationDefinitions } from "../domains/logs/operations.js";
-import { modelsOperationDefinitions } from "../domains/models/operations.js";
-import { projectsOperationDefinitions } from "../domains/projects/operations.js";
-import { promptSuggestionsOperationDefinitions } from "../domains/prompt-suggestions/operations.js";
 import { providersOperationDefinitions } from "../domains/providers/operations.js";
 import { scratchNotesOperationDefinitions } from "../domains/scratch-notes/operations.js";
 import { settingsOperationDefinitions } from "../domains/settings/operations.js";
-import { skillOperationDefinitions } from "../domains/skills/operations.js";
-import { snapshotsOperationDefinitions } from "../domains/snapshots/operations.js";
 import { statusOperationDefinitions } from "../domains/status/operations.js";
 import { storageOperationDefinitions } from "../domains/storage/operations.js";
 import { taskDefinitionOperationDefinitions } from "../domains/task-definitions/operations.js";
 import { tasksOperationDefinitions } from "../domains/tasks/operations.js";
-import { toolsOperationDefinitions } from "../domains/tools/operations.js";
 import { usageOperationDefinitions } from "../domains/usage/operations.js";
 
 const methodDefinitions = [
+  ...conversationChannelOperations,
+  ...projectsOperationDefinitions,
+  ...promptSuggestionsOperationDefinitions,
   ...maintenanceOperationDefinitions,
-  ...agentsOperationDefinitions,
-  ...runOperationDefinitions,
   ...authOperationDefinitions,
   ...completionsOperationDefinitions,
-  ...conversationsOperationDefinitions,
   ...filesystemOperationDefinitions,
   ...gitOperationDefinitions,
   ...logsOperationDefinitions,
-  ...modelsOperationDefinitions,
-  ...projectsOperationDefinitions,
-  ...promptSuggestionsOperationDefinitions,
   ...providersOperationDefinitions,
   ...scratchNotesOperationDefinitions,
   ...settingsOperationDefinitions,
-  ...skillOperationDefinitions,
-  ...snapshotsOperationDefinitions,
   ...statusOperationDefinitions,
   ...storageOperationDefinitions,
   ...taskDefinitionOperationDefinitions,
   ...tasksOperationDefinitions,
-  ...toolsOperationDefinitions,
   ...usageOperationDefinitions,
 ] as const;
 

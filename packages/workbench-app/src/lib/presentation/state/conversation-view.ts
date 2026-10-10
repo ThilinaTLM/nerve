@@ -1,9 +1,10 @@
 import type { PlanReviewRecord } from "@nervekit/contracts/plans";
+
+import type { TodoItem } from "@nervekit/contracts/tools";
 import type {
-  TodoItem,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
 import { todoItemsField } from "../tools/views/tool-view-helpers.js";
 import { buildConversationRenderProjection } from "./render.js";
 import type { ApprovalWithToolCall } from "./tool-types.js";

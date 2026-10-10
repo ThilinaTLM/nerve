@@ -11,7 +11,8 @@ import {
   transcriptMenuModel,
   type ConversationMenuHandlers,
 } from "./conversation-menu-model";
-import type { ConversationEntry } from "$lib/api";
+
+import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 
 export type { ConversationMenuHandlers } from "./conversation-menu-model";
 

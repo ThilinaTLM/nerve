@@ -1,5 +1,6 @@
 import type { PlanReviewRecord } from "@nervekit/contracts/plans";
-import type { ToolCallTranscriptRecord } from "@nervekit/contracts/tools";
+
+import type { ToolCallTranscriptRecord } from "$lib/presentation/view-models/conversation";
 
 type PlanReviewToolCall = Pick<
   ToolCallTranscriptRecord,
@@ -9,7 +10,7 @@ type PlanReviewToolCall = Pick<
   | "projectId"
   | "toolName"
   | "status"
-  | "interactions"
+  | "interaction"
 >;
 
 /**
@@ -29,18 +30,15 @@ export function resolvePlanReview(
   ) {
     return undefined;
   }
-  const interaction = toolCall.interactions.find(
-    (candidate) => candidate.status === "pending",
-  );
-  if (!interaction || interaction.kind !== "plan_review") return undefined;
+  const interaction = toolCall.interaction;
+  if (interaction?.kind !== "plan_review" || interaction.status !== "pending")
+    return undefined;
 
-  const reviewId = `plan_review_${toolCall.id}_${interaction.ordinal}`;
-  if (projected?.id === reviewId && projected.status === "pending") {
+  if (projected?.toolCallId === toolCall.id && projected.status === "pending") {
     return projected;
   }
 
   return {
-    id: reviewId,
     toolCallId: toolCall.id,
     agentId: toolCall.agentId,
     conversationId: toolCall.conversationId,

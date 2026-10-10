@@ -36,10 +36,6 @@ export interface TaskProcessSupervisorOptions {
     data: unknown,
     delivery?: "sequenced" | "ephemeral",
   ) => Promise<void>;
-  readonly safeNotify: (
-    task: TaskRecord,
-    event: "ready" | "completed" | "failed",
-  ) => Promise<void>;
   readonly now: () => string;
   readonly finishFromExit: (
     id: string,
@@ -165,7 +161,6 @@ export class TaskProcessSupervisor {
         current.readiness.readyAt = current.updatedAt;
         await this.options.save(current);
         await this.options.publish("task.ready", { task: current });
-        await this.options.safeNotify(current, "ready");
       } else {
         await this.options.save(current);
         if (outcome === "timeout")

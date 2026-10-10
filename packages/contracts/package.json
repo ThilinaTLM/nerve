@@ -34,14 +34,6 @@
       "types": "./dist/operations/index.d.ts",
       "import": "./dist/operations/index.js"
     },
-    "./snapshots": {
-      "types": "./dist/snapshots/index.d.ts",
-      "import": "./dist/snapshots/index.js"
-    },
-    "./agents": {
-      "types": "./dist/domains/agents/index.d.ts",
-      "import": "./dist/domains/agents/index.js"
-    },
     "./auth": {
       "types": "./dist/domains/auth/index.d.ts",
       "import": "./dist/domains/auth/index.js"
@@ -54,9 +46,9 @@
       "types": "./dist/domains/completions/index.d.ts",
       "import": "./dist/domains/completions/index.js"
     },
-    "./conversations": {
-      "types": "./dist/domains/conversations/index.d.ts",
-      "import": "./dist/domains/conversations/index.js"
+    "./core": {
+      "types": "./dist/domains/core/index.d.ts",
+      "import": "./dist/domains/core/index.js"
     },
     "./filesystem": {
       "types": "./dist/domains/filesystem/index.d.ts",
@@ -98,10 +90,6 @@
       "types": "./dist/domains/providers/index.d.ts",
       "import": "./dist/domains/providers/index.js"
     },
-    "./runs": {
-      "types": "./dist/domains/runs/index.d.ts",
-      "import": "./dist/domains/runs/index.js"
-    },
     "./scratch-notes": {
       "types": "./dist/domains/scratch-notes/index.d.ts",
       "import": "./dist/domains/scratch-notes/index.js"
@@ -125,10 +113,6 @@
     "./maintenance": {
       "types": "./dist/domains/maintenance/index.d.ts",
       "import": "./dist/domains/maintenance/index.js"
-    },
-    "./suspensions": {
-      "types": "./dist/domains/suspensions/index.d.ts",
-      "import": "./dist/domains/suspensions/index.js"
     },
     "./task-definitions": {
       "types": "./dist/domains/task-definitions/index.d.ts",

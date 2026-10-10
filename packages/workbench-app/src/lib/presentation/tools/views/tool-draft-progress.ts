@@ -1,6 +1,7 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativePathForDisplay } from "@nervekit/ui-kit/display/path-links";
-import type { ConversationLiveToolDraftBlockSnapshot } from "@nervekit/contracts/conversations";
+
+import type { ConversationLiveToolDraftBlockSnapshot } from "$lib/presentation/view-models/conversation";
 
 /** Canonical tool-draft content block; local alias for signature brevity. */
 type ToolDraftBlock = ConversationLiveToolDraftBlockSnapshot;

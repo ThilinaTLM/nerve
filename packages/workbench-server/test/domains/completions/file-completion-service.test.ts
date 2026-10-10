@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
 import { FileCompletionService } from "../../../src/domains/completions/file-completion-service.js";
 
@@ -14,14 +14,14 @@ afterEach(async () => {
   );
 });
 
-async function projectFixture(): Promise<ProjectRecord> {
+async function projectFixture(): Promise<Project> {
   const dir = await mkdtemp(join(tmpdir(), "nerve-file-service-"));
   roots.push(dir);
   await writeFile(join(dir, "README.md"), "");
   return {
     id: "proj_completion_test",
     name: "Completion test",
-    dir,
+    directory: dir,
     createdAt: new Date(0).toISOString(),
     updatedAt: new Date(0).toISOString(),
   };

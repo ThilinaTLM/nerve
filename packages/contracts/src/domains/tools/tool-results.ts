@@ -855,14 +855,11 @@ export type ExploreResultPreviewPayload = z.infer<
 
 /** Result of ask_user (resolved question). */
 export const askUserResultSchema = z.object({
-  questionId: z.string().startsWith("question_").optional(),
-  interactionOrdinal: z.number().int().nonnegative().optional(),
   question: z.string(),
   context: z.string().optional(),
   recommendation: z.string().optional(),
   response: z.string().optional(),
   dismissed: z.boolean().optional(),
-  dismissedReason: z.string().optional(),
 });
 export type AskUserResult = z.infer<typeof askUserResultSchema>;
 

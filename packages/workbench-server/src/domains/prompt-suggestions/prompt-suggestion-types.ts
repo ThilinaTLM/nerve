@@ -1,16 +1,13 @@
 import type {
-  AgentActivitySnapshot,
-  AgentRecord,
-} from "@nervekit/contracts/agents";
-import type { ConversationRecord } from "@nervekit/contracts/conversations";
+  Conversation,
+  ConversationConfig,
+} from "@nervekit/contracts/core";
 import type {
   GitDiscoveryResponse,
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts/git";
 import type { Mode } from "@nervekit/contracts/settings";
-import type { PermissionLevel } from "@nervekit/contracts/permissions";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
 import type {
   PromptSuggestionSourceKind,
   PromptSuggestionWhen,
@@ -54,47 +51,31 @@ export type PromptSuggestionDefinition = {
   };
 };
 
+export type PromptSuggestionConversationContext = {
+  id: string;
+  title: string;
+  mode: Mode;
+  permissionRuleSetId: string;
+  reasoningLevel: ConversationConfig["reasoningLevel"];
+  status: Conversation["status"];
+};
+
 export type PromptSuggestionEnableContext = {
-  now: string;
+  timestamp: string;
   platform: NodeJS.Platform;
-  project: Pick<ProjectRecord, "id" | "name" | "dir">;
+  project: { id: string; name: string; dir: string };
   git: GitDiscoveryResponse & {
     github?: Pick<GithubStatusResponse, "available" | "authenticated">;
   };
-  conversation?: Pick<
-    ConversationRecord,
-    "id" | "title" | "mode" | "permissionLevel"
-  >;
-  agent?: Pick<
-    AgentRecord,
-    "id" | "mode" | "permissionLevel" | "thinkingLevel"
-  > & { status: AgentActivitySnapshot["state"] };
+  conversation?: PromptSuggestionConversationContext;
 };
 
 export type PromptSuggestionEvaluationInput = {
-  project: ProjectRecord;
-  conversation?: ConversationRecord;
-  agent?: AgentRecord;
-  agentActivity?: AgentActivitySnapshot;
-  git: GitDiscoveryResponse & {
-    github?: Pick<GithubStatusResponse, "available" | "authenticated">;
-  };
+  project: PromptSuggestionEnableContext["project"];
+  conversation?: PromptSuggestionConversationContext;
+  git: PromptSuggestionEnableContext["git"];
   definitions: PromptSuggestionDefinition[];
 };
-
-export function activeMode(input: {
-  agent?: AgentRecord;
-  conversation?: ConversationRecord;
-}): Mode | undefined {
-  return input.agent?.mode ?? input.conversation?.mode;
-}
-
-export function activePermissionLevel(input: {
-  agent?: AgentRecord;
-  conversation?: ConversationRecord;
-}): PermissionLevel | undefined {
-  return input.agent?.permissionLevel ?? input.conversation?.permissionLevel;
-}
 
 export function anyDirtyRepo(repos: GitRepoSummary[]): boolean {
   return repos.some((repo) => repo.dirty);

@@ -7,7 +7,7 @@ import type {
   ApplicationLogSource,
 } from "@nervekit/contracts/logs";
 import { apiGet } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { protocolRequest } from "$lib/application/startup/workbench-connection";
 
 export type {
   ApplicationLogLevel,

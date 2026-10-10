@@ -46,26 +46,26 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
-  onAnswerUserQuestion?: (questionId: string, answer: string) => void;
-  onDismissUserQuestion?: (questionId: string) => void;
+  onAnswerUserQuestion?: (toolCallId: string, answer: string) => void;
+  onDismissUserQuestion?: (toolCallId: string) => void;
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void;
+  onDenyApproval?: (toolCallId: string) => void;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };

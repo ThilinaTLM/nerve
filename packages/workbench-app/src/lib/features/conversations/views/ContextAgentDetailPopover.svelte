@@ -9,7 +9,11 @@ import Popover, {
   PopoverSection,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { statusTone } from "@nervekit/ui-kit/display/status";
-import type { AgentActivitySnapshot, AgentRecord } from "$lib/api";
+
+import type {
+  AgentActivitySnapshot,
+  AgentRecord,
+} from "$lib/presentation/view-models/conversation";
 import {
   agentDetailFields,
   agentRoleLabel,

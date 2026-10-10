@@ -10,13 +10,14 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import type { ContextUsage } from "@nervekit/contracts/models";
+
 import type {
   AgentActivitySnapshot,
   AgentRecord,
   ConversationRecord,
   ProjectRecord,
-  StatusResponse,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
+import type { StatusResponse } from "@nervekit/contracts/status";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
@@ -98,7 +99,13 @@ async function copySession(): Promise<void> {
           disabled={!activeProject}
           onclick={() => void copySession()}
         />
-        <ContextExportMenu {activeConversation} {exportUrl} {systemPromptUrl} />
+        {#if exportUrl?.("md") || systemPromptUrl?.()}
+          <ContextExportMenu
+            {activeConversation}
+            {exportUrl}
+            {systemPromptUrl}
+          />
+        {/if}
       {/snippet}
     </PanelHeader>
     {#if !activeProject}

@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../native"
+    },
+    {
+      "path": "../harness"
+    },
+    {
+      "path": "../skills"
+    },
+    {
+      "path": "../tools"
+    }
+  ],
+  "include": ["src/**/*.ts", "src/**/*.json"]
+}

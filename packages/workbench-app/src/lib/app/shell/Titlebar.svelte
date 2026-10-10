@@ -23,6 +23,8 @@ type Props = {
   activeProjectKey?: string;
   homeDir?: string;
   desktop?: boolean;
+  /** Set for `pnpm desktop:dev` instances; replaces the version indicator. */
+  developmentSlot?: number;
   headerType?: ResolvedHeaderType;
   maximized?: boolean;
   closeToTray?: boolean;
@@ -51,6 +53,7 @@ let {
   activeProjectKey,
   homeDir,
   desktop = false,
+  developmentSlot,
   headerType = "linux",
   maximized = false,
   closeToTray = true,
@@ -108,7 +111,17 @@ let {
       class="flex min-w-0 flex-none items-center gap-1.5 [-webkit-app-region:no-drag]"
       aria-label="Application actions"
     >
-      {#if currentVersion}
+      <!-- Dev builds report the package.json version, so show the storage slot instead. -->
+      {#if developmentSlot}
+        <span
+          class="inline-flex flex-none items-center rounded-sm bg-warning px-1.5 py-0.5 text-xs leading-none font-bold text-warning-foreground"
+          role="img"
+          aria-label={`Development instance, slot ${developmentSlot}`}
+          title={`Development instance (slot ${developmentSlot})`}
+        >
+          <span aria-hidden="true">DEV {developmentSlot}</span>
+        </span>
+      {:else if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
       <Button

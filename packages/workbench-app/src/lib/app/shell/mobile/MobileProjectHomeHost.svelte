@@ -66,7 +66,7 @@ const activityById = $derived(workspaceSelectors.conversationActivityById);
 
 <MobileScreen
   title={project?.name ?? "Project"}
-  subtitle={project ? tildePath(project.dir, homeDir) : undefined}
+  subtitle={project ? tildePath(project.directory, homeDir) : undefined}
   onBack={backFromMobileScreen}
   backLabel="Back to projects"
 >

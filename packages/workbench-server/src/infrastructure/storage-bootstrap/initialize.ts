@@ -3,16 +3,15 @@ import { dirname } from "node:path";
 import { type DaemonStartupProgress } from "@nervekit/contracts/storage";
 import {
   defaultSettings,
-  NERVE_HOME_MANIFEST,
   type Settings,
+  type NerveHomeClass,
   settingsSchema,
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
-import { version } from "../../app/version.js";
-import { atomicWriteJson, pathExists, writeTextFileIfMissing } from "./json.js";
+import { pathExists, writeTextFileIfMissing } from "./json.js";
+import { runMigrations } from "../migrations/framework/runner.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
-import { CanonicalStore } from "../persistence/canonical-sqlite/index.js";
 import {
   configurationWithSettings,
   initializeHomeConfiguration,
@@ -21,16 +20,11 @@ import {
   writeHomeConfiguration,
 } from "../configuration/home-configuration.js";
 import { inspectNerveHome } from "./state-layout.js";
-import { acquireStorageStartupLock } from "./startup-lock.js";
-import { EncryptedFileSecretProvider } from "../secrets/index.js";
-import { writeStorageMigrationFailureReport } from "../storage-migrations/runner/failure-report.js";
-import { legacyReadCompatibilityReleases } from "../storage-migrations/read-compatibility-evidence.js";
-import { STORAGE_READ_COMPATIBILITY_ID } from "../storage-migrations/read-compatibility.js";
 import {
-  createFreshStorage,
-  prepareExistingStorage,
-} from "../storage-migrations/runner/service.js";
-
+  acquireStorageStartupLock,
+  type StorageStartupLock,
+} from "./startup-lock.js";
+import { EncryptedFileSecretProvider } from "../secrets/index.js";
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
   ["secretsPath", 0o700],
@@ -62,7 +56,6 @@ export interface InitializedStorage {
   /** Runtime projection used by the existing application feature APIs. */
   settings: Settings;
   localToken: string;
-  canonicalStore: CanonicalStore;
   timings: StorageInitializationTimings;
 }
 
@@ -83,6 +76,10 @@ export async function initializeStorage(
   home = resolveDataDir(),
   options: {
     reportStartupProgress?: (progress: DaemonStartupProgress) => void;
+    /** Applies only to a fresh home; existing homes retain their class. */
+    freshHomeClass?: NerveHomeClass;
+    /** Caller retains ownership through daemon publication and releases it. */
+    startupLock?: StorageStartupLock;
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
@@ -92,22 +89,40 @@ export async function initializeStorage(
     message: "Checking local storage",
   });
 
-  const startupLock = await acquireStorageStartupLock(home);
+  if (
+    options.startupLock &&
+    options.startupLock.path !== `${home}.startup.lock`
+  ) {
+    throw new Error("Storage startup lock does not belong to this home.");
+  }
+  const startupLock =
+    options.startupLock ?? (await acquireStorageStartupLock(home));
   try {
     const homeInspectionStartedAt = performance.now();
-    const inspection = await inspectNerveHome(home);
+    const migrationResult = await runMigrations(home, {
+      lock: startupLock,
+      freshHomeClass: options.freshHomeClass,
+      onLog: (log) =>
+        options.reportStartupProgress?.({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: "Upgrading local storage",
+          log,
+        }),
+      onProgress: (migration) =>
+        options.reportStartupProgress?.({
+          type: "nerve.startup.progress",
+          phase: "storage-migration",
+          message: "Upgrading local storage",
+          migration,
+        }),
+    });
     const homeInspectionMs = Math.round(
       performance.now() - homeInspectionStartedAt,
     );
-    if (inspection.kind === "unsupported") throw new Error(inspection.reason);
-    const fresh = inspection.kind === "missing" || inspection.kind === "empty";
+    const fresh = migrationResult.fresh;
     await mkdir(paths.home, { recursive: true, mode: 0o700 });
     await chmod(paths.home, 0o700).catch(() => undefined);
-    if (fresh) {
-      await atomicWriteJson(paths.manifestPath, NERVE_HOME_MANIFEST, 0o600);
-    } else if (!(await pathExists(paths.sqlitePath))) {
-      throw new Error("Nerve SQLite state at data/nerve.sqlite is missing.");
-    }
     for (const [key, mode] of HOME_DIRECTORIES) {
       const directory = paths[key];
       await mkdir(directory, { recursive: true, mode });
@@ -123,60 +138,13 @@ export async function initializeStorage(
     } else {
       await secretProvider.validate();
     }
-    const sqliteMigrationCheckStartedAt = performance.now();
-    const identity = storageBuildIdentity();
-    const reportMigration = (progress: { message: string }) =>
-      options.reportStartupProgress?.({
-        type: "nerve.startup.progress",
-        phase: "storage-migration",
-        message: progress.message,
-      });
-    try {
-      if (fresh) {
-        reportMigration({ message: "Creating verified storage" });
-        await createFreshStorage({ paths, ...identity });
-      } else {
-        await prepareExistingStorage({
-          paths,
-          ...identity,
-          report: reportMigration,
-        });
-      }
-    } catch (error) {
-      await writeStorageMigrationFailureReport(
-        paths.migrationFailureReportPath,
-        {
-          runId: crypto.randomUUID(),
-          failedAt: new Date(),
-          failure: {
-            code:
-              error instanceof Error ? error.name : "STORAGE_MIGRATION_ERROR",
-            phase: "apply",
-            message: error instanceof Error ? error.message : String(error),
-            retryable: true,
-            appVersion: identity.appVersion,
-            ...(identity.gitSha ? { gitSha: identity.gitSha } : {}),
-          },
-          steps: [],
-        },
-      ).catch(() => undefined);
-      throw error;
-    }
-    const sqliteMigrationApplyMs = Math.round(
-      performance.now() - sqliteMigrationCheckStartedAt,
-    );
+    const sqliteMigrationApplyMs = 0;
     const sqliteMigrationCheckMs = 0;
-    const canonicalOpenStartedAt = performance.now();
-    const canonicalStore = new CanonicalStore(paths.sqlitePath);
-    await canonicalStore.initialize();
-    const canonicalOpenMs = Math.round(
-      performance.now() - canonicalOpenStartedAt,
-    );
+    const canonicalOpenMs = 0;
     const settings = settingsFromConfiguration(configuration);
 
     if (!(await pathExists(paths.localTokenPath))) {
       if (!fresh) {
-        await canonicalStore.close();
         throw new Error("Nerve daemon token is missing.");
       }
       const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
@@ -189,7 +157,6 @@ export async function initializeStorage(
     await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
     const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
     if (!localToken) {
-      await canonicalStore.close();
       throw new Error(
         `The local authentication token at ${paths.localTokenPath} is empty.`,
       );
@@ -200,7 +167,6 @@ export async function initializeStorage(
       configuration,
       settings,
       localToken,
-      canonicalStore,
       timings: {
         homeInspectionMs,
         sqliteMigrationCheckMs,
@@ -209,29 +175,8 @@ export async function initializeStorage(
       },
     };
   } finally {
-    await startupLock.release();
+    if (!options.startupLock) await startupLock.release();
   }
-}
-
-function storageBuildIdentity(): {
-  buildId: string;
-  readCompatibilityId: string;
-  legacyReadCompatibilityReleases: readonly string[];
-  appVersion: string;
-  gitSha?: string;
-} {
-  const appVersion = version;
-  const gitSha = process.env.NERVE_GIT_SHA?.trim() || undefined;
-  const developmentMarker = process.env.NODE_ENV === "production" ? "" : ":dev";
-  return {
-    appVersion,
-    ...(gitSha ? { gitSha } : {}),
-    buildId: `${appVersion}:${gitSha ?? "source"}${developmentMarker}`,
-    readCompatibilityId: STORAGE_READ_COMPATIBILITY_ID,
-    legacyReadCompatibilityReleases: legacyReadCompatibilityReleases(
-      STORAGE_READ_COMPATIBILITY_ID,
-    ),
-  };
 }
 
 export async function writeSettings(

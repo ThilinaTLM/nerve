@@ -1,5 +1,5 @@
 import type { StorageUsageResponse } from "@nervekit/contracts/storage";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 export async function getStorageUsage(): Promise<StorageUsageResponse> {
-  return (await protocolRequest("storage.usage.get", {})).result;
+  return await requestWorkbench("storage.usage.get", {});
 }

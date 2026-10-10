@@ -1,29 +1,31 @@
+import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
+import type {
+  ApprovalWithToolCall,
+  PlanReviewResolveOptions,
+} from "$lib/presentation/view-models/conversation";
 import type {
   AgentRecord,
-  ApprovalWithToolCall,
-  CompletionItem,
-  ContextUsage,
   ConversationActiveRunSnapshot,
   ConversationEntry,
   ConversationRecord,
   ConversationTreeNode,
-  ModelInfo,
   PlanReviewRecord,
-  PermissionRuleSetSummary,
-  PlanReviewResolveOptions,
   ProjectRecord,
   QueuedPromptRecord,
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
+import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
+import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
-import type { RecoveryIssue } from "@nervekit/contracts/runs";
+
+import type { RecoveryIssue } from "$lib/presentation/view-models/conversation";
 import type {
   ConversationRunOutcome,
   ConversationTransientState,
-  PendingConversationState,
   TranscriptItem,
-} from "$lib/features/conversations/state/conversation-state.svelte";
+} from "$lib/presentation/state";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 
@@ -80,10 +82,10 @@ export type WorkbenchConversationAdapterProps = {
   onComposerChange?: (value: string) => void;
   onSubmit?: () => void;
   onAnswerUserQuestion?: (
-    questionId: string,
+    toolCallId: string,
     answer: string,
   ) => void | Promise<void>;
-  onDismissUserQuestion?: (questionId: string) => void | Promise<void>;
+  onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onAbort?: () => void;
   onCompact?: () => void;
   onNewConversationInProject?: (
@@ -93,30 +95,32 @@ export type WorkbenchConversationAdapterProps = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: AgentRecord["thinkingLevel"]) => void;
+  onThinkingLevelChange?: (
+    value: NonNullable<AgentRecord["thinkingLevel"]>,
+  ) => void;
   onModeChange?: (value: AgentRecord["mode"]) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
   onAcceptPlanReview?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
   onAcceptPlanReviewInNewChat?: (
-    id: string,
+    toolCallId: string,
     options?: PlanReviewResolveOptions,
   ) => void | Promise<void>;
-  onRejectPlanReview?: (id: string) => void | Promise<void>;
+  onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;

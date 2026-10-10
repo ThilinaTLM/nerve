@@ -1,17 +1,13 @@
+import type { Project } from "@nervekit/contracts/core";
 import { untrack } from "svelte";
-import type {
-  ProjectRecord,
-  StartTaskRequest,
-  TaskDefinition,
-  TaskRecord,
-} from "$lib/api";
+import type { StartTaskRequest, TaskDefinition, TaskRecord } from "$lib/api";
 import type { CancelTaskRequest } from "@nervekit/contracts/tasks";
 import type {
   CreateTaskDefinitionRequest,
   UpdateTaskDefinitionRequest,
 } from "@nervekit/contracts/task-definitions";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
-import { onEvent } from "$lib/application/events/event-bus";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
@@ -23,7 +19,7 @@ import {
   setTaskEntryRun,
   taskEntryKey,
 } from "$lib/features/tasks/state/task-tabs.svelte";
-import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
+import { refreshWorkbenchTasks } from "./task-events";
 import {
   createTaskDefinition,
   deleteTaskDefinition,
@@ -70,7 +66,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function createWorkbenchTaskPanelAdapter(
-  activeProject: () => ProjectRecord | undefined,
+  activeProject: () => Project | undefined,
   tasks: () => readonly TaskRecord[],
   selectedTask: () => TaskRecord | undefined,
   hostActions: WorkbenchTaskPanelHostActions,
@@ -87,12 +83,12 @@ export function createWorkbenchTaskPanelAdapter(
   const adapter = {
     get model(): TaskPanelModel {
       const project = activeProject();
-      const noProject = unavailable("Select a project to manage tasks.");
+      const noProject = unavailable("Select a project to manage launches.");
       const noRunner = unavailable(
-        "Task execution is unavailable in this host.",
+        "Launch execution is unavailable in this host.",
       );
       const noAction = unavailable(
-        "This task operation is unavailable in this host.",
+        "This launch operation is unavailable in this host.",
       );
       const action = project ? enabledCapability : noProject;
       return {
@@ -100,14 +96,14 @@ export function createWorkbenchTaskPanelAdapter(
           ? { available: true }
           : {
               available: false,
-              message: "Select a project to manage its tasks.",
+              message: "Select a project to manage its launches.",
             },
         tasks: tasks(),
         selectedTask: selectedTask(),
         selectedLogs: taskState.taskLogs,
         logsLoading: false,
         definitions: definitions.map(normalizeTaskDefinition),
-        defaultCwd: project?.dir ?? "",
+        defaultCwd: project?.directory ?? "",
         definitionsLoading: loadingDefinitions,
         runningDefinitionId,
         portConflict,
@@ -157,15 +153,15 @@ export function createWorkbenchTaskPanelAdapter(
         return;
       }
       portConflict = undefined;
-      await loadWorkspaceState();
+      await refreshWorkbenchTasks();
       notify.success(
         result.disposition === "focused_existing"
-          ? "Task is already running"
-          : "Task started",
+          ? "Launch is already running"
+          : "Launch started",
         { description: definition.label ?? definition.command },
       );
     } catch (error) {
-      showCriticalError("Could not run task", errorMessage(error));
+      showCriticalError("Could not run launch", errorMessage(error));
     } finally {
       runningDefinitionId = undefined;
     }
@@ -228,9 +224,9 @@ export function createWorkbenchTaskPanelAdapter(
           runPolicy: input.runPolicy ?? "single",
         });
         upsertCachedTaskDefinition(project.id, created);
-        notify.success("Task saved");
+        notify.success("Launch saved");
       } catch (error) {
-        notify.error(`Could not save task: ${errorMessage(error)}`);
+        notify.error(`Could not save launch: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -247,9 +243,9 @@ export function createWorkbenchTaskPanelAdapter(
           runPolicy: input.runPolicy ?? item.runPolicy,
         });
         upsertCachedTaskDefinition(project.id, updated);
-        notify.success("Task updated");
+        notify.success("Launch updated");
       } catch (error) {
-        notify.error(`Could not update task: ${errorMessage(error)}`);
+        notify.error(`Could not update launch: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -260,9 +256,9 @@ export function createWorkbenchTaskPanelAdapter(
       try {
         await deleteTaskDefinition(project.id, item.id);
         removeCachedTaskDefinition(item.id);
-        notify.success("Saved task deleted");
+        notify.success("Saved launch deleted");
       } catch (error) {
-        notify.error(`Could not remove saved task: ${errorMessage(error)}`);
+        notify.error(`Could not remove saved launch: ${errorMessage(error)}`);
         throw error;
       }
     },
@@ -307,7 +303,7 @@ export function createWorkbenchTaskPanelAdapter(
       void loadTaskDefinitions(revalidation.projectId)
         .catch((error) =>
           notify.error(
-            `Could not load task definitions: ${errorMessage(error)}`,
+            `Could not load launch configurations: ${errorMessage(error)}`,
           ),
         )
         .finally(() => {

@@ -18,14 +18,14 @@ type Props = {
   includeBody?: boolean;
   detailsAction?: { label: string; onClick: () => void };
   onGrantApproval?: (
-    id: string,
+    toolCallId: string,
     scope?:
       | "single_call"
       | "always_conversation"
       | "always_project"
       | "always_user",
   ) => void | Promise<void>;
-  onDenyApproval?: (id: string) => void | Promise<void>;
+  onDenyApproval?: (toolCallId: string) => void | Promise<void>;
 };
 let {
   approval,
@@ -59,8 +59,12 @@ async function decide(
   decision = kind;
   actionError = undefined;
   try {
-    if (kind === "deny") await callback(approval.id);
-    else await callback(approval.id, kind === "approve" ? "single_call" : kind);
+    if (kind === "deny") await callback(approval.toolCallId);
+    else
+      await callback(
+        approval.toolCallId,
+        kind === "approve" ? "single_call" : kind,
+      );
   } catch (error) {
     actionError =
       error instanceof Error && error.message.trim()
@@ -95,7 +99,7 @@ function reviewedRuleLabel(): string {
 
 const meta = $derived<MetaItem[]>([
   ...presentation.secondary,
-  { text: approval.risk, tone: riskTone(approval.risk) },
+  { text: approval.risk ?? "", tone: riskTone(approval.risk) },
 ]);
 const hasSuggestion = $derived(
   approval.suggestedRules.length > 0 || approval.suggestedExceptions.length > 0,

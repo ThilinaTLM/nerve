@@ -1,3 +1,4 @@
+import { onWorkbenchReconnect } from "$lib/application/events/workbench-event-bus";
 import { clearProjectMonitor, syncProjectMonitor } from "../api/filesystem.api";
 import {
   ensureFileExplorerRoot,
@@ -47,6 +48,7 @@ export function startFilePanelController({
     refresh: requestRefresh,
     intervalMs: false,
   });
+  const unregisterReconnect = onWorkbenchReconnect(requestRefresh);
   const unregisterEvents = registerFileExplorerEventHandler(
     projectId,
     (change) => {
@@ -68,6 +70,7 @@ export function startFilePanelController({
       if (stopped) return;
       stopped = true;
       unregisterEvents();
+      unregisterReconnect();
       scheduler.stop();
       queue.stop();
       void clearProjectMonitor(projectId);

@@ -3,7 +3,7 @@ import type {
   PromptSuggestionDiagnostic,
   PromptSuggestionStatus,
   PromptSuggestionTrustRequest,
-} from "$lib/api";
+} from "../api/prompt-suggestions.api";
 
 export const promptSuggestionsState = $state({
   suggestions: [] as PromptSuggestion[],

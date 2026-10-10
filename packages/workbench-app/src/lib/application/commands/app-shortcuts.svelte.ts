@@ -1,4 +1,5 @@
-import type { AgentRecord, ModelInfo } from "$lib/api";
+import type { ConversationConfig } from "@nervekit/contracts/core";
+import type { ModelInfo } from "$lib/api";
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
 import {
   isEditableTarget,
@@ -42,12 +43,12 @@ type AppShortcutsOptions = {
   usableModels: () => ModelInfo[];
   selectedModelKey: () => string;
   setComposerModel: (value: string) => void | Promise<void>;
-  selectedThinkingLevel: () => AgentRecord["thinkingLevel"];
+  selectedThinkingLevel: () => ConversationConfig["reasoningLevel"];
   setComposerThinkingLevel: (
-    value: AgentRecord["thinkingLevel"],
+    value: ConversationConfig["reasoningLevel"],
   ) => void | Promise<void>;
-  selectedMode: () => AgentRecord["mode"];
-  setComposerMode: (value: AgentRecord["mode"]) => void | Promise<void>;
+  selectedMode: () => ConversationConfig["mode"];
+  setComposerMode: (value: ConversationConfig["mode"]) => void | Promise<void>;
   /** Dock ids are inlined so the application command layer stays out of presentation. */
   togglePanelDock: (dock: "left" | "right" | "bottom") => void;
 };

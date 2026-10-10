@@ -7,7 +7,8 @@ import ScrollText from "@lucide/svelte/icons/scroll-text";
 import type { Component } from "svelte";
 import { buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
-import type { ConversationRecord } from "$lib/api";
+
+import type { ConversationRecord } from "$lib/presentation/view-models/conversation";
 
 let {
   activeConversation,

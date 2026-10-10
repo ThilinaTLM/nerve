@@ -4,13 +4,7 @@ import {
 } from "@nervekit/contracts/completions";
 import type { GithubPr } from "@nervekit/contracts/git";
 import type { TaskRecord } from "@nervekit/contracts/tasks";
-
-const activeTaskStatuses = new Set([
-  "starting",
-  "running",
-  "ready",
-  "stopping",
-]);
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 function includesQuery(
   values: Array<string | null | undefined>,
@@ -22,10 +16,25 @@ function includesQuery(
   );
 }
 
-export function taskReferenceCompletions(
+export async function fileCompletions(
+  projectId: string | undefined,
+  query: string,
+): Promise<CompletionItem[]> {
+  if (!projectId) return [];
+  return (
+    await requestWorkbench("completion.files.list", {
+      projectId,
+      q: query,
+      limit: FILE_COMPLETION_RESULT_LIMIT,
+    })
+  ).items;
+}
+
+function taskCompletions(
   tasks: readonly TaskRecord[],
   query: string,
 ): CompletionItem[] {
+  const active = new Set(["starting", "running", "ready", "stopping"]);
   return [...tasks]
     .filter((task) =>
       includesQuery(
@@ -33,28 +42,23 @@ export function taskReferenceCompletions(
         query,
       ),
     )
-    .sort((left, right) => {
-      const activeDelta =
-        Number(activeTaskStatuses.has(right.status)) -
-        Number(activeTaskStatuses.has(left.status));
-      return activeDelta || right.updatedAt.localeCompare(left.updatedAt);
-    })
+    .sort(
+      (a, b) =>
+        Number(active.has(b.status)) - Number(active.has(a.status)) ||
+        b.updatedAt.localeCompare(a.updatedAt),
+    )
     .slice(0, FILE_COMPLETION_RESULT_LIMIT)
-    .map((task) => {
-      const name = task.displayName ?? task.name ?? task.command ?? task.id;
-      return {
-        label: task.id,
-        displayLabel: name,
-        detail: `${task.id} · ${task.status}`,
-        info: task.command,
-        kind: "task" as const,
-      };
-    });
+    .map((task) => ({
+      label: task.id,
+      displayLabel: task.displayName ?? task.name ?? task.command,
+      detail: `${task.id} · ${task.status}`,
+      info: task.command,
+      kind: "task",
+    }));
 }
 
-export function pullRequestReferenceCompletions(
+function pullRequestCompletions(
   prs: readonly GithubPr[],
-  repo: string,
   query: string,
 ): CompletionItem[] {
   return prs
@@ -75,11 +79,35 @@ export function pullRequestReferenceCompletions(
     .map((pr) => ({
       label: pr.url,
       displayLabel: `#${pr.number} ${pr.title}`,
-      detail:
-        repo === "."
-          ? `${pr.state} · ${pr.url}`
-          : `${repo} · ${pr.state} · ${pr.url}`,
+      detail: `${pr.state} · ${pr.url}`,
       info: pr.url,
-      kind: "pull_request" as const,
+      kind: "pull_request",
     }));
+}
+
+export async function referenceCompletions(
+  projectId: string | undefined,
+  kind: "task" | "pull_request",
+  query: string,
+): Promise<CompletionItem[]> {
+  if (!projectId) return [];
+  if (kind === "task") {
+    const { tasks } = await requestWorkbench("launch.list", {});
+    return taskCompletions(
+      tasks.filter((task) => task.projectId === projectId),
+      query,
+    );
+  }
+  const { prs } = await requestWorkbench("github.pr.list", {
+    projectId,
+    repo: ".",
+    filters: {
+      author: "any",
+      drafts: "include",
+      title: "",
+      labels: [],
+      sort: "updated-desc",
+    },
+  });
+  return pullRequestCompletions(prs, query);
 }

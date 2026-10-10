@@ -6,21 +6,30 @@ import {
   websocketTransport,
   type WebSocketLike,
 } from "@nervekit/protocol/adapters";
-import { parseConversationStream } from "@nervekit/contracts/events";
-import { type ProtocolV1Message } from "@nervekit/contracts/wire";
+import { isWorkbenchOperation } from "@nervekit/contracts/events";
+import { WorkbenchConnection } from "./workbench-connection.js";
+import { createConversationProtocolSession } from "./conversation-channel.js";
+import {
+  STREAM_SUBSCRIPTION_CAPABILITY,
+  type ProtocolV1Message,
+} from "@nervekit/contracts/wire";
 import type WebSocket from "ws";
 import type { WebSocketServer } from "ws";
 import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
 type ProtocolWebSocketContext = ServerAdapterContexts["websocket"];
+import { allOperationDefinitions } from "@nervekit/contracts/operations";
+const WORKBENCH_CAPABILITIES = [
+  "encoding.json",
+  "event.notify",
+  STREAM_SUBSCRIPTION_CAPABILITY,
+  ...allOperationDefinitions()
+    .filter((definition) => isWorkbenchOperation(definition.method))
+    .map((definition) => definition.requiredCapability)
+    .filter((capability): capability is string => Boolean(capability)),
+];
 import { isWebSocketAuthorized } from "../../app/server.js";
-import {
-  PROTOCOL_CAPABILITIES,
-  PROTOCOL_HEARTBEAT,
-  PROTOCOL_SESSION_LIMITS,
-  WORKSPACE_STREAM,
-  conversationStream,
-} from "./constants.js";
+import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import { workbenchWebSocketRpcDispatcher } from "./http-dispatcher.js";
 import { orchestratorSource } from "./messages.js";
 
@@ -61,7 +70,10 @@ export function installProtocolWebSocketUpgrade(
       request.url ?? "/",
       `http://${state.host}:${state.port}`,
     );
-    if (url.pathname !== "/ws") {
+    if (
+      url.pathname !== "/ws/workbench" &&
+      url.pathname !== "/ws/conversations"
+    ) {
       socket.destroy();
       return;
     }
@@ -71,9 +83,11 @@ export function installProtocolWebSocketUpgrade(
       return;
     }
     webSockets.handleUpgrade(request, socket, head, (ws) => {
-      const binding = createLocalProtocolSession(ws, state, () =>
-        sessions.delete(binding),
-      );
+      const createSession =
+        url.pathname === "/ws/conversations"
+          ? createConversationProtocolSession
+          : createLocalProtocolSession;
+      const binding = createSession(ws, state, () => sessions.delete(binding));
       sessions.add(binding);
       ws.on("close", binding.dispose);
       ws.on("error", binding.dispose);
@@ -87,6 +101,7 @@ export function createLocalProtocolSession(
   state: ProtocolWebSocketContext,
   onDispose: () => void = () => undefined,
 ): LocalProtocolSession {
+  const workbenchConnection = new WorkbenchConnection();
   const monitorOwner = `monitor_${crypto.randomUUID()}`;
   const diagnostics = state.performanceDiagnostics.enabled
     ? state.performanceDiagnostics
@@ -99,7 +114,6 @@ export function createLocalProtocolSession(
     target: { role: "ui" },
   });
   const transport = websocketTransport(ws as unknown as WebSocketLike);
-  let unsubscribeSequenced: () => void = () => undefined;
   let unsubscribeNotify: () => void = () => undefined;
 
   let resolveClosed: () => void = () => undefined;
@@ -113,7 +127,6 @@ export function createLocalProtocolSession(
     diagnostics?.count("websocket.sessionClosed");
     updateActiveSessions(state, -1);
     try {
-      unsubscribeSequenced();
       unsubscribeNotify();
       session.dispose();
       connection.dispose();
@@ -131,7 +144,6 @@ export function createLocalProtocolSession(
   };
   const closeProtocolError = async () => {
     if (disposed) return;
-    unsubscribeSequenced();
     unsubscribeNotify();
     try {
       await session.shutdown("protocol_error", "Invalid protocol frame");
@@ -146,8 +158,12 @@ export function createLocalProtocolSession(
     acceptingPeer: peer,
     allowedPeerRoles: ["ui"],
     createMessage: messages,
-    capabilities: PROTOCOL_CAPABILITIES,
+    capabilities: WORKBENCH_CAPABILITIES,
     limits: PROTOCOL_SESSION_LIMITS,
+    onMessageTooLarge: (message) =>
+      state.logger
+        .warn(`Oversized ${message.kind} skipped or resync required`)
+        .catch(() => undefined),
     heartbeat: PROTOCOL_HEARTBEAT,
     sessionId: () => `ses_${crypto.randomUUID()}`,
     send: async (message): Promise<void> => {
@@ -157,39 +173,18 @@ export function createLocalProtocolSession(
     rpcDispatcher: ({ capabilities }) =>
       workbenchWebSocketRpcDispatcher(state, capabilities, monitorOwner),
     subscriptions: {
-      async resolve(cursors) {
-        // Resolve each stream independently. Unknown or deleted streams are
-        // omitted and degrade to "unavailable" in the session layer; they
-        // must not reject the whole set and silence every other stream.
-        const streams = [];
-        for (const cursor of cursors) {
-          try {
-            if (cursor.stream === WORKSPACE_STREAM) {
-              streams.push(await state.events.bounds(cursor.stream));
-              continue;
-            }
-            const conversationId = parseConversationStream(cursor.stream);
-            if (!conversationId) {
-              throw new Error(`Unknown stream ${cursor.stream}`);
-            }
-            state.conversationLifecycle.getConversation(conversationId);
-            streams.push(await state.events.bounds(cursor.stream));
-          } catch (error) {
-            await state.logger.warn("Stream subscription entry unavailable", {
-              context: { stream: cursor.stream },
-              error: boundedError(error),
-            });
-          }
-        }
-        return { accepted: true, streams };
+      async resolve() {
+        return { accepted: true, streams: [] };
       },
     },
-    readStream: (stream, fromSeq, limit) =>
-      state.events.readStream(stream, fromSeq, limit),
   });
   const connection = new ProtocolConnection({
     transport,
-    onMessage: async (message): Promise<void> => session.receive(message),
+    limits: PROTOCOL_SESSION_LIMITS,
+    onMessage: async (message): Promise<void> => {
+      workbenchConnection?.receive(message);
+      await session.receive(message);
+    },
     onProtocolError: () => {
       closeProtocolError().catch((error: unknown) => {
         void state.logger
@@ -209,26 +204,8 @@ export function createLocalProtocolSession(
       dispose();
     },
   });
-  unsubscribeSequenced = state.events.subscribeSequenced((stream, event) => {
-    diagnostics?.count("websocket.sequencedDelivery");
-    void session.publish(stream, event).catch((error: unknown) => {
-      if (disposed) return;
-      void state.logger
-        .warn("Protocol event publication failed", {
-          error: boundedError(error),
-        })
-        .catch(() => undefined);
-      dispose();
-    });
-    if (event.type === "conversation.deleted") {
-      const conversationId = (event.data as { conversationId?: unknown })
-        .conversationId;
-      if (typeof conversationId === "string") {
-        session.removeStream(conversationStream(conversationId));
-      }
-    }
-  });
   unsubscribeNotify = state.events.subscribeNotify((event) => {
+    if (!workbenchConnection.accepts(event)) return;
     diagnostics?.count("websocket.notifyDelivery");
     void session.notify(event).catch((error: unknown) => {
       if (disposed) return;
@@ -246,7 +223,6 @@ export function createLocalProtocolSession(
     dispose,
     async shutdown(message = "Daemon shutting down") {
       if (disposed) return;
-      unsubscribeSequenced();
       unsubscribeNotify();
       let failure: unknown;
       try {

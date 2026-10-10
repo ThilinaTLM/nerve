@@ -4,7 +4,12 @@ import FileDown from "@lucide/svelte/icons/file-down";
 import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import GitBranch from "@lucide/svelte/icons/git-branch";
-import type { AgentRecord } from "$lib/api";
+import type { AgentRecord } from "$lib/presentation/view-models/conversation";
+import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
+import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
+import { conversationContext } from "$lib/features/conversations/adapters/core-context.adapter";
+import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
+import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Progress } from "@nervekit/ui-kit/components/ui/progress";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
@@ -19,18 +24,9 @@ import { conversationUsageMetrics } from "$lib/presentation/usage/conversation-u
 import { setConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import SubagentTranscriptDialog from "$lib/presentation/tools/tool-call/SubagentTranscriptDialog.svelte";
 import {
-  compactActiveConversation,
-  conversationSelectors,
-} from "$lib/features/conversations";
-import {
   agentModelLabel,
   agentRowLabel,
 } from "$lib/features/conversations/views/context-agent-rows";
-import {
-  exportUrl,
-  systemPromptUrl,
-  workspaceSelectors,
-} from "$lib/application/workspace";
 import {
   backFromMobileScreen,
   pushMobileScreen,
@@ -48,15 +44,26 @@ let { route }: MobileScreenProps<"context"> = $props();
 // The transcript dialog renders tool cards that read conversation capabilities.
 setConversationUiCapabilities(workbenchConversationUiCapabilities());
 
-const conversation = $derived(
-  conversationSelectors.activeConversation?.id === route.conversationId
-    ? conversationSelectors.activeConversation
+let store = $state<ConversationStore>();
+$effect(() => {
+  const retained = retainConversationStore(route.conversationId);
+  store = retained.store;
+  void retained.ready.catch(() => undefined);
+  return retained.release;
+});
+const context = $derived(
+  store?.snapshot
+    ? conversationContext(store.snapshot, store.events, settingsState.models)
     : undefined,
 );
-const contextUsage = $derived(conversationSelectors.activeContextUsage);
+const conversation = $derived(context?.activeConversation);
+const contextUsage = $derived(context?.contextUsage);
 const contextWindow = $derived(
-  conversationSelectors.activeContextWindow || contextUsage?.contextWindow || 0,
+  context?.contextWindow ?? contextUsage?.contextWindow ?? 0,
 );
+const exportUrl: (kind: "json" | "md" | "html") => string | undefined = () =>
+  undefined;
+const systemPromptUrl = (): string | undefined => undefined;
 const tokens = $derived(contextUsage?.tokens ?? null);
 const percent = $derived(
   tokens != null && contextWindow > 0
@@ -72,15 +79,21 @@ const usageLabel = $derived(
       : "Usage unknown",
 );
 const metrics = $derived(
-  conversationUsageMetrics(conversationSelectors.activeConversationUsage),
-);
-const agents = $derived(
-  conversationSelectors.conversationAgents.filter(
-    (agent: AgentRecord) => agent.conversationId === route.conversationId,
+  conversationUsageMetrics(
+    context?.conversationUsage ?? summarizeConversationUsage([]),
   ),
 );
-const agentActivities = $derived(workspaceSelectors.agentActivities);
-const compacting = $derived(conversationSelectors.compacting);
+const agents = $derived(context?.conversationAgents ?? []);
+const agentActivities = $derived(context?.agentActivities ?? {});
+let compacting = $state(false);
+async function compactActiveConversation() {
+  compacting = true;
+  try {
+    await store?.control("compact");
+  } finally {
+    compacting = false;
+  }
+}
 
 let compactOpen = $state(false);
 let transcriptAgent = $state<AgentRecord>();
@@ -203,18 +216,22 @@ function tokensLabel(value: number): string {
           pushMobileScreen({ kind: "git", projectId: conversation.projectId })}
       />
     {/if}
-    <MobileListRow
-      title="Export as Markdown"
-      icon={FileDown}
-      chevron={false}
-      onclick={() => openUrl(exportUrl("md"))}
-    />
-    <MobileListRow
-      title="System prompt"
-      icon={FileText}
-      chevron={false}
-      onclick={() => openUrl(systemPromptUrl())}
-    />
+    {#if exportUrl("md")}
+      <MobileListRow
+        title="Export as Markdown"
+        icon={FileDown}
+        chevron={false}
+        onclick={() => openUrl(exportUrl("md"))}
+      />
+    {/if}
+    {#if systemPromptUrl()}
+      <MobileListRow
+        title="System prompt"
+        icon={FileText}
+        chevron={false}
+        onclick={() => openUrl(systemPromptUrl())}
+      />
+    {/if}
   </MobileSection>
 </MobileScreen>
 

@@ -1,3 +1,5 @@
+import { selection } from "./selection.svelte";
+import { pendingConversations } from "./pending-conversations.svelte";
 import { SvelteSet } from "svelte/reactivity";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -146,6 +148,10 @@ export function reorderCenterTab(tab: CenterTabIdentity, targetIndex: number) {
 export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
   if (tab) addCenterTab(tab);
   workspaceState.activeCenterTab = tab;
+  if (tab?.kind === "pending-conversation") {
+    selection.conversationId = undefined;
+    selection.projectId = pendingConversations.get(tab.id)?.projectId;
+  }
   if (tab) recordTabActivation(tab);
   else recordTabsChanged();
 }

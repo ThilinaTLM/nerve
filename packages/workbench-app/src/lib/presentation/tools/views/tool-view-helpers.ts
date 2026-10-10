@@ -1,15 +1,17 @@
+import { storedToolResultSchema } from "@nervekit/contracts/core";
 import {
-  type TodoItem,
   toolExecutionResultSchema,
   toolOutputLimitsSchema,
   truncationDetailsSchema,
 } from "@nervekit/contracts/tools";
+import { type TodoItem } from "@nervekit/contracts/tools";
 import {
   relativePathForDisplay,
   resolveDisplayPath,
 } from "@nervekit/ui-kit/display/path-links";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
-import type { ConversationLiveToolOutputSnapshot } from "@nervekit/contracts/conversations";
+
+import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
 import type { GrepMatchView, GroupedMatches } from "./tool-view-types";
 
 /** Lines/items shown in the bounded transcript preview. */
@@ -109,17 +111,21 @@ function executionResultFromAgentToolResult(
   return result;
 }
 
+const displayedToolResultSchema = storedToolResultSchema.or(
+  toolExecutionResultSchema,
+);
+
 export function parseToolExecutionResult(value: unknown) {
-  const direct = toolExecutionResultSchema.safeParse(value);
+  const direct = displayedToolResultSchema.safeParse(value);
   if (direct.success) return direct.data;
   const parsedRecord = asRecord(value);
   if (Object.keys(parsedRecord).length === 0) return undefined;
   const agentResult = executionResultFromAgentToolResult(parsedRecord);
   if (agentResult) {
-    const parsedAgentResult = toolExecutionResultSchema.safeParse(agentResult);
+    const parsedAgentResult = displayedToolResultSchema.safeParse(agentResult);
     if (parsedAgentResult.success) return parsedAgentResult.data;
   }
-  const parsed = toolExecutionResultSchema.safeParse(parsedRecord);
+  const parsed = displayedToolResultSchema.safeParse(parsedRecord);
   return parsed.success ? parsed.data : undefined;
 }
 

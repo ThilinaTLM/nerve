@@ -18,7 +18,7 @@ import { pushMobileScreen } from "./mobile-shell.svelte";
 let {
   project,
 }: {
-  project?: { id: string; dir: string };
+  project?: { id: string; directory: string };
 } = $props();
 
 const RECENT_PROJECT_LIMIT = 8;

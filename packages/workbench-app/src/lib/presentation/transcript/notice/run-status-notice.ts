@@ -1,7 +1,5 @@
-import {
-  normalizeRunFailure,
-  type RunFailureCategory,
-} from "@nervekit/contracts/runs";
+import { normalizeRunFailure } from "$lib/presentation/view-models/failure-category";
+import { type RunFailureCategory } from "$lib/presentation/view-models/conversation";
 import type { RunStatusNotice } from "../../state/transcript-types";
 import type { NoticeChip, TranscriptNoticeModel } from "./notice-presentation";
 

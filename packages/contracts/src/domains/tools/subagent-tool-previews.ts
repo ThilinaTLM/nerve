@@ -2,7 +2,7 @@ import { z } from "zod";
 import {
   asyncSubagentOutcomeSchema,
   asyncSubagentStateSchema,
-} from "../agents/async-subagents.js";
+} from "../tools/async-subagents.js";
 
 /** Teammates retained by the subagent_list transcript preview. */
 export const SUBAGENT_LIST_PREVIEW_COUNT = 5;

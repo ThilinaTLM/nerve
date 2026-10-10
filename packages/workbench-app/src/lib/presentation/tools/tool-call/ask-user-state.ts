@@ -1,7 +1,7 @@
 import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
-} from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
 
 type AskUserToolCall = Pick<
   ToolCallTranscriptRecord,
@@ -11,7 +11,7 @@ type AskUserToolCall = Pick<
   | "projectId"
   | "toolName"
   | "status"
-  | "interactions"
+  | "interaction"
 >;
 
 /**
@@ -28,18 +28,15 @@ export function resolveAskUserQuestion(
   if (toolCall?.toolName !== "ask_user" || toolCall.status !== "waiting") {
     return undefined;
   }
-  const interaction = toolCall.interactions.find(
-    (candidate) => candidate.status === "pending",
-  );
-  if (!interaction || interaction.kind !== "user_input") return undefined;
+  const interaction = toolCall.interaction;
+  if (interaction?.kind !== "user_input" || interaction.status !== "pending")
+    return undefined;
 
-  const questionId = `question_${toolCall.id}_${interaction.ordinal}`;
-  if (projected?.id === questionId && projected.status === "pending") {
+  if (projected?.toolCallId === toolCall.id && projected.status === "pending") {
     return projected;
   }
 
   return {
-    id: questionId,
     toolCallId: toolCall.id,
     agentId: toolCall.agentId,
     conversationId: toolCall.conversationId,

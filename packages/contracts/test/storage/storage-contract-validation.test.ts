@@ -79,8 +79,7 @@ describe("storage cleanup contracts", () => {
       false,
     );
     assert.equal(
-      storageCleanupRequestSchema.safeParse({ rebuildSearchIndex: true })
-        .success,
+      storageCleanupRequestSchema.safeParse({ clearCache: true }).success,
       true,
     );
     assert.equal(

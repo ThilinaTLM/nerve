@@ -1,4 +1,4 @@
-import type { AnchorOverflow } from "@nervekit/contracts/conversations";
+import type { AnchorOverflow } from "@nervekit/contracts/core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { streamSimpleWithModel } from "../models/model-streaming.js";
 import type {

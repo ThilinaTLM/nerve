@@ -8,7 +8,6 @@ import type {
   AgentTool,
   AnyModel,
   QueueMode,
-  StreamFn,
   ThinkingLevel,
 } from "../agent/contracts/index.js";
 import {
@@ -84,7 +83,11 @@ import {
   type HarnessEventProcessingContext,
   processHarnessAgentEvent,
 } from "./lifecycle/event-processing.js";
-import { createHarnessStreamFn, executeHarnessTurn } from "./run/execution.js";
+import {
+  type HarnessStreamFn,
+  createHarnessStreamFn,
+  executeHarnessTurn,
+} from "./run/execution.js";
 import { cloneStreamOptions } from "./configuration/stream-options.js";
 import {
   type AgentHarnessTurnState,
@@ -97,7 +100,17 @@ export class AgentHarness<
   TPromptTemplate extends PromptTemplate = PromptTemplate,
   TTool extends AgentTool = AgentTool,
 > {
-  readonly env: ExecutionEnv;
+  private currentEnv: ExecutionEnv;
+  get env(): ExecutionEnv {
+    return this.currentEnv;
+  }
+  private readonly beforeProviderDispatch?: AgentHarnessOptions["beforeProviderDispatch"];
+  private readonly hasPendingTurnInput?: () => Promise<boolean>;
+  private readonly prepareTurn?: AgentHarnessOptions<
+    TSkill,
+    TPromptTemplate,
+    TTool
+  >["prepareTurn"];
   private conversation: Conversation;
   private readonly runState: HarnessRunState;
   private model: AnyModel;
@@ -120,7 +133,10 @@ export class AgentHarness<
   >;
   private readonly maxParallelToolCalls: number | undefined;
   constructor(options: AgentHarnessOptions<TSkill, TPromptTemplate, TTool>) {
-    this.env = options.env;
+    this.currentEnv = options.env;
+    this.prepareTurn = options.prepareTurn;
+    this.beforeProviderDispatch = options.beforeProviderDispatch;
+    this.hasPendingTurnInput = options.hasPendingTurnInput;
     this.conversation = options.conversation;
     this.resources = options.resources ?? {};
     this.streamOptions = cloneStreamOptions(options.streamOptions);
@@ -268,9 +284,24 @@ export class AgentHarness<
     };
   }
 
-  private async createTurnState(): Promise<
-    AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>
-  > {
+  private async createTurnState(
+    refresh = false,
+  ): Promise<AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>> {
+    const snapshot = await this.prepareTurn?.({
+      refresh,
+      signal: this.runAbortController?.signal,
+    });
+    if (snapshot) {
+      const tools = createToolMap(snapshot.tools);
+      this.validateToolNames(snapshot.activeToolNames, tools);
+      this.model = snapshot.model;
+      this.thinkingLevel = snapshot.thinkingLevel;
+      this.tools = tools;
+      this.activeToolNames = [...snapshot.activeToolNames];
+      this.resources = cloneHarnessResources(snapshot.resources);
+      this.systemPrompt = snapshot.systemPrompt;
+      this.currentEnv = snapshot.env ?? this.currentEnv;
+    }
     return createAgentHarnessTurnState({
       env: this.env,
       conversation: this.conversation,
@@ -297,8 +328,9 @@ export class AgentHarness<
 
   private createStreamFn(
     getTurnState: () => AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
-  ): StreamFn {
+  ): HarnessStreamFn {
     return createHarnessStreamFn({
+      beforeProviderDispatch: this.beforeProviderDispatch,
       getTurnState,
       getApiKeyAndHeaders: this.getApiKeyAndHeaders,
       emitBeforeProviderRequest: (model, conversationId, streamOptions) =>
@@ -332,10 +364,28 @@ export class AgentHarness<
     setTurnState: (
       turnState: AgentHarnessTurnState<TSkill, TPromptTemplate, TTool>,
     ) => void,
+    streamFn: HarnessStreamFn,
+    initialSystemPrompt?: string,
   ): AgentLoopConfig {
+    let invocationSystemPrompt = initialSystemPrompt;
     const turnState = getTurnState();
     return {
       model: turnState.model,
+      prepareProviderDispatch: async () => {
+        const result = await streamFn.prepareRequest();
+        if (result.kind === "ready") return result;
+        await this.flushPendingConversationWrites();
+        const refreshed = await this.createTurnState(true);
+        setTurnState(refreshed);
+        return {
+          kind: "refresh",
+          update: {
+            context: this.createContext(refreshed, invocationSystemPrompt),
+            model: refreshed.model,
+            thinkingLevel: refreshed.thinkingLevel,
+          },
+        };
+      },
       maxParallelToolCalls: this.maxParallelToolCalls,
       reasoning:
         turnState.thinkingLevel === "off" ? undefined : turnState.thinkingLevel,
@@ -378,6 +428,8 @@ export class AgentHarness<
           : undefined;
       },
       prepareNextTurn: async (context) => {
+        // before_agent_start overrides belong only to the initial logical invocation.
+        invocationSystemPrompt = undefined;
         await this.flushPendingConversationWrites();
         const boundaryResult = await this.emitHook({
           type: "iteration_boundary",
@@ -393,9 +445,20 @@ export class AgentHarness<
             boundaryResult.followUp,
           );
         }
+        if (
+          !context.hasMoreToolCalls &&
+          this.hasPendingTurnInput &&
+          !this.steerQueue.length &&
+          !this.followUpQueue.length &&
+          !(await this.hasPendingTurnInput())
+        )
+          return undefined;
         const nextTurnState = await this.createTurnState();
         setTurnState(nextTurnState);
         return {
+          continue: ["user", "harness"].includes(
+            nextTurnState.messages.at(-1)?.role ?? "",
+          ),
           context: this.createContext(nextTurnState),
           model: nextTurnState.model,
           thinkingLevel: nextTurnState.thinkingLevel,
@@ -484,8 +547,18 @@ export class AgentHarness<
       emitBeforeAgentStart: (event) => this.emitHook(event),
       createContext: (state, systemPrompt) =>
         this.createContext(state, systemPrompt),
-      createLoopConfig: (getTurnState, setTurnState) =>
-        this.createLoopConfig(getTurnState, setTurnState),
+      createLoopConfig: (
+        getTurnState,
+        setTurnState,
+        streamFn,
+        initialSystemPrompt,
+      ) =>
+        this.createLoopConfig(
+          getTurnState,
+          setTurnState,
+          streamFn,
+          initialSystemPrompt,
+        ),
       createStreamFn: (getTurnState) => this.createStreamFn(getTurnState),
       handleAgentEvent: (event, signal) => this.handleAgentEvent(event, signal),
       emitRunFailure: (error, aborted, signal, model) =>
@@ -544,8 +617,8 @@ export class AgentHarness<
       startRunPromise: () => harness.startRunPromise(),
       createTurnState: () => harness.createTurnState(),
       createContext: (turnState) => harness.createContext(turnState),
-      createLoopConfig: (getTurnState, setTurnState) =>
-        harness.createLoopConfig(getTurnState, setTurnState),
+      createLoopConfig: (getTurnState, setTurnState, streamFn) =>
+        harness.createLoopConfig(getTurnState, setTurnState, streamFn),
       handleAgentEvent: (event, signal) =>
         harness.handleAgentEvent(event, signal),
       createStreamFn: (getTurnState) => harness.createStreamFn(getTurnState),
@@ -850,6 +923,11 @@ export class AgentHarness<
     this.streamOptions = cloneStreamOptions(streamOptions);
   }
 
+  /** Interrupt only the active turn; durable input remains owned by the caller. */
+  interruptTurn(): void {
+    interruptHarnessRun(this.configurationState());
+  }
+
   forcePush(): Promise<void> {
     if (promoteAllQueuedHarnessMessages(this.queueState()) === 0) {
       throw new AgentHarnessError(
@@ -858,7 +936,7 @@ export class AgentHarness<
       );
     }
     this.forceDrainAll = true;
-    interruptHarnessRun(this.configurationState());
+    this.interruptTurn();
     return Promise.resolve();
   }
 

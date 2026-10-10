@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "@nervekit/contracts/agents";
+import { asyncSubagentToolNames } from "@nervekit/contracts/tools";
 import type { Settings } from "$lib/api";
 
 export type ConfigurableToolName = Settings["tools"]["disabled"][number];

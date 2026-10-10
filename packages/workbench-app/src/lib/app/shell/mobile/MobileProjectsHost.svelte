@@ -28,7 +28,7 @@ const filtered = $derived.by(() => {
     (item) =>
       item.label.toLowerCase().includes(needle) ||
       item.project.name.toLowerCase().includes(needle) ||
-      item.project.dir.toLowerCase().includes(needle),
+      item.project.directory.toLowerCase().includes(needle),
   );
 });
 
@@ -42,7 +42,7 @@ function activityDetail(item: ProjectSwitcherItem): string {
       item.tasks.running === 1 ? "1 task" : `${item.tasks.running} tasks`,
     );
   if (parts.length) return parts.join(" · ");
-  return tildePath(item.project.dir, homeDir);
+  return tildePath(item.project.directory, homeDir);
 }
 
 function activityTone(item: ProjectSwitcherItem) {

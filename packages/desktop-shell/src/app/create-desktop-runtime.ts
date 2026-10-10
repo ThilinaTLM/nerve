@@ -22,6 +22,7 @@ import {
 } from "../settings/desktop-settings.js";
 import { createTrayController } from "../tray/tray.js";
 import { createDesktopMainWindow } from "../window/main-window.js";
+import { parseDevelopmentSlot } from "./development-marker.js";
 import { installNavigationGuards } from "../window/navigation-guards.js";
 import {
   resolveAppIconPath,
@@ -108,6 +109,9 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
           resolveAppIconPath,
           resolvePreloadPath,
           platform: process.platform,
+          developmentSlot: parseDevelopmentSlot(
+            process.env.NERVE_DESKTOP_DEV_SLOT,
+          ),
           log: desktopLog,
           redactUrl: redactUrlForLog,
           installNavigationGuards,

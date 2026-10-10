@@ -1,9 +1,10 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
+
 import type {
   ConversationEntry,
   ConversationTreeNode,
   ToolCallTranscriptRecord,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
 
 /**
  * Stable icon identifiers. The Svelte layer maps these to `@lucide/svelte`
@@ -289,11 +290,7 @@ export function classifyHistoryEntry(
     const humanLoop =
       INTERACTION_TOOLS.has(toolName) ||
       record?.risk === "interaction" ||
-      Boolean(
-        record?.interactions.some(
-          (interaction) => interaction.kind === "approval",
-        ),
-      );
+      record?.interaction?.kind === "approval";
     if (humanLoop) {
       badges.push({ icon: "hand", label: "human", tone: "warning" });
     }

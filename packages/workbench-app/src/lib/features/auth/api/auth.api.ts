@@ -13,7 +13,7 @@ import {
   apiPost,
   apiPut,
 } from "$lib/platform/http/api-client";
-import { protocolRequest } from "@nervekit/protocol/adapters";
+import { protocolRequest } from "$lib/application/startup/workbench-connection";
 
 export async function getAuthProviders(): Promise<AuthProviderMetadata[]> {
   return (await protocolRequest("auth.providers.list", {})).result.providers;

@@ -62,10 +62,6 @@ function validateTaskArgs(
       "failed",
       "timed_out",
       "cancelled",
-      "orphaned",
-      "recovered",
-      "interrupted",
-      "recovery_unknown",
     ]);
     if (args.status !== undefined && !statuses.has(args.status as string)) {
       throw new ToolValidationError("task_status received an invalid status.");

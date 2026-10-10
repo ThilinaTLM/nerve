@@ -1,4 +1,4 @@
-import type { CheckpointDetails } from "@nervekit/contracts/conversations";
+import type { CheckpointDetails } from "@nervekit/contracts/core";
 import type { ConversationTreeEntry } from "../conversation/entries.js";
 import { buildConversationContext } from "../conversation/context.js";
 import { convertToLlm } from "../messages/messages.js";

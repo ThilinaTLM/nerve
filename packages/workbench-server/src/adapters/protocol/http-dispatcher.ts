@@ -7,6 +7,7 @@ import {
   protocolRequestMessageSchema,
 } from "@nervekit/contracts/wire";
 import { operationDefinition } from "@nervekit/contracts/operations";
+import { isWorkbenchOperation } from "@nervekit/contracts/events";
 import {
   type OperationHandlerRegistry,
   RpcDispatcher,
@@ -20,7 +21,6 @@ import {
   protocolCodeForHttpError,
   translateApplicationError,
 } from "./application-error-translation.js";
-import { SqliteIdempotencyStore } from "./sqlite-idempotency-store.js";
 import { createProtocolMessage, orchestratorSource } from "./messages.js";
 import {
   bindWorkbenchOperationHandlers,
@@ -34,10 +34,6 @@ const MAX_PROTOCOL_HTTP_BODY_BYTES = 4 * 1024 * 1024;
 const workbenchDispatchers = new WeakMap<
   ProtocolAdapterContext,
   RpcDispatcher
->();
-const workbenchIdempotencyStores = new WeakMap<
-  ProtocolAdapterContext,
-  SqliteIdempotencyStore
 >();
 const workbenchCapabilities = WORKBENCH_OPERATION_METHODS.map(
   (method) => operationDefinition(method).requiredCapability,
@@ -184,7 +180,6 @@ export function workbenchRpcDispatcher(
   if (existing) return existing;
   const dispatcher = new RpcDispatcher({
     handlers: workbenchOperationHandlers(state),
-    idempotency: workbenchIdempotencyStore(state),
     acceptedCapabilities: workbenchCapabilities,
     translateError,
   });
@@ -192,24 +187,19 @@ export function workbenchRpcDispatcher(
   return dispatcher;
 }
 
-function workbenchIdempotencyStore(
-  state: ProtocolAdapterContext,
-): SqliteIdempotencyStore {
-  const existing = workbenchIdempotencyStores.get(state);
-  if (existing) return existing;
-  const store = new SqliteIdempotencyStore(state.storage.canonicalStore);
-  workbenchIdempotencyStores.set(state, store);
-  return store;
-}
-
 export function workbenchWebSocketRpcDispatcher(
   state: ProtocolAdapterContext,
   acceptedCapabilities: readonly string[],
   monitorOwner: string,
 ): RpcDispatcher {
+  const handlers = workbenchOperationHandlers(state, monitorOwner);
+  for (const method of Object.keys(handlers)) {
+    if (!isWorkbenchOperation(method)) {
+      delete handlers[method as keyof OperationHandlerRegistry];
+    }
+  }
   return new RpcDispatcher({
-    handlers: workbenchOperationHandlers(state, monitorOwner),
-    idempotency: workbenchIdempotencyStore(state),
+    handlers,
     acceptedCapabilities,
     sessionContext: true,
     translateError,

@@ -5,9 +5,11 @@ import {
   taskStartToolResultPreviewSchema,
   taskStatusToolResultPreviewSchema,
   taskToolSummarySchema,
-  type TaskCancelOutcomePreviewPayload,
-  type TaskToolSummaryPayload,
 } from "@nervekit/contracts/tools";
+import type {
+  TaskCancelOutcomePreviewPayload,
+  TaskToolSummaryPayload,
+} from "../../view-models/task";
 import {
   taskLogEventSchema,
   taskRecordSchema,

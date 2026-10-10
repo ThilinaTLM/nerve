@@ -1,13 +1,12 @@
 import type {
   AgentRecord,
   ConversationRecord,
-  ProjectEditor,
   ProjectRecord,
   PruneProjectConversationsRequest,
-  StatusResponse,
   UpdateConversationStateRequest,
-} from "$lib/api";
-import type { ConversationActivityState } from "$lib/domain/conversations/activity";
+} from "$lib/domain/projects/sidebar-view-models";
+import type { ProjectEditor, StatusResponse } from "$lib/api";
+import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
 
 export type DeleteTarget = {
   kind: "project" | "conversation";

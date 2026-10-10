@@ -1,8 +1,8 @@
 import type {
   ConversationRecord,
   ProjectRecord,
-  StatusResponse,
-} from "$lib/api";
+} from "$lib/presentation/view-models/conversation";
+import type { StatusResponse } from "@nervekit/contracts/status";
 
 export type SessionField = { label: string; value?: string; mono?: boolean };
 

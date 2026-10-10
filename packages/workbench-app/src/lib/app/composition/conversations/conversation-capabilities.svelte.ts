@@ -13,11 +13,11 @@ import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
 } from "$lib/features/audio";
-import { watchSubagentTranscript } from "$lib/features/agents/subagent-transcript-watcher";
+import { watchSubagentTranscript } from "$lib/features/conversations/adapters/core-subagent.adapter.svelte";
 import {
   getToolCallDetails,
   readToolCallResult,
-} from "$lib/features/tools/api/tools.api";
+} from "$lib/features/conversations/adapters/core-tool-details.adapter";
 import {
   confluenceSiteUrl,
   jiraSiteUrl,
@@ -25,7 +25,7 @@ import {
 import { uploadClipboardImage } from "$lib/features/filesystem/api/filesystem.api";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
-import { conversationState } from "$lib/features/conversations/state/conversation-state.svelte";
+import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { completeFiles } from "$lib/application/workspace/workspace-actions.svelte";
@@ -37,6 +37,7 @@ import { completeFiles } from "$lib/application/workspace/workspace-actions.svel
  */
 export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
   return {
+    canCompactPlanBeforeImplementation: false,
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),
@@ -64,11 +65,11 @@ export function workbenchConversationUiCapabilities(): ConversationUiCapabilitie
         }
         return resolveDroppedPaths(
           files,
-          project.dir,
+          project.directory,
           bridge.files.getPathForFile,
         );
       },
-      slashCompletions: () => conversationState.slashCompletions,
+      slashCompletions: () => conversationCatalog.slashCompletions,
       fileCompletions: completeFiles,
     },
   };

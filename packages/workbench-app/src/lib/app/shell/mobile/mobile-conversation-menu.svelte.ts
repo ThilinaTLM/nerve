@@ -1,5 +1,5 @@
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import type { ConversationRecord } from "$lib/api";
+import type { ConversationSummary } from "@nervekit/contracts/core";
 import {
   buildConversationMenu,
   countProjectConversations,
@@ -7,13 +7,15 @@ import {
   type ProjectTreeMenuContext,
 } from "$lib/features/projects";
 import {
-  conversationSelectors,
-  openConversation,
-} from "$lib/features/conversations";
+  sidebarConversations,
+  sidebarProjects,
+  sidebarActivity,
+  updateConversationStateAndRefresh,
+} from "$lib/features/projects";
+import { openConversation } from "$lib/application/workspace";
 import {
   maintenance,
   newConversationInProject,
-  updateConversationStateAndRefresh,
   workspaceSelectors,
 } from "$lib/application/workspace";
 
@@ -25,7 +27,7 @@ import {
 export const mobileConversationDelete = $state<{ target?: DeleteTarget }>({});
 
 export function mobileConversationMenu(
-  conversation: ConversationRecord,
+  conversation: ConversationSummary,
 ): ContextMenuItem[] {
   const project = workspaceSelectors.projects.find(
     (candidate) => candidate.id === conversation.projectId,
@@ -34,10 +36,15 @@ export function mobileConversationMenu(
   const context: ProjectTreeMenuContext = {
     homeDir: workspaceSelectors.status?.storage.userHome,
     conversationCount: (projectId) =>
-      countProjectConversations(workspaceSelectors.conversations, projectId),
+      countProjectConversations(
+        sidebarConversations(workspaceSelectors.conversations),
+        projectId,
+      ),
     maintenanceActive: maintenance.active,
     conversationActivity: (conversationId) =>
-      conversationSelectors.conversationActivityById[conversationId],
+      sidebarActivity(sidebarConversations(workspaceSelectors.conversations))[
+        conversationId
+      ],
     onOpenConversation: (conversationId) =>
       void openConversation(conversationId),
     onNewConversationInProject: newConversationInProject,
@@ -48,5 +55,9 @@ export function mobileConversationMenu(
       mobileConversationDelete.target = target;
     },
   };
-  return buildConversationMenu(project, conversation, context);
+  return buildConversationMenu(
+    sidebarProjects([project])[0],
+    sidebarConversations([conversation])[0],
+    context,
+  );
 }

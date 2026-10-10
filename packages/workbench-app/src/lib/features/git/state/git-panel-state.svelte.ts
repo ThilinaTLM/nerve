@@ -1,5 +1,5 @@
 import { SvelteSet } from "svelte/reactivity";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import type {
   GitBranchSummary,
   GithubChecksSummary,
@@ -240,7 +240,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
   };
 }
 
-function createProjectState(project: ProjectRecord): GitPanelProjectState {
+function createProjectState(project: Project): GitPanelProjectState {
   return {
     discoveryRequest: {
       inFlight: false,
@@ -250,7 +250,7 @@ function createProjectState(project: ProjectRecord): GitPanelProjectState {
       sequence: 0,
     },
     projectId: project.id,
-    projectDir: project.dir,
+    projectDir: project.directory,
     projectIsRepo: false,
     repos: [],
     selectedRepo: ".",
@@ -339,13 +339,12 @@ function pruneProjectCache(): void {
   }
 }
 
-export function ensureGitProjectState(
-  project: ProjectRecord,
-): GitPanelProjectState {
+export function ensureGitProjectState(project: Project): GitPanelProjectState {
   const key = gitProjectStateKey(project.id);
   gitPanelState.projects[key] ??= createProjectState(project);
   const state = gitPanelState.projects[key];
-  if (state.projectDir !== project.dir) state.projectDir = project.dir;
+  if (state.projectDir !== project.directory)
+    state.projectDir = project.directory;
   touchProject(project.id);
   return state;
 }

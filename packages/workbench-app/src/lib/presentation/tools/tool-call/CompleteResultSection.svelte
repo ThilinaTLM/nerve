@@ -2,7 +2,7 @@
 import type {
   CompleteToolResultDescriptor,
   ToolCallResultChunk,
-} from "@nervekit/contracts/tools";
+} from "$lib/presentation/view-models/conversation";
 import { untrack } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";

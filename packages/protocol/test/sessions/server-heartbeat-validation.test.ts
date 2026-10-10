@@ -10,8 +10,10 @@ import { ProtocolServerSession } from "../../src/server.js";
 
 class FakeTimers implements ProtocolTimers {
   readonly intervals: Array<() => void> = [];
-  setTimeout(): unknown {
-    return Symbol("timeout");
+  readonly timeouts: Array<() => void> = [];
+  setTimeout(callback: () => void): unknown {
+    this.timeouts.push(callback);
+    return callback;
   }
   clearTimeout(): void {}
   setInterval(callback: () => void): unknown {
@@ -25,6 +27,46 @@ class FakeTimers implements ProtocolTimers {
 }
 
 describe("server heartbeat validation", () => {
+  it("finalizes a handshake timeout even if the socket has already disconnected", async () => {
+    const timers = new FakeTimers();
+    const serverMessages = createMessageFactory({
+      source: { role: "workbench_server", id: "server_test" },
+      target: { role: "ui", id: "ui_test" },
+    });
+    const clientMessages = createMessageFactory({
+      source: { role: "ui", id: "ui_test" },
+      target: { role: "workbench_server", id: "server_test" },
+    });
+    let disconnected = false;
+    const server = new ProtocolServerSession({
+      acceptingPeer: { role: "workbench_server", id: "server_test" },
+      createMessage: serverMessages,
+      capabilities: [STREAM_SUBSCRIPTION_CAPABILITY],
+      limits: {
+        maxMessageBytes: 1_000_000,
+        maxBatchEvents: 100,
+        maxBatchBytes: 1_000_000,
+      },
+      heartbeat: { intervalMs: 100, timeoutMs: 100 },
+      sessionId: () => "session_test",
+      send: () => {
+        if (disconnected) throw new Error("WebSocket is not open");
+      },
+      timers,
+    });
+    await server.receive(
+      clientMessages("hello", {
+        requestedVersion: 1,
+        capabilities: [STREAM_SUBSCRIPTION_CAPABILITY],
+        encodings: ["json"],
+      }) as ProtocolV1Message,
+    );
+    assert.equal(server.state, "awaiting_ready");
+    disconnected = true;
+    timers.timeouts[0]();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(server.state, "closed");
+  });
   it("does not let invalid peers refresh an established session", async () => {
     let now = 0;
     const timers = new FakeTimers();

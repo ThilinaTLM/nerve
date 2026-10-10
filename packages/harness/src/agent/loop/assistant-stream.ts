@@ -3,6 +3,7 @@ import { streamSimpleWithModel } from "../../models/model-streaming.js";
 import type {
   AgentContext,
   AgentLoopConfig,
+  AgentLoopTurnUpdate,
   StreamFn,
 } from "../contracts/index.js";
 import { normalizeImagesForModel } from "../../models/image/normalization.js";
@@ -18,7 +19,10 @@ export async function streamAssistantResponse(
   signal: AbortSignal | undefined,
   emit: AgentEventSink,
   streamFn?: StreamFn,
-): Promise<AssistantMessage> {
+): Promise<
+  | { kind: "response"; message: AssistantMessage }
+  | { kind: "refresh"; update: AgentLoopTurnUpdate }
+> {
   // Apply context transform if configured (AgentMessage[] → AgentMessage[])
   let messages = context.messages;
   if (config.transformContext) {
@@ -45,6 +49,9 @@ export async function streamAssistantResponse(
     (config.getApiKey
       ? await config.getApiKey(config.model.provider)
       : undefined) || config.apiKey;
+
+  const preparation = await config.prepareProviderDispatch?.();
+  if (preparation?.kind === "refresh") return preparation;
 
   const response = await streamFunction(config.model, llmContext, {
     ...config,
@@ -96,7 +103,7 @@ export async function streamAssistantResponse(
           await emit({ type: "message_start", message: { ...finalMessage } });
         }
         await emit({ type: "message_end", message: finalMessage });
-        return finalMessage;
+        return { kind: "response", message: finalMessage };
       }
     }
   }
@@ -109,5 +116,5 @@ export async function streamAssistantResponse(
     await emit({ type: "message_start", message: { ...finalMessage } });
   }
   await emit({ type: "message_end", message: finalMessage });
-  return finalMessage;
+  return { kind: "response", message: finalMessage };
 }

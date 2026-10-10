@@ -7,7 +7,7 @@ import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import {
   listDirectories,
   type FilesystemDirectoryResponse,
-  type ProjectRecord,
+  type Project,
 } from "$lib/api";
 import { looksLikePath, pathKey } from "$lib/domain/filesystem/project-path";
 import DirectoryPickerFooter from "$lib/features/projects/views/DirectoryPickerFooter.svelte";
@@ -27,7 +27,7 @@ import type { ProjectSwitcherItem } from "$lib/features/projects/state/project-s
 type Mode = "recent" | "browse";
 type Props = {
   open?: boolean;
-  projects?: ProjectRecord[];
+  projects?: Project[];
   switcherItems?: ProjectSwitcherItem[];
   activeProjectKey?: string;
   homeDir?: string;
@@ -66,7 +66,7 @@ let previousShowHidden = $state(false);
 let listEl = $state<HTMLDivElement | undefined>(undefined);
 let recentScrollEl = $state<HTMLDivElement | undefined>(undefined);
 const openedProjectKeys = $derived.by(
-  () => new Set(projects.map((project) => pathKey(project.dir))),
+  () => new Set(projects.map((project) => pathKey(project.directory))),
 );
 const MAX_RECENT_PROJECTS = 100;
 const recentProjects = $derived(switcherItems.slice(0, MAX_RECENT_PROJECTS));
@@ -79,7 +79,7 @@ const filteredRecents = $derived.by(() => {
     (item) =>
       item.label.toLowerCase().includes(q) ||
       item.project.name.toLowerCase().includes(q) ||
-      item.project.dir.toLowerCase().includes(q),
+      item.project.directory.toLowerCase().includes(q),
   );
 });
 const recentActiveDescendant = $derived(

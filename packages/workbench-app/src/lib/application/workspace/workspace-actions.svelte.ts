@@ -1,40 +1,41 @@
+import {
+  pendingConversations,
+  type PendingConversationState,
+} from "./pending-conversations.svelte";
+import type { Project, ConversationConfig } from "@nervekit/contracts/core";
+import { requestConversation } from "$lib/application/startup/conversation-connection";
+import {
+  conversationLists,
+  recoverConversationLists,
+} from "./conversation-lists.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
-import { SvelteSet } from "svelte/reactivity";
 import { projectKey } from "$lib/domain/projects/project-tree";
 import {
-  type AgentRecord,
-  apiPathSegment,
-  type CompletionItem,
-  type ConversationRecord,
   createProject,
-  deleteConversation,
   getFileCompletions,
-  getSlashCompletions,
-  getWorkspaceSnapshot,
   openProjectInEditor,
   openProjectInTerminal,
+  type CompletionItem,
   type ProjectEditor,
-  type ProjectRecord,
-  type PruneProjectConversationsRequest,
-  type UpdateConversationStateRequest,
-  updateConversationState,
 } from "$lib/api";
+import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
+import { resolveNewAgentComposerSelection } from "$lib/application/preferences/agent-selection";
+import { parseModelKey } from "$lib/presentation/utils/model";
+import { closeCenterTabs } from "./center-tab-actions.svelte";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { recoverSnapshotFromNetwork } from "$lib/application/workspace/snapshot-recovery";
-import { registerWorkspaceCommands } from "$lib/application/workspace/workspace-commands";
+import { registerWorkspaceCommands } from "./workspace-commands";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import { selection } from "$lib/application/workspace/selection.svelte";
+import { selection } from "./selection.svelte";
 import {
   workspaceState,
   type CenterTabIdentity,
-} from "$lib/application/workspace/workspace-state.svelte";
-import { mergeAgentsByUpdatedAt } from "./agent-freshness";
-import { mergeActivitySnapshots } from "./activity-freshness";
-import { upsertConversationRecord } from "./entity-reducers";
+} from "./workspace-state.svelte";
 import { projectForNewConversation } from "./new-conversation-project";
-import { closeCenterTabs } from "./center-tab-actions.svelte";
-import { maintenance } from "../maintenance/maintenance-state.svelte";
-import { selectCenterTab, setActiveCenterTab } from "./center-tabs.svelte";
+import {
+  addCenterTab,
+  selectCenterTab,
+  setActiveCenterTab,
+} from "./center-tabs.svelte";
 import {
   applyVisibleSession,
   hydrateWorkspaceTabSessions,
@@ -42,190 +43,105 @@ import {
   removeTabsFromAllSessions,
   saveVisibleProjectSession,
 } from "./workspace-tab-sessions";
-registerWorkspaceCommands({
-  reload: loadWorkspaceState,
-  selectProject,
-});
-
-export async function loadWorkspaceState() {
-  const snapshot = await queryClient.fetchQuery({
-    queryKey: queryKeys.workspace,
-    queryFn: getWorkspaceSnapshot,
+export type ConversationUpdate = {
+  title?: string;
+  pinned?: boolean;
+  completed?: boolean;
+  clearStatus?: boolean;
+};
+registerWorkspaceCommands({ reload: loadWorkspaceState, selectProject });
+export async function openConversation(conversationId: string): Promise<void> {
+  const snapshot = await requestConversation("conversation.getSnapshot", {
+    conversationId,
   });
-  return applyWorkspaceSnapshot(snapshot);
-}
-
-export async function recoverWorkspaceSnapshotFromNetwork(
-  options: { deferTabActivation?: boolean } = {},
-) {
-  let desiredTab: CenterTabIdentity | undefined;
-  const cursor = await recoverSnapshotFromNetwork({
-    fetch: getWorkspaceSnapshot,
-    apply: async (snapshot) => {
-      const applied = await applyWorkspaceSnapshot(snapshot, options);
-      desiredTab = applied.desiredTab;
-      return applied.cursor;
-    },
-    cache: (snapshot) =>
-      queryClient.setQueryData(queryKeys.workspace, snapshot),
+  await selectProject(snapshot.conversation.projectId, {
+    deferTabActivation: true,
   });
-  return { cursor, desiredTab };
+  if (!workspaceState.conversations.some((row) => row.id === conversationId)) {
+    const rows = await requestConversation("conversation.list", {
+      projectId: snapshot.conversation.projectId,
+      parentConversationId: snapshot.conversation.parentConversationId,
+    });
+    workspaceState.conversations = [
+      ...workspaceState.conversations.filter(
+        (row) => !rows.some((next) => next.id === row.id),
+      ),
+      ...rows,
+    ];
+  }
+  addCenterTab({ kind: "conversation", id: conversationId });
+  await selectCenterTab({ kind: "conversation", id: conversationId });
 }
-
-async function applyWorkspaceSnapshot(
-  snapshot: Awaited<ReturnType<typeof getWorkspaceSnapshot>>,
-  options: { deferTabActivation?: boolean } = {},
-) {
-  const agents = mergeAgentsByUpdatedAt(
-    snapshot.snapshot.agents,
-    workspaceState.agents,
+export async function loadWorkspaceState(): Promise<void> {
+  workspaceState.projects = await requestConversation("project.list", {});
+  await recoverConversationLists(
+    workspaceState.projects.map((project) => project.id),
   );
-  workspaceState.projects = snapshot.snapshot.projects;
-  workspaceState.conversations = snapshot.snapshot.conversations;
-  workspaceState.agents = agents;
-  workspaceState.agentActivities = mergeActivitySnapshots(
-    snapshot.snapshot.agentActivities,
-    workspaceState.agentActivities,
-    (activity) => activity.agentId,
+  workspaceState.conversations = [...conversationLists.values()].flatMap(
+    (list) => [...list.roots, ...Object.values(list.children).flat()],
   );
-  workspaceState.conversationActivities = mergeActivitySnapshots(
-    snapshot.snapshot.conversationActivities,
-    workspaceState.conversationActivities,
-    (activity) => activity.conversationId,
-  );
-  workspaceFeaturePorts().tasks.commands.setTasks(snapshot.snapshot.tasks);
   let desiredTab = hydrateWorkspaceTabSessions(
     {
-      projects: snapshot.snapshot.projects,
-      conversations: snapshot.snapshot.conversations,
-      tasks: snapshot.snapshot.tasks,
+      projects: workspaceState.projects,
+      conversations: workspaceState.conversations,
+      tasks: [...workspaceFeaturePorts().tasks.read.tasks],
     },
-    { deferActivation: options.deferTabActivation },
+    { deferActivation: true },
   );
-  const taskEntryIds = new SvelteSet(
-    workspaceFeaturePorts().tasks.read.tasks.map(
-      (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
-    ),
-  );
-  const staleOpenTaskIds =
-    workspaceFeaturePorts().tasks.read.openTaskTabIds.filter(
-      (taskId) => !taskEntryIds.has(taskId),
-    );
-  if (staleOpenTaskIds.length) {
-    await closeCenterTabs(
-      staleOpenTaskIds.map((id) => ({ kind: "task" as const, id })),
-    );
+  for (const tab of workspaceState.openCenterTabs) {
+    if (
+      tab.kind !== "conversation" ||
+      workspaceState.conversations.some((row) => row.id === tab.id)
+    )
+      continue;
+    try {
+      const { conversation } = await requestConversation(
+        "conversation.getSnapshot",
+        { conversationId: tab.id },
+      );
+      const rows = await requestConversation("conversation.list", {
+        projectId: conversation.projectId,
+        parentConversationId: conversation.parentConversationId,
+      });
+      workspaceState.conversations = [
+        ...workspaceState.conversations.filter(
+          (row) => !rows.some((next) => next.id === row.id),
+        ),
+        ...rows,
+      ];
+    } catch {
+      removeTabsFromAllSessions(
+        (candidate) =>
+          candidate.kind === "conversation" && candidate.id === tab.id,
+      );
+    }
   }
-  const selectedTaskId =
-    workspaceFeaturePorts().tasks.commands.resolveSelectedTaskId(
-      workspaceFeaturePorts().tasks.read.tasks,
-      workspaceFeaturePorts().tasks.read.selectedTaskId,
-    );
-  if (selectedTaskId !== workspaceFeaturePorts().tasks.read.selectedTaskId) {
-    workspaceFeaturePorts().tasks.commands.setSelectedTaskId(selectedTaskId);
-    workspaceFeaturePorts().tasks.commands.clearTaskLogs();
-  }
-  workspaceState.pendingToolCalls = snapshot.snapshot.pendingToolCalls;
-  syncSelectedAgentConfig(agents, snapshot.snapshot.conversations);
-  const conversationIds = new SvelteSet(
-    snapshot.snapshot.conversations.map((conversation) => conversation.id),
-  );
-  const staleOpenTabIds =
-    workspaceFeaturePorts().conversations.read.openConversationTabIds.filter(
-      (conversationId) => !conversationIds.has(conversationId),
-    );
-  if (staleOpenTabIds.length)
-    await workspaceFeaturePorts().conversations.commands.removeConversationTabs(
-      staleOpenTabIds,
-    );
-  if (selectedTaskId && !options.deferTabActivation)
-    await workspaceFeaturePorts().tasks.commands.loadTaskLogWindow(
-      selectedTaskId,
-    );
-  const selectedStillExists = workspaceState.projects.some(
-    (project) => projectKey(project) === workspaceState.selectedProjectKey,
-  );
-  if (!selectedStillExists) {
-    const fallback = [...workspaceState.projects].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    )[0];
-    if (fallback)
-      desiredTab =
-        (await selectProject(fallback.id, {
-          deferTabActivation: options.deferTabActivation,
-        })) ?? desiredTab;
-  } else if (
-    workspaceState.selectedProjectKey &&
-    !workspaceState.selectedProjectId
+  if (
+    !workspaceState.projects.some(
+      (project) => project.id === workspaceState.selectedProjectId,
+    )
   ) {
-    const selected = workspaceState.projects.find(
-      (project) => projectKey(project) === workspaceState.selectedProjectKey,
-    );
-    if (selected)
-      desiredTab =
-        (await selectProject(selected.id, {
-          deferTabActivation: options.deferTabActivation,
-        })) ?? desiredTab;
+    workspaceState.selectedProjectId = undefined;
+    const project =
+      workspaceState.projects.find(
+        (row) => projectKey(row) === workspaceState.selectedProjectKey,
+      ) ?? workspaceState.projects[0];
+    if (project)
+      desiredTab = await selectProject(project.id, {
+        deferTabActivation: true,
+      });
+    else {
+      workspaceState.selectedProjectKey = undefined;
+      selection.projectId = undefined;
+      selection.conversationId = undefined;
+      setActiveCenterTab(undefined);
+    }
   }
-  return { cursor: snapshot.cursor, desiredTab };
+  if (desiredTab) await selectCenterTab(desiredTab);
 }
-
-function syncSelectedAgentConfig(
-  agents: AgentRecord[],
-  conversations: ConversationRecord[],
-): void {
-  const activeAgent = selection.agentId
-    ? agents.find((agent) => agent.id === selection.agentId)
-    : undefined;
-  if (activeAgent) {
-    workspaceFeaturePorts().conversations.commands.applyAgentConfiguration(
-      activeAgent,
-    );
-    return;
-  }
-
-  const activeConversation = selection.conversationId
-    ? conversations.find(
-        (conversation) => conversation.id === selection.conversationId,
-      )
-    : undefined;
-  if (!activeConversation) return;
-  workspaceFeaturePorts().conversations.commands.applyConversationConfiguration(
-    {
-      mode: activeConversation.mode,
-      permissionLevel: activeConversation.permissionLevel,
-    },
-  );
-}
-
-export async function loadSlashCommands() {
-  workspaceFeaturePorts().conversations.commands.setSlashCompletions(
-    await queryClient.fetchQuery({
-      queryKey: queryKeys.slashCompletions,
-      queryFn: getSlashCompletions,
-    }),
-  );
-}
-
-export function exportUrl(kind: "json" | "md" | "html"): string | undefined {
-  if (!selection.conversationId) return undefined;
-  const suffix = kind === "json" ? "export" : `export.${kind}`;
-  return `/api/conversations/${apiPathSegment(selection.conversationId)}/${suffix}`;
-}
-
-export function systemPromptUrl(): string | undefined {
-  if (!selection.agentId) return undefined;
-  return `/api/agents/${apiPathSegment(selection.agentId)}/system-prompt`;
-}
-
 export async function completeFiles(query: string): Promise<CompletionItem[]> {
-  return queryClient.fetchQuery({
-    queryKey: queryKeys.fileCompletions(selection.projectId, query),
-    queryFn: () => getFileCompletions(selection.projectId, query),
-    staleTime: 2_000,
-  });
+  return getFileCompletions(selection.projectId, query);
 }
-
 export async function selectProject(
   projectId: string,
   options: { deferTabActivation?: boolean } = {},
@@ -256,8 +172,6 @@ export async function selectProject(
   });
   selection.projectId = project.id;
   selection.conversationId = undefined;
-  selection.agentId = undefined;
-  selection.entryId = undefined;
   persistWorkspaceTabSessions();
   if (options.deferTabActivation) return session.active;
   if (session.active) await selectCenterTab(session.active);
@@ -267,7 +181,9 @@ export async function selectProject(
 
 export async function openProjectDirectory(dir: string) {
   try {
-    const project = await createProject(dir);
+    const project =
+      projectForNewConversation(workspaceState.projects, dir) ??
+      (await createProject(dir));
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     const current =
@@ -296,36 +212,43 @@ export function newConversation() {
     workspaceState.projectPickerOpen = true;
     return;
   }
-  void openPendingConversationForProject(activeProject);
+  void createConversationForProject(activeProject).catch(
+    reportConversationCreationError,
+  );
 }
 
 export function newConversationInProject(
   projectDir: string,
-  initialMode?: AgentRecord["mode"],
+  initialMode?: ConversationConfig["mode"],
 ) {
   const project = projectForNewConversation(
     workspaceState.projects,
     projectDir,
   );
   if (project) {
-    void openPendingConversationForProject(project, initialMode);
+    void createConversationForProject(project, initialMode).catch(
+      reportConversationCreationError,
+    );
     return;
   }
   void createConversationForDirectory(projectDir, initialMode);
 }
 
 export async function deleteProjectAndRefresh(projectId: string) {
-  await maintenance.startDelete(projectId);
+  await requestConversation("project.delete", { projectId });
+  await loadWorkspaceState();
 }
 
 export async function updateConversationStateAndRefresh(
   conversationId: string,
-  request: UpdateConversationStateRequest,
+  request: ConversationUpdate,
 ) {
   try {
-    upsertConversationRecord(
-      await updateConversationState(conversationId, request),
-    );
+    await requestConversation("conversation.update", {
+      conversationId,
+      patch: request,
+    });
+    await loadWorkspaceState();
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;
@@ -335,13 +258,11 @@ export async function updateConversationStateAndRefresh(
 
 export async function deleteConversationAndRefresh(conversationId: string) {
   try {
-    await deleteConversation(conversationId);
+    await requestConversation("conversation.delete", { conversationId });
     removeTabsFromAllSessions(
       (tab) => tab.kind === "conversation" && tab.id === conversationId,
     );
-    await workspaceFeaturePorts().conversations.commands.removeConversationTabs(
-      [conversationId],
-    );
+    await closeCenterTabs([{ kind: "conversation", id: conversationId }]);
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspace });
     await loadWorkspaceState();
     notify.success("Conversation removed");
@@ -388,40 +309,75 @@ export async function openProjectInTerminalAndNotify(
   }
 }
 
-export async function pruneProjectConversationsAndRefresh(
-  projectId: string,
-  request: PruneProjectConversationsRequest,
-) {
-  await maintenance.startPrune(projectId, request);
+function reportConversationCreationError(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  workspaceState.error = message;
+  notify.error("Could not create conversation", { description: message });
 }
 
-async function openPendingConversationForProject(
-  project: ProjectRecord,
-  initialMode?: AgentRecord["mode"],
+async function createConversationForProject(
+  project: Project,
+  initialMode?: ConversationConfig["mode"],
 ): Promise<void> {
   workspaceState.error = undefined;
   workspaceState.projectPickerOpen = false;
   await selectProject(project.id, { deferTabActivation: true });
-  workspaceFeaturePorts().conversations.commands.openPendingConversation(
-    project,
-    initialMode,
+  const settings = settingsReadModel.settingsDraft;
+  if (!settings) throw new Error("Settings not loaded");
+  const defaults = resolveNewAgentComposerSelection(
+    settings,
+    settingsReadModel.models,
+    settingsReadModel.authProviders,
   );
+  const model = parseModelKey(defaults.selectedModelKey);
+  if (!model)
+    throw new Error(
+      "Choose a model in settings before creating a conversation",
+    );
+  const id = crypto.randomUUID();
+  const config = {
+    model,
+    reasoningLevel: defaults.selectedThinkingLevel,
+    mode: initialMode ?? defaults.selectedMode,
+    permissionRuleSetId: defaults.selectedPermissionRuleSetId,
+    systemPrompt: null,
+    workingDirectory: project.directory,
+  };
+  const pending = $state<PendingConversationState>({
+    id,
+    projectId: project.id,
+    projectDir: project.directory,
+    title: "New Conversation",
+    composerText: "",
+    selectedModelKey: defaults.selectedModelKey,
+    thinkingLevel: config.reasoningLevel,
+    mode: config.mode,
+    permissionRuleSetId: config.permissionRuleSetId,
+    sending: false,
+    createdAt: new Date().toISOString(),
+    config,
+  });
+  pendingConversations.set(id, pending);
+  addCenterTab({ kind: "pending-conversation", id });
+  await selectCenterTab({ kind: "pending-conversation", id });
 }
 
 export async function createConversationForDirectory(
   dir: string,
-  initialMode?: AgentRecord["mode"],
+  initialMode?: ConversationConfig["mode"],
 ) {
   workspaceState.error = undefined;
   try {
-    const project = await createProject(dir);
+    const project =
+      projectForNewConversation(workspaceState.projects, dir) ??
+      (await createProject(dir));
     workspaceState.projects = [
       project,
       ...workspaceState.projects.filter(
         (candidate) => candidate.id !== project.id,
       ),
     ];
-    await openPendingConversationForProject(project, initialMode);
+    await createConversationForProject(project, initialMode);
   } catch (caught) {
     const message = caught instanceof Error ? caught.message : String(caught);
     workspaceState.error = message;

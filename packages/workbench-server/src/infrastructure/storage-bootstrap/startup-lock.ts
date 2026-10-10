@@ -1,7 +1,4 @@
-import {
-  acquireStorageHomeLock,
-  type StorageHomeLock,
-} from "../storage-migrations/runner/home-lock.js";
+import { acquireStorageHomeLock, type StorageHomeLock } from "./home-lock.js";
 
 export type StorageStartupLock = StorageHomeLock;
 

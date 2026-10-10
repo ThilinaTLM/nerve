@@ -1,3 +1,4 @@
+import { isWorkbenchOperation } from "@nervekit/contracts/events";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
 import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
@@ -6,17 +7,16 @@ import {
   combineWorkbenchMethodHandlerGroups,
   type WorkbenchInvocationContext,
 } from "./method-handler-registry.js";
-import { agentMethodHandlers } from "./handlers/agent-method-handlers.js";
-import { conversationMethodHandlers } from "./handlers/conversation-method-handlers.js";
 import { gitMethodHandlers } from "./handlers/git-method-handlers.js";
-import { interactionMethodHandlers } from "./handlers/interaction-method-handlers.js";
 import { platformMethodHandlers } from "./handlers/platform-method-handlers.js";
 import { projectMethodHandlers } from "./handlers/project-method-handlers.js";
 import { taskMethodHandlers } from "./handlers/task-method-handlers.js";
 
 export const WORKBENCH_OPERATION_METHODS = allOperationDefinitions()
-  .filter((definition) =>
-    definition.allowedTargetRoles.includes("workbench_server"),
+  .filter(
+    (definition) =>
+      definition.allowedTargetRoles.includes("workbench_server") &&
+      isWorkbenchOperation(definition.method),
   )
   .map((definition) => definition.method);
 
@@ -29,24 +29,6 @@ export function bindWorkbenchOperationHandlers(
     bindWorkbenchMethodHandlerGroup(
       platformMethodHandlers,
       contexts.platform,
-      diagnostics,
-      invocation,
-    ),
-    bindWorkbenchMethodHandlerGroup(
-      interactionMethodHandlers,
-      contexts.interactions,
-      diagnostics,
-      invocation,
-    ),
-    bindWorkbenchMethodHandlerGroup(
-      conversationMethodHandlers,
-      contexts.conversations,
-      diagnostics,
-      invocation,
-    ),
-    bindWorkbenchMethodHandlerGroup(
-      agentMethodHandlers,
-      contexts.agents,
       diagnostics,
       invocation,
     ),

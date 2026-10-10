@@ -45,22 +45,13 @@ let {
   onRerunDefinition?: () => void;
   onRemove?: (taskId: string) => void;
   onCopy?: (text: string) => void;
-  onSaveAsDefinition?: (task: TaskRecord) => void;
+  onSaveAsDefinition?: (launch: TaskRecord) => void;
 } = $props();
 
 const run = $derived(entry.run);
 const label = $derived(taskRunLabel(entry));
 const startedAt = $derived(formatTaskRunTime(run.startedAt));
-const recoveryHint = $derived(
-  entry.needsRecovery
-    ? run.status === "recovered"
-      ? "Process recovered; live output disconnected."
-      : "Process identity needs recovery review."
-    : undefined,
-);
-const tooltip = $derived(
-  [run.command, run.cwd, recoveryHint].filter(Boolean).join("\n"),
-);
+const tooltip = $derived([run.command, run.cwd].filter(Boolean).join("\n"));
 
 const menuItems = $derived.by<ContextMenuItem[]>(() => {
   const items: ContextMenuItem[] = [
@@ -104,7 +95,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     items.push(
       { type: "separator" },
       {
-        label: "Save as task",
+        label: "Save as launch",
         icon: Save,
         disabled: !capabilities.manageDefinitions,
         onSelect: () => onSaveAsDefinition?.(run),

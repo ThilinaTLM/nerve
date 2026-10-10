@@ -1,4 +1,4 @@
-import type { ConversationActiveRunSnapshot } from "@nervekit/contracts/conversations";
+import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
 import type { ConversationRunOutcome } from "../../state/conversation-render-state";
 import type { TimelineItem } from "../../state/timeline";
 import {

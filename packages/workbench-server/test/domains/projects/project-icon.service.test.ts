@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
-import type { ProjectRecord } from "@nervekit/contracts/projects";
+import type { Project } from "@nervekit/contracts/core";
 import {
   ProjectIconService,
   type ProjectIcon,
@@ -38,18 +38,18 @@ async function projectDirectory(name: string): Promise<string> {
   return root;
 }
 
-function project(id: string, dir: string): ProjectRecord {
+function project(id: string, dir: string): Project {
   return {
     id,
     name: id,
-    dir,
+    directory: dir,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
   };
 }
 
 function serviceFor(
-  projects: ProjectRecord[],
+  projects: Project[],
   options: ConstructorParameters<typeof ProjectIconService>[1] = {},
 ): ProjectIconService {
   const byId = new Map(projects.map((candidate) => [candidate.id, candidate]));
@@ -225,8 +225,9 @@ describe("project icon route", () => {
       '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>',
     );
     const { app, services, headers } = await createAuthenticatedApp();
-    const created = await services.projectLifecycle.createProject({
-      dir,
+    const created = services.conversationCore.projects.create({
+      name: "Icon project",
+      directory: dir,
     });
     const path = `/api/projects/${created.id}/icon`;
 
@@ -250,8 +251,9 @@ describe("project icon route", () => {
     assert.equal(conditional.status, 304);
 
     const missingDir = await projectDirectory("route-missing");
-    const missing = await services.projectLifecycle.createProject({
-      dir: missingDir,
+    const missing = services.conversationCore.projects.create({
+      name: "Missing icon",
+      directory: missingDir,
     });
     const notFound = await app.request(`/api/projects/${missing.id}/icon`, {
       headers,

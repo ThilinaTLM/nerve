@@ -6,12 +6,12 @@ import type {
   ColorMode,
   ColorTheme,
   ModelInfo,
-  ProjectRecord,
   Settings,
   StatusResponse,
   UpdateApplicationConfigurationRequest,
   UpdateSettingsRequest,
 } from "$lib/api";
+import type { Project } from "@nervekit/contracts/core";
 import {
   SettingsShell,
   SettingsSidebarStatus,
@@ -50,7 +50,7 @@ type Props = {
   activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  activeProject?: ProjectRecord;
+  activeProject?: Project;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;

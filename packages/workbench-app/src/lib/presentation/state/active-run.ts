@@ -5,7 +5,7 @@ import type {
   ConversationLiveMessageSnapshot,
   ConversationLiveToolDraftBlockSnapshot,
   ConversationLiveTurnSnapshot,
-} from "@nervekit/contracts/conversations";
+} from "$lib/presentation/view-models/conversation";
 
 /**
  * Live messages that have already been persisted as conversation entries.

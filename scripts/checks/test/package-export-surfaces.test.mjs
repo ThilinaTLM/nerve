@@ -21,6 +21,7 @@ test("workspace package export maps match the curated architecture surface", () 
 test("every workspace package has an explicit export policy", () => {
   assert.deepEqual(Object.keys(packageExportSurfaces).sort(), [
     "@nervekit/contracts",
+    "@nervekit/conversation-core",
     "@nervekit/desktop-shell",
     "@nervekit/harness",
     "@nervekit/native",

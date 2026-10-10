@@ -1,15 +1,12 @@
 import assert from "node:assert/strict";
-import { afterEach, test } from "node:test";
-import type { WorkbenchNotifyEvent } from "$lib/application/events/event-bus";
-import {
-  clearEventHandlers,
-  dispatchEvent,
-} from "$lib/application/events/event-bus";
+import { test } from "node:test";
+import type { WorkbenchEvent } from "$lib/application/events/workbench-event-bus";
+import { dispatchEvent } from "$lib/application/events/workbench-event-bus";
 import { registerFileExplorerEventHandler } from "./file-explorer-events";
 
 const ts = "2026-08-16T00:00:00.000Z";
 
-function change(data: Record<string, unknown>): WorkbenchNotifyEvent {
+function change(data: Record<string, unknown>): WorkbenchEvent {
   return {
     id: "evt_filesystem_change",
     ts,
@@ -17,8 +14,6 @@ function change(data: Record<string, unknown>): WorkbenchNotifyEvent {
     data,
   };
 }
-
-afterEach(() => clearEventHandlers());
 
 test("refreshes only for valid changes to the active project and unregisters", () => {
   const changes: unknown[] = [];
