@@ -11,6 +11,10 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 - [Permissions](architecture/permissions.md) — permission rule sets, overlays and the evaluator.
 - [Tool-result projection](architecture/tool-result-projection.md) — complete result, agent projection and user projection: purpose, storage and transfer.
 
+## Proposals
+
+- [Sub-agent profiles](proposals/subagent-profiles/README.md) — one asynchronous, profile-based sub-agent system replacing Explore and developer teammates.
+
 ## Maintainer runbooks
 
 - [Performance diagnostics](runbooks/performance-diagnostics.md) — analyze source-desktop performance samples.
