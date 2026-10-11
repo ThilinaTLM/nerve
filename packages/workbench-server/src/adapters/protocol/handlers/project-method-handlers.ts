@@ -27,6 +27,27 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       await state.promptSuggestions.updateTrust(params);
       return { ok: true };
     },
+    "subagentProfiles.list": async (state, params) => ({
+      profiles: await state.subagentProfiles.list(params?.projectId),
+    }),
+    "subagentProfiles.save": async (state, params) => ({
+      profile: await state.subagentProfiles.save(params),
+    }),
+    "subagentProfiles.delete": async (state, params) => {
+      await state.subagentProfiles.delete(params);
+      return { ok: true };
+    },
+    "subagentProfiles.setEnabled": async (state, params) => {
+      await state.subagentProfiles.setEnabled(params.name, params.enabled);
+      return { ok: true };
+    },
+    "subagentProfiles.trust": async (state, params) => ({
+      profile: await state.subagentProfiles.trust(
+        params.projectId,
+        params.name,
+        params.digest,
+      ),
+    }),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

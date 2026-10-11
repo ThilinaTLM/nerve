@@ -29,7 +29,6 @@ const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["secretsPath", 0o700],
   ["dataPath", 0o700],
   ["conversationsPath", 0o700],
-  ["reportsPath", 0o700],
   ["imagesPath", 0o700],
   ["plansPath", 0o755],
   ["tlsPath", 0o700],
@@ -164,21 +163,6 @@ export async function writeSettings(
         ...patch.lastAgentSelection,
         ...(patch.lastAgentSelection.model === null
           ? { model: undefined }
-          : {}),
-      }
-    : undefined;
-  const exploreAgentPatch = patch.exploreAgent
-    ? {
-        ...patch.exploreAgent,
-        ...(patch.exploreAgent.model === null ? { model: undefined } : {}),
-      }
-    : undefined;
-  const asyncSubagentPatch = patch.asyncSubagent
-    ? {
-        ...patch.asyncSubagent,
-        ...(patch.asyncSubagent.model === null ? { model: undefined } : {}),
-        ...(patch.asyncSubagent.thinkingLevel === null
-          ? { thinkingLevel: undefined }
           : {}),
       }
     : undefined;
@@ -341,14 +325,6 @@ export async function writeSettings(
     lastAgentSelection: {
       ...storage.settings.lastAgentSelection,
       ...(lastAgentSelectionPatch ?? {}),
-    },
-    exploreAgent: {
-      ...storage.settings.exploreAgent,
-      ...(exploreAgentPatch ?? {}),
-    },
-    asyncSubagent: {
-      ...storage.settings.asyncSubagent,
-      ...(asyncSubagentPatch ?? {}),
     },
     compaction: {
       ...storage.settings.compaction,

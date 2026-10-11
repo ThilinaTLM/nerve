@@ -67,6 +67,7 @@ export function createServerAdapterContexts(
       terminal: services.terminal,
       scratchNotes: services.scratchNotes,
       promptSuggestions: services.promptSuggestions,
+      subagentProfiles: services.subagentProfiles,
       launchDefinitionOperations: services.launchDefinitionOperations,
       launchDefinitions: services.launchDefinitions,
     },

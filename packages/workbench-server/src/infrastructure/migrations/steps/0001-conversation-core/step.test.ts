@@ -53,7 +53,27 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
         "utf8",
       ),
     );
-    assert.deepEqual(childCaps.tools.explore, { enabled: false });
+    assert.equal(childCaps.tools.explore, undefined);
+    assert.equal(childCaps.toolSettings.explore, undefined);
+    assert.equal(
+      await readFile(
+        join(
+          home,
+          "data/conversations",
+          String(child.id),
+          "reports/01-task-agent_child.md",
+        ),
+        "utf8",
+      ),
+      "# Explore report\n",
+    );
+    assert.deepEqual(
+      await readdir(
+        join(home, "data/conversations", String(child.id), "reports"),
+      ),
+      ["01-task-agent_child.md"],
+    );
+    assert.equal(existsSync(join(home, "data/reports")), false);
     const output = db.prepare("SELECT logical_path FROM asset").get()!;
     assert.equal(
       await readFile(join(home, "data", String(output.logical_path)), "utf8"),
@@ -76,6 +96,35 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
   }
   const harness = JSON.parse(
     await readFile(join(home, "config/harness.json"), "utf8"),
+  );
+  assert.equal("exploreAgent" in harness, false);
+  assert.equal("asyncSubagent" in harness, false);
+  assert.deepEqual(harness.tools.disabled, [
+    "web_fetch",
+    "subagent_prompt",
+    "subagent_status",
+    "subagent_stop",
+  ]);
+  assert.deepEqual(
+    JSON.parse(await readFile(join(home, "config/subagents.json"), "utf8")),
+    { enabled: { explore: false } },
+  );
+  const exploreProfile = await readFile(
+    join(home, "agent/subagents/explore.md"),
+    "utf8",
+  );
+  assert(exploreProfile.includes('model: "fixture/explorer"'));
+  assert(exploreProfile.includes('thinking: "high"'));
+  assert(exploreProfile.includes("You are a read-only researcher."));
+  const developerProfile = await readFile(
+    join(home, "agent/subagents/developer.md"),
+    "utf8",
+  );
+  assert(developerProfile.includes('model: "lead"'));
+  assert(
+    developerProfile.includes(
+      'compaction: {"profile":"custom","triggerPercent":75,"keepRecentPercent":20}',
+    ),
   );
   assert.deepEqual(harness.defaults, { permissionRuleSetId: "autonomous" });
   assert.deepEqual(harness.lastSelection, { permissionRuleSetId: "custom" });

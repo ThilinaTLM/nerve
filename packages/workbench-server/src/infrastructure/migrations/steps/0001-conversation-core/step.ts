@@ -25,6 +25,7 @@ import {
   readJson,
   writeJson,
 } from "./configuration.js";
+import { convertSubagentSettings } from "./subagent-profiles.js";
 import { LegacyReader, type Legacy } from "./legacy.reader.js";
 import { CoreStorage } from "./storage.js";
 import { coreSchemaV1 } from "./schema.js";
@@ -293,6 +294,8 @@ async function cleanup(
   // All referenced task outputs have verified replacements in conversation storage.
   for (const path of [
     join(ctx.paths.dataPath, "tasks"),
+    // Reports were copied into their child conversations during import.
+    join(ctx.paths.dataPath, "reports"),
     ctx.paths.queryCachePath,
     `${ctx.paths.queryCachePath}-wal`,
     `${ctx.paths.queryCachePath}-shm`,
@@ -387,7 +390,10 @@ export default defineStep({
       "Upgrading configuration",
     );
     await setImmediate();
-    const conversions = convertConfiguration(ctx.paths.home, ctx.scratchDir);
+    const conversions = {
+      ...convertConfiguration(ctx.paths.home, ctx.scratchDir),
+      subagentSettings: convertSubagentSettings(ctx.paths.home),
+    };
     ctx.log(`Configuration conversions: ${JSON.stringify(conversions)}`);
     const reader = new LegacyReader(source);
     let total: number;

@@ -12,6 +12,12 @@ export interface ImportScope {
   statusSequence: number;
 }
 
+const INSTRUCTIONS_MAX_BYTES = 16 * 1024;
+const fitsInstructions = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.trim().length > 0 &&
+  Buffer.byteLength(value) <= INSTRUCTIONS_MAX_BYTES;
+
 export function importConversationScopes(
   reader: LegacyReader,
   mapping: EventMapping,
@@ -92,6 +98,9 @@ export function importConversationScopes(
         reasoningLevel:
           agent.thinkingLevel ?? conversation.thinkingLevel ?? "off",
         systemPrompt: agent.systemPrompt ?? null,
+        instructions: fitsInstructions(agent.instructions)
+          ? agent.instructions
+          : null,
         permissionRuleSetId:
           agent.workspaceScope?.readonly === true ||
           agent.executionKind === "explore" ||
@@ -108,10 +117,8 @@ export function importConversationScopes(
     );
     scopes.set(id, scope);
     agentImportScopes.set(agent.id, scope);
-    if (agent.instructions)
-      mapping.report.loss(
-        "Legacy instructions not part of new conversation configuration",
-      );
+    if (agent.instructions && !fitsInstructions(agent.instructions))
+      mapping.report.loss("Legacy instructions exceed the 16 KB limit");
     return scope;
   };
   const root = create(rootAgent ?? conversation, null);

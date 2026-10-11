@@ -1,3 +1,4 @@
+import { copyExploreReports, countLegacyReports } from "./subagent-profiles.js";
 import { openCoreStorage } from "./storage.js";
 import {
   projectSchema,
@@ -309,6 +310,7 @@ export async function importCoreStorage(input: {
       }
     }
     const seenConversations = new Set<string>();
+    let reportsCopied = 0;
     for (const { data: conversation } of reader.documents("conversation")) {
       seenConversations.add(conversation.id);
       mapping.origins.clear();
@@ -333,13 +335,20 @@ export async function importCoreStorage(input: {
             mapping.ids.get("conv", conversation.id),
           );
           for (const agent of agents.get(conversation.id) ?? []) {
-            if (agent.parentAgentId)
+            if (agent.parentAgentId) {
+              reportsCopied += copyExploreReports(
+                dataDir,
+                conversation.id,
+                agent.id,
+                mapping.ids.get("conv", agent.id),
+              );
               overlayImporter.importConversation(
                 mapping.ids.get("proj", conversation.projectId),
                 conversation.id,
                 mapping.ids.get("conv", agent.id),
                 Array.isArray(agent.tools) ? agent.tools : undefined,
               );
+            }
           }
         });
         input.progress(conversation.id);
@@ -351,6 +360,11 @@ export async function importCoreStorage(input: {
         });
       }
     }
+    // Reports with no known child are deleted with `data/reports` in cleanup.
+    report.skip(
+      "Explore report without a known child conversation",
+      Math.max(0, countLegacyReports(dataDir) - reportsCopied),
+    );
     for (const [conversationId, orphanTasks] of tasks) {
       if (!seenConversations.has(conversationId))
         report.skip(

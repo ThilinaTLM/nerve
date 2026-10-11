@@ -21,11 +21,12 @@ export interface StoragePaths {
   dataPath: string;
   sqlitePath: string;
   conversationsPath: string;
-  reportsPath: string;
   imagesPath: string;
   plansPath: string;
   agentPath: string;
   suggestionsPath: string;
+  subagentsPath: string;
+  subagentsConfigPath: string;
   tlsPath: string;
   tmpPath: string;
   cachePath: string;
@@ -72,11 +73,12 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     dataPath,
     sqlitePath: join(dataPath, "nerve.sqlite"),
     conversationsPath: join(dataPath, "conversations"),
-    reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),
     plansPath: join(dataPath, "plans"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
+    subagentsPath: join(agentPath, "subagents"),
+    subagentsConfigPath: join(configPath, "subagents.json"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),
     cachePath,

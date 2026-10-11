@@ -152,13 +152,6 @@ export class StorageCleanupExecutor {
           this.removeFile(join(this.deps.paths.logsPath, "events.jsonl.1")),
       });
     }
-    if (request.clearExploreReports)
-      plans.push({
-        target: "exploreReports",
-        message: "Clearing explore reports…",
-        run: () =>
-          this.clearDirContents(execution, this.deps.paths.reportsPath),
-      });
     if (request.clearCrashReports)
       plans.push({
         target: "crashReports",
