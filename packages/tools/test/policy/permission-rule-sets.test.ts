@@ -636,3 +636,21 @@ test("source schemas reject forbidden guardrails and broad project grants", () =
     }),
   );
 });
+
+test("built-in read-only and planning sets allow sub-agent delegation", () => {
+  for (const set of ["read_only", "planning"]) {
+    assert.equal(
+      decision(set, "subagent_prompt", {
+        assignments: [{ name: "a", profile: "explore", prompt: "x" }],
+      }).decision,
+      "allow",
+      set,
+    );
+    assert.equal(
+      decision(set, "subagent_stop", { names: ["a"] }).decision,
+      "allow",
+      set,
+    );
+    assert.equal(decision(set, "subagent_status", {}).decision, "allow", set);
+  }
+});
