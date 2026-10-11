@@ -73,10 +73,12 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     core: conversationCore,
     storage: coreStorage,
     capabilities,
-  } = createConversationCore(deps, {
-    launches,
-    definitions: launchDefinitions,
-  });
+    harness,
+  } = createConversationCore(
+    deps,
+    { launches, definitions: launchDefinitions },
+    () => subagentProfiles,
+  );
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -147,6 +149,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     promptSuggestions,
     conversationCore,
     capabilities,
+    harness,
     coreStorage,
     launches,
     launchDefinitions,

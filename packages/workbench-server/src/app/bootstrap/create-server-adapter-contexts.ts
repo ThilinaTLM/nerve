@@ -90,6 +90,7 @@ export function createServerAdapterContexts(
       ...protocolAdapter,
       conversationCore: services.conversationCore,
       capabilities: services.capabilities,
+      harness: services.harness,
       host: infrastructure.host,
       port: infrastructure.port,
       events: infrastructure.events,
