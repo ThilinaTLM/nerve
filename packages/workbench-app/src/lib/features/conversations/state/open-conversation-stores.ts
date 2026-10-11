@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { SvelteMap } from "svelte/reactivity";
 import { pendingWork } from "../agents/agent-team";
 import { ConversationStore } from "./core-conversation-store.svelte";
@@ -13,28 +14,33 @@ export function retainConversationStore(conversationId: string): {
   ready: Promise<void>;
   release(): void;
 } {
-  let entry = openStores.get(conversationId);
-  if (!entry) {
-    const store = new ConversationStore(conversationId);
-    entry = { store, users: 0, ready: store.open() };
-    openStores.set(conversationId, entry);
-  }
-  entry.users += 1;
-  const retained = entry;
-  let released = false;
-  return {
-    store: retained.store,
-    ready: retained.ready,
-    release() {
-      if (released) return;
-      released = true;
-      retained.users -= 1;
-      if (retained.users === 0) {
-        openStores.delete(conversationId);
-        retained.store.dispose();
-      }
-    },
-  };
+  // Retention is a lifecycle command, not a reactive read. Callers commonly
+  // retain from an effect; subscribing that effect to this map would make its
+  // own retain/release mutations restart it indefinitely.
+  return untrack(() => {
+    let entry = openStores.get(conversationId);
+    if (!entry) {
+      const store = new ConversationStore(conversationId);
+      entry = { store, users: 0, ready: store.open() };
+      openStores.set(conversationId, entry);
+    }
+    entry.users += 1;
+    const retained = entry;
+    let released = false;
+    return {
+      store: retained.store,
+      ready: retained.ready,
+      release() {
+        if (released) return;
+        released = true;
+        retained.users -= 1;
+        if (retained.users === 0) {
+          openStores.delete(conversationId);
+          retained.store.dispose();
+        }
+      },
+    };
+  });
 }
 
 export function retainedConversationStores(): ConversationStore[] {
