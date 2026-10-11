@@ -36,7 +36,6 @@ describe("tool lifecycle registry", () => {
       "todos_set",
       "ask_user",
       "plan_mode_present",
-      "task_start",
       "explore",
       "jira_create_issue",
       "confluence_update_page",
@@ -47,7 +46,14 @@ describe("tool lifecycle registry", () => {
         name,
       );
     }
-    for (const name of ["read", "grep", "find", "ls", "task_logs"] as const) {
+    for (const name of [
+      "read",
+      "grep",
+      "find",
+      "ls",
+      "async_bash",
+      "launch",
+    ] as const) {
       assert.equal(toolLifecycleRegistry[name].argumentRegion, "none", name);
       assert.equal(
         toolLifecycleRegistry[name].resultPlaceholder,
@@ -150,25 +156,6 @@ describe("tool lifecycle registry", () => {
     assert.equal(write.body.kind, "none");
     assert.equal(bash.body.kind, "code");
     assert.equal(python.body.kind, "code");
-  });
-
-  it("shows environment key names but never values in approvals", () => {
-    const presentation = presentToolArguments(
-      "task_start",
-      {
-        args: {
-          name: "dev",
-          command: "pnpm dev",
-          env: { API_TOKEN: "super-secret-value", NODE_ENV: "development" },
-          ready: { kind: "detected_url" },
-        },
-      },
-      "approval",
-    );
-    const serialized = JSON.stringify(presentation);
-    assert.match(serialized, /API_TOKEN/);
-    assert.match(serialized, /NODE_ENV/);
-    assert.doesNotMatch(serialized, /super-secret-value|development/);
   });
 
   it("uses a separate redacted fallback for unknown historical tools", () => {

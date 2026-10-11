@@ -54,10 +54,10 @@ export type {
   ThinkingLevel,
 } from "@nervekit/contracts/models";
 export type {
-  CreateTaskDefinitionRequest,
-  TaskDefinition,
-  UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts/task-definitions";
+  CreateLaunchDefinitionRequest,
+  LaunchDefinition,
+  UpdateLaunchDefinitionRequest,
+} from "@nervekit/contracts/launch-definitions";
 export type {
   CustomProvider,
   ModelCost,
@@ -109,11 +109,11 @@ export type {
   UpdateScratchNoteRequest,
 } from "@nervekit/contracts/scratch-notes";
 export type {
-  StartTaskRequest,
-  TaskLogEvent,
-  TaskLogQueryResponse,
-  TaskRecord,
-} from "@nervekit/contracts/tasks";
+  StartLaunchRequest,
+  LaunchLogEvent,
+  LaunchLogQueryResponse,
+  LaunchRecord,
+} from "@nervekit/contracts/launches";
 export type { StatusResponse } from "@nervekit/contracts/status";
 export type {
   StorageCategoryUsage,
@@ -169,7 +169,7 @@ export function listAvailableSkills(projectId?: string) {
 export async function listTools() {
   return (await requestConversation("tool.list", {})).tools;
 }
-export * from "./features/tasks/api/tasks.api";
+export * from "./features/launches/api/launches.api";
 export * from "./features/usage/api/usage.api";
 
 export * from "./features/prompt-suggestions/api/prompt-suggestions.api";

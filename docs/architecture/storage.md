@@ -36,7 +36,7 @@ Optional directories are created lazily. `manifest.json` identifies the home for
 - `secrets/` holds restricted encrypted credentials and authentication material; plaintext secret values do not belong in configuration or SQLite.
 - `data/nerve.sqlite` owns projects, conversations, durable history and unfinished work.
 - Managed conversation files and overlays are deleted with their owner. Core asset references are relative to `data/`.
-- Launch definitions are project files at `.nerve/tasks/definitions.json`, not home database rows. Launch logs are files; instance identity/status/environment are in memory.
+- Launch definitions are project files at `.nerve/launches/definitions.json`, not home database rows. Launch logs are files; instance identity/status/environment are in memory.
 - `cache/` and `tmp/` are rebuildable; logs, crashes and backups have separate retention rules.
 
 Homes from 0.34.1 are converted to this layout by the first [storage migration](migrations.md).

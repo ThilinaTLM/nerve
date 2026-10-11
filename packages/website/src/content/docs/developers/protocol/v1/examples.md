@@ -103,10 +103,10 @@ sidebar:
     "events": [
       {
         "id": "notify_01",
-        "type": "task.output",
+        "type": "launch.output",
         "ts": "2026-07-18T12:00:03.000Z",
         "data": {
-          "taskId": "task_1",
+          "launchId": "launch_1",
           "stream": "stdout",
           "text": "server ready\n"
         }

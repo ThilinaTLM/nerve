@@ -98,7 +98,7 @@ export const composerEditorTheme = EditorView.theme({
     { color: "var(--info)" },
   ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-file .cm-nerve-row-icon":
     { color: "var(--success)" },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-task .cm-nerve-row-icon":
+  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-launch .cm-nerve-row-icon":
     { color: "var(--warning)" },
   ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-pull_request .cm-nerve-row-icon":
     { color: "var(--info)" },

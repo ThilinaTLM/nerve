@@ -26,7 +26,7 @@ Workbench persistence uses the shared primitives in [`file-mutations.ts`](https:
 
 Executable discovery and shutdown are platform-aware:
 
-- Task drivers resolve Git Bash on Windows and standard shells on Unix; Python launchers are resolved separately for each platform.
+- Launch drivers resolve Git Bash on Windows and standard shells on Unix; Python launchers are resolved separately for each platform.
 - Process-tree shutdown cannot assume POSIX groups or signals. Windows keeps the `taskkill` path and bounded fallback behavior.
 - Use argument arrays with `spawn()` whenever a shell is not required, and keep `windowsHide: true` for desktop child processes.
 - Path parsing, process groups, cancellation, and executable discovery need native Windows and macOS coverage in addition to Linux simulation and failure-injection tests.

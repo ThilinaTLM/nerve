@@ -17,11 +17,17 @@ import {
   normalizePermissionRequest,
 } from "@nervekit/tools/policy";
 import { atomicWriteJson } from "../infrastructure/storage-bootstrap/index.js";
+import {
+  buildBashToolDefinition,
+  type BashToolSettings,
+} from "@nervekit/tools/catalog";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
+import { requiresBashTimeoutArgument } from "./tool-host.adapter.js";
 
 export function createPermissionPort(
   home: string,
   storage: CoreStorage,
+  bashSettings?: (projectDir: string) => Promise<BashToolSettings>,
 ): PermissionPort {
   const paths = (conversationId: string, projectDir: string) => ({
     user: join(home, "config", "permissions.json"),
@@ -87,8 +93,22 @@ export function createPermissionPort(
         projectOverlay: overlay(project),
         conversationOverlay: overlay(conversation),
       });
+      const settings =
+        input.toolName === "bash" && bashSettings
+          ? await bashSettings(input.projectDir)
+          : undefined;
+      const definition = settings
+        ? buildBashToolDefinition({
+            ...settings,
+            autoPromotion: {
+              ...settings.autoPromotion,
+              enabled: !requiresBashTimeoutArgument(settings, input.origin),
+            },
+          })
+        : undefined;
       const request = normalizePermissionRequest({
         toolName: toolNameSchema.parse(input.toolName),
+        definition,
         args: input.args as Record<string, unknown>,
         conversationId: input.conversationId,
         projectId,

@@ -15,7 +15,7 @@ import {
 } from "$lib/presentation/shell";
 import type {
   MaintenanceOperation,
-  TaskRecord,
+  LaunchRecord,
   StatusResponse,
 } from "$lib/api";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
@@ -45,7 +45,7 @@ type Props = {
   live?: boolean;
   pendingApprovals?: number;
   onOpenPendingApproval?: () => void;
-  tasks?: TaskRecord[];
+  launches?: LaunchRecord[];
   gitStatus?: GitStatus;
   subscriptionUsages?: SubscriptionUsageEntry[];
   status?: StatusResponse;
@@ -63,7 +63,7 @@ let {
   live = false,
   pendingApprovals = 0,
   onOpenPendingApproval,
-  tasks = [],
+  launches = [],
   gitStatus,
   subscriptionUsages = [],
   status,
@@ -75,9 +75,9 @@ let {
   onZoomLevelChange,
 }: Props = $props();
 
-const activeTasks = $derived(
-  tasks.filter((task) =>
-    ["starting", "running", "ready", "stopping"].includes(task.status),
+const activeLaunches = $derived(
+  launches.filter((launch) =>
+    ["starting", "running", "ready", "stopping"].includes(launch.status),
   ).length,
 );
 const projectPath = $derived(
@@ -177,13 +177,13 @@ function gitStatusTitle(status: GitStatus): string {
 
     <!-- Attention chips sit next to the work they describe, and stay visible on
          phones where the informational chips give up their space first. -->
-    {#if activeTasks > 0}
+    {#if activeLaunches > 0}
       <span
         class={STATUS_BAR_CHIP}
-        title={`${activeTasks} running ${activeTasks === 1 ? "task" : "tasks"}`}
+        title={`${activeLaunches} running ${activeLaunches === 1 ? "launch" : "launches"}`}
       >
         <Terminal size={12} strokeWidth={2.1} aria-hidden="true" />
-        <span>{activeTasks}</span>
+        <span>{activeLaunches}</span>
       </span>
     {/if}
 

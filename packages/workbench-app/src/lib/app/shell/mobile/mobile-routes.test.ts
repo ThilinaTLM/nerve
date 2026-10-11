@@ -117,30 +117,30 @@ describe("mobile routes", () => {
     assert.equal(mobileRouteProjectId(chat), undefined);
     assert.equal(mobileRouteProjectId({ kind: "settings" }), undefined);
     assert.equal(
-      mobileRouteProjectId({ kind: "task", taskId: "t1", projectId: "p3" }),
+      mobileRouteProjectId({ kind: "launch", launchId: "t1", projectId: "p3" }),
       "p3",
     );
     assert.equal(
-      mobileRouteProjectId({ kind: "task", taskId: "t1" }),
+      mobileRouteProjectId({ kind: "launch", launchId: "t1" }),
       undefined,
     );
   });
 
-  it("keys task output routes by run so switching runs replaces the screen", () => {
+  it("keys launch output routes by run so switching runs replaces the screen", () => {
     let state = pushMobileRoute(initialMobileNavState(), project);
     state = pushMobileRoute(state, {
-      kind: "task",
-      taskId: "t1",
+      kind: "launch",
+      launchId: "t1",
       projectId: "p1",
     });
     state = replaceTopMobileRoute(state, {
-      kind: "task",
-      taskId: "t2",
+      kind: "launch",
+      launchId: "t2",
       projectId: "p1",
     });
     assert.deepEqual(state.stacks.inbox, [
       project,
-      { kind: "task", taskId: "t2", projectId: "p1" },
+      { kind: "launch", launchId: "t2", projectId: "p1" },
     ]);
   });
 
@@ -173,7 +173,7 @@ describe("mobile navigation persistence", () => {
       path: "",
     });
     state = pushMobileRoute(state, chat, "activity");
-    state = pushMobileRoute(state, { kind: "task", taskId: "t1" });
+    state = pushMobileRoute(state, { kind: "launch", launchId: "t1" });
     assert.deepEqual(parseMobileNav(serializeMobileNav(state)), state);
   });
 

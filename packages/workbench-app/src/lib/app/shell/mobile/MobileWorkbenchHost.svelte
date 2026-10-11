@@ -11,7 +11,7 @@ import {
   type MobileTabModel,
 } from "$lib/presentation/shell";
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
-import { taskSelectors } from "$lib/features/tasks";
+import { launchSelectors } from "$lib/features/launches";
 import { workspaceSelectors } from "$lib/application/workspace";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import MobileActivityHost from "./MobileActivityHost.svelte";
@@ -19,7 +19,7 @@ import MobileConversationDialogs from "./MobileConversationDialogs.svelte";
 import MobileInboxHost from "./MobileInboxHost.svelte";
 import MobileProjectsHost from "./MobileProjectsHost.svelte";
 import MobileRouteHost from "./MobileRouteHost.svelte";
-import { LIVE_TASK_STATUSES } from "./mobile-activity";
+import { LIVE_LAUNCH_STATUSES } from "./mobile-activity";
 import { followMobileHistory } from "./mobile-history.svelte";
 import { mobileInboxModel } from "./mobile-inbox-model.svelte";
 import {
@@ -53,7 +53,10 @@ const inbox = $derived(mobileInboxModel());
 const anythingRunning = $derived(
   Object.values(workspaceSelectors.conversationActivityById).some(
     (activity) => activity?.busy,
-  ) || taskSelectors.tasks.some((task) => LIVE_TASK_STATUSES.has(task.status)),
+  ) ||
+    launchSelectors.launches.some((launch) =>
+      LIVE_LAUNCH_STATUSES.has(launch.status),
+    ),
 );
 
 const tabs = $derived<MobileTabModel[]>([

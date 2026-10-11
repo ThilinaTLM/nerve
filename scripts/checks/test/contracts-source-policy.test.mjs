@@ -5,8 +5,8 @@ import { contractsSourcePolicyViolations } from "../contracts-source-policy.mjs"
 test("contracts source imports owning files directly", () => {
   assert.deepEqual(
     contractsSourcePolicyViolations(
-      "packages/contracts/src/domains/tasks/operations.ts",
-      'import { taskRecordSchema } from "./task.js";',
+      "packages/contracts/src/domains/launches/operations.ts",
+      'import { launchRecordSchema } from "./launch.js";',
     ),
     [],
   );
@@ -15,8 +15,8 @@ test("contracts source imports owning files directly", () => {
 test("contracts source rejects internal barrel imports", () => {
   assert.deepEqual(
     contractsSourcePolicyViolations(
-      "packages/contracts/src/domains/tasks/operations.ts",
-      'import { taskRecordSchema } from "./index.js";',
+      "packages/contracts/src/domains/launches/operations.ts",
+      'import { launchRecordSchema } from "./index.js";',
     ),
     ["contracts source must import the owning file, not ./index.js"],
   );

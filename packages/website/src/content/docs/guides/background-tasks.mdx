@@ -1,5 +1,5 @@
 ---
-title: Run background tasks
+title: Run background launches
 description: Supervise servers, watchers, and other long-running processes.
 sidebar:
   order: 10
@@ -9,60 +9,58 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import tasksDark from "../../../assets/screenshots/desktop/tasks-dark.webp";
 import tasksLight from "../../../assets/screenshots/desktop/tasks-light.webp";
 
-Nerve separates a durable **task definition** from immutable **task runs**. A definition owns its label, command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the task and tab remain stable while prior output stays in History.
+Nerve separates a durable **launch definition** from immutable **launch runs**. A definition owns its label, command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
 
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
 
-Use finite Bash for commands that should finish. Use `task_start` for a known server or watcher. An explicit `task_start` is detached supervised work: status can appear in the task UI and transcript, but terminal completion does not restart the agent. By contrast, when a finite Bash call outlives its wait and Nerve automatically promotes it, that promoted command remains awaited work for the originating agent. Nerve delivers its result and can continue the agent after the foreground turn settles. A task is separate from an agent todo: tasks supervise processes, while todos describe work inside a conversation.
+Use `bash` for commands and `launch` for the user's saved dev servers. Bash can run explicitly in the background or move there automatically after a user-controlled wait. Background runs always notify the conversation on exit. A launch is separate from an agent todo: launches supervise processes, while todos describe work inside a conversation.
 
-Before starting a server or watcher, the agent checks active tasks once unless it already knows the current task state. A successful start reports the new task and any other active tasks in the workspace scope, allowing the agent to notice possible overlap without heuristic duplicate detection.
+Before starting a server, check `launch status` and prefer an existing launch definition. Definitions live in `.nerve/launches/definitions.json`; only the user can create or edit them.
 
 ## Agent tool contract
 
-`task_start` accepts one command and an optional project-relative `cwd`; absolute paths and traversal outside the project are rejected. Readiness is one `ready` object with `kind: "url"`, `"detected_url"`, or `"pattern"`. Agent-started tasks publish asynchronous status updates, but the explicit tool remains detached from agent continuation.
+`bash` accepts a command and an optional project-relative or absolute `cwd` inside the project. `background: true` returns at once. Its optional `ready` string is an HTTP(S) URL or a regex matched against stdout and stderr. Readiness waits at most 60 seconds; a timeout does not stop the process.
 
-Use `task_status({ tasks: [idOrName] })` for selected tasks, or omit `tasks` to list active tasks. Use `task_logs({ task, mode, cursor })`; `cursor` pages backward in recent/error/warning modes and forward in `since_cursor` mode. Use `task_control({ task, action })` to stop or restart through Nerve's safe process-tree policy.
+With auto-promotion enabled, foreground commands still running after the configured wait become async Bash, and `timeout` is not available. With promotion disabled, foreground calls require a timeout in seconds and the process tree is killed when it expires. Background runs have no time limit.
+
+Use `async_bash list` for running commands (`all: true` includes finished runs), `async_bash logs` to inspect output, and `async_bash stop` to terminate a process tree.
+
+Use `launch status` for definitions and their launches. `launch start`, `restart`, and `stop` accept a definition ID or launch ID; a definition ID selects its latest launch for restart, stop, and logs. Restart uses the current definition, starting it if nothing is running.
 
 ## Supervision
 
-A task can define readiness by URL, first detected URL, or output pattern. The agent receives asynchronous status rather than polling; status and log tools remain available for on-demand diagnosis. Dedicated views provide status and bounded streaming logs with cursor, error, warning, and first-failure modes. Runtime can be capped at up to 24 hours.
+A `single` definition already running returns its active launch rather than starting another. If a definition declares a port, start and restart wait up to 30 seconds for it to listen. Port conflicts report the listener's PID and process name; agents never terminate foreign listeners.
 
-Environment values supplied to task start are encrypted at rest and displayed as redacted keys. They still enter the child process; treat its logs and behavior as sensitive.
+Both log tools accept a 0-based `offset` and `limit` (default 100, maximum 500). Omitting offset returns the last lines. Large output is summarized with file paths for `read`/`grep`, rather than flooding the conversation context. Status and log actions are reads and never ask for approval; process-changing actions use command policy.
 
 ## Recovery
 
-Nerve has no persistent sidecar supervisor. On restart it verifies process identity with platform evidence:
+Nerve does not recover processes after a daemon restart. Async Bash becomes `lost`; launch instances are memory-only. Saved launch definitions and log files remain, so inspect the retained output and start the current definition when needed.
 
-- `recovered`: verified live; stop/restart remains available, but old stdout/stderr is frozen because pipes cannot be reattached;
-- `interrupted`: verified gone;
-- `recovery_unknown`: identity cannot be proven, so destructive PID actions are blocked.
+Async Bash ends on process exit, `async_bash stop`, conversation stop/delete, or daemon shutdown. Stop terminates the process tree gracefully, then escalates after a bounded wait.
 
-Linux uses `/proc` start identity and process groups; macOS uses process-start fingerprints and groups; Windows uses creation time and process-tree termination. Port discovery is best effort.
+Quitting the desktop app terminates active local process trees before its owned daemon exits. Closing to the tray leaves processes running.
 
-A normal **Stop** requests graceful process-tree termination and escalates after a bounded wait. Verified recovered and stuck-stopping runs also offer **Force kill**: immediate for stuck-stopping runs, confirmed for verified recovered runs because you may not have asked to terminate them. After the run is terminal, remove its history or choose **Run saved task again** to launch the definition's current configuration. Nerve does not force-kill `recovery_unknown` records because their PID identity is unverified.
+## Launch controls
 
-Quitting the desktop app immediately terminates active local task process trees before its owned daemon exits. Closing to the tray leaves tasks running.
-
-## Task controls
-
-The Tasks panel and task-output tab let you switch between sibling runs, restart a saved task, cancel a run, load earlier log output, clean up terminal history, and prune old runs. The project switcher also includes running task counts in its activity state, so work in another project remains visible. The agent uses `task_control` with `action: "stop"` or `action: "restart"` for one task at a time. **Force kill** is available only when Nerve has verified the process identity (or a run is stuck stopping); it is intentionally unavailable for `recovery_unknown` records. Removing a run's history does not remove the durable task definition.
+The Launches panel lets you inspect saved definitions and their runs, start or restart the current definition, stop a launch, and inspect retained output. Agents use the same definitions through `launch`; they cannot create or edit them. A new start or restart creates a new launch without changing the definition's identity.
 
 <DocsScreenshot
   light={tasksLight}
   dark={tasksDark}
-  alt="The Nerve Tasks panel listing saved task definitions and their recent runs beside the conversation that started them"
-  caption="What to notice: a task definition keeps its identity while each run stays separately inspectable, with its readiness, status, and retained output."
+  alt="The Nerve Launches panel listing saved launch definitions and their recent runs beside the conversation that started them"
+  caption="What to notice: a launch definition keeps its identity while each run stays separately inspectable, with its readiness, status, and retained output."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
 
 ## Agent notifications
 
-Task terminal changes can become deduplicated `task_event` system entries in the conversation. Auto-promoted Bash commands create an awaited obligation for the originating agent; delivery is durable and idempotent, and a settled foreground turn can be continued when the result is ready. Explicit `task_start` processes are detached: their updates remain visible, but terminal completion does not create an obligation or start a fresh agent turn. This is separate from desktop/browser toast notifications.
+Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
 
 ## Next steps
 
-- [Task recovery troubleshooting](/troubleshooting/tasks-and-recovery/)
+- [Launch recovery troubleshooting](/troubleshooting/tasks-and-recovery/)
 - [Configure Settings](/guides/settings/)
-- [Task tool reference](/reference/tools/#background-tasks)
+- [Launch tool reference](/reference/tools/#background-processes)

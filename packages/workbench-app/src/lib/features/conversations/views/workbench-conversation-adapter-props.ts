@@ -73,7 +73,7 @@ export type WorkbenchConversationAdapterProps = {
   slashCompletions?: CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
-    kind: "task" | "pull_request",
+    kind: "launch" | "pull_request",
     query: string,
   ) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];

@@ -6,7 +6,7 @@ with environment host ports and workbench services.
 - `core-host/` resolves models, resources, permissions, local tools and processes.
 - `conversation-core` owns projects, trusted resources, conversations and history
   in `data/nerve.sqlite` after startup migrations complete.
-- `domains/tasks/application/launch.service.ts` owns in-memory workbench launches;
+- `domains/launches/application/launch.service.ts` owns in-memory workbench launches;
   saved definitions remain project files. Launches are not recovered after restart.
 - `infrastructure/events/` publishes best-effort workbench notices with no durable
   event log or retained payloads.

@@ -11,6 +11,33 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("defaults and bounds the foreground bash timeout setting", () => {
+    assert.equal(defaultSettings.tools.bash.maxTimeoutMs, 900_000);
+    for (const maxTimeoutMs of [1000, 3_600_000]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          tools: { bash: { maxTimeoutMs } },
+        }).success,
+        true,
+      );
+    }
+    for (const maxTimeoutMs of [999, 3_600_001, 1000.5]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          tools: { bash: { maxTimeoutMs } },
+        }).success,
+        false,
+      );
+    }
+    const settings = settingsSchema.parse({
+      ...defaultSettings,
+      tools: {
+        ...defaultSettings.tools,
+        bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
+      },
+    });
+    assert.equal(settings.tools.bash.maxTimeoutMs, 900_000);
+  });
   it("validates only the current harness version and preserves explicit enablement", () => {
     assert.equal(
       harnessConfigSchema.safeParse({ ...defaultHarnessConfig, version: 2 })

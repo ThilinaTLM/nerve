@@ -29,8 +29,8 @@ const failedLabel = $derived(
 const awaitingAsyncLabel = $derived(
   `${countLabel(item.activity.awaitingAsync, "conversation")} waiting for background work`,
 );
-const taskLabel = $derived(
-  `${countLabel(item.tasks.running, "background task")} running`,
+const launchLabel = $derived(
+  `${countLabel(item.launches.running, "background launch")} running`,
 );
 // A project with nothing running says nothing: repeating "No active work" on
 // every quiet row turns the exception (real activity) into background noise.
@@ -39,7 +39,7 @@ const hasActivity = $derived(
     item.activity.awaitingAsync > 0 ||
     item.activity.needsUser > 0 ||
     item.activity.failed > 0 ||
-    item.tasks.running > 0,
+    item.launches.running > 0,
 );
 </script>
 
@@ -132,7 +132,7 @@ const hasActivity = $derived(
       </Tooltip.Root>
     {/if}
 
-    {#if item.tasks.running}
+    {#if item.launches.running}
       <Tooltip.Root>
         <Tooltip.Trigger>
           {#snippet child({ props })}
@@ -140,16 +140,16 @@ const hasActivity = $derived(
               {...props}
               type="button"
               class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-info/10 px-1.5 py-0.5 text-info"
-              aria-label={taskLabel}
+              aria-label={launchLabel}
               onclick={(event) => event.stopPropagation()}
               onkeydown={(event) => event.stopPropagation()}
             >
               <ListTodo class="size-3.5" aria-hidden="true" />
-              <span>{item.tasks.running}</span>
+              <span>{item.launches.running}</span>
             </button>
           {/snippet}
         </Tooltip.Trigger>
-        <Tooltip.Content sideOffset={5}>{taskLabel}</Tooltip.Content>
+        <Tooltip.Content sideOffset={5}>{launchLabel}</Tooltip.Content>
       </Tooltip.Root>
     {/if}
   </div>

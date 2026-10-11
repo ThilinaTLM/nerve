@@ -6,6 +6,7 @@ import {
   insertEvent,
   mapMessage,
   responsePayload,
+  readPayload,
   type EventMapping,
 } from "./events.mapper.js";
 import { iso, type Legacy, type LegacyReader } from "./legacy.reader.js";
@@ -31,14 +32,48 @@ export function importConversation(
     agents,
   );
   mapping.generatedAssets.clear();
+  mapping.processLinks = new Map();
+  for (const task of tasks) {
+    if (task.origin?.kind !== "agent_tool") continue;
+    const link = {
+      id: mapping.ids.get("bash", task.id),
+      command: task.command,
+    };
+    mapping.processLinks.set(task.id, link);
+    mapping.processLinks.set(task.origin.toolCallId, link);
+  }
   const tools = new Map<string, AssetOwner>();
   const providerTools = new Map<string, string>();
   for (const { row, data } of reader.records(conversation.id, "tool_call")) {
     const call = data.toolCall ?? {};
+    if (
+      call.toolName === "task_start" &&
+      !mapping.processLinks.has(call.id ?? String(row.id))
+    ) {
+      const envelope =
+        call.result ??
+        (call.resultPayload?.logicalPath
+          ? readPayload(mapping.dataDir, call.resultPayload.logicalPath)
+          : null);
+      const result = envelope?.result ?? envelope;
+      const bash = result?.asyncBash ?? result?.details?.asyncBash;
+      const bashId = bash?.id ?? result?.bashId ?? result?.details?.bashId;
+      if (typeof bashId === "string" && bashId.startsWith("bash_"))
+        mapping.processLinks.set(call.id ?? String(row.id), {
+          id: bashId,
+          command: bash?.command ?? call.args?.command,
+        });
+    }
     tools.set(String(row.id), {
       conversationId: owner(row.agent_id).id,
       toolCallId: mapping.ids.get("tool", String(row.id)),
     });
+    const link = mapping.processLinks.get(call.id ?? String(row.id));
+    if (link && (call.providerToolCallId ?? call.sourceToolCallId))
+      mapping.processLinks.set(
+        call.providerToolCallId ?? call.sourceToolCallId,
+        link,
+      );
     if (call.providerToolCallId ?? call.sourceToolCallId)
       providerTools.set(
         call.providerToolCallId ?? call.sourceToolCallId,

@@ -28,7 +28,7 @@ describe("workspace feature ports", () => {
 
 function compileTimeReadonlyContract(ports: WorkspaceFeaturePorts): void {
   // @ts-expect-error application consumers cannot mutate feature arrays
-  ports.tasks.read.openTaskTabIds.push("task_1");
+  ports.launches.read.openLaunchTabIds.push("launch_1");
   // @ts-expect-error application consumers cannot replace feature map entries
   ports.conversations.read.conversationViews.conv_1 = {};
 }

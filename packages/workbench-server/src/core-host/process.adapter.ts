@@ -1,8 +1,15 @@
-import { createWriteStream } from "node:fs";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { pipeline } from "node:stream/promises";
-import { spawnManagedProcess } from "@nervekit/native";
+import {
+  spawnShellProcess,
+  stopProcessTree,
+  waitForProcessExit,
+} from "../infrastructure/process-host/shell-process.js";
+import {
+  captureProcessOutput,
+  PROCESS_OUTPUT_LIMIT_BYTES,
+} from "../infrastructure/process-host/output-capture.js";
+import { waitForOutputReadiness } from "../infrastructure/process-host/readiness.js";
 import type {
   BackgroundProcess,
   ProcessPort,
@@ -24,32 +31,27 @@ export class CoreProcessHost implements ProcessPort {
     const outputFiles = {
       stdout: join(input.artifactDir, "stdout.txt"),
       stderr: join(input.artifactDir, "stderr.txt"),
+      combined: join(input.artifactDir, "output.txt"),
     };
-    const process = spawnManagedProcess(
-      this.shellPath,
-      ["-lc", input.command],
-      {
-        cwd: input.cwd,
-        env: { ...globalThis.process.env, ...input.env },
-        policy: {
-          wallTimeMs: input.timeoutMs,
-          output: { totalBytes: 16 * 1024 * 1024, overflow: "truncate" },
+    const { managed: process } = spawnShellProcess(input.command, {
+      shellPath: this.shellPath,
+      login: true,
+      cwd: input.cwd,
+      env: input.env,
+      policy: {
+        wallTimeMs: input.timeoutMs,
+        output: {
+          totalBytes: PROCESS_OUTPUT_LIMIT_BYTES,
+          overflow: "truncate",
         },
       },
-    );
+    });
     let cancelled = false;
     let exited = false;
     void process.exited.then(() => {
       exited = true;
     });
-    for (const stream of ["stdout", "stderr"] as const)
-      process[stream].on("data", (chunk: Buffer) =>
-        input.onProgress?.({ stream, chunk: chunk.toString() }),
-      );
-    const drains = Promise.all([
-      pipeline(process.stdout, createWriteStream(outputFiles.stdout)),
-      pipeline(process.stderr, createWriteStream(outputFiles.stderr)),
-    ]);
+    const drains = captureProcessOutput(process, outputFiles, input.onProgress);
     const ref = process.identity;
     const terminal = (async () => {
       const [exit] = await Promise.all([process.closed, drains]);
@@ -74,11 +76,18 @@ export class CoreProcessHost implements ProcessPort {
           return;
         }
         cancelled = true;
-        const result = await process.terminate("SIGKILL");
-        if (!result.terminated)
-          throw new Error(
-            result.error ?? "Process termination could not be confirmed",
-          );
+        const evidence = await stopProcessTree({
+          signalProcess: async (signal) => {
+            const result = await process.terminate(signal);
+            if (!result.terminated)
+              throw new Error(
+                result.error ?? "Process termination could not be confirmed",
+              );
+          },
+          waitForExit: () => waitForProcessExit(process.exited, 5_000),
+        });
+        if (evidence === "timeout")
+          throw new Error("Process termination could not be confirmed");
         await terminal;
       },
     };
@@ -105,60 +114,12 @@ export class CoreProcessHost implements ProcessPort {
         }
         return { process: background };
       }
-      const ready = input.ready;
-      const pattern =
-        ready.kind === "pattern" ? new RegExp(ready.pattern) : undefined;
-      let exited = false;
-      void background.wait().then(
-        () => {
-          exited = true;
-        },
-        () => {
-          exited = true;
-        },
-      );
-      const deadline = Date.now() + (ready.timeoutMs ?? 30_000);
-      while (Date.now() < deadline && !exited && !input.signal.aborted) {
-        const output = await readFile(
-          background.outputFiles.stdout,
-          "utf8",
-        ).catch(() => "");
-        if (pattern?.test(output))
-          return { process: background, readiness: { status: "ready" } };
-        const url =
-          ready.kind === "url"
-            ? ready.url
-            : ready.kind === "detected_url"
-              ? // eslint-disable-next-line no-control-regex -- terminal output may contain ANSI escapes.
-                output.match(/https?:\/\/[^\s\x1b]+/)?.[0]
-              : undefined;
-        if (url) {
-          try {
-            const response = await fetch(url, {
-              signal: AbortSignal.any([
-                input.signal,
-                AbortSignal.timeout(1000),
-              ]),
-            });
-            await response.body?.cancel();
-            if (response.ok)
-              return {
-                process: background,
-                readiness: { status: "ready", url },
-              };
-          } catch {
-            /* Readiness can lag process startup. */
-          }
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      if (input.signal.aborted) {
-        await background.cancel();
-        throw new DOMException("Cancelled", "AbortError");
-      }
       return {
         process: background,
-        readiness: { status: exited ? "exited" : "timed_out" },
+        readiness: await waitForOutputReadiness(background, {
+          signal: input.signal,
+          ready: input.ready,
+        }),
       };
     } catch (error) {
       await background.cancel().catch(() => undefined);
@@ -170,14 +131,12 @@ export class CoreProcessHost implements ProcessPort {
 
   async run(input: Parameters<ProcessPort["run"]>[0]) {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
-    const process = spawnManagedProcess(
-      this.shellPath,
-      ["-lc", input.command],
-      {
-        cwd: input.cwd,
-        policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },
-      },
-    );
+    const { managed: process } = spawnShellProcess(input.command, {
+      shellPath: this.shellPath,
+      login: true,
+      cwd: input.cwd,
+      policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },
+    });
     const stdout: Buffer[] = [],
       stderr: Buffer[] = [];
     process.stdout.on("data", (chunk: Buffer) => stdout.push(chunk));

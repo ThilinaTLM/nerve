@@ -14,7 +14,7 @@ import type { MobileRoute } from "./mobile-routes";
 
 /**
  * Route → screen. Screens that bind feature internals (files, notes, context,
- * tasks, logs, settings) live in the composition root and load on first use, so the
+ * launches, logs, settings) live in the composition root and load on first use, so the
  * phone shell does not pull settings or log tooling into the startup bundle.
  */
 let {

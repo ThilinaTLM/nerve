@@ -18,7 +18,7 @@ import { webToolDefinitions } from "./definitions/core/web.tools.js";
 import { visionToolDefinitions } from "./definitions/core/vision.tools.js";
 import { exploreToolDefinitions } from "./definitions/orchestration/explore.tools.js";
 import { planModeToolDefinitions } from "./definitions/orchestration/plan-mode.tools.js";
-import { taskToolDefinitions } from "./definitions/orchestration/task.tools.js";
+import { processToolDefinitions } from "./definitions/orchestration/process.tools.js";
 import { agentResultPolicyForTool } from "../result-projection/policies/index.js";
 import { permissionMetadataForTool } from "./permission-metadata.js";
 import {
@@ -53,7 +53,7 @@ export const coreToolDefinitions: readonly ToolDefinition[] = Object.freeze(
 export const orchestrationToolDefinitions: readonly ToolDefinition[] =
   Object.freeze(
     [
-      ...taskToolDefinitions,
+      ...processToolDefinitions,
       ...subagentToolDefinitions,
       ...exploreToolDefinitions,
       ...planModeToolDefinitions,

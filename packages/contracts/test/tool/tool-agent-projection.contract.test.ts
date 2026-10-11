@@ -78,7 +78,7 @@ describe("agent projection contracts", () => {
     );
   });
 
-  it("accepts normalized mutation, related-page, and task-log strategy metadata", () => {
+  it("accepts normalized mutation, related-page, and process strategy metadata", () => {
     assert.equal(
       toolMutationSummarySchema.safeParse({
         operation: "edit",
@@ -104,8 +104,8 @@ describe("agent projection contracts", () => {
     assert.equal(
       agentProjectionSnapshotSchema.safeParse({
         version: 1,
-        profile: "task_logs",
-        strategy: "task_log_window",
+        profile: "process_diagnostics",
+        strategy: "compact_diagnostic",
         terminalOutcomePrecedence: false,
         fastPath: false,
         recovery: "artifact",

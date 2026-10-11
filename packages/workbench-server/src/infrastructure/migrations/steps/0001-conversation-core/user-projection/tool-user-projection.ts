@@ -654,46 +654,12 @@ export function buildUserProjection(
       break;
     }
 
-    case "task_logs": {
-      const output = lastLines(
-        stringField(resultRecord.output) ?? outputText(resultRecord),
-      );
-      resultPreview =
-        "output" in resultRecord
-          ? { bashId: resultRecord.bashId, output: output.value }
-          : withTextContent(resultRecord, output.value);
+    case "async_bash":
+    case "launch": {
+      const output = lastLines(outputText(resultRecord));
+      resultPreview = withTextContent(resultRecord, output.value);
       ({ hidden, noun } = textOverflowStats([output]));
       direction = "tail";
-      break;
-    }
-    case "task_start":
-    case "task_control":
-    case "task_status": {
-      const summary = (value: unknown) => {
-        const row = record(value);
-        return {
-          id: row.id,
-          status: row.status,
-          command: row.command,
-          cwd: row.cwd,
-          exitCode: row.exitCode,
-          finishedAt: row.finishedAt,
-        };
-      };
-      const rows = Array.isArray(publicResult)
-        ? firstItems(publicResult)
-        : undefined;
-      resultPreview = rows
-        ? rows.value?.map(summary)
-        : resultRecord.asyncBash
-          ? {
-              asyncBash: summary(resultRecord.asyncBash),
-              readiness: resultRecord.readiness,
-            }
-          : summary(publicResult);
-      hidden = rows?.hidden ?? 0;
-      noun = "tasks";
-      direction = "head";
       break;
     }
     case "subagent_new":

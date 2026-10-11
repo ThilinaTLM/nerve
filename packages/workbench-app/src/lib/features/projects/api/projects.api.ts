@@ -3,11 +3,11 @@ import { requestConversation } from "$lib/application/startup/conversation-conne
 import { createId } from "@nervekit/contracts";
 import type { Project } from "@nervekit/contracts/core";
 import {
-  taskDefinitionSchema,
-  type TaskDefinition,
-  type CreateTaskDefinitionRequest,
-  type UpdateTaskDefinitionRequest,
-} from "@nervekit/contracts/task-definitions";
+  launchDefinitionSchema,
+  type LaunchDefinition,
+  type CreateLaunchDefinitionRequest,
+  type UpdateLaunchDefinitionRequest,
+} from "@nervekit/contracts/launch-definitions";
 import type { ProjectEditor } from "@nervekit/contracts/projects";
 export async function createProject(directory: string): Promise<Project> {
   return requestConversation("project.create", {
@@ -41,45 +41,48 @@ export async function openProjectInTerminal(projectId: string, path?: string) {
   return (await workbenchRequest("project.openTerminal", { projectId, path }))
     .result;
 }
-export async function getTaskDefinitions(
+export async function getLaunchDefinitions(
   projectId: string,
-): Promise<TaskDefinition[]> {
+): Promise<LaunchDefinition[]> {
   const definitions = (
-    await workbenchRequest("taskDefinition.list", { projectId })
+    await workbenchRequest("launchDefinition.list", { projectId })
   ).result.definitions;
   return definitions.map((definition) =>
-    taskDefinitionSchema.parse(definition),
+    launchDefinitionSchema.parse(definition),
   );
 }
 
-export async function createTaskDefinition(
+export async function createLaunchDefinition(
   projectId: string,
-  body: CreateTaskDefinitionRequest,
-): Promise<TaskDefinition> {
+  body: CreateLaunchDefinitionRequest,
+): Promise<LaunchDefinition> {
   const definition = (
-    await workbenchRequest("taskDefinition.create", { projectId, ...body })
+    await workbenchRequest("launchDefinition.create", { projectId, ...body })
   ).result.definition;
-  return taskDefinitionSchema.parse(definition);
+  return launchDefinitionSchema.parse(definition);
 }
 
-export async function updateTaskDefinition(
+export async function updateLaunchDefinition(
   projectId: string,
   definitionId: string,
-  body: UpdateTaskDefinitionRequest,
-): Promise<TaskDefinition> {
+  body: UpdateLaunchDefinitionRequest,
+): Promise<LaunchDefinition> {
   const definition = (
-    await workbenchRequest("taskDefinition.update", {
+    await workbenchRequest("launchDefinition.update", {
       projectId,
       definitionId,
       ...body,
     })
   ).result.definition;
-  return taskDefinitionSchema.parse(definition);
+  return launchDefinitionSchema.parse(definition);
 }
 
-export async function deleteTaskDefinition(
+export async function deleteLaunchDefinition(
   projectId: string,
   definitionId: string,
 ): Promise<void> {
-  await workbenchRequest("taskDefinition.delete", { projectId, definitionId });
+  await workbenchRequest("launchDefinition.delete", {
+    projectId,
+    definitionId,
+  });
 }

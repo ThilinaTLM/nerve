@@ -10,3 +10,5 @@ export * from "./strategies.js";
 export * from "./types.js";
 
 export { buildUserProjection } from "./user-projection/tool-user-projection.js";
+
+export * from "./process-output.js";

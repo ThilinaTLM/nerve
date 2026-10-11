@@ -1,5 +1,5 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { TaskRecord } from "$lib/api";
+import type { LaunchRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
 import type { ProjectRecord } from "$lib/domain/projects/sidebar-view-models";
@@ -23,7 +23,7 @@ export type ProjectActivitySummary = {
   awaitingAsync: number;
 };
 
-export type ProjectTaskSummary = {
+export type ProjectLaunchSummary = {
   running: number;
 };
 
@@ -36,7 +36,7 @@ export type ProjectSwitcherItem = {
   lastAccessedAt?: number;
   conversationCount: number;
   activity: ProjectActivitySummary;
-  tasks: ProjectTaskSummary;
+  launches: ProjectLaunchSummary;
 };
 
 export function summarizeProjectActivity(
@@ -70,7 +70,7 @@ export type ProjectActivitySignal = {
 
 export function projectActivitySignal(
   activity: ProjectActivitySummary,
-  tasks: ProjectTaskSummary,
+  launches: ProjectLaunchSummary,
 ): ProjectActivitySignal | undefined {
   const parts = [
     activity.needsUser ? `${activity.needsUser} waiting for you` : "",
@@ -81,8 +81,8 @@ export function projectActivitySignal(
     activity.awaitingAsync
       ? `${activity.awaitingAsync} waiting for background work`
       : "",
-    tasks.running
-      ? `${tasks.running} background task${tasks.running === 1 ? "" : "s"} running`
+    launches.running
+      ? `${launches.running} background launch${launches.running === 1 ? "" : "s"} running`
       : "",
   ].filter(Boolean);
   if (!parts.length) return undefined;
@@ -90,7 +90,7 @@ export function projectActivitySignal(
     ? "warning"
     : activity.failed
       ? "destructive"
-      : activity.running || tasks.running
+      : activity.running || launches.running
         ? "info"
         : "warning";
   return {
@@ -100,7 +100,7 @@ export function projectActivitySignal(
       activity.failed +
       activity.running +
       activity.awaitingAsync +
-      tasks.running,
+      launches.running,
     summary: parts.join(", "),
   };
 }
@@ -108,7 +108,7 @@ export function projectActivitySignal(
 export function buildProjectSwitcherItems(input: {
   projects: Project[];
   conversations: ConversationSummary[];
-  tasks: readonly TaskRecord[];
+  launches: readonly LaunchRecord[];
   activityById: Record<string, ConversationActivity>;
   homeDir?: string;
   recency?: Record<string, number>;
@@ -124,22 +124,24 @@ export function buildProjectSwitcherItems(input: {
     for (const project of projects) projectKeyById.set(project.id, key);
   }
 
-  const runningTasksByKey = new Map<string, number>();
-  const activeTaskStatuses = new Set<TaskRecord["status"]>([
+  const runningLaunchesByKey = new Map<string, number>();
+  const activeLaunchStatuses = new Set<LaunchRecord["status"]>([
     "starting",
     "running",
     "ready",
     "stopping",
   ]);
-  for (const task of input.tasks) {
+  for (const launch of input.launches) {
     if (
-      task.visibility !== "background" ||
-      !activeTaskStatuses.has(task.status)
+      launch.visibility !== "background" ||
+      !activeLaunchStatuses.has(launch.status)
     ) {
       continue;
     }
 
-    let key = task.projectId ? projectKeyById.get(task.projectId) : undefined;
+    let key = launch.projectId
+      ? projectKeyById.get(launch.projectId)
+      : undefined;
     if (!key) {
       let longestMatch = -1;
       for (const [candidateKey, projects] of byKey) {
@@ -147,7 +149,7 @@ export function buildProjectSwitcherItems(input: {
         if (
           dir &&
           dir.length > longestMatch &&
-          isPathInDirectory(task.cwd, dir)
+          isPathInDirectory(launch.cwd, dir)
         ) {
           key = candidateKey;
           longestMatch = dir.length;
@@ -155,7 +157,7 @@ export function buildProjectSwitcherItems(input: {
       }
     }
     if (key) {
-      runningTasksByKey.set(key, (runningTasksByKey.get(key) ?? 0) + 1);
+      runningLaunchesByKey.set(key, (runningLaunchesByKey.get(key) ?? 0) + 1);
     }
   }
 
@@ -195,7 +197,7 @@ export function buildProjectSwitcherItems(input: {
       lastAccessedAt: input.recency?.[key],
       conversationCount: conversations.length,
       activity: summarizeProjectActivity(conversations, input.activityById),
-      tasks: { running: runningTasksByKey.get(key) ?? 0 },
+      launches: { running: runningLaunchesByKey.get(key) ?? 0 },
     };
   });
 

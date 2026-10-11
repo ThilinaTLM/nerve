@@ -1,0 +1,468 @@
+import type {
+  LaunchLogEvent,
+  LaunchLogQuery,
+  LaunchLogQueryResponse,
+  LaunchOutputRetention,
+  LaunchRecord,
+} from "@nervekit/contracts/launches";
+import { launchLogEventSchema } from "@nervekit/contracts/launches";
+import { queryLaunchLogEvents } from "./launch-log-query.js";
+import { mkdir, open } from "node:fs/promises";
+import { dirname } from "node:path";
+import type { WorkbenchNoticePublisher } from "../../../infrastructure/events/index.js";
+import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
+import {
+  appendJsonLines,
+  readJsonLines,
+} from "../../../infrastructure/storage-bootstrap/index.js";
+
+export type LaunchLogStream = "stdout" | "stderr";
+
+export const MAX_BUFFERED_LOG_LINE_CHARS = 256 * 1024;
+export const TASK_OUTPUT_HEAD_MAX_BYTES = 32 * 1024 * 1024;
+export const TASK_OUTPUT_TAIL_MAX_BYTES = 512 * 1024;
+
+export type LaunchOutputTailChunk = {
+  stream: LaunchLogStream;
+  text: string;
+};
+
+export interface LaunchLogCursor {
+  logSeq: number;
+  lineBuffers: Record<LaunchLogStream, string>;
+  rawBuffers: Record<LaunchLogStream, Buffer>;
+  streamBytes: Record<LaunchLogStream, number>;
+  logQueue: Promise<void>;
+  totalBytes: number;
+  retainedBytes: number;
+  omittedBytes: number;
+  totalLines: number;
+  retainedLines: number;
+  omittedLines: number;
+  tailChunks: LaunchOutputTailChunk[];
+  tailBytes: number;
+  tailDirtyBytes: number;
+}
+
+export function createLaunchLogCursor(logSeq = 0): LaunchLogCursor {
+  return {
+    logSeq,
+    lineBuffers: { stdout: "", stderr: "" },
+    rawBuffers: { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) },
+    streamBytes: { stdout: 0, stderr: 0 },
+    logQueue: Promise.resolve(),
+    totalBytes: 0,
+    retainedBytes: 0,
+    omittedBytes: 0,
+    totalLines: 0,
+    retainedLines: 0,
+    omittedLines: 0,
+    tailChunks: [],
+    tailBytes: 0,
+    tailDirtyBytes: 0,
+  };
+}
+
+export class LaunchLogService {
+  constructor(
+    private readonly events: WorkbenchNoticePublisher,
+    private readonly options: {
+      publishOutputEvents?: boolean;
+      diagnostics?: PerformanceDiagnosticsPort;
+    } = {},
+  ) {}
+
+  async queryLogs(
+    launch: LaunchRecord,
+    query: LaunchLogQuery = {},
+  ): Promise<LaunchLogQueryResponse> {
+    const headEvents = await this.readLogEvents(launch.logsPath);
+    const tailEvents = launch.outputRetention?.tailPath
+      ? await this.tailLogEvents(
+          launch,
+          (headEvents.at(-1)?.seq ?? 0) +
+            (launch.outputRetention.truncated ? 2 : 1),
+        )
+      : [];
+    const allEvents = launch.outputRetention?.truncated
+      ? [
+          ...headEvents,
+          omissionEvent(headEvents, launch.outputRetention.omittedBytes),
+          ...tailEvents,
+        ]
+      : [...headEvents, ...tailEvents];
+    return {
+      launch,
+      ...queryLaunchLogEvents(allEvents, query),
+      outputRetention: launch.outputRetention,
+      streamArtifacts: {
+        stdoutPath: launch.stdoutPath,
+        stderrPath: launch.stderrPath,
+        eventsPath: launch.logsPath,
+        ...(launch.combinedPath ? { combinedPath: launch.combinedPath } : {}),
+        fidelity: allEvents.some(
+          (event) => event.raw?.fidelity === "reconstructed",
+        )
+          ? "reconstructed"
+          : "captured",
+      },
+    };
+  }
+
+  async captureOutput(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    chunk: Buffer | string,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const bytes = Buffer.isBuffer(chunk)
+      ? Buffer.from(chunk)
+      : Buffer.from(chunk, "utf8");
+    const text = bytes.toString("utf8");
+    const diagnostics = this.options.diagnostics;
+    const startedAt = diagnostics?.enabled ? performance.now() : undefined;
+    if (diagnostics?.enabled) {
+      diagnostics.count("launch.outputChunk");
+      diagnostics.count("launch.outputBytes", Buffer.byteLength(text));
+    }
+    return this.enqueue(cursor, () =>
+      this.captureBoundedOutputNow(record, cursor, stream, bytes, onLog),
+    ).finally(() => {
+      if (startedAt !== undefined)
+        diagnostics?.duration(
+          "launch.outputCapture",
+          performance.now() - startedAt,
+        );
+    });
+  }
+
+  async flushOutput(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    return this.enqueue(cursor, () =>
+      this.flushOutputNow(record, cursor, stream, onLog),
+    );
+  }
+
+  async flushOutputBuffers(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    return this.enqueue(cursor, async () => {
+      await this.flushOutputNow(record, cursor, "stdout", onLog);
+      await this.flushOutputNow(record, cursor, "stderr", onLog);
+      await this.persistTail(record, cursor);
+    });
+  }
+
+  async persistTailSnapshot(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+  ): Promise<void> {
+    await this.enqueue(cursor, () => this.persistTail(record, cursor));
+  }
+
+  retention(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+  ): LaunchOutputRetention {
+    ensureLogCursorState(cursor);
+    void record;
+    return {
+      totalBytes: cursor.totalBytes,
+      retainedBytes: cursor.totalBytes,
+      omittedBytes: 0,
+      totalLines: cursor.totalLines,
+      retainedLines: cursor.totalLines,
+      omittedLines: 0,
+      headMaxBytes: TASK_OUTPUT_HEAD_MAX_BYTES,
+      tailMaxBytes: TASK_OUTPUT_TAIL_MAX_BYTES,
+      truncated: false,
+    };
+  }
+
+  async readTail(record: LaunchRecord): Promise<LaunchOutputTailChunk[]> {
+    void record;
+    return [];
+  }
+
+  private async tailLogEvents(
+    record: LaunchRecord,
+    firstSeq: number,
+  ): Promise<LaunchLogEvent[]> {
+    const events: LaunchLogEvent[] = [];
+    let seq = firstSeq;
+    for (const chunk of await this.readTail(record)) {
+      for (const line of chunk.text.split(/\r?\n/)) {
+        const cleaned = line.trimEnd();
+        if (!cleaned) continue;
+        events.push({
+          seq,
+          ts: record.finishedAt ?? record.updatedAt,
+          stream: chunk.stream,
+          level: classifyLogLevel(chunk.stream, cleaned),
+          line: cleaned,
+        });
+        seq += 1;
+      }
+    }
+    return events;
+  }
+
+  async latestLogSeq(logsPath: string): Promise<number> {
+    const events = await this.readLogEvents(logsPath);
+    return events.at(-1)?.seq ?? 0;
+  }
+
+  async readLogEvents(logsPath: string): Promise<LaunchLogEvent[]> {
+    const values = await readJsonLines<unknown>(logsPath).catch(() => []);
+    return values
+      .map((value) => launchLogEventSchema.safeParse(value))
+      .filter((result) => result.success)
+      .map((result) => result.data)
+      .sort((a, b) => a.seq - b.seq);
+  }
+
+  private enqueue(
+    cursor: LaunchLogCursor,
+    launch: () => Promise<void>,
+  ): Promise<void> {
+    ensureLogCursorState(cursor);
+    const queued = cursor.logQueue.catch(() => undefined).then(launch);
+    cursor.logQueue = queued.catch(() => undefined);
+    return queued;
+  }
+
+  private async captureBoundedOutputNow(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    bytes: Buffer,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    ensureLogCursorState(cursor);
+    cursor.totalBytes += bytes.byteLength;
+    cursor.totalLines += countOutputLines(bytes.toString("utf8"));
+    cursor.retainedBytes += bytes.byteLength;
+    cursor.retainedLines = cursor.totalLines;
+
+    await mkdir(dirname(record.logsPath), { recursive: true, mode: 0o700 });
+    const streamPath =
+      stream === "stdout" ? record.stdoutPath : record.stderrPath;
+    // Raw stream bytes are durable before the corresponding JSONL index rows.
+    await appendAndSync(streamPath, bytes);
+    if (record.combinedPath) {
+      await appendAndSync(
+        record.combinedPath,
+        Buffer.concat([
+          Buffer.from(`[${stream}]\n`, "utf8"),
+          bytes,
+          bytes.at(-1) === 0x0a ? Buffer.alloc(0) : Buffer.from("\n"),
+        ]),
+      );
+    }
+    await this.captureOutputNow(record, cursor, stream, bytes, onLog);
+  }
+
+  private async captureOutputNow(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    chunk: Buffer,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const previous = cursor.rawBuffers[stream];
+    const combined = Buffer.concat([previous, chunk]);
+    const combinedStart = cursor.streamBytes[stream] - previous.byteLength;
+    cursor.streamBytes[stream] += chunk.byteLength;
+    const events: LaunchLogEvent[] = [];
+    let position = 0;
+    for (;;) {
+      const newline = combined.indexOf(0x0a, position);
+      if (newline < 0) break;
+      const hasCr = newline > position && combined[newline - 1] === 0x0d;
+      const contentEnd = hasCr ? newline - 1 : newline;
+      const end = newline + 1;
+      const event = this.createLogLine(
+        cursor,
+        stream,
+        combined.subarray(position, contentEnd).toString("utf8"),
+        {
+          start: combinedStart + position,
+          end: combinedStart + end,
+          terminatorBytes: hasCr ? 2 : 1,
+          fidelity: "captured",
+        },
+      );
+      if (event) events.push(event);
+      position = end;
+    }
+    cursor.rawBuffers[stream] = Buffer.from(combined.subarray(position));
+    cursor.lineBuffers[stream] = cursor.rawBuffers[stream].toString("utf8");
+    if (cursor.lineBuffers[stream].length > MAX_BUFFERED_LOG_LINE_CHARS) {
+      const raw = cursor.rawBuffers[stream];
+      const start = cursor.streamBytes[stream] - raw.byteLength;
+      cursor.rawBuffers[stream] = Buffer.alloc(0);
+      cursor.lineBuffers[stream] = "";
+      const event = this.createLogLine(cursor, stream, raw.toString("utf8"), {
+        start,
+        end: cursor.streamBytes[stream],
+        terminatorBytes: 0,
+        fidelity: "captured",
+      });
+      if (event) events.push(event);
+    }
+    await this.persistLogLines(record, events, onLog);
+  }
+
+  private async flushOutputNow(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    const raw = cursor.rawBuffers[stream];
+    cursor.rawBuffers[stream] = Buffer.alloc(0);
+    cursor.lineBuffers[stream] = "";
+    if (raw.byteLength === 0) return;
+    const event = this.createLogLine(cursor, stream, raw.toString("utf8"), {
+      start: cursor.streamBytes[stream] - raw.byteLength,
+      end: cursor.streamBytes[stream],
+      terminatorBytes: 0,
+      fidelity: "captured",
+    });
+    await this.persistLogLines(record, event ? [event] : [], onLog);
+  }
+
+  private async persistTail(
+    record: LaunchRecord,
+    cursor: LaunchLogCursor,
+  ): Promise<void> {
+    void record;
+    cursor.tailDirtyBytes = 0;
+  }
+
+  private createLogLine(
+    cursor: LaunchLogCursor,
+    stream: LaunchLogStream,
+    line: string,
+    raw: NonNullable<LaunchLogEvent["raw"]>,
+  ): LaunchLogEvent | undefined {
+    const cleaned = line.trimEnd();
+    if (cleaned.length === 0) return undefined;
+
+    cursor.logSeq += 1;
+    return {
+      seq: cursor.logSeq,
+      ts: new Date().toISOString(),
+      stream,
+      level: classifyLogLevel(stream, cleaned),
+      line: cleaned,
+      raw,
+    };
+  }
+
+  private async persistLogLines(
+    record: LaunchRecord,
+    events: readonly LaunchLogEvent[],
+    onLog: (event: LaunchLogEvent) => Promise<void>,
+  ): Promise<void> {
+    if (events.length === 0) return;
+    await appendJsonLines(record.logsPath, events, 0o600);
+    for (const event of events) {
+      this.options.diagnostics?.count("launch.outputLine");
+      if (this.options.publishOutputEvents !== false) {
+        await this.events.publish("launch.output", {
+          launchId: record.id,
+          stream: event.stream,
+          text: event.line.slice(-16_384),
+        });
+        this.options.diagnostics?.count("launch.outputPublication");
+      }
+      await onLog(event);
+    }
+  }
+}
+
+async function appendAndSync(path: string, bytes: Buffer): Promise<void> {
+  const file = await open(path, "a", 0o600);
+  try {
+    await file.write(bytes);
+    await file.sync();
+  } finally {
+    await file.close();
+  }
+}
+
+function ensureLogCursorState(cursor: LaunchLogCursor): void {
+  cursor.lineBuffers ??= { stdout: "", stderr: "" };
+  cursor.lineBuffers.stdout ??= "";
+  cursor.lineBuffers.stderr ??= "";
+  cursor.rawBuffers ??= { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
+  cursor.rawBuffers.stdout ??= Buffer.alloc(0);
+  cursor.rawBuffers.stderr ??= Buffer.alloc(0);
+  cursor.streamBytes ??= { stdout: 0, stderr: 0 };
+  cursor.streamBytes.stdout ??= 0;
+  cursor.streamBytes.stderr ??= 0;
+  cursor.logQueue ??= Promise.resolve();
+  cursor.totalBytes ??= 0;
+  cursor.retainedBytes ??= 0;
+  cursor.omittedBytes ??= 0;
+  cursor.totalLines ??= 0;
+  cursor.retainedLines ??= 0;
+  cursor.omittedLines ??= 0;
+  cursor.tailChunks ??= [];
+  cursor.tailBytes ??= 0;
+  cursor.tailDirtyBytes ??= 0;
+}
+
+function countOutputLines(text: string): number {
+  if (text.length === 0) return 0;
+  let lines = 0;
+  for (const character of text) if (character === "\n") lines += 1;
+  return lines;
+}
+
+const WORD_LEFT_BOUNDARY = "(?:^|[^A-Za-z0-9_-])";
+const WORD_RIGHT_BOUNDARY = "(?=$|[^A-Za-z0-9_-])";
+const warningPattern = new RegExp(
+  `${WORD_LEFT_BOUNDARY}(warn|warning)${WORD_RIGHT_BOUNDARY}`,
+  "i",
+);
+const stdoutErrorPattern = new RegExp(
+  [
+    `${WORD_LEFT_BOUNDARY}(failed|failure|exception|fatal)${WORD_RIGHT_BOUNDARY}`,
+    "^\\s*(error|failed|failure|fatal)(:|\\b)",
+    "^\\s*(fatal\\s+error|uncaught\\s+exception|traceback)(:|\\b)",
+  ].join("|"),
+  "i",
+);
+
+function omissionEvent(
+  headEvents: LaunchLogEvent[],
+  omittedBytes: number,
+): LaunchLogEvent {
+  const last = headEvents.at(-1);
+  return {
+    seq: (last?.seq ?? 0) + 1,
+    ts: last?.ts ?? new Date(0).toISOString(),
+    stream: "stdout",
+    level: "info",
+    line: `[${omittedBytes} output bytes omitted by launch retention]`,
+  };
+}
+
+function classifyLogLevel(
+  stream: LaunchLogStream,
+  line: string,
+): LaunchLogEvent["level"] {
+  if (warningPattern.test(line)) return "warn";
+  if (stream === "stderr") return "error";
+  if (stdoutErrorPattern.test(line)) return "error";
+  return "info";
+}

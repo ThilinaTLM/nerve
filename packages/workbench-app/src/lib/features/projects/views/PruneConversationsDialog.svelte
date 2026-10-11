@@ -144,7 +144,7 @@ function handleOpenChange(next: boolean) {
         >{removeCount}</strong
       >
       of {totalCount} conversation{totalCount === 1 ? "" : "s"}. Active
-      conversations and tasks are skipped.
+      conversations and launches are skipped.
     </p>
   </div>
 

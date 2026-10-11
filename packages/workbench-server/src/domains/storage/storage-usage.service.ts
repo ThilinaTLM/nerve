@@ -66,12 +66,6 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
     cleanable: false,
     protected: false,
   },
-  tasks: {
-    label: "Tasks",
-    description: "Background task records, process metadata, and logs.",
-    cleanable: false,
-    protected: false,
-  },
   agentResources: {
     label: "Agent resources",
     description: "Nerve-managed resources used by agents.",
@@ -135,7 +129,6 @@ const CATEGORY_ORDER: StorageCategoryKey[] = [
   "reports",
   "images",
   "plans",
-  "tasks",
   "agentResources",
   "logs",
   "crashReports",
@@ -187,7 +180,6 @@ export class StorageUsageService {
     add("reports", await dirSize(paths.reportsPath));
     add("images", await dirSize(paths.imagesPath));
     add("plans", await dirSize(paths.plansPath));
-    add("tasks", await dirSize(paths.tasksPath));
     add("agentResources", await dirSize(paths.agentPath));
     add("logs", await dirSize(paths.logsPath));
     add("crashReports", await dirSize(paths.crashesPath));
@@ -209,7 +201,6 @@ export class StorageUsageService {
       basename(paths.reportsPath),
       basename(paths.imagesPath),
       basename(paths.plansPath),
-      basename(paths.tasksPath),
     ]);
     add("other", await dirSize(paths.dataPath, knownDataNames));
 

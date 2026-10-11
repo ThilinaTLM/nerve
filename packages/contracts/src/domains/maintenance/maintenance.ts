@@ -38,7 +38,7 @@ export const maintenanceResultSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("prune_conversations"),
     removedConversationCount: count,
-    removedTaskCount: count,
+    removedLaunchCount: count,
   }),
   z.object({
     kind: z.literal("delete_project"),
@@ -76,9 +76,9 @@ export const maintenanceOperationSchema = z
     currentTarget: storageCleanupTargetSchema.optional(),
     currentItem: maintenanceCurrentItemSchema.optional(),
     removedConversationCount: count,
-    removedTaskCount: count,
+    removedLaunchCount: count,
     skippedActiveAgentCount: count,
-    skippedActiveTaskCount: count,
+    skippedActiveLaunchCount: count,
     freedBytes: count,
     warnings: z.array(z.string()),
     result: maintenanceResultSchema.optional(),

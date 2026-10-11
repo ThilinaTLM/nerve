@@ -64,7 +64,7 @@ import {
 } from "$lib/features/conversations/adapters/core-context.adapter";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
-import { openTaskTab } from "$lib/features/tasks";
+import { openLaunchTab } from "$lib/features/launches";
 import {
   fileCompletions,
   referenceCompletions,
@@ -373,7 +373,7 @@ function openToolFile(path: string, line?: number) {
     void openFilePane({ projectId: activeProject.id, path, line });
 }
 function openTaskFromNotice(id: string) {
-  void openTaskTab(id);
+  void openLaunchTab(id);
 }
 function setComposerModel(key: string) {
   const model = parseModelKey(key);
@@ -502,7 +502,7 @@ $effect(() => {
   }
 });
 const completeFiles = (q: string) => fileCompletions(activeProject?.id, q);
-const completeReferences = (kind: "task" | "pull_request", q: string) =>
+const completeReferences = (kind: "launch" | "pull_request", q: string) =>
   referenceCompletions(activeProject?.id, kind, q);
 const teamRunning = $derived(
   store?.snapshot?.children.some((c) => c.status === "running") ?? false,

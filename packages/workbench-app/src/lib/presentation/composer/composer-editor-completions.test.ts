@@ -98,7 +98,7 @@ describe("composer editor completions", () => {
     );
   });
 
-  it("discovers and routes typed task and pull-request references", async () => {
+  it("discovers and routes typed launch and pull-request references", async () => {
     const requests: Array<[string, string]> = [];
     const source = createComposerCompletionSource({
       slashCompletions: () => [],
@@ -107,12 +107,12 @@ describe("composer editor completions", () => {
       ],
       referenceCompletions: () => async (kind, query) => {
         requests.push([kind, query]);
-        return kind === "task"
+        return kind === "launch"
           ? [
               {
-                label: "task_123",
+                label: "launch_123",
                 displayLabel: "Dev server",
-                kind: "task",
+                kind: "launch",
               },
             ]
           : [
@@ -128,13 +128,13 @@ describe("composer editor completions", () => {
     const bare = await source(context("@"));
     assert.deepEqual(
       bare?.options.map((option) => option.label),
-      ["@task:", "@pr:", "@README.md"],
+      ["@launch:", "@pr:", "@README.md"],
     );
 
-    const task = await source(context("please @task:dev"));
-    assert.deepEqual(requests.at(-1), ["task", "dev"]);
-    assert.equal(task?.from, 7);
-    assert.equal(task?.options[0]?.apply, "task_123");
+    const launch = await source(context("please @launch:dev"));
+    assert.deepEqual(requests.at(-1), ["launch", "dev"]);
+    assert.equal(launch?.from, 7);
+    assert.equal(launch?.options[0]?.apply, "launch_123");
 
     const pr = await source(context("@pr:42"));
     assert.deepEqual(requests.at(-1), ["pull_request", "42"]);

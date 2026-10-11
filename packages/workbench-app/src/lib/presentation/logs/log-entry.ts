@@ -13,7 +13,7 @@ const referenceFields = [
   ["agentId", "agent"],
   ["runId", "run"],
   ["toolCallId", "tool call"],
-  ["taskId", "task"],
+  ["launchId", "launch"],
 ] as const;
 
 const summaryPriority = [

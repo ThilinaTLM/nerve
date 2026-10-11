@@ -36,7 +36,13 @@ const descriptors: PanelViewDescriptor[] = [
     defaultOrder: 1,
   },
   { id: "notes", title: "Notes", icon, defaultDock: "right", defaultOrder: 2 },
-  { id: "tasks", title: "Tasks", icon, defaultDock: "bottom", defaultOrder: 0 },
+  {
+    id: "launches",
+    title: "Launches",
+    icon,
+    defaultDock: "bottom",
+    defaultOrder: 0,
+  },
 ];
 
 describe("defaultShellLayout", () => {
@@ -44,7 +50,7 @@ describe("defaultShellLayout", () => {
     const layout = defaultShellLayout(descriptors);
     assert.deepEqual(layout.docks.left.views, ["conversations"]);
     assert.deepEqual(layout.docks.right.views, ["git", "context", "notes"]);
-    assert.deepEqual(layout.docks.bottom.views, ["tasks"]);
+    assert.deepEqual(layout.docks.bottom.views, ["launches"]);
     assert.equal(layout.docks.right.activeViewId, "git");
     assert.deepEqual(layout.hidden, []);
     assert.equal(layout.docks.left.size, DEFAULT_DOCK_SIZES.left);
@@ -94,7 +100,7 @@ describe("normalizeShellLayout", () => {
       "notes",
     ]);
     assert.equal(layout.docks.right.activeViewId, "conversations");
-    assert.deepEqual(layout.docks.bottom.views, ["tasks"]);
+    assert.deepEqual(layout.docks.bottom.views, ["launches"]);
     assert.deepEqual(layout.hidden, []);
   });
 
@@ -119,7 +125,7 @@ describe("normalizeShellLayout", () => {
             size: 20,
           },
           right: { views: ["git", "context", "notes"], size: 22 },
-          bottom: { views: ["tasks"], size: 30 },
+          bottom: { views: ["launches"], size: 30 },
         },
         hidden: [],
       },
@@ -136,7 +142,7 @@ describe("normalizeShellLayout", () => {
         docks: {
           left: { views: ["conversations"], size: 90 },
           right: { views: ["git"], size: -5 },
-          bottom: { views: ["tasks"], size: Number.NaN },
+          bottom: { views: ["launches"], size: Number.NaN },
         },
         hidden: [],
       },
@@ -168,7 +174,7 @@ describe("moveShellView", () => {
     });
     assert.deepEqual(layout.docks.right.views, ["context", "notes"]);
     assert.equal(layout.docks.right.activeViewId, "context");
-    assert.deepEqual(layout.docks.bottom.views, ["tasks", "git"]);
+    assert.deepEqual(layout.docks.bottom.views, ["launches", "git"]);
     assert.equal(layout.docks.bottom.activeViewId, "git");
     assert.equal(layout.docks.bottom.collapsed, false);
     assert.equal(findViewDock(layout, "git"), "bottom");
@@ -209,7 +215,7 @@ describe("visibility and dock state", () => {
   });
 
   it("collapses a dock whose only view is hidden", () => {
-    const layout = hideShellView(defaultShellLayout(descriptors), "tasks");
+    const layout = hideShellView(defaultShellLayout(descriptors), "launches");
     assert.equal(layout.docks.bottom.collapsed, true);
     assert.equal(layout.docks.bottom.activeViewId, undefined);
   });

@@ -1,9 +1,4 @@
 import type {
-  TaskCancelOutcomePreviewPayload,
-  TaskToolSummaryPayload,
-  TaskLogDisplayEvent,
-} from "../../view-models/task";
-import type {
   ConfluenceAttachmentSummaryPayload,
   ConfluenceCommentSummaryPayload,
   ConfluenceIncludedCountsPayload,
@@ -33,7 +28,7 @@ import type {
   ToolOutputArtifactPayload,
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
-import type { TaskRecord } from "@nervekit/contracts/tasks";
+import type { LaunchStatus } from "@nervekit/contracts/launches";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
 
 export type ToolOutputInfo = {
@@ -194,7 +189,7 @@ export type ToolView =
       signal?: string | null;
       backgroundTask?: {
         taskId: string;
-        status: TaskRecord["status"];
+        status: LaunchStatus;
         elapsedMs: number;
         terminalUpdate: "automatic";
       };
@@ -290,35 +285,6 @@ export type ToolView =
       items: TodoItem[];
       completed: number;
       total: number;
-    }
-  | {
-      kind: "task_action";
-      action: "start" | "stop" | "restart";
-      task?: TaskToolSummaryPayload;
-      tasks?: TaskToolSummaryPayload[];
-      outcomes?: TaskCancelOutcomePreviewPayload[];
-      otherActiveTasks?: TaskToolSummaryPayload[];
-      otherActiveTaskCount?: number;
-      outcomeCount?: number;
-      restartedFromTaskId?: string;
-      previewUnavailable: boolean;
-      liveLog?: string;
-    }
-  | {
-      kind: "task_status";
-      tasks: TaskToolSummaryPayload[];
-      taskCount: number;
-      hiddenTaskCount: number;
-      previewUnavailable: boolean;
-    }
-  | {
-      kind: "task_logs";
-      task?: TaskToolSummaryPayload;
-      events: TaskLogDisplayEvent[];
-      eventCount?: number;
-      nextCursor?: number;
-      mode?: string;
-      previewUnavailable: boolean;
     }
   | {
       kind: "subagent";

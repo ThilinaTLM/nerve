@@ -206,7 +206,7 @@ const tourPanelViewByStep: Partial<Record<TourStep["id"], string>> = {
   "panel-new-conversation": "conversations",
   git: "git",
   "pull-requests": "pull-requests",
-  tasks: "tasks",
+  launches: "launches",
   files: "files",
   "scratch-notes": "notes",
   "context-panel": "context",

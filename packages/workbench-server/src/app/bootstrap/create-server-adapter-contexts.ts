@@ -67,11 +67,11 @@ export function createServerAdapterContexts(
       terminal: services.terminal,
       scratchNotes: services.scratchNotes,
       promptSuggestions: services.promptSuggestions,
-      taskDefinitionOperations: services.taskDefinitionOperations,
-      taskDefinitions: services.taskDefinitions,
+      launchDefinitionOperations: services.launchDefinitionOperations,
+      launchDefinitions: services.launchDefinitions,
     },
-    tasks: {
-      taskDefinitionOperations: services.taskDefinitionOperations,
+    launches: {
+      launchDefinitionOperations: services.launchDefinitionOperations,
       launches: services.launches,
     },
     git: { git: services.git, workspaceMonitor: services.workspaceMonitor },
@@ -114,7 +114,7 @@ export function createServerAdapterContexts(
         storage: infrastructure.storage,
       },
       logs: { logger: infrastructure.logger },
-      taskLogs: { launches: services.launches },
+      launchLogs: { launches: services.launches },
       filesystem: {
         getProject,
         storage: infrastructure.storage,

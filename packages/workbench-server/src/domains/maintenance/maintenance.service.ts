@@ -92,9 +92,9 @@ export class MaintenanceService {
             ).length
           : 0,
       removedConversationCount: 0,
-      removedTaskCount: 0,
+      removedLaunchCount: 0,
       skippedActiveAgentCount: 0,
-      skippedActiveTaskCount: 0,
+      skippedActiveLaunchCount: 0,
       freedBytes: 0,
       warnings: [],
     };

@@ -4,7 +4,6 @@ import {
   createExploreHandlers,
   createInteractionHandlers,
   createPlanHandlers,
-  createTaskHandlers,
   createTodoHandlers,
   createToolDispatcher,
   evaluateRuntimeToolPermission,
@@ -180,49 +179,6 @@ describe("shared tool runtime contract", () => {
       { ...context, toolName: "plan_mode_present" },
     );
 
-    const tasks = createTaskHandlers({
-      start: async (_args, value, signal) => {
-        assert.equal(value, identity);
-        assert.equal(signal, context.signal);
-        calls.push("task.start");
-        return { content: "started" };
-      },
-      status: async () => ({ content: "status" }),
-      logs: async () => ({ content: "logs" }),
-      control: async () => ({ content: "controlled" }),
-    });
-    await tasks.task_start?.(
-      { command: "pnpm check" },
-      { ...context, toolName: "task_start" },
-    );
-    await assert.rejects(
-      tasks.task_start?.(
-        { tasks: [{ command: "pnpm check" }] },
-        { ...context, toolName: "task_start" },
-      ) ?? Promise.resolve(),
-      /command|tasks\[\]/,
-    );
-    await assert.rejects(
-      tasks.task_logs?.({}, { ...context, toolName: "task_logs" }) ??
-        Promise.resolve(),
-      /task/,
-    );
-    await tasks.task_control?.(
-      { task: "task_one", action: "stop" },
-      { ...context, toolName: "task_control" },
-    );
-    await assert.rejects(
-      tasks.task_control?.(
-        { action: "stop" },
-        { ...context, toolName: "task_control" },
-      ) ?? Promise.resolve(),
-      /task/,
-    );
-    await tasks.task_control?.(
-      { task: "task_one", action: "restart" },
-      { ...context, toolName: "task_control" },
-    );
-
     const explore = createExploreHandlers({
       run: async (request, value, signal) => {
         assert.equal(value, identity);
@@ -257,7 +213,6 @@ describe("shared tool runtime contract", () => {
       "interaction.request",
       "plan.enter:investigate",
       "plan.present:plans/reuse.md",
-      "task.start",
       "explore:inspect adapters",
     ]);
   });

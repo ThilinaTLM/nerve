@@ -38,7 +38,7 @@ export const applicationLogRecordSchema = z.object({
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
   toolCallId: z.string().startsWith("tool_").optional(),
-  taskId: z.string().startsWith("task_").optional(),
+  launchId: z.string().startsWith("launch_").optional(),
   durationMs: z.number().nonnegative().optional(),
   context: z.record(z.string(), z.unknown()).optional(),
   error: applicationLogErrorSchema.optional(),
@@ -97,7 +97,7 @@ const applicationLogQueryFieldsSchema = z.object({
   agentId: z.string().startsWith("agent_").optional(),
   runId: z.string().startsWith("run_").optional(),
   toolCallId: z.string().startsWith("tool_").optional(),
-  taskId: z.string().startsWith("task_").optional(),
+  launchId: z.string().startsWith("launch_").optional(),
 });
 
 export const applicationLogQuerySchema = applicationLogQueryFieldsSchema.refine(

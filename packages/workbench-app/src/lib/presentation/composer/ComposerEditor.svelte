@@ -58,7 +58,7 @@ type Props = {
   slashCompletions?: readonly CompletionItem[];
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
-    kind: "task" | "pull_request",
+    kind: "launch" | "pull_request",
     query: string,
   ) => Promise<CompletionItem[]>;
   onChange?: (value: string) => void;

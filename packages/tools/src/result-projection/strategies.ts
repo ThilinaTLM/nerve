@@ -196,8 +196,6 @@ export function compactDiagnosticIndex(
   return itemAwareHead(candidate, profile);
 }
 
-export { taskLogWindow } from "./task-log-window.js";
-
 export function artifactIndex(
   candidate: ProjectionCandidate,
   profile: AgentResultProfileId,
@@ -329,6 +327,14 @@ function recoveryText(candidate: ProjectionCandidate): string | undefined {
       (item.role === "primary_result" || item.role === "overflow_recovery") &&
       item.access.kind === "agent_file",
   );
+  if (candidate.overflow?.noun === "output line") {
+    const paths = recoverable.flatMap((item) =>
+      item.access.kind === "agent_file" ? [`File: ${item.access.path}`] : [],
+    );
+    return paths.length
+      ? `${paths.join("\n")}\nUse read/grep for details.`
+      : undefined;
+  }
   const combined = recoverable.find(
     (item) =>
       item.id.includes("combined") ||

@@ -45,7 +45,7 @@ Before migration, quit every Nerve process that uses the source home. Migration 
 
 The live v1 home does **not** import logs, crashes, cache, temporary data, task process state or logs, daemon discovery metadata, TLS identity, or generated runtime diagnostics. Project allow permissions require explicit digest-bound approval again. User denies remain authoritative.
 
-Credentials are decrypted only in memory and re-encrypted with the new home key. Secret values are never written to configuration, SQLite, logs, or migration reports. Task launch secrets are not imported.
+Credentials are decrypted only in memory and re-encrypted with the new home key. Secret values are never written to configuration, SQLite, logs, or migration reports. Launch secrets are not imported.
 
 If validation fails before promotion, the source remains at its original path. The external journal recovers interrupted rename phases deterministically. Nerve never deletes the retained legacy backup automatically.
 

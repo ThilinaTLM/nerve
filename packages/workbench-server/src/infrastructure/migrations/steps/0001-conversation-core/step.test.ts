@@ -1,226 +1,16 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { test, type TestContext } from "node:test";
+import { test } from "node:test";
 import { runMigrations } from "../../framework/runner.js";
-import type { RegisteredStep, StepContext } from "../../framework/step.js";
+import type { StepContext } from "../../framework/step.js";
 import step from "./step.js";
 import { coreSchemaV1 } from "./schema.js";
 
-const baselineIds = [
-  "0001-nerve-home-v1",
-  "0002-atomic-run-lifecycle-work",
-  "0003-authoritative-run-lifecycle",
-  "0004-convert-run-lifecycle",
-  "0005-async-subagent-completions",
-  "0006-explore-agent-names",
-  "0007-agent-async-obligations",
-  "0008-tool-result-payload-reference",
-  "0009-agent-async-obligations-backfill",
-  "0010-deletion-indexes",
-];
-const timestamp = "2026-01-01T00:00:00.000Z";
-const registry: RegisteredStep[] = [
-  { step, checksum: "a".repeat(64), stage: "draft" },
-];
-async function fixture(t: TestContext): Promise<string> {
-  const home = await mkdtemp(join(tmpdir(), "nerve-step-0001-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  for (const directory of [
-    "data/conversations/one",
-    "data/tasks/task_old",
-    "config",
-    "agent/suggestions",
-    "project",
-    "cache",
-    "migrations/0009-old",
-  ])
-    await mkdir(join(home, directory), { recursive: true });
-  await writeFile(
-    join(home, "manifest.json"),
-    JSON.stringify({ format: "nerve-home", version: 1 }),
-  );
-  await writeFile(
-    join(home, "config/harness.json"),
-    JSON.stringify({
-      version: 3,
-      defaults: { permissionLevel: "autonomous" },
-      lastSelection: {
-        permissionLevel: "read_only",
-        permissionRuleSetId: "custom",
-      },
-      tools: { disabled: ["web_fetch"] },
-    }),
-  );
-  await writeFile(
-    join(home, "config/settings.json"),
-    JSON.stringify({
-      defaultPermissionLevel: "supervised",
-      lastAgentSelection: {
-        permissionLevel: "autonomous",
-        budget: { maxDepth: 3 },
-        workspaceScope: { roots: [home] },
-      },
-    }),
-  );
-  await writeFile(
-    join(home, "data/conversations/one/capabilities.json"),
-    JSON.stringify({ schemaVersion: 1, tools: { web_fetch: true } }),
-  );
-  await writeFile(
-    join(home, "data/conversations/one/permissions.json"),
-    JSON.stringify({ schemaVersion: 2, overlays: [] }),
-  );
-  await writeFile(
-    join(home, "data/tasks/task_old/stdout.txt"),
-    "durable stdout\n",
-  );
-  const suggestion =
-    "---\nname: fixture\nwhen:\n  permissionLevels: [autonomous]\nenable-js: |\n  return true;\n---\nPrompt body permissionLevels: stays untouched\n";
-  await writeFile(join(home, "agent/suggestions/fixture.md"), suggestion);
-  const cache = new DatabaseSync(join(home, "cache/query-cache.sqlite"));
-  cache.exec("CREATE TABLE unrelated (id TEXT)");
-  cache.close();
-  const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
-  try {
-    db.exec(`CREATE TABLE storage_migrations (id TEXT, ordinal INTEGER);
-      CREATE TABLE domain_documents (namespace TEXT, scope_id TEXT, document_id TEXT, data BLOB);
-      CREATE TABLE conversation_records (id TEXT PRIMARY KEY, conversation_id TEXT, agent_id TEXT, kind TEXT, sequence INTEGER, parent_id TEXT, run_id TEXT, created_at_ms INTEGER, data BLOB);
-      CREATE TABLE agent_context_leaves (conversation_id TEXT, agent_id TEXT, active_record_id TEXT);
-      CREATE TABLE file_assets (id TEXT, conversation_id TEXT, tool_call_id TEXT, logical_path TEXT, category TEXT, byte_length INTEGER, media_type TEXT, digest TEXT, created_at_ms INTEGER);`);
-    baselineIds.forEach((id, index) =>
-      db
-        .prepare("INSERT INTO storage_migrations VALUES (?, ?)")
-        .run(id, index + 1),
-    );
-    const document = (namespace: string, id: string, data: unknown) =>
-      db
-        .prepare("INSERT INTO domain_documents VALUES (?, 'global', ?, ?)")
-        .run(namespace, id, Buffer.from(JSON.stringify(data)));
-    document("project", "proj_fixture", {
-      id: "proj_fixture",
-      directory: join(home, "project"),
-      createdAt: timestamp,
-    });
-    for (const name of ["one", "two"]) {
-      document("conversation", `conv_${name}`, {
-        id: `conv_${name}`,
-        projectId: "proj_fixture",
-        activeAgentId: `agent_${name}`,
-        createdAt: timestamp,
-      });
-      document("agent", `agent_${name}`, {
-        id: `agent_${name}`,
-        conversationId: `conv_${name}`,
-        model: { provider: "fixture", modelId: "model" },
-        createdAt: timestamp,
-      });
-      const record = {
-        entry: {
-          id: `entry_${name}`,
-          kind: "message",
-          text: name,
-          createdAt: timestamp,
-        },
-        modelContext: {
-          entry: {
-            id: `entry_${name}`,
-            type: "message",
-            parentId: null,
-            message: { role: "user", content: name },
-          },
-        },
-      };
-      db.prepare(
-        "INSERT INTO conversation_records VALUES (?, ?, ?, 'message', 1, NULL, NULL, 0, ?)",
-      ).run(
-        `entry_${name}`,
-        `conv_${name}`,
-        `agent_${name}`,
-        Buffer.from(JSON.stringify(record)),
-      );
-      db.prepare(
-        "INSERT INTO agent_context_leaves VALUES (?, 'agent_conversation', ?)",
-      ).run(`conv_${name}`, `entry_${name}`);
-    }
-    document("agent", "agent_child", {
-      id: "agent_child",
-      conversationId: "conv_one",
-      parentAgentId: "agent_one",
-      workspaceScope: { roots: [home], readonly: true },
-      tools: ["read"],
-      createdAt: timestamp,
-    });
-    const child = {
-      entry: {
-        id: "entry_child",
-        kind: "message",
-        text: "child",
-        createdAt: timestamp,
-      },
-      modelContext: {
-        entry: {
-          id: "entry_child",
-          type: "message",
-          parentId: null,
-          message: { role: "user", content: "child" },
-        },
-      },
-    };
-    db.prepare(
-      "INSERT INTO conversation_records VALUES ('entry_child', 'conv_one', 'agent_child', 'message', 2, NULL, NULL, 0, ?)",
-    ).run(Buffer.from(JSON.stringify(child)));
-    db.prepare(
-      "INSERT INTO agent_context_leaves VALUES ('conv_one', 'agent_child', 'entry_child')",
-    ).run();
-    document("task", "task_old", {
-      id: "task_old",
-      conversationId: "conv_one",
-      origin: { kind: "agent_tool", toolCallId: "tool_old" },
-      command: "echo fixture",
-      status: "running",
-      stdoutPath: "tasks/task_old/stdout.txt",
-      startedAt: timestamp,
-    });
-    document("task_definitions", "proj_fixture", [
-      {
-        id: "taskdef_fixture",
-        scope: { kind: "project", projectId: "proj_fixture" },
-        command: "echo fixture",
-        runPolicy: "single",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      },
-    ]);
-    document("prompt_suggestion_enablement", "user:fixture", {
-      definitionKey: "user:fixture",
-      enabled: false,
-    });
-    document("prompt_suggestion_trust", "fixture", {
-      trustId: "fixture",
-      sourceKind: "user",
-      path: "/old/home/agent/suggestions/fixture.md",
-      name: "fixture",
-      predicateHash: createHash("sha256").update("return true;").digest("hex"),
-      status: "allowed",
-      createdAt: timestamp,
-    });
-  } finally {
-    db.close();
-  }
-  return home;
-}
+import { fixture, registry, timestamp } from "./step-fixture.js";
 
 void test("0001 converts a baseline, preserves outputs/configuration and records only after verification", async (t) => {
   const home = await fixture(t);
@@ -325,7 +115,7 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
   assert.equal(
     JSON.parse(
       await readFile(
-        join(home, "project/.nerve/tasks/definitions.json"),
+        join(home, "project/.nerve/launches/definitions.json"),
         "utf8",
       ),
     ).definitions.length,
@@ -589,4 +379,367 @@ void test("0001 rejects inline result or base64 image payloads before deleting t
     );
     await runMigrations(home, { registry });
   }
+});
+
+void test("0001 pairs process calls, settles pending calls, preserves generic results and verifies asset digests after retry", async (t) => {
+  const home = await fixture(t);
+  const cases = [
+    ["tool_old", "task_start", { command: "echo fixture" }, "bash"],
+    ["post", "task_start", { command: "echo post" }, "bash"],
+    ["old-logs", "task_logs", { task: "task_old" }, "async_bash"],
+    ["status", "task_status", {}, "async_bash"],
+    ["logs", "task_logs", { taskId: "task_old" }, "async_bash"],
+    ["stop", "task_control", { id: "task_old", action: "stop" }, "async_bash"],
+    [
+      "restart",
+      "task_control",
+      { id: "task_old", action: "restart" },
+      "task_control",
+    ],
+    ["named", "task_start", { name: "server" }, "task_start"],
+    ["cursor", "task_logs", { id: "task_old", cursor: "opaque" }, "task_logs"],
+    ["pending", "task_status", {}, "async_bash"],
+    ["shell", "bash", { command: "echo old", timeout: 30 }, "bash"],
+    ["durable", "task_start", { command: "old durable" }, "task_start"],
+  ] as const;
+  const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+  try {
+    const message = {
+      role: "assistant",
+      content: cases.map(([id, name, args]) => ({
+        type: "toolCall",
+        id: `provider_${id}`,
+        name,
+        arguments: args,
+      })),
+      api: "fixture",
+      provider: "fixture",
+      model: "model",
+      stopReason: "toolUse",
+      usage: {
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      timestamp: 0,
+    };
+    db.prepare(
+      "INSERT INTO conversation_records VALUES ('assistant_process', 'conv_one', 'agent_one', 'message', 3, 'entry_one', NULL, 1, ?)",
+    ).run(
+      Buffer.from(
+        JSON.stringify({
+          entry: {
+            id: "assistant_process",
+            kind: "message",
+            createdAt: timestamp,
+          },
+          modelContext: {
+            entry: { type: "message", parentId: "entry_one", message },
+          },
+        }),
+      ),
+    );
+    db.prepare(
+      "UPDATE agent_context_leaves SET active_record_id='assistant_process' WHERE conversation_id='conv_one' AND agent_id='agent_conversation'",
+    ).run();
+    for (const [index, [id, toolName, args]] of cases.entries()) {
+      const toolCall = {
+        id,
+        providerToolCallId: `provider_${id}`,
+        toolName,
+        args,
+        status: id === "pending" ? "waiting" : "completed",
+        result:
+          id === "pending"
+            ? undefined
+            : {
+                content: `captured ${id}`,
+                ...(id === "post"
+                  ? { asyncBash: { id: "bash_history", command: "echo post" } }
+                  : {}),
+              },
+        createdAt: timestamp,
+      };
+      db.prepare(
+        "INSERT INTO conversation_records VALUES (?, 'conv_one', 'agent_one', 'tool_call', ?, NULL, NULL, 1, ?)",
+      ).run(id, 10 + index, Buffer.from(JSON.stringify({ toolCall })));
+    }
+  } finally {
+    db.close();
+  }
+  await mkdir(join(home, "data/launches/task_fixture"), { recursive: true });
+  await writeFile(
+    join(home, "data/launches/task_fixture/log.txt"),
+    "launch log",
+  );
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress: ({ phase }) => {
+        if (phase === "preserve-task-outputs") throw new Error("process crash");
+      },
+    }),
+    /process crash/,
+  );
+  await runMigrations(home, { registry });
+  assert.equal(
+    await readFile(join(home, "data/launches/launch_fixture/log.txt"), "utf8"),
+    "launch log",
+  );
+  const migrated = new DatabaseSync(join(home, "data/nerve.sqlite"), {
+    readOnly: true,
+  });
+  try {
+    const responses = migrated
+      .prepare(
+        "SELECT payload FROM conversation_event WHERE event_type='tool_call_response'",
+      )
+      .all()
+      .map((row) => JSON.parse(String(row.payload)));
+    for (const [id, , args, expected] of cases) {
+      const response = responses.find(
+        (payload) => payload.providerCallId === `provider_${id}`,
+      )!;
+      assert.equal(response.toolName, expected);
+      const assistant = JSON.parse(
+        String(
+          migrated
+            .prepare("SELECT payload FROM conversation_event WHERE id=?")
+            .get(response.assistantEventId)!.payload,
+        ),
+      );
+      const block = assistant.content[response.contentIndex];
+      assert.equal(block.name, response.toolName);
+      assert.deepEqual(block.arguments, response.arguments);
+      if (id === "tool_old")
+        assert.deepEqual(response.arguments, {
+          command: "echo fixture",
+          background: true,
+        });
+      if (id === "status" || id === "pending")
+        assert.deepEqual(response.arguments, { action: "list" });
+      if (id === "shell")
+        assert.deepEqual(response.arguments, { command: "echo old" });
+      if (id === "logs" || id === "stop") {
+        assert.match(response.arguments.id, /^bash_/);
+        assert(!("offset" in response.arguments));
+      }
+      if (id === "pending") assert.equal(response.outcome, "cancelled");
+      const asset = response.assetIds
+        .map(
+          (assetId: string) =>
+            migrated.prepare("SELECT * FROM asset WHERE id=?").get(assetId)!,
+        )
+        .find((item: Record<string, unknown>) => item.category === "payload")!;
+      const bytes = await readFile(
+        join(home, "data", String(asset.logical_path)),
+      );
+      assert.equal(bytes.length, asset.byte_length);
+      assert.equal(
+        createHash("sha256").update(bytes).digest("hex"),
+        asset.digest,
+      );
+      const complete = JSON.parse(bytes.toString());
+      if (expected.startsWith("task_")) {
+        assert.equal(complete.content, `captured ${id}`);
+        assert.deepEqual(complete.details.historicalTool.arguments, args);
+      }
+    }
+    assert.equal(
+      migrated.prepare("SELECT count(*) n FROM tool_call").get()!.n,
+      0,
+    );
+  } finally {
+    migrated.close();
+  }
+  assert.deepEqual(
+    (await runMigrations(home, { registry, dryRun: true })).pending,
+    [],
+  );
+});
+
+void test("process permissions constrain actions, convert ambiguous grants to ask and are idempotent", async () => {
+  const { convertPermissionRules } = await import("./process-history.js");
+  const document = {
+    rules: [
+      { id: "status", decision: "allow", when: { toolNames: ["task_status"] } },
+      { id: "logs", decision: "allow", when: { toolNames: ["task_logs"] } },
+      {
+        id: "group",
+        decision: "allow",
+        when: { toolGroups: ["taskManagement"] },
+      },
+      {
+        id: "control",
+        decision: "allow",
+        when: { toolNames: ["task_control"] },
+      },
+      {
+        id: "deny",
+        decision: "deny",
+        when: { toolGroups: ["taskManagement"] },
+      },
+      {
+        id: "stop",
+        decision: "allow",
+        when: {
+          toolNames: ["task_control"],
+          arguments: [
+            { path: "args.action", operator: "equals", value: "stop" },
+          ],
+        },
+      },
+    ],
+  };
+  const diagnostics: string[] = [];
+  assert(
+    convertPermissionRules(document, (message) => diagnostics.push(message)),
+  );
+  assert.equal(document.rules.length, 6);
+  assert.equal(diagnostics.length, 2);
+  assert.deepEqual(document.rules[0].when, {
+    toolNames: ["async_bash"],
+    arguments: [{ path: "args.action", operator: "equals", value: "list" }],
+  });
+  assert.deepEqual(document.rules[1].when, {
+    toolNames: ["async_bash"],
+    arguments: [{ path: "args.action", operator: "equals", value: "logs" }],
+  });
+  assert.deepEqual(document.rules[2].when, { toolGroups: ["process"] });
+  assert.equal(document.rules[2].decision, "prompt");
+  assert.deepEqual(document.rules[3].when, { toolNames: ["async_bash"] });
+  assert.equal(document.rules[3].decision, "prompt");
+  assert(diagnostics.every((message) => message.includes("converted to ask")));
+  assert.equal(convertPermissionRules(document), false);
+});
+
+void test("0001 converts user/project/conversation overlays and custom rule-set files", async (t) => {
+  const home = await fixture(t);
+  const rule = {
+    id: "legacy-status",
+    enabled: true,
+    priority: 1,
+    enforcement: "overridable",
+    when: { toolNames: ["task_status"] },
+    decision: "allow",
+  };
+  const overlay = {
+    schemaVersion: 2,
+    overlays: [{ ruleSetId: "supervised", rules: [rule] }],
+  };
+  const files = [
+    "config/permissions.json",
+    "project/.nerve/config/permissions.json",
+    "data/conversations/one/permissions.json",
+  ];
+  for (const file of files) {
+    await mkdir(join(home, file, ".."), { recursive: true });
+    await writeFile(join(home, file), JSON.stringify(overlay));
+  }
+  await mkdir(join(home, "config/rule-sets"), { recursive: true });
+  await writeFile(
+    join(home, "config/rule-sets/custom.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      id: "custom",
+      name: "Custom",
+      source: "user",
+      enabled: true,
+      rules: [rule],
+    }),
+  );
+  await runMigrations(home, { registry });
+  for (const file of [
+    ...files.slice(0, 2),
+    "data/conversations/conv_one/config/permissions.json",
+  ]) {
+    const document = JSON.parse(await readFile(join(home, file), "utf8"));
+    assert.deepEqual(document.overlays[0].rules[0].when, {
+      toolNames: ["async_bash"],
+      arguments: [{ path: "args.action", operator: "equals", value: "list" }],
+    });
+  }
+  const custom = JSON.parse(
+    await readFile(join(home, "config/rule-sets/custom.json"), "utf8"),
+  );
+  assert.equal(custom.rules[0].when.toolNames[0], "async_bash");
+});
+
+void test("0001 converts an unsafe-only custom rule set to ask without emptying it", async (t) => {
+  const home = await fixture(t);
+  await mkdir(join(home, "config/rule-sets"), { recursive: true });
+  const path = join(home, "config/rule-sets/unsafe.json");
+  await writeFile(
+    path,
+    JSON.stringify({
+      schemaVersion: 1,
+      id: "unsafe",
+      name: "Unsafe legacy grants",
+      source: "user",
+      enabled: true,
+      rules: [
+        {
+          id: "old-group",
+          enabled: true,
+          priority: 1,
+          enforcement: "overridable",
+          decision: "allow",
+          when: { toolGroups: ["taskManagement"] },
+        },
+      ],
+    }),
+  );
+  await runMigrations(home, { registry });
+  const converted = JSON.parse(await readFile(path, "utf8"));
+  assert.equal(converted.rules.length, 1);
+  assert.equal(converted.rules[0].decision, "prompt");
+  assert.deepEqual(converted.rules[0].when, { toolGroups: ["process"] });
+  assert(!existsSync(join(home, "data/nerve.sqlite.migrating")));
+  const before = await readFile(path, "utf8");
+  await runMigrations(home, { registry });
+  assert.equal(await readFile(path, "utf8"), before);
+});
+
+void test("unsafe action-specific grants become action-specific ask rules", async () => {
+  const { convertPermissionRules } = await import("./process-history.js");
+  const document = {
+    rules: [
+      {
+        id: "filtered-logs",
+        decision: "allow",
+        when: {
+          toolNames: ["task_logs"],
+          arguments: [
+            { path: "args.mode", operator: "equals", value: "errors" },
+          ],
+        },
+      },
+      {
+        id: "filtered-stop",
+        decision: "allow",
+        when: {
+          toolNames: ["task_control"],
+          arguments: [
+            { path: "args.action", operator: "equals", value: "stop" },
+            { path: "args.task", operator: "equals", value: "server" },
+          ],
+        },
+      },
+    ],
+  };
+  const diagnostics: string[] = [];
+  assert(
+    convertPermissionRules(document, (message) => diagnostics.push(message)),
+  );
+  for (const [index, action] of ["logs", "stop"].entries()) {
+    assert.equal(document.rules[index].decision, "prompt");
+    assert.deepEqual(document.rules[index].when, {
+      toolNames: ["async_bash"],
+      arguments: [{ path: "args.action", operator: "equals", value: action }],
+    });
+  }
+  assert.equal(diagnostics.length, 2);
 });

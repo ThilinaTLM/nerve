@@ -9,9 +9,9 @@ import {
 } from "$lib/application/workspace";
 import { openConversation } from "$lib/application/workspace";
 import { settingsSelectors } from "$lib/features/settings";
-import { openTaskTab, taskSelectors } from "$lib/features/tasks";
-import type { TaskRecord } from "@nervekit/contracts/tasks";
-import { taskProject } from "./mobile-activity";
+import { openLaunchTab, launchSelectors } from "$lib/features/launches";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
+import { launchProject } from "./mobile-activity";
 import {
   mobileRouteForCenterTab,
   mobileRouteProjectId,
@@ -55,8 +55,8 @@ export async function activateMobileRoute(route: MobileRoute): Promise<void> {
     if (projectId && workspaceState.selectedProjectId !== projectId) {
       await selectProject(projectId);
     }
-    if (route.kind === "task") {
-      await showTaskRun(route.taskId);
+    if (route.kind === "launch") {
+      await showLaunchRun(route.launchId);
       return;
     }
     const identity = routeIdentity(route);
@@ -75,29 +75,36 @@ export async function activateMobileRoute(route: MobileRoute): Promise<void> {
 }
 
 /**
- * Task output streams only for the run shown in the active center tab, so the
+ * Launch output streams only for the run shown in the active center tab, so the
  * phone output screen keeps that tab pointed at its run.
  */
-async function showTaskRun(taskId: string): Promise<void> {
+async function showLaunchRun(launchId: string): Promise<void> {
   if (
-    taskSelectors.activeCenterTask?.id === taskId &&
-    taskSelectors.selectedTask?.id === taskId
+    launchSelectors.activeCenterLaunch?.id === launchId &&
+    launchSelectors.selectedLaunch?.id === launchId
   ) {
     return;
   }
-  if (!taskSelectors.tasks.some((task) => task.id === taskId)) return;
-  await openTaskTab(taskId);
+  if (!launchSelectors.launches.some((launch) => launch.id === launchId))
+    return;
+  await openLaunchTab(launchId);
 }
 
-function taskRoute(task: TaskRecord): MobileRoute {
-  const projectId = taskProject(task, workspaceSelectors.projects)?.id;
-  return { kind: "task", taskId: task.id, ...(projectId ? { projectId } : {}) };
+function launchRoute(launch: LaunchRecord): MobileRoute {
+  const projectId = launchProject(launch, workspaceSelectors.projects)?.id;
+  return {
+    kind: "launch",
+    launchId: launch.id,
+    ...(projectId ? { projectId } : {}),
+  };
 }
 
-/** Open a task run's phone output screen; the route activation loads it. */
-export function openMobileTaskOutput(taskId: string): void {
-  const task = taskSelectors.tasks.find((candidate) => candidate.id === taskId);
-  pushMobileScreen(task ? taskRoute(task) : { kind: "task", taskId });
+/** Open a launch run's phone output screen; the route activation loads it. */
+export function openMobileLaunchOutput(launchId: string): void {
+  const launch = launchSelectors.launches.find(
+    (candidate) => candidate.id === launchId,
+  );
+  pushMobileScreen(launch ? launchRoute(launch) : { kind: "launch", launchId });
 }
 
 /**
@@ -164,10 +171,12 @@ export function followMobileCenterTab(): void {
     if (!active || mobileFollowerSuppressed()) return;
 
     untrack(() => {
-      const task =
-        active.kind === "task" ? taskSelectors.activeCenterTask : undefined;
-      const route = task
-        ? taskRoute(task)
+      const launch =
+        active.kind === "launch"
+          ? launchSelectors.activeCenterLaunch
+          : undefined;
+      const route = launch
+        ? launchRoute(launch)
         : mobileRouteForCenterTab(
             active,
             active.kind === "settings"

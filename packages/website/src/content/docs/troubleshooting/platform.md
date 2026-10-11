@@ -31,6 +31,6 @@ Resetting `NERVE_HOME` does not clear Electron/browser local storage, and cleari
 
 ## Next steps
 
-- [Task recovery](/troubleshooting/tasks-and-recovery/)
+- [Launch recovery](/troubleshooting/tasks-and-recovery/)
 - [Storage troubleshooting](/troubleshooting/storage-and-migration/)
 - [Platform reliability for contributors](/developers/platform-reliability/)

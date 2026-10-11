@@ -1,3 +1,4 @@
+import { convertPermissionRules } from "./process-history.js";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -63,7 +64,7 @@ export function convertSettings(document: Legacy): boolean {
           changed = true;
         }
   }
-  return changed;
+  return convertPermissionRules(document) || changed;
 }
 function renameSuggestionFilter(text: string): string {
   const match = text.match(/^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/);
@@ -98,16 +99,18 @@ export function convertConfiguration(
   let settings = 0,
     suggestions = 0;
   const config = join(home, "config");
-  if (existsSync(config))
-    for (const name of readdirSync(config)) {
+  for (const directory of [config, join(config, "rule-sets")]) {
+    if (!existsSync(directory)) continue;
+    for (const name of readdirSync(directory)) {
       if (!name.endsWith(".json")) continue;
-      const path = join(config, name),
+      const path = join(directory, name),
         document = readJson(path);
       if (convertSettings(document)) {
         writeJson(path, document);
         settings++;
       }
     }
+  }
   const directory = join(home, "agent", "suggestions"),
     checkpoint = join(scratch, "suggestion-digests.json");
   const conversions = readJson(checkpoint);
@@ -294,5 +297,47 @@ export function convertDocumentPreferences(
     }
     writeJson(target, current);
   }
+  for (const row of storage.sqlite
+    .prepare("SELECT directory FROM project")
+    .all()) {
+    const directory = String(row.directory);
+    moveProjectLaunchDefinitions(directory);
+    const config = join(directory, ".nerve", "config");
+    if (existsSync(config))
+      for (const name of readdirSync(config)) {
+        if (!name.endsWith(".json")) continue;
+        const path = join(config, name),
+          document = readJson(path);
+        if (convertPermissionRules(document)) writeJson(path, document);
+      }
+  }
   return { enablement, taskDefinitions };
+}
+
+/** Shared one-time conversion, also used when an unknown project is first opened. */
+export function moveProjectLaunchDefinitions(
+  directory: string,
+  report: (message: string) => void = console.warn,
+): boolean {
+  const old = join(resolve(directory), ".nerve", "tasks", "definitions.json");
+  const target = join(
+    resolve(directory),
+    ".nerve",
+    "launches",
+    "definitions.json",
+  );
+  if (!existsSync(old)) return false;
+  if (existsSync(target)) {
+    report(`Launch definitions collision at ${target}; keeping both files`);
+    return false;
+  }
+  const document = readJson(old);
+  assert(document.version === 1 && Array.isArray(document.definitions));
+  for (const definition of document.definitions) {
+    if (typeof definition.id === "string")
+      definition.id = definition.id.replace(/^taskdef_/, "launchdef_");
+  }
+  writeJson(target, document);
+  rmSync(old);
+  return true;
 }

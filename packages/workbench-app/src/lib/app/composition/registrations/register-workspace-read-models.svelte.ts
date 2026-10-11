@@ -3,7 +3,7 @@ import { registerConversationLists } from "$lib/application/workspace/conversati
 import { cancelVoiceInputTargets } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { registerFileSelectorWorkspaceReadModel } from "$lib/features/filesystem/state/file-selectors.svelte";
 import { registerGitSelectorWorkspaceReadModel } from "$lib/features/git/state/git-selectors.svelte";
-import { registerTaskSelectorWorkspaceReadModel } from "$lib/features/tasks/state/task-selectors.svelte";
+import { registerLaunchSelectorWorkspaceReadModel } from "$lib/features/launches/state/launch-selectors.svelte";
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import {
@@ -27,9 +27,9 @@ import {
   setSettingsWorkspaceTabOpen,
 } from "$lib/features/settings/workspace.svelte";
 import {
-  taskWorkspaceCommands,
-  taskWorkspaceReadModel,
-} from "$lib/features/tasks/workspace.svelte";
+  launchWorkspaceCommands,
+  launchWorkspaceReadModel,
+} from "$lib/features/launches/workspace.svelte";
 
 export function registerWorkspaceReadModels(): () => void {
   const unregisterLists = registerConversationLists(
@@ -84,7 +84,10 @@ export function registerWorkspaceReadModels(): () => void {
       read: settingsWorkspaceReadModel,
       commands: { setTabOpen: setSettingsWorkspaceTabOpen },
     },
-    tasks: { read: taskWorkspaceReadModel, commands: taskWorkspaceCommands },
+    launches: {
+      read: launchWorkspaceReadModel,
+      commands: launchWorkspaceCommands,
+    },
   });
 
   const unregisterFileSelectors = registerFileSelectorWorkspaceReadModel({
@@ -102,7 +105,7 @@ export function registerWorkspaceReadModels(): () => void {
     },
   });
 
-  const unregisterTaskSelectors = registerTaskSelectorWorkspaceReadModel({
+  const unregisterLaunchSelectors = registerLaunchSelectorWorkspaceReadModel({
     get activeProjectDir() {
       return workspaceSelectors.activeProject?.directory;
     },
@@ -112,7 +115,7 @@ export function registerWorkspaceReadModels(): () => void {
   });
 
   return () => {
-    unregisterTaskSelectors();
+    unregisterLaunchSelectors();
     unregisterGitSelectors();
     unregisterFileSelectors();
     unregisterPorts();

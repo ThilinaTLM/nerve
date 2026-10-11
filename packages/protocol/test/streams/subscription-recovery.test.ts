@@ -576,19 +576,19 @@ describe("subscription-only replay and recovery", () => {
       id: "evt_output_1",
       ts,
       type: "launch.output",
-      data: { taskId: "task_1", stream: "stdout", text: "hello " },
+      data: { launchId: "launch_1", stream: "stdout", text: "hello " },
     });
     await pair.server.notify({
       id: "evt_output_2",
       ts,
       type: "launch.output",
-      data: { taskId: "task_1", stream: "stdout", text: "world" },
+      data: { launchId: "launch_1", stream: "stdout", text: "world" },
     });
     await pair.server.flush();
     assert.equal(received.flat().length, 1);
     assert.equal(received.flat()[0]?.id, "evt_output_2");
     assert.deepEqual(received.flat()[0]?.data, {
-      taskId: "task_1",
+      launchId: "launch_1",
       stream: "stdout",
       text: "hello world",
     });

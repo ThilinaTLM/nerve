@@ -38,7 +38,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     summary:
       "Reference live work, use editing actions, and move through composer settings without leaving the keyboard.",
     details: [
-      "Type @task: to find a background task and insert its task ID, or @pr: to find a pull request and insert its GitHub URL.",
+      "Type @launch: to find a background launch and insert its launch ID, or @pr: to find a pull request and insert its GitHub URL.",
       "Right-click in the editor for Undo, Redo, Cut, Copy, Paste, and Select all.",
       "Use Shift+Tab for Coding or Planning, Alt+M for models, and Alt+T for reasoning levels. Ctrl or Cmd+N now works while typing.",
       "Open Tools and skills beside the composer to quickly enable or disable capabilities for this conversation. Changes apply to the next run.",
@@ -81,7 +81,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     artwork: "workbench",
     title: "Guided tour of the Workbench",
     summary:
-      "A short walkthrough of conversations, composer controls, panels, Git, and tasks.",
+      "A short walkthrough of conversations, composer controls, panels, Git, and launches.",
     action: { kind: "guide", guideId: "workbench", label: "Start tour" },
   },
   {

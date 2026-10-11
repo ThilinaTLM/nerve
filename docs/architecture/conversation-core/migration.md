@@ -95,8 +95,8 @@ removed. Startup and this CLI run the same step under the home lock.
 The step converts permission-level selection keys to rule-set IDs, user suggestion
 frontmatter to `when.permissionRuleSets`, suggestion enablement to
 `config/prompt-suggestions.json`, and validated predicate approvals to file-content
-trust. Project task definitions move to `.nerve/tasks/definitions.json`, preserving
-existing IDs. Legacy workspace budgets/roots are not retained; readonly scopes
+trust. Project launch definitions move to `.nerve/launches/definitions.json`, rewriting
+legacy definition IDs to launch definition IDs. Legacy workspace budgets/roots are not retained; readonly scopes
 become `read_only`. Conversation overlays are normalized and copied to full-ID
 config paths, including child scopes and historical child tool allowlists.
 

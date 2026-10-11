@@ -4,12 +4,7 @@ import { toolDefinitionByName } from "./manifest.js";
 const TOOL_GUIDELINES: Partial<Record<ToolName, string>> = {
   python_exec:
     'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
-  task_start:
-    "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known.",
 };
-
-const ASYNC_TASK_GUIDELINE =
-  "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.";
 
 const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
   subagents:
@@ -21,7 +16,6 @@ const GROUP_GUIDELINES: Partial<Record<ToolGroupName, string>> = {
 
 export function promptGuidelinesForTools(
   activeToolNames: readonly string[],
-  options: { foregroundOnlyBash?: boolean } = {},
 ): string[] {
   const active = new Set(activeToolNames);
   const guidelines: string[] = [];
@@ -39,11 +33,10 @@ export function promptGuidelinesForTools(
   ) {
     add("Prefer dedicated file tools over bash for inspection and search.");
   }
-  if (
-    (active.has("bash") && !options.foregroundOnlyBash) ||
-    active.has("task_start")
-  ) {
-    add(ASYNC_TASK_GUIDELINE);
+  if (["bash", "async_bash", "launch"].some((name) => active.has(name))) {
+    add(
+      "Check launch status before starting a server; prefer launch definitions over bash for servers.",
+    );
   }
 
   for (const name of activeToolNames) {

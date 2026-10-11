@@ -25,7 +25,7 @@ export const toolGroupNameSchema = z.enum([
   "confluence",
   "input",
   "todos",
-  "taskManagement",
+  "process",
   "explore",
   "planMode",
 ]);

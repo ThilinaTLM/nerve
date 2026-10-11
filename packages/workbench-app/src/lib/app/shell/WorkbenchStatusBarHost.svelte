@@ -17,7 +17,7 @@ import { openConversation } from "$lib/application/workspace/workspace-actions.s
 import { sidebarProjects } from "$lib/features/projects";
 import { ShellChannelStatus } from "./shell-channel-status.svelte";
 import { gitSelectors } from "$lib/features/git";
-import { taskSelectors } from "$lib/features/tasks";
+import { launchSelectors } from "$lib/features/launches";
 import { settingsSelectors } from "$lib/features/settings";
 import { setUiZoomLevel } from "$lib/application/settings";
 import { usageSelectors } from "$lib/application/usage/usage-selectors.svelte";
@@ -47,7 +47,7 @@ const pendingApprovals = $derived.by(() => {
 });
 const pendingApprovalCount = $derived(pendingApprovals.length);
 const pendingApprovalConversationId = $derived(pendingApprovals[0]?.id);
-const tasks = $derived(taskSelectors.scopedTasks);
+const launches = $derived(launchSelectors.scopedLaunches);
 const gitStatus = $derived(gitSelectors.gitStatus);
 const subscriptionUsages = $derived(usageSelectors.subscriptionUsages);
 const status = $derived(workspaceSelectors.status);
@@ -92,7 +92,7 @@ const dockToggles = $derived<DockToggle[]>(
   {live}
   pendingApprovals={pendingApprovalCount}
   onOpenPendingApproval={openPendingApproval}
-  {tasks}
+  {launches}
   {gitStatus}
   {subscriptionUsages}
   {status}

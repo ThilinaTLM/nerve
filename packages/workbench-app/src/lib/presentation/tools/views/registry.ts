@@ -16,9 +16,6 @@ import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
 import ReadToolView from "../tool-call/ReadToolView.svelte";
 import SubagentToolView from "../tool-call/SubagentToolView.svelte";
-import TaskStatusToolView from "../tool-call/TaskStatusToolView.svelte";
-import TaskLogsToolView from "../tool-call/TaskLogsToolView.svelte";
-import TaskToolView from "../tool-call/TaskToolView.svelte";
 import TodoToolView from "../tool-call/TodoToolView.svelte";
 import WebFetchToolView from "../tool-call/WebFetchToolView.svelte";
 import WebSearchToolView from "../tool-call/WebSearchToolView.svelte";
@@ -39,9 +36,6 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   ls: LsToolView,
   ask_user: AskUserToolView,
   todos: TodoToolView,
-  task_action: TaskToolView,
-  task_status: TaskStatusToolView,
-  task_logs: TaskLogsToolView,
   explore: ExploreToolView,
   subagent: SubagentToolView,
   plan_mode: PlanModeToolView,

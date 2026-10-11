@@ -28,7 +28,7 @@ export type ApplicationLogContext = Partial<
     | "agentId"
     | "runId"
     | "toolCallId"
-    | "taskId"
+    | "launchId"
     | "durationMs"
   >
 > & {
@@ -471,7 +471,7 @@ function pickLogRefs(context: ApplicationLogContext) {
     agentId: context.agentId,
     runId: context.runId,
     toolCallId: context.toolCallId,
-    taskId: context.taskId,
+    launchId: context.launchId,
   };
 }
 
@@ -502,7 +502,7 @@ function matchesLogQuery(
     "agentId",
     "runId",
     "toolCallId",
-    "taskId",
+    "launchId",
   ] as const) {
     const value = query[key];
     if (value && log[key] !== value) return false;

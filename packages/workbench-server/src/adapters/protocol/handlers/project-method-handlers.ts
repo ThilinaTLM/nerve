@@ -31,24 +31,24 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>
       state.terminal.openProject(params.projectId, params),
-    "taskDefinition.list": async (state, params) => ({
-      definitions: await state.taskDefinitions.list(projectId(params)),
+    "launchDefinition.list": async (state, params) => ({
+      definitions: await state.launchDefinitions.list(projectId(params)),
     }),
-    "taskDefinition.create": async (state, params) => ({
-      definition: await state.taskDefinitionOperations.create(
+    "launchDefinition.create": async (state, params) => ({
+      definition: await state.launchDefinitionOperations.create(
         projectId(params),
         params as never,
       ),
     }),
-    "taskDefinition.update": async (state, params) => ({
-      definition: await state.taskDefinitions.update(
+    "launchDefinition.update": async (state, params) => ({
+      definition: await state.launchDefinitions.update(
         projectId(params),
         params.definitionId,
         params as never,
       ),
     }),
-    "taskDefinition.delete": async (state, params) => {
-      await state.taskDefinitions.remove(
+    "launchDefinition.delete": async (state, params) => {
+      await state.launchDefinitions.remove(
         projectId(params),
         params.definitionId,
       );

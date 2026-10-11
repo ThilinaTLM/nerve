@@ -46,9 +46,9 @@ Host retries are enabled by default for retryable failures: three retries with a
 
 After daemon restart, active runs with valid checkpoints become interrupted and can be continued. Invalid checkpoints fail. Manual continuation verifies the run belongs to the agent and resumes from recoverable persisted state.
 
-Awaited asynchronous work is recovered separately from model execution. Auto-promoted Bash work and asynchronous subagents create durable obligations; explicit `task_start` work does not. Result delivery uses stable identities and monotonic progress, so recovery can retry without duplicating the transcript notice. Because a process, model, and SQLite cannot share one transaction, delivery is idempotent and recoverable rather than exactly once across those boundaries. An agent can be execution-idle while still shown as **waiting for background work** until its obligations are consumed.
+Background work is separate from model execution. Explicit and auto-promoted async Bash runs always queue completion notices, and launches started by an agent notify the starting conversation when they exit on their own. Asynchronous subagents also deliver their results through the conversation lifecycle. A daemon restart does not recover processes: async Bash becomes `lost`, and launch instances are memory-only. Durable launch definitions and retained output remain available for inspection and a fresh start.
 
 ## Next steps
 
-- [Task recovery](/troubleshooting/tasks-and-recovery/)
+- [Process recovery](/troubleshooting/tasks-and-recovery/)
 - [Conversation import/export](/guides/import-export-editors/)

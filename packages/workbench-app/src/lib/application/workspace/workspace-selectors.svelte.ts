@@ -35,7 +35,7 @@ export type {
   PendingConversationTabModel,
   PrTabModel,
   SettingsTabModel,
-  TaskTabModel,
+  LaunchTabModel,
 } from "./center-tab-models";
 
 import type {
@@ -49,7 +49,7 @@ import type {
   PendingConversationTabModel,
   PrTabModel,
   SettingsTabModel,
-  TaskTabModel,
+  LaunchTabModel,
 } from "./center-tab-models";
 
 function activeTabMatches(
@@ -62,7 +62,7 @@ function activeTabMatches(
   );
 }
 
-function isActiveTaskStatus(status: string): boolean {
+function isActiveLaunchStatus(status: string): boolean {
   return ["starting", "running", "ready", "stopping"].includes(status);
 }
 
@@ -126,7 +126,7 @@ export const workspaceSelectors = {
     return buildProjectSwitcherItems({
       projects: workspaceState.projects,
       conversations: this.conversations,
-      tasks: workspaceFeaturePorts().tasks.read.tasks,
+      launches: workspaceFeaturePorts().launches.read.launches,
       activityById: this.conversationActivityById,
       homeDir: workspaceState.status?.storage.userHome,
       recency: workspaceState.projectRecency,
@@ -197,33 +197,34 @@ export const workspaceSelectors = {
         error: p.error,
       }));
   },
-  get openTaskTabs(): TaskTabModel[] {
-    const tabs: TaskTabModel[] = [];
-    for (const taskId of workspaceFeaturePorts().tasks.read.openTaskTabIds) {
+  get openLaunchTabs(): LaunchTabModel[] {
+    const tabs: LaunchTabModel[] = [];
+    for (const launchId of workspaceFeaturePorts().launches.read
+      .openLaunchTabIds) {
       const selectedRunId =
-        workspaceFeaturePorts().tasks.read.selectedRunByEntry[taskId];
+        workspaceFeaturePorts().launches.read.selectedRunByEntry[launchId];
       const candidates = workspaceFeaturePorts()
-        .tasks.read.tasks.filter(
+        .launches.read.launches.filter(
           (candidate) =>
             (candidate.definitionId ??
-              candidate.restartRootTaskId ??
-              candidate.id) === taskId,
+              candidate.restartRootLaunchId ??
+              candidate.id) === launchId,
         )
         .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
-      const task =
+      const launch =
         candidates.find((candidate) => candidate.id === selectedRunId) ??
         candidates[0];
       tabs.push({
-        kind: "task",
-        id: taskId,
-        task,
-        active: activeTabMatches("task", taskId),
-        sending: task ? isActiveTaskStatus(task.status) : false,
-        error: task
-          ? task.status === "failed"
-            ? (task.error ?? "Task failed")
+        kind: "launch",
+        id: launchId,
+        launch,
+        active: activeTabMatches("launch", launchId),
+        sending: launch ? isActiveLaunchStatus(launch.status) : false,
+        error: launch
+          ? launch.status === "failed"
+            ? (launch.error ?? "Launch failed")
             : undefined
-          : "Task not found",
+          : "Launch not found",
       });
     }
     return tabs;
@@ -357,7 +358,7 @@ export const workspaceSelectors = {
     const collections: CenterTabModel[][] = [
       this.openConversationTabs,
       this.openPendingConversationTabs,
-      this.openTaskTabs,
+      this.openLaunchTabs,
       this.openFileTabs,
       this.openMermaidTabs,
       this.openPrTabs,

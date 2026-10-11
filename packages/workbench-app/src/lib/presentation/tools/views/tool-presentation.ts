@@ -224,7 +224,7 @@ export function toolPresentation(
           ? isOneLine(view.command)
             ? { text: view.command }
             : { text: "inline" }
-          : undefined,
+          : base.primaryArg,
         meta,
         detailsAction:
           previewDetailsAction ??
@@ -362,26 +362,6 @@ export function toolPresentation(
         detailsAction:
           previewDetailsAction ?? detailsActionFor(view.total, "entries"),
       };
-
-    case "task_logs": {
-      const meta: MetaItem[] =
-        view.eventCount === undefined
-          ? []
-          : [{ text: plural(view.eventCount, "event") }];
-      if (view.mode) meta.push({ text: view.mode });
-      return {
-        ...base,
-        primaryArg: view.task?.name
-          ? { text: view.task.name }
-          : base.primaryArg,
-        meta,
-        detailsAction:
-          previewDetailsAction ??
-          (view.eventCount === undefined
-            ? undefined
-            : detailsActionFor(view.eventCount, "events", "tail")),
-      };
-    }
 
     case "web_fetch": {
       const meta: MetaItem[] = [];
@@ -714,30 +694,6 @@ export function toolPresentation(
             ? { text: `${view.completed}/${view.total} done` }
             : undefined,
         meta: [],
-      };
-
-    case "task_action": {
-      // Status / exit / signal metadata render on the TaskRow badges and
-      // tooltip in the body, so the header stays minimal.
-      const task = view.task ?? view.tasks?.[0];
-      return {
-        ...base,
-        badge: `task_${view.action}`,
-        primaryArg: task?.name ? { text: task.name } : base.primaryArg,
-        meta: [],
-        detailsAction: previewDetailsAction,
-      };
-    }
-
-    case "task_status":
-      return {
-        ...base,
-        meta: [{ text: plural(view.taskCount, "task", "s") }],
-        detailsAction: detailsActionFromHidden(
-          view.hiddenTaskCount,
-          "tasks",
-          "head",
-        ),
       };
 
     case "subagent":

@@ -10,7 +10,6 @@ export const agentResultProfileIdSchema = z.enum([
   "resource_detail",
   "mutation_acknowledgement",
   "lifecycle_state",
-  "task_logs",
   "delegated_reports",
   "primary_file_result",
   "human_response",

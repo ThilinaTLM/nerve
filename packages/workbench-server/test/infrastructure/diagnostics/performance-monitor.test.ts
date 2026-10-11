@@ -40,7 +40,7 @@ describe("daemon performance monitor", () => {
       sessionId: "20260814T000000000Z-desktop-42",
       getCounts: () => ({ projects: 4, activeRuns: 2 }),
       getActivity: () => ({
-        metrics: { "task.outputBytes": { count: 12 } },
+        metrics: { "launch.outputBytes": { count: 12 } },
         operations: {},
         gauges: { "websocket.sessions": 1 },
       }),
@@ -109,7 +109,7 @@ describe("daemon performance monitor", () => {
       p95Ms: 5,
       maxMs: 8,
     });
-    assert.equal(first.activity.metrics["task.outputBytes"].count, 12);
+    assert.equal(first.activity.metrics["launch.outputBytes"].count, 12);
     assert.deepEqual(first.counts, { projects: 4, activeRuns: 2 });
     assert.equal("argv" in first, false);
     monitor.stop();

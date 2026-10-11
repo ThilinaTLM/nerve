@@ -128,8 +128,8 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
       {#if activeCenterTab && !isConversationPaneTab(activeCenterTab)}
         {#key centerTabKey(activeCenterTab)}
           <CenterTabScrollLayer tabKey={centerTabKey(activeCenterTab)}>
-            {#if activeCenterTab.kind === "task"}
-              {#await loadedCenterViews.task}
+            {#if activeCenterTab.kind === "launch"}
+              {#await loadedCenterViews.launch}
                 <LazyViewPending />
               {:then module}
                 {@const Component = module?.default}

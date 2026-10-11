@@ -27,13 +27,7 @@ import {
 } from "./atlassian-result-summaries.js";
 export * from "./atlassian-result-summaries.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
-import {
-  taskListeningPortSchema,
-  taskLogQueryResponseSchema,
-  taskRecordSchema,
-  taskStatusSchema,
-} from "../tasks/task.js";
-import { taskCancelOutcomeSchema } from "./task-tool-previews.js";
+import { launchStatusSchema } from "../launches/launch.js";
 
 /**
  * Result contracts shared between the `@nervekit/tools` executors (producers) and the
@@ -302,7 +296,7 @@ export const bashExecutionDispositionSchema = z.discriminatedUnion(
     z.object({
       disposition: z.literal("backgrounded"),
       taskId: z.string().startsWith("task_"),
-      status: taskStatusSchema,
+      status: launchStatusSchema,
       elapsedMs: z.number().nonnegative(),
       terminalUpdate: z.literal("automatic"),
     }),
@@ -711,68 +705,6 @@ export const toolExecutionResultSchema = z.object({
 export type ToolExecutionResultPayload = z.infer<
   typeof toolExecutionResultSchema
 >;
-
-export const taskCancelResultSchema = z.object({
-  taskId: z.string().startsWith("task_").optional(),
-  taskName: z.string().optional(),
-  requestedSignal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
-  outcome: taskCancelOutcomeSchema,
-  status: taskStatusSchema.optional(),
-  message: z.string(),
-  releasedPorts: z.array(taskListeningPortSchema).optional(),
-});
-export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
-/** Exact dispatcher result of task_start. */
-export const taskStartToolResultSchema = z
-  .object({
-    task: taskRecordSchema,
-    otherActiveTasks: z.array(taskRecordSchema),
-    otherActiveTaskCount: z.number().int().nonnegative(),
-    contentBlocks: z.array(toolContentBlockSchema).optional(),
-  })
-  .strict();
-export type TaskStartToolResult = z.infer<typeof taskStartToolResultSchema>;
-
-/** Exact dispatcher result of task_status. */
-export const taskStatusToolResultSchema = z
-  .object({
-    tasks: z.array(taskRecordSchema),
-    contentBlocks: z.array(toolContentBlockSchema).optional(),
-  })
-  .strict();
-export type TaskStatusToolResult = z.infer<typeof taskStatusToolResultSchema>;
-
-/** Exact dispatcher result of task_control. */
-export const taskControlToolResultSchema = z.discriminatedUnion("action", [
-  z
-    .object({
-      action: z.literal("stop"),
-      task: taskRecordSchema,
-      result: taskCancelResultSchema,
-      contentBlocks: z.array(toolContentBlockSchema).optional(),
-    })
-    .strict(),
-  z
-    .object({
-      action: z.literal("restart"),
-      task: taskRecordSchema,
-      restartedFromTaskId: z.string().startsWith("task_"),
-      newTaskId: z.string().startsWith("task_"),
-      restartRootTaskId: z.string().startsWith("task_"),
-      contentBlocks: z.array(toolContentBlockSchema).optional(),
-    })
-    .strict(),
-]);
-export type TaskControlToolResult = z.infer<typeof taskControlToolResultSchema>;
-
-/** Exact dispatcher result of task_logs. */
-export const taskLogsToolResultSchema = taskLogQueryResponseSchema
-  .extend({
-    contentBlocks: z.array(toolContentBlockSchema).optional(),
-    details: z.unknown().optional(),
-  })
-  .strict();
-export type TaskLogsToolResult = z.infer<typeof taskLogsToolResultSchema>;
 
 /** Result of explore. */
 export const exploreUsageStatsSchema = z.object({

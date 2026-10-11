@@ -1,20 +1,16 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationSummary } from "@nervekit/contracts/core";
-import type { TaskRecord } from "@nervekit/contracts/tasks";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 
 /**
  * The phone Activity tab: everything moving right now, across projects.
- * Conversations and background tasks are joined to their project so a row
+ * Conversations and background launches are joined to their project so a row
  * answers "what, where, how long" at arm's length.
  */
 
-export const LIVE_TASK_STATUSES: ReadonlySet<TaskRecord["status"]> = new Set([
-  "starting",
-  "running",
-  "ready",
-  "stopping",
-]);
+export const LIVE_LAUNCH_STATUSES: ReadonlySet<LaunchRecord["status"]> =
+  new Set(["starting", "running", "ready", "stopping"]);
 
 /** Errors older than this have been seen or no longer matter on a phone. */
 const RECENT_ERROR_MS = 24 * 60 * 60 * 1000;
@@ -45,8 +41,8 @@ export type MobileActivityConversation = {
   at: string;
 };
 
-export type MobileActivityTask = {
-  taskId: string;
+export type MobileActivityLaunch = {
+  launchId: string;
   title: string;
   projectLabel?: string;
   detail: string;
@@ -57,13 +53,13 @@ export type MobileActivityTask = {
 
 export type MobileActivityModel = {
   conversations: MobileActivityConversation[];
-  tasks: MobileActivityTask[];
+  launches: MobileActivityLaunch[];
 };
 
 export type MobileActivityInput = {
   conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ActivityLike>>;
-  tasks: readonly TaskRecord[];
+  launches: readonly LaunchRecord[];
   projects: readonly ProjectLike[];
   now?: number;
 };
@@ -75,34 +71,36 @@ const CONVERSATION_ORDER: Partial<Record<ActivityLike["indicator"], number>> = {
   error: 3,
 };
 
-export function taskTitle(task: TaskRecord): string {
-  return task.displayName ?? task.name ?? task.command;
+export function launchTitle(launch: LaunchRecord): string {
+  return launch.displayName ?? launch.name ?? launch.command;
 }
 
-export function taskProject<P extends ProjectLike>(
-  task: TaskRecord,
+export function launchProject<P extends ProjectLike>(
+  launch: LaunchRecord,
   projects: readonly P[],
 ): P | undefined {
-  if (task.projectId) {
-    const owned = projects.find((project) => project.id === task.projectId);
+  if (launch.projectId) {
+    const owned = projects.find((project) => project.id === launch.projectId);
     if (owned) return owned;
   }
   // Deepest matching directory wins for nested projects.
   return projects
-    .filter((project) => isPathInDirectory(task.cwd, project.directory))
+    .filter((project) => isPathInDirectory(launch.cwd, project.directory))
     .sort((left, right) => right.directory.length - left.directory.length)[0];
 }
 
 /**
- * Tasks owned by one project. Ownership is resolved against every project so
- * a task under a nested project belongs to the child, never the parent too.
+ * Launches owned by one project. Ownership is resolved against every project so
+ * a launch under a nested project belongs to the child, never the parent too.
  */
-export function tasksInProject<P extends ProjectLike>(
-  tasks: readonly TaskRecord[],
+export function launchesInProject<P extends ProjectLike>(
+  launches: readonly LaunchRecord[],
   projects: readonly P[],
   projectId: string,
-): TaskRecord[] {
-  return tasks.filter((task) => taskProject(task, projects)?.id === projectId);
+): LaunchRecord[] {
+  return launches.filter(
+    (launch) => launchProject(launch, projects)?.id === projectId,
+  );
 }
 
 export function buildMobileActivity(
@@ -143,24 +141,24 @@ export function buildMobileActivity(
       left.rank - right.rank || right.row.at.localeCompare(left.row.at),
   );
 
-  const tasks = input.tasks
-    .filter((task) => LIVE_TASK_STATUSES.has(task.status))
+  const launches = input.launches
+    .filter((launch) => LIVE_LAUNCH_STATUSES.has(launch.status))
     .map(
-      (task): MobileActivityTask => ({
-        taskId: task.id,
-        title: taskTitle(task),
-        projectLabel: taskProject(task, input.projects)?.name,
-        detail: taskDetail(task),
-        tone: task.status === "stopping" ? "warning" : "info",
-        pulse: task.status !== "ready",
-        at: task.startedAt,
+      (launch): MobileActivityLaunch => ({
+        launchId: launch.id,
+        title: launchTitle(launch),
+        projectLabel: launchProject(launch, input.projects)?.name,
+        detail: launchDetail(launch),
+        tone: launch.status === "stopping" ? "warning" : "info",
+        pulse: launch.status !== "ready",
+        at: launch.startedAt,
       }),
     )
     .sort((left, right) => right.at.localeCompare(left.at));
 
   return {
     conversations: ranked.map(({ row }) => row),
-    tasks,
+    launches,
   };
 }
 
@@ -179,8 +177,8 @@ function defaultConversationDetail(
   }
 }
 
-function taskDetail(task: TaskRecord): string {
-  switch (task.status) {
+function launchDetail(launch: LaunchRecord): string {
+  switch (launch.status) {
     case "starting":
       return "Starting";
     case "ready":

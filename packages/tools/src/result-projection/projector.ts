@@ -13,7 +13,6 @@ import {
   headText,
   itemAwareHead,
   tailText,
-  taskLogWindow,
   terminalOutcome,
   unchangedIfFits,
   type StrategyProjection,
@@ -168,8 +167,7 @@ function applyStrategy(
       return compactDiagnosticIndex(candidate, profile);
     case "artifact_index":
       return artifactIndex(candidate, profile);
-    case "task_log_window":
-      return taskLogWindow(candidate);
+
     case "terminal_outcome":
       return terminalOutcome(candidate);
     case "unchanged":

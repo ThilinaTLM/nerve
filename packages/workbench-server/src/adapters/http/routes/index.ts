@@ -8,7 +8,7 @@ import { createProjectAssetRoutes } from "./project-asset-routes.js";
 import { createProtocolRoutes } from "./protocol-routes.js";
 import { createSettingsRoutes } from "./settings-routes.js";
 import { createStatusRoutes } from "./status-routes.js";
-import { createTaskLogRoutes } from "./task-log-routes.js";
+import { createLaunchLogRoutes } from "./launch-log-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 
 export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
@@ -28,7 +28,7 @@ export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
     app.all("/api/logs", (c) => c.notFound());
     app.all("/api/logs/*", (c) => c.notFound());
   }
-  app.route("/api", createTaskLogRoutes(contexts.taskLogs));
+  app.route("/api", createLaunchLogRoutes(contexts.launchLogs));
   app.route("/api", createFilesystemContentRoutes(contexts.filesystem));
   app.route("/api/projects", createProjectAssetRoutes(contexts.projectAssets));
 }

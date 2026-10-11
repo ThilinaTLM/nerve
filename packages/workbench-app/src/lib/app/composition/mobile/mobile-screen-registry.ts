@@ -13,8 +13,8 @@ type LazyMobileRouteKind =
   | "settings"
   | "settings-page"
   | "logs"
-  | "tasks"
-  | "task";
+  | "launches"
+  | "launch";
 
 export type MobileScreenProps<K extends MobileRoute["kind"]> = {
   route: Extract<MobileRoute, { kind: K }>;
@@ -32,8 +32,8 @@ export const mobileScreenLoaders = {
   settings: () => import("./MobileSettingsHost.svelte"),
   "settings-page": () => import("./MobileSettingsPageHost.svelte"),
   logs: () => import("./MobileLogsHost.svelte"),
-  tasks: () => import("./MobileTasksHost.svelte"),
-  task: () => import("./MobileTaskOutputHost.svelte"),
+  launches: () => import("./MobileLaunchesHost.svelte"),
+  launch: () => import("./MobileLaunchOutputHost.svelte"),
 } satisfies Record<LazyMobileRouteKind, () => MobileScreenModule>;
 
 export type { LazyMobileRouteKind };

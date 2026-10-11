@@ -11,7 +11,7 @@ export type TourStepId =
   | "history"
   | "git"
   | "pull-requests"
-  | "tasks"
+  | "launches"
   | "files"
   | "scratch-notes"
   | "context-panel"
@@ -131,12 +131,12 @@ export const tourSteps: readonly TourStep[] = [
     fallback: "Open a GitHub project to use pull request workflows.",
   },
   {
-    id: "tasks",
+    id: "launches",
     introducedIn: 1,
-    title: "Track reusable tasks",
+    title: "Track reusable launches",
     description:
-      "The Tasks panel organizes saved task definitions and their runs so you can launch, monitor, and revisit repeatable agent work.",
-    targetId: "tasks-panel",
+      "The Launches panel organizes saved launch definitions and their runs so you can launch, monitor, and revisit repeatable agent work.",
+    targetId: "launches-panel",
   },
   {
     id: "files",
@@ -183,7 +183,7 @@ export const tourSteps: readonly TourStep[] = [
     introducedIn: 1,
     title: "Usage and live status",
     description:
-      "The status bar tracks subscription usage, background tasks, pending approvals, Git state, connection health, layout controls, and zoom.",
+      "The status bar tracks subscription usage, background launches, pending approvals, Git state, connection health, layout controls, and zoom.",
     targetId: "status-controls",
   },
   {

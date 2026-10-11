@@ -104,8 +104,8 @@ const progress = $derived.by(() => {
       {operation.completedTargets}/{operation.totalTargets} storage targets completed
     </p>{/if}
   <p class="text-xs text-muted-foreground">
-    {operation.removedConversationCount} conversations removed · {operation.removedTaskCount}
-    task records removed
+    {operation.removedConversationCount} conversations removed · {operation.removedLaunchCount}
+    launch records removed
   </p>
   {#if operation.error}<p class="break-words text-xs text-destructive">
       {operation.error}

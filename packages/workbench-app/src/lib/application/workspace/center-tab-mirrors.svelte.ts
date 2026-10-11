@@ -3,7 +3,9 @@ import { workspaceState } from "./workspace-state.svelte";
 
 /** Keep feature-specific tab projections aligned with the canonical center-tab list. */
 export function syncCenterTabMirrors(): void {
-  workspaceFeaturePorts().tasks.commands.setOpenTaskTabIds(idsForKind("task"));
+  workspaceFeaturePorts().launches.commands.setOpenLaunchTabIds(
+    idsForKind("launch"),
+  );
   workspaceFeaturePorts().filesystem.commands.setOpenFileTabIds(
     idsForKind("file"),
   );

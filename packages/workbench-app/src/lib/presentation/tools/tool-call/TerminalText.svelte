@@ -1,11 +1,11 @@
 <script lang="ts">
 import { ansiToHtml } from "@nervekit/ui-kit/terminal/ansi";
-import type { TaskLogEvent } from "../../state/tool-types";
+import type { LaunchLogEvent } from "@nervekit/contracts/launches";
 
 type Props = {
   text: string;
-  stream?: TaskLogEvent["stream"];
-  level?: TaskLogEvent["level"];
+  stream?: LaunchLogEvent["stream"];
+  level?: LaunchLogEvent["level"];
 };
 
 let { text, stream, level }: Props = $props();
