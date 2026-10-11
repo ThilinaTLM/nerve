@@ -1,8 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { realpath, readFile } from "node:fs/promises";
+import { resolve, relative, isAbsolute } from "node:path";
+import { projectProcessOutput } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
+import type { ToolCallOrigin } from "@nervekit/contracts/core";
 import {
   toolManifest,
+  buildBashToolDefinition,
+  type BashToolSettings,
   toolDefinitionByName,
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
@@ -13,6 +17,14 @@ import {
 import type { ToolExecutionContext } from "@nervekit/tools/execution";
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { CoreProcessHost } from "./process.adapter.js";
+import type { LaunchTool } from "./launch-tool.js";
+
+export function requiresBashTimeoutArgument(
+  settings: BashToolSettings,
+  origin: ToolCallOrigin,
+): boolean {
+  return !settings.autoPromotion.enabled && origin !== "user";
+}
 
 export function createToolHostPort(
   processes: CoreProcessHost,
@@ -20,7 +32,8 @@ export function createToolHostPort(
     cwd: string,
     conversationId: string,
   ) => ToolExecutionContext | Promise<ToolExecutionContext>,
-  promotionDelayMs: (cwd: string) => Promise<number | null>,
+  bashSettings: (cwd: string) => Promise<BashToolSettings>,
+  launchTool?: LaunchTool,
 ) {
   const todos = new Map<unknown, { todo: string; done: boolean }[]>();
   const handlers = createTodoHandlers({
@@ -30,18 +43,25 @@ export function createToolHostPort(
       return value;
     },
   });
-  // Conversation interactions/delegation are core-owned; launch tools do not belong to agents.
-  const definitions: ToolDefinition[] = toolManifest
-    .filter((tool) => tool.executionKind === "local" || tool.name in handlers)
-    .map((tool) =>
+  if (launchTool)
+    handlers.launch = (args, context) =>
+      launchTool.execute(args, String(context.identity));
+  // Host-only definitions (including launch) are advertised only with a registered handler.
+  const baseDefinitions = toolManifest.filter(
+    (tool) => tool.executionKind === "local" || tool.name in handlers,
+  );
+  const definitions = async (cwd: string): Promise<ToolDefinition[]> => {
+    const settings = await bashSettings(cwd);
+    return baseDefinitions.map((tool) =>
       tool.name === "bash"
         ? {
             ...tool,
-            description:
-              "Run a shell command. Long-running commands continue as conversation-owned async bash; completion is reported to this conversation.",
+            ...buildBashToolDefinition(settings),
+            agentResult: tool.agentResult,
           }
         : tool,
     );
+  };
   const port: ToolHostPort = {
     isReplaySafe(name) {
       const tool = toolDefinitionByName(name);
@@ -53,10 +73,24 @@ export function createToolHostPort(
     },
     async execute(input) {
       const name = toolNameSchema.parse(input.toolName);
+      const turnDefinitions = await definitions(input.projectDir ?? input.cwd);
       const dispatcher = createToolDispatcher({
-        definitions,
-        advertisedToolNames: new Set(definitions.map((tool) => tool.name)),
-        hostHandlers: handlers,
+        definitions: turnDefinitions,
+        advertisedToolNames: new Set(turnDefinitions.map((tool) => tool.name)),
+        hostHandlers: {
+          ...handlers,
+          ...(launchTool
+            ? {
+                launch: (args: Record<string, unknown>) =>
+                  launchTool.execute(
+                    args,
+                    input.conversationId,
+                    input.origin,
+                    input.signal,
+                  ),
+              }
+            : {}),
+        },
         contextFor: async () => ({
           ...(await context(input.cwd, input.conversationId)),
           cwd: input.cwd,
@@ -80,27 +114,93 @@ export function createToolHostPort(
             input.conversationId,
           ),
         };
-      const definition = toolDefinitionByName("bash")!;
-      const args = definition.normalizeArguments
-        ? definition.normalizeArguments(input.args)
-        : (input.args as Record<string, unknown>);
-      if (typeof args.command !== "string")
+      const settings = await bashSettings(input.projectDir ?? input.cwd);
+      const definition = buildBashToolDefinition(settings);
+      const args = input.args as Record<string, unknown>;
+      if (
+        !args ||
+        typeof args !== "object" ||
+        Array.isArray(args) ||
+        Object.keys(args).some(
+          (key) => !Object.keys(definition.parameters.properties).includes(key),
+        ) ||
+        typeof args.command !== "string" ||
+        (args.cwd !== undefined && typeof args.cwd !== "string") ||
+        (args.background !== undefined &&
+          typeof args.background !== "boolean") ||
+        (args.ready !== undefined && typeof args.ready !== "string") ||
+        (requiresBashTimeoutArgument(settings, input.origin) &&
+          (!Number.isInteger(args.timeout) ||
+            Number(args.timeout) < 1 ||
+            Number(args.timeout) > Math.floor(settings.maxTimeoutMs / 1000)))
+      )
+        throw new Error("Invalid bash arguments");
+      if (!String(args.command).trim())
         throw new Error("bash requires a command");
+      if (args.ready !== undefined && args.background !== true)
+        throw new Error("ready requires background:true");
+      if (typeof args.ready === "string" && !/^https?:\/\//i.test(args.ready))
+        new RegExp(args.ready);
+      if (typeof args.ready === "string" && /^https?:\/\//i.test(args.ready))
+        new URL(args.ready);
+      const project = await realpath(input.projectDir ?? input.cwd);
+      const cwd = await realpath(
+        typeof args.cwd === "string" ? resolve(project, args.cwd) : input.cwd,
+      );
+      const inside = relative(project, cwd);
+      if (inside === ".." || inside.startsWith("../") || isAbsolute(inside))
+        throw new Error("cwd must resolve inside the project");
       if (input.signal.aborted)
         throw new DOMException("Cancelled", "AbortError");
-      const foregroundMs = await promotionDelayMs(input.cwd);
+      const foregroundMs = settings.autoPromotion.enabled
+        ? settings.autoPromotion.afterMs
+        : null;
+      if (args.background === true) {
+        const started = await processes.start({
+          command: String(args.command),
+          cwd,
+          artifactDir: input.artifactDir,
+          signal: input.signal,
+          ready:
+            typeof args.ready === "string"
+              ? /^https?:\/\//i.test(args.ready)
+                ? { kind: "url", url: args.ready, timeoutMs: 60_000 }
+                : { kind: "pattern", pattern: args.ready, timeoutMs: 60_000 }
+              : undefined,
+        });
+        const readiness = started.readiness;
+        const content = !readiness
+          ? ""
+          : readiness.status === "ready"
+            ? readiness.url
+              ? `Ready: ${readiness.url}`
+              : "Ready: matched"
+            : readiness.status === "timed_out"
+              ? "Not ready after 60s"
+              : `Exited: ${(await started.process.wait()).status}`;
+        return {
+          kind: "backgrounded",
+          process: started.process,
+          result: {
+            content,
+            details: {
+              backgroundStart: true,
+              processStatusIncluded: true,
+              cwd,
+            },
+          },
+        };
+      }
       let reportProgress = true;
       const process = await processes.spawn({
-        command: args.command,
-        cwd:
-          typeof args.cwd === "string"
-            ? resolve(input.cwd, args.cwd)
-            : input.cwd,
+        command: String(args.command),
+        cwd,
         artifactDir: input.artifactDir,
-        timeoutMs:
-          typeof args.timeout === "number"
-            ? Math.min(86400, Math.max(1, args.timeout)) * 1000
-            : undefined,
+        timeoutMs: !settings.autoPromotion.enabled
+          ? input.origin === "user"
+            ? settings.maxTimeoutMs
+            : Number(args.timeout) * 1000
+          : undefined,
         onProgress: (update) => {
           if (reportProgress) input.onProgress(update);
         },
@@ -130,8 +230,17 @@ export function createToolHostPort(
             kind: "backgrounded",
             process,
             result: {
-              content:
-                "Command continues in the background. Completion will be reported to this conversation.",
+              stdout: await readFile(process.outputFiles.stdout, "utf8"),
+              stderr: await readFile(process.outputFiles.stderr, "utf8"),
+              content: await projectProcessOutput({
+                outputFiles: process.outputFiles,
+                status: "running",
+              }),
+              details: {
+                cwd,
+                processStatusIncluded: true,
+                outputFiles: process.outputFiles,
+              },
             },
           };
         const stdout = await readFile(process.outputFiles.stdout, "utf8");
@@ -139,14 +248,22 @@ export function createToolHostPort(
         return {
           kind: "completed",
           result: {
-            content: [
-              stdout.slice(-64_000),
-              stderr.slice(-64_000),
-              `Exit code: ${outcome.exitCode}; status: ${outcome.status}`,
-            ]
-              .filter(Boolean)
-              .join("\n"),
-            details: { exitCode: outcome.exitCode, status: outcome.status },
+            stdout,
+            stderr,
+            content: await projectProcessOutput({
+              stdout,
+              stderr,
+              outputFiles: process.outputFiles,
+              status: outcome.status,
+              exitCode: outcome.exitCode,
+            }),
+            details: {
+              exitCode: outcome.exitCode,
+              status: outcome.status,
+              processStatusIncluded: true,
+              outputFiles: process.outputFiles,
+              cwd,
+            },
           },
         };
       } finally {
@@ -156,5 +273,5 @@ export function createToolHostPort(
       }
     },
   };
-  return { port, definitions: () => definitions };
+  return { port, definitions };
 }

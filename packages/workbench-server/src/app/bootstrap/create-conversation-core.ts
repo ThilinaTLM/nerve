@@ -1,4 +1,10 @@
 import { mkdirSync } from "node:fs";
+import { createId } from "@nervekit/contracts";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
+import {
+  LaunchTool,
+  type LaunchToolOptions,
+} from "../../core-host/launch-tool.js";
 import { readFile } from "node:fs/promises";
 import {
   ConversationCore,
@@ -22,7 +28,10 @@ import { resolveProjectSettings } from "../../infrastructure/configuration/index
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
-export function createConversationCore(deps: RuntimeDeps) {
+export function createConversationCore(
+  deps: RuntimeDeps,
+  launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
+) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
   const storage = openCoreStorage(deps.storage.paths.sqlitePath);
@@ -35,6 +44,33 @@ export function createConversationCore(deps: RuntimeDeps) {
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);
+  const launchTool = new LaunchTool({
+    ...launchServices,
+    project: (conversationId) => {
+      const projectId = core.getSnapshot(conversationId).conversation.projectId;
+      const project = core.projects.get(projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      return project;
+    },
+    notify: (conversationId, launch, text) => {
+      core.inputs.enqueueNotice({
+        conversationId,
+        inputId: createId("input"),
+        subtype: "notification",
+        producer: launch.id,
+        text,
+        wakeWhenIdle: true,
+      });
+    },
+  });
+  deps.events.subscribeNotify((event) => {
+    if (!event.type.startsWith("launch.")) return;
+    const launch = (event.data as { launch?: LaunchRecord }).launch;
+    if (launch)
+      void launchTool.changed(event.type, launch).catch((error) => {
+        void deps.logger.warn("Launch completion notice failed", { error });
+      });
+  });
   const tools = createToolHostPort(
     processes,
     async (cwd, conversationId): Promise<ToolExecutionContext> => {
@@ -103,17 +139,21 @@ export function createConversationCore(deps: RuntimeDeps) {
     },
     async (cwd) => {
       const settings = await resolveProjectSettings(deps.storage, cwd);
-      return settings.tools.bash.autoPromotion.enabled
-        ? settings.tools.bash.autoPromotion.afterMs
-        : null;
+      return settings.tools.bash;
     },
+    launchTool,
   );
   const core: ConversationCore = new ConversationCore({
     storage,
     dataDir,
     models,
     processes,
-    permissions: createPermissionPort(deps.storage.paths.home, storage),
+    permissions: createPermissionPort(
+      deps.storage.paths.home,
+      storage,
+      async (cwd) =>
+        (await resolveProjectSettings(deps.storage, cwd)).tools.bash,
+    ),
     toolHost: tools.port,
     turnResources: createTurnResourcesPort({
       home: deps.storage.paths.home,
