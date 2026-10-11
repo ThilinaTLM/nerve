@@ -1,10 +1,7 @@
 import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
-import {
-  DAEMON_LEASE_CONFLICT_CODE,
-  type DaemonStartupProgress,
-} from "@nervekit/contracts/storage";
+import type { ServerLifecycleState } from "@nervekit/contracts/status";
+import { DAEMON_LEASE_CONFLICT_CODE } from "@nervekit/contracts/storage";
 import { daemonStartupError, formatExit, OutputBuffer } from "./diagnostics.js";
-import { DaemonStartupProgressDecoder } from "./startup-progress.js";
 import {
   DAEMON_HEALTH_POLL_INTERVAL_MS,
   DAEMON_MAX_RESTART_ATTEMPTS,
@@ -41,7 +38,6 @@ export interface DaemonSupervisorConfig {
   serverMain?: string;
   launchEnv?: NodeJS.ProcessEnv;
   launchArgs?: string[];
-  onStartupProgress?: (progress: DaemonStartupProgress) => void;
 }
 
 interface OwnedChild {
@@ -85,6 +81,8 @@ export class DaemonSupervisor {
   private restartChain: Promise<void> = Promise.resolve();
   private healthCheckInFlight = false;
 
+  /** Last lifecycle reported by a healthy check; undefined when unknown. */
+  private lifecycle?: ServerLifecycleState;
   private url = "";
   private token?: string;
   private shareUrls: ShareUrls = {};
@@ -148,6 +146,7 @@ export class DaemonSupervisor {
   private applyHealthy(healthy: HealthyDaemon): void {
     this.url = healthy.url;
     this.token = healthy.token;
+    this.lifecycle = healthy.lifecycle;
     this.shareUrls = buildShareUrls(
       healthy.daemon,
       healthy.token,
@@ -223,13 +222,8 @@ export class DaemonSupervisor {
     const { paths, serverMain, launchEnv, launchArgs, readinessTimeoutMs } =
       this.requireOwnedConfig();
     const output = new OutputBuffer();
-    let deadline = this.ports.scheduler.now() + readinessTimeoutMs;
-    const progress = new DaemonStartupProgressDecoder((event) => {
-      // Treat the configured startup timeout as an inactivity timeout while
-      // the daemon reports legitimate long-running startup work.
-      deadline = this.ports.scheduler.now() + readinessTimeoutMs;
-      this.config.onStartupProgress?.(event);
-    });
+    // Readiness means "HTTP reachable": the server binds before migrations.
+    const deadline = this.ports.scheduler.now() + readinessTimeoutMs;
     this.ports.logger.log("info", "Starting owned local daemon", {
       context: {
         serverMain,
@@ -253,7 +247,6 @@ export class DaemonSupervisor {
       env: launchEnv,
       onOutput: (stream, chunk) => {
         output.append(stream, chunk);
-        progress.push(Buffer.isBuffer(chunk) ? chunk : String(chunk));
       },
       onError: (error) => {
         child.spawnError = error;
@@ -433,12 +426,22 @@ export class DaemonSupervisor {
     if (!this.url || !this.token) return;
     const health = await this.ports.health.check(this.url, this.token);
     if (health.healthy) {
+      this.lifecycle = health.lifecycle;
       this.consecutiveFailures = 0;
       this.failedHealthChecks.length = 0;
       this.lastHealthyAt = this.ports.scheduler.now();
       // Sustained health resets the restart budget.
       this.restartAttempts = 0;
       if (this.status !== "ready") this.setStatus("ready");
+      return;
+    }
+    // An owned daemon that is still starting or upgrading storage may be busy
+    // rather than hung; only a process exit triggers recovery until it reports
+    // `ready` or `failed`.
+    if (
+      this.config.owned &&
+      (this.lifecycle === "starting" || this.lifecycle === "upgrading")
+    ) {
       return;
     }
     this.consecutiveFailures += 1;

@@ -59,6 +59,9 @@ width: 3rem;
 height: 3rem;
 border-radius: 0.625rem;
 color: var(--splash-bg);
+animation: splash-beat 2400ms cubic-bezier(0.22, 1, 0.36, 1) infinite
+both;
+animation-delay: calc(var(--splash-t0, 0ms) + 2200ms);
 }
 #startup-splash-plate::before {
 content: "";
@@ -92,6 +95,16 @@ animation-delay: calc(var(--splash-t0, 0ms) + 140ms);
 #startup-splash-mark .splash-diagonal {
 animation-duration: 900ms;
 animation-delay: calc(var(--splash-t0, 0ms) + 240ms);
+}
+/* After the intro an impulse keeps travelling through the letterform, so long
+waits (storage upgrades) never look frozen. Each lap ends in a plate beat. */
+#startup-splash-mark path.splash-pulse {
+stroke: var(--splash-primary);
+stroke-dasharray: 16 116;
+stroke-dashoffset: 16;
+animation: splash-pulse 2400ms cubic-bezier(0.45, 0, 0.25, 1) infinite
+both;
+animation-delay: calc(var(--splash-t0, 0ms) + 2200ms);
 }
 #startup-splash-sheen {
 position: absolute;
@@ -173,7 +186,9 @@ animation: splash-fade 420ms ease-out both;
 animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
 }
 #startup-splash-fill {
+position: relative;
 display: block;
+overflow: hidden;
 width: 100%;
 height: 100%;
 border-radius: inherit;
@@ -183,6 +198,21 @@ transform-origin: left center;
 transition: transform 180ms ease-out;
 animation: splash-meter 2600ms cubic-bezier(0.22, 1, 0.36, 1) both;
 animation-delay: calc(var(--splash-t0, 0ms) + 300ms);
+}
+#startup-splash-fill::after {
+content: "";
+position: absolute;
+inset: 0;
+width: 40%;
+background: linear-gradient(
+90deg,
+transparent,
+color-mix(in oklab, var(--splash-primary) 45%, white),
+transparent
+);
+transform: translateX(-100%);
+animation: splash-shimmer 1800ms ease-in-out infinite;
+animation-delay: calc(var(--splash-t0, 0ms) + 1200ms);
 }
 #startup-splash.is-complete #startup-splash-fill {
 transform: scaleX(1);
@@ -236,10 +266,43 @@ from {
 transform: scaleX(0.04);
 }
 }
+@keyframes splash-pulse {
+0% {
+stroke-dashoffset: 16;
+}
+55%,
+100% {
+stroke-dashoffset: -100;
+}
+}
+@keyframes splash-beat {
+0%,
+52% {
+transform: scale(1);
+box-shadow: 0 0 0 0
+color-mix(in oklab, var(--splash-primary) 55%, transparent);
+}
+60% {
+transform: scale(1.06);
+}
+80% {
+transform: scale(1);
+}
+100% {
+transform: scale(1);
+box-shadow: 0 0 0 1.25rem
+color-mix(in oklab, var(--splash-primary) 0%, transparent);
+}
+}
+@keyframes splash-shimmer {
+to {
+transform: translateX(250%);
+}
+}
 /* The settled composition is the base state, so suppressing the intro is enough
-   for reduced motion and for the desktop hand-off after the shell already
-   played it. */
-:root[data-splash-intro="settled"] #startup-splash *,
+for reduced motion and for the desktop hand-off after the shell already
+played it. Ambient .splash-loop motion keeps running while settled. */
+:root[data-splash-intro="settled"] #startup-splash *:not(.splash-loop),
 :root[data-splash-intro="settled"] #startup-splash *::before {
 animation: none !important;
 }
@@ -248,8 +311,12 @@ animation: none !important;
 transition-duration: 1ms;
 }
 #startup-splash *,
-#startup-splash *::before {
+#startup-splash *::before,
+#startup-splash *::after {
 animation: none !important;
+}
+#startup-splash-fill::after {
+display: none;
 }
 }
 /* startup-splash:end */
@@ -261,12 +328,13 @@ export function startupSplashMarkup(statusText: string): string {
 <div id="startup-splash" aria-busy="true" aria-label="Starting Nerve">
 <div id="startup-splash-content">
 <div id="startup-splash-stage">
-<div id="startup-splash-plate" aria-hidden="true">
+<div id="startup-splash-plate" class="splash-loop" aria-hidden="true">
 <svg id="startup-splash-mark" viewBox="120 120 272 272" fill="none" focusable="false">
 <g stroke="currentColor" stroke-width="32" stroke-linecap="round" stroke-linejoin="round">
 <path class="splash-stem-left" pathLength="100" d="M150 350V162" />
 <path class="splash-stem-right" pathLength="100" d="M362 350V162" />
 <path class="splash-diagonal" pathLength="100" d="M150 162L232 235L258 208L284 288L362 350" />
+<path class="splash-pulse splash-loop" pathLength="100" d="M150 350V162L232 235L258 208L284 288L362 350V162" />
 </g>
 </svg>
 <span id="startup-splash-sheen"></span>

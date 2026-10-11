@@ -27,3 +27,45 @@ export function dismissStartupSplash(): void {
     });
   });
 }
+
+export interface StartupSplashView {
+  status: string;
+  detail?: string;
+  meter?: { done: number; total: number; fraction: number };
+}
+
+/**
+ * Mirrors server lifecycle progress into the splash painted by index.html.
+ * Returns false once the splash is gone.
+ */
+export function updateStartupSplash(view: StartupSplashView): boolean {
+  const status = document.getElementById("startup-splash-status");
+  if (!status) return false;
+  if (status.textContent !== view.status) {
+    status.classList.remove("is-swapping");
+    void status.offsetWidth;
+    status.textContent = view.status;
+    status.classList.add("is-swapping");
+  }
+  const detail = document.getElementById("startup-splash-detail");
+  if (detail) {
+    detail.textContent = view.detail ?? "";
+    detail.hidden = !view.detail;
+  }
+  const meter = document.getElementById("startup-splash-meter");
+  const fill = document.getElementById("startup-splash-fill");
+  if (meter && fill) {
+    if (view.meter) {
+      meter.setAttribute("aria-valuemin", "0");
+      meter.setAttribute("aria-valuemax", String(view.meter.total));
+      meter.setAttribute("aria-valuenow", String(view.meter.done));
+      fill.style.animation = "none";
+      fill.style.transform = `scaleX(${view.meter.fraction})`;
+    } else {
+      meter.removeAttribute("aria-valuenow");
+      fill.style.animation = "";
+      fill.style.transform = "";
+    }
+  }
+  return true;
+}

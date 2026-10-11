@@ -1,6 +1,4 @@
-import { chmod, mkdir, readFile } from "node:fs/promises";
-import { dirname } from "node:path";
-import { type DaemonStartupProgress } from "@nervekit/contracts/storage";
+import { chmod, mkdir } from "node:fs/promises";
 import {
   defaultSettings,
   type Settings,
@@ -9,8 +7,9 @@ import {
   type UpdateSettingsRequest,
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
-import { pathExists, writeTextFileIfMissing } from "./json.js";
-import { runMigrations } from "../migrations/framework/runner.js";
+import { ensureLocalToken } from "./local-token.js";
+import { runMigrationsInWorker } from "../migrations/framework/worker-client.js";
+import type { MigrationProgress } from "../migrations/framework/step.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import {
   configurationWithSettings,
@@ -74,7 +73,10 @@ export async function readCurrentSettingsForBootstrap(
 export async function initializeStorage(
   home = resolveDataDir(),
   options: {
-    reportStartupProgress?: (progress: DaemonStartupProgress) => void;
+    /** Receives every migration progress report while storage upgrades. */
+    onMigrationProgress?: (progress: MigrationProgress) => void;
+    /** Token already resolved by the caller (see `ensureLocalToken`). */
+    localToken?: string;
     /** Applies only to a fresh home; existing homes retain their class. */
     freshHomeClass?: NerveHomeClass;
     /** Caller retains ownership through daemon publication and releases it. */
@@ -82,12 +84,6 @@ export async function initializeStorage(
   } = {},
 ): Promise<InitializedStorage> {
   const paths = storagePaths(home);
-  options.reportStartupProgress?.({
-    type: "nerve.startup.progress",
-    phase: "storage-check",
-    message: "Checking local storage",
-  });
-
   if (
     options.startupLock &&
     options.startupLock.path !== `${home}.startup.lock`
@@ -97,24 +93,18 @@ export async function initializeStorage(
   const startupLock =
     options.startupLock ?? (await acquireStorageStartupLock(home));
   try {
+    let localToken = options.localToken;
+    if (!localToken) {
+      const resolved = await ensureLocalToken(home);
+      if (!resolved.ok) throw new Error(resolved.message);
+      localToken = resolved.token;
+    }
+
     const homeInspectionStartedAt = performance.now();
-    const migrationResult = await runMigrations(home, {
-      lock: startupLock,
+    const migrationResult = await runMigrationsInWorker({
+      home,
       freshHomeClass: options.freshHomeClass,
-      onLog: (log) =>
-        options.reportStartupProgress?.({
-          type: "nerve.startup.progress",
-          phase: "storage-migration",
-          message: "Upgrading local storage",
-          log,
-        }),
-      onProgress: (migration) =>
-        options.reportStartupProgress?.({
-          type: "nerve.startup.progress",
-          phase: "storage-migration",
-          message: "Upgrading local storage",
-          migration,
-        }),
+      onProgress: options.onMigrationProgress,
     });
     const homeInspectionMs = Math.round(
       performance.now() - homeInspectionStartedAt,
@@ -141,25 +131,6 @@ export async function initializeStorage(
     const sqliteMigrationCheckMs = 0;
     const canonicalOpenMs = 0;
     const settings = settingsFromConfiguration(configuration);
-
-    if (!(await pathExists(paths.localTokenPath))) {
-      if (!fresh) {
-        throw new Error("Nerve daemon token is missing.");
-      }
-      const token = `nt_${Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url")}`;
-      await mkdir(dirname(paths.localTokenPath), {
-        recursive: true,
-        mode: 0o700,
-      });
-      await writeTextFileIfMissing(paths.localTokenPath, `${token}\n`, 0o600);
-    }
-    await chmod(paths.localTokenPath, 0o600).catch(() => undefined);
-    const localToken = (await readFile(paths.localTokenPath, "utf8")).trim();
-    if (!localToken) {
-      throw new Error(
-        `The local authentication token at ${paths.localTokenPath} is empty.`,
-      );
-    }
 
     return {
       paths,

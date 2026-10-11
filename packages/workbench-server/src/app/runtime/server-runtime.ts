@@ -88,6 +88,9 @@ export interface ServerRuntimeOptions {
   performanceDiagnosticsEnabled?: boolean;
   applicationConfiguration?: ApplicationConfigurationSnapshot;
   resourceContainment?: ManagedResourceContainmentStatus;
+  /** Identity and start time assigned by the booted listener. */
+  daemonId?: string;
+  startedAt?: string;
   resources?: ResourceLimits & { controlWorkConcurrency: number };
 }
 
@@ -212,7 +215,7 @@ export function composeServerRuntime(
       });
     },
   });
-  const daemonId = createId("daemon");
+  const daemonId = options.daemonId ?? createId("daemon");
   const applicationConfiguration =
     options.applicationConfiguration ??
     resolveApplicationConfiguration({
@@ -246,7 +249,7 @@ export function composeServerRuntime(
   };
   const runtime: ServerRuntime = {
     daemonId,
-    startedAt: new Date().toISOString(),
+    startedAt: options.startedAt ?? new Date().toISOString(),
     host,
     port,
     storage,

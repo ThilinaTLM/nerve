@@ -13,17 +13,21 @@ import { serveStatic } from "../adapters/http/static-files.js";
 import { documentStyles } from "../infrastructure/documents/index.js";
 import { mountApiRoutes } from "../adapters/http/routes/index.js";
 import type { ServerRuntime } from "./runtime/server-runtime.js";
-import { version } from "./version.js";
+import {
+  createLifecycleRoutes,
+  type LifecycleControls,
+} from "./lifecycle/lifecycle-routes.js";
+import { createServerLifecycleHolder } from "./lifecycle/server-lifecycle.js";
 
 export { isWebSocketAuthorized } from "../adapters/http/auth-middleware.js";
 
-function remoteUiAuthRedirect(
+export function remoteUiAuthRedirect(
   request: Request,
-  state: ServerRuntime,
+  localToken: string,
 ): Response | undefined {
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
-  if (token !== state.storage.localToken) return undefined;
+  if (token !== localToken) return undefined;
 
   url.searchParams.delete("token");
   const location = `${url.pathname}${url.search}` || "/";
@@ -31,7 +35,7 @@ function remoteUiAuthRedirect(
     status: 302,
     headers: {
       location,
-      "set-cookie": cookieHeader(state.storage.localToken, {
+      "set-cookie": cookieHeader(localToken, {
         secure: url.protocol === "https:",
       }),
     },
@@ -137,7 +141,13 @@ function escapeHtml(value: string): string {
   });
 }
 
-export function createApp(state: ServerRuntime): Hono {
+export function createApp(
+  state: ServerRuntime,
+  lifecycle: LifecycleControls = {
+    holder: createServerLifecycleHolder({ initial: "ready" }),
+    retry: () => undefined,
+  },
+): Hono {
   const app = new Hono();
 
   if (state.applicationLogsEnabled) {
@@ -175,9 +185,10 @@ export function createApp(state: ServerRuntime): Hono {
     });
   }
   app.use("/api/*", createApiAuthMiddleware(state.storage.localToken));
+  app.route("/", createLifecycleRoutes(lifecycle));
   mountApiRoutes(app, state);
 
-  app.get("/health", (c) => c.json({ status: "ok", version }));
+  app.get("/health", (c) => c.json(lifecycle.holder.health()));
 
   app.get(
     "/mobile-setup",
@@ -189,7 +200,10 @@ export function createApp(state: ServerRuntime): Hono {
   );
 
   app.get("*", async (c) => {
-    const remoteAuthRedirect = remoteUiAuthRedirect(c.req.raw, state);
+    const remoteAuthRedirect = remoteUiAuthRedirect(
+      c.req.raw,
+      state.storage.localToken,
+    );
     if (remoteAuthRedirect) return remoteAuthRedirect;
 
     return serveStatic(

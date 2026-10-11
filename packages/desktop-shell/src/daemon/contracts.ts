@@ -1,5 +1,7 @@
-import type { DaemonFile } from "@nervekit/contracts/status";
-import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
+import type {
+  DaemonFile,
+  ServerLifecycleState,
+} from "@nervekit/contracts/status";
 
 export type DaemonMode = "local" | "remote";
 
@@ -46,7 +48,6 @@ export interface EnsureDaemonOptions {
   mobileHttps?: boolean;
   startupTimeoutMs?: number;
   maxOldSpaceMb?: number;
-  onStartupProgress?: (progress: DaemonStartupProgress) => void;
 }
 
 export interface DaemonPaths {
@@ -59,6 +60,7 @@ export interface HealthyDaemon {
   daemon: DaemonFile;
   url: string;
   token: string;
+  lifecycle?: ServerLifecycleState;
 }
 
 export interface ShareUrls {

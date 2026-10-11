@@ -7,7 +7,6 @@ import { installDesktopPerformanceMonitor } from "../performance/performance-mon
 import {
   app,
   BrowserWindow,
-  dialog,
   ipcMain,
   nativeTheme,
   session,
@@ -29,7 +28,6 @@ import {
   resolvePackagedWebDistPath,
   resolvePreloadPath,
 } from "../window/preload-paths.js";
-import { prepareDesktopDataDirectory } from "./data-directory-migration.js";
 import {
   DesktopRuntime,
   type DesktopRuntimeOptions,
@@ -122,13 +120,6 @@ export function createDesktopRuntimePorts(): DesktopRuntimePorts {
         nativeTheme.on("updated", listener);
         return () => nativeTheme.removeListener("updated", listener);
       },
-    },
-    prepareDataDirectory: (input) =>
-      prepareDesktopDataDirectory(input, {
-        showMessageBox: (message) => dialog.showMessageBox(message),
-      }),
-    reportStartupProgress: (message) => {
-      process.stderr.write(`[nerve] ${message}\n`);
     },
     readCurrentSettings: readCurrentSettingsForBootstrap,
     configureNetworkSession: () =>

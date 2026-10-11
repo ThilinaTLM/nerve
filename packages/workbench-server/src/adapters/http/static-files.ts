@@ -10,9 +10,12 @@ import {
 } from "node:path";
 import { fileURLToPath } from "node:url";
 import { documentStyles } from "../../infrastructure/documents/index.js";
-import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-adapter-contexts.js";
 
-type StaticFileContext = ServerAdapterContexts["http"]["staticFiles"];
+interface StaticFileContext {
+  host: string;
+  port: number;
+  storage: { localToken: string };
+}
 import { cookieHeader } from "./auth-middleware.js";
 
 const contentTypes: Record<string, string> = {
@@ -122,7 +125,10 @@ function staticResponseHeaders(
     "content-security-policy":
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws: wss: https:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
   };
-  if (shouldIssueLocalUiCookie(state, clientAddress)) {
+  if (
+    state.storage.localToken &&
+    shouldIssueLocalUiCookie(state, clientAddress)
+  ) {
     headers["set-cookie"] = cookieHeader(state.storage.localToken);
   }
   return headers;

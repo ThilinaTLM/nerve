@@ -197,6 +197,7 @@ export interface FakeDaemonWorld {
     outcome: "ok" | "timeout" | "http_error" | "network_error";
     status?: number;
     error?: string;
+    lifecycle?: "starting" | "upgrading" | "ready" | "failed";
   };
   healthChecks: Array<{ url: string; token: string }>;
   discoveryResults: Array<HealthyDaemon | undefined>;
@@ -245,6 +246,7 @@ export function fakeDaemonWorld(
           durationMs: 1,
           status: healthResults.status,
           error: healthResults.error,
+          lifecycle: healthResults.value ? healthResults.lifecycle : undefined,
         };
       },
     },

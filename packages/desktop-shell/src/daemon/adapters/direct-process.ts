@@ -16,7 +16,11 @@ export function spawnDaemonProcess(
     windowsHide: true,
   });
   child.stdout?.on("data", (chunk) => input.onOutput("stdout", chunk));
-  child.stderr?.on("data", (chunk) => input.onOutput("stderr", chunk));
+  child.stderr?.on("data", (chunk) => {
+    // Keep the dev terminal log showing server output (e.g. migration lines).
+    process.stderr.write(chunk);
+    input.onOutput("stderr", chunk);
+  });
   child.once("error", (error) => input.onError(error));
   child.once("exit", (code, signal) => {
     if (launch.systemdUnit) {

@@ -57,6 +57,26 @@ describe("daemon Node health integration", () => {
     }
   });
 
+  it("reads the lifecycle from the health body and tolerates bad bodies", async () => {
+    const body = (text: string) => async () =>
+      new Response(text, { status: 200 });
+    const ok = await checkHealth("http://127.0.0.1:3747", "t", {
+      fetch: body('{"status":"ok","version":"1","lifecycle":"upgrading"}'),
+    });
+    assert.equal(ok.lifecycle, "upgrading");
+    for (const text of [
+      "",
+      "not json",
+      '{"status":"ok","lifecycle":"weird"}',
+    ]) {
+      const result = await checkHealth("http://127.0.0.1:3747", "t", {
+        fetch: body(text),
+      });
+      assert.equal(result.healthy, true);
+      assert.equal(result.lifecycle, undefined);
+    }
+  });
+
   it("uses the authenticated minimal health endpoint", async () => {
     let requestedUrl = "";
     let authorization = "";

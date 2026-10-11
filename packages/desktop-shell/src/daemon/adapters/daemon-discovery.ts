@@ -28,7 +28,9 @@ export async function findHealthyDaemon(
     );
   const token = await readToken(paths.localTokenPath);
   const health = await checkHealth(url, token);
-  return health.healthy ? { daemon, url, token } : undefined;
+  return health.healthy
+    ? { daemon, url, token, lifecycle: health.lifecycle }
+    : undefined;
 }
 
 async function readDaemonFile(path: string): Promise<DaemonMetadataRead> {

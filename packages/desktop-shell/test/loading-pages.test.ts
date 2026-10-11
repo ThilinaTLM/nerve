@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  errorHtml,
-  loadingHtml,
-  loadingStageScript,
-  loadingStatusScript,
-} from "../src/window/loading-pages.js";
+import { errorHtml, loadingHtml } from "../src/window/loading-pages.js";
 
 describe("loadingHtml", () => {
   it("renders the shared splash hooks and escapes the status text", () => {
@@ -15,14 +10,6 @@ describe("loadingHtml", () => {
     assert.match(html, /id="startup-splash-fill"/);
     assert.match(html, /Waiting for &quot;local&quot; &lt;daemon&gt;/);
     assert.doesNotMatch(html, /<daemon>/);
-  });
-
-  it("plays the intro by default and settles it for mid-session pages", () => {
-    assert.match(loadingHtml(), /<html lang="en">/);
-    assert.match(
-      loadingHtml({ status: "Reconnecting", playIntro: false }),
-      /<html lang="en" data-splash-intro="settled">/,
-    );
   });
 });
 
@@ -79,53 +66,4 @@ describe("errorHtml", () => {
     });
     assert.match(html, /startup-retry/);
   });
-});
-
-describe("loading status scripts", () => {
-  it("targets the splash status node", () => {
-    assert.match(
-      loadingStatusScript("Preparing"),
-      /getElementById\("startup-splash-status"\)/,
-    );
-  });
-
-  it("restarts the swap animation for every status change", () => {
-    for (const script of [
-      loadingStatusScript("Preparing"),
-      loadingStageScript("preparing"),
-    ]) {
-      assert.match(script, /classList\.remove\("is-swapping"\)/);
-      assert.match(script, /classList\.add\("is-swapping"\)/);
-      assert.match(script, /status\.textContent = "Prepar/);
-    }
-  });
-
-  it("completes the meter only on the final stage", () => {
-    assert.match(
-      loadingStageScript("opening"),
-      /classList\.add\("is-complete"\)/,
-    );
-    assert.doesNotMatch(
-      loadingStageScript("preparing"),
-      /classList\.add\("is-complete"\)/,
-    );
-  });
-});
-
-it("shows migration labels and determinate counts", () => {
-  const script = loadingStatusScript("Upgrading local storage", {
-    phase: "import",
-    label: "Importing conversations",
-    done: 120,
-    total: 393,
-  });
-  assert.match(script, /Importing conversations · 120 of 393/);
-  assert.match(script, /aria-valuenow/);
-  const unknown = loadingStatusScript("Upgrading local storage", {
-    phase: "verify",
-    label: "Verifying migrated history",
-  });
-  assert.match(unknown, /Verifying migrated history"/);
-  assert.match(unknown, /if \(false\)/);
-  assert.doesNotMatch(unknown, /meter\.hidden/);
 });

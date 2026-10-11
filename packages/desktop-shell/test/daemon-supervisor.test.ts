@@ -118,27 +118,6 @@ describe("daemon supervisor", () => {
     assert.equal(world.crashReports[0]?.context?.effectiveMaxOldSpaceMb, 512);
   });
 
-  it("extends startup readiness while the daemon reports migration progress", async () => {
-    const world = fakeDaemonWorld({ discovery: [undefined] });
-    const startup = ownedSupervisor(world, 1_000).startOwned();
-
-    await world.scheduler.advance(800);
-    world.children[0]?.emitOutput(
-      "stderr",
-      'NERVE_STARTUP_PROGRESS {"type":"nerve.startup.progress","phase":"storage-migration","message":"Upgrading workspace storage"}\n',
-    );
-    await world.scheduler.advance(600);
-    const rejected = assert.rejects(startup, (error) => {
-      assert.ok(error instanceof DaemonStartupError);
-      assert.match(error.message, /exited before it became ready/);
-      assert.doesNotMatch(error.message, /did not become ready within/);
-      return true;
-    });
-    world.children[0]?.exit(1);
-    await world.scheduler.advance(200);
-    await rejected;
-  });
-
   it("restarts after an owned child exit and reports crash details", async () => {
     const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
     const daemon = await ownedSupervisor(world).startOwned();
@@ -190,6 +169,56 @@ describe("daemon supervisor", () => {
     assert.equal((healthReports[0]?.context?.checks as unknown[])?.length, 3);
     assert.equal(daemon.getStatus(), "ready");
     assert.ok(statuses.some((entry) => entry.status === "restarting"));
+    await daemon.stop();
+  });
+
+  it("does not restart on health timeouts while the daemon is upgrading", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "timeout";
+    world.healthResults.status = undefined;
+    await world.scheduler.advance(60_000);
+    assert.equal(world.launches.length, 1, "no restart");
+    assert.equal(daemon.getStatus(), "ready");
+    assert.equal(
+      world.crashReports.filter((report) => report.kind === "healthFailure")
+        .length,
+      0,
+    );
+    await daemon.stop();
+  });
+
+  it("still recovers from a process exit while upgrading", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "network_error";
+    world.children[0]?.exit(1);
+    world.healthResults.value = true;
+    await world.scheduler.advance(DAEMON_RESTART_BACKOFF_MS[0] + 1_000);
+    assert.equal(world.launches.length, 2);
+    await daemon.stop();
+  });
+
+  it("resumes counting health failures once the daemon reports ready", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.lifecycle = "ready";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "timeout";
+    world.healthResults.status = undefined;
+    await world.scheduler.advance(
+      15_000 + DAEMON_RESTART_BACKOFF_MS[0] + 1_000,
+    );
+    assert.equal(world.launches.length, 2, "old child replaced");
     await daemon.stop();
   });
 

@@ -48,6 +48,13 @@ import {
 } from "$lib/application/startup/workbench-client.svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldRevealWorkbench } from "$lib/application/startup/workbench-startup-machine";
+import {
+  retryServerStart,
+  startReconnectMonitor,
+  waitForServerReady,
+} from "$lib/application/startup/server-lifecycle.svelte";
+import ServerReconnectOverlay from "$lib/app/shell/ServerReconnectOverlay.svelte";
+import StartupErrorView from "$lib/app/shell/StartupErrorView.svelte";
 import { dismissStartupSplash } from "$lib/app/shell/startup-splash";
 import {
   centerTabsExcept,
@@ -229,11 +236,38 @@ $effect(() => {
   );
 });
 
+let stopReconnectMonitor: (() => void) | undefined;
+let startedOnSettings = false;
+
+async function startWorkbench(): Promise<void> {
+  if (!(await waitForServerReady())) return;
+  await runWorkbenchStartup();
+}
+
+async function runWorkbenchStartup(): Promise<void> {
+  try {
+    if (!(await initializeWorkbench())) return;
+  } catch {
+    return;
+  }
+  void getDesktopBridge()
+    ?.app.reportRendererCoreReady()
+    .catch(() => undefined);
+  initializeNotifications();
+  stopReconnectMonitor?.();
+  stopReconnectMonitor = startReconnectMonitor();
+  if (startedOnSettings) void openSettingsPane();
+}
+
+async function retryStartup(): Promise<void> {
+  if (await retryServerStart()) await runWorkbenchStartup();
+}
+
 onMount(() => {
   const unregisterFeatureEvents = registerFeatureEventHandlers();
   const stopNotificationAudio = initializeNotificationAudio();
   const unsubscribeDesktop = initializeDesktopRuntime();
-  const startedOnSettings =
+  startedOnSettings =
     window.location.pathname === "/settings" ||
     window.location.pathname === "/settings/";
   if (startedOnSettings) {
@@ -247,18 +281,10 @@ onMount(() => {
     capture: true,
   });
 
-  void initializeWorkbench()
-    .then((initialized) => {
-      if (!initialized) return;
-      void getDesktopBridge()
-        ?.app.reportRendererCoreReady()
-        .catch(() => undefined);
-      initializeNotifications();
-      if (startedOnSettings) void openSettingsPane();
-    })
-    .catch(() => undefined);
+  void startWorkbench();
 
   return () => {
+    stopReconnectMonitor?.();
     window.removeEventListener(
       "keydown",
       appShortcuts.handleWorkbenchShortcut,
@@ -275,3 +301,5 @@ onMount(() => {
 {#if revealWorkbench}
   {@render children?.()}
 {/if}
+<StartupErrorView onRetry={() => void retryStartup()} />
+<ServerReconnectOverlay />

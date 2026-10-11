@@ -2,7 +2,7 @@
 
 > **Status:** Being implemented on `feat/conversation-core`. This document is the design; keep the implementation this small.
 
-One mechanism upgrades a Nerve home from one release to the next: SQLite schema and data, managed files, and configuration files. It runs once at daemon startup, before any storage is opened.
+One mechanism upgrades a Nerve home from one release to the next: SQLite schema and data, managed files, and configuration files. It runs once at daemon startup, before any storage is opened, while the server already answers HTTP (see [startup](startup.md)).
 
 ## Principles
 
@@ -42,7 +42,7 @@ The context provides only what every step needs: home `paths`, a per-step `scrat
 
 ## Progress
 
-A migration can take minutes, so the user must always see what is happening. A step reports each phase with a plain-language label and, when it knows them, a count and total ("Importing conversations", 120 of 393). The desktop splash shows "Upgrading local storage" with that label and count under it, and fills its progress bar while a count is known. The terminal (`pnpm desktop:*`, the daemon log and `pnpm storage:migrate`) logs the start, every phase change with the previous phase's duration, periodic progress during long phases and a final summary or the failure with the path of its report. Long loops yield to the event loop so progress keeps arriving.
+A migration can take minutes, so the user must always see what is happening. A step reports each phase with a plain-language label and, when it knows them, a count and total ("Importing conversations", 120 of 393). The server exposes this as its `upgrading` lifecycle state, and the web app's splash shows "Upgrading local storage" with that label and count under it, filling its progress bar while a count is known. The terminal (`pnpm desktop:*`, the daemon log and `pnpm storage:migrate`) logs the start, every phase change with the previous phase's duration, periodic progress during long phases and a final summary or the failure with the path of its report. Long loops yield to the event loop so progress keeps arriving.
 
 Writing a resumable step:
 
@@ -60,8 +60,8 @@ At startup, under the existing home lock:
 
 1. **Empty home:** initialize at the latest layout and record every registered step as applied. Nothing runs.
 2. **Existing home:** it must either have a ledger or be a 0.34.1 home (manifest version 1, and the 0.34.1 migration ledger in `data/nerve.sqlite` contains steps 0001–0010). Anything else fails with "Run Nerve 0.34.1 first". The ledger must not contain unknown step IDs.
-3. Run each pending step in order: free-disk check, `run`, `verify`, ledger entry, delete `scratchDir`. Progress is shown in the existing startup UI.
-4. On failure, write `migrations/last-failure.json` (step, phase, error) and do not start. The next start resumes the same step.
+3. Run each pending step in order: free-disk check, `run`, `verify`, ledger entry, delete `scratchDir`. Progress is reported through the server lifecycle.
+4. On failure, write `migrations/last-failure.json` (step, phase, error). The daemon stays up in the `failed` lifecycle state with those details; a retry, or the next start, resumes the same step.
 
 `pnpm storage:migrate --home <dir> [--dry-run]` runs the same runner against a stopped home, for rehearsals on copied slots.
 

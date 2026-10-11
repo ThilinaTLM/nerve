@@ -18,6 +18,7 @@ describe("server health routes", () => {
       const publicHealth = await app.request("/health");
       assert.equal(publicHealth.status, 200);
       assert.deepEqual(Object.keys(await publicHealth.json()).sort(), [
+        "lifecycle",
         "status",
         "version",
       ]);
@@ -30,6 +31,7 @@ describe("server health routes", () => {
       });
       assert.equal(authenticated.status, 200);
       assert.deepEqual(Object.keys(await authenticated.json()).sort(), [
+        "lifecycle",
         "status",
         "version",
       ]);

@@ -87,22 +87,12 @@ describe("DesktopRuntime", () => {
     assert.equal(calls.includes("create-window"), false);
   });
 
-  it("shows and reports startup progress before data preparation completes", async () => {
-    const preparation = Promise.withResolvers<{ status: "quit" }>();
-    const preparationStarted = Promise.withResolvers<void>();
+  it("creates the tray before acquiring the daemon and never prepares storage in-process", async () => {
+    const events: string[] = [];
     const loadedUrls: string[] = [];
-    const scripts: string[] = [];
-    const terminalProgress: string[] = [];
-    let preparationProgress: ((message: string) => void) | undefined;
-    let acquireCount = 0;
-    let quitCount = 0;
     const window = fakeWindow();
     window.loadURL = async (url) => {
       loadedUrls.push(url);
-    };
-    window.webContents.executeJavaScript = async (script) => {
-      scripts.push(script);
-      return true;
     };
     const ports = {
       application: {
@@ -112,9 +102,7 @@ describe("DesktopRuntime", () => {
         onWindowAllClosed: () => () => undefined,
         onChildProcessGone: () => () => undefined,
         onBeforeQuit: () => () => undefined,
-        quit: () => {
-          quitCount += 1;
-        },
+        quit: () => undefined,
         getAppMetrics: () => [],
         platform: "linux",
         architecture: "x64",
@@ -125,23 +113,19 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
-      prepareDataDirectory: (input: {
-        onProgress?: (message: string) => void;
-      }) => {
-        preparationProgress = input.onProgress;
-        preparationStarted.resolve();
-        return preparation.promise;
+      // A legacy/unsupported home must not block startup.
+      readCurrentSettings: async () => {
+        throw new Error("unsupported home");
       },
-      reportStartupProgress: (message: string) => {
-        terminalProgress.push(message);
-      },
+      configureNetworkSession: async () => undefined,
+      packagedWebDistPath: () => undefined,
       acquireDaemon: async () => {
-        acquireCount += 1;
-        throw new Error("daemon acquisition should wait for preparation");
+        events.push("acquire");
+        throw new Error("daemon unavailable");
       },
       registerIpc: () => () => undefined,
       createTray: () => ({
-        ensureTray: () => undefined,
+        ensureTray: () => events.push("tray"),
         hasTray: () => true,
         updateTrayMenu: () => undefined,
         updateTrayIcon: () => undefined,
@@ -149,38 +133,157 @@ describe("DesktopRuntime", () => {
       }),
       now: Date.now,
     } as unknown as DesktopRuntimePorts;
+    const configuration = {
+      values: { startupTimeoutMs: 100, maxOldSpaceMb: 512 },
+    };
     const runtime = new DesktopRuntime(
       {
         desktopOptions: { mode: "local" },
-        desktopDataDir: "/tmp/nerve-desktop-progress-test",
-        desktopConfigurationController: {},
-        desktopConfiguration: {},
+        desktopDataDir: "/tmp/nerve-desktop-tray-test",
+        desktopConfigurationController: {
+          resolve: () => configuration,
+          apply: () => undefined,
+        },
+        desktopConfiguration: configuration,
       } as unknown as DesktopRuntimeOptions,
       ports,
     );
 
     runtime.start();
-    await preparationStarted.promise;
-    assert.equal(loadedUrls.length, 1);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.deepEqual(events, ["tray", "acquire"]);
+    assert.match(decodeURIComponent(loadedUrls[0] ?? ""), /startup-splash/);
     assert.match(
-      decodeURIComponent(loadedUrls[0] ?? ""),
-      /Checking local storage/,
+      decodeURIComponent(loadedUrls.at(-1) ?? ""),
+      /Nerve startup error/,
     );
-    assert.deepEqual(terminalProgress, ["Checking local storage"]);
-    assert.equal(acquireCount, 0);
+    await runtime.dispose();
+  });
 
-    preparationProgress?.("Planning storage upgrade");
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual(terminalProgress, [
-      "Checking local storage",
-      "Planning storage upgrade",
-    ]);
-    assert.match(scripts.at(-1) ?? "", /Planning storage upgrade/);
+  it("keeps the window in place across daemon restarts and shows the error page only on terminal failure", async () => {
+    let statusListener:
+      | ((status: string, info?: { error?: string }) => void)
+      | undefined;
+    let cookieInstalls = 0;
+    let restartCount = 0;
+    const restartDone = Promise.withResolvers<void>();
+    let ipcOptions:
+      | Parameters<DesktopRuntimePorts["registerIpc"]>[0]
+      | undefined;
+    const loadedUrls: string[] = [];
+    const daemon: ManagedDaemon = {
+      url: "http://127.0.0.1:4801",
+      owned: true,
+      mode: "local",
+      getStatus: () => "ready",
+      onStatusChange: (listener) => {
+        statusListener = listener as typeof statusListener;
+        return () => undefined;
+      },
+      restart: async () => {
+        restartCount += 1;
+        await restartDone.promise;
+      },
+      stop: async () => undefined,
+    };
+    const window = fakeWindow();
+    window.loadURL = async (url) => {
+      loadedUrls.push(url);
+    };
+    const ports = {
+      application: {
+        whenReady: async () => undefined,
+        onSecondInstance: () => () => undefined,
+        onActivate: () => () => undefined,
+        onWindowAllClosed: () => () => undefined,
+        onChildProcessGone: () => () => undefined,
+        onBeforeQuit: () => () => undefined,
+        quit: () => undefined,
+        getAppMetrics: () => [],
+        platform: "linux",
+        architecture: "x64",
+      },
+      signals: { onSignal: () => () => undefined },
+      windows: {
+        getAllWindows: () => [window],
+        createMainWindow: () => window,
+      },
+      nativeTheme: { onUpdated: () => () => undefined },
+      readCurrentSettings: async () => defaultSettings,
+      configureNetworkSession: async () => undefined,
+      acquireDaemon: async () => daemon,
+      installDaemonCookie: async () => {
+        cookieInstalls += 1;
+      },
+      refreshDesktopSettings: async () => defaultSettings,
+      registerIpc: (
+        options: Parameters<DesktopRuntimePorts["registerIpc"]>[0],
+      ) => {
+        ipcOptions = options;
+        return () => undefined;
+      },
+      createTray: () => ({
+        ensureTray: () => undefined,
+        hasTray: () => true,
+        updateTrayMenu: () => undefined,
+        updateTrayIcon: () => undefined,
+        dispose: () => undefined,
+      }),
+      installPerformanceMonitor: () => ({ stop: () => undefined }),
+      packagedWebDistPath: () => undefined,
+      now: Date.now,
+    } as unknown as DesktopRuntimePorts;
+    const configuration = {
+      values: { startupTimeoutMs: 100, maxOldSpaceMb: 512 },
+    };
+    const runtime = new DesktopRuntime(
+      {
+        desktopOptions: { mode: "local" },
+        desktopDataDir: "/tmp/nerve-desktop-restart-test",
+        desktopConfigurationController: {
+          resolve: () => configuration,
+          apply: () => undefined,
+        },
+        desktopConfiguration: configuration,
+      } as unknown as DesktopRuntimeOptions,
+      ports,
+    );
 
-    preparation.resolve({ status: "quit" });
+    runtime.start();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(statusListener);
+    const navigations = loadedUrls.length;
+    assert.equal(cookieInstalls, 1);
+
+    statusListener("restarting");
+    statusListener("ready");
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(quitCount, 1);
-    assert.equal(acquireCount, 0);
+    assert.equal(loadedUrls.length, navigations);
+    assert.equal(cookieInstalls, 2);
+
+    statusListener("failed", { error: "restart budget exhausted" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(loadedUrls.length, navigations + 1);
+    assert.match(
+      decodeURIComponent(loadedUrls.at(-1) ?? ""),
+      /restart budget exhausted/,
+    );
+
+    // Recovery while the error page is showing returns to the daemon.
+    statusListener("ready");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(loadedUrls.at(-1), daemon.url);
+
+    // Retry after a terminal failure restarts the owned daemon, single-flight.
+    statusListener("failed", { error: "again" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(ipcOptions?.retryStartup(), true);
+    assert.equal(ipcOptions?.retryStartup(), false);
+    assert.equal(restartCount, 1);
+    restartDone.resolve();
+    statusListener("ready");
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(loadedUrls.at(-1), daemon.url);
     await runtime.dispose();
   });
 
@@ -189,7 +292,6 @@ describe("DesktopRuntime", () => {
       | Parameters<DesktopRuntimePorts["registerIpc"]>[0]
       | undefined;
     let acquireCount = 0;
-    const terminalProgress: string[] = [];
     const secondAcquire = Promise.withResolvers<ManagedDaemon>();
     const errorShown = Promise.withResolvers<void>();
     const daemonShown = Promise.withResolvers<void>();
@@ -231,26 +333,11 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
-      prepareDataDirectory: async () => ({ status: "ready" }),
-      reportStartupProgress: (message: string) => {
-        terminalProgress.push(message);
-      },
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
-      acquireDaemon: async (options: {
-        onStartupProgress?: (progress: {
-          type: "nerve.startup.progress";
-          phase: "storage-migration";
-          message: string;
-        }) => void;
-      }) => {
+      acquireDaemon: async () => {
         acquireCount += 1;
         if (acquireCount === 1) throw new Error("daemon unavailable");
-        options.onStartupProgress?.({
-          type: "nerve.startup.progress",
-          phase: "storage-migration",
-          message: "raw path /private/home must not be mirrored",
-        });
         return secondAcquire.promise;
       },
       installDaemonCookie: async () => undefined,
@@ -297,11 +384,6 @@ describe("DesktopRuntime", () => {
     secondAcquire.resolve(daemon);
     await daemonShown.promise;
     assert.equal(acquireCount, 2);
-    assert.ok(terminalProgress.includes("Upgrading local storage"));
-    assert.equal(
-      terminalProgress.some((message) => message.includes("/private/home")),
-      false,
-    );
     await runtime.dispose();
   });
 
@@ -363,8 +445,6 @@ describe("DesktopRuntime", () => {
         createMainWindow: () => window,
       },
       nativeTheme: { onUpdated: () => () => undefined },
-      prepareDataDirectory: async () => ({ status: "ready" }),
-      reportStartupProgress: () => undefined,
       readCurrentSettings: async () => defaultSettings,
       configureNetworkSession: async () => undefined,
       acquireDaemon: async () => daemon,
