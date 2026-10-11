@@ -23,7 +23,7 @@ import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import type { AvailableSkill } from "$lib/api";
 import { capabilityToolGroupsFor } from "$lib/presentation/composer/capability-tool-labels";
-import { compactionProfileItems } from "../compaction/compaction-options";
+import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import ModelSelectionField from "../../shared/model-picker/ModelSelectionField.svelte";
 import {
   deriveProfileName,

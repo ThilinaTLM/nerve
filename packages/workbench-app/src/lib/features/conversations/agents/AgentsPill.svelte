@@ -25,7 +25,6 @@ import {
   AGENT_STATE_LABEL,
   agentsPillSummary,
   buildAgentTeam,
-  FOLD_AFTER_MS,
   type AgentRowState,
   type AgentTeamRow,
 } from "./agent-team";
@@ -36,6 +35,9 @@ import {
  * sub-agent views; in a sub-agent view it also names the viewed agent and
  * offers the way back.
  */
+import { SUBAGENT_FOLD_AFTER_MS } from "@nervekit/contracts/subagents";
+import type { ModelInfo } from "@nervekit/contracts/models";
+
 let {
   open = $bindable(false),
   agents,
@@ -44,6 +46,7 @@ let {
   viewedId,
   commands,
   commandOutput,
+  models,
   onSelectAgent,
   onStopCommand,
 }: {
@@ -56,6 +59,8 @@ let {
   /** Running background commands of the viewed conversation. */
   commands: readonly AsyncBash[];
   commandOutput: (command: AsyncBash) => string | undefined;
+  /** Models, to resolve each conversation's context window. */
+  models: readonly ModelInfo[];
   /** Navigates the main view; the lead id returns to the lead. */
   onSelectAgent: (conversationId: string) => void;
   onStopCommand: (command: AsyncBash) => void;
@@ -103,7 +108,7 @@ function choose(id: string): void {
   onSelectAgent(id);
 }
 
-const foldMinutes = FOLD_AFTER_MS / 60_000;
+const foldMinutes = SUBAGENT_FOLD_AFTER_MS / 60_000;
 </script>
 
 {#snippet agentRow(row: AgentTeamRow, indent: boolean)}
@@ -120,7 +125,7 @@ const foldMinutes = FOLD_AFTER_MS / 60_000;
             row.state
           ]}</span
         >
-        <AgentContextPercent conversationId={row.id} />
+        <AgentContextPercent conversationId={row.id} {models} />
       </span>
     {/snippet}
     {#snippet icon()}

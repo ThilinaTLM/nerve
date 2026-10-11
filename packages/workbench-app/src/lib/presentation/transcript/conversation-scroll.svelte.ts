@@ -81,7 +81,8 @@ export function createConversationScrollController(
   let lastConversationId: string | undefined;
   /** Where each conversation was left, so returning to one (a sub-agent view
    * and back) lands where the user was instead of at the bottom. */
-  const remembered = new Map<string, { top: number; atEnd: boolean }>();
+  const remembered: Record<string, { top: number; atEnd: boolean }> =
+    Object.create(null);
   let pendingRestore: { top: number; atEnd: boolean } | undefined;
   let lastActive = false;
   let initialScrollDone = false;
@@ -258,9 +259,7 @@ export function createConversationScrollController(
     lastActive = active;
     if (conversationId !== lastConversationId) {
       lastConversationId = conversationId;
-      pendingRestore = conversationId
-        ? remembered.get(conversationId)
-        : undefined;
+      pendingRestore = conversationId ? remembered[conversationId] : undefined;
       initialScrollDone = false;
       followBottom = true;
       cancelSettledScroll();
@@ -320,10 +319,10 @@ export function createConversationScrollController(
       const delta = nextScrollTop - lastScrollTop;
       lastScrollTop = nextScrollTop;
       if (lastConversationId && initialScrollDone) {
-        remembered.set(lastConversationId, {
+        remembered[lastConversationId] = {
           top: nextScrollTop,
           atEnd: isDomAtEnd(el, BOTTOM_THRESHOLD_PX),
-        });
+        };
       }
 
       if (programmaticScrollActive) return;

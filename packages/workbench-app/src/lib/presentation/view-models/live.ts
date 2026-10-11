@@ -1,16 +1,10 @@
 /** Presentation-owned live shapes. No runtime schemas. */
-import type { ToolCallTranscriptRecord } from "./tool-records";
-import type {
-  QueuedPromptRecord,
-  AgentActivityState,
-  SubagentTranscriptEntry,
-} from "./records";
+import type { QueuedPromptRecord } from "./records";
 import type {
   RunStatus,
   ConversationRunRetrySnapshot,
   ConversationRunRecoverySnapshot,
 } from "./run-review";
-import type { ThinkingLevel } from "@nervekit/contracts/models";
 import type { ToolOutputStream } from "@nervekit/contracts/tools";
 
 export interface ConversationLiveToolDraftProgressSnapshot {
@@ -84,31 +78,6 @@ export interface ConversationActiveRunSnapshot {
   queuedPrompts: QueuedPromptRecord[];
   retry?: ConversationRunRetrySnapshot;
   recovery?: ConversationRunRecoverySnapshot;
-}
-
-export interface SubagentTranscriptSnapshot {
-  lastRunOutcome?: {
-    runId: string;
-    outcome: "completed" | "stopped" | "failed";
-    startedAt: string;
-    endedAt: string;
-  };
-  agentId: string;
-  parentAgentId: string;
-  conversationId: string;
-  projectId: string;
-  cursorSeq: number;
-  activeRun?: ConversationActiveRunSnapshot;
-  status: AgentActivityState;
-  model?: string;
-  thinkingLevel?: ThinkingLevel;
-  entries: SubagentTranscriptEntry[];
-  toolCalls: ToolCallTranscriptRecord[];
-  totalEntryCount: number;
-  totalToolCallCount: number;
-  entriesTruncated: boolean;
-  toolCallsTruncated: boolean;
-  updatedAt: string;
 }
 
 export interface ConversationLiveToolOutputChunkSnapshot {

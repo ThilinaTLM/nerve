@@ -780,6 +780,7 @@ const teamRunning = $derived(
         viewedId={viewedConversationId}
         commands={backgroundCommands}
         {commandOutput}
+        models={settingsState.models}
         onSelectAgent={(id) => viewAgent(id)}
         onStopCommand={stopCommand}
       />

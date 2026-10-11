@@ -1,5 +1,4 @@
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type { EventEnvelope } from "@nervekit/contracts/events";
 
 import type { SubagentRef } from "$lib/presentation/tools/views/subagent-live";
 import type {

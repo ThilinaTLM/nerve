@@ -1,3 +1,4 @@
+import { SUBAGENT_FOLD_AFTER_MS } from "@nervekit/contracts/subagents";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
@@ -8,7 +9,6 @@ import {
   agentRowState,
   agentsPillSummary,
   buildAgentTeam,
-  FOLD_AFTER_MS,
   pendingWork,
 } from "./agent-team";
 
@@ -66,8 +66,8 @@ function team(
 }
 
 describe("agent team fold", () => {
-  const old = FOLD_AFTER_MS + 1000;
-  const fresh = FOLD_AFTER_MS - 1000;
+  const old = SUBAGENT_FOLD_AFTER_MS + 1000;
+  const fresh = SUBAGENT_FOLD_AFTER_MS - 1000;
 
   it("folds idle and stopped sub-agents after ten idle minutes", () => {
     const result = team(

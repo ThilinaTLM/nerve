@@ -7,7 +7,7 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import { compactionProfileItems } from "$lib/features/settings/views/pages/compaction/compaction-options";
+import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
   compactionDraftError,
   compactionsEqual,

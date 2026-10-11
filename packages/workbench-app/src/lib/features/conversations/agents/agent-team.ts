@@ -1,13 +1,11 @@
 import type { AsyncBash, ConversationSummary } from "@nervekit/contracts/core";
+import { SUBAGENT_FOLD_AFTER_MS } from "@nervekit/contracts/subagents";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 import type {
   AgentActivitySnapshot,
   AgentRecord,
 } from "$lib/presentation/view-models/conversation";
-
-/** A finished sub-agent folds after this long without activity. */
-export const FOLD_AFTER_MS = 10 * 60_000;
 
 /** Longest background command text kept in a chip. */
 const COMMAND_LABEL_CHARS = 48;
@@ -87,7 +85,7 @@ export function isFolded(row: AgentTeamRow, nowMs: number): boolean {
   if (row.lead || row.viewed) return false;
   if (row.state !== "idle" && row.state !== "stopped") return false;
   const updated = Date.parse(row.updatedAt);
-  return Number.isFinite(updated) && nowMs - updated >= FOLD_AFTER_MS;
+  return Number.isFinite(updated) && nowMs - updated >= SUBAGENT_FOLD_AFTER_MS;
 }
 
 const STATE_RANK: Record<AgentRowState, number> = {

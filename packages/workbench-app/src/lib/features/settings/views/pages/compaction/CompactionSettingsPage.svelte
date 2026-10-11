@@ -9,7 +9,7 @@ import {
   SettingsToggleRow,
 } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
-import { compactionProfileItems } from "./compaction-options";
+import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 
 type Props = {
   settingsDraft: Settings;

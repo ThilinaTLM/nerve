@@ -79,6 +79,7 @@ export function createSubagentHost(options: SubagentHostOptions): SubagentHost {
         } catch (error) {
           throw new Error(
             `Sub-agent profile "${name}": model ${profile.model} is not available (${error instanceof Error ? error.message : String(error)}). Choose another model in Settings → Sub-agents.`,
+            { cause: error },
           );
         }
         config.model = model;

@@ -1,4 +1,4 @@
-import type { SettingsChoice } from "$lib/presentation/settings";
+import type { SettingsChoice } from "./settings-component-contracts";
 
 export const compactionProfileItems: SettingsChoice[] = [
   {

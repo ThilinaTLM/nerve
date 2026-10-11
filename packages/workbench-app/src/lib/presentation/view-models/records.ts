@@ -99,7 +99,6 @@ export type ConversationEntry = {
     | "subagent_run_event"
     | "compaction"
     | "branch_summary"
-    | "explore_report"
     | "run_status"
     | "task_event";
   text: string;
@@ -139,7 +138,6 @@ export type ConversationTreeNode = {
       | "subagent_run_event"
       | "compaction"
       | "branch_summary"
-      | "explore_report"
       | "run_status"
       | "task_event";
     text: string;
@@ -170,5 +168,3 @@ export type ConversationTreeNode = {
 };
 
 export type AgentActivityState = AgentActivitySnapshot["state"];
-
-export type SubagentTranscriptEntry = ConversationEntry;

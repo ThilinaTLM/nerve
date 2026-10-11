@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import {
   parsePromptResult,
@@ -9,6 +10,17 @@ import {
   subagentAssignments,
 } from "./subagent-result-parser";
 import { findSubagent, subagentLiveState } from "./subagent-live";
+
+/** Strings formatted by conversation-core; its tests keep this file in sync. */
+const fixture: unknown = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../../../../conversation-core/src/delegation/subagent-core-texts.fixture.json",
+      import.meta.url,
+    ),
+    "utf8",
+  ),
+);
 
 describe("subagent_prompt result", () => {
   const result = [
@@ -189,5 +201,72 @@ describe("live sub-agent state", () => {
     assert.equal(subagentLiveState("waiting").label, "needs you");
     assert.equal(subagentLiveState("idle").tone, "neutral");
     assert.equal(subagentLiveState("failed").tone, "destructive");
+  });
+});
+
+describe("texts produced by conversation-core", () => {
+  const texts = fixture as Record<string, string>;
+
+  it("parses every prompt result line", () => {
+    const lines = parsePromptResult(texts.promptResult);
+    assert.deepEqual(
+      lines.map((line) => [line.name, line.profile, line.disposition]),
+      [
+        ["auth-research", "explore", "created"],
+        ["refresh-fix", "developer", "follow_up"],
+        ["old-one", "explore", "follow_up"],
+      ],
+    );
+    assert.equal(lines[1].queuedState, "running");
+    assert.equal(lines[2].queuedState, "resumed");
+  });
+
+  it("parses the status listing", () => {
+    const rows = parseStatusListing(texts.statusList);
+    assert.equal(rows.length, 3);
+    assert.deepEqual(rows[0], {
+      name: "auth-research",
+      profile: "explore",
+      state: "running",
+      context: "34%",
+      activity: "active 20s ago",
+    });
+    assert.equal(rows[1].state, "waiting: 1 background command");
+    assert.equal(rows[2].context, "n/a");
+    assert.equal(rows[2].activity, "no activity");
+  });
+
+  it("splits a named status into header and recent activity", () => {
+    const detail = parseStatusDetail(texts.statusNamed);
+    assert.match(
+      detail.header ?? "",
+      /^auth-research · explore · openai\/gpt-5\.1 · running/,
+    );
+    assert.match(detail.body ?? "", /^Recent activity:\n✓ read src\/auth\.ts/);
+  });
+
+  it("parses the stop lines", () => {
+    assert.deepEqual(
+      parseStopResult(texts.stopResult).map((line) => line.outcome),
+      ["stopped", "nothing to stop (idle)", "not found"],
+    );
+  });
+
+  it("parses every notice variant", () => {
+    assert.equal(
+      parseSubagentNotice(texts.noticeCompleted)?.response,
+      "Summary\nAll good",
+    );
+    const failed = parseSubagentNotice(texts.noticeFailed);
+    assert.deepEqual(
+      [failed?.outcome, failed?.detail, failed?.response],
+      ["failed", "boom", "last words"],
+    );
+    assert.equal(parseSubagentNotice(texts.noticeStopped)?.outcome, "stopped");
+    const waiting = parseSubagentNotice(texts.noticeWaiting);
+    assert.deepEqual(
+      [waiting?.outcome, waiting?.detail, waiting?.response],
+      ["waiting", '"pnpm test" running 3m', "partial"],
+    );
   });
 });
