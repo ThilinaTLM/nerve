@@ -6,6 +6,7 @@ import {
   assistantMessagePayloadSchema,
   type ConversationEvent,
 } from "@nervekit/contracts/core";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { isRetryableProviderError } from "@nervekit/harness/models";
 import {
   estimatePathUsage,
@@ -41,6 +42,9 @@ export class ConversationRunner {
       status: StatusService;
       emit: CoreEmitter;
       now(): string;
+      compactionSettings?(
+        conversationId: string,
+      ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
     },
   ) {}
   path(id: string): ConversationEvent[] {
@@ -55,6 +59,10 @@ export class ConversationRunner {
       this.options.models.resolve(config.model),
       signal,
     );
+    const autoSettings = await abortable(
+      Promise.resolve(this.options.compactionSettings?.(id)),
+      signal,
+    );
     const path = this.path(id);
     const projectionOptions = this.options.assets
       ? await loadProjectionOptions(path, this.options.assets)
@@ -65,6 +73,7 @@ export class ConversationRunner {
         ...projectionOptions,
         ...resolved,
         reasoningLevel: config.reasoningLevel,
+        autoSettings,
         signal,
       }),
       signal,
@@ -133,7 +142,17 @@ export class ConversationRunner {
           this.options.models.resolve(config.model),
           signal,
         );
-        if (shouldCompact(estimatePathUsage(this.path(id)), resolved.model))
+        const autoSettings = await abortable(
+          Promise.resolve(this.options.compactionSettings?.(id)),
+          signal,
+        );
+        if (
+          shouldCompact(
+            estimatePathUsage(this.path(id)),
+            resolved.model,
+            autoSettings,
+          )
+        )
           await this.compact(id, signal);
         let overflowRetried = false;
         let attempt = 1;

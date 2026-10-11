@@ -42,6 +42,7 @@ test("user input resumes a paused conversation with a complete summary", () => {
         model: { provider: "openai", modelId: "gpt-4o-mini" },
         reasoningLevel: "off",
         systemPrompt: null,
+        instructions: null,
         permissionRuleSetId: "baseline",
         mode: "coding",
 

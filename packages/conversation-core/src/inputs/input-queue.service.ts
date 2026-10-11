@@ -53,8 +53,19 @@ export class InputQueueService {
     },
   ) {}
 
+  /** Sub-agents take work from their parent only; the composer is disabled for them. */
+  assertAcceptsSource(conversationId: string, source: string): void {
+    if (
+      source === "user" &&
+      this.options.storage.conversations.get(conversationId)
+        ?.parentConversationId
+    )
+      throw new Error("Sub-agents do not accept user input");
+  }
+
   submit(request: SubmitInputRequest): QueuedInput | "delivered" {
     const input = submitInputRequestSchema.parse(request);
+    this.assertAcceptsSource(input.conversationId, input.source);
     const preparation = initialCommandPreparation(input.text);
     const result = this.accept({
       inputId: input.inputId,

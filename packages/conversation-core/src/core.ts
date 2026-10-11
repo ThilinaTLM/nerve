@@ -12,6 +12,9 @@ import type {
   SubmitInputRequest,
   UpdateConversationRequest,
 } from "@nervekit/contracts/core";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
+import { loadProjectionOptions } from "./context/asset-projection.js";
+import { estimatePathUsage } from "./context/context-usage.js";
 import { AssetStore } from "./assets/asset-store.js";
 import { AsyncBashService } from "./async-bash/async-bash.service.js";
 import {
@@ -61,6 +64,17 @@ export interface ConversationCoreOptions {
   ): DefaultConversationConfig | Promise<DefaultConversationConfig>;
   coreTools?: Iterable<CoreToolHandler>;
   readPlan?: CoreToolHandlerOptions["readPlan"];
+  /** Effective auto-compaction settings (user, project, conversation); built-in defaults when absent. */
+  compactionSettings?(
+    conversationId: string,
+  ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
+}
+export interface ContextUsage {
+  tokens: number;
+  /** Model context window; 0 when the model cannot be resolved. */
+  window: number;
+  /** Rounded usage percentage, or null when the window is unknown. */
+  percent: number | null;
 }
 export class ConversationCore {
   readonly projects: ProjectService;
@@ -70,6 +84,7 @@ export class ConversationCore {
   readonly toolCalls: ToolCallService;
   readonly asyncBash: AsyncBashService;
   readonly assets: AssetStore;
+  readonly dataDir: string;
   private readonly listeners = new Set<(change: CoreChange) => void>();
   private readonly finishedListeners = new Set<
     (result: ExecutionFinished) => void
@@ -81,6 +96,7 @@ export class ConversationCore {
   private starting?: Promise<void>;
   private closing?: Promise<void>;
   constructor(private readonly options: ConversationCoreOptions) {
+    this.dataDir = options.dataDir;
     const now = () => options.clock?.now() ?? new Date().toISOString();
     const publish = (change: CoreChange) => {
       for (const listener of this.listeners) {
@@ -184,6 +200,7 @@ export class ConversationCore {
       status: this.status,
       emit,
       now,
+      compactionSettings: options.compactionSettings,
     });
     this.scheduler = new ConversationScheduler({
       storage: options.storage,
@@ -275,6 +292,34 @@ export class ConversationCore {
     }
     return { agentProjection: event.payload.agentProjection, result };
   }
+  /** Arguments of a model tool call: the open row, or its recorded response. */
+  toolCallArguments(
+    conversationId: string,
+    toolCallId: string,
+  ): Record<string, unknown> | null {
+    const open = this.options.storage.toolCalls.get(toolCallId);
+    if (open?.conversationId === conversationId) return open.arguments;
+    return (
+      this.options.storage.events.toolResponse(conversationId, toolCallId)
+        ?.payload.arguments ?? null
+    );
+  }
+  async contextUsage(id: string): Promise<ContextUsage> {
+    const config = this.options.storage.conversations.getConfig(id);
+    if (!config) throw new Error("Conversation not found");
+    const path = this.runner.path(id);
+    const projection = await loadProjectionOptions(path, this.assets);
+    const tokens = Math.round(estimatePathUsage(path, projection).tokens);
+    const window = await this.options.models
+      .resolve(config.model)
+      .then(({ model }) => model.contextWindow)
+      .catch(() => 0);
+    return {
+      tokens,
+      window,
+      percent: window > 0 ? Math.round((tokens / window) * 100) : null,
+    };
+  }
   getTree(id: string) {
     return this.options.storage.events.treeNodes(id);
   }
@@ -316,6 +361,7 @@ export class ConversationCore {
     request: SubmitInputRequest,
   ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
     const input = submitInputRequestSchema.parse(request);
+    this.inputs.assertAcceptsSource(input.conversationId, input.source);
     const inline =
       input.source === "user"
         ? parseInlineCommandPrompt(input.text)

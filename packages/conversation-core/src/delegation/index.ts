@@ -1,1 +1,4 @@
-export { createDelegationTools } from "./delegation-tools.js";
+export {
+  createDelegationTools,
+  type SubagentHost,
+} from "./delegation-tools.js";

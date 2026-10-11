@@ -1,155 +1,390 @@
 import { createId } from "@nervekit/contracts";
-import { conversationConfigSchema } from "@nervekit/contracts/core";
-import type { ConversationCore } from "../core.js";
+import type {
+  ConversationEvent,
+  ConversationSummary,
+} from "@nervekit/contracts/core";
+import { SUBAGENT_BATCH_LIMIT } from "@nervekit/contracts/subagents";
+import { toolDefinitionByName } from "@nervekit/tools/catalog";
+import type { ConversationCore, ExecutionFinished } from "../core.js";
 import type { CoreToolHandler } from "../tool-calls/core-tool.js";
-import { childDefinition } from "./delegation-tool-definitions.js";
-import { finalAssistantText } from "./child-report.js";
-import { createExploreTool } from "./explore-tool.js";
+import { finalAssistantText, inlineReport } from "./child-report.js";
+import type { SubagentHost } from "./subagent-host.js";
+import {
+  backgroundLabel,
+  backgroundLines,
+  formatNamedStatus,
+  formatStatusList,
+  recentActivity,
+  type ChildState,
+  type ChildStatus,
+} from "./subagent-status.js";
+
+export type { SubagentHost } from "./subagent-host.js";
+
+interface Assignment {
+  name: string;
+  profile?: string;
+  prompt: string;
+}
+const HISTORY_WINDOW = 60;
+const key = (name: string) => name.trim().toLowerCase();
+const text = (value: unknown) => (typeof value === "string" ? value : "");
+const completion = ["completed", "failed", "cancelled", "interrupted"];
+
+function definition(name: string) {
+  const result = toolDefinitionByName(name);
+  if (!result) throw new Error(`Missing tool definition: ${name}`);
+  return result;
+}
 
 export function createDelegationTools(
   core: ConversationCore,
-  initializeChild: (
-    parentId: string,
-    childId: string,
-    explore: boolean,
-  ) => Promise<void>,
+  host: SubagentHost,
 ): CoreToolHandler[] {
-  const exploring = new Set<string>();
+  // Children stopped by `subagent_stop`: the tool result already reports it, so no notice.
+  const stoppedByTool = new Set<string>();
   const children = (parentId: string) => core.getSnapshot(parentId).children;
-  const owned = (parentId: string, args: Record<string, unknown>) => {
-    if ((args.name !== undefined) === (args.conversationId !== undefined))
-      throw new Error("Provide exactly one of name or conversationId");
-    const child = children(parentId).find((row) =>
-      args.conversationId !== undefined
-        ? row.id === args.conversationId
-        : row.title.toLowerCase() === String(args.name).toLowerCase(),
+  const findChild = (parentId: string, name: string) =>
+    children(parentId).find((child) => key(child.title) === key(name));
+  /** The profile is read from the creating call: its arguments name it per assignment. */
+  const profileOf = (
+    parentId: string,
+    child: Pick<ConversationSummary, "title" | "parentToolCallId">,
+  ) => {
+    const args = child.parentToolCallId
+      ? core.toolCallArguments(parentId, child.parentToolCallId)
+      : null;
+    const assignments = Array.isArray(args?.assignments)
+      ? (args.assignments as Record<string, unknown>[])
+      : [];
+    const match = assignments.find(
+      (assignment) => key(text(assignment?.name)) === key(child.title),
     );
-    if (!child) throw new Error("Owned child conversation not found");
-    return child;
+    return text(match?.profile) || null;
   };
-  core.onExecutionFinished((result) => {
-    if (exploring.has(result.conversationId)) return;
-    const snapshot = core.getSnapshot(result.conversationId);
-    const parentId = snapshot.conversation.parentConversationId;
-    if (!parentId) return;
-    const events: ReturnType<ConversationCore["getEventsSince"]> = [];
-    let sequence = 0;
-    for (;;) {
-      const page = core.getEventsSince(result.conversationId, sequence);
-      if (!page.length) break;
-      events.push(...page);
-      sequence = page[page.length - 1].sequence;
-    }
-    const start = events.find((event) => event.id === result.executionId);
-    if (!start) return;
-    const report = finalAssistantText(core, result);
-    for (const event of events) {
+  const recent = (id: string): ConversationEvent[] =>
+    core.getHistory(id, { limit: HISTORY_WINDOW }) as ConversationEvent[];
+  const lastExecution = (id: string): ExecutionFinished | undefined => {
+    for (const event of recent(id)) {
       if (
-        event.sequence <= start.sequence ||
-        event.sequence >= result.event.sequence ||
-        event.type !== "user_message" ||
-        event.payload.source !== "parent_conversation" ||
-        !event.inputId
+        event.type === "system_event" &&
+        event.payload.subtype === "execution_state" &&
+        completion.includes(event.payload.transition) &&
+        "executionId" in event.payload
       )
-        continue;
-      core.inputs.enqueueNotice({
-        conversationId: parentId,
-        inputId: `input_${result.executionId}_${event.inputId}`,
-        subtype: "sub_conversation_event",
-        producer: result.conversationId,
-        text: `${snapshot.conversation.title} (${result.conversationId}): ${result.transition}\n${report.slice(0, 2000)}`,
-        details: {
-          childConversationId: result.conversationId,
-          assignmentId: event.inputId,
-          status: result.transition,
-          assetIds: [],
-        },
-        wakeWhenIdle: true,
-      });
+        return {
+          conversationId: id,
+          executionId: event.payload.executionId,
+          transition: event.payload
+            .transition as ExecutionFinished["transition"],
+          event,
+        };
     }
+    return undefined;
+  };
+  const failureMessage = (result: ExecutionFinished | undefined) =>
+    result?.event.type === "system_event" &&
+    result.event.payload.subtype === "execution_state"
+      ? (result.event.payload.failure?.message ?? null)
+      : null;
+  const runningBash = (id: string) =>
+    core.getSnapshot(id).asyncBash.filter((row) => row.status === "running");
+
+  core.onExecutionFinished((result) => {
+    const child = core.getSnapshot(result.conversationId);
+    const parentId = child.conversation.parentConversationId;
+    if (!parentId) return;
+    if (result.transition === "cancelled") {
+      // A lead's `subagent_stop` is reported by its own result. A stop cascading from
+      // the lead pauses the lead first, and a notice would only grow its next turn.
+      if (stoppedByTool.has(result.conversationId)) return;
+      if (core.getSnapshot(parentId).conversation.paused) return;
+    }
+    const profile = profileOf(parentId, child.conversation);
+    const head = `Sub-agent "${child.conversation.title}"${profile ? ` (${profile})` : ""}`;
+    const background = runningBash(result.conversationId);
+    const response = finalAssistantText(core, result);
+    const body = response
+      ? `\n${inlineReport(core, result.conversationId, result.executionId, response)}`
+      : "";
+    const now = Date.now();
+    let first: string;
+    if (result.transition === "cancelled")
+      first = `${head} was stopped by the user.`;
+    else if (result.transition === "failed")
+      first = `${head} failed: ${failureMessage(result) ?? "unknown error"}`;
+    else if (result.transition === "interrupted")
+      first = `${head} interrupted.`;
+    else if (background.length)
+      first = [
+        `${head} is waiting on ${backgroundLabel(background.length)} and accepts follow-ups:`,
+        ...backgroundLines(background, now),
+      ].join("\n");
+    else first = `${head} completed.`;
+    // The assignment this execution worked on: its first parent-sourced message.
+    let assignmentId = result.executionId;
+    for (const event of recent(result.conversationId)) {
+      if (event.id === result.executionId) break;
+      if (
+        event.sequence < result.event.sequence &&
+        event.type === "user_message" &&
+        event.payload.source === "parent_conversation" &&
+        event.inputId
+      )
+        assignmentId = event.inputId;
+    }
+    core.inputs.enqueueNotice({
+      conversationId: parentId,
+      inputId: `input_${result.executionId}`,
+      subtype: "sub_conversation_event",
+      producer: result.conversationId,
+      text: `${first}${body}`,
+      details: {
+        childConversationId: result.conversationId,
+        assignmentId,
+        status: result.transition,
+        assetIds: [],
+      },
+      wakeWhenIdle: true,
+    });
   });
-  const handlers: CoreToolHandler[] = [
-    "subagent_new",
-    "subagent_prompt",
-    "subagent_status",
-    "subagent_stop",
-    "subagent_list",
-  ].map((name) => ({
-    definition: childDefinition(name),
+
+  const prompt: CoreToolHandler = {
+    definition: definition("subagent_prompt"),
     async execute(call) {
+      const parentId = call.conversationId;
       const args = call.arguments;
-      const parent = core.getSnapshot(call.conversationId);
-      let value: unknown;
-      if (name === "subagent_new") {
-        if (typeof args.name !== "string" || !args.name.trim())
-          throw new Error("A name is required");
-        if (
-          children(call.conversationId).some(
-            (child) =>
-              child.title.toLowerCase() === String(args.name).toLowerCase(),
-          )
-        )
-          throw new Error("Child name already in use");
-        const { conversationId, ...config } = parent.config;
-        void conversationId;
-        value = (
-          await core.createConversation({
-            projectId: parent.conversation.projectId,
-            parentConversationId: call.conversationId,
-            parentToolCallId: call.id,
-            title: args.name,
-            config,
-          })
-        ).conversation;
-        await initializeChild(
-          call.conversationId,
-          (value as { id: string }).id,
-          false,
-        );
-      } else if (name === "subagent_list")
-        value = children(call.conversationId);
-      else {
-        const child = owned(call.conversationId, args);
-        if (name === "subagent_prompt") {
-          if (typeof args.prompt !== "string" || !args.prompt.trim())
-            throw new Error("A prompt is required");
-          if (child.paused && args.resume !== true)
-            throw new Error("Child is paused; provide resume=true");
-          if (args.configuration !== undefined) {
-            if (
-              !args.configuration ||
-              typeof args.configuration !== "object" ||
-              Array.isArray(args.configuration)
-            )
-              throw new Error("Invalid configuration");
-            core.configure(
-              child.id,
-              conversationConfigSchema
-                .omit({ conversationId: true })
-                .partial()
-                .strict()
-                .parse(args.configuration),
+      const assignments = (Array.isArray(args.assignments)
+        ? args.assignments
+        : []) as unknown as Assignment[];
+      const context = text(args.context).trim();
+      const errors: string[] = [];
+      if (!assignments.length || assignments.length > SUBAGENT_BATCH_LIMIT)
+        errors.push(`assignments must contain 1–${SUBAGENT_BATCH_LIMIT} items`);
+      const usable = await host.usableProfiles(parentId);
+      const resolved = new Map<
+        string,
+        Awaited<ReturnType<SubagentHost["resolveProfile"]>>
+      >();
+      const seen = new Set<string>();
+      const plan: { assignment: Assignment; existing?: ConversationSummary }[] =
+        [];
+      for (const [index, assignment] of assignments.entries()) {
+        const name = text(assignment?.name).trim();
+        const label = name || `assignment ${index + 1}`;
+        if (!name) errors.push(`${label}: name is required`);
+        if (!text(assignment?.prompt).trim())
+          errors.push(`${label}: prompt is required`);
+        if (name && seen.has(key(name)))
+          errors.push(`${label}: duplicate name in this call`);
+        seen.add(key(name));
+        const existing = name ? findChild(parentId, name) : undefined;
+        const profile = text(assignment?.profile);
+        if (existing) {
+          const current = profileOf(parentId, existing);
+          if (profile && current && profile !== current)
+            errors.push(
+              `${label}: is a ${current} sub-agent; profile ${profile} does not match`,
+            );
+        } else if (!profile)
+          errors.push(
+            `${label}: profile is required for a new sub-agent (usable: ${usable.join(", ") || "none"})`,
+          );
+        else if (!resolved.has(profile))
+          try {
+            resolved.set(
+              profile,
+              await host.resolveProfile({ parentId, profile }),
+            );
+          } catch (error) {
+            errors.push(
+              `${label}: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
-          const inputId = createId("input");
+        plan.push({ assignment, existing });
+      }
+      if (errors.length)
+        throw new Error(
+          `subagent_prompt rejected; nothing was created or queued:\n${errors.map((line) => `- ${line}`).join("\n")}`,
+        );
+      const { conversationId, ...parentConfig } =
+        core.getSnapshot(parentId).config;
+      void conversationId;
+      const projectId = core.getSnapshot(parentId).conversation.projectId;
+      const lines: string[] = [];
+      for (const { assignment, existing } of plan) {
+        const message = context
+          ? `${context}\n\n${assignment.prompt}`
+          : assignment.prompt;
+        const submit = (childId: string) =>
           core.submitInput({
-            conversationId: child.id,
-            inputId,
+            conversationId: childId,
+            inputId: createId("input"),
             source: "parent_conversation",
-            senderConversationId: call.conversationId,
-            text: args.prompt,
+            senderConversationId: parentId,
+            text: message,
             wakeWhenIdle: true,
           });
-          if (args.resume === true) core.resume(child.id);
-          value = { conversationId: child.id, assignmentId: inputId };
-        } else if (name === "subagent_stop") {
-          await core.stop(child.id);
-          value = core.getSnapshot(child.id).conversation;
-        } else value = child;
+        if (existing) {
+          const state = childState(existing, runningBash(existing.id).length);
+          submit(existing.id);
+          if (existing.paused) core.resume(existing.id);
+          lines.push(
+            `${assignment.name} (${profileOf(parentId, existing) ?? "unknown"}): follow-up queued (${existing.paused ? "resumed" : state})`,
+          );
+          continue;
+        }
+        const profile = resolved.get(text(assignment.profile))!;
+        const overrides = Object.fromEntries(
+          Object.entries(profile.config).filter(([, v]) => v !== undefined),
+        );
+        const child = await core.createConversation({
+          projectId,
+          parentConversationId: parentId,
+          parentToolCallId: call.id,
+          title: assignment.name.trim(),
+          config: {
+            ...parentConfig,
+            systemPrompt: null,
+            instructions: null,
+            ...overrides,
+          },
+        });
+        await host.initializeChild({
+          parentId,
+          childId: child.conversation.id,
+          profile: profile.name,
+        });
+        submit(child.conversation.id);
+        lines.push(`${assignment.name} (${profile.name}): created`);
       }
-      return { kind: "completed", result: { content: JSON.stringify(value) } };
+      return {
+        kind: "completed",
+        result: { content: lines.join("\n") },
+      };
     },
-  }));
-  handlers.push(createExploreTool(core, exploring, initializeChild));
-  return handlers;
+  };
+
+  const childState = (
+    child: ConversationSummary,
+    background: number,
+  ): ChildState => {
+    if (child.status === "running" || child.status === "waiting")
+      return child.status;
+    if (child.paused) return "stopped";
+    if (child.status === "failed" || child.status === "interrupted")
+      return child.status;
+    void background;
+    return "idle";
+  };
+  const statusOf = async (
+    parentId: string,
+    child: ConversationSummary,
+  ): Promise<ChildStatus> => {
+    const [usage, snapshot] = await Promise.all([
+      core.contextUsage(child.id),
+      Promise.resolve(core.getSnapshot(child.id)),
+    ]);
+    const background = snapshot.asyncBash.filter(
+      (row) => row.status === "running",
+    );
+    const events = recent(child.id);
+    const state = childState(child, background.length);
+    const start =
+      state === "running"
+        ? events.find(
+            (event) =>
+              event.type === "system_event" &&
+              event.payload.subtype === "execution_state" &&
+              event.payload.transition === "started",
+          )
+        : undefined;
+    return {
+      name: child.title,
+      profile: profileOf(parentId, child),
+      model: `${snapshot.config.model.provider}/${snapshot.config.model.modelId}`,
+      state,
+      background,
+      context: usage,
+      lastActivityAt: events[0]?.createdAt ?? null,
+      runningSince: start?.createdAt ?? null,
+    };
+  };
+
+  const status: CoreToolHandler = {
+    definition: definition("subagent_status"),
+    async execute(call) {
+      const parentId = call.conversationId;
+      const name = text(call.arguments.name).trim();
+      const now = Date.now();
+      let content: string;
+      if (!name)
+        content = formatStatusList(
+          await Promise.all(
+            children(parentId).map((child) => statusOf(parentId, child)),
+          ),
+          now,
+        );
+      else {
+        const child = findChild(parentId, name);
+        if (!child) throw new Error(`Unknown sub-agent: ${name}`);
+        const info = await statusOf(parentId, child);
+        const last = lastExecution(child.id);
+        const response = last ? finalAssistantText(core, last) : "";
+        content = formatNamedStatus(
+          {
+            child: info,
+            finalResponse: last
+              ? inlineReport(core, child.id, last.executionId, response)
+              : "",
+            failure: failureMessage(last),
+            activity: recentActivity(
+              recent(child.id).reverse().slice(-HISTORY_WINDOW),
+              core
+                .getSnapshot(child.id)
+                .toolCalls.filter((row) => row.origin === "model"),
+              now,
+            ),
+          },
+          now,
+        );
+      }
+      return { kind: "completed", result: { content } };
+    },
+  };
+
+  const stop: CoreToolHandler = {
+    definition: definition("subagent_stop"),
+    async execute(call) {
+      const names = Array.isArray(call.arguments.names)
+        ? (call.arguments.names as unknown[]).map(text)
+        : [];
+      if (!names.length) throw new Error("names is required");
+      const lines: string[] = [];
+      for (const name of names) {
+        const child = findChild(call.conversationId, name);
+        if (!child) {
+          lines.push(`${name}: not found`);
+          continue;
+        }
+        const state = childState(child, 0);
+        if (
+          (state === "idle" || state === "stopped") &&
+          !runningBash(child.id).length
+        ) {
+          lines.push(`${child.title}: nothing to stop (${state})`);
+          continue;
+        }
+        stoppedByTool.add(child.id);
+        try {
+          await core.stop(child.id);
+        } finally {
+          stoppedByTool.delete(child.id);
+        }
+        lines.push(`${child.title}: stopped`);
+      }
+      return { kind: "completed", result: { content: lines.join("\n") } };
+    },
+  };
+  return [prompt, status, stop];
 }

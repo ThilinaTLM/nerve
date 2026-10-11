@@ -6,6 +6,7 @@ import {
   type ConversationSnapshot,
   type UpdateConversationRequest,
 } from "@nervekit/contracts/core";
+import { subagentPermissionRuleSetIds } from "@nervekit/contracts/subagents";
 import { deriveConversationTitle } from "./conversation-title.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import type { AsyncBashService } from "../async-bash/async-bash.service.js";
@@ -25,6 +26,16 @@ export interface CreateConversationInput {
   parentToolCallId?: string | null;
   title?: string;
   config?: DefaultConversationConfig;
+}
+function assertSubagentRuleSet(permissionRuleSetId: string): void {
+  if (
+    !(subagentPermissionRuleSetIds as readonly string[]).includes(
+      permissionRuleSetId,
+    )
+  )
+    throw new Error(
+      `Sub-agents may only use the ${subagentPermissionRuleSetIds.join(" or ")} permission rule set`,
+    );
 }
 export class ConversationService {
   constructor(
@@ -63,6 +74,8 @@ export class ConversationService {
       ...(input.config ?? (await this.options.defaultConfig(input.projectId))),
       conversationId: id,
     });
+    if (input.parentConversationId)
+      assertSubagentRuleSet(config.permissionRuleSetId);
     // The callback may await host settings; another caller can create the same ID meanwhile.
     if (storage.conversations.get(id)) return this.create(input);
     const now = this.options.now();
@@ -145,6 +158,8 @@ export class ConversationService {
       ...patch,
       conversationId: id,
     });
+    if (this.options.storage.conversations.get(id)?.parentConversationId)
+      assertSubagentRuleSet(validated.permissionRuleSetId);
     const updated = this.options.storage.conversations.updateConfig(
       id,
       validated,
