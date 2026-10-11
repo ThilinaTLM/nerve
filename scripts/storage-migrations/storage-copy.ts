@@ -1,16 +1,13 @@
-import { homedir } from "node:os";
-import { join } from "node:path";
 import {
   assertSlotPaths,
   createSlotParent,
-  resolveStorageSlot,
 } from "../development/storage-slot.mjs";
 import { cloneNerveHome } from "./home-operations.js";
+import { resolveStorageCopyOptions } from "./storage-copy-options.js";
 
 try {
-  const slot = resolveStorageSlot(process.argv.slice(2));
+  const { source, slot } = resolveStorageCopyOptions(process.argv.slice(2));
   await createSlotParent(slot);
-  const source = join(homedir(), ".nerve");
   console.log(`Copying stopped Nerve home ${source} to ${slot.home}`);
   await cloneNerveHome({ source, destination: slot.home });
   await assertSlotPaths(slot);
