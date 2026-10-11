@@ -7,7 +7,6 @@ import type {
   UpdateApplicationConfigurationRequest,
 } from "@nervekit/contracts/settings";
 import {
-  MAX_ACTIVE_EXPLORE_AGENTS,
   MAX_ACTIVE_PROCESSES,
   MAX_CONCURRENT_MODEL_RUNS,
   MAX_PARALLEL_TOOLS_PER_RUN,
@@ -358,12 +357,6 @@ export function resolveApplicationConfiguration(
     "NERVE_MAX_ACTIVE_PROCESSES",
     MAX_ACTIVE_PROCESSES,
   );
-  const maxActiveExploreAgents = resolveResourceLimit(
-    saved.resources.maxActiveExploreAgents,
-    resourceRecommendation.limits.maxActiveExploreAgents,
-    "NERVE_MAX_ACTIVE_EXPLORE_AGENTS",
-    MAX_ACTIVE_EXPLORE_AGENTS,
-  );
 
   const ozoneEnvironment = envString(env, "NERVE_ELECTRON_OZONE_PLATFORM");
   if (
@@ -510,12 +503,6 @@ export function resolveApplicationConfiguration(
           restartTarget: "daemon",
           active: active?.resources.maxActiveProcesses.activeValue,
         }),
-        maxActiveExploreAgents: leaf({
-          selected: maxActiveExploreAgents,
-          saved: saved.resources.maxActiveExploreAgents,
-          restartTarget: "daemon",
-          active: active?.resources.maxActiveExploreAgents.activeValue,
-        }),
       },
       electron: {
         ozonePlatform: leaf({
@@ -555,9 +542,6 @@ export function resolveApplicationConfiguration(
           maxActiveProcesses:
             active?.resources.maxActiveProcesses.activeValue ??
             maxActiveProcesses.value,
-          maxActiveExploreAgents:
-            active?.resources.maxActiveExploreAgents.activeValue ??
-            maxActiveExploreAgents.value,
         },
         controlWorkConcurrency: resourceRecommendation.controlWorkConcurrency,
       },
@@ -582,7 +566,6 @@ export function resolveApplicationConfiguration(
         maxConcurrentModelRuns: maxConcurrentModelRuns.value,
         maxParallelToolsPerRun: maxParallelToolsPerRun.value,
         maxActiveProcesses: maxActiveProcesses.value,
-        maxActiveExploreAgents: maxActiveExploreAgents.value,
       },
       controlWorkConcurrency: resourceRecommendation.controlWorkConcurrency,
     },
@@ -638,10 +621,6 @@ export function assertApplicationConfigurationEditable(
     [
       patch.application?.resources?.maxActiveProcesses,
       snapshot.application.resources.maxActiveProcesses,
-    ],
-    [
-      patch.application?.resources?.maxActiveExploreAgents,
-      snapshot.application.resources.maxActiveExploreAgents,
     ],
     [
       patch.application?.electron?.ozonePlatform,

@@ -15,7 +15,6 @@ describe("automatic resource policy", () => {
       maxConcurrentModelRuns: 10,
       maxParallelToolsPerRun: 3,
       maxActiveProcesses: 16,
-      maxActiveExploreAgents: 5,
     });
     assert.equal(policy.controlWorkConcurrency, 4);
   });
@@ -48,7 +47,6 @@ describe("automatic resource policy", () => {
     assert.equal(policy.detected.logicalCpuCount, 1);
     assert.equal(policy.limits.maxParallelToolsPerRun, 4);
     assert.equal(policy.limits.maxActiveProcesses, 64);
-    assert.equal(policy.limits.maxActiveExploreAgents, 5);
     assert.equal(policy.controlWorkConcurrency, 8);
   });
 });

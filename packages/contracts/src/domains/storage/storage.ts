@@ -4,7 +4,6 @@ export const DAEMON_LEASE_CONFLICT_CODE = "DAEMON_LEASE_CONFLICT";
 export const storageCategoryKeySchema = z.enum([
   "database",
   "payloads",
-  "reports",
   "images",
   "plans",
   "agentResources",
@@ -34,7 +33,6 @@ export const storageCleanupTargetSchema = z.enum([
   "conversations",
   "datedLogs",
   "rotatedEventLog",
-  "exploreReports",
   "crashReports",
   "cache",
   "tmp",
@@ -88,7 +86,6 @@ export const storageCleanupRequestSchema = z
       .optional(),
     logsOlderThanDays: z.number().int().positive().max(3650).optional(),
     truncateEventLog: z.boolean().optional(),
-    clearExploreReports: z.boolean().optional(),
     clearCrashReports: z.boolean().optional(),
     clearCache: z.boolean().optional(),
     clearTmp: z.boolean().optional(),
