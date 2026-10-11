@@ -312,7 +312,6 @@ function extractTargets(
       },
     ];
   }
-  if (toolName === "explore") return [{ kind: "agent", agentId: "explore" }];
   if (toolName === "kroki_export") {
     const targets = [
       ...stringPathTargets(args.source_path, "read", "exact", roots, cwd),

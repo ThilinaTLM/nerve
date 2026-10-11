@@ -290,15 +290,6 @@ function sortEntries(
   });
 }
 
-function exploreReportPreview(
-  report: Record<string, unknown>,
-): Record<string, unknown> {
-  const summary = { ...report };
-  delete summary.report;
-  delete summary.steps;
-  return summary;
-}
-
 const SECRET_LIKE_KEY =
   /(?:^|[_-])(authorization|cookie|credential|password|passwd|secret|token|api[_-]?key|private[_-]?key)(?:$|[_-])/i;
 const CREDENTIAL_URL = /^[a-z][a-z0-9+.-]*:\/\/[^/\s]*@/i;
@@ -463,16 +454,14 @@ export function buildUserProjection(
   // Core delegation, ask_user and async bash return JSON text rather than the old details records.
   if (
     toolName === "ask_user" ||
-    toolName === "explore" ||
     toolName === "async_bash" ||
-    toolName === "launch" ||
-    toolName.startsWith("subagent_")
+    toolName === "launch"
   ) {
     const text = stringField(record(publicResult).content);
     if (text) {
       try {
         const value: unknown = JSON.parse(text);
-        publicResult = toolName === "explore" ? { reports: value } : value;
+        publicResult = value;
       } catch {
         /* A failed call may return plain text. */
       }
@@ -623,20 +612,6 @@ export function buildUserProjection(
       break;
     }
 
-    case "explore": {
-      const reports = firstItems(
-        arrayField<Record<string, unknown>>(resultRecord.reports),
-      );
-      resultPreview = {
-        reports: reports.value?.map(exploreReportPreview),
-        details: resultRecord.details,
-      };
-      hidden = reports.hidden;
-      noun = "reports";
-      direction = "head";
-      break;
-    }
-
     case "web_search":
     case "web_fetch": {
       const preview =
@@ -656,10 +631,11 @@ export function buildUserProjection(
       break;
     }
     case "subagent_prompt":
-    case "subagent_status": {
-      const bounded = previewUnknown(publicResult);
-      resultPreview = bounded.value;
-      ({ hidden, noun } = unknownOverflowStats([bounded]));
+    case "subagent_status":
+    case "subagent_stop": {
+      const output = firstLines(outputText(resultRecord));
+      resultPreview = withTextContent(resultRecord, output.value);
+      ({ hidden, noun } = textOverflowStats([output]));
       direction = "head";
       break;
     }
@@ -701,7 +677,6 @@ export function buildUserProjection(
   }
 
   const resultFirst =
-    toolName === "explore" ||
     toolName === "async_bash" ||
     toolName === "launch" ||
     toolName.startsWith("subagent_") ||

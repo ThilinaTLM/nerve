@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "planning",
   "name": "Planning",
-  "description": "Allow read-only research, interaction, Explore, and plan writes; prompt for local analysis commands.",
+  "description": "Allow read-only research, interaction, and plan writes; prompt for local analysis commands.",
   "source": "builtin",
   "enabled": true,
   "compatibleModes": ["planning"],
@@ -45,14 +45,6 @@
         "toolGroups": ["web", "vision", "jira", "confluence"],
         "baseRisks": ["network"]
       },
-      "decision": "allow"
-    },
-    {
-      "id": "allow-explore",
-      "enabled": true,
-      "priority": 150,
-      "enforcement": "overridable",
-      "when": { "toolNames": ["explore"] },
       "decision": "allow"
     },
     {

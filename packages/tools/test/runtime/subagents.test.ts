@@ -4,112 +4,73 @@ import { Check } from "typebox/value";
 import { createSubagentHandlers } from "../../src/runtime/orchestration/subagents.js";
 import { subagentToolDefinitions } from "../../src/catalog/definitions/orchestration/subagent.tools.js";
 
-it("rejects ambiguous targets and promptless controls before backend side effects", async () => {
+const schemaOf = (tool: string) =>
+  subagentToolDefinitions.find((item) => item.name === tool)!.parameters;
+
+it("rejects malformed batches before backend side effects", async () => {
   const handlers = createSubagentHandlers(async () => {
-    assert.fail("invalid child controls must not reach the backend");
+    assert.fail("invalid sub-agent calls must not reach the backend");
   });
-  for (const tool of ["subagent_prompt", "subagent_status", "subagent_stop"]) {
-    for (const target of [
-      {},
-      { name: "Researcher", agentId: "conv_explorer" },
-      { agentId: "invalid_wrong" },
-      { agentId: "" },
-    ]) {
-      await assert.rejects(
-        handlers[tool]!({ ...target, prompt: "Inspect changes" }, {} as never),
-        /exactly one|agentId/,
-      );
-    }
-  }
-  for (const control of [
-    { configuration: { mode: "planning" } },
-    { resume: true },
+  for (const args of [
+    {},
+    { assignments: [] },
+    { assignments: [{ name: "a" }] },
+    { assignments: [{ name: " ", prompt: "x" }] },
   ]) {
-    await assert.rejects(
-      handlers.subagent_prompt!(
-        { agentId: "conv_explorer", ...control },
-        {} as never,
-      ),
-      /prompt/,
-    );
+    await assert.rejects(handlers.subagent_prompt!(args, {} as never));
   }
+  await assert.rejects(handlers.subagent_stop!({ names: [] }, {} as never));
+  await assert.rejects(handlers.subagent_stop!({}, {} as never));
 });
 
-it("accepts named developer or conversation-ID child controls with one target", () => {
-  for (const tool of ["subagent_prompt", "subagent_status", "subagent_stop"]) {
-    const schema = subagentToolDefinitions.find(
-      (item) => item.name === tool,
-    )!.parameters;
-    const input =
-      tool === "subagent_prompt" ? { prompt: "Inspect the changes" } : {};
-    for (const target of [
-      { name: "Researcher" },
-      { agentId: "conv_explorer" },
-    ]) {
-      assert.equal(Check(schema, { ...target, ...input }), true, tool);
-      assert.equal(
-        Check(schema, { ...target, ...input, authority: "autonomous" }),
-        false,
-        tool,
-      );
-    }
-    for (const target of [
-      {},
-      { name: "Researcher", agentId: "conv_explorer" },
-      { name: "" },
-      { name: "a".repeat(81) },
-      { agentId: "invalid_wrong" },
-      { id: "conv_explorer" },
-    ]) {
-      assert.equal(
-        Check(schema, { ...target, ...input }),
-        false,
-        `${tool}: ${JSON.stringify(target)}`,
-      );
-    }
-  }
+it("forwards valid calls to the host port", async () => {
+  const calls: string[] = [];
+  const handlers = createSubagentHandlers(async (name) => {
+    calls.push(name);
+    return { content: "ok" };
+  });
+  await handlers.subagent_prompt!(
+    { assignments: [{ name: "a", profile: "explore", prompt: "x" }] },
+    {} as never,
+  );
+  await handlers.subagent_status!({}, {} as never);
+  await handlers.subagent_stop!({ names: ["a"] }, {} as never);
+  assert.deepEqual(calls, [
+    "subagent_prompt",
+    "subagent_status",
+    "subagent_stop",
+  ]);
 });
 
-it("accepts next-turn shared configuration and explicit resume without authority overrides", () => {
-  const schema = subagentToolDefinitions.find(
-    (item) => item.name === "subagent_prompt",
-  )!.parameters;
-  const assignment = {
-    agentId: "conv_explorer",
-    prompt: "Inspect the updated schema",
-    resume: true,
-    configuration: {
-      model: null,
-      thinkingLevel: "high",
-      tools: ["read", "grep"],
-      skills: [],
-      instructions: "Report findings only",
-      systemPrompt: null,
-      mode: "coding",
-      permissionRuleSetId: "rules_test",
-      projectDir: "/tmp/project",
-    },
-  };
-  assert.equal(Check(schema, assignment), true);
-  assert.equal(Check(schema, { ...assignment, name: "Researcher" }), false);
-  assert.equal(Check(schema, { ...assignment, resume: "true" }), false);
-  assert.equal(Check(schema, { ...assignment, prompt: "" }), false);
+it("exposes the batch, status and stop parameter shapes", () => {
+  assert.deepEqual(
+    subagentToolDefinitions.map((item) => item.name),
+    ["subagent_prompt", "subagent_status", "subagent_stop"],
+  );
+  const prompt = schemaOf("subagent_prompt");
+  const one = { name: "a", prompt: "x" };
+  assert.equal(Check(prompt, { assignments: [one] }), true);
   assert.equal(
-    Check(schema, {
-      ...assignment,
-      configuration: { authority: "autonomous" },
+    Check(prompt, {
+      context: "c",
+      assignments: [{ ...one, profile: "explore" }],
     }),
+    true,
+  );
+  assert.equal(Check(prompt, { assignments: [] }), false);
+  assert.equal(Check(prompt, { assignments: Array(11).fill(one) }), false);
+  assert.equal(Check(prompt, { assignments: [{ ...one, name: "" }] }), false);
+  assert.equal(
+    Check(prompt, { assignments: [{ ...one, name: "a".repeat(81) }] }),
     false,
   );
   assert.equal(
-    Check(schema, { ...assignment, configuration: { preset: "standard" } }),
+    Check(prompt, { assignments: [{ ...one, resume: true }] }),
     false,
   );
-  assert.equal(
-    Check(schema, {
-      ...assignment,
-      configuration: { parentGrants: { configure: true } },
-    }),
-    false,
-  );
+  assert.equal(Check(schemaOf("subagent_status"), {}), true);
+  assert.equal(Check(schemaOf("subagent_status"), { name: "a" }), true);
+  assert.equal(Check(schemaOf("subagent_stop"), { names: ["a"] }), true);
+  assert.equal(Check(schemaOf("subagent_stop"), { names: [] }), false);
+  assert.equal(Check(schemaOf("subagent_stop"), { name: "a" }), false);
 });

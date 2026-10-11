@@ -1,30 +1,10 @@
 import { Type } from "typebox";
+import { SUBAGENT_BATCH_LIMIT } from "@nervekit/contracts/subagents";
 import type { ToolDefinition } from "../../contracts.js";
 
-const childTarget = {
-  name: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })),
-  agentId: Type.Optional(Type.String({ pattern: "^conv_" })),
-};
-// Preserve an object root while requiring exactly one child target.
-const childTargetOptions = {
-  additionalProperties: false,
-  oneOf: [{ required: ["name"] }, { required: ["agentId"] }],
-};
+const name = Type.String({ minLength: 1, maxLength: 80 });
+
 export const subagentToolDefinitions = [
-  {
-    name: "subagent_new",
-    group: "subagents",
-    baseRisk: "agent_spawn",
-    traits: ["write_capable"],
-    executionKind: "host",
-    label: "subagent_new",
-    description:
-      "Create an idle reusable developer teammate with a unique team name and inherited authority. An explicitly user-approved spawn may grant autonomous coding authority, but never bypasses a read-only preset ceiling.",
-    parameters: Type.Object(
-      { name: Type.String({ minLength: 1, maxLength: 80 }) },
-      { additionalProperties: false },
-    ),
-  },
   {
     name: "subagent_prompt",
     group: "subagents",
@@ -33,39 +13,21 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Assign or steer one owned child: agentId (including Explore) or case-insensitive developer teammate name, never both. Running children accept durable next-turn input after their tool batch settles; stopped children require resume=true. Optional configuration applies next turn to the child conversation: model, thinkingLevel, tools, skills, instructions, systemPrompt, mode, permissionRuleSetId, projectDir. Include findings, paths, constraints and expected outcomes: children cannot see your conversation but share the worktree and retain their own context.",
+      "Assign work to sub-agents. A new name creates one from `profile`; an existing name queues a follow-up. Sub-agents run asynchronously in your worktree and cannot see your conversation; completion notices wake you.",
     parameters: Type.Object(
       {
-        ...childTarget,
-        prompt: Type.String({ minLength: 1 }),
-        resume: Type.Optional(Type.Boolean()),
-        configuration: Type.Optional(
-          Type.Record(
-            Type.String({
-              pattern:
-                "^(model|thinkingLevel|tools|skills|instructions|systemPrompt|mode|permissionRuleSetId|projectDir)$",
-            }),
-            Type.Unknown(),
+        context: Type.Optional(Type.String()),
+        assignments: Type.Array(
+          Type.Object(
+            {
+              name,
+              profile: Type.Optional(Type.String()),
+              prompt: Type.String({ minLength: 1 }),
+            },
             { additionalProperties: false },
           ),
+          { minItems: 1, maxItems: SUBAGENT_BATCH_LIMIT },
         ),
-      },
-      childTargetOptions,
-    ),
-  },
-  {
-    name: "subagent_list",
-    group: "subagents",
-    baseRisk: "read",
-    traits: [],
-    executionKind: "host",
-    label: "subagent_list",
-    description:
-      "List your persistent teammates and their lifecycle states, without response bodies.",
-    parameters: Type.Object(
-      {
-        cursor: Type.Optional(Type.String()),
-        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })),
       },
       { additionalProperties: false },
     ),
@@ -78,18 +40,24 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_status",
     description:
-      "Inspect an owned child's state and, when idle, last response/run. Supply agentId (including Explore) or case-insensitive developer name, never both.",
-    parameters: Type.Object({ ...childTarget }, childTargetOptions),
+      "Check sub-agents. Without a name, one line each; with a name, its final response or recent activity. Not needed after assigning: notices wake you.",
+    parameters: Type.Object(
+      { name: Type.Optional(name) },
+      { additionalProperties: false },
+    ),
   },
   {
     name: "subagent_stop",
     group: "subagents",
-    baseRisk: "workspace_write",
-    traits: ["write_capable"],
+    baseRisk: "agent_spawn",
+    traits: [],
     executionKind: "host",
     label: "subagent_stop",
     description:
-      "Pause an owned child, preserving history and pending input until explicit resume. Supply agentId (including Explore) or case-insensitive developer name, never both.",
-    parameters: Type.Object({ ...childTarget }, childTargetOptions),
+      "Stop the current execution of sub-agents. They remain and can be prompted again.",
+    parameters: Type.Object(
+      { names: Type.Array(name, { minItems: 1 }) },
+      { additionalProperties: false },
+    ),
   },
 ] satisfies ToolDefinition[];

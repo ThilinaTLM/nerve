@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  createExploreHandlers,
   createInteractionHandlers,
   createPlanHandlers,
   createTodoHandlers,
@@ -179,41 +178,11 @@ describe("shared tool runtime contract", () => {
       { ...context, toolName: "plan_mode_present" },
     );
 
-    const explore = createExploreHandlers({
-      run: async (request, value, signal) => {
-        assert.equal(value, identity);
-        assert.equal(signal, context.signal);
-        calls.push(`explore:${request.tasks[0]?.task}`);
-        return { content: "report" };
-      },
-    });
-    await explore.explore?.(
-      {
-        tasks: [{ task: " inspect adapters ", label: "Adapters" }],
-        context:
-          "Parent inspected the orchestration adapters and needs focused follow-up evidence.",
-      },
-      { ...context, toolName: "explore" },
-    );
-    assert.throws(
-      () =>
-        explore.explore?.(
-          {
-            task: "The old top-level task request is no longer supported.",
-            context:
-              "Parent inspected the orchestration adapters and needs focused follow-up evidence.",
-          },
-          { ...context, toolName: "explore" },
-        ),
-      /tasks array/,
-    );
-
     assert.deepEqual(calls, [
       "interaction.resolve",
       "interaction.request",
       "plan.enter:investigate",
       "plan.present:plans/reuse.md",
-      "explore:inspect adapters",
     ]);
   });
 

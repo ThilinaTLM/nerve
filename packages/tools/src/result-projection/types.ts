@@ -43,7 +43,6 @@ export type ProjectionCandidate = {
     priority: number;
     blocks: ProjectableBlock[];
   }>;
-  tasks?: Array<{ index: number; candidate: ProjectionCandidate }>;
   continuation?: ExactContinuation[];
   counts?: ProjectionCount[];
   artifacts: ValidatedToolArtifact[];
