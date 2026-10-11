@@ -1,41 +1,41 @@
 ---
 title: Launch and process recovery
-description: Interpret recovered, interrupted, and recovery-unknown task runs.
+description: Diagnose lost background commands, launch readiness, and process shutdown.
 sidebar:
   order: 6
 ---
 
-## `recovered`
+## Async Bash becomes `lost`
 
-The persisted process identity still matches a live process. Nerve can stop or restart it, but cannot reconnect old stdout/stderr pipes. Output captured before application restart stays frozen; only newly observable state is available.
+Nerve does not recover processes after a daemon restart. Async Bash runs become `lost`; inspect their retained output before starting a fresh command. Explicit and auto-promoted background commands both queue completion notices during normal operation.
 
-## `interrupted`
+## A launch disappears after restart
 
-The process is verified gone. Restart creates a new immutable run in the same launch definition lineage. Inspect the prior run's terminal state and application logs before restarting.
-
-## `recovery_unknown`
-
-Nerve cannot prove that the PID still belongs to the original process. It blocks destructive PID actions to avoid signaling an unrelated reused process. Verify externally and start a new task rather than forcing through Nerve.
+Launch instances are memory-only. Definitions remain in `.nerve/launches/definitions.json`, and logs remain under `data/launches/<launchId>/`. Inspect retained logs, check `launch status`, and start the current definition if needed. Agents cannot create or edit definitions.
 
 ## Readiness never arrives
 
-Check the readiness URL/pattern and task logs. A server listening on a different interface/port can run correctly while missing the declared check. Use task log filters instead of polling repeatedly from the agent.
+For `bash` with `background: true`, check the `ready` URL or output regex and inspect `async_bash logs`. Readiness waits at most 60 seconds; a timeout does not stop the command.
+
+For a launch with a declared port, start and restart wait up to 30 seconds for it to listen. Check `launch logs` and the definition's port. A server on a different interface or port may run correctly while missing the check. Read logs on demand rather than repeatedly polling for completion.
+
+## A port is already in use
+
+Launch start reports the listener's PID and process name. Agents never terminate foreign listeners; only the user can do so from the UI. Check the listener before deciding whether to stop it or change the definition.
 
 ## Stop does not complete
 
-Nerve attempts graceful process-tree termination then bounded escalation. A run stuck in `stopping` offers **Force kill** immediately, since you already asked to stop it. A verified `recovered` run confirms before killing, because you may not have asked to terminate it. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved launch definition can be run again.
-
-Platform security software or child detachment can still interfere. Nerve never offers force kill for `recovery_unknown`; confirm identity before manual OS termination.
+`async_bash stop` and `launch stop` terminate the process tree gracefully, then escalate after a bounded wait. Platform security software or child detachment can still interfere. Inspect logs and confirm process identity before any manual OS termination.
 
 ## Quitting Nerve
 
-Quitting the desktop application immediately terminates active local task process trees before the owned daemon shuts down. Closing a window to the system tray does not quit Nerve or stop tasks.
+Quitting the desktop application terminates active local process trees before the owned daemon shuts down. Closing a window to the system tray does not quit Nerve or stop processes.
 
 ## Agent run recovery is separate
 
-Conversation runs use durable checkpoints, retry policy, and manual continuation. A background process being recovered does not automatically mean the model run is resumable, and vice versa. Explicit `task_start` runs are detached and never restart the agent when they terminate. Only awaited work—such as a Bash command automatically promoted from the foreground or an asynchronous subagent—creates a recoverable follow-up obligation.
+Process lifetime and model execution are separate. Background Bash completion notices and agent-started launch exit notices can wake the originating conversation, but restarting the daemon does not recover their processes. Conversation continuation resumes persisted conversation state, not a live shell command.
 
 ## Next steps
 
-- [Background tasks](/guides/background-tasks/)
+- [Background launches](/guides/background-tasks/)
 - [Logs and diagnostics](/operations/diagnostics/)

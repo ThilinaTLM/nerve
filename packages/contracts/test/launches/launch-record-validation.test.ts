@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  taskControlToolResultSchema,
-  taskStartToolResultSchema,
-  taskStatusToolResultSchema,
-} from "../../src/domains/tools/index.js";
-import {
   launchEnvInfoSchema,
   launchLogQueryResponseSchema,
   launchLogQuerySchema,
@@ -47,35 +42,6 @@ describe("launchRecordSchema env metadata", () => {
     });
 
     assert.equal(parsed.success, false);
-  });
-});
-
-describe("tool task result metadata", () => {
-  it("rejects missing required task-tool payload fields", () => {
-    assert.equal(taskStartToolResultSchema.safeParse({}).success, false);
-    assert.equal(
-      taskStartToolResultSchema.safeParse({
-        task: record(),
-        otherActiveTasks: [],
-        otherActiveTaskCount: 0,
-      }).success,
-      true,
-    );
-    assert.equal(taskStatusToolResultSchema.safeParse({}).success, false);
-    assert.equal(
-      taskControlToolResultSchema.safeParse({
-        action: "stop",
-        task: record({ status: "cancelled" }),
-      }).success,
-      false,
-    );
-    assert.equal(
-      taskControlToolResultSchema.safeParse({
-        action: "restart",
-        task: record(),
-      }).success,
-      false,
-    );
   });
 });
 

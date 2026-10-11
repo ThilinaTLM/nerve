@@ -13,7 +13,7 @@ Nerve exposes the tool names below. The contracts and manifest own the exact cat
 - Editing: `edit`, `write`
 - Execution: `bash`, `python_exec`
 
-Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is finite/noninteractive and process-tree cancellable; use `task_start` for servers and watchers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
+Reads are bounded and parallel-capable. `edit` accepts only `path` plus exact, unique `edits: [{ oldText, newText }]`; every match resolves against the original file and the write is atomic. Use `write` to replace an entire file. Bash is noninteractive and process-tree cancellable; use `launch` for the user’s dev servers. Python accepts exactly one code/file source, has no stdin, and is capped at 600 seconds.
 
 ## Web and Atlassian
 
@@ -41,11 +41,15 @@ Configure and enable image generation separately. `generate_image` accepts a pro
 
 Questions suspend a run. To-dos are structured current-work state, not background processes.
 
-## Background tasks
+## Background processes
 
-- `task_start`, `task_status`, `task_logs`, `task_control`
+- `bash`: run a command, optionally with `background: true`
+- `async_bash`: `list`, `logs`, `stop`
+- `launch`: `status`, `logs`, `start`, `restart`, `stop`
 
-Task start accepts a project-relative `cwd`, an optional discriminated `ready` object (`url`, `detected_url`, or `pattern`), encrypted-at-rest env values, and runtime up to 24 hours. Its result also reports other active tasks in the project scope. `task_status` selects IDs/names with `tasks`; `task_logs` selects one `task` and uses one mode-specific `cursor`; `task_control` selects one `task` for stop or restart. Logs are bounded and agents receive asynchronous updates rather than polling. A still-running Bash call may be promoted automatically; that promoted work is awaited and can continue the agent after an idle turn. Explicit `task_start` is detached supervised work, so its terminal update does not restart the agent.
+Bash accepts a project-relative or absolute `cwd` inside the project. With auto-promotion enabled, a still-running command moves to the background after the configured wait; there is no `timeout` parameter. With promotion disabled, foreground calls require `timeout` in seconds and are killed when it expires. Explicit background runs return at once and have no time limit. Their optional `ready` string is an HTTP(S) URL or output regex, checked for up to 60 seconds without stopping the process on readiness timeout.
+
+Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions accept a definition or launch ID; `status` takes no ID. Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
 
 ## Delegation, Explore, and planning
 
@@ -55,7 +59,7 @@ Task start accepts a project-relative `cwd`, an optional discriminated `ready` o
 
 The Async Subagents tool group is disabled by default. It lets a lead create named autonomous developer teammates, assign only idle teammates, inspect or list them, and stop an active assignment. Teammates share the project worktree, retain their own context for follow-ups, and do not automatically receive the lead transcript. Up to four assignments can be active for one lead. Completion is delivered durably and can wake the lead; stopping does not delete the teammate's history.
 
-Explore accepts 1–8 child tasks, with 8 active and 24 total launches per parent run. Explore children are temporary, isolated/read-only, and receive only `read`, `grep`, `find`, `ls`, `task_status`, and `task_logs`. Unlike persistent teammates, they report on one research assignment and cannot modify the shared worktree.
+Explore accepts 1–8 child tasks, with 8 active and 24 total launches per parent run. Explore children are temporary, isolated/read-only, and receive only `read`, `grep`, `find`, `ls`, `async_bash` reads, and `launch` reads. Unlike persistent teammates, they report on one research assignment and cannot modify the shared worktree.
 
 ## Not agent tools
 

@@ -315,10 +315,10 @@ describe("executeTool dispatch", () => {
     }
   });
 
-  it("rejects task tools because they are orchestrator-owned", async () => {
-    const taskTools = ["async_bash", "launch"] as ToolName[];
+  it("rejects process tools because they are orchestrator-owned", async () => {
+    const processTools = ["async_bash", "launch"] as ToolName[];
 
-    for (const name of taskTools) {
+    for (const name of processTools) {
       await assert.rejects(
         executeTool(name, {}, { cwd: process.cwd() }),
         /requires a host handler/,

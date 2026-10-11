@@ -196,7 +196,6 @@ export type ToolCallRecord = {
     | {
         version: 1;
         profile:
-          | "task_logs"
           | "source_text"
           | "process_diagnostics"
           | "search_matches"
