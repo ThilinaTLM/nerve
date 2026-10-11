@@ -23,7 +23,9 @@ export const createConversationRequestSchema = z.object({
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
   title: z.string(),
-  config: conversationConfigSchema.omit({ conversationId: true }),
+  config: conversationConfigSchema.omit({ conversationId: true }).extend({
+    instructions: conversationConfigSchema.shape.instructions.default(null),
+  }),
 });
 export const listConversationsRequestSchema = z.object({
   projectId: z.string(),

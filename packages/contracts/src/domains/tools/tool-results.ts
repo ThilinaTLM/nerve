@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- transport-neutral tool result schemas remain co-located for cross-family validation. */
 import { z } from "zod";
 import {
   confluenceAttachmentSummarySchema,
@@ -26,7 +25,7 @@ import {
   jiraWorklogSummarySchema,
 } from "./atlassian-result-summaries.js";
 export * from "./atlassian-result-summaries.js";
-import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
+import { modelSelectionSchema } from "../models/models.js";
 import { launchStatusSchema } from "../launches/launch.js";
 
 /**
@@ -704,85 +703,6 @@ export const toolExecutionResultSchema = z.object({
 });
 export type ToolExecutionResultPayload = z.infer<
   typeof toolExecutionResultSchema
->;
-
-/** Result of explore. */
-export const exploreUsageStatsSchema = z.object({
-  input: z.number().nonnegative().default(0),
-  output: z.number().nonnegative().default(0),
-  cacheRead: z.number().nonnegative().default(0),
-  cacheWrite: z.number().nonnegative().default(0),
-  totalTokens: z.number().nonnegative().default(0),
-  cost: z.number().nonnegative().default(0),
-  turns: z.number().int().nonnegative().default(0),
-});
-export type ExploreUsageStatsPayload = z.infer<typeof exploreUsageStatsSchema>;
-
-export const exploreStepSchema = z.object({
-  type: z.enum(["tool_call", "tool_result", "assistant"]),
-  toolName: z.string().optional(),
-  message: z.string(),
-  timestamp: z.string().datetime().optional(),
-});
-export type ExploreStepPayload = z.infer<typeof exploreStepSchema>;
-
-export const exploreReportSchema = z.object({
-  agentId: z.string().startsWith("agent_"),
-  task: z.string(),
-  label: z.string().optional(),
-  status: z.enum(["completed", "failed", "aborted"]).default("completed"),
-  report: z.string(),
-  reportPath: z.string().min(1).optional(),
-  reportBytes: z.number().int().nonnegative().optional(),
-  reportLines: z.number().int().nonnegative().optional(),
-  artifactId: z.string().min(1).optional(),
-  summaryPreview: z.string().optional(),
-  usage: exploreUsageStatsSchema.optional(),
-  model: z.string().optional(),
-  thinkingLevel: thinkingLevelSchema.optional(),
-  stopReason: z.string().optional(),
-  errorMessage: z.string().optional(),
-  steps: z.array(exploreStepSchema).optional(),
-});
-export type ExploreReportPayload = z.infer<typeof exploreReportSchema>;
-
-/** Compact public lifecycle projection. Unknown legacy full-report fields are stripped. */
-export const exploreReportSummarySchema = z.object({
-  agentId: z.string().startsWith("agent_"),
-  task: z.string().max(2_048),
-  label: z.string().max(256).optional(),
-  status: z.enum(["completed", "failed", "aborted"]).default("completed"),
-  reportPath: z.string().min(1).max(4_096).optional(),
-  reportBytes: z.number().int().nonnegative().optional(),
-  reportLines: z.number().int().nonnegative().optional(),
-  artifactId: z.string().min(1).max(256).optional(),
-  summaryPreview: z.string().max(1_024).optional(),
-  usage: exploreUsageStatsSchema.optional(),
-  model: z.string().max(256).optional(),
-  thinkingLevel: thinkingLevelSchema.optional(),
-  stopReason: z.string().max(128).optional(),
-  errorMessage: z.string().max(2_048).optional(),
-});
-export type ExploreReportSummaryPayload = z.infer<
-  typeof exploreReportSummarySchema
->;
-
-export const exploreResultSchema = z.object({
-  reports: z.array(exploreReportSchema),
-  contentBlocks: z.array(toolContentBlockSchema).optional(),
-  details: z
-    .object({ outputLimits: toolOutputLimitsSchema.optional() })
-    .passthrough()
-    .optional(),
-});
-export type ExploreResultPayload = z.infer<typeof exploreResultSchema>;
-
-/** Compact Explore result used by bounded transcript previews. */
-export const exploreResultPreviewSchema = exploreResultSchema.extend({
-  reports: z.array(exploreReportSummarySchema),
-});
-export type ExploreResultPreviewPayload = z.infer<
-  typeof exploreResultPreviewSchema
 >;
 
 /** Result of ask_user (resolved question). */

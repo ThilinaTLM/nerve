@@ -22,6 +22,8 @@ import {
   conversationConfigSchema,
   conversationSummarySchema,
 } from "./conversation.js";
+import { autoCompactionSettingsSchema } from "../settings/settings.js";
+import { conversationHarnessSettingsResultSchema } from "./harness-settings.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
@@ -37,6 +39,10 @@ import {
 const emptyParams = z.object({}).optional();
 const host = ["workbench_server"] as const;
 
+const harnessScope = z.object({
+  projectId: z.string(),
+  conversationId: z.string(),
+});
 const capabilityScope = z.object({
   projectId: z.string(),
   conversationId: z.string().optional(),
@@ -91,6 +97,27 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.capabilities.trust",
+  ),
+  defineOperation(
+    "harnessSettings.get",
+    harnessScope,
+    conversationHarnessSettingsResultSchema,
+    "read",
+    "none",
+    host,
+    "operation.harnessSettings.get",
+  ),
+  defineOperation(
+    "harnessSettings.update",
+    harnessScope.extend({
+      /** Null removes the conversation override. */
+      compaction: autoCompactionSettingsSchema.nullable(),
+    }),
+    conversationHarnessSettingsResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.harnessSettings.update",
   ),
   defineOperation(
     "project.create",

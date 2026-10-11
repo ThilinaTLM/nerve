@@ -11,6 +11,16 @@ export type {
   TrustedResource,
 } from "./trusted-resource.js";
 export {
+  conversationHarnessSettingsSchema,
+  conversationHarnessSettingsResultSchema,
+  harnessCompactionSourceSchema,
+} from "./harness-settings.js";
+export type {
+  ConversationHarnessSettings,
+  ConversationHarnessSettingsResult,
+  HarnessCompactionSource,
+} from "./harness-settings.js";
+export {
   conversationStatusSchema,
   conversationSchema,
   conversationConfigSchema,

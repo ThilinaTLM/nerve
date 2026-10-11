@@ -1,11 +1,6 @@
 import { z } from "zod";
+import { subagentToolNames, isSubagentTool } from "../tools/subagent-tools.js";
 import {
-  asyncSubagentToolNames,
-  isAsyncSubagentTool,
-} from "../tools/async-subagents.js";
-import {
-  asyncSubagentSettingsSchema,
-  exploreAgentSettingsSchema,
   imageExplanationToolSettingsSchema,
   imageGenerationToolSettingsSchema,
   krokiToolSettingsSchema,
@@ -21,7 +16,7 @@ import {
  * families are selected as a whole; their credentials stay user-owned.
  */
 export const capabilityToolNameSchema = z.enum([
-  ...userConfigurableToolNameSchema.exclude(asyncSubagentToolNames).options,
+  ...userConfigurableToolNameSchema.exclude(subagentToolNames).options,
   "subagents",
   "jira",
   "confluence",
@@ -54,11 +49,9 @@ export function isProfiledCapabilityTool(
  */
 export const capabilityToolSettingsSchema = z
   .object({
-    explore: exploreAgentSettingsSchema,
     explain_image: imageExplanationToolSettingsSchema,
     generate_image: imageGenerationToolSettingsSchema,
     kroki_export: krokiToolSettingsSchema,
-    subagents: asyncSubagentSettingsSchema,
   })
   .strict();
 export type CapabilityToolSettings = z.infer<
@@ -71,18 +64,16 @@ export const configurableCapabilityToolNames = Object.keys(
 
 /** The tool settings a settings document (user or project-resolved) defines. */
 export function capabilityToolSettingsFromSettings(
-  settings: Pick<Settings, "exploreAgent" | "asyncSubagent" | "tools">,
+  settings: Pick<Settings, "tools">,
 ): CapabilityToolSettings {
   // Optional fields may hold undefined in memory, which protocol results
   // cannot carry, so the JSON round trip drops them.
   return capabilityToolSettingsSchema.parse(
     JSON.parse(
       JSON.stringify({
-        explore: settings.exploreAgent,
         explain_image: settings.tools.imageExplanation,
         generate_image: settings.tools.imageGeneration,
         kroki_export: settings.tools.kroki,
-        subagents: settings.asyncSubagent,
       }),
     ),
   );
@@ -97,11 +88,9 @@ export function isConfigurableCapabilityTool(
 const toolSettingsOverridesSchema = capabilityToolSettingsSchema.partial();
 const toolSettingsPatchSchema = z
   .object({
-    explore: exploreAgentSettingsSchema.nullable().optional(),
     explain_image: imageExplanationToolSettingsSchema.nullable().optional(),
     generate_image: imageGenerationToolSettingsSchema.nullable().optional(),
     kroki_export: krokiToolSettingsSchema.nullable().optional(),
-    subagents: asyncSubagentSettingsSchema.nullable().optional(),
   })
   .strict();
 
@@ -499,10 +488,10 @@ export function capabilityToolsFromDisabledNames(
         name,
       ): name is Exclude<
         UserConfigurableToolName,
-        (typeof asyncSubagentToolNames)[number]
-      > => !isAsyncSubagentTool(name),
+        (typeof subagentToolNames)[number]
+      > => !isSubagentTool(name),
     ),
-    ...(names.some(isAsyncSubagentTool) ? ["subagents" as const] : []),
+    ...(names.some(isSubagentTool) ? ["subagents" as const] : []),
   ];
 }
 
@@ -512,34 +501,61 @@ export function disabledToolNamesForCapabilities(
 ): UserConfigurableToolName[] {
   return names.flatMap((name) =>
     name === "subagents"
-      ? [...asyncSubagentToolNames]
+      ? [...subagentToolNames]
       : name === "jira" || name === "confluence"
         ? []
         : [name],
   );
 }
 
+/** Version 1 stored five sub-agent tool toggles; they collapse into the `subagents` group. */
+const legacyV1SubagentToolNames = [
+  "subagent_new",
+  "subagent_prompt",
+  "subagent_list",
+  "subagent_status",
+  "subagent_stop",
+] as const;
+
 function migrateSubagentOverrides(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const tools = { ...value } as Record<string, unknown>;
-  const previous = asyncSubagentToolNames
+  const previous = legacyV1SubagentToolNames
     .filter((name) => Object.hasOwn(tools, name))
     .map((name) => tools[name]);
   if (!previous.length) return value;
   if (previous.some((enabled) => typeof enabled !== "boolean")) return value;
   if (!Object.hasOwn(tools, "subagents"))
     tools.subagents =
-      previous.length === asyncSubagentToolNames.length &&
+      previous.length === legacyV1SubagentToolNames.length &&
       previous.every((enabled) => enabled === true);
-  for (const name of asyncSubagentToolNames) delete tools[name];
+  for (const name of legacyV1SubagentToolNames) delete tools[name];
   return tools;
+}
+
+/**
+ * Sub-agent profiles replaced the Explore and sub-agent tool settings; documents
+ * written before them may still carry those keys, which are dropped.
+ */
+function stripRemovedKeys(document: Record<string, unknown>) {
+  const next = { ...document };
+  const strip = (key: string, names: readonly string[]) => {
+    const value = next[key];
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    const copy = { ...(value as Record<string, unknown>) };
+    for (const name of names) delete copy[name];
+    next[key] = copy;
+  };
+  strip("toolSettings", ["explore", "subagents"]);
+  strip("tools", ["explore"]);
+  return next;
 }
 
 /** Version 1 stored tool overrides as booleans; version 2 stores sparse objects. */
 function migrateCapabilityDocument(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const document = value as Record<string, unknown>;
-  if (document.schemaVersion !== 1) return value;
+  const document = stripRemovedKeys(value as Record<string, unknown>);
+  if (document.schemaVersion !== 1) return document;
   const tools = migrateSubagentOverrides(document.tools ?? {});
   if (!tools || typeof tools !== "object" || Array.isArray(tools))
     return { ...document, schemaVersion: 2, tools };

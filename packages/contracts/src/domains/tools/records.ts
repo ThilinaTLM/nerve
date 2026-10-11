@@ -26,7 +26,6 @@ export const toolGroupNameSchema = z.enum([
   "input",
   "todos",
   "process",
-  "explore",
   "planMode",
 ]);
 export type ToolGroupName = z.infer<typeof toolGroupNameSchema>;
