@@ -63,6 +63,19 @@ import {
   projectView,
 } from "$lib/features/conversations/adapters/core-context.adapter";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
+import AgentsPill from "$lib/features/conversations/agents/AgentsPill.svelte";
+import {
+  pendingWork as derivePendingWork,
+  runningCommands,
+  subagentProfileLabel,
+} from "$lib/features/conversations/agents/agent-team";
+import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
+import ConversationSettingsSection from "$lib/features/conversations/context/ConversationSettingsSection.svelte";
+import { ConversationHarnessState } from "$lib/features/conversations/context/conversation-harness-state.svelte";
+import { sessionFields } from "$lib/features/conversations/views/context-session-fields";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
+import type { AsyncBash } from "@nervekit/contracts/core";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import { openLaunchTab } from "$lib/features/launches";
 import {
@@ -88,15 +101,42 @@ const activePendingConversation = $derived(
   pendingId ? pendingConversations.get(pendingId) : undefined,
 );
 const pendingConversationActive = $derived(!!activePendingConversation);
-let store = $state<ConversationStore>();
+/** The tab's conversation (the lead of its sub-agents). */
+let leadStore = $state<ConversationStore>();
+/** A sub-agent shown in place of the lead's transcript, if any. */
+let viewedChildId = $state<string>();
+let childStore = $state<ConversationStore>();
+let releaseChild: (() => void) | undefined;
+let agentsOpen = $state(false);
+/** Everything below acts on the conversation being viewed. */
+const store = $derived(viewedChildId ? childStore : leadStore);
 let tree = $state<EventTreeNode[]>([]);
 let composerText = $state("");
 let stopping = $state(false);
 let compacting = $state(false);
 let editTarget = $state<ConversationEntry>();
+/** Shows a sub-agent in the main view; the lead id (or none) returns. */
+function viewAgent(id: string | undefined) {
+  releaseChild?.();
+  releaseChild = undefined;
+  childStore = undefined;
+  viewedChildId = undefined;
+  agentsOpen = false;
+  if (!id || id === conversationId) return;
+  const retained = retainConversationStore(id);
+  releaseChild = retained.release;
+  childStore = retained.store;
+  viewedChildId = id;
+  void retained.ready.catch((e) => notify.error(String(e)));
+}
+$effect(() => () => untrack(() => viewAgent(undefined)));
+$effect(() => {
+  if (viewedChildId && childStore?.deleted) viewAgent(undefined);
+});
 $effect(() => {
   const id = conversationId;
-  store = undefined;
+  leadStore = undefined;
+  untrack(() => viewAgent(undefined));
   tree = [];
   composerText = untrack(() => {
     const draft = composerSignals.createdConversationDraft;
@@ -107,7 +147,7 @@ $effect(() => {
   editTarget = undefined;
   if (!id) return;
   const retained = retainConversationStore(id);
-  store = retained.store;
+  leadStore = retained.store;
   void retained.ready.catch((e) => notify.error(String(e)));
   return retained.release;
 });
@@ -176,11 +216,13 @@ const usableModels = $derived(
 );
 const planReviewModelKey = $derived(selectedModelKey);
 const planReviewThinkingLevel = $derived(selectedThinkingLevel);
+/** Sub-agents run read-only or autonomous; nothing in between. */
+const SUBAGENT_RULE_SETS = new Set(["read_only", "autonomous"]);
 const permissionRuleSets = $derived(
   selectablePermissionRuleSets(
     permissionRuleSetCatalog.summaries(activeProject?.id),
     selectedMode,
-  ),
+  ).filter((rules) => !viewedChildId || SUBAGENT_RULE_SETS.has(rules.id)),
 );
 const permissionRuleSetsLoading = $derived(
   permissionRuleSetCatalog.loading(activeProject?.id),
@@ -280,7 +322,7 @@ async function submitPrompt(
   text = activeComposerText,
   options: { clearComposer?: boolean } = {},
 ) {
-  if (!text.trim()) return;
+  if (!text.trim() || viewedChildId) return;
   const pending = activePendingConversation;
   if (pending) {
     if (pending.sending) return;
@@ -496,7 +538,12 @@ async function editConversationEntry(entry: ConversationEntry) {
 }
 $effect(() => {
   const entry = composerSignals.editEntry;
-  if (active && entry && entry.conversationId === conversationId) {
+  if (
+    active &&
+    entry &&
+    entry.conversationId === conversationId &&
+    !viewedChildId
+  ) {
     composerSignals.editEntry = undefined;
     void editConversationEntry(entry);
   }
@@ -504,6 +551,87 @@ $effect(() => {
 const completeFiles = (q: string) => fileCompletions(activeProject?.id, q);
 const completeReferences = (kind: "launch" | "pull_request", q: string) =>
   referenceCompletions(activeProject?.id, kind, q);
+/** The lead's context drives the agents tree in both lead and sub-agent views. */
+const leadContext = $derived(
+  !viewedChildId
+    ? context
+    : leadStore?.snapshot
+      ? conversationContext(
+          leadStore.snapshot,
+          leadStore.events,
+          settingsState.models,
+        )
+      : undefined,
+);
+const viewedConversationId = $derived(
+  viewedChildId ?? leadStore?.snapshot?.conversation.id,
+);
+const backgroundCommands = $derived(
+  runningCommands(store?.snapshot?.asyncBash),
+);
+const showAgentsPill = $derived(
+  Boolean(viewedConversationId) &&
+    ((leadContext?.conversationAgents.length ?? 0) > 1 ||
+      backgroundCommands.length > 0),
+);
+const pendingWork = $derived(
+  store?.snapshot
+    ? derivePendingWork({
+        children: store.snapshot.children,
+        asyncBash: store.snapshot.asyncBash,
+      })
+    : [],
+);
+function openPendingWork(item: PendingWorkItem) {
+  if (item.kind === "agent") viewAgent(item.id);
+  else agentsOpen = true;
+}
+function commandOutput(command: AsyncBash): string | undefined {
+  return store?.toolOutput[command.toolCallId];
+}
+function stopCommand(command: AsyncBash) {
+  void runActivePaneAction(() => store!.cancelAsyncBash(command.id));
+}
+const harness = new ConversationHarnessState();
+$effect(() =>
+  harness.follow(activeProject?.id, store?.snapshot?.conversation.id),
+);
+$effect(() => harness.observe());
+let compactionDialogOpen = $state(false);
+let instructionsDialogOpen = $state(false);
+const instructions = $derived(store?.snapshot?.config.instructions ?? null);
+const viewedProfile = $derived.by(() => {
+  if (!viewedChildId) return undefined;
+  const agent = leadContext?.conversationAgents.find(
+    (candidate) => candidate.id === viewedChildId,
+  );
+  return agent ? subagentProfileLabel(agent) : undefined;
+});
+function resetCompaction() {
+  void runActivePaneAction(() => harness.saveCompaction(null));
+}
+const composerOverlay = $derived(
+  viewedChildId
+    ? {
+        message: "Sub-agents take prompts only from their lead.",
+        actionLabel: "Back to lead",
+        onAction: () => viewAgent(undefined),
+      }
+    : undefined,
+);
+const session = $derived({
+  fields: sessionFields({
+    status: workspaceState.status,
+    activeProject,
+    activeConversation,
+  }),
+  onCopy: (text: string, label: string) => {
+    void writeClipboardText(text).then(
+      () => notify.success(`Copied ${label}`),
+      () => notify.error("Could not copy to clipboard"),
+    );
+  },
+});
 const teamRunning = $derived(
   store?.snapshot?.children.some((c) => c.status === "running") ?? false,
 );
@@ -511,6 +639,21 @@ const teamRunning = $derived(
 
 <WorkbenchConversationAdapter
   {active}
+  reserveTopInset={showAgentsPill}
+  {pendingWork}
+  onOpenPendingWork={openPendingWork}
+  subagents={{
+    list: () =>
+      (leadStore?.snapshot?.children ?? []).map((child) => ({
+        id: child.id,
+        name: child.title,
+        status: child.status,
+      })),
+    open: (id) => viewAgent(id),
+  }}
+  editorOverlay={composerOverlay}
+  modeHidden={Boolean(viewedChildId)}
+  {session}
   {activeProject}
   {activeConversation}
   {activeAgent}
@@ -533,7 +676,7 @@ const teamRunning = $derived(
   {teamRunning}
   stopping={view?.stopping ?? false}
   composerText={activeComposerText}
-  {composerSuggestions}
+  composerSuggestions={viewedChildId ? [] : composerSuggestions}
   onSendSuggestion={sendSuggestion}
   onDraftSuggestion={applySuggestion}
   models={usableModels}
@@ -614,6 +757,44 @@ const teamRunning = $derived(
   }}
   onOpenHistory={() => {
     void runActivePaneAction(openConversationHistory);
+  }}
+>
+  {#snippet thisConversation()}
+    <ConversationSettingsSection
+      harness={harness.result}
+      {instructions}
+      profile={viewedProfile}
+      disabled={!store?.snapshot || harness.saving}
+      onOverrideCompaction={() => (compactionDialogOpen = true)}
+      onResetCompaction={resetCompaction}
+      onEditInstructions={() => (instructionsDialogOpen = true)}
+    />
+  {/snippet}
+  {#snippet floating()}
+    {#if showAgentsPill && viewedConversationId}
+      <AgentsPill
+        bind:open={agentsOpen}
+        agents={leadContext?.conversationAgents ?? []}
+        activities={leadContext?.agentActivities ?? {}}
+        leadTitle={leadStore?.snapshot?.conversation.title ?? "Lead"}
+        viewedId={viewedConversationId}
+        commands={backgroundCommands}
+        {commandOutput}
+        onSelectAgent={(id) => viewAgent(id)}
+        onStopCommand={stopCommand}
+      />
+    {/if}
+  {/snippet}
+</WorkbenchConversationAdapter>
+
+<ConversationSettingsDialogs
+  bind:compactionOpen={compactionDialogOpen}
+  bind:instructionsOpen={instructionsDialogOpen}
+  compaction={harness.result?.compaction.effective}
+  {instructions}
+  onSaveCompaction={(value) => harness.saveCompaction(value)}
+  onSaveInstructions={async (value) => {
+    await store?.configure({ instructions: value });
   }}
 />
 

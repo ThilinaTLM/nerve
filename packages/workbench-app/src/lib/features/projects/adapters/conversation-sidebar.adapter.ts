@@ -39,6 +39,8 @@ export function sidebarAgents(rows: ConversationRecord[]): AgentRecord[] {
 }
 export function sidebarActivity(
   rows: ConversationRecord[],
+  /** Conversations whose turn ended while sub-agents or commands still run. */
+  waiting: ReadonlySet<string> = new Set(),
 ): Record<string, ConversationActivityState> {
   return Object.fromEntries(
     rows.map((row) => {
@@ -78,6 +80,13 @@ export function sidebarActivity(
         };
       else if (status === "interrupted")
         activity = { ...activity, indicator: "aborted", label: "Stopped" };
+      else if (waiting.has(row.id))
+        activity = {
+          ...activity,
+          indicator: "awaiting-async",
+          tone: "warning",
+          label: "Waiting for sub-agents or background commands",
+        };
       else if (row.completedAt)
         activity = { ...activity, indicator: "completed", label: "Completed" };
       return [row.id, activity];

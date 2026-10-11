@@ -35,7 +35,7 @@ export function inheritedProfileLabel(
 
 /** Conversation patch for a model-only tool; an unset model is omitted. */
 export function modelToolSettingsPatch(
-  tool: "explore" | "explain_image",
+  tool: "explain_image",
   selection: { model?: ModelSelection; thinkingLevel: ThinkingLevel },
 ): CapabilityPatch {
   return {

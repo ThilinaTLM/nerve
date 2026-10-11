@@ -311,7 +311,7 @@ $effect(() => {
         triggerClass="block select-text"
       >
         <div class="relative min-w-0 px-3">
-          <SystemEventNoticeCard notice={node.notice} />
+          <SystemEventNoticeCard notice={node.notice} {onOpenFile} />
         </div>
       </TranscriptContextMenu>
     {:else if node.kind === "thinking_group" && thinkingMenuTarget}

@@ -16,16 +16,16 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     summary:
       "Async Subagents let the lead assign autonomous implementation work while it continues with its own tasks.",
     details: [
-      "Enable Async Subagents in Settings → Tools → Core, or for the current conversation from Tools and skills beside the composer.",
-      "Named teammates share the project worktree, retain their own context for follow-up assignments, and appear in the Context panel.",
+      "Enable sub-agents in Settings → Sub-agents, or for the current conversation from Tools and skills beside the composer.",
+      "Named teammates share the project worktree, retain their own context for follow-up assignments, and appear in the Agents pill.",
       "Teammates do not automatically receive the lead transcript, so assignments should include relevant findings, paths, and constraints.",
       "Up to four teammate assignments can run at once. Completion is delivered durably and can wake the lead.",
     ],
     action: {
       kind: "settings",
-      pageId: "tools",
-      sectionId: "core",
-      label: "Configure Async Subagents",
+      pageId: "subagents",
+      sectionId: "profiles",
+      label: "Configure Sub-agents",
     },
   },
   {

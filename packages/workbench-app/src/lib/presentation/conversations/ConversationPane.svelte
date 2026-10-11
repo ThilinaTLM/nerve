@@ -20,13 +20,19 @@ let {
   menus,
   composer: composerExtension,
   emptyExtension,
+  floating,
 }: {
   model: ConversationPaneModel;
   actions: ConversationPaneActions;
   menus: ConversationMenuBuilders;
   composer?: Snippet;
   emptyExtension?: Snippet;
+  /** Floats over the transcript's top right (e.g. the agents pill). */
+  floating?: Snippet;
 } = $props();
+
+/** Transcript top padding that keeps the first line clear of the pill. */
+const TOP_INSET_PX = 48;
 
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(
@@ -81,7 +87,12 @@ const scroll = createConversationScrollController({
     />
   {/snippet}
   {#snippet transcript()}
-    <div class="flex h-full min-h-0 flex-col">
+    <div class="relative flex h-full min-h-0 flex-col">
+      {#if floating}
+        <div class="pointer-events-none absolute top-2 right-4 z-10 flex">
+          <div class="pointer-events-auto">{@render floating()}</div>
+        </div>
+      {/if}
       {#if model.banner}
         <ConversationBanner {...model.banner} />
       {/if}
@@ -89,6 +100,7 @@ const scroll = createConversationScrollController({
         <TranscriptList
           bind:controller={scroll.controller}
           bind:atEnd={scroll.atEnd}
+          paddingStart={model.reserveTopInset ? TOP_INSET_PX : 12}
           paddingEnd={18}
           heightCacheKey={model.transcriptHeightCacheKey ??
             model.conversationId}
@@ -125,6 +137,7 @@ const scroll = createConversationScrollController({
           onForcePushQueuedPrompts={actions.onForcePushQueuedPrompts}
           onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
           onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
+          onOpenPendingWork={actions.onOpenPendingWork}
           transcriptMenu={menus.transcriptMenu}
         />
       </div>

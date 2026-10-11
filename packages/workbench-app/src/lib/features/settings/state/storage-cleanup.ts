@@ -10,7 +10,6 @@ export interface StorageCleanupSelection {
   datedLogs: boolean;
   logsDays: number;
   rotatedEventLog: boolean;
-  exploreReports: boolean;
   crashReports: boolean;
   cache: boolean;
   tmp: boolean;
@@ -22,7 +21,6 @@ export const EMPTY_CLEANUP_SELECTION: StorageCleanupSelection = {
   datedLogs: false,
   logsDays: 14,
   rotatedEventLog: false,
-  exploreReports: false,
   crashReports: false,
   cache: false,
   tmp: false,
@@ -33,7 +31,6 @@ export function recommendedCleanupSelection(): StorageCleanupSelection {
     ...EMPTY_CLEANUP_SELECTION,
     datedLogs: true,
     rotatedEventLog: true,
-    exploreReports: true,
     crashReports: true,
     cache: true,
     tmp: true,
@@ -49,7 +46,6 @@ export function allCleanupSelection(
     datedLogs: true,
     logsDays: validDays(current.logsDays) ?? 14,
     rotatedEventLog: true,
-    exploreReports: true,
     crashReports: true,
     cache: true,
     tmp: true,
@@ -85,7 +81,6 @@ export function buildCleanupRequest(
   if (selection.datedLogs)
     request.logsOlderThanDays = validDays(selection.logsDays);
   if (selection.rotatedEventLog) request.truncateEventLog = true;
-  if (selection.exploreReports) request.clearExploreReports = true;
   if (selection.crashReports) request.clearCrashReports = true;
   if (selection.cache) request.clearCache = true;
   if (selection.tmp) request.clearTmp = true;
@@ -99,7 +94,6 @@ export function selectedTargets(
   if (selection.conversations) targets.push("conversations");
   if (selection.datedLogs) targets.push("datedLogs");
   if (selection.rotatedEventLog) targets.push("rotatedEventLog");
-  if (selection.exploreReports) targets.push("exploreReports");
   if (selection.crashReports) targets.push("crashReports");
   if (selection.cache) targets.push("cache");
   if (selection.tmp) targets.push("tmp");
@@ -127,7 +121,6 @@ export function targetLabel(target: StorageCleanupTarget): string {
       conversations: "Old conversations",
       datedLogs: "Dated logs",
       rotatedEventLog: "Rotated event log",
-      exploreReports: "Explore reports",
       crashReports: "Crash reports",
       cache: "Cache",
       tmp: "Temporary files",

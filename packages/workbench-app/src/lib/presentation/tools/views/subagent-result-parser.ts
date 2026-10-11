@@ -1,232 +1,187 @@
-import { subagentTeammatePreviewSchema } from "@nervekit/contracts/tools";
-import { type AsyncSubagentToolName } from "@nervekit/contracts/tools";
-import {
-  subagentListToolResultPreviewSchema,
-  subagentPromptToolResultPreviewSchema,
-  subagentStatusToolResultPreviewSchema,
-  subagentTeammateToolResultPreviewSchema,
-} from "@nervekit/contracts/tools";
-import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import type {
-  SubagentTeammateView,
-  SubagentToolAction,
-  ToolView,
+  SubagentAssignmentView,
+  SubagentStatusRow,
+  SubagentStopLine,
 } from "./tool-view-types";
 
-type SubagentView = Extract<ToolView, { kind: "subagent" }>;
-type ParsedResult = Omit<SubagentView, "kind" | "action" | "hidden">;
+/*
+ * Sub-agent tool results are plain text (see agent-interface.md). These
+ * parsers read the documented line formats and never throw; a line that does
+ * not match is simply left out, so the card falls back to the raw text.
+ */
 
-const ACTIONS: Record<AsyncSubagentToolName, SubagentToolAction> = {
-  subagent_new: "new",
-  subagent_prompt: "prompt",
-  subagent_list: "list",
-  subagent_status: "status",
-  subagent_stop: "stop",
+const FIELD_SEPARATOR = " · ";
+
+function lines(text: string | undefined): string[] {
+  return (text ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+export type PromptResultLine = {
+  name: string;
+  profile: string;
+  disposition: "created" | "follow_up";
+  /** State in parentheses after "follow-up queued". */
+  queuedState?: string;
 };
 
-function record(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function hiddenFromOverflow(
-  toolCall: ToolCallDisplayRecord,
-): SubagentView["hidden"] {
-  const overflow =
-    "previewOverflow" in toolCall ? toolCall.previewOverflow : undefined;
-  if (!overflow || overflow.hidden <= 0) return undefined;
-  const noun = overflow.noun;
-  if (noun !== "lines" && noun !== "characters" && noun !== "teammates")
-    return undefined;
-  return { count: overflow.hidden, noun };
-}
-
-/** Compact transcript preview published by the server. */
-function fromPreview(
-  toolName: AsyncSubagentToolName,
-  raw: unknown,
-): ParsedResult | undefined {
-  switch (toolName) {
-    case "subagent_new":
-    case "subagent_stop": {
-      const parsed = subagentTeammateToolResultPreviewSchema.safeParse(raw);
-      return parsed.success
-        ? {
-            teammates: [parsed.data.teammate],
-            hasMore: false,
-            previewUnavailable: false,
-          }
-        : undefined;
-    }
-    case "subagent_status": {
-      const parsed = subagentStatusToolResultPreviewSchema.safeParse(raw);
-      return parsed.success
-        ? {
-            teammates: [parsed.data.teammate],
-            response: parsed.data.response,
-            hasMore: false,
-            previewUnavailable: false,
-          }
-        : undefined;
-    }
-    case "subagent_prompt": {
-      const parsed = subagentPromptToolResultPreviewSchema.safeParse(raw);
-      return parsed.success
-        ? {
-            teammates: [parsed.data.teammate],
-            runId: parsed.data.runId,
-            hasMore: false,
-            previewUnavailable: false,
-          }
-        : undefined;
-    }
-    case "subagent_list": {
-      const parsed = subagentListToolResultPreviewSchema.safeParse(raw);
-      return parsed.success
-        ? {
-            teammates: parsed.data.teammates,
-            hasMore: parsed.data.more,
-            previewUnavailable: false,
-          }
-        : undefined;
-    }
+/** `name (profile): created` or `name (profile): follow-up queued (running)`. */
+export function parsePromptResult(
+  text: string | undefined,
+): PromptResultLine[] {
+  const parsed: PromptResultLine[] = [];
+  for (const line of lines(text)) {
+    const match = /^(.+?) \(([^()]+)\): (.+)$/.exec(line);
+    if (!match) continue;
+    const [, name, profile, outcome] = match;
+    if (outcome === "created")
+      parsed.push({ name, profile, disposition: "created" });
+    else if (outcome.startsWith("follow-up"))
+      parsed.push({
+        name,
+        profile,
+        disposition: "follow_up",
+        queuedState: /\(([^()]+)\)\s*$/.exec(outcome)?.[1],
+      });
   }
+  return parsed;
 }
 
-function fullTeammate(value: unknown): SubagentTeammateView | undefined {
-  const parsed = subagentTeammatePreviewSchema.safeParse(value);
-  if (!parsed.success) return undefined;
-  const agentId = record(value)?.agentId;
-  return {
-    agentId: typeof agentId === "string" ? agentId : undefined,
-    name: parsed.data.name,
-    state: parsed.data.state,
-    outcome: parsed.data.outcome,
-    runId: parsed.data.runId,
-  };
-}
-
-/** Complete durable result (`{ details, content }`), e.g. in the details dialog. */
-function fromFullResult(
-  toolName: AsyncSubagentToolName,
-  raw: unknown,
-): ParsedResult | undefined {
-  const details = record(record(raw)?.details);
-  if (!details) return undefined;
-  if (toolName === "subagent_list") {
-    if (!Array.isArray(details.subagents)) return undefined;
-    const teammates = details.subagents.map(fullTeammate);
-    if (teammates.some((teammate) => !teammate)) return undefined;
-    return {
-      teammates: teammates as SubagentTeammateView[],
-      hasMore: typeof details.nextCursor === "string",
-      previewUnavailable: false,
-    };
-  }
-  if (toolName === "subagent_prompt") {
-    if (typeof details.name !== "string" || typeof details.runId !== "string")
-      return undefined;
-    return {
-      teammates: [
-        {
-          agentId:
-            typeof details.agentId === "string" ? details.agentId : undefined,
-          name: details.name,
-          state: "running",
-          runId: details.runId,
-        },
-      ],
-      runId: details.runId,
-      hasMore: false,
-      previewUnavailable: false,
-    };
-  }
-  const teammate = fullTeammate(details);
-  if (!teammate) return undefined;
-  const response =
-    toolName === "subagent_status"
-      ? subagentStatusToolResultPreviewSchema.safeParse({
-          teammate,
-          response: details.response,
-        }).data?.response
-      : undefined;
-  return {
-    teammates: [teammate],
-    response: response
-      ? {
-          text: response.text,
-          complete: response.complete,
-          runId: response.runId,
-        }
-      : undefined,
-    hasMore: false,
-    previewUnavailable: false,
-  };
-}
-
-export function parseSubagentResult(
-  toolCall: ToolCallDisplayRecord,
-  toolName: AsyncSubagentToolName,
+/** Assignments from the call arguments, enriched by the result lines. */
+export function subagentAssignments(
   args: Record<string, unknown>,
-  rawResult: unknown,
-): SubagentView {
-  const action = ACTIONS[toolName];
-  const parsed =
-    rawResult === undefined
-      ? undefined
-      : (fromPreview(toolName, rawResult) ??
-        fromFullResult(toolName, rawResult));
-  if (parsed) {
-    return {
-      kind: "subagent",
-      action,
-      ...parsed,
-      hidden: hiddenFromOverflow(toolCall),
-    };
+  result: string | undefined,
+): SubagentAssignmentView[] {
+  const results = new Map(
+    parsePromptResult(result).map((line) => [line.name.toLowerCase(), line]),
+  );
+  const raw = Array.isArray(args.assignments) ? args.assignments : [];
+  const assignments: SubagentAssignmentView[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    if (typeof record.name !== "string" || !record.name) continue;
+    const line = results.get(record.name.toLowerCase());
+    assignments.push({
+      name: record.name,
+      profile:
+        typeof record.profile === "string" && record.profile
+          ? record.profile
+          : line?.profile,
+      prompt: typeof record.prompt === "string" ? record.prompt : "",
+      disposition: line?.disposition,
+      queuedState: line?.queuedState,
+    });
   }
-  const name = typeof args.name === "string" ? args.name : undefined;
+  return assignments;
+}
+
+/**
+ * `name · profile · state · ctx 34% · active 20s ago`. The state may carry a
+ * reason (`waiting: 1 background command`).
+ */
+export function parseStatusListing(
+  text: string | undefined,
+): SubagentStatusRow[] {
+  const rows: SubagentStatusRow[] = [];
+  for (const line of lines(text)) {
+    const fields = line.split(FIELD_SEPARATOR).map((field) => field.trim());
+    if (fields.length < 3) continue;
+    const [name, profile, state, ...rest] = fields;
+    const context = rest.find((field) => /^ctx\b/.test(field));
+    const activity = rest.filter((field) => field !== context).join(" · ");
+    rows.push({
+      name,
+      profile,
+      state,
+      context: context?.replace(/^ctx\s*/, ""),
+      activity: activity || undefined,
+    });
+  }
+  return rows;
+}
+
+/** A single sub-agent's answer: a header line, then the response or activity. */
+export function parseStatusDetail(text: string | undefined): {
+  header?: string;
+  body?: string;
+} {
+  const trimmed = (text ?? "").trim();
+  if (!trimmed) return {};
+  const newline = trimmed.indexOf("\n");
+  if (newline < 0) return { header: trimmed };
   return {
-    kind: "subagent",
-    action,
-    teammates: name ? [{ name }] : [],
-    hasMore: false,
-    // A settled call without a readable preview (metadata-only or legacy).
-    previewUnavailable: toolCall.status === "completed",
+    header: trimmed.slice(0, newline).trim(),
+    body: trimmed.slice(newline + 1).trim() || undefined,
   };
 }
 
-/** Status tone of a teammate row: live states first, then the last outcome. */
-export function teammateTone(teammate: SubagentTeammateView): StatusTone {
-  if (teammate.state === "running") return "info";
-  if (teammate.state === "stopping") return "warning";
-  switch (teammate.outcome) {
-    case "completed":
-      return "success";
-    case "failed":
-      return "destructive";
-    case "cancelled":
-    case "interrupted":
-      return "warning";
-    default:
-      return "neutral";
+/** `name: stopped` style lines, one per stopped sub-agent. */
+export function parseStopResult(text: string | undefined): SubagentStopLine[] {
+  const parsed: SubagentStopLine[] = [];
+  for (const line of lines(text)) {
+    const match = /^(.+?): (.+)$/.exec(line);
+    if (match) parsed.push({ name: match[1], outcome: match[2] });
   }
+  return parsed;
 }
 
-export function teammatePulse(teammate: SubagentTeammateView): boolean {
-  return teammate.state === "running" || teammate.state === "stopping";
-}
+export type SubagentNotice = {
+  name: string;
+  profile?: string;
+  outcome: "completed" | "failed" | "interrupted" | "stopped" | "waiting";
+  /** Failure message, or the waiting reason lines. */
+  detail?: string;
+  /** The sub-agent's response, without the truncation marker. */
+  response: string;
+  /** Path of the full response when the notice truncated it. */
+  reportPath?: string;
+};
 
-/** Short state label shown on the row badge. */
-export function teammateStateLabel(teammate: SubagentTeammateView): string {
-  if (!teammate.state) return "pending";
-  if (teammate.state !== "idle") return teammate.state;
-  return teammate.outcome ?? "idle";
-}
+const TRUNCATION = /\n?\[truncated; full response: ([^\]\n]+)\]\s*$/;
 
-export function outcomeTone(
-  outcome: SubagentTeammateView["outcome"],
-): StatusTone {
-  return teammateTone({ name: "", state: "idle", outcome });
+/**
+ * The completion notice sent to the lead:
+ * `Sub-agent "name" (profile) completed.` and variants, then the response.
+ */
+export function parseSubagentNotice(
+  text: string | undefined,
+): SubagentNotice | undefined {
+  const source = (text ?? "").trim();
+  const head = /^Sub-agent "(.+?)"(?: \(([^()]+)\))? (.*)$/m.exec(source);
+  if (!head || head.index !== 0) return undefined;
+  const [firstLine, name, profile, rest] = head;
+  let outcome: SubagentNotice["outcome"];
+  let detail: string | undefined;
+  let afterFirst = source.slice(firstLine.length).replace(/^\n/, "");
+  if (rest === "completed.") outcome = "completed";
+  else if (rest === "interrupted.") outcome = "interrupted";
+  else if (rest === "was stopped by the user.") outcome = "stopped";
+  else if (rest.startsWith("failed:")) {
+    outcome = "failed";
+    detail = rest.slice("failed:".length).trim() || undefined;
+  } else if (rest.startsWith("is waiting on ")) {
+    outcome = "waiting";
+    // One line per background command follows the first line.
+    const commands: string[] = [];
+    const remaining = afterFirst.split("\n");
+    while (remaining.length && /^"[^\n]*" \S/.test(remaining[0]))
+      commands.push(remaining.shift()!);
+    detail = commands.join("\n") || undefined;
+    afterFirst = remaining.join("\n");
+  } else return undefined;
+  const truncated = TRUNCATION.exec(afterFirst);
+  const response = (
+    truncated ? afterFirst.slice(0, truncated.index) : afterFirst
+  ).trim();
+  return {
+    name,
+    profile,
+    outcome,
+    detail,
+    response,
+    reportPath: truncated?.[1].trim(),
+  };
 }

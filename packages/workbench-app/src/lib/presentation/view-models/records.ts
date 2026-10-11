@@ -33,7 +33,8 @@ export type AgentRecord = {
   createdAt: string;
   updatedAt: string;
   parentAgentId?: string | undefined;
-  executionKind?: "explore" | "root" | "async_developer" | undefined;
+  /** Profile a sub-agent was created from; absent for the lead. */
+  subagentProfile?: string | undefined;
   name?: string | undefined;
   permissionRuleSetId?: string | undefined;
   systemPrompt?: string | undefined;

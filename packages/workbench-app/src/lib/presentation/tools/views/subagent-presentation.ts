@@ -1,58 +1,42 @@
 import type { MetaItem } from "../../cards/card-presentation";
-import { outcomeTone } from "./subagent-result-parser";
 import { plural } from "./tool-presentation-helpers";
-import type {
-  DetailsActionInfo,
-  ToolPresentation,
-} from "./tool-presentation-types";
-import type { ToolCallDisplayRecord } from "./tool-result-parser";
+import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolView } from "./tool-view-types";
 
-/** Header, footer chips and details action of async teammate tool cards. */
+/** Header and footer chips of the sub-agent tool cards. */
 export function subagentPresentation(
   view: Extract<ToolView, { kind: "subagent" }>,
-  toolCall: ToolCallDisplayRecord,
   base: ToolPresentation,
-  previewDetailsAction: DetailsActionInfo | undefined,
 ): ToolPresentation {
   const meta: MetaItem[] = [];
-  const teammate = view.teammates[0];
-  if (view.action === "list") {
-    const running = view.teammates.filter(
-      (candidate) => candidate.state === "running",
-    ).length;
-    if (running > 0) meta.push({ text: `${running} running`, tone: "info" });
-    if (view.hasMore) meta.push({ text: "more available" });
+  let primaryArg = base.primaryArg;
+  switch (view.action) {
+    case "prompt": {
+      const created = view.assignments.filter(
+        (item) => item.disposition === "created",
+      ).length;
+      const followUps = view.assignments.filter(
+        (item) => item.disposition === "follow_up",
+      ).length;
+      primaryArg ??=
+        view.assignments.length === 1
+          ? { text: view.assignments[0].name }
+          : view.assignments.length > 1
+            ? { text: plural(view.assignments.length, "sub-agent") }
+            : undefined;
+      if (created > 0) meta.push({ text: `${created} created` });
+      if (followUps > 0) meta.push({ text: `${followUps} follow-up` });
+      break;
+    }
+    case "status":
+      primaryArg ??= { text: view.name ?? "all sub-agents" };
+      if (!view.name && view.rows.length > 0)
+        meta.push({ text: plural(view.rows.length, "sub-agent") });
+      break;
+    case "stop":
+      primaryArg ??=
+        view.names.length > 0 ? { text: view.names.join(", ") } : undefined;
+      break;
   }
-  if (
-    view.action === "status" &&
-    teammate?.state === "idle" &&
-    teammate.outcome
-  )
-    meta.push({
-      text: teammate.outcome,
-      tone: outcomeTone(teammate.outcome),
-    });
-  if (view.response && !view.response.complete)
-    meta.push({ text: "partial response", tone: "warning" });
-  if (view.hidden)
-    meta.push({
-      text: `${view.hidden.count.toLocaleString()} more ${view.hidden.noun}`,
-    });
-  const listCount =
-    view.teammates.length +
-    (view.hidden?.noun === "teammates" ? view.hidden.count : 0);
-  return {
-    ...base,
-    primaryArg:
-      view.action === "list"
-        ? toolCall.status === "completed" && !view.previewUnavailable
-          ? {
-              text: `${plural(listCount, "teammate")}${view.hasMore && !view.hidden ? "+" : ""}`,
-            }
-          : undefined
-        : (base.primaryArg ?? (teammate ? { text: teammate.name } : undefined)),
-    meta,
-    detailsAction: previewDetailsAction,
-  };
+  return { ...base, primaryArg, meta };
 }

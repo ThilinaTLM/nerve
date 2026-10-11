@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "@nervekit/contracts/tools";
+import { subagentToolNames } from "@nervekit/contracts/tools";
 import type { Settings } from "$lib/api";
 
 export type ConfigurableToolName = Settings["tools"]["disabled"][number];
@@ -12,8 +12,6 @@ export type ToolGroupId =
   | "file-editing"
   | "plan-mode"
   | "todos"
-  | "explore"
-  | "subagents"
   | "web"
   | "vision"
   | "image-generation"
@@ -33,8 +31,7 @@ export type ToolGroupDef = {
 };
 
 export const configurableToolOrder: ConfigurableToolName[] = [
-  ...asyncSubagentToolNames,
-  "explore",
+  ...subagentToolNames,
   "web_search",
   "web_fetch",
   "explain_image",
@@ -171,49 +168,6 @@ export const toolGroups: ToolGroupDef[] = [
       {
         name: "plan_mode_force_exit",
         description: "Exit plan mode after approval or cancellation.",
-      },
-    ],
-  },
-  {
-    id: "explore",
-    category: "core",
-    label: "Explore",
-    description:
-      "Delegate focused, read-only codebase research to child agents.",
-    configurableTools: ["explore"],
-    tools: [
-      {
-        name: "explore",
-        description:
-          "Launch one or more read-only agents to investigate independent tasks.",
-      },
-    ],
-  },
-  {
-    id: "subagents",
-    category: "core",
-    label: "Async Subagents",
-    description:
-      "Persistent autonomous teammates share your working directory. The lead coordinates file ownership; a final response completes each assignment. Disabling stops teammate assignments.",
-    configurableTools: [...asyncSubagentToolNames],
-    tools: [
-      { name: "subagent_new", description: "Create a persistent teammate." },
-      {
-        name: "subagent_prompt",
-        description:
-          "Assign only an idle teammate; running assignments cannot queue prompts.",
-      },
-      {
-        name: "subagent_list",
-        description: "List teammates and lifecycle states.",
-      },
-      {
-        name: "subagent_status",
-        description: "Retrieve an idle teammate’s last response.",
-      },
-      {
-        name: "subagent_stop",
-        description: "Stop work while retaining conversation history.",
       },
     ],
   },

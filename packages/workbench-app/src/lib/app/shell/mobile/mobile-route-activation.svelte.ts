@@ -42,9 +42,6 @@ function sameIdentity(
 
 function routeIdentity(route: MobileRoute): MobileCenterIdentity | undefined {
   if (route.kind === "center") return route.identity;
-  if (route.kind === "context") {
-    return { kind: "conversation", id: route.conversationId };
-  }
   return undefined;
 }
 

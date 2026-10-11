@@ -36,7 +36,7 @@ describe("tool lifecycle registry", () => {
       "todos_set",
       "ask_user",
       "plan_mode_present",
-      "explore",
+      "subagent_prompt",
       "jira_create_issue",
       "confluence_update_page",
     ] as const) {
@@ -72,57 +72,48 @@ describe("tool lifecycle registry", () => {
     }
   });
 
-  it("keeps subagent assignments visible through completion with the appropriate prompt format", () => {
-    const spec = toolLifecycleRegistry.subagent_prompt;
-    assert.equal(spec.argumentRegion, "persistent");
-    assert.equal(spec.resultPlaceholder, undefined);
-
-    const multiline = "Implement the change.\nRun focused tests.";
-    const long = "x".repeat(501);
-    for (const stage of [
-      "drafting",
-      "approval",
-      "executing",
-      "failed",
-      "completed",
-    ] as const) {
-      for (const prompt of [multiline, long]) {
-        const presentation = presentToolArguments(
-          "subagent_prompt",
-          { args: { name: "worker", prompt } },
-          stage,
-        );
-        assert.equal(presentation.primaryArg?.text, "worker");
-        assert.deepEqual(presentation.body, {
-          kind: "code",
-          text: prompt,
-          language: "text",
-          label: "Assignment",
-          tail: true,
-        });
-      }
-    }
-
-    const short = presentToolArguments(
-      "subagent_prompt",
-      { args: { name: "worker", prompt: "Fix the test" } },
-      "completed",
+  it("lists sub-agent assignments by name until the result view takes over", () => {
+    assert.equal(
+      toolLifecycleRegistry.subagent_prompt.argumentRegion,
+      "until-result",
     );
-    assert.deepEqual(short.body, {
-      kind: "code",
-      text: "Fix the test",
-      language: "text",
-      label: "Assignment",
-      tail: true,
+    const batch = presentToolArguments(
+      "subagent_prompt",
+      {
+        args: {
+          context: "shared",
+          assignments: [
+            { name: "auth", profile: "explore", prompt: "Look" },
+            { name: "fix", prompt: "Fix it" },
+          ],
+        },
+      },
+      "executing",
+    );
+    assert.equal(batch.primaryArg?.text, "2 sub-agents");
+    assert.deepEqual(batch.body, {
+      kind: "text-summary",
+      text: "auth (explore)\nfix",
     });
+    const single = presentToolArguments(
+      "subagent_prompt",
+      { args: { assignments: [{ name: "auth", prompt: "Look" }] } },
+      "drafting",
+    );
+    assert.equal(single.primaryArg?.text, "auth");
     assert.equal(
       presentToolArguments(
-        "subagent_prompt",
-        { args: { name: "worker" } },
-        "drafting",
-      ).body.kind,
-      "none",
+        "subagent_stop",
+        { args: { names: ["a", "b"] } },
+        "completed",
+      ).primaryArg?.text,
+      "a, b",
     );
+  });
+
+  it("treats the removed explore and teammate tools as unknown recorded tools", () => {
+    for (const name of ["explore", "subagent_new", "subagent_list"])
+      assert.equal(toolLifecycleSpec(name), unknownToolLifecycleSpec);
   });
 
   it("hides failed file mutation previews but keeps executable input context", () => {

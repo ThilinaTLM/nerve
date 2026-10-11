@@ -13,7 +13,6 @@ import type { MetaItem } from "../../cards/card-presentation";
 import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import {
-  aggregateExploreTasks,
   ATLASSIAN_COLLAPSED_ITEMS,
   COLLAPSED_LINES,
   type ToolView,
@@ -697,33 +696,7 @@ export function toolPresentation(
       };
 
     case "subagent":
-      return subagentPresentation(view, toolCall, base, previewDetailsAction);
-
-    case "explore": {
-      const { summary } = aggregateExploreTasks(view);
-      const meta: MetaItem[] = [];
-      if (summary.totalTurns > 0) {
-        meta.push({
-          text: `${summary.totalTurns.toLocaleString()} ${summary.totalTurns === 1 ? "turn" : "turns"}`,
-        });
-      }
-      if (summary.totalTokens > 0) {
-        meta.push({ text: `${summary.totalTokens.toLocaleString()} tokens` });
-      }
-      if (summary.failed > 0)
-        meta.push({ text: `${summary.failed} failed`, tone: "destructive" });
-      if (summary.aborted > 0)
-        meta.push({ text: `${summary.aborted} stopped`, tone: "warning" });
-      const finished = summary.completed + summary.failed + summary.aborted;
-      const countLabel = `${finished}/${summary.total} ${
-        summary.total === 1 ? "agent" : "agents"
-      }`;
-      return {
-        ...base,
-        primaryArg: summary.total > 0 ? { text: countLabel } : undefined,
-        meta,
-      };
-    }
+      return subagentPresentation(view, base);
 
     case "ask_user":
       // The interactive body renders the question prominently, so keep the

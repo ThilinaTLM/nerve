@@ -14,7 +14,6 @@ import {
   type SettingsStat,
 } from "$lib/presentation/settings";
 import {
-  MAX_ACTIVE_EXPLORE_AGENTS,
   MAX_ACTIVE_PROCESSES,
   MAX_CONCURRENT_MODEL_RUNS,
   MAX_PARALLEL_TOOLS_PER_RUN,
@@ -164,12 +163,6 @@ const resourceStats = $derived<SettingsStat[]>(
           label: "Managed processes",
           value: String(
             configuration.context.resources.effective.maxActiveProcesses,
-          ),
-        },
-        {
-          label: "Explore agents",
-          value: String(
-            configuration.context.resources.effective.maxActiveExploreAgents,
           ),
         },
       ]
@@ -378,7 +371,7 @@ const diagnostics = $derived<SettingsStat[]>([
   <SettingsSection
     id="resource-concurrency"
     title="Resource concurrency"
-    info="Nerve automatically chooses separate limits for model runs, tool batches, managed processes, and Explore agents. Manual overrides are intended for exceptional workloads."
+    info="Nerve automatically chooses separate limits for model runs, tool batches, and managed processes. Manual overrides are intended for exceptional workloads."
   >
     <SettingsToggleRow
       label="Automatic resource limits"
@@ -459,28 +452,6 @@ const diagnostics = $derived<SettingsStat[]>([
         onValueChange={(value) =>
           saveNumber(value, 1, (maxActiveProcesses) => ({
             application: { resources: { maxActiveProcesses } },
-          }))}
-      />
-      <SettingsFieldRow
-        id="settings-explore-concurrency"
-        label="Explore agents"
-        type="number"
-        min={1}
-        max={MAX_ACTIVE_EXPLORE_AGENTS}
-        value={String(
-          controlValue(
-            configuration.application.resources.maxActiveExploreAgents,
-          ),
-        )}
-        disabled={automaticResources ||
-          !configuration.application.resources.maxActiveExploreAgents.editable}
-        hint={describe(
-          "Global ceiling for active Explore subagents across conversations.",
-          configuration.application.resources.maxActiveExploreAgents,
-        )}
-        onValueChange={(value) =>
-          saveNumber(value, 1, (maxActiveExploreAgents) => ({
-            application: { resources: { maxActiveExploreAgents } },
           }))}
       />
     </div>

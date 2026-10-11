@@ -1,7 +1,6 @@
 import FolderTree from "@lucide/svelte/icons/folder-tree";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import GitPullRequest from "@lucide/svelte/icons/git-pull-request";
-import Info from "@lucide/svelte/icons/info";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import NotebookPen from "@lucide/svelte/icons/notebook-pen";
 import Terminal from "@lucide/svelte/icons/terminal";
@@ -69,15 +68,6 @@ export const panelViewDescriptors = [
     defaultDock: "right",
     defaultOrder: 1,
     load: () => import("../panels/PullRequestsWorkbenchPanel.svelte"),
-  },
-  {
-    id: "context",
-    propsKind: "none",
-    title: "Context",
-    icon: Info,
-    defaultDock: "right",
-    defaultOrder: 2,
-    load: () => import("../panels/ContextWorkbenchPanel.svelte"),
   },
   {
     id: "launches",

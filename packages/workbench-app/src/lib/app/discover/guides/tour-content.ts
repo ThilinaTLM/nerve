@@ -14,7 +14,6 @@ export type TourStepId =
   | "launches"
   | "files"
   | "scratch-notes"
-  | "context-panel"
   | "providers"
   | "settings"
   | "status"
@@ -153,14 +152,6 @@ export const tourSteps: readonly TourStep[] = [
     description:
       "Scratch Notes keeps lightweight project notes close to the conversation without mixing them into agent history.",
     targetId: "scratch-notes-panel",
-  },
-  {
-    id: "context-panel",
-    introducedIn: 1,
-    title: "Inspect conversation context",
-    description:
-      "The Context panel shows the files and other context attached to the active conversation so you can understand what the agent can use.",
-    targetId: "context-panel",
   },
   {
     id: "providers",

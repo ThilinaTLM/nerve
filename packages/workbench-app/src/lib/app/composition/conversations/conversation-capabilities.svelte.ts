@@ -13,7 +13,6 @@ import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
 } from "$lib/features/audio";
-import { watchSubagentTranscript } from "$lib/features/conversations/adapters/core-subagent.adapter.svelte";
 import {
   getToolCallDetails,
   readToolCallResult,
@@ -35,13 +34,15 @@ import { completeFiles } from "$lib/application/workspace/workspace-actions.svel
  * transcript/tool-call components (full tool-call detail fetching + voice
  * input). Kept in web because it wires app-only services.
  */
-export function workbenchConversationUiCapabilities(): ConversationUiCapabilities {
+export function workbenchConversationUiCapabilities(
+  subagents?: ConversationUiCapabilities["subagents"],
+): ConversationUiCapabilities {
   return {
     canCompactPlanBeforeImplementation: false,
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),
-    watchSubagentTranscript,
+    subagents,
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,

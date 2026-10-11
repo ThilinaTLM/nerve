@@ -1,3 +1,4 @@
+import type { Snippet } from "svelte";
 import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
@@ -17,12 +18,18 @@ import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
+import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
+import type { ComposerEditorOverlay } from "$lib/presentation/conversations/conversation-view-contracts";
 
 export type Mode = AgentRecord["mode"];
 export type ThinkingLevel = NonNullable<AgentRecord["thinkingLevel"]>;
 
 export type PromptComposerProps = {
   text?: string;
+  editorOverlay?: ComposerEditorOverlay;
+  modeHidden?: boolean;
+  session?: ConversationSessionInfo;
+  thisConversation?: Snippet;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activePendingConversation?: PendingConversationState;

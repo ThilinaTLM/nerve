@@ -225,7 +225,6 @@ const tourIdByView: Record<string, string> = {
   notes: "scratch-notes-panel",
   git: "git-workflow",
   "pull-requests": "pull-request-workflow",
-  context: "context-panel",
 };
 </script>
 

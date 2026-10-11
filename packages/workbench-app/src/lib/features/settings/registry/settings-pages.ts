@@ -10,6 +10,7 @@ import Mic from "@lucide/svelte/icons/mic";
 import Server from "@lucide/svelte/icons/server";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import Shield from "@lucide/svelte/icons/shield";
+import Users from "@lucide/svelte/icons/users";
 import Wrench from "@lucide/svelte/icons/wrench";
 import type { SettingsPageDef } from "$lib/presentation/settings";
 
@@ -71,6 +72,14 @@ export const settingsPages: SettingsPageDef[] = [
       { id: "core", label: "Core" },
       { id: "third-party", label: "Third party" },
     ],
+  },
+  {
+    id: "subagents",
+    label: "Sub-agents",
+    icon: Users,
+    description:
+      "Profiles the lead can assign work to. Project profiles replace user and built-in profiles with the same name.",
+    sections: [{ id: "profiles", label: "Profiles" }],
   },
   {
     id: "skills",

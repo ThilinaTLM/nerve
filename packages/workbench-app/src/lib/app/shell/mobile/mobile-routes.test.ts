@@ -231,7 +231,6 @@ describe("mobile navigation persistence", () => {
     let state = pushMobileRoute(initialMobileNavState(), project);
     state = pushMobileRoute(state, conversations);
     state = pushMobileRoute(state, chat);
-    state = pushMobileRoute(state, { kind: "context", conversationId: "c1" });
     state = pushMobileRoute(state, { kind: "settings" }, "activity");
     const kept = pruneMissingRoutes(state, {
       projectIds: new Set(["p1"]),

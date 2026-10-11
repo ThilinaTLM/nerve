@@ -1,3 +1,4 @@
+import type { Snippet } from "svelte";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
@@ -28,6 +29,8 @@ import type {
 
 import type { ConversationActiveRunSnapshot } from "$lib/presentation/view-models/conversation";
 import type { TimelineItem } from "../state/timeline.js";
+import type { ConversationSessionInfo } from "../composer/session-info.js";
+import type { PendingWorkItem } from "../transcript/activity/run-activity.js";
 import type { ConversationRunOutcome } from "../state/conversation-render-state.js";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import type {
@@ -55,8 +58,21 @@ export type ConversationComposerCapabilities = {
   queueing?: boolean;
 };
 
+/** Covers the editor with a message and one way out (e.g. a sub-agent view). */
+export type ComposerEditorOverlay = {
+  message: string;
+  actionLabel: string;
+  onAction: () => void;
+};
+
 export type ConversationComposerModel = {
   text: string;
+  editorOverlay?: ComposerEditorOverlay;
+  /** Hides the mode toggle for conversations without plan mode. */
+  modeHidden?: boolean;
+  session?: ConversationSessionInfo;
+  /** "This conversation" section of the context popover. */
+  thisConversation?: Snippet;
   disabled?: boolean;
   editorDisabled?: boolean;
   submitDisabled?: boolean;
@@ -124,6 +140,8 @@ export type ConversationRunActivityModel = {
   lastRunOutcome?: ConversationRunOutcome;
   /** A local Stop request is in flight or the run is aborting. */
   stopping: boolean;
+  /** Sub-agents and background commands still pending after the turn. */
+  pending?: PendingWorkItem[];
 };
 
 export type ConversationPaneModel = {
@@ -145,6 +163,8 @@ export type ConversationPaneModel = {
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: ThinkingLevel;
+  /** Keeps the transcript clear of a floating control at its top right. */
+  reserveTopInset?: boolean;
   banner?: { tone: "muted" | "warning"; title: string; message?: string };
   emptyTitle?: string;
   emptyMessage?: string;
@@ -206,6 +226,8 @@ export type ConversationPaneActions = {
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
+  /** A "Waiting for" chip was chosen in the activity row. */
+  onOpenPendingWork?: (item: PendingWorkItem) => void;
 };
 
 export type TranscriptMenuTarget =

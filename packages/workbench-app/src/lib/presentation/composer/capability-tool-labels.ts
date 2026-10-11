@@ -13,8 +13,7 @@ export type CapabilityToolGroup = {
  * and runtime policy remain tool-specific.
  */
 const capabilityToolCatalog: CapabilityToolGroup[] = [
-  { key: "explore", label: "Explore", names: ["explore"] },
-  { key: "subagents", label: "Async Subagents", names: ["subagents"] },
+  { key: "subagents", label: "Sub-agents", names: ["subagents"] },
   {
     key: "web",
     label: "Web access",

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { waitingConversationIds } from "$lib/features/conversations";
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import {
@@ -35,7 +36,9 @@ const agents = $derived(sidebarAgents(conversations));
 const openConversationTabIds = $derived(
   workspaceSelectors.openConversationTabIds,
 );
-const conversationActivityById = $derived(sidebarActivity(conversations));
+const conversationActivityById = $derived(
+  sidebarActivity(conversations, waitingConversationIds()),
+);
 </script>
 
 <ProjectConversationNavigator

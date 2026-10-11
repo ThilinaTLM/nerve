@@ -1,7 +1,6 @@
 <script lang="ts">
 import { SvelteSet } from "svelte/reactivity";
 import type {
-  AsyncSubagentSettings,
   ImageGenerationToolSettings,
   KrokiToolSettings,
 } from "@nervekit/contracts/settings";
@@ -28,11 +27,6 @@ import {
 } from "$lib/presentation/utils/model";
 import ToolModelDialog from "./ToolModelDialog.svelte";
 import type { SettingsChange } from "../settings-change";
-import AsyncSubagentToolDialog from "./AsyncSubagentToolDialog.svelte";
-import {
-  asyncSubagentProfileLabel,
-  asyncSubagentSettingsPatch,
-} from "./async-subagent-options";
 import BashToolDialog from "./BashToolDialog.svelte";
 import ImageGenerationToolDialog from "./ImageGenerationToolDialog.svelte";
 import KrokiToolDialog from "./KrokiToolDialog.svelte";
@@ -69,14 +63,12 @@ let {
   category = "core",
 }: Props = $props();
 
-let asyncSubagentDialogOpen = $state(false);
 let bashDialogOpen = $state(false);
 let pythonDialogOpen = $state(false);
 let imageGenerationDialogOpen = $state(false);
 let krokiDialogOpen = $state(false);
 let webDialogOpen = $state(false);
 let visionModelDialogOpen = $state(false);
-let exploreDialogOpen = $state(false);
 
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const python = $derived(status?.runtime.python);
@@ -117,24 +109,6 @@ const imageGenerationReady = $derived(
     ),
 );
 const krokiPublic = $derived(isPublicKrokiUrl(settingsDraft.tools.kroki.url));
-const configuredExploreModel = $derived(
-  settingsDraft.exploreAgent.model
-    ? usableModels.find(
-        (model) =>
-          modelKey(model) ===
-          modelKey(settingsDraft.exploreAgent.model as ModelSelection),
-      )
-    : undefined,
-);
-const configuredAsyncSubagentModel = $derived(
-  settingsDraft.asyncSubagent.model
-    ? usableModels.find(
-        (model) =>
-          modelKey(model) ===
-          modelKey(settingsDraft.asyncSubagent.model as ModelSelection),
-      )
-    : undefined,
-);
 
 function groupEnabled(group: ToolGroupDef): boolean {
   if (group.configurableTools.length === 0) return true;
@@ -163,26 +137,6 @@ function setToolsEnabled(
   onSettingsChange?.({ tools: { disabled } }, { immediate: true });
 }
 
-function saveExploreModel(selection: {
-  model?: ModelSelection;
-  thinkingLevel: ThinkingLevel;
-}): void {
-  settingsDraft.exploreAgent = {
-    ...settingsDraft.exploreAgent,
-    model: selection.model,
-    thinkingLevel: selection.thinkingLevel,
-  };
-  onSettingsChange?.(
-    {
-      exploreAgent: {
-        model: selection.model ?? null,
-        thinkingLevel: selection.thinkingLevel,
-      },
-    },
-    { immediate: true },
-  );
-}
-
 function saveVisionModel(selection: {
   model?: ModelSelection;
   thinkingLevel: ThinkingLevel;
@@ -202,13 +156,6 @@ function saveVisionModel(selection: {
     { immediate: true },
   );
   if (!model) setToolsEnabled(["explain_image"], false);
-}
-
-function saveAsyncSubagent(asyncSubagent: AsyncSubagentSettings): void {
-  settingsDraft.asyncSubagent = asyncSubagent;
-  onSettingsChange?.(asyncSubagentSettingsPatch(asyncSubagent), {
-    immediate: true,
-  });
 }
 
 function saveImageGeneration(
@@ -248,12 +195,7 @@ function setTavilyProfile(profileId?: string): void {
     tools={group.tools}
   >
     {#snippet actions()}
-      {#if group.id === "subagents"}
-        <ToolConfigureButton
-          label="Configure Async Subagents"
-          onclick={() => (asyncSubagentDialogOpen = true)}
-        />
-      {:else if group.id === "shell"}
+      {#if group.id === "shell"}
         <ToolConfigureButton
           label="Configure Shell"
           onclick={() => (bashDialogOpen = true)}
@@ -282,12 +224,6 @@ function setTavilyProfile(profileId?: string): void {
         <ToolConfigureButton
           label="Configure Python"
           onclick={() => (pythonDialogOpen = true)}
-        />
-      {:else if group.id === "explore"}
-        <ToolConfigureButton
-          label="Configure Explore"
-          tourId="setup-agent-explore-model"
-          onclick={() => (exploreDialogOpen = true)}
         />
       {/if}
       {#if alwaysOn}
@@ -322,36 +258,7 @@ function setTavilyProfile(profileId?: string): void {
       {/if}
     {/snippet}
     {#snippet extra()}
-      {#if group.id === "subagents"}
-        <SettingsSummaryRow
-          class="mt-1"
-          title={configuredAsyncSubagentModel
-            ? modelDisplayName(configuredAsyncSubagentModel)
-            : settingsDraft.asyncSubagent.model
-              ? `${settingsDraft.asyncSubagent.model.provider}/${settingsDraft.asyncSubagent.model.modelId}`
-              : "Lead agent model"}
-          status={settingsDraft.asyncSubagent.model
-            ? configuredAsyncSubagentModel
-              ? "ok"
-              : "warning"
-            : "muted"}
-        >
-          {#snippet meta()}
-            {#if settingsDraft.asyncSubagent.model && !configuredAsyncSubagentModel}
-              Model unavailable ·
-            {:else if configuredAsyncSubagentModel}
-              {settingsDraft.asyncSubagent.thinkingLevel
-                ? `Thinking ${settingsDraft.asyncSubagent.thinkingLevel}`
-                : "Lead's thinking level"} ·
-            {/if}
-            {asyncSubagentProfileLabel(
-              settingsDraft.asyncSubagent.compactionProfile,
-            )}{settingsDraft.asyncSubagent.compactionProfile === "custom"
-              ? ` · ${settingsDraft.asyncSubagent.customTriggerPercent}% trigger, ${settingsDraft.asyncSubagent.customKeepRecentPercent}% recent`
-              : ""}
-          {/snippet}
-        </SettingsSummaryRow>
-      {:else if group.id === "shell"}
+      {#if group.id === "shell"}
         <SettingsSummaryRow
           class="mt-1"
           title="Automatic backgrounding"
@@ -429,23 +336,6 @@ function setTavilyProfile(profileId?: string): void {
             {/if}
           {/snippet}
         </SettingsSummaryRow>
-      {:else if group.id === "explore"}
-        <SettingsSummaryRow
-          class="mt-1"
-          title={configuredExploreModel
-            ? modelDisplayName(configuredExploreModel)
-            : "Parent agent model"}
-          status={configuredExploreModel ? "ok" : "muted"}
-        >
-          {#snippet meta()}
-            {#if configuredExploreModel}
-              {providerDisplayName(configuredExploreModel.provider)} · Thinking
-              {settingsDraft.exploreAgent.thinkingLevel}
-            {:else}
-              Explore agents reuse the model of the agent that started them.
-            {/if}
-          {/snippet}
-        </SettingsSummaryRow>
       {:else if group.id === "python"}
         <SettingsSummaryRow
           class="mt-1"
@@ -473,14 +363,6 @@ function setTavilyProfile(profileId?: string): void {
     {/snippet}
   </ToolGroupItem>
 {/each}
-
-<AsyncSubagentToolDialog
-  bind:open={asyncSubagentDialogOpen}
-  value={settingsDraft.asyncSubagent}
-  {models}
-  {authProviders}
-  onSave={saveAsyncSubagent}
-/>
 
 <BashToolDialog bind:open={bashDialogOpen} {settingsDraft} {onSettingsChange} />
 
@@ -517,22 +399,6 @@ function setTavilyProfile(profileId?: string): void {
   requiredCapabilities={["vision"]}
   emptyMessage="No configured image-capable models are available."
   onSave={saveVisionModel}
-/>
-
-<ToolModelDialog
-  bind:open={exploreDialogOpen}
-  title="Configure Explore"
-  description="Model for read-only research agents."
-  label="Explore model"
-  models={usableModels}
-  selectedModel={settingsDraft.exploreAgent.model}
-  selectedThinkingLevel={settingsDraft.exploreAgent.thinkingLevel}
-  inheritOption={{
-    label: "Parent agent's model",
-    description:
-      "Explore agents run on the model of the agent that started them.",
-  }}
-  onSave={saveExploreModel}
 />
 
 <PythonRuntimeDialog

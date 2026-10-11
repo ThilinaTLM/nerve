@@ -75,12 +75,9 @@ export type ApprovalRecord = {
       | "confluence_manage_label"
       | "confluence_manage_restriction"
       | "confluence_manage_attachment"
-      | "subagent_new"
       | "subagent_prompt"
-      | "subagent_list"
       | "subagent_status"
       | "subagent_stop"
-      | "explore"
       | "plan_mode_enter"
       | "plan_mode_present"
       | "plan_mode_force_exit";

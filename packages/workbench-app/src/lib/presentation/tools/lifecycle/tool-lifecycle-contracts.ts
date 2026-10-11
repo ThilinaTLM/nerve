@@ -83,7 +83,6 @@ export type CompletedViewFamily =
   | "ls"
   | "ask_user"
   | "todos"
-  | "explore"
   | "subagent"
   | "plan_mode"
   | "jira"

@@ -4,11 +4,7 @@ import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
 import type { DetailsActionInfo } from "./tool-presentation-types";
 import type { ToolCallDisplayRecord } from "./tool-result-parser";
 import { countLogicalLines } from "./tool-view-helpers";
-import {
-  aggregateExploreTasks,
-  COLLAPSED_LINES,
-  type ToolView,
-} from "./tool-result-view";
+import { COLLAPSED_LINES, type ToolView } from "./tool-result-view";
 
 export function basename(path: string): string {
   return path.split(/[\\/]/).pop() || path;
@@ -102,12 +98,6 @@ export function statusDot(
     (view.kind === "bash" || view.kind === "python") &&
     view.exitCode !== undefined &&
     view.exitCode !== 0
-  ) {
-    return { tone: "destructive", pulse: false };
-  }
-  if (
-    view.kind === "explore" &&
-    aggregateExploreTasks(view).summary.failed > 0
   ) {
     return { tone: "destructive", pulse: false };
   }

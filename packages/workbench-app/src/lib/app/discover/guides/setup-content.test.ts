@@ -6,7 +6,7 @@ import { setupGuideSteps } from "./setup-content";
 
 /* Guide steps navigate Settings by page and section id. Those ids are plain
  * strings, so moving a page silently strands a step on a target that no longer
- * exists — which is how the Explore step ended up pointing at a section named
+ * exists — which once left a guide step pointing at a section named
  * "explore-agent" that was never registered.
  *
  * The registry itself imports Lucide icon components (`.svelte`), which the node

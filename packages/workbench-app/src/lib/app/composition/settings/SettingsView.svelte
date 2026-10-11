@@ -107,7 +107,12 @@ const skillSections = $derived(
 );
 
 /** Pages that hold project-scoped controls; the rest stay user-only. */
-const projectScopedPageIds = new Set(["tools", "skills", "permissions"]);
+const projectScopedPageIds = new Set([
+  "tools",
+  "subagents",
+  "skills",
+  "permissions",
+]);
 
 /** The Skills page states what the current scope writes, instead of a banner. */
 const skillsDescription = $derived(

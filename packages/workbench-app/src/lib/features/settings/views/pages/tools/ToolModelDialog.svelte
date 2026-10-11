@@ -1,6 +1,6 @@
 <!--
-  Configure dialog for a tool whose only setting is its model (Explore,
-  Image explanation). Edits stay local until Save.
+  Configure dialog for a tool whose only setting is its model (Image
+  explanation). Edits stay local until Save.
 -->
 <script lang="ts">
 import type { ModelInfo, ModelSelection, ThinkingLevel } from "$lib/api";

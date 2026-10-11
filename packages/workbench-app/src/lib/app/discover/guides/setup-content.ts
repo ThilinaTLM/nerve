@@ -325,16 +325,17 @@ export const setupGuideSteps: Record<
       },
     },
     {
-      id: "agent-explore-model",
-      title: "Choose the Explore model",
+      id: "agent-subagent-profiles",
+      title: "Review sub-agent profiles",
       description:
-        "Pick the model and thinking level used by Explore subagents.",
-      targetId: "setup-agent-explore-model",
-      fallback: "Open Settings → Tools → Core and configure the Explore tool.",
+        "Choose the model, permissions and instructions the Explore and Developer sub-agent profiles use.",
+      targetId: "setup-agent-subagent-profiles",
+      fallback:
+        "Open Settings → Sub-agents and edit the Explore or Developer profile.",
       preparation: {
         kind: "settings",
-        pageId: "tools",
-        sectionId: "core",
+        pageId: "subagents",
+        sectionId: "profiles",
       },
     },
   ],
