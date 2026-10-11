@@ -292,7 +292,7 @@ async function cleanup(
   }
   // All referenced task outputs have verified replacements in conversation storage.
   for (const path of [
-    ctx.paths.tasksPath,
+    join(ctx.paths.dataPath, "tasks"),
     ctx.paths.queryCachePath,
     `${ctx.paths.queryCachePath}-wal`,
     `${ctx.paths.queryCachePath}-shm`,
@@ -419,6 +419,19 @@ export default defineStep({
     );
     await setImmediate();
     await preserveBashOutputs(ctx);
+    const launches = join(ctx.paths.dataPath, "launches");
+    if (existsSync(launches))
+      for (const entry of readdirSync(launches, { withFileTypes: true })) {
+        if (!entry.isDirectory() || !entry.name.startsWith("task_")) continue;
+        const target = join(launches, entry.name.replace(/^task_/, "launch_"));
+        if (existsSync(target)) {
+          ctx.log(
+            `Launch log collision at ${target}; keeping both directories`,
+          );
+          continue;
+        }
+        renameSync(join(launches, entry.name), target);
+      }
     writeJson(summaryPath(ctx), summary);
     ctx.log(
       `Imported: ${JSON.stringify({ counts: summary.counts, overlays: summary.overlays, preferences: summary.preferences, assets: summary.assets, losses: summary.lossyMappings, skipped: summary.skipped })}`,

@@ -30,9 +30,25 @@ framework ledger append. No legacy data is removed before verification.
   if its JS hash matches; file digests are then bound to the converted content.
   Unsupported YAML predicates, changed JS and unmapped projects need reapproval.
 - Suggestion enablement becomes `config/prompt-suggestions.json`.
-- Project task definitions become `.nerve/tasks/definitions.json`. Existing IDs
-  win; legacy definitions are merged without launching anything. These files are
-  project-resident, so real migrations can write outside the Nerve home.
+- Legacy project definitions are merged into the historical task file, then moved
+  to `.nerve/launches/definitions.json` with `launchdef_` IDs. An existing launches
+  file wins; the old file is retained and a collision is reported. The same frozen
+  move runs on `project.create`, covering projects unknown during home migration.
+  These files are project-resident, so rehearsals must redirect copied project paths.
+- Historical process calls and responses are rewritten together: linked
+  `task_start` → background `bash`; selector-free `task_status` → `async_bash list`;
+  ID-only logs and stop → `async_bash logs/stop`. Ambiguous names, cursors, modes,
+  restarts and unmatched results retain generic original arguments/results. Bash
+  arguments lose timeout; pending calls are settled, never resumed. Result assets
+  are regenerated with matching lengths and digests by the existing writer.
+- Process permission grants are action-constrained; broad/ambiguous legacy grants
+  become ask rules (`decision: "prompt"`) with diagnostics, preserving consultation
+  without granting new permissions. Denials/prompts are conservatively mapped;
+  the old group becomes `process`. User/project/conversation files and user custom
+  rule-set files are covered, including custom sets containing only unsafe grants.
+  Home settings already default `bash.maxTimeoutMs` to 900000, so no redundant
+  stored default is added.
+- `data/launches/task_*` directories become `launch_*`; collisions retain both.
 - Legacy conversation capability/permission files are copied to full conversation
   IDs under `config/`, including the child scopes that shared the old owner.
   Capabilities normalize against user plus exact-digest-trusted project layers.

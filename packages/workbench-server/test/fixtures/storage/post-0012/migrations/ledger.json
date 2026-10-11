@@ -33,7 +33,7 @@
     {
       "id": "0005-current-project-sidecars",
       "checksum": "3bea84b38581b92f0f7598bb4f10811af528ed161fe8699114e0ac00ecdb4a09",
-      "description": "Convert project task-definition and scratch-note sidecars",
+      "description": "Convert project launch-definition and scratch-note sidecars",
       "appliedAt": "2026-08-23T11:24:06.968Z",
       "execution": "detected"
     },

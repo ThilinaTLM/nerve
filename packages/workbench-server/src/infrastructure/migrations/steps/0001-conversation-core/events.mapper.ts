@@ -1,3 +1,4 @@
+import { mapProcessCall } from "./process-history.js";
 import { prepareImportedResult } from "./result-projection.js";
 import {
   conversationEventSchema,
@@ -17,6 +18,8 @@ import {
 } from "./legacy.reader.js";
 
 export interface AssistantOrigin {
+  originalName?: string;
+  originalArguments?: Legacy;
   eventId: string;
   contentIndex: number;
   conversationId: string;
@@ -26,6 +29,7 @@ export interface AssistantOrigin {
   createdAt: string;
 }
 export interface EventMapping {
+  processLinks?: Map<string, Legacy>;
   storage: CoreStorage;
   ids: ImportIds;
   report: ImportReport;
@@ -91,6 +95,7 @@ export function responsePayload(
         type: "text",
         text:
           raw?.content ??
+          raw?.output ??
           call.error ??
           (completed
             ? "Imported tool result"
@@ -166,10 +171,46 @@ export function responsePayload(
     mapping.report.loss(
       "Legacy interaction retained in result details rather than typed resolution",
     );
-  const toolName = call.toolName ?? message?.toolName ?? "unknown";
-  const args = providerCallId
-    ? (origin?.arguments ?? call.args ?? {})
-    : { command: call.args?.command ?? "" };
+  const originalName =
+    origin?.originalName ?? call.toolName ?? message?.toolName ?? "unknown";
+  const originalArgs = origin?.originalArguments ?? call.args ?? {};
+  const translated =
+    !origin && originalName.startsWith("task_")
+      ? { name: originalName, args: originalArgs, generic: true }
+      : mapProcessCall(
+          originalName,
+          originalArgs,
+          mapping.processLinks?.get(providerCallId) ??
+            mapping.processLinks?.get(call.id) ??
+            mapping.processLinks?.get(
+              originalArgs.id ??
+                originalArgs.taskId ??
+                originalArgs.bashId ??
+                originalArgs.task,
+            ),
+        );
+  if (translated.generic) {
+    result.content = modelContent
+      .filter((block: Legacy) => block.type === "text")
+      .map((block: Legacy) => block.text)
+      .join("\n");
+    result.details = {
+      ...result.details,
+      historicalTool: {
+        name: originalName,
+        arguments: originalArgs,
+        result: raw ?? null,
+      },
+    };
+  }
+  if (
+    !translated.generic &&
+    originalName === "task_logs" &&
+    typeof raw?.output === "string"
+  )
+    result.content = raw.output;
+  const toolName = translated.name;
+  const args = translated.args;
   const projections = prepareImportedResult(
     mapping,
     conversationId,
@@ -183,10 +224,8 @@ export function responsePayload(
   return {
     toolCallId: id,
     providerCallId,
-    toolName: call.toolName ?? message?.toolName ?? "unknown",
-    arguments: providerCallId
-      ? (origin?.arguments ?? call.args ?? {})
-      : { command: call.args?.command ?? "" },
+    toolName,
+    arguments: args,
     origin: providerCallId ? "model" : "user",
     assistantEventId: origin?.eventId ?? null,
     contentIndex: origin?.contentIndex ?? null,
@@ -314,11 +353,36 @@ export function insertEvent(
   mapping: EventMapping,
   event: ConversationEvent,
 ): void {
+  if (event.type === "assistant_message") {
+    event.payload.content.forEach((block: Legacy) => {
+      if (block.type !== "toolCall") return;
+      const originalName = block.name;
+      const originalArguments = block.arguments;
+      const translated = mapProcessCall(
+        block.name,
+        block.arguments,
+        mapping.processLinks?.get(block.id) ??
+          mapping.processLinks?.get(
+            block.arguments.id ??
+              block.arguments.taskId ??
+              block.arguments.bashId ??
+              block.arguments.task,
+          ),
+      );
+      block.name = translated.name;
+      block.arguments = translated.args;
+      mapping.origins.set(block.id, {
+        originalName,
+        originalArguments,
+      } as AssistantOrigin);
+    });
+  }
   mapping.storage.events.insert(event);
   if (event.type === "assistant_message") {
     event.payload.content.forEach((block: Legacy, contentIndex: number) => {
       if (block.type === "toolCall")
         mapping.origins.set(block.id, {
+          ...mapping.origins.get(block.id),
           eventId: event.id,
           contentIndex,
           conversationId: event.conversationId,

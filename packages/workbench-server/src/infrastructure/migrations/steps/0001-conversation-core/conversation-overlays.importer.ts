@@ -1,3 +1,4 @@
+import { convertPermissionRules } from "./process-history.js";
 import { createHash, randomUUID } from "node:crypto";
 import {
   lstatSync,
@@ -155,7 +156,7 @@ export class ConversationOverlaysImporter {
     );
     const target = join(this.dataDir, "conversations", newId, "config");
     const capabilities = this.source(join(source, "capabilities.json"));
-    const permissions = this.source(join(source, "permissions.json"));
+    let permissions = this.source(join(source, "permissions.json"));
     let normalized = null;
     if (capabilities !== null || enabledTools) {
       const inherited = this.inherited(projectId);
@@ -189,6 +190,11 @@ export class ConversationOverlaysImporter {
         Object.assign(document.toolSettings, oldEffective.toolSettings);
       }
       normalized = normalizeCapabilityOverrides(document, inherited);
+    }
+    if (permissions !== null) {
+      const document = JSON.parse(permissions);
+      if (convertPermissionRules(document))
+        permissions = JSON.stringify(document);
     }
     // Validate both before creating files; permission relocation preserves bytes.
     if (permissions !== null)
