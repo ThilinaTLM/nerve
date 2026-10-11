@@ -14,13 +14,17 @@ export function tabIdentity(tab: CenterTabModel): TabIdentity {
   return { kind: tab.kind, id: tab.id };
 }
 
-function taskLabel(tab: Extract<CenterTabModel, { kind: "task" }>): string {
-  const labels = [tab.task?.displayName, tab.task?.name, tab.task?.command];
+function launchLabel(tab: Extract<CenterTabModel, { kind: "launch" }>): string {
+  const labels = [
+    tab.launch?.displayName,
+    tab.launch?.name,
+    tab.launch?.command,
+  ];
   return labels.find((label) => label?.trim())?.trim() ?? tab.id;
 }
 
 export function tabLabel(tab: CenterTabModel): string {
-  if (tab.kind === "task") return taskLabel(tab);
+  if (tab.kind === "launch") return launchLabel(tab);
   if (tab.kind === "file")
     return (
       tab.file?.name ??
@@ -52,9 +56,9 @@ export function tabLabel(tab: CenterTabModel): string {
 }
 
 export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
-  if (tab.kind === "task") {
-    if (!tab.task) return `Missing task · ${tab.id}`;
-    return `${taskLabel(tab)} · ${tab.task.status} · ${shortenPath(tab.task.cwd, homeDir)} · ${tab.task.id}`;
+  if (tab.kind === "launch") {
+    if (!tab.launch) return `Missing launch · ${tab.id}`;
+    return `${launchLabel(tab)} · ${tab.launch.status} · ${shortenPath(tab.launch.cwd, homeDir)} · ${tab.launch.id}`;
   }
   if (tab.kind === "file") return tab.file?.path ?? tab.path ?? tab.id;
   if (tab.kind === "mermaid") {
@@ -87,12 +91,12 @@ export function statusLabel(tab: CenterTabModel): string | undefined {
     return tab.activity.label ?? (tab.hasDraft ? "Unsaved draft" : undefined);
   }
   if (tab.sending) {
-    if (tab.kind === "task") return "Task active";
+    if (tab.kind === "launch") return "Launch active";
     if (tab.kind === "file") return "Loading file";
     if (tab.kind === "mermaid") return "Loading diagram";
     if (tab.kind === "diff") return "Loading diff";
   }
-  if (tab.kind === "task") return tab.task?.status ?? "missing";
+  if (tab.kind === "launch") return tab.launch?.status ?? "missing";
   if (tab.kind === "file" && tab.file?.truncated) return "Truncated";
   return undefined;
 }

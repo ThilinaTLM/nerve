@@ -21,6 +21,7 @@ let {
 
 let enabledDraft = $state(true);
 let secondsDraft = $state("120");
+let maxTimeoutSecondsDraft = $state("900");
 let lastOpen = false;
 
 $effect(() => {
@@ -28,6 +29,9 @@ $effect(() => {
     const autoPromotion = settingsDraft.tools.bash.autoPromotion;
     enabledDraft = autoPromotion.enabled;
     secondsDraft = String(autoPromotion.afterMs / 1000);
+    maxTimeoutSecondsDraft = String(
+      settingsDraft.tools.bash.maxTimeoutMs / 1000,
+    );
   }
   lastOpen = open;
 });
@@ -38,16 +42,28 @@ const validSeconds = $derived(
     Number(secondsDraft) <= 86_400,
 );
 
+const validMaxTimeoutSeconds = $derived(
+  Number.isInteger(Number(maxTimeoutSecondsDraft)) &&
+    Number(maxTimeoutSecondsDraft) >= 1 &&
+    Number(maxTimeoutSecondsDraft) <= 3600,
+);
+const validDraft = $derived(
+  validSeconds && (enabledDraft || validMaxTimeoutSeconds),
+);
+
 function save(): void {
-  if (!validSeconds) return;
+  if (!validDraft) return;
   const afterMs = Number(secondsDraft) * 1000;
+  const maxTimeoutMs = Number(maxTimeoutSecondsDraft) * 1000;
   settingsDraft.tools.bash.autoPromotion.enabled = enabledDraft;
   settingsDraft.tools.bash.autoPromotion.afterMs = afterMs;
+  if (!enabledDraft) settingsDraft.tools.bash.maxTimeoutMs = maxTimeoutMs;
   onSettingsChange?.(
     {
       tools: {
         bash: {
           autoPromotion: { enabled: enabledDraft, afterMs },
+          ...(!enabledDraft ? { maxTimeoutMs } : {}),
         },
       },
     },
@@ -104,12 +120,39 @@ function save(): void {
         </p>
       {/if}
     </div>
+    {#if !enabledDraft}
+      <div class="grid gap-1.5">
+        <Label for="tools-bash-max-timeout-seconds">Maximum timeout</Label>
+        <p class="text-xs text-muted-foreground">
+          Agent Bash calls must set a timeout up to this limit; your own
+          commands use it as their timeout.
+        </p>
+        <div class="flex items-center gap-2">
+          <Input
+            size="xs"
+            id="tools-bash-max-timeout-seconds"
+            type="number"
+            min={1}
+            max={3600}
+            step={1}
+            bind:value={maxTimeoutSecondsDraft}
+            aria-label="Maximum timeout seconds"
+          />
+          <span class="text-xs text-muted-foreground">seconds</span>
+        </div>
+        {#if !validMaxTimeoutSeconds}
+          <p class="text-xs text-destructive">
+            Enter a whole number from 1 to 3,600.
+          </p>
+        {/if}
+      </div>
+    {/if}
   </div>
 
   {#snippet footer()}
     <Button size="sm" variant="ghost" onclick={() => (open = false)}
       >Cancel</Button
     >
-    <Button size="sm" onclick={save} disabled={!validSeconds}>Save</Button>
+    <Button size="sm" onclick={save} disabled={!validDraft}>Save</Button>
   {/snippet}
 </Dialog>

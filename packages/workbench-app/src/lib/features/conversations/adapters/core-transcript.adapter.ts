@@ -1,4 +1,3 @@
-import { asyncBashToolView } from "./core-async-bash-tool.adapter";
 import { conversationCatalog } from "../state/conversation-catalog.svelte";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
 import type {
@@ -248,14 +247,6 @@ function toolRecord(
     previewOverflow: open
       ? undefined
       : source.payload.userProjection.previewOverflow,
-    asyncBashView:
-      !open && source.payload.outcome === "completed"
-        ? asyncBashToolView(
-            p.toolName,
-            source.payload.userProjection.resultPreview,
-            source.payload.userProjection.previewOverflow,
-          )
-        : undefined,
     status,
     phase:
       status === "committed"

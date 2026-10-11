@@ -1,4 +1,4 @@
-import type { FilesystemFileResponse, TaskRecord } from "$lib/api";
+import type { FilesystemFileResponse, LaunchRecord } from "$lib/api";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
@@ -122,24 +122,24 @@ export interface WorkspaceFeaturePorts {
     };
     commands: { setTabOpen(open: boolean): void };
   };
-  tasks: {
+  launches: {
     read: {
-      readonly tasks: readonly TaskRecord[];
-      readonly openTaskTabIds: readonly string[];
-      readonly selectedTaskId: string | undefined;
+      readonly launches: readonly LaunchRecord[];
+      readonly openLaunchTabIds: readonly string[];
+      readonly selectedLaunchId: string | undefined;
       readonly selectedRunByEntry: Readonly<Record<string, string>>;
-      readonly taskLogs: unknown;
+      readonly launchLogs: unknown;
     };
     commands: {
-      setTasks(tasks: TaskRecord[]): void;
-      setOpenTaskTabIds(ids: string[]): void;
-      setSelectedTaskId(id: string | undefined): void;
-      clearTaskLogs(): void;
-      resolveSelectedTaskId(
-        tasks: readonly TaskRecord[],
-        selectedTaskId: string | undefined,
+      setLaunches(launches: LaunchRecord[]): void;
+      setOpenLaunchTabIds(ids: string[]): void;
+      setSelectedLaunchId(id: string | undefined): void;
+      clearLaunchLogs(): void;
+      resolveSelectedLaunchId(
+        launches: readonly LaunchRecord[],
+        selectedLaunchId: string | undefined,
       ): string | undefined;
-      loadTaskLogWindow(taskId: string): Promise<unknown>;
+      loadLaunchLogWindow(launchId: string): Promise<unknown>;
     };
   };
 }

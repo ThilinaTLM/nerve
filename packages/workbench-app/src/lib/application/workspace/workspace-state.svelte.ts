@@ -5,7 +5,7 @@ import type { Project } from "@nervekit/contracts/core";
 export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
   | { kind: "pending-conversation"; id: string }
-  | { kind: "task"; id: string }
+  | { kind: "launch"; id: string }
   | { kind: "file"; id: string }
   | { kind: "mermaid"; id: string }
   | { kind: "pr"; id: string }

@@ -11,8 +11,8 @@ import { eventBatchDataSchema } from "../wire/event-stream.js";
 import { settingsEventDefinitions } from "../domains/settings/events.js";
 import { daemonEventDefinitions } from "../domains/status/events.js";
 import { maintenanceEventDefinitions } from "../domains/maintenance/events.js";
-import { taskDefinitionEventDefinitions } from "../domains/task-definitions/events.js";
-import { launchEventDefinitions } from "../domains/tasks/events.js";
+import { launchDefinitionEventDefinitions } from "../domains/launch-definitions/events.js";
+import { launchEventDefinitions } from "../domains/launches/events.js";
 import { usageEventDefinitions } from "../domains/usage/events.js";
 import type { PublicEventDefinition } from "./definition.js";
 import { eventEnvelopeSchema } from "./envelope.js";
@@ -29,7 +29,7 @@ const definitions: PublicEventDefinition[] = [
   ...promptSuggestionEventDefinitions,
   ...launchEventDefinitions,
   ...scratchNoteEventDefinitions,
-  ...taskDefinitionEventDefinitions,
+  ...launchDefinitionEventDefinitions,
   ...filesystemEventDefinitions,
   ...gitEventDefinitions,
   ...planEventDefinitions,

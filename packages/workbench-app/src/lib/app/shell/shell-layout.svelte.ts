@@ -13,10 +13,13 @@ import {
 } from "$lib/presentation/shell";
 import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 
-const STORAGE_KEY = "nerve.layout.v1";
+import {
+  readShellLayoutStorage,
+  SHELL_LAYOUT_STORAGE_KEY,
+} from "./shell-layout-storage";
 const RESIZE_PERSIST_DEBOUNCE_MS = 200;
 
-// The bottom dock starts empty and collapsed on a fresh install; Tasks lives in
+// The bottom dock starts empty and collapsed on a fresh install; Launches lives in
 // the left dock next to Conversations.
 const LAYOUT_DEFAULTS = { collapsed: ["bottom"] as const };
 
@@ -27,8 +30,7 @@ function hydrate(): ShellLayout {
     });
   let raw: unknown;
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    raw = stored ? JSON.parse(stored) : undefined;
+    raw = readShellLayoutStorage(localStorage);
   } catch {
     raw = undefined;
   }
@@ -51,7 +53,10 @@ export const shellLayout = {
 function persist() {
   if (typeof localStorage === "undefined") return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.layout));
+    localStorage.setItem(
+      SHELL_LAYOUT_STORAGE_KEY,
+      JSON.stringify(state.layout),
+    );
   } catch {
     // Storage is best effort; the in-memory layout still applies.
   }

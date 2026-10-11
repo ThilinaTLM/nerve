@@ -464,7 +464,8 @@ export function buildUserProjection(
   if (
     toolName === "ask_user" ||
     toolName === "explore" ||
-    toolName.startsWith("task_") ||
+    toolName === "async_bash" ||
+    toolName === "launch" ||
     toolName.startsWith("subagent_")
   ) {
     const text = stringField(record(publicResult).content);
@@ -646,50 +647,14 @@ export function buildUserProjection(
       break;
     }
 
-    case "task_logs": {
-      const output = lastLines(
-        stringField(resultRecord.output) ?? outputText(resultRecord),
-      );
-      resultPreview =
-        "output" in resultRecord
-          ? { bashId: resultRecord.bashId, output: output.value }
-          : withTextContent(resultRecord, output.value);
+    case "async_bash":
+    case "launch": {
+      const output = lastLines(outputText(resultRecord));
+      resultPreview = withTextContent(resultRecord, output.value);
       ({ hidden, noun } = textOverflowStats([output]));
       direction = "tail";
       break;
     }
-    case "task_start":
-    case "task_control":
-    case "task_status": {
-      const summary = (value: unknown) => {
-        const row = record(value);
-        return {
-          id: row.id,
-          status: row.status,
-          command: row.command,
-          cwd: row.workingDirectory ?? row.cwd,
-          startedAt: row.startedAt,
-          exitCode: row.exitCode,
-          finishedAt: row.finishedAt,
-        };
-      };
-      const rows = Array.isArray(publicResult)
-        ? firstItems(publicResult)
-        : undefined;
-      resultPreview = rows
-        ? rows.value?.map(summary)
-        : resultRecord.asyncBash
-          ? {
-              asyncBash: summary(resultRecord.asyncBash),
-              readiness: resultRecord.readiness,
-            }
-          : summary(publicResult);
-      hidden = rows?.hidden ?? 0;
-      noun = "tasks";
-      direction = "head";
-      break;
-    }
-    case "subagent_new":
     case "subagent_prompt":
     case "subagent_status": {
       const bounded = previewUnknown(publicResult);
@@ -737,7 +702,8 @@ export function buildUserProjection(
 
   const resultFirst =
     toolName === "explore" ||
-    toolName.startsWith("task_") ||
+    toolName === "async_bash" ||
+    toolName === "launch" ||
     toolName.startsWith("subagent_") ||
     toolName.startsWith("web_") ||
     toolName === "explain_image";

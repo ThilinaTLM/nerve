@@ -109,7 +109,7 @@ export const storageInfoSchema = z.object({
       conversations: z.number().int().nonnegative(),
       agents: z.number().int().nonnegative(),
       events: z.number().int().nonnegative(),
-      tasks: z.number().int().nonnegative(),
+      launches: z.number().int().nonnegative(),
     })
     .optional(),
 });

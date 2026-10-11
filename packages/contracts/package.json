@@ -114,13 +114,13 @@
       "types": "./dist/domains/maintenance/index.d.ts",
       "import": "./dist/domains/maintenance/index.js"
     },
-    "./task-definitions": {
-      "types": "./dist/domains/task-definitions/index.d.ts",
-      "import": "./dist/domains/task-definitions/index.js"
+    "./launch-definitions": {
+      "types": "./dist/domains/launch-definitions/index.d.ts",
+      "import": "./dist/domains/launch-definitions/index.js"
     },
-    "./tasks": {
-      "types": "./dist/domains/tasks/index.d.ts",
-      "import": "./dist/domains/tasks/index.js"
+    "./launches": {
+      "types": "./dist/domains/launches/index.d.ts",
+      "import": "./dist/domains/launches/index.js"
     },
     "./tools": {
       "types": "./dist/domains/tools/index.d.ts",

@@ -82,7 +82,7 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
         projects: state.conversationCore.projects.list().length,
         conversations: 0,
         entries: 0,
-        tasks: 0,
+        launches: 0,
       },
     }),
     "storage.usage.get": (state) => state.storageUsage.computeUsage(),

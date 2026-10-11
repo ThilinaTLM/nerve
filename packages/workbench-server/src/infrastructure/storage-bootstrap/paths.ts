@@ -24,7 +24,6 @@ export interface StoragePaths {
   reportsPath: string;
   imagesPath: string;
   plansPath: string;
-  tasksPath: string;
   agentPath: string;
   suggestionsPath: string;
   tlsPath: string;
@@ -76,7 +75,6 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     reportsPath: join(dataPath, "reports"),
     imagesPath: join(dataPath, "images"),
     plansPath: join(dataPath, "plans"),
-    tasksPath: join(dataPath, "tasks"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
     tlsPath: join(home, "tls"),

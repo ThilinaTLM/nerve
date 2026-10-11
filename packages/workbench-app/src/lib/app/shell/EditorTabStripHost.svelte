@@ -101,7 +101,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
     error: tab.error,
     closeable: true,
     wide:
-      tab.kind === "task" ||
+      tab.kind === "launch" ||
       tab.kind === "file" ||
       tab.kind === "mermaid" ||
       tab.kind === "diff",
@@ -119,7 +119,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
       pulse: tab.activity.pulse,
       label: statusLabel(tab),
     };
-  } else if (tab.kind === "task") {
+  } else if (tab.kind === "launch") {
     model.status = { label: statusLabel(tab) };
     model.selectIcon = Terminal;
   } else if (tab.kind === "file") {

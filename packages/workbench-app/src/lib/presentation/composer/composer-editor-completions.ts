@@ -28,7 +28,7 @@ export type ComposerCompletionOptions = {
     | undefined;
   referenceCompletions: () =>
     | ((
-        kind: "task" | "pull_request",
+        kind: "launch" | "pull_request",
         query: string,
       ) => Promise<CompletionItem[]>)
     | undefined;
@@ -37,8 +37,8 @@ export type ComposerCompletionOptions = {
 const COMPOSER_RENDERED_OPTION_LIMIT = 16;
 
 const commandSection: CompletionSection = { name: "Commands", rank: 0 };
-const taskReferenceSection: CompletionSection = {
-  name: "Background tasks",
+const launchReferenceSection: CompletionSection = {
+  name: "Background launches",
   rank: 10,
 };
 const pullRequestSection: CompletionSection = {
@@ -74,8 +74,8 @@ export function toComposerCompletion(item: CompletionItem): ComposerCompletion {
     section:
       item.kind === "directory" || item.kind === "file"
         ? projectReferenceSection
-        : item.kind === "task"
-          ? taskReferenceSection
+        : item.kind === "launch"
+          ? launchReferenceSection
           : item.kind === "pull_request"
             ? pullRequestSection
             : commandSection,
@@ -117,7 +117,7 @@ const lucideIcons = {
     "M19 3v6",
     "m22 6-6 0",
   ],
-  task: ["M4 17l6-6-6-6", "M12 19h8"],
+  launch: ["M4 17l6-6-6-6", "M12 19h8"],
   pullRequest: [
     "M18 15v-3a4 4 0 0 0-4-4h-4",
     "M14 5l-3 3 3 3",
@@ -170,7 +170,7 @@ function completionIcon(completion: Completion): keyof typeof lucideIcons {
   const kind = (completion as ComposerCompletion).nerveKind;
   if (kind === "directory") return "folder";
   if (kind === "file") return "file";
-  if (kind === "task") return "task";
+  if (kind === "launch") return "launch";
   if (kind === "pull_request") return "pullRequest";
   const command = completion.label?.replace(/^\//, "");
   if (command && command in lucideIcons)
@@ -280,11 +280,11 @@ export function createComposerCompletionSource(
         onDocChange: true,
       });
 
-      if (rawToken.startsWith("@task:")) {
+      if (rawToken.startsWith("@launch:")) {
         const items =
           (await options.referenceCompletions()?.(
-            "task",
-            rawToken.slice("@task:".length),
+            "launch",
+            rawToken.slice("@launch:".length),
           )) ?? [];
         if (context.aborted) return null;
         return {
@@ -321,9 +321,9 @@ export function createComposerCompletionSource(
         rawToken === "@" && options.referenceCompletions()
           ? [
               {
-                label: "@task:",
-                detail: "Mention a background task",
-                kind: "task",
+                label: "@launch:",
+                detail: "Mention a background launch",
+                kind: "launch",
               },
               {
                 label: "@pr:",

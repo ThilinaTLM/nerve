@@ -18,7 +18,7 @@ export type ToolGroupId =
   | "vision"
   | "image-generation"
   | "diagram-export"
-  | "tasks"
+  | "process"
   | "shell"
   | "python";
 
@@ -101,35 +101,28 @@ export const toolGroups: ToolGroupDef[] = [
     tools: [
       {
         name: "bash",
-        description: "Run finite checks, tests, builds, and shell commands.",
+        description:
+          "Run shell commands in the foreground or background, with automatic backgrounding or a timeout.",
       },
     ],
   },
   {
-    id: "tasks",
+    id: "process",
     category: "core",
-    label: "Task management",
+    label: "Processes",
     description:
-      "Start, supervise, inspect, restart, and cancel background commands.",
+      "Inspect background bash runs and run the user's launch definitions.",
     configurableTools: [],
     tools: [
       {
-        name: "task_start",
-        description: "Start long-lived commands such as servers or watchers.",
-      },
-      {
-        name: "task_status",
+        name: "async_bash",
         description:
-          "Discover background tasks and inspect their current state.",
+          "List background bash runs, read output lines, or stop the process tree.",
       },
       {
-        name: "task_logs",
-        description: "Read recent, warning, error, or filtered task logs.",
-      },
-      {
-        name: "task_control",
+        name: "launch",
         description:
-          "Stop or restart a task, preserving saved launch settings on restart.",
+          "Inspect, start, restart, stop, or read logs from user-defined launches; definitions cannot be created or edited.",
       },
     ],
   },

@@ -27,7 +27,7 @@ async function fixtureHome(): Promise<string> {
   await write("data/reports/report.md", 4);
   await write("data/images/image.png", 5);
   await write("data/plans/plan.md", 6);
-  await write("data/tasks/task_1/log.txt", 8);
+  await write("data/launches/launch_1/log.txt", 8);
   await write("agent/suggestions/items.json", 9);
   await write("logs/application-2020-01-01.jsonl", 12);
   await write("logs/events.jsonl.1", 13);
@@ -102,7 +102,8 @@ describe("StorageUsageService", () => {
     );
     assert.equal(categoryBytes(usage, "queryCache"), undefined);
     assert.equal(categoryBytes(usage, "cache"), 66);
-    assert.equal(categoryBytes(usage, "other"), 55);
+    assert.equal(categoryBytes(usage, "other"), 63);
+    assert.equal(categoryBytes(usage, "tasks"), undefined);
     assert.deepEqual(usage.database, {
       dbBytes: 10,
       walBytes: 2,

@@ -1,6 +1,9 @@
 import type { CheckpointAnchor } from "@nervekit/contracts/core";
 import type { ImageContent, Message, TextContent } from "@earendil-works/pi-ai";
-import type { TaskReadiness, TaskStatus } from "@nervekit/contracts/tasks";
+import type {
+  LaunchReadiness,
+  LaunchStatus,
+} from "@nervekit/contracts/launches";
 import type { AgentMessage } from "../agent/contracts/index.js";
 
 export function renderCheckpointAnchors(anchors: CheckpointAnchor[]): string {
@@ -62,8 +65,8 @@ export interface HarnessTaskEventDetails {
   groupId?: string;
   groupName?: string;
   event: HarnessTaskEvent;
-  status: TaskStatus;
-  readiness?: TaskReadiness;
+  status: LaunchStatus;
+  readiness?: LaunchReadiness;
   exitCode?: number | null;
   signal?: string | null;
   nextCursor?: number;

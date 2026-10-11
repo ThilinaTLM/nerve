@@ -224,6 +224,7 @@ function precedenceFor(
 
 export function normalizePermissionRequest(input: {
   toolName: ToolName;
+  definition?: ReturnType<typeof requireToolDefinition>;
   args: Record<string, unknown>;
   normalizedArgs?: Record<string, unknown>;
   roots: PermissionRootPaths;
@@ -231,7 +232,7 @@ export function normalizePermissionRequest(input: {
   projectId?: string;
   conversationId: string;
 }): NormalizedPermissionRequest {
-  const definition = requireToolDefinition(input.toolName);
+  const definition = input.definition ?? requireToolDefinition(input.toolName);
   const metadata = permissionMetadataForTool(input.toolName);
   const args =
     input.normalizedArgs ?? normalizeToolArguments(definition, input.args);
@@ -261,7 +262,10 @@ export function normalizePermissionRequest(input: {
     targets,
     conversationId: input.conversationId,
   };
-  if (primaryArgument !== undefined) request.primaryArgument = primaryArgument;
+  if (input.toolName === "launch" && typeof args.id === "string")
+    request.primaryArgument = [args.action, args.id];
+  else if (primaryArgument !== undefined)
+    request.primaryArgument = primaryArgument;
   if (targets[0]) request.primaryTarget = targets[0];
   if (input.projectId !== undefined) request.projectId = input.projectId;
   return request;
@@ -391,7 +395,7 @@ function existingRealpath(path: string): string {
 export function evaluatePermissionRequest(
   input: EvaluatePermissionInput,
 ): PermissionEvaluationResult {
-  const metadata = permissionMetadataForTool(input.request.toolName);
+  const metadata = requestMetadata(input.request);
   const matching = input.policy.rules
     .filter(({ rule }) => rule.enabled && ruleMatches(rule, input.request))
     .filter(
@@ -439,12 +443,26 @@ function compareEffectiveRules(
   );
 }
 
+function requestMetadata(request: NormalizedPermissionRequest) {
+  const metadata = permissionMetadataForTool(request.toolName);
+  if (request.toolName === "async_bash" || request.toolName === "launch") {
+    const risk = requireToolDefinition(request.toolName).classifyRisk?.(
+      request.args,
+    );
+    return {
+      ...metadata,
+      baseRisk: risk === "read" ? ("read" as const) : ("unknown" as const),
+    };
+  }
+  return metadata;
+}
+
 function ruleMatches(
   rule: PermissionRule,
   request: NormalizedPermissionRequest,
 ): boolean {
   const filter = rule.when;
-  const metadata = permissionMetadataForTool(request.toolName);
+  const metadata = requestMetadata(request);
   return (
     includesIfPresent(filter.toolNames, request.toolName) &&
     includesIfPresent(filter.toolKinds, metadata.kind) &&

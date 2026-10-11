@@ -11,7 +11,7 @@ Nerve application logging is disabled by default. Enable it under **Settings →
 
 Desktop and daemon application logs are JSONL under `<NERVE_HOME>/logs`, including daily desktop files. Existing files are retained but are not read or appended while application logging is disabled.
 
-Task tabs have separate streaming/backfilled terminal output and retention/truncation indicators. Task logs are not controlled by `NERVE_LOGGING_ENABLED`.
+Launch tabs have separate streaming/backfilled terminal output and retention/truncation indicators. Launch logs are not controlled by `NERVE_LOGGING_ENABLED`.
 
 Desktop launches show sanitized startup stages in the loading window and, when launched from `pnpm`, `npx`, or a terminal-installed command, on stderr. These stages cover storage checks and upgrades without exposing record contents or paths. If startup reports that a different local daemon version is already running, quit the existing Nerve desktop or daemon and launch the new version again; the desktop will not attach to an incompatible local daemon or terminate a process it does not own.
 

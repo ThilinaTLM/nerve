@@ -316,12 +316,7 @@ describe("executeTool dispatch", () => {
   });
 
   it("rejects task tools because they are orchestrator-owned", async () => {
-    const taskTools = [
-      "task_start",
-      "task_status",
-      "task_logs",
-      "task_control",
-    ] as ToolName[];
+    const taskTools = ["async_bash", "launch"] as ToolName[];
 
     for (const name of taskTools) {
       await assert.rejects(

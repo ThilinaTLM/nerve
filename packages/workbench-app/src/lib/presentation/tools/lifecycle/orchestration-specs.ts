@@ -1,109 +1,16 @@
 import type { AsyncSubagentToolName } from "@nervekit/contracts/tools";
 
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
-import type { MetaItem } from "../../cards/card-presentation";
-import type { ToolArgumentSource } from "./argument-source";
-import {
-  boundedText,
-  codeBody,
-  keyValues,
-  lineCount,
-  plural,
-  textArg,
-} from "./core-specs";
+import { boundedText, codeBody, plural, textArg } from "./core-specs";
 import {
   argumentPresentation,
-  type ToolArgumentBody,
   type ToolLifecycleSpec,
-  type ToolLifecycleStage,
 } from "./tool-lifecycle-contracts";
 
 function spec<Name extends OrchestrationToolName>(
   value: ToolLifecycleSpec<Name>,
 ): ToolLifecycleSpec<Name> {
   return value;
-}
-
-function durationMs(value: number | undefined): string | undefined {
-  if (value === undefined) return undefined;
-  return value < 1_000 ? `${value}ms` : `${value / 1_000}s`;
-}
-
-function taskSelector(source: ToolArgumentSource): {
-  primary: string;
-  count: number;
-} {
-  const tasks = source.strings("tasks") ?? [];
-  return {
-    primary:
-      tasks.length === 1
-        ? tasks[0]!
-        : tasks.length > 1
-          ? `${tasks.length} tasks`
-          : "active tasks",
-    count: tasks.length,
-  };
-}
-
-function taskStartPresentation(
-  source: ToolArgumentSource,
-  stage: ToolLifecycleStage,
-) {
-  const command = source.string("command");
-  const name = source.string("name");
-  const cwd = source.string("cwd");
-  const envKeys = source.objectKeys("env");
-  const ready = source.record("ready");
-  const readiness =
-    ready?.kind === "url" && typeof ready.url === "string"
-      ? ready.url
-      : ready?.kind === "pattern" && typeof ready.pattern === "string"
-        ? ready.pattern
-        : ready?.kind === "detected_url"
-          ? "first detected URL"
-          : undefined;
-  const readinessTimeout =
-    ready && typeof ready.timeoutMs === "number"
-      ? durationMs(ready.timeoutMs)
-      : undefined;
-  const secondary: MetaItem[] = [];
-  if (cwd) secondary.push({ text: `cwd ${cwd}`, mono: true });
-  if (readiness) secondary.push({ text: `ready: ${readiness}` });
-  if (source.number("timeoutMs") !== undefined)
-    secondary.push({
-      text: `runtime ${durationMs(source.number("timeoutMs"))}`,
-    });
-  if (envKeys.length > 0)
-    secondary.push({ text: plural(envKeys.length, "env key") });
-  const commandLines = lineCount(command) ?? 0;
-  // Stage-independent so the block never appears/disappears mid-lifecycle.
-  let body: ToolArgumentBody = codeBody(command, "bash", {
-    force: (command?.length ?? 0) > 500,
-    label: "Command",
-  });
-  if (body.kind === "none" && stage === "approval") {
-    body = keyValues([
-      ["Working directory", cwd ?? "project root", true],
-      ["Readiness", readiness],
-      ["Readiness timeout", readinessTimeout],
-      ["Runtime timeout", durationMs(source.number("timeoutMs"))],
-      ["Environment keys", envKeys.join(", ")],
-    ]);
-  }
-  return argumentPresentation({
-    primaryArg: textArg(
-      name ?? (commandLines <= 1 ? command : undefined),
-      command ? "background task" : "Task",
-    ),
-    secondary,
-    body,
-    safetyNotes: [
-      "Starts a supervised background process; tool completion only confirms the start request.",
-      ...(envKeys.length > 0
-        ? [`Environment values are hidden; keys: ${envKeys.join(", ")}.`]
-        : []),
-    ],
-  });
 }
 
 /**
@@ -139,104 +46,31 @@ export const orchestrationToolLifecycleSpecs = {
   subagent_status: subagentSpec("subagent_status"),
   subagent_stop: subagentSpec("subagent_stop"),
 
-  task_start: spec({
-    name: "task_start",
-    argumentRegion: "until-result",
-    completedView: "task_action",
-    present: taskStartPresentation,
-  }),
-  task_status: spec({
-    name: "task_status",
+  async_bash: spec({
+    name: "async_bash",
     argumentRegion: "none",
-    completedView: "task_status",
-    emptyResult: "No tasks",
-    present: (source, stage) => {
-      const selector = taskSelector(source);
-      const secondary: MetaItem[] = [];
-      if (selector.count > 1)
-        secondary.push({ text: plural(selector.count, "selector") });
-      if (source.string("status"))
-        secondary.push({ text: `status ${source.string("status")}` });
-      if (source.number("limit") !== undefined)
-        secondary.push({ text: `max ${source.number("limit")}` });
-      return argumentPresentation({
-        primaryArg: textArg(selector.primary),
-        secondary,
-        body:
-          stage === "approval"
-            ? keyValues([["Task selector", selector.primary]])
-            : undefined,
-      });
-    },
+    completedView: "bash",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [source.string("action"), source.string("id")]
+            .filter(Boolean)
+            .join(" "),
+        ),
+      }),
   }),
-  task_logs: spec({
-    name: "task_logs",
+  launch: spec({
+    name: "launch",
     argumentRegion: "none",
-    completedView: "task_logs",
-    emptyResult: "No log events",
-    present: (source, stage) => {
-      const secondary: MetaItem[] = [];
-      if (source.string("mode"))
-        secondary.push({ text: source.string("mode")! });
-      if (source.number("cursor") !== undefined)
-        secondary.push({ text: `cursor ${source.number("cursor")}` });
-      if (source.string("contains"))
-        secondary.push({ text: "substring filter" });
-      if (source.number("contextLines") !== undefined)
-        secondary.push({ text: `context ${source.number("contextLines")}` });
-      if (source.number("limit") !== undefined)
-        secondary.push({ text: `max ${source.number("limit")}` });
-      return argumentPresentation({
-        primaryArg: textArg(source.string("task"), "Task logs"),
-        secondary,
-        body:
-          stage === "approval"
-            ? keyValues([
-                ["Task", source.string("task")],
-                ["Mode", source.string("mode") ?? "recent"],
-                ["Cursor", source.number("cursor")],
-                ["Contains", source.string("contains")],
-              ])
-            : undefined,
-      });
-    },
-  }),
-  task_control: spec({
-    name: "task_control",
-    argumentRegion: "none",
-    completedView: "task_action",
-    present: (source, stage) => {
-      const action = source.string("action") ?? "stop";
-      if (action === "restart") {
-        return argumentPresentation({
-          primaryArg: textArg(source.string("task"), "Task"),
-          secondary: [{ text: "restart", tone: "warning" }],
-          body:
-            stage === "approval"
-              ? {
-                  kind: "text-summary",
-                  text: "The task will restart with its stored launch settings and environment.",
-                }
-              : undefined,
-          safetyNotes: [
-            "Reuses the task's stored command, settings, and encrypted environment.",
-          ],
-        });
-      }
-
-      const secondary: MetaItem[] = [{ text: "stop", tone: "warning" }];
-      return argumentPresentation({
-        primaryArg: textArg(source.string("task"), "Task"),
-        secondary,
-        body:
-          stage === "approval"
-            ? keyValues([["Task", source.string("task")]])
-            : undefined,
-        safetyNotes: [
-          "Requests cancellation of the selected supervised task process.",
-        ],
-      });
-    },
+    completedView: "bash",
+    present: (source) =>
+      argumentPresentation({
+        primaryArg: textArg(
+          [source.string("action"), source.string("id")]
+            .filter(Boolean)
+            .join(" "),
+        ),
+      }),
   }),
   explore: spec({
     name: "explore",

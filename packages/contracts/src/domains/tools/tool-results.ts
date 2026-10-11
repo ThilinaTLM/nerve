@@ -28,11 +28,11 @@ import {
 export * from "./atlassian-result-summaries.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import {
-  taskListeningPortSchema,
-  taskLogQueryResponseSchema,
-  taskRecordSchema,
-  taskStatusSchema,
-} from "../tasks/task.js";
+  launchListeningPortSchema,
+  launchLogQueryResponseSchema,
+  launchRecordSchema,
+  launchStatusSchema,
+} from "../launches/launch.js";
 import { taskCancelOutcomeSchema } from "./task-tool-previews.js";
 
 /**
@@ -302,7 +302,7 @@ export const bashExecutionDispositionSchema = z.discriminatedUnion(
     z.object({
       disposition: z.literal("backgrounded"),
       taskId: z.string().startsWith("task_"),
-      status: taskStatusSchema,
+      status: launchStatusSchema,
       elapsedMs: z.number().nonnegative(),
       terminalUpdate: z.literal("automatic"),
     }),
@@ -717,16 +717,16 @@ export const taskCancelResultSchema = z.object({
   taskName: z.string().optional(),
   requestedSignal: z.enum(["SIGTERM", "SIGINT", "SIGKILL"]).optional(),
   outcome: taskCancelOutcomeSchema,
-  status: taskStatusSchema.optional(),
+  status: launchStatusSchema.optional(),
   message: z.string(),
-  releasedPorts: z.array(taskListeningPortSchema).optional(),
+  releasedPorts: z.array(launchListeningPortSchema).optional(),
 });
 export type TaskCancelResultPayload = z.infer<typeof taskCancelResultSchema>;
 /** Exact dispatcher result of task_start. */
 export const taskStartToolResultSchema = z
   .object({
-    task: taskRecordSchema,
-    otherActiveTasks: z.array(taskRecordSchema),
+    task: launchRecordSchema,
+    otherActiveTasks: z.array(launchRecordSchema),
     otherActiveTaskCount: z.number().int().nonnegative(),
     contentBlocks: z.array(toolContentBlockSchema).optional(),
   })
@@ -736,7 +736,7 @@ export type TaskStartToolResult = z.infer<typeof taskStartToolResultSchema>;
 /** Exact dispatcher result of task_status. */
 export const taskStatusToolResultSchema = z
   .object({
-    tasks: z.array(taskRecordSchema),
+    tasks: z.array(launchRecordSchema),
     contentBlocks: z.array(toolContentBlockSchema).optional(),
   })
   .strict();
@@ -747,7 +747,7 @@ export const taskControlToolResultSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("stop"),
-      task: taskRecordSchema,
+      task: launchRecordSchema,
       result: taskCancelResultSchema,
       contentBlocks: z.array(toolContentBlockSchema).optional(),
     })
@@ -755,7 +755,7 @@ export const taskControlToolResultSchema = z.discriminatedUnion("action", [
   z
     .object({
       action: z.literal("restart"),
-      task: taskRecordSchema,
+      task: launchRecordSchema,
       restartedFromTaskId: z.string().startsWith("task_"),
       newTaskId: z.string().startsWith("task_"),
       restartRootTaskId: z.string().startsWith("task_"),
@@ -766,7 +766,7 @@ export const taskControlToolResultSchema = z.discriminatedUnion("action", [
 export type TaskControlToolResult = z.infer<typeof taskControlToolResultSchema>;
 
 /** Exact dispatcher result of task_logs. */
-export const taskLogsToolResultSchema = taskLogQueryResponseSchema
+export const taskLogsToolResultSchema = launchLogQueryResponseSchema
   .extend({
     contentBlocks: z.array(toolContentBlockSchema).optional(),
     details: z.unknown().optional(),

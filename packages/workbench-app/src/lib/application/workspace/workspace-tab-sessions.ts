@@ -1,7 +1,7 @@
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
-import type { TaskRecord } from "$lib/api";
+import type { LaunchRecord } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
 import { projectKey } from "$lib/domain/projects/project-tree";
@@ -24,7 +24,12 @@ import {
   tabIdentityKey,
 } from "./tab-session-helpers";
 
-const storageKey = "nerve.workspaceTabs.v2";
+import {
+  readWorkspaceTabStorage,
+  WORKSPACE_TAB_STORAGE_KEY,
+} from "./workspace-tab-storage";
+
+const storageKey = WORKSPACE_TAB_STORAGE_KEY;
 const maxSessions = 24;
 const maxTabs = 30;
 const globalKinds = new Set<CenterTabIdentity["kind"]>([
@@ -238,7 +243,7 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
   return [
     "conversation",
     "pending-conversation",
-    "task",
+    "launch",
     "file",
     "mermaid",
     "pr",
@@ -371,9 +376,7 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
 function readPayload(): StoredPayload | undefined {
   if (typeof localStorage === "undefined") return undefined;
   try {
-    return JSON.parse(localStorage.getItem(storageKey) ?? "null") as
-      | StoredPayload
-      | undefined;
+    return readWorkspaceTabStorage(localStorage) as StoredPayload | undefined;
   } catch {
     return undefined;
   }
@@ -383,16 +386,17 @@ export function hydrateWorkspaceTabSessions(
   input: {
     projects: Project[];
     conversations: ConversationSummary[];
-    tasks: TaskRecord[];
+    launches: LaunchRecord[];
   },
   options: { deferActivation?: boolean } = {},
 ): CenterTabIdentity | undefined {
   if (hydrated) return;
   hydrated = true;
   const projectKeys = new Set(input.projects.map(projectKey));
-  const taskIds = new Set(
-    input.tasks.map(
-      (task) => task.definitionId ?? task.restartRootTaskId ?? task.id,
+  const launchIds = new Set(
+    input.launches.map(
+      (launch) =>
+        launch.definitionId ?? launch.restartRootLaunchId ?? launch.id,
     ),
   );
   const stored = readPayload();
@@ -425,7 +429,7 @@ export function hydrateWorkspaceTabSessions(
           workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
         );
       if (tab.kind === "conversation") return true;
-      if (tab.kind === "task") return taskIds.has(tab.id);
+      if (tab.kind === "launch") return launchIds.has(tab.id);
       return true;
     });
     sessions[key] = normalizeSession(parsed);

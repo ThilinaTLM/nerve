@@ -30,9 +30,9 @@ import {
   selectCenterSettingsTab,
 } from "$lib/application/settings/settings-actions.svelte";
 import {
-  closeTaskTab,
-  selectCenterTaskTab,
-} from "$lib/features/tasks/state/task-tabs.svelte";
+  closeLaunchTab,
+  selectCenterLaunchTab,
+} from "$lib/features/launches/state/launch-tabs.svelte";
 import { registerCenterTabDispatch } from "$lib/application/workspace/center-tabs.svelte";
 
 registerCenterTabDispatch({
@@ -42,7 +42,7 @@ registerCenterTabDispatch({
       setActiveCenterTab(tab);
     },
     "pending-conversation": (tab) => setActiveCenterTab(tab),
-    task: (tab) => selectCenterTaskTab(tab.id),
+    launch: (tab) => selectCenterLaunchTab(tab.id),
     file: (tab) => selectCenterFileTab(tab.id),
     mermaid: (tab) => selectCenterMermaidTab(tab.id),
     pr: (tab) => selectCenterPrTab(tab.id),
@@ -54,7 +54,7 @@ registerCenterTabDispatch({
   close: {
     conversation: (tab) => closeCenterTabs([tab]),
     "pending-conversation": (tab) => closeCenterTabs([tab]),
-    task: (tab) => closeTaskTab(tab.id),
+    launch: (tab) => closeLaunchTab(tab.id),
     file: (tab) => closeFileTab(tab.id),
     mermaid: (tab) => closeMermaidTab(tab.id),
     pr: (tab) => closePrTab(tab.id),

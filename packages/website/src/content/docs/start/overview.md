@@ -21,7 +21,7 @@ The daemon reaches external services only when required by your selected model, 
 - **Conversation:** persisted agent history associated with a project. Conversations can branch when you navigate to an earlier entry.
 - **Agent:** a model-driven worker with a thinking level, mode, permission level, tools, and loaded resources. Each conversation has a lead; it can delegate to persistent developer teammates or bounded read-only Explore agents.
 - **Run:** one durable execution attempt. Runs can stream output, pause for review, retry, or continue from a recoverable checkpoint.
-- **Task:** a supervised long-running process such as a server or watcher. Tasks are distinct from finite shell commands and agent to-dos.
+- **Launch:** a supervised long-running process such as a server or watcher. Tasks are distinct from finite shell commands and agent to-dos.
 
 ## Why the controls matter
 

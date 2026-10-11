@@ -13,11 +13,11 @@ import {
 } from "$lib/presentation/shell";
 import type { GitPanelModel } from "$lib/features/git";
 import { gitSelectors } from "$lib/features/git";
-import { taskSelectors } from "$lib/features/tasks";
+import { launchSelectors } from "$lib/features/launches";
 import { tildePath } from "$lib/domain/filesystem/project-path";
 import { workspaceSelectors } from "$lib/application/workspace";
 import MobileRootActions from "./MobileRootActions.svelte";
-import { LIVE_TASK_STATUSES, tasksInProject } from "./mobile-activity";
+import { LIVE_LAUNCH_STATUSES, launchesInProject } from "./mobile-activity";
 import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
 import { buildMobileProjectHome } from "./mobile-project-home";
 import { openMobileConversation } from "./mobile-route-activation.svelte";
@@ -50,11 +50,11 @@ const model = $derived(
       projectIds.includes(conversation.projectId),
     ),
     activityById: workspaceSelectors.conversationActivityById,
-    liveTaskCount: tasksInProject(
-      taskSelectors.tasks,
+    liveLaunchCount: launchesInProject(
+      launchSelectors.launches,
       workspaceSelectors.projects,
       projectId,
-    ).filter((task) => LIVE_TASK_STATUSES.has(task.status)).length,
+    ).filter((launch) => LIVE_LAUNCH_STATUSES.has(launch.status)).length,
     git: gitStatus
       ? { changeCount: gitStatus.changeCount, branch: gitStatus.branch }
       : undefined,
@@ -105,10 +105,10 @@ const activityById = $derived(workspaceSelectors.conversationActivityById);
       onclick={() => pushMobileScreen({ kind: "files", projectId, path: "" })}
     />
     <MobileListRow
-      title="Tasks"
-      detail={model.tasksDetail}
+      title="Launches"
+      detail={model.launchesDetail}
       icon={Terminal}
-      onclick={() => pushMobileScreen({ kind: "tasks", projectId })}
+      onclick={() => pushMobileScreen({ kind: "launches", projectId })}
     />
     <MobileListRow
       title="Scratch notes"

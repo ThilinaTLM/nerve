@@ -11,7 +11,6 @@ import type {
 import type { ConversationStore } from "../state/core-conversation-store.svelte";
 import { retainedConversationStores } from "../state/open-conversation-stores";
 import { conversationTranscript } from "./core-transcript.adapter";
-import { asyncBashToolView } from "./core-async-bash-tool.adapter";
 
 type LoadedDetails = { details: ToolCallDetails; bytes: Uint8Array };
 const cache = new WeakMap<
@@ -103,10 +102,6 @@ async function loadDetails(toolCallId: string): Promise<LoadedDetails> {
             ...base,
             args,
             result,
-            asyncBashView:
-              result && record.status === "completed"
-                ? asyncBashToolView(record.toolName, result)
-                : undefined,
             agentPreview: loaded
               ? agentPreview(loaded.agentProjection, loaded.result)
               : undefined,

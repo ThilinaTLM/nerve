@@ -13,7 +13,7 @@ type ActivityLike = { tone: StatusTone; label?: string; busy: boolean };
 export type MobileProjectHomeInput = {
   conversations: readonly ConversationSummary[];
   activityById: Readonly<Record<string, ActivityLike | undefined>>;
-  liveTaskCount: number;
+  liveLaunchCount: number;
   git?: { changeCount: number; branch?: string };
   prCount: number;
 };
@@ -21,7 +21,7 @@ export type MobileProjectHomeInput = {
 export type MobileProjectHomeModel = {
   recent: ConversationSummary[];
   conversationCount: number;
-  tasksDetail: string;
+  launchesDetail: string;
   gitDetail: string;
   pullRequestsDetail: string;
 };
@@ -54,10 +54,10 @@ export function buildMobileProjectHome(
   return {
     recent,
     conversationCount: input.conversations.length,
-    tasksDetail:
-      input.liveTaskCount > 0
-        ? `${plural(input.liveTaskCount, "task", "tasks")} running`
-        : "No running tasks",
+    launchesDetail:
+      input.liveLaunchCount > 0
+        ? `${plural(input.liveLaunchCount, "launch", "launches")} running`
+        : "No running launches",
     gitDetail: !git
       ? "No repository"
       : git.changeCount > 0

@@ -37,9 +37,11 @@ function activityDetail(item: ProjectSwitcherItem): string {
   if (item.activity.needsUser) parts.push(`${item.activity.needsUser} waiting`);
   if (item.activity.failed) parts.push(`${item.activity.failed} failed`);
   if (item.activity.running) parts.push(`${item.activity.running} running`);
-  if (item.tasks.running)
+  if (item.launches.running)
     parts.push(
-      item.tasks.running === 1 ? "1 task" : `${item.tasks.running} tasks`,
+      item.launches.running === 1
+        ? "1 launch"
+        : `${item.launches.running} launches`,
     );
   if (parts.length) return parts.join(" · ");
   return tildePath(item.project.directory, homeDir);
@@ -48,7 +50,7 @@ function activityDetail(item: ProjectSwitcherItem): string {
 function activityTone(item: ProjectSwitcherItem) {
   if (item.activity.failed) return "destructive" as const;
   if (item.activity.needsUser) return "warning" as const;
-  if (item.activity.running || item.tasks.running) return "info" as const;
+  if (item.activity.running || item.launches.running) return "info" as const;
   return undefined;
 }
 
@@ -85,7 +87,7 @@ function browse() {
             ? "1 chat"
             : `${item.conversationCount} chats`}
           tone={activityTone(item)}
-          pulse={Boolean(item.activity.running || item.tasks.running)}
+          pulse={Boolean(item.activity.running || item.launches.running)}
           selected={item.key === workspaceState.selectedProjectKey}
           onclick={() => choose(item)}
         >

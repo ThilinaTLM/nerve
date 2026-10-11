@@ -29,7 +29,7 @@ export type WorkbenchPanelDescriptor = PanelViewDescriptor &
 
 /**
  * The panel view registry is the authority for what can live in a dock. Ids are
- * persisted in `nerve.layout.v1`; unknown ids are dropped on hydration and new
+ * persisted in `nerve.layout.v2`; unknown ids are dropped on hydration and new
  * entries join their default dock automatically.
  */
 export const panelViewDescriptors = [
@@ -80,13 +80,13 @@ export const panelViewDescriptors = [
     load: () => import("../panels/ContextWorkbenchPanel.svelte"),
   },
   {
-    id: "tasks",
+    id: "launches",
     propsKind: "none",
-    title: "Tasks",
+    title: "Launches",
     icon: Terminal,
     defaultDock: "left",
     defaultOrder: 2,
-    load: () => import("../panels/TasksWorkbenchPanel.svelte"),
+    load: () => import("../panels/LaunchesWorkbenchPanel.svelte"),
   },
   {
     id: "notes",

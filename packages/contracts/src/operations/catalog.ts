@@ -18,8 +18,8 @@ import { scratchNotesOperationDefinitions } from "../domains/scratch-notes/opera
 import { settingsOperationDefinitions } from "../domains/settings/operations.js";
 import { statusOperationDefinitions } from "../domains/status/operations.js";
 import { storageOperationDefinitions } from "../domains/storage/operations.js";
-import { taskDefinitionOperationDefinitions } from "../domains/task-definitions/operations.js";
-import { tasksOperationDefinitions } from "../domains/tasks/operations.js";
+import { launchDefinitionOperationDefinitions } from "../domains/launch-definitions/operations.js";
+import { launchesOperationDefinitions } from "../domains/launches/operations.js";
 import { usageOperationDefinitions } from "../domains/usage/operations.js";
 
 const methodDefinitions = [
@@ -37,8 +37,8 @@ const methodDefinitions = [
   ...settingsOperationDefinitions,
   ...statusOperationDefinitions,
   ...storageOperationDefinitions,
-  ...taskDefinitionOperationDefinitions,
-  ...tasksOperationDefinitions,
+  ...launchDefinitionOperationDefinitions,
+  ...launchesOperationDefinitions,
   ...usageOperationDefinitions,
 ] as const;
 

@@ -23,7 +23,7 @@ The source process result remains complete in its durable log or artifact. The l
 | ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Process bytes            | `@nervekit/tools` process adapters | Decode UTF-8 incrementally and preserve full output in the task/result store.                        |
 | Live framing             | `splitLiveOutputChunks`            | Split output into UTF-8-safe events before publication.                                              |
-| Task output              | `TaskService`                      | Append durable output first, then publish bounded live updates and observers.                        |
+| Launch output            | `LaunchService`                    | Append durable output first, then publish bounded live updates and observers.                        |
 | Conversation live output | `LiveToolOutputPublisher`          | Serialize each tool call's output queue, publish offsets, and update the rolling runtime projection. |
 | Complete result          | Tool-result preparation            | Preserve exact JSON before storage bounding whenever projection needs payload recovery.              |
 | Agent projection         | Adaptive result projector          | Select one semantic representation, then apply the catalog profile's byte/line/item strategy.        |
@@ -43,7 +43,7 @@ Every active catalog tool declares one semantic result policy. The projector fir
 
 Only the host artifact validator can issue an agent-readable descriptor. It accepts managed regular files, rejects symlink chains and unsafe roots, and never opens artifact content during projection. When no exact artifact or continuation exists, preparation writes the complete result before bounding at `data/conversations/<bare-conversation-id>/tool-calls/<bare-tool-call-id>/result.json`. The payload reference remains owner/digest verified and version 2.
 
-Task output uses a per-task bundle with `events.jsonl`, distinct `stdout.txt` and `stderr.txt`, and an optional labeled `combined.txt`. Events carry stream byte ranges. Internally, task queries preserve separate `beforeSeq` and `sinceSeq` boundaries; the model-facing `task_logs` adapter exposes one mode-specific `cursor` without weakening exact backward or forward recovery.
+Launch output uses a per-launch bundle with `events.jsonl`, distinct `stdout.txt` and `stderr.txt`, and an optional labeled `combined.txt`. Events carry stream byte ranges. Internally, launch queries preserve separate `beforeSeq` and `sinceSeq` boundaries; the model-facing `task_logs` adapter exposes one mode-specific `cursor` without weakening exact backward or forward recovery.
 
 The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget; Explore applies one budget per child report and no additional call-level ceiling.
 

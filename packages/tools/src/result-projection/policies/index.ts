@@ -32,10 +32,6 @@ import {
   planReviewAgentResultPolicy,
 } from "./plan-mode.js";
 import { processAgentResultPolicy } from "./process.js";
-import {
-  taskLifecycleAgentResultPolicy,
-  taskLogsAgentResultPolicy,
-} from "./tasks.js";
 import { generateImageAgentResultPolicy } from "./image-generation.js";
 import { explainImageAgentResultPolicy } from "./vision.js";
 import {
@@ -97,10 +93,8 @@ const map: Record<ToolName, AgentResultPolicy> = {
   confluence_manage_label: confluenceMutationAgentResultPolicy,
   confluence_manage_restriction: confluenceMutationAgentResultPolicy,
   confluence_manage_attachment: confluenceMutationAgentResultPolicy,
-  task_start: taskLifecycleAgentResultPolicy,
-  task_status: taskLifecycleAgentResultPolicy,
-  task_logs: taskLogsAgentResultPolicy,
-  task_control: taskLifecycleAgentResultPolicy,
+  async_bash: policy("lifecycle_state", "head", textCandidate),
+  launch: policy("lifecycle_state", "head", textCandidate),
   explore: exploreAgentResultPolicy,
   plan_mode_enter: planMutationAgentResultPolicy,
   plan_mode_present: planReviewAgentResultPolicy,
@@ -125,7 +119,6 @@ export { mutationCandidate } from "../candidates/mutation.js";
 export { resourceCandidate } from "../candidates/resources.js";
 export { webFetchCandidate } from "../candidates/web.js";
 export { humanCandidate } from "../candidates/interaction.js";
-export { lifecycleCandidate, taskLogsCandidate } from "../candidates/tasks.js";
 export { exploreCandidate } from "../candidates/explore.js";
 export { primaryFileCandidate } from "../candidates/primary-file.js";
 export * from "./confluence.js";
@@ -135,6 +128,5 @@ export * from "./interaction.js";
 export * from "./jira.js";
 export * from "./plan-mode.js";
 export * from "./process.js";
-export * from "./tasks.js";
 export * from "./vision.js";
 export * from "./web.js";

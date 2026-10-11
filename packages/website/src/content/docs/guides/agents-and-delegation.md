@@ -51,11 +51,11 @@ Use **Explore** when the work can be split into independent, read-only codebase 
 
 Explore is a better fit for parallel inventory, tracing several independent subsystems, or comparing tests and implementation. A teammate is a better fit when a child needs to implement, validate, and retain context for later follow-ups.
 
-| Choose              | When you need                                        | Authority                                                              | Lifecycle                                             |
-| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Teammate**        | Autonomous implementation or repeated follow-up work | Shared worktree and enabled developer tools, within hard policy limits | Persistent and reusable while idle                    |
-| **Explore**         | Parallel, bounded codebase research                  | Read-only inspection and task-log access                               | Temporary; reports back after one research assignment |
-| **Background task** | A server, watcher, or other long-running process     | Process supervision, not model reasoning                               | Durable task definition with separately retained runs |
+| Choose              | When you need                                        | Authority                                                              | Lifecycle                                               |
+| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| **Teammate**        | Autonomous implementation or repeated follow-up work | Shared worktree and enabled developer tools, within hard policy limits | Persistent and reusable while idle                      |
+| **Explore**         | Parallel, bounded codebase research                  | Read-only inspection and task-log access                               | Temporary; reports back after one research assignment   |
+| **Background task** | A server, watcher, or other long-running process     | Process supervision, not model reasoning                               | Durable launch definition with separately retained runs |
 
 ## Related pages
 

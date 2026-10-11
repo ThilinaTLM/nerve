@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 export function createTurnResourcesPort(options: {
   home: string;
-  tools(): ToolDefinition[];
+  tools(projectDir: string): ToolDefinition[] | Promise<ToolDefinition[]>;
   skills: readonly Skill[];
   agentBrowserSkills: readonly Skill[];
   capabilities: CapabilityService;
@@ -22,28 +22,30 @@ export function createTurnResourcesPort(options: {
           conversation.projectId,
           conversation.id,
         );
-      const tools = [...options.tools(), ...coreTools].filter((tool) => {
-        const name = tool.name.startsWith("subagent_")
-          ? "subagents"
-          : tool.name.startsWith("jira_")
-            ? "jira"
-            : tool.name.startsWith("confluence_")
-              ? "confluence"
-              : tool.name;
-        const parsed = capabilityToolNameSchema.safeParse(name);
-        if (
-          (name === "jira" || name === "confluence") &&
-          !toolProfileOptions[name].some(
-            (profile) => profile.id === effective.toolProfiles[name],
+      const tools = [...(await options.tools(projectDir)), ...coreTools].filter(
+        (tool) => {
+          const name = tool.name.startsWith("subagent_")
+            ? "subagents"
+            : tool.name.startsWith("jira_")
+              ? "jira"
+              : tool.name.startsWith("confluence_")
+                ? "confluence"
+                : tool.name;
+          const parsed = capabilityToolNameSchema.safeParse(name);
+          if (
+            (name === "jira" || name === "confluence") &&
+            !toolProfileOptions[name].some(
+              (profile) => profile.id === effective.toolProfiles[name],
+            )
           )
-        )
-          return false;
-        return (
-          !parsed.success ||
-          (availableTools.includes(parsed.data) &&
-            !effective.disabledTools.includes(parsed.data))
-        );
-      });
+            return false;
+          return (
+            !parsed.success ||
+            (availableTools.includes(parsed.data) &&
+              !effective.disabledTools.includes(parsed.data))
+          );
+        },
+      );
       const resources = await loadHarnessResources(projectDir, {
         storageHome: options.home,
         nerveSkills: options.skills,

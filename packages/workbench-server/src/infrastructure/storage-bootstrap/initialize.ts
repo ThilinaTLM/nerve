@@ -33,7 +33,6 @@ const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["reportsPath", 0o700],
   ["imagesPath", 0o700],
   ["plansPath", 0o755],
-  ["tasksPath", 0o700],
   ["tlsPath", 0o700],
   ["tmpPath", 0o700],
   ["cachePath", 0o700],

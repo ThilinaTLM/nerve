@@ -7,7 +7,7 @@ export type CenterViewModule = Promise<{ default: Component }>;
 
 /** Concrete feature wiring belongs in the composition root, not the shell. */
 export const centerViewLoaders = {
-  task: () => import("$lib/features/tasks/hosts/TaskCenterHost.svelte"),
+  launch: () => import("$lib/features/launches/hosts/LaunchCenterHost.svelte"),
   file: () => import("$lib/features/filesystem/hosts/FileCenterHost.svelte"),
   mermaid: () =>
     import("$lib/features/filesystem/hosts/MermaidCenterHost.svelte"),

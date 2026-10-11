@@ -139,13 +139,14 @@ export async function closeCenterTabs(
       workspaceFeaturePorts().git.commands.discardDiffView(tab.id);
   }
 
-  const selectedTaskId = workspaceFeaturePorts().tasks.read.selectedTaskId;
+  const selectedLaunchId =
+    workspaceFeaturePorts().launches.read.selectedLaunchId;
   if (
-    selectedTaskId &&
-    targets.has(centerTabKey({ kind: "task", id: selectedTaskId }))
+    selectedLaunchId &&
+    targets.has(centerTabKey({ kind: "launch", id: selectedLaunchId }))
   ) {
-    workspaceFeaturePorts().tasks.commands.setSelectedTaskId(undefined);
-    workspaceFeaturePorts().tasks.commands.clearTaskLogs();
+    workspaceFeaturePorts().launches.commands.setSelectedLaunchId(undefined);
+    workspaceFeaturePorts().launches.commands.clearLaunchLogs();
   }
 
   if (

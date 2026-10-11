@@ -19,7 +19,7 @@ describe("center tab refresh", () => {
     const tabs: CenterTabIdentity[] = [
       { kind: "conversation", id: "conv_1" },
       { kind: "pending-conversation", id: "pending_1" },
-      { kind: "task", id: "task_1" },
+      { kind: "launch", id: "launch_1" },
       { kind: "discover", id: "discover" },
       { kind: "file", id: "file_1" },
       { kind: "mermaid", id: "mermaid_1" },
@@ -32,7 +32,7 @@ describe("center tab refresh", () => {
     assert.deepEqual(calls, [
       "conversation:conv_1",
       "select:pending-conversation:pending_1",
-      "select:task:task_1",
+      "select:launch:launch_1",
       "select:discover:discover",
       "file:file_1",
       "mermaid:mermaid_1",

@@ -343,6 +343,7 @@ export class ToolCallService {
           projectDir,
           ruleSetId: effectivePermissionRuleSetId(config),
           toolName: call.toolName,
+          origin: call.origin,
           args,
           cwd: config.workingDirectory,
         });
@@ -380,7 +381,7 @@ export class ToolCallService {
       });
       const ctx = this.toolContext(call, controller.signal);
       const handler = this.options.coreTools.get(call.toolName);
-      const { config } = this.options.context(call.conversationId);
+      const { config, projectDir } = this.options.context(call.conversationId);
       let result;
       if (handler) result = await handler.execute(call, ctx);
       else {
@@ -391,7 +392,9 @@ export class ToolCallService {
         result = await this.options.host.execute({
           toolCallId: call.id,
           conversationId: call.conversationId,
+          origin: call.origin,
           toolName: call.toolName,
+          projectDir,
           args,
           cwd: config.workingDirectory,
           signal: ctx.signal,
@@ -416,7 +419,10 @@ export class ToolCallService {
           conversationId: call.conversationId,
           toolCallId: call.id,
           command: String(call.arguments.command ?? ""),
-          cwd: config.workingDirectory,
+          cwd:
+            typeof objectDetails(result.result.details).cwd === "string"
+              ? String(objectDetails(result.result.details).cwd)
+              : config.workingDirectory,
           process: result.process,
         });
         if (controller.signal.aborted || !this.holdsClaim(call)) {
@@ -428,7 +434,9 @@ export class ToolCallService {
           "completed",
           {
             ...result.result,
-            content: `${result.result.content ?? "Command promoted to background."}\nAsync bash: ${bash.id}`,
+            content: objectDetails(result.result.details).backgroundStart
+              ? `Started async bash ${bash.id}.${result.result.content ? `\n${result.result.content}` : ""}`
+              : `Still running; continues as async bash ${bash.id}. You will be notified on exit.${result.result.content ? `\n${result.result.content}` : ""}`,
             details: {
               ...objectDetails(result.result.details),
               asyncBashId: bash.id,

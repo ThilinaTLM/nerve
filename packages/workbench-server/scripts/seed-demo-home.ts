@@ -27,8 +27,11 @@ import {
   type InitializedStorage,
 } from "../src/infrastructure/storage-bootstrap/index.js";
 import { ToolCallRepository } from "../src/domains/tools/artifacts/tool-call.repository.js";
-import { TaskRepository } from "../src/domains/tasks/persistence/task.repository.js";
-import { type TaskRecord, taskRecordSchema } from "@nervekit/contracts/tasks";
+import { LaunchRepository } from "../src/domains/launches/persistence/launch.repository.js";
+import {
+  type LaunchRecord,
+  launchRecordSchema,
+} from "@nervekit/contracts/launches";
 import {
   DEMO_PROJECT_CONVERSATIONS,
   type DemoConversation,
@@ -165,17 +168,17 @@ async function appendStep(
     tokensBefore: options.tokensBefore,
   };
 
-  if (step.type === "task_event") {
+  if (step.type === "launch_event") {
     /* The seed builds an explicit active branch. Use a mirrored anchor so the
      * notice participates in that branch; transcript projection still renders
-     * `task_event` entries as system notices, matching a live notification. */
+     * `launch_event` entries as system notices, matching a live notification. */
     const entry = await services.conversationLifecycle.appendEntry({
       ...shared,
       role: "assistant",
-      kind: "task_event",
+      kind: "launch_event",
       text: step.text,
       details: {
-        type: "task_event",
+        type: "launch_event",
         taskName: step.taskName,
         event: step.event,
         status: step.status,
@@ -320,8 +323,8 @@ async function seedConversation(
   });
 }
 
-/** Project-resident task definitions, so the Tasks panel is not empty. */
-async function writeTaskDefinitions(workspace: string): Promise<void> {
+/** Project-resident task definitions, so the Launchs panel is not empty. */
+async function writeLaunchDefinitions(workspace: string): Promise<void> {
   const now = new Date(SEED_NOW).toISOString();
   const definitions = [
     { label: "aurora-web dev", command: "pnpm dev", cwd: "aurora-web" },
@@ -332,7 +335,7 @@ async function writeTaskDefinitions(workspace: string): Promise<void> {
       cwd: "aurora-infra",
     },
   ].map((definition) => ({
-    id: createId("taskdef"),
+    id: createId("launchdef"),
     scope: { kind: "project" as const },
     label: definition.label,
     command: definition.command,
@@ -341,7 +344,7 @@ async function writeTaskDefinitions(workspace: string): Promise<void> {
     createdAt: now,
     updatedAt: now,
   }));
-  const directory = join(workspace, ".nerve", "tasks");
+  const directory = join(workspace, ".nerve", "launches");
   await mkdir(directory, { recursive: true });
   await writeFile(
     join(directory, "definitions.json"),
@@ -350,12 +353,12 @@ async function writeTaskDefinitions(workspace: string): Promise<void> {
   );
 }
 
-async function seedTasks(
+async function seedLaunches(
   context: SeedContext,
   storage: InitializedStorage,
 ): Promise<void> {
   const { services, projectId, workspace } = context;
-  const repository = new TaskRepository(storage);
+  const repository = new LaunchRepository(storage);
   const conversationId = services.conversationLifecycle
     .listConversations()
     .find((conversation) => conversation.projectId === projectId)?.id;
@@ -399,9 +402,9 @@ async function seedTasks(
   ];
 
   for (const [index, definition] of definitions.entries()) {
-    const id = createId("task");
+    const id = createId("launch");
     const paths = repository.bundles.paths(id);
-    const record: TaskRecord = taskRecordSchema.parse({
+    const record: LaunchRecord = launchRecordSchema.parse({
       id,
       name: definition.name,
       displayName: definition.name,
@@ -514,8 +517,8 @@ async function main(): Promise<void> {
       }
 
       if (demoProject.id === "aurora") {
-        await writeTaskDefinitions(workspace);
-        await seedTasks(context, storage);
+        await writeLaunchDefinitions(workspace);
+        await seedLaunches(context, storage);
       }
     }
 

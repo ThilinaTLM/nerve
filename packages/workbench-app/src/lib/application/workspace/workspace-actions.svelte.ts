@@ -84,7 +84,7 @@ export async function loadWorkspaceState(): Promise<void> {
     {
       projects: workspaceState.projects,
       conversations: workspaceState.conversations,
-      tasks: [...workspaceFeaturePorts().tasks.read.tasks],
+      launches: [...workspaceFeaturePorts().launches.read.launches],
     },
     { deferActivation: true },
   );

@@ -1,7 +1,7 @@
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { pipeline } from "node:stream/promises";
+import { pipeline, finished } from "node:stream/promises";
 import { spawnManagedProcess } from "@nervekit/native";
 import type {
   BackgroundProcess,
@@ -24,6 +24,7 @@ export class CoreProcessHost implements ProcessPort {
     const outputFiles = {
       stdout: join(input.artifactDir, "stdout.txt"),
       stderr: join(input.artifactDir, "stderr.txt"),
+      combined: join(input.artifactDir, "output.txt"),
     };
     const process = spawnManagedProcess(
       this.shellPath,
@@ -42,17 +43,20 @@ export class CoreProcessHost implements ProcessPort {
     void process.exited.then(() => {
       exited = true;
     });
+    const combined = createWriteStream(outputFiles.combined);
     for (const stream of ["stdout", "stderr"] as const)
-      process[stream].on("data", (chunk: Buffer) =>
-        input.onProgress?.({ stream, chunk: chunk.toString() }),
-      );
+      process[stream].on("data", (chunk: Buffer) => {
+        combined.write(chunk);
+        input.onProgress?.({ stream, chunk: chunk.toString() });
+      });
+    const combinedDrain = finished(combined);
     const drains = Promise.all([
       pipeline(process.stdout, createWriteStream(outputFiles.stdout)),
       pipeline(process.stderr, createWriteStream(outputFiles.stderr)),
-    ]);
+    ]).finally(() => combined.end());
     const ref = process.identity;
     const terminal = (async () => {
-      const [exit] = await Promise.all([process.closed, drains]);
+      const [exit] = await Promise.all([process.closed, drains, combinedDrain]);
       return {
         exitCode: exit.exitCode,
         status: cancelled
@@ -117,10 +121,10 @@ export class CoreProcessHost implements ProcessPort {
           exited = true;
         },
       );
-      const deadline = Date.now() + (ready.timeoutMs ?? 30_000);
+      const deadline = Date.now() + Math.min(ready.timeoutMs ?? 60_000, 60_000);
       while (Date.now() < deadline && !exited && !input.signal.aborted) {
         const output = await readFile(
-          background.outputFiles.stdout,
+          background.outputFiles.combined ?? background.outputFiles.stdout,
           "utf8",
         ).catch(() => "");
         if (pattern?.test(output))
@@ -141,11 +145,10 @@ export class CoreProcessHost implements ProcessPort {
               ]),
             });
             await response.body?.cancel();
-            if (response.ok)
-              return {
-                process: background,
-                readiness: { status: "ready", url },
-              };
+            return {
+              process: background,
+              readiness: { status: "ready", url },
+            };
           } catch {
             /* Readiness can lag process startup. */
           }

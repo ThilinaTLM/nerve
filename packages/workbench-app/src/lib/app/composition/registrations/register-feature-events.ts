@@ -4,12 +4,12 @@ import {
   registerProviderCatalogEventHandlers,
   registerSettingsEventHandlers,
 } from "$lib/features/settings";
-import { registerTaskEventHandlers } from "$lib/features/tasks";
+import { registerLaunchEventHandlers } from "$lib/features/launches";
 import { registerUsageEventHandlers } from "$lib/features/usage";
 
 export function registerFeatureEventHandlers(): () => void {
   const unregister = [
-    registerTaskEventHandlers(),
+    registerLaunchEventHandlers(),
     registerSettingsEventHandlers(),
     registerProviderCatalogEventHandlers(),
     registerUsageEventHandlers(),

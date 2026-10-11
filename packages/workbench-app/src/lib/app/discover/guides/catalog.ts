@@ -132,7 +132,7 @@ export const guideCatalog: readonly GuideDefinition[] = [
     version: 1,
     title: "Work through the Workbench",
     description:
-      "Tour conversations, composer controls, panels, Git workflows, tasks, providers, settings, and Help.",
+      "Tour conversations, composer controls, panels, Git workflows, launches, providers, settings, and Help.",
     category: "walkthrough",
     priority: "highly-recommended",
     lifecycle: "available",

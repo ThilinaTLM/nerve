@@ -8,29 +8,19 @@ describe("tool prompt guidelines", () => {
       "read",
       "bash",
       "python_exec",
-      "task_start",
+      "async_bash",
     ]);
 
     assert.deepEqual(guidelines, [
       "Prefer dedicated file tools over bash for inspection and search.",
-      "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.",
+      "Check launch status before starting a server; prefer launch definitions over bash for servers.",
       'Write large Python outputs under os.environ["NERVE_PYTHON_ARTIFACT_DIR"]; do not pass secrets through env or use Python for long-lived or interactive processes.',
-      "Before starting a server or watcher, inspect active tasks with task_status unless current task state is already known.",
     ]);
   });
 
   it("keeps asynchronous task guidance when no dedicated file tool is active", () => {
     assert.deepEqual(promptGuidelinesForTools(["bash"]), [
-      "Long-running Bash calls may be promoted to background tasks. After promotion, do not wait or poll task_status/task_logs; continue independent work or finish the turn. Terminal completion of promoted Bash tasks will restart you; detached task_start processes do not.",
-    ]);
-  });
-
-  it("does not promise Bash promotion to foreground-only teammates", () => {
-    const guidelines = promptGuidelinesForTools(["bash", "read"], {
-      foregroundOnlyBash: true,
-    });
-    assert.deepEqual(guidelines, [
-      "Prefer dedicated file tools over bash for inspection and search.",
+      "Check launch status before starting a server; prefer launch definitions over bash for servers.",
     ]);
   });
 

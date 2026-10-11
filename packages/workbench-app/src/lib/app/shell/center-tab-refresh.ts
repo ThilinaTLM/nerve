@@ -20,7 +20,7 @@ export function createCenterTabRefresh(
         dependencies.refreshConversation(tab.id);
         return;
       case "pending-conversation":
-      case "task":
+      case "launch":
       case "discover":
         dependencies.selectTab(tab);
         return;

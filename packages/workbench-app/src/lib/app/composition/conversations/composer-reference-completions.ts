@@ -3,7 +3,7 @@ import {
   type CompletionItem,
 } from "@nervekit/contracts/completions";
 import type { GithubPr } from "@nervekit/contracts/git";
-import type { TaskRecord } from "@nervekit/contracts/tasks";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 
 function includesQuery(
@@ -30,15 +30,21 @@ export async function fileCompletions(
   ).items;
 }
 
-function taskCompletions(
-  tasks: readonly TaskRecord[],
+function launchCompletions(
+  launches: readonly LaunchRecord[],
   query: string,
 ): CompletionItem[] {
   const active = new Set(["starting", "running", "ready", "stopping"]);
-  return [...tasks]
-    .filter((task) =>
+  return [...launches]
+    .filter((launch) =>
       includesQuery(
-        [task.id, task.displayName, task.name, task.command, task.status],
+        [
+          launch.id,
+          launch.displayName,
+          launch.name,
+          launch.command,
+          launch.status,
+        ],
         query,
       ),
     )
@@ -48,12 +54,12 @@ function taskCompletions(
         b.updatedAt.localeCompare(a.updatedAt),
     )
     .slice(0, FILE_COMPLETION_RESULT_LIMIT)
-    .map((task) => ({
-      label: task.id,
-      displayLabel: task.displayName ?? task.name ?? task.command,
-      detail: `${task.id} · ${task.status}`,
-      info: task.command,
-      kind: "task",
+    .map((launch) => ({
+      label: launch.id,
+      displayLabel: launch.displayName ?? launch.name ?? launch.command,
+      detail: `${launch.id} · ${launch.status}`,
+      info: launch.command,
+      kind: "launch",
     }));
 }
 
@@ -87,14 +93,14 @@ function pullRequestCompletions(
 
 export async function referenceCompletions(
   projectId: string | undefined,
-  kind: "task" | "pull_request",
+  kind: "launch" | "pull_request",
   query: string,
 ): Promise<CompletionItem[]> {
   if (!projectId) return [];
-  if (kind === "task") {
-    const { tasks } = await requestWorkbench("launch.list", {});
-    return taskCompletions(
-      tasks.filter((task) => task.projectId === projectId),
+  if (kind === "launch") {
+    const { launches } = await requestWorkbench("launch.list", {});
+    return launchCompletions(
+      launches.filter((launch) => launch.projectId === projectId),
       query,
     );
   }

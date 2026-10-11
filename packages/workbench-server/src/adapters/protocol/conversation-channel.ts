@@ -1,3 +1,4 @@
+import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import {
@@ -134,6 +135,7 @@ export function createConversationProtocolSession(
       state.capabilities.trust(projectId, digest),
     "project.create": (input) => {
       const project = core.projects.create(input);
+      moveProjectLaunchDefinitions(project.directory);
       projects.add(project.id);
       return project;
     },

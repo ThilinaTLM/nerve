@@ -140,6 +140,7 @@ const bashAutoPromotionSettingsSchema = z.object({
 
 const bashToolSettingsSchema = z.object({
   autoPromotion: bashAutoPromotionSettingsSchema,
+  maxTimeoutMs: z.number().int().min(1000).max(3_600_000).default(900_000),
 });
 
 export const imageExplanationToolSettingsSchema = z.object({
@@ -491,7 +492,10 @@ export const defaultSettings: Settings = {
       "kroki_export",
       ...asyncSubagentToolNames,
     ],
-    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
+    bash: {
+      autoPromotion: { enabled: true, afterMs: 120_000 },
+      maxTimeoutMs: 900_000,
+    },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
@@ -633,6 +637,7 @@ export const updateSettingsRequestSchema = z.object({
       disabled: z.array(userConfigurableToolNameSchema).optional(),
       bash: z
         .object({
+          maxTimeoutMs: z.number().int().min(1000).max(3_600_000).optional(),
           autoPromotion: z
             .object({
               enabled: z.boolean().optional(),

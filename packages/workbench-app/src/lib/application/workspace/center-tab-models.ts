@@ -1,7 +1,7 @@
 import type {
   FilesystemFileResponse,
   GithubChecksSummary,
-  TaskRecord,
+  LaunchRecord,
 } from "$lib/api";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { Project } from "@nervekit/contracts/core";
@@ -38,10 +38,10 @@ export type PendingConversationTabModel = {
   error?: string;
 };
 
-export type TaskTabModel = {
-  kind: "task";
+export type LaunchTabModel = {
+  kind: "launch";
   id: string;
-  task?: TaskRecord;
+  launch?: LaunchRecord;
   active: boolean;
   sending: boolean;
   error?: string;
@@ -125,7 +125,7 @@ export type PrTabModel = {
 export type CenterTabModel =
   | ConversationTabModel
   | PendingConversationTabModel
-  | TaskTabModel
+  | LaunchTabModel
   | FileTabModel
   | MermaidTabModel
   | PrTabModel

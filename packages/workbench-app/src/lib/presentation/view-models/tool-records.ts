@@ -1,4 +1,3 @@
-import type { ToolView } from "../tools/views/tool-view-types";
 /** Presentation-owned tool records shapes. No runtime schemas. */
 import type {
   ToolCallInteraction,
@@ -15,10 +14,6 @@ export type ToolCallStatus =
   | "denied";
 
 export type ToolCallRecord = {
-  asyncBashView?: Extract<
-    ToolView,
-    { kind: "task_action" | "task_status" | "task_logs" }
-  >;
   id: string;
   agentId: string;
   conversationId: string;

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { TaskRecord } from "@nervekit/contracts/tasks";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
 import type { CenterTabModel } from "$lib/application/workspace";
 import { statusLabel, tabLabel, tabTitle } from "./editor-tab-helpers.js";
 
-function task(patch: Partial<TaskRecord> = {}): TaskRecord {
+function launch(patch: Partial<LaunchRecord> = {}): LaunchRecord {
   return {
-    id: "task_a",
+    id: "launch_a",
     cwd: "/repo",
     command: "pnpm dev",
     status: "running",
@@ -21,19 +21,25 @@ function task(patch: Partial<TaskRecord> = {}): TaskRecord {
   };
 }
 
-function tab(record: TaskRecord): Extract<CenterTabModel, { kind: "task" }> {
+function tab(
+  record: LaunchRecord,
+): Extract<CenterTabModel, { kind: "launch" }> {
   return {
-    kind: "task",
-    id: "taskdef_a",
-    task: record,
+    kind: "launch",
+    id: "launchdef_a",
+    launch: record,
     active: true,
     sending: true,
   };
 }
 
-test("uses a task definition display label for task tabs and titles", () => {
+test("uses a launch definition display label for launch tabs and titles", () => {
   const model = tab(
-    task({ displayName: "Workbench UI", name: "legacy", command: "pnpm dev" }),
+    launch({
+      displayName: "Workbench UI",
+      name: "legacy",
+      command: "pnpm dev",
+    }),
   );
 
   assert.equal(tabLabel(model), "Workbench UI");
@@ -92,9 +98,14 @@ test("labels the Discover singleton tab", () => {
 });
 
 test("falls back from blank display names to name and command", () => {
-  assert.equal(tabLabel(tab(task({ displayName: "  ", name: "API" }))), "API");
   assert.equal(
-    tabLabel(tab(task({ displayName: " ", name: " ", command: "pnpm test" }))),
+    tabLabel(tab(launch({ displayName: "  ", name: "API" }))),
+    "API",
+  );
+  assert.equal(
+    tabLabel(
+      tab(launch({ displayName: " ", name: " ", command: "pnpm test" })),
+    ),
     "pnpm test",
   );
 });

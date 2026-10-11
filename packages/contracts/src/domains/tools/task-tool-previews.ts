@@ -1,9 +1,9 @@
 import { z } from "zod";
 import {
-  taskLogEventSchema,
-  taskReadinessSchema,
-  taskStatusSchema,
-} from "../tasks/task.js";
+  launchLogEventSchema,
+  launchReadinessSchema,
+  launchStatusSchema,
+} from "../launches/launch.js";
 
 export const taskCancelOutcomeSchema = z.enum([
   "cancelled",
@@ -21,8 +21,8 @@ export const taskToolSummarySchema = z
     name: z.string().min(1).optional(),
     cwd: z.string().min(1),
     command: z.string().min(1),
-    status: taskStatusSchema,
-    readiness: taskReadinessSchema
+    status: launchStatusSchema,
+    readiness: launchReadinessSchema
       .pick({
         outcome: true,
         readyUrl: true,
@@ -59,7 +59,7 @@ export const taskCancelOutcomePreviewSchema = z
   .object({
     task: taskToolSummarySchema.optional(),
     outcome: taskCancelOutcomeSchema,
-    status: taskStatusSchema.optional(),
+    status: launchStatusSchema.optional(),
     message: z.string(),
   })
   .strict();
@@ -116,7 +116,7 @@ export type TaskControlToolResultPreview = z.infer<
 export const taskLogsToolResultPreviewSchema = z
   .object({
     task: taskToolSummarySchema,
-    events: z.array(taskLogEventSchema),
+    events: z.array(launchLogEventSchema),
     nextCursor: z.number().int().nonnegative(),
     mode: z.string(),
     previewPath: z.string().min(1).optional(),

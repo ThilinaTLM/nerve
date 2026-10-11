@@ -1,4 +1,7 @@
-import { open } from "node:fs/promises";
+import {
+  projectProcessOutput,
+  projectProcessOutputPage,
+} from "@nervekit/tools/result-projection";
 import { relative } from "node:path";
 import { createId } from "@nervekit/contracts";
 import type {
@@ -75,20 +78,40 @@ export class AsyncBashService {
     }
   }
 
-  async logs(conversationId: string, bashId: string): Promise<string> {
+  async logs(
+    conversationId: string,
+    bashId: string,
+    page: { offset?: number; limit?: number } = {},
+  ): Promise<string> {
     const row = this.options.storage.asyncBash.get(bashId);
     if (!row || row.conversationId !== conversationId)
       throw new Error("Async bash not found");
     const assets = this.options.storage.assets
       .list(conversationId)
       .filter((asset) => asset.asyncBashId === bashId);
-    return (
-      await Promise.all(
-        assets.map(
-          async (asset) => `${asset.logicalPath}\n${await this.tail(asset)}`,
-        ),
-      )
-    ).join("\n");
+    return projectProcessOutputPage({
+      outputFiles: this.outputFiles(assets),
+      status: row.status,
+      ...page,
+    });
+  }
+
+  private outputFiles(assets: Asset[]): {
+    stdout?: string;
+    stderr?: string;
+    combined?: string;
+  } {
+    const file = (name: string) => {
+      const asset = assets.find((asset) =>
+        asset.logicalPath.endsWith(`/${name}.txt`),
+      );
+      return asset ? this.options.assets.path(asset.logicalPath) : undefined;
+    };
+    return {
+      stdout: file("stdout"),
+      stderr: file("stderr"),
+      combined: file("output"),
+    };
   }
 
   async adopt(input: {
@@ -226,9 +249,11 @@ export class AsyncBashService {
     const assets = this.options.storage.assets
       .list(row.conversationId)
       .filter((asset) => asset.asyncBashId === row.id);
-    const output = (await Promise.all(assets.map((asset) => this.tail(asset))))
-      .filter(Boolean)
-      .join("\n");
+    const output = await projectProcessOutput({
+      outputFiles: this.outputFiles(assets),
+      status,
+      exitCode,
+    });
     const storage = this.options.storage;
     storage.transaction(() => {
       if (storage.asyncBash.get(row.id)?.status !== "running") return;
@@ -254,27 +279,6 @@ export class AsyncBashService {
       });
     });
     if (storage.asyncBash.get(row.id)) this.changed(row.conversationId);
-  }
-
-  private async tail(asset: Asset): Promise<string> {
-    try {
-      const file = await open(this.options.assets.path(asset.logicalPath), "r");
-      try {
-        const size = (await file.stat()).size;
-        const buffer = Buffer.alloc(Math.min(size, 4096));
-        const { bytesRead } = await file.read(
-          buffer,
-          0,
-          buffer.length,
-          Math.max(0, size - buffer.length),
-        );
-        return buffer.subarray(0, bytesRead).toString("utf8");
-      } finally {
-        await file.close();
-      }
-    } catch {
-      return "";
-    }
   }
 
   private changed(conversationId: string): void {

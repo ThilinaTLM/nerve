@@ -70,7 +70,7 @@ const navigation = createListNavigation({
 
 const switchAria = getShortcutAriaLabel("conversation.newFromProject");
 function tabLabel(item: ProjectSwitcherItem): string {
-  const signal = projectActivitySignal(item.activity, item.tasks);
+  const signal = projectActivitySignal(item.activity, item.launches);
   return signal ? `${item.label}: ${signal.summary}` : item.label;
 }
 
@@ -214,14 +214,14 @@ function handleSubmit(event: Event) {
 
   <div class="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
     {#each items as item (item.key)}
-      {@const signal = projectActivitySignal(item.activity, item.tasks)}
+      {@const signal = projectActivitySignal(item.activity, item.launches)}
       {@const conversationActivityCount =
         item.activity.needsUser +
         item.activity.failed +
         item.activity.running +
         item.activity.awaitingAsync}
       {@const combinedSignals =
-        conversationActivityCount > 0 && item.tasks.running > 0}
+        conversationActivityCount > 0 && item.launches.running > 0}
       {@const active = item.key === activeKey}
       <ItemSurface
         tone="row"
@@ -254,11 +254,11 @@ function handleSubmit(event: Event) {
                   <span class="scale-90">{conversationActivityCount}</span>
                 </span>
               {/if}
-              {#if item.tasks.running}
+              {#if item.launches.running}
                 <span
                   class={`${combinedSignals ? "absolute top-0 right-0" : "relative"} z-0 inline-flex size-4 items-center justify-center rounded-sm border-[1.5px] border-background bg-info text-xs leading-none text-info-foreground tabular-nums`}
                 >
-                  <span class="scale-90">{item.tasks.running}</span>
+                  <span class="scale-90">{item.launches.running}</span>
                 </span>
               {/if}
             </span>

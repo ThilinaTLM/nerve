@@ -13,29 +13,29 @@ import {
   MobileSection,
 } from "$lib/presentation/shell";
 import {
-  cancelSelectedTask,
-  restartSelectedTask,
-  taskSelectors,
-} from "$lib/features/tasks";
+  cancelSelectedLaunch,
+  restartSelectedLaunch,
+  launchSelectors,
+} from "$lib/features/launches";
 import { workspaceSelectors } from "$lib/application/workspace";
 import MobileRootActions from "./MobileRootActions.svelte";
 import MobileStatusStrip from "./MobileStatusStrip.svelte";
 import { buildMobileActivity } from "./mobile-activity";
 import {
   openMobileConversation,
-  openMobileTaskOutput,
+  openMobileLaunchOutput,
 } from "./mobile-route-activation.svelte";
 import { pushMobileScreen } from "./mobile-shell.svelte";
 
 /**
  * What is moving right now, across every project: live conversations, live
- * background tasks, daemon health, and the application log.
+ * background launches, daemon health, and the application log.
  */
 const model = $derived(
   buildMobileActivity({
     conversations: workspaceSelectors.conversations,
     activityById: workspaceSelectors.conversationActivityById,
-    tasks: taskSelectors.tasks,
+    launches: launchSelectors.launches,
     projects: workspaceSelectors.projects,
   }),
 );
@@ -48,9 +48,9 @@ const subtitle = $derived.by(() => {
     parts.push(
       `${model.conversations.length} ${model.conversations.length === 1 ? "chat" : "chats"}`,
     );
-  if (model.tasks.length)
+  if (model.launches.length)
     parts.push(
-      `${model.tasks.length} ${model.tasks.length === 1 ? "task" : "tasks"}`,
+      `${model.launches.length} ${model.launches.length === 1 ? "launch" : "launches"}`,
     );
   return parts.length ? parts.join(" · ") : "Nothing running";
 });
@@ -59,23 +59,23 @@ function meta(projectLabel: string | undefined, at: string): string {
   return [projectLabel, relativeTimeLabel(at)].filter(Boolean).join(" · ");
 }
 
-function taskMenu(taskId: string): ContextMenuItem[] {
+function launchMenu(launchId: string): ContextMenuItem[] {
   return [
     {
       label: "Show output",
       icon: Terminal,
-      onSelect: () => openMobileTaskOutput(taskId),
+      onSelect: () => openMobileLaunchOutput(launchId),
     },
     {
       label: "Restart",
       icon: RotateCcw,
-      onSelect: () => void restartSelectedTask(taskId),
+      onSelect: () => void restartSelectedLaunch(launchId),
     },
     {
       label: "Stop",
       icon: Square,
       destructive: true,
-      onSelect: () => void cancelSelectedTask(taskId),
+      onSelect: () => void cancelSelectedLaunch(launchId),
     },
   ];
 }
@@ -103,23 +103,23 @@ function taskMenu(taskId: string): ContextMenuItem[] {
     </MobileSection>
   {/if}
 
-  {#if model.tasks.length}
-    <MobileSection title="Tasks" meta={`${model.tasks.length}`}>
-      {#each model.tasks as row (row.taskId)}
+  {#if model.launches.length}
+    <MobileSection title="Launches" meta={`${model.launches.length}`}>
+      {#each model.launches as row (row.launchId)}
         <MobileListRow
           title={row.title}
           detail={row.detail}
           meta={meta(row.projectLabel, row.at)}
           tone={row.tone}
           pulse={row.pulse}
-          menuItems={taskMenu(row.taskId)}
-          onclick={() => openMobileTaskOutput(row.taskId)}
+          menuItems={launchMenu(row.launchId)}
+          onclick={() => openMobileLaunchOutput(row.launchId)}
         />
       {/each}
     </MobileSection>
   {/if}
 
-  {#if !model.conversations.length && !model.tasks.length}
+  {#if !model.conversations.length && !model.launches.length}
     <Empty.Root class="px-6 py-10">
       <Empty.Header>
         <Empty.Media class="text-muted-foreground">
@@ -127,7 +127,8 @@ function taskMenu(taskId: string): ContextMenuItem[] {
         </Empty.Media>
         <Empty.Title class="text-sm">Nothing running</Empty.Title>
         <Empty.Description class="text-xs">
-          Running agents and background tasks from every project show up here.
+          Running agents and background launches from every project show up
+          here.
         </Empty.Description>
       </Empty.Header>
     </Empty.Root>

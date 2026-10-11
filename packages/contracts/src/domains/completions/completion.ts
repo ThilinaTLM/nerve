@@ -7,7 +7,7 @@ export const completionKindSchema = z.enum([
   "slash",
   "file",
   "directory",
-  "task",
+  "launch",
   "pull_request",
 ]);
 export type CompletionKind = z.infer<typeof completionKindSchema>;

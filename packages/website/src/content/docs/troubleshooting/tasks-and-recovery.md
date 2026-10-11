@@ -1,5 +1,5 @@
 ---
-title: Task and process recovery
+title: Launch and process recovery
 description: Interpret recovered, interrupted, and recovery-unknown task runs.
 sidebar:
   order: 6
@@ -11,7 +11,7 @@ The persisted process identity still matches a live process. Nerve can stop or r
 
 ## `interrupted`
 
-The process is verified gone. Restart creates a new immutable run in the same task definition lineage. Inspect the prior run's terminal state and application logs before restarting.
+The process is verified gone. Restart creates a new immutable run in the same launch definition lineage. Inspect the prior run's terminal state and application logs before restarting.
 
 ## `recovery_unknown`
 
@@ -23,7 +23,7 @@ Check the readiness URL/pattern and task logs. A server listening on a different
 
 ## Stop does not complete
 
-Nerve attempts graceful process-tree termination then bounded escalation. A run stuck in `stopping` offers **Force kill** immediately, since you already asked to stop it. A verified `recovered` run confirms before killing, because you may not have asked to terminate it. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved task definition can be run again.
+Nerve attempts graceful process-tree termination then bounded escalation. A run stuck in `stopping` offers **Force kill** immediately, since you already asked to stop it. A verified `recovered` run confirms before killing, because you may not have asked to terminate it. Force kill can lose buffered output and process cleanup, but the terminal run record can then be removed or its current saved launch definition can be run again.
 
 Platform security software or child detachment can still interfere. Nerve never offers force kill for `recovery_unknown`; confirm identity before manual OS termination.
 

@@ -29,12 +29,6 @@ import { parseKrokiView } from "./kroki-result-view";
 import { parseJiraView } from "./jira-result-view";
 import { parseSubagentResult } from "./subagent-result-parser";
 import {
-  parseTaskControlResult,
-  parseTaskLogsResult,
-  parseTaskStartResult,
-  parseTaskStatusResult,
-} from "./task-result-parser";
-import {
   asRecord,
   countLogicalLines,
   detailsTruncated,
@@ -168,7 +162,6 @@ function toolViewSignature(
     mode,
     payloadSignature(payloads.argsPreview ?? payloads.args),
     payloadSignature(payloads.resultPreview ?? payloads.result),
-    toolCall.asyncBashView?.kind ?? "",
     overflow ? `${overflow.hidden}:${overflow.noun}:${overflow.direction}` : "",
     liveOutput?.updatedAt ?? "",
     liveOutput?.text.length ?? 0,
@@ -192,10 +185,6 @@ export function parseToolView(
   toolCall: ToolCallDisplayRecord,
   liveOutput?: ConversationLiveToolOutputSnapshot,
 ): ToolView {
-  if (toolCall.asyncBashView)
-    return toolCall.asyncBashView.kind === "task_action"
-      ? { ...toolCall.asyncBashView, liveLog: liveOutput?.text }
-      : toolCall.asyncBashView;
   const payloads = toolCall as ToolCallDisplayRecord & {
     args?: unknown;
     result?: unknown;
@@ -274,6 +263,8 @@ export function parseToolView(
     case "kroki_export":
       return parseKrokiView(args, rawResult);
 
+    case "async_bash":
+    case "launch":
     case "bash": {
       const command = stringField(args.command);
       const details = bashResultDetailsSchema.safeParse(result?.details);
@@ -532,60 +523,12 @@ export function parseToolView(
       };
     }
 
-    case "task_start": {
-      const data = parseTaskStartResult(rawResult);
-      return {
-        kind: "task_action",
-        action: "start",
-        ...data,
-        liveLog: liveOutput?.text,
-      };
-    }
-
-    case "task_control": {
-      const data = parseTaskControlResult(rawResult);
-      const action =
-        stringField(args.action) === "restart" ? "restart" : "stop";
-      return {
-        kind: "task_action",
-        action,
-        ...data,
-        outcomeCount: data.outcomes?.length,
-        liveLog: liveOutput?.text,
-      };
-    }
-
-    case "task_status": {
-      const data = parseTaskStatusResult(rawResult);
-      const hiddenTaskCount = previewOverflowHidden(toolCall, "tasks", "head");
-      return {
-        kind: "task_status",
-        ...data,
-        hiddenTaskCount,
-        taskCount: data.tasks.length + hiddenTaskCount,
-      };
-    }
-
     case "subagent_new":
     case "subagent_prompt":
     case "subagent_list":
     case "subagent_status":
     case "subagent_stop":
       return parseSubagentResult(toolCall, toolCall.toolName, args, rawResult);
-
-    case "task_logs": {
-      const data = parseTaskLogsResult(rawResult);
-      return {
-        kind: "task_logs",
-        ...data,
-        eventCount: actualPreviewCount(
-          data.events.length,
-          toolCall,
-          "events",
-          "tail",
-        ),
-      };
-    }
 
     case "explore": {
       const parsed = exploreResultPreviewSchema.safeParse(rawResult);

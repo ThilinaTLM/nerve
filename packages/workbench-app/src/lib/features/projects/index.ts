@@ -26,7 +26,7 @@ export type {
   ProjectActivitySignal,
   ProjectActivitySummary,
   ProjectSwitcherItem,
-  ProjectTaskSummary,
+  ProjectLaunchSummary,
 } from "./state/project-switcher";
 export {
   focusProjectSearch,

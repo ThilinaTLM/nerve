@@ -22,7 +22,6 @@ export type {
 } from "$lib/presentation/view-models/conversation";
 export type { PlanReviewRecord } from "@nervekit/contracts/plans";
 export type { ProjectRecord } from "$lib/presentation/view-models/conversation";
-export type { TaskLogEvent, TaskRecord } from "@nervekit/contracts/tasks";
 
 export type {
   ToolCallDetails,

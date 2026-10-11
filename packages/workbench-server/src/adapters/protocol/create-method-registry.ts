@@ -10,7 +10,7 @@ import {
 import { gitMethodHandlers } from "./handlers/git-method-handlers.js";
 import { platformMethodHandlers } from "./handlers/platform-method-handlers.js";
 import { projectMethodHandlers } from "./handlers/project-method-handlers.js";
-import { taskMethodHandlers } from "./handlers/task-method-handlers.js";
+import { launchMethodHandlers } from "./handlers/launch-method-handlers.js";
 
 export const WORKBENCH_OPERATION_METHODS = allOperationDefinitions()
   .filter(
@@ -39,8 +39,8 @@ export function bindWorkbenchOperationHandlers(
       invocation,
     ),
     bindWorkbenchMethodHandlerGroup(
-      taskMethodHandlers,
-      contexts.tasks,
+      launchMethodHandlers,
+      contexts.launches,
       diagnostics,
       invocation,
     ),

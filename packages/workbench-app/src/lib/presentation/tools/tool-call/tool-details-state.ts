@@ -29,17 +29,6 @@ export function hasFormattedToolView(
       return view.total > 0;
     case "todos":
       return view.items.length > 0;
-    case "task_action":
-      return Boolean(
-        view.task ||
-        view.tasks?.length ||
-        view.otherActiveTasks?.length ||
-        view.liveLog?.length,
-      );
-    case "task_status":
-      return view.tasks.length > 0;
-    case "task_logs":
-      return view.events.length > 0;
     case "subagent":
       return view.teammates.length > 0 || Boolean(view.response);
     case "explore":

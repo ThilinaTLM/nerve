@@ -22,8 +22,8 @@ export type MobileRoute =
   | { kind: "project"; projectId: string }
   | { kind: "conversations"; projectId: string }
   | { kind: "files"; projectId: string; path: string }
-  | { kind: "tasks"; projectId: string }
-  | { kind: "task"; taskId: string; projectId?: string }
+  | { kind: "launches"; projectId: string }
+  | { kind: "launch"; launchId: string; projectId?: string }
   | { kind: "notes"; projectId: string }
   | { kind: "note"; projectId: string; noteId: string }
   | { kind: "git"; projectId: string }
@@ -52,7 +52,7 @@ export function mobileRouteKey(route: MobileRoute): string {
   switch (route.kind) {
     case "project":
     case "conversations":
-    case "tasks":
+    case "launches":
     case "notes":
     case "git":
     case "pull-requests":
@@ -62,8 +62,8 @@ export function mobileRouteKey(route: MobileRoute): string {
       return `files:${route.projectId}:${route.path}`;
     case "note":
       return `note:${route.projectId}:${route.noteId}`;
-    case "task":
-      return `task:${route.taskId}`;
+    case "launch":
+      return `launch:${route.launchId}`;
     case "context":
       return `context:${route.conversationId}`;
     case "center":
@@ -209,7 +209,7 @@ export function mobileRouteForCenterTab(
 const PROJECT_ROUTE_KINDS = new Set([
   "project",
   "conversations",
-  "tasks",
+  "launches",
   "notes",
   "git",
   "pull-requests",
@@ -239,11 +239,11 @@ function parseMobileRoute(value: unknown): MobileRoute | undefined {
       return isText(route.projectId) && isText(route.noteId)
         ? { kind, projectId: route.projectId, noteId: route.noteId }
         : undefined;
-    case "task":
-      if (!isText(route.taskId)) return undefined;
+    case "launch":
+      if (!isText(route.launchId)) return undefined;
       return isText(route.projectId)
-        ? { kind, taskId: route.taskId, projectId: route.projectId }
-        : { kind, taskId: route.taskId };
+        ? { kind, launchId: route.launchId, projectId: route.projectId }
+        : { kind, launchId: route.launchId };
     case "context":
       return isText(route.conversationId)
         ? { kind, conversationId: route.conversationId }

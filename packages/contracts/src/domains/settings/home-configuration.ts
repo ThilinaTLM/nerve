@@ -191,6 +191,12 @@ export const harnessConfigSchema = z
         disabled: z.array(userConfigurableToolNameSchema),
         bash: z
           .object({
+            maxTimeoutMs: z
+              .number()
+              .int()
+              .min(1000)
+              .max(3_600_000)
+              .default(900_000),
             autoPromotion: z
               .object({
                 enabled: z.boolean(),
@@ -265,7 +271,10 @@ export const defaultHarnessConfig: HarnessConfig = {
       "kroki_export",
       ...asyncSubagentToolNames,
     ],
-    bash: { autoPromotion: { enabled: true, afterMs: 120_000 } },
+    bash: {
+      autoPromotion: { enabled: true, afterMs: 120_000 },
+      maxTimeoutMs: 900_000,
+    },
     kroki: defaultKrokiToolSettings,
     imageExplanation: { thinkingLevel: "off" },
     imageGeneration: {

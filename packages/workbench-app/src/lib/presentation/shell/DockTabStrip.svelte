@@ -221,7 +221,7 @@ function menuItems(
 const tourIdByView: Record<string, string> = {
   conversations: "conversations-tab",
   files: "files-panel",
-  tasks: "tasks-panel",
+  launches: "launches-panel",
   notes: "scratch-notes-panel",
   git: "git-workflow",
   "pull-requests": "pull-request-workflow",

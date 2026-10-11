@@ -304,8 +304,8 @@ test("planning separates research, prompted analysis, and mutations", () => {
     ["edit", { path: "/workspace/a.ts" }],
     ["jira_update_issue", { issue_key: "NERVE-1", summary: "Changed" }],
     ["confluence_create_page", { title: "Changed", body: "content" }],
-    ["task_start", { command: "pnpm dev" }],
-    ["task_control", { task: "dev", action: "stop" }],
+    ["launch", { action: "start", id: "launchdef_dev" }],
+    ["async_bash", { id: "bash_dev", action: "stop" }],
   ] as const) {
     assert.equal(
       decision("planning", toolName, args).decision,
@@ -313,6 +313,25 @@ test("planning separates research, prompted analysis, and mutations", () => {
       toolName,
     );
   }
+});
+
+test("process read actions do not ask for approval; launch grants bind action and id", () => {
+  for (const [tool, args] of [
+    ["async_bash", { action: "list" }],
+    ["async_bash", { action: "logs", id: "bash_1" }],
+    ["launch", { action: "status" }],
+    ["launch", { action: "logs", id: "launchdef_dev" }],
+  ] as const)
+    assert.equal(decision("supervised", tool, args).decision, "allow");
+  const start = decision("supervised", "launch", {
+    action: "start",
+    id: "launchdef_dev",
+  });
+  assert.equal(start.decision, "prompt");
+  assert.deepEqual(start.suggestedRules[0]?.when.primaryArgument, {
+    operator: "equals",
+    value: ["start", "launchdef_dev"],
+  });
 });
 
 test("overlays apply only to their selected permission rule set", () => {

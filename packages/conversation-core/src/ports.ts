@@ -4,6 +4,7 @@ import type {
   Conversation,
   ConversationConfig,
   Supervision,
+  ToolCallOrigin,
   ToolProgress,
 } from "@nervekit/contracts/core";
 import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
@@ -36,6 +37,7 @@ export interface PermissionPort {
     projectDir: string;
     ruleSetId: string;
     toolName: string;
+    origin: ToolCallOrigin;
     args: unknown;
     cwd: string;
   }): Promise<Supervision>;
@@ -52,6 +54,8 @@ export interface ToolHostPort {
   execute(input: {
     toolCallId: string;
     conversationId: string;
+    origin: ToolCallOrigin;
+    projectDir?: string;
     toolName: string;
     args: unknown;
     cwd: string;
@@ -104,7 +108,7 @@ export interface BackgroundProcess {
     status: "completed" | "failed" | "timed_out" | "cancelled";
   }>;
   cancel(): Promise<void>;
-  outputFiles: { stdout: string; stderr: string };
+  outputFiles: { stdout: string; stderr: string; combined?: string };
 }
 
 export interface ClockPort {

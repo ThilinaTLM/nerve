@@ -17,12 +17,13 @@ import type { NerveSkillCatalog } from "@nervekit/skills";
 import type { AgentBrowserSkillCatalog } from "../../core-host/agent-browser-skills.js";
 import { CoreScratchNoteService } from "../../core-host/scratch-note.service.js";
 import { createConversationCore } from "./create-conversation-core.js";
-import { LaunchService } from "../../domains/tasks/application/launch.service.js";
+import { createWorkbenchLaunchResources } from "../../domains/launches/adapters/workbench-launch-adapters.js";
+import { LaunchService } from "../../domains/launches/application/launch.service.js";
 import {
-  TaskDefinitionRepository,
-  TaskDefinitionService,
-} from "../../domains/task-definitions/index.js";
-import { TaskDefinitionOperations } from "../../domains/task-definitions/task-definition-operations.js";
+  LaunchDefinitionRepository,
+  LaunchDefinitionService,
+} from "../../domains/launch-definitions/index.js";
+import { LaunchDefinitionOperations } from "../../domains/launch-definitions/launch-definition-operations.js";
 import { ProjectEditorService } from "../../domains/projects/project-editor.service.js";
 import { ProjectTerminalService } from "../../domains/projects/project-terminal.service.js";
 import { ProjectIconService } from "../../domains/projects/project-icon.service.js";
@@ -48,27 +49,32 @@ export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   const { storage, events, auth, logger } = deps;
-  const {
-    core: conversationCore,
-    storage: coreStorage,
-    capabilities,
-  } = createConversationCore(deps);
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
     return project;
   };
   const listProjects = () => conversationCore.projects.list();
-  const launches = new LaunchService(storage, events, logger);
-  const taskDefinitions = new TaskDefinitionService(
-    new TaskDefinitionRepository(getProject),
+  const launches = new LaunchService(
+    createWorkbenchLaunchResources(storage, events, logger, {}),
+  );
+  const launchDefinitions = new LaunchDefinitionService(
+    new LaunchDefinitionRepository(getProject),
     getProject,
     async (type, data) => {
       await events.publish(type, data);
     },
   );
-  const taskDefinitionOperations = new TaskDefinitionOperations(
-    taskDefinitions,
+  const {
+    core: conversationCore,
+    storage: coreStorage,
+    capabilities,
+  } = createConversationCore(deps, {
+    launches,
+    definitions: launchDefinitions,
+  });
+  const launchDefinitionOperations = new LaunchDefinitionOperations(
+    launchDefinitions,
     launches,
     listProjects,
   );
@@ -126,8 +132,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     capabilities,
     coreStorage,
     launches,
-    taskDefinitions,
-    taskDefinitionOperations,
+    launchDefinitions,
+    launchDefinitionOperations,
     scratchNotes,
     integrationHealth,
     workspaceMonitor,
