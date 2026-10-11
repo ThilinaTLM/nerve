@@ -20,13 +20,12 @@ Nerve accesses transcription through ChatGPT's subscription endpoint rather than
 - **Scoped Models** controls the models shown in conversation pickers. An empty scope keeps all authenticated models available.
 - **Agents → Defaults** sets the default mode, permission, model, thinking level, approval behavior, and whether new agents use the last selections.
 - **Agents → Compaction** controls automatic conversation compaction, profile, trigger threshold, and retained recent context.
-- **Agents → Explore agent** configures the separate model and thinking level used for read-only Explore work.
 
 Model availability depends on authentication and provider metadata. Changes to defaults affect new agents; changes made during an active run apply to a later provider request where noted by the UI.
 
 ## Suggestions, tools, and skills
 
-**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, background-task behavior, Python runtime settings, image explanation, image generation, and Async Subagents. Image generation settings choose the provider, model, and provider-specific output defaults; agents receive only a prompt argument. Async Subagent settings choose whether new developer teammates inherit the lead model, their thinking level, and their compaction profile. Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
+**Suggestions** manages reusable prompt chips and their trust settings. **Tools** has separate **Core** and **Third party** sections. Controls include tool enablement, background-task behavior, Python runtime settings, image explanation, and image generation. Image generation settings choose the provider, model, and provider-specific output defaults; agents receive only a prompt argument. **Sub-agents** turns delegation on or off and manages sub-agent profiles in user and project scope: model, thinking level, permission, tools, skills, compaction, and instructions (see the [profile format](/reference/subagent-profiles/)). Integration cards appear only when the corresponding module is available and can manage enablement and credentials.
 
 **Skills** lists user, project, Built-in Nerve, and Agent Browser resources. Built-in Nerve and Agent Browser skills are disabled by default; enabling one adds it to subsequent agent runs without modifying its source. User defaults can be refined by trusted project overrides.
 
@@ -48,7 +47,7 @@ SVG is the default; PNG is also supported. Available engines and formats depend 
 
 ## Storage
 
-**Storage** shows an ownership and retention breakdown of readable files under `NERVE_HOME` and provides cancellable cleanup. It distinguishes the authoritative database at `data/nerve.sqlite`, the rebuildable query cache at `cache/query-cache.sqlite`, and other disposable cache data. Depending on the selected targets, cleanup can remove old conversations and logs, Explore reports, crash and Node reports, non-query cache and temporary data, or rebuild the query cache from canonical records. Cleanup is asynchronous and reports progress; it never treats the canonical database, migrations, or backups as cleanup targets.
+**Storage** shows an ownership and retention breakdown of readable files under `NERVE_HOME` and provides cancellable cleanup. It distinguishes the authoritative database at `data/nerve.sqlite`, the rebuildable query cache at `cache/query-cache.sqlite`, and other disposable cache data. Depending on the selected targets, cleanup can remove old conversations and logs, crash and Node reports, non-query cache and temporary data, or rebuild the query cache from canonical records. Cleanup is asynchronous and reports progress; it never treats the canonical database, migrations, or backups as cleanup targets.
 
 ## System
 

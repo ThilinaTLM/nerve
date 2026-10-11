@@ -27,7 +27,7 @@ The harness owns generic compaction/summarization. The workbench adds automatic 
 
 ## Resources and children
 
-The server loads effective AGENTS/SYSTEM/skills according to scope and toggles. Explore creates fresh child agents with isolated transcripts and forced read-only tools, then returns reports to the parent.
+The server loads effective AGENTS/SYSTEM/skills according to scope and toggles. Sub-agents are child conversations created from profiles; each has its own transcript, and its final responses reach the lead as completion notices.
 
 ## Next steps
 

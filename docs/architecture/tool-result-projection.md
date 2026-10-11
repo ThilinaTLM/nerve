@@ -29,7 +29,7 @@ Each tool has a profile with two budgets: an **inline** budget and an **overflow
 2. Otherwise, if the candidate fits the inline budget, it is sent unchanged. Fitting means at most that many lines **and** bytes of text, and at most that many items where the profile counts items. Images do not count towards the budget.
 3. Otherwise the tool's reduction strategy cuts it down to the overflow budget, for example the head of a file with a continuation offset, the first matches of a search, or the diagnostic lines of a failed command.
 
-Explore is the exception: every requested report is checked separately against the `delegated_reports` budget, and a report that does not fit is replaced by a pointer to its file.
+Sub-agent final responses are not tool results. Core caps them itself when it builds a completion notice, and spills the full text to a report file; see [delegation](conversation-core/delegation.md#report-cap). The sub-agent tools' own results use the `lifecycle_state` profile below, so a long response shown by `subagent_status` can be reduced further, with the complete result saved as usual.
 
 | Profile                    | Tools                                                       | Inline budget                        | Overflow budget                        |
 | -------------------------- | ----------------------------------------------------------- | ------------------------------------ | -------------------------------------- |
@@ -43,8 +43,7 @@ Explore is the exception: every requested report is checked separately against t
 | `primary_file_result`      | `web_fetch` with a saved page, `kroki_export`, downloads    | 80 lines, 8 KB                       | 12 lines, 3 KB                         |
 | `resource_detail`          | Jira issue/project/board, Confluence page                   | 160 lines, 16 KB                     | same                                   |
 | `mutation_acknowledgement` | `edit`, `write`, plan mode, Jira/Confluence changes         | 40 lines, 4 KB                       | same                                   |
-| `lifecycle_state`          | async bash, subagents, todos                                | 80 lines, 8 KB                       | same                                   |
-| `delegated_reports`        | `explore` (per report)                                      | 60 lines, 6 KB                       | 12 lines, 3 KB (512-byte items)        |
+| `lifecycle_state`          | async bash, sub-agent tools, todos                          | 80 lines, 8 KB                       | same                                   |
 | `vision_explanation`       | `explain_image`, `generate_image`                           | 100 lines, 12 KB                     | same                                   |
 | `terminal_outcome`         | any failed, denied, cancelled or interrupted call           | 40 lines, 4 KB                       | same                                   |
 | `conservative_fallback`    | unknown tools                                               | 200 lines, 24 KB                     | same                                   |

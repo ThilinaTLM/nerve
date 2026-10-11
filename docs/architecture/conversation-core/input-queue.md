@@ -12,7 +12,7 @@ One queue holds user prompts, parent prompts and system notices. Rows contain on
 | `parent_conversation` | The parent conversation (`sender_conversation_id`) | Prompt text                                                                                                                    |
 | `system`              | An internal producer                               | Notice subtype (`async_bash_event`, `sub_conversation_event`, `user_intervention`, `notification`), producer and typed details |
 
-Source does not grant priority or authority; delivery follows acceptance order.
+Source does not grant priority or authority; delivery follows acceptance order. A conversation with a parent rejects `user` input; it takes work only from its parent (see [delegation](delegation.md#rules-enforced-for-every-sub-agent)).
 
 ## Delivery
 

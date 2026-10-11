@@ -54,9 +54,8 @@ started | waiting | retrying | completed | failed | cancelled | interrupted
 
 Child results:
 
-- A waiting delegation tool such as Explore receives its children's reports in its `tool_call_response`.
-- An asynchronous assignment notifies its parent with a queued `sub_conversation_event` identifying the exact assignment, not only the child's current state.
-- There is no `explore_report` event and no separate obligation tracking.
+- Delegation is asynchronous. A finished child execution notifies its parent with a queued `sub_conversation_event` identifying the assignment (see [delegation](delegation.md#completion-notices)); the tool call that created the child has already returned.
+- There is no report event and no separate obligation tracking.
 
 ## Compaction
 
@@ -70,6 +69,8 @@ Context assembly on the selected branch uses the latest applicable compaction:
 4. Context-bearing events after the compaction.
 
 Retained boundaries must keep assistant tool-call blocks with their results; no orphan responses.
+
+Thresholds come from the effective auto-compaction settings, which the host resolves per conversation (user → project → conversation; see [delegation](delegation.md#compaction-settings)) through `ConversationCoreOptions.compactionSettings`. They apply to the automatic check, including `auto: false`, and to manual compaction.
 
 ```text
 History:      A → B → C → D → Compaction → E → F

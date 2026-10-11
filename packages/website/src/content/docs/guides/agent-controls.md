@@ -15,7 +15,7 @@ Planning restrictions reduce accidental mutation but are not an operating-system
 
 ## Permission levels
 
-- **Read-only:** permits local read tools. It blocks edit/write, Bash, Python, ordinary network calls, Jira/Confluence network reads, and Explore child spawning.
+- **Read-only:** permits local read tools. It blocks edit/write, Bash, Python, ordinary network calls, Jira/Confluence network reads, and creating sub-agents.
 - **Supervised:** automatically allows safe local reads and audited read-only integrations, then asks for commands, writes, opaque execution, and network access unless an exact-risk allow exception covers the request.
 - **Autonomous:** executes allowed risks without normal approval pauses, while explicit block exceptions and hard guardrails still apply.
 
@@ -29,11 +29,11 @@ Changing model, thinking, mode, or permission on an active conversation does not
 
 ## Delegation and authority
 
-Read-only blocks child-agent spawning. In Supervised or Autonomous mode, the lead can use enabled delegation tools within their own policy constraints. Persistent developer teammates run autonomously in the shared worktree, so enabling them is a larger grant than using temporary read-only Explore agents. See [Agents and delegation](/guides/agents-and-delegation/) before assigning overlapping implementation work.
+Read-only blocks child-agent spawning. In Supervised or Autonomous mode, the lead can use enabled delegation tools within their own policy constraints. A sub-agent's profile sets its own rule set, either read-only or autonomous. Autonomous sub-agents (such as Developer) work in the shared worktree without asking you, so enabling them is a larger grant than read-only research; a read-only lead cannot start them at all. See [Agents and delegation](/guides/agents-and-delegation/) before assigning overlapping implementation work.
 
 ## Choosing a baseline
 
-Use read-only for investigation where no network or child agents are needed. Use supervised for unfamiliar work and most first runs. Reserve autonomous—and autonomous developer teammates—for bounded tasks in a trusted, recoverable workspace.
+Use read-only for investigation where no network or child agents are needed. Use supervised for unfamiliar work and most first runs. Reserve autonomous—and autonomous sub-agents—for bounded tasks in a trusted, recoverable workspace.
 
 ## Next steps
 

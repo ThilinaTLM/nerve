@@ -16,12 +16,11 @@ Nerve separates portable configuration, secrets, core relational data, managed f
 ├── secrets/                # master.key, credentials.enc, daemon-token
 ├── data/
 │   ├── nerve.sqlite
-│   ├── conversations/      # owned tool files, bash output, permission overlays
+│   ├── conversations/      # owned tool files, bash output, reports, config overlays
 │   ├── launches/           # workbench launch logs
-│   ├── reports/
 │   ├── images/
 │   └── plans/
-├── agent/                  # user-authored instructions and skills
+├── agent/                  # user-authored instructions, skills, suggestions and sub-agent profiles
 ├── tls/
 ├── tmp/
 ├── cache/
@@ -57,8 +56,9 @@ The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives
 
 - `conversations/<conversationId>/tool-calls/<toolCallId>/...`
 - `conversations/<conversationId>/bash/<bashId>/...`
+- `conversations/<conversationId>/reports/<executionId>.md` (a sub-agent's full final response when it exceeded the notice cap)
 
-`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Reports, images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](tool-result-projection.md).
+`ASSET` tracks owner, logical path and file metadata; bytes stay outside SQLite. Imported assets can retain legacy relative locations. Images and plans also remain file-based. Complete results and bounded model/transcript projections are distinct concerns; see [Tool-result projection](tool-result-projection.md).
 
 [`core-host/permission.adapter.ts`](../../packages/workbench-server/src/core-host/permission.adapter.ts) composes the selected rule set with overlays at:
 
@@ -76,7 +76,11 @@ Tool and skill capabilities use the same three layers, also as files:
 
 See [capabilities](conversation-core/README.md#capabilities) for the override rules.
 
+Compaction settings have the same layers in `harness.json`: user `config/harness.json`, project `<project>/.nerve/config/harness.json`, and `data/conversations/<conversationId>/config/harness.json`, which holds only conversation-scoped settings and replaces the inherited compaction value as a whole. See [delegation](conversation-core/delegation.md#compaction-settings).
+
 Prompt suggestions are Markdown files (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`). Trust in a suggestion's JavaScript predicate is a `TRUSTED_RESOURCE` row for its exact content; enabled/disabled choices live in `config/prompt-suggestions.json`.
+
+Sub-agent profiles are Markdown files too (built-in, `agent/subagents/`, `<project>/.nerve/subagents/`). Project profiles are trusted per file content through `TRUSTED_RESOURCE`; per-profile enabled switches live in `config/subagents.json`. See [delegation](conversation-core/delegation.md#profiles).
 
 ## In-memory state and restart
 

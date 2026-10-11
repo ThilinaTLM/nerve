@@ -10,15 +10,16 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Documents
 
-| Document                                              | Covers                                                                 |
-| ----------------------------------------------------- | ---------------------------------------------------------------------- |
-| [Data model](data-model.md)                           | ER diagram for all tables, deletion, indexes                           |
-| [Events and context](events-and-context.md)           | Event types, Pi projection, compaction, branching                      |
-| [Tool-call lifecycle](tool-call-lifecycle.md)         | State machine, parallel calls, recovery, cancellation, approval grants |
-| [Input queue](input-queue.md)                         | Merged queue, command preparation, identities, idempotency             |
-| [Async bash and launches](async-bash-and-launches.md) | Agent background commands, launches and process output                 |
-| [Channels](channels.md)                               | Conversation channel versus workbench channel, replay, client state    |
-| [Migration](migration.md)                             | Legacy database analysis, importer and production prerequisites        |
+| Document                                              | Covers                                                                                          |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| [Data model](data-model.md)                           | ER diagram for all tables, deletion, indexes                                                    |
+| [Events and context](events-and-context.md)           | Event types, Pi projection, compaction, branching                                               |
+| [Tool-call lifecycle](tool-call-lifecycle.md)         | State machine, parallel calls, recovery, cancellation, approval grants                          |
+| [Delegation](delegation.md)                           | Sub-agents, profiles, completion notices, child configuration, instructions, layered compaction |
+| [Input queue](input-queue.md)                         | Merged queue, command preparation, identities, idempotency                                      |
+| [Async bash and launches](async-bash-and-launches.md) | Agent background commands, launches and process output                                          |
+| [Channels](channels.md)                               | Conversation channel versus workbench channel, replay, client state                             |
+| [Migration](migration.md)                             | Legacy database analysis, importer and production prerequisites                                 |
 
 ## Principles
 
@@ -35,7 +36,10 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Term               | Meaning                                                                                   |
 | ------------------ | ----------------------------------------------------------------------------------------- |
 | Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls |
-| Child conversation | Conversation with a parent; created by delegation tools                                   |
+| Child conversation | Conversation with a parent; created by `subagent_prompt`                                  |
+| Sub-agent          | A child conversation configured from a profile; see [delegation](delegation.md)           |
+| Profile            | Markdown file whose configuration and instructions seed a sub-agent at creation           |
+| Instructions       | Persona and working rules rendered as their own section of a conversation's system prompt |
 | Turn               | One model invocation plus the processing of the tool calls it issued                      |
 | Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events    |
 | Event              | Append-only durable fact in a conversation's history                                      |
@@ -44,34 +48,34 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Decisions
 
-| Area               | Decision                                                                                                                                                                                                                             |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Projects           | Conversations belong to a project (`project_id` required).                                                                                                                                                                           |
-| Conversation state | `pinned_at`, `completed_at`, `last_user_message_at`, `status_cleared_at`, `created_at`, `updated_at`.                                                                                                                                |
-| Last user message  | Updated only by delivered `user_message` events, human or parent submitted. Never by compaction, tool results or notices.                                                                                                            |
-| Status dismissal   | `status_cleared_at` keeps a dismissed failed or interrupted badge hidden across status rebuilds.                                                                                                                                     |
-| Child policy       | None stored. Deliberately stopping a parent stops its children. No budgets, depth or concurrency limits, grants or orchestration policies.                                                                                           |
-| Configuration      | Model, reasoning level, system prompt, permission rule set, mode, working directory. Tools and skills are host-resolved file capabilities. No `instructions`, permission level, workspace roots, read-only flag or revisions.        |
-| Permissions        | Baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level.                                                                                                                   |
-| Approval grants    | "Always allow" writes a rule into the matching overlay file. No table.                                                                                                                                                               |
-| Event types        | `user_message`, `assistant_message`, `system_event`, `tool_call_response`, `compaction`. No tool-request, branch-summary or explore-report events.                                                                                   |
-| Tool calls         | Unfinished calls live in `TOOL_CALL`; settling appends one response event and deletes the row.                                                                                                                                       |
-| Input queue        | One queue for user prompts, parent prompts and system notices.                                                                                                                                                                       |
-| Stop and pause     | Stop cancels the current execution, sets `paused`, and cascades to child conversations and their async bash. A new user prompt clears pause; parent and system inputs never do. `continue` restarts processing without a new prompt. |
-| Force push         | Stop the current turn without pausing, then drain the queue. No stored force-push state.                                                                                                                                             |
-| Branch summary     | Not an event type; a new branch may append a compaction.                                                                                                                                                                             |
-| Idempotency        | Retries are safe through caller-supplied IDs (entities, inputs, interaction resolutions) and set-style updates. No RPC receipt table; no exactly-once guarantee for external effects.                                                |
-| Trust              | One `TRUSTED_RESOURCE` table: a resource is trusted for the exact file content approved.                                                                                                                                             |
-| Prompt suggestions | Kept. Markdown definitions from built-ins, user and project; trust via `TRUSTED_RESOURCE`; served on the workbench channel.                                                                                                          |
-| Background work    | Background and promoted bash calls become conversation-owned async bash. Launches are a workbench feature reached through the `launch` host tool; running launches are in memory.                                                    |
-| Channels           | Separate conversation and workbench connections. Conversation replay uses event sequence; workbench and global list updates are in-memory snapshots plus change notices.                                                             |
-| Assets             | `ASSET` tracks conversation-owned files only.                                                                                                                                                                                        |
+| Area               | Decision                                                                                                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Projects           | Conversations belong to a project (`project_id` required).                                                                                                                                                                                                                                                                   |
+| Conversation state | `pinned_at`, `completed_at`, `last_user_message_at`, `status_cleared_at`, `created_at`, `updated_at`.                                                                                                                                                                                                                        |
+| Last user message  | Updated only by delivered `user_message` events, human or parent submitted. Never by compaction, tool results or notices.                                                                                                                                                                                                    |
+| Status dismissal   | `status_cleared_at` keeps a dismissed failed or interrupted badge hidden across status rebuilds.                                                                                                                                                                                                                             |
+| Child policy       | None stored. Deliberately stopping a parent stops its children. Rules every child obeys (allowed rule sets, no user prompts, no nested delegation or human-in-the-loop tools) are enforced by the host and core; see [delegation](delegation.md). No budgets, depth or concurrency limits, grants or orchestration policies. |
+| Configuration      | Model, reasoning level, system prompt, instructions, permission rule set, mode, working directory. Tools and skills are host-resolved file capabilities; compaction overrides are a conversation `harness.json`. No permission level, workspace roots, read-only flag or revisions.                                          |
+| Permissions        | Baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level.                                                                                                                                                                                                           |
+| Approval grants    | "Always allow" writes a rule into the matching overlay file. No table.                                                                                                                                                                                                                                                       |
+| Event types        | `user_message`, `assistant_message`, `system_event`, `tool_call_response`, `compaction`. No tool-request, branch-summary or delegation-report events.                                                                                                                                                                        |
+| Tool calls         | Unfinished calls live in `TOOL_CALL`; settling appends one response event and deletes the row.                                                                                                                                                                                                                               |
+| Input queue        | One queue for user prompts, parent prompts and system notices.                                                                                                                                                                                                                                                               |
+| Stop and pause     | Stop cancels the current execution, sets `paused`, and cascades to child conversations and their async bash. A new user prompt clears pause; parent and system inputs never do. `continue` restarts processing without a new prompt.                                                                                         |
+| Force push         | Stop the current turn without pausing, then drain the queue. No stored force-push state.                                                                                                                                                                                                                                     |
+| Branch summary     | Not an event type; a new branch may append a compaction.                                                                                                                                                                                                                                                                     |
+| Idempotency        | Retries are safe through caller-supplied IDs (entities, inputs, interaction resolutions) and set-style updates. No RPC receipt table; no exactly-once guarantee for external effects.                                                                                                                                        |
+| Trust              | One `TRUSTED_RESOURCE` table: a resource is trusted for the exact file content approved.                                                                                                                                                                                                                                     |
+| Prompt suggestions | Kept. Markdown definitions from built-ins, user and project; trust via `TRUSTED_RESOURCE`; served on the workbench channel.                                                                                                                                                                                                  |
+| Background work    | Background and promoted bash calls become conversation-owned async bash. Launches are a workbench feature reached through the `launch` host tool; running launches are in memory.                                                                                                                                            |
+| Channels           | Separate conversation and workbench connections. Conversation replay uses event sequence; workbench and global list updates are in-memory snapshots plus change notices.                                                                                                                                                     |
+| Assets             | `ASSET` tracks conversation-owned files only.                                                                                                                                                                                                                                                                                |
 
 ### Capabilities
 
 The host resolves tools and skills per turn from user settings → trusted project overrides → conversation overrides. Each override replaces a whole tool entry (enabled state and configuration) or skill flag; saving drops entries equal to the parent. Core tools stay available and permissions authorize their use. Configurable tools default on except image explanation/generation, Kroki, subagents, Jira and Confluence. File skills default on; built-in Nerve and agent-browser skills default off.
 
-Subagents copy the parent's conversation file; explore children disable configurable tools and skills and use `read_only`. Capability state is not stored in SQLite. The conversation channel exposes `capabilities.get/update/reset/trust` and ephemeral `capabilities.changed`; user settings remain on the workbench channel. See [storage](../storage.md#files-and-permissions) for paths.
+A new sub-agent starts from the parent's conversation file with its profile's tool and skill changes applied on top (see [delegation](delegation.md)). Capability state is not stored in SQLite. The conversation channel exposes `capabilities.get/update/reset/trust` and ephemeral `capabilities.changed`; user settings remain on the workbench channel. See [storage](../storage.md#files-and-permissions) for paths.
 
 ## Implementation status
 

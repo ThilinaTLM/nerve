@@ -35,13 +35,13 @@ Contextual prompt chips appear above the editor. Selecting one inserts or sends 
 
 The compact wrench/library control shows selected optional tools and skills for the conversation. Its two tabs let you toggle an item without changing user or project defaults. A dot marks conversations with explicit overrides; reset removes those overrides and resumes inheritance.
 
-Tools with settings show a configure button that opens the same dialog as **Settings → Tools**, scoped to the conversation: the Jira, Confluence, or Tavily profile; the Explore and Image explanation models; Image generation model and output defaults; the Kroki server for diagram export; and the Async Subagent model and compaction profile. A conversation's tool settings replace that tool's inherited settings as a whole, and saving values equal to the inherited ones removes the override.
+Tools with settings show a configure button that opens the same dialog as **Settings → Tools**, scoped to the conversation: the Jira, Confluence, or Tavily profile; the Image explanation model; Image generation model and output defaults; and the Kroki server for diagram export. A conversation's tool settings replace that tool's inherited settings as a whole, and saving values equal to the inherited ones removes the override.
 
 The selection order is User defaults → trusted Project overrides → Conversation overrides. This includes the opt-in state of Built-in Nerve skills. Permissions, planning-mode limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Changes made during a run apply to the next run. Disabling a skill cannot remove instructions already present in conversation history.
 
 ## Context, agents, and to-dos
 
-The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. Open the Context panel to monitor the lead, developer teammates, and Explore agents or to inspect a child transcript. The to-do indicator reflects structured agent work state; it is separate from delegated agents and supervised background processes.
+The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. Select the context indicator to open the context popover with usage, compaction, and instructions; use the Agents pill in the transcript to monitor sub-agents or open one. The to-do indicator reflects structured agent work state; it is separate from delegated agents and supervised background processes.
 
 ## Review gates
 

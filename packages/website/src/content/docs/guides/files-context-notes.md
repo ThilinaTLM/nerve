@@ -15,7 +15,7 @@ Editing is unavailable for files outside the project, symbolic links, binary fil
 
 ## Context and active agents
 
-The Context panel explains loaded resources and conversation context. Its Agents section groups the lead, persistent developer teammates, and temporary Explore agents, with live status and access to child transcripts. See [Agents and delegation](/guides/agents-and-delegation/) for the difference between them.
+The context popover beside the composer shows context usage, the conversation's compaction and instructions, and session details such as the project, directory, and conversation ID. Sub-agents appear in the Agents pill at the top right of the transcript; see [Agents and delegation](/guides/agents-and-delegation/).
 
 The composer meter shows current usage as a fraction of the model's declared context window when usage information is available. It can display `?` before the provider reports enough information. Automatic compaction creates an explicit transcript event. The full stored history graph remains available even when the active model context contains a summary.
 

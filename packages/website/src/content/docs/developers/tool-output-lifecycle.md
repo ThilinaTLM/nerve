@@ -39,7 +39,7 @@ These values come from [`conversation.schema.ts`](https://github.com/ThilinaTLM/
 
 ## Final-result contract
 
-Every active catalog tool declares one semantic result policy. The projector first builds a canonical candidate, preserving status, continuation, media, and validated artifact facts. A fitting candidate is returned unchanged. Overflow then uses the profile strategy—for example continuation-aware source heads, compact process diagnostics, whole-item listings/searches, artifact indexes, or independent per-task Explore reports. Profile budgets are centralized in `packages/tools/src/result-projection/profiles.ts`; the conservative unknown-tool fallback remains 200 lines and 24,000 UTF-8 bytes.
+Every active catalog tool declares one semantic result policy. The projector first builds a canonical candidate, preserving status, continuation, media, and validated artifact facts. A fitting candidate is returned unchanged. Overflow then uses the profile strategy—for example continuation-aware source heads, compact process diagnostics, whole-item listings/searches, or artifact indexes. Profile budgets are centralized in `packages/tools/src/result-projection/profiles.ts`; the conservative unknown-tool fallback remains 200 lines and 24,000 UTF-8 bytes.
 
 Only the host artifact validator can issue an agent-readable descriptor. It accepts managed regular files, rejects symlink chains and unsafe roots, and never opens artifact content during projection. When no exact artifact or continuation exists, preparation writes the complete result before bounding at `data/conversations/<bare-conversation-id>/tool-calls/<bare-tool-call-id>/result.json`. The payload reference remains owner/digest verified and version 2.
 
@@ -47,7 +47,7 @@ Process output uses one `process_diagnostics` projector for foreground Bash, pro
 
 Async Bash captures `stdout.txt`, `stderr.txt`, and interleaved `output.txt` as conversation-owned assets. Launch logs live under `data/launches/<launchId>/`. Agent-facing `async_bash logs` and `launch logs` use 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report line ranges, status, a next offset when needed, and a file path when the page does not cover the whole output.
 
-The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget; Explore applies one budget per child report and no additional call-level ceiling.
+The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget. Sub-agent final responses are capped separately when completion notices are built, with the full text saved to a report file.
 
 ## Durable and live publication
 

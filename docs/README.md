@@ -7,13 +7,9 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 - [Codebase architecture](architecture/codebase.md) — package ownership, dependencies, naming, and runtime composition boundaries.
 - [Storage architecture](architecture/storage.md) — `NERVE_HOME`, SQLite, managed files, capability and permission files, in-memory state.
 - [Storage migrations](architecture/migrations.md) — how a home is upgraded between releases.
-- [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, channels and legacy import.
+- [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, delegation and sub-agent profiles, channels and legacy import.
 - [Permissions](architecture/permissions.md) — permission rule sets, overlays and the evaluator.
 - [Tool-result projection](architecture/tool-result-projection.md) — complete result, agent projection and user projection: purpose, storage and transfer.
-
-## Proposals
-
-- [Sub-agent profiles](proposals/subagent-profiles/README.md) — one asynchronous, profile-based sub-agent system replacing Explore and developer teammates.
 
 ## Maintainer runbooks
 
@@ -26,7 +22,7 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | Public behavior, guides, operations, protocol, and developer reference      | [`packages/website/src/content/docs/`](../packages/website/src/content/docs/) |
 | Cross-package architecture, its design rationale, and maintainer procedures | Root `docs/`                                                                  |
-| Designs not yet implemented                                                 | `docs/proposals/` (create when needed)                                        |
+| Designs not yet implemented                                                 | `docs/proposals/` (create when needed; delete when implemented)               |
 | Package ownership and local development rules                               | Package `README.md` and `AGENTS.md` files                                     |
 | Repository contribution and security policy                                 | [`CONTRIBUTING.md`](../CONTRIBUTING.md) and [`SECURITY.md`](../SECURITY.md)   |
 | Schemas, catalogs, limits, and changing behavior                            | Owning contracts, implementation, and tests                                   |

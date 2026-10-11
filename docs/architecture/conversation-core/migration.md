@@ -108,8 +108,8 @@ The disk floor is 4 GiB plus a runtime check for 15% of the old database size.
 
 Remaining historical losses: missing assistant results are settled indeterminate;
 selected-branch result gaps are copied from recorded results; dismissed resolutions
-remain in result details; notices become notifications; user images and legacy
-`instructions` have no matching current field. UI launch instances, approval
+remain in result details; notices become notifications; user images have no matching current field, and
+legacy `instructions` import into `instructions` only when they fit 16 KB. UI launch instances, approval
 workflow documents, old lifecycle projections and historical config-change entries
 are dropped. Unsupported/stale suggestion predicates require reapproval, never a
 guessed trust grant. Already-missing asset references retain metadata.

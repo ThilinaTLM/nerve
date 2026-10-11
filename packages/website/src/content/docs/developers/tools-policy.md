@@ -9,7 +9,7 @@ The contracts and tool manifest define the agent-callable catalog. Definitions d
 
 ## Local versus host tools
 
-Local executors cover files/search, finite Bash/Python, Web, Jira, and Confluence. Host-mediated tools cover questions, to-dos, background tasks, Explore, and plan review because they need durable Workbench state or suspend the run.
+Local executors cover files/search, finite Bash/Python, Web, Jira, and Confluence. Host-mediated tools cover questions, to-dos, background tasks, sub-agents, and plan review because they need durable Workbench state or suspend the run.
 
 Every dispatch produces persisted lifecycle records. File mutations serialize per path; shell/Python can stream but remain finite; supervised task processes are separate. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
 
@@ -17,10 +17,10 @@ Every dispatch produces persisted lifecycle records. File mutations serialize pe
 
 The server composes Baseline with one selected permission rule set:
 
-- **Read only** allows interaction, local inspection, and Explore, then denies other capabilities;
+- **Read only** allows interaction, and local inspection, then denies other capabilities;
 - **Supervised** allows interaction and local inspection, then prompts for other capabilities;
 - **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
-- **Planning** allows research, interaction, Explore, and plan-file writes, prompts for local analysis commands, and denies other mutations;
+- **Planning** allows research, interaction, and plan-file writes, prompts for local analysis commands, and denies other mutations;
 - custom user rule sets can define another ordered policy for compatible agent modes.
 
 The permission engine combines manifest metadata, normalized arguments and targets, the selected rule set, and matching overlays to produce `allow`, `prompt`, or `deny`. A prompt becomes a durable Workbench approval interaction. Multi-target calls are automatically allowed only when the winning allow rule covers every relevant target.
