@@ -1,3 +1,4 @@
+import { stopProcessTree } from "../../../infrastructure/process-host/shell-process.js";
 import type { WorkbenchLaunchResources } from "../adapters/workbench-launch-adapters.js";
 import { isActiveLaunchStatus } from "../model/launch-status.js";
 import type {
@@ -419,17 +420,22 @@ export class LaunchService {
       return launch;
     });
     if (isTerminalLaunchStatus(initial.status) || !requested) return initial;
-    await this.ports.process.signal(initial, options);
     const timeoutMs = options.timeoutMs ?? this.ports.stopTimeoutMs ?? 5_000;
-    let evidence = await this.processSupervisor.waitForExit(initial, timeoutMs);
-    if (evidence === "timeout" && options.signal !== "SIGKILL") {
-      await this.ports.process.signal(initial, {
-        ...options,
-        signal: "SIGKILL",
-        reason: options.reason ?? "graceful stop timed out",
-      });
-      evidence = await this.processSupervisor.waitForExit(initial, timeoutMs);
-    }
+    const evidence = await stopProcessTree({
+      signal: options.signal,
+      signalProcess: (signal, escalated) =>
+        this.ports.process.signal(
+          initial,
+          escalated
+            ? {
+                ...options,
+                signal,
+                reason: options.reason ?? "graceful stop timed out",
+              }
+            : options,
+        ),
+      waitForExit: () => this.processSupervisor.waitForExit(initial, timeoutMs),
+    });
     if (typeof evidence === "object")
       return this.finishFromExit(id, evidence, "cancelled", options.reason);
     if (evidence === "exited")

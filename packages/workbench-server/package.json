@@ -32,7 +32,7 @@
     "dev": "tsx src/main.ts",
     "test": "tsx --test --test-concurrency=1 \"test/**/*.test.ts\"",
     "test:migrations": "tsx --test \"test/infrastructure/persistence/*.test.ts\"",
-    "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/launches/process-runtime-driver.test.ts test/domains/launches/launch-port-inspector.test.ts test/domains/launches/launch-scope.test.ts test/domains/launches/launch-supervisor.test.ts",
+    "test:native": "tsx --test test/infrastructure/persistence/file-mutations.test.ts test/domains/launches/process-runtime-driver.test.ts src/infrastructure/process-host/port-inspector.test.ts test/domains/launches/launch-scope.test.ts test/domains/launches/launch-supervisor.test.ts",
     "benchmark:lifecycle": "tsx test/benchmarks/lifecycle-work.benchmark.ts"
   },
   "dependencies": {

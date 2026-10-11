@@ -1,3 +1,5 @@
+import { waitForProcessExit } from "../../../infrastructure/process-host/shell-process.js";
+import { OutputReadinessCoordinator } from "../../../infrastructure/process-host/readiness.js";
 import type { ChildProcess } from "node:child_process";
 import type { LaunchDefinitionPortGuard } from "../model/launch-definition-launch.js";
 import type {
@@ -8,7 +10,6 @@ import type {
 import type { DomainEventPublisherPort } from "../../../core/ports/domain-events.js";
 import type { PerformanceDiagnosticsPort } from "../../../core/ports/diagnostics.js";
 import type {
-  StartLaunchRequest,
   LaunchPortConflictListener,
   LaunchRecord,
 } from "@nervekit/contracts/launches";
@@ -80,110 +81,6 @@ function createDefinitionPortGuard(
   };
 }
 
-class WorkbenchReadinessCoordinator {
-  private readonly output = new Map<string, string>();
-  private readonly waiters = new Map<
-    string,
-    {
-      request: StartLaunchRequest;
-      pattern?: RegExp;
-      resolve: (
-        value: "ready" | "timeout" | { outcome: "ready"; matched?: string },
-      ) => void;
-    }
-  >();
-
-  forget(launchId: string): void {
-    this.output.delete(launchId);
-    this.waiters.get(launchId)?.resolve("timeout");
-    this.waiters.delete(launchId);
-  }
-
-  capture(launchId: string, text: string): void {
-    const combined = `${this.output.get(launchId) ?? ""}${text}`.slice(
-      -256 * 1024,
-    );
-    this.output.set(launchId, combined);
-    this.match(launchId, combined);
-  }
-
-  async wait(launch: LaunchRecord, request: StartLaunchRequest) {
-    const pattern = request.readyPattern
-      ? new RegExp(request.readyPattern, "i")
-      : undefined;
-    const immediate = this.matchValue(
-      request,
-      this.output.get(launch.id) ?? "",
-      pattern,
-    );
-    if (immediate) return { outcome: "ready" as const, matched: immediate };
-    const timeoutMs =
-      request.readyTimeoutMs ?? (request.readyUrl ? 30_000 : 3_000);
-    return new Promise<"timeout" | { outcome: "ready"; matched?: string }>(
-      (resolve) => {
-        let settled = false;
-        const finish = (
-          value: "ready" | "timeout" | { outcome: "ready"; matched?: string },
-        ) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          this.waiters.delete(launch.id);
-          resolve(value === "ready" ? { outcome: "ready" } : value);
-        };
-        this.waiters.set(launch.id, { request, pattern, resolve: finish });
-        const timer = setTimeout(() => finish("timeout"), timeoutMs);
-        if (request.readyUrl)
-          void this.pollUrl(request.readyUrl, finish, timeoutMs);
-      },
-    );
-  }
-
-  private match(launchId: string, text: string): void {
-    const waiter = this.waiters.get(launchId);
-    if (!waiter) return;
-    const matched = this.matchValue(waiter.request, text, waiter.pattern);
-    if (matched) waiter.resolve({ outcome: "ready", matched });
-  }
-
-  private matchValue(
-    request: StartLaunchRequest,
-    text: string,
-    pattern?: RegExp,
-  ): string | undefined {
-    if (request.readyOnUrl) {
-      const url = text.match(/https?:\/\/[^\s)'"]+/i)?.[0];
-      if (url && !url.endsWith(":")) return url;
-    }
-    if (pattern) {
-      const matched = pattern.exec(text)?.[0];
-      if (matched) return matched;
-    }
-    return undefined;
-  }
-
-  private async pollUrl(
-    url: string,
-    finish: (
-      value: "ready" | "timeout" | { outcome: "ready"; matched?: string },
-    ) => void,
-    timeoutMs: number,
-  ): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      try {
-        await fetch(url, {
-          signal: AbortSignal.timeout(Math.min(500, timeoutMs)),
-        });
-        finish({ outcome: "ready", matched: url });
-        return;
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-  }
-}
-
 export type WorkbenchManagedLaunch = LaunchLogCursor & {
   child?: ChildProcess;
   stopping: boolean;
@@ -237,7 +134,7 @@ export function createWorkbenchLaunchResources(
     diagnostics: options.diagnostics,
   });
   const supervisor = options.supervisor ?? defaultLaunchSupervisor;
-  const readiness = new WorkbenchReadinessCoordinator();
+  const readiness = new OutputReadinessCoordinator();
 
   const eventPublisher: DomainEventPublisherPort = {
     publish: async (event) => {
@@ -503,15 +400,7 @@ export function createWorkbenchLaunchResources(
       waitForExit: async (launch, timeoutMs) => {
         const processExit = managed.get(launch.id)?.exitPromise;
         if (!processExit) return "unavailable";
-        const result = await new Promise<
-          "timeout" | { exitCode: number | null; signal: NodeJS.Signals | null }
-        >((resolve) => {
-          const timer = setTimeout(() => resolve("timeout"), timeoutMs);
-          void processExit.then((exit) => {
-            clearTimeout(timer);
-            resolve(exit);
-          });
-        });
+        const result = await waitForProcessExit(processExit, timeoutMs);
         return result === "timeout"
           ? result
           : {

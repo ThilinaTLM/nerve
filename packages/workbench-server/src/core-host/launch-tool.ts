@@ -9,7 +9,7 @@ import type { LaunchService } from "../domains/launches/application/launch.servi
 import type { LaunchDefinitionService } from "../domains/launch-definitions/launch-definition.service.js";
 import { isTerminalLaunchStatus } from "../domains/launches/model/launch-status.js";
 import { resolveLaunchWorkingDirectory } from "../domains/launches/model/launch-working-directory.js";
-import { inspectConfiguredPort } from "../domains/launches/adapters/launch-port-inspector.js";
+import { inspectConfiguredPort } from "../infrastructure/process-host/port-inspector.js";
 
 export interface LaunchToolOptions {
   launches: Pick<

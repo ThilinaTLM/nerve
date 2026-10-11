@@ -5,25 +5,22 @@ import type {
   LaunchRuntimeIdentity,
 } from "@nervekit/contracts/launches";
 import {
-  inspectManagedTarget,
-  managedProcessForChild,
   nativeRuntimeCapabilities,
-  spawnManagedChildProcess,
-  terminateManagedTarget,
   type ManagedProcessExit,
   type ManagedTarget,
   type TerminationMethod,
 } from "@nervekit/native";
 import {
-  resolveBashShellConfig,
-  resolveProjectShellInvocation,
-  type ProjectShellInvocation,
-} from "@nervekit/tools/execution";
+  spawnShellProcess,
+  terminateProcessChild,
+  terminateProcessTarget,
+  isProcessTargetAlive,
+} from "../../../infrastructure/process-host/shell-process.js";
 import { launchProcessPolicy } from "../model/launch-process-policy.js";
 import {
   defaultLaunchPortInspector,
   type LaunchPortInspector,
-} from "../adapters/launch-port-inspector.js";
+} from "../../../infrastructure/process-host/port-inspector.js";
 
 export interface SpawnManagedLaunchOptions {
   cwd: string;
@@ -85,33 +82,15 @@ export interface LaunchSupervisor {
   ): Promise<TerminateLaunchResult>;
 }
 
-export function managedLaunchShellCommand(
-  command: string,
-  options: SpawnManagedLaunchOptions,
-): ProjectShellInvocation {
-  const env = processEnvironment(options.env);
-  return resolveProjectShellInvocation(command, {
-    cwd: options.cwd,
-    env,
-    shellConfig: resolveBashShellConfig({ shellPath: options.shellPath }),
-  });
-}
-
 export function createLaunchSupervisor(
   portInspector: LaunchPortInspector = defaultLaunchPortInspector,
 ): LaunchSupervisor {
   return {
     spawn(command, options) {
-      const shell = managedLaunchShellCommand(command, options);
-      const child = spawnManagedChildProcess(shell.shell, shell.args, {
-        cwd: options.cwd,
-        env: shell.env,
+      const { child, managed } = spawnShellProcess(command, {
+        ...options,
         policy: launchProcessPolicy(),
       });
-      const managed = managedProcessForChild(child);
-      if (!managed) {
-        throw new Error("Native managed process metadata was not registered");
-      }
       return {
         child,
         runtime: Promise.resolve(runtimeForManagedTarget(managed.target)),
@@ -119,35 +98,16 @@ export function createLaunchSupervisor(
         closed: managed.closed.then(lifecycleResult),
       };
     },
-    async terminate(child, signal) {
-      const managed = managedProcessForChild(child);
-      if (!managed) {
-        return {
-          attempted: false,
-          terminated: false,
-          method: "none",
-          error: "Child is not owned by the native managed process runtime",
-        };
-      }
-      return managed.terminate(signal);
-    },
+    terminate: terminateProcessChild,
     async terminateRuntime(runtime, signal) {
       const target = managedTargetForRuntime(runtime);
       if ("error" in target) return refusedTermination(target.error);
-      return terminateManagedTarget(target, signal);
+      return terminateProcessTarget(target, signal);
     },
     async isRuntimeTargetAlive(runtime) {
       const target = managedTargetForRuntime(runtime);
       if ("error" in target) throw new Error(target.error);
-      const inspection = inspectManagedTarget(target);
-      if (inspection.evidence === "alive_verified") return true;
-      if (
-        inspection.evidence === "exited_verified" ||
-        inspection.evidence === "identity_mismatch"
-      ) {
-        return false;
-      }
-      throw new Error(inspection.detail);
+      return isProcessTargetAlive(target);
     },
     async inspectRuntimeListeningPorts(runtime) {
       if (!(await this.isRuntimeTargetAlive(runtime))) return [];
@@ -223,19 +183,6 @@ function nativeIdentityForRuntime(identity: LaunchRuntimeIdentity): string {
   if (identity.kind === "linux") return `linux:${identity.startTimeTicks}`;
   if (identity.kind === "darwin") return identity.startFingerprint;
   return identity.creationDate;
-}
-
-function processEnvironment(
-  overrides?: Record<string, string>,
-): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    PAGER: "cat",
-    GIT_PAGER: "cat",
-    GIT_TERMINAL_PROMPT: "0",
-    TERM: "dumb",
-    ...(overrides ?? {}),
-  };
 }
 
 function lifecycleResult(exit: ManagedProcessExit): ProcessLifecycleResult {

@@ -8,7 +8,7 @@ export {
   MAX_BUFFERED_LOG_LINE_CHARS,
   LaunchLogService,
 } from "./application/launch-log.service.js";
-export type { LaunchPortInspector } from "./adapters/launch-port-inspector.js";
+export type { LaunchPortInspector } from "../../infrastructure/process-host/port-inspector.js";
 export {
   dedupeListeningPorts,
   defaultLaunchPortInspector,
@@ -16,7 +16,7 @@ export {
   inspectPortListeners,
   inspectRuntimeListeningPorts,
   isSameProcessIdentity,
-} from "./adapters/launch-port-inspector.js";
+} from "../../infrastructure/process-host/port-inspector.js";
 export { isPathInDirectoryTree } from "./model/launch-scope.js";
 export {
   isActiveLaunchStatus,
@@ -32,5 +32,4 @@ export type {
 export {
   createLaunchSupervisor,
   defaultLaunchSupervisor,
-  managedLaunchShellCommand,
 } from "./application/launch-supervisor.js";

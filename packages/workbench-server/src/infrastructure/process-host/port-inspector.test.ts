@@ -6,10 +6,14 @@ import {
   inspectConfiguredPort,
   inspectRuntimeListeningPorts,
   isSameProcessIdentity,
-} from "../../../src/domains/launches/adapters/launch-port-inspector.js";
+} from "./port-inspector.js";
 
 function runtime(): LaunchRuntime {
   return {
+    version: 2,
+    containment: process.platform === "win32" ? "job-object" : "process-group",
+    identity: { kind: "linux", startTimeTicks: 0 },
+    capabilities: { identity: true, processTree: true, listeningPorts: true },
     platform: process.platform,
     childPid: process.pid,
     detached: process.platform !== "win32",
@@ -18,8 +22,8 @@ function runtime(): LaunchRuntime {
   };
 }
 
-describe("launch port inspector", () => {
-  it("detects current-process TCP listeners on supported hosts", async () => {
+void describe("launch port inspector", () => {
+  void it("detects current-process TCP listeners on supported hosts", async () => {
     const server = createServer();
     await new Promise<void>((resolve) =>
       server.listen(0, "127.0.0.1", resolve),
@@ -52,7 +56,7 @@ describe("launch port inspector", () => {
     }
   });
 
-  it("reports configured-port conflicts with a stable process identity", async () => {
+  void it("reports configured-port conflicts with a stable process identity", async () => {
     const server = createServer();
     await new Promise<void>((resolve) =>
       server.listen(0, "127.0.0.1", resolve),
@@ -72,7 +76,7 @@ describe("launch port inspector", () => {
     }
   });
 
-  it("requires PID identity before considering two listeners the same process", () => {
+  void it("requires PID identity before considering two listeners the same process", () => {
     const base = {
       protocol: "tcp" as const,
       address: "127.0.0.1",

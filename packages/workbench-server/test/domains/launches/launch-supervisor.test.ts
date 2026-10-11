@@ -1,3 +1,4 @@
+import { resolveProcessShell } from "../../../src/infrastructure/process-host/shell-process.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -5,10 +6,7 @@ import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import { describe, it } from "node:test";
 import type { ChildProcess } from "node:child_process";
-import {
-  defaultLaunchSupervisor,
-  managedLaunchShellCommand,
-} from "../../../src/domains/launches/application/launch-supervisor.js";
+import { defaultLaunchSupervisor } from "../../../src/domains/launches/application/launch-supervisor.js";
 
 const node = JSON.stringify(process.execPath);
 
@@ -34,7 +32,7 @@ async function collectStdout(
 
 describe("launch supervisor", () => {
   it("keeps shell and environment policy in TypeScript", async () => {
-    const invocation = managedLaunchShellCommand("pnpm check", {
+    const invocation = resolveProcessShell("pnpm check", {
       cwd: tmpdir(),
       shellPath: process.execPath,
     });

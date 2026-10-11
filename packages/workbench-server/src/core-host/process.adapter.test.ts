@@ -1,59 +1,45 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BackgroundProcess } from "@nervekit/conversation-core";
 import { CoreProcessHost } from "./process.adapter.js";
 
-void test("readiness matches combined stderr and does not stop a process on readiness timeout", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "nerve-readiness-"));
+void test("async bash cancellation sends SIGTERM then escalates after the launch grace period", async (t) => {
+  if (process.platform === "win32") return t.skip("POSIX signal fixture");
+  const dir = await mkdtemp(join(tmpdir(), "nerve-stop-"));
+  const host = new CoreProcessHost("/bin/bash");
+  const script =
+    'process.on("SIGTERM", () => process.stderr.write("TERM received\\n")); process.stdout.write("READY\\n"); setInterval(() => {}, 1000)';
+  let background;
   try {
-    const stdout = join(dir, "stdout.txt");
-    const stderr = join(dir, "stderr.txt");
-    const combined = join(dir, "output.txt");
-    await Promise.all([
-      writeFile(stdout, ""),
-      writeFile(stderr, "READY stderr"),
-      writeFile(combined, "READY stderr"),
-    ]);
-    let cancelled = false;
-    const process: BackgroundProcess = {
-      ref: "process",
-      outputFiles: { stdout, stderr, combined },
-      wait: () => new Promise(() => {}),
-      cancel: async () => {
-        cancelled = true;
-      },
-    };
-    const host = new CoreProcessHost("unused");
-    host.spawn = async () => process;
-    const input = {
-      command: "unused",
+    background = await host.spawn({
+      command: `exec ${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`,
       cwd: dir,
       artifactDir: dir,
-      signal: new AbortController().signal,
-    };
-    assert.equal(
-      (
-        await host.start({
-          ...input,
-          ready: { kind: "pattern", pattern: "READY stderr" },
-        })
-      ).readiness?.status,
-      "ready",
+    });
+    const deadline = Date.now() + 10_000;
+    while (
+      !(
+        await readFile(background.outputFiles.stdout, "utf8").catch(() => "")
+      ).includes("READY")
+    ) {
+      assert.ok(Date.now() < deadline, "fixture startup timed out");
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const started = Date.now();
+    await background.cancel();
+    assert.ok(
+      Date.now() - started >= 4_900,
+      "SIGKILL must wait for the 5s grace period",
     );
-    assert.equal(
-      (
-        await host.start({
-          ...input,
-          ready: { kind: "pattern", pattern: "never", timeoutMs: 0 },
-        })
-      ).readiness?.status,
-      "timed_out",
+    assert.match(
+      await readFile(background.outputFiles.stderr, "utf8"),
+      /TERM received/,
     );
-    assert.equal(cancelled, false);
+    assert.equal((await background.wait()).status, "cancelled");
   } finally {
+    await background?.cancel();
     await rm(dir, { recursive: true, force: true });
   }
 });
