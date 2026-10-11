@@ -62,7 +62,13 @@ try {
     if (code && code !== 0) output += `\nserver exited ${code}`;
   });
 
-  const health = await waitForJson(`${origin}/health`, 20_000, () => output);
+  // The server answers /health while it is still starting; wait for ready.
+  const health = await waitForJson(
+    `${origin}/health`,
+    20_000,
+    () => output,
+    (body) => body?.lifecycle === "ready",
+  );
   if (!health || typeof health !== "object")
     throw new Error("health response is not JSON");
   const token = (
@@ -178,12 +184,15 @@ async function availablePort() {
   });
 }
 
-async function waitForJson(url, timeoutMs, diagnostics) {
+async function waitForJson(url, timeoutMs, diagnostics, accept = () => true) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     try {
       const response = await fetch(url);
-      if (response.ok) return response.json();
+      if (response.ok) {
+        const body = await response.json();
+        if (accept(body)) return body;
+      }
     } catch {
       // Server is still starting.
     }
