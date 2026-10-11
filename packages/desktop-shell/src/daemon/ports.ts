@@ -1,4 +1,5 @@
 import type { DaemonCrashReportKind } from "@nervekit/contracts/logs";
+import type { ServerLifecycleState } from "@nervekit/contracts/status";
 import type { ChildExit, DaemonPaths, HealthyDaemon } from "./contracts.js";
 import type { NetworkInterfacesSnapshot } from "./urls.js";
 
@@ -20,6 +21,8 @@ export interface DaemonHealthCheckResult {
   durationMs: number;
   status?: number;
   error?: string;
+  /** Server lifecycle from a healthy response body, when it could be parsed. */
+  lifecycle?: ServerLifecycleState;
 }
 
 export interface DaemonHealthPort {

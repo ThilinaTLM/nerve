@@ -29,7 +29,7 @@ Boot order in `workbench-server/src/main.ts`:
 2. Resolve host and port from bootstrap settings (current configuration, or defaults for an unmigrated home), bind HTTP and publish `daemon.json`.
 3. Run the storage phase (migrations, configuration, secrets) while serving the boot app. Then build the runtime, swap the listener's handler to the full app, start mobile HTTPS and republish `daemon.json`. The state becomes `ready`.
 
-Migrations run on the server's event loop; steps yield regularly, and nothing renders frames on that thread. If migrated settings change the host or port, the bound listener is kept and the change applies on the next restart.
+Migrations run in a worker thread (`migrations/framework/worker.ts`), so heavy synchronous SQLite work never blocks HTTP, health checks or lifecycle polling. The main thread keeps the startup lock; the worker reports progress back as messages. If migrated settings change the host or port, the bound listener is kept and the change applies on the next restart.
 
 A storage failure keeps the process alive in `failed` with `{ code, message, step, phase, reportPath, retryable }`. Migration failures (`MIGRATION_FAILED`, with details from `migrations/last-failure.json`) and other storage errors are retryable, because the migration ledger makes steps resumable. An unsupported home, a missing token and errors while building the runtime are not; runtime errors still exit the process.
 
@@ -73,6 +73,6 @@ sequenceDiagram
   Note over D,W: the web app reconnects on its own
 ```
 
-The desktop shell (`desktop-shell/src/app/desktop-runtime.ts`) never opens storage. It reads bootstrap settings from files only (timeout, heap size, Ozone platform) and falls back to defaults. Its startup timeout covers only "HTTP reachable". On daemon status changes it updates the tray and, on `ready`, reinstalls the cookie because a restarted daemon may rotate its token. It does not navigate the window, except back to the server URL after its own error page.
+The desktop shell (`desktop-shell/src/app/desktop-runtime.ts`) never opens storage. It reads bootstrap settings from files only (timeout, heap size, Ozone platform) and falls back to defaults. Its startup timeout covers only "HTTP reachable". On daemon status changes it updates the tray and, on `ready`, reinstalls the cookie because a restarted daemon may rotate its token. It does not navigate the window, except back to the server URL after its own error page. `/api/health` reports the lifecycle; while an owned daemon last reported `starting` or `upgrading`, failed health checks do not count toward a restart, and only a process exit triggers recovery.
 
 The shell error page is only for the case where no server is reachable: spawn failure, the process exiting before HTTP is up, or the restart budget being exhausted. Its Try again restarts an owned daemon, or re-acquires a daemon owned by someone else.

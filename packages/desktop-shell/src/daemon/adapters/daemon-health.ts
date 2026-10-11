@@ -1,3 +1,7 @@
+import {
+  serverHealthSchema,
+  type ServerLifecycleState,
+} from "@nervekit/contracts/status";
 import type { DaemonHealthCheckResult } from "../ports.js";
 
 const HEALTH_CHECK_TIMEOUT_MS = 1500;
@@ -25,14 +29,22 @@ export async function checkHealth(
       signal: controller.signal,
     });
     const durationMs = now() - startedAt;
-    return response.ok
-      ? { healthy: true, outcome: "ok", durationMs, status: response.status }
-      : {
-          healthy: false,
-          outcome: "http_error",
-          durationMs,
-          status: response.status,
-        };
+    if (response.ok) {
+      const lifecycle = await readLifecycle(response);
+      return {
+        healthy: true,
+        outcome: "ok",
+        durationMs,
+        status: response.status,
+        ...(lifecycle ? { lifecycle } : {}),
+      };
+    }
+    return {
+      healthy: false,
+      outcome: "http_error",
+      durationMs,
+      status: response.status,
+    };
   } catch (error) {
     return {
       healthy: false,
@@ -45,5 +57,17 @@ export async function checkHealth(
     };
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+/** A missing or malformed body still counts as healthy; lifecycle is unknown. */
+async function readLifecycle(
+  response: Response,
+): Promise<ServerLifecycleState | undefined> {
+  try {
+    const parsed = serverHealthSchema.safeParse(await response.json());
+    return parsed.success ? parsed.data.lifecycle : undefined;
+  } catch {
+    return undefined;
   }
 }

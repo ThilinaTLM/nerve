@@ -8,7 +8,7 @@ import {
   type UserConfiguration,
 } from "@nervekit/contracts/settings";
 import { ensureLocalToken } from "./local-token.js";
-import { runMigrations } from "../migrations/framework/runner.js";
+import { runMigrationsInWorker } from "../migrations/framework/worker-client.js";
 import type { MigrationProgress } from "../migrations/framework/step.js";
 import { resolveDataDir, type StoragePaths, storagePaths } from "./paths.js";
 import {
@@ -101,8 +101,8 @@ export async function initializeStorage(
     }
 
     const homeInspectionStartedAt = performance.now();
-    const migrationResult = await runMigrations(home, {
-      lock: startupLock,
+    const migrationResult = await runMigrationsInWorker({
+      home,
       freshHomeClass: options.freshHomeClass,
       onProgress: options.onMigrationProgress,
     });

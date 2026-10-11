@@ -34,7 +34,16 @@ pnpm run test:full          # run the complete package and Rust test suite
 
 Development uses `data/storage-N` and a separate `data/desktop-profile-N`, with slot 1 as the default. `desktop:dev`, `dev`, and `dev:ui` accept `--slot N` (1–100). HTTP uses `43967 + 2*(N-1)`; HTTPS uses the next port; Vite uses `5173 + (N-1)`. Full development ignores ambient home/profile/target overrides, binds loopback, and refuses occupied ports or mismatched daemon ownership.
 
-For real-data feature/migration testing, stop the production desktop/daemon, run `pnpm storage:copy --slot 2`, then `pnpm desktop:dev --slot 2`. Copies require an unused destination, reject symlinks, exclude transient ownership and backup state, and are marked disposable. Copied credentials and project paths can still access real services/files. Stop the slot owner before discarding/recopying it. Automated tests continue using fresh temporary homes.
+For real-data feature/migration testing, stop the production desktop/daemon, run `pnpm storage:copy --slot 2`, then `pnpm desktop:dev --slot 2`. To copy an existing slot or archived home instead, stop its desktop/daemon and select its source path:
+
+```sh
+pnpm storage:copy --from data/storage-0-34-1-do-not-use --slot 4
+# Or copy a numbered slot:
+pnpm storage:copy --from data/storage-2 --slot 4
+pnpm desktop:dev --slot 4
+```
+
+Relative source paths resolve from the working directory; absolute paths also work. Omitting `--from` still selects `~/.nerve`. Copies require an unused destination, reject linked storage content, and exclude transient ownership and backup state. Desktop profiles are not copied. Copied credentials and project paths can still access real services/files; storage isolation is not a sandbox. Stop the slot owner before discarding/recopying it. Automated tests continue using fresh temporary homes.
 
 `desktop:prod` is an explicit source-build launch against `~/.nerve` (or an overridden `NERVE_HOME`), not a release build. It may migrate or change your real data. Installed/npm desktop defaults remain unchanged. See [Contributing](https://github.com/ThilinaTLM/nerve/blob/main/CONTRIBUTING.md) for safe slot cleanup and ownership rules.
 

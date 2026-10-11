@@ -172,6 +172,56 @@ describe("daemon supervisor", () => {
     await daemon.stop();
   });
 
+  it("does not restart on health timeouts while the daemon is upgrading", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "timeout";
+    world.healthResults.status = undefined;
+    await world.scheduler.advance(60_000);
+    assert.equal(world.launches.length, 1, "no restart");
+    assert.equal(daemon.getStatus(), "ready");
+    assert.equal(
+      world.crashReports.filter((report) => report.kind === "healthFailure")
+        .length,
+      0,
+    );
+    await daemon.stop();
+  });
+
+  it("still recovers from a process exit while upgrading", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "network_error";
+    world.children[0]?.exit(1);
+    world.healthResults.value = true;
+    await world.scheduler.advance(DAEMON_RESTART_BACKOFF_MS[0] + 1_000);
+    assert.equal(world.launches.length, 2);
+    await daemon.stop();
+  });
+
+  it("resumes counting health failures once the daemon reports ready", async () => {
+    const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
+    const daemon = await ownedSupervisor(world).startOwned();
+    world.healthResults.lifecycle = "upgrading";
+    await world.scheduler.advance(5_000);
+    world.healthResults.lifecycle = "ready";
+    await world.scheduler.advance(5_000);
+    world.healthResults.value = false;
+    world.healthResults.outcome = "timeout";
+    world.healthResults.status = undefined;
+    await world.scheduler.advance(
+      15_000 + DAEMON_RESTART_BACKOFF_MS[0] + 1_000,
+    );
+    assert.equal(world.launches.length, 2, "old child replaced");
+    await daemon.stop();
+  });
+
   it("recovers when the bounded final health probe succeeds", async () => {
     const world = fakeDaemonWorld({ discovery: [healthyDaemon()] });
     const originalCheck = world.ports.health.check;
