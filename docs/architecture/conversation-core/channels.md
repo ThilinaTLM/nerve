@@ -58,7 +58,7 @@ Children are separate conversations. Parent snapshots contain child summaries; o
 
 Files, git/GitHub, scratch notes, launch configurations and instances, settings, maintenance and usage use the workbench operations and in-memory notices listed in [`workbench-events.ts`](../../../packages/contracts/src/events/workbench-events.ts).
 
-Panels load snapshots and refresh on scoped resource-change notices. There are no durable streams or replay; reconnect re-snapshots and restores monitor demand. Launch instance RPCs use `launch.*`; saved definitions retain `taskDefinition.*`.
+Panels load snapshots and refresh on scoped resource-change notices. There are no durable streams or replay; reconnect re-snapshots and restores monitor demand. Launch RPCs use `launch.*`; saved definitions use `launchDefinition.*`.
 
 ## Client state
 

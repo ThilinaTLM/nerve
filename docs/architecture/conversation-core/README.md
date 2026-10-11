@@ -10,15 +10,15 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Documents
 
-| Document                                                           | Covers                                                                 |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| [Data model](data-model.md)                                        | ER diagram for all tables, deletion, indexes                           |
-| [Events and context](events-and-context.md)                        | Event types, Pi projection, compaction, branching                      |
-| [Tool-call lifecycle](tool-call-lifecycle.md)                      | State machine, parallel calls, recovery, cancellation, approval grants |
-| [Input queue](input-queue.md)                                      | Merged queue, command preparation, identities, idempotency             |
-| [Async bash and launch configurations](async-bash-and-launches.md) | Conversation-owned background commands versus user-started launches    |
-| [Channels](channels.md)                                            | Conversation channel versus workbench channel, replay, client state    |
-| [Migration](migration.md)                                          | Legacy database analysis, importer and production prerequisites        |
+| Document                                              | Covers                                                                 |
+| ----------------------------------------------------- | ---------------------------------------------------------------------- |
+| [Data model](data-model.md)                           | ER diagram for all tables, deletion, indexes                           |
+| [Events and context](events-and-context.md)           | Event types, Pi projection, compaction, branching                      |
+| [Tool-call lifecycle](tool-call-lifecycle.md)         | State machine, parallel calls, recovery, cancellation, approval grants |
+| [Input queue](input-queue.md)                         | Merged queue, command preparation, identities, idempotency             |
+| [Async bash and launches](async-bash-and-launches.md) | Agent background commands, launches and process output                 |
+| [Channels](channels.md)                               | Conversation channel versus workbench channel, replay, client state    |
+| [Migration](migration.md)                             | Legacy database analysis, importer and production prerequisites        |
 
 ## Principles
 
@@ -32,15 +32,15 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Glossary
 
-| Term                 | Meaning                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| Conversation         | Persistent entity with configuration, branchable history, queue and unfinished tool calls |
-| Child conversation   | Conversation with a parent; created by delegation tools                                   |
-| Turn                 | One model invocation plus the processing of the tool calls it issued                      |
-| Execution            | A span of turns started by an input or assignment, bounded by `execution_state` events    |
-| Event                | Append-only durable fact in a conversation's history                                      |
-| Async bash           | A conversation-owned background command from bash promotion or `task_start`               |
-| Launch configuration | A user-defined command started from the UI, independent of conversations                  |
+| Term               | Meaning                                                                                   |
+| ------------------ | ----------------------------------------------------------------------------------------- |
+| Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls |
+| Child conversation | Conversation with a parent; created by delegation tools                                   |
+| Turn               | One model invocation plus the processing of the tool calls it issued                      |
+| Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events    |
+| Event              | Append-only durable fact in a conversation's history                                      |
+| Async bash         | A conversation-owned background command from a background or promoted `bash` call         |
+| Launch             | A run of a user-defined launch definition, started from the UI or the `launch` tool       |
 
 ## Decisions
 
@@ -63,7 +63,7 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Idempotency        | Retries are safe through caller-supplied IDs (entities, inputs, interaction resolutions) and set-style updates. No RPC receipt table; no exactly-once guarantee for external effects.                                                |
 | Trust              | One `TRUSTED_RESOURCE` table: a resource is trusted for the exact file content approved.                                                                                                                                             |
 | Prompt suggestions | Kept. Markdown definitions from built-ins, user and project; trust via `TRUSTED_RESOURCE`; served on the workbench channel.                                                                                                          |
-| Background work    | Promoted bash calls become conversation-owned async bash. User-started launch configurations are a workbench feature; running instances are in memory.                                                                               |
+| Background work    | Background and promoted bash calls become conversation-owned async bash. Launches are a workbench feature reached through the `launch` host tool; running launches are in memory.                                                    |
 | Channels           | Separate conversation and workbench connections. Conversation replay uses event sequence; workbench and global list updates are in-memory snapshots plus change notices.                                                             |
 | Assets             | `ASSET` tracks conversation-owned files only.                                                                                                                                                                                        |
 
@@ -86,4 +86,4 @@ Prompt suggestions are kept and evaluate against the conversation (title, mode, 
 - Exactly-once external effects. Uncertain outcomes are recorded as indeterminate, not retried blindly.
 - Coordinated parent/child rewind.
 - Persisting live progress or workbench state.
-- Agents depending on workbench features such as launch configurations.
+- Conversation core depending on workbench features such as launches (the `launch` tool is a host tool).
