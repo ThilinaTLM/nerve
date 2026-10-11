@@ -31,9 +31,6 @@ describe("runStartupSequence", () => {
         events.push("prepare");
         return prepared.promise;
       },
-      reportProgress: async (phase) => {
-        events.push(`progress:${phase}`);
-      },
       canNavigate: () => true,
       navigate: async () => {
         events.push("navigate");
@@ -46,12 +43,7 @@ describe("runStartupSequence", () => {
     daemon.resolve({ url: "http://127.0.0.1:3747" });
     await Promise.resolve();
     await Promise.resolve();
-    assert.deepEqual(events, [
-      "loading",
-      "connect",
-      "progress:daemon-ready",
-      "prepare",
-    ]);
+    assert.deepEqual(events, ["loading", "connect", "prepare"]);
     prepared.resolve();
     await Promise.resolve();
     assert.equal(events.includes("navigate"), false);
@@ -59,10 +51,7 @@ describe("runStartupSequence", () => {
 
     const result = await running;
     assert.equal(result.navigated, true);
-    assert.deepEqual(events.slice(-2), [
-      "progress:prerequisites-ready",
-      "navigate",
-    ]);
+    assert.equal(events.at(-1), "navigate");
   });
 
   it("does not navigate after the window is destroyed", async () => {
@@ -72,7 +61,6 @@ describe("runStartupSequence", () => {
       connectDaemon: async () => ({ url: "http://127.0.0.1:3747" }),
       networkReady: Promise.resolve(),
       prepareDaemonConnection: async () => undefined,
-      reportProgress: async () => undefined,
       canNavigate: () => false,
       navigate: async () => {
         navigated = true;
@@ -84,7 +72,6 @@ describe("runStartupSequence", () => {
 
   it("propagates prerequisite failures without navigating", async () => {
     let navigated = false;
-    const progress: string[] = [];
     await assert.rejects(
       runStartupSequence({
         showLoadingWindow: async () => undefined,
@@ -92,9 +79,6 @@ describe("runStartupSequence", () => {
         networkReady: Promise.resolve(),
         prepareDaemonConnection: async () => {
           throw new Error("cookie failed");
-        },
-        reportProgress: async (phase) => {
-          progress.push(phase);
         },
         canNavigate: () => true,
         navigate: async () => {
@@ -104,6 +88,5 @@ describe("runStartupSequence", () => {
       /cookie failed/,
     );
     assert.equal(navigated, false);
-    assert.deepEqual(progress, ["daemon-ready"]);
   });
 });

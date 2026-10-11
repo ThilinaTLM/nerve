@@ -32,24 +32,14 @@ export function loadingWindowBackground(dark: boolean): string {
   return dark ? "#272521" : "#faf8f1";
 }
 
-export type LoadingStage = "starting" | "preparing" | "opening";
-
-const LOADING_STAGES: Record<LoadingStage, string> = {
-  starting: "Starting local services",
-  preparing: "Preparing your workspace",
-  opening: "Opening Nerve",
-};
-
 export interface LoadingPageOptions {
   status?: string;
-  /** Mid-session pages (reconnect) skip the intro instead of replaying it. */
-  playIntro?: boolean;
 }
 
 export function loadingHtml(options: LoadingPageOptions = {}): string {
-  const { status = LOADING_STAGES.starting, playIntro = true } = options;
+  const { status = "Starting local services" } = options;
   return `<!doctype html>
-<html lang="en"${playIntro ? "" : ` data-splash-intro="settled"`}>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -61,78 +51,6 @@ export function loadingHtml(options: LoadingPageOptions = {}): string {
 ${startupSplashMarkup(status)}
   </body>
 </html>`;
-}
-
-export function loadingStatusScript(
-  statusText: string,
-  migration?: {
-    label?: string;
-    phase: string;
-    done?: number;
-    total?: number;
-  },
-): string {
-  const known =
-    migration?.done !== undefined &&
-    migration.total !== undefined &&
-    migration.total > 0;
-  const detail = migration
-    ? `${migration.label ?? migration.phase}${known ? ` · ${migration.done} of ${migration.total}` : ""}`
-    : "";
-  return `(() => {
-    const status = document.getElementById("startup-splash-status");
-    if (!status) return false;
-    if (status.textContent !== ${JSON.stringify(statusText)}) {
-      ${swapStatusText(statusText)}
-    }
-    const detail = document.getElementById("startup-splash-detail");
-    if (detail) {
-      detail.textContent = ${JSON.stringify(detail)};
-      detail.hidden = ${!migration};
-    }
-    const meter = document.getElementById("startup-splash-meter");
-    const fill = document.getElementById("startup-splash-fill");
-    if (meter && fill) {
-      if (${known}) {
-        meter.setAttribute("aria-valuemin", "0");
-        meter.setAttribute("aria-valuemax", ${JSON.stringify(String(migration?.total ?? 0))});
-        meter.setAttribute("aria-valuenow", ${JSON.stringify(String(migration?.done ?? 0))});
-        fill.style.animation = "none";
-        fill.style.transform = "scaleX(${known ? Math.max(0, Math.min(1, migration!.done! / migration!.total!)) : 0})";
-      } else {
-        meter.removeAttribute("aria-valuenow");
-        fill.style.animation = "";
-        fill.style.transform = "";
-      }
-    }
-    return true;
-  })()`;
-}
-
-/**
- * Replaces the splash status copy and restarts the swap animation, so each new
- * sentence lifts into place instead of snapping over the previous one.
- */
-function swapStatusText(statusText: string): string {
-  return `status.classList.remove("is-swapping");
-    void status.offsetWidth;
-    status.textContent = ${JSON.stringify(statusText)};
-    status.classList.add("is-swapping");`;
-}
-
-export function loadingStageScript(stage: LoadingStage): string {
-  const completion =
-    stage === "opening"
-      ? `\n    document.getElementById("startup-splash")?.classList.add("is-complete");`
-      : "";
-
-  return `(() => {
-    const status = document.getElementById("startup-splash-status");
-    if (!status) return false;
-    document.getElementById("startup-splash-detail")?.setAttribute("hidden", "");
-    ${swapStatusText(LOADING_STAGES[stage])}${completion}
-    return true;
-  })()`;
 }
 
 export interface ErrorPageOptions {

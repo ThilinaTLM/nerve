@@ -1,3 +1,5 @@
+import { notifyServerStarting } from "./server-starting-signal";
+
 export class ApiRequestError extends Error {
   constructor(
     readonly status: number | undefined,
@@ -47,6 +49,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
     const body = await response.text();
+    if (response.status === 503 && isStartingBody(body)) notifyServerStarting();
     const error = parseApiErrorBody(body);
     throw new ApiRequestError(
       response.status,
@@ -150,5 +153,13 @@ export function parseApiErrorBody(body: string): {
     };
   } catch {
     return {};
+  }
+}
+
+function isStartingBody(body: string): boolean {
+  try {
+    return (JSON.parse(body) as { error?: unknown }).error === "starting";
+  } catch {
+    return false;
   }
 }

@@ -1,24 +1,22 @@
 import { DatabaseSync } from "node:sqlite";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import {
   nerveHomeManifestSchema,
   NERVE_HOME_MANIFEST,
   type NerveHomeManifest,
 } from "@nervekit/contracts/settings";
 import { pathExists, atomicWriteJson } from "../../storage-bootstrap/json.js";
+import { isFreshNerveHome } from "../../storage-bootstrap/state-layout.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import type { RegisteredStep } from "./step.js";
 
-const FLOOR_ERROR = "Run Nerve 0.34.1 first";
+export const FLOOR_ERROR = "Run Nerve 0.34.1 first";
 
 export async function readMigrationHome(
   paths: StoragePaths,
 ): Promise<{ fresh: boolean; manifest: NerveHomeManifest }> {
   if (!(await pathExists(paths.manifestPath))) {
-    if (
-      !(await pathExists(paths.home)) ||
-      (await readdir(paths.home)).length === 0
-    ) {
+    if (await isFreshNerveHome(paths.home)) {
       return {
         fresh: true,
         manifest: { ...NERVE_HOME_MANIFEST, migrations: [] },

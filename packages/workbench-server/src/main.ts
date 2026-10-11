@@ -4,10 +4,8 @@ import type { AddressInfo } from "node:net";
 import { networkInterfaces } from "node:os";
 import { dirname, join } from "node:path";
 import { serve } from "@hono/node-server";
-import {
-  DAEMON_STARTUP_PROGRESS_PREFIX,
-  type DaemonStartupProgress,
-} from "@nervekit/contracts/storage";
+import { createId } from "@nervekit/contracts";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   configureManagedProcessRuntime,
   initializeManagedProcessHost,
@@ -19,6 +17,20 @@ import {
   toDaemonFile,
 } from "./app/runtime/server-runtime.js";
 import { createApp } from "./app/server.js";
+import { createAppSwitch } from "./app/lifecycle/app-switch.js";
+import { createBootApp } from "./app/lifecycle/boot-app.js";
+import type { LifecycleControls } from "./app/lifecycle/lifecycle-routes.js";
+import { createServerLifecycleHolder } from "./app/lifecycle/server-lifecycle.js";
+import {
+  createStartupSequence,
+  type StartupSequence,
+} from "./app/lifecycle/startup-sequence.js";
+import {
+  classifyStorageFailure,
+  StartupFailureError,
+} from "./app/lifecycle/storage-failure.js";
+import { version } from "./app/version.js";
+import type { MigrationProgress } from "./infrastructure/migrations/framework/step.js";
 import {
   type DaemonLeaseMonitor,
   type DaemonPerformanceMonitor,
@@ -44,8 +56,11 @@ import {
   mergeNoProxySources,
 } from "./infrastructure/network/proxy-environment.js";
 import {
+  ensureLocalToken,
   initializeStorage,
+  readCurrentSettingsForBootstrap,
   resolveDataDir,
+  type InitializedStorage,
 } from "./infrastructure/storage-bootstrap/index.js";
 import {
   acquireStorageStartupLock,
@@ -132,249 +147,94 @@ async function main() {
         !process.env.NERVE_CGROUP_ROOT),
   });
   const dataDir = resolveDataDir();
-  const reportStartupProgress = (progress: DaemonStartupProgress) => {
-    process.stderr.write(
-      `${DAEMON_STARTUP_PROGRESS_PREFIX}${JSON.stringify(progress)}\n`,
-    );
-  };
-  const storageStartedAt = performance.now();
+  const processStartedAt = new Date().toISOString();
+  const daemonId = createId("daemon");
+  const holder = createServerLifecycleHolder({ startedAt: processStartedAt });
+
   // Keep initialization and publication atomic with offline clone/migration
   // tooling. No writer may slip into the gap before daemon.json identifies us.
   await mkdir(dirname(dataDir), { recursive: true, mode: 0o700 });
   startupLock = await acquireStorageStartupLock(dataDir);
-  const storage = await initializeStorage(dataDir, {
-    reportStartupProgress,
-    startupLock,
-  });
-  const storageDurationMs = Math.round(performance.now() - storageStartedAt);
-  installNodeDiagnosticReports(dataDir);
+  let initialLock: StorageStartupLock | undefined = startupLock;
+  const tokenResult = await ensureLocalToken(dataDir);
   leaseMonitor = await createDaemonLeaseMonitor(dataDir);
-  const resolvedConfiguration = resolveApplicationConfiguration({
-    settings: storage.settings,
+
+  const bootstrapSettings = await readCurrentSettingsForBootstrap(
+    dataDir,
+  ).catch(() => defaultSettings);
+  const bootstrapConfiguration = resolveApplicationConfiguration({
+    settings: bootstrapSettings,
     env: process.env,
     argv: process.argv.slice(2),
     dataDir,
   });
   const {
     host,
-    port,
+    port: requestedPort,
     allowRemote,
-    mobileHttps: mobileHttpsEnabled,
-    httpsPort,
-    loggingEnabled,
-    performanceEnabled: performanceDiagnosticsEnabled,
-    resources,
-    controlWorkConcurrency,
-  } = resolvedConfiguration.values;
-  configureManagedProcessRuntime({
-    maxActiveProcesses: resources.maxActiveProcesses,
-  });
+  } = bootstrapConfiguration.values;
   if (!allowRemote && !isLoopbackHost(host)) {
     throw new Error(
       `Refusing to bind Nerve daemon to ${host}. Enable remote connections in Settings or set NERVE_ALLOW_REMOTE=1.`,
     );
   }
-  const state = createServerRuntime(storage, host, port, {
-    applicationLogsEnabled: loggingEnabled,
-    performanceDiagnosticsEnabled,
-    applicationConfiguration: resolvedConfiguration.snapshot,
-    resourceContainment,
-    resources: { ...resources, controlWorkConcurrency },
-  });
-  const loggerHydrateStartedAt = performance.now();
-  await state.logger.hydrate();
-  await state.logger.info("Resource concurrency policy resolved", {
-    context: resolvedConfiguration.snapshot.context.resources,
-  });
-  const loggerHydrateDurationMs = Math.round(
-    performance.now() - loggerHydrateStartedAt,
-  );
-  installCrashGuards(state.logger, storage.paths.home, leaseMonitor);
-  await state.logger.pruneRetention();
-  await pruneCrashReports(
-    storage.paths.home,
-    storage.settings.logging.retentionDays,
-  ).catch(async (error: unknown) => {
-    await state.logger.warn("Crash report retention failed", { error });
-  });
-  await state.logger.info("Daemon storage initialized", {
-    durationMs: storageDurationMs + loggerHydrateDurationMs,
-    context: {
-      dataDir: storage.paths.home,
+
+  let boundPort = requestedPort;
+  const controls: LifecycleControls = {
+    holder,
+    retry: () => sequence.retry(),
+  };
+  const switchable = createAppSwitch(
+    createBootApp({
+      ...controls,
       host,
-      port,
-      storageDurationMs,
-      ...storage.timings,
-      loggerHydrateDurationMs,
-    },
+      port: () => boundPort,
+      localToken: tokenResult.ok ? tokenResult.token : undefined,
+    }),
+  );
+  let upgradesAttached = false;
+  const server = serve({
+    fetch: (request, env) => switchable.fetch(request, env),
+    hostname: host,
+    port: requestedPort,
   });
-  const agentSkillsStartedAt = performance.now();
-  await state.nerveSkills.initialize();
-  await state.logger.info("Built-in Nerve skills initialized", {
-    durationMs: Math.round(performance.now() - agentSkillsStartedAt),
-    context: { count: state.nerveSkills.skills.length },
-  });
-  await state.agentBrowserSkills
-    .initialize()
-    .then(async () => {
-      const count = state.agentBrowserSkills.skills.length;
-      if (count > 0) {
-        await state.logger.info("Agent Browser skills initialized", {
-          durationMs: Math.round(performance.now() - agentSkillsStartedAt),
-          context: { count },
-        });
-      }
-    })
-    .catch((error) =>
-      state.logger.warn("Agent Browser skill discovery failed", { error }),
+  // Until the runtime attaches the protocol upgrade handler, refuse sockets.
+  server.on("upgrade", (_request, socket) => {
+    if (upgradesAttached) return;
+    socket.write(
+      "HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
     );
-  const agentSkillsDurationMs = Math.round(
-    performance.now() - agentSkillsStartedAt,
-  );
-  reportStartupProgress({
-    type: "nerve.startup.progress",
-    phase: "runtime-hydration",
-    message: "Starting conversation core",
+    socket.destroy();
   });
-  await Promise.all([state.lifecycle.hydrate(), state.maintenance.hydrate()]);
-  state.subscriptionUsage.start();
-  const mobileTls = mobileHttpsEnabled
-    ? await ensureMobileHttpsTlsMaterial(
-        storage.paths.home,
-        mobileHttpsHosts(host),
-      )
-    : undefined;
-  if (mobileTls) {
-    updateMobileHttpsState(state, mobileTls, port, httpsPort);
-    await state.logger.info("Mobile HTTPS sharing enabled", {
-      context: {
-        httpsUrl: state.mobileHttps?.url,
-        caCertUrl: state.mobileHttps?.caCertUrl,
-        hosts: mobileTls.hosts,
-      },
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.once("listening", () => {
+      server.off("error", reject);
+      resolve();
     });
-  }
-  const app = createApp(state);
+  });
+  boundPort = (server.address() as AddressInfo).port;
+  const publishBootLease = () =>
+    leaseMonitor?.publish({
+      daemonId,
+      pid: process.pid,
+      host,
+      port: boundPort,
+      url: `http://${host}:${boundPort}`,
+      startedAt: processStartedAt,
+      dataDir,
+      version,
+    });
+  await publishBootLease();
 
-  const server = serve(
-    {
-      fetch: app.fetch,
-      hostname: host,
-      port,
-    },
-    // The process-level unhandledRejection handler owns listener startup failures.
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    async () => {
-      const address = server.address() as AddressInfo;
-      state.port = address.port;
-      state.adapterContexts.websocket.port = address.port;
-      state.adapterContexts.http.status.port = address.port;
-      state.adapterContexts.http.staticFiles.port = address.port;
-      if (mobileTls)
-        updateMobileHttpsState(state, mobileTls, state.port, httpsPort);
-      await leaseMonitor?.publish(toDaemonFile(state));
-      await releaseStartupLock();
-      await state.events.publish("daemon.started", {
-        daemonId: state.daemonId,
-        pid: process.pid,
-        host: state.host,
-        port: state.port,
-        dataDir: storage.paths.home,
-      });
-      await state.logger.info("Daemon listening", {
-        durationMs: Math.round(performance.now() - processStartupStartedAt),
-        context: {
-          url: `http://${state.host}:${state.port}`,
-          mobileHttps: state.mobileHttps
-            ? {
-                url: state.mobileHttps.url,
-                caCertUrl: state.mobileHttps.caCertUrl,
-              }
-            : undefined,
-          dataDir: storage.paths.home,
-          pid: process.pid,
-          resourceContainment,
-        },
-      });
-      await appendStartupRecord(storage.paths.home, {
-        type: "nerve.startup",
-        source: "daemon",
-        pid: process.pid,
-        resourceContainment,
-        port: state.port,
-        listeningDurationMs: Math.round(
-          performance.now() - processStartupStartedAt,
-        ),
-        storageDurationMs,
-        ...storage.timings,
-        loggerHydrateDurationMs,
-        agentSkillsDurationMs,
-      });
-      performanceMonitor ??= installDaemonPerformanceMonitor({
-        enabled: performanceDiagnosticsEnabled,
-        dataDir: storage.paths.home,
-        sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
-        getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
-        getCounts: () => ({
-          projects:
-            state.lifecycle.services.conversationCore.projects.list().length,
-          conversations:
-            state.lifecycle.services.coreStorage.conversations.listAll().length,
-          launches: state.lifecycle.services.launches.listLaunches().length,
-        }),
-        warn: (error) => {
-          void state.logger.warn("Daemon performance sampling failed", {
-            error,
-          });
-        },
-      });
-    },
-  );
-
-  const httpsServer = mobileTls
-    ? serve(
-        {
-          fetch: app.fetch,
-          hostname: host,
-          port: httpsPort,
-          createServer: createHttpsServer,
-          serverOptions: {
-            key: mobileTls.keyPem,
-            cert: mobileTls.certPem,
-          },
-        },
-        // The process-level unhandledRejection handler owns listener startup failures.
-        // eslint-disable-next-line @typescript-eslint/no-misused-promises
-        async () => {
-          const address = httpsServer?.address() as AddressInfo | undefined;
-          if (!address) return;
-          updateMobileHttpsState(state, mobileTls, state.port, address.port);
-          await leaseMonitor?.publish(toDaemonFile(state));
-          await state.logger.info("Mobile HTTPS daemon listening", {
-            context: {
-              url: state.mobileHttps?.url,
-              caCertUrl: state.mobileHttps?.caCertUrl,
-            },
-          });
-        },
-      )
-    : undefined;
-
-  const webSockets = new WebSocketServer({ noServer: true });
-  const protocolSessions = installProtocolWebSocketUpgrade(
-    server,
-    webSockets,
-    state.adapterContexts.websocket,
-    storage.localToken,
-  );
-  const httpsProtocolSessions = httpsServer
-    ? installProtocolWebSocketUpgrade(
-        httpsServer,
-        webSockets,
-        state.adapterContexts.websocket,
-        storage.localToken,
-      )
-    : undefined;
+  let runtime:
+    | {
+        state: ReturnType<typeof createServerRuntime>;
+        webSockets: WebSocketServer;
+        sessionSets: Array<Set<{ shutdown(message?: string): Promise<void> }>>;
+        httpsServer?: { close(callback?: () => void): unknown };
+      }
+    | undefined;
   let shuttingDown = false;
 
   const shutdown = async (signal: NodeJS.Signals) => {
@@ -385,58 +245,322 @@ async function main() {
     const startedAt = Date.now();
     const forceExitTimer = setTimeout(() => process.exit(0), 2000);
     forceExitTimer.unref();
-
-    await state.logger
-      .info("Daemon shutdown requested", {
-        context: { signal },
-      })
-      .catch(() => undefined);
-    await state.events.publishBestEffortAndWait(
-      "daemon.stopped",
-      { daemonId: state.daemonId, signal },
-      "daemon.shutdown",
-    );
-    await state.logger
-      .info("Daemon stopped event published", {
-        durationMs: Date.now() - startedAt,
-      })
-      .catch(() => undefined);
-    await Promise.all(
-      [...protocolSessions, ...(httpsProtocolSessions ?? [])].map((session) =>
-        session.shutdown("Daemon shutting down"),
-      ),
-    );
-    closeWebSocketClients(webSockets);
-    webSockets.close();
-    await state.logger
-      .info("Daemon resources closed; closing HTTP server", {
-        durationMs: Date.now() - startedAt,
-      })
-      .catch(() => undefined);
-    await shutdownServerRuntime(state).catch(() => undefined);
-    await Promise.all([
-      new Promise<void>((resolve) => server.close(() => resolve())),
-      ...(httpsServer
-        ? [new Promise<void>((resolve) => httpsServer.close(() => resolve()))]
-        : []),
-    ]);
+    if (runtime) {
+      const { state, webSockets, sessionSets, httpsServer } = runtime;
+      await state.logger
+        .info("Daemon shutdown requested", { context: { signal } })
+        .catch(() => undefined);
+      await state.events.publishBestEffortAndWait(
+        "daemon.stopped",
+        { daemonId: state.daemonId, signal },
+        "daemon.shutdown",
+      );
+      await state.logger
+        .info("Daemon stopped event published", {
+          durationMs: Date.now() - startedAt,
+        })
+        .catch(() => undefined);
+      await Promise.all(
+        sessionSets
+          .flatMap((sessions) => [...sessions])
+          .map((session) => session.shutdown("Daemon shutting down")),
+      );
+      closeWebSocketClients(webSockets);
+      webSockets.close();
+      await state.logger
+        .info("Daemon resources closed; closing HTTP server", {
+          durationMs: Date.now() - startedAt,
+        })
+        .catch(() => undefined);
+      await shutdownServerRuntime(state).catch(() => undefined);
+      await Promise.all([
+        new Promise<void>((resolve) => server.close(() => resolve())),
+        ...(httpsServer
+          ? [new Promise<void>((resolve) => httpsServer.close(() => resolve()))]
+          : []),
+      ]);
+    } else {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
     await leaseMonitor?.close();
     await releaseStartupLock();
     process.exit(0);
   };
   const requestShutdown = (signal: NodeJS.Signals) => {
-    void shutdown(signal).catch(async (error: unknown) => {
-      await state.logger
-        .error("Daemon shutdown failed", { error })
-        .catch(() => undefined);
+    void shutdown(signal).catch((error: unknown) => {
+      console.error("[nerve] shutdown failed", error);
       leaseMonitor?.markCrashReported(
-        writeNodeDiagnosticReport(storage.paths.home, error),
+        writeNodeDiagnosticReport(dataDir, error),
       );
       process.exit(1);
     });
   };
   process.on("SIGINT", requestShutdown);
   process.on("SIGTERM", requestShutdown);
+
+  let storageStartedAt = performance.now();
+  const runStorage = async (
+    onProgress: (progress: MigrationProgress) => void,
+  ): Promise<InitializedStorage> => {
+    storageStartedAt = performance.now();
+    try {
+      if (!tokenResult.ok) {
+        throw new StartupFailureError(
+          tokenResult.code,
+          tokenResult.message,
+          false,
+        );
+      }
+      startupLock = initialLock ?? (await acquireStorageStartupLock(dataDir));
+      initialLock = undefined;
+      return await initializeStorage(dataDir, {
+        startupLock,
+        localToken: tokenResult.token,
+        onMigrationProgress: onProgress,
+      });
+    } finally {
+      await releaseStartupLock();
+    }
+  };
+
+  const mount = async (storage: InitializedStorage): Promise<void> => {
+    const storageDurationMs = Math.round(performance.now() - storageStartedAt);
+    installNodeDiagnosticReports(dataDir);
+    const resolvedConfiguration = resolveApplicationConfiguration({
+      settings: storage.settings,
+      env: process.env,
+      argv: process.argv.slice(2),
+      dataDir,
+    });
+    const {
+      host: configuredHost,
+      port: configuredPort,
+      mobileHttps: mobileHttpsEnabled,
+      httpsPort,
+      loggingEnabled,
+      performanceEnabled: performanceDiagnosticsEnabled,
+      resources,
+      controlWorkConcurrency,
+    } = resolvedConfiguration.values;
+    configureManagedProcessRuntime({
+      maxActiveProcesses: resources.maxActiveProcesses,
+    });
+    const state = createServerRuntime(storage, host, boundPort, {
+      applicationLogsEnabled: loggingEnabled,
+      performanceDiagnosticsEnabled,
+      applicationConfiguration: resolvedConfiguration.snapshot,
+      resourceContainment,
+      daemonId,
+      startedAt: processStartedAt,
+      resources: { ...resources, controlWorkConcurrency },
+    });
+    const loggerHydrateStartedAt = performance.now();
+    await state.logger.hydrate();
+    if (
+      configuredHost !== host ||
+      (configuredPort !== 0 && configuredPort !== boundPort)
+    ) {
+      await state.logger.info(
+        "Migrated settings change the listen address; applies on next restart",
+        {
+          context: {
+            bound: `${host}:${boundPort}`,
+            configured: `${configuredHost}:${configuredPort}`,
+          },
+        },
+      );
+    }
+    await state.logger.info("Resource concurrency policy resolved", {
+      context: resolvedConfiguration.snapshot.context.resources,
+    });
+    const loggerHydrateDurationMs = Math.round(
+      performance.now() - loggerHydrateStartedAt,
+    );
+    installCrashGuards(state.logger, storage.paths.home, leaseMonitor);
+    await state.logger.pruneRetention();
+    await pruneCrashReports(
+      storage.paths.home,
+      storage.settings.logging.retentionDays,
+    ).catch(async (error: unknown) => {
+      await state.logger.warn("Crash report retention failed", { error });
+    });
+    await state.logger.info("Daemon storage initialized", {
+      durationMs: storageDurationMs + loggerHydrateDurationMs,
+      context: {
+        dataDir: storage.paths.home,
+        host,
+        port: boundPort,
+        storageDurationMs,
+        ...storage.timings,
+        loggerHydrateDurationMs,
+      },
+    });
+    const agentSkillsStartedAt = performance.now();
+    await state.nerveSkills.initialize();
+    await state.logger.info("Built-in Nerve skills initialized", {
+      durationMs: Math.round(performance.now() - agentSkillsStartedAt),
+      context: { count: state.nerveSkills.skills.length },
+    });
+    await state.agentBrowserSkills
+      .initialize()
+      .then(async () => {
+        const count = state.agentBrowserSkills.skills.length;
+        if (count > 0) {
+          await state.logger.info("Agent Browser skills initialized", {
+            durationMs: Math.round(performance.now() - agentSkillsStartedAt),
+            context: { count },
+          });
+        }
+      })
+      .catch((error) =>
+        state.logger.warn("Agent Browser skill discovery failed", { error }),
+      );
+    const agentSkillsDurationMs = Math.round(
+      performance.now() - agentSkillsStartedAt,
+    );
+    await Promise.all([state.lifecycle.hydrate(), state.maintenance.hydrate()]);
+    state.subscriptionUsage.start();
+    const mobileTls = mobileHttpsEnabled
+      ? await ensureMobileHttpsTlsMaterial(
+          storage.paths.home,
+          mobileHttpsHosts(host),
+        )
+      : undefined;
+    if (mobileTls) {
+      updateMobileHttpsState(state, mobileTls, boundPort, httpsPort);
+      await state.logger.info("Mobile HTTPS sharing enabled", {
+        context: {
+          httpsUrl: state.mobileHttps?.url,
+          caCertUrl: state.mobileHttps?.caCertUrl,
+          hosts: mobileTls.hosts,
+        },
+      });
+    }
+    const app = createApp(state, controls);
+    const webSockets = new WebSocketServer({ noServer: true });
+    const sessionSets = [
+      installProtocolWebSocketUpgrade(
+        server,
+        webSockets,
+        state.adapterContexts.websocket,
+        storage.localToken,
+      ),
+    ];
+    upgradesAttached = true;
+    switchable.set(app);
+
+    const httpsServer = mobileTls
+      ? serve({
+          fetch: app.fetch,
+          hostname: host,
+          port: httpsPort,
+          createServer: createHttpsServer,
+          serverOptions: { key: mobileTls.keyPem, cert: mobileTls.certPem },
+        })
+      : undefined;
+    if (httpsServer) {
+      sessionSets.push(
+        installProtocolWebSocketUpgrade(
+          httpsServer,
+          webSockets,
+          state.adapterContexts.websocket,
+          storage.localToken,
+        ),
+      );
+    }
+    if (httpsServer && mobileTls) {
+      await new Promise<void>((resolve, reject) => {
+        httpsServer.once("error", reject);
+        httpsServer.once("listening", () => resolve());
+      });
+      const address = httpsServer.address() as AddressInfo;
+      updateMobileHttpsState(state, mobileTls, boundPort, address.port);
+      await state.logger.info("Mobile HTTPS daemon listening", {
+        context: {
+          url: state.mobileHttps?.url,
+          caCertUrl: state.mobileHttps?.caCertUrl,
+        },
+      });
+    }
+    runtime = { state, webSockets, httpsServer, sessionSets };
+    await leaseMonitor?.publish(toDaemonFile(state));
+    await state.events.publish("daemon.started", {
+      daemonId: state.daemonId,
+      pid: process.pid,
+      host: state.host,
+      port: state.port,
+      dataDir: storage.paths.home,
+    });
+    await state.logger.info("Daemon listening", {
+      durationMs: Math.round(performance.now() - processStartupStartedAt),
+      context: {
+        url: `http://${state.host}:${state.port}`,
+        mobileHttps: state.mobileHttps
+          ? {
+              url: state.mobileHttps.url,
+              caCertUrl: state.mobileHttps.caCertUrl,
+            }
+          : undefined,
+        dataDir: storage.paths.home,
+        pid: process.pid,
+        resourceContainment,
+      },
+    });
+    await appendStartupRecord(storage.paths.home, {
+      type: "nerve.startup",
+      source: "daemon",
+      pid: process.pid,
+      resourceContainment,
+      port: state.port,
+      listeningDurationMs: Math.round(
+        performance.now() - processStartupStartedAt,
+      ),
+      storageDurationMs,
+      ...storage.timings,
+      loggerHydrateDurationMs,
+      agentSkillsDurationMs,
+    });
+    performanceMonitor ??= installDaemonPerformanceMonitor({
+      enabled: performanceDiagnosticsEnabled,
+      dataDir: storage.paths.home,
+      sessionId: process.env.NERVE_PERFORMANCE_SESSION_ID,
+      getActivity: () => state.performanceDiagnostics.snapshotAndReset(),
+      getCounts: () => ({
+        projects:
+          state.lifecycle.services.conversationCore.projects.list().length,
+        conversations:
+          state.lifecycle.services.coreStorage.conversations.listAll().length,
+        launches: state.lifecycle.services.launches.listLaunches().length,
+      }),
+      warn: (error) => {
+        void state.logger.warn("Daemon performance sampling failed", {
+          error,
+        });
+      },
+    });
+  };
+
+  const sequence: StartupSequence = createStartupSequence({
+    holder,
+    storage: runStorage,
+    classify: (error) => classifyStorageFailure(error, dataDir),
+    mount,
+    onStorageFailure: (error, failure) => {
+      console.error("[nerve] storage startup failed:", error);
+      writeCrashReportSync(dataDir, {
+        source: "orchestrator",
+        kind: "startupError",
+        message: `Storage startup failed: ${failure.code}`,
+        pid: process.pid,
+        uptimeMs: Math.round(process.uptime() * 1000),
+        error: serializeCrashError(error),
+      });
+    },
+    onFatal: (error) => {
+      void fatalStartup(error);
+    },
+  });
+  void sequence.start();
 }
 
 /**
@@ -558,7 +682,7 @@ function formatHostForUrl(host: string): string {
   return host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
 }
 
-main().catch(async (error) => {
+async function fatalStartup(error: unknown): Promise<void> {
   await releaseStartupLock().catch(() => undefined);
   console.error(error);
   if (isDaemonLeaseConflictError(error)) {
@@ -578,4 +702,6 @@ main().catch(async (error) => {
   const diagnosticReportPath = writeNodeDiagnosticReport(dataDir, error);
   leaseMonitor?.markCrashReported(crashReportPath ?? diagnosticReportPath);
   process.exit(1);
-});
+}
+
+main().catch(fatalStartup);

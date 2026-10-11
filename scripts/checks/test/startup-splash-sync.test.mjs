@@ -112,19 +112,7 @@ describe("startup splash mirrors", () => {
     }
   });
 
-  it("uses the shared DOM hooks the shell scripts target", () => {
-    const loadingPages = read(
-      "packages",
-      "desktop-shell",
-      "src",
-      "window",
-      "loading-pages.ts",
-    );
-    for (const id of ["startup-splash", "startup-splash-status"])
-      assert.ok(
-        loadingPages.includes(`"${id}"`),
-        `loading-pages.ts does not address #${id}`,
-      );
+  it("keeps the DOM hooks the web app addresses", () => {
     for (const id of [
       "startup-splash",
       "startup-splash-status",

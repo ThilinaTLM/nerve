@@ -6,6 +6,32 @@ import {
 } from "@nervekit/contracts/settings";
 import { pathExists } from "./json.js";
 
+/**
+ * Entries the server itself may create before the first migration: the lease
+ * file, the pre-migration local token, and boot diagnostics. A home holding
+ * only these is still a fresh home.
+ */
+const BOOT_ONLY_ENTRIES = new Set(["daemon.json", "logs", "crashes"]);
+
+export async function isFreshNerveHome(home: string): Promise<boolean> {
+  let entries;
+  try {
+    entries = await readdir(home, { withFileTypes: true });
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return true;
+    throw error;
+  }
+  for (const entry of entries) {
+    if (BOOT_ONLY_ENTRIES.has(entry.name)) continue;
+    if (entry.name === "secrets" && entry.isDirectory()) {
+      const secrets = await readdir(join(home, "secrets"));
+      if (secrets.every((name) => name === "daemon-token")) continue;
+    }
+    return false;
+  }
+  return true;
+}
+
 export const NERVE_HOME_FORMAT = "nerve-home";
 export const NERVE_HOME_VERSION = 1;
 
@@ -21,17 +47,11 @@ export type NerveHomeInspection =
 export async function inspectNerveHome(
   home: string,
 ): Promise<NerveHomeInspection> {
-  let entries;
-  try {
-    entries = await readdir(home, { withFileTypes: true });
-  } catch (error) {
-    if (errorCode(error) === "ENOENT") return { kind: "missing" };
-    throw error;
-  }
+  if (!(await pathExists(home))) return { kind: "missing" };
 
   const manifestPath = join(home, "manifest.json");
   if (!(await pathExists(manifestPath))) {
-    if (entries.length === 0) return { kind: "empty" };
+    if (await isFreshNerveHome(home)) return { kind: "empty" };
     return {
       kind: "unsupported",
       reason:

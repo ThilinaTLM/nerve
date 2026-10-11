@@ -1,15 +1,10 @@
-import { StartupProgressThrottle } from "./startup-progress-throttle.js";
 import { appendFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { defaultSettings } from "@nervekit/contracts/settings";
-import type { DaemonStartupProgress } from "@nervekit/contracts/storage";
+import { defaultSettings, type Settings } from "@nervekit/contracts/settings";
 import type { DesktopCliOptions } from "./cli-options.js";
 import { createDesktopConfigurationController } from "./desktop-configuration.js";
 import { startRunRuntime } from "./runtime-recovery.js";
-import {
-  runStartupSequence,
-  type StartupProgressPhase,
-} from "./startup-sequence.js";
+import { runStartupSequence } from "./startup-sequence.js";
 import type {
   DaemonStatus,
   DaemonStatusInfo,
@@ -26,10 +21,7 @@ import type { DesktopPerformanceMonitor } from "../performance/performance-monit
 import type { QuitOptions, QuitSource } from "./quit-contracts.js";
 import {
   errorHtml,
-  type LoadingStage,
   loadingHtml,
-  loadingStageScript,
-  loadingStatusScript,
   ShellPageUrlRegistry,
   startupErrorRetryable,
 } from "../window/loading-pages.js";
@@ -47,17 +39,6 @@ export interface DesktopRuntimeOptions {
   >;
 }
 
-function daemonStartupStatus(progress: DaemonStartupProgress): string {
-  switch (progress.phase) {
-    case "storage-check":
-      return "Checking local storage";
-    case "storage-migration":
-      return "Upgrading local storage";
-    case "runtime-hydration":
-      return "Starting runtime services";
-  }
-}
-
 export class DesktopRuntime {
   #started = false;
   #disposed = false;
@@ -72,7 +53,9 @@ export class DesktopRuntime {
   #desktopNetworkReady: Promise<void> = Promise.resolve();
   #desktopPerformanceMonitor: DesktopPerformanceMonitor | undefined;
   #startupAttempt: Promise<void> | undefined;
+  /** True while the window shows the shell error page instead of the app. */
   #startupErrorVisible = false;
+  #retryInFlight = false;
   #trayController!: TrayController;
   #shellPageUrls = new ShellPageUrlRegistry();
   #desktopConfiguration: DesktopRuntimeOptions["desktopConfiguration"];
@@ -146,20 +129,6 @@ export class DesktopRuntime {
       }
     }
     let rendererCoreReadyReported = false;
-    let lastReportedStartupStatus: string | undefined;
-    const migrationUpdates = new StartupProgressThrottle<{
-      window: BrowserWindowType;
-      progress: DaemonStartupProgress;
-    }>(
-      () => this.ports.now(),
-      ({ window, progress }) => {
-        void updateLoadingStatus(
-          window,
-          daemonStartupStatus(progress),
-          progress.migration,
-        );
-      },
-    );
     // Nested lifecycle callbacks deliberately capture the owning instance.
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const runtime = this;
@@ -208,10 +177,31 @@ export class DesktopRuntime {
           !runtime.#startupErrorVisible ||
           !window ||
           window.isDestroyed() ||
-          runtime.#startupAttempt
+          runtime.#startupAttempt ||
+          runtime.#retryInFlight
         ) {
           return false;
         }
+        const daemon = runtime.#managedDaemon;
+        if (daemon?.owned) {
+          // The `ready` status change navigates back to the daemon URL.
+          runtime.#retryInFlight = true;
+          void daemon
+            .restart()
+            .catch((error: unknown) => {
+              void desktopLog("error", "daemon", "Retry restart failed", {
+                error,
+              });
+            })
+            .finally(() => {
+              runtime.#retryInFlight = false;
+            });
+          return true;
+        }
+        // Not ours to restart: drop it and re-acquire via attach-or-spawn.
+        runtime.#unsubscribeDaemonStatus?.();
+        runtime.#unsubscribeDaemonStatus = undefined;
+        runtime.#managedDaemon = undefined;
         void startMainWindow(window);
         return true;
       },
@@ -248,29 +238,13 @@ export class DesktopRuntime {
         const window = createMainWindow();
         if (!window) return;
         const splashShownAt = ports.now();
-        const initialStatus =
-          desktopOptions.mode === "remote"
-            ? "Preparing desktop"
-            : "Checking local storage";
-        reportStartupToTerminal(initialStatus);
-        await window.loadURL(
-          runtime.#shellPageUrls.create(loadingHtml({ status: initialStatus })),
+        // Tray first, so it exists while the daemon is still being acquired.
+        runtime.#trayController.ensureTray();
+        runtime.#listenerDisposers.push(
+          ports.nativeTheme.onUpdated(runtime.#trayController.updateTrayIcon),
         );
-        const preparation = await ports.prepareDataDirectory({
-          home: desktopDataDir,
-          mode: desktopOptions.mode,
-          onProgress: (message) => reportStartupStatus(window, message),
-        });
-        if (preparation.status === "quit") {
-          runtime.#appQuitting = true;
-          ports.application.quit();
-          return;
-        }
-
-        const currentSettings =
-          desktopOptions.mode === "remote"
-            ? defaultSettings
-            : await ports.readCurrentSettings(desktopDataDir);
+        await window.loadURL(runtime.#shellPageUrls.create(loadingHtml()));
+        const currentSettings = await readStartupSettings();
         runtime.#desktopConfiguration =
           desktopConfigurationController.resolve(currentSettings);
         desktopConfigurationController.apply(
@@ -289,10 +263,6 @@ export class DesktopRuntime {
         });
         runtime.#desktopNetworkReady = ports.configureNetworkSession();
         if (runtime.#disposed) return;
-        runtime.#trayController.ensureTray();
-        runtime.#listenerDisposers.push(
-          ports.nativeTheme.onUpdated(runtime.#trayController.updateTrayIcon),
-        );
         await startMainWindow(window, splashShownAt);
       })
       .catch((error: unknown) => {
@@ -449,18 +419,6 @@ export class DesktopRuntime {
                   maxOldSpaceMb:
                     runtime.#desktopConfiguration.values.maxOldSpaceMb,
                   ...desktopOptions,
-                  onStartupProgress: (progress) => {
-                    if (progress.log) {
-                      reportStartupToTerminal(progress.log);
-                    } else if (progress.migration) {
-                      migrationUpdates.report({ window, progress });
-                    } else {
-                      reportStartupStatus(
-                        window,
-                        daemonStartupStatus(progress),
-                      );
-                    }
-                  },
                 }),
               );
               runtime.#managedDaemon = startup.value;
@@ -490,7 +448,6 @@ export class DesktopRuntime {
             subscribeToDaemonStatus(daemon);
             runtime.#trayController.updateTrayMenu();
           },
-          reportProgress: (phase) => updateStartupProgress(window, phase),
           canNavigate: () => !window.isDestroyed(),
           navigate: async (daemon) => {
             const zoomedUrl = withInitialZoomLevel(
@@ -566,57 +523,18 @@ export class DesktopRuntime {
       }
     }
 
-    function reportStartupToTerminal(message: string): boolean {
-      if (message === lastReportedStartupStatus) return false;
-      lastReportedStartupStatus = message;
-      ports.reportStartupProgress(message);
-      return true;
-    }
-
-    function reportStartupStatus(
-      window: BrowserWindowType,
-      message: string,
-    ): void {
-      migrationUpdates.cancel();
-      reportStartupToTerminal(message);
-      void updateLoadingStatus(window, message);
-    }
-
-    async function updateLoadingStatus(
-      window: BrowserWindowType,
-      message: string,
-      migration?: DaemonStartupProgress["migration"],
-    ): Promise<void> {
-      if (window.isDestroyed()) return;
+    async function readStartupSettings(): Promise<Settings> {
+      if (desktopOptions.mode === "remote") return defaultSettings;
       try {
-        await window.webContents.executeJavaScript(
-          loadingStatusScript(message, migration),
+        return await ports.readCurrentSettings(desktopDataDir);
+      } catch (error) {
+        void desktopLog(
+          "warn",
+          "app",
+          "Could not read local settings; using defaults",
+          { error },
         );
-      } catch (error) {
-        if (window.isDestroyed()) return;
-        void desktopLog("warn", "window", "Failed to update startup status", {
-          error,
-          context: { message },
-        });
-      }
-    }
-
-    async function updateStartupProgress(
-      window: BrowserWindowType,
-      phase: StartupProgressPhase,
-    ): Promise<void> {
-      migrationUpdates.cancel();
-      if (window.isDestroyed()) return;
-      const stage: LoadingStage =
-        phase === "daemon-ready" ? "preparing" : "opening";
-      try {
-        await window.webContents.executeJavaScript(loadingStageScript(stage));
-      } catch (error) {
-        if (window.isDestroyed()) return;
-        void desktopLog("warn", "window", "Failed to update startup progress", {
-          error,
-          context: { phase },
-        });
+        return defaultSettings;
       }
     }
 
@@ -670,19 +588,20 @@ export class DesktopRuntime {
       const window = runtime.#mainWindow;
       if (runtime.#appQuitting || !window || window.isDestroyed()) return;
       try {
-        if (status === "restarting") {
-          await window.loadURL(
-            runtime.#shellPageUrls.create(
-              loadingHtml({
-                status: "Reconnecting to Nerve daemon…",
-                playIntro: false,
-              }),
-            ),
-          );
-        } else if (status === "ready" && runtime.#managedDaemon) {
-          await window.loadURL(runtime.#managedDaemon.url);
-          runtime.#shellPageUrls.clear();
+        // The web app shows its own reconnect overlay and the same-origin
+        // cookie survives, so restarts never navigate the window.
+        if (status === "ready" && runtime.#managedDaemon) {
+          const daemon = runtime.#managedDaemon;
+          // A restarted daemon may rotate its token.
+          await ports.installDaemonCookie(daemon);
+          if (runtime.#startupErrorVisible) {
+            // Recovered while the shell error page was showing.
+            runtime.#startupErrorVisible = false;
+            await window.loadURL(daemon.url);
+            runtime.#shellPageUrls.clear();
+          }
         } else if (status === "failed") {
+          runtime.#startupErrorVisible = true;
           await window.loadURL(
             runtime.#shellPageUrls.create(
               errorHtml(

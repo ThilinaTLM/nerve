@@ -1,24 +1,5 @@
 import { z } from "zod";
-export const DAEMON_STARTUP_PROGRESS_PREFIX = "NERVE_STARTUP_PROGRESS ";
 export const DAEMON_LEASE_CONFLICT_CODE = "DAEMON_LEASE_CONFLICT";
-
-export const daemonStartupProgressSchema = z.object({
-  type: z.literal("nerve.startup.progress"),
-  phase: z.enum(["storage-check", "storage-migration", "runtime-hydration"]),
-  message: z.string().min(1),
-  migration: z
-    .object({
-      step: z.string(),
-      description: z.string(),
-      phase: z.string(),
-      label: z.string().optional(),
-      done: z.number().nonnegative().optional(),
-      total: z.number().nonnegative().optional(),
-    })
-    .optional(),
-  log: z.string().optional(),
-});
-export type DaemonStartupProgress = z.infer<typeof daemonStartupProgressSchema>;
 
 export const storageCategoryKeySchema = z.enum([
   "database",

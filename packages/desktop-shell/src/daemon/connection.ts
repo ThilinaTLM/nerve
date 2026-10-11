@@ -120,7 +120,6 @@ async function ensureLocalDaemon(
       launchArgs: buildOrchestratorArgs(options),
       readinessTimeoutMs,
       effectiveMaxOldSpaceMb: heapProfile.effectiveMb,
-      onStartupProgress: options.onStartupProgress,
     },
     ports,
   );
