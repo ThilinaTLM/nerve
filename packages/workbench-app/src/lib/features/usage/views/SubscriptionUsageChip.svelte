@@ -1,6 +1,7 @@
 <script lang="ts">
 import type { SubscriptionUsage, SubscriptionWindow } from "$lib/api";
 import type { SubscriptionUsageEntry } from "$lib/features/usage/usage-types";
+import { selectUsageTriggerEntry } from "./usage-trigger-selection";
 import {
   formatResetAfterSeconds,
   formatResetAt,
@@ -121,16 +122,7 @@ function updatedLabel(value: string | undefined): string | null {
 }
 
 const entries = $derived(usages);
-const hasData = $derived(
-  entries.some((entry) => displayWindows(entry.usage).length > 0),
-);
-
-// Trigger reflects the active model's provider, falling back to any with data.
-const triggerEntry = $derived(
-  entries.find(
-    (entry) => entry.active && displayWindows(entry.usage).length > 0,
-  ) ?? entries.find((entry) => displayWindows(entry.usage).length > 0),
-);
+const triggerEntry = $derived(selectUsageTriggerEntry(entries));
 const allTriggerWindows = $derived(displayWindows(triggerEntry?.usage));
 // Compact keeps whichever window is closest to its limit, since that is the
 // one worth surfacing when there is only room for a single meter.
@@ -160,14 +152,13 @@ const title = $derived.by(() => {
   const lines: string[] = [];
   for (const entry of entries) {
     const windows = displayWindows(entry.usage);
-    if (windows.length === 0) continue;
     const details = windows
       .map(
         (item) =>
           `${item.label.toLowerCase()} ${percentLabel(item.window.usedPercent)}`,
       )
       .join(" / ");
-    lines.push(`${providerLabel(entry.provider)} — ${details}`);
+    lines.push(`${providerLabel(entry.provider)} — ${details || "No data"}`);
   }
   return lines.join("\n");
 });
@@ -185,7 +176,7 @@ const title = $derived.by(() => {
   />
 {/snippet}
 
-{#if hasData}
+{#if triggerEntry}
   <Popover
     size="md"
     triggerClass={STATUS_BAR_CHIP_BUTTON}
@@ -195,6 +186,10 @@ const title = $derived.by(() => {
   >
     {#snippet trigger()}
       <span class="inline-flex items-center gap-1.5 whitespace-nowrap" {title}>
+        <span>{providerLabel(triggerEntry.provider)}</span>
+        {#if triggerWindows.length === 0}
+          <span aria-label="No data">—</span>
+        {/if}
         {#each triggerWindows as item (item.slot)}
           {@const percent = item.window.usedPercent}
           <span class="inline-flex items-center gap-1">

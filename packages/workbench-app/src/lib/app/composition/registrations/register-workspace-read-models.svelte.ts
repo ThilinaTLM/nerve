@@ -1,3 +1,7 @@
+import { registerUsageSelectionReadModel } from "$lib/application/usage/usage-selectors.svelte";
+import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
+import { retainedConversationStores } from "$lib/features/conversations/state/open-conversation-stores";
+import { parseModelKey } from "$lib/presentation/utils/model";
 import { ConversationListStore } from "$lib/features/conversations/state/core-conversation-list-store.svelte";
 import { registerConversationLists } from "$lib/application/workspace/conversation-lists.svelte";
 import { cancelVoiceInputTargets } from "$lib/features/conversations/audio/voice-input-session.svelte";
@@ -90,6 +94,24 @@ export function registerWorkspaceReadModels(): () => void {
     },
   });
 
+  const unregisterUsageSelection = registerUsageSelectionReadModel({
+    get selectedProvider() {
+      const tab = workspaceState.activeCenterTab;
+      if (tab?.kind === "pending-conversation") {
+        const pending = pendingConversations.get(tab.id);
+        return pending
+          ? parseModelKey(pending.selectedModelKey)?.provider
+          : undefined;
+      }
+      if (tab?.kind === "conversation") {
+        return retainedConversationStores().find(
+          (store) => store.snapshot?.conversation.id === tab.id,
+        )?.snapshot?.config.model.provider;
+      }
+      return undefined;
+    },
+  });
+
   const unregisterFileSelectors = registerFileSelectorWorkspaceReadModel({
     get activeCenterTab() {
       return workspaceState.activeCenterTab;
@@ -115,6 +137,7 @@ export function registerWorkspaceReadModels(): () => void {
   });
 
   return () => {
+    unregisterUsageSelection();
     unregisterLaunchSelectors();
     unregisterGitSelectors();
     unregisterFileSelectors();

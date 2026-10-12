@@ -1,12 +1,26 @@
-import type { SubscriptionUsageEntry } from "$lib/features/usage/usage-types";
 import { usageState } from "$lib/features/usage/state/usage-state.svelte";
-const SUBSCRIPTION_PROVIDER_ORDER = ["anthropic", "openai-codex"] as const;
+import { subscriptionUsageEntries } from "./subscription-usage-entries";
+
+type UsageSelectionReadModel = {
+  readonly selectedProvider: string | undefined;
+};
+
+let selectionReadModel: UsageSelectionReadModel | undefined;
+
+export function registerUsageSelectionReadModel(
+  readModel: UsageSelectionReadModel,
+): () => void {
+  selectionReadModel = readModel;
+  return () => {
+    if (selectionReadModel === readModel) selectionReadModel = undefined;
+  };
+}
+
 export const usageSelectors = {
-  get subscriptionUsages(): SubscriptionUsageEntry[] {
-    return SUBSCRIPTION_PROVIDER_ORDER.map((provider) => ({
-      provider,
-      usage: usageState.subscriptionUsage[provider],
-      active: false,
-    }));
+  get subscriptionUsages() {
+    return subscriptionUsageEntries(
+      usageState.subscriptionUsage,
+      selectionReadModel?.selectedProvider,
+    );
   },
 };
