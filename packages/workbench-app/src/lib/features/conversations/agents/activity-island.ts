@@ -15,9 +15,26 @@ export type IslandAgentRow = {
   name: string;
   profile?: string;
   state: AgentRowState;
-  recent: boolean;
   viewed: boolean;
 };
+
+/** Rows shown before older settled items fold behind one disclosure row. */
+export const ISLAND_VISIBLE_ROWS = 6;
+
+export type IslandFold<T> = {
+  /** Live items always, then the newest settled items within the budget. */
+  rows: T[];
+  /** Overflow of older settled items; empty unless the list is long. */
+  folded: T[];
+  running: number;
+  total: number;
+};
+
+const SETTLED_AGENT: ReadonlySet<AgentRowState> = new Set([
+  "idle",
+  "stopped",
+  "failed",
+]);
 
 const rank: Record<AgentRowState, number> = {
   needs_you: 0,
@@ -33,13 +50,39 @@ function timestamp(value: string): number {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-/** All retained children, without age folding. The lead is navigation, not a row. */
+/**
+ * Split pre-sorted items by count, not age: pinned items (live, needing
+ * attention, viewed) never fold, settled items fill the remaining budget, and
+ * a single overflow item is shown rather than hidden behind a group of one.
+ */
+function fold<T>(
+  items: readonly T[],
+  pinned: (item: T) => boolean,
+): Pick<IslandFold<T>, "rows" | "folded"> {
+  const budget = Math.max(
+    0,
+    ISLAND_VISIBLE_ROWS - items.filter((item) => pinned(item)).length,
+  );
+  const overflow =
+    items.length - items.filter((item) => pinned(item)).length - budget;
+  if (overflow <= 1) return { rows: [...items], folded: [] };
+  const rows: T[] = [];
+  const folded: T[] = [];
+  let settled = 0;
+  for (const item of items) {
+    if (pinned(item) || settled++ < budget) rows.push(item);
+    else folded.push(item);
+  }
+  return { rows, folded };
+}
+
+/** All retained children; the lead is navigation, not a row. */
 export function islandAgents(
   agents: readonly AgentRecord[],
   activities: Readonly<Record<string, AgentActivitySnapshot>>,
   viewedId: string,
-): { leadId?: string; rows: IslandAgentRow[]; running: number; total: number } {
-  const rows = agents
+): IslandFold<IslandAgentRow> & { leadId?: string } {
+  const all = agents
     .filter((agent) => Boolean(agent.parentAgentId))
     .map((agent): IslandAgentRow => {
       const state = agentRowState(activities[agent.id]);
@@ -48,7 +91,6 @@ export function islandAgents(
         name: agent.name?.trim() || "Sub-agent",
         profile: subagentProfileLabel(agent),
         state,
-        recent: state === "idle" || state === "stopped",
         viewed: agent.id === viewedId,
       };
     })
@@ -60,18 +102,16 @@ export function islandAgents(
     );
   return {
     leadId: agents.find((agent) => !agent.parentAgentId)?.id,
-    rows,
-    running: rows.filter((row) => row.state === "working").length,
-    total: rows.length,
+    ...fold(all, (row) => row.viewed || !SETTLED_AGENT.has(row.state)),
+    running: all.filter((row) => row.state === "working").length,
+    total: all.length,
   };
 }
 
 /** Every running command plus the five most recently settled, independent of input order. */
-export function islandCommands(commands: readonly AsyncBash[]): {
-  rows: AsyncBash[];
-  running: number;
-  total: number;
-} {
+export function islandCommands(
+  commands: readonly AsyncBash[],
+): IslandFold<AsyncBash> {
   const running = commands
     .filter((command) => command.status === "running")
     .sort(
@@ -87,12 +127,14 @@ export function islandCommands(commands: readonly AsyncBash[]): {
           timestamp(a.finishedAt ?? a.startedAt) || a.id.localeCompare(b.id),
     )
     .slice(0, 5);
-  const rows = [...running, ...settled];
   return {
-    rows,
+    ...fold(
+      [...running, ...settled],
+      (command) => command.status === "running",
+    ),
     running: running.length,
     // Count only accessible rows; older settled commands have no history UI.
-    total: rows.length,
+    total: running.length + settled.length,
   };
 }
 

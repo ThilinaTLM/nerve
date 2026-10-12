@@ -4,6 +4,7 @@ import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import Ban from "@lucide/svelte/icons/ban";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import CircleHelp from "@lucide/svelte/icons/circle-help";
@@ -15,9 +16,10 @@ import type { AsyncBash } from "@nervekit/contracts/core";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { tick } from "svelte";
+import { tick, type Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
-import { slide } from "svelte/transition";
+import { cubicOut } from "svelte/easing";
+import { fade, slide } from "svelte/transition";
 import type {
   AgentActivitySnapshot,
   AgentRecord,
@@ -30,6 +32,7 @@ import {
   islandCommands,
   islandCount,
   type ActivityIslandSection,
+  type IslandAgentRow,
 } from "./activity-island";
 
 let {
@@ -60,6 +63,7 @@ let {
 const componentId = $props.id();
 const team = $derived(islandAgents(agents, activities, viewedId));
 const runs = $derived(islandCommands(commands));
+let showFolded = $state(false);
 const inSubagent = $derived(Boolean(team.leadId && team.leadId !== viewedId));
 const selectedSummary = $derived(open === "agents" ? team : runs);
 let root = $state<HTMLDivElement>();
@@ -73,7 +77,7 @@ let anchorSize = $state<{ width: number; height: number }>();
 // Reserve only the collapsed footprint. The actual dock and panel share one
 // animated width and expand left/up absolutely, never moving the composer band.
 $effect(() => {
-  if ((open && anchorSize) || !controls || !dock) return;
+  if (((open || morphing) && anchorSize) || !controls || !dock) return;
   const row = controls;
   const frame = dock;
   function measure(): void {
@@ -114,15 +118,64 @@ function escape(event: KeyboardEvent): void {
   }
 }
 
-function expand(node: HTMLElement) {
+function motionMs(node: Element, scale = 1): number {
+  if (!active || prefersReducedMotion.current) return 0;
   const token = getComputedStyle(node).getPropertyValue(
     "--motion-enter-duration",
   );
+  return (parseFloat(token) || 0) * scale;
+}
+
+// Choreography, mirrored on close so every motion reverses its opening path:
+//   open:  dock widens leftward -> panel rises out of it (slightly delayed)
+//   close: panel sinks into the dock -> dock narrows rightward (delayed)
+// The panel box never resizes; a bottom-anchored clip reveals it upward.
+function reveal(node: HTMLElement, { leaving = false } = {}) {
+  return {
+    delay: leaving ? 0 : motionMs(node, 0.35),
+    duration: motionMs(node, leaving ? 0.6 : 1),
+    easing: cubicOut,
+    css: (t: number) =>
+      `clip-path: inset(${(1 - t) * 100}% 0 0 0); opacity: ${Math.min(1, t * 1.6)}; transform: translateY(${(1 - t) * 4}px);`,
+  };
+}
+
+function expandFolded(node: Element) {
+  return slide(node, { duration: motionMs(node, 0.8), easing: cubicOut });
+}
+
+function edge(node: Element) {
   return slide(node, {
-    duration:
-      !active || prefersReducedMotion.current ? 0 : parseFloat(token) || 0,
+    axis: "x",
+    duration: motionMs(node, 0.8),
+    easing: cubicOut,
   });
 }
+
+// While the dock morphs between collapsed and expanded, width is animated by
+// CSS. At rest it follows the measured footprint exactly (no transition), so
+// buttons sliding in/out don't retarget a transition every frame. `.pre` makes
+// the transition class land in the same DOM update as the new width.
+let morphing = $state(false);
+/** Panel still on screen (including its exit), so the dock stays attached. */
+let panelShown = $state(false);
+const expanded = $derived(Boolean((open || morphing) && anchorSize));
+let morphTimer: ReturnType<typeof setTimeout> | undefined;
+let seenOpen: ActivityIslandSection = null;
+$effect.pre(() => {
+  const current = open;
+  if (current === seenOpen) return;
+  showFolded = false;
+  // Section swaps keep the dock expanded; only open/close morphs the width.
+  const morph = Boolean(current) !== Boolean(seenOpen);
+  seenOpen = current;
+  if (!morph) return;
+  morphing = true;
+  clearTimeout(morphTimer);
+  const ms = dock ? motionMs(dock, 1.6) : 0;
+  morphTimer = setTimeout(() => (morphing = false), ms && ms + 40);
+});
+$effect(() => () => clearTimeout(morphTimer));
 
 async function toggle(
   section: Exclude<ActivityIslandSection, null>,
@@ -218,6 +271,96 @@ const agentStatus: Record<AgentRowState, string> = {
   </span>
 {/snippet}
 
+{#snippet agentRow(row: IslandAgentRow)}
+  <Button
+    data-row-action
+    variant="ghost"
+    size="default"
+    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    aria-current={row.viewed ? "page" : undefined}
+    aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
+    title={`Open ${row.name}`}
+    onclick={() => select(row.agent.id)}
+  >
+    {@render agentGlyph(row.state)}
+    <span class="flex min-w-0 flex-1 items-center gap-1.5">
+      <span class="min-w-0 truncate text-xs font-normal">{row.name}</span>
+      {#if row.profile}<Badge
+          variant="outline"
+          class="max-w-24 shrink-0 truncate"
+          title={row.profile}>{row.profile}</Badge
+        >{/if}
+    </span>
+  </Button>
+{/snippet}
+
+{#snippet commandRow(command: AsyncBash)}
+  <Button
+    data-row-action
+    variant="ghost"
+    size="default"
+    class="w-full min-w-0 justify-start rounded-none text-left font-normal"
+    aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
+    title={command.command}
+    onclick={() => {
+      collapse();
+      onOpenCommand(command);
+    }}
+  >
+    {@render commandGlyph(command.status)}
+    <span class="min-w-0 flex-1 truncate font-mono text-xs">
+      {commandFirstLine(command.command)}
+    </span>
+  </Button>
+{/snippet}
+
+<!-- Live rows always show; only a long tail of older settled rows folds
+     behind one secondary disclosure row. -->
+{#snippet list<T>(
+  rows: T[],
+  folded: T[],
+  key: (item: T) => string,
+  row: Snippet<[T]>,
+  empty: string,
+)}
+  {#each rows as item (key(item))}{@render row(item)}{/each}
+  {#if folded.length}
+    <Button
+      variant="ghost"
+      size="sm"
+      class="w-full min-w-0 justify-start rounded-none text-left text-xs font-normal text-muted-foreground hover:text-foreground"
+      aria-expanded={showFolded}
+      aria-controls={`${componentId}-folded`}
+      onclick={() => (showFolded = !showFolded)}
+    >
+      <span class="flex size-4 shrink-0 items-center justify-center">
+        <ChevronRight
+          class={[
+            "size-3.5 transition-transform duration-(--motion-enter-compact-duration) ease-(--motion-enter-easing) motion-reduce:transition-none",
+            showFolded && "rotate-90",
+          ]}
+          aria-hidden="true"
+        />
+      </span>
+      <span class="min-w-0 truncate"
+        >{showFolded ? "Hide" : "Show"}
+        <span class="tabular-nums">{folded.length}</span> older</span
+      >
+    </Button>
+    {#if showFolded}
+      <div
+        id={`${componentId}-folded`}
+        class="flex flex-col divide-y"
+        transition:expandFolded
+      >
+        {#each folded as item (key(item))}{@render row(item)}{/each}
+      </div>
+    {/if}
+  {:else if !rows.length}
+    <p class="px-2.5 py-3 text-xs text-muted-foreground">{empty}</p>
+  {/if}
+{/snippet}
+
 {#if team.total || runs.total || inSubagent || showLatest}
   <div
     bind:this={root}
@@ -229,7 +372,10 @@ const agentStatus: Record<AgentRowState, string> = {
     <div
       class={[
         anchorSize ? "absolute" : "relative",
-        "right-0 bottom-0 z-20 max-w-(--conversation-activity-width) transition-[width] duration-(--motion-enter-duration) ease-(--motion-enter-easing) motion-reduce:transition-none",
+        "right-0 bottom-0 z-20 max-w-(--conversation-activity-width)",
+        morphing &&
+          "transition-[width] duration-(--motion-enter-duration) ease-(--motion-enter-easing) motion-reduce:transition-none",
+        morphing && !open && "delay-(--motion-enter-minimal-duration)",
       ]}
       style:width={open && anchorSize
         ? "calc(var(--spacing) * 90)"
@@ -242,18 +388,32 @@ const agentStatus: Record<AgentRowState, string> = {
           bind:this={panel}
           id={`${componentId}-list`}
           aria-label={open === "agents" ? "Agents" : "Commands"}
-          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-md"
-          transition:expand
+          class="absolute right-0 bottom-full flex max-h-[min(calc(var(--spacing)*80),var(--conversation-activity-height,100vh))] w-full flex-col overflow-hidden rounded-t-md border border-b-0 bg-popover text-popover-foreground shadow-md will-change-[clip-path,opacity,transform]"
+          in:reveal
+          out:reveal={{ leaving: true }}
+          onintrostart={() => (panelShown = true)}
+          onoutroend={() => (panelShown = false)}
         >
           <div class="flex min-w-0 items-center gap-2 border-b px-2.5 py-1">
             <h2 class="shrink-0 text-xs font-semibold">
               {open === "agents" ? "Agents" : "Commands"}
             </h2>
-            <span
-              class="min-w-0 flex-1 truncate text-xs text-muted-foreground"
-              title={`${selectedSummary.running} running · ${selectedSummary.total} retained`}
-              >{selectedSummary.running} running · {selectedSummary.total} retained</span
-            >
+            <!-- The tab below already shows the total; only live work earns header space. -->
+            <span class="flex min-w-0 flex-1 items-center">
+              {#if selectedSummary.running}<span
+                  class="flex items-center gap-1 text-xs text-info tabular-nums"
+                  title={`${selectedSummary.running} running`}
+                  >{#if active}<Spinner
+                      class="size-3 motion-reduce:animate-none!"
+                      aria-hidden="true"
+                    />{:else}<CircleDashed
+                      class="size-3"
+                      aria-hidden="true"
+                    />{/if}{selectedSummary.running}<span class="sr-only"
+                    >running</span
+                  ></span
+                >{/if}
+            </span>
             <Button
               variant="ghost"
               size="icon-xs"
@@ -264,95 +424,64 @@ const agentStatus: Record<AgentRowState, string> = {
             >
           </div>
           <div class="min-h-0 overflow-y-auto overscroll-contain">
-            {#if open === "agents"}
-              {#each team.rows as row, index (row.agent.id)}
-                {#if row.recent && !team.rows[index - 1]?.recent}<h3
-                    class="border-t px-2.5 pt-2 pb-1 text-xs font-medium text-muted-foreground"
-                  >
-                    Recent
-                  </h3>{/if}
-                <Button
-                  data-row-action
-                  variant="ghost"
-                  size="default"
-                  class="w-full min-w-0 justify-start rounded-none border-b text-left font-normal last:border-b-0"
-                  aria-current={row.viewed ? "page" : undefined}
-                  aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
-                  title={`Open ${row.name}`}
-                  onclick={() => select(row.agent.id)}
-                >
-                  {@render agentGlyph(row.state)}
-                  <span class="flex min-w-0 flex-1 items-center gap-1.5">
-                    <span class="min-w-0 truncate text-xs font-normal"
-                      >{row.name}</span
-                    >
-                    {#if row.profile}<Badge
-                        variant="outline"
-                        class="max-w-24 shrink-0 truncate"
-                        title={row.profile}>{row.profile}</Badge
-                      >{/if}
-                  </span>
-                </Button>
-              {:else}<p class="px-2.5 py-3 text-xs text-muted-foreground">
-                  No retained subagents
-                </p>{/each}
-            {:else}
-              {#each runs.rows as command, index (command.id)}
-                {#if command.status !== "running" && (index === 0 || runs.rows[index - 1]?.status === "running")}<h3
-                    class="border-t px-2.5 pt-2 pb-1 text-xs font-medium text-muted-foreground"
-                  >
-                    Recent
-                  </h3>{/if}
-                <Button
-                  data-row-action
-                  variant="ghost"
-                  size="default"
-                  class="w-full min-w-0 justify-start rounded-none border-b text-left font-normal last:border-b-0"
-                  aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
-                  title={command.command}
-                  onclick={() => {
-                    collapse();
-                    onOpenCommand(command);
-                  }}
-                >
-                  {@render commandGlyph(command.status)}
-                  <span class="min-w-0 flex-1 truncate font-mono text-xs">
-                    {commandFirstLine(command.command)}
-                  </span>
-                </Button>
-              {:else}<p class="px-2.5 py-3 text-xs text-muted-foreground">
-                  No retained commands
-                </p>{/each}
-            {/if}
+            {#key open}
+              <div
+                class="flex flex-col divide-y"
+                in:fade={{ duration: motionMs(document.body, 0.6) }}
+              >
+                {#if open === "agents"}
+                  {@render list(
+                    team.rows,
+                    team.folded,
+                    (row) => row.agent.id,
+                    agentRow,
+                    "No retained subagents",
+                  )}
+                {:else}
+                  {@render list(
+                    runs.rows,
+                    runs.folded,
+                    (command) => command.id,
+                    commandRow,
+                    "No retained commands",
+                  )}
+                {/if}
+              </div>
+            {/key}
           </div>
         </section>
       {/if}
       <div
         bind:this={dock}
-        class="overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-sm"
-        class:rounded-t-none={Boolean(open)}
+        class="overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-sm transition-[border-radius] duration-(--motion-enter-compact-duration) ease-(--motion-enter-easing) motion-reduce:transition-none"
+        class:rounded-t-none={Boolean(open) || panelShown}
       >
         <div
           bind:this={controls}
-          class={`flex max-w-(--conversation-activity-width) items-center divide-x ${open && anchorSize ? "w-full" : "w-max"}`}
+          class={`flex max-w-(--conversation-activity-width) items-center divide-x ${expanded ? "w-full" : "w-max"}`}
           role="group"
           aria-label="Conversation activity and navigation"
         >
-          {#if inSubagent && team.leadId}<Button
-              variant="ghost"
-              size="icon"
-              class="rounded-none"
-              title="Back to lead"
-              aria-label="Back to lead"
-              onclick={() => select(team.leadId!)}
-              ><ArrowLeft class="size-4" /></Button
-            >{/if}
+          {#if inSubagent && team.leadId}<div
+              class="flex shrink-0 overflow-hidden"
+              transition:edge
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                class="rounded-none"
+                title="Back to lead"
+                aria-label="Back to lead"
+                onclick={() => select(team.leadId!)}
+                ><ArrowLeft class="size-4" /></Button
+              >
+            </div>{/if}
           {#if team.total || open === "agents"}
             <Button
               bind:ref={agentsTrigger}
               variant="ghost"
               size="default"
-              class={`min-w-0 rounded-none text-xs ${open && anchorSize ? "flex-1" : "shrink"}`}
+              class="min-w-0 flex-auto rounded-none text-xs"
               aria-expanded={open === "agents"}
               aria-controls={open === "agents"
                 ? `${componentId}-list`
@@ -377,7 +506,7 @@ const agentStatus: Record<AgentRowState, string> = {
               bind:ref={commandsTrigger}
               variant="ghost"
               size="default"
-              class={`min-w-0 rounded-none text-xs ${open && anchorSize ? "flex-1" : "shrink"}`}
+              class="min-w-0 flex-auto rounded-none text-xs"
               aria-expanded={open === "commands"}
               aria-controls={open === "commands"
                 ? `${componentId}-list`
@@ -397,14 +526,19 @@ const agentStatus: Record<AgentRowState, string> = {
               >
             </Button>
           {/if}
-          {#if showLatest}<Button
-              variant="ghost"
-              size="icon"
-              class="rounded-none"
-              title="Jump to latest"
-              aria-label="Jump to latest"
-              onclick={onJumpToBottom}><ArrowDown class="size-4" /></Button
-            >{/if}
+          {#if showLatest}<div
+              class="flex shrink-0 overflow-hidden"
+              transition:edge
+            >
+              <Button
+                variant="ghost"
+                size="icon"
+                class="rounded-none"
+                title="Jump to latest"
+                aria-label="Jump to latest"
+                onclick={onJumpToBottom}><ArrowDown class="size-4" /></Button
+              >
+            </div>{/if}
         </div>
       </div>
     </div>

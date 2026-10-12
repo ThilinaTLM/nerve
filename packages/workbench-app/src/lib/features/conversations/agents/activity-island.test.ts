@@ -95,12 +95,10 @@ describe("activity island retention and ordering", () => {
       ["attention", "working", "wait", "error", "unknown", "stop", "old"],
     );
     const old = model.rows.find((r) => r.agent.id === "old")!;
-    assert.equal(old.recent, true);
     assert.equal(old.viewed, true);
     assert.equal(old.agent.task, children[0]!.task);
     assert.equal(old.name, "old");
     assert.equal(old.profile, "explore");
-    assert.equal(model.rows.find((r) => r.agent.id === "error")!.recent, false);
   });
 
   it("works without a lead and does not count waits/errors as running", () => {
@@ -127,12 +125,12 @@ describe("activity island retention and ordering", () => {
     );
     const result = islandCommands([...settled, ...running].reverse());
     assert.equal(result.total, 11);
-    assert.equal(result.total, result.rows.length);
+    assert.equal(result.total, result.rows.length + result.folded.length);
     assert.equal(islandCount(result.running, result.total), "6/11");
     assert.equal(islandCommands(settled).total, 5);
     assert.equal(result.running, 6);
     assert.deepEqual(
-      result.rows.map((r) => r.id),
+      [...result.rows, ...result.folded].map((r) => r.id),
       [...running.map((r) => r.id), "s0", "s1", "s2", "s3", "s4"],
     );
   });
@@ -151,6 +149,56 @@ describe("activity island retention and ordering", () => {
       ["Failed", "Timed out", "Cancelled", "Lost"],
     );
     assert.equal(islandCommands([]).total, 0);
+  });
+});
+
+describe("activity island folding", () => {
+  it("shows short lists in full and never hides a single overflow row", () => {
+    const seven = Array.from({ length: 7 }, (_, i) =>
+      command(`s${i}`, "completed", i),
+    );
+    assert.equal(islandCommands(seven.slice(0, 5)).folded.length, 0);
+    const oneOver = islandCommands([command("r", "running"), ...seven]);
+    assert.equal(oneOver.rows.length, 6);
+    assert.equal(oneOver.folded.length, 0);
+  });
+
+  it("folds only the oldest settled overflow; live rows never fold", () => {
+    const running = Array.from({ length: 3 }, (_, i) =>
+      command(`r${i}`, "running", i),
+    );
+    const settled = Array.from({ length: 5 }, (_, i) =>
+      command(`s${i}`, "failed", i),
+    );
+    const result = islandCommands([...settled, ...running]);
+    assert.deepEqual(
+      result.rows.map((c) => c.id),
+      ["r0", "r1", "r2", "s0", "s1", "s2"],
+    );
+    assert.deepEqual(
+      result.folded.map((c) => c.id),
+      ["s3", "s4"],
+    );
+    assert.equal(result.total, 8);
+  });
+
+  it("keeps attention states and the viewed agent visible", () => {
+    const ids = ["a", "b", "c", "d", "e", "f", "g", "asks", "viewed"];
+    const agents = ids.map((id, i) => agent(id, i));
+    const activities = Object.fromEntries(
+      ids.map((id) => [
+        id,
+        activity(id, id === "asks" ? "awaiting_user" : "idle"),
+      ]),
+    );
+    const model = islandAgents(agents, activities, "viewed");
+    assert.equal(model.rows[0]!.agent.id, "asks");
+    assert.ok(model.rows.some((r) => r.agent.id === "viewed"));
+    assert.equal(model.rows.length, 6);
+    assert.deepEqual(
+      model.folded.map((r) => r.agent.id),
+      ["e", "f", "g"],
+    );
   });
 });
 
