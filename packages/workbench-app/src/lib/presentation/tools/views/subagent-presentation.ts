@@ -1,5 +1,6 @@
 import type { MetaItem } from "../../cards/card-presentation";
 import { plural } from "./tool-presentation-helpers";
+import { parseStatusListing } from "./subagent-result-parser";
 import type { ToolPresentation } from "./tool-presentation-types";
 import type { ToolView } from "./tool-view-types";
 
@@ -30,7 +31,19 @@ export function subagentPresentation(
     }
     case "status":
       primaryArg ??= { text: view.name ?? "all sub-agents" };
-      if (!view.name && view.rows.length > 0)
+      if (view.name) {
+        if (parseStatusListing(view.header).length > 0) {
+          // Named status includes the model before the state, unlike listings.
+          // Keep each fact as its own chip rather than merging those fields.
+          meta.push(
+            ...(view.header ?? "")
+              .split(" · ")
+              .slice(1)
+              .map((text) => ({ text: text.trim() }))
+              .filter((item) => item.text),
+          );
+        }
+      } else if (view.rows.length > 0)
         meta.push({ text: plural(view.rows.length, "sub-agent") });
       break;
     case "stop":

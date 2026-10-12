@@ -60,10 +60,16 @@ export type ToolArgumentPresentation = {
  *   completed (the completed view must not render it again).
  * - `until-result`: argument body stays mounted through drafting, approval,
  *   and execution, and is replaced once the result section shows output.
+ * - `until-settled`: like `until-result`, but also hides input context when
+ *   the call fails, is denied, or is cancelled.
  * - `none`: no argument section; approval-stage bodies render inside the
  *   approval prompt instead.
  */
-export type ToolArgumentRegion = "persistent" | "until-result" | "none";
+export type ToolArgumentRegion =
+  | "persistent"
+  | "until-result"
+  | "until-settled"
+  | "none";
 
 /** Executing-state placeholder rendered in the result section. */
 export type ToolResultPlaceholder = {

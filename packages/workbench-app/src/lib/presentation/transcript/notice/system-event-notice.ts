@@ -17,9 +17,16 @@ function textValue(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
 
+function isSubagentNotice(notice: SystemEventNotice): boolean {
+  return (
+    notice.kind === "subagent_run_event" ||
+    textValue(detailsOf(notice).type) === "subagent_event"
+  );
+}
+
 /** Text rendered in the notice body; the transcript shows only its first lines. */
 export function systemEventNoticeBody(notice: SystemEventNotice): string {
-  if (notice.kind === "subagent_run_event") {
+  if (isSubagentNotice(notice)) {
     const parsed = parseSubagentNotice(notice.text);
     if (parsed)
       return [
@@ -103,7 +110,7 @@ function systemEventNoticeHeader(
         : [],
     };
   }
-  if (notice.kind === "subagent_run_event" || type === "subagent_event")
+  if (isSubagentNotice(notice))
     return subagentNoticeHeader(notice, options.onOpenFile);
   if (
     notice.kind === "tool_result" ||
