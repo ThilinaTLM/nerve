@@ -3,6 +3,34 @@ import { revealBoundary } from "@nervekit/ui-kit/scheduling/streaming-reveal";
 
 const BACKSLASH = 0x5c;
 
+/** Retain the streamed prefix while its live slot hands off to a durable call. */
+export class ToolArgumentHandoff {
+  private block: ConversationLiveToolDraftBlockSnapshot | undefined;
+  private text = "";
+
+  update(
+    block: ConversationLiveToolDraftBlockSnapshot | undefined,
+    durable: boolean,
+    finalArgs?: unknown,
+  ) {
+    if (block) this.block = block;
+    if (block?.argsText) this.text = block.argsText;
+    const done = durable || !block || Boolean(block.done);
+    // Exact final args can contain a suffix absent from the last live update.
+    // Bounded transcript previews may differ: never replace the stream with
+    // those or restart a reveal from a differently serialized JSON object.
+    if (done && this.text && finalArgs !== undefined) {
+      const finalText = JSON.stringify(finalArgs);
+      if (finalText?.startsWith(this.text)) this.text = finalText;
+    }
+    return {
+      block: block ?? (durable ? this.block : undefined),
+      text: this.text,
+      done,
+    };
+  }
+}
+
 /**
  * Clamp a reveal length for streamed JSON text so the prefix never ends in an
  * unfinished escape sequence (a dangling `\` or partial `\uXXXX`) or inside a
@@ -10,7 +38,10 @@ const BACKSLASH = 0x5c;
  */
 export function jsonTextRevealBoundary(text: string, length: number): number {
   let end = revealBoundary(text, length);
-  if (end <= 0 || end >= text.length) return end;
+  if (end <= 0) return end;
+  // The source itself can stop between provider chunks, not just the pacer.
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
 
   // Find the start of the trailing backslash run.
   let runStart = end;

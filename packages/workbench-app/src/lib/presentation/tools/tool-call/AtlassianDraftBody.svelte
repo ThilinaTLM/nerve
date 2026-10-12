@@ -2,6 +2,8 @@
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import type { ToolArgumentBody as ArgumentBody } from "../lifecycle/registry";
 import { COLLAPSED_LINES } from "../views/tool-view-helpers";
+import { StreamingText } from "@nervekit/ui-kit/components/composites/streaming-text";
+import { getToolMotion } from "./tool-motion-context";
 import ResultCodeBlock from "./ResultCodeBlock.svelte";
 
 type AtlassianDraftBody = Extract<ArgumentBody, { kind: "atlassian-draft" }>;
@@ -13,6 +15,9 @@ type Props = {
   fixedRows?: number;
 };
 let { body, streaming = false, fixedRows = COLLAPSED_LINES }: Props = $props();
+
+const toolMotion = getToolMotion();
+const streamMotion = $derived(streaming && toolMotion.streamMotion);
 
 const fields = $derived(
   body.fields.filter((field) => field.value !== undefined || streaming),
@@ -34,6 +39,10 @@ const showText = $derived(
           language={body.text.language}
           trim={false}
           highlight={!streaming && Boolean(body.text.language)}
+          progressiveHighlight={streamMotion && Boolean(body.text.language)}
+          live={streaming}
+          caret={streaming}
+          {streamMotion}
           wrap
           overflow="hidden"
           tail
@@ -63,7 +72,7 @@ const showText = $derived(
           class:text-info={field.tone === "info"}
         >
           {#if field.value !== undefined}
-            {field.value}
+            <StreamingText text={field.value} fade={streamMotion} />
           {:else}
             <Skeleton class="h-3 w-24" />
           {/if}

@@ -255,6 +255,10 @@ export class ProtocolServerSession {
     this.#scheduleFlush();
   }
 
+  isStreamActive(stream: string): boolean {
+    return this.state === "ready" && this.#activeStreams.has(stream);
+  }
+
   removeStream(stream: string): void {
     this.#activeStreams.delete(stream);
     this.#streamStates.delete(stream);

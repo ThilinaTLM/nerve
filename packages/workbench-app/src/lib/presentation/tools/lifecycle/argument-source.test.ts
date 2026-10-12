@@ -84,6 +84,51 @@ describe("ToolArgumentSource", () => {
     );
   });
 
+  it("decodes escapes and withholds incomplete Unicode units safely", () => {
+    for (const [raw, expected] of [
+      [String.raw`a\"b\\c\n\t\u00e9`, 'a"b\\c\n\té'],
+      ["ok\\", "ok"],
+      [String.raw`ok\u00`, "ok"],
+      [String.raw`ok\ud83d`, "ok"],
+      [String.raw`ok\ud83d\ude`, "ok"],
+      [String.raw`ok\ud83d\ude00`, "ok😀"],
+      ["ok\ud83d", "ok"],
+      ["ok😀", "ok😀"],
+    ]) {
+      const source = toolArgumentSource({ argsText: '{"content":"' + raw });
+      assert.equal(source.string("content"), expected);
+      assert.equal(
+        source.stringMetrics("content")?.bytes,
+        new TextEncoder().encode(expected).length,
+      );
+    }
+  });
+
+  it("bounds partial suffixes without losing full byte and line counts", () => {
+    const content = "é\n".repeat(20_000) + "😀END";
+    const source = toolArgumentSource({
+      argsText: JSON.stringify({ content }).slice(0, -2),
+    });
+    assert.ok((source.string("content")?.length ?? Infinity) <= 24_000);
+    assert.ok(source.string("content")?.endsWith("😀END"));
+    assert.deepEqual(source.stringMetrics("content"), {
+      lines: 20_001,
+      bytes: 60_007,
+    });
+  });
+
+  it("keeps partial decoding tied to the captured input across accessors", () => {
+    const input = { argsText: '{"content":"é\\n😀' };
+    const source = toolArgumentSource(input);
+    assert.equal(source.string("content"), "é\n😀");
+    input.argsText = '{"content":"new';
+    assert.deepEqual(source.stringMetrics("content"), { lines: 2, bytes: 7 });
+    assert.deepEqual(source.strings("content"), ["é\n😀"]);
+    assert.deepEqual(source.nestedStrings("content"), ["é\n😀"]);
+    assert.equal(source.structuredEntries()[0]?.value, "é\n😀");
+    assert.equal(toolArgumentSource(input).string("content"), "new");
+  });
+
   it("exposes environment key names without values", () => {
     const source = toolArgumentSource({
       args: {

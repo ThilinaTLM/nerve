@@ -13,7 +13,7 @@ export function mergeDraftMeta(
   });
 }
 
-export function specializedDraftBody(
+export function progressDraftBody(
   summary: ToolDraftSummary,
 ): ToolArgumentBody | undefined {
   if (summary.preview) {
@@ -25,14 +25,6 @@ export function specializedDraftBody(
           language: "text",
           tail: true,
         };
-  }
-  if (summary.inputPreview) {
-    return {
-      kind: "code",
-      text: summary.inputPreview,
-      language: summary.language ?? "text",
-      tail: true,
-    };
   }
   return undefined;
 }

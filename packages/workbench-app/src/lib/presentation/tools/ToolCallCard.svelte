@@ -43,7 +43,10 @@ import {
   toolLifecycleStageIndicator,
   visibleLifecycleStage,
 } from "./views/tool-activity-state";
-import { pacedDraftBlock } from "./views/tool-argument-reveal";
+import {
+  pacedDraftBlock,
+  ToolArgumentHandoff,
+} from "./views/tool-argument-reveal";
 import { StreamingRevealLoop } from "@nervekit/ui-kit/scheduling/streaming-reveal-loop";
 import { getConversationUiCapabilities } from "../context.svelte";
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
@@ -177,19 +180,20 @@ const ToolView = $derived.by(() =>
 // even cadence as assistant text, upstream of every tool-specific parser, so
 // previews and counters advance smoothly. `applyToolDraftDone` clears
 // `argsText`, so the last streamed text is retained for the drain.
-let retainedArgsText = untrack(() => draft?.block.argsText ?? "");
-const sourceArgsText = $derived.by(() => {
-  const text = draft?.block.argsText;
-  if (text) retainedArgsText = text;
-  return retainedArgsText;
-});
-const argsSourceDone = $derived(
-  !draft || draft.block.done || Boolean(toolCall),
+const argsHandoff = new ToolArgumentHandoff();
+const argumentSource = $derived(
+  argsHandoff.update(
+    draft?.block,
+    Boolean(toolCall),
+    toolCall?.argsPreview ?? draft?.block.args,
+  ),
 );
+const sourceArgsText = $derived(argumentSource.text);
+const argsSourceDone = $derived(argumentSource.done);
 // Starts fully revealed so remounts and virtual-row re-entry never replay.
-let revealedArgsLength = $state(untrack(() => retainedArgsText.length));
+let revealedArgsLength = $state(untrack(() => sourceArgsText.length));
 const argsReveal = new StreamingRevealLoop(
-  untrack(() => retainedArgsText.length),
+  untrack(() => sourceArgsText.length),
   {
     onReveal: (length) => {
       revealedArgsLength = length;
@@ -197,7 +201,9 @@ const argsReveal = new StreamingRevealLoop(
   },
 );
 const pacingArgs = $derived(
-  Boolean(draft) && shouldHydrateBody && !prefersReducedMotion.current,
+  Boolean(argumentSource.block) &&
+    shouldHydrateBody &&
+    !prefersReducedMotion.current,
 );
 $effect(() => {
   const length = sourceArgsText.length;
@@ -214,9 +220,9 @@ const revealSettled = $derived(
   argsSourceDone && revealedArgsLength >= sourceArgsText.length,
 );
 const presentedDraftBlock = $derived(
-  draft
+  argumentSource.block
     ? pacedDraftBlock(
-        draft.block,
+        argumentSource.block,
         sourceArgsText,
         revealedArgsLength,
         revealSettled,
@@ -226,7 +232,7 @@ const presentedDraftBlock = $derived(
 // The durable record takes over presentation only after the reveal drains
 // (bounded by the pacer's lag and flush limits), so nothing pops in.
 const presentedToolCall = $derived(
-  draft && !revealSettled ? undefined : toolCall,
+  argumentSource.block && !revealSettled ? undefined : toolCall,
 );
 const draftSummary = $derived.by(() =>
   presentedDraftBlock
