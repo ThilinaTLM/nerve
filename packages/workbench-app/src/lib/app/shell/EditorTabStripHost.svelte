@@ -79,8 +79,13 @@ const newShortcutAria = getShortcutAriaLabel("conversation.new");
 
 const workbenchTabs = $derived(tabs.map(toWorkbenchTab));
 
+// The strip reports only `{kind, id}`; resolve the full identity so kinds that
+// carry routing fields (async-bash conversationId) survive the round trip.
 function castIdentity(tab: WorkbenchTabIdentity): CenterTabIdentity {
-  return tab as CenterTabIdentity;
+  const original = tabs.find(
+    (candidate) => candidate.kind === tab.kind && candidate.id === tab.id,
+  );
+  return original ? tabIdentity(original) : (tab as CenterTabIdentity);
 }
 
 function originalTab(tab: WorkbenchTabModel): CenterTabModel | undefined {

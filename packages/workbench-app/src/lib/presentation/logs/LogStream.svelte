@@ -14,6 +14,7 @@ type Row =
   | { kind: "history"; key: string }
   | { kind: "command"; key: string; command: string }
   | { kind: "empty"; key: string }
+  | { kind: "error"; key: string; message: string }
   | { kind: "line"; key: string; line: LogStreamLine };
 
 type Props = {
@@ -32,6 +33,8 @@ type Props = {
   detached?: boolean;
   /** Reloads the live tail; required for `detached` windows. */
   onJumpToLatest?: () => void | Promise<void>;
+  /** Reading the latest output failed; offered as a retry of `onJumpToLatest`. */
+  loadError?: string;
   /** Floating controls pinned to the top-right corner. */
   dock?: Snippet;
 };
@@ -47,6 +50,7 @@ let {
   onLoadEarlier,
   detached = false,
   onJumpToLatest,
+  loadError,
   dock,
 }: Props = $props();
 
@@ -64,9 +68,12 @@ const rows = $derived.by<Row[]>(() => {
   const result: Row[] = [];
   if (historyVisible) result.push({ kind: "history", key: "history" });
   if (command) result.push({ kind: "command", key: "command", command });
-  if (lines.length === 0) result.push({ kind: "empty", key: "empty" });
+  if (lines.length === 0 && !loadError)
+    result.push({ kind: "empty", key: "empty" });
   for (const line of lines)
     result.push({ kind: "line", key: `line:${line.key}`, line });
+  if (loadError)
+    result.push({ kind: "error", key: "error", message: loadError });
   return result;
 });
 
@@ -129,7 +136,7 @@ async function jumpToLatest(): Promise<void> {
     anchor="end"
     followOutput={atEnd && !detached}
     scrollEndThreshold={24}
-    paddingStart={dock ? 48 : 12}
+    paddingStart={12}
     paddingEnd={12}
     viewportTabIndex={0}
     viewportAriaLabel={`Scrollable ${ariaLabel.toLowerCase()}`}
@@ -156,6 +163,19 @@ async function jumpToLatest(): Promise<void> {
         <pre class={`pb-2 text-foreground ${lineClass}`}>$ {item.command}</pre>
       {:else if item.kind === "empty"}
         <pre class={`text-muted-foreground ${lineClass}`}>{emptyLabel}</pre>
+      {:else if item.kind === "error"}
+        <div class="pt-2 font-sans text-destructive" title={item.message}>
+          Could not load output.
+          {#if onJumpToLatest}
+            <button
+              type="button"
+              class="rounded-sm underline underline-offset-2 focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+              onclick={() => void onJumpToLatest?.()}
+            >
+              Retry
+            </button>
+          {/if}
+        </div>
       {:else}
         <pre
           class={`${lineClass} ${logStreamToneClass(item.line.tone)}`}><TerminalText
@@ -168,14 +188,20 @@ async function jumpToLatest(): Promise<void> {
   </VirtualScroller>
 
   {#if dock}
-    <div class="contents font-sans">{@render dock()}</div>
+    <!-- Positions the dock clear of the viewport's scrollbar lane; only the
+         dock itself takes pointer input. -->
+    <div
+      class="pointer-events-none absolute inset-y-0 right-2.5 left-0 font-sans *:pointer-events-auto"
+    >
+      {@render dock()}
+    </div>
   {/if}
 
   {#if !atEnd || detached}
     <Button
       size="icon-sm"
       variant="outline"
-      class="absolute right-4 bottom-3 rounded-full shadow-sm"
+      class="absolute right-5.5 bottom-3 rounded-full shadow-sm"
       ariaLabel="Jump to latest output"
       title="Jump to latest output"
       onclick={() => void jumpToLatest()}

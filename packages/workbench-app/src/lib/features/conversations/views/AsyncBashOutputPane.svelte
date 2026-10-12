@@ -52,24 +52,19 @@ const lines = $derived(asyncBashLogLines(streams));
     command={bash?.command ?? command}
     hasMoreBefore={streams.some((stream) => stream.offset > 0)}
     {detached}
+    loadError={error}
     {onLoadEarlier}
     {onJumpToLatest}
   >
     {#snippet dock()}
-      <FloatingToolbar
-        label="Command controls"
-        class="max-w-[calc(100%-1.5rem)]"
-      >
+      <FloatingToolbar label="Command controls">
         <span
-          class="flex h-6 min-w-0 items-center gap-1.5 px-1.5 text-xs text-muted-foreground tabular-nums"
+          class="flex h-6 items-center gap-1.5 px-1.5 text-xs text-muted-foreground tabular-nums"
           title={bash?.workingDirectory}
         >
           {#if bash}<AsyncBashStatusIcon status={bash.status} />{/if}
           {#if elapsed}<span>{elapsed}</span>{/if}
           {#if bash?.exitCode != null}<span>exit {bash.exitCode}</span>{/if}
-          {#if error}<span class="truncate text-destructive" role="alert"
-              >{error}</span
-            >{/if}
         </span>
         {#if bash?.status === "running"}
           <Button
