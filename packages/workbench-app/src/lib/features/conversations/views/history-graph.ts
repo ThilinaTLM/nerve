@@ -84,9 +84,7 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   web_search: "globe",
   web_fetch: "download",
   ask_user: "message-circle-question",
-  plan_mode_enter: "clipboard-list",
   plan_mode_present: "clipboard-check",
-  plan_mode_force_exit: "clipboard-list",
   todos_set: "list-todo",
   todos_get: "list-todo",
 };

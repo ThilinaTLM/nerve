@@ -111,9 +111,18 @@ describe("tool lifecycle registry", () => {
     );
   });
 
-  it("treats the removed explore and teammate tools as unknown recorded tools", () => {
-    for (const name of ["explore", "subagent_new", "subagent_list"])
+  it("treats removed tools as unknown recorded tools", () => {
+    for (const name of [
+      "explore",
+      "subagent_new",
+      "subagent_list",
+      "plan_mode_enter",
+      "plan_mode_force_exit",
+    ]) {
+      assert.equal(isKnownToolName(name), false);
       assert.equal(toolLifecycleSpec(name), unknownToolLifecycleSpec);
+      assert.equal(toolLifecycleSpec(name).completedView, "generic");
+    }
   });
 
   it("hides failed file mutation previews but keeps executable input context", () => {

@@ -29,9 +29,7 @@ export function buildNerveSystemPrompt(
   const basePrompt = options.customPrompt?.trim()
     ? options.customPrompt
     : defaultPrompt({
-        selectedTools: tools,
         promptGuidelines: options.promptGuidelines ?? [],
-        mode: options.mode,
       });
 
   const skillsBlock =
@@ -48,6 +46,7 @@ export function buildNerveSystemPrompt(
   return [
     basePrompt,
     options.appendSystemPrompt,
+    buildModeOwnershipInstructions(),
     planModeBlock,
     formatProjectInstructions(options.contextFiles ?? []),
     options.instructions?.trim()
@@ -64,11 +63,7 @@ export function buildNerveSystemPrompt(
     .join("\n\n");
 }
 
-function defaultPrompt(options: {
-  selectedTools: string[];
-  promptGuidelines: string[];
-  mode?: "planning" | "coding";
-}): string {
+function defaultPrompt(options: { promptGuidelines: string[] }): string {
   const toolRules: string[] = [];
   const seen = new Set<string>();
   const addToolRule = (value: string) => {
@@ -78,13 +73,7 @@ function defaultPrompt(options: {
     toolRules.push(normalized);
   };
 
-  const activeTools = new Set(options.selectedTools);
   for (const guideline of options.promptGuidelines) addToolRule(guideline);
-  if (options.mode !== "planning" && activeTools.has("plan_mode_enter")) {
-    addToolRule(
-      "Use Plan Mode only for explicit plan requests or implementation with unresolved design decisions—not codebase questions, exploration, debugging, or routine edits.",
-    );
-  }
 
   return promptText`
     You are Nerve's coding agent. Work safely in the current project and keep responses concise.
@@ -106,6 +95,15 @@ function formatTaggedBulletSection(tag: string, items: string[]): string {
 
 function formatBulletList(items: string[]): string {
   return items.map((item) => `- ${item}`).join("\n");
+}
+
+function buildModeOwnershipInstructions(): string {
+  return promptText`
+    <mode_controls>
+    Conversation mode is user-controlled. Only the user can enter planning mode or manually leave it; ask the user to change mode when needed.
+    Presenting a plan with plan_mode_present does not change mode. User approval of the plan switches to coding mode; rejection leaves the mode unchanged.
+    </mode_controls>
+  `;
 }
 
 function buildPlanModeInstructions(planDir: string): string {

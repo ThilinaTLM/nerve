@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { HTML_CONVERSION_MAX_INPUT_BYTES } from "../../src/execution/atlassian/isolated-html-to-markdown.js";
 import { executeTool } from "../../src/execution/dispatch.js";
+import { ToolExecutionError } from "../../src/execution/errors/tool-error.js";
 import { resolvePythonRuntime } from "../../src/execution/python/runtime.js";
 import { createTempProject } from "../support/project-fixtures.js";
 
@@ -327,12 +328,19 @@ describe("executeTool dispatch", () => {
     }
   });
 
+  it("rejects removed plan tools as unknown rather than host-owned", async () => {
+    for (const name of ["plan_mode_enter", "plan_mode_force_exit"]) {
+      await assert.rejects(
+        executeTool(name as ToolName, {}, { cwd: process.cwd() }),
+        (error) =>
+          error instanceof ToolExecutionError && error.code === "UNKNOWN_TOOL",
+        name,
+      );
+    }
+  });
+
   it("rejects plan tools because they are orchestrator-owned", async () => {
-    const planTools = [
-      "plan_mode_enter",
-      "plan_mode_present",
-      "plan_mode_force_exit",
-    ] as ToolName[];
+    const planTools = ["plan_mode_present"] as ToolName[];
 
     for (const name of planTools) {
       await assert.rejects(

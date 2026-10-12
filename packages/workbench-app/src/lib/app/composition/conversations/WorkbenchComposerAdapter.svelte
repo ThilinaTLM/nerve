@@ -303,7 +303,8 @@ const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
 const fileDropSupported = $derived(Boolean(getDesktopBridge()?.files));
 const supportsAudioRecording = $derived(voiceInputSession.isSupported());
 const micDisabled = $derived(
-  !interactive ||
+  Boolean(editorOverlay) ||
+    !interactive ||
     stopping ||
     !voiceTarget ||
     voiceInputSession.pending ||

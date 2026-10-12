@@ -31,7 +31,7 @@ const fillClass: Record<string, string> = {
 const width = $derived(Math.min(100, Math.max(0, percent ?? 0)));
 </script>
 
-<div class={cn("grid gap-1 px-1.5 py-0.5", className)}>
+<div class={cn("grid grid-cols-1 gap-1 px-1.5 py-0.5", className)}>
   <div class="flex items-baseline justify-between gap-4">
     <span class="min-w-0 truncate text-muted-foreground">{label}</span>
     <span class="flex-none font-medium tabular-nums text-foreground"

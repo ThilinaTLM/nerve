@@ -154,6 +154,17 @@ describe("model-facing tool schema compatibility", () => {
     }
   });
 
+  it("excludes removed plan tools from active schemas and the catalog", () => {
+    for (const name of ["plan_mode_enter", "plan_mode_force_exit"]) {
+      assert.equal(toolNameSchema.safeParse(name).success, false, name);
+      assert.equal(
+        allToolDefinitions.some((definition) => definition.name === name),
+        false,
+        name,
+      );
+    }
+  });
+
   it("keeps plan_mode_present limited to the plan file path", () => {
     const schema = requireToolDefinition("plan_mode_present").parameters;
     assert.equal(Check(schema, { file_path: "/tmp/plan.md" }), true);

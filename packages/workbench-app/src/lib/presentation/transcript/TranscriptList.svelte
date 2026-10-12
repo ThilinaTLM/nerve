@@ -18,7 +18,6 @@ import {
 import type { TimelineItem } from "../state/timeline";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import ConversationSignal from "../conversations/ConversationSignal.svelte";
-import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import RunActivitySlot from "./activity/RunActivitySlot.svelte";
 import type { PendingWorkItem } from "./activity/run-activity";
@@ -26,6 +25,7 @@ import { createRunActivityTracker } from "./activity/run-activity-tracker.svelte
 import type { ConversationRunActivityModel } from "../conversations/conversation-view-contracts.js";
 import { groupConsecutiveThinking } from "./transcript-presentation";
 import {
+  acceptedPromptRow,
   entranceEligible,
   measurementVersionForRow,
   type TimelineRowItem,
@@ -258,13 +258,10 @@ const rows = $derived.by<TranscriptRowItem[]>(() => {
       entranceMotion: projectedEntranceMotions.get(row.key),
     })),
   ];
-  // One persistent run-activity row for the whole run (and its brief
-  // completion cue); its content changes in place, never its identity.
+  for (const prompt of queuedPrompts) result.push(acceptedPromptRow(prompt));
+  // Keep activity below accepted prompts, so delivery doesn't move the bubble.
   if (activityMounted) {
     result.push({ kind: "activity", key: "__activity__" });
-  }
-  for (const prompt of queuedPrompts) {
-    result.push({ kind: "queued", key: `__queued__:${prompt.id}`, prompt });
   }
   return result;
 });
@@ -394,19 +391,15 @@ $effect(() => {
             {onRejectPlanReview}
             {onContinueFromFailure}
             {transcriptMenu}
+            queuedPrompt={item.queuedPrompt}
+            {onForcePushQueuedPrompts}
+            {onDiscardQueuedPrompt}
+            {onMoveQueuedPromptToComposer}
           />
         {:else if item.kind === "activity"}
           <RunActivitySlot
             view={runActivityTracker.view}
             onOpenPending={onOpenPendingWork}
-          />
-        {:else}
-          <QueuedPromptRow
-            prompt={item.prompt}
-            onForcePush={onForcePushQueuedPrompts}
-            onDiscard={onDiscardQueuedPrompt}
-            onMoveToComposer={onMoveQueuedPromptToComposer}
-            {transcriptMenu}
           />
         {/if}
       {/snippet}

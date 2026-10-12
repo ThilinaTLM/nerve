@@ -3,6 +3,8 @@ import {
   findInlineCommandResultBlocks,
 } from "@nervekit/contracts/completions";
 
+import type { CommandPreparation } from "@nervekit/contracts/core";
+
 export type UserMessageSegment =
   | { kind: "text"; text: string }
   | {
@@ -13,6 +15,54 @@ export type UserMessageSegment =
       output: string;
     }
   | { kind: "command_pending"; command: string };
+
+export type UserCommandPresentation = {
+  command: string;
+  phase: "running" | "done" | "static";
+  status?: string;
+  exitCode?: number;
+  output?: string;
+};
+
+/** Explicit per-command preparation always takes precedence over optimism. */
+export function userCommandPresentation(
+  segment: Exclude<UserMessageSegment, { kind: "text" }>,
+  commandIndex: number,
+  pending: boolean,
+  preparation?: CommandPreparation,
+): UserCommandPresentation {
+  if (segment.kind === "command_result") {
+    return {
+      command: segment.command,
+      phase: "done",
+      status: segment.status,
+      exitCode: segment.exitCode,
+      output: segment.output,
+    };
+  }
+  const block = preparation?.blocks.find(
+    (block) => block.index === commandIndex,
+  );
+  if (block) {
+    if (block.state === "running")
+      return { command: segment.command, phase: "running" };
+    if (block.state === "not_started")
+      return { command: segment.command, phase: "static" };
+    return {
+      command: segment.command,
+      phase: "done",
+      status: block.state,
+      exitCode: block.result?.exitCode ?? undefined,
+      output: block.result
+        ? [block.result.stdout, block.result.stderr].filter(Boolean).join("\n")
+        : "",
+    };
+  }
+  return {
+    command: segment.command,
+    phase: pending && !preparation ? "running" : "static",
+  };
+}
 
 type PositionedSegment = {
   start: number;

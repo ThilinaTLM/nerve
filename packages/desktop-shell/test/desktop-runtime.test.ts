@@ -164,6 +164,7 @@ describe("DesktopRuntime", () => {
     let statusListener:
       | ((status: string, info?: { error?: string }) => void)
       | undefined;
+    const startupReady = Promise.withResolvers<void>();
     let cookieInstalls = 0;
     let restartCount = 0;
     const restartDone = Promise.withResolvers<void>();
@@ -229,7 +230,10 @@ describe("DesktopRuntime", () => {
         updateTrayIcon: () => undefined,
         dispose: () => undefined,
       }),
-      installPerformanceMonitor: () => ({ stop: () => undefined }),
+      installPerformanceMonitor: () => {
+        startupReady.resolve();
+        return { stop: () => undefined };
+      },
       packagedWebDistPath: () => undefined,
       now: Date.now,
     } as unknown as DesktopRuntimePorts;
@@ -250,7 +254,10 @@ describe("DesktopRuntime", () => {
     );
 
     runtime.start();
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    // This hook runs after startup telemetry finishes, not merely navigation.
+    await startupReady.promise;
+    // Let the startup attempt's finally handler clear the single-flight guard.
+    await new Promise((resolve) => setImmediate(resolve));
     assert.ok(statusListener);
     const navigations = loadedUrls.length;
     assert.equal(cookieInstalls, 1);

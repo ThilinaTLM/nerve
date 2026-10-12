@@ -558,17 +558,6 @@ export function parseToolView(
       };
     }
 
-    case "plan_mode_enter": {
-      const resultRecord = asRecord(rawResult);
-      const planDir = stringField(resultRecord.planDir);
-      return {
-        kind: "plan_mode",
-        action: "enter",
-        summary: firstTextBlock(rawResult),
-        planPath: planDir,
-      };
-    }
-
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
       const review = asRecord(resultRecord.review);
@@ -591,16 +580,6 @@ export function parseToolView(
           interactionSummary,
         planPath,
         outcome,
-      };
-    }
-
-    case "plan_mode_force_exit": {
-      const resultRecord = asRecord(rawResult);
-      const reason = stringField(resultRecord.reason);
-      return {
-        kind: "plan_mode",
-        action: "force_exit",
-        summary: reason,
       };
     }
 

@@ -254,7 +254,7 @@ export type ToolView =
     }
   | {
       kind: "plan_mode";
-      action: "enter" | "present" | "force_exit";
+      action: "present";
       summary?: string;
       planPreview?: string;
       planPath?: string;

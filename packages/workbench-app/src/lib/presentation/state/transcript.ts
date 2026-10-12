@@ -257,6 +257,8 @@ export function entryToTranscriptItems(
   }
   items.push({
     id: entry.id,
+    inputId: entry.inputId,
+    commandPreparation: entry.commandPreparation,
     runId: entry.runId,
     turnId: entry.turnId,
     liveMessageId: entry.liveMessageId,

@@ -23,7 +23,7 @@ const coreTools = [
   "subagent_status",
   "subagent_stop",
   "ask_user",
-  "plan_mode_enter",
+  "plan_mode_present",
 ].map(tool);
 
 async function prepare(options: {
@@ -41,7 +41,12 @@ async function prepare(options: {
       capabilities: {
         configuration: async () => ({
           effective: { disabledTools: [], toolProfiles: {} },
-          availableTools: ["subagents", "ask_user", "plan_mode_enter", "read"],
+          availableTools: [
+            "subagents",
+            "ask_user",
+            "plan_mode_present",
+            "read",
+          ],
           toolProfileOptions: { jira: [], confluence: [], web_search: [] },
         }),
       } as never,
@@ -112,7 +117,7 @@ void test("leads get a profile enum and description from the usable profiles", a
 void test("sub-agent tools are dropped when no profile is usable", () => {
   assert.deepEqual(names(withSubagentProfiles(coreTools, [])), [
     "ask_user",
-    "plan_mode_enter",
+    "plan_mode_present",
   ]);
 });
 

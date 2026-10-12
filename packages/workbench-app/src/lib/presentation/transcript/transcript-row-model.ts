@@ -13,12 +13,34 @@ export type TimelineRowItem = {
   key: string;
   node: TranscriptDisplayNode;
   entranceMotion?: TranscriptEntranceMotion;
+  queuedPrompt?: QueuedPromptRecord;
 };
 
 export type TranscriptRowItem =
   | TimelineRowItem
-  | { kind: "activity"; key: string }
-  | { kind: "queued"; key: string; prompt: QueuedPromptRecord };
+  | { kind: "activity"; key: string };
+
+export function acceptedPromptRow(prompt: QueuedPromptRecord): TimelineRowItem {
+  const key = `input:${prompt.id}`;
+  return {
+    kind: "timeline",
+    key,
+    queuedPrompt: prompt,
+    node: {
+      kind: "message",
+      key,
+      item: {
+        inputId: prompt.id,
+        role: "user",
+        text: prompt.text,
+        preparedText: prompt.preparedText,
+        commandPreparation: prompt.commandPreparation,
+        createdAt: prompt.createdAt,
+        optimistic: true,
+      },
+    },
+  };
+}
 
 export function uniqueRowKey(key: string, seen: Map<string, number>): string {
   const count = seen.get(key) ?? 0;
@@ -56,10 +78,6 @@ export function measurementVersionForRow(
   context: TranscriptMeasurementContext,
 ): string {
   if (row.kind === "activity") return "activity";
-  if (row.kind === "queued") {
-    return `${row.prompt.status}:${row.prompt.updatedAt}`;
-  }
-
   const node = row.node;
   if (node.kind === "thinking_group") {
     return node.items
@@ -76,6 +94,9 @@ export function measurementVersionForRow(
       item.live ? "live" : "stored",
       item.done ? "done" : "open",
       item.optimistic ? "optimistic" : "settled",
+      item.preparedText?.length ?? 0,
+      JSON.stringify(item.commandPreparation ?? null),
+      row.queuedPrompt?.presentation ?? "delivered",
       item.stopReason ?? "ok",
       item.errorMessage?.length ?? 0,
     ].join(":");
