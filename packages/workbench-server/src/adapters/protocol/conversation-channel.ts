@@ -14,6 +14,7 @@ import {
 } from "@nervekit/contracts/events";
 import {
   STREAM_SUBSCRIPTION_CAPABILITY,
+  RESYNC_REQUIRED_CLOSE_REASON,
   type ProtocolV1Message,
 } from "@nervekit/contracts/wire";
 import { slashCommandCompletionItems } from "@nervekit/contracts/completions";
@@ -37,6 +38,7 @@ import { listPermissionRuleSets } from "../../core-host/permission-rule-sets.js"
 import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";
+import { ToolArgumentDelivery } from "./tool-argument-delivery.js";
 
 type ChannelContext = ServerAdapterContexts["websocket"];
 const capabilities = [
@@ -95,6 +97,7 @@ export function createConversationProtocolSession(
     if (disposed) return;
     disposed = true;
     unsubscribe();
+    delivery.dispose();
     session.dispose();
     connection.dispose();
     onDispose();
@@ -357,10 +360,30 @@ export function createConversationProtocolSession(
     },
     onError: failed,
   });
+  const notifyDirect = (type: string, data: unknown) =>
+    session.notify({
+      id: createId("evt"),
+      ts: new Date().toISOString(),
+      type,
+      data,
+    });
+  const delivery = new ToolArgumentDelivery({
+    active: (id) => !disposed && session.isStreamActive(conversationStream(id)),
+    notify: (preview) => notifyDirect("conversation.live", preview),
+    flush: () => session.flush(),
+    onError: failed,
+    onOverflow: () => {
+      void connection
+        .close(1013, RESYNC_REQUIRED_CLOSE_REASON)
+        .finally(dispose)
+        .catch(() => undefined);
+    },
+  });
   const notify = (type: string, data: unknown) =>
-    session
-      .notify({ id: createId("evt"), ts: new Date().toISOString(), type, data })
-      .catch(failed);
+    delivery.enqueue(
+      () => notifyDirect(type, data),
+      JSON.stringify(data).length * 2,
+    );
   const unsubscribeCapabilities = state.capabilities.subscribe((change) => {
     if (projects.has(change.projectId))
       void notify("capabilities.changed", change);
@@ -375,12 +398,12 @@ export function createConversationProtocolSession(
       case "event_appended":
         if (activatingStreams.has(conversationStream(change.conversationId)))
           break;
-        void session
-          .publish(
+        delivery.publish(change.conversationId, change.event, () =>
+          session.publish(
             conversationStream(change.conversationId),
             eventEnvelope(change.event),
-          )
-          .catch(failed);
+          ),
+        );
         break;
       case "conversation_changed": {
         const projectId = change.summary.projectId;
@@ -395,15 +418,17 @@ export function createConversationProtocolSession(
       case "conversation_deleted": {
         const projectId = owners.get(change.conversationId);
         owners.delete(change.conversationId);
+        session.removeStream(conversationStream(change.conversationId));
+        delivery.invalidate(change.conversationId);
         if (projectId && projects.has(projectId))
           void notify("conversation.deleted", {
             projectId,
             conversationId: change.conversationId,
           });
-        session.removeStream(conversationStream(change.conversationId));
         break;
       }
       case "head_changed":
+        delivery.invalidate(change.conversationId);
         void notify("conversation.head", {
           conversationId: change.conversationId,
           headEventId: change.headEventId,
@@ -434,6 +459,10 @@ export function createConversationProtocolSession(
         });
         break;
       case "live":
+        if (change.delta.type === "tool_call_arguments") {
+          delivery.snapshot(change.conversationId, change.delta);
+          break;
+        }
         void notify("conversation.live", {
           conversationId: change.conversationId,
           delta: change.delta,
@@ -452,6 +481,7 @@ export function createConversationProtocolSession(
     async shutdown(message = "Daemon shutting down") {
       if (disposed) return;
       unsubscribe();
+      delivery.dispose();
       try {
         await session.shutdown("server_shutdown", message);
         await connection.close(1001, message);

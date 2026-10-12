@@ -11,8 +11,9 @@ import {
   presentToolArguments,
   type ToolArgumentBody,
 } from "../lifecycle/registry";
-import { mergeDraftMeta, specializedDraftBody } from "./tool-draft-body";
+import { mergeDraftMeta, progressDraftBody } from "./tool-draft-body";
 import { COLLAPSED_LINES, SLIDE_OVERSCAN_LINES } from "./tool-view-helpers";
+import { toolArgumentSource } from "../lifecycle/argument-source";
 import type { PrimaryArg } from "../../cards/card-presentation";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
@@ -72,170 +73,8 @@ function lineCount(text: string | undefined): number | undefined {
   return text.split("\n").length;
 }
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function propertyValuePattern(property: string): RegExp {
-  return new RegExp(`"${escapeRegExp(property)}"\\s*:\\s*"`, "g");
-}
-
-function extractJsonStringValues(
-  text: string,
-  property: string,
-  options: { maxChars?: number } = {},
-): string[] {
-  const values: string[] = [];
-  const pattern = propertyValuePattern(property);
-  let match = pattern.exec(text);
-  while (match) {
-    const maxChars = options.maxChars ?? Number.POSITIVE_INFINITY;
-    let value = "";
-    let index = match.index + match[0].length;
-    while (index < text.length) {
-      const char = text[index];
-      if (char === "\\") {
-        if (index + 1 >= text.length) break;
-        const escaped = text[index + 1];
-        if (value.length < maxChars) {
-          if (escaped === "n") value += "\n";
-          else if (escaped === "r") value += "\r";
-          else if (escaped === "t") value += "\t";
-          else value += escaped;
-        }
-        index += 2;
-        continue;
-      }
-      if (char === '"') break;
-      if (value.length < maxChars) value += char;
-      index += 1;
-    }
-    values.push(value);
-    match = pattern.exec(text);
-  }
-  return values;
-}
-
-function lineCountsForJsonStringValues(
-  text: string,
-  property: string,
-): number[] {
-  const counts: number[] = [];
-  const pattern = propertyValuePattern(property);
-  let match = pattern.exec(text);
-  while (match) {
-    let lines = 0;
-    let sawContent = false;
-    let index = match.index + match[0].length;
-    while (index < text.length) {
-      const char = text[index];
-      if (char === "\\") {
-        if (index + 1 >= text.length) break;
-        const escaped = text[index + 1];
-        if (escaped === "n") {
-          lines = Math.max(lines, 1) + 1;
-          sawContent = true;
-        } else if (escaped !== "r") {
-          sawContent = true;
-        }
-        index += 2;
-        continue;
-      }
-      if (char === '"') break;
-      if (char === "\n") {
-        lines = Math.max(lines, 1) + 1;
-      } else if (char !== "\r") {
-        sawContent = true;
-      }
-      index += 1;
-    }
-    counts.push(Math.max(lines, sawContent ? 1 : 0));
-    match = pattern.exec(text);
-  }
-  return counts;
-}
-
-const DRAFT_PREVIEW_MAX_VALUE_CHARS = 24_000;
-
-type JsonStringEntry<Property extends string = string> = {
-  property: Property;
-  value: string;
-  complete: boolean;
-  index: number;
-};
-
-function decodeJsonEscape(char: string): string {
-  if (char === "n") return "\n";
-  if (char === "r") return "\r";
-  if (char === "t") return "\t";
-  return char;
-}
-
-function appendTail(text: string, char: string, maxChars: number): string {
-  if (text.length + char.length <= maxChars) return text + char;
-  return `${text}${char}`.slice(-maxChars);
-}
-
-function propertyAlternationPattern(properties: readonly string[]): RegExp {
-  return new RegExp(
-    `"(${properties.map(escapeRegExp).join("|")})"\\s*:\\s*"`,
-    "g",
-  );
-}
-
-function extractJsonStringEntries<const Property extends string>(
-  text: string,
-  properties: readonly Property[],
-  options: { maxChars?: number } = {},
-): JsonStringEntry<Property>[] {
-  if (properties.length === 0) return [];
-  const values: JsonStringEntry<Property>[] = [];
-  const pattern = propertyAlternationPattern(properties);
-  let match = pattern.exec(text);
-  while (match) {
-    const maxChars = options.maxChars ?? DRAFT_PREVIEW_MAX_VALUE_CHARS;
-    let value = "";
-    let complete = false;
-    let index = match.index + match[0].length;
-    while (index < text.length) {
-      const char = text[index];
-      if (char === "\\") {
-        if (index + 1 >= text.length) break;
-        value = appendTail(value, decodeJsonEscape(text[index + 1]), maxChars);
-        index += 2;
-        continue;
-      }
-      if (char === '"') {
-        complete = true;
-        break;
-      }
-      value = appendTail(value, char, maxChars);
-      index += 1;
-    }
-    values.push({
-      property: match[1] as Property,
-      value,
-      complete,
-      index: match.index,
-    });
-    match = pattern.exec(text);
-  }
-  return values.sort((a, b) => a.index - b.index);
-}
-
 function normalizeLines(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-}
-
-function completedLinePreviewText(
-  text: string,
-  includeTrailingLine: boolean,
-): string {
-  const normalized = normalizeLines(text);
-  if (includeTrailingLine) return normalized;
-  const lastNewline = normalized.lastIndexOf("\n");
-  if (lastNewline < 0) return "";
-  return normalized.slice(0, lastNewline);
 }
 
 // Draft tails stream into collapsed boxes; overscan lines above the window
@@ -271,57 +110,6 @@ function inlineInputPreview(text: string | undefined): {
   };
 }
 
-function previewFromTexts(texts: string[]): string | undefined {
-  const text = texts.filter((part) => part.length > 0).join("\n");
-  return text.length > 0 ? tailLinePreview(text) : undefined;
-}
-
-type DiffPreviewPart = {
-  text: string;
-  kind: "added" | "removed" | "patch";
-  complete: boolean;
-};
-
-function prefixDiffLines(text: string, prefix: "+" | "-"): string {
-  const normalized = normalizeLines(text);
-  if (normalized.length === 0) return "";
-  return normalized
-    .split("\n")
-    .map((line) => `${prefix}${line}`)
-    .join("\n");
-}
-
-function diffPreviewFromParts(
-  parts: DiffPreviewPart[],
-  includeActiveTrailingLine: boolean,
-): string | undefined {
-  const preview = previewFromTexts(
-    parts.map((part) => {
-      const text = completedLinePreviewText(
-        part.text,
-        part.complete || includeActiveTrailingLine,
-      );
-      if (part.kind === "patch") return text;
-      return prefixDiffLines(text, part.kind === "added" ? "+" : "-");
-    }),
-  );
-  return preview;
-}
-
-function previewFromJsonEntries(
-  entries: JsonStringEntry[],
-  includeActiveTrailingLine: boolean,
-): string | undefined {
-  return previewFromTexts(
-    entries.map((entry) =>
-      completedLinePreviewText(
-        entry.value,
-        entry.complete || includeActiveTrailingLine,
-      ),
-    ),
-  );
-}
-
 function firstPathFromDraft(
   draft: ToolDraftBlock,
   cwd?: string,
@@ -330,7 +118,7 @@ function firstPathFromDraft(
   const path =
     stringField(args.path) ??
     draft.progress?.path ??
-    extractJsonStringValues(draft.argsText, "path", { maxChars: 240 })[0];
+    toolArgumentSource(draft).string("path");
   if (path && cwd) return relativePathForDisplay(path, cwd) ?? path;
   return path;
 }
@@ -341,24 +129,16 @@ function summarizeWriteDraft(
 ): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalContent = stringField(args.content);
-  const partialContentLines = draft.argsText
-    ? lineCountsForJsonStringValues(draft.argsText, "content")[0]
-    : undefined;
-  const progressLines =
-    draft.progress?.lineCount ?? draft.progress?.generatedLineCount;
-  const lines = lineCount(finalContent) ?? partialContentLines ?? progressLines;
-  const progressPreview = draft.progress?.generatedPreview
-    ? tailLinePreview(draft.progress.generatedPreview)
-    : undefined;
+  const source = toolArgumentSource(draft);
+  const content = source.string("content");
+  const lines =
+    source.stringMetrics("content")?.lines ??
+    draft.progress?.lineCount ??
+    draft.progress?.generatedLineCount;
   const preview =
-    finalContent !== undefined
-      ? previewFromTexts([normalizeLines(finalContent)])
-      : ((draft.argsText
-          ? previewFromJsonEntries(
-              extractJsonStringEntries(draft.argsText, ["content"] as const),
-              Boolean(draft.done),
-            )
-          : undefined) ?? progressPreview);
+    content === undefined && draft.progress?.generatedPreview
+      ? tailLinePreview(draft.progress.generatedPreview)
+      : undefined;
   const estimated =
     finalContent === undefined && Boolean(draft.progress?.estimated);
   const meta: DraftMetaItem[] = [];
@@ -415,47 +195,6 @@ function finalEditStats(
   };
 }
 
-function finalEditPreview(args: Record<string, unknown>): {
-  preview?: string;
-  previewLanguage?: "diff";
-} {
-  const parts: DiffPreviewPart[] = [];
-
-  for (const edit of arrayField(args.edits)) {
-    const record = asRecord(edit);
-    const oldText = stringField(record.oldText);
-    const newText = stringField(record.newText);
-    if (oldText !== undefined) {
-      parts.push({ text: oldText, kind: "removed", complete: true });
-    }
-    if (newText !== undefined) {
-      parts.push({ text: newText, kind: "added", complete: true });
-    }
-  }
-
-  const preview = diffPreviewFromParts(parts, true);
-  return { preview, previewLanguage: preview ? "diff" : undefined };
-}
-
-function partialEditPreview(
-  argsText: string,
-  done: boolean,
-): { preview?: string; previewLanguage?: "diff" } {
-  const entries = extractJsonStringEntries(argsText, [
-    "oldText",
-    "newText",
-  ] as const);
-  const preview = diffPreviewFromParts(
-    entries.map((entry) => ({
-      text: entry.value,
-      kind: entry.property === "oldText" ? "removed" : "added",
-      complete: entry.complete,
-    })),
-    done,
-  );
-  return { preview, previewLanguage: preview ? "diff" : undefined };
-}
-
 function progressEditStats(draft: ToolDraftBlock): EditDraftStats | undefined {
   const progress = draft.progress;
   if (!progress) return undefined;
@@ -468,13 +207,22 @@ function progressEditStats(draft: ToolDraftBlock): EditDraftStats | undefined {
   };
 }
 
-function partialEditStats(argsText: string): EditDraftStats {
-  const oldTextLines = lineCountsForJsonStringValues(argsText, "oldText");
-  const newTextLines = lineCountsForJsonStringValues(argsText, "newText");
-  const additions = newTextLines.reduce((total, count) => total + count, 0);
-  const deletions = oldTextLines.reduce((total, count) => total + count, 0);
+function partialEditStats(argsText: string): EditDraftStats | undefined {
+  const edits = toolArgumentSource({ argsText }).objectArraySources(
+    "edits",
+    Infinity,
+  );
+  if (!edits.length) return undefined;
+  const additions = edits.reduce(
+    (total, edit) => total + (edit.stringMetrics("newText")?.lines ?? 0),
+    0,
+  );
+  const deletions = edits.reduce(
+    (total, edit) => total + (edit.stringMetrics("oldText")?.lines ?? 0),
+    0,
+  );
   return {
-    operations: Math.max(oldTextLines.length, newTextLines.length),
+    operations: edits.length,
     generatedLines: additions,
     estimatedAdditions: additions,
     estimatedDeletions: deletions,
@@ -499,20 +247,10 @@ function summarizeEditDraft(
       generatedLines: 0,
       estimated: false,
     };
-  const progressPreviewDetails = draft.progress?.generatedPreview
-    ? {
-        preview: tailLinePreview(draft.progress.generatedPreview),
-        previewLanguage: draft.progress.generatedPreviewLanguage,
-      }
-    : {};
-  const partialPreviewDetails = draft.argsText
-    ? partialEditPreview(draft.argsText, Boolean(draft.done))
-    : undefined;
-  const previewDetails = finalStats
-    ? finalEditPreview(args)
-    : partialPreviewDetails?.preview
-      ? partialPreviewDetails
-      : progressPreviewDetails;
+  const preview =
+    !finalStats && !partialStats && draft.progress?.generatedPreview
+      ? tailLinePreview(draft.progress.generatedPreview)
+      : undefined;
   const meta: DraftMetaItem[] = [];
   if (stats.operations > 0)
     meta.push({ text: plural(stats.operations, "operation") });
@@ -534,8 +272,8 @@ function summarizeEditDraft(
     estimatedAdditions: stats.estimatedAdditions,
     estimatedDeletions: stats.estimatedDeletions,
     estimated: stats.estimated,
-    preview: previewDetails.preview,
-    previewLanguage: previewDetails.previewLanguage,
+    preview,
+    previewLanguage: preview ? "diff" : undefined,
     done: Boolean(draft.done),
   };
 }
@@ -543,12 +281,11 @@ function summarizeEditDraft(
 function summarizeBashDraft(draft: ToolDraftBlock): ToolDraftSummary {
   const args = asRecord(draft.args);
   const finalCommand = stringField(args.command);
-  const partialCommand = extractJsonStringEntries(draft.argsText, [
-    "command",
-  ] as const)[0]?.value;
+  const partialCommand = toolArgumentSource(draft).string("command");
   const command = finalCommand ?? partialCommand;
   const input = inlineInputPreview(command);
-  const commandLineCount = lineCount(command);
+  const commandLineCount =
+    toolArgumentSource(draft).stringMetrics("command")?.lines;
   const hasCommand = command !== undefined && command.length > 0;
   const meta: DraftMetaItem[] = [];
   if (commandLineCount !== undefined && commandLineCount > 1) {
@@ -578,12 +315,10 @@ function summarizePythonDraft(
   const args = asRecord(draft.args);
   const path = firstPathFromDraft(draft, cwd);
   const finalCode = stringField(args.code);
-  const partialCode = extractJsonStringEntries(draft.argsText, [
-    "code",
-  ] as const)[0]?.value;
+  const partialCode = toolArgumentSource(draft).string("code");
   const code = finalCode ?? partialCode;
   const input = inlineInputPreview(code);
-  const codeLineCount = lineCount(code);
+  const codeLineCount = toolArgumentSource(draft).stringMetrics("code")?.lines;
   const hasCode = code !== undefined && code.length > 0;
   const hasPath = path !== undefined && path.length > 0;
   const inputMode = hasPath && !hasCode ? "file" : "inline";
@@ -628,7 +363,7 @@ function withLifecyclePresentation(
     "drafting",
     cwd,
   );
-  const specializedBody = specializedDraftBody(summary);
+  const progressBody = progressDraftBody(summary);
   // Unknown historical tools stream raw JSON as their argument body so the
   // card can render one persistent argument section for every tool.
   const fallbackBody =
@@ -636,8 +371,8 @@ function withLifecyclePresentation(
       ? presentation.body
       : !isKnownToolName(toolName)
         ? draftArgsPreviewBody(draft, {
-            maxLines: COLLAPSED_LINES,
-            maxChars: DRAFT_PREVIEW_MAX_VALUE_CHARS,
+            maxLines: COLLAPSED_LINES + SLIDE_OVERSCAN_LINES,
+            maxChars: 24_000,
           })
         : undefined;
   return {
@@ -645,7 +380,7 @@ function withLifecyclePresentation(
     path: summary.path ?? presentation.primaryArg?.text,
     primaryArg: presentation.primaryArg,
     meta: mergeDraftMeta(summary.meta, presentation.secondary),
-    argumentBody: specializedBody ?? fallbackBody ?? presentation.body,
+    argumentBody: fallbackBody ?? progressBody ?? presentation.body,
     safetyNotes: presentation.safetyNotes,
   };
 }

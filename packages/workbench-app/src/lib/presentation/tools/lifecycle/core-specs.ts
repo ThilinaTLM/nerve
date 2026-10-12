@@ -6,7 +6,10 @@ import {
 import type { CoreToolName } from "@nervekit/contracts/tools";
 import type { MetaItem, PrimaryArg } from "../../cards/card-presentation";
 import type { ToolArgumentSource } from "./argument-source";
-import { COLLAPSED_LINES } from "../views/tool-view-helpers";
+import {
+  COLLAPSED_LINES,
+  SLIDE_OVERSCAN_LINES,
+} from "../views/tool-view-helpers";
 import { krokiConversion } from "../views/kroki-result-view";
 import {
   argumentPresentation,
@@ -17,22 +20,23 @@ import {
 
 const BODY_LINES = COLLAPSED_LINES;
 const BODY_CHARS = 6_000;
+const DRAFT_BODY_CHARS = 24_000;
 
 function plural(count: number, noun: string, suffix = "s"): string {
   return `${count} ${noun}${count === 1 ? "" : suffix}`;
 }
 
-function boundedText(text: string | undefined): string | undefined {
+function boundedText(
+  text: string | undefined,
+  draft = false,
+): string | undefined {
   if (!text) return undefined;
-  const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const lines = normalized.split("\n");
-  const lineBounded =
-    lines.length > BODY_LINES
-      ? lines.slice(-BODY_LINES).join("\n")
-      : normalized;
-  return lineBounded.length > BODY_CHARS
-    ? lineBounded.slice(-BODY_CHARS)
-    : lineBounded;
+  const normalized = text.replace(/\r\n?/g, "\n");
+  const suffix = normalized.slice(-(draft ? DRAFT_BODY_CHARS : BODY_CHARS));
+  const lines = suffix.split("\n");
+  const maxLines = BODY_LINES + (draft ? SLIDE_OVERSCAN_LINES : 0);
+  const bounded = lines.slice(-maxLines).join("\n");
+  return /^[\udc00-\udfff]/.test(bounded) ? bounded.slice(1) : bounded;
 }
 
 /** Leading lines: a diagram's first line names its type and direction. */
@@ -86,9 +90,16 @@ function urlArg(url: string | undefined): PrimaryArg | undefined {
 function codeBody(
   text: string | undefined,
   language: "bash" | "python" | "text",
-  options: { force?: boolean; label?: string; head?: boolean } = {},
+  options: {
+    force?: boolean;
+    label?: string;
+    head?: boolean;
+    draft?: boolean;
+  } = {},
 ): ToolArgumentBody {
-  const bounded = options.head ? boundedHead(text) : boundedText(text);
+  const bounded = options.head
+    ? boundedHead(text)
+    : boundedText(text, options.draft);
   if (!bounded || (!options.force && !bounded.includes("\n")))
     return { kind: "none" };
   return {
@@ -113,28 +124,22 @@ function keyValues(
     : { kind: "none" };
 }
 
-function editDiffLines(source: ToolArgumentSource): string[] {
-  const lines: string[] = [];
-  const prefix = (value: unknown, marker: "+" | "-") => {
-    if (typeof value !== "string" || !value) return;
-    for (const line of value.replace(/\r\n/g, "\n").split("\n"))
-      lines.push(`${marker}${line}`);
+function editDiff(
+  source: ToolArgumentSource,
+  draft: boolean,
+): string | undefined {
+  let tail: string | undefined;
+  const prefix = (value: string | undefined, marker: "+" | "-") => {
+    if (!value) return;
+    const lines = boundedText(value, draft)!.split("\n");
+    const part = lines.map((line) => `${marker}${line}`).join("\n");
+    tail = boundedText(tail ? `${tail}\n${part}` : part, draft);
   };
-  for (const edit of source.recordsArray("edits") ?? []) {
-    prefix(edit.oldText, "-");
-    prefix(edit.newText, "+");
+  for (const edit of source.objectArraySources("edits", Infinity)) {
+    prefix(edit.string("oldText"), "-");
+    prefix(edit.string("newText"), "+");
   }
-  if (lines.length === 0) {
-    const oldText = source.nestedStrings("oldText");
-    const newText = source.nestedStrings("newText");
-    oldText.forEach((value) => prefix(value, "-"));
-    newText.forEach((value) => prefix(value, "+"));
-  }
-  return lines;
-}
-
-function editDiff(source: ToolArgumentSource): string | undefined {
-  return boundedText(editDiffLines(source).join("\n"));
+  return tail;
 }
 
 function editStats(source: ToolArgumentSource): {
@@ -142,12 +147,13 @@ function editStats(source: ToolArgumentSource): {
   additions: number;
   deletions: number;
 } {
-  const operations = source.count("edits") ?? 0;
+  const edits = source.objectArraySources("edits", Infinity);
+  const operations = edits.length;
   let additions = 0;
   let deletions = 0;
-  for (const line of editDiffLines(source)) {
-    if (line.startsWith("+") && !line.startsWith("+++")) additions += 1;
-    if (line.startsWith("-") && !line.startsWith("---")) deletions += 1;
+  for (const edit of edits) {
+    additions += edit.stringMetrics("newText")?.lines ?? 0;
+    deletions += edit.stringMetrics("oldText")?.lines ?? 0;
   }
   return { operations, additions, deletions };
 }
@@ -193,9 +199,12 @@ function readPresentation(
   });
 }
 
-function bashPresentation(source: ToolArgumentSource) {
+function bashPresentation(
+  source: ToolArgumentSource,
+  stage: ToolLifecycleStage,
+) {
   const command = source.string("command");
-  const commandLines = lineCount(command) ?? 0;
+  const commandLines = source.stringMetrics("command")?.lines ?? 0;
   const cwd = source.string("cwd");
   const timeout = source.number("timeout");
   return argumentPresentation({
@@ -209,7 +218,8 @@ function bashPresentation(source: ToolArgumentSource) {
     ],
     // Stage-independent so the block never appears/disappears mid-lifecycle.
     body: codeBody(command, "bash", {
-      force: (command?.length ?? 0) > 500,
+      force: (command?.length ?? 0) > 500 || commandLines > 1,
+      draft: stage === "drafting",
       label: "Command",
     }),
     safetyNotes: [
@@ -220,12 +230,12 @@ function bashPresentation(source: ToolArgumentSource) {
 
 function pythonPresentation(
   source: ToolArgumentSource,
-  _stage: ToolLifecycleStage,
+  stage: ToolLifecycleStage,
   cwd?: string,
 ) {
   const scriptPath = source.string("path");
   const code = source.string("code");
-  const codeLines = lineCount(code) ?? 0;
+  const codeLines = source.stringMetrics("code")?.lines ?? 0;
   const envKeys = source.objectKeys("env");
   const secondary: MetaItem[] = [];
   const runCwd = source.string("cwd");
@@ -241,7 +251,8 @@ function pythonPresentation(
   // Stage-independent so the block never appears/disappears mid-lifecycle.
   // Env-key details surface via safety notes on the approval prompt instead.
   const body = codeBody(code, "python", {
-    force: (code?.length ?? 0) > 500,
+    force: (code?.length ?? 0) > 500 || codeLines > 1,
+    draft: stage === "drafting",
     label: "Python",
   });
   return argumentPresentation({
@@ -270,10 +281,7 @@ function writePresentation(
   cwd?: string,
 ) {
   const content = source.string("content");
-  const bytes =
-    content === undefined
-      ? undefined
-      : new TextEncoder().encode(content).length;
+  const bytes = source.stringMetrics("content")?.bytes;
   return argumentPresentation({
     primaryArg: pathArg(source, cwd),
     secondary: [
@@ -283,7 +291,7 @@ function writePresentation(
       stage !== "failed" && content
         ? {
             kind: "code",
-            text: boundedText(content)!,
+            text: boundedText(content, stage === "drafting")!,
             language: "text",
             tail: true,
           }
@@ -298,7 +306,7 @@ function editPresentation(
   cwd?: string,
 ) {
   const stats = editStats(source);
-  const diff = editDiff(source);
+  const diff = editDiff(source, stage === "drafting");
   const secondary: MetaItem[] = [];
   if (stats.operations > 0)
     secondary.push({ text: plural(stats.operations, "operation") });

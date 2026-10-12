@@ -24,6 +24,8 @@ export interface LiveAssistantBlock {
   toolCall?: { providerCallId: string; name: string; partialArgsText: string };
 }
 
+import { LiveTurnGuard } from "./live-turn-guard";
+
 const HISTORY_PAGE_SIZE = 100;
 
 /** One store serves a full pane or a read-only child peek. */
@@ -41,6 +43,7 @@ export class ConversationStore {
   error = $state<string>();
   deleted = $state(false);
   private disposed = false;
+  private readonly liveTurns = new LiveTurnGuard();
   private refreshing: Promise<void> | undefined;
   private historyRefresh: Promise<void> | undefined;
   private historyDirty = false;
@@ -150,6 +153,13 @@ export class ConversationStore {
       ].sort((a, b) => a.sequence - b.sequence);
     this.hasOlder = events.length > 0;
     await this.loadAllHistory();
+    this.liveTurns.recover(
+      this.events.flatMap((event) =>
+        event.type === "assistant_message" && event.turnId
+          ? [event.turnId]
+          : [],
+      ),
+    );
     this.connected = true;
     this.deleted = false;
     installConversationReplaySequence(
@@ -173,10 +183,12 @@ export class ConversationStore {
       snapshot.conversation.headEventId = event.id;
     }
     snapshot.lastSequence = Math.max(snapshot.lastSequence, event.sequence);
-    if (event.type === "assistant_message")
+    if (event.type === "assistant_message") {
+      if (event.turnId) this.liveTurns.finalize(event.turnId);
       this.liveBlocks = this.liveBlocks.filter(
         (block) => block.turnId !== event.turnId,
       );
+    }
     if (event.type === "tool_call_response") {
       snapshot.toolCalls = snapshot.toolCalls.filter(
         (call) => call.id !== event.payload.toolCallId,
@@ -193,8 +205,10 @@ export class ConversationStore {
       ["completed", "failed", "cancelled", "interrupted"].includes(
         event.payload.transition,
       )
-    )
+    ) {
+      this.liveTurns.finalizeActive();
       this.clearLive();
+    }
   }
 
   private applyNotice(notice: ConversationNotice): void {
@@ -226,6 +240,7 @@ export class ConversationStore {
           snapshot.conversation.headEventId !== notice.data.headEventId
         ) {
           snapshot.conversation.headEventId = notice.data.headEventId;
+          this.liveTurns.finalizeActive();
           this.clearLive();
           void this.refreshHistory().catch((error) => {
             this.error = errorMessage(error);
@@ -267,6 +282,14 @@ export class ConversationStore {
         (this.toolOutput[delta.toolCallId] ?? "") + delta.update.chunk;
       return;
     }
+    if (
+      this.disposed ||
+      this.deleted ||
+      !this.snapshot ||
+      !["running", "waiting"].includes(this.snapshot.conversation.status) ||
+      !this.liveTurns.accept(delta.turnId)
+    )
+      return;
     let block = this.liveBlocks.find(
       (item) =>
         item.turnId === delta.turnId &&

@@ -9,11 +9,11 @@ const MAX_FALLBACK_VALUE_CHARS = 240;
 
 export type ToolArgumentSourceInput = {
   /** Exact, final arguments (preferred whenever available). */
-  args?: unknown;
+  readonly args?: unknown;
   /** Incrementally streamed JSON text. */
-  argsText?: string;
+  readonly argsText?: string;
   /** Bounded durable transcript arguments used for recovery. */
-  argsPreview?: unknown;
+  readonly argsPreview?: unknown;
 };
 
 export type RedactedStructuredEntry = {
@@ -37,45 +37,108 @@ function parseRecord(value: unknown): Record<string, unknown> {
   }
 }
 
-function decodeJsonString(text: string): string {
-  try {
-    return JSON.parse(`"${text}"`) as string;
-  } catch {
-    return text
-      .replaceAll("\\n", "\n")
-      .replaceAll("\\r", "\r")
-      .replaceAll("\\t", "\t")
-      .replace(/\\(["\\/])/g, "$1");
+type StringMetrics = { lines: number; bytes: number };
+
+/** Decode only complete escape/code-point units; keep a bounded suffix. */
+function decodePartialString(text: string): { value: string } & StringMetrics {
+  let value = "";
+  let lines = 0;
+  let bytes = 0;
+  for (let index = 0; index < text.length;) {
+    let unit = text[index++];
+    if (unit === "\\") {
+      const escaped = text[index++];
+      if (escaped === undefined) break;
+      if (escaped === "u") {
+        const hex = text.slice(index, index + 4);
+        if (!/^[0-9a-f]{4}$/i.test(hex)) break;
+        unit = String.fromCharCode(parseInt(hex, 16));
+        index += 4;
+      } else {
+        const escapes: Record<string, string> = {
+          n: "\n",
+          r: "\r",
+          t: "\t",
+          b: "\b",
+          f: "\f",
+          '"': '"',
+          "\\": "\\",
+          "/": "/",
+        };
+        if (!(escaped in escapes)) break;
+        unit = escapes[escaped];
+      }
+    }
+    const code = unit.charCodeAt(0);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      let low: string;
+      if (text.slice(index, index + 2) === "\\u") {
+        const hex = text.slice(index + 2, index + 6);
+        if (!/^[0-9a-f]{4}$/i.test(hex)) break;
+        low = String.fromCharCode(parseInt(hex, 16));
+        if (low.charCodeAt(0) < 0xdc00 || low.charCodeAt(0) > 0xdfff) break;
+        index += 6;
+      } else {
+        low = text[index] ?? "";
+        if (!low || low.charCodeAt(0) < 0xdc00 || low.charCodeAt(0) > 0xdfff)
+          break;
+        index += 1;
+      }
+      unit += low;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      continue;
+    }
+    lines = Math.max(lines, 1) + (unit === "\n" ? 1 : 0);
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : unit.length === 2 ? 4 : 3;
+    value += unit;
+    if (value.length > MAX_PARTIAL_VALUE_CHARS * 2) {
+      value = value.slice(-MAX_PARTIAL_VALUE_CHARS);
+      if (/^[\udc00-\udfff]/.test(value)) value = value.slice(1);
+    }
   }
+  value = value.slice(-MAX_PARTIAL_VALUE_CHARS);
+  if (/^[\udc00-\udfff]/.test(value)) value = value.slice(1);
+  return { value, lines, bytes };
+}
+
+function decodeJsonString(text: string): string {
+  return decodePartialString(text).value;
 }
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function partialStringValues(text: string, key: string): string[] {
-  const values: string[] = [];
+function partialStrings(
+  text: string,
+  key: string,
+): Array<{ value: string } & StringMetrics> {
+  const values: Array<{ value: string } & StringMetrics> = [];
   const pattern = new RegExp(`"${escapeRegExp(key)}"\\s*:\\s*"`, "g");
   let match = pattern.exec(text);
   while (match) {
-    let raw = "";
+    const start = match.index + match[0].length;
     let escaped = false;
     let index = match.index + match[0].length;
-    while (index < text.length && raw.length < MAX_PARTIAL_VALUE_CHARS) {
+    while (index < text.length) {
       const char = text[index];
       if (!escaped && char === '"') break;
-      raw += char;
       if (escaped) escaped = false;
       else if (char === "\\") escaped = true;
       index += 1;
     }
-    values.push(decodeJsonString(raw));
+    values.push(decodePartialString(text.slice(start, index)));
+    pattern.lastIndex = index + 1;
     match = pattern.exec(text);
   }
   return values;
 }
 
-function objectArrayFragments(text: string, key: string): string[] {
+function objectArrayFragments(
+  text: string,
+  key: string,
+  limit: number,
+): string[] {
   let arrayStart = -1;
   let inString = false;
   let escaped = false;
@@ -143,24 +206,14 @@ function objectArrayFragments(text: string, key: string): string[] {
     if (char === "}" && objectStart >= 0) {
       objectDepth -= 1;
       if (objectDepth === 0) {
-        fragments.push(
-          text.slice(
-            objectStart,
-            Math.min(index + 1, objectStart + MAX_PARTIAL_VALUE_CHARS),
-          ),
-        );
+        fragments.push(text.slice(objectStart, index + 1));
         objectStart = -1;
-        if (fragments.length >= MAX_FALLBACK_ITEMS) break;
+        if (fragments.length >= limit) break;
       }
     }
   }
-  if (objectStart >= 0 && fragments.length < MAX_FALLBACK_ITEMS) {
-    fragments.push(
-      text.slice(
-        objectStart,
-        Math.min(text.length, objectStart + MAX_PARTIAL_VALUE_CHARS),
-      ),
-    );
+  if (objectStart >= 0 && fragments.length < limit) {
+    fragments.push(text.slice(objectStart, text.length));
   }
   return fragments;
 }
@@ -168,8 +221,8 @@ function objectArrayFragments(text: string, key: string): string[] {
 function partialScalar(
   text: string,
   key: string,
+  stringValue: string | undefined,
 ): string | boolean | number | undefined {
-  const stringValue = partialStringValues(text, key)[0];
   if (stringValue !== undefined) return stringValue;
   const match = text.match(
     new RegExp(
@@ -221,7 +274,12 @@ export function redactStructuredValue(key: string, value: unknown): string {
 
 export class ToolArgumentSource {
   readonly argsText: string;
-  private readonly records: Record<string, unknown>[];
+  private readonly records: readonly Record<string, unknown>[];
+  // Partial decoding depends only on argsText, captured immutably at construction.
+  private readonly partialStringsCache = new Map<
+    string,
+    ReturnType<typeof partialStrings>
+  >();
 
   constructor(input: ToolArgumentSourceInput = {}) {
     this.argsText = input.argsText ?? "";
@@ -233,16 +291,43 @@ export class ToolArgumentSource {
     );
   }
 
+  private partialStrings(key: string): ReturnType<typeof partialStrings> {
+    let entries = this.partialStringsCache.get(key);
+    if (entries === undefined) {
+      entries = partialStrings(this.argsText, key);
+      this.partialStringsCache.set(key, entries);
+    }
+    return entries;
+  }
+
   value(key: string): unknown {
     for (const record of this.records) {
       if (Object.hasOwn(record, key)) return record[key];
     }
-    return partialScalar(this.argsText, key);
+    return partialScalar(
+      this.argsText,
+      key,
+      this.partialStrings(key)[0]?.value,
+    );
   }
 
   string(key: string): string | undefined {
     const value = this.value(key);
     return typeof value === "string" ? value : undefined;
+  }
+
+  stringMetrics(key: string): StringMetrics | undefined {
+    for (const record of this.records) {
+      if (!Object.hasOwn(record, key)) continue;
+      const value = record[key];
+      if (typeof value !== "string") return undefined;
+      return {
+        lines: value.length === 0 ? 0 : value.split("\n").length,
+        bytes: new TextEncoder().encode(value).length,
+      };
+    }
+    const partial = this.partialStrings(key)[0];
+    return partial && { lines: partial.lines, bytes: partial.bytes };
   }
 
   strings(key: string): string[] | undefined {
@@ -253,7 +338,7 @@ export class ToolArgumentSource {
       );
       return strings.length > 0 ? strings : value.length === 0 ? [] : undefined;
     }
-    const partial = partialStringValues(this.argsText, key);
+    const partial = this.partialStrings(key).map((entry) => entry.value);
     return partial.length > 0 ? partial : undefined;
   }
 
@@ -283,19 +368,22 @@ export class ToolArgumentSource {
   }
 
   /** Object-array entries from exact arguments or an incomplete streamed array. */
-  objectArraySources(key: string): ToolArgumentSource[] {
+  objectArraySources(
+    key: string,
+    limit = MAX_FALLBACK_ITEMS,
+  ): ToolArgumentSource[] {
     for (const record of this.records) {
       if (!Object.hasOwn(record, key)) continue;
       const value = record[key];
       if (!Array.isArray(value)) return [];
-      return value.slice(0, MAX_FALLBACK_ITEMS).map(
+      return value.slice(0, limit).map(
         (entry) =>
           new ToolArgumentSource({
             args: asRecord(entry),
           }),
       );
     }
-    return objectArrayFragments(this.argsText, key).map(
+    return objectArrayFragments(this.argsText, key, limit).map(
       (fragment) => new ToolArgumentSource({ argsText: fragment }),
     );
   }
@@ -342,7 +430,9 @@ export class ToolArgumentSource {
       }
     };
     for (const record of this.records) visit(record);
-    return exact.length > 0 ? exact : partialStringValues(this.argsText, key);
+    return exact.length > 0
+      ? exact
+      : this.partialStrings(key).map((entry) => entry.value);
   }
 
   structuredEntries(limit = MAX_FALLBACK_ITEMS): RedactedStructuredEntry[] {
@@ -368,7 +458,11 @@ export class ToolArgumentSource {
       (match) => match[1],
     );
     return [...new Set(keys)].slice(0, limit).map((key) => {
-      const value = partialScalar(this.argsText, key);
+      const value = partialScalar(
+        this.argsText,
+        key,
+        this.partialStrings(key)[0]?.value,
+      );
       const formatted = redactStructuredValue(key, value);
       return { key, value: formatted, redacted: formatted === "[redacted]" };
     });
