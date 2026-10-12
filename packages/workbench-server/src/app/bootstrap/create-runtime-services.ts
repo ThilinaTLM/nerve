@@ -3,6 +3,10 @@ import {
   PromptSuggestionTrustRepository,
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
+import {
+  SubagentEnablementService,
+  SubagentProfileService,
+} from "../../domains/subagents/index.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -69,10 +73,12 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     core: conversationCore,
     storage: coreStorage,
     capabilities,
-  } = createConversationCore(deps, {
-    launches,
-    definitions: launchDefinitions,
-  });
+    harness,
+  } = createConversationCore(
+    deps,
+    { launches, definitions: launchDefinitions },
+    () => subagentProfiles,
+  );
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -125,11 +131,25 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       })),
     getConversation: (id) => conversationCore.getSnapshot(id),
   });
+  const subagentProfiles = new SubagentProfileService({
+    userDir: storage.paths.subagentsPath,
+    enablement: new SubagentEnablementService(
+      storage.paths.subagentsConfigPath,
+    ),
+    trust: conversationCore.trust,
+    events,
+    getProject: (id) => {
+      const project = getProject(id);
+      return { id: project.id, directory: project.directory };
+    },
+  });
   return {
+    subagentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,
     conversationCore,
     capabilities,
+    harness,
     coreStorage,
     launches,
     launchDefinitions,

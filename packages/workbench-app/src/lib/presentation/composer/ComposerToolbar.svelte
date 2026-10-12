@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
@@ -29,6 +30,7 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
+import type { ConversationSessionInfo } from "./session-info";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
@@ -38,6 +40,10 @@ import type { CapabilitySkillRow } from "./capability-skill-row";
 type Props = {
   controlsDisabled: boolean;
   modeDisabled: boolean;
+  /** Conversations without plan mode drop the toggle entirely. */
+  modeHidden?: boolean;
+  session?: ConversationSessionInfo;
+  thisConversation?: Snippet;
   modelDisabled: boolean;
   /** Display label for the mode tab, e.g. "Coding" / "Planning". */
   modeLabel: string;
@@ -86,6 +92,9 @@ type Props = {
 let {
   controlsDisabled,
   modeDisabled,
+  modeHidden = false,
+  session,
+  thisConversation,
   modelDisabled,
   modeLabel,
   modePlanning,
@@ -176,29 +185,31 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   class="pointer-events-none absolute inset-x-2.5 top-0 z-4 flex -translate-y-1/2 items-center gap-1 [&>*]:pointer-events-auto"
   data-tour-id="composer-controls"
 >
-  <button
-    type="button"
-    class="composer-tab mode-tab max-sm:w-7.5 max-sm:p-0"
-    disabled={modeDisabled}
-    title={modeShortcut
-      ? `Mode: ${modeLabel} (${modeShortcut})`
-      : `Mode: ${modeLabel} (click to switch)`}
-    aria-keyshortcuts={modeShortcutAria}
-    data-tour-id="composer-mode"
-    onclick={() => onToggleMode?.()}
-  >
-    <span
-      class="hidden items-center justify-center max-sm:inline-flex"
-      aria-hidden="true"
+  {#if !modeHidden}
+    <button
+      type="button"
+      class="composer-tab mode-tab max-sm:w-7.5 max-sm:p-0"
+      disabled={modeDisabled}
+      title={modeShortcut
+        ? `Mode: ${modeLabel} (${modeShortcut})`
+        : `Mode: ${modeLabel} (click to switch)`}
+      aria-keyshortcuts={modeShortcutAria}
+      data-tour-id="composer-mode"
+      onclick={() => onToggleMode?.()}
     >
-      {#if modePlanning}
-        <ClipboardList size={13} strokeWidth={2.2} />
-      {:else}
-        <Code2 size={13} strokeWidth={2.2} />
-      {/if}
-    </span>
-    <span class="max-sm:hidden">{modeLabel}</span>
-  </button>
+      <span
+        class="hidden items-center justify-center max-sm:inline-flex"
+        aria-hidden="true"
+      >
+        {#if modePlanning}
+          <ClipboardList size={13} strokeWidth={2.2} />
+        {:else}
+          <Code2 size={13} strokeWidth={2.2} />
+        {/if}
+      </span>
+      <span class="max-sm:hidden">{modeLabel}</span>
+    </button>
+  {/if}
 
   <Popover
     bind:open={permissionOpen}
@@ -290,6 +301,8 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     <TodoProgressChip {todos} />
 
     <ContextProgressBadge
+      {session}
+      {thisConversation}
       {contextUsage}
       {conversationUsage}
       {contextWindow}

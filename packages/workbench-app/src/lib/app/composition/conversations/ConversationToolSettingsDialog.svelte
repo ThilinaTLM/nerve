@@ -14,7 +14,6 @@ import { capabilityToolState } from "$lib/presentation/composer/capability-origi
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import { atlassianHealthBadge } from "$lib/presentation/integrations/atlassian-health";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import AsyncSubagentToolDialog from "$lib/features/settings/views/pages/tools/AsyncSubagentToolDialog.svelte";
 import ImageGenerationToolDialog from "$lib/features/settings/views/pages/tools/ImageGenerationToolDialog.svelte";
 import KrokiToolDialog from "$lib/features/settings/views/pages/tools/KrokiToolDialog.svelte";
 import ToolModelDialog from "$lib/features/settings/views/pages/tools/ToolModelDialog.svelte";
@@ -115,23 +114,6 @@ function profileStatus(profileId: string) {
       onSave={(profileId) =>
         onPatch({ tools: { [tool]: { profileId: profileId ?? null } } })}
     />
-  {:else if toolState.settingsTool === "explore"}
-    <ToolModelDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      label="Explore model"
-      models={usableModels}
-      selectedModel={toolSettings.explore.model}
-      selectedThinkingLevel={toolSettings.explore.thinkingLevel}
-      inheritOption={{
-        label: "Parent agent's model",
-        description:
-          "Explore agents run on the model of the agent that started them.",
-      }}
-      onSave={(selection) =>
-        onPatch(modelToolSettingsPatch("explore", selection))}
-    />
   {:else if toolState.settingsTool === "explain_image"}
     <ToolModelDialog
       bind:open
@@ -161,16 +143,6 @@ function profileStatus(profileId: string) {
       description={scopeNote}
       value={toolSettings.kroki_export}
       onSave={(value) => onPatch({ toolSettings: { kroki_export: value } })}
-    />
-  {:else if toolState.settingsTool === "subagents"}
-    <AsyncSubagentToolDialog
-      bind:open
-      {title}
-      description={scopeNote}
-      value={toolSettings.subagents}
-      models={settingsState.models}
-      authProviders={settingsState.authProviders}
-      onSave={(value) => onPatch({ toolSettings: { subagents: value } })}
     />
   {/if}
 {/if}

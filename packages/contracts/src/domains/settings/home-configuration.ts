@@ -1,7 +1,7 @@
 import {
-  asyncSubagentToolNames,
-  normalizeAsyncSubagentTools,
-} from "../tools/async-subagents.js";
+  disabledToolListSchema,
+  subagentToolNames,
+} from "../tools/subagent-tools.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import {
@@ -19,10 +19,7 @@ import {
   providerCompatSchema,
   providerIdSchema,
 } from "../providers/providers.js";
-import { userConfigurableToolNameSchema } from "../tools/tool-name.js";
 import {
-  asyncSubagentSettingsSchema,
-  defaultAsyncSubagentSettings,
   colorModeSchema,
   colorThemeSchema,
   compactionProfileSchema,
@@ -158,13 +155,6 @@ export const harnessConfigSchema = z
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
     lastSelection: agentSelectionConfigSchema,
-    exploreAgent: z
-      .object({
-        model: modelSelectionSchema.optional(),
-        thinkingLevel: thinkingLevelSchema,
-      })
-      .strict(),
-    asyncSubagent: asyncSubagentSettingsSchema.strict(),
     compaction: z
       .object({
         auto: z.boolean(),
@@ -188,7 +178,7 @@ export const harnessConfigSchema = z
       .strict(),
     tools: z
       .object({
-        disabled: z.array(userConfigurableToolNameSchema),
+        disabled: disabledToolListSchema,
         bash: z
           .object({
             maxTimeoutMs: z
@@ -229,14 +219,7 @@ export const harnessConfigSchema = z
       .strict(),
     scopedModels: z.array(modelSelectionSchema),
   })
-  .strict()
-  .transform((value) => ({
-    ...value,
-    tools: {
-      ...value.tools,
-      disabled: normalizeAsyncSubagentTools(value.tools.disabled),
-    },
-  }));
+  .strict();
 export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 
 export const defaultHarnessConfig: HarnessConfig = {
@@ -254,8 +237,6 @@ export const defaultHarnessConfig: HarnessConfig = {
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
-  exploreAgent: { thinkingLevel: "off" },
-  asyncSubagent: defaultAsyncSubagentSettings,
   compaction: {
     auto: true,
     profile: "balanced",
@@ -269,7 +250,7 @@ export const defaultHarnessConfig: HarnessConfig = {
       "explain_image",
       "generate_image",
       "kroki_export",
-      ...asyncSubagentToolNames,
+      ...subagentToolNames,
     ],
     bash: {
       autoPromotion: { enabled: true, afterMs: 120_000 },

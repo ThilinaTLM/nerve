@@ -7,6 +7,7 @@ import type {
 } from "$lib/api";
 import { SettingsList, SettingsSection } from "$lib/presentation/settings";
 import type { SettingsChange } from "../settings-change";
+import SubagentsLinkRow from "./SubagentsLinkRow.svelte";
 import ToolCatalogSection from "./ToolCatalogSection.svelte";
 import ThirdPartyProviderToolsSection from "./ThirdPartyProviderToolsSection.svelte";
 
@@ -37,6 +38,7 @@ let {
       {onSettingsChange}
       category="core"
     />
+    <SubagentsLinkRow />
   </SettingsList>
 </SettingsSection>
 

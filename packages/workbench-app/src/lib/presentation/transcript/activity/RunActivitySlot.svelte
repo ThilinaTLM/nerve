@@ -4,12 +4,27 @@
  * Everything shown is derived from run state by `deriveRunActivity`; this
  * component only renders it. */
 import Check from "@lucide/svelte/icons/check";
+import Hourglass from "@lucide/svelte/icons/hourglass";
 import Square from "@lucide/svelte/icons/square";
+import Terminal from "@lucide/svelte/icons/terminal";
+import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cubicOut } from "svelte/easing";
 import { prefersReducedMotion } from "svelte/motion";
-import type { RunActivityView } from "./run-activity";
+import type { PendingWorkItem, RunActivityView } from "./run-activity";
 
-let { view }: { view: RunActivityView } = $props();
+let {
+  view,
+  onOpenPending,
+}: {
+  view: RunActivityView;
+  /** Opens the agents popover; sub-agent chips may navigate to the agent. */
+  onOpenPending?: (item: PendingWorkItem) => void;
+} = $props();
+
+/** Chips beyond this collapse into a "+N" overflow chip. */
+const MAX_CHIPS = 4;
+const chips = $derived((view.pending ?? []).slice(0, MAX_CHIPS));
+const overflow = $derived(Math.max(0, (view.pending?.length ?? 0) - MAX_CHIPS));
 
 const RING_RADIUS = 6.5;
 const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
@@ -121,7 +136,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
             </linearGradient>
           </defs>
           <g
-            class="transition-opacity duration-200 group-data-[kind=done]:opacity-0 group-data-[kind=retry]:opacity-0 group-data-[kind=stopped]:opacity-0"
+            class="transition-opacity duration-200 group-data-[kind=done]:opacity-0 group-data-[kind=retry]:opacity-0 group-data-[kind=stopped]:opacity-0 group-data-[kind=waiting]:opacity-0"
           >
             <circle
               cx="8"
@@ -175,6 +190,9 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
         <Square
           class="absolute inset-0 size-full scale-50 fill-current p-0.5 opacity-0 transition-[opacity,scale] duration-300 ease-out group-data-[kind=stopped]:scale-100 group-data-[kind=stopped]:opacity-100"
         />
+        <Hourglass
+          class="absolute inset-0 size-full text-warning opacity-0 transition-opacity duration-300 group-data-[kind=waiting]:opacity-100"
+        />
       </span>
 
       <span
@@ -194,6 +212,39 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           {/if}
         {/key}
       </span>
+
+      {#if view.kind === "waiting"}
+        <span class="flex min-w-0 items-center gap-1 overflow-hidden">
+          {#each chips as item (item.kind + item.id)}
+            <button
+              type="button"
+              class="inline-flex h-5 max-w-48 flex-none cursor-pointer items-center gap-1 rounded-md border border-border bg-muted px-1.5 text-xs text-foreground transition-colors hover:bg-accent"
+              title={item.kind === "agent"
+                ? `Open ${item.label}`
+                : `Background command: ${item.label}`}
+              onclick={() => onOpenPending?.(item)}
+            >
+              {#if item.kind === "agent"}
+                <StatusDot tone="info" size="xs" pulse />
+                <span class="truncate">{item.label}</span>
+              {:else}
+                <Terminal class="size-3 flex-none text-muted-foreground" />
+                <span class="truncate font-mono">{item.label}</span>
+              {/if}
+            </button>
+          {/each}
+          {#if overflow > 0}
+            <button
+              type="button"
+              class="inline-flex h-5 flex-none cursor-pointer items-center rounded-md border border-border bg-muted px-1.5 text-xs text-muted-foreground hover:bg-accent"
+              onclick={() => {
+                const hidden = view.pending?.[MAX_CHIPS];
+                if (hidden) onOpenPending?.(hidden);
+              }}>+{overflow}</button
+            >
+          {/if}
+        </span>
+      {/if}
 
       <span
         class={[

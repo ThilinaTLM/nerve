@@ -2,9 +2,8 @@ import type {
   ConversationRecord,
   ProjectRecord,
 } from "$lib/presentation/view-models/conversation";
+import type { SessionField } from "$lib/presentation/composer/session-info";
 import type { StatusResponse } from "@nervekit/contracts/status";
-
-export type SessionField = { label: string; value?: string; mono?: boolean };
 
 export type SessionFieldsInput = {
   status?: StatusResponse;
@@ -12,27 +11,16 @@ export type SessionFieldsInput = {
   activeConversation?: ConversationRecord;
 };
 
-const PERMISSION_RULE_SET_LABELS: Record<string, string> = {
-  baseline: "Baseline",
-  read_only: "Read only",
-  supervised: "Supervised",
-  autonomous: "Autonomous",
-  planning: "Planning",
-};
-
-export function permissionRuleSetLabel(ruleSetId: string): string {
-  return PERMISSION_RULE_SET_LABELS[ruleSetId] ?? ruleSetId;
+/** The conversation's own directory under the daemon's data directory. */
+export function conversationDataPath(
+  dataDir: string | undefined,
+  conversationId: string | undefined,
+): string | undefined {
+  if (!dataDir || !conversationId) return undefined;
+  return `${dataDir.replace(/[\\/]+$/, "")}/conversations/${conversationId}`;
 }
 
-export function shortAgentId(id: string): string {
-  const parts = id.split("_");
-  return parts.length > 1 ? (parts.at(-1) ?? id) : id.slice(-6);
-}
-
-/**
- * Session-scoped rows only. Agent details (model, mode, permission, thinking)
- * live on the agent rows below, so nothing is stated twice.
- */
+/** Session rows for the composer's context popover. */
 export function sessionFields({
   status,
   activeProject,
@@ -43,12 +31,10 @@ export function sessionFields({
     { label: "Directory", value: activeProject?.dir, mono: true },
     { label: "Conversation", value: activeConversation?.id, mono: true },
     { label: "Daemon", value: status?.daemonId, mono: true },
-    { label: "Data", value: status?.dataDir, mono: true },
+    {
+      label: "Data",
+      value: conversationDataPath(status?.dataDir, activeConversation?.id),
+      mono: true,
+    },
   ];
-}
-
-export function sessionFieldsText(fields: readonly SessionField[]): string {
-  return fields
-    .map((field) => `${field.label}: ${field.value ?? "—"}`)
-    .join("\n");
 }

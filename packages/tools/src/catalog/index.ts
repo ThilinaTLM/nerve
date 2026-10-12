@@ -22,7 +22,6 @@ export * from "./definitions/core/web.tools.js";
 export * from "./descriptors.js";
 export * from "./manifest.js";
 export * from "./argument-normalization.js";
-export * from "./definitions/orchestration/explore.tools.js";
 export * from "./definitions/orchestration/plan-mode.tools.js";
 export * from "./definitions/orchestration/process.tools.js";
 export * from "./prompt-guidelines.js";

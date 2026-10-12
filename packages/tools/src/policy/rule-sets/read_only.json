@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "read_only",
   "name": "Read only",
-  "description": "Allow interaction, local inspection, and Explore; deny all other capabilities.",
+  "description": "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
   "source": "builtin",
   "enabled": true,
   "compatibleModes": ["coding"],
@@ -16,11 +16,11 @@
       "decision": "allow"
     },
     {
-      "id": "allow-explore",
+      "id": "allow-subagents",
       "enabled": true,
       "priority": 150,
       "enforcement": "overridable",
-      "when": { "toolNames": ["explore"] },
+      "when": { "toolNames": ["subagent_prompt", "subagent_stop"] },
       "decision": "allow"
     },
     {

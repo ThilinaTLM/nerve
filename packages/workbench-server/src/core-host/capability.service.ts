@@ -21,10 +21,14 @@ import {
 import { resolveProjectSettings } from "../infrastructure/configuration/index.js";
 import { listAvailableSkills } from "./resource-loader.js";
 import type { Skill } from "@nervekit/harness/resources";
+import type { SubagentProfile } from "@nervekit/contracts/subagents";
 import {
   userCapabilitySelection,
   settingsWithCapabilityToolSettings,
 } from "./user-capability-selection.js";
+
+const sameDocument = (document: CapabilityOverridesDocument) =>
+  JSON.stringify(document) === JSON.stringify(emptyCapabilityOverrides());
 
 const digest = (content: string) =>
   `sha256:${createHash("sha256").update(content).digest("hex")}`;
@@ -320,40 +324,56 @@ export class CapabilityService {
     return this.configuration(projectId);
   }
 
+  /**
+   * The child starts from the parent's conversation overrides; the profile's
+   * `tools` and `skills` are applied on top as a sparse patch.
+   */
   async initializeChild(
     parentId: string,
     childId: string,
-    explore: boolean,
+    profile: Pick<SubagentProfile, "tools" | "skills">,
     nerveSkills: readonly Skill[],
     agentBrowserSkills: readonly Skill[],
   ) {
     const { projectId } = this.core.getSnapshot(parentId).conversation;
-    const target = this.conversationPath(projectId, childId);
-    if (!explore) {
-      const parent = await this.read(
-        this.conversationPath(projectId, parentId),
+    const parent = await this.read(this.conversationPath(projectId, parentId));
+    const { inherited } = await this.configuration(projectId, parentId);
+    const patch: CapabilityPatch = { tools: {}, toolSettings: {}, skills: {} };
+    for (const [name, value] of Object.entries(profile.tools)) {
+      const tool = capabilityToolNameSchema.parse(name);
+      if (typeof value === "boolean") patch.tools![tool] = { enabled: value };
+      else Object.assign(patch.toolSettings!, { [tool]: value });
+    }
+    if (profile.skills !== "inherit") {
+      const { skills } = await listAvailableSkills(
+        this.project(projectId).directory,
+        {
+          storageHome: this.storage.paths.home,
+          nerveSkills,
+          agentBrowserSkills,
+        },
       );
-      if (parent.digest !== "missing")
-        await atomicWriteJson(target, parent.document);
-      return;
+      for (const skill of skills) {
+        const enabled =
+          profile.skills === "none" ? false : profile.skills[skill.name];
+        if (enabled === undefined) continue;
+        const kind =
+          skill.source === "nerve"
+            ? "nerve"
+            : skill.source === "agentBrowser"
+              ? "agentBrowser"
+              : "file";
+        (patch.skills![kind] ??= {})[skill.name] = enabled;
+      }
     }
-    const document = emptyCapabilityOverrides();
-    for (const name of capabilityToolNameSchema.options)
-      document.tools[name] = { enabled: false };
-    const { skills } = await listAvailableSkills(
-      this.project(projectId).directory,
-      { storageHome: this.storage.paths.home, nerveSkills, agentBrowserSkills },
-    );
-    for (const skill of skills) {
-      const kind =
-        skill.source === "nerve"
-          ? "nerve"
-          : skill.source === "agentBrowser"
-            ? "agentBrowser"
-            : "file";
-      document.skills[kind][skill.name] = false;
-    }
-    await atomicWriteJson(target, document);
+    const document = applyCapabilityPatch(parent.document, patch, inherited);
+    if (parent.digest === "missing" && sameDocument(document)) return;
+    await atomicWriteJson(this.conversationPath(projectId, childId), document);
+  }
+
+  /** Tell clients to refresh a project's or conversation's capability view. */
+  notifyChanged(projectId: string, conversationId?: string) {
+    this.changed(projectId, conversationId);
   }
 
   private changed(projectId: string, conversationId?: string) {

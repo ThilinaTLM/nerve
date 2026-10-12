@@ -18,7 +18,7 @@ Part of the [conversation core redesign](README.md).
 - A wait/poll tool. Completion notices wake the agent.
 - Restart recovery of processes after a daemon restart (async bash still becomes `lost`; launches are still memory-only).
 - Database schema changes.
-- Changes to `python_exec`, sub-agent, Explore or todo tools. Their "task" wording is a different concept and is not renamed.
+- Changes to `python_exec`, sub-agent or todo tools. Their "task" wording is a different concept and is not renamed.
 
 ## Ownership
 

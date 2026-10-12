@@ -45,7 +45,6 @@ export type HistoryNodeType =
   | "human_loop"
   | "compaction"
   | "branch_summary"
-  | "explore_report"
   | "system";
 
 export type HistoryNodeBadge = {
@@ -84,7 +83,6 @@ const TOOL_ICONS: Record<string, HistoryIconName> = {
   ls: "folder-tree",
   web_search: "globe",
   web_fetch: "download",
-  explore: "search",
   ask_user: "message-circle-question",
   plan_mode_enter: "clipboard-list",
   plan_mode_present: "clipboard-check",
@@ -219,18 +217,6 @@ export function classifyHistoryEntry(
       badges,
     };
   }
-  if (entry.kind === "explore_report") {
-    return {
-      type: "explore_report",
-      icon: "search",
-      label: "Explore",
-      preview: trimPreview(entry.summary || entry.text),
-      tone: "info",
-      mono: false,
-      badges,
-    };
-  }
-
   if (entry.role === "user") {
     return {
       type: "user",

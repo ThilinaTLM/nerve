@@ -49,7 +49,19 @@ export async function fixture(t: TestContext): Promise<string> {
         permissionLevel: "read_only",
         permissionRuleSetId: "custom",
       },
-      tools: { disabled: ["web_fetch"] },
+      tools: {
+        disabled: ["web_fetch", "explore", "subagent_new", "subagent_list"],
+      },
+      exploreAgent: {
+        model: { provider: "fixture", modelId: "explorer" },
+        thinkingLevel: "high",
+      },
+      asyncSubagent: {
+        thinkingLevel: "low",
+        compactionProfile: "custom",
+        customTriggerPercent: 75,
+        customKeepRecentPercent: 20,
+      },
     }),
   );
   await writeFile(
@@ -65,7 +77,27 @@ export async function fixture(t: TestContext): Promise<string> {
   );
   await writeFile(
     join(home, "data/conversations/one/capabilities.json"),
-    JSON.stringify({ schemaVersion: 1, tools: { web_fetch: true } }),
+    JSON.stringify({
+      schemaVersion: 1,
+      tools: { web_fetch: true, explore: true },
+    }),
+  );
+  await mkdir(join(home, "data/reports/conversations/conv_one/batch_1"), {
+    recursive: true,
+  });
+  await writeFile(
+    join(
+      home,
+      "data/reports/conversations/conv_one/batch_1/01-task-agent_child.md",
+    ),
+    "# Explore report\n",
+  );
+  await writeFile(
+    join(
+      home,
+      "data/reports/conversations/conv_one/batch_1/02-gone-agent_gone.md",
+    ),
+    "# Orphan report\n",
   );
   await writeFile(
     join(home, "data/conversations/one/permissions.json"),

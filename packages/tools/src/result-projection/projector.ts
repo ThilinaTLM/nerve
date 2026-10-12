@@ -7,7 +7,6 @@ import { measureBlocks } from "./measure.js";
 import {
   artifactIndex,
   compactDiagnosticIndex,
-  compoundPerTask,
   continuationAwareHead,
   headTailText,
   headText,
@@ -56,42 +55,13 @@ export function projectAgentResult(
   }
 
   const original = measureBlocks(candidate.blocks);
-  const fitting =
-    strategy === "compound_per_task" && candidate.tasks
-      ? undefined
-      : unchangedIfFits(candidate, profile);
+  const fitting = unchangedIfFits(candidate, profile);
   let projection: StrategyProjection;
   const fastPath = fitting !== undefined;
   let usedStrategy: AgentResultStrategyId = "unchanged";
-  let perTask:
-    | Array<{
-        index: number;
-        decision: "inline" | "index" | "outcome";
-        displayedBytes: number;
-        displayedLines: number;
-      }>
-    | undefined;
 
   if (fitting) {
     projection = fitting;
-  } else if (strategy === "compound_per_task" && candidate.tasks) {
-    const projections: StrategyProjection[] = [];
-    perTask = [];
-    for (const task of candidate.tasks) {
-      const fit = unchangedIfFits(task.candidate, "delegated_reports");
-      const selected =
-        fit ?? artifactIndex(task.candidate, "delegated_reports");
-      projections.push(selected);
-      const measured = measureBlocks(selected.blocks);
-      perTask.push({
-        index: task.index,
-        decision: fit ? "inline" : "index",
-        displayedBytes: measured.bytes,
-        displayedLines: measured.lines,
-      });
-    }
-    projection = compoundPerTask(projections);
-    usedStrategy = "compound_per_task";
   } else {
     projection = applyStrategy(strategy, candidate, profile);
     usedStrategy = strategy;
@@ -129,7 +99,6 @@ export function projectAgentResult(
       displayedTextBytes: displayed.bytes,
       originalTextLines: original.lines,
       displayedTextLines: displayed.lines,
-      ...(perTask ? { perTask } : {}),
       ...((projection.continuation ?? candidate.continuation)?.length
         ? { continuation: projection.continuation ?? candidate.continuation }
         : {}),

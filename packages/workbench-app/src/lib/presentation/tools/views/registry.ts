@@ -3,7 +3,6 @@ import AskUserToolView from "../tool-call/AskUserToolView.svelte";
 import BashToolView from "../tool-call/BashToolView.svelte";
 import ConfluenceToolView from "../tool-call/ConfluenceToolView.svelte";
 import EditToolView from "../tool-call/EditToolView.svelte";
-import ExploreToolView from "../tool-call/ExploreToolView.svelte";
 import ExplainImageToolView from "../tool-call/ExplainImageToolView.svelte";
 import FindToolView from "../tool-call/FindToolView.svelte";
 import GenericToolView from "../tool-call/GenericToolView.svelte";
@@ -36,7 +35,6 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   ls: LsToolView,
   ask_user: AskUserToolView,
   todos: TodoToolView,
-  explore: ExploreToolView,
   subagent: SubagentToolView,
   plan_mode: PlanModeToolView,
   jira: JiraToolView,

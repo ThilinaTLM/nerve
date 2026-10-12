@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "../../src/domains/tools/async-subagents.js";
+import { subagentToolNames } from "../../src/domains/tools/subagent-tools.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { defaultSettings } from "../../src/domains/settings/settings.js";
@@ -64,7 +64,7 @@ test("missing entries inherit and null patches remove an override", () => {
   const document = applyCapabilityPatch(
     emptyCapabilityOverrides(),
     {
-      tools: { explore: { enabled: false } },
+      tools: { web_fetch: { enabled: false } },
       skills: {
         file: { release: true },
         nerve: { "skill-creator": true },
@@ -72,14 +72,14 @@ test("missing entries inherit and null patches remove an override", () => {
     },
     user,
   );
-  assert.deepEqual(document.tools.explore, { enabled: false });
+  assert.deepEqual(document.tools.web_fetch, { enabled: false });
   assert.equal(document.skills.file.release, true);
   assert.equal(document.skills.nerve["skill-creator"], true);
 
   const reset = applyCapabilityPatch(
     document,
     {
-      tools: { explore: { enabled: null } },
+      tools: { web_fetch: { enabled: null } },
       skills: {
         file: { release: null },
         nerve: { "skill-creator": null },
@@ -105,9 +105,9 @@ test("unknown tool keys are rejected but dormant skill names are retained", () =
   assert.deepEqual(parsed.skills.nerve, {});
 });
 
-test("async subagents are one capability across settings, overrides, and harness tools", () => {
+test("sub-agents are one capability across settings, overrides, and harness tools", () => {
   const disabledTools = capabilityToolsFromDisabledNames([
-    ...asyncSubagentToolNames,
+    ...subagentToolNames,
   ]);
   assert.deepEqual(disabledTools, ["subagents"]);
   const project = applyCapabilityPatch(
@@ -131,7 +131,7 @@ test("async subagents are one capability across settings, overrides, and harness
     conversation,
   });
   assert.deepEqual(disabledToolNamesForCapabilities(selected.disabledTools), [
-    ...asyncSubagentToolNames,
+    ...subagentToolNames,
   ]);
   assert.equal(
     capabilityPatchSchema.safeParse({
@@ -149,7 +149,15 @@ test("legacy individual subagent overrides migrate without partially enabling th
   });
   assert.deepEqual(
     parse(
-      Object.fromEntries(asyncSubagentToolNames.map((name) => [name, true])),
+      Object.fromEntries(
+        [
+          "subagent_new",
+          "subagent_prompt",
+          "subagent_list",
+          "subagent_status",
+          "subagent_stop",
+        ].map((name) => [name, true]),
+      ),
     ),
     { subagents: { enabled: true } },
   );
@@ -253,7 +261,7 @@ test("a stored override survives when the parent later matches it", () => {
 });
 
 test("tool settings replace inherited settings per tool across levels", () => {
-  const exploreModel = {
+  const imageModel = {
     provider: "openai",
     modelId: "gpt-5.1-mini",
   };
@@ -271,7 +279,7 @@ test("tool settings replace inherited settings per tool across levels", () => {
     emptyCapabilityOverrides(),
     {
       toolSettings: {
-        explore: { model: exploreModel, thinkingLevel: "high" },
+        explain_image: { model: imageModel, thinkingLevel: "high" },
         // Equal to the inherited project value, so nothing is stored.
         kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
       },
@@ -279,15 +287,15 @@ test("tool settings replace inherited settings per tool across levels", () => {
     inherited,
   );
   assert.deepEqual(conversation.toolSettings, {
-    explore: { model: exploreModel, thinkingLevel: "high" },
+    explain_image: { model: imageModel, thinkingLevel: "high" },
   });
   const effective = resolveCapabilitySelection({
     user,
     project,
     conversation,
   }).toolSettings;
-  assert.deepEqual(effective.explore, {
-    model: exploreModel,
+  assert.deepEqual(effective.explain_image, {
+    model: imageModel,
     thinkingLevel: "high",
   });
   assert.equal(effective.kroki_export.url, "http://127.0.0.1:9080/kroki/");
@@ -295,7 +303,7 @@ test("tool settings replace inherited settings per tool across levels", () => {
 
   const reset = applyCapabilityPatch(
     conversation,
-    { toolSettings: { explore: null } },
+    { toolSettings: { explain_image: null } },
     inherited,
   );
   assert.deepEqual(reset, emptyCapabilityOverrides());
@@ -323,8 +331,34 @@ test("tool settings overrides are validated per tool", () => {
 test("settings project to tool settings without undefined fields", () => {
   const projected = capabilityToolSettingsFromSettings({
     ...defaultSettings,
-    exploreAgent: { model: undefined, thinkingLevel: "low" },
+    tools: {
+      ...defaultSettings.tools,
+      imageExplanation: { model: undefined, thinkingLevel: "low" },
+    },
   });
-  assert.deepEqual(projected.explore, { thinkingLevel: "low" });
-  assert.equal(Object.hasOwn(projected.explore, "model"), false);
+  assert.deepEqual(projected.explain_image, { thinkingLevel: "low" });
+  assert.equal(Object.hasOwn(projected.explain_image, "model"), false);
+});
+
+test("override documents strip removed Explore and sub-agent tool settings", () => {
+  for (const schemaVersion of [1, 2]) {
+    const parsed = capabilityOverridesDocumentSchema.parse({
+      schemaVersion,
+      tools: { explore: schemaVersion === 1 ? false : { enabled: false } },
+      toolSettings: {
+        explore: { thinkingLevel: "low" },
+        subagents: { compactionProfile: "inherit" },
+        explain_image: { thinkingLevel: "high" },
+      },
+    });
+    assert.deepEqual(parsed.tools, {});
+    assert.deepEqual(parsed.toolSettings, {
+      explain_image: { thinkingLevel: "high" },
+    });
+  }
+  assert.equal(
+    capabilityPatchSchema.safeParse({ toolSettings: { explore: null } })
+      .success,
+    false,
+  );
 });

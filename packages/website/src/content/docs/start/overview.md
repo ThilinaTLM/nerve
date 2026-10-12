@@ -19,7 +19,7 @@ The daemon reaches external services only when required by your selected model, 
 
 - **Project:** a Nerve record pointing to a local directory. Selecting another project is a workbench action; there is no server-wide current project.
 - **Conversation:** persisted agent history associated with a project. Conversations can branch when you navigate to an earlier entry.
-- **Agent:** a model-driven worker with a thinking level, mode, permission level, tools, and loaded resources. Each conversation has a lead; it can delegate to persistent developer teammates or bounded read-only Explore agents.
+- **Agent:** a model-driven worker with a thinking level, mode, permission level, tools, and loaded resources. Each conversation has a lead; it can delegate to sub-agents, each created from a profile such as Explore (read-only research) or Developer.
 - **Run:** one durable execution attempt. Runs can stream output, pause for review, retry, or continue from a recoverable checkpoint.
 - **Launch:** a supervised long-running process such as a server or watcher. Tasks are distinct from finite shell commands and agent to-dos.
 

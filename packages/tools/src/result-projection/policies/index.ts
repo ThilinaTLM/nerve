@@ -38,14 +38,11 @@ import {
   webFetchAgentResultPolicy,
   webSearchAgentResultPolicy,
 } from "./web.js";
-import { exploreAgentResultPolicy } from "./explore.js";
 
 const subagentPolicy = policy("lifecycle_state", "item_aware", textCandidate);
 
 const map: Record<ToolName, AgentResultPolicy> = {
-  subagent_new: subagentPolicy,
   subagent_prompt: subagentPolicy,
-  subagent_list: subagentPolicy,
   subagent_status: subagentPolicy,
   subagent_stop: subagentPolicy,
 
@@ -95,7 +92,6 @@ const map: Record<ToolName, AgentResultPolicy> = {
   confluence_manage_attachment: confluenceMutationAgentResultPolicy,
   async_bash: policy("lifecycle_state", "head", textCandidate),
   launch: policy("lifecycle_state", "head", textCandidate),
-  explore: exploreAgentResultPolicy,
   plan_mode_enter: planMutationAgentResultPolicy,
   plan_mode_present: planReviewAgentResultPolicy,
   plan_mode_force_exit: planMutationAgentResultPolicy,
@@ -119,10 +115,8 @@ export { mutationCandidate } from "../candidates/mutation.js";
 export { resourceCandidate } from "../candidates/resources.js";
 export { webFetchCandidate } from "../candidates/web.js";
 export { humanCandidate } from "../candidates/interaction.js";
-export { exploreCandidate } from "../candidates/explore.js";
 export { primaryFileCandidate } from "../candidates/primary-file.js";
 export * from "./confluence.js";
-export * from "./explore.js";
 export * from "./filesystem.js";
 export * from "./interaction.js";
 export * from "./jira.js";

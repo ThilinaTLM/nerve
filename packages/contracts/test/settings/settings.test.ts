@@ -1,4 +1,4 @@
-import { asyncSubagentToolNames } from "../../src/domains/tools/async-subagents.js";
+import { subagentToolNames } from "../../src/domains/tools/subagent-tools.js";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
@@ -51,70 +51,59 @@ describe("settings schema", () => {
     assert.deepEqual(enabled.tools.disabled, []);
     assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);
   });
-  it("normalizes a partially disabled teammate group to fully disabled", () => {
+  it("normalizes a partially disabled sub-agent group to fully disabled", () => {
     const settings = settingsSchema.parse({
       ...defaultSettings,
       tools: { ...defaultSettings.tools, disabled: ["subagent_prompt"] },
     });
     assert.deepEqual(
       new Set(settings.tools.disabled),
-      new Set(asyncSubagentToolNames),
+      new Set(subagentToolNames),
     );
   });
 
-  it("validates async teammate settings and nullable model patches", () => {
-    assert.deepEqual(defaultSettings.asyncSubagent, {
-      compactionProfile: "inherit",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
-    });
+  it("maps removed legacy tool names when reading disabled lists", () => {
+    const parse = (disabled: string[]) =>
+      settingsSchema.parse({
+        ...defaultSettings,
+        tools: { ...defaultSettings.tools, disabled },
+      }).tools.disabled;
     assert.deepEqual(
-      defaultHarnessConfig.asyncSubagent,
-      defaultSettings.asyncSubagent,
-    );
-    const model = { provider: "openai", modelId: "gpt-5" };
-    assert.deepEqual(
-      updateSettingsRequestSchema.parse({
-        asyncSubagent: {
-          model,
-          compactionProfile: "custom",
-          customTriggerPercent: 90,
-          customKeepRecentPercent: 5,
-        },
-      }).asyncSubagent?.model,
-      model,
+      new Set(parse(["subagent_new"])),
+      new Set(subagentToolNames),
     );
     assert.deepEqual(
-      updateSettingsRequestSchema.parse({ asyncSubagent: { model: null } })
-        .asyncSubagent,
-      { model: null },
+      new Set(parse(["subagent_list", "web_fetch"])),
+      new Set([...subagentToolNames, "web_fetch"]),
     );
-    assert.equal(
-      updateSettingsRequestSchema.safeParse({
-        asyncSubagent: { compactionProfile: "invalid" },
-      }).success,
-      false,
+    assert.deepEqual(parse(["explore", "web_fetch"]), ["web_fetch"]);
+    assert.deepEqual(
+      harnessConfigSchema.parse({
+        ...defaultHarnessConfig,
+        tools: { ...defaultHarnessConfig.tools, disabled: ["subagent_list"] },
+      }).tools.disabled,
+      [...subagentToolNames],
     );
-    for (const [key, value] of [
-      ["customTriggerPercent", 59],
-      ["customTriggerPercent", 91],
-      ["customKeepRecentPercent", 4],
-      ["customKeepRecentPercent", 41],
-      ["customKeepRecentPercent", 5.5],
-    ] as const) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          asyncSubagent: { [key]: value },
-        }).success,
-        false,
-      );
-    }
+  });
+
+  it("no longer carries Explore or async sub-agent settings", () => {
+    assert.equal("exploreAgent" in defaultSettings, false);
+    assert.equal("asyncSubagent" in defaultSettings, false);
+    assert.equal("exploreAgent" in defaultHarnessConfig, false);
+    assert.equal("asyncSubagent" in defaultHarnessConfig, false);
     assert.equal(
       harnessConfigSchema.safeParse({
         ...defaultHarnessConfig,
-        asyncSubagent: { ...defaultHarnessConfig.asyncSubagent, model: null },
+        asyncSubagent: {},
       }).success,
       false,
+    );
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({
+        exploreAgent: {},
+        asyncSubagent: {},
+      }),
+      {},
     );
   });
 
@@ -248,13 +237,7 @@ describe("settings schema", () => {
         agentBrowser: { enabled: ["core", "dogfood"] },
       },
       tools: {
-        disabled: [
-          "explore",
-          "web_search",
-          "web_fetch",
-          "explain_image",
-          "python_exec",
-        ],
+        disabled: ["web_search", "web_fetch", "explain_image", "python_exec"],
         bash: {
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
@@ -344,7 +327,6 @@ describe("settings schema", () => {
       "C:\\Program Files\\Git\\bin\\bash.exe",
     );
     assert.deepEqual(parsed.tools?.disabled, [
-      "explore",
       "web_search",
       "web_fetch",
       "explain_image",

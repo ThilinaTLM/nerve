@@ -34,7 +34,7 @@ erDiagram
 
     TRUSTED_RESOURCE {
         string id PK "Stable identity"
-        enum kind "prompt_suggestion | skill | project_permissions | project_capabilities"
+        enum kind "prompt_suggestion | skill | project_permissions | project_capabilities | subagent_profile"
         string project_id FK "Nullable; null for user-level resources"
         string path "Resource location"
         string name "Nullable; display name"
@@ -75,6 +75,7 @@ erDiagram
         json model "Provider and model ID"
         enum reasoning_level "off | minimal | low | medium | high | xhigh | max"
         string system_prompt "Nullable; null selects the generated default"
+        string instructions "Nullable; rendered as its own section of the generated prompt"
         string permission_rule_set_id "Baseline rule set; overlays apply on top; not a database foreign key"
         enum mode "planning | coding"
         string working_directory "Start directory for commands and relative paths; not an access boundary"
@@ -188,11 +189,12 @@ The physical schema and migrations live in [`conversation-core/src/storage`](../
 - `paused` is separate from derived status: idle does not tell the scheduler whether it may start queued work. Pause is a current control, not a rewindable event.
 - `status` is rebuilt from `execution_state` events and unfinished tool calls. A rebuilt failed or interrupted status is shown only when its event is newer than `status_cleared_at`; the next execution start supersedes it anyway.
 - `last_user_message_at` changes only when a `user_message` event is delivered. Compaction summaries, tool results and notices never update it, even though some reach providers as user-role messages.
+- `instructions` is persona and working rules for one conversation, set from a sub-agent profile at creation or edited later; a `system_prompt` replaces the generated prompt and the section with it.
 - Configuration has no revision and no tool or skill columns. Edits are schema-validated current values; rewinding does not restore them. Tools and skills come from capability files; see [storage](../storage.md#files-and-permissions). Permission supervision is recorded on each tool call.
 
 ## Trusted resources
 
-A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` kind records trust in a prompt suggestion's JavaScript predicate.
+A resource is trusted for the exact content that was approved. When the file at `path` changes, its digest no longer matches and the user is asked again. Uniqueness is `(kind, project_id, path)`, treating null `project_id` as user level. The `prompt_suggestion` kind records trust in a prompt suggestion's JavaScript predicate; `subagent_profile` records trust in a project sub-agent profile file.
 
 ## Idempotency without a receipt table
 

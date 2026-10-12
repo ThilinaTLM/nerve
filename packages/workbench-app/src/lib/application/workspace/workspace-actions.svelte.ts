@@ -341,6 +341,7 @@ async function createConversationForProject(
     mode: initialMode ?? defaults.selectedMode,
     permissionRuleSetId: defaults.selectedPermissionRuleSetId,
     systemPrompt: null,
+    instructions: null,
     workingDirectory: project.directory,
   };
   const pending = $state<PendingConversationState>({

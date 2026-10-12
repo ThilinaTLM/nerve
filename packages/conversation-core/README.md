@@ -18,7 +18,7 @@ workbench-server, protocol or UI. Shared schemas live in
 - `src/runtime/`: runner, scheduler, status and recovery.
 - `src/conversations/`: conversation/project/trust services and controls.
 - `src/assets/`: managed file ownership and cleanup.
-- `src/delegation/`: Explore and subagent handlers over child conversations.
+- `src/delegation/`: Sub-agent tools over child conversations (`SubagentHost` port).
 - `src/ports.ts`: host capabilities; `src/core.ts`: facade and change feed.
 - `src/index.ts`: curated package-root exports.
 

@@ -51,15 +51,14 @@ Bash accepts a project-relative or absolute `cwd` inside the project. With auto-
 
 Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions accept a definition or launch ID; `status` takes no ID. Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
 
-## Delegation, Explore, and planning
+## Delegation and planning
 
-- Persistent teammates: `subagent_new`, `subagent_prompt`, `subagent_list`, `subagent_status`, `subagent_stop`
-- Bounded research: `explore`
+- Sub-agents: `subagent_prompt`, `subagent_status`, `subagent_stop`
 - Planning: `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`
 
-The Async Subagents tool group is disabled by default. It lets a lead create named autonomous developer teammates, assign only idle teammates, inspect or list them, and stop an active assignment. Teammates share the project worktree, retain their own context for follow-ups, and do not automatically receive the lead transcript. Up to four assignments can be active for one lead. Completion is delivered durably and can wake the lead; stopping does not delete the teammate's history.
+The Sub-agents tool group is disabled by default and is hidden from the lead while no sub-agent profile is usable. `subagent_prompt` takes a batch of 1–10 assignments (`name`, `profile`, `prompt`) and optional shared `context`. A new name creates a sub-agent from the named [profile](/reference/subagent-profiles/); an existing name queues a follow-up and resumes a stopped sub-agent. The whole batch is validated first, so a bad name, profile or duplicate fails the call and nothing is created. `subagent_status` lists sub-agents or shows one in detail, and `subagent_stop` stops the current execution of the named sub-agents.
 
-Explore accepts 1–8 child tasks, with 8 active and 24 total launches per parent run. Explore children are temporary, isolated/read-only, and receive only `read`, `grep`, `find`, `ls`, `async_bash` reads, and `launch` reads. Unlike persistent teammates, they report on one research assignment and cannot modify the shared worktree.
+Sub-agents run asynchronously in the lead's worktree and do not see the lead transcript. Their completion is delivered as a notice that wakes the lead. They never receive `ask_user`, plan-mode tools or the sub-agent tools. Stopping a sub-agent keeps its history.
 
 ## Not agent tools
 

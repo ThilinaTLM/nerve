@@ -1,47 +1,48 @@
 import {
-  asyncSubagentToolNames,
-  type AsyncSubagentToolName,
+  subagentToolNames,
+  type SubagentToolName,
 } from "@nervekit/contracts/tools";
 import type { ToolExecutionResult } from "../../execution/execution-context.js";
 import { type ToolHandlerRegistry, ToolValidationError } from "../types.js";
-import { requiredString } from "./args.js";
+import { optionalString, requiredString } from "./args.js";
 
 export type SubagentToolPort = (
-  name: AsyncSubagentToolName,
+  name: SubagentToolName,
   args: Record<string, unknown>,
   identity: unknown,
 ) => Promise<ToolExecutionResult>;
+
 export function createSubagentHandlers(
   execute: SubagentToolPort,
 ): ToolHandlerRegistry {
   const handlers: ToolHandlerRegistry = {};
-  for (const name of asyncSubagentToolNames) {
+  for (const name of subagentToolNames) {
     handlers[name] = async (args, context) => {
-      if (name === "subagent_new") requiredString(args.name, "name");
-      else if (name !== "subagent_list") {
-        if ((args.name !== undefined) === (args.agentId !== undefined))
-          throw new ToolValidationError(
-            "Provide exactly one of name or agentId.",
-          );
-        if (args.agentId !== undefined) {
-          requiredString(args.agentId, "agentId");
-          if (!String(args.agentId).startsWith("conv_"))
-            throw new ToolValidationError("agentId must start with conv_.");
-        } else requiredString(args.name, "name");
-      }
-      if (name === "subagent_prompt") requiredString(args.prompt, "prompt");
-      if (
-        name === "subagent_list" &&
-        args.limit !== undefined &&
-        (!Number.isInteger(args.limit) ||
-          Number(args.limit) < 1 ||
-          Number(args.limit) > 100)
-      )
-        throw new ToolValidationError(
-          "limit must be an integer between 1 and 100.",
-        );
+      if (name === "subagent_prompt") validatePrompt(args);
+      else if (name === "subagent_stop") validateStop(args);
+      else if (args.name !== undefined) requiredString(args.name, "name");
       return execute(name, args, context.identity);
     };
   }
   return handlers;
+}
+
+function validatePrompt(args: Record<string, unknown>): void {
+  const assignments = args.assignments;
+  if (!Array.isArray(assignments) || assignments.length < 1)
+    throw new ToolValidationError("assignments must list at least 1 item.");
+  for (const [index, item] of assignments.entries()) {
+    const record = (item ?? {}) as Record<string, unknown>;
+    requiredString(record.name, `assignments[${index}].name`);
+    requiredString(record.prompt, `assignments[${index}].prompt`);
+    if (record.profile !== undefined)
+      requiredString(record.profile, `assignments[${index}].profile`);
+  }
+  optionalString(args.context);
+}
+
+function validateStop(args: Record<string, unknown>): void {
+  if (!Array.isArray(args.names) || args.names.length < 1)
+    throw new ToolValidationError("names must list at least 1 name.");
+  args.names.forEach((name, index) => requiredString(name, `names[${index}]`));
 }

@@ -18,7 +18,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
       id: "read_only",
       name: "Read only",
       description:
-        "Allow interaction, local inspection, and Explore; deny all other capabilities.",
+        "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
       source: "builtin",
       enabled: true,
       compatibleModes: ["coding"],
@@ -47,7 +47,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
       id: "planning",
       name: "Planning",
       description:
-        "Allow reads, interaction, Explore, and writes wholly within the plans directory.",
+        "Allow reads, interaction, sub-agent delegation, and writes wholly within the plans directory.",
       source: "builtin",
       enabled: true,
       compatibleModes: ["planning"],

@@ -3,6 +3,7 @@ import type { ConversationRunOutcome } from "../../state/conversation-render-sta
 import type { TimelineItem } from "../../state/timeline";
 import {
   deriveRunActivity,
+  type PendingWorkItem,
   runActivitySignature,
   stabilizeRunActivity,
   type RunActivityView,
@@ -16,6 +17,7 @@ export type RunActivitySource = {
   stopping: boolean;
   compactionRunning: boolean;
   tail?: TimelineItem;
+  pending?: readonly PendingWorkItem[];
 };
 
 const TICK_MS = 250;
@@ -38,6 +40,7 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
   let seenOutcomeRunId = source().lastRunOutcome?.runId;
   let outcomeSeenAtMs: number | undefined;
   let stable: StableRunActivity | undefined;
+  let waitingSeenAtMs: number | undefined;
 
   const view = $derived.by(() => {
     const input = source();
@@ -60,6 +63,9 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
       outcomeSeenAtMs = outcomeRunId ? nowMs : undefined;
     }
 
+    if (!active && input.pending?.length) waitingSeenAtMs ??= nowMs;
+    else waitingSeenAtMs = undefined;
+
     stable = stabilizeRunActivity(
       stable,
       deriveRunActivity({
@@ -68,6 +74,7 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
         runSeenAtMs: runSeenAtMs ?? nowMs,
         lastChangeAtMs,
         outcomeSeenAtMs,
+        waitingSeenAtMs,
       }),
       nowMs,
     );

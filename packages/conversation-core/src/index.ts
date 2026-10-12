@@ -32,6 +32,7 @@ export type {
 
 export {
   ConversationCore,
+  type ContextUsage,
   type ConversationCoreOptions,
   type CoreChange,
   type ExecutionFinished,
@@ -64,7 +65,10 @@ export {
   createCoreToolHandlers,
   type CoreToolHandlerOptions,
 } from "./tool-calls/core-tool-handlers.js";
-export { createDelegationTools } from "./delegation/delegation-tools.js";
+export {
+  createDelegationTools,
+  type SubagentHost,
+} from "./delegation/delegation-tools.js";
 export { createAsyncBashTools } from "./async-bash/async-bash-tools.js";
 export {
   buildModelMessages,

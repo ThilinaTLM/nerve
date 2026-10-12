@@ -21,7 +21,7 @@ Crash and Node diagnostic reports are under `<NERVE_HOME>/crashes` and remain en
 
 The daemon writes structured reports for handled fatal errors, enables Node reports for runtime/native fatal conditions, and heartbeats its active root `daemon.json` lease. On the next start, a dead unclean lease can produce a fallback report.
 
-There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing. Automatic retention is age-based; explore reports, cache, and temporary tool artifacts remain explicit manual cleanup targets to avoid disrupting linked or active work.
+There is no dedicated in-app crash-report list/download route. Inspect the directory directly and redact before sharing. Automatic retention is age-based; cache and temporary tool artifacts remain explicit manual cleanup targets to avoid disrupting linked or active work.
 
 ## Developer performance diagnostics
 

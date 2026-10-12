@@ -40,8 +40,6 @@ export function settingsWithCapabilityToolSettings(
 ): Settings {
   return {
     ...settings,
-    exploreAgent: toolSettings.explore,
-    asyncSubagent: toolSettings.subagents,
     tools: {
       ...settings.tools,
       imageExplanation: toolSettings.explain_image,

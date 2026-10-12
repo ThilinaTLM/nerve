@@ -29,6 +29,7 @@ conversation.compact conversation.delete conversation.pause conversation.resume
 conversation.stop conversation.forcePush conversation.continue
 input.submit input.cancel interaction.resolve asyncBash.cancel toolCall.getDetails
 capabilities.get capabilities.update capabilities.reset capabilities.trust
+harnessSettings.get harnessSettings.update
 model.list permissionRuleSet.list skill.list tool.list completion.slash.list
 ```
 

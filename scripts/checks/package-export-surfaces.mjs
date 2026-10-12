@@ -26,6 +26,7 @@ export const packageExportSurfaces = Object.freeze({
     "./settings",
     "./skills",
     "./status",
+    "./subagents",
     "./storage",
     "./maintenance",
     "./launch-definitions",

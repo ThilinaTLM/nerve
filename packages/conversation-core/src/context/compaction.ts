@@ -3,6 +3,7 @@ import type {
   ConversationEvent,
   Usage,
 } from "@nervekit/contracts/core";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import type { ThinkingLevel } from "@nervekit/harness/agent";
 import type { MessageEntry } from "@nervekit/harness/conversation";
 import {
@@ -114,13 +115,19 @@ export interface RunCompactionInput extends ProjectionOptions {
   reasoningLevel?: ThinkingLevel;
   signal?: AbortSignal;
   settings?: CompactionSettings;
+  /** Resolved auto-compaction settings; derive the manual thresholds when `settings` is absent. */
+  autoSettings?: AutoCompactionSettings;
 }
 
 export async function runCompaction(
   input: RunCompactionInput,
 ): Promise<CompactionPayload> {
   const settings =
-    input.settings ?? deriveManualCompactionSettings(input.model.contextWindow);
+    input.settings ??
+    deriveManualCompactionSettings(
+      input.model.contextWindow,
+      input.autoSettings,
+    );
   const preparation = prepareCompaction(input.path, settings, input);
   if (!preparation) throw new Error("No safe advancing compaction boundary");
   const summary = await generateSummary({
@@ -149,6 +156,7 @@ export async function runCompaction(
 export function shouldCompact(
   usage: number | ContextUsageEstimate | Usage,
   model: PiModel,
+  settings: AutoCompactionSettings = DEFAULT_AUTO_COMPACTION_SETTINGS,
 ): boolean {
   const tokens =
     typeof usage === "number"
@@ -158,9 +166,6 @@ export function shouldCompact(
         : calculateContextTokens(usage);
   return shouldAutoCompact(
     tokens,
-    deriveAutoCompactionPolicy(
-      model.contextWindow,
-      DEFAULT_AUTO_COMPACTION_SETTINGS,
-    ),
+    deriveAutoCompactionPolicy(model.contextWindow, settings),
   );
 }

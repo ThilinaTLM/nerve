@@ -48,7 +48,7 @@ const footprint = $derived(
 const groupTargets: Record<string, StorageCleanupTarget[]> = {
   history: ["conversations"],
   logs: ["datedLogs", "rotatedEventLog"],
-  disposable: ["exploreReports", "crashReports", "cache", "tmp"],
+  disposable: ["crashReports", "cache", "tmp"],
 };
 
 function groupCount(group: string): number {
@@ -192,12 +192,6 @@ function start(): void {
       <Collapsible.Content
         class="mt-0.5 divide-y divide-border/60 rounded-md border border-border/60"
       >
-        <StorageCleanupChoice
-          id="cleanup-explore"
-          bind:checked={selection.exploreReports}
-          title="Explore reports"
-          description={`Saved explore-agent output · ${targetFootprint("exploreReports")}`}
-        />
         <StorageCleanupChoice
           id="cleanup-crash-reports"
           bind:checked={selection.crashReports}

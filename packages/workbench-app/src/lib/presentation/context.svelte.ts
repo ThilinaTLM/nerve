@@ -1,8 +1,6 @@
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type { EventEnvelope } from "@nervekit/contracts/events";
 
-import type { SubagentTranscriptSnapshot } from "$lib/presentation/view-models/conversation";
-
+import type { SubagentRef } from "$lib/presentation/tools/views/subagent-live";
 import type {
   ToolCallDetails,
   ToolCallResultChunk,
@@ -65,11 +63,11 @@ export interface AtlassianLinkCapability {
   confluenceSiteUrl: () => string | undefined;
 }
 
-export interface SubagentTranscriptObserver {
-  snapshot: (snapshot: SubagentTranscriptSnapshot) => void;
-  /** Return false when canonical offset validation requests reconciliation. */
-  event?: (event: EventEnvelope<Record<string, unknown>>) => boolean | void;
-  error: (message: string) => void;
+export interface SubagentsCapability {
+  /** Reactive getter: the sub-agents of the conversation being viewed. */
+  list: () => readonly SubagentRef[];
+  /** Shows a sub-agent in the main view. */
+  open: (conversationId: string) => void;
 }
 
 /**
@@ -99,12 +97,8 @@ export interface ConversationUiCapabilities {
     byteOffset: number,
     byteLimit?: number,
   ) => Promise<ToolCallResultChunk>;
-  /** Observe one bounded, read-only child transcript while its dialog is open. */
-  watchSubagentTranscript?: (
-    parentAgentId: string,
-    childAgentId: string,
-    observer: SubagentTranscriptObserver,
-  ) => () => void;
+  /** Live sub-agent state and navigation for the sub-agent tool cards. */
+  subagents?: SubagentsCapability;
   /** Voice input integration for the ask-user card. */
   voice?: VoiceInputCapability;
   /** Composer-grade reply input (paste image, completions, file drop) for the ask-user card. */

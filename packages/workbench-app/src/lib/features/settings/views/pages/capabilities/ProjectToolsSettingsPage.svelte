@@ -31,6 +31,7 @@ import { toolGroups, type ToolGroupDef } from "../tools/tool-catalog";
 import ToolConfigureButton from "../tools/ToolConfigureButton.svelte";
 import ToolGroupItem from "../tools/ToolGroupItem.svelte";
 import ToolProfileDialog from "../tools/ToolProfileDialog.svelte";
+import SubagentsLinkRow from "../tools/SubagentsLinkRow.svelte";
 import ProjectCapabilityTrustNotice from "./ProjectCapabilityTrustNotice.svelte";
 import ProjectCapabilityTrustAction from "./ProjectCapabilityTrustAction.svelte";
 
@@ -259,6 +260,9 @@ const sections = $derived([
             {/snippet}
           </ToolGroupItem>
         {/each}
+        {#if section.id === "core"}
+          <SubagentsLinkRow />
+        {/if}
       </SettingsList>
     </SettingsSection>
   {/each}

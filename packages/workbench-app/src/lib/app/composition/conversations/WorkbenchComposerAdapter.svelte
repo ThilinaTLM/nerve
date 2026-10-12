@@ -52,6 +52,10 @@ import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
   text = "",
+  editorOverlay,
+  modeHidden = false,
+  session,
+  thisConversation,
   activeProject,
   activeConversation,
   activePendingConversation,
@@ -475,6 +479,10 @@ function handleMicContextMenu(event: MouseEvent) {
 <AgentComposer
   model={{
     text,
+    editorOverlay,
+    modeHidden,
+    session,
+    thisConversation,
     disabled: editorDisabled,
     editorDisabled,
     submitDisabled,

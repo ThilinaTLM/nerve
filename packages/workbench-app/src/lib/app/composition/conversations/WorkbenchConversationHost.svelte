@@ -21,12 +21,20 @@ import ConversationWelcome from "$lib/features/conversations/views/ConversationW
 import { openInlineMermaidPane } from "$lib/features/filesystem";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 
-setConversationUiCapabilities(workbenchConversationUiCapabilities());
 import { transcriptMenu } from "$lib/features/conversations/views/conversation-menus";
 import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 import { createConversationRenderProjection } from "$lib/features/conversations/state/conversation-render-projection.svelte";
 
 let {
+  floating,
+  reserveTopInset = false,
+  pendingWork = [],
+  onOpenPendingWork,
+  subagents,
+  editorOverlay,
+  modeHidden = false,
+  session,
+  thisConversation,
   activeProject,
   activeConversation,
   activeAgent,
@@ -102,6 +110,13 @@ let {
   onEditEntry,
   onOpenHistory,
 }: WorkbenchConversationAdapterProps = $props();
+
+setConversationUiCapabilities(
+  workbenchConversationUiCapabilities({
+    list: () => subagents?.list() ?? [],
+    open: (id) => subagents?.open(id),
+  }),
+);
 
 const composerTodos = $derived(
   currentTodosForAgent(toolCalls, activeAgent?.id),
@@ -249,7 +264,9 @@ function menuForTranscript(
       activeRun: rendered.activeRun,
       lastRunOutcome,
       stopping,
+      pending: pendingWork,
     },
+    reserveTopInset,
     queuedPrompts: rendered.queuedPrompts,
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,
@@ -312,12 +329,18 @@ function menuForTranscript(
     onForcePushQueuedPrompts,
     onDiscardQueuedPrompt,
     onMoveQueuedPromptToComposer,
+    onOpenPendingWork,
   }}
   menus={{ transcriptMenu: menuForTranscript }}
+  {floating}
 >
   {#snippet composer()}
     <WorkbenchComposerAdapter
       text={composerText}
+      {editorOverlay}
+      {modeHidden}
+      {session}
+      {thisConversation}
       {activeProject}
       {activeConversation}
       {activePendingConversation}

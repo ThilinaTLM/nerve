@@ -1,0 +1,10 @@
+{
+  "promptResult": "auth-research (explore): created\nrefresh-fix (developer): follow-up queued (running)\nold-one (explore): follow-up queued (resumed)",
+  "statusList": "auth-research · explore · running · ctx 34% · active 20s ago\nrefresh-fix · developer · waiting: 1 background command · ctx 51% · 1m ago\ntoken-store · unknown · idle · ctx n/a · no activity",
+  "statusNamed": "auth-research · explore · openai/gpt-5.1 · running · ctx 34.5k/200k · run 3m\nRecent activity:\n✓ read src/auth.ts\n… bash \"pnpm test\" (3m)",
+  "stopResult": "auth-research: stopped\ntoken-store: nothing to stop (idle)\nghost: not found",
+  "noticeCompleted": "Sub-agent \"auth-research\" (explore) completed.\nSummary\nAll good",
+  "noticeFailed": "Sub-agent \"refresh-fix\" (developer) failed: boom\nlast words",
+  "noticeStopped": "Sub-agent \"refresh-fix\" (developer) was stopped by the user.",
+  "noticeWaiting": "Sub-agent \"refresh-fix\" (developer) is waiting on 1 background command and accepts follow-ups:\n\"pnpm test\" running 3m\npartial"
+}

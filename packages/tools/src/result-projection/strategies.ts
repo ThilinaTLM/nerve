@@ -236,25 +236,6 @@ export function artifactIndex(
   return withLineCount(candidate, [{ type: "text", text }]);
 }
 
-export function compoundPerTask(
-  projections: readonly StrategyProjection[],
-): StrategyProjection {
-  const blocks: ProjectableBlock[] = [];
-  const counts: ProjectionCount[] = [];
-  for (const [index, projection] of projections.entries()) {
-    if (index === 0) {
-      blocks.push(...projection.blocks);
-    } else {
-      const [first, ...rest] = projection.blocks;
-      if (first?.type === "text")
-        blocks.push({ type: "text", text: `\n${first.text}` }, ...rest);
-      else blocks.push({ type: "text", text: "\n" }, ...projection.blocks);
-    }
-    counts.push(...projection.counts);
-  }
-  return { blocks, counts };
-}
-
 export function terminalOutcome(
   candidate: ProjectionCandidate,
 ): StrategyProjection {

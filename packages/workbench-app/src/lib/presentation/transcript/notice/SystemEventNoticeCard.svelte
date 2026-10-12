@@ -7,8 +7,14 @@ import {
   systemEventNoticeModel,
 } from "./system-event-notice";
 
-let { notice }: { notice: SystemEventNotice } = $props();
-const model = $derived(systemEventNoticeModel(notice));
+let {
+  notice,
+  onOpenFile,
+}: {
+  notice: SystemEventNotice;
+  onOpenFile?: (path: string, line?: number) => void;
+} = $props();
+const model = $derived(systemEventNoticeModel(notice, { onOpenFile }));
 const body = $derived(systemEventNoticeBody(notice));
 const details = $derived(
   body

@@ -3,7 +3,6 @@ import {
   bashResultDetailsSchema,
   editOperationResultDetailsSchema,
   explainImageResultDetailsSchema,
-  exploreResultPreviewSchema,
   pythonResultDetailsSchema,
   todosResultSchema,
   webFetchResultDetailsSchema,
@@ -23,11 +22,15 @@ import {
   toolArgumentSource,
 } from "../lifecycle/argument-source";
 import { parseConfluenceView } from "./confluence-result-view";
-import { parseExploreProgressLog } from "./explore-progress";
 import { parseGenerateImageView } from "./generate-image-result-view";
 import { parseKrokiView } from "./kroki-result-view";
 import { parseJiraView } from "./jira-result-view";
-import { parseSubagentResult } from "./subagent-result-parser";
+import {
+  parseStatusDetail,
+  parseStatusListing,
+  parseStopResult,
+  subagentAssignments,
+} from "./subagent-result-parser";
 import {
   asRecord,
   countLogicalLines,
@@ -48,7 +51,6 @@ import {
 } from "./tool-view-helpers";
 import type { ToolView } from "./tool-view-types";
 
-export { aggregateExploreTasks } from "./explore-progress";
 // Re-export the supporting modules so existing consumers that import from this
 // file (via tool-result-view) keep a single, stable surface.
 export {
@@ -63,10 +65,6 @@ export {
   tailLogicalText,
 } from "./tool-view-helpers";
 export type {
-  ExploreProgressView,
-  ExploreSummary,
-  ExploreTaskState,
-  ExploreTaskStatus,
   GrepMatchView,
   GroupedMatches,
   ToolView,
@@ -523,24 +521,40 @@ export function parseToolView(
       };
     }
 
-    case "subagent_new":
-    case "subagent_prompt":
-    case "subagent_list":
-    case "subagent_status":
-    case "subagent_stop":
-      return parseSubagentResult(toolCall, toolCall.toolName, args, rawResult);
-
-    case "explore": {
-      const parsed = exploreResultPreviewSchema.safeParse(rawResult);
-      const data = parsed.success ? parsed.data : undefined;
-      const task = stringField(args.task);
-      const liveProgress = parseExploreProgressLog(liveOutput?.text);
+    case "subagent_prompt": {
+      const context = stringField(args.context)?.trim();
       return {
-        kind: "explore",
-        task,
-        reports: data?.reports ?? [],
-        liveUpdates: liveProgress.updates,
-        liveLog: liveProgress.fallback,
+        kind: "subagent",
+        action: "prompt",
+        context: context || undefined,
+        assignments: subagentAssignments(
+          args,
+          resultOutputText(result, rawResult),
+        ),
+      };
+    }
+
+    case "subagent_status": {
+      const name = stringField(args.name);
+      const text = resultOutputText(result, rawResult);
+      return {
+        kind: "subagent",
+        action: "status",
+        name,
+        rows: name ? [] : parseStatusListing(text),
+        ...(name ? parseStatusDetail(text) : {}),
+      };
+    }
+
+    case "subagent_stop": {
+      const names = arrayField(args.names).filter(
+        (name): name is string => typeof name === "string",
+      );
+      return {
+        kind: "subagent",
+        action: "stop",
+        names,
+        lines: parseStopResult(resultOutputText(result, rawResult)),
       };
     }
 

@@ -307,6 +307,7 @@ test("conversation adapter replays durable events from the requested cursor", as
       model: { provider: "nerve-faux", modelId: "faux-fast" },
       reasoningLevel: "off",
       systemPrompt: null,
+      instructions: null,
       mode: "coding",
       permissionRuleSetId: "read_only",
       workingDirectory: project.directory,

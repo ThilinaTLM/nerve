@@ -20,7 +20,20 @@ export const DONE_MIN_RUN_MS = 3_000;
 /** Collapse transition budget before the row unmounts. */
 export const CLOSE_MS = 300;
 
-export type RunActivityKind = "active" | "quiet" | "retry" | "done" | "stopped";
+export type RunActivityKind =
+  | "active"
+  | "quiet"
+  | "retry"
+  | "done"
+  | "stopped"
+  | "waiting";
+
+/** Something the conversation still waits for after its turn ended. */
+export type PendingWorkItem = {
+  kind: "agent" | "command";
+  id: string;
+  label: string;
+};
 export type RunActivityTone = Extract<
   StatusTone,
   "neutral" | "warning" | "success"
@@ -42,6 +55,8 @@ export type RunActivityView = {
   /** Remaining retry delay as a 0..1 fraction. */
   countdownFraction?: number;
   elapsedLabel?: string;
+  /** Chips behind the "Waiting for" label. */
+  pending?: readonly PendingWorkItem[];
   /** Spinner playback rate; 0 pauses it. */
   spinnerRate: number;
 };
@@ -61,6 +76,10 @@ export type RunActivityInput = {
   lastChangeAtMs: number;
   /** Client time the current `lastRunOutcome` was observed ending a run. */
   outcomeSeenAtMs?: number;
+  /** Sub-agents and background commands still pending once the turn ended. */
+  pending?: readonly PendingWorkItem[];
+  /** Client time pending work was first observed with no turn running. */
+  waitingSeenAtMs?: number;
 };
 
 export type TailPhase =
@@ -161,11 +180,35 @@ function finishedView(input: RunActivityInput): RunActivityView {
   };
 }
 
+/** Calm, non-spinning row for a conversation that ended its turn but waits. */
+function waitingView(
+  input: RunActivityInput,
+  pending: readonly PendingWorkItem[],
+): RunActivityView {
+  const since = parseMs(input.lastRunOutcome?.endedAt) ?? input.waitingSeenAtMs;
+  return {
+    mounted: true,
+    open: true,
+    kind: "waiting",
+    labelKey: "waiting",
+    label: "Waiting for",
+    tone: "neutral",
+    pending,
+    elapsedLabel:
+      since === undefined ? undefined : formatElapsed(input.nowMs - since),
+    spinnerRate: 0,
+  };
+}
+
 /** Pure projection of run state into the tail activity slot. */
 export function deriveRunActivity(input: RunActivityInput): RunActivityView {
   const run = input.activeRun;
   const active = input.sending || Boolean(run && run.status !== "interrupted");
-  if (!active) return finishedView(input);
+  if (!active) {
+    return input.pending?.length && !input.compactionRunning
+      ? waitingView(input, input.pending)
+      : finishedView(input);
+  }
   if (input.compactionRunning || run?.status === "interrupted") return HIDDEN;
 
   const now = input.nowMs;

@@ -14,6 +14,8 @@ export interface BuildNerveSystemPromptOptions {
   planDir?: string;
   contextFiles?: Array<{ path: string; content: string }>;
   skills?: Skill[];
+  /** Persona and working rules for this conversation only. */
+  instructions?: string | null;
 }
 
 export function buildNerveSystemPrompt(
@@ -48,6 +50,13 @@ export function buildNerveSystemPrompt(
     options.appendSystemPrompt,
     planModeBlock,
     formatProjectInstructions(options.contextFiles ?? []),
+    options.instructions?.trim()
+      ? [
+          "<agent_instructions>",
+          options.instructions.trim(),
+          "</agent_instructions>",
+        ].join("\n")
+      : "",
     skillsBlock,
     environmentBlock,
   ]

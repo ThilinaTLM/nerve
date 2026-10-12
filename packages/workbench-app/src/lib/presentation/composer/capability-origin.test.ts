@@ -142,25 +142,25 @@ describe("capabilityToolState", () => {
 
   it("treats a conversation's tool settings as an override of that tool", () => {
     const inherited = selection();
-    const model = { provider: "openai", modelId: "gpt-5.1-mini" };
+    const kroki = {
+      ...inherited.toolSettings.kroki_export,
+      url: "http://kroki.internal/",
+    };
     const state = capabilityToolState({
       configuration: configuration({
-        availableTools: ["explore"],
+        availableTools: ["kroki_export"],
         conversation: {
           ...emptyCapabilityOverrides(),
-          toolSettings: { explore: { model, thinkingLevel: "high" } },
+          toolSettings: { kroki_export: kroki },
         },
         effective: selection({
-          toolSettings: {
-            ...inherited.toolSettings,
-            explore: { model, thinkingLevel: "high" },
-          },
+          toolSettings: { ...inherited.toolSettings, kroki_export: kroki },
         }),
       }),
       level: "conversation",
-      names: ["explore"],
+      names: ["kroki_export"],
     });
-    assert.equal(state.settingsTool, "explore");
+    assert.equal(state.settingsTool, "kroki_export");
     assert.equal(state.stored, true);
     assert.equal(state.matchesInherited, false);
     assert.equal(state.originLabel, "Set in this conversation");
@@ -182,9 +182,9 @@ describe("capabilityToolState", () => {
   });
 
   it("resets enablement, profile, and settings of a tool group together", () => {
-    assert.deepEqual(capabilityResetPatch(["explore"]), {
-      tools: { explore: { enabled: null } },
-      toolSettings: { explore: null },
+    assert.deepEqual(capabilityResetPatch(["kroki_export"]), {
+      tools: { kroki_export: { enabled: null } },
+      toolSettings: { kroki_export: null },
     });
     assert.deepEqual(capabilityResetPatch(["web_search", "web_fetch"]), {
       tools: {

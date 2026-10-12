@@ -17,6 +17,9 @@ import {
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
+import { ConversationHarnessSettings } from "../../core-host/conversation-harness.service.js";
+import { createSubagentHost } from "../../core-host/subagent-host.js";
+import type { SubagentProfileService } from "../../domains/subagents/subagent-profile.service.js";
 import { CapabilityService } from "../../core-host/capability.service.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
@@ -31,6 +34,8 @@ import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generati
 export function createConversationCore(
   deps: RuntimeDeps,
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
+  /** Lazy: the profile service needs the core's trust registry. */
+  subagentProfiles: () => SubagentProfileService,
 ) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
@@ -163,7 +168,11 @@ export function createConversationCore(
       get capabilities(): CapabilityService {
         return capabilities;
       },
+      get subagentProfiles(): SubagentProfileService {
+        return subagentProfiles();
+      },
     }),
+    compactionSettings: (id) => harness.compactionSettings(id),
     defaultConfig: async (projectId) => {
       const project = storage.projects.get(projectId);
       if (!project) throw new Error(`Project not found: ${projectId}`);
@@ -182,7 +191,7 @@ export function createConversationCore(
         systemPrompt: null,
         permissionRuleSetId: settings.defaultPermissionRuleSetId ?? "baseline",
         mode: settings.lastAgentSelection.mode,
-
+        instructions: null,
         workingDirectory: project.directory,
       };
     },
@@ -193,18 +202,50 @@ export function createConversationCore(
     deps.storage,
     core,
   );
-  for (const handler of [
-    ...createDelegationTools(core, (parentId, childId, explore) =>
+  const harness = new ConversationHarnessSettings({
+    dataPath: dataDir,
+    userCompaction: () => deps.storage.settings.compaction,
+    projectCompaction: async (projectId) => {
+      const project = storage.projects.get(projectId);
+      if (!project) throw new Error(`Project not found: ${projectId}`);
+      return (await resolveProjectSettings(deps.storage, project.directory))
+        .compaction;
+    },
+    projectOf: (conversationId) => {
+      const conversation = storage.conversations.get(conversationId);
+      if (!conversation) throw new Error("Conversation not found");
+      return conversation.projectId;
+    },
+    changed: (projectId, conversationId) =>
+      capabilities.notifyChanged(projectId, conversationId),
+  });
+  const subagentHost = createSubagentHost({
+    profiles: {
+      usable: (projectId) => subagentProfiles().usable(projectId),
+      find: (projectId, name) => subagentProfiles().find(projectId, name),
+    },
+    models,
+    harness,
+    parent: (parentId) => {
+      const snapshot = core.getSnapshot(parentId);
+      return {
+        projectId: snapshot.conversation.projectId,
+        config: snapshot.config,
+      };
+    },
+    initializeCapabilities: (parentId, childId, profile) =>
       capabilities.initializeChild(
         parentId,
         childId,
-        explore,
+        profile,
         deps.nerveSkills.skills,
         deps.agentBrowserSkills.skills,
       ),
-    ),
+  });
+  for (const handler of [
+    ...createDelegationTools(core, subagentHost),
     ...createAsyncBashTools(core),
   ])
     core.registerCoreTool(handler);
-  return { core, storage, capabilities };
+  return { core, storage, capabilities, harness };
 }

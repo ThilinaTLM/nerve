@@ -56,9 +56,6 @@ import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
-import ExploreToolView from "./tool-call/ExploreToolView.svelte";
-import SubagentTranscriptDialog from "./tool-call/SubagentTranscriptDialog.svelte";
-import { subagentTranscriptTargets } from "./views/subagent-output";
 import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
 import { resolvePlanReview } from "./tool-call/plan-review-state";
 import { provideToolMotion } from "./tool-call/tool-motion-context";
@@ -138,7 +135,6 @@ let detailsError = $state<string | undefined>(undefined);
 let fullToolCall = $state<ToolCallDetails | undefined>(undefined);
 let fullToolCallPreviewUpdatedAt = $state<string | undefined>(undefined);
 let detailsToolId: string | undefined;
-let transcriptTarget = $state<{ agentId: string; name: string } | undefined>();
 
 // Kept-mounted inactive panes may receive new tool rows while hidden. Avoid
 // hydrating heavy views until active, then keep them mounted for this slot.
@@ -261,11 +257,11 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
     case "todos":
       return view.items.length > 0;
     case "subagent":
-      return view.teammates.length > 0 || Boolean(view.response);
-    case "explore":
-      return Boolean(
-        view.reports.length || view.liveUpdates.length || view.liveLog?.length,
-      );
+      return view.action === "prompt"
+        ? view.assignments.length > 0
+        : view.action === "status"
+          ? view.rows.length > 0 || Boolean(view.header)
+          : view.lines.length > 0;
     case "web_search":
       return Boolean(view.answer || view.results.length);
     case "web_fetch":
@@ -350,9 +346,6 @@ const approvalPresentation = $derived.by(() => {
     cwd,
   );
 });
-const isExplore = $derived(
-  (toolCall?.toolName ?? draft?.block.toolName) === "explore",
-);
 const hilInteractive = $derived(
   view?.kind === "ask_user" ||
     (view?.kind === "plan_mode" && view.action === "present"),
@@ -448,12 +441,7 @@ const activitySections = $derived.by(() =>
     footerItems: activityMeta,
     hasDetailsAction:
       Boolean(toolCall && detailsEnabled) ||
-      Boolean(backgroundTaskId && onOpenTask) ||
-      Boolean(
-        toolCall?.agentId &&
-        view?.kind === "subagent" &&
-        subagentTranscriptTargets(view, toolCall.agentId).length > 0,
-      ),
+      Boolean(backgroundTaskId && onOpenTask),
   }),
 );
 const draftArg = $derived.by<PrimaryArg | undefined>(() => {
@@ -513,18 +501,6 @@ const detailsAction = $derived(
 const backgroundTaskId = $derived(presentation?.backgroundTaskId);
 const cardActions = $derived.by<CardAction[]>(() => {
   const actions: CardAction[] = [];
-  if (toolCall?.status === "completed" && view?.kind === "subagent") {
-    for (const target of subagentTranscriptTargets(view, toolCall.agentId)) {
-      actions.push({
-        label:
-          view.teammates.length === 1
-            ? "Transcript"
-            : `Transcript · ${target.name}`,
-        ariaLabel: `View transcript for ${target.name}`,
-        onClick: () => (transcriptTarget = target),
-      });
-    }
-  }
   const taskId = backgroundTaskId;
   if (taskId && onOpenTask) {
     actions.push({
@@ -556,7 +532,6 @@ $effect(() => {
   const id = toolCall?.id;
   if (id === detailsToolId) return;
   detailsToolId = id;
-  transcriptTarget = undefined;
   detailsOpen = false;
   detailsLoading = false;
   detailsError = undefined;
@@ -637,8 +612,7 @@ async function openDetails() {
   error={activitySections.errorVisible ? errorPreview : undefined}
   {meta}
   footer={activitySections.footerVisible}
-  bodyVisible={isExplore ||
-    activitySections.argumentVisible ||
+  bodyVisible={activitySections.argumentVisible ||
     activitySections.interactionMode !== "none" ||
     activitySections.resultMode !== "none"}
   {layoutRevision}
@@ -646,14 +620,7 @@ async function openDetails() {
   {cardActions}
   {onOpenFile}
 >
-  {#if isExplore}
-    <ExploreToolView
-      {draft}
-      {toolCall}
-      view={view?.kind === "explore" ? view : undefined}
-      {onOpenFile}
-    />
-  {:else if activitySections.argumentVisible && argumentBody}
+  {#if activitySections.argumentVisible && argumentBody}
     <ToolArgumentBody
       body={argumentBody}
       highlight={revealSettled && Boolean(toolCall || draft?.block.done)}
@@ -672,12 +639,12 @@ async function openDetails() {
     />
   {/if}
 
-  {#if !isExplore && activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
+  {#if activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
     <ToolExecutingSkeleton
       variant={lifecycleSpec.resultPlaceholder.variant}
       rows={lifecycleSpec.resultPlaceholder.rows}
     />
-  {:else if !isExplore && activitySections.resultMode === "output" && toolCall && view && ToolView}
+  {:else if activitySections.resultMode === "output" && toolCall && view && ToolView}
     <ToolView
       {toolCall}
       {view}
@@ -696,18 +663,6 @@ async function openDetails() {
     />
   {/if}
 </CardShell>
-
-{#if toolCall && transcriptTarget && toolCall.agentId}
-  <SubagentTranscriptDialog
-    open={true}
-    onOpenChange={(open) => {
-      if (!open) transcriptTarget = undefined;
-    }}
-    parentAgentId={toolCall.agentId}
-    childAgentId={transcriptTarget.agentId}
-    label={transcriptTarget.name}
-  />
-{/if}
 
 {#if toolCall && detailsEnabled}
   <ToolCallDetailsDialog

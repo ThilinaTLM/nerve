@@ -33,7 +33,8 @@ export type AgentRecord = {
   createdAt: string;
   updatedAt: string;
   parentAgentId?: string | undefined;
-  executionKind?: "explore" | "root" | "async_developer" | undefined;
+  /** Profile a sub-agent was created from; absent for the lead. */
+  subagentProfile?: string | undefined;
   name?: string | undefined;
   permissionRuleSetId?: string | undefined;
   systemPrompt?: string | undefined;
@@ -98,7 +99,6 @@ export type ConversationEntry = {
     | "subagent_run_event"
     | "compaction"
     | "branch_summary"
-    | "explore_report"
     | "run_status"
     | "task_event";
   text: string;
@@ -138,7 +138,6 @@ export type ConversationTreeNode = {
       | "subagent_run_event"
       | "compaction"
       | "branch_summary"
-      | "explore_report"
       | "run_status"
       | "task_event";
     text: string;
@@ -169,5 +168,3 @@ export type ConversationTreeNode = {
 };
 
 export type AgentActivityState = AgentActivitySnapshot["state"];
-
-export type SubagentTranscriptEntry = ConversationEntry;

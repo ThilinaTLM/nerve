@@ -133,6 +133,12 @@ export function createConversationProtocolSession(
     "capabilities.reset": (input) => state.capabilities.reset(input),
     "capabilities.trust": ({ projectId, digest }) =>
       state.capabilities.trust(projectId, digest),
+    "harnessSettings.get": ({ projectId, conversationId }) => {
+      projects.add(projectId);
+      return state.harness.get(projectId, conversationId);
+    },
+    "harnessSettings.update": ({ projectId, conversationId, compaction }) =>
+      state.harness.update(projectId, conversationId, compaction),
     "project.create": (input) => {
       const project = core.projects.create(input);
       moveProjectLaunchDefinitions(project.directory);
@@ -162,7 +168,13 @@ export function createConversationProtocolSession(
     },
     "conversation.create": async (input) => {
       projects.add(input.projectId);
-      const snapshot = await core.createConversation(input);
+      const snapshot = await core.createConversation({
+        ...input,
+        config: {
+          ...input.config,
+          instructions: input.config.instructions ?? null,
+        },
+      });
       owners.set(input.id, input.projectId);
       return snapshot;
     },

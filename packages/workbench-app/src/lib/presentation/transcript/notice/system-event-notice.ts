@@ -1,4 +1,5 @@
 import type { SystemEventNotice } from "../../state/transcript-types";
+import { parseSubagentNotice } from "../../tools/views/subagent-result-parser";
 import { plural } from "../../tools/views/tool-presentation-helpers";
 import {
   COLLAPSED_LINES,
@@ -18,6 +19,16 @@ function textValue(value: unknown): string | undefined {
 
 /** Text rendered in the notice body; the transcript shows only its first lines. */
 export function systemEventNoticeBody(notice: SystemEventNotice): string {
+  if (notice.kind === "subagent_run_event") {
+    const parsed = parseSubagentNotice(notice.text);
+    if (parsed)
+      return [
+        parsed.outcome === "waiting" ? parsed.detail : undefined,
+        parsed.response,
+      ]
+        .filter(Boolean)
+        .join("\n");
+  }
   return (notice.summary ?? notice.text).trim();
 }
 
@@ -29,14 +40,53 @@ function bodyChips(notice: SystemEventNotice): NoticeChip[] {
 
 export function systemEventNoticeModel(
   notice: SystemEventNotice,
+  options: { onOpenFile?: (path: string) => void } = {},
 ): TranscriptNoticeModel {
-  const model = systemEventNoticeHeader(notice);
+  const model = systemEventNoticeHeader(notice, options);
   const chips = [...(model.chips ?? []), ...bodyChips(notice)];
   return chips.length > 0 ? { ...model, chips } : model;
 }
 
+function subagentNoticeHeader(
+  notice: SystemEventNotice,
+  onOpenFile: ((path: string) => void) | undefined,
+): TranscriptNoticeModel {
+  const details = detailsOf(notice);
+  const parsed = parseSubagentNotice(notice.text);
+  const outcome =
+    parsed?.outcome ??
+    textValue(details.outcome) ??
+    textValue(details.status) ??
+    "update";
+  const reportPath = parsed?.reportPath;
+  return {
+    kind: "subagent",
+    tone:
+      outcome === "completed"
+        ? "success"
+        : outcome === "failed"
+          ? "destructive"
+          : "warning",
+    glyph: "subagent",
+    badge: `subagent_${outcome}`,
+    arg: parsed?.name ?? textValue(details.childName) ?? "sub-agent",
+    statusLabel: `Sub-agent ${parsed?.name ?? ""} ${outcome}; agent notified`,
+    error: outcome === "failed" ? parsed?.detail : undefined,
+    chips: parsed?.profile ? [{ text: parsed.profile }] : [],
+    action:
+      reportPath && onOpenFile
+        ? {
+            label: "Open report",
+            ariaLabel: `Open full report for ${parsed?.name ?? "sub-agent"}`,
+            onClick: () => onOpenFile(reportPath),
+          }
+        : undefined,
+  };
+}
+
 function systemEventNoticeHeader(
   notice: SystemEventNotice,
+  options: { onOpenFile?: (path: string) => void },
 ): TranscriptNoticeModel {
   const details = detailsOf(notice);
   const type = textValue(details.type);
@@ -53,23 +103,8 @@ function systemEventNoticeHeader(
         : [],
     };
   }
-  if (notice.kind === "subagent_run_event" || type === "subagent_event") {
-    const outcome = textValue(details.outcome) ?? "update";
-    const name = textValue(details.childName);
-    return {
-      kind: "subagent",
-      tone:
-        outcome === "completed"
-          ? "success"
-          : outcome === "failed"
-            ? "destructive"
-            : "warning",
-      glyph: "subagent",
-      badge: `subagent_${outcome}`,
-      arg: name ?? "teammate",
-      statusLabel: `Subagent assignment ${outcome}; agent notified`,
-    };
-  }
+  if (notice.kind === "subagent_run_event" || type === "subagent_event")
+    return subagentNoticeHeader(notice, options.onOpenFile);
   if (
     notice.kind === "tool_result" ||
     notice.kind === "inline_command_result"

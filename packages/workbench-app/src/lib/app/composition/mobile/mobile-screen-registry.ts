@@ -9,7 +9,6 @@ type LazyMobileRouteKind =
   | "files"
   | "notes"
   | "note"
-  | "context"
   | "settings"
   | "settings-page"
   | "logs"
@@ -28,7 +27,6 @@ export const mobileScreenLoaders = {
   files: () => import("./MobileFilesHost.svelte"),
   notes: () => import("./MobileNotesHost.svelte"),
   note: () => import("./MobileNoteEditorHost.svelte"),
-  context: () => import("./MobileContextHost.svelte"),
   settings: () => import("./MobileSettingsHost.svelte"),
   "settings-page": () => import("./MobileSettingsPageHost.svelte"),
   logs: () => import("./MobileLogsHost.svelte"),

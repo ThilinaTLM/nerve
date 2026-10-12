@@ -518,28 +518,4 @@ describe("adaptive agent tool-result projection", () => {
     assert.match(terminal("denied"), /^The requested tool call was denied/);
     assert.match(terminal("cancelled"), /^Tool execution was cancelled/);
   });
-
-  it("projects Explore tasks independently without a call-level ceiling", () => {
-    const reports = Array.from({ length: 8 }, (_, index) => ({
-      agentId: `agent_${index}`,
-      task: `task ${index}`,
-      status: "completed",
-      report: Array.from(
-        { length: 50 },
-        (_, line) => `task ${index} line ${line}`,
-      ).join("\n"),
-      reportPath: `/tmp/report-${index}.md`,
-      reportBytes: 4_000,
-      reportLines: 50,
-      artifactId: `report_${index}`,
-      summaryPreview: `summary ${index}`,
-    }));
-    const projected = projectAgentResult(
-      context("explore", { reports }),
-      agentResultPolicyForTool("explore"),
-    );
-    assert.equal(projected.snapshot.perTask?.length, 8);
-    assert.equal(projected.snapshot.strategy, "compound_per_task");
-    assert.ok(measureBlocks(projected.blocks).lines > 200);
-  });
 });

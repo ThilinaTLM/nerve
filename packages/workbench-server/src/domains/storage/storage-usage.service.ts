@@ -44,13 +44,8 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
   },
   payloads: {
     label: "Conversation files",
-    description: "Retained tool results and other conversation-owned files.",
-    cleanable: true,
-    protected: false,
-  },
-  reports: {
-    label: "Reports",
-    description: "Saved output from codebase explore sub-agents.",
+    description:
+      "Retained tool results, sub-agent reports and other conversation-owned files.",
     cleanable: true,
     protected: false,
   },
@@ -126,7 +121,6 @@ const CATEGORY_META: Record<StorageCategoryKey, CategoryMeta> = {
 const CATEGORY_ORDER: StorageCategoryKey[] = [
   "database",
   "payloads",
-  "reports",
   "images",
   "plans",
   "agentResources",
@@ -177,7 +171,6 @@ export class StorageUsageService {
 
     add("database", databaseTally);
     add("payloads", await dirSize(paths.conversationsPath));
-    add("reports", await dirSize(paths.reportsPath));
     add("images", await dirSize(paths.imagesPath));
     add("plans", await dirSize(paths.plansPath));
     add("agentResources", await dirSize(paths.agentPath));
@@ -198,7 +191,6 @@ export class StorageUsageService {
     const knownDataNames = new Set([
       ...sqliteFilePaths(paths.sqlitePath).map((path) => basename(path)),
       basename(paths.conversationsPath),
-      basename(paths.reportsPath),
       basename(paths.imagesPath),
       basename(paths.plansPath),
     ]);
@@ -322,12 +314,6 @@ export class StorageUsageService {
         target: "rotatedEventLog",
         bytes: rotatedBytes,
         itemCount: rotatedBytes > 0 ? 1 : 0,
-        estimate: "exact",
-      },
-      {
-        target: "exploreReports",
-        bytes: category("reports").bytes,
-        itemCount: category("reports").files,
         estimate: "exact",
       },
       {

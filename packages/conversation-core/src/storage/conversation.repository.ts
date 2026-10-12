@@ -137,16 +137,16 @@ export class ConversationRepository {
     const row = conversationConfigSchema.parse(input);
     this.db.sqlite
       .prepare(`INSERT INTO conversation_config
-      (conversation_id, model, reasoning_level, system_prompt, permission_rule_set_id, mode, working_directory)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      (conversation_id, model, reasoning_level, system_prompt, instructions, permission_rule_set_id, mode, working_directory)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         row.conversationId,
         JSON.stringify(row.model),
         row.reasoningLevel,
         row.systemPrompt,
+        row.instructions,
         row.permissionRuleSetId,
         row.mode,
-
         row.workingDirectory,
       );
     return row;
@@ -161,15 +161,15 @@ export class ConversationRepository {
       throw new Error(`Configuration not found: ${conversationId}`);
     const row = conversationConfigSchema.parse({ ...existing, ...patch });
     this.db.sqlite
-      .prepare(`UPDATE conversation_config SET model = ?, reasoning_level = ?, system_prompt = ?, permission_rule_set_id = ?,
+      .prepare(`UPDATE conversation_config SET model = ?, reasoning_level = ?, system_prompt = ?, instructions = ?, permission_rule_set_id = ?,
       mode = ?, working_directory = ? WHERE conversation_id = ?`)
       .run(
         JSON.stringify(row.model),
         row.reasoningLevel,
         row.systemPrompt,
+        row.instructions,
         row.permissionRuleSetId,
         row.mode,
-
         row.workingDirectory,
         conversationId,
       );
@@ -218,6 +218,7 @@ function mapConfig(row: Record<string, SQLOutputValue>): ConversationConfig {
     model: JSON.parse(String(row.model)),
     reasoningLevel: row.reasoning_level,
     systemPrompt: row.system_prompt,
+    instructions: row.instructions,
     permissionRuleSetId: row.permission_rule_set_id,
     mode: row.mode,
     workingDirectory: row.working_directory,

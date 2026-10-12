@@ -4,6 +4,9 @@ import {
   hasExecutableCommandBlocks,
   isInlineCommandPrompt,
 } from "@nervekit/contracts/completions";
+import Lock from "@lucide/svelte/icons/lock";
+import ArrowLeft from "@lucide/svelte/icons/arrow-left";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
 import ComposerShell from "../composer/ComposerShell.svelte";
 import ComposerToolbar from "../composer/ComposerToolbar.svelte";
@@ -27,9 +30,13 @@ let {
 const commandMode = $derived(isInlineCommandPrompt(model.text));
 const executableBlocks = $derived(hasExecutableCommandBlocks(model.text));
 const blocked = $derived(Boolean(model.disabled || model.compacting));
-const editorDisabled = $derived(model.editorDisabled ?? blocked);
+const editorDisabled = $derived(
+  Boolean(model.editorOverlay) || (model.editorDisabled ?? blocked),
+);
 const submitDisabled = $derived(
-  model.submitDisabled ?? Boolean(blocked || (commandMode && model.sending)),
+  Boolean(model.editorOverlay) ||
+    (model.submitDisabled ??
+      Boolean(blocked || (commandMode && model.sending))),
 );
 const controlsDisabled = $derived(
   model.controlsDisabled ?? (blocked || Boolean(model.sending)),
@@ -99,6 +106,9 @@ function submit(): void {
       modeDisabled={model.modeDisabled ?? blocked}
       modelDisabled={model.modelDisabled ??
         (blocked || model.models.length === 0)}
+      modeHidden={model.modeHidden}
+      session={model.session}
+      thisConversation={model.thisConversation}
       modeLabel={modePlanning ? "Planning" : "Coding"}
       {modePlanning}
       onToggleMode={() =>
@@ -145,22 +155,44 @@ function submit(): void {
   {/snippet}
 
   {#snippet editor()}
-    <ComposerEditor
-      value={model.text}
-      disabled={editorDisabled}
-      {placeholder}
-      slashCompletions={model.slashCompletions}
-      fileCompletions={model.fileCompletions}
-      referenceCompletions={model.referenceCompletions}
-      focusToken={model.focusToken ?? 0}
-      onChange={actions.onComposerChange}
-      onSubmit={submit}
-      onPasteImage={actions.onPasteImage}
-      onDropFiles={actions.onDropFiles}
-      onReadClipboardText={actions.onReadClipboardText}
-      onWriteClipboardText={actions.onWriteClipboardText}
-      onClipboardError={actions.onClipboardError}
-    />
+    {#if model.editorOverlay}
+      {@const overlay = model.editorOverlay}
+      <div
+        class="flex min-h-16 items-center justify-between gap-3 bg-well/60 px-3 py-3 pr-24 text-sm text-muted-foreground"
+        data-testid="composer-editor-overlay"
+      >
+        <span class="flex min-w-0 items-center gap-2">
+          <Lock class="size-3.5 flex-none" aria-hidden="true" />
+          <span class="min-w-0">{overlay.message}</span>
+        </span>
+        <Button
+          type="button"
+          size="sm"
+          class="flex-none"
+          onclick={overlay.onAction}
+        >
+          <ArrowLeft />
+          {overlay.actionLabel}
+        </Button>
+      </div>
+    {:else}
+      <ComposerEditor
+        value={model.text}
+        disabled={editorDisabled}
+        {placeholder}
+        slashCompletions={model.slashCompletions}
+        fileCompletions={model.fileCompletions}
+        referenceCompletions={model.referenceCompletions}
+        focusToken={model.focusToken ?? 0}
+        onChange={actions.onComposerChange}
+        onSubmit={submit}
+        onPasteImage={actions.onPasteImage}
+        onDropFiles={actions.onDropFiles}
+        onReadClipboardText={actions.onReadClipboardText}
+        onWriteClipboardText={actions.onWriteClipboardText}
+        onClipboardError={actions.onClipboardError}
+      />
+    {/if}
   {/snippet}
 
   {#snippet sendLeading()}

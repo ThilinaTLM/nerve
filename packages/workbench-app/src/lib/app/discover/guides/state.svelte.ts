@@ -209,7 +209,6 @@ const tourPanelViewByStep: Partial<Record<TourStep["id"], string>> = {
   launches: "launches",
   files: "files",
   "scratch-notes": "notes",
-  "context-panel": "context",
 };
 
 async function settlePreparation(): Promise<void> {

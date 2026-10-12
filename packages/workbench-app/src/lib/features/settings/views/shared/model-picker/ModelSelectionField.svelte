@@ -18,6 +18,8 @@ type Props = {
   inheritOption?: { label: string; description: string };
   inherit?: boolean;
   requiredCapabilities?: ModelCapability[];
+  /** Hides the reasoning-level controls when the level is set elsewhere. */
+  showReasoning?: boolean;
   emptyMessage?: string;
   tourId?: string;
 };
@@ -30,6 +32,7 @@ let {
   inheritOption,
   inherit = $bindable(false),
   requiredCapabilities,
+  showReasoning = true,
   emptyMessage,
   tourId,
 }: Props = $props();
@@ -44,6 +47,7 @@ let {
     value={model}
     {thinkingLevel}
     {requiredCapabilities}
+    {showReasoning}
     {emptyMessage}
     {tourId}
     {inheritOption}

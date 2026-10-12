@@ -1,4 +1,5 @@
 <script lang="ts">
+import { waitingConversationIds } from "$lib/features/conversations";
 import Plus from "@lucide/svelte/icons/plus";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
@@ -51,7 +52,9 @@ const conversations = $derived(
     ),
   ),
 );
-const activityById = $derived(sidebarActivity(conversations));
+const activityById = $derived(
+  sidebarActivity(conversations, waitingConversationIds()),
+);
 const sections = $derived(
   buildConversationSections({
     conversations,

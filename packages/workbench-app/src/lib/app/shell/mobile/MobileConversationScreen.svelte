@@ -1,6 +1,5 @@
 <script lang="ts">
 import EllipsisVertical from "@lucide/svelte/icons/ellipsis-vertical";
-import Info from "@lucide/svelte/icons/info";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { MobileActionSheet, MobileScreen } from "$lib/presentation/shell";
 import { ConversationCenterHost } from "$lib/app/composition/registries/center-view-registry";
@@ -11,11 +10,11 @@ import {
 } from "$lib/application/workspace";
 import { mobileConversationMenu } from "./mobile-conversation-menu.svelte";
 import type { MobileCenterIdentity } from "./mobile-routes";
-import { backFromMobileScreen, pushMobileScreen } from "./mobile-shell.svelte";
+import { backFromMobileScreen } from "./mobile-shell.svelte";
 
 /**
  * A conversation as a phone screen: transcript and composer get the whole
- * viewport; context and conversation actions sit in the header.
+ * viewport; conversation actions sit in the header.
  */
 let {
   identity,
@@ -66,17 +65,6 @@ let menuOpen = $state(false);
   scroll={false}
 >
   {#snippet actions()}
-    {#if conversation}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        ariaLabel="Conversation context"
-        onclick={() =>
-          pushMobileScreen({ kind: "context", conversationId: identity.id })}
-      >
-        <Info size={18} strokeWidth={1.9} />
-      </Button>
-    {/if}
     {#if menuItems.length}
       <Button
         variant="ghost"

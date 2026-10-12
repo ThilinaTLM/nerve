@@ -49,12 +49,9 @@ export const coreToolNameSchema = z.enum([
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
 export const userConfigurableToolNameSchema = z.enum([
-  "subagent_new",
   "subagent_prompt",
-  "subagent_list",
   "subagent_status",
   "subagent_stop",
-  "explore",
   "web_search",
   "web_fetch",
   "explain_image",
@@ -67,14 +64,11 @@ export type UserConfigurableToolName = z.infer<
 >;
 
 export const orchestrationToolNameSchema = z.enum([
-  "subagent_new",
   "subagent_prompt",
-  "subagent_list",
   "subagent_status",
   "subagent_stop",
   "async_bash",
   "launch",
-  "explore",
   "plan_mode_enter",
   "plan_mode_present",
   "plan_mode_force_exit",

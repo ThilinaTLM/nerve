@@ -13,7 +13,7 @@ import MobilePullRequestsHost from "./MobilePullRequestsHost.svelte";
 import type { MobileRoute } from "./mobile-routes";
 
 /**
- * Route → screen. Screens that bind feature internals (files, notes, context,
+ * Route → screen. Screens that bind feature internals (files, notes,
  * launches, logs, settings) live in the composition root and load on first use, so the
  * phone shell does not pull settings or log tooling into the startup bundle.
  */

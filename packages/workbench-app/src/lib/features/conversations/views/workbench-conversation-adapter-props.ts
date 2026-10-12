@@ -28,8 +28,25 @@ import type {
 } from "$lib/presentation/state";
 import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
+import type { Snippet } from "svelte";
+import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
+import type { ComposerEditorOverlay } from "$lib/presentation/conversations/conversation-view-contracts";
+import type { SubagentsCapability } from "$lib/presentation/context.svelte";
+import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 
 export type WorkbenchConversationAdapterProps = {
+  /** Floats over the transcript's top right (the agents pill). */
+  floating?: Snippet;
+  reserveTopInset?: boolean;
+  /** Sub-agents and commands the conversation waits for after its turn. */
+  pendingWork?: PendingWorkItem[];
+  onOpenPendingWork?: (item: PendingWorkItem) => void;
+  /** Sub-agents of the viewed conversation, for the sub-agent tool cards. */
+  subagents?: SubagentsCapability;
+  editorOverlay?: ComposerEditorOverlay;
+  modeHidden?: boolean;
+  session?: ConversationSessionInfo;
+  thisConversation?: Snippet;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;

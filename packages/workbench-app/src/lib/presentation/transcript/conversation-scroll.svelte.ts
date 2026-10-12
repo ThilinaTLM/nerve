@@ -79,6 +79,11 @@ export function createConversationScrollController(
   let atEnd = $state(true);
   let followBottom = $state(true);
   let lastConversationId: string | undefined;
+  /** Where each conversation was left, so returning to one (a sub-agent view
+   * and back) lands where the user was instead of at the bottom. */
+  const remembered: Record<string, { top: number; atEnd: boolean }> =
+    Object.create(null);
+  let pendingRestore: { top: number; atEnd: boolean } | undefined;
   let lastActive = false;
   let initialScrollDone = false;
   let settleFrame: number | undefined;
@@ -216,6 +221,27 @@ export function createConversationScrollController(
     settleFrame = requestAnimationFrame(step);
   }
 
+  // Put the viewport back where the user left this conversation. Row heights
+  // are cached per conversation, so the offset is close to exact; keep
+  // reapplying for a few frames while rows measure.
+  function restoreScrollPosition(top: number) {
+    cancelSettledScroll();
+    followBottom = false;
+    let frames = 0;
+    const step = () => {
+      settleFrame = undefined;
+      frames += 1;
+      const viewport = controller?.getViewportElement();
+      if (viewport) {
+        markProgrammaticScroll();
+        viewport.scrollTop = top;
+        if (Math.abs(viewport.scrollTop - top) <= 2) return;
+      }
+      if (frames < MAX_SETTLE_FRAMES) settleFrame = requestAnimationFrame(step);
+    };
+    settleFrame = requestAnimationFrame(step);
+  }
+
   $effect(() => {
     const currentlyAtEnd = atEnd;
     if (!currentlyAtEnd) return;
@@ -233,6 +259,7 @@ export function createConversationScrollController(
     lastActive = active;
     if (conversationId !== lastConversationId) {
       lastConversationId = conversationId;
+      pendingRestore = conversationId ? remembered[conversationId] : undefined;
       initialScrollDone = false;
       followBottom = true;
       cancelSettledScroll();
@@ -246,7 +273,13 @@ export function createConversationScrollController(
     if (!options.conversationOpen() || !conversationId || !ready) return;
     if (!initialScrollDone) {
       initialScrollDone = true;
-      void tick().then(scrollToEndWhenSettled);
+      const restore = pendingRestore;
+      pendingRestore = undefined;
+      if (restore && !restore.atEnd) {
+        void tick().then(() => restoreScrollPosition(restore.top));
+      } else {
+        void tick().then(scrollToEndWhenSettled);
+      }
       return;
     }
     if (becameActive && followBottom) {
@@ -285,6 +318,12 @@ export function createConversationScrollController(
       const nextScrollTop = el.scrollTop;
       const delta = nextScrollTop - lastScrollTop;
       lastScrollTop = nextScrollTop;
+      if (lastConversationId && initialScrollDone) {
+        remembered[lastConversationId] = {
+          top: nextScrollTop,
+          atEnd: isDomAtEnd(el, BOTTOM_THRESHOLD_PX),
+        };
+      }
 
       if (programmaticScrollActive) return;
 

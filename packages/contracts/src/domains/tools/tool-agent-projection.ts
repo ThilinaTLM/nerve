@@ -10,7 +10,6 @@ export const agentResultProfileIdSchema = z.enum([
   "resource_detail",
   "mutation_acknowledgement",
   "lifecycle_state",
-  "delegated_reports",
   "primary_file_result",
   "human_response",
   "vision_explanation",
@@ -29,7 +28,6 @@ export const agentResultStrategyIdSchema = z.enum([
   "continuation_aware",
   "artifact_index",
   "task_log_window",
-  "compound_per_task",
   "terminal_outcome",
 ]);
 export type AgentResultStrategyId = z.infer<typeof agentResultStrategyIdSchema>;
@@ -199,16 +197,6 @@ export const agentProjectionSnapshotSchema = z
     displayedTextBytes: z.number().int().nonnegative(),
     originalTextLines: z.number().int().nonnegative(),
     displayedTextLines: z.number().int().nonnegative(),
-    perTask: z
-      .array(
-        z.object({
-          index: z.number().int().nonnegative(),
-          decision: z.enum(["inline", "index", "outcome"]),
-          displayedBytes: z.number().int().nonnegative(),
-          displayedLines: z.number().int().nonnegative(),
-        }),
-      )
-      .optional(),
     continuation: z.array(exactContinuationSchema).optional(),
   })
   .strict();

@@ -5,6 +5,7 @@ export const trustedResourceKindSchema = z.enum([
   "skill",
   "project_permissions",
   "project_capabilities",
+  "subagent_profile",
 ]);
 export const trustedResourceStatusSchema = z.enum(["trusted", "rejected"]);
 export const trustedResourceSchema = z.object({

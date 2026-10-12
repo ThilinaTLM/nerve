@@ -23,16 +23,14 @@ const groups = [
   "subagent_status",
   "subagent_stop",
 ];
-const configurable = [
-  "explore",
-  "explain_image",
-  "generate_image",
-  "kroki_export",
-  "subagents",
-];
+const configurable = ["explain_image", "generate_image", "kroki_export"];
+// Removed with sub-agent profiles: stripped from every layer.
+const removedTools = ["explore"];
+const removedToolSettings = ["explore", "subagents"];
 const profiled = ["jira", "confluence", "web_search"];
 export const toolNames = new Set([
   ...configurable,
+  "subagents",
   ...profiled,
   "web_fetch",
   "python_exec",
@@ -61,6 +59,7 @@ export const capabilityOverridesDocumentSchema = {
       }
     }
     for (const [name, value] of Object.entries(tools)) {
+      if (removedTools.includes(name)) continue;
       assert(toolNames.has(name), `Unknown capability tool ${name}`);
       const entry =
         typeof value === "boolean" && raw.schemaVersion === 1
@@ -77,6 +76,7 @@ export const capabilityOverridesDocumentSchema = {
       document.tools[name] = { ...entry };
     }
     for (const [name, settings] of Object.entries(raw.toolSettings ?? {})) {
+      if (removedToolSettings.includes(name)) continue;
       assert(
         configurable.includes(name) && settings && typeof settings === "object",
       );
@@ -120,8 +120,6 @@ export function userCapabilitySelection(
     disabledTools: [...disabled],
     toolProfiles: profiles,
     toolSettings: {
-      explore: harness.exploreAgent ?? defaults.toolSettings.explore,
-      subagents: harness.asyncSubagent ?? defaults.toolSettings.subagents,
       explain_image:
         harness.tools?.imageExplanation ?? defaults.toolSettings.explain_image,
       generate_image:

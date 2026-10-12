@@ -132,7 +132,7 @@ describe("setup guide policy", () => {
     assert.equal(
       setupStepsForArea("agent-defaults", { codexConnected: false }).at(-1)
         ?.targetId,
-      "setup-agent-explore-model",
+      "setup-agent-subagent-profiles",
     );
   });
 

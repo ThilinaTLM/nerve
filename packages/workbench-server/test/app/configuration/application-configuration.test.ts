@@ -148,7 +148,6 @@ describe("application configuration resolution", () => {
       maxConcurrentModelRuns: 10,
       maxParallelToolsPerRun: 3,
       maxActiveProcesses: 16,
-      maxActiveExploreAgents: 5,
     });
     assert.equal(result.values.controlWorkConcurrency, 4);
     assert.equal(
@@ -168,7 +167,6 @@ describe("application configuration resolution", () => {
       maxConcurrentModelRuns: 12,
       maxParallelToolsPerRun: 4,
       maxActiveProcesses: 24,
-      maxActiveExploreAgents: 6,
     };
     const manual = resolveApplicationConfiguration({
       settings,
@@ -185,7 +183,6 @@ describe("application configuration resolution", () => {
       maxConcurrentModelRuns: 12,
       maxParallelToolsPerRun: 4,
       maxActiveProcesses: 24,
-      maxActiveExploreAgents: 6,
     });
 
     const overridden = resolve({
@@ -211,10 +208,6 @@ describe("application configuration resolution", () => {
     assert.throws(
       () => resolve({ NERVE_MAX_PARALLEL_TOOLS_PER_RUN: "17" }),
       /NERVE_MAX_PARALLEL_TOOLS_PER_RUN/,
-    );
-    assert.throws(
-      () => resolve({ NERVE_MAX_ACTIVE_EXPLORE_AGENTS: "0" }),
-      /NERVE_MAX_ACTIVE_EXPLORE_AGENTS/,
     );
   });
 

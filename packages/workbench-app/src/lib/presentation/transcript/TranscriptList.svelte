@@ -21,6 +21,7 @@ import ConversationSignal from "../conversations/ConversationSignal.svelte";
 import QueuedPromptRow from "./QueuedPromptRow.svelte";
 import TranscriptRow from "./TranscriptRow.svelte";
 import RunActivitySlot from "./activity/RunActivitySlot.svelte";
+import type { PendingWorkItem } from "./activity/run-activity";
 import { createRunActivityTracker } from "./activity/run-activity-tracker.svelte";
 import type { ConversationRunActivityModel } from "../conversations/conversation-view-contracts.js";
 import { groupConsecutiveThinking } from "./transcript-presentation";
@@ -42,6 +43,7 @@ import { hasTranscriptContent } from "./transcript-content";
 type Props = {
   controller?: VirtualScrollerController;
   atEnd?: boolean;
+  paddingStart?: number;
   paddingEnd?: number;
   heightCacheKey?: string;
   contentVisibility?: boolean;
@@ -95,12 +97,14 @@ type Props = {
   onMoveQueuedPromptToComposer?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
+  onOpenPendingWork?: (item: PendingWorkItem) => void;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
 let {
   controller = $bindable(),
   atEnd = $bindable(true),
+  paddingStart = 12,
   paddingEnd = 0,
   heightCacheKey,
   // Transcript rows change height in place as tool results hydrate and wrap.
@@ -141,6 +145,7 @@ let {
   onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
+  onOpenPendingWork,
   transcriptMenu,
 }: Props = $props();
 
@@ -187,6 +192,7 @@ const runActivityTracker = createRunActivityTracker(() => ({
   activeRun: runActivity.activeRun,
   lastRunOutcome: runActivity.lastRunOutcome,
   stopping: runActivity.stopping,
+  pending: runActivity.pending,
   compactionRunning,
   tail: timelineTail.at(-1) ?? timelinePrefix.at(-1),
 }));
@@ -351,7 +357,7 @@ $effect(() => {
       anchor="end"
       followOutput={followBottom}
       scrollEndThreshold={32}
-      paddingStart={12}
+      {paddingStart}
       {paddingEnd}
       gap={2}
       viewportTabIndex={0}
@@ -390,7 +396,10 @@ $effect(() => {
             {transcriptMenu}
           />
         {:else if item.kind === "activity"}
-          <RunActivitySlot view={runActivityTracker.view} />
+          <RunActivitySlot
+            view={runActivityTracker.view}
+            onOpenPending={onOpenPendingWork}
+          />
         {:else}
           <QueuedPromptRow
             prompt={item.prompt}

@@ -29,7 +29,7 @@ After authentication, choose:
 
 - a global default model and thinking level;
 - an optional scoped list for the conversation picker;
-- a separate default model and thinking level for Explore sub-agents.
+- optionally, a model and thinking level in a sub-agent profile; by default sub-agents use the lead's.
 
 An empty scope means all authenticated models. If a scoped model later disappears, Nerve retains it as unavailable but ignores it in the picker.
 

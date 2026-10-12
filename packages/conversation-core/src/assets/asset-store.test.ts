@@ -43,6 +43,7 @@ void test("image reads require a known conversation, image category and safe ima
         model: { provider: "test", modelId: "test" },
         reasoningLevel: "off",
         systemPrompt: null,
+        instructions: null,
         permissionRuleSetId: "baseline",
         mode: "coding",
         workingDirectory: directory,

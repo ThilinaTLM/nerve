@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { modeSchema } from "../settings/settings.js";
+import { subagentInstructionsSchema } from "../subagents/constants.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
@@ -35,6 +36,8 @@ export const conversationConfigSchema = z.object({
   model: modelSelectionSchema,
   reasoningLevel: thinkingLevelSchema,
   systemPrompt: z.string().nullable(),
+  /** Extra instructions (at most 16 KB) appended to the system prompt; sub-agent profiles set it. */
+  instructions: subagentInstructionsSchema.nullable(),
   permissionRuleSetId: z.string(),
   mode: modeSchema,
 

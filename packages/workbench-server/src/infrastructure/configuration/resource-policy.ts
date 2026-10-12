@@ -58,7 +58,6 @@ export function recommendResourcePolicy(
         8,
         64,
       ),
-      maxActiveExploreAgents: clamp(Math.floor(modelRuns / 2), 2, 8),
     },
     controlWorkConcurrency: clamp(effectiveCpuCount, 2, 8),
   };

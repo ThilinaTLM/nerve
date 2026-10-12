@@ -11,7 +11,7 @@ Settings stores a global default model/thinking level and remembers the last sel
 
 A model scope narrows the picker. Empty scope means every authenticated model; a nonempty list filters it. Stale scope entries remain in Settings as unavailable and are ignored until the model returns or the entry is removed.
 
-Explore agents have their own default model and thinking selection because parallel codebase research can benefit from a different cost/latency profile. Persistent developer teammates can either inherit the lead model or use the model and thinking level configured under **Settings → Tools → Async Subagents**; that choice applies when a teammate is created.
+Sub-agents use the lead's model and thinking level unless their [profile](/reference/subagent-profiles/) names its own, which can suit work such as parallel codebase research. The choice is made when a sub-agent is created; afterwards you can change its model and thinking level in its own view like any conversation.
 
 ## Catalog limits
 

@@ -29,7 +29,6 @@ export type MobileRoute =
   | { kind: "git"; projectId: string }
   | { kind: "pull-requests"; projectId: string }
   | { kind: "branches"; projectId: string }
-  | { kind: "context"; conversationId: string }
   | { kind: "center"; identity: MobileCenterIdentity }
   | { kind: "settings" }
   | { kind: "settings-page"; pageId: string }
@@ -64,8 +63,6 @@ export function mobileRouteKey(route: MobileRoute): string {
       return `note:${route.projectId}:${route.noteId}`;
     case "launch":
       return `launch:${route.launchId}`;
-    case "context":
-      return `context:${route.conversationId}`;
     case "center":
       return `center:${route.identity.kind}:${route.identity.id}`;
     case "settings-page":
@@ -244,10 +241,6 @@ function parseMobileRoute(value: unknown): MobileRoute | undefined {
       return isText(route.projectId)
         ? { kind, launchId: route.launchId, projectId: route.projectId }
         : { kind, launchId: route.launchId };
-    case "context":
-      return isText(route.conversationId)
-        ? { kind, conversationId: route.conversationId }
-        : undefined;
     case "center": {
       const identity = route.identity as Record<string, unknown> | undefined;
       return identity?.kind === "conversation" && isText(identity.id)
@@ -295,7 +288,6 @@ export function parseMobileNav(raw: string | null): MobileNavState {
 }
 
 function routeConversationId(route: MobileRoute): string | undefined {
-  if (route.kind === "context") return route.conversationId;
   if (route.kind === "center" && route.identity.kind === "conversation") {
     return route.identity.id;
   }

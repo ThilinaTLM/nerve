@@ -110,16 +110,6 @@ test("built-in coding rule sets implement their complete behavior", () => {
   );
   assert.equal(decision("read_only", "write", { path: "x" }).decision, "deny");
   assert.equal(
-    decision("read_only", "explore", {
-      tasks: [
-        { task: "Inspect permission handling", label: "Permission handling" },
-      ],
-      context:
-        "Inspect the current permission policy implementation and identify the relevant files.",
-    }).decision,
-    "allow",
-  );
-  assert.equal(
     decision("supervised", "read", { path: "README.md" }).decision,
     "allow",
   );
@@ -266,14 +256,6 @@ test("planning separates research, prompted analysis, and mutations", () => {
   );
   assert.equal(
     decision("planning", "write", { path: "/nerve/data/plans/a.md" }).decision,
-    "allow",
-  );
-  assert.equal(
-    decision("planning", "explore", {
-      tasks: [{ task: "Research the implementation", label: "Implementation" }],
-      context:
-        "Research the current implementation paths and report the relevant code relationships.",
-    }).decision,
     "allow",
   );
 
@@ -653,4 +635,22 @@ test("source schemas reject forbidden guardrails and broad project grants", () =
       ],
     }),
   );
+});
+
+test("built-in read-only and planning sets allow sub-agent delegation", () => {
+  for (const set of ["read_only", "planning"]) {
+    assert.equal(
+      decision(set, "subagent_prompt", {
+        assignments: [{ name: "a", profile: "explore", prompt: "x" }],
+      }).decision,
+      "allow",
+      set,
+    );
+    assert.equal(
+      decision(set, "subagent_stop", { names: ["a"] }).decision,
+      "allow",
+      set,
+    );
+    assert.equal(decision(set, "subagent_status", {}).decision, "allow", set);
+  }
 });

@@ -49,10 +49,6 @@ export const AGENT_RESULT_PROFILES: Readonly<
     overflow: budget(40, 4_000),
   },
   lifecycle_state: { inline: budget(80, 8_000), overflow: budget(80, 8_000) },
-  delegated_reports: {
-    inline: budget(60, 6_000),
-    overflow: budget(12, 3_000, { maxItemBytes: 512 }),
-  },
   primary_file_result: {
     inline: budget(80, 8_000),
     overflow: budget(12, 3_000),

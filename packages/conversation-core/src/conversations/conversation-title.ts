@@ -86,7 +86,6 @@ const ACTION_WORDS = [
   "enable",
   "evaluate",
   "explain",
-  "explore",
   "find",
   "fix",
   "generate",

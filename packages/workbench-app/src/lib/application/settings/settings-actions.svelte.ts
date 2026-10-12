@@ -248,12 +248,6 @@ function mergeSettingsPatch(
       ...(patch.lastAgentSelection ?? {}),
     };
   }
-  if (base?.exploreAgent || patch.exploreAgent) {
-    next.exploreAgent = {
-      ...(base?.exploreAgent ?? {}),
-      ...(patch.exploreAgent ?? {}),
-    };
-  }
   if (base?.compaction || patch.compaction) {
     next.compaction = {
       ...(base?.compaction ?? {}),

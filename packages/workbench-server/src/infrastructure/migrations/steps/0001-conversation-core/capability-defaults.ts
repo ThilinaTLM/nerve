@@ -10,9 +10,6 @@ export const defaults = {
   ],
   toolProfiles: {},
   toolSettings: {
-    explore: {
-      thinkingLevel: "off",
-    },
     explain_image: {
       thinkingLevel: "off",
     },
@@ -27,11 +24,6 @@ export const defaults = {
     },
     kroki_export: {
       url: "https://kroki.io/",
-    },
-    subagents: {
-      compactionProfile: "inherit",
-      customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
     },
   },
   disabledFileSkills: [],

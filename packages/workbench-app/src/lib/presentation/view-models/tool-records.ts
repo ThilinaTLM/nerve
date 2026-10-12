@@ -205,7 +205,6 @@ export type ToolCallRecord = {
           | "resource_detail"
           | "mutation_acknowledgement"
           | "lifecycle_state"
-          | "delegated_reports"
           | "primary_file_result"
           | "human_response"
           | "vision_explanation"
@@ -221,8 +220,7 @@ export type ToolCallRecord = {
           | "item_aware"
           | "continuation_aware"
           | "artifact_index"
-          | "task_log_window"
-          | "compound_per_task";
+          | "task_log_window";
         terminalOutcomePrecedence: boolean;
         fastPath: boolean;
         recovery: "none" | "artifact" | "complete_payload";

@@ -49,7 +49,11 @@ describe("popover anatomy", () => {
   });
 
   it("gives every popover exactly one header", () => {
-    for (const file of panelComponents) {
+    // Fragments that only contribute sections to a panel have no header.
+    const panels = panelComponents.filter((file) =>
+      /<(?:Popover|PopoverPanel)\b/.test(file.source),
+    );
+    for (const file of panels) {
       const headers = file.source.match(/<PopoverHeader\b/g) ?? [];
       assert.equal(
         headers.length,

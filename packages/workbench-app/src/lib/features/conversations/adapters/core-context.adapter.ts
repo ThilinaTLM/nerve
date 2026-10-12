@@ -13,6 +13,7 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { eventEntry } from "./core-transcript.adapter";
+import { deriveSubagentProfile } from "./subagent-profile";
 
 export function projectView(project: Project): ProjectRecord {
   return { ...project, dir: project.directory };
@@ -32,6 +33,24 @@ export function conversationView(
     runtimeStatusClearedAt: c.statusClearedAt ?? undefined,
   };
 }
+function creatingToolCall(
+  snapshot: ConversationSnapshot,
+  events: readonly TransferredConversationEvent[],
+  toolCallId: string,
+): { toolName: string; arguments: unknown } | undefined {
+  const open = snapshot.toolCalls.find((call) => call.id === toolCallId);
+  if (open) return { toolName: open.toolName, arguments: open.arguments };
+  for (const event of events)
+    if (
+      event.type === "tool_call_response" &&
+      event.payload.toolCallId === toolCallId
+    )
+      return {
+        toolName: event.payload.toolName,
+        arguments: event.payload.arguments,
+      };
+  return undefined;
+}
 export function agentView(
   snapshot: ConversationSnapshot,
   child?: ConversationSummary,
@@ -39,21 +58,9 @@ export function agentView(
 ): AgentRecord {
   const c = child ?? snapshot.conversation;
   const config = snapshot.config;
-  const origin = child?.parentToolCallId
-    ? (snapshot.toolCalls.find((call) => call.id === child.parentToolCallId)
-        ?.toolName ??
-      events.find(
-        (e) =>
-          e.type === "tool_call_response" &&
-          e.payload.toolCallId === child.parentToolCallId,
-      ))
+  const creatingCall = child?.parentToolCallId
+    ? creatingToolCall(snapshot, events, child.parentToolCallId)
     : undefined;
-  const toolName =
-    typeof origin === "string"
-      ? origin
-      : origin?.type === "tool_call_response"
-        ? origin.payload.toolName
-        : undefined;
   return {
     id: c.id,
     conversationId: c.id,
@@ -61,13 +68,9 @@ export function agentView(
     projectDir: config.workingDirectory,
     parentAgentId: child ? snapshot.conversation.id : undefined,
     name: child?.title,
-    executionKind: child
-      ? toolName === "explore"
-        ? "explore"
-        : toolName?.startsWith("subagent_")
-          ? "async_developer"
-          : undefined
-      : "root",
+    subagentProfile: child
+      ? deriveSubagentProfile(child.title, creatingCall)
+      : undefined,
     mode: child?.mode ?? config.mode,
     permissionRuleSetId:
       child?.permissionRuleSetId ?? config.permissionRuleSetId,
@@ -104,33 +107,38 @@ export function conversationContext(
     ...snapshot.children.map((child) => agentView(snapshot, child, events)),
   ];
   const agentActivities: Record<string, AgentActivitySnapshot> = {};
-  for (const c of [snapshot.conversation, ...snapshot.children])
+  // Work the lead's turn ended with: running sub-agents and background commands.
+  const pendingAsyncCount =
+    snapshot.children.filter(
+      (child) => child.status === "running" || child.status === "waiting",
+    ).length + snapshot.asyncBash.filter((t) => t.status === "running").length;
+  for (const c of [snapshot.conversation, ...snapshot.children]) {
+    const lead = c.id === snapshot.conversation.id;
+    const state: AgentActivitySnapshot["state"] =
+      c.status === "running"
+        ? "running"
+        : c.status === "waiting"
+          ? "awaiting_user"
+          : c.status === "failed"
+            ? "error"
+            : c.status === "interrupted"
+              ? "aborted"
+              : lead && pendingAsyncCount > 0
+                ? "awaiting_async"
+                : "idle";
     agentActivities[c.id] = {
       agentId: c.id,
       conversationId: c.id,
-      state:
-        c.status === "running"
-          ? "running"
-          : c.status === "waiting"
-            ? "awaiting_user"
-            : c.status === "failed"
-              ? "error"
-              : c.status === "interrupted"
-                ? "aborted"
-                : "idle",
-      pendingInteractionCount:
-        c.id === snapshot.conversation.id
-          ? snapshot.toolCalls.filter(
-              (call) => call.interaction && !call.interaction.resolution,
-            ).length
-          : 0,
-      pendingAsyncCount:
-        c.id === snapshot.conversation.id
-          ? snapshot.children.filter((child) => child.status === "running")
-              .length
-          : 0,
+      state,
+      pendingInteractionCount: lead
+        ? snapshot.toolCalls.filter(
+            (call) => call.interaction && !call.interaction.resolution,
+          ).length
+        : 0,
+      pendingAsyncCount: lead ? pendingAsyncCount : 0,
       updatedAt: c.updatedAt,
     };
+  }
   return {
     activeConversation: conversationView(snapshot),
     activeAgent: conversationAgents[0],

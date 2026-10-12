@@ -5,7 +5,6 @@ export const MIN_DAEMON_MAX_OLD_SPACE_MB = 512;
 export const MAX_CONCURRENT_MODEL_RUNS = 32;
 export const MAX_PARALLEL_TOOLS_PER_RUN = 16;
 export const MAX_ACTIVE_PROCESSES = 256;
-export const MAX_ACTIVE_EXPLORE_AGENTS = 32;
 
 export const resourcePolicyModeSchema = z.enum(["automatic", "manual"]);
 export type ResourcePolicyMode = z.infer<typeof resourcePolicyModeSchema>;
@@ -22,11 +21,6 @@ export const resourceLimitsSchema = z.object({
     .min(1)
     .max(MAX_PARALLEL_TOOLS_PER_RUN),
   maxActiveProcesses: z.number().int().min(1).max(MAX_ACTIVE_PROCESSES),
-  maxActiveExploreAgents: z
-    .number()
-    .int()
-    .min(1)
-    .max(MAX_ACTIVE_EXPLORE_AGENTS),
 });
 export type ResourceLimits = z.infer<typeof resourceLimitsSchema>;
 
@@ -43,7 +37,6 @@ export const DEFAULT_RESOURCE_LIMITS: ResourceLimits = {
   maxConcurrentModelRuns: 10,
   maxParallelToolsPerRun: 3,
   maxActiveProcesses: 16,
-  maxActiveExploreAgents: 5,
 };
 
 export const electronOzonePlatformSchema = z.enum(["auto", "x11", "wayland"]);
@@ -138,8 +131,6 @@ export const applicationSettingsPatchSchema = z.object({
         resourceLimitsSchema.shape.maxParallelToolsPerRun.optional(),
       maxActiveProcesses:
         resourceLimitsSchema.shape.maxActiveProcesses.optional(),
-      maxActiveExploreAgents:
-        resourceLimitsSchema.shape.maxActiveExploreAgents.optional(),
     })
     .optional(),
   electron: z
@@ -222,7 +213,6 @@ export const applicationConfigurationSnapshotSchema = z.object({
       maxConcurrentModelRuns: resolvedNumberSettingSchema,
       maxParallelToolsPerRun: resolvedNumberSettingSchema,
       maxActiveProcesses: resolvedNumberSettingSchema,
-      maxActiveExploreAgents: resolvedNumberSettingSchema,
     }),
     electron: z.object({
       ozonePlatform: resolvedSettingSchema(electronOzonePlatformSchema),

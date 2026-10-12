@@ -24,7 +24,7 @@ async function fixtureHome(): Promise<string> {
   await write("data/nerve.sqlite-wal", 2);
   await write("data/conversations/a/result.json", 11);
   await write("data/conversations/b/result.json", 7);
-  await write("data/reports/report.md", 4);
+  await write("data/conversations/a/reports/report.md", 4);
   await write("data/images/image.png", 5);
   await write("data/plans/plan.md", 6);
   await write("data/launches/launch_1/log.txt", 8);
@@ -95,7 +95,7 @@ describe("StorageUsageService", () => {
         ?.fileCount,
       2,
     );
-    assert.equal(categoryBytes(usage, "payloads"), 18);
+    assert.equal(categoryBytes(usage, "payloads"), 22);
     assert.equal(
       usage.categories.some((category) => category.key === "runtimeState"),
       false,
@@ -112,17 +112,17 @@ describe("StorageUsageService", () => {
     assert.deepEqual(usage.conversations, {
       total: 2,
       largest: [
-        { conversationId: "conv_a", title: "Alpha", bytes: 11 },
+        { conversationId: "conv_a", title: "Alpha", bytes: 15 },
         { conversationId: "conv_b", title: "Beta", bytes: 7 },
       ],
     });
 
     assert.equal(targetBytes(usage, "cache"), 66);
     assert.equal(targetBytes(usage, "searchIndex"), undefined);
-    assert.equal(targetBytes(usage, "conversations"), 18);
+    assert.equal(targetBytes(usage, "conversations"), 22);
     assert.equal(targetBytes(usage, "datedLogs"), 12);
     assert.equal(targetBytes(usage, "rotatedEventLog"), 13);
-    assert.equal(targetBytes(usage, "exploreReports"), 4);
+    assert.equal(categoryBytes(usage, "reports"), undefined);
     assert.equal(targetBytes(usage, "crashReports"), 14);
     assert.equal(targetBytes(usage, "tmp"), 19);
   });

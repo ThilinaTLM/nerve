@@ -146,6 +146,10 @@ export async function prepareToolResult(
       status: outcome === "indeterminate" ? "failed" : outcome,
       validatedArtifacts,
       completePayload,
+      // Thrown errors settle as content only; surface the message as the failure reason.
+      ...(outcome === "failed" && result.content
+        ? { error: result.content }
+        : {}),
       ...(outcome === "denied"
         ? {
             denialSource: call.interaction?.resolution

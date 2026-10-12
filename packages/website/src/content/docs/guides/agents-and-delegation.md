@@ -1,61 +1,49 @@
 ---
 title: Work with agents and delegation
-description: Monitor the lead agent, delegate implementation to persistent teammates, and use Explore for bounded research.
+description: Delegate research and implementation to sub-agents, follow their progress, and define your own profiles.
 sidebar:
   order: 11
 ---
 
-A conversation has one **lead agent**. The lead can delegate in two different ways: persistent developer **teammates** for autonomous coding work, or temporary **Explore agents** for bounded read-only research. Both appear with the lead in the Context panel, but their authority and lifecycle differ.
+A conversation has one **lead agent**, the agent you direct through the composer. The lead can delegate work to **sub-agents**: separate agents that run asynchronously in the same project worktree and report back when they finish. What a sub-agent is (its model, permission, tools, skills, and instructions) comes from a **profile**.
 
-## Monitor agents in Context
+## Enable sub-agents
 
-Open the **Context** panel to see agents grouped by role:
+Sub-agents are disabled by default. Turn on **Sub-agents** under **Settings → Sub-agents** (user or project scope) or for the current conversation through the composer's tools-and-skills control. The lead is offered only profiles that are enabled and trusted; with none, it does not get the sub-agent tools. Manage profiles under **Settings → Sub-agents**.
 
-- **Lead** is the agent you direct through the main composer.
-- **Teammates** are persistent developer subagents created by the lead.
-- **Explore** contains live research agents and a folded history of completed research.
+## What the lead does
 
-Status indicators show which agents are working, idle, waiting for you, or in error. Select a child-agent row to open its transcript. The detail action shows its model, mode, permission, run status, and other execution metadata.
+The lead assigns work in batches of up to ten sub-agents. Each assignment has a name, a profile, and a prompt, and a batch can share one block of background context. Then it continues independent work or ends its turn; completion notices wake it. Naming an existing sub-agent sends it a follow-up, and a stopped sub-agent is resumed.
 
-## Delegate to a teammate
+Two profiles ship with Nerve:
 
-Async Subagents are disabled by default. Enable the **Async Subagents** tool group under **Settings → Tools → Core** or for the current conversation through the composer's tools-and-skills control.
+- **Explore** is read-only. Use it for parallel inventory, tracing independent subsystems, or comparing tests and implementation. It ends with a short report of findings and evidence.
+- **Developer** works autonomously in the shared worktree. Use it for implementation with follow-ups. Give developers non-overlapping scopes: simultaneous edits to the same files can conflict.
 
-Once enabled, the lead can:
+A sub-agent keeps its own context between assignments and does **not** see the lead's transcript, so a good assignment includes findings, paths, constraints, and the expected outcome. Sub-agents never ask you questions, use plan mode, or create further sub-agents.
 
-1. create a named, idle teammate;
-2. send an assignment to that teammate;
-3. continue its own work while the teammate runs;
-4. receive a durable completion notice; and
-5. send a follow-up assignment after the teammate becomes idle.
+## Follow progress
 
-A teammate keeps its own conversation context between assignments and shares the lead's project directory and worktree. It does **not** automatically see the lead's transcript or discoveries, so a good assignment includes relevant findings, file paths, constraints, and the expected outcome. Give teammates non-overlapping ownership: simultaneous edits to the same files can conflict.
+When a conversation has sub-agents, an **Agents** pill appears at the top right of the transcript. It shows how many are working and how many background commands are running. Open it to see the lead and its sub-agents with state, model, and context usage, and to stop or read the output of background commands. Sub-agents that have been idle for ten minutes fold under an **earlier** row; failed ones stay visible.
 
-Teammates run in Coding mode with Autonomous permission. Creating or assigning one is still checked as agent-spawn authority for the lead. At most four teammates can have active assignments for one lead at a time. An assignment sent to a running or stopping teammate is rejected rather than queued.
+While the lead waits for sub-agents or background commands, the activity row at the bottom of the transcript names what it is waiting for.
 
-When a teammate finishes, Nerve records the result and wakes the lead when appropriate. The teammate remains available for follow-up work. Stopping a teammate cancels its current assignment without deleting its retained history. A new user prompt can reopen a team that was stopped with its lead run.
+Select a sub-agent to open it in the main view with the same transcript and controls as the lead. You cannot prompt a sub-agent directly: the composer is covered, with a way back to the lead. You can still stop it, and you can change its model, thinking level, permission (read-only or autonomous), tools, skills, compaction, and instructions from the composer toolbar and the context popover. Changes apply from its next turn, and the lead sees them through `subagent_status`.
 
-## Configure teammate runs
+## Completion notices
 
-Open **Settings → Tools → Core → Async Subagents → Configure** to choose:
+Each time a sub-agent finishes an execution, the lead receives a notice with its final response, or its error. If the response is longer than 16 KB, the notice carries the first part and a path to the full text, saved with the sub-agent's conversation. A sub-agent that ends its turn while background commands are still running is reported as waiting; it finishes again when a command completes.
 
-- whether new teammates inherit the lead model or use a dedicated model;
-- the teammate thinking level; and
-- an inherited, built-in, or custom compaction profile.
+Stopping a sub-agent from its own view notifies the lead. Stopping it through the lead, or stopping the lead (which stops its sub-agents), does not.
 
-Model and thinking changes apply when a new teammate is created. The global or project automatic-compaction switch still controls whether teammate compaction runs.
+## Write your own profile
 
-## Use Explore for research
+Under **Settings → Sub-agents** you can add, duplicate, and edit profiles in user or project scope, enable or disable them, and reset edited built-ins. Project profiles are used only after you trust them. See the [profile format reference](/reference/subagent-profiles/).
 
-Use **Explore** when the work can be split into independent, read-only codebase questions. Explore children receive only bounded inspection and task-log tools. They cannot edit files, start nested agents, or continue as persistent teammates. One Explore call can launch 1–8 children, subject to the runtime's active and per-run limits, and returns their reports to the lead.
-
-Explore is a better fit for parallel inventory, tracing several independent subsystems, or comparing tests and implementation. A teammate is a better fit when a child needs to implement, validate, and retain context for later follow-ups.
-
-| Choose              | When you need                                        | Authority                                                              | Lifecycle                                               |
-| ------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------- |
-| **Teammate**        | Autonomous implementation or repeated follow-up work | Shared worktree and enabled developer tools, within hard policy limits | Persistent and reusable while idle                      |
-| **Explore**         | Parallel, bounded codebase research                  | Read-only inspection and task-log access                               | Temporary; reports back after one research assignment   |
-| **Background task** | A server, watcher, or other long-running process     | Process supervision, not model reasoning                               | Durable launch definition with separately retained runs |
+| Choose              | When you need                                        | Authority                                   | Lifecycle                                               |
+| ------------------- | ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| **Sub-agent**       | Parallel research, or implementation with follow-ups | Set by its profile: read-only or autonomous | Reusable; stays until its lead conversation is deleted  |
+| **Background task** | A server, watcher, or other long-running process     | Process supervision, not model reasoning    | Durable launch definition with separately retained runs |
 
 ## Related pages
 
@@ -63,3 +51,4 @@ Explore is a better fit for parallel inventory, tracing several independent subs
 - [Run background tasks](/guides/background-tasks/)
 - [Configure Settings](/guides/settings/)
 - [Agent tool catalog](/reference/tools/)
+- [Sub-agent profile format](/reference/subagent-profiles/)

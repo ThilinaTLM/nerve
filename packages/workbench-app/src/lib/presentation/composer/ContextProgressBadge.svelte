@@ -1,4 +1,6 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
+import Copy from "@lucide/svelte/icons/copy";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -16,12 +18,19 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { ProgressRing } from "@nervekit/ui-kit/components/composites/progress-ring";
 import { formatTokens, usageTone } from "@nervekit/ui-kit/display/usage";
 import {
+  sessionFieldsText,
+  type ConversationSessionInfo,
+} from "./session-info";
+import {
   conversationUsageMetrics,
   emptyConversationUsage,
   type ConversationUsageSummary,
 } from "../usage/conversation-usage.js";
 
 type Props = {
+  session?: ConversationSessionInfo;
+  /** Rendered between token usage and the session details. */
+  thisConversation?: Snippet;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
@@ -31,6 +40,8 @@ type Props = {
 };
 
 let {
+  session,
+  thisConversation,
   contextUsage,
   conversationUsage,
   contextWindow = 0,
@@ -104,7 +115,7 @@ function requestCompact(): void {
 {#if contextLimit > 0 || percent != null}
   <Popover
     bind:open
-    size="sm"
+    size="md"
     triggerClass="composer-tab context-usage-tab"
     ariaLabel="Context usage"
     triggerTitle={title}
@@ -169,6 +180,52 @@ function requestCompact(): void {
           </p>
         {/if}
       </PopoverSection>
+
+      {@render thisConversation?.()}
+
+      {#if session}
+        <PopoverSection label="Session" separated>
+          {#snippet action()}
+            <Button
+              size="xs"
+              variant="ghost"
+              onclick={() =>
+                session.onCopy?.(
+                  sessionFieldsText(session.fields),
+                  "session details",
+                )}
+            >
+              Copy all
+            </Button>
+          {/snippet}
+          <PopoverProperties>
+            {#each session.fields as field (field.label)}
+              <PopoverProperty label={field.label} title={field.value}>
+                <span class="flex min-w-0 items-center justify-end gap-1">
+                  <span class={["truncate", field.mono && "font-mono"]}
+                    >{field.value ?? "—"}</span
+                  >
+                  {#if field.value}
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      ariaLabel={`Copy ${field.label.toLowerCase()}`}
+                      title={`Copy ${field.label.toLowerCase()}`}
+                      onclick={() =>
+                        session.onCopy?.(
+                          field.value ?? "",
+                          field.label.toLowerCase(),
+                        )}
+                    >
+                      <Copy class="size-3" aria-hidden="true" />
+                    </Button>
+                  {/if}
+                </span>
+              </PopoverProperty>
+            {/each}
+          </PopoverProperties>
+        </PopoverSection>
+      {/if}
     </PopoverBody>
 
     <PopoverFooter>

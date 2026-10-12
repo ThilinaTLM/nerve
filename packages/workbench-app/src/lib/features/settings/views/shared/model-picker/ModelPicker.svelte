@@ -43,7 +43,7 @@ import {
 } from "./model-picker";
 
 type Props = {
-  /** Accessible name of the setting, e.g. "Explore model". */
+  /** Accessible name of the setting, e.g. "Image explanation model". */
   label: string;
   /** Usable models; required capabilities are applied here. */
   models: ModelInfo[];

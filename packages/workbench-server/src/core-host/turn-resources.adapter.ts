@@ -7,6 +7,61 @@ import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import type { CapabilityService } from "./capability.service.js";
 import { join } from "node:path";
+import {
+  subagentBlockedToolNames,
+  type SubagentProfile,
+} from "@nervekit/contracts/subagents";
+import type { SubagentProfileService } from "../domains/subagents/subagent-profile.service.js";
+
+const blocked: ReadonlySet<string> = new Set(subagentBlockedToolNames);
+
+/**
+ * `subagent_prompt` offers exactly the profiles usable now: an enum with a
+ * `name — description` list. With none usable, the whole group is dropped.
+ * Schemas are rebuilt by spreading so typebox's symbol markers survive.
+ */
+export function withSubagentProfiles(
+  tools: ToolDefinition[],
+  usable: readonly Pick<SubagentProfile, "name" | "description">[],
+): ToolDefinition[] {
+  if (!usable.length)
+    return tools.filter((tool) => !tool.name.startsWith("subagent_"));
+  return tools.map((tool) => {
+    if (tool.name !== "subagent_prompt") return tool;
+    const parameters = tool.parameters as unknown as ObjectSchema;
+    const assignments = parameters.properties.assignments as AssignmentsSchema;
+    const profile = {
+      type: "string",
+      enum: usable.map((entry) => entry.name),
+      description: `Profile for a new sub-agent. Usable profiles:\n${usable
+        .map((entry) => `${entry.name} — ${entry.description}`)
+        .join("\n")}`,
+    };
+    return {
+      ...tool,
+      parameters: {
+        ...parameters,
+        properties: {
+          ...parameters.properties,
+          assignments: {
+            ...assignments,
+            items: {
+              ...assignments.items,
+              properties: { ...assignments.items.properties, profile },
+            },
+          },
+        },
+      },
+    } as unknown as ToolDefinition;
+  });
+}
+
+type ObjectSchema = {
+  properties: Record<string, unknown>;
+};
+type AssignmentsSchema = {
+  items: ObjectSchema;
+};
 
 export function createTurnResourcesPort(options: {
   home: string;
@@ -14,6 +69,7 @@ export function createTurnResourcesPort(options: {
   skills: readonly Skill[];
   agentBrowserSkills: readonly Skill[];
   capabilities: CapabilityService;
+  subagentProfiles: Pick<SubagentProfileService, "usable">;
 }): TurnResourcesPort {
   return {
     async prepare({ conversation, config, projectDir, coreTools = [] }) {
@@ -22,30 +78,39 @@ export function createTurnResourcesPort(options: {
           conversation.projectId,
           conversation.id,
         );
-      const tools = [...(await options.tools(projectDir)), ...coreTools].filter(
-        (tool) => {
-          const name = tool.name.startsWith("subagent_")
-            ? "subagents"
-            : tool.name.startsWith("jira_")
-              ? "jira"
-              : tool.name.startsWith("confluence_")
-                ? "confluence"
-                : tool.name;
-          const parsed = capabilityToolNameSchema.safeParse(name);
-          if (
-            (name === "jira" || name === "confluence") &&
-            !toolProfileOptions[name].some(
-              (profile) => profile.id === effective.toolProfiles[name],
-            )
+      const isChild = conversation.parentConversationId !== null;
+      const selected = [
+        ...(await options.tools(projectDir)),
+        ...coreTools,
+      ].filter((tool) => !(isChild && blocked.has(tool.name)));
+      const filtered = selected.filter((tool) => {
+        const name = tool.name.startsWith("subagent_")
+          ? "subagents"
+          : tool.name.startsWith("jira_")
+            ? "jira"
+            : tool.name.startsWith("confluence_")
+              ? "confluence"
+              : tool.name;
+        const parsed = capabilityToolNameSchema.safeParse(name);
+        if (
+          (name === "jira" || name === "confluence") &&
+          !toolProfileOptions[name].some(
+            (profile) => profile.id === effective.toolProfiles[name],
           )
-            return false;
-          return (
-            !parsed.success ||
-            (availableTools.includes(parsed.data) &&
-              !effective.disabledTools.includes(parsed.data))
-          );
-        },
-      );
+        )
+          return false;
+        return (
+          !parsed.success ||
+          (availableTools.includes(parsed.data) &&
+            !effective.disabledTools.includes(parsed.data))
+        );
+      });
+      const tools = filtered.some((tool) => tool.name === "subagent_prompt")
+        ? withSubagentProfiles(
+            filtered,
+            await options.subagentProfiles.usable(conversation.projectId),
+          )
+        : filtered;
       const resources = await loadHarnessResources(projectDir, {
         storageHome: options.home,
         nerveSkills: options.skills,
@@ -68,6 +133,7 @@ export function createTurnResourcesPort(options: {
             ),
             contextFiles: resources.contextFiles,
             skills,
+            instructions: config.instructions,
             customPrompt: resources.systemPrompt,
             appendSystemPrompt: resources.appendSystemPrompt,
             planDir: join(options.home, "data", "plans"),

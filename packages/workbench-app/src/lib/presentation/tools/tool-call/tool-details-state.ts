@@ -30,11 +30,11 @@ export function hasFormattedToolView(
     case "todos":
       return view.items.length > 0;
     case "subagent":
-      return view.teammates.length > 0 || Boolean(view.response);
-    case "explore":
-      return Boolean(
-        view.reports.length || view.liveUpdates.length || view.liveLog?.length,
-      );
+      return view.action === "prompt"
+        ? view.assignments.length > 0
+        : view.action === "status"
+          ? view.rows.length > 0 || Boolean(view.header)
+          : view.lines.length > 0;
     case "web_search":
       return Boolean(view.answer || view.results.length);
     case "web_fetch":
