@@ -101,6 +101,8 @@ export type TranscriptItem = {
   kind?: ConversationEntry["kind"];
   displayKind?: TranscriptDisplayKind;
   text: string;
+  /** Display-only expanded user prompt; text retains the original input. */
+  preparedText?: string;
   createdAt?: string;
   optimistic?: boolean;
   live?: boolean;
