@@ -265,6 +265,9 @@ export function entryToTranscriptItems(
     kind: entry.kind,
     displayKind: "message",
     text: entry.text,
+    ...(entry.role === "user" && typeof details?.preparedText === "string"
+      ? { preparedText: details.preparedText }
+      : {}),
     createdAt: entry.createdAt,
     usage: entry.usage,
     stopReason,

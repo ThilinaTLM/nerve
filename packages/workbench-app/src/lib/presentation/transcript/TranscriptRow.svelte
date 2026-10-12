@@ -340,11 +340,11 @@ $effect(() => {
           data-state={messageState}
         >
           <div class="message-body">
-            {#if node.item.text}
+            {#if node.item.role === "user" ? (node.item.preparedText ?? node.item.text) : node.item.text}
               <div class="message-content">
                 {#if node.item.role === "user"}
                   <UserMessageContent
-                    text={node.item.text}
+                    text={node.item.preparedText ?? node.item.text}
                     pending={Boolean(node.item.optimistic)}
                   />
                 {:else}
