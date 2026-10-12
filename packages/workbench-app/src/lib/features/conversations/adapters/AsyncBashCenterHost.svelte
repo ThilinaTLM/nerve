@@ -5,7 +5,7 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { asyncBashDuration } from "../views/async-bash-duration";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import AsyncBashLogView from "../views/AsyncBashLogView.svelte";
+import AsyncBashOutputPane from "../views/AsyncBashOutputPane.svelte";
 import {
   AsyncBashLogSession,
   type LogStream,
@@ -22,7 +22,7 @@ let streams = $state<LogStream[]>([]);
 let error = $state<string>();
 let session = $state<AsyncBashLogSession>();
 let stopping = $state(false);
-let paused = $state(false);
+let detached = $state(false);
 let now = $state(Date.now());
 const elapsed = $derived(asyncBashDuration(bash, now));
 // Each selected-tab lifetime already starts at the tail; consume older signals
@@ -39,7 +39,7 @@ $effect(() => {
   streams = [];
   error = undefined;
   stopping = false;
-  paused = false;
+  detached = false;
   if (!selected || !progressiveActive) return;
   handledRefreshVersion = untrack(
     () => asyncBashTabs.refreshVersions[selected.id] ?? 0,
@@ -52,7 +52,7 @@ $effect(() => {
       bash = state.bash ?? bash;
       streams = state.streams;
       error = failure;
-      paused = !state.following;
+      detached = !state.following;
       now = Date.now();
       if (state.bash) asyncBashTabs.commands[selected.id] = state.bash;
     },
@@ -94,15 +94,20 @@ async function stop() {
 }
 </script>
 
-<AsyncBashLogView
-  {bash}
-  command={tab?.command}
-  {streams}
-  {error}
-  {elapsed}
-  {stopping}
-  {paused}
-  onRefresh={() => void session?.load("tail")}
-  onEarlier={() => void session?.load("earlier")}
-  onStop={() => void stop()}
-/>
+{#if tab}
+  {#key tab.id}
+    <AsyncBashOutputPane
+      bashId={tab.id}
+      {bash}
+      command={tab.command}
+      {streams}
+      {error}
+      {elapsed}
+      {detached}
+      {stopping}
+      onLoadEarlier={() => session?.load("earlier") ?? Promise.resolve()}
+      onJumpToLatest={() => session?.load("tail") ?? Promise.resolve()}
+      onStop={() => void stop()}
+    />
+  {/key}
+{/if}

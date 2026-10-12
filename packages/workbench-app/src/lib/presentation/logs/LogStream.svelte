@@ -1,59 +1,80 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
+import { tick } from "svelte";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
-import type {
-  LaunchLogEvent,
-  LaunchLogQueryResponse,
-} from "@nervekit/contracts/launches";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import {
   VirtualScroller,
   type VirtualScrollerController,
 } from "@nervekit/ui-kit/components/composites/virtual-list";
 import TerminalText from "$lib/presentation/tools/tool-call/TerminalText.svelte";
+import { logStreamToneClass, type LogStreamLine } from "./log-stream";
 
-type LogRow =
+type Row =
   | { kind: "history"; key: string }
   | { kind: "command"; key: string; command: string }
   | { kind: "empty"; key: string }
-  | { kind: "event"; key: string; event: LaunchLogEvent };
+  | { kind: "line"; key: string; line: LogStreamLine };
 
 type Props = {
-  launchId: string;
-  launchLogs?: LaunchLogQueryResponse;
+  /** Identity of the stream; scopes the persisted row-height cache. */
+  scopeKey: string;
+  lines: readonly LogStreamLine[];
   command?: string;
+  ariaLabel: string;
+  emptyLabel?: string;
+  /** Older output exists before the first line and can be paged in. */
+  hasMoreBefore?: boolean;
+  /** Older output was discarded and can no longer be loaded. */
+  truncated?: boolean;
   onLoadEarlier?: () => void | Promise<void>;
+  /** The window no longer contains the live tail (scrolled far back). */
+  detached?: boolean;
+  /** Reloads the live tail; required for `detached` windows. */
+  onJumpToLatest?: () => void | Promise<void>;
+  /** Floating controls pinned to the top-right corner. */
+  dock?: Snippet;
 };
 
-let { launchId, launchLogs, command, onLoadEarlier }: Props = $props();
+let {
+  scopeKey,
+  lines,
+  command,
+  ariaLabel,
+  emptyLabel = "No output yet.",
+  hasMoreBefore = false,
+  truncated = false,
+  onLoadEarlier,
+  detached = false,
+  onJumpToLatest,
+  dock,
+}: Props = $props();
+
 let controller = $state<VirtualScrollerController>();
 let atEnd = $state(true);
 let loadingEarlier = $state(false);
 let historyError = $state<string | undefined>(undefined);
 
-const events = $derived(launchLogs?.events ?? []);
+// The status row exists only while it has something to say.
+const historyVisible = $derived(
+  loadingEarlier || Boolean(historyError) || (truncated && !hasMoreBefore),
+);
 
-const rows = $derived.by<LogRow[]>(() => {
-  const result: LogRow[] = [{ kind: "history", key: "history" }];
+const rows = $derived.by<Row[]>(() => {
+  const result: Row[] = [];
+  if (historyVisible) result.push({ kind: "history", key: "history" });
   if (command) result.push({ kind: "command", key: "command", command });
-  if (events.length === 0) result.push({ kind: "empty", key: "empty" });
-  for (const event of events) {
-    result.push({ kind: "event", key: `event:${event.seq}`, event });
-  }
+  if (lines.length === 0) result.push({ kind: "empty", key: "empty" });
+  for (const line of lines)
+    result.push({ kind: "line", key: `line:${line.key}`, line });
   return result;
 });
 
 // Long lines always wrap; per-line horizontal scrollbars are never acceptable.
 const lineClass = "whitespace-pre-wrap break-words";
 
-function toneClass(event: LaunchLogEvent): string {
-  if (event.stream === "stderr" || event.level === "error")
-    return "text-destructive";
-  if (event.level === "warn") return "text-warning";
-  return "text-foreground";
-}
-
 async function loadEarlier(): Promise<void> {
-  if (loadingEarlier || !launchLogs?.hasMoreBefore || !onLoadEarlier) return;
+  if (loadingEarlier || !hasMoreBefore || !onLoadEarlier) return;
   loadingEarlier = true;
   historyError = undefined;
   try {
@@ -65,19 +86,13 @@ async function loadEarlier(): Promise<void> {
   }
 }
 
-function nearStart(viewport: HTMLDivElement): boolean {
-  return viewport.scrollTop <= 48;
-}
-
 $effect(() => {
   const viewport = controller?.getViewportElement();
-  const canLoad = Boolean(
-    launchLogs?.hasMoreBefore && onLoadEarlier && !historyError,
-  );
+  const canLoad = Boolean(hasMoreBefore && onLoadEarlier && !historyError);
   if (!viewport || !canLoad) return;
 
   const handleScroll = () => {
-    if (nearStart(viewport)) void loadEarlier();
+    if (viewport.scrollTop <= 48) void loadEarlier();
   };
   viewport.addEventListener("scroll", handleScroll, { passive: true });
   const frame = requestAnimationFrame(handleScroll);
@@ -86,12 +101,20 @@ $effect(() => {
     viewport.removeEventListener("scroll", handleScroll);
   };
 });
+
+async function jumpToLatest(): Promise<void> {
+  if (detached && onJumpToLatest) {
+    await onJumpToLatest();
+    await tick();
+  }
+  controller?.jumpToEnd();
+}
 </script>
 
 <div
   class="relative h-full min-h-0 bg-well font-mono text-xs"
   role="log"
-  aria-label="Launch output"
+  aria-label={ariaLabel}
 >
   <VirtualScroller
     bind:controller
@@ -99,17 +122,17 @@ $effect(() => {
     items={rows}
     getKey={(row) => row.key}
     getMeasurementVersion={(row) =>
-      row.kind === "event" ? `${row.event.level}:${row.event.line}` : row.kind}
-    heightCacheKey={`launch-log:${launchId}`}
+      row.kind === "line" ? row.line.text : row.kind}
+    heightCacheKey={`log-stream:${scopeKey}`}
     estimateSize={() => 20}
     overscan={16}
     anchor="end"
-    followOutput={atEnd}
+    followOutput={atEnd && !detached}
     scrollEndThreshold={24}
-    paddingStart={12}
+    paddingStart={dock ? 48 : 12}
     paddingEnd={12}
     viewportTabIndex={0}
-    viewportAriaLabel="Scrollable launch output"
+    viewportAriaLabel={`Scrollable ${ariaLabel.toLowerCase()}`}
     viewportClass="h-full px-3"
   >
     {#snippet row({ item })}
@@ -125,37 +148,37 @@ $effect(() => {
             >
               Could not load earlier output. Retry
             </button>
-          {:else if launchLogs?.hasMoreBefore}
-            Scroll up to load earlier output
-          {:else if launchLogs?.truncated}
-            Earlier output is no longer retained.
           {:else}
-            Beginning of output
+            Earlier output is no longer retained.
           {/if}
         </div>
       {:else if item.kind === "command"}
         <pre class={`pb-2 text-foreground ${lineClass}`}>$ {item.command}</pre>
       {:else if item.kind === "empty"}
-        <pre
-          class={`text-muted-foreground ${lineClass}`}>No logs captured.</pre>
+        <pre class={`text-muted-foreground ${lineClass}`}>{emptyLabel}</pre>
       {:else}
-        <pre class={`${lineClass} ${toneClass(item.event)}`}><TerminalText
-            text={item.event.line}
-            stream={item.event.stream}
-            level={item.event.level}
+        <pre
+          class={`${lineClass} ${logStreamToneClass(item.line.tone)}`}><TerminalText
+            text={item.line.text}
+            stream={item.line.stream}
+            level={item.line.level}
           /></pre>
       {/if}
     {/snippet}
   </VirtualScroller>
 
-  {#if !atEnd}
+  {#if dock}
+    <div class="contents font-sans">{@render dock()}</div>
+  {/if}
+
+  {#if !atEnd || detached}
     <Button
       size="icon-sm"
       variant="outline"
       class="absolute right-4 bottom-3 rounded-full shadow-sm"
       ariaLabel="Jump to latest output"
       title="Jump to latest output"
-      onclick={() => controller?.scrollToEnd({ behavior: "smooth" })}
+      onclick={() => void jumpToLatest()}
     >
       <ArrowDown class="size-4" strokeWidth={2.2} />
     </Button>

@@ -309,3 +309,25 @@ test("Ctrl+W prevents native window close when there is no active pane", () => {
   assert.equal(closeCalls, 0);
   assert.equal(prevented(), true);
 });
+
+test("tab cycling keeps the routing fields of background command tabs", () => {
+  const conversation: CenterTabIdentity = { kind: "conversation", id: "c1" };
+  const command: CenterTabIdentity = {
+    kind: "async-bash",
+    id: "bash_1",
+    conversationId: "c1",
+    projectId: "p1",
+    command: "pnpm test",
+  };
+  let selected: CenterTabIdentity | undefined;
+  const shortcuts = createAppShortcuts({
+    ...shortcutOptions(conversation, () => undefined),
+    centerTabs: () => [conversation, command],
+    selectCenterTab: (tab) => {
+      selected = tab;
+    },
+  });
+
+  assert.equal(shortcuts.selectRelativeCenterTab(1), true);
+  assert.deepEqual(selected, command);
+});

@@ -17,6 +17,11 @@ export type VirtualScrollToIndexOptions = {
  */
 export type VirtualScrollerController = {
   scrollToEnd: (opts?: { behavior?: VirtualScrollBehavior }) => void;
+  /**
+   * User-facing "jump to latest": animated, but skips most of a long distance
+   * instantly so it never crawls. Honors reduced motion.
+   */
+  jumpToEnd: () => void;
   scrollToIndex: (index: number, opts?: VirtualScrollToIndexOptions) => void;
   isAtEnd: (threshold?: number) => boolean;
   getDistanceFromEnd: () => number;

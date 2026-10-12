@@ -4,19 +4,18 @@ import type {
   LaunchLogQueryResponse,
   LaunchRecord,
 } from "@nervekit/contracts/launches";
-import LaunchLogTerminal from "./LaunchLogTerminal.svelte";
-import LaunchRunSwitcher from "./LaunchRunSwitcher.svelte";
+import LogStream from "$lib/presentation/logs/LogStream.svelte";
+import { launchLogLines } from "./launch-log-window.js";
+import LaunchRunDock from "./LaunchRunDock.svelte";
 
 type Props = {
-  launch?: Pick<
-    LaunchRecord,
-    "id" | "command" | "status" | "error" | "runtime"
-  >;
+  launch?: Pick<LaunchRecord, "id" | "command" | "status" | "startedAt">;
   launchLogs?: LaunchLogQueryResponse;
   siblingRuns?: readonly LaunchRecord[];
   canRestart?: boolean;
   canCancel?: boolean;
   onLoadEarlier?: () => void | Promise<void>;
+  onJumpToLatest?: () => void | Promise<void>;
   onSelectRun?: (launchId: string) => void | Promise<void>;
   onRestartRun?: (launchId: string) => void | Promise<void>;
   onCancelRun?: (launchId: string) => void | Promise<void>;
@@ -31,36 +30,48 @@ let {
   canRestart = true,
   canCancel = true,
   onLoadEarlier,
+  onJumpToLatest,
   onSelectRun,
   onRestartRun,
   onCancelRun,
   onForceKillRun,
   onCleanupRuns,
 }: Props = $props();
+
+const lines = $derived(launchLogLines(launchLogs?.events ?? []));
 </script>
 
 <section class="flex h-full min-h-0 flex-col bg-background">
   {#if launch}
     <div class="relative min-h-0 flex-1">
       {#key launch.id}
-        <LaunchLogTerminal
-          launchId={launch.id}
-          {launchLogs}
+        <LogStream
+          scopeKey={`launch:${launch.id}`}
+          ariaLabel="Launch output"
+          emptyLabel="No logs captured."
+          {lines}
           command={launch.command}
+          hasMoreBefore={launchLogs?.hasMoreBefore}
+          truncated={launchLogs?.truncated}
+          detached={launchLogs?.hasMoreAfter}
           {onLoadEarlier}
-        />
+          {onJumpToLatest}
+        >
+          {#snippet dock()}
+            <LaunchRunDock
+              {launch}
+              runs={siblingRuns}
+              {canRestart}
+              {canCancel}
+              {onSelectRun}
+              {onRestartRun}
+              {onCancelRun}
+              {onForceKillRun}
+              {onCleanupRuns}
+            />
+          {/snippet}
+        </LogStream>
       {/key}
-      <LaunchRunSwitcher
-        currentLaunchId={launch.id}
-        runs={siblingRuns}
-        {canRestart}
-        {canCancel}
-        {onSelectRun}
-        {onRestartRun}
-        {onCancelRun}
-        {onForceKillRun}
-        {onCleanupRuns}
-      />
     </div>
   {:else}
     <div

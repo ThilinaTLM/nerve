@@ -6,6 +6,7 @@ import Mouse from "@lucide/svelte/icons/mouse";
 import ZoomIn from "@lucide/svelte/icons/zoom-in";
 import ZoomOut from "@lucide/svelte/icons/zoom-out";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import { FloatingToolbar } from "@nervekit/ui-kit/components/composites/floating-toolbar";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { mountMermaidSvg, renderMermaid } from "./mermaid-render.js";
 
@@ -232,13 +233,7 @@ $effect(() => {
   ></div>
 
   {#if renderState === "rendered"}
-    <div
-      class="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md border border-border bg-popover p-0.5 text-popover-foreground shadow-sm"
-      role="toolbar"
-      aria-label="Diagram controls"
-      tabindex="-1"
-      onpointerdown={(event) => event.stopPropagation()}
-    >
+    <FloatingToolbar label="Diagram controls" isolatePointer>
       <Button
         variant="ghost"
         size="icon-xs"
@@ -294,7 +289,7 @@ $effect(() => {
           <ExternalLink class="size-3" />
         </Button>
       {/if}
-    </div>
+    </FloatingToolbar>
   {/if}
 </div>
 

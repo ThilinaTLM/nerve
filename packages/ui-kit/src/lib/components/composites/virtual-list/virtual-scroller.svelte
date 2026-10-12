@@ -19,6 +19,7 @@ import type {
   VirtualScrollerProps,
 } from "./virtual-scroller-types";
 import { shouldCommitVirtualMeasurement } from "./virtual-measurement";
+import { planJumpToEnd } from "./virtual-scroll-jump";
 
 /* eslint-disable no-useless-assignment -- $bindable defaults declare parent bindings before later reactive updates. */
 let {
@@ -256,10 +257,47 @@ function handleScroll() {
   atEnd = instance.isAtEnd(scrollEndThreshold);
 }
 
+let jumpFrame: number | undefined;
+
+function cancelJumpFrame() {
+  if (jumpFrame === undefined) return;
+  cancelAnimationFrame(jumpFrame);
+  jumpFrame = undefined;
+}
+
+function jumpToEnd() {
+  const viewport = viewportEl;
+  if (!viewport) return;
+  cancelJumpFrame();
+  const reducedMotion =
+    typeof matchMedia === "function" &&
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const plan = planJumpToEnd(
+    instance.getDistanceFromEnd(),
+    viewport.clientHeight,
+    reducedMotion,
+  );
+  if (plan.preJumpDistance === undefined) {
+    instance.scrollToEnd({ behavior: plan.behavior });
+    return;
+  }
+  const maxOffset = viewport.scrollHeight - viewport.clientHeight;
+  instance.scrollToOffset(Math.max(0, maxOffset - plan.preJumpDistance), {
+    behavior: "auto",
+  });
+  // Let the rows around the landing point render and measure first, so the
+  // animated remainder targets a settled end instead of an estimated one.
+  jumpFrame = requestAnimationFrame(() => {
+    jumpFrame = undefined;
+    instance.scrollToEnd({ behavior: plan.behavior });
+  });
+}
+
 $effect(() => {
   void viewportEl;
   controller = {
     scrollToEnd: (opts) => instance.scrollToEnd(opts),
+    jumpToEnd,
     scrollToIndex: (index, opts) => instance.scrollToIndex(index, opts),
     isAtEnd: (threshold) => instance.isAtEnd(threshold ?? scrollEndThreshold),
     getDistanceFromEnd: () => instance.getDistanceFromEnd(),
@@ -386,6 +424,7 @@ function measure(node: HTMLElement, measurementVersion: unknown) {
 $effect(() => {
   return () => {
     cancelFollowFrame();
+    cancelJumpFrame();
     cancelMeasureFrame();
     postMeasurementFollowPending = false;
     resizeObserver?.disconnect();

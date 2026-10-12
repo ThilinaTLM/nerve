@@ -12,7 +12,9 @@ import {
 } from "$lib/application/commands/command-registry";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 
-type CenterTabLike = { kind: CenterTabIdentity["kind"]; id: string };
+type CenterTabLike =
+  | { kind: Exclude<CenterTabIdentity["kind"], "async-bash">; id: string }
+  | Extract<CenterTabIdentity, { kind: "async-bash" }>;
 
 type AppShortcutsOptions = {
   currentZoomLevel: () => number;
@@ -78,6 +80,15 @@ export function createAppShortcuts(options: AppShortcutsOptions) {
     if (tab.kind === "settings") return { kind: "settings", id: "settings" };
     if (tab.kind === "logs") return { kind: "logs", id: "logs" };
     if (tab.kind === "discover") return { kind: "discover", id: "discover" };
+    // Async-bash tabs carry the routing their log requests depend on.
+    if (tab.kind === "async-bash")
+      return {
+        kind: tab.kind,
+        id: tab.id,
+        conversationId: tab.conversationId,
+        projectId: tab.projectId,
+        command: tab.command,
+      };
     return { kind: tab.kind, id: tab.id } as CenterTabIdentity;
   }
 

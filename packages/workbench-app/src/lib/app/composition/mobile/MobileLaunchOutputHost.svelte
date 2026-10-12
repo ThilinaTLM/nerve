@@ -22,8 +22,12 @@ import {
   launchSelectors,
   toRunEntry,
 } from "$lib/features/launches";
-import LaunchLogTerminal from "$lib/features/launches/views/LaunchLogTerminal.svelte";
-import { loadEarlierLaunchLogs } from "$lib/features/launches/state/launch-logs.svelte";
+import LogStream from "$lib/presentation/logs/LogStream.svelte";
+import { launchLogLines } from "$lib/features/launches/views/launch-log-window";
+import {
+  loadEarlierLaunchLogs,
+  loadLaunchLogWindow,
+} from "$lib/features/launches/state/launch-logs.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { launchTitle } from "$lib/app/shell/mobile/mobile-activity";
@@ -37,7 +41,7 @@ import { launchStatusLabel } from "./mobile-launch-rows";
 
 /**
  * One launch run's output as a phone screen. Other runs of the same launch are a
- * sheet away instead of the desktop's floating run switcher.
+ * sheet away instead of the desktop's floating run dock.
  */
 let { route, visible }: MobileScreenProps<"launch"> = $props();
 
@@ -207,11 +211,17 @@ const runItems = $derived<ContextMenuItem[]>(
     <div class="flex min-h-0 flex-col">
       <div class="relative min-h-0 flex-1">
         {#key launch.id}
-          <LaunchLogTerminal
-            launchId={launch.id}
-            {launchLogs}
+          <LogStream
+            scopeKey={`launch:${launch.id}`}
+            ariaLabel="Launch output"
+            emptyLabel="No logs captured."
+            lines={launchLogLines(launchLogs?.events ?? [])}
             command={launch.command}
+            hasMoreBefore={launchLogs?.hasMoreBefore}
+            truncated={launchLogs?.truncated}
+            detached={launchLogs?.hasMoreAfter}
             onLoadEarlier={() => loadEarlierLaunchLogs(route.launchId)}
+            onJumpToLatest={() => loadLaunchLogWindow(route.launchId)}
           />
         {/key}
       </div>

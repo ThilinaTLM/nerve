@@ -1,7 +1,6 @@
 import { getLaunchLogs } from "$lib/features/launches/api/launches.api";
 import {
   appendLaunchLogPage,
-  MAX_LAUNCH_LOG_WINDOW_EVENTS,
   prependLaunchLogPage,
 } from "$lib/features/launches/views";
 import { SvelteMap } from "svelte/reactivity";
@@ -34,12 +33,12 @@ export function loadEarlierLaunchLogs(launchId: string): Promise<void> {
     launchState.selectedLaunchId !== launchId ||
     current?.launch.id !== launchId ||
     !current.hasMoreBefore ||
-    beforeSeq === undefined ||
-    current.events.length >= MAX_LAUNCH_LOG_WINDOW_EVENTS
+    beforeSeq === undefined
   ) {
     return Promise.resolve();
   }
 
+  const windowGeneration = initialRequest;
   const request = getLaunchLogs(launchId, {
     mode: "recent",
     beforeSeq,
@@ -47,9 +46,11 @@ export function loadEarlierLaunchLogs(launchId: string): Promise<void> {
   })
     .then((older) => {
       const latest = launchState.launchLogs;
+      // Drop the page if the window was reloaded meanwhile (jump to latest).
       if (
         launchState.selectedLaunchId !== launchId ||
-        latest?.launch.id !== launchId
+        latest?.launch.id !== launchId ||
+        windowGeneration !== initialRequest
       )
         return;
       launchState.launchLogs = prependLaunchLogPage(latest, older);
@@ -70,9 +71,12 @@ export function refreshLaunchLogWindow(
     do {
       refreshRequested = false;
       let current = launchState.launchLogs;
+      // A window paged far back no longer holds the tail; it rejoins live
+      // output only through an explicit reload (jump to latest).
       if (
         launchState.selectedLaunchId !== launchId ||
-        current?.launch.id !== launchId
+        current?.launch.id !== launchId ||
+        current.hasMoreAfter
       )
         return;
 

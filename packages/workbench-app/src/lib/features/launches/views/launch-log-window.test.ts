@@ -109,4 +109,28 @@ describe("launch log window merging", () => {
     assert.equal(merged.events.at(-1)?.seq, total);
     assert.equal(merged.hasMoreBefore, true);
   });
+
+  it("detaches from the live tail when paging back past the window cap", () => {
+    const newest = MAX_LAUNCH_LOG_WINDOW_EVENTS + 100;
+    const current = page(
+      Array.from(
+        { length: MAX_LAUNCH_LOG_WINDOW_EVENTS },
+        (_, index) => index + 101,
+      ),
+      { hasMoreBefore: true, nextCursor: newest },
+    );
+    const merged = prependLaunchLogPage(
+      current,
+      page(
+        Array.from({ length: 100 }, (_, index) => index + 1),
+        { hasMoreBefore: false },
+      ),
+    );
+    assert.equal(merged.events.length, MAX_LAUNCH_LOG_WINDOW_EVENTS);
+    assert.equal(merged.events[0]?.seq, 1);
+    assert.equal(merged.events.at(-1)?.seq, MAX_LAUNCH_LOG_WINDOW_EVENTS);
+    assert.equal(merged.nextCursor, MAX_LAUNCH_LOG_WINDOW_EVENTS);
+    assert.equal(merged.hasMoreAfter, true);
+    assert.equal(merged.hasMoreBefore, false);
+  });
 });
