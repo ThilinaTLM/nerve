@@ -15,7 +15,7 @@ let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
 
 {#if suggestions.length > 0}
   <div
-    class="flex flex-wrap gap-1 px-0.5"
+    class="flex flex-wrap gap-1"
     role="group"
     aria-label="Suggested prompt actions"
   >

@@ -7,6 +7,8 @@ export type CenterViewModule = Promise<{ default: Component }>;
 
 /** Concrete feature wiring belongs in the composition root, not the shell. */
 export const centerViewLoaders = {
+  "async-bash": () =>
+    import("$lib/features/conversations/adapters/AsyncBashCenterHost.svelte"),
   launch: () => import("$lib/features/launches/hosts/LaunchCenterHost.svelte"),
   file: () => import("$lib/features/filesystem/hosts/FileCenterHost.svelte"),
   mermaid: () =>

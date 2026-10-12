@@ -2,6 +2,7 @@ import type { CenterTabIdentity } from "$lib/application/workspace";
 
 export type CenterTabRefreshDependencies = {
   refreshConversation(id: string): void;
+  refreshAsyncBash(id: string): void;
   selectTab(tab: CenterTabIdentity): void;
   refreshFile(id: string): void;
   refreshMermaid(id: string): void;
@@ -16,6 +17,9 @@ export function createCenterTabRefresh(
 ): (tab: CenterTabIdentity) => void {
   return (tab) => {
     switch (tab.kind) {
+      case "async-bash":
+        dependencies.refreshAsyncBash(tab.id);
+        return;
       case "conversation":
         dependencies.refreshConversation(tab.id);
         return;

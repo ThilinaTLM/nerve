@@ -235,8 +235,22 @@ type StoredPayload = {
 
 function isIdentity(value: unknown): value is CenterTabIdentity {
   if (!value || typeof value !== "object") return false;
-  const tab = value as { kind?: unknown; id?: unknown };
+  const tab = value as {
+    kind?: unknown;
+    id?: unknown;
+    conversationId?: unknown;
+    projectId?: unknown;
+    command?: unknown;
+  };
   if (typeof tab.kind !== "string" || typeof tab.id !== "string") return false;
+  if (tab.kind === "async-bash")
+    return (
+      tab.id.length > 0 &&
+      typeof tab.conversationId === "string" &&
+      tab.conversationId.length > 0 &&
+      (tab.projectId === undefined || typeof tab.projectId === "string") &&
+      (tab.command === undefined || typeof tab.command === "string")
+    );
   if (tab.kind === "settings") return tab.id === "settings";
   if (tab.kind === "logs") return tab.id === "logs";
   if (tab.kind === "discover") return tab.id === "discover";
@@ -364,7 +378,17 @@ function parseSession(value: unknown): ProjectTabSession | undefined {
         refreshing: false,
       });
     }
-    tabs.push({ kind: stored.kind, id: stored.id } as CenterTabIdentity);
+    if (stored.kind === "async-bash") {
+      tabs.push({
+        kind: stored.kind,
+        id: stored.id,
+        conversationId: stored.conversationId,
+        projectId:
+          typeof stored.projectId === "string" ? stored.projectId : undefined,
+        command:
+          typeof stored.command === "string" ? stored.command : undefined,
+      });
+    } else tabs.push({ kind: stored.kind, id: stored.id } as CenterTabIdentity);
   }
   const active = isIdentity(raw.active) ? raw.active : undefined;
   const mru = Array.isArray(raw.mru)

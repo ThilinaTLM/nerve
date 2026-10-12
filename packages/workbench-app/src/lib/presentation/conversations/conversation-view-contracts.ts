@@ -163,8 +163,6 @@ export type ConversationPaneModel = {
   planReviewModels?: ModelInfo[];
   planReviewModelKey?: string;
   planReviewThinkingLevel?: ThinkingLevel;
-  /** Keeps the transcript clear of a floating control at its top right. */
-  reserveTopInset?: boolean;
   banner?: { tone: "muted" | "warning"; title: string; message?: string };
   emptyTitle?: string;
   emptyMessage?: string;

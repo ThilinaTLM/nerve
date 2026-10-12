@@ -13,7 +13,7 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { eventEntry } from "./core-transcript.adapter";
-import { deriveSubagentProfile } from "./subagent-profile";
+import { deriveSubagentProfile, deriveSubagentTask } from "./subagent-profile";
 
 export function projectView(project: Project): ProjectRecord {
   return { ...project, dir: project.directory };
@@ -68,6 +68,27 @@ export function agentView(
     projectDir: config.workingDirectory,
     parentAgentId: child ? snapshot.conversation.id : undefined,
     name: child?.title,
+    task: child
+      ? deriveSubagentTask(child.title, [
+          ...events.flatMap((event) =>
+            event.type === "tool_call_response" &&
+            event.payload.toolName === "subagent_prompt"
+              ? [
+                  {
+                    toolName: event.payload.toolName,
+                    arguments: event.payload.arguments,
+                  },
+                ]
+              : [],
+          ),
+          ...snapshot.toolCalls
+            .filter((call) => call.toolName === "subagent_prompt")
+            .map((call) => ({
+              toolName: call.toolName,
+              arguments: call.arguments,
+            })),
+        ])
+      : undefined,
     subagentProfile: child
       ? deriveSubagentProfile(child.title, creatingCall)
       : undefined,

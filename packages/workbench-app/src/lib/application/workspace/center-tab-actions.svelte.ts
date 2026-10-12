@@ -129,6 +129,10 @@ export async function closeCenterTabs(
 
   for (const tab of originalTabs) {
     if (!targets.has(centerTabKey(tab))) continue;
+    if (tab.kind === "async-bash")
+      workspaceFeaturePorts().conversations.commands.discardAsyncBashTab(
+        tab.id,
+      );
     if (tab.kind === "pending-conversation")
       pendingConversations.delete(tab.id);
     if (tab.kind === "file")

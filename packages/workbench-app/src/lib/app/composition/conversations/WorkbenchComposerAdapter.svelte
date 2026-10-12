@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onDestroy, untrack } from "svelte";
+import { onDestroy, untrack, type Snippet } from "svelte";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import Mic from "@lucide/svelte/icons/mic";
@@ -51,6 +51,7 @@ import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.sve
 import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
+  activity,
   text = "",
   editorOverlay,
   modeHidden = false,
@@ -100,7 +101,27 @@ let {
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
   onOpenCapabilitySettings,
-}: PromptComposerProps = $props();
+}: PromptComposerProps & { activity?: Snippet } = $props();
+
+let headerEl = $state<HTMLDivElement>();
+let activityWidth = $state(0);
+$effect(() => {
+  const element = headerEl;
+  if (!element) return;
+  const update = () => {
+    const style = getComputedStyle(element);
+    activityWidth = Math.max(
+      0,
+      element.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight),
+    );
+  };
+  const observer = new ResizeObserver(update);
+  update();
+  observer.observe(element);
+  return () => observer.disconnect();
+});
 
 // A newly created pending conversation opens directly into its first prompt,
 // so its editor should be ready for typing as soon as it mounts.
@@ -590,14 +611,27 @@ function handleMicContextMenu(event: MouseEvent) {
   }}
 >
   {#snippet header()}
-    {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
-      <PromptSuggestionChips
-        suggestions={composerSuggestions}
-        disabled={sending}
-        onSend={onSendSuggestion}
-        onDraft={onDraftSuggestion}
-      />
-    {/if}
+    <div
+      bind:this={headerEl}
+      class="@container/conversation-activity mx-px flex min-w-0 items-start justify-between gap-2 px-2.5"
+      style:--conversation-activity-width={`${activityWidth}px`}
+    >
+      <div class="min-w-0 flex-1 overflow-hidden">
+        {#if composerSuggestions.length > 0 && !blockedForReview && !compacting && canPrompt}
+          <PromptSuggestionChips
+            suggestions={composerSuggestions}
+            disabled={sending}
+            onSend={onSendSuggestion}
+            onDraft={onDraftSuggestion}
+          />
+        {/if}
+      </div>
+      {#if activity}
+        <div class="relative -translate-y-1.5 shrink-0">
+          {@render activity()}
+        </div>
+      {/if}
+    </div>
   {/snippet}
 
   {#snippet sendLeading()}

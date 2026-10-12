@@ -35,12 +35,18 @@ import {
   launchWorkspaceReadModel,
 } from "$lib/features/launches/workspace.svelte";
 
+import {
+  asyncBashWorkspaceReadModel,
+  discardAsyncBashTab,
+} from "$lib/features/conversations/state/async-bash-tabs.svelte";
+
 export function registerWorkspaceReadModels(): () => void {
   const unregisterLists = registerConversationLists(
     (id) => new ConversationListStore(id),
   );
   const conversations: WorkspaceFeaturePorts["conversations"] = {
-    commands: { cancelVoiceInputTargets },
+    read: asyncBashWorkspaceReadModel,
+    commands: { cancelVoiceInputTargets, discardAsyncBashTab },
   };
   const unregisterPorts = registerWorkspaceFeaturePorts({
     conversations,

@@ -1,4 +1,5 @@
 import type { FilesystemFileResponse, LaunchRecord } from "$lib/api";
+import type { AsyncBash } from "@nervekit/contracts/core";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
@@ -76,7 +77,9 @@ interface PrWorkspaceView {
 
 export interface WorkspaceFeaturePorts {
   conversations: {
+    read: { readonly asyncBashes: Readonly<Record<string, AsyncBash>> };
     commands: {
+      discardAsyncBashTab(id: string): void;
       cancelVoiceInputTargets(targets: VoiceInputTarget[]): Promise<void>;
     };
   };

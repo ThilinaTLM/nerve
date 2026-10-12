@@ -1,5 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import ArrowDown from "@lucide/svelte/icons/arrow-down";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
 import TranscriptAnnouncer from "../transcript/TranscriptAnnouncer.svelte";
 import TranscriptList from "../transcript/TranscriptList.svelte";
@@ -20,19 +22,16 @@ let {
   menus,
   composer: composerExtension,
   emptyExtension,
-  floating,
+  activity,
 }: {
   model: ConversationPaneModel;
   actions: ConversationPaneActions;
   menus: ConversationMenuBuilders;
-  composer?: Snippet;
+  composer?: Snippet<[Snippet]>;
   emptyExtension?: Snippet;
-  /** Floats over the transcript's top right (e.g. the agents pill). */
-  floating?: Snippet;
+  /** Activity/navigation controls beside suggestions, above the composer. */
+  activity?: Snippet<[showLatest: boolean, onJumpToBottom: () => void]>;
 } = $props();
-
-/** Transcript top padding that keeps the first line clear of the pill. */
-const TOP_INSET_PX = 48;
 
 const active = $derived(model.active ?? true);
 const lastTimelineKey = $derived(
@@ -69,11 +68,24 @@ const scroll = createConversationScrollController({
 });
 </script>
 
+{#snippet activityContent()}
+  {#if activity}
+    {@render activity(active && !scroll.atEnd, () => scroll.jumpToBottom())}
+  {:else if active && !scroll.atEnd}
+    <Button
+      variant="outline"
+      size="icon-lg"
+      ariaLabel="Scroll to latest"
+      title="Scroll to latest"
+      onclick={() => scroll.jumpToBottom()}
+    >
+      <ArrowDown class="size-4" aria-hidden="true" />
+    </Button>
+  {/if}
+{/snippet}
+
 <ConversationPaneLayout
   open={model.open}
-  showScrollButton={active && !scroll.atEnd}
-  composerHeight={scroll.composerHeight}
-  onJumpToBottom={() => scroll.jumpToBottom()}
   bind:composerWrapRef={scroll.composerWrapEl}
 >
   {#snippet announcer()}
@@ -88,11 +100,6 @@ const scroll = createConversationScrollController({
   {/snippet}
   {#snippet transcript()}
     <div class="relative flex h-full min-h-0 flex-col">
-      {#if floating}
-        <div class="pointer-events-none absolute top-2 right-4 z-10 flex">
-          <div class="pointer-events-auto">{@render floating()}</div>
-        </div>
-      {/if}
       {#if model.banner}
         <ConversationBanner {...model.banner} />
       {/if}
@@ -100,7 +107,7 @@ const scroll = createConversationScrollController({
         <TranscriptList
           bind:controller={scroll.controller}
           bind:atEnd={scroll.atEnd}
-          paddingStart={model.reserveTopInset ? TOP_INSET_PX : 12}
+          paddingStart={12}
           paddingEnd={18}
           heightCacheKey={model.transcriptHeightCacheKey ??
             model.conversationId}
@@ -146,9 +153,22 @@ const scroll = createConversationScrollController({
 
   {#snippet composer()}
     {#if composerExtension}
-      {@render composerExtension()}
+      {@render composerExtension(activityContent)}
     {:else}
-      <AgentComposer model={model.composer} {actions} />
+      <AgentComposer model={model.composer} {actions}>
+        {#snippet header()}
+          <div class="flex min-w-0 items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              {#if model.composer.hint}
+                <p class="text-xs text-muted-foreground">
+                  {model.composer.hint}
+                </p>
+              {/if}
+            </div>
+            {@render activityContent()}
+          </div>
+        {/snippet}
+      </AgentComposer>
     {/if}
   {/snippet}
 

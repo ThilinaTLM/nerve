@@ -8,6 +8,7 @@ describe("center tab refresh", () => {
     const calls: string[] = [];
     const refresh = createCenterTabRefresh({
       refreshConversation: (id) => calls.push(`conversation:${id}`),
+      refreshAsyncBash: (id) => calls.push(`async-bash:${id}`),
       selectTab: (tab) => calls.push(`select:${tab.kind}:${tab.id}`),
       refreshFile: (id) => calls.push(`file:${id}`),
       refreshMermaid: (id) => calls.push(`mermaid:${id}`),
@@ -18,6 +19,12 @@ describe("center tab refresh", () => {
     });
     const tabs: CenterTabIdentity[] = [
       { kind: "conversation", id: "conv_1" },
+      {
+        kind: "async-bash",
+        id: "bash_1",
+        conversationId: "conv_1",
+        command: "pnpm check",
+      },
       { kind: "pending-conversation", id: "pending_1" },
       { kind: "launch", id: "launch_1" },
       { kind: "discover", id: "discover" },
@@ -31,6 +38,7 @@ describe("center tab refresh", () => {
     tabs.forEach(refresh);
     assert.deepEqual(calls, [
       "conversation:conv_1",
+      "async-bash:bash_1",
       "select:pending-conversation:pending_1",
       "select:launch:launch_1",
       "select:discover:discover",
