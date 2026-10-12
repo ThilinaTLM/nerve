@@ -621,7 +621,9 @@ function handleMicContextMenu(event: MouseEvent) {
         {/if}
       </div>
       {#if activity}
-        <div class="relative shrink-0">{@render activity()}</div>
+        <div class="relative -translate-y-1.5 shrink-0">
+          {@render activity()}
+        </div>
       {/if}
     </div>
   {/snippet}
