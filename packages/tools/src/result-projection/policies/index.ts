@@ -27,10 +27,7 @@ import {
   jiraResourceAgentResultPolicy,
   jiraSearchAgentResultPolicy,
 } from "./jira.js";
-import {
-  planMutationAgentResultPolicy,
-  planReviewAgentResultPolicy,
-} from "./plan-mode.js";
+import { planReviewAgentResultPolicy } from "./plan-mode.js";
 import { processAgentResultPolicy } from "./process.js";
 import { generateImageAgentResultPolicy } from "./image-generation.js";
 import { explainImageAgentResultPolicy } from "./vision.js";
@@ -92,9 +89,7 @@ const map: Record<ToolName, AgentResultPolicy> = {
   confluence_manage_attachment: confluenceMutationAgentResultPolicy,
   async_bash: policy("lifecycle_state", "head", textCandidate),
   launch: policy("lifecycle_state", "head", textCandidate),
-  plan_mode_enter: planMutationAgentResultPolicy,
   plan_mode_present: planReviewAgentResultPolicy,
-  plan_mode_force_exit: planMutationAgentResultPolicy,
 };
 
 export function agentResultPolicyForTool(name: ToolName): AgentResultPolicy {

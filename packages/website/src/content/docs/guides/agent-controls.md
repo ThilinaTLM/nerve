@@ -11,6 +11,8 @@ sidebar:
 
 **Planning mode** changes instructions, tool availability, and enforcement. Research remains available; edit and write are constrained to Nerve's plan directory; long-running task mutations and mutating Jira/Confluence operations are unavailable; shell commands pass a planning guard. A plan must be presented for review before implementation.
 
+Select coding or planning mode in the agent controls; agents cannot change their own mode. In planning mode, the agent uses `plan_mode_present` to submit its plan. **Accept & Implement** approves the plan and transitions to coding mode; requesting changes keeps the work in planning mode. You can also change mode directly with the user controls.
+
 Planning restrictions reduce accidental mutation but are not an operating-system sandbox.
 
 ## Permission levels

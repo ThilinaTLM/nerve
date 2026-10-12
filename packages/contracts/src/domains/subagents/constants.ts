@@ -18,9 +18,7 @@ export const SUBAGENT_PROFILE_DESCRIPTION_MAX_LENGTH = 200;
 /** Tools no sub-agent may use and no profile may name. */
 export const subagentBlockedToolNames = [
   "ask_user",
-  "plan_mode_enter",
   "plan_mode_present",
-  "plan_mode_force_exit",
   "subagent_prompt",
   "subagent_status",
   "subagent_stop",

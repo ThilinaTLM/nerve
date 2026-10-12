@@ -6,6 +6,7 @@ import type {
   PlanReviewRecord,
   PlanReviewResolveOptions,
   ProjectRecord,
+  QueuedPromptRecord,
   UserQuestionRecord,
 } from "../state/tool-types";
 import type { ConversationMenuBuilders } from "../conversations/conversation-view-contracts.js";
@@ -15,7 +16,7 @@ import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import type { MermaidMarkdownBlock } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
 import { notifyCopyResult } from "@nervekit/ui-kit/browser/notifications";
 import CompactionNoticeCard from "./notice/CompactionNoticeCard.svelte";
-import UserMessageContent from "./UserMessageContent.svelte";
+import UserPromptRow from "./UserPromptRow.svelte";
 import TaskNoticeCard from "./notice/TaskNoticeCard.svelte";
 import SystemEventNoticeCard from "./notice/SystemEventNoticeCard.svelte";
 import RunStatusNoticeCard from "./notice/RunStatusNoticeCard.svelte";
@@ -29,6 +30,14 @@ import { getConversationMotionBudget } from "./conversation-motion-context.svelt
 type Props = {
   node: TranscriptDisplayNode;
   sending: boolean;
+  queuedPrompt?: QueuedPromptRecord;
+  onForcePushQueuedPrompts?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
+  onDiscardQueuedPrompt?: (prompt: QueuedPromptRecord) => void | Promise<void>;
+  onMoveQueuedPromptToComposer?: (
+    prompt: QueuedPromptRecord,
+  ) => void | Promise<void>;
   activeProject?: ProjectRecord;
   approvalsByToolCallId?: ReadonlyMap<string, ApprovalWithToolCall>;
   questionsByToolCallId?: ReadonlyMap<string, UserQuestionRecord>;
@@ -73,6 +82,10 @@ type Props = {
 let {
   node,
   sending,
+  queuedPrompt,
+  onForcePushQueuedPrompts,
+  onDiscardQueuedPrompt,
+  onMoveQueuedPromptToComposer,
   activeProject,
   approvalsByToolCallId = new Map(),
   questionsByToolCallId = new Map(),
@@ -143,7 +156,12 @@ const inFlight = $derived.by(() => {
         LIVE_TOOL_STATUSES.has(node.toolCall?.status ?? "")
       );
     case "message":
-      return Boolean(node.item.live);
+      return Boolean(
+        node.item.live ||
+        node.item.commandPreparation?.blocks.some(
+          (block) => block.state === "running",
+        ),
+      );
     case "thinking_group":
       return node.items.some((member) => member.item.live && !member.item.done);
     default:
@@ -329,6 +347,15 @@ $effect(() => {
           </div>
         </article>
       </TranscriptContextMenu>
+    {:else if node.kind === "message" && node.item.role === "user"}
+      <UserPromptRow
+        item={node.item}
+        prompt={queuedPrompt}
+        onForcePush={onForcePushQueuedPrompts}
+        onDiscard={onDiscardQueuedPrompt}
+        onMoveToComposer={onMoveQueuedPromptToComposer}
+        {transcriptMenu}
+      />
     {:else if node.kind === "message"}
       <TranscriptContextMenu
         target={{ kind: "message", item: node.item }}
@@ -340,29 +367,21 @@ $effect(() => {
           data-state={messageState}
         >
           <div class="message-body">
-            {#if node.item.role === "user" ? (node.item.preparedText ?? node.item.text) : node.item.text}
+            {#if node.item.text}
               <div class="message-content">
-                {#if node.item.role === "user"}
-                  <UserMessageContent
-                    text={node.item.preparedText ?? node.item.text}
-                    pending={Boolean(node.item.optimistic)}
-                  />
-                {:else}
-                  <Markdown
-                    text={node.item.text}
-                    trimCodeBlocks={node.item.role !== "assistant"}
-                    streaming={Boolean(node.item.live && !node.item.done)}
-                    reveal={node.item.role === "assistant"}
-                    caret={Boolean(node.item.live && !node.item.done)}
-                    linkBasePath={activeProject?.dir}
-                    {onOpenFile}
-                    onOpenMermaid={node.item.role === "assistant" &&
-                    onOpenMermaid
-                      ? openMessageMermaid
-                      : undefined}
-                    onCopy={notifyCopyResult}
-                  />
-                {/if}
+                <Markdown
+                  text={node.item.text}
+                  trimCodeBlocks={node.item.role !== "assistant"}
+                  streaming={Boolean(node.item.live && !node.item.done)}
+                  reveal={node.item.role === "assistant"}
+                  caret={Boolean(node.item.live && !node.item.done)}
+                  linkBasePath={activeProject?.dir}
+                  {onOpenFile}
+                  onOpenMermaid={node.item.role === "assistant" && onOpenMermaid
+                    ? openMessageMermaid
+                    : undefined}
+                  onCopy={notifyCopyResult}
+                />
               </div>
             {/if}
             {#if node.item.stopReason === "error" && node.item.errorMessage?.trim()}
@@ -390,23 +409,6 @@ $effect(() => {
   border-bottom: 0;
 }
 
-.transcript-entry.user {
-  width: fit-content;
-  max-width: 70%;
-  margin-left: auto;
-  border: 1px solid color-mix(in oklab, var(--primary) 16%, var(--border));
-  border-radius: var(--radius-lg);
-  border-bottom-right-radius: var(--radius-sm);
-  background: color-mix(in oklab, var(--primary) 12%, var(--card));
-  padding: 0.55rem 0.8rem;
-}
-
-@container (max-width: 40rem) {
-  .transcript-entry.user {
-    max-width: 88%;
-  }
-}
-
 .message-body {
   position: relative;
   min-width: 0;
@@ -417,9 +419,5 @@ $effect(() => {
   min-width: 0;
   color: color-mix(in oklab, var(--foreground) 92%, transparent);
   font-size: var(--text-sm);
-}
-
-.transcript-entry.user .message-content {
-  color: var(--foreground);
 }
 </style>

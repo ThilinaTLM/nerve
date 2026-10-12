@@ -1,5 +1,5 @@
 import type { OrchestrationToolName } from "@nervekit/contracts/tools";
-import { boundedText, plural, textArg } from "./core-specs";
+import { plural, textArg } from "./core-specs";
 import {
   argumentPresentation,
   type ToolLifecycleSpec,
@@ -100,21 +100,6 @@ export const orchestrationToolLifecycleSpecs = {
         ),
       }),
   }),
-  plan_mode_enter: spec({
-    name: "plan_mode_enter",
-    argumentRegion: "until-result",
-    completedView: "plan_mode",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg("Enter planning mode"),
-        body: source.string("reason")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("reason"))!,
-            }
-          : undefined,
-      }),
-  }),
   plan_mode_present: spec({
     name: "plan_mode_present",
     argumentRegion: "until-result",
@@ -128,20 +113,5 @@ export const orchestrationToolLifecycleSpecs = {
         secondary: path ? [{ text: path, mono: true, openPath: path }] : [],
       });
     },
-  }),
-  plan_mode_force_exit: spec({
-    name: "plan_mode_force_exit",
-    argumentRegion: "until-result",
-    completedView: "plan_mode",
-    present: (source) =>
-      argumentPresentation({
-        primaryArg: textArg("Exit planning mode"),
-        body: source.string("reason")
-          ? {
-              kind: "text-summary",
-              text: boundedText(source.string("reason"))!,
-            }
-          : undefined,
-      }),
   }),
 } satisfies Record<OrchestrationToolName, ToolLifecycleSpec>;

@@ -156,23 +156,13 @@ describe("shared tool runtime contract", () => {
     );
 
     const plans = createPlanHandlers({
-      enter: async (value, reason) => {
-        assert.equal(value, identity);
-        calls.push(`plan.enter:${reason}`);
-        return { content: "planning" };
-      },
       present: async (value, request) => {
         assert.equal(value, identity);
         assert.deepEqual(request, { filePath: "plans/reuse.md" });
         calls.push(`plan.present:${request.filePath}`);
         return { content: "review" };
       },
-      forceExit: async () => ({ content: "coding" }),
     });
-    await plans.plan_mode_enter?.(
-      { reason: " investigate " },
-      { ...context, toolName: "plan_mode_enter" },
-    );
     await plans.plan_mode_present?.(
       { file_path: " plans/reuse.md " },
       { ...context, toolName: "plan_mode_present" },
@@ -181,7 +171,6 @@ describe("shared tool runtime contract", () => {
     assert.deepEqual(calls, [
       "interaction.resolve",
       "interaction.request",
-      "plan.enter:investigate",
       "plan.present:plans/reuse.md",
     ]);
   });

@@ -1,3 +1,5 @@
+import type { CommandPreparation } from "@nervekit/contracts/core";
+
 /** Presentation-owned records shapes. No runtime schemas. */
 
 export type JsonValue =
@@ -44,6 +46,9 @@ export type AgentRecord = {
 
 export type QueuedPromptRecord = {
   id: string;
+  presentation?: "starting" | "waiting";
+  preparedText?: string;
+  commandPreparation?: CommandPreparation;
   agentId: string;
   conversationId: string;
   projectId: string;
@@ -90,6 +95,8 @@ export type ConversationRecord = {
 
 export type ConversationEntry = {
   id: string;
+  inputId?: string;
+  commandPreparation?: CommandPreparation;
   conversationId: string;
   role: "user" | "assistant" | "system";
   kind:

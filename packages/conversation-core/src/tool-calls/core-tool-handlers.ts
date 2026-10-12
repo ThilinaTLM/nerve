@@ -73,30 +73,6 @@ export function createCoreToolHandlers(
       return { content: JSON.stringify(result) };
     },
   });
-  register("plan_mode_enter", {
-    async execute(call) {
-      await options.configure(call.conversationId, { mode: "planning" });
-      return {
-        kind: "completed",
-        result: {
-          content: "Entered planning mode.",
-          details: { mode: "planning" },
-        },
-      };
-    },
-  });
-  register("plan_mode_force_exit", {
-    async execute(call) {
-      await options.configure(call.conversationId, { mode: "coding" });
-      return {
-        kind: "completed",
-        result: {
-          content: "Exited planning mode.",
-          details: { mode: "coding", reason: call.arguments.reason },
-        },
-      };
-    },
-  });
   register("plan_mode_present", {
     async execute(call, ctx) {
       const path = call.arguments.file_path;

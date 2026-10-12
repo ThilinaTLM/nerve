@@ -158,16 +158,8 @@ export const toolGroups: ToolGroupDef[] = [
     configurableTools: [],
     tools: [
       {
-        name: "plan_mode_enter",
-        description: "Enter review-first planning before design-heavy edits.",
-      },
-      {
         name: "plan_mode_present",
         description: "Present a completed plan for user approval.",
-      },
-      {
-        name: "plan_mode_force_exit",
-        description: "Exit plan mode after approval or cancellation.",
       },
     ],
   },

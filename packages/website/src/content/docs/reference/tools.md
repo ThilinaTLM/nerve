@@ -54,9 +54,11 @@ Check `launch status` before starting a server; prefer the user's definitions in
 ## Delegation and planning
 
 - Sub-agents: `subagent_prompt`, `subagent_status`, `subagent_stop`
-- Planning: `plan_mode_enter`, `plan_mode_present`, `plan_mode_force_exit`
+- Planning: `plan_mode_present`
 
 The Sub-agents tool group is disabled by default and is hidden from the lead while no sub-agent profile is usable. `subagent_prompt` takes a batch of 1–10 assignments (`name`, `profile`, `prompt`) and optional shared `context`. A new name creates a sub-agent from the named [profile](/reference/subagent-profiles/); an existing name queues a follow-up and resumes a stopped sub-agent. The whole batch is validated first, so a bad name, profile or duplicate fails the call and nothing is created. `subagent_status` lists sub-agents or shows one in detail, and `subagent_stop` stops the current execution of the named sub-agents.
+
+Users select coding or planning mode in the agent controls. In planning mode, `plan_mode_present` submits a plan for review; accepting it transitions to coding for implementation. Agents cannot select or exit planning mode themselves.
 
 Sub-agents run asynchronously in the lead's worktree and do not see the lead transcript. Their completion is delivered as a notice that wakes the lead. They never receive `ask_user`, plan-mode tools or the sub-agent tools. Stopping a sub-agent keeps its history.
 

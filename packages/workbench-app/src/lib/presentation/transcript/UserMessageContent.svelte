@@ -1,15 +1,21 @@
 <script lang="ts">
+import type { CommandPreparation } from "@nervekit/contracts/core";
 import PlainText from "@nervekit/ui-kit/renderers/plain-text/PlainText.svelte";
 import CommandBlockCard from "./CommandBlockCard.svelte";
-import { segmentUserMessageText } from "./user-message-content.js";
+import {
+  segmentUserMessageText,
+  userCommandPresentation,
+} from "./user-message-content.js";
 
 type Props = {
   text: string;
   /** True while the row is optimistic and its command blocks are executing. */
   pending?: boolean;
+  /** Per-command lifecycle; takes precedence over the optimistic fallback. */
+  commandPreparation?: CommandPreparation;
 };
 
-let { text, pending = false }: Props = $props();
+let { text, pending = false, commandPreparation }: Props = $props();
 
 const segments = $derived(segmentUserMessageText(text));
 const plainOnly = $derived(
@@ -24,18 +30,17 @@ const plainOnly = $derived(
     {#each segments as segment, index (index)}
       {#if segment.kind === "text"}
         <PlainText text={segment.text} />
-      {:else if segment.kind === "command_result"}
-        <CommandBlockCard
-          phase="done"
-          command={segment.command}
-          status={segment.status}
-          exitCode={segment.exitCode}
-          output={segment.output}
-        />
       {:else}
+        {@const commandIndex = segments
+          .slice(0, index)
+          .filter((segment) => segment.kind !== "text").length}
         <CommandBlockCard
-          phase={pending ? "running" : "static"}
-          command={segment.command}
+          {...userCommandPresentation(
+            segment,
+            commandIndex,
+            pending,
+            commandPreparation,
+          )}
         />
       {/if}
     {/each}

@@ -1,4 +1,5 @@
 import { conversationCatalog } from "../state/conversation-catalog.svelte";
+import { promptPresentations } from "./prompt-presentation";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
 import type {
   TransferredConversationEvent,
@@ -56,6 +57,8 @@ export function eventEntry(
       return {
         ...base,
         role: "user",
+        inputId: event.inputId ?? undefined,
+        commandPreparation: event.payload.commandPreparation ?? undefined,
         text: event.payload.originalText,
         details: { preparedText: event.payload.text },
       };
@@ -324,10 +327,14 @@ export function conversationTranscript(input: {
       tools.set(e.payload.toolCallId, toolRecord(snapshot, e));
   for (const call of snapshot.toolCalls)
     tools.set(call.id, toolRecord(snapshot, call));
+  const presentations = promptPresentations(snapshot, events);
   const queuedPrompts: QueuedPromptRecord[] = snapshot.queue
     .filter((q) => q.source === "user")
     .map((q) => ({
       id: q.inputId,
+      presentation: presentations.get(q.inputId),
+      preparedText: q.preparedText ?? undefined,
+      commandPreparation: q.commandPreparation ?? undefined,
       agentId: snapshot.conversation.id,
       conversationId: snapshot.conversation.id,
       projectId: snapshot.conversation.projectId,

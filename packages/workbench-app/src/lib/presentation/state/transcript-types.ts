@@ -96,6 +96,8 @@ export type SystemEventNotice = {
 
 export type TranscriptItem = {
   id?: string;
+  inputId?: string;
+  commandPreparation?: ConversationEntry["commandPreparation"];
   runId?: string;
   role: "user" | "assistant" | "system";
   kind?: ConversationEntry["kind"];

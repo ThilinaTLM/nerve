@@ -5,8 +5,8 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 type Props = {
   command: string;
   /**
-   * running: executing right now (optimistic row); done: executed with a
-   * recorded result; static: not executed (queued or historical raw block).
+   * running: preparing/executing this command; done: settled (including
+   * interrupted commands); static: not started or historical raw block.
    */
   phase: "running" | "done" | "static";
   status?: string;
@@ -35,15 +35,14 @@ const resultLabel = $derived(
       aria-hidden="true"
     />
     <pre
-      class="min-w-0 flex-1 font-mono text-xs leading-5 whitespace-pre-wrap break-words">$ {command}</pre>
-    {#if phase === "running"}
-      <span
-        class="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"
-      >
-        <Spinner class="size-3" aria-label="Running command" />
-        Running…
-      </span>
-    {:else if phase === "done" && resultLabel}
+      class="min-w-0 flex-1 font-mono text-xs leading-5 whitespace-pre-wrap break-words"><span
+        class="inline-flex size-3.5 items-center justify-center align-middle"
+        >{#if phase === "running"}<Spinner
+            class="size-full motion-reduce:animate-none!"
+            aria-label="Preparing command"
+          />{:else}<span aria-hidden="true">$</span>{/if}</span
+      > {command}</pre>
+    {#if phase === "done" && resultLabel}
       <span
         class={`shrink-0 font-mono text-xs leading-5 ${ok ? "text-success" : "text-destructive"}`}
         title={status ? `status: ${status}` : undefined}

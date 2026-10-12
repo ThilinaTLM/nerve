@@ -330,28 +330,12 @@ const metadata = {
     ["whole_tool"],
     true,
   ),
-  plan_mode_enter: m(
-    "orchestration",
-    "planMode",
-    "interaction",
-    ["reason"],
-    ["whole_tool"],
-    true,
-  ),
   plan_mode_present: m(
     "orchestration",
     "planMode",
     "interaction",
     ["file_path"],
     ["path"],
-    true,
-  ),
-  plan_mode_force_exit: m(
-    "orchestration",
-    "planMode",
-    "interaction",
-    ["reason"],
-    ["whole_tool"],
     true,
   ),
 } satisfies Record<ToolName, ToolPermissionMetadata>;

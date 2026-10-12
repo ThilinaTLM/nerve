@@ -340,7 +340,10 @@ export function buildCommittedTimeline(
 
     items.push({
       kind: "message",
-      key: item.id ?? `msg-${index}`,
+      key:
+        item.role === "user" && item.inputId
+          ? `input:${item.inputId}`
+          : (item.id ?? `msg-${index}`),
       item: legacyFailure
         ? {
             ...item,

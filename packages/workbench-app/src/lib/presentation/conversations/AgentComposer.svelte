@@ -4,7 +4,6 @@ import {
   hasExecutableCommandBlocks,
   isInlineCommandPrompt,
 } from "@nervekit/contracts/completions";
-import Lock from "@lucide/svelte/icons/lock";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
@@ -155,27 +154,7 @@ function submit(): void {
   {/snippet}
 
   {#snippet editor()}
-    {#if model.editorOverlay}
-      {@const overlay = model.editorOverlay}
-      <div
-        class="flex min-h-16 items-center justify-between gap-3 bg-well/60 px-3 py-3 pr-24 text-sm text-muted-foreground"
-        data-testid="composer-editor-overlay"
-      >
-        <span class="flex min-w-0 items-center gap-2">
-          <Lock class="size-3.5 flex-none" aria-hidden="true" />
-          <span class="min-w-0">{overlay.message}</span>
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          class="flex-none"
-          onclick={overlay.onAction}
-        >
-          <ArrowLeft />
-          {overlay.actionLabel}
-        </Button>
-      </div>
-    {:else}
+    <div class="relative">
       <ComposerEditor
         value={model.text}
         disabled={editorDisabled}
@@ -192,7 +171,25 @@ function submit(): void {
         onWriteClipboardText={actions.onWriteClipboardText}
         onClipboardError={actions.onClipboardError}
       />
-    {/if}
+      {#if model.editorOverlay}
+        {@const overlay = model.editorOverlay}
+        <div
+          class="pointer-events-none absolute inset-0 flex items-center justify-center"
+          data-testid="composer-editor-overlay"
+        >
+          <Button
+            type="button"
+            size="sm"
+            class="pointer-events-auto"
+            title={overlay.message}
+            onclick={overlay.onAction}
+          >
+            <ArrowLeft />
+            {overlay.actionLabel}
+          </Button>
+        </div>
+      {/if}
+    </div>
   {/snippet}
 
   {#snippet sendLeading()}

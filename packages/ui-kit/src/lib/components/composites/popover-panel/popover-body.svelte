@@ -3,7 +3,9 @@ import type { Snippet } from "svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 
-/** The panel's only scroll container. Its height is bounded by the panel, so
+/** The panel's only scroll container. Single-column grids use a zero-minimum
+ * track so long property values truncate rather than widen the scroll content.
+ * Its height is bounded by the panel, so
  * consumers never set their own `max-h-*`. Overflow is stated by edge shadows
  * rather than a scrollbar. When it holds a navigable list it takes the listbox
  * role; the highlighted row is announced by the search field that has focus,
@@ -38,7 +40,7 @@ let {
   {role}
   {ariaLabel}
   class="text-xs"
-  contentClass={cn("grid content-start gap-2 px-2 pb-2", className)}
+  contentClass={cn("grid grid-cols-1 content-start gap-2 px-2 pb-2", className)}
 >
   {@render children?.()}
 </ScrollRegion>

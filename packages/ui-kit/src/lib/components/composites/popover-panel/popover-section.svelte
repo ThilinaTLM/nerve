@@ -21,7 +21,7 @@ let {
 
 <section
   class={cn(
-    "grid gap-1",
+    "grid grid-cols-1 gap-1",
     separated && "border-t border-border/60 pt-2",
     className,
   )}
