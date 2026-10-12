@@ -12,7 +12,9 @@ Options B and C have been removed. Back and Latest are icon-only, with accessibl
 
 Each segment exists whenever it has active **or retained** items. Clicking Agents or Commands expands the same island upward into a joined surface, keeping its bottom-right anchor and composer gap fixed. The dock becomes the category switcher below the list. Back returns to the parent conversation; Latest scrolls the current transcript. The dock is not one giant click target: navigation and inspecting work are different intentions.
 
-## Compact expanded list
+## Original expanded-list study
+
+These two-line rows describe the initial HTML mockup; production now uses the single-line rows described below.
 
 - Around 360px wide, constrained to the conversation pane. Width and upward reveal animate over 220ms; there is no detached popup or gap between list and dock.
 - A compact header shows the category and running/total counts, with an icon-only collapse button.
@@ -45,4 +47,12 @@ A command's icon opens a sample workspace logs tab with the selected command's o
 2. **Attention states:** failures and approval/question waits need persistent warning/destructive cues and explicit actions, not a success check or an indefinitely spinning count. They are not mocked in this study.
 3. **Recent-command limit and older-history entry point:** agree the number and reuse the existing task/run history navigation during implementation.
 
-The HTML file remains a standalone design study. The implemented island lives in `src/lib/features/conversations/agents/ConversationActivityIsland.svelte` in the workbench app; async bash logs use a dedicated workspace tab and a bounded core log-read operation. Subagent timestamps currently support **age**, not exact per-run execution duration, so the UI labels that value explicitly rather than inventing a duration.
+## Implemented single-line lists
+
+The HTML file remains a standalone design study. The implemented island lives in `src/lib/features/conversations/agents/ConversationActivityIsland.svelte` in the workbench app; async bash logs use a dedicated workspace tab and a bounded core log-read operation.
+
+- Agent rows show only status, a compact regular-weight name, and profile—no prompt or age.
+- Command rows show only status and the first command line—no duration or relative completion time. The full command remains available in the hover title and log tab.
+- The whole row is a keyboard-accessible button: agents open their transcript, commands open their log tab. No trailing action icons or nested buttons.
+- Circular status icons match the rest of the application. The suggestions and activity dock align with the composer toolbar’s horizontal inset; list rows retain the shared Button control sizing.
+- Row activation collapses the island; Escape and keyboard-open focus behavior remain unchanged. Command durations remain available in the log tab.

@@ -6,7 +6,6 @@ import type {
   AgentRecord,
 } from "$lib/presentation/view-models/conversation";
 import {
-  activityDuration,
   commandFirstLine,
   COMMAND_STATE_LABEL,
   islandAgents,
@@ -155,17 +154,7 @@ describe("activity island retention and ordering", () => {
   });
 });
 
-describe("activity island timestamp and command labels", () => {
-  it("uses elapsed start/finish for commands, live created age for agents, and unknown for missing settled ends", () => {
-    assert.equal(activityDuration(at(90), at(30)), "1m 0s");
-    assert.equal(activityDuration(at(90), null, NOW), "1m 30s");
-    assert.equal(activityDuration(at(90), null), "—");
-    assert.equal(activityDuration("invalid", at(0)), "—");
-    assert.equal(activityDuration(at(0), "invalid"), "—");
-    assert.equal(activityDuration(at(0), at(30)), "0s");
-    assert.equal(activityDuration(at(3661), null, NOW), "1h 1m");
-  });
-
+describe("activity island command labels", () => {
   it("shows only the first command line without mutating retained full text", () => {
     const full = "  echo hello\r\nsecond line";
     assert.equal(commandFirstLine(full), "echo hello");

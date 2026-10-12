@@ -2,22 +2,19 @@
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import Ban from "@lucide/svelte/icons/ban";
-import Check from "@lucide/svelte/icons/check";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import CircleHelp from "@lucide/svelte/icons/circle-help";
 import CircleX from "@lucide/svelte/icons/circle-x";
 import Clock from "@lucide/svelte/icons/clock";
-import ExternalLink from "@lucide/svelte/icons/external-link";
 import Users from "@lucide/svelte/icons/users";
 import Terminal from "@lucide/svelte/icons/terminal";
 import type { AsyncBash } from "@nervekit/contracts/core";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
-import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 import { tick } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
 import { slide } from "svelte/transition";
@@ -27,7 +24,6 @@ import type {
 } from "$lib/presentation/view-models/conversation";
 import type { AgentRowState } from "./agent-team";
 import {
-  activityDuration,
   commandFirstLine,
   COMMAND_STATE_LABEL,
   islandAgents,
@@ -73,7 +69,6 @@ let controls = $state<HTMLDivElement>();
 let agentsTrigger = $state<HTMLButtonElement | null>(null);
 let commandsTrigger = $state<HTMLButtonElement | null>(null);
 let anchorSize = $state<{ width: number; height: number }>();
-let nowMs = $state(Date.now());
 
 // Reserve only the collapsed footprint. The actual dock and panel share one
 // animated width and expand left/up absolutely, never moving the composer band.
@@ -98,16 +93,6 @@ $effect(() => {
   const observer = new ResizeObserver(measure);
   observer.observe(row);
   return () => observer.disconnect();
-});
-
-// Ages are createdAt -> now, never masquerading as measured execution time.
-$effect(() => {
-  if (!active || !open) return;
-  nowMs = Date.now();
-  const timer = setInterval(() => {
-    nowMs = Date.now();
-  }, 1000);
-  return () => clearInterval(timer);
 });
 
 function collapse(restoreFocus = true): void {
@@ -195,7 +180,7 @@ const agentStatus: Record<AgentRowState, string> = {
         aria-hidden="true"
       />
     {:else if state === "stopped"}<Ban class="size-3.5" aria-hidden="true" />
-    {:else}<Check class="size-3.5" aria-hidden="true" />{/if}
+    {:else}<CircleCheck class="size-3.5" aria-hidden="true" />{/if}
   </span>
 {/snippet}
 
@@ -216,7 +201,7 @@ const agentStatus: Record<AgentRowState, string> = {
           role="presentation"
           aria-hidden="true"
         />{:else}<CircleDashed class="size-3.5" aria-hidden="true" />{/if}
-    {:else if status === "completed"}<Check
+    {:else if status === "completed"}<CircleCheck
         class="size-3.5"
         aria-hidden="true"
       />
@@ -286,49 +271,28 @@ const agentStatus: Record<AgentRowState, string> = {
                   >
                     Recent
                   </h3>{/if}
-                <div
-                  class="flex min-w-0 items-center gap-2 border-b px-2.5 py-2 last:border-b-0"
+                <Button
+                  data-row-action
+                  variant="ghost"
+                  size="default"
+                  class="w-full min-w-0 justify-start rounded-none border-b text-left font-normal last:border-b-0"
+                  aria-current={row.viewed ? "page" : undefined}
+                  aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
+                  title={`Open ${row.name}`}
+                  onclick={() => select(row.agent.id)}
                 >
                   {@render agentGlyph(row.state)}
-                  <div class="min-w-0 flex-1">
-                    <div class="flex min-w-0 items-center gap-1.5">
-                      <span
-                        class="min-w-0 truncate text-sm font-medium"
-                        title={row.name}>{row.name}</span
-                      >
-                      {#if row.profile}<Badge
-                          variant="outline"
-                          class="max-w-24 shrink truncate"
-                          title={row.profile}>{row.profile}</Badge
-                        >{/if}
-                      <span
-                        class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums"
-                        title="Time since this subagent was created"
-                        >age {activityDuration(
-                          row.agent.createdAt,
-                          null,
-                          nowMs,
-                        )}</span
-                      >
-                    </div>
-                    <p
-                      class="mt-1 truncate text-xs text-muted-foreground"
-                      title={row.agent.task}
+                  <span class="flex min-w-0 flex-1 items-center gap-1.5">
+                    <span class="min-w-0 truncate text-xs font-normal"
+                      >{row.name}</span
                     >
-                      {row.agent.task || "No prompt available"}
-                    </p>
-                  </div>
-                  <Button
-                    data-row-action
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-current={row.viewed ? "page" : undefined}
-                    aria-label={`Open ${row.name}: ${row.agent.task || "No prompt available"}`}
-                    title={`Open ${row.name}: ${row.agent.task || "No prompt available"}`}
-                    onclick={() => select(row.agent.id)}
-                    ><ChevronRight class="size-3.5" /></Button
-                  >
-                </div>
+                    {#if row.profile}<Badge
+                        variant="outline"
+                        class="max-w-24 shrink-0 truncate"
+                        title={row.profile}>{row.profile}</Badge
+                      >{/if}
+                  </span>
+                </Button>
               {:else}<p class="px-2.5 py-3 text-xs text-muted-foreground">
                   No retained subagents
                 </p>{/each}
@@ -339,50 +303,23 @@ const agentStatus: Record<AgentRowState, string> = {
                   >
                     Recent
                   </h3>{/if}
-                <div
-                  class="flex min-w-0 items-center gap-2 border-b px-2.5 py-2 last:border-b-0"
+                <Button
+                  data-row-action
+                  variant="ghost"
+                  size="default"
+                  class="w-full min-w-0 justify-start rounded-none border-b text-left font-normal last:border-b-0"
+                  aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
+                  title={command.command}
+                  onclick={() => {
+                    collapse();
+                    onOpenCommand(command);
+                  }}
                 >
                   {@render commandGlyph(command.status)}
-                  <div class="min-w-0 flex-1">
-                    <p
-                      class="truncate font-mono text-xs"
-                      title={command.command}
-                    >
-                      {commandFirstLine(command.command)}
-                    </p>
-                    <p
-                      class="mt-1 flex min-w-0 items-center gap-2 text-xs text-muted-foreground"
-                    >
-                      <span
-                        class="shrink-0 tabular-nums"
-                        title="Time from command start to finish"
-                        >{activityDuration(
-                          command.startedAt,
-                          command.status === "running"
-                            ? null
-                            : command.finishedAt,
-                          command.status === "running" ? nowMs : undefined,
-                        )}</span
-                      >
-                      {#if command.finishedAt}<span
-                          class="truncate"
-                          title={command.finishedAt}
-                          >{relativeTimeLabel(command.finishedAt)}</span
-                        >{/if}
-                    </p>
-                  </div>
-                  <Button
-                    data-row-action
-                    variant="ghost"
-                    size="icon-xs"
-                    aria-label={`Open command tab: ${command.command}`}
-                    title={`Open command tab: ${command.command}`}
-                    onclick={() => {
-                      collapse();
-                      onOpenCommand(command);
-                    }}><ExternalLink class="size-3.5" /></Button
-                  >
-                </div>
+                  <span class="min-w-0 flex-1 truncate font-mono text-xs">
+                    {commandFirstLine(command.command)}
+                  </span>
+                </Button>
               {:else}<p class="px-2.5 py-3 text-xs text-muted-foreground">
                   No retained commands
                 </p>{/each}

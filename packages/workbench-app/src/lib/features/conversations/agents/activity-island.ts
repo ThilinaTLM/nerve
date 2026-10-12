@@ -109,28 +109,6 @@ export function islandCount(running: number, total: number): string {
   return running > 0 ? `${running}/${total}` : String(total);
 }
 
-/**
- * Elapsed time between known endpoints, or live age when end is null and now is
- * supplied. The island uses createdAt -> now for agents, explicitly labelled
- * age: updatedAt is NOT a reliable execution end (it also changes on renames).
- * Commands use startedAt/finishedAt. Missing settled ends remain unknown.
- */
-export function activityDuration(
-  start: string,
-  end: string | null,
-  nowMs?: number,
-): string {
-  const from = Date.parse(start);
-  const to = end === null ? nowMs : Date.parse(end);
-  if (!Number.isFinite(from) || to === undefined || !Number.isFinite(to))
-    return "—";
-  const seconds = Math.floor(Math.max(0, to - from) / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
 export function commandFirstLine(command: string): string {
   return command.trim().split(/\r?\n/, 1)[0] || "(empty command)";
 }

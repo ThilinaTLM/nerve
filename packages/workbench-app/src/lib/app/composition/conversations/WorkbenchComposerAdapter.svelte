@@ -109,7 +109,13 @@ $effect(() => {
   const element = headerEl;
   if (!element) return;
   const update = () => {
-    activityWidth = element.clientWidth;
+    const style = getComputedStyle(element);
+    activityWidth = Math.max(
+      0,
+      element.clientWidth -
+        parseFloat(style.paddingLeft) -
+        parseFloat(style.paddingRight),
+    );
   };
   const observer = new ResizeObserver(update);
   update();
@@ -607,7 +613,7 @@ function handleMicContextMenu(event: MouseEvent) {
   {#snippet header()}
     <div
       bind:this={headerEl}
-      class="@container/conversation-activity flex min-w-0 items-start justify-between gap-2"
+      class="@container/conversation-activity mx-px flex min-w-0 items-start justify-between gap-2 px-2.5"
       style:--conversation-activity-width={`${activityWidth}px`}
     >
       <div class="min-w-0 flex-1 overflow-hidden">
