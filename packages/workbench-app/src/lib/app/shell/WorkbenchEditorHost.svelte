@@ -128,7 +128,14 @@ function closeCenterTabsLeft(tab: CenterTabIdentity) {
       {#if activeCenterTab && !isConversationPaneTab(activeCenterTab)}
         {#key centerTabKey(activeCenterTab)}
           <CenterTabScrollLayer tabKey={centerTabKey(activeCenterTab)}>
-            {#if activeCenterTab.kind === "launch"}
+            {#if activeCenterTab.kind === "async-bash"}
+              {#await loadedCenterViews["async-bash"]}
+                <LazyViewPending />
+              {:then module}
+                {@const Component = module?.default}
+                {#if Component}<Component />{/if}
+              {/await}
+            {:else if activeCenterTab.kind === "launch"}
               {#await loadedCenterViews.launch}
                 <LazyViewPending />
               {:then module}

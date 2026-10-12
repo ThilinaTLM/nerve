@@ -119,6 +119,8 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
       pulse: tab.activity.pulse,
       label: statusLabel(tab),
     };
+  } else if (tab.kind === "async-bash") {
+    model.icon = Terminal;
   } else if (tab.kind === "launch") {
     model.status = { label: statusLabel(tab) };
     model.selectIcon = Terminal;

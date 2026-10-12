@@ -359,6 +359,19 @@ export const workspaceSelectors = {
       this.openConversationTabs,
       this.openPendingConversationTabs,
       this.openLaunchTabs,
+      workspaceState.openCenterTabs.flatMap((tab) => {
+        if (tab.kind !== "async-bash") return [];
+        const bash =
+          workspaceFeaturePorts().conversations.read.asyncBashes[tab.id];
+        return [
+          {
+            ...tab,
+            command: bash?.command ?? tab.command,
+            active: activeTabMatches(tab.kind, tab.id),
+            sending: bash?.status === "running",
+          },
+        ];
+      }),
       this.openFileTabs,
       this.openMermaidTabs,
       this.openPrTabs,

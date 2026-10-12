@@ -4,9 +4,12 @@ import {
 } from "@nervekit/tools/result-projection";
 import { relative } from "node:path";
 import { createId } from "@nervekit/contracts";
+import { asyncBashLogsRequestSchema } from "@nervekit/contracts/core";
 import type {
   AsyncBash,
   AsyncBashStatus,
+  AsyncBashLogsRequest,
+  AsyncBashLogsResponse,
   Asset,
 } from "@nervekit/contracts/core";
 import type { AssetStore } from "../assets/asset-store.js";
@@ -94,6 +97,52 @@ export class AsyncBashService {
       status: row.status,
       ...page,
     });
+  }
+
+  async readLogPage(
+    input: AsyncBashLogsRequest,
+  ): Promise<AsyncBashLogsResponse> {
+    const {
+      conversationId,
+      bashId,
+      offsets,
+      limit = 65536,
+    } = asyncBashLogsRequestSchema.parse(input);
+    const bash = this.options.storage.asyncBash.get(bashId);
+    if (!bash || bash.conversationId !== conversationId)
+      throw new Error("Async bash not found");
+    const assets = this.options.storage.assets
+      .list(conversationId)
+      .filter(
+        (asset) =>
+          asset.asyncBashId === bashId && asset.category === "bash_output",
+      );
+    const find = (name: string) =>
+      assets.find((asset) => asset.logicalPath.endsWith(`/${name}.txt`));
+    const combined = find("output");
+    const selected = combined
+      ? [{ stream: "combined" as const, asset: combined }]
+      : [
+          { stream: "stdout" as const, asset: find("stdout") },
+          { stream: "stderr" as const, asset: find("stderr") },
+        ];
+    const streams: AsyncBashLogsResponse["streams"] = [];
+    // Split the total response budget so separate streams cannot double it.
+    for (let index = 0; index < selected.length; index++) {
+      const { stream, asset } = selected[index]!;
+      const budget =
+        Math.floor(limit / selected.length) +
+        (index < limit % selected.length ? 1 : 0);
+      const page = asset
+        ? await this.options.assets.readTextPage(
+            asset.id,
+            offsets?.[stream],
+            budget,
+          )
+        : { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
+      streams.push({ stream, ...page });
+    }
+    return { bash, streams };
   }
 
   private outputFiles(assets: Asset[]): {

@@ -1,4 +1,7 @@
-import { retainConversationStore } from "$lib/features/conversations";
+import {
+  retainConversationStore,
+  requestAsyncBashRefresh,
+} from "$lib/features/conversations";
 async function refreshConversation(id: string) {
   const retained = retainConversationStore(id);
   try {
@@ -17,6 +20,7 @@ import { createCenterTabRefresh } from "./center-tab-refresh";
 
 export const refreshCenterTab = createCenterTabRefresh({
   refreshConversation: (id) => void refreshConversation(id),
+  refreshAsyncBash: requestAsyncBashRefresh,
   selectTab: (tab) => void selectCenterTab(tab),
   refreshFile: (id) => void refreshFilePane(id),
   refreshMermaid: (id) => void refreshMermaidPane(id),

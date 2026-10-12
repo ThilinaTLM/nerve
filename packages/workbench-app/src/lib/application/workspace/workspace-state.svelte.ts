@@ -6,6 +6,13 @@ export type CenterTabIdentity =
   | { kind: "conversation"; id: string }
   | { kind: "pending-conversation"; id: string }
   | { kind: "launch"; id: string }
+  | {
+      kind: "async-bash";
+      id: string;
+      conversationId: string;
+      projectId?: string;
+      command?: string;
+    }
   | { kind: "file"; id: string }
   | { kind: "mermaid"; id: string }
   | { kind: "pr"; id: string }

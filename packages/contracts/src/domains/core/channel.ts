@@ -363,6 +363,15 @@ export const conversationChannelOperations = [
     "operation.interaction.resolve",
   ),
   defineOperation(
+    "asyncBash.logs",
+    coreOperationSchemas["asyncBash.logs"].params,
+    coreOperationSchemas["asyncBash.logs"].result,
+    "read",
+    "none",
+    host,
+    "operation.asyncBash.logs",
+  ),
+  defineOperation(
     "asyncBash.cancel",
     coreOperationSchemas["asyncBash.cancel"].params,
     coreOperationSchemas["asyncBash.cancel"].result,

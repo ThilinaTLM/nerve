@@ -2,7 +2,47 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import type { CenterTabModel } from "$lib/application/workspace";
-import { statusLabel, tabLabel, tabTitle } from "./editor-tab-helpers.js";
+import {
+  statusLabel,
+  tabLabel,
+  tabTitle,
+  tabIdentity,
+  tabIndex,
+} from "./editor-tab-helpers.js";
+
+test("async bash tab identity retains routing metadata and distinguishes runs of the same command", () => {
+  const first: Extract<CenterTabModel, { kind: "async-bash" }> = {
+    kind: "async-bash",
+    id: "bash1",
+    conversationId: "conv1",
+    projectId: "project1",
+    command: "pnpm test",
+    active: true,
+    sending: false,
+  };
+  const second = { ...first, id: "bash2" };
+  assert.deepEqual(tabIdentity(first), {
+    kind: "async-bash",
+    id: "bash1",
+    conversationId: "conv1",
+    projectId: "project1",
+    command: "pnpm test",
+  });
+  assert.equal(tabIndex([first, second], second), 1);
+  assert.equal(
+    tabIndex([first, second], { ...first, command: "updated metadata" }),
+    0,
+  );
+  assert.equal(
+    tabIndex(
+      [{ kind: "launch", id: first.id, active: false, sending: false }, first],
+      first,
+    ),
+    1,
+  );
+  assert.equal(tabLabel(first), "pnpm test");
+  assert.equal(tabTitle(first), "pnpm test · bash1");
+});
 
 function launch(patch: Partial<LaunchRecord> = {}): LaunchRecord {
   return {

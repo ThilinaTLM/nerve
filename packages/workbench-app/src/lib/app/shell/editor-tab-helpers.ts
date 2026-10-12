@@ -11,6 +11,14 @@ export function tabIdentity(tab: CenterTabModel): TabIdentity {
   if (tab.kind === "settings") return { kind: "settings", id: "settings" };
   if (tab.kind === "logs") return { kind: "logs", id: "logs" };
   if (tab.kind === "discover") return { kind: "discover", id: "discover" };
+  if (tab.kind === "async-bash")
+    return {
+      kind: tab.kind,
+      id: tab.id,
+      conversationId: tab.conversationId,
+      projectId: tab.projectId,
+      command: tab.command,
+    };
   return { kind: tab.kind, id: tab.id };
 }
 
@@ -24,6 +32,8 @@ function launchLabel(tab: Extract<CenterTabModel, { kind: "launch" }>): string {
 }
 
 export function tabLabel(tab: CenterTabModel): string {
+  if (tab.kind === "async-bash")
+    return tab.command?.trim() || `Bash · ${tab.id}`;
   if (tab.kind === "launch") return launchLabel(tab);
   if (tab.kind === "file")
     return (
@@ -56,6 +66,7 @@ export function tabLabel(tab: CenterTabModel): string {
 }
 
 export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
+  if (tab.kind === "async-bash") return `${tabLabel(tab)} · ${tab.id}`;
   if (tab.kind === "launch") {
     if (!tab.launch) return `Missing launch · ${tab.id}`;
     return `${launchLabel(tab)} · ${tab.launch.status} · ${shortenPath(tab.launch.cwd, homeDir)} · ${tab.launch.id}`;

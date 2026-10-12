@@ -35,9 +35,8 @@ import type { SubagentsCapability } from "$lib/presentation/context.svelte";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 
 export type WorkbenchConversationAdapterProps = {
-  /** Floats over the transcript's top right (the agents pill). */
-  floating?: Snippet;
-  reserveTopInset?: boolean;
+  /** Activity/navigation controls beside suggestions, above the composer. */
+  activity?: Snippet<[showLatest: boolean, onJumpToBottom: () => void]>;
   /** Sub-agents and commands the conversation waits for after its turn. */
   pendingWork?: PendingWorkItem[];
   onOpenPendingWork?: (item: PendingWorkItem) => void;

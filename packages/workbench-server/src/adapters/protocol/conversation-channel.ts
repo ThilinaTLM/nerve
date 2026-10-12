@@ -247,6 +247,7 @@ export function createConversationProtocolSession(
       await core.resolveInteraction(input);
       return null;
     },
+    "asyncBash.logs": (input) => core.asyncBash.readLogPage(input),
     "asyncBash.cancel": async ({ bashId }) => {
       await core.cancelAsyncBash(bashId);
       return null;

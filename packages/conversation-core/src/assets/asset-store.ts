@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import {
   chmod,
   lstat,
   mkdir,
+  open,
   readFile,
   rename,
   rm,
@@ -150,6 +151,78 @@ export class AssetStore {
     )
       return null;
     return { bytes: await this.read(assetId), mediaType: asset.mediaType };
+  }
+
+  /** Bounded UTF-8 byte page. Never reads an entire output file. */
+  async readTextPage(
+    assetId: string,
+    offset: number | undefined,
+    limit: number,
+  ): Promise<{
+    text: string;
+    offset: number;
+    nextOffset: number;
+    totalBytes: number;
+  }> {
+    const asset = this.storage.assets.get(assetId);
+    if (!asset) throw new Error("Asset not found");
+    if (
+      !Number.isSafeInteger(limit) ||
+      limit < 0 ||
+      limit > 65536 ||
+      (offset !== undefined && (!Number.isSafeInteger(offset) || offset < 0))
+    )
+      throw new Error("Invalid log page");
+    const empty = { text: "", offset: 0, nextOffset: 0, totalBytes: 0 };
+    let file;
+    try {
+      const path = this.path(asset.logicalPath);
+      // Validate the managed directory chain without creating missing files.
+      let current = this.dataDir;
+      for (const part of [
+        "",
+        ...dirname(path).slice(this.dataDir.length).split(sep).filter(Boolean),
+      ]) {
+        if (part) current = resolve(current, part);
+        const info = await lstat(current);
+        if (!info.isDirectory() || info.isSymbolicLink())
+          throw new Error("Invalid asset directory");
+      }
+      const info = await lstat(path);
+      if (!info.isFile() || info.isSymbolicLink())
+        throw new Error("Invalid asset file");
+      file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+      const totalBytes = (await file.stat()).size;
+      const start = Math.min(
+        offset ?? Math.max(0, totalBytes - limit),
+        totalBytes,
+      );
+      const buffer = Buffer.alloc(Math.min(limit, totalBytes - start));
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, start);
+      let from = 0;
+      const continuation = (byte: number) => (byte & 0xc0) === 0x80;
+      while (from < bytesRead && continuation(buffer[from]!)) from++;
+      let end = bytesRead;
+      if (end > from) {
+        let lead = end - 1;
+        while (lead > from && continuation(buffer[lead]!)) lead--;
+        const byte = buffer[lead]!;
+        const width =
+          byte >= 0xf0 ? 4 : byte >= 0xe0 ? 3 : byte >= 0xc0 ? 2 : 1;
+        if (end - lead < width) end = lead;
+      }
+      return {
+        text: buffer.subarray(from, end).toString("utf8"),
+        offset: start + from,
+        nextOffset: start + end,
+        totalBytes,
+      };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return empty;
+      throw new Error("Unable to read log asset", { cause: error });
+    } finally {
+      await file?.close();
+    }
   }
 
   async read(assetId: string): Promise<Buffer> {

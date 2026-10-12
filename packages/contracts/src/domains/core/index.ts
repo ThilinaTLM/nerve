@@ -123,8 +123,18 @@ export type {
   QueuedInput,
   SubmitInputRequest,
 } from "./input.js";
-export { asyncBashStatusSchema, asyncBashSchema } from "./async-bash.js";
-export type { AsyncBashStatus, AsyncBash } from "./async-bash.js";
+export {
+  asyncBashStatusSchema,
+  asyncBashSchema,
+  asyncBashLogsRequestSchema,
+  asyncBashLogsResponseSchema,
+} from "./async-bash.js";
+export type {
+  AsyncBashStatus,
+  AsyncBash,
+  AsyncBashLogsRequest,
+  AsyncBashLogsResponse,
+} from "./async-bash.js";
 export { assetCategorySchema, assetSchema } from "./asset.js";
 export type { AssetCategory, Asset } from "./asset.js";
 export { toolProgressSchema, liveDeltaSchema } from "./live.js";

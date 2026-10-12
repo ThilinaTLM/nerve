@@ -26,8 +26,7 @@ import type { TranscriptMenuTarget } from "$lib/presentation/conversations";
 import { createConversationRenderProjection } from "$lib/features/conversations/state/conversation-render-projection.svelte";
 
 let {
-  floating,
-  reserveTopInset = false,
+  activity,
   pendingWork = [],
   onOpenPendingWork,
   subagents,
@@ -266,7 +265,6 @@ function menuForTranscript(
       stopping,
       pending: pendingWork,
     },
-    reserveTopInset,
     queuedPrompts: rendered.queuedPrompts,
     approvals: rendered.approvals,
     pendingUserQuestions: rendered.pendingUserQuestions,
@@ -332,10 +330,11 @@ function menuForTranscript(
     onOpenPendingWork,
   }}
   menus={{ transcriptMenu: menuForTranscript }}
-  {floating}
+  {activity}
 >
-  {#snippet composer()}
+  {#snippet composer(activityContent)}
     <WorkbenchComposerAdapter
+      activity={activityContent}
       text={composerText}
       {editorOverlay}
       {modeHidden}

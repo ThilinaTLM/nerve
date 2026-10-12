@@ -63,10 +63,10 @@ import {
   projectView,
 } from "$lib/features/conversations/adapters/core-context.adapter";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
-import AgentsPill from "$lib/features/conversations/agents/AgentsPill.svelte";
+import ConversationActivityIsland from "$lib/features/conversations/agents/ConversationActivityIsland.svelte";
+import { openAsyncBashTab } from "$lib/features/conversations";
 import {
   pendingWork as derivePendingWork,
-  runningCommands,
   subagentProfileLabel,
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
@@ -107,7 +107,7 @@ let leadStore = $state<ConversationStore>();
 let viewedChildId = $state<string>();
 let childStore = $state<ConversationStore>();
 let releaseChild: (() => void) | undefined;
-let agentsOpen = $state(false);
+let activityOpen = $state<"agents" | "commands" | null>(null);
 /** Everything below acts on the conversation being viewed. */
 const store = $derived(viewedChildId ? childStore : leadStore);
 let tree = $state<EventTreeNode[]>([]);
@@ -121,7 +121,7 @@ function viewAgent(id: string | undefined) {
   releaseChild = undefined;
   childStore = undefined;
   viewedChildId = undefined;
-  agentsOpen = false;
+  activityOpen = null;
   if (!id || id === conversationId) return;
   const retained = retainConversationStore(id);
   releaseChild = retained.release;
@@ -415,7 +415,11 @@ function openToolFile(path: string, line?: number) {
     void openFilePane({ projectId: activeProject.id, path, line });
 }
 function openTaskFromNotice(id: string) {
-  void openLaunchTab(id);
+  const command = store?.snapshot?.asyncBash.find(
+    (candidate) => candidate.id === id,
+  );
+  if (command) void openAsyncBashTab(command, activeProject?.id);
+  else void openLaunchTab(id);
 }
 function setComposerModel(key: string) {
   const model = parseModelKey(key);
@@ -566,14 +570,7 @@ const leadContext = $derived(
 const viewedConversationId = $derived(
   viewedChildId ?? leadStore?.snapshot?.conversation.id,
 );
-const backgroundCommands = $derived(
-  runningCommands(store?.snapshot?.asyncBash),
-);
-const showAgentsPill = $derived(
-  Boolean(viewedConversationId) &&
-    ((leadContext?.conversationAgents.length ?? 0) > 1 ||
-      backgroundCommands.length > 0),
-);
+const backgroundCommands = $derived(store?.snapshot?.asyncBash ?? []);
 const pendingWork = $derived(
   store?.snapshot
     ? derivePendingWork({
@@ -584,13 +581,10 @@ const pendingWork = $derived(
 );
 function openPendingWork(item: PendingWorkItem) {
   if (item.kind === "agent") viewAgent(item.id);
-  else agentsOpen = true;
+  else activityOpen = "commands";
 }
-function commandOutput(command: AsyncBash): string | undefined {
-  return store?.toolOutput[command.toolCallId];
-}
-function stopCommand(command: AsyncBash) {
-  void runActivePaneAction(() => store!.cancelAsyncBash(command.id));
+function openCommand(command: AsyncBash) {
+  void openAsyncBashTab(command, activeProject?.id);
 }
 const harness = new ConversationHarnessState();
 $effect(() =>
@@ -639,7 +633,6 @@ const teamRunning = $derived(
 
 <WorkbenchConversationAdapter
   {active}
-  reserveTopInset={showAgentsPill}
   {pendingWork}
   onOpenPendingWork={openPendingWork}
   subagents={{
@@ -770,19 +763,19 @@ const teamRunning = $derived(
       onEditInstructions={() => (instructionsDialogOpen = true)}
     />
   {/snippet}
-  {#snippet floating()}
-    {#if showAgentsPill && viewedConversationId}
-      <AgentsPill
-        bind:open={agentsOpen}
+  {#snippet activity(showLatest, onJumpToBottom)}
+    {#if viewedConversationId}
+      <ConversationActivityIsland
+        bind:open={activityOpen}
+        {active}
         agents={leadContext?.conversationAgents ?? []}
         activities={leadContext?.agentActivities ?? {}}
-        leadTitle={leadStore?.snapshot?.conversation.title ?? "Lead"}
         viewedId={viewedConversationId}
         commands={backgroundCommands}
-        {commandOutput}
-        models={settingsState.models}
+        {showLatest}
+        {onJumpToBottom}
         onSelectAgent={(id) => viewAgent(id)}
-        onStopCommand={stopCommand}
+        onOpenCommand={openCommand}
       />
     {/if}
   {/snippet}

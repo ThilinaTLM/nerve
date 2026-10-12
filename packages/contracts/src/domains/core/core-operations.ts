@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  asyncBashLogsRequestSchema,
+  asyncBashLogsResponseSchema,
+} from "./async-bash.js";
 import { projectSchema } from "./project.js";
 import {
   trustedResourceSchema,
@@ -148,6 +152,10 @@ export const coreOperationSchemas = {
   "interaction.resolve": {
     params: resolveInteractionRequestSchema,
     result: done,
+  },
+  "asyncBash.logs": {
+    params: asyncBashLogsRequestSchema,
+    result: asyncBashLogsResponseSchema,
   },
   "asyncBash.cancel": {
     params: z.object({ bashId: z.string() }),

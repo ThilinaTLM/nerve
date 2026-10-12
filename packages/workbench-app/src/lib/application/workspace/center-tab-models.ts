@@ -122,7 +122,19 @@ export type PrTabModel = {
   error?: string;
 };
 
+export type AsyncBashTabModel = {
+  kind: "async-bash";
+  id: string;
+  conversationId: string;
+  projectId?: string;
+  command?: string;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type CenterTabModel =
+  | AsyncBashTabModel
   | ConversationTabModel
   | PendingConversationTabModel
   | LaunchTabModel

@@ -42,6 +42,7 @@ registerCenterTabDispatch({
       setActiveCenterTab(tab);
     },
     "pending-conversation": (tab) => setActiveCenterTab(tab),
+    "async-bash": (tab) => setActiveCenterTab(tab),
     launch: (tab) => selectCenterLaunchTab(tab.id),
     file: (tab) => selectCenterFileTab(tab.id),
     mermaid: (tab) => selectCenterMermaidTab(tab.id),
@@ -54,6 +55,7 @@ registerCenterTabDispatch({
   close: {
     conversation: (tab) => closeCenterTabs([tab]),
     "pending-conversation": (tab) => closeCenterTabs([tab]),
+    "async-bash": (tab) => closeCenterTabs([tab]),
     launch: (tab) => closeLaunchTab(tab.id),
     file: (tab) => closeFileTab(tab.id),
     mermaid: (tab) => closeMermaidTab(tab.id),
