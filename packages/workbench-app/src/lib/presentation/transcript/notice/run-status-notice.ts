@@ -77,13 +77,13 @@ export function runStatusNoticeModel(
     if (status) chips.push(status);
     return {
       kind: "run",
-      tone: "info",
-      glyph: "retry",
+      tone: "destructive",
+      glyph: "bell-dot",
       busy: false,
       badge: "run_retrying",
       arg: failure.label,
-      statusLabel: "Retried the model request",
-      summary: failure.message,
+      statusLabel: "Model request failed; waiting to retry",
+      error: failure.message,
       chips,
     };
   }

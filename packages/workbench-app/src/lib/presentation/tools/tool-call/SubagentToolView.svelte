@@ -6,6 +6,7 @@ import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { getConversationUiCapabilities } from "../../context.svelte";
 import { findSubagent, subagentLiveState } from "../views/subagent-live";
+import { parseStatusListing } from "../views/subagent-result-parser";
 import type {
   ToolCallDisplayRecord,
   ToolView,
@@ -149,7 +150,9 @@ function stateTone(state: string) {
       {/each}
     </ul>
   {:else if view.header}
-    <p class="m-0 truncate text-xs text-muted-foreground">{view.header}</p>
+    {#if !view.name || parseStatusListing(view.header).length === 0}
+      <p class="m-0 truncate text-xs text-muted-foreground">{view.header}</p>
+    {/if}
     {#if view.body}
       <ToolOutputBlock text={view.body} language="markdown" {expanded} />
     {/if}

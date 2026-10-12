@@ -14,10 +14,11 @@ function spec<Name extends OrchestrationToolName>(
 /**
  * Assignments are listed by name while the call is drafted or running; the
  * result view then renders one row per assignment, so the argument body goes.
+ * Rejected assignments add no useful context below the rejection error.
  */
 const subagentPrompt = spec({
   name: "subagent_prompt",
-  argumentRegion: "until-result",
+  argumentRegion: "until-settled",
   completedView: "subagent",
   present: (source) => {
     const assignments = (source.recordsArray("assignments") ?? []).flatMap(

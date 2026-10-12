@@ -204,8 +204,8 @@ export function deriveToolActivitySections(
 
   let resultMode: ToolActivityResultMode;
   if (!input.toolCall || terminalFailure) {
-    // Failures keep the argument section as input context; the result view
-    // never mounts for them.
+    // Failures never mount the result view. Argument input context is kept
+    // only when the tool's argument-region policy calls for it.
     resultMode = "none";
   } else if (input.hasInteraction) {
     // Native interaction views own their body for every lifecycle status.
@@ -234,7 +234,11 @@ export function deriveToolActivitySections(
       ? false
       : input.argumentRegion === "persistent"
         ? Boolean(input.hasArgumentBody)
-        : Boolean(input.hasArgumentBody && !resultOwnsArgument);
+        : Boolean(
+            input.hasArgumentBody &&
+            !resultOwnsArgument &&
+            !(input.argumentRegion === "until-settled" && terminalFailure),
+          );
 
   const interactionMode: ToolActivityInteractionMode = input.hasApproval
     ? "approval"

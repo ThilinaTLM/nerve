@@ -36,7 +36,6 @@ describe("tool lifecycle registry", () => {
       "todos_set",
       "ask_user",
       "plan_mode_present",
-      "subagent_prompt",
       "jira_create_issue",
       "confluence_update_page",
     ] as const) {
@@ -72,10 +71,10 @@ describe("tool lifecycle registry", () => {
     }
   });
 
-  it("lists sub-agent assignments by name until the result view takes over", () => {
+  it("lists sub-agent assignments by name until output or rejection takes over", () => {
     assert.equal(
       toolLifecycleRegistry.subagent_prompt.argumentRegion,
-      "until-result",
+      "until-settled",
     );
     const batch = presentToolArguments(
       "subagent_prompt",

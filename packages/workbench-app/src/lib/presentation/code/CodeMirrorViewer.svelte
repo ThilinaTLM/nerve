@@ -104,7 +104,8 @@ const targetCompartment = new Compartment();
 const unsavedChangesCompartment = new Compartment();
 let unsavedChangesActive = false;
 let unsavedChangesBaseline: string | undefined;
-let documentLineSeparator = codeDocumentLineSeparator(text);
+// Tracks the separator installed in CodeMirror, not a derived prop value.
+let documentLineSeparator: string | undefined;
 
 function lineSeparatorExtension(separator: string | undefined): Extension {
   return separator ? EditorState.lineSeparator.of(separator) : [];
@@ -416,6 +417,7 @@ async function syncLanguage(nextLanguage: string | undefined): Promise<void> {
 }
 
 onMount(() => {
+  documentLineSeparator = codeDocumentLineSeparator(text);
   const initialBaseline = editable ? originalText : undefined;
   unsavedChangesActive = initialBaseline !== undefined;
   unsavedChangesBaseline = initialBaseline;
