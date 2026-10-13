@@ -8,7 +8,6 @@ import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleDashed from "@lucide/svelte/icons/circle-dashed";
 import CircleHelp from "@lucide/svelte/icons/circle-help";
-import CircleX from "@lucide/svelte/icons/circle-x";
 import Clock from "@lucide/svelte/icons/clock";
 import Users from "@lucide/svelte/icons/users";
 import Terminal from "@lucide/svelte/icons/terminal";
@@ -20,6 +19,7 @@ import { tick, type Snippet } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
 import { cubicOut } from "svelte/easing";
 import { fade, slide } from "svelte/transition";
+import AsyncBashStatusIcon from "../views/AsyncBashStatusIcon.svelte";
 import type {
   AgentActivitySnapshot,
   AgentRecord,
@@ -237,40 +237,6 @@ const agentStatus: Record<AgentRowState, string> = {
   </span>
 {/snippet}
 
-{#snippet commandGlyph(status: AsyncBash["status"])}
-  <span
-    class="flex size-4 shrink-0 items-center justify-center"
-    title={COMMAND_STATE_LABEL[status]}
-    class:text-info={status === "running"}
-    class:text-success={status === "completed"}
-    class:text-destructive={status === "failed"}
-    class:text-warning={status === "timed_out" || status === "lost"}
-    class:text-muted-foreground={status === "cancelled"}
-  >
-    <span class="sr-only">{COMMAND_STATE_LABEL[status]}</span>
-    {#if status === "running"}
-      {#if active}<Spinner
-          class="size-3.5 motion-reduce:animate-none!"
-          role="presentation"
-          aria-hidden="true"
-        />{:else}<CircleDashed class="size-3.5" aria-hidden="true" />{/if}
-    {:else if status === "completed"}<CircleCheck
-        class="size-3.5"
-        aria-hidden="true"
-      />
-    {:else if status === "failed"}<CircleX
-        class="size-3.5"
-        aria-hidden="true"
-      />
-    {:else if status === "timed_out"}<Clock
-        class="size-3.5"
-        aria-hidden="true"
-      />
-    {:else if status === "cancelled"}<Ban class="size-3.5" aria-hidden="true" />
-    {:else}<CircleHelp class="size-3.5" aria-hidden="true" />{/if}
-  </span>
-{/snippet}
-
 {#snippet agentRow(row: IslandAgentRow)}
   <Button
     data-row-action
@@ -307,7 +273,7 @@ const agentStatus: Record<AgentRowState, string> = {
       onOpenCommand(command);
     }}
   >
-    {@render commandGlyph(command.status)}
+    <AsyncBashStatusIcon status={command.status} animate={active} />
     <span class="min-w-0 flex-1 truncate font-mono text-xs">
       {commandFirstLine(command.command)}
     </span>

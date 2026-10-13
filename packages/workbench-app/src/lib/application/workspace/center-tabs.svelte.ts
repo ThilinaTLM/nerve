@@ -145,8 +145,15 @@ export function reorderCenterTab(tab: CenterTabIdentity, targetIndex: number) {
   syncCenterTabMirrors();
 }
 
-export function setActiveCenterTab(tab: CenterTabIdentity | undefined) {
-  if (tab) addCenterTab(tab);
+export function setActiveCenterTab(requested: CenterTabIdentity | undefined) {
+  if (requested) addCenterTab(requested);
+  // Activate the open record itself: callers may pass a bare `{kind, id}`, and
+  // some kinds carry routing fields that must not be dropped.
+  const tab = requested
+    ? (workspaceState.openCenterTabs.find((candidate) =>
+        centerTabsEqual(candidate, requested),
+      ) ?? requested)
+    : undefined;
   workspaceState.activeCenterTab = tab;
   if (tab?.kind === "pending-conversation") {
     selection.conversationId = undefined;

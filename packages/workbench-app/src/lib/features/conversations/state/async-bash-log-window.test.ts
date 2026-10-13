@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { AsyncBash } from "@nervekit/contracts/core";
 import {
   AsyncBashLogSession,
+  asyncBashLogLines,
   mergeLogWindow,
   PAGE_BYTES,
   WINDOW_BYTES,
@@ -216,7 +217,6 @@ test("a tail refresh queued during an earlier read resumes following and discard
   session.start();
   await new Promise((done) => setTimeout(done, 0));
   const earlierRead = session.load("earlier");
-  assert.equal(session.following, false);
   await session.load("tail");
   resolveEarlier({ bash, streams: [chunk("earlier")] });
   await earlierRead;
@@ -309,4 +309,84 @@ test("stale errors cannot overwrite a restarted session; running sessions poll o
   const stoppedCount = count;
   await new Promise((done) => setTimeout(done, 15));
   assert.equal(count, stoppedCount);
+});
+
+test("earlier output inside the window budget keeps following live output", async () => {
+  const requests: LogParams[] = [];
+  const tail = chunk("tail\n", PAGE_BYTES, PAGE_BYTES + 5);
+  const session = new AsyncBashLogSession(
+    "conv",
+    "bash1",
+    async (params) => {
+      requests.push(params);
+      const offset = params.offsets?.combined;
+      const stream =
+        offset === undefined
+          ? tail
+          : offset === 0
+            ? chunk("x".repeat(PAGE_BYTES), 0, tail.totalBytes)
+            : chunk("", offset, tail.totalBytes);
+      return { bash: { ...bash, status: "running" }, streams: [stream] };
+    },
+    () => {},
+    5,
+  );
+  session.start();
+  await new Promise((done) => setTimeout(done, 0));
+  await session.load("earlier");
+  assert.equal(session.following, true);
+  assert.equal(session.streams[0].offset, 0);
+  assert.equal(session.streams[0].nextOffset, tail.nextOffset);
+  await new Promise((done) => setTimeout(done, 15));
+  assert.ok(requests.length > 2);
+  session.stop();
+});
+
+test("catches up immediately while the capture is ahead of the window", async () => {
+  const total = PAGE_BYTES * 3;
+  const requests: LogParams[] = [];
+  const session = new AsyncBashLogSession(
+    "conv",
+    "bash1",
+    async (params) => {
+      requests.push(params);
+      const offset = params.offsets?.combined ?? 0;
+      const end = Math.min(total, offset + PAGE_BYTES);
+      return {
+        bash,
+        streams: [chunk("x".repeat(end - offset), offset, total)],
+      };
+    },
+    () => {},
+    60_000,
+  );
+  session.start();
+  await new Promise((done) => setTimeout(done, 20));
+  assert.equal(session.streams[0].nextOffset, total);
+  assert.equal(requests.length, 3);
+  session.stop();
+});
+
+test("projects byte windows into stable, terminal-like lines", () => {
+  const first = asyncBashLogLines([
+    chunk("tail of a\nb\r\nprogress 1\rprogress 2\npart", 10),
+  ]);
+  assert.deepEqual(
+    first.map((line) => [line.key, line.text]),
+    [
+      ["combined:20", "b"],
+      ["combined:23", "progress 2"],
+      ["combined:45", "part"],
+    ],
+  );
+  const appended = asyncBashLogLines([
+    chunk("b\r\nprogress 1\rprogress 2\npartial line\n", 20),
+  ]);
+  assert.deepEqual(
+    appended.map((line) => line.key),
+    ["combined:23", "combined:45"],
+  );
+  assert.equal(appended.at(-1)?.text, "partial line");
+  const [error] = asyncBashLogLines([{ ...chunk("boom\n"), stream: "stderr" }]);
+  assert.equal(error.tone, "error");
 });

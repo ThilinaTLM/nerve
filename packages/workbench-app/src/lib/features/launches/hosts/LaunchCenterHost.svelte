@@ -1,6 +1,9 @@
 <script lang="ts">
 import { LaunchOutputPane } from "$lib/features/launches/views";
-import { loadEarlierLaunchLogs } from "$lib/features/launches/state/launch-logs.svelte";
+import {
+  loadEarlierLaunchLogs,
+  loadLaunchLogWindow,
+} from "$lib/features/launches/state/launch-logs.svelte";
 import {
   cancelSelectedLaunch,
   cleanupLaunchRuns,
@@ -40,5 +43,9 @@ const launchLogs = $derived(
   onLoadEarlier={() =>
     activeCenterLaunch
       ? loadEarlierLaunchLogs(activeCenterLaunch.id)
+      : Promise.resolve()}
+  onJumpToLatest={() =>
+    activeCenterLaunch
+      ? loadLaunchLogWindow(activeCenterLaunch.id)
       : Promise.resolve()}
 />

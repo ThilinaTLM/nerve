@@ -3,6 +3,7 @@ import type {
   AsyncBashLogsRequest,
   AsyncBashLogsResponse,
 } from "@nervekit/contracts/core";
+import type { LogStreamLine } from "$lib/presentation/logs/log-stream";
 
 export type LogStream = AsyncBashLogsResponse["streams"][number];
 export type LogResult = AsyncBashLogsResponse;
@@ -105,20 +106,22 @@ export class AsyncBashLogSession {
   }
   async load(mode: "tail" | "append" | "earlier" = "tail") {
     if (!this.active) return;
-    if (mode !== "append") {
-      const following = mode === "tail";
-      const changed = this.following !== following;
-      this.following = following;
+    if (mode === "tail") {
+      const changed = !this.following;
+      this.following = true;
       clearTimeout(this.timer);
       if (changed) this.publish(this);
-    } else if (!this.following) return;
+    } else if (mode === "earlier") clearTimeout(this.timer);
+    else if (!this.following) return;
     if (this.busy) {
       if (mode !== "append") this.pending = mode;
       return;
     }
     clearTimeout(this.timer);
     this.busy = true;
+    let progressed = false;
     const generation = this.generation;
+    const before = this.streams;
     const offsets =
       mode === "tail"
         ? undefined
@@ -147,6 +150,11 @@ export class AsyncBashLogSession {
         mode === "tail"
           ? result.streams
           : mergeLogWindow(this.streams, result.streams, mode === "earlier");
+      // Paging back only detaches from live output once the bounded window
+      // had to give up its newest bytes to make room.
+      if (mode === "earlier" && trimmedTail(before, this.streams))
+        this.following = false;
+      progressed = mode !== "append" || advanced(before, this.streams);
       this.publish(this);
     } catch (error) {
       if (this.active && generation === this.generation)
@@ -161,12 +169,78 @@ export class AsyncBashLogSession {
           const pending = this.pending;
           this.pending = undefined;
           void this.load(pending);
-        } else if (this.following && this.bash?.status === "running")
-          this.timer = setTimeout(
-            () => void this.load("append"),
-            this.interval,
-          );
+        } else if (this.following) {
+          // Catch up immediately while the capture is ahead of the window;
+          // otherwise poll only while the command can still write.
+          const behind =
+            progressed &&
+            this.streams.some(
+              (stream) => stream.nextOffset < stream.totalBytes,
+            );
+          if (behind || this.bash?.status === "running")
+            this.timer = setTimeout(
+              () => void this.load("append"),
+              behind ? 0 : this.interval,
+            );
+        }
       }
     }
   }
+}
+
+function trimmedTail(before: LogStream[], after: LogStream[]): boolean {
+  return after.some((stream) => {
+    const previous = before.find((item) => item.stream === stream.stream);
+    return previous !== undefined && stream.nextOffset < previous.nextOffset;
+  });
+}
+
+function advanced(before: LogStream[], after: LogStream[]): boolean {
+  return after.some((stream) => {
+    const previous = before.find((item) => item.stream === stream.stream);
+    return previous === undefined || stream.nextOffset > previous.nextOffset;
+  });
+}
+
+/** A terminal shows only what follows the last carriage return of a line. */
+function visibleLine(raw: string): string {
+  const line = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
+  const carriage = line.lastIndexOf("\r");
+  return carriage === -1 ? line : line.slice(carriage + 1);
+}
+
+/**
+ * Project byte windows into display lines keyed by the absolute byte offset of
+ * each line start, so keys (and measured heights) survive appends and trims.
+ * A window starting mid-file drops its partial first line.
+ */
+export function asyncBashLogLines(streams: LogStream[]): LogStreamLine[] {
+  const encoder = new TextEncoder();
+  const lines: LogStreamLine[] = [];
+  for (const stream of streams) {
+    const parts = stream.text.split("\n");
+    let offset = stream.offset;
+    let start = 0;
+    if (stream.offset > 0 && parts.length > 1) {
+      offset += encoder.encode(parts[0]).length + 1;
+      start = 1;
+    }
+    const last = parts.length - 1;
+    for (let index = start; index <= last; index++) {
+      const raw = parts[index]!;
+      if (index === last && raw === "") break;
+      lines.push({
+        key: `${stream.stream}:${offset}`,
+        text: visibleLine(raw),
+        ...(stream.stream === "combined"
+          ? {}
+          : {
+              stream: stream.stream,
+              tone: stream.stream === "stderr" ? ("error" as const) : undefined,
+            }),
+      });
+      offset += encoder.encode(raw).length + 1;
+    }
+  }
+  return lines;
 }
