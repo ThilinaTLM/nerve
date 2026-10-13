@@ -302,7 +302,7 @@ const metadata = {
     "orchestration",
     "process",
     "unknown",
-    ["action", "id"],
+    ["action", "name", "runId"],
     ["whole_tool"],
     true,
   ),

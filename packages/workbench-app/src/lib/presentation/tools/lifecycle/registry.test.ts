@@ -110,6 +110,69 @@ describe("tool lifecycle registry", () => {
     );
   });
 
+  it("keeps launch names primary and execution selectors secondary throughout the lifecycle", () => {
+    for (const stage of [
+      "drafting",
+      "approval",
+      "executing",
+      "failed",
+      "completed",
+    ] as const) {
+      const presentation = presentToolArguments(
+        "launch",
+        {
+          args: {
+            action: "restart",
+            name: "Web dev server",
+            runId: "launch_previous",
+            id: "launchdef_historical",
+          },
+        },
+        stage,
+      );
+      assert.equal(presentation.primaryArg?.text, "restart Web dev server");
+      assert.deepEqual(presentation.secondary, [
+        { text: "Run: launch_previous" },
+      ]);
+      assert.equal(presentation.body.kind, "none");
+      assert.doesNotMatch(JSON.stringify(presentation), /launchdef_historical/);
+    }
+    assert.equal(
+      presentToolArguments(
+        "launch",
+        { args: { action: "start", name: "pnpm dev" } },
+        "executing",
+      ).primaryArg?.text,
+      "start pnpm dev",
+    );
+    const status = presentToolArguments(
+      "launch",
+      { args: { action: "status" } },
+      "completed",
+    );
+    assert.equal(status.primaryArg?.text, "status");
+    assert.deepEqual(status.secondary, []);
+  });
+
+  it("preserves ID-based launch history without changing async Bash presentation", () => {
+    assert.equal(
+      presentToolArguments(
+        "launch",
+        { args: { action: "stop", id: "launchdef_old" } },
+        "completed",
+      ).primaryArg?.text,
+      "stop launchdef_old",
+    );
+    assert.equal(
+      presentToolArguments(
+        "async_bash",
+        { args: { action: "logs", id: "bash_run" } },
+        "completed",
+      ).primaryArg?.text,
+      "logs bash_run",
+    );
+  });
+
   it("treats removed tools as unknown recorded tools", () => {
     for (const name of [
       "explore",

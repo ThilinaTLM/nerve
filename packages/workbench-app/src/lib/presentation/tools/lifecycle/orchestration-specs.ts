@@ -92,14 +92,17 @@ export const orchestrationToolLifecycleSpecs = {
     name: "launch",
     argumentRegion: "none",
     completedView: "bash",
-    present: (source) =>
-      argumentPresentation({
+    present: (source) => {
+      // Recorded ID-based calls stay readable; this is not an execution alias.
+      const name = source.string("name") ?? source.string("id");
+      const runId = source.string("runId");
+      return argumentPresentation({
         primaryArg: textArg(
-          [source.string("action"), source.string("id")]
-            .filter(Boolean)
-            .join(" "),
+          [source.string("action"), name].filter(Boolean).join(" "),
         ),
-      }),
+        secondary: runId ? [{ text: `Run: ${runId}` }] : [],
+      });
+    },
   }),
   plan_mode_present: spec({
     name: "plan_mode_present",

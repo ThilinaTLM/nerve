@@ -9,7 +9,7 @@ import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
 import tasksDark from "../../../assets/screenshots/desktop/tasks-dark.webp";
 import tasksLight from "../../../assets/screenshots/desktop/tasks-light.webp";
 
-Nerve separates a durable **launch definition** from immutable **launch runs**. A definition owns its label, command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
+Nerve separates a durable **launch definition** from immutable **launch runs**. A definition owns its name (stored as a label), command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
 
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
@@ -26,7 +26,25 @@ With auto-promotion enabled, foreground commands still running after the configu
 
 Use `async_bash list` for running commands (`all: true` includes finished runs), `async_bash logs` to inspect output, and `async_bash stop` to terminate a process tree.
 
-Use `launch status` for definitions and their launches. `launch start`, `restart`, and `stop` accept a definition ID or launch ID; a definition ID selects its latest launch for restart, stop, and logs. Restart uses the current definition, starting it if nothing is running.
+Use `launch({ action: "status" })` to discover launch names, commands, statuses, and available run IDs. A saved launch's name is its trimmed label, or its trimmed command if no name was set. Names match exactly and case-sensitively in the current project; surrounding selector whitespace is ignored. Definition IDs are internal and are not tool selectors.
+
+| Action            | Arguments                                   |
+| ----------------- | ------------------------------------------- |
+| `status`          | none                                        |
+| `start`           | `name`                                      |
+| `logs`            | `name`, optional `runId`, `offset`, `limit` |
+| `stop`, `restart` | `name`, optional `runId`                    |
+
+```ts
+launch({ action: "start", name: "Web dev" }); // command shown by status: pnpm dev
+launch({ action: "logs", name: "Web dev", runId: "launch_…", limit: 100 });
+launch({ action: "restart", name: "Web dev" });
+launch({ action: "stop", name: "pnpm preview" }); // command fallback for an unnamed launch
+```
+
+Without `runId`, logs, stop, and restart select the latest run. Supply a run ID from status to target a particular execution of that name; mismatched names or projects are rejected. Start does not accept a run ID. Restart uses the current definition, starting it if nothing is running. Status distinguishes the current command from an older run's command when they differ. Lifecycle responses, including nothing-running responses, and log headers identify the name and command; run IDs remain secondary diagnostics.
+
+Saved definitions are matched before ad-hoc launches. Multiple runs of one definition do not make its name ambiguous, but duplicate saved names fail rather than silently selecting one—even with a run ID. Rename duplicate definitions in the UI, then refresh status. Distinct ad-hoc launch lineages with the same display name also require disambiguation; a run ID can select one. After renaming any launch, use its new name. New tool calls do not accept the old `id` argument; historical calls remain readable.
 
 ## Supervision
 
@@ -57,7 +75,7 @@ The Launches panel lets you inspect saved definitions and their runs, start or r
 
 ## Agent notifications
 
-Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
+Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with its name, command, status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
 
 ## Next steps
 

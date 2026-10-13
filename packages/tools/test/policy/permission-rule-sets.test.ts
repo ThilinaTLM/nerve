@@ -286,7 +286,7 @@ test("planning separates research, prompted analysis, and mutations", () => {
     ["edit", { path: "/workspace/a.ts" }],
     ["jira_update_issue", { issue_key: "NERVE-1", summary: "Changed" }],
     ["confluence_create_page", { title: "Changed", body: "content" }],
-    ["launch", { action: "start", id: "launchdef_dev" }],
+    ["launch", { action: "start", name: "Dev server" }],
     ["async_bash", { id: "bash_dev", action: "stop" }],
   ] as const) {
     assert.equal(
@@ -297,23 +297,92 @@ test("planning separates research, prompted analysis, and mutations", () => {
   }
 });
 
-test("process read actions do not ask for approval; launch grants bind action and id", () => {
+test("process read actions do not ask for approval; launch grants bind action and name", () => {
   for (const [tool, args] of [
     ["async_bash", { action: "list" }],
     ["async_bash", { action: "logs", id: "bash_1" }],
     ["launch", { action: "status" }],
-    ["launch", { action: "logs", id: "launchdef_dev" }],
+    ["launch", { action: "logs", name: "Dev server" }],
+    ["launch", { action: "logs", name: "Dev server", runId: "run_1" }],
   ] as const)
     assert.equal(decision("supervised", tool, args).decision, "allow");
   const start = decision("supervised", "launch", {
     action: "start",
-    id: "launchdef_dev",
+    name: "Dev server",
   });
   assert.equal(start.decision, "prompt");
   assert.deepEqual(start.suggestedRules[0]?.when.primaryArgument, {
     operator: "equals",
-    value: ["start", "launchdef_dev"],
+    value: ["start", "Dev server"],
   });
+});
+
+test("launch approvals cannot be reused for different names, actions, or executions", () => {
+  assert.deepEqual(permissionMetadataForTool("launch").primaryArguments, [
+    "action",
+    "name",
+    "runId",
+  ]);
+  for (const runId of [undefined, "run_1"]) {
+    const args = {
+      action: "stop",
+      name: "Dev server",
+      ...(runId !== undefined ? { runId } : {}),
+    };
+    const approval = decision("supervised", "launch", args);
+    assert.equal(approval.decision, "prompt");
+    const grant = approval.suggestedRules[0];
+    assert.ok(grant);
+    assert.deepEqual(grant.when.primaryArgument, {
+      operator: "equals",
+      value: ["stop", "Dev server", ...(runId !== undefined ? [runId] : [])],
+    });
+    const overlays = { conversationOverlay: overlay("supervised", grant) };
+    assert.equal(
+      decision("supervised", "launch", args, overlays).decision,
+      "allow",
+    );
+    for (const otherArgs of [
+      { ...args, name: "Other server" },
+      { ...args, name: "dev server" },
+      { ...args, action: "restart" },
+      { ...args, runId: "run_2" },
+      runId !== undefined
+        ? { action: "stop", name: "Dev server" }
+        : { ...args, runId: "run_1" },
+    ]) {
+      assert.equal(
+        decision("supervised", "launch", otherArgs, overlays).decision,
+        "prompt",
+      );
+    }
+  }
+});
+
+test("legacy ID-bound launch grants do not approve name-based calls", () => {
+  const grant: PermissionRule = {
+    id: "legacy-launch-grant",
+    enabled: true,
+    priority: 100,
+    enforcement: "overridable",
+    when: {
+      toolNames: ["launch"],
+      primaryArgument: {
+        operator: "equals",
+        value: ["start", "launchdef_dev"],
+      },
+    },
+    decision: "allow",
+  };
+  assert.equal(
+    decision(
+      "supervised",
+      "launch",
+      { action: "start", name: "Dev server" },
+      { conversationOverlay: overlay("supervised", grant) },
+    ).decision,
+    "prompt",
+  );
 });
 
 test("overlays apply only to their selected permission rule set", () => {

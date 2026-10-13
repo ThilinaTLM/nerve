@@ -77,7 +77,7 @@ describe("model-facing tool schema compatibility", () => {
           "field_limit",
         ],
         async_bash: ["action", "all", "id", "offset", "limit"],
-        launch: ["action", "id", "offset", "limit"],
+        launch: ["action", "name", "runId", "offset", "limit"],
         confluence_get_page: [
           "page_id",
           "body_format",
@@ -162,6 +162,25 @@ describe("model-facing tool schema compatibility", () => {
         false,
         name,
       );
+    }
+  });
+
+  it("selects launches by name with optional execution IDs, not definition IDs", () => {
+    const schema = requireToolDefinition("launch").parameters;
+    assert.equal(Check(schema, { action: "status" }), true);
+    assert.equal(Check(schema, { action: "start", name: "Dev server" }), true);
+    for (const action of ["logs", "stop", "restart"]) {
+      assert.equal(
+        Check(schema, { action, name: "Dev server", runId: "run_1" }),
+        true,
+      );
+    }
+    for (const args of [
+      { action: "start", id: "launchdef_dev" },
+      { action: "start", name: "" },
+      { action: "logs", name: "Dev server", runId: "" },
+    ]) {
+      assert.equal(Check(schema, args), false);
     }
   });
 
