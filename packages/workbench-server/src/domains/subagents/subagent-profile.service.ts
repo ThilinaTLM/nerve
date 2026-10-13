@@ -1,293 +1,390 @@
-import { mkdir, readFile, realpath, rm } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import type { TrustedResourceService } from "@nervekit/conversation-core";
+import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
-  builtInSubagentProfiles,
-  subagentProfileDraftSchema,
+  applySubagentProfilePatch,
+  resolveSubagentProfiles,
+  subagentProfileEntrySchema,
+  subagentProfileNameSchema,
   type SubagentProfile,
-  type SubagentProfileDraft,
+  type SubagentProfileDiagnostic,
+  type SubagentProfileLayer,
+  type SubagentProfilePatch,
+  type SubagentProfilesConfiguration,
   type SubagentProfileScope,
 } from "@nervekit/contracts/subagents";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
-import {
-  atomicWriteFile,
-  pathExists,
-} from "../../infrastructure/storage-bootstrap/index.js";
-import type { SubagentEnablementService } from "./subagent-enablement.service.js";
-import {
-  contentDigest,
-  loadProfileDirectory,
-  serializeProfileMarkdown,
-  titleFromName,
-} from "./subagent-profile-files.js";
+import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/index.js";
 
-const NERVE_DIR_NAME = ".nerve";
-const SUBAGENTS_DIR_NAME = "subagents";
-const TRUST_KIND = "subagent_profile" as const;
-
-type ProfileProject = { id: string; directory: string };
-
+export type SubagentConversationContext = {
+  projectId: string;
+  conversationId?: string;
+  /** Creation-only captured parent values; never persisted or accepted by RPC. */
+  parentConfig?: ConversationConfig;
+};
+export type SubagentAvailabilityContext = {
+  projectId?: string;
+  conversationId?: string;
+  parentConfig?: ConversationConfig;
+};
+export type SubagentProfileScopeInput = {
+  scope: SubagentProfileScope;
+  projectId?: string;
+  conversationId?: string;
+};
+export type SubagentProfilesChange = {
+  projectId?: string;
+  conversationId?: string;
+};
 export type SubagentProfileServiceDeps = {
-  /** `<NERVE_HOME>/agent/subagents`. */
-  userDir: string;
-  enablement: SubagentEnablementService;
-  trust: Pick<
-    TrustedResourceService,
-    "list" | "decide" | "isTrusted" | "delete"
-  >;
+  userPath: string;
+  conversationsPath: string;
+  trust: Pick<TrustedResourceService, "decide" | "isTrusted">;
   events: Pick<WorkbenchNoticePublisher, "publish">;
-  getProject: (projectId: string) => ProfileProject;
+  getProject: (id: string) => { id: string; directory: string };
+  getConversation: (id: string) => { projectId: string };
+  /** Rechecked on every conversation-aware read and child creation. */
+  availability?: (
+    profile: SubagentProfile,
+    context: SubagentAvailabilityContext,
+  ) => Promise<readonly SubagentProfileDiagnostic[]>;
 };
-
-export type SubagentProfilesChange = { projectId?: string };
-
-export type SaveSubagentProfileInput = {
-  scope: SubagentProfileScope;
-  projectId?: string;
-  profile: SubagentProfileDraft;
-  /** Set when renaming; the file with this name is replaced. */
-  previousName?: string;
-};
-
-export type DeleteSubagentProfileInput = {
-  scope: SubagentProfileScope;
-  projectId?: string;
+type MutationInput = SubagentProfileScopeInput & {
   name: string;
+  expectedDigest?: string | null;
 };
+type Target = {
+  path: string;
+  root: string;
+  projectId?: string;
+  conversationId?: string;
+};
+const emptyDocument = () => ({ schemaVersion: 1 as const, profiles: {} });
+const digestOf = (content: string) =>
+  createHash("sha256").update(content).digest("hex");
 
-/**
- * Sub-agent profiles from built-ins, `<NERVE_HOME>/agent/subagents/*.md` and
- * `<project>/.nerve/subagents/*.md`. Project beats user beats built-in by name;
- * the first definition stays authoritative even when invalid, disabled or untrusted.
- */
+/** Filesystem/trust adapter for the transport-neutral contracts resolver. */
 export class SubagentProfileService {
+  private mutation = Promise.resolve();
   private readonly listeners = new Set<
     (change: SubagentProfilesChange) => void
   >();
-  private mutation = Promise.resolve();
-
   constructor(private readonly deps: SubagentProfileServiceDeps) {}
 
-  /** Every definition for Settings: effective ones first per name, then shadowed ones. */
-  async list(projectId?: string): Promise<SubagentProfile[]> {
-    const project = projectId ? this.deps.getProject(projectId) : undefined;
-    const overrides = await this.deps.enablement.list();
-    const definitions: SubagentProfile[] = [];
-    if (project)
-      definitions.push(
-        ...(await loadProfileDirectory({
-          source: "project",
-          dir: projectDir(project),
-        })),
+  async configuration(
+    input: SubagentProfileScopeInput,
+    parentConfig?: ConversationConfig,
+  ): Promise<SubagentProfilesConfiguration> {
+    const target = this.target(input);
+    const layers: SubagentProfileLayer[] = [
+      await this.readLayer({ scope: "user" }),
+    ];
+    if (input.scope !== "user" && target.projectId)
+      layers.push(
+        await this.readLayer({ scope: "project", projectId: target.projectId }),
       );
-    definitions.push(
-      ...(await loadProfileDirectory({
-        source: "user",
-        dir: this.deps.userDir,
-      })),
-      ...builtInSubagentProfiles.map(builtInRecord),
-    );
-
-    const seen = new Set<string>();
-    const result: SubagentProfile[] = [];
-    for (const definition of definitions) {
-      const shadowed = seen.has(definition.name);
-      seen.add(definition.name);
-      result.push({
-        ...definition,
-        enabled: overrides[definition.name] ?? definition.enabled,
-        ...(definition.source === "project" && project
-          ? { trust: this.trustOf(project.id, definition) }
-          : {}),
-        ...(shadowed ? { shadowed: true } : {}),
-      });
+    if (input.scope === "conversation")
+      layers.push(await this.readLayer(input));
+    const result = resolveSubagentProfiles({ layers, scope: input.scope });
+    if (this.deps.availability) {
+      const context = {
+        projectId: target.projectId,
+        conversationId: target.conversationId,
+        ...(parentConfig ? { parentConfig } : {}),
+      };
+      for (const configuration of result.profiles) {
+        if (!configuration.effective) continue;
+        const diagnostics = await this.deps.availability(
+          configuration.effective,
+          context,
+        );
+        for (const diagnostic of diagnostics) {
+          const duplicate = configuration.diagnostics.some(
+            (existing) =>
+              existing.severity === diagnostic.severity &&
+              ((existing.code === diagnostic.code &&
+                existing.message === diagnostic.message) ||
+                (diagnostic.reference !== undefined &&
+                  existing.reference === diagnostic.reference &&
+                  existing.field === diagnostic.field &&
+                  /^(unknown|unavailable)_(tool|skill)$/.test(existing.code) &&
+                  /^(unknown|unavailable)_(tool|skill)$/.test(
+                    diagnostic.code,
+                  ))),
+          );
+          if (!duplicate) configuration.diagnostics.push(diagnostic);
+        }
+        const blockers = configuration.diagnostics.filter(
+          (item) => item.severity === "blocking",
+        );
+        if (blockers.length)
+          configuration.effective.error = blockers
+            .map((item) => item.message)
+            .join("\n");
+      }
     }
-    return result.sort(
-      (left, right) =>
-        left.name.localeCompare(right.name) ||
-        Number(left.shadowed ?? false) - Number(right.shadowed ?? false),
+    return result;
+  }
+
+  async list(
+    projectId?: string,
+    conversationId?: string,
+    parentConfig?: ConversationConfig,
+  ): Promise<SubagentProfile[]> {
+    const configuration = await this.configuration(
+      conversationId
+        ? { scope: "conversation", projectId, conversationId }
+        : projectId
+          ? { scope: "project", projectId }
+          : { scope: "user" },
+      parentConfig,
+    );
+    return configuration.profiles.flatMap((profile) =>
+      profile.effective ? [profile.effective] : [],
     );
   }
-
-  /** Enabled, valid, trusted and not shadowed: what the lead may be offered. */
-  async usable(projectId: string): Promise<SubagentProfile[]> {
-    return (await this.list(projectId)).filter(isUsable);
+  async usable(
+    context: SubagentConversationContext,
+  ): Promise<SubagentProfile[]> {
+    return (
+      await this.list(
+        context.projectId,
+        context.conversationId,
+        context.parentConfig,
+      )
+    ).filter(isUsable);
   }
-
-  /** The effective definition for a name, usable or not (for precise errors). */
   async find(
-    projectId: string,
+    context: SubagentConversationContext,
     name: string,
   ): Promise<SubagentProfile | undefined> {
-    return (await this.list(projectId)).find(
-      (profile) => profile.name === name && !profile.shadowed,
-    );
+    return (
+      await this.list(
+        context.projectId,
+        context.conversationId,
+        context.parentConfig,
+      )
+    ).find((profile) => profile.name === name);
   }
-
-  /** The effective definition when it is usable, otherwise undefined. */
   async resolve(
-    projectId: string,
+    context: SubagentConversationContext,
     name: string,
   ): Promise<SubagentProfile | undefined> {
-    const profile = await this.find(projectId, name);
+    const profile = await this.find(context, name);
     return profile && isUsable(profile) ? profile : undefined;
   }
-
   onChanged(listener: (change: SubagentProfilesChange) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
 
-  save(input: SaveSubagentProfileInput): Promise<SubagentProfile> {
+  update(
+    input: MutationInput & { patch: SubagentProfilePatch },
+  ): Promise<SubagentProfilesConfiguration> {
     return this.mutate(async () => {
-      const profile = subagentProfileDraftSchema.parse(input.profile);
-      const target = this.scopeTarget(input.scope, input.projectId);
-      const previousName =
-        input.previousName && input.previousName !== profile.name
-          ? input.previousName
-          : undefined;
-      const path = join(target.dir, `${profile.name}.md`);
-      if (previousName) {
-        if (await pathExists(path))
-          throw new Error(
-            `A sub-agent profile named "${profile.name}" already exists in this scope.`,
-          );
-        if (!(await pathExists(join(target.dir, `${previousName}.md`))))
-          throw new Error(
-            `Sub-agent profile "${previousName}" was not found in this scope.`,
-          );
-      }
-      await mkdir(target.dir, { recursive: true, mode: 0o700 });
-      if (target.project)
-        await assertInsideProject(target.project.directory, target.dir);
-      const content = serializeProfileMarkdown(profile);
-      await atomicWriteFile(path, content, { mode: 0o600 });
-      // Saves made by Nerve are trusted: the user just wrote this content.
-      if (target.project)
-        this.trustFile(target.project.id, profile.name, path, content);
-      if (previousName) await this.removeFile(target, previousName);
-      this.notify(target.project?.id);
-      const saved = (await this.list(target.project?.id)).find(
-        (candidate) => candidate.path === path,
+      await this.writePatch(input, input.patch);
+      return this.configuration(input);
+    });
+  }
+  reset(
+    input: MutationInput & { field?: keyof SubagentProfilePatch },
+  ): Promise<SubagentProfilesConfiguration> {
+    return this.mutate(async () => {
+      await this.writePatch(
+        input,
+        input.field ? { [input.field]: null } : null,
       );
-      if (!saved)
-        throw new Error("The saved sub-agent profile could not be loaded.");
-      return saved;
+      return this.configuration(input);
     });
   }
-
-  /** Deleting a user profile that edits a built-in resets it. */
-  delete(input: DeleteSubagentProfileInput): Promise<void> {
-    return this.mutate(async () => {
-      const target = this.scopeTarget(input.scope, input.projectId);
-      if (!(await pathExists(join(target.dir, `${input.name}.md`))))
-        throw new Error(`Sub-agent profile "${input.name}" was not found.`);
-      await this.removeFile(target, input.name);
-      this.notify(target.project?.id);
-    });
-  }
-
-  setEnabled(name: string, enabled: boolean): Promise<void> {
-    return this.mutate(async () => {
-      await this.deps.enablement.set(name, enabled);
-      this.notify(undefined);
-    });
-  }
-
-  /** Trusts the project file's current content, which must still match `digest`. */
   trust(
     projectId: string,
-    name: string,
     digest: string,
-  ): Promise<SubagentProfile> {
+  ): Promise<SubagentProfilesConfiguration> {
     return this.mutate(async () => {
-      const project = this.deps.getProject(projectId);
-      const path = join(projectDir(project), `${name}.md`);
-      let content: string;
-      try {
-        content = await readFile(path, "utf8");
-      } catch {
-        throw new Error(`Sub-agent profile "${name}" was not found.`);
-      }
-      if (contentDigest(content) !== digest)
+      const input = { scope: "project" as const, projectId };
+      const layer = await this.readLayer(input);
+      if (layer.error || layer.digest !== digest)
         throw new Error(
-          `Sub-agent profile "${name}" changed since it was shown; review it again.`,
+          "Project profile document changed or is unreadable; review it again.",
         );
-      const profile = (await this.list(projectId)).find(
-        (candidate) => candidate.path === path,
-      );
-      if (!profile || profile.error)
-        throw new Error(
-          `Sub-agent profile "${name}" is invalid and cannot be trusted.`,
-        );
-      this.trustFile(projectId, name, path, content);
-      this.notify(projectId);
-      return { ...profile, trust: "trusted" };
+      // Trust is for the exact entire document, not just the named entry.
+      const configuration = resolveSubagentProfiles({
+        layers: [layer],
+        scope: "project",
+      });
+      if (
+        configuration.diagnostics.some(
+          (item) => item.code === "invalid_document",
+        )
+      )
+        throw new Error("Invalid project profile document cannot be trusted.");
+      this.trustDocument(this.target(input), digest);
+      this.notify(this.target(input));
+      return this.configuration(input);
     });
   }
 
-  private trustOf(
-    projectId: string,
-    profile: SubagentProfile,
-  ): "trusted" | "untrusted" {
-    return profile.path &&
-      profile.digest &&
-      this.deps.trust.isTrusted(
-        TRUST_KIND,
+  private target(input: SubagentProfileScopeInput): Target {
+    let projectId = input.projectId;
+    if (input.conversationId) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(input.conversationId))
+        throw new Error("Invalid conversation id.");
+      const conversation = this.deps.getConversation(input.conversationId);
+      if (projectId && conversation.projectId !== projectId)
+        throw new Error("Conversation does not belong to this project.");
+      projectId = conversation.projectId;
+    }
+    if (input.scope === "user")
+      return { path: this.deps.userPath, root: dirname(this.deps.userPath) };
+    if (!projectId) throw new Error("A project is required for this scope.");
+    const project = this.deps.getProject(projectId);
+    if (input.scope === "project")
+      return {
+        path: join(project.directory, ".nerve", "config", "subagents.json"),
+        root: project.directory,
         projectId,
-        profile.path,
-        profile.digest,
-      )
-      ? "trusted"
-      : "untrusted";
-  }
-
-  private trustFile(
-    projectId: string,
-    name: string,
-    path: string,
-    content: string,
-  ): void {
-    this.deps.trust.decide({
-      kind: TRUST_KIND,
+      };
+    if (!input.conversationId)
+      throw new Error("A conversation is required for conversation scope.");
+    return {
+      path: join(
+        this.deps.conversationsPath,
+        input.conversationId,
+        "config",
+        "subagents.json",
+      ),
+      root: this.deps.conversationsPath,
       projectId,
-      path,
-      name,
-      contentDigest: contentDigest(content),
+      conversationId: input.conversationId,
+    };
+  }
+  private async readLayer(
+    input: SubagentProfileScopeInput,
+  ): Promise<SubagentProfileLayer> {
+    const target = this.target(input);
+    const layer: SubagentProfileLayer = {
+      source: input.scope,
+      path: target.path,
+    };
+    try {
+      await assertProtectedPath(target);
+      const content = await readFile(target.path, "utf8");
+      layer.digest = digestOf(content);
+      layer.trust =
+        input.scope === "project" &&
+        !this.deps.trust.isTrusted(
+          "subagent_profile",
+          target.projectId!,
+          target.path,
+          layer.digest,
+        )
+          ? "untrusted"
+          : "trusted";
+      try {
+        layer.document = JSON.parse(content);
+        layer.error = documentReadError(layer.document);
+      } catch {
+        layer.error =
+          "subagents.json is not valid JSON. Correct its syntax before editing profiles; the file has not been changed.";
+      }
+    } catch (error) {
+      if (!isMissing(error))
+        layer.error = `Cannot read subagents.json: ${error instanceof Error ? error.message : String(error)}`;
+    }
+    return layer;
+  }
+  private async writePatch(
+    input: MutationInput,
+    patch: SubagentProfilePatch | null,
+  ): Promise<void> {
+    subagentProfileNameSchema.parse(input.name);
+    const target = this.target(input);
+    const layer = await this.readLayer(input);
+    if (layer.error) throw new Error(layer.error);
+    if (
+      input.expectedDigest !== undefined &&
+      input.expectedDigest !== (layer.digest ?? null)
+    )
+      throw new Error(
+        "Sub-agent profile document changed; reload before saving.",
+      );
+    const raw = layer.document === undefined ? emptyDocument() : layer.document;
+    // Validate the envelope, but preserve unrelated invalid entries verbatim.
+    if (
+      !raw ||
+      typeof raw !== "object" ||
+      Array.isArray(raw) ||
+      (raw as { schemaVersion?: unknown }).schemaVersion !== 1 ||
+      Object.keys(raw).some(
+        (key) => key !== "schemaVersion" && key !== "profiles",
+      )
+    )
+      throw new Error("Invalid sub-agent profile document.");
+    const profiles = (raw as { profiles?: unknown }).profiles;
+    if (!profiles || typeof profiles !== "object" || Array.isArray(profiles))
+      throw new Error("Invalid profiles map.");
+    for (const name of Object.keys(profiles))
+      subagentProfileNameSchema.parse(name);
+    const entries = { ...profiles } as Record<string, unknown>;
+    if (patch === null) delete entries[input.name];
+    else {
+      const current = Object.hasOwn(entries, input.name)
+        ? entries[input.name]
+        : undefined;
+      const valid =
+        current === undefined ? {} : subagentProfileEntrySchema.parse(current);
+      const updated = applySubagentProfilePatch(
+        { schemaVersion: 1, profiles: { [input.name]: valid } },
+        input.name,
+        patch,
+      );
+      entries[input.name] = updated.profiles[input.name];
+    }
+    await assertProtectedPath(target);
+    await mkdir(dirname(target.path), { recursive: true, mode: 0o700 });
+    await assertProtectedPath(target);
+    // Recheck immediately before replacement, including external edits during mkdir.
+    const latest = await this.readLayer(input);
+    if (latest.error || latest.digest !== layer.digest)
+      throw new Error(
+        "Sub-agent profile document changed; reload before saving.",
+      );
+    const content = `${JSON.stringify({ schemaVersion: 1, profiles: entries }, null, 2)}\n`;
+    await atomicWriteFile(target.path, content, { mode: 0o600 });
+    // Editing one entry is not consent to untouched imported instructions.
+    // Only a new document or an already exact-content-trusted document can
+    // carry trust forward; imported content requires explicit document trust.
+    if (
+      input.scope === "project" &&
+      (layer.digest === undefined ||
+        (layer.trust === "trusted" && latest.trust === "trusted"))
+    )
+      this.trustDocument(target, digestOf(content));
+    this.notify(target);
+  }
+  private trustDocument(target: Target, digest: string): void {
+    this.deps.trust.decide({
+      kind: "subagent_profile",
+      projectId: target.projectId!,
+      path: target.path,
+      name: "subagents.json",
+      contentDigest: digest,
       status: "trusted",
     });
   }
-
-  private async removeFile(
-    target: { dir: string; project?: ProfileProject },
-    name: string,
-  ): Promise<void> {
-    const path = join(target.dir, `${name}.md`);
-    await rm(path, { force: true });
-    if (target.project) {
-      const record = this.deps.trust
-        .list(target.project.id, TRUST_KIND)
-        .find((resource) => resource.path === path);
-      if (record) this.deps.trust.delete(record.id);
-    }
-  }
-
-  private scopeTarget(
-    scope: SubagentProfileScope,
-    projectId?: string,
-  ): { dir: string; project?: ProfileProject } {
-    if (scope === "user") return { dir: this.deps.userDir };
-    if (!projectId) throw new Error("A project is required for project scope.");
-    const project = this.deps.getProject(projectId);
-    return { dir: projectDir(project), project };
-  }
-
-  private notify(projectId: string | undefined): void {
-    const change: SubagentProfilesChange = projectId ? { projectId } : {};
+  private notify(target: Target): void {
+    const change: SubagentProfilesChange = {
+      ...(target.projectId ? { projectId: target.projectId } : {}),
+      ...(target.conversationId
+        ? { conversationId: target.conversationId }
+        : {}),
+    };
     for (const listener of this.listeners) listener(change);
     void this.deps.events.publish("subagentProfiles.changed", change);
   }
-
   private mutate<T>(operation: () => Promise<T>): Promise<T> {
     const run = this.mutation.then(operation);
     this.mutation = run.then(
@@ -297,54 +394,81 @@ export class SubagentProfileService {
     return run;
   }
 }
-
 export function isUsable(profile: SubagentProfile): boolean {
-  return (
-    !profile.shadowed &&
-    !profile.error &&
-    profile.enabled &&
-    profile.trust !== "untrusted"
-  );
+  return !profile.error && profile.enabled && profile.trust !== "untrusted";
+}
+function isDocumentObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function projectDir(project: ProfileProject): string {
-  return join(project.directory, NERVE_DIR_NAME, SUBAGENTS_DIR_NAME);
-}
-
-function builtInRecord(
-  profile: (typeof builtInSubagentProfiles)[number],
-): SubagentProfile {
-  return {
-    name: profile.name,
-    label: profile.label ?? titleFromName(profile.name),
-    description: profile.description,
-    enabled: profile.enabled,
-    source: "builtin",
-    model: profile.model,
-    thinking: profile.thinking,
-    permission: profile.permission,
-    compaction: profile.compaction,
-    tools: profile.tools ?? {},
-    skills: profile.skills,
-    instructions: profile.instructions,
-  };
-}
-
-async function assertInsideProject(
-  projectDirectory: string,
-  destinationDir: string,
-): Promise<void> {
-  const [root, destination] = await Promise.all([
-    realpath(projectDirectory),
-    realpath(destinationDir),
-  ]);
-  const child = relative(root, destination);
+/** Validate only the envelope: invalid individual entries stay isolated in the resolver. */
+function documentReadError(document: unknown): string | undefined {
   if (
-    child === "" ||
-    (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child))
+    isDocumentObject(document) &&
+    Object.keys(document).length === 1 &&
+    Object.hasOwn(document, "enabled") &&
+    isDocumentObject(document.enabled) &&
+    Object.values(document.enabled).every((value) => typeof value === "boolean")
   )
-    return;
-  throw new Error(
-    "Sub-agent profile destination escapes the project directory.",
+    return "Legacy subagents.json requires storage migration to the current profile format. Back up the storage and review its migration status before editing profiles.";
+  if (
+    !isDocumentObject(document) ||
+    document.schemaVersion !== 1 ||
+    Object.keys(document).some(
+      (key) => key !== "schemaVersion" && key !== "profiles",
+    ) ||
+    !isDocumentObject(document.profiles) ||
+    Object.keys(document.profiles).some(
+      (name) => !subagentProfileNameSchema.safeParse(name).success,
+    )
+  )
+    return "Invalid subagents.json format. Expected schemaVersion: 1 and a profiles object with valid profile names. Review the file before editing; it has not been changed.";
+  return undefined;
+}
+
+function isMissing(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "ENOENT"
   );
+}
+/** Inspect every existing component before mkdir/write: never follow a configuration symlink. */
+async function assertProtectedPath(target: Target): Promise<void> {
+  const child = relative(target.root, target.path);
+  if (
+    !child ||
+    child === ".." ||
+    child.startsWith(`..${sep}`) ||
+    isAbsolute(child)
+  )
+    throw new Error("Profile path escapes its owner.");
+  // A fresh scope may not exist yet. Find an existing ancestor without creating
+  // anything, then inspect all intervening components before recursive mkdir.
+  let ancestor = target.root;
+  while (true) {
+    try {
+      await lstat(ancestor);
+      break;
+    } catch (error) {
+      if (!isMissing(error)) throw error;
+      ancestor = dirname(ancestor);
+    }
+  }
+  if ((await lstat(ancestor)).isSymbolicLink())
+    throw new Error("Profile configuration must not use symbolic links.");
+  const root = await realpath(ancestor);
+  let current = root;
+  for (const part of relative(ancestor, target.path).split(sep)) {
+    current = join(current, part);
+    try {
+      const stat = await lstat(current);
+      if (stat.isSymbolicLink())
+        throw new Error("Profile configuration must not use symbolic links.");
+    } catch (error) {
+      if (isMissing(error)) return;
+      throw error;
+    }
+  }
 }

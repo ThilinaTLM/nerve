@@ -6,6 +6,9 @@ import {
   deriveProfileName,
   formFromProfile,
   formToDraft,
+  formToPatch,
+  formWithInheritedField,
+  formFromConfiguration,
   parseProfileModel,
   validateForm,
 } from "./subagent-profile-form";
@@ -85,7 +88,7 @@ describe("profile form conversion", () => {
     });
   });
 
-  it("omits thresholds unless the profile is custom and treats empty custom skills as inherit", () => {
+  it("omits thresholds unless the profile is custom and retains an explicit empty skill map", () => {
     const form = {
       ...blankForm(),
       compactionMode: "profile" as const,
@@ -94,7 +97,7 @@ describe("profile form conversion", () => {
     };
     const draft = formToDraft(form);
     assert.deepEqual(draft.compaction, { profile: "aggressive" });
-    assert.equal(draft.skills, "inherit");
+    assert.deepEqual(draft.skills, {});
   });
 
   it("duplicates under a free name with a copy label", () => {
@@ -111,6 +114,171 @@ describe("profile form conversion", () => {
     const form = formFromProfile({ ...profile, model: "gone/model" });
     assert.equal(form.modelLead, false);
     assert.deepEqual(form.model, { provider: "gone", modelId: "model" });
+  });
+});
+
+describe("scoped sparse updates", () => {
+  it("changes only edited fields and preserves existing equal pins", () => {
+    const initial = formFromProfile(profile);
+    assert.deepEqual(formToPatch(initial, initial), {});
+    assert.deepEqual(
+      formToPatch({ ...initial, description: "New description" }, initial),
+      { description: "New description" },
+    );
+    assert.deepEqual(
+      formToPatch(initial, initial, { pinned: ["model", "thinking"] }),
+      { model: profile.model, thinking: "high" },
+    );
+  });
+
+  it("resets with null, independently of explicit lead values", () => {
+    const initial = formFromProfile(profile);
+    assert.deepEqual(formToPatch({ ...initial, modelLead: true }, initial), {
+      model: "lead",
+    });
+    assert.deepEqual(
+      formToPatch(initial, initial, { reset: ["model", "thinking", "tools"] }),
+      { model: null, thinking: null, tools: null },
+    );
+  });
+
+  it("retains unknown references and removes only changed map keys", () => {
+    const initial = formFromProfile({
+      ...profile,
+      tools: { portable_tool: true, web_search: false },
+      skills: { portable_skill: true, lint: false },
+    });
+    const edited = structuredClone(initial);
+    edited.tools.web_search = true;
+    delete edited.skills.lint;
+    assert.deepEqual(formToPatch(edited, initial), {
+      tools: { web_search: true },
+      skills: { lint: null },
+    });
+    assert.deepEqual(
+      formToPatch(initial, initial, {
+        tools: ["portable_tool"],
+        skills: ["portable_skill"],
+      }),
+      { tools: { portable_tool: true }, skills: { portable_skill: true } },
+    );
+  });
+
+  it("pins empty maps and sends explicit per-reference resets", () => {
+    const initial = { ...blankForm(), name: "scout" };
+    assert.deepEqual(formToPatch(initial, initial, { pinned: ["tools"] }), {
+      tools: {},
+    });
+    assert.deepEqual(formToPatch(initial, initial, { tools: ["web_search"] }), {
+      tools: { web_search: null },
+    });
+  });
+
+  it("resets map controls to inheritance and removes all previous local choices before one new edit", () => {
+    const initial = formFromProfile({
+      ...profile,
+      tools: { old_tool: true, web_search: false },
+      skills: { old_skill: true, lint: false },
+    });
+    const inherited = {
+      tools: { portable_tool: true, web_search: true },
+      skills: { inherited_skill: true, lint: true },
+    };
+    let edited = formWithInheritedField(initial, "tools", inherited);
+    edited = formWithInheritedField(edited, "skills", inherited);
+    assert.deepEqual(edited.tools, inherited.tools);
+    assert.deepEqual(edited.skills, inherited.skills);
+    edited.tools.web_search = false;
+    edited.skills.lint = false;
+    assert.deepEqual(
+      formToPatch(edited, initial, {
+        resetMaps: ["tools", "skills"],
+        local: { tools: initial.tools, skills: initial.skills },
+        tools: ["web_search"],
+        skills: ["lint"],
+      }),
+      {
+        tools: { old_tool: null, web_search: false },
+        skills: { old_skill: null, lint: false },
+      },
+    );
+  });
+
+  it("allows resetting a required local value even when no lower profile supplies it", () => {
+    const initial = formFromProfile(profile);
+    const edited = formWithInheritedField(initial, "description", null);
+    assert.equal(edited.description, "");
+    assert.deepEqual(
+      validateForm(edited, { resetFields: ["description"] }),
+      {},
+    );
+    assert.deepEqual(formToPatch(edited, initial, { reset: ["description"] }), {
+      description: null,
+    });
+  });
+
+  it("reset then edit a skill map removes an old scalar mode without pinning inherited selections", () => {
+    const initial = formFromProfile({ ...profile, skills: "none" });
+    const edited = formWithInheritedField(initial, "skills", {
+      skills: { inherited_skill: true },
+    });
+    edited.skills.new_skill = true;
+    assert.deepEqual(
+      formToPatch(edited, initial, {
+        resetMaps: ["skills"],
+        local: { skills: "none" },
+        skills: ["new_skill"],
+      }),
+      { skills: { new_skill: true } },
+    );
+  });
+
+  it("repairs a parsed incomplete entry without replacing custom instructions or capability references", () => {
+    const local = {
+      label: profile.label,
+      enabled: profile.enabled,
+      thinking: profile.thinking,
+      permission: profile.permission,
+      compaction: profile.compaction,
+      instructions: profile.instructions,
+      tools: profile.tools,
+      skills: profile.skills,
+    };
+    const configuration = {
+      name: profile.name,
+      local,
+      inherited: null,
+      effective: null,
+      origins: { fields: {}, tools: {}, skills: {} },
+      trust: "trusted" as const,
+      diagnostics: [],
+    };
+    const initial = formFromConfiguration(configuration);
+    assert.ok(initial);
+    assert.equal(initial.instructions, profile.instructions);
+    assert.deepEqual(initial.tools, profile.tools);
+    assert.deepEqual(initial.skills, profile.skills);
+    const edited = { ...initial, description: "Restored description" };
+    assert.deepEqual(formToPatch(edited, initial, { repair: configuration }), {
+      description: "Restored description",
+      model: "lead",
+    });
+    assert.equal(
+      formFromConfiguration({ ...configuration, local: null }),
+      undefined,
+      "invalid raw entries must not be edited",
+    );
+  });
+
+  it("does not clamp thinking when selecting another model", () => {
+    const initial = formFromProfile(profile);
+    assert.deepEqual(
+      formToPatch(
+        { ...initial, model: { provider: "other", modelId: "no-reasoning" } },
+        initial,
+      ),
+      { model: "other/no-reasoning" },
+    );
   });
 });
 

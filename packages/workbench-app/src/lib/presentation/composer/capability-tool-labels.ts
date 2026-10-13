@@ -40,6 +40,16 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
   { key: "confluence", label: "Confluence", names: ["confluence"] },
 ];
 
+/** Delegation has its own tab, but remains the same canonical capability. */
+export function capabilityToolGroupsForTab(
+  tools: readonly CapabilityToolName[],
+  tab: "tools" | "subagents",
+): CapabilityToolGroup[] {
+  return capabilityToolGroupsFor(tools).filter(
+    (group) => group.names.includes("subagents") === (tab === "subagents"),
+  );
+}
+
 export function capabilityToolGroupsFor(
   tools: readonly CapabilityToolName[],
 ): CapabilityToolGroup[] {

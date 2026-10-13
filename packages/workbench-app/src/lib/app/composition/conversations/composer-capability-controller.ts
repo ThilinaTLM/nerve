@@ -13,6 +13,18 @@ import {
   type ComposerSkillRow,
 } from "$lib/domain/skills/skill-catalog";
 
+/** PendingConversationState represents root drafts only; saved children never delegate. */
+export function canEditComposerDelegation(
+  projectId: string | undefined,
+  conversation: { parentConversationId?: string | null } | undefined,
+  pending: { projectId: string } | undefined,
+  interactive = true,
+): boolean {
+  if (!interactive || !projectId) return false;
+  if (conversation) return conversation.parentConversationId === null;
+  return pending?.projectId === projectId;
+}
+
 export type ComposerCapabilityScope =
   | {
       kind: "conversation";

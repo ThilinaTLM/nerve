@@ -30,6 +30,8 @@ async function prepare(options: {
   parent: string | null;
   usable: { name: string; description: string }[];
   instructions?: string | null;
+  hasExistingSubagents?: boolean;
+  subagentsEnabled?: boolean;
 }) {
   const home = await mkdtemp(join(tmpdir(), "nerve-turn-"));
   try {
@@ -38,9 +40,22 @@ async function prepare(options: {
       tools: () => [tool("read")],
       skills: [],
       agentBrowserSkills: [],
+      hasExistingSubagents: (id) => {
+        assert.equal(id, "c");
+        assert.notEqual(
+          options.subagentsEnabled,
+          false,
+          "master switch bypasses profile/child checks",
+        );
+        return options.hasExistingSubagents ?? false;
+      },
       capabilities: {
         configuration: async () => ({
-          effective: { disabledTools: [], toolProfiles: {} },
+          effective: {
+            disabledTools:
+              options.subagentsEnabled === false ? ["subagents"] : [],
+            toolProfiles: {},
+          },
           availableTools: [
             "subagents",
             "ask_user",
@@ -50,7 +65,17 @@ async function prepare(options: {
           toolProfileOptions: { jira: [], confluence: [], web_search: [] },
         }),
       } as never,
-      subagentProfiles: { usable: async () => options.usable as never },
+      subagentProfiles: {
+        usable: async (context) => {
+          assert.notEqual(
+            options.subagentsEnabled,
+            false,
+            "master switch bypasses profile/child checks",
+          );
+          assert.deepEqual(context, { projectId: "p", conversationId: "c" });
+          return options.usable as never;
+        },
+      },
     });
     return await port.prepare({
       conversation: {
@@ -119,6 +144,66 @@ void test("sub-agent tools are dropped when no profile is usable", () => {
     "ask_user",
     "plan_mode_present",
   ]);
+});
+
+void test("existing agents retain follow-up, status and stop tools without usable profiles", async () => {
+  const { tools } = await prepare({
+    parent: null,
+    usable: [],
+    hasExistingSubagents: true,
+  });
+  assert.deepEqual(
+    names(tools).filter((name) => name.startsWith("subagent_")),
+    ["subagent_prompt", "subagent_status", "subagent_stop"],
+  );
+  const prompt = tools.find((entry) => entry.name === "subagent_prompt");
+  assert.ok(prompt);
+  const parameters = prompt.parameters as unknown as {
+    properties: {
+      assignments: {
+        items: { properties: Record<string, unknown>; required: string[] };
+      };
+    };
+  };
+  const assignments = parameters.properties.assignments.items;
+  assert.equal(Object.hasOwn(assignments.properties, "profile"), false);
+  assert.deepEqual(assignments.required, ["name", "prompt"]);
+  assert.doesNotMatch(JSON.stringify(parameters), /"enum":\[\]/);
+  assert.match(prompt.description, /follow-up work for existing sub-agents/);
+  assert.match(prompt.description, /new sub-agents cannot be created/);
+  assert.ok(
+    Object.hasOwn(
+      (tool("subagent_prompt").parameters as unknown as typeof parameters)
+        .properties.assignments.items.properties,
+      "profile",
+    ),
+    "catalog schema remains untouched",
+  );
+});
+
+void test("no profiles and no existing agents remove all sub-agent tools", async () => {
+  const { tools } = await prepare({
+    parent: null,
+    usable: [],
+    hasExistingSubagents: false,
+  });
+  assert.equal(
+    names(tools).some((name) => name.startsWith("subagent_")),
+    false,
+  );
+});
+
+void test("the master capability removes sub-agent tools even with existing children", async () => {
+  const { tools } = await prepare({
+    parent: null,
+    usable: [],
+    hasExistingSubagents: true,
+    subagentsEnabled: false,
+  });
+  assert.equal(
+    names(tools).some((name) => name.startsWith("subagent_")),
+    false,
+  );
 });
 
 void test("instructions render between context files and skills", () => {

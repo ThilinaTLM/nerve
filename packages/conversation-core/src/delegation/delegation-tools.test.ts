@@ -50,7 +50,7 @@ async function fixture() {
     [];
   const host: SubagentHost = {
     usableProfiles: async () => profiles,
-    resolveProfile: async ({ profile }) => {
+    resolveProfile: async ({ parentId, profile }) => {
       if (!profiles.includes(profile))
         throw new Error(
           `Unknown profile "${profile}". Usable: ${profiles.join(", ")}`,
@@ -64,23 +64,23 @@ async function fixture() {
             profile === "developer" ? "autonomous" : "read_only",
           instructions: `Instructions for ${profile}`,
         },
+        initializeChild: async (childId) => {
+          initialized.push({ parentId, childId, profile });
+          if (profile === "waiter")
+            storage.asyncBash.insert({
+              id: `bash_${childId}`,
+              conversationId: childId,
+              toolCallId: "tool_background",
+              command: "pnpm test",
+              workingDirectory: dataDir,
+              status: "running",
+              processRef: null,
+              exitCode: null,
+              startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+              finishedAt: null,
+            });
+        },
       };
-    },
-    initializeChild: async (input) => {
-      initialized.push(input);
-      if (input.profile === "waiter")
-        storage.asyncBash.insert({
-          id: `bash_${input.childId}`,
-          conversationId: input.childId,
-          toolCallId: "tool_background",
-          command: "pnpm test",
-          workingDirectory: dataDir,
-          status: "running",
-          processRef: null,
-          exitCode: null,
-          startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
-          finishedAt: null,
-        });
     },
   };
   const core = new ConversationCore({
@@ -222,6 +222,7 @@ async function fixture() {
     core,
     dataDir,
     initialized,
+    host,
     queue,
     lead,
     child,
@@ -276,6 +277,64 @@ void test("creates a child from the profile, initializes it and assigns context 
       message?.type === "user_message" && message.payload.text,
       "shared\n\ndo it",
     );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("initialization uses the resolved snapshot and follow-ups do not resolve or reapply changed profiles", async () => {
+  const f = await fixture();
+  try {
+    const resolve = f.host.resolveProfile;
+    let resolutions = 0;
+    let currentHarness = "original harness";
+    const applied: { childId: string; harness: string }[] = [];
+    f.host.resolveProfile = async (input) => {
+      resolutions++;
+      const profile = await resolve(input);
+      const harness = currentHarness;
+      // The host changes after resolution, before delegation creates/initializes the child.
+      currentHarness = "changed harness";
+      f.host.resolveProfile = async () => {
+        resolutions++;
+        throw new Error("Profile was removed");
+      };
+      return {
+        ...profile,
+        initializeChild: async (childId) => {
+          applied.push({ childId, harness });
+          await profile.initializeChild(childId);
+        },
+      };
+    };
+    f.queue("child-explore", { type: "assistantText", text: "first" });
+    const created = await f.lead("subagent_prompt", explore());
+    assert.equal(created.outcome, "completed");
+    await waitUntil(f.idle("a"));
+    const id = f.child("a").id;
+    const config = f.core.getSnapshot(id).config;
+    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
+    assert.equal(currentHarness, "changed harness");
+
+    f.host.usableProfiles = async () => [];
+    for (const assignment of [
+      { name: "a", profile: "explore", prompt: "again" },
+      { name: "a", prompt: "without profile" },
+    ]) {
+      f.queue("child-explore", { type: "assistantText", text: "follow-up" });
+      const result = await f.lead("subagent_prompt", {
+        assignments: [assignment],
+      });
+      assert.equal(result.outcome, "completed");
+      assert.match(result.text, /follow-up queued/);
+      await waitUntil(f.idle("a"));
+      assert.deepEqual(f.core.getSnapshot(id).config, config);
+    }
+    assert.equal(resolutions, 1);
+    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
+    assert.deepEqual(f.initialized, [
+      { parentId: LEAD, childId: id, profile: "explore" },
+    ]);
   } finally {
     await f.cleanup();
   }

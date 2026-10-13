@@ -121,7 +121,7 @@ export type WorkbenchConversationAdapterProps = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
   onGrantApproval?: (
     toolCallId: string,
     scope?:

@@ -128,6 +128,9 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
+  capabilityProfiles?: Snippet<[query: string]>;
+  capabilityScopeKey?: string;
+  subagentControlsEnabled?: boolean;
 };
 
 export type ConversationTimelineSections = {
@@ -183,7 +186,7 @@ export type ConversationPaneActions = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;

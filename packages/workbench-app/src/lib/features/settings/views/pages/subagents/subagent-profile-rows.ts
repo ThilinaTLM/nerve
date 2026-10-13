@@ -1,49 +1,91 @@
 import type { ModelInfo } from "@nervekit/contracts/models";
 import type {
   SubagentProfile,
+  SubagentProfileConfiguration,
   SubagentProfileScope,
+  SubagentProfileDiagnostic,
 } from "@nervekit/contracts/subagents";
 import { modelDisplayName } from "$lib/presentation/utils/model";
 
-export type ProfileRowState = {
-  sourceLabel: string;
-  canEdit: boolean;
-  canDuplicate: boolean;
-  canEnable: boolean;
-  canTrust: boolean;
-  /** `reset` removes an override of a built-in; `delete` removes a file. */
-  remove?: "delete" | "reset";
-};
-
-const SOURCE_LABELS = {
-  builtin: "Built-in",
-  user: "User",
-  project: "Project",
-} as const;
-
-/**
- * What a profile row offers in the scope being viewed. Shadowed and invalid
- * profiles are never offered to the lead, so they only keep what removes them.
- */
-export function profileRowState(
-  profile: SubagentProfile,
+/** Invalid local entries have no parsed local value, but can still be removed whole. */
+export function canResetProfileEntry(
+  profile: SubagentProfileConfiguration,
   scope: SubagentProfileScope,
-  builtInNames: ReadonlySet<string>,
-): ProfileRowState {
-  const usable = !profile.shadowed && !profile.error;
-  const untrusted = profile.trust === "untrusted";
+): boolean {
+  return (
+    profile.local !== null ||
+    profile.diagnostics.some(
+      (item) => item.code === "invalid_entry" && item.source === scope,
+    )
+  );
+}
+
+/** Keep actionable host prose visible; only structured validator payloads need a summary. */
+function isTechnicalDiagnostic(message: string): boolean {
+  const candidate = message.trim().replace(/^ZodError:\s*/, "");
+  if (!candidate.startsWith("[") && !candidate.startsWith("{")) return false;
+  try {
+    const payload: unknown = JSON.parse(candidate);
+    return payload !== null && typeof payload === "object";
+  } catch {
+    // Truncated validator output is still technical, not actionable prose.
+    return /"(?:code|path|issues|schemaVersion)"\s*:/.test(candidate);
+  }
+}
+
+export function profileDiagnosticSummary(
+  diagnostic: SubagentProfileDiagnostic,
+): string {
+  if (!isTechnicalDiagnostic(diagnostic.message)) return diagnostic.message;
+  const source = diagnostic.source ? `${diagnostic.source} ` : "";
+  switch (diagnostic.code) {
+    case "invalid_document":
+      return `The ${source}subagents.json document is invalid or unreadable. Correct or restore it before using or editing profiles.`;
+    case "invalid_entry":
+      return `This profile entry is invalid. Review its settings in ${source}subagents.json, or reset the entry in its owning scope.`;
+    case "incomplete_profile":
+      return "This profile is incomplete. Restore its required settings before use.";
+    default:
+      return "Sub-agent configuration reported a diagnostic. Review the technical details.";
+  }
+}
+
+/** Document failures are explained once above the list, not repeated in every row. */
+export function profileRowDiagnostics(
+  profile: SubagentProfileConfiguration,
+  documentDiagnostics: readonly SubagentProfileDiagnostic[],
+  scope: SubagentProfileScope,
+): { diagnostics: SubagentProfileDiagnostic[]; documentBlock?: string } {
+  const shared = profile.diagnostics.filter(
+    (diagnostic) =>
+      diagnostic.code === "invalid_document" &&
+      documentDiagnostics.some(
+        (document) =>
+          document.code === diagnostic.code &&
+          document.source === diagnostic.source,
+      ),
+  );
+  const blockers = shared.filter(
+    (diagnostic) => diagnostic.severity === "blocking",
+  );
+  const sources = [
+    ...new Set(
+      blockers.map((diagnostic) =>
+        diagnostic.source
+          ? `${diagnostic.source !== scope ? "inherited " : ""}${diagnostic.source}`
+          : "sub-agent",
+      ),
+    ),
+  ];
   return {
-    sourceLabel: SOURCE_LABELS[profile.source],
-    canEdit: usable,
-    canDuplicate: usable,
-    canEnable: usable && !untrusted,
-    canTrust: untrusted && profile.source === "project" && !profile.shadowed,
-    remove:
-      profile.source === scope && !profile.shadowed
-        ? builtInNames.has(profile.name)
-          ? "reset"
-          : "delete"
-        : undefined,
+    diagnostics: profile.diagnostics.filter(
+      (diagnostic) => !shared.includes(diagnostic),
+    ),
+    ...(sources.length
+      ? {
+          documentBlock: `Blocked by ${sources.join(" and ")} configuration. See the document error above.`,
+        }
+      : {}),
   };
 }
 

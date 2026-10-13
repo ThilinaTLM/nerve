@@ -5,9 +5,8 @@ import {
   builtInSubagentProfiles,
   subagentBlockedToolNames,
   subagentProfileDraftSchema,
-  subagentProfileFrontmatterSchema,
+  subagentProfileFieldsSchema,
   subagentProfileNameSchema,
-  subagentProfilesSaveParamsSchema,
 } from "../../src/domains/subagents/index.js";
 import { conversationConfigSchema } from "../../src/domains/core/conversation.js";
 import {
@@ -24,7 +23,7 @@ const valid = {
   skills: "none",
 } as const;
 const parse = (override: Record<string, unknown>) =>
-  subagentProfileFrontmatterSchema.safeParse({ ...valid, ...override });
+  subagentProfileFieldsSchema.safeParse({ ...valid, ...override });
 
 test("built-in profiles are valid drafts", () => {
   assert.deepEqual(
@@ -38,7 +37,7 @@ test("built-in profiles are valid drafts", () => {
   }
 });
 
-test("frontmatter accepts the documented forms", () => {
+test("profile settings accept the documented forms", () => {
   assert.equal(parse({}).success, true);
   assert.equal(parse({ model: "anthropic/claude-sonnet-4-5" }).success, true);
   assert.equal(
@@ -67,13 +66,17 @@ test("frontmatter accepts the documented forms", () => {
   );
 });
 
-test("frontmatter rejects blocked tools, other rule sets and bad fields", () => {
+test("profile settings reject blocked tools, other rule sets and bad fields", () => {
   for (const name of subagentBlockedToolNames)
     assert.equal(parse({ tools: { [name]: true } }).success, false, name);
   assert.equal(parse({ tools: { subagents: false } }).success, false);
   for (const name of ["edit", "write", "bash", "fileEditing"])
     assert.equal(parse({ tools: { [name]: false } }).success, false, name);
-  assert.equal(parse({ tools: { made_up: false } }).success, false);
+  assert.equal(parse({ tools: { made_up: false } }).success, true);
+  assert.equal(
+    parse({ tools: { future_tool: { option: "portable" } } }).success,
+    true,
+  );
   assert.equal(parse({ tools: { web_fetch: { url: "x" } } }).success, false);
   assert.equal(
     parse({ tools: { kroki_export: { url: "ftp://x" } } }).success,
@@ -99,7 +102,7 @@ test("profile names use lowercase words with single hyphens", () => {
     );
 });
 
-test("instructions are bounded by UTF-8 bytes and project saves need a project", () => {
+test("instructions are bounded by UTF-8 bytes", () => {
   const draft = { ...valid, name: "reader", instructions: "" };
   const atLimit = "é".repeat(SUBAGENT_INSTRUCTIONS_MAX_BYTES / 2);
   assert.equal(
@@ -113,20 +116,6 @@ test("instructions are bounded by UTF-8 bytes and project saves need a project",
       instructions: `${atLimit}x`,
     }).success,
     false,
-  );
-  assert.equal(
-    subagentProfilesSaveParamsSchema.safeParse({
-      scope: "project",
-      profile: draft,
-    }).success,
-    false,
-  );
-  assert.equal(
-    subagentProfilesSaveParamsSchema.safeParse({
-      scope: "user",
-      profile: draft,
-    }).success,
-    true,
   );
 });
 

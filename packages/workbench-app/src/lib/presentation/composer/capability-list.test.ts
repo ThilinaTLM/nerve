@@ -5,16 +5,24 @@ import {
   filterCapabilityRows,
   showCapabilitySearch,
 } from "./capability-list";
-import { capabilityToolGroupsFor } from "./capability-tool-labels";
+import {
+  capabilityToolGroupsFor,
+  capabilityToolGroupsForTab,
+} from "./capability-tool-labels";
+import { capabilityResetPatch } from "./capability-origin";
 
 describe("showCapabilitySearch", () => {
-  it("stays hidden while both tabs are short", () => {
-    assert.equal(showCapabilitySearch(7, 8), false);
+  it("stays hidden for a short active list, including the threshold", () => {
+    assert.equal(showCapabilitySearch(0), false);
+    assert.equal(showCapabilitySearch(7), false);
+    assert.equal(showCapabilitySearch(8), false);
   });
 
-  it("appears when either tab is long", () => {
-    assert.equal(showCapabilitySearch(7, 14), true);
-    assert.equal(showCapabilitySearch(20, 0), true);
+  it("appears only for a long active list", () => {
+    // Switching from 15 skills to 7 tools must hide the skill search field.
+    assert.equal(showCapabilitySearch(15), true);
+    assert.equal(showCapabilitySearch(7), false);
+    assert.equal(showCapabilitySearch(9), true);
   });
 });
 
@@ -51,6 +59,37 @@ describe("capabilityToolGroupsFor", () => {
     assert.deepEqual(capabilityToolGroupsFor(["web_fetch"])[0]?.names, [
       "web_fetch",
     ]);
+  });
+});
+
+describe("delegation tab ownership", () => {
+  it("excludes the master from tool counts and filters without changing its canonical registry", () => {
+    const tools = [
+      "subagents",
+      "web_search",
+      "web_fetch",
+      "python_exec",
+    ] as const;
+    const optional = capabilityToolGroupsForTab(tools, "tools");
+    assert.deepEqual(
+      optional.map((group) => group.key),
+      ["web", "python_exec"],
+    );
+    assert.deepEqual(filterCapabilityRows(optional, "sub-agents"), []);
+    assert.deepEqual(capabilityToolGroupsForTab(tools, "subagents"), [
+      { key: "subagents", label: "Sub-agents", names: ["subagents"] },
+    ]);
+    assert.equal(capabilityToolGroupsFor(tools).length, 3);
+  });
+
+  it("resets only the master's capability value, not profile fields", () => {
+    assert.deepEqual(capabilityResetPatch(["subagents"]), {
+      tools: { subagents: { enabled: null } },
+    });
+    assert.deepEqual(
+      capabilityToolGroupsForTab(["python_exec"], "subagents"),
+      [],
+    );
   });
 });
 

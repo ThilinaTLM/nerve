@@ -18,9 +18,9 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
   {
     id: "tool-selection",
     version: 2,
-    title: "Tune tools and skills per conversation",
+    title: "Tune capabilities per conversation",
     summary:
-      "Open Tools and skills beside the composer to enable only what this conversation needs. Changes apply to the next run.",
+      "Open Capabilities beside the composer to enable only what this conversation needs. Changes apply to the next run.",
   },
   {
     id: "project-skills",

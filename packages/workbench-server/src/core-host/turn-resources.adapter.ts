@@ -17,28 +17,44 @@ const blocked: ReadonlySet<string> = new Set(subagentBlockedToolNames);
 
 /**
  * `subagent_prompt` offers exactly the profiles usable now: an enum with a
- * `name — description` list. With none usable, the whole group is dropped.
+ * `name — description` list. With none usable, retain only existing-agent workflows.
  * Schemas are rebuilt by spreading so typebox's symbol markers survive.
  */
 export function withSubagentProfiles(
   tools: ToolDefinition[],
   usable: readonly Pick<SubagentProfile, "name" | "description">[],
+  hasExistingSubagents = false,
 ): ToolDefinition[] {
-  if (!usable.length)
+  if (!usable.length && !hasExistingSubagents)
     return tools.filter((tool) => !tool.name.startsWith("subagent_"));
   return tools.map((tool) => {
     if (tool.name !== "subagent_prompt") return tool;
     const parameters = tool.parameters as unknown as ObjectSchema;
     const assignments = parameters.properties.assignments as AssignmentsSchema;
-    const profile = {
-      type: "string",
-      enum: usable.map((entry) => entry.name),
-      description: `Profile for a new sub-agent. Usable profiles:\n${usable
-        .map((entry) => `${entry.name} — ${entry.description}`)
-        .join("\n")}`,
-    };
+    const assignmentProperties = usable.length
+      ? {
+          ...assignments.items.properties,
+          profile: {
+            type: "string",
+            enum: usable.map((entry) => entry.name),
+            description: `Profile for a new sub-agent. Usable profiles:\n${usable
+              .map((entry) => `${entry.name} — ${entry.description}`)
+              .join("\n")}`,
+          },
+        }
+      : Object.fromEntries(
+          Object.entries(assignments.items.properties).filter(
+            ([name]) => name !== "profile",
+          ),
+        );
     return {
       ...tool,
+      ...(usable.length
+        ? {}
+        : {
+            description:
+              "Queue follow-up work for existing sub-agents by name. No profiles are currently usable, so new sub-agents cannot be created. Existing sub-agents keep their configuration and run asynchronously; completion notices wake you.",
+          }),
       parameters: {
         ...parameters,
         properties: {
@@ -47,7 +63,7 @@ export function withSubagentProfiles(
             ...assignments,
             items: {
               ...assignments.items,
-              properties: { ...assignments.items.properties, profile },
+              properties: assignmentProperties,
             },
           },
         },
@@ -70,6 +86,7 @@ export function createTurnResourcesPort(options: {
   agentBrowserSkills: readonly Skill[];
   capabilities: CapabilityService;
   subagentProfiles: Pick<SubagentProfileService, "usable">;
+  hasExistingSubagents(conversationId: string): boolean | Promise<boolean>;
 }): TurnResourcesPort {
   return {
     async prepare({ conversation, config, projectDir, coreTools = [] }) {
@@ -108,7 +125,11 @@ export function createTurnResourcesPort(options: {
       const tools = filtered.some((tool) => tool.name === "subagent_prompt")
         ? withSubagentProfiles(
             filtered,
-            await options.subagentProfiles.usable(conversation.projectId),
+            await options.subagentProfiles.usable({
+              projectId: conversation.projectId,
+              conversationId: conversation.id,
+            }),
+            await options.hasExistingSubagents(conversation.id),
           )
         : filtered;
       const resources = await loadHarnessResources(projectDir, {

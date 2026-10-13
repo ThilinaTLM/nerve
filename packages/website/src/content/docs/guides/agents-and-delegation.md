@@ -9,7 +9,7 @@ A conversation has one **lead agent**, the agent you direct through the composer
 
 ## Enable sub-agents
 
-Sub-agents are disabled by default. Turn on **Sub-agents** under **Settings → Sub-agents** (user or project scope) or for the current conversation through the composer's tools-and-skills control. The lead is offered only profiles that are enabled and trusted; with none, it does not get the sub-agent tools. Manage profiles under **Settings → Sub-agents**.
+Sub-agents are disabled by default. Turn on **Sub-agents** under **Settings → Sub-agents** (user or project scope) or for the current conversation through **Capabilities → Sub-agents** beside the composer. The lead is offered only usable profiles. With none but existing children, it retains prompt follow-ups, status and stop, but cannot create new children; the prompt schema omits `profile`. With neither usable profiles nor existing children, the tools are hidden. Turning the master Sub-agents capability off removes the whole tool group regardless of existing children. Manage profiles under **Settings → Sub-agents**.
 
 ## What the lead does
 
@@ -38,7 +38,9 @@ Stopping a sub-agent from its own view notifies the lead. Stopping it through th
 
 ## Write your own profile
 
-Under **Settings → Sub-agents** you can add, duplicate, and edit profiles in user or project scope, enable or disable them, and reset edited built-ins. Project profiles are used only after you trust them. See the [profile format reference](/reference/subagent-profiles/).
+The scoped JSON implementation provides a full **Settings → Sub-agents** editor in user and project scope, with enabled state, model, thinking, instructions, permissions, capabilities, compaction, copy-to-scope and reset. Project profiles require trust in the exact document content. In a saved lead conversation, **Capabilities → Sub-agents** provides enabled, model and thinking overrides for newly created children, without changing reusable user/project defaults. Explicit overrides stay pinned until reset. See the [profile format reference](/reference/subagent-profiles/).
+
+Profile changes never reconfigure an existing child. If its model hits usage limits, open that child's view and change its own model and thinking level directly. A follow-up to the same name keeps those changes; it does not reapply the profile.
 
 | Choose              | When you need                                        | Authority                                   | Lifecycle                                               |
 | ------------------- | ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |

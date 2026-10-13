@@ -44,10 +44,13 @@ import { conversationCatalog } from "$lib/features/conversations/state/conversat
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import {
   ComposerCapabilityController,
+  canEditComposerDelegation,
   type ComposerCapabilityState,
 } from "./composer-capability-controller";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
+import ConversationProfilesHost from "./ConversationProfilesHost.svelte";
+import { conversationProfileScope } from "./conversation-profile-controller";
 import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
@@ -152,6 +155,12 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
+const profileScope = $derived(
+  conversationProfileScope(activeProject?.id, activeConversation, interactive),
+);
+const capabilityScopeKey = $derived(
+  `${activeProject?.id ?? "none"}:${activeConversation?.id ?? activePendingConversation?.id ?? "none"}:${interactive}`,
+);
 let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
 /** Tool group whose conversation-level settings dialog is open. */
 let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
@@ -498,6 +507,16 @@ function handleMicContextMenu(event: MouseEvent) {
 }
 </script>
 
+{#snippet capabilityProfiles(query: string)}
+  <ConversationProfilesHost
+    scope={profileScope}
+    {query}
+    unavailableReason={activeConversation
+      ? "Sub-agents cannot delegate. To change an existing child's model or thinking, use that child's own conversation controls. Configure profiles in its saved lead conversation."
+      : "Save a lead conversation before configuring sub-agent profiles. Pending conversations do not have a profile scope."}
+  />
+{/snippet}
+
 <AgentComposer
   model={{
     text,
@@ -572,6 +591,14 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilitySkills,
     capabilityLoading,
     capabilityError,
+    capabilityProfiles,
+    capabilityScopeKey,
+    subagentControlsEnabled: canEditComposerDelegation(
+      activeProject?.id,
+      activeConversation,
+      activePendingConversation,
+      interactive,
+    ),
     capabilities: {
       voice: true,
       imagePaste: true,

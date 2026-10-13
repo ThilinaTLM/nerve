@@ -99,3 +99,23 @@ void test("skills none disables every available skill; inherit writes nothing fo
   await assert.rejects(stat(file("plain")), { code: "ENOENT" });
   await cleanup();
 });
+
+void test("portable unknown tools and skills are retained in the profile, not child capabilities", async () => {
+  const { service, read, cleanup } = await setup();
+  try {
+    const profile = {
+      tools: { future_tool: true, future_disabled: false, web_fetch: false },
+      skills: { future_skill: true },
+    };
+    await service.initializeChild("parent", "child", profile, [], []);
+    const child = await read("child");
+    assert.equal(child.tools.future_tool, undefined);
+    assert.equal(child.tools.future_disabled, undefined);
+    assert.equal(child.skills.file.future_skill, undefined);
+    assert.equal(child.tools.web_fetch.enabled, false);
+    assert.equal(profile.tools.future_tool, true);
+    assert.equal(profile.skills.future_skill, true);
+  } finally {
+    await cleanup();
+  }
+});
