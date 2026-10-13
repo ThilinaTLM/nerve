@@ -107,7 +107,7 @@ function submit(): void {
         (blocked || model.models.length === 0)}
       modeHidden={model.modeHidden}
       session={model.session}
-      thisConversation={model.thisConversation}
+      contextActions={model.contextActions}
       modeLabel={modePlanning ? "Planning" : "Coding"}
       {modePlanning}
       onToggleMode={() =>

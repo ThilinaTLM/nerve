@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   compactionDraftError,
+  compactionDetail,
   compactionSourceLabel,
   compactionSummary,
   compactionsEqual,
   INSTRUCTIONS_MAX_BYTES,
   instructionsOverLimit,
   instructionsPatch,
-  instructionsSummary,
 } from "./conversation-settings";
 
 const base = {
@@ -41,6 +41,25 @@ describe("compaction", () => {
     );
   });
 
+  it("describes what the effective setting does", () => {
+    assert.equal(
+      compactionDetail(base),
+      "Compact at 80% and retain about 15% recent context",
+    );
+    assert.equal(
+      compactionDetail({
+        ...base,
+        profile: "custom",
+        customTriggerPercent: 75,
+      }),
+      "Compact at 75% and retain about 15% recent context",
+    );
+    assert.equal(
+      compactionDetail({ ...base, auto: false }),
+      "Auto-compaction is off",
+    );
+  });
+
   it("validates custom bounds and compares drafts", () => {
     assert.equal(compactionDraftError(base), undefined);
     assert.match(
@@ -57,10 +76,7 @@ describe("compaction", () => {
 });
 
 describe("instructions", () => {
-  it("summarizes and clears blank text", () => {
-    assert.equal(instructionsSummary(null), "None");
-    assert.equal(instructionsSummary("  "), "None");
-    assert.equal(instructionsSummary("Be terse\nmore"), "13 B · Be terse");
+  it("clears blank text", () => {
     assert.equal(instructionsPatch("   "), null);
     assert.equal(instructionsPatch("x"), "x");
   });

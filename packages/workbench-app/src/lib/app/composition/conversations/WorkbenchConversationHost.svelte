@@ -33,7 +33,7 @@ let {
   editorOverlay,
   modeHidden = false,
   session,
-  thisConversation,
+  contextActions,
   activeProject,
   activeConversation,
   activeAgent,
@@ -340,7 +340,7 @@ function menuForTranscript(
       {editorOverlay}
       {modeHidden}
       {session}
-      {thisConversation}
+      {contextActions}
       {activeProject}
       {activeConversation}
       {activePendingConversation}

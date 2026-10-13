@@ -1,4 +1,4 @@
-/** One labelled value in the context popover's Session section. */
+/** One labelled value in the context popover's session-details tooltip. */
 export type SessionField = { label: string; value?: string; mono?: boolean };
 
 export type ConversationSessionInfo = {

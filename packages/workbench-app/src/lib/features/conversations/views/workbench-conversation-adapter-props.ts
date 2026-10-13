@@ -45,7 +45,7 @@ export type WorkbenchConversationAdapterProps = {
   editorOverlay?: ComposerEditorOverlay;
   modeHidden?: boolean;
   session?: ConversationSessionInfo;
-  thisConversation?: Snippet;
+  contextActions?: Snippet<[closePopover: () => void]>;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;

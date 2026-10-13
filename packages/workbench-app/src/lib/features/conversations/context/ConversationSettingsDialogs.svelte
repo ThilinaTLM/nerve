@@ -26,16 +26,22 @@ let {
   compactionOpen = $bindable(false),
   instructionsOpen = $bindable(false),
   compaction,
+  compactionOverridden = false,
   instructions,
   onSaveCompaction,
+  onResetCompaction,
   onSaveInstructions,
 }: {
   compactionOpen?: boolean;
   instructionsOpen?: boolean;
   /** The effective compaction the override starts from. */
   compaction: AutoCompactionSettings | undefined;
+  /** This conversation overrides the inherited compaction. */
+  compactionOverridden?: boolean;
   instructions: string | null | undefined;
   onSaveCompaction: (value: AutoCompactionSettings) => Promise<void>;
+  /** Drops the override, so the conversation inherits again. */
+  onResetCompaction: () => Promise<void>;
   /** `null` clears. */
   onSaveInstructions: (value: string | null) => Promise<void>;
 } = $props();
@@ -99,7 +105,7 @@ function setPercent(
   bind:open={compactionOpen}
   size="sm"
   title="Compaction for this conversation"
-  description="Overrides the inherited compaction. Reset it from the context popover."
+  description="Applies to this conversation only; it inherits the project or user setting until you change it."
 >
   <div class="grid gap-3">
     <div class="flex items-center justify-between gap-3">
@@ -160,6 +166,16 @@ function setPercent(
     {/if}
   </div>
   {#snippet footer()}
+    {#if compactionOverridden}
+      <Button
+        variant="ghost"
+        disabled={saving}
+        onclick={() =>
+          void run(onResetCompaction, () => (compactionOpen = false))}
+      >
+        Use inherited
+      </Button>
+    {/if}
     <Button
       variant="ghost"
       disabled={saving}

@@ -41,7 +41,7 @@ The selection order is User defaults → trusted Project overrides → Conversat
 
 ## Context, agents, and to-dos
 
-The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. Select the context indicator to open the context popover with usage, compaction, and instructions; use the Agents pill in the transcript to monitor sub-agents or open one. The to-do indicator reflects structured agent work state; it is separate from delegated agents and supervised background processes.
+The toolbar displays current context-window pressure and cumulative usage when the provider reports it. A context value can remain unknown until a response. Select the context indicator to open the context popover with usage and compaction; its header buttons give session details, the compaction profile, and custom instructions; use the Agents pill in the transcript to monitor sub-agents or open one. The to-do indicator reflects structured agent work state; it is separate from delegated agents and supervised background processes.
 
 ## Review gates
 
