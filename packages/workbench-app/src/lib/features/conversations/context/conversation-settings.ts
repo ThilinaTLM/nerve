@@ -3,6 +3,7 @@ import {
   type AutoCompactionSettings,
 } from "@nervekit/contracts/settings";
 import type { HarnessCompactionSource } from "@nervekit/contracts/core";
+import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
   SUBAGENT_INSTRUCTIONS_MAX_BYTES,
   utf8ByteLength,
@@ -22,6 +23,17 @@ export function compactionSummary(settings: AutoCompactionSettings): string {
   return settings.profile === "custom"
     ? `${label} · ${settings.customTriggerPercent}% / ${settings.customKeepRecentPercent}%`
     : label;
+}
+
+/** What the effective setting does, e.g. `Compact at 80% and retain about 15% recent context`. */
+export function compactionDetail(settings: AutoCompactionSettings): string {
+  if (!settings.auto) return "Auto-compaction is off";
+  if (settings.profile === "custom")
+    return `Compact at ${settings.customTriggerPercent}% and retain about ${settings.customKeepRecentPercent}% recent context`;
+  return (
+    compactionProfileItems.find((item) => item.value === settings.profile)
+      ?.detail ?? ""
+  );
 }
 
 export function compactionSourceLabel(source: HarnessCompactionSource): string {
@@ -68,15 +80,6 @@ export function instructionsOverLimit(text: string): boolean {
 
 export function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-/** Popover summary: `None`, or the size and first line. */
-export function instructionsSummary(text: string | null | undefined): string {
-  const value = text?.trim();
-  if (!value) return "None";
-  const first = value.split("\n")[0] ?? "";
-  const line = first.length > 40 ? `${first.slice(0, 39)}…` : first;
-  return `${formatBytes(utf8ByteLength(value))} · ${line}`;
 }
 
 /** Empty or whitespace-only text clears the instructions. */

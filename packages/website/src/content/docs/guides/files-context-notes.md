@@ -15,7 +15,7 @@ Editing is unavailable for files outside the project, symbolic links, binary fil
 
 ## Context and active agents
 
-The context popover beside the composer shows context usage, the conversation's compaction and instructions, and session details such as the project, directory, and conversation ID. Sub-agents appear in the Agents pill at the top right of the transcript; see [Agents and delegation](/guides/agents-and-delegation/).
+The context popover beside the composer shows context usage and the conversation's token totals, with a button to compact the conversation. Three icon buttons in its header hold the secondary details: hover the clipboard to see session details (project, directory, conversation ID) and click it to copy them, use the gauge to choose this conversation's compaction profile (Aggressive, Balanced, or Conservative; it inherits the project or user setting until you pick one, and the reset icon returns to it), and hover the document icon to read the conversation's custom instructions or click it to edit them. Sub-agents appear in the Agents pill at the top right of the transcript; see [Agents and delegation](/guides/agents-and-delegation/).
 
 The composer meter shows current usage as a fraction of the model's declared context window when usage information is available. It can display `?` before the provider reports enough information. Automatic compaction creates an explicit transcript event. The full stored history graph remains available even when the active model context contains a summary.
 

@@ -1,9 +1,11 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import Copy from "@lucide/svelte/icons/copy";
+import Clipboard from "@lucide/svelte/icons/clipboard";
+import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import Popover, {
   PopoverBody,
@@ -29,8 +31,9 @@ import {
 
 type Props = {
   session?: ConversationSessionInfo;
-  /** Rendered between token usage and the session details. */
-  thisConversation?: Snippet;
+  /** Conversation-level icon actions, rendered in the header after the
+   * session-details button. */
+  contextActions?: Snippet<[closePopover: () => void]>;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   contextWindow?: number;
@@ -41,7 +44,7 @@ type Props = {
 
 let {
   session,
-  thisConversation,
+  contextActions,
   contextUsage,
   conversationUsage,
   contextWindow = 0,
@@ -52,6 +55,17 @@ let {
 
 let open = $state(false);
 let confirmCompactOpen = $state(false);
+let sessionCopied = $state(false);
+let sessionCopiedTimer: ReturnType<typeof setTimeout> | undefined;
+$effect(() => () => clearTimeout(sessionCopiedTimer));
+
+function copySession(): void {
+  if (!session) return;
+  session.onCopy?.(sessionFieldsText(session.fields), "session details");
+  sessionCopied = true;
+  clearTimeout(sessionCopiedTimer);
+  sessionCopiedTimer = setTimeout(() => (sessionCopied = false), 1200);
+}
 
 const contextLimit = $derived(
   contextWindow || contextUsage?.contextWindow || 0,
@@ -136,7 +150,60 @@ function requestCompact(): void {
       </span>
     {/snippet}
 
-    <PopoverHeader title="Context" />
+    <PopoverHeader title="Context">
+      {#snippet actions()}
+        {#if session}
+          <Tooltip.Provider delayDuration={200}>
+            <Tooltip.Root ignoreNonKeyboardFocus>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <span {...props} class="inline-flex">
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      class="text-muted-foreground hover:text-foreground"
+                      ariaLabel="Copy session details"
+                      onclick={copySession}
+                    >
+                      {#if sessionCopied}
+                        <ClipboardCheck
+                          class="size-3.5 text-success"
+                          aria-hidden="true"
+                        />
+                      {:else}
+                        <Clipboard class="size-3.5" aria-hidden="true" />
+                      {/if}
+                    </Button>
+                  </span>
+                {/snippet}
+              </Tooltip.Trigger>
+              <Tooltip.Content
+                side="top"
+                class="max-w-md flex-col items-stretch gap-1 py-2"
+              >
+                <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+                  {#each session.fields as field (field.label)}
+                    <dt class="text-muted-foreground">{field.label}</dt>
+                    <dd
+                      class={[
+                        "text-right break-all",
+                        field.mono && "font-mono",
+                      ]}
+                    >
+                      {field.value ?? "—"}
+                    </dd>
+                  {/each}
+                </dl>
+                <p class="border-t pt-1 text-muted-foreground">
+                  Click to copy all session details
+                </p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
+        {/if}
+        {@render contextActions?.(() => (open = false))}
+      {/snippet}
+    </PopoverHeader>
 
     <PopoverBody>
       <PopoverMeter
@@ -180,52 +247,6 @@ function requestCompact(): void {
           </p>
         {/if}
       </PopoverSection>
-
-      {@render thisConversation?.()}
-
-      {#if session}
-        <PopoverSection label="Session" separated>
-          {#snippet action()}
-            <Button
-              size="xs"
-              variant="ghost"
-              onclick={() =>
-                session.onCopy?.(
-                  sessionFieldsText(session.fields),
-                  "session details",
-                )}
-            >
-              Copy all
-            </Button>
-          {/snippet}
-          <PopoverProperties>
-            {#each session.fields as field (field.label)}
-              <PopoverProperty label={field.label} title={field.value}>
-                <span class="flex min-w-0 items-center justify-end gap-1">
-                  <span class={["truncate", field.mono && "font-mono"]}
-                    >{field.value ?? "—"}</span
-                  >
-                  {#if field.value}
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      ariaLabel={`Copy ${field.label.toLowerCase()}`}
-                      title={`Copy ${field.label.toLowerCase()}`}
-                      onclick={() =>
-                        session.onCopy?.(
-                          field.value ?? "",
-                          field.label.toLowerCase(),
-                        )}
-                    >
-                      <Copy class="size-3" aria-hidden="true" />
-                    </Button>
-                  {/if}
-                </span>
-              </PopoverProperty>
-            {/each}
-          </PopoverProperties>
-        </PopoverSection>
-      {/if}
     </PopoverBody>
 
     <PopoverFooter>

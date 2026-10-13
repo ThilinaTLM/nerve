@@ -33,13 +33,14 @@ let {
   editorOverlay,
   modeHidden = false,
   session,
-  thisConversation,
+  contextActions,
   activeProject,
   activeConversation,
   activeAgent,
   activePendingConversation,
   homeDir,
   pendingConversationActive = false,
+  conversationLoading = false,
   approvals = [],
   pendingUserQuestions = [],
   pendingPlanReviews = [],
@@ -339,7 +340,7 @@ function menuForTranscript(
       {editorOverlay}
       {modeHidden}
       {session}
-      {thisConversation}
+      {contextActions}
       {activeProject}
       {activeConversation}
       {activePendingConversation}
@@ -388,15 +389,15 @@ function menuForTranscript(
   {/snippet}
 
   {#snippet emptyExtension()}
-    <ConversationWelcome
-      projectSelected={Boolean(activeProject && onNewConversationInProject)}
-      projectLabel={activeProjectLabel}
-      projectPath={activeProject?.dir}
-      onNewChat={(initialMode) => {
-        if (activeProject) {
-          onNewConversationInProject?.(activeProject.dir, initialMode);
-        }
-      }}
-    />
+    {#if !conversationLoading}<ConversationWelcome
+        projectSelected={Boolean(activeProject && onNewConversationInProject)}
+        projectLabel={activeProjectLabel}
+        projectPath={activeProject?.dir}
+        onNewChat={(initialMode) => {
+          if (activeProject) {
+            onNewConversationInProject?.(activeProject.dir, initialMode);
+          }
+        }}
+      />{/if}
   {/snippet}
 </ConversationPane>

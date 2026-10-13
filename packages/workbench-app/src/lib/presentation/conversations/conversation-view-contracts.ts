@@ -71,8 +71,9 @@ export type ConversationComposerModel = {
   /** Hides the mode toggle for conversations without plan mode. */
   modeHidden?: boolean;
   session?: ConversationSessionInfo;
-  /** "This conversation" section of the context popover. */
-  thisConversation?: Snippet;
+  /** Conversation-level icon actions in the context popover header; the
+   * callback closes the popover (e.g. before opening a dialog over it). */
+  contextActions?: Snippet<[closePopover: () => void]>;
   disabled?: boolean;
   editorDisabled?: boolean;
   submitDisabled?: boolean;

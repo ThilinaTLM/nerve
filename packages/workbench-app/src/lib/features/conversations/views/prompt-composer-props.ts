@@ -29,7 +29,7 @@ export type PromptComposerProps = {
   editorOverlay?: ComposerEditorOverlay;
   modeHidden?: boolean;
   session?: ConversationSessionInfo;
-  thisConversation?: Snippet;
+  contextActions?: Snippet<[closePopover: () => void]>;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activePendingConversation?: PendingConversationState;

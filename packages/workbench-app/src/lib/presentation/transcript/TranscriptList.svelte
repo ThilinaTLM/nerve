@@ -339,7 +339,9 @@ $effect(() => {
     projectPath={activeProject?.dir}
   />
 {:else}
-  <div class="relative h-full min-h-0 overflow-hidden">
+  <!-- `isolate` keeps the scroll fades' z-index inside the transcript, so
+       overlays that rise over it from the composer (activity island) stay on top. -->
+  <div class="relative isolate h-full min-h-0 overflow-hidden">
     <VirtualScroller
       bind:controller
       bind:atEnd

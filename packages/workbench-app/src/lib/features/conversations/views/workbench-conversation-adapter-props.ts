@@ -45,12 +45,15 @@ export type WorkbenchConversationAdapterProps = {
   editorOverlay?: ComposerEditorOverlay;
   modeHidden?: boolean;
   session?: ConversationSessionInfo;
-  thisConversation?: Snippet;
+  contextActions?: Snippet<[closePopover: () => void]>;
   activeProject?: ProjectRecord;
   activeConversation?: ConversationRecord;
   activeAgent?: AgentRecord;
   activePendingConversation?: PendingConversationState;
   pendingConversationActive?: boolean;
+  /** An existing conversation whose snapshot is still loading: render nothing
+   * rather than the new-conversation welcome. */
+  conversationLoading?: boolean;
   homeDir?: string;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];

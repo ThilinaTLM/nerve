@@ -70,7 +70,7 @@ import {
   subagentProfileLabel,
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
-import ConversationSettingsSection from "$lib/features/conversations/context/ConversationSettingsSection.svelte";
+import ConversationContextActions from "$lib/features/conversations/context/ConversationContextActions.svelte";
 import { ConversationHarnessState } from "$lib/features/conversations/context/conversation-harness-state.svelte";
 import { sessionFields } from "$lib/features/conversations/views/context-session-fields";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -601,9 +601,6 @@ const viewedProfile = $derived.by(() => {
   );
   return agent ? subagentProfileLabel(agent) : undefined;
 });
-function resetCompaction() {
-  void runActivePaneAction(() => harness.saveCompaction(null));
-}
 const composerOverlay = $derived(
   viewedChildId
     ? {
@@ -652,6 +649,9 @@ const teamRunning = $derived(
   {activeAgent}
   {activePendingConversation}
   {pendingConversationActive}
+  conversationLoading={Boolean(
+    conversationId && !store?.snapshot && !store?.error,
+  )}
   homeDir={workspaceState.status?.storage.userHome}
   approvals={activeApprovals}
   {pendingUserQuestions}
@@ -752,15 +752,20 @@ const teamRunning = $derived(
     void runActivePaneAction(openConversationHistory);
   }}
 >
-  {#snippet thisConversation()}
-    <ConversationSettingsSection
+  {#snippet contextActions(closePopover)}
+    <ConversationContextActions
       harness={harness.result}
       {instructions}
       profile={viewedProfile}
       disabled={!store?.snapshot || harness.saving}
-      onOverrideCompaction={() => (compactionDialogOpen = true)}
-      onResetCompaction={resetCompaction}
-      onEditInstructions={() => (instructionsDialogOpen = true)}
+      onEditCompaction={() => {
+        closePopover();
+        compactionDialogOpen = true;
+      }}
+      onEditInstructions={() => {
+        closePopover();
+        instructionsDialogOpen = true;
+      }}
     />
   {/snippet}
   {#snippet activity(showLatest, onJumpToBottom)}
@@ -785,8 +790,10 @@ const teamRunning = $derived(
   bind:compactionOpen={compactionDialogOpen}
   bind:instructionsOpen={instructionsDialogOpen}
   compaction={harness.result?.compaction.effective}
+  compactionOverridden={harness.result?.compaction.source === "conversation"}
   {instructions}
   onSaveCompaction={(value) => harness.saveCompaction(value)}
+  onResetCompaction={() => harness.saveCompaction(null)}
   onSaveInstructions={async (value) => {
     await store?.configure({ instructions: value });
   }}

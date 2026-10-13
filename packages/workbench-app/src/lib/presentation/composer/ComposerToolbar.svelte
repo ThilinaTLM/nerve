@@ -43,7 +43,7 @@ type Props = {
   /** Conversations without plan mode drop the toggle entirely. */
   modeHidden?: boolean;
   session?: ConversationSessionInfo;
-  thisConversation?: Snippet;
+  contextActions?: Snippet<[closePopover: () => void]>;
   modelDisabled: boolean;
   /** Display label for the mode tab, e.g. "Coding" / "Planning". */
   modeLabel: string;
@@ -94,7 +94,7 @@ let {
   modeDisabled,
   modeHidden = false,
   session,
-  thisConversation,
+  contextActions,
   modelDisabled,
   modeLabel,
   modePlanning,
@@ -302,7 +302,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 
     <ContextProgressBadge
       {session}
-      {thisConversation}
+      {contextActions}
       {contextUsage}
       {conversationUsage}
       {contextWindow}
