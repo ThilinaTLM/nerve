@@ -24,24 +24,38 @@ export interface LaunchToolOptions {
   now?: () => number;
 }
 
+function definitionName(definition: LaunchDefinition): string {
+  return definition.label?.trim() || definition.command.trim();
+}
+
+function launchName(launch: LaunchRecord): string {
+  return (
+    launch.displayName?.trim() || launch.name?.trim() || launch.command.trim()
+  );
+}
+
+function launchDescription(
+  definition: LaunchDefinition | undefined,
+  launch?: LaunchRecord,
+): string {
+  const name = definition ? definitionName(definition) : launchName(launch!);
+  const command = definition?.command ?? launch!.command;
+  return `${JSON.stringify(name)} — command: ${JSON.stringify(command)}${launch && launch.command !== command ? `; run command: ${JSON.stringify(launch.command)}` : ""}${launch ? `; runId: ${launch.id}` : ""}`;
+}
+
 export function formatLaunchStatus(
   definition: LaunchDefinition | undefined,
   launch?: LaunchRecord,
 ): string {
   const port = definition?.port ?? launch?.runtime?.listeningPorts?.[0]?.port;
   return [
-    definition?.id ?? launch?.id,
-    definition?.label ??
-      definition?.command ??
-      launch?.displayName ??
-      launch?.command,
+    launchDescription(definition, launch),
     launch?.status ?? "idle",
     ...(launch?.readiness.outcome === "ready" && launch.readiness.readyUrl
       ? [`ready ${launch.readiness.readyUrl}`]
       : []),
     ...(port !== undefined ? [`:${port}`] : []),
     ...(launch?.exitCode != null ? [`exit ${launch.exitCode}`] : []),
-    ...(launch ? [launch.id] : []),
   ].join(" ");
 }
 
@@ -81,7 +95,7 @@ export class LaunchTool {
     this.options.notify(
       owner,
       launch,
-      `${launch.id}\nStatus: ${launch.status}; exit code: ${launch.exitCode ?? "unknown"}${output ? `\n${output}` : ""}`,
+      `${launchDescription(undefined, launch)}\nStatus: ${launch.status}; exit code: ${launch.exitCode ?? "unknown"}${output ? `\n${output}` : ""}`,
     );
   }
 
@@ -103,12 +117,17 @@ export class LaunchTool {
         (key) =>
           ![
             "action",
-            ...(action !== "status" ? ["id"] : []),
+            ...(action !== "status" ? ["name"] : []),
+            ...(["logs", "stop", "restart"].includes(String(action))
+              ? ["runId"]
+              : []),
             ...(action === "logs" ? ["offset", "limit"] : []),
           ].includes(key),
       ) ||
       (action !== "status" &&
-        (typeof args.id !== "string" || !args.id.trim())) ||
+        (typeof args.name !== "string" || !args.name.trim())) ||
+      (args.runId !== undefined &&
+        (typeof args.runId !== "string" || !args.runId.trim())) ||
       (args.offset !== undefined &&
         (!Number.isInteger(args.offset) || Number(args.offset) < 0)) ||
       (args.limit !== undefined &&
@@ -127,46 +146,72 @@ export class LaunchTool {
       return {
         content:
           [
-            ...definitions.map((definition) =>
-              formatLaunchStatus(
-                definition,
-                launches.find(
-                  (launch) => launch.definitionId === definition.id,
-                ),
-              ),
-            ),
+            ...definitions.flatMap((definition) => {
+              const runs = launches.filter(
+                (launch) => launch.definitionId === definition.id,
+              );
+              return runs.length
+                ? runs.map((launch) => formatLaunchStatus(definition, launch))
+                : [formatLaunchStatus(definition)];
+            }),
             ...launches
               .filter((launch) => !launch.definitionId)
               .map((launch) => formatLaunchStatus(undefined, launch)),
           ].join("\n") || "No launches.",
       };
-    const id = String(args.id);
-    const definition = definitions.find((item) => item.id === id);
-    const launch = definition
-      ? launches.find((item) => item.definitionId === id)
-      : launches.find((item) => item.id === id);
+    const name = String(args.name).trim();
+    const matchingDefinitions = definitions.filter(
+      (item) => definitionName(item) === name,
+    );
+    if (matchingDefinitions.length > 1)
+      throw new Error(
+        `Ambiguous launch name ${JSON.stringify(name)}. Rename the duplicate definitions: ${matchingDefinitions.map((item) => JSON.stringify(item.command)).join(", ")}`,
+      );
+    const definition = matchingDefinitions[0];
+    const matchingLaunches = definition
+      ? launches.filter((item) => item.definitionId === definition.id)
+      : launches.filter(
+          (item) => !item.definitionId && launchName(item) === name,
+        );
+    const runId =
+      args.runId === undefined ? undefined : String(args.runId).trim();
+    const lineages = new Set(
+      matchingLaunches.map((item) => item.restartRootLaunchId ?? item.id),
+    );
+    if (!definition && !runId && lineages.size > 1)
+      throw new Error(
+        `Ambiguous launch name ${JSON.stringify(name)}. Supply runId for a specific execution: ${matchingLaunches.map((item) => `${item.id} (${JSON.stringify(item.command)})`).join(", ")}`,
+      );
+    const launch = runId
+      ? matchingLaunches.find((item) => item.id === runId)
+      : matchingLaunches[0];
+    if (runId && !launch)
+      throw new Error("Launch run not found for this name in this project.");
     if (!definition && !launch)
-      throw new Error("Launch or definition not found in this project.");
+      throw new Error("Launch name not found in this project.");
     if (action === "logs") {
       if (!launch) throw new Error("Definition has no launches.");
       return {
-        content: await projectProcessOutputPage({
-          outputFiles: {
-            combined: launch.combinedPath,
-            stdout: launch.stdoutPath,
-            stderr: launch.stderrPath,
+        content: `${launchDescription(definition, launch)}\n${await projectProcessOutputPage(
+          {
+            outputFiles: {
+              combined: launch.combinedPath,
+              stdout: launch.stdoutPath,
+              stderr: launch.stderrPath,
+            },
+            status: launch.status,
+            captureTruncated: launch.outputRetention?.truncated,
+            offset: args.offset as number | undefined,
+            limit: args.limit as number | undefined,
           },
-          status: launch.status,
-          captureTruncated: launch.outputRetention?.truncated,
-          offset: args.offset as number | undefined,
-          limit: args.limit as number | undefined,
-        }),
+        )}`,
       };
     }
     if (action === "stop") {
-      if (!launch) return { content: "Nothing running." };
+      if (!launch)
+        return { content: `Nothing running: ${launchDescription(definition)}` };
       await this.options.launches.cancel(launch.id);
-      return { content: `Stopped: ${launch.id}` };
+      return { content: `Stopped: ${launchDescription(definition, launch)}` };
     }
     if (
       action === "restart" &&
@@ -187,17 +232,21 @@ export class LaunchTool {
       launch &&
       !isTerminalLaunchStatus(launch.status)
     )
-      return { content: `Already running: ${launch.id}` };
+      return {
+        content: `Already running: ${launchDescription(definition, launch)}`,
+      };
     this.starting++;
     try {
       let started: LaunchRecord;
       let port: number | undefined;
+      let startedDefinition: LaunchDefinition | undefined;
       if (definitionId) {
         // Re-read after stop: definition edits must take effect on restart.
         const current = await this.options.definitions.get(
           project.id,
           definitionId,
         );
+        startedDefinition = current;
         port = current.port;
         const outcome = await this.options.launches.launchDefinition({
           definitionId: current.id,
@@ -209,13 +258,15 @@ export class LaunchTool {
             project.directory,
           ),
           command: current.command,
-          displayName: current.label ?? current.command,
+          displayName: definitionName(current),
         });
         if (outcome.disposition === "focused_existing")
-          return { content: `Already running: ${outcome.launch.id}` };
+          return {
+            content: `Already running: ${launchDescription(current, outcome.launch)}`,
+          };
         if (outcome.disposition === "port_conflict")
           return {
-            content: `Port conflict :${outcome.conflict.port}\n${outcome.conflict.listeners.map((listener) => `PID ${listener.pid} ${listener.processName ?? "unknown"}`).join("\n")}`,
+            content: `${launchDescription(current)}\nPort conflict :${outcome.conflict.port}\n${outcome.conflict.listeners.map((listener) => `PID ${listener.pid} ${listener.processName ?? "unknown"}`).join("\n")}`,
           };
         started = outcome.launch;
       } else {
@@ -229,7 +280,7 @@ export class LaunchTool {
         if (exited && isTerminalLaunchStatus(exited.status))
           await this.changed("launch.exited", exited);
       }
-      let content = `Started: ${started.id}`;
+      let content = `Started: ${launchDescription(startedDefinition, started)}`;
       if (port !== undefined) {
         const now = this.options.now ?? Date.now;
         const deadline = now() + 30_000;

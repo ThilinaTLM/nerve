@@ -96,24 +96,39 @@ Manage your background bash runs. list: running runs (all:true includes finished
 
 ### `launch`
 
-| Action    | Arguments                 | Risk    |
-| --------- | ------------------------- | ------- |
-| `status`  | —                         | read    |
-| `logs`    | `id`, `offset?`, `limit?` | read    |
-| `start`   | `id`                      | command |
-| `restart` | `id`                      | command |
-| `stop`    | `id`                      | command |
+| Action    | Arguments                             | Risk    |
+| --------- | ------------------------------------- | ------- |
+| `status`  | —                                     | read    |
+| `logs`    | `name`, `runId?`, `offset?`, `limit?` | read    |
+| `start`   | `name`                                | command |
+| `restart` | `name`, `runId?`                      | command |
+| `stop`    | `name`, `runId?`                      | command |
 
-`id` is a launch definition ID (`launchdef_…`) or a launch ID (`launch_…`). For `logs`/`stop`/`restart`, a definition ID means its latest launch. Permanent approval of `start`/`restart`/`stop` uses the existing tool-level rules; there are no per-definition permission targets.
+`name` is the trimmed saved label, falling back to the trimmed command when the label is absent or blank. Selector whitespace is trimmed; matching is exact, case-sensitive, and project-local. Definition IDs remain internal to storage and RPCs, not tool arguments or output. Historical ID-based tool calls remain readable in transcripts, but `id` is not accepted for new executions. No storage or schema migration is needed for name-first selection.
 
-```text
-Run the user's launch definitions (dev servers etc.). status: definitions and their launches. start/restart/stop by id. logs: output lines from offset (default: last lines). You cannot create or edit definitions.
-```
+For `logs`/`stop`/`restart`, optional `runId` selects a specific execution belonging to the supplied name. Without it, the existing latest-run selection applies. `start` does not accept `runId`. Permission matching binds action and name, plus run ID when supplied; old ID-bound grants do not match new name-based calls.
+
+The tool lists names and commands, starts by name, and reads logs, stops, or restarts by name with an optional execution selector. Agents cannot create or edit definitions.
 
 Behavior:
 
-- `status`, one line per definition, then launches without a definition: `{definitionId} {label} {status}[ ready {url}][ :{port}][ exit {code}] {launchId}`. Never-run definitions show `idle`.
-- `start` honors the run policy: for `single`, an active launch is reported (`Already running: {launchId}`) instead of starting another.
+- `status` lists each definition's quoted name, current command, status, readiness/port/exit details, and available run IDs, then ad-hoc launches. Each retained run gets a status line so concurrent and historical run IDs are discoverable. Never-run definitions show `idle`. If a run executed a different command, show that run command separately from the current definition command. Definition IDs are never listed.
+- Resolve saved definitions by name first; only when none matches, resolve ad-hoc launches by display name, then run name, falling back to command. Multiple runs of one definition are not ambiguous. Distinct definitions or ad-hoc lineages sharing a name fail with commands and guidance to rename or, for ad-hoc runs where applicable, supply `runId`. A run ID never disambiguates duplicate saved definitions.
+- Reject a run ID belonging to another name or project. After a name edit, agents must refresh status to discover the new selector.
+- `start` honors the run policy: for `single`, an active launch is reported instead of starting another. Start, already-running, stop, and nothing-running responses, log headers, and exit notices identify the quoted name and command; run IDs are secondary diagnostics.
+
+Example calls (name and execution identity are separate):
+
+```ts
+launch({ action: "status" });
+launch({ action: "start", name: "Web dev" }); // saved command: pnpm dev
+launch({ action: "logs", name: "Web dev", runId: "launch_…", limit: 100 });
+launch({ action: "restart", name: "Web dev" }); // latest run, current command
+launch({ action: "stop", name: "pnpm preview", runId: "launch_…" }); // unnamed definition
+```
+
+Additional behavior:
+
 - A port conflict is reported with the listener's PID and process name. The agent never terminates foreign listeners; only the user can, from the UI.
 - If the definition has a port, `start`/`restart` wait up to 30 s for it to listen and report `Ready :{port}` or `Not listening after 30s`.
 - `restart` stops the launch and starts the **current** definition. With nothing running it starts.

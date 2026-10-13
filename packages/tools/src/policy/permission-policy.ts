@@ -262,8 +262,12 @@ export function normalizePermissionRequest(input: {
     targets,
     conversationId: input.conversationId,
   };
-  if (input.toolName === "launch" && typeof args.id === "string")
-    request.primaryArgument = [args.action, args.id];
+  if (input.toolName === "launch" && typeof args.name === "string")
+    request.primaryArgument = [
+      args.action,
+      args.name,
+      ...(args.runId !== undefined ? [args.runId] : []),
+    ];
   else if (primaryArgument !== undefined)
     request.primaryArgument = primaryArgument;
   if (targets[0]) request.primaryTarget = targets[0];

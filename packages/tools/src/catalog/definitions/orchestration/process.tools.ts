@@ -48,7 +48,7 @@ export const processToolDefinitions = [
     label: "launch",
     classifyRisk: classifyProcessRisk,
     description:
-      "Run the user's launch definitions (dev servers etc.). status: definitions and their launches. start/restart/stop by id. logs: output lines from offset (default: last lines). You cannot create or edit definitions.",
+      "Run the user's launch definitions (dev servers etc.). status: names, commands, and runs. Select by exact, case-sensitive name (trimmed label, falling back to trimmed command). start/restart/stop/logs require name; optional runId selects an execution for logs/stop/restart only, otherwise the latest run is used. logs: output lines from offset (default: last lines). Definition IDs are internal. You cannot create or edit definitions.",
     parameters: Type.Object(
       {
         action: Type.Union([
@@ -58,7 +58,14 @@ export const processToolDefinitions = [
           Type.Literal("restart"),
           Type.Literal("stop"),
         ]),
-        id: Type.Optional(Type.String({ minLength: 1 })),
+        name: Type.Optional(Type.String({ minLength: 1 })),
+        runId: Type.Optional(
+          Type.String({
+            minLength: 1,
+            description:
+              "Execution selector for logs, stop, or restart only; must belong to the supplied name.",
+          }),
+        ),
         ...page,
       },
       { additionalProperties: false },

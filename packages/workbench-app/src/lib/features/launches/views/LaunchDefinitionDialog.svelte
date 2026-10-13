@@ -96,7 +96,7 @@ function submit() {
 >
   <div class="grid gap-3">
     <div class="grid gap-1.5">
-      <Label for="launch-definition-label">Label</Label>
+      <Label for="launch-definition-label">Name</Label>
       <Input
         size="xs"
         id="launch-definition-label"
