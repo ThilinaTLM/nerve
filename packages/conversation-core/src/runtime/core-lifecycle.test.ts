@@ -324,3 +324,300 @@ void test(
     }
   },
 );
+
+for (const action of ["stop", "forcePush"] as const) {
+  void test(
+    `${action} owns cancellation despite delayed and uncooperative workers`,
+    { timeout: 5000 },
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "nerve-cancel-"));
+      const gates = new Map(
+        ["success", "failure", "ack", "background"].map((name) => [
+          name,
+          deferred<void>(),
+        ]),
+      );
+      const signals: AbortSignal[] = [];
+      let backgroundCancelled = false;
+      let progress = 0;
+      const provider = registerAgentScriptedProvider({
+        provider: `cancel-${randomUUID()}`,
+        model: "test",
+        steps: [
+          {
+            type: "toolCalls",
+            calls: [
+              {
+                id: "approval",
+                name: "write",
+                args: { path: "pending.txt", content: "pending" },
+              },
+              {
+                id: "question",
+                name: "ask_user",
+                args: { question: "Which option?" },
+              },
+              ...[...gates.keys()].map((command) => ({
+                id: command,
+                name: "bash",
+                args: { command },
+              })),
+            ],
+          },
+        ],
+      });
+      const config = options(
+        directory,
+        ":memory:",
+        {
+          resolve: async () => {
+            const model = provider.getModel("test");
+            if (!model) throw new Error("Missing scripted model");
+            return { model };
+          },
+        },
+        {
+          execute: async ({ args, signal, onProgress }) => {
+            signals.push(signal);
+            const command = String((args as { command: string }).command);
+            await gates.get(command)!.promise;
+            onProgress({ chunk: "late progress" });
+            if (command === "ack")
+              throw Object.assign(new Error("Process cancelled"), {
+                name: "AbortError",
+              });
+            if (command === "background")
+              return {
+                kind: "backgrounded",
+                result: { content: "late background" },
+                process: {
+                  ref: "late-process",
+                  outputFiles: { stdout: "unused", stderr: "unused" },
+                  wait: async () => ({ exitCode: null, status: "cancelled" }),
+                  cancel: async () => {
+                    backgroundCancelled = true;
+                  },
+                },
+              };
+            return { kind: "completed", result: { content: "late success" } };
+          },
+          isReplaySafe: () => false,
+        },
+      );
+      const core = new ConversationCore(config);
+      const unsubscribe = core.subscribe((change) => {
+        if (change.kind === "live" && change.delta.type === "tool_progress")
+          progress++;
+      });
+      try {
+        await core.start();
+        await createConversation(core, "conv_cancel");
+        core.submitInput({
+          conversationId: "conv_cancel",
+          inputId: "input_cancel",
+          text: "Use tools",
+          source: "user",
+        });
+        await waitUntil(
+          () =>
+            signals.length === 4 &&
+            core
+              .getSnapshot("conv_cancel")
+              .toolCalls.filter((call) => call.state.startsWith("awaiting_"))
+              .length === 2,
+        );
+        await core[action]("conv_cancel");
+        assert.ok(signals.every((signal) => signal.aborted));
+        assert.equal(core.getSnapshot("conv_cancel").toolCalls.length, 0);
+        const responses = core
+          .getEventsSince("conv_cancel", 0)
+          .filter((event) => event.type === "tool_call_response");
+        assert.equal(responses.length, 6);
+        assert.equal(
+          new Set(responses.map((event) => event.payload.toolCallId)).size,
+          6,
+        );
+        assert.ok(
+          responses.every((event) => event.payload.outcome !== "indeterminate"),
+        );
+        for (const event of responses) {
+          assert.equal(event.payload.outcome, "cancelled");
+          const stored = config.storage.events
+            .since("conv_cancel", 0)
+            .find((stored) => stored.id === event.id);
+          assert.ok(stored?.type === "tool_call_response");
+          const text = stored.payload.agentProjection
+            .filter((block) => block.type === "text")
+            .map((block) => block.text)
+            .join("\n");
+          assert.match(
+            text,
+            /Tool execution was cancelled\. No rollback is implied\./,
+          );
+          assert.match(text, /Effects already performed are not undone\./);
+          assert.match(
+            text,
+            action === "stop"
+              ? /cancelled by the user/
+              : /cancelled for a replacement prompt/,
+          );
+          if (action === "forcePush")
+            assert.doesNotMatch(text, /cancelled by the user/);
+        }
+        gates.get("failure")!.reject(new Error("late failure"));
+        for (const [name, gate] of gates)
+          if (name !== "failure") gate.resolve();
+        await waitUntil(() => backgroundCancelled);
+        await delay(20);
+        assert.equal(progress, 0);
+        assert.deepEqual(
+          core
+            .getEventsSince("conv_cancel", 0)
+            .filter((event) => event.type === "tool_call_response"),
+          responses,
+        );
+      } finally {
+        for (const gate of gates.values()) gate.resolve();
+        unsubscribe();
+        await core.close();
+        provider.unregister();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+void test(
+  "Stop preserves a completion whose settlement already began",
+  { timeout: 5000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nerve-settling-"));
+    const writing = deferred<void>();
+    const release = deferred<void>();
+    const core = new ConversationCore(
+      options(
+        directory,
+        ":memory:",
+        {
+          resolve: async () => {
+            throw new Error("Inline command must not call a provider");
+          },
+        },
+        {
+          execute: async () => ({
+            kind: "completed",
+            result: { content: "owned completion" },
+          }),
+          isReplaySafe: () => false,
+        },
+      ),
+    );
+    const write = core.assets.write.bind(core.assets);
+    core.assets.write = async (input) => {
+      writing.resolve();
+      await release.promise;
+      return write(input);
+    };
+    try {
+      await core.start();
+      await createConversation(core, "conv_settling");
+      const submission = core.submitInput({
+        conversationId: "conv_settling",
+        inputId: "input_settling",
+        text: "!command",
+        source: "user",
+      });
+      await writing.promise;
+      const stopped = core.stop("conv_settling");
+      release.resolve();
+      await Promise.all([submission, stopped]);
+      const responses = core
+        .getEventsSince("conv_settling", 0)
+        .filter((event) => event.type === "tool_call_response");
+      assert.equal(responses.length, 1);
+      assert.equal(responses[0].payload.outcome, "completed");
+      assert.equal(core.getSnapshot("conv_settling").toolCalls.length, 0);
+    } finally {
+      release.resolve();
+      await core.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
+void test(
+  "forcePush cleans up a background process when pending adoption rejects late",
+  { timeout: 5000 },
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), "nerve-adoption-"));
+    const adopting = deferred<void>();
+    const adoption = deferred<never>();
+    let cancelled = false;
+    let progress = 0;
+    const config = options(
+      directory,
+      ":memory:",
+      {
+        resolve: async () => {
+          throw new Error("Inline command must not call a provider");
+        },
+      },
+      {
+        execute: async ({ onProgress }) => {
+          void adoption.promise.catch(() =>
+            onProgress({ chunk: "late progress" }),
+          );
+          return {
+            kind: "backgrounded",
+            result: { content: "background" },
+            process: {
+              ref: "pending-adoption",
+              outputFiles: { stdout: "unused", stderr: "unused" },
+              wait: async () => ({ exitCode: null, status: "cancelled" }),
+              cancel: async () => {
+                cancelled = true;
+              },
+            },
+          };
+        },
+        isReplaySafe: () => false,
+      },
+    );
+    const core = new ConversationCore(config);
+    core.asyncBash.adopt = async () => {
+      adopting.resolve();
+      return adoption.promise;
+    };
+    const unsubscribe = core.subscribe((change) => {
+      if (change.kind === "live" && change.delta.type === "tool_progress")
+        progress++;
+    });
+    try {
+      await core.start();
+      await createConversation(core, "conv_adoption");
+      const submission = core.submitInput({
+        conversationId: "conv_adoption",
+        inputId: "input_adoption",
+        text: "!command",
+        source: "user",
+      });
+      await adopting.promise;
+      await core.forcePush("conv_adoption");
+      assert.equal(core.getSnapshot("conv_adoption").toolCalls.length, 0);
+      adoption.reject(new Error("late adoption failure"));
+      await submission;
+      await waitUntil(() => cancelled);
+      assert.equal(progress, 0);
+      const responses = config.storage.events
+        .since("conv_adoption", 0)
+        .filter((event) => event.type === "tool_call_response");
+      assert.equal(responses.length, 1);
+      assert.equal(responses[0].payload.outcome, "cancelled");
+    } finally {
+      adoption.reject(new Error("test cleanup"));
+      unsubscribe();
+      await core.close();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
