@@ -103,13 +103,17 @@ export class ConversationScheduler {
       summary: this.options.storage.conversations.getSummary(id)!,
     });
   }
-  private async cancelOne(id: string, pause: boolean): Promise<void> {
+  private async cancelOne(
+    id: string,
+    pause: boolean,
+    reason: string,
+  ): Promise<void> {
     this.stopping.add(id);
     try {
       if (pause) this.setPaused(id, true);
       const slot = this.slots.get(id);
       slot?.controller.abort();
-      await this.options.toolCalls.cancel(id);
+      await this.options.toolCalls.cancel(id, { reason });
       if (slot)
         await slot.done.catch((error) => {
           if (!slot.controller.signal.aborted) throw error;
@@ -129,12 +133,22 @@ export class ConversationScheduler {
     if (!this.options.storage.conversations.get(id)) return;
     const ids = [id, ...this.options.storage.descendantConversationIds(id)];
     await Promise.all(
-      ids.map((conversationId) => this.cancelOne(conversationId, true)),
+      ids.map((conversationId) =>
+        this.cancelOne(
+          conversationId,
+          true,
+          "Tool call cancelled by the user. Effects already performed are not undone.",
+        ),
+      ),
     );
     await this.options.asyncBash.cancelForConversations(ids);
   }
   async forcePush(id: string): Promise<void> {
-    await this.cancelOne(id, false);
+    await this.cancelOne(
+      id,
+      false,
+      "Tool call cancelled for a replacement prompt. Effects already performed are not undone.",
+    );
     this.setPaused(id, false);
     if (
       this.options.inputs.hasDeliverable(id, {

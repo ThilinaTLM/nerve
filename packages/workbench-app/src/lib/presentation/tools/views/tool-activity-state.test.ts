@@ -1,6 +1,48 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deriveToolActivitySections } from "./tool-activity-state";
+import {
+  deriveToolActivitySections,
+  deriveToolLifecycleVisualStage,
+  toolLifecycleStageIndicator,
+  visibleLifecycleStage,
+} from "./tool-activity-state";
+
+describe("tool lifecycle visual stage", () => {
+  it("shows cancellation separately from failure without pulsing", () => {
+    const stage = deriveToolLifecycleVisualStage({
+      toolCall: { status: "cancelled" },
+    });
+    assert.equal(stage, "cancelled");
+    assert.equal(visibleLifecycleStage(stage, false), "cancelled");
+    assert.deepEqual(toolLifecycleStageIndicator(stage), {
+      tone: "warning",
+      pulse: false,
+      label: "Cancelled",
+    });
+
+    for (const status of ["failed", "denied"] as const) {
+      assert.equal(
+        deriveToolLifecycleVisualStage({ toolCall: { status } }),
+        "failed",
+      );
+    }
+  });
+
+  it("keeps genuine recovery uncertainty ahead of terminal status", () => {
+    for (const status of ["cancelled", "failed", "completed"] as const) {
+      const stage = deriveToolLifecycleVisualStage({
+        toolCall: { status },
+        outcomeUnknown: true,
+      });
+      assert.equal(stage, "outcome_unknown", status);
+      assert.deepEqual(toolLifecycleStageIndicator(stage), {
+        tone: "warning",
+        pulse: false,
+        label: "Outcome unknown",
+      });
+    }
+  });
+});
 
 describe("tool argument lifecycle", () => {
   it("hides rejected assignment context while retaining the error and details", () => {

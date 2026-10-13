@@ -30,6 +30,7 @@ export type ToolLifecycleVisualStage =
   /** Recovery could not tell whether the side effect happened. */
   | "outcome_unknown"
   | "completed"
+  | "cancelled"
   | "failed";
 
 export type ToolActivitySections = {
@@ -86,9 +87,10 @@ export function deriveToolLifecycleVisualStage(input: {
       return "executing";
     case "completed":
       return "completed";
+    case "cancelled":
+      return "cancelled";
     case "failed":
     case "denied":
-    case "cancelled":
       return "failed";
   }
 }
@@ -118,7 +120,7 @@ export function visibleLifecycleStage(
 /**
  * Header/footer overrides for stages whose meaning is not carried by the tool
  * status presentation: a queued call must not look like it is executing, and an
- * unknown outcome must not keep spinning.
+ * unknown outcome or cancelled call must not keep spinning.
  */
 export function toolLifecycleStageIndicator(
   stage: ToolLifecycleVisualStage,
@@ -133,6 +135,8 @@ export function toolLifecycleStageIndicator(
       };
     case "outcome_unknown":
       return { tone: "warning", pulse: false, label: "Outcome unknown" };
+    case "cancelled":
+      return { tone: "warning", pulse: false, label: "Cancelled" };
     default:
       return undefined;
   }

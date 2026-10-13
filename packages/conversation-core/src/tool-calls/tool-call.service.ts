@@ -235,17 +235,14 @@ export class ToolCallService {
 
   async cancel(
     conversationId: string,
-    input: { turnId?: string } = {},
+    input: { turnId?: string; reason?: string } = {},
   ): Promise<void> {
     const rows = this.openRows(conversationId).filter(
       (call) => !input.turnId || call.turnId === input.turnId,
     );
-    for (const call of rows) {
-      this.stopping.add(call.id);
-      this.controllers.get(call.id)?.abort();
-    }
-    // Give a synchronously aborting worker a chance to acknowledge cancellation.
-    await Promise.resolve();
+    // Own every targeted call before abort listeners can wake any worker.
+    for (const call of rows) this.stopping.add(call.id);
+    for (const call of rows) this.controllers.get(call.id)?.abort();
     await Promise.all(
       rows.map(async (call) => {
         const current = this.options.storage.toolCalls.get(call.id);
@@ -253,21 +250,22 @@ export class ToolCallService {
           this.stopping.delete(call.id);
           return;
         }
-        const outcome =
-          current.state === "running" ? "indeterminate" : "cancelled";
-        await this.settlement.settle(
-          current,
-          outcome,
-          {
-            content:
-              outcome === "indeterminate"
-                ? "Stopped; the external effect could not be confirmed."
-                : "Tool call cancelled.",
-          },
-          current.executionClaim,
-        );
-        if (!this.options.storage.toolCalls.get(call.id))
-          this.stopping.delete(call.id);
+        // Settlement deduplication preserves a result already owned before cancellation.
+        try {
+          await this.settlement.settle(
+            current,
+            "cancelled",
+            {
+              content:
+                input.reason ?? "Tool call cancelled. No rollback is implied.",
+            },
+            current.executionClaim,
+          );
+        } finally {
+          // Retained rows stay fenced if persistence failed; cancellation can be retried.
+          if (!this.options.storage.toolCalls.get(call.id))
+            this.stopping.delete(call.id);
+        }
       }),
     );
   }
@@ -415,16 +413,23 @@ export class ToolCallService {
         return;
       }
       if (result.kind === "backgrounded") {
-        const bash = await this.options.asyncBash.adopt({
-          conversationId: call.conversationId,
-          toolCallId: call.id,
-          command: String(call.arguments.command ?? ""),
-          cwd:
-            typeof objectDetails(result.result.details).cwd === "string"
-              ? String(objectDetails(result.result.details).cwd)
-              : config.workingDirectory,
-          process: result.process,
-        });
+        let bash: AsyncBash;
+        try {
+          bash = await this.options.asyncBash.adopt({
+            conversationId: call.conversationId,
+            toolCallId: call.id,
+            command: String(call.arguments.command ?? ""),
+            cwd:
+              typeof objectDetails(result.result.details).cwd === "string"
+                ? String(objectDetails(result.result.details).cwd)
+                : config.workingDirectory,
+            process: result.process,
+          });
+        } catch (error) {
+          if (controller.signal.aborted || !this.holdsClaim(call))
+            await result.process.cancel();
+          throw error;
+        }
         if (controller.signal.aborted || !this.holdsClaim(call)) {
           await result.process.cancel();
           return;
@@ -453,7 +458,7 @@ export class ToolCallService {
         );
       }
     } catch (error) {
-      if (this.closed) return;
+      if (this.closed || this.stopping.has(id)) return;
       const current = this.options.storage.toolCalls.get(id);
       if (!current || (call.executionClaim && !this.holdsClaim(call))) return;
       const aborted = controller.signal.aborted;
@@ -468,7 +473,7 @@ export class ToolCallService {
   }
 
   private holdsClaim(call: ToolCall): boolean {
-    if (this.closed) return false;
+    if (this.closed || this.stopping.has(call.id)) return false;
     const current = this.options.storage.toolCalls.get(call.id);
     return (
       current?.state === "running" &&
@@ -495,7 +500,12 @@ export class ToolCallService {
       conversationId: call.conversationId,
       signal,
       onProgress: (update) => {
-        if (!signal.aborted && this.options.storage.toolCalls.get(call.id))
+        if (
+          !this.closed &&
+          !this.stopping.has(call.id) &&
+          !signal.aborted &&
+          this.options.storage.toolCalls.get(call.id)
+        )
           this.options.emit({
             kind: "live",
             conversationId: call.conversationId,
