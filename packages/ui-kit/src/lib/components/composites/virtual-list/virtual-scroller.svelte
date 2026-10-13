@@ -1,5 +1,9 @@
 <script lang="ts" generics="T">
-import { createVirtualizer } from "@tanstack/svelte-virtual";
+import {
+  createVirtualizer,
+  elementScroll,
+  observeElementOffset,
+} from "@tanstack/svelte-virtual";
 import { tick } from "svelte";
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import { get } from "svelte/store";
@@ -82,6 +86,14 @@ function resolveEstimate(index: number): number {
   return estimateSize?.(index) ?? DEFAULT_ESTIMATE;
 }
 
+// TanStack learns the scroll offset only from the async `scroll` event, so
+// after a programmatic jump it computes the rendered range from the old offset
+// for one painted frame (blank viewport, stale `atEnd`). Report the landed
+// offset synchronously after every non-smooth programmatic scroll instead.
+let reportScrollOffset:
+  | ((offset: number, isScrolling: boolean) => void)
+  | null = null;
+
 // Created once per component instance. Structural reconciliation replaces the
 // immutable key accessor whenever any key in the sequence changes.
 const virtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
@@ -89,6 +101,23 @@ const virtualizer = createVirtualizer<HTMLDivElement, HTMLElement>({
   getScrollElement: () => viewportEl,
   estimateSize: (index) => resolveEstimate(index),
   getItemKey: createItemKeyAccessor(itemKeySnapshot),
+  observeElementOffset: (instance, callback) => {
+    reportScrollOffset = callback;
+    const unobserve = observeElementOffset(instance, callback);
+    return () => {
+      if (reportScrollOffset === callback) reportScrollOffset = null;
+      unobserve?.();
+    };
+  },
+  scrollToFn: (offset, options, instance) => {
+    elementScroll(offset, options, instance);
+    const element = instance.scrollElement;
+    if (options.behavior !== "smooth" && element) {
+      reportScrollOffset?.(element.scrollTop, false);
+      // The range may be unchanged (no notify), but the end state is not.
+      atEnd = instance.isAtEnd(scrollEndThreshold);
+    }
+  },
 });
 
 // Stable instance reference (also ensures the adapter has attached its wrapped
@@ -317,8 +346,17 @@ let resizeObserver: ResizeObserver | undefined;
 function sharedResizeObserver(): ResizeObserver | undefined {
   if (resizeObserver || typeof ResizeObserver === "undefined")
     return resizeObserver;
+  // ResizeObserver delivers after layout and before paint (including the
+  // initial observation of a freshly mounted row). Commit right here so rows
+  // never paint a frame at their estimated size/position; the resulting
+  // spacer/transform updates land in the same frame via the microtask flush.
   resizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) queueMeasure(entry.target as HTMLElement);
+    for (const entry of entries) {
+      const node = entry.target as HTMLElement;
+      if (registeredMeasureNodes.has(node)) pendingMeasureNodes.add(node);
+    }
+    cancelMeasureFrame();
+    flushMeasurements();
   });
   return resizeObserver;
 }

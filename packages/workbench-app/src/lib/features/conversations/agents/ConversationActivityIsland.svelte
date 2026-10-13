@@ -155,7 +155,10 @@ function edge(node: Element) {
 // While the dock morphs between collapsed and expanded, width is animated by
 // CSS. At rest it follows the measured footprint exactly (no transition), so
 // buttons sliding in/out don't retarget a transition every frame. `.pre` makes
-// the transition class land in the same DOM update as the new width.
+// the transition class land in the same DOM update as the new width. The morph
+// ends on the width transition's own `transitionend`, so a late or slowed
+// transition never outlives the full-width layout; the timer is only a
+// fallback for when no transition runs (unchanged width, interruption).
 let morphing = $state(false);
 /** Panel still on screen (including its exit), so the dock stays attached. */
 let panelShown = $state(false);
@@ -171,10 +174,29 @@ $effect.pre(() => {
   seenOpen = current;
   if (!morph) return;
   morphing = true;
+  armMorphFallback();
+});
+function armMorphFallback(): void {
   clearTimeout(morphTimer);
   const ms = dock ? motionMs(dock, 1.6) : 0;
   morphTimer = setTimeout(() => (morphing = false), ms && ms + 40);
-});
+}
+function isMorph(event: TransitionEvent): boolean {
+  return event.target === event.currentTarget && event.propertyName === "width";
+}
+// A running width transition always ends or cancels, so it owns the morph.
+function morphRun(event: TransitionEvent): void {
+  if (isMorph(event)) clearTimeout(morphTimer);
+}
+function morphEnd(event: TransitionEvent): void {
+  if (!isMorph(event)) return;
+  clearTimeout(morphTimer);
+  morphing = false;
+}
+// Retargeting cancels the old transition before the new one runs.
+function morphCancel(event: TransitionEvent): void {
+  if (isMorph(event)) armMorphFallback();
+}
 $effect(() => () => clearTimeout(morphTimer));
 
 async function toggle(
@@ -348,6 +370,9 @@ const agentStatus: Record<AgentRowState, string> = {
         : anchorSize
           ? `${anchorSize.width}px`
           : "max-content"}
+      ontransitionrun={morphRun}
+      ontransitionend={morphEnd}
+      ontransitioncancel={morphCancel}
     >
       {#if open}
         <section
@@ -424,7 +449,7 @@ const agentStatus: Record<AgentRowState, string> = {
       >
         <div
           bind:this={controls}
-          class={`flex max-w-(--conversation-activity-width) items-center divide-x ${expanded ? "w-full" : "w-max"}`}
+          class={`ml-auto flex max-w-(--conversation-activity-width) items-center divide-x ${expanded ? "w-full" : "w-max"}`}
           role="group"
           aria-label="Conversation activity and navigation"
         >

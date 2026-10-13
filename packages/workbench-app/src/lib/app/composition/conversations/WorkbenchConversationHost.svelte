@@ -40,6 +40,7 @@ let {
   activePendingConversation,
   homeDir,
   pendingConversationActive = false,
+  conversationLoading = false,
   approvals = [],
   pendingUserQuestions = [],
   pendingPlanReviews = [],
@@ -388,15 +389,15 @@ function menuForTranscript(
   {/snippet}
 
   {#snippet emptyExtension()}
-    <ConversationWelcome
-      projectSelected={Boolean(activeProject && onNewConversationInProject)}
-      projectLabel={activeProjectLabel}
-      projectPath={activeProject?.dir}
-      onNewChat={(initialMode) => {
-        if (activeProject) {
-          onNewConversationInProject?.(activeProject.dir, initialMode);
-        }
-      }}
-    />
+    {#if !conversationLoading}<ConversationWelcome
+        projectSelected={Boolean(activeProject && onNewConversationInProject)}
+        projectLabel={activeProjectLabel}
+        projectPath={activeProject?.dir}
+        onNewChat={(initialMode) => {
+          if (activeProject) {
+            onNewConversationInProject?.(activeProject.dir, initialMode);
+          }
+        }}
+      />{/if}
   {/snippet}
 </ConversationPane>

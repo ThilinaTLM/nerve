@@ -51,6 +51,9 @@ export type WorkbenchConversationAdapterProps = {
   activeAgent?: AgentRecord;
   activePendingConversation?: PendingConversationState;
   pendingConversationActive?: boolean;
+  /** An existing conversation whose snapshot is still loading: render nothing
+   * rather than the new-conversation welcome. */
+  conversationLoading?: boolean;
   homeDir?: string;
   approvals?: ApprovalWithToolCall[];
   pendingUserQuestions?: UserQuestionRecord[];

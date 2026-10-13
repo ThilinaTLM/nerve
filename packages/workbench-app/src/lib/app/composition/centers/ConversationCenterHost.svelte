@@ -652,6 +652,9 @@ const teamRunning = $derived(
   {activeAgent}
   {activePendingConversation}
   {pendingConversationActive}
+  conversationLoading={Boolean(
+    conversationId && !store?.snapshot && !store?.error,
+  )}
   homeDir={workspaceState.status?.storage.userHome}
   approvals={activeApprovals}
   {pendingUserQuestions}

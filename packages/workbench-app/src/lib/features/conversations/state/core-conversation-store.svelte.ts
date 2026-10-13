@@ -25,6 +25,10 @@ export interface LiveAssistantBlock {
 }
 
 import { LiveTurnGuard } from "./live-turn-guard";
+import {
+  fetchCompleteHistory,
+  type FetchedHistory,
+} from "./conversation-history";
 
 const HISTORY_PAGE_SIZE = 100;
 
@@ -37,7 +41,6 @@ export class ConversationStore {
   toolOutput = $state<Record<string, string>>({});
   activity = $state<string>();
   loading = $state(false);
-  loadingOlder = $state(false);
   hasOlder = $state(true);
   connected = $state(false);
   error = $state<string>();
@@ -132,27 +135,11 @@ export class ConversationStore {
     const snapshot = await requestConversation("conversation.getSnapshot", {
       conversationId: this.conversationId,
     });
-    const events = await requestConversation("conversation.getHistory", {
-      conversationId: this.conversationId,
-      limit: HISTORY_PAGE_SIZE,
-    });
+    const history = await this.fetchHistory();
     if (this.disposed) return;
-    snapshot.conversation.headEventId = events[0]?.id ?? null;
+    snapshot.conversation.headEventId = history.headEventId;
     this.snapshot = snapshot;
-    this.events = chronological(events);
-    if (this.historyEvents)
-      this.historyEvents = [
-        ...Object.values(
-          Object.fromEntries(
-            [...this.historyEvents, ...events].map((event) => [
-              event.id,
-              event,
-            ]),
-          ),
-        ),
-      ].sort((a, b) => a.sequence - b.sequence);
-    this.hasOlder = events.length > 0;
-    await this.loadAllHistory();
+    this.publishHistory(history);
     this.liveTurns.recover(
       this.events.flatMap((event) =>
         event.type === "assistant_message" && event.turnId
@@ -329,29 +316,13 @@ export class ConversationStore {
       while (this.historyDirty && !this.disposed) {
         this.historyDirty = false;
         const head = this.snapshot?.conversation.headEventId;
-        const events = await requestConversation("conversation.getHistory", {
-          conversationId: this.conversationId,
-          limit: HISTORY_PAGE_SIZE,
-        });
+        const history = await this.fetchHistory();
         if (this.disposed) return;
         if (head !== this.snapshot?.conversation.headEventId) {
           this.historyDirty = true;
           continue;
         }
-        this.events = chronological(events);
-        if (this.historyEvents)
-          this.historyEvents = [
-            ...Object.values(
-              Object.fromEntries(
-                [...this.historyEvents, ...events].map((event) => [
-                  event.id,
-                  event,
-                ]),
-              ),
-            ),
-          ].sort((a, b) => a.sequence - b.sequence);
-        this.hasOlder = events.length > 0;
-        await this.loadAllHistory();
+        this.publishHistory(history);
       }
     })().finally(() => {
       this.historyRefresh = undefined;
@@ -359,41 +330,34 @@ export class ConversationStore {
     return this.historyRefresh;
   }
 
-  /** Original transcript and usage views consume the complete selected path. */
-  async loadAllHistory(): Promise<void> {
-    while (!this.disposed && this.hasOlder && !this.loadingOlder) {
-      const firstId = this.events[0]?.id;
-      await this.loadOlder();
-      // An error or a concurrent head change must not spin on the same page.
-      if (this.events[0]?.id === firstId) break;
-    }
+  private async fetchHistory(): Promise<FetchedHistory> {
+    const history = await fetchCompleteHistory(
+      (page) =>
+        requestConversation("conversation.getHistory", {
+          conversationId: this.conversationId,
+          ...page,
+        }),
+      HISTORY_PAGE_SIZE,
+      () => this.disposed,
+    );
+    if (history.error) this.error = history.error;
+    return history;
   }
 
-  async loadOlder(): Promise<void> {
-    const first = this.events[0];
-    if (!first || !this.hasOlder || this.loadingOlder) return;
-    this.loadingOlder = true;
-    this.error = undefined;
-    const head = this.snapshot?.conversation.headEventId;
-    try {
-      const older = await requestConversation("conversation.getHistory", {
-        conversationId: this.conversationId,
-        beforeEventId: first.id,
-        limit: HISTORY_PAGE_SIZE,
-      });
-      if (this.disposed || head !== this.snapshot?.conversation.headEventId)
-        return;
-      const ids = this.events.map((event) => event.id);
-      this.events = [
-        ...chronological(older).filter((event) => !ids.includes(event.id)),
-        ...this.events,
-      ];
-      this.hasOlder = older.length > 0;
-    } catch (error) {
-      this.error = errorMessage(error);
-    } finally {
-      this.loadingOlder = false;
-    }
+  private publishHistory({ events, hasOlder }: FetchedHistory): void {
+    this.events = events;
+    if (this.historyEvents)
+      this.historyEvents = [
+        ...Object.values(
+          Object.fromEntries(
+            [...this.historyEvents, ...events].map((event) => [
+              event.id,
+              event,
+            ]),
+          ),
+        ),
+      ].sort((a, b) => a.sequence - b.sequence);
+    this.hasOlder = hasOlder;
   }
 
   submit(text: string, inputId = createId("input")): Promise<null> {
@@ -511,11 +475,6 @@ export class ConversationStore {
   }
 }
 
-function chronological(
-  events: TransferredConversationEvent[],
-): TransferredConversationEvent[] {
-  return [...events].sort((a, b) => a.sequence - b.sequence);
-}
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

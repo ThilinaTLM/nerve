@@ -70,8 +70,8 @@ const scroll = createConversationScrollController({
 
 {#snippet activityContent()}
   {#if activity}
-    {@render activity(active && !scroll.atEnd, () => scroll.jumpToBottom())}
-  {:else if active && !scroll.atEnd}
+    {@render activity(active && scroll.showLatest, () => scroll.jumpToBottom())}
+  {:else if active && scroll.showLatest}
     <Button
       variant="outline"
       size="icon-lg"

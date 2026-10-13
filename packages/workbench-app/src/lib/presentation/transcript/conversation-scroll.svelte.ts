@@ -16,6 +16,10 @@ const USER_SCROLL_AWAY_THRESHOLD_PX = 100;
 const USER_SCROLL_INTENT_TIMEOUT_MS = 350;
 const PROGRAMMATIC_SCROLL_GUARD_MS = 120;
 const SCROLL_DIRECTION_EPSILON_PX = 1;
+// Row measurement can leave the viewport off the end for a few microtasks or
+// a frame before follow re-anchors it. Only offer jump-to-latest once the
+// reader is genuinely away, so it never flashes in and animates back out.
+const SHOW_LATEST_DELAY_MS = 120;
 
 const SCROLL_KEYS = new Set([
   "ArrowDown",
@@ -78,6 +82,11 @@ export function createConversationScrollController(
   let controller = $state<VirtualScrollerController>();
   let atEnd = $state(true);
   let followBottom = $state(true);
+  /** The viewport is being anchored (opened conversation, tab re-activation,
+   * far jump). Row measurement moves it for a few frames; none of that is a
+   * reader position, so the jump-to-latest affordance stays hidden. */
+  let settling = $state(true);
+  let showLatest = $state(false);
   let lastConversationId: string | undefined;
   /** Where each conversation was left, so returning to one (a sub-agent view
    * and back) lands where the user was instead of at the bottom. */
@@ -114,6 +123,7 @@ export function createConversationScrollController(
   }
 
   function cancelSettledScroll() {
+    settling = false;
     if (settleFrame === undefined) return;
     cancelAnimationFrame(settleFrame);
     settleFrame = undefined;
@@ -201,24 +211,23 @@ export function createConversationScrollController(
   // this effect first runs.
   function scrollToEndWhenSettled() {
     cancelSettledScroll();
+    settling = true;
     followBottom = true;
     let frames = 0;
     const step = () => {
       settleFrame = undefined;
       frames += 1;
       const ctrl = controller;
-      if (!ctrl) {
-        if (frames < MAX_SETTLE_FRAMES) {
-          settleFrame = requestAnimationFrame(step);
-        }
-        return;
-      }
-      scrollToEnd({ behavior: "instant" });
-      if (!ctrl.isAtEnd(BOTTOM_THRESHOLD_PX) && frames < MAX_SETTLE_FRAMES) {
+      if (ctrl) scrollToEnd({ behavior: "instant" });
+      if (!ctrl?.isAtEnd(BOTTOM_THRESHOLD_PX) && frames < MAX_SETTLE_FRAMES) {
         settleFrame = requestAnimationFrame(step);
+      } else {
+        settling = false;
       }
     };
-    settleFrame = requestAnimationFrame(step);
+    // First anchor runs now (callers await the DOM commit), so the opened
+    // transcript never paints a frame at its top before landing at the end.
+    step();
   }
 
   // Put the viewport back where the user left this conversation. Row heights
@@ -226,6 +235,7 @@ export function createConversationScrollController(
   // reapplying for a few frames while rows measure.
   function restoreScrollPosition(top: number) {
     cancelSettledScroll();
+    settling = true;
     followBottom = false;
     let frames = 0;
     const step = () => {
@@ -235,12 +245,25 @@ export function createConversationScrollController(
       if (viewport) {
         markProgrammaticScroll();
         viewport.scrollTop = top;
-        if (Math.abs(viewport.scrollTop - top) <= 2) return;
+        if (Math.abs(viewport.scrollTop - top) <= 2) {
+          settling = false;
+          return;
+        }
       }
       if (frames < MAX_SETTLE_FRAMES) settleFrame = requestAnimationFrame(step);
+      else settling = false;
     };
-    settleFrame = requestAnimationFrame(step);
+    step();
   }
+
+  $effect(() => {
+    if (atEnd || settling) {
+      showLatest = false;
+      return;
+    }
+    const timer = setTimeout(() => (showLatest = true), SHOW_LATEST_DELAY_MS);
+    return () => clearTimeout(timer);
+  });
 
   $effect(() => {
     const currentlyAtEnd = atEnd;
@@ -263,6 +286,7 @@ export function createConversationScrollController(
       initialScrollDone = false;
       followBottom = true;
       cancelSettledScroll();
+      settling = true;
     }
     if (!active) {
       cancelSettledScroll();
@@ -448,6 +472,10 @@ export function createConversationScrollController(
     },
     get followBottom() {
       return followBottom;
+    },
+    /** Whether to offer jump-to-latest: away from the end, not while anchoring. */
+    get showLatest() {
+      return showLatest;
     },
     scrollToEnd,
     jumpToBottom,
