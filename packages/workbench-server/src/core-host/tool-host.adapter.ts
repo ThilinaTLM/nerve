@@ -250,6 +250,7 @@ export function createToolHostPort(
           result: {
             stdout,
             stderr,
+            exitCode: outcome.exitCode ?? undefined,
             content: await projectProcessOutput({
               stdout,
               stderr,

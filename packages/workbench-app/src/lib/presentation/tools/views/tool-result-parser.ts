@@ -277,7 +277,11 @@ export function parseToolView(
       return {
         kind: "bash",
         command,
-        exitCode: result?.exitCode,
+        exitCode:
+          result?.exitCode ??
+          (details.success && typeof details.data.exitCode === "number"
+            ? details.data.exitCode
+            : undefined),
         signal: details.success
           ? (details.data.signal ?? undefined)
           : undefined,

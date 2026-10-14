@@ -25,6 +25,45 @@ function call(
   };
 }
 
+describe("Bash exit codes", () => {
+  for (const toolName of ["bash", "async_bash", "launch"]) {
+    for (const [label, result, expected] of [
+      [
+        "top-level success takes precedence",
+        { exitCode: 0, details: { exitCode: 7 } },
+        0,
+      ],
+      [
+        "top-level failure takes precedence",
+        { exitCode: 7, details: { exitCode: 0 } },
+        7,
+      ],
+      ["details success", { details: { exitCode: 0 } }, 0],
+      ["details failure", { details: { exitCode: 7 } }, 7],
+      [
+        "null details remain unknown",
+        { details: { exitCode: null } },
+        undefined,
+      ],
+      ["missing code remains unknown", { details: {} }, undefined],
+      [
+        "string code remains unknown",
+        { details: { exitCode: "0" } },
+        undefined,
+      ],
+    ] as const) {
+      it(`${toolName}: ${label}`, () => {
+        const view = parseToolView(
+          call(toolName, { command: "true" }, { content: "output", ...result }),
+        );
+        assert.equal(view.kind, "bash");
+        if (view.kind !== "bash") return;
+        assert.equal(view.exitCode, expected);
+      });
+    }
+  }
+});
+
 describe("recorded planning tools", () => {
   for (const toolName of ["plan_mode_enter", "plan_mode_force_exit"]) {
     it(`renders ${toolName} through the redacted generic fallback`, () => {

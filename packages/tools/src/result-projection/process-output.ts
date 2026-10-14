@@ -20,6 +20,18 @@ export type ProcessOutputInput = {
 export async function projectProcessOutput(
   input: ProcessOutputInput,
 ): Promise<string> {
+  const exitStatus =
+    input.exitCode != null
+      ? `; exit code: ${input.exitCode}`
+      : input.status && input.status !== "running"
+        ? "; exit code: unknown"
+        : "";
+  const pageStatus = `${input.status ?? "running"}${exitStatus}`;
+  const processStatus = input.status
+    ? `Status: ${pageStatus}`
+    : input.exitCode != null
+      ? `Process exit code: ${input.exitCode}.`
+      : "Process output.";
   const files = input.outputFiles ?? {};
   const load = async (path: string | undefined) =>
     path ? readFile(path, "utf8").catch(() => "") : "";
@@ -53,7 +65,7 @@ export async function projectProcessOutput(
     const selected: string[] = [];
     // Reserve the header, continuation, locator and capture notice within the same budget.
     let bytes = Buffer.byteLength(
-      `Lines ${from}-${lines.length} of ${lines.length} (${input.status ?? "running"}).\nNext offset: ${lines.length}\nFile: ${files.combined ?? files.stdout ?? files.stderr ?? ""}\n${capture}\n`,
+      `Lines ${from}-${lines.length} of ${lines.length} (${pageStatus}).\nNext offset: ${lines.length}\nFile: ${files.combined ?? files.stdout ?? files.stderr ?? ""}\n${capture}\n`,
     );
     const requested = lines.slice(from, from + limit);
     for (const line of offset === undefined
@@ -77,7 +89,7 @@ export async function projectProcessOutput(
       next < lines.length ||
       selected.some((line, i) => line !== lines[from + i]);
     return [
-      `Lines ${from}-${selected.length ? next - 1 : from} of ${lines.length} (${input.status ?? "running"}).`,
+      `Lines ${from}-${selected.length ? next - 1 : from} of ${lines.length} (${pageStatus}).`,
       ...selected,
       ...(next < lines.length ? [`Next offset: ${next}`] : []),
       ...(reduced && (files.combined ?? files.stdout ?? files.stderr)
@@ -94,7 +106,7 @@ export async function projectProcessOutput(
     result: {
       stdout: output,
       stderr: "",
-      content: [output, capture].filter(Boolean).join("\n"),
+      content: [processStatus, output, capture].filter(Boolean).join("\n"),
       details: {
         exitCode: input.exitCode,
         processStatusIncluded: true,
@@ -108,13 +120,7 @@ export async function projectProcessOutput(
   candidate.status = [
     {
       type: "text",
-      text: [
-        input.status
-          ? `Status: ${input.status}${input.exitCode != null ? `; exit code: ${input.exitCode}` : ""}`
-          : "Process output.",
-        `Output lines: ${lines.length}`,
-        capture,
-      ]
+      text: [processStatus, `Output lines: ${lines.length}`, capture]
         .filter(Boolean)
         .join("\n"),
     },

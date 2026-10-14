@@ -179,8 +179,11 @@ export function toolPresentation(
     case "bash": {
       const meta: MetaItem[] = [];
       const lines = view.outputLineCount;
-      if (view.exitCode !== undefined && view.exitCode !== 0) {
-        meta.push({ text: `exit ${view.exitCode}`, tone: "destructive" });
+      if (view.exitCode !== undefined) {
+        meta.push({
+          text: `exit ${view.exitCode}`,
+          tone: view.exitCode === 0 ? "success" : "destructive",
+        });
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });

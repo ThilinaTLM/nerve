@@ -18,10 +18,19 @@ void test("bash host validates turn settings, project cwd and untimed background
       writeFile(stderr, ""),
       writeFile(combined, "hello"),
     ]);
+    let exitCode: number | null = 0;
     const process: BackgroundProcess = {
       ref: "process",
       outputFiles: { stdout, stderr, combined },
-      wait: async () => ({ exitCode: 0, status: "completed" }),
+      wait: async () => ({
+        exitCode,
+        status:
+          exitCode === null
+            ? "cancelled"
+            : exitCode === 0
+              ? "completed"
+              : "failed",
+      }),
       cancel: async () => {},
     };
     let started: Parameters<CoreProcessHost["start"]>[0] | undefined;
@@ -89,8 +98,38 @@ void test("bash host validates turn settings, project cwd and untimed background
     if (result.kind === "completed") {
       assert.equal(result.result.stdout, "hello");
       assert.equal(result.result.stderr, "");
-      assert.equal(result.result.content, "hello");
+      assert.equal(result.result.exitCode, 0);
+      assert.equal(
+        result.result.content,
+        "Status: completed; exit code: 0\nhello",
+      );
     }
+    for (const origin of ["model", "user"] as const) {
+      for (const code of [0, 7, null]) {
+        exitCode = code;
+        const completed = await execute(
+          { command: "echo", timeout: 1 },
+          origin,
+        );
+        assert.equal(completed.kind, "completed");
+        if (completed.kind !== "completed")
+          throw new Error("Expected completion");
+        const status =
+          code === null ? "cancelled" : code === 0 ? "completed" : "failed";
+        assert.equal(completed.result.exitCode, code ?? undefined);
+        assert.ok(
+          completed.result.details &&
+            typeof completed.result.details === "object" &&
+            "exitCode" in completed.result.details,
+        );
+        assert.equal(completed.result.details.exitCode, code);
+        assert.equal(
+          completed.result.content,
+          `Status: ${status}; exit code: ${code ?? "unknown"}\nhello`,
+        );
+      }
+    }
+    exitCode = 0;
     await execute({
       command: "echo",
       timeout: 2,
