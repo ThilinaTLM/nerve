@@ -98,7 +98,10 @@ export async function transcribeAudioWithChatGptSubscription(
   auth: AuthManager,
   input: AudioTranscriptionInput,
   settings: TranscriptionSettings,
+  options: { signal?: AbortSignal } = {},
 ): Promise<AudioTranscriptionResponse> {
+  const { signal } = options;
+  signal?.throwIfAborted();
   if (input.data.byteLength === 0) {
     throw new ApplicationError(400, "EMPTY_AUDIO", "Audio upload is empty.");
   }
@@ -120,6 +123,7 @@ export async function transcribeAudioWithChatGptSubscription(
   }
 
   const credential = await auth.getCredential(OPENAI_CODEX_PROVIDER);
+  signal?.throwIfAborted();
   if (credential?.type !== "oauth") {
     throw new ApplicationError(
       401,
@@ -129,6 +133,7 @@ export async function transcribeAudioWithChatGptSubscription(
   }
 
   const accessToken = await auth.getApiKey(OPENAI_CODEX_PROVIDER);
+  signal?.throwIfAborted();
   if (!accessToken) {
     throw new ApplicationError(
       401,
@@ -166,8 +171,10 @@ export async function transcribeAudioWithChatGptSubscription(
     form.append(name, value);
   }
 
+  signal?.throwIfAborted();
   const response = await fetch(CHATGPT_TRANSCRIBE_URL, {
     method: "POST",
+    signal,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "User-Agent": USER_AGENT,
@@ -203,7 +210,11 @@ export async function transcribeAudioWithChatGptSubscription(
     );
   }
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
+    const body = await response.text().catch((error: unknown) => {
+      signal?.throwIfAborted();
+      if (error instanceof Error && error.name === "AbortError") throw error;
+      return "";
+    });
     throw new ApplicationError(
       response.status,
       "TRANSCRIPTION_FAILED",

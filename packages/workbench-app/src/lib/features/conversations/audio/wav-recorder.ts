@@ -1,3 +1,5 @@
+import { trimAudioActivity, type SkippedAudioResult } from "./audio-trimming";
+
 export const WAV_TARGET_SAMPLE_RATE = 16_000;
 export const WAV_CHANNELS = 1;
 export const WAV_BITS_PER_SAMPLE = 16;
@@ -15,11 +17,14 @@ declare global {
   }
 }
 
-export type WavRecordingResult = {
-  blob: Blob;
-  durationMs: number;
-  mimeType: typeof WAV_MIME_TYPE;
-};
+export type WavRecordingResult =
+  | {
+      status: "accepted";
+      blob: Blob;
+      durationMs: number;
+      mimeType: typeof WAV_MIME_TYPE;
+    }
+  | SkippedAudioResult;
 
 type WavRecordingStopOptions = {
   maxDurationMs?: number;
@@ -166,7 +171,6 @@ export class PcmWavRecorder {
   private source: MediaStreamAudioSourceNode | undefined;
   private stream: MediaStream | undefined;
   private chunks: Float32Array[] = [];
-  private startedAt = 0;
   private stopped = true;
 
   static isSupported(): boolean {
@@ -192,7 +196,6 @@ export class PcmWavRecorder {
 
     this.chunks = [];
     this.stopped = false;
-    this.startedAt = Date.now();
 
     try {
       this.stream = await navigator.mediaDevices.getUserMedia({
@@ -244,32 +247,28 @@ export class PcmWavRecorder {
     }
 
     this.stopped = true;
-    const elapsedMs = Math.max(1, Date.now() - this.startedAt);
-    const durationMs = options.maxDurationMs
-      ? Math.min(elapsedMs, options.maxDurationMs)
-      : elapsedMs;
     const sampleRate = this.audioContext?.sampleRate ?? WAV_TARGET_SAMPLE_RATE;
     const chunks = this.chunks;
     this.chunks = [];
     await this.cleanup();
 
     const mono = mergeFloat32Chunks(chunks);
-    if (mono.length === 0) {
-      throw new Error("No audio was captured.");
-    }
-
     const resampled = resampleLinear(mono, sampleRate, WAV_TARGET_SAMPLE_RATE);
     const capped = truncateSamplesForDuration(
       resampled,
       WAV_TARGET_SAMPLE_RATE,
       options.maxDurationMs,
     );
-    const wavBytes = encodePcm16Wav(capped, WAV_TARGET_SAMPLE_RATE);
+    const trimmed = trimAudioActivity(capped, WAV_TARGET_SAMPLE_RATE);
+    if (trimmed.status === "skipped") return trimmed;
+
+    const wavBytes = encodePcm16Wav(trimmed.samples, WAV_TARGET_SAMPLE_RATE);
     const audioBuffer = new ArrayBuffer(wavBytes.byteLength);
     new Uint8Array(audioBuffer).set(wavBytes);
     return {
+      status: "accepted",
       blob: new Blob([audioBuffer], { type: WAV_MIME_TYPE }),
-      durationMs,
+      durationMs: (trimmed.samples.length / WAV_TARGET_SAMPLE_RATE) * 1000,
       mimeType: WAV_MIME_TYPE,
     };
   }
