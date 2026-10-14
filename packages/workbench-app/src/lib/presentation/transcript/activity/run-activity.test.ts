@@ -4,6 +4,7 @@ import {
   deriveRunActivity,
   type PendingWorkItem,
   type RunActivityInput,
+  WAITING_SPINNER_RATE,
 } from "./run-activity";
 
 const NOW = Date.parse("2026-01-01T00:10:00.000Z");
@@ -25,7 +26,7 @@ function input(overrides: Partial<RunActivityInput> = {}): RunActivityInput {
 }
 
 describe("waiting activity", () => {
-  it("keeps the row mounted without a spinner when work is pending", () => {
+  it("keeps the row mounted with the slow waiting spinner when work is pending", () => {
     const view = deriveRunActivity(
       input({
         pending,
@@ -36,7 +37,7 @@ describe("waiting activity", () => {
     assert.equal(view.open, true);
     assert.equal(view.kind, "waiting");
     assert.equal(view.label, "Waiting for");
-    assert.equal(view.spinnerRate, 0);
+    assert.equal(view.spinnerRate, WAITING_SPINNER_RATE);
     assert.deepEqual(view.pending, pending);
     assert.equal(view.elapsedLabel, "4:00");
   });

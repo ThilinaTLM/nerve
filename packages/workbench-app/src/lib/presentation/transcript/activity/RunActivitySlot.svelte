@@ -4,7 +4,6 @@
  * Everything shown is derived from run state by `deriveRunActivity`; this
  * component only renders it. */
 import Check from "@lucide/svelte/icons/check";
-import Hourglass from "@lucide/svelte/icons/hourglass";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
@@ -36,7 +35,9 @@ const reduced = $derived(prefersReducedMotion.current);
 const spinning = $derived(
   !reduced &&
     view.spinnerRate > 0 &&
-    (view.kind === "active" || view.kind === "quiet"),
+    (view.kind === "active" ||
+      view.kind === "quiet" ||
+      view.kind === "waiting"),
 );
 const countdownOffset = $derived(
   CIRCUMFERENCE * (1 - (view.countdownFraction ?? 0)),
@@ -114,7 +115,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
       data-kind={view.kind}
     >
       <span
-        class="relative size-3.5 flex-none transition-[opacity,scale] duration-300 ease-out group-data-[kind=quiet]:scale-80 group-data-[kind=quiet]:opacity-50"
+        class="relative size-3.5 flex-none transition-[opacity,scale] duration-300 ease-out group-data-[kind=quiet]:scale-80 group-data-[kind=quiet]:opacity-50 group-data-[kind=waiting]:scale-80 group-data-[kind=waiting]:opacity-50"
         aria-hidden="true"
       >
         <svg
@@ -136,7 +137,7 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
             </linearGradient>
           </defs>
           <g
-            class="transition-opacity duration-200 group-data-[kind=done]:opacity-0 group-data-[kind=retry]:opacity-0 group-data-[kind=stopped]:opacity-0 group-data-[kind=waiting]:opacity-0"
+            class="transition-opacity duration-200 group-data-[kind=done]:opacity-0 group-data-[kind=retry]:opacity-0 group-data-[kind=stopped]:opacity-0"
           >
             <circle
               cx="8"
@@ -189,9 +190,6 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
         />
         <Square
           class="absolute inset-0 size-full scale-50 fill-current p-0.5 opacity-0 transition-[opacity,scale] duration-300 ease-out group-data-[kind=stopped]:scale-100 group-data-[kind=stopped]:opacity-100"
-        />
-        <Hourglass
-          class="absolute inset-0 size-full text-warning opacity-0 transition-opacity duration-300 group-data-[kind=waiting]:opacity-100"
         />
       </span>
 
