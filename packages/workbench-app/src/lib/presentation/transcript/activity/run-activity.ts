@@ -39,7 +39,7 @@ export type RunActivityTone = Extract<
   "neutral" | "warning" | "success"
 >;
 
-/** Slow spinner turn while the run waits on the user. */
+/** Slow spinner turn while waiting on the user or asynchronous work. */
 export const WAITING_SPINNER_RATE = 0.4;
 
 export type RunActivityView = {
@@ -180,7 +180,7 @@ function finishedView(input: RunActivityInput): RunActivityView {
   };
 }
 
-/** Calm, non-spinning row for a conversation that ended its turn but waits. */
+/** Calm, slowly spinning row while asynchronous work outlives the turn. */
 function waitingView(
   input: RunActivityInput,
   pending: readonly PendingWorkItem[],
@@ -196,7 +196,7 @@ function waitingView(
     pending,
     elapsedLabel:
       since === undefined ? undefined : formatElapsed(input.nowMs - since),
-    spinnerRate: 0,
+    spinnerRate: WAITING_SPINNER_RATE,
   };
 }
 
