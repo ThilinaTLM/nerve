@@ -12,9 +12,9 @@ import { describe, it } from "node:test";
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
 const PANEL_IMPORT = "components/composites/popover-panel";
 
-/* The dev gallery is a specimen catalog (it deliberately shows bare headers and
- * variants), not product UI. */
-const catalogDir = path.join(appRoot, "app", "gallery");
+/* Design Lab contains specimens and local prototypes (including bare headers
+ * and variants), not product UI. */
+const catalogDir = path.join(appRoot, "app", "design-lab");
 
 function svelteFiles(dir: string): string[] {
   const out: string[] = [];
