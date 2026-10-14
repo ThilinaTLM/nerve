@@ -1,6 +1,9 @@
 import { registerUsageSelectionReadModel } from "$lib/application/usage/usage-selectors.svelte";
 import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
-import { retainedConversationStores } from "$lib/features/conversations/state/open-conversation-stores";
+import {
+  retainedConversationStores,
+  waitingConversationIds,
+} from "$lib/features/conversations/state/open-conversation-stores";
 import { parseModelKey } from "$lib/presentation/utils/model";
 import { ConversationListStore } from "$lib/features/conversations/state/core-conversation-list-store.svelte";
 import { registerConversationLists } from "$lib/application/workspace/conversation-lists.svelte";
@@ -45,7 +48,14 @@ export function registerWorkspaceReadModels(): () => void {
     (id) => new ConversationListStore(id),
   );
   const conversations: WorkspaceFeaturePorts["conversations"] = {
-    read: asyncBashWorkspaceReadModel,
+    read: {
+      get asyncBashes() {
+        return asyncBashWorkspaceReadModel.asyncBashes;
+      },
+      get pendingAsyncConversationIds() {
+        return waitingConversationIds();
+      },
+    },
     commands: { cancelVoiceInputTargets, discardAsyncBashTab },
   };
   const unregisterPorts = registerWorkspaceFeaturePorts({

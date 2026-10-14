@@ -120,8 +120,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
 
   if (tab.kind === "conversation" || tab.kind === "pending-conversation") {
     model.status = {
-      tone: tab.activity.tone,
-      pulse: tab.activity.pulse,
+      conversationActivity: tab.activity,
       label: statusLabel(tab),
     };
   } else if (tab.kind === "async-bash") {

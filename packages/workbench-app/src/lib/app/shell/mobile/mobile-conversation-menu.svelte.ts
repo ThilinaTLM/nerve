@@ -9,7 +9,6 @@ import {
 import {
   sidebarConversations,
   sidebarProjects,
-  sidebarActivity,
   updateConversationStateAndRefresh,
 } from "$lib/features/projects";
 import { openConversation } from "$lib/application/workspace";
@@ -42,9 +41,7 @@ export function mobileConversationMenu(
       ),
     maintenanceActive: maintenance.active,
     conversationActivity: (conversationId) =>
-      sidebarActivity(sidebarConversations(workspaceSelectors.conversations))[
-        conversationId
-      ],
+      workspaceSelectors.conversationActivityById[conversationId],
     onOpenConversation: (conversationId) =>
       void openConversation(conversationId),
     onNewConversationInProject: newConversationInProject,

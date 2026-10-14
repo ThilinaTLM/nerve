@@ -16,7 +16,7 @@ import {
 import {
   idleConversationActivity,
   summaryActivity,
-} from "./conversation-activity";
+} from "$lib/presentation/conversations/conversation-activity";
 import { conversationLists } from "./conversation-lists.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import {
@@ -66,17 +66,19 @@ function isActiveLaunchStatus(status: string): boolean {
   return ["starting", "running", "ready", "stopping"].includes(status);
 }
 
-const conversationActivityById = $derived.by(() =>
-  Object.fromEntries(
+const conversationActivityById = $derived.by(() => {
+  const pendingIds =
+    workspaceFeaturePorts().conversations.read.pendingAsyncConversationIds;
+  return Object.fromEntries(
     [
       ...workspaceState.conversations,
       ...[...conversationLists.values()].flatMap((list) => [
         ...list.roots,
         ...Object.values(list.children).flat(),
       ]),
-    ].map((row) => [row.id, summaryActivity(row)]),
-  ),
-);
+    ].map((row) => [row.id, summaryActivity(row, pendingIds.has(row.id))]),
+  );
+});
 function centerTabKey(tab: CenterTabIdentity): string {
   return `${tab.kind}\0${tab.id}`;
 }

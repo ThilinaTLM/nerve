@@ -1,7 +1,7 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
-import Hourglass from "@lucide/svelte/icons/hourglass";
+import ClockAlert from "@lucide/svelte/icons/clock-alert";
 import MessageSquare from "@lucide/svelte/icons/message-square";
 import * as Empty from "@nervekit/ui-kit/components/ui/empty";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -42,6 +42,7 @@ function rowMeta(item: MobileInboxItem): string {
 
 // Errors and runs already read as a state; only requests need naming.
 function rowDetail(item: MobileInboxItem): string {
+  if (!item.interaction) return item.detail;
   if (
     item.kind === "error" ||
     item.kind === "running" ||
@@ -87,8 +88,8 @@ function rowDetail(item: MobileInboxItem): string {
         onclick={() => onOpen(item)}
       >
         {#snippet leading()}
-          <Hourglass
-            class="mt-1 size-3.5 flex-none text-warning"
+          <ClockAlert
+            class="mt-1 size-3.5 flex-none text-info"
             aria-label="Waiting for background work"
           />
         {/snippet}

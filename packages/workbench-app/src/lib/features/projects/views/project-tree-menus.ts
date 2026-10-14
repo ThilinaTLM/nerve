@@ -18,7 +18,7 @@ import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { shortProjectLabel } from "$lib/domain/projects/project-tree";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { DeleteTarget } from "./project-agent-tree-props";
-import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import { buildExternalLaunchMenu } from "$lib/presentation/brand/external-launch-menu";
 
 export type ProjectTreeMenuContext = {
@@ -31,7 +31,7 @@ export type ProjectTreeMenuContext = {
   onOpenConversation?: (conversationId: string) => void;
   conversationActivity?: (
     conversationId: string,
-  ) => ConversationActivityState | undefined;
+  ) => ConversationActivity | undefined;
   onUpdateConversationState?: (
     conversationId: string,
     request: UpdateConversationStateRequest,

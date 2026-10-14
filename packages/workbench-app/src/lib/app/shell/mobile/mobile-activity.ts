@@ -1,5 +1,6 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 
@@ -15,19 +16,10 @@ export const LIVE_LAUNCH_STATUSES: ReadonlySet<LaunchRecord["status"]> =
 /** Errors older than this have been seen or no longer matter on a phone. */
 const RECENT_ERROR_MS = 24 * 60 * 60 * 1000;
 
-type ActivityLike = {
-  indicator:
-    | "idle"
-    | "running"
-    | "needs-user"
-    | "awaiting-async"
-    | "error"
-    | "aborted"
-    | "completed";
-  tone: StatusTone;
-  label?: string;
-  busy: boolean;
-};
+type ActivityLike = Pick<
+  ConversationActivity,
+  "indicator" | "tone" | "label" | "busy"
+>;
 
 type ProjectLike = { id: string; name: string; directory: string };
 
@@ -65,10 +57,10 @@ export type MobileActivityInput = {
 };
 
 const CONVERSATION_ORDER: Partial<Record<ActivityLike["indicator"], number>> = {
-  running: 0,
-  "needs-user": 1,
-  "awaiting-async": 2,
-  error: 3,
+  "needs-user": 0,
+  error: 1,
+  running: 2,
+  "awaiting-async": 3,
 };
 
 export function launchTitle(launch: LaunchRecord): string {
@@ -115,7 +107,7 @@ export function buildMobileActivity(
   for (const conversation of input.conversations) {
     const activity = input.activityById[conversation.id];
     if (!activity) continue;
-    const rank = activity.busy ? 0 : CONVERSATION_ORDER[activity.indicator];
+    const rank = CONVERSATION_ORDER[activity.indicator];
     if (rank === undefined) continue;
     if (
       activity.indicator === "error" &&

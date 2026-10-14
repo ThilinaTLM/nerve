@@ -1,14 +1,11 @@
 import type { ConversationSummary, Project } from "@nervekit/contracts/core";
-import { agentRunningTone } from "@nervekit/ui-kit/display/status";
 import type {
   AgentRecord,
-  ConversationActivityState,
   ConversationRecord,
   ProjectRecord,
   PruneProjectConversationsRequest,
   UpdateConversationStateRequest,
 } from "$lib/domain/projects/sidebar-view-models";
-import { idleConversationActivity } from "$lib/domain/projects/sidebar-view-models";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -37,63 +34,6 @@ export function sidebarAgents(rows: ConversationRecord[]): AgentRecord[] {
     permissionRuleSetId: row.permissionRuleSetId,
   }));
 }
-export function sidebarActivity(
-  rows: ConversationRecord[],
-  /** Conversations whose turn ended while sub-agents or commands still run. */
-  waiting: ReadonlySet<string> = new Set(),
-): Record<string, ConversationActivityState> {
-  return Object.fromEntries(
-    rows.map((row) => {
-      const status =
-        row.statusClearedAt &&
-        (row.status === "failed" || row.status === "interrupted")
-          ? "idle"
-          : row.status;
-      let activity: ConversationActivityState = {
-        ...idleConversationActivity,
-        source: "server",
-      };
-      if (status === "running")
-        activity = {
-          ...activity,
-          indicator: "running",
-          tone: agentRunningTone(row.mode),
-          pulse: true,
-          busy: true,
-          label: "Agent running",
-        };
-      else if (status === "waiting")
-        activity = {
-          ...activity,
-          indicator: "needs-user",
-          tone: "warning",
-          needsUser: true,
-          label: "Needs user action",
-        };
-      else if (status === "failed")
-        activity = {
-          ...activity,
-          indicator: "error",
-          tone: "destructive",
-          clearableFailure: true,
-          label: "Agent error",
-        };
-      else if (status === "interrupted")
-        activity = { ...activity, indicator: "aborted", label: "Stopped" };
-      else if (waiting.has(row.id))
-        activity = {
-          ...activity,
-          indicator: "awaiting-async",
-          tone: "warning",
-          label: "Waiting for sub-agents or background commands",
-        };
-      else if (row.completedAt)
-        activity = { ...activity, indicator: "completed", label: "Completed" };
-      return [row.id, activity];
-    }),
-  );
-}
-
 export async function updateConversationStateAndRefresh(
   conversationId: string,
   request: UpdateConversationStateRequest,

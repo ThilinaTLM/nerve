@@ -6,7 +6,7 @@ import type {
   UpdateConversationStateRequest,
 } from "$lib/domain/projects/sidebar-view-models";
 import type { ProjectEditor, StatusResponse } from "$lib/api";
-import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 
 export type DeleteTarget = {
   kind: "project" | "conversation";
@@ -27,7 +27,7 @@ export type ProjectAgentTreeProps = {
   selectedProjectId?: string;
   selectedConversationId?: string;
   openConversationTabIds?: Set<string>;
-  conversationActivityById?: Record<string, ConversationActivityState>;
+  conversationActivityById?: Record<string, ConversationActivity>;
   searchFocusToken?: number;
   editorAvailability?: StatusResponse["runtime"]["editors"];
   terminalAvailability?: StatusResponse["runtime"]["terminal"];

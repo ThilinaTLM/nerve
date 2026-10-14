@@ -11,7 +11,7 @@ import type {
   FileDisplayMode,
   FileRenderKind,
 } from "@nervekit/ui-kit/display/file-display";
-import type { ConversationActivity } from "$lib/application/workspace/conversation-activity";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 
 export type ConversationTabModel = {
   kind: "conversation";

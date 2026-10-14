@@ -10,9 +10,9 @@ import {
   projectKey,
   shortProjectLabel,
 } from "$lib/domain/projects/project-tree";
-import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationActivity as ConversationActivityModel } from "$lib/presentation/conversations/conversation-activity";
 type ConversationActivity = Pick<
-  ConversationActivityState,
+  ConversationActivityModel,
   "indicator" | "tone" | "busy" | "needsUser"
 >;
 
@@ -90,9 +90,7 @@ export function projectActivitySignal(
     ? "warning"
     : activity.failed
       ? "destructive"
-      : activity.running || launches.running
-        ? "info"
-        : "warning";
+      : "info";
   return {
     tone,
     count:
