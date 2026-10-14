@@ -9,6 +9,7 @@ import {
   clearRequestContext,
   setRequestContext,
 } from "../adapters/http/request-context.js";
+import { requestLogPath } from "../adapters/http/request-log-path.js";
 import { serveStatic } from "../adapters/http/static-files.js";
 import { documentStyles } from "../infrastructure/documents/index.js";
 import { mountApiRoutes } from "../adapters/http/routes/index.js";
@@ -159,7 +160,7 @@ export function createApp(
         requestId,
         context: {
           method: c.req.method,
-          path: new URL(c.req.url).pathname,
+          path: requestLogPath(c.req.url),
         },
       });
       setRequestContext(c.req.raw, { requestId, logger });
@@ -171,7 +172,7 @@ export function createApp(
         const durationMs = Math.round(performance.now() - started);
         const level = status >= 500 ? "error" : status >= 400 ? "warn" : "info";
         const method = c.req.method;
-        const path = new URL(c.req.url).pathname;
+        const path = requestLogPath(c.req.url);
         await logger[level](`${method} ${path} completed (${status})`, {
           durationMs,
           context: {

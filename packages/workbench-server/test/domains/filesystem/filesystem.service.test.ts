@@ -284,6 +284,21 @@ describe("filesystem application service", () => {
     assert.equal(result.editable, true);
   });
 
+  it("recognizes HTM files as editable text", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-filesystem-html-"));
+    try {
+      await writeFile(join(root, "demo.HTM"), "<html></html>");
+      const result = await fileContent(
+        { projectId: "proj_test", path: "demo.HTM" },
+        () => root,
+      );
+      assert.equal(result.type, "text");
+      assert.equal(result.editable, true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("saves project text files and rejects stale or unsafe writes", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-filesystem-save-"));
     const outside = await mkdtemp(join(tmpdir(), "nerve-filesystem-outside-"));

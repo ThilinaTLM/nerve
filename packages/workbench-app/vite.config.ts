@@ -117,6 +117,7 @@ export default defineConfig(({ mode }) => {
           navigateFallback: "/index.html",
           navigateFallbackDenylist: [
             /^\/api\//,
+            /^\/html-preview\//,
             /^\/ws\b/,
             /^\/mobile-setup\b/,
             /^\/nerve-local-ca\.pem$/,
@@ -153,6 +154,10 @@ export default defineConfig(({ mode }) => {
       host: "127.0.0.1",
       port: 5173,
       proxy: {
+        // Public capability resources must never receive the daemon token.
+        "/html-preview": {
+          target: nerveApiTarget,
+        },
         "/api": {
           target: nerveApiTarget,
           headers: authHeaders,

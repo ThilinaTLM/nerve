@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import type { ServerRuntime } from "../../../app/runtime/server-runtime.js";
 import { createConversationAssetRoutes } from "./conversation-asset-routes.js";
 import { createAuthRoutes } from "./auth-routes.js";
+import { createHtmlPreviewRoutes } from "./html-preview-routes.js";
 import { createFilesystemContentRoutes } from "./filesystem-content-routes.js";
 import { createLogRoutes } from "./log-routes.js";
 import { createProjectAssetRoutes } from "./project-asset-routes.js";
@@ -30,5 +31,11 @@ export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
   }
   app.route("/api", createLaunchLogRoutes(contexts.launchLogs));
   app.route("/api", createFilesystemContentRoutes(contexts.filesystem));
+  app.route(
+    "/",
+    createHtmlPreviewRoutes(
+      (id) => contexts.filesystem.getProject(id).directory,
+    ),
+  );
   app.route("/api/projects", createProjectAssetRoutes(contexts.projectAssets));
 }
