@@ -9,8 +9,12 @@ Install Node.js 24+, pnpm 11.20.0, and rustup (toolchain pinned in `rust-toolcha
 ## Testing
 
 - While developing, run unit tests for the code you touched: `cd packages/<pkg> && pnpm exec tsx --test <file>.test.ts`.
-- Before submitting: `pnpm fix && pnpm check` plus those unit tests.
+- Before submitting code changes: `pnpm fix:focused && pnpm check:focused` plus those unit tests; fix and rerun until green. Docs-only changes need diff review, not validation.
 - Broader suites (`pnpm test:focused`, `pnpm test:full`, `pnpm test:browser`, `*.integration.test.ts`) run in CI. Run them locally only when needed, e.g. to reproduce a CI failure.
+
+Focused commands default to `--base origin/main`: changes since its merge-base with HEAD, plus staged, unstaged, and untracked nonignored files. Use `--base HEAD` for local changes only, or `--dry-run` to preview scope and commands without executing them. Neither command runs tests.
+
+Global/unknown scope or unavailable Git/base explicitly falls back to full `pnpm fix` or `pnpm check`. **Full fix can mutate files repository-wide.** Use full commands for explicit broad validation. Focused checks are not equivalent to full validation; CI and release requirements are unchanged.
 
 Keep scripts and their tests in the owning domain (see [scripts/README.md](scripts/README.md)).
 
