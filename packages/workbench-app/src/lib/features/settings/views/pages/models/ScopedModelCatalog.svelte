@@ -76,7 +76,9 @@ function toggle(selection: ModelSelection, checked: boolean): void {
 }
 </script>
 
-<div class="overflow-hidden rounded-md border border-border bg-card">
+<div
+  class="overflow-hidden rounded-md border border-border bg-card group-data-settings-surface/surface:-mx-3 group-data-settings-surface/surface:rounded-none group-data-settings-surface/surface:border-x-0 group-data-settings-surface/surface:border-t-0"
+>
   <ModelCatalogFilters
     class="border-b border-border/60 p-2"
     entries={catalog}

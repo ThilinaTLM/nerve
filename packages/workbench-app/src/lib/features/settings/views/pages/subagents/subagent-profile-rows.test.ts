@@ -13,6 +13,7 @@ import {
   profileRowActions,
   profileRowDiagnostics,
   profileRowProblems,
+  profileRowSummary,
   profileTrustReviewEntries,
 } from "./subagent-profile-rows";
 
@@ -355,5 +356,40 @@ describe("profile list", () => {
       instructions: "Ship it",
       fields: [{ label: "permission", value: "Autonomous" }],
     });
+  });
+});
+
+describe("profileRowSummary", () => {
+  const lead = {
+    models: [],
+    leadTool: (name: string) => name !== "jira" && name !== "confluence",
+    leadSkills: ["review", "deploy", "docs"],
+  };
+
+  it("counts what a sub-agent gets from the lead", () => {
+    assert.deepEqual(profileRowSummary({ ...base, skills: "inherit" }, lead), [
+      "Lead's model",
+      "Read-only",
+      "5/7 tools",
+      "3 skills",
+    ]);
+  });
+
+  it("applies tool and skill changes and shortens thinking", () => {
+    assert.deepEqual(
+      profileRowSummary(
+        {
+          ...base,
+          model: "openai/gpt-x",
+          thinking: "medium",
+          permission: "autonomous",
+          tools: { jira: true, web_search: false, web_fetch: false },
+          skills: { deploy: false },
+        },
+        lead,
+      ),
+      ["openai/gpt-x (Med)", "Autonomous", "5/7 tools", "2 skills"],
+    );
+    assert.equal(profileRowSummary(base, lead)[3], "No skills");
   });
 });

@@ -2,27 +2,19 @@
   Full-page editor for one sub-agent profile in one layer (User or Project).
   Edits stay local until Save; the form module owns the conversion to the
   layer's sparse entry and the validation. When the profile was created in a
-  lower layer, each field shows where its value comes from and offers Revert.
+  lower layer, fields changed in this layer offer Revert.
 -->
 <script lang="ts">
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
 import Copy from "@lucide/svelte/icons/copy";
 import Ellipsis from "@lucide/svelte/icons/ellipsis";
-import Eye from "@lucide/svelte/icons/eye";
-import Hammer from "@lucide/svelte/icons/hammer";
-import Info from "@lucide/svelte/icons/info";
-import Layers from "@lucide/svelte/icons/layers";
-import Lock from "@lucide/svelte/icons/lock";
-import Pencil from "@lucide/svelte/icons/pencil";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import Trash2 from "@lucide/svelte/icons/trash-2";
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import {
   capabilityToolNameSchema,
   type CapabilityToolName,
 } from "@nervekit/contracts/capabilities";
-import { thinkingLevels, type ModelInfo } from "@nervekit/contracts/models";
+import type { ModelInfo } from "@nervekit/contracts/models";
 import {
   builtInSubagentProfiles,
   SUBAGENT_INSTRUCTIONS_MAX_BYTES,
@@ -38,27 +30,27 @@ import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Badge, type BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
-import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
-import { Label } from "@nervekit/ui-kit/components/ui/label";
-import * as RadioGroup from "@nervekit/ui-kit/components/ui/radio-group";
-import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import * as Tabs from "@nervekit/ui-kit/components/ui/tabs";
 import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { cn } from "@nervekit/ui-kit/utils";
 import type { AvailableSkill } from "$lib/api";
 import { capabilityToolGroupsFor } from "$lib/presentation/composer/capability-tool-labels";
+import {
+  SettingsChoiceCards,
+  SettingsFieldRow,
+  SettingsGroup,
+  SettingsInlineMessage,
+  SettingsRow,
+  SettingsSection,
+  SettingsToggleRow,
+} from "$lib/presentation/settings";
 import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
   profileCreatedHere,
-  profileFieldLabel,
   profileFieldValueLabel,
-  profileLayerDotClasses,
   profileLayerLabels,
   profileOriginLayer,
-  profileThinkingLabel,
   type ProfileField,
 } from "$lib/presentation/subagents/profile-layers";
 import ModelPicker from "../../shared/model-picker/ModelPicker.svelte";
@@ -79,8 +71,6 @@ type Props = {
   initial: SubagentProfileForm;
   configuration?: SubagentProfileConfiguration;
   scope: "user" | "project";
-  /** "User" or the project name. */
-  scopeName: string;
   filePath: string;
   models: ModelInfo[];
   skills: AvailableSkill[];
@@ -105,7 +95,6 @@ let {
   initial,
   configuration,
   scope,
-  scopeName,
   filePath,
   models,
   skills,
@@ -135,9 +124,6 @@ let reset = $state<ProfileField[]>([]);
 let chosenTools = $state<string[]>([]);
 let chosenSkills = $state<string[]>([]);
 let resetMaps = $state<("tools" | "skills")[]>([]);
-let tab = $state<"settings" | "layers">("settings");
-// svelte-ignore state_referenced_locally
-let advancedOpen = $state(initial.compactionMode === "profile");
 let confirmLeave = $state(false);
 let pendingLeave: (() => void) | undefined;
 let opening = 0;
@@ -165,17 +151,20 @@ $effect(() => {
 });
 
 const creating = $derived(mode === "create");
-/** Customizing a profile created in a lower layer: fields show provenance. */
+/** Customizing a profile created in a lower layer: changed fields offer Revert. */
 const customizing = $derived(
   !creating &&
     configuration !== undefined &&
     !profileCreatedHere(configuration, scope),
 );
-const scopeLabel = $derived(
-  scope === "user" ? "User" : `Project · ${scopeName}`,
-);
 const originLayer = $derived(
   configuration ? profileOriginLayer(configuration, scope) : scope,
+);
+/** The lead-facing name, shown only when the label doesn't already imply it. */
+const nameDetail = $derived(
+  !creating && baseline.name !== deriveProfileName(baseline.label)
+    ? baseline.name
+    : undefined,
 );
 const repairing = $derived(
   configuration?.effective === null && configuration.local !== null,
@@ -193,7 +182,6 @@ const patch = $derived(
   }),
 );
 const localAfter = $derived(localEntryAfterSave(configuration?.local, patch));
-const changeCount = $derived(Object.keys(patch).length);
 
 const errors = $derived(
   validateForm(form, {
@@ -263,49 +251,33 @@ const thinkingIncompatible = $derived(
 );
 const instructionBytes = $derived(utf8ByteLength(form.instructions));
 
-const layerStrip: readonly SubagentProfileSource[] = [
-  "builtin",
-  "user",
-  "project",
-];
 const layerBadges: Record<SubagentProfileSource, BadgeVariant> = {
   builtin: "neutral",
   user: "info",
   project: "success",
   conversation: "outline",
 };
-const tableFields: readonly ProfileField[] = [
-  "enabled",
-  "label",
-  "description",
-  "model",
-  "thinking",
-  "permission",
-  "tools",
-  "skills",
-  "compaction",
-  "instructions",
-];
-const thinkingItems = [
-  { value: "lead", label: "Same as lead" },
-  ...thinkingLevels.map((level) => ({
-    value: level,
-    label: profileThinkingLabel(level),
-  })),
-];
 const permissionItems = [
   {
     value: "read_only",
     label: "Read-only",
-    detail: "Reads files and the web. Can't change anything.",
-    icon: Eye,
+    detail: "Reads files and the web; changes nothing",
   },
   {
     value: "autonomous",
     label: "Autonomous",
-    detail: "Edits files and runs commands without asking.",
-    icon: Hammer,
+    detail: "Edits files and runs commands without asking",
   },
+];
+const deltaItems = [
+  { value: "same", label: "Same as lead" },
+  { value: "on", label: "On" },
+  { value: "off", label: "Off" },
+];
+const skillsModeItems = [
+  { value: "inherit", label: "Same as lead" },
+  { value: "none", label: "None" },
+  { value: "custom", label: "Choose skills" },
 ];
 const compactionItems = [
   { value: "inherit", label: "Same as lead" },
@@ -316,25 +288,20 @@ function isLocal(field: ProfileField): boolean {
   return Object.hasOwn(localAfter, field);
 }
 
-/** Inherited fields show a dashed control while this layer leaves them alone. */
-function dashed(field: ProfileField): string | undefined {
-  return customizing && !isLocal(field) ? "border-dashed" : undefined;
-}
-
-/** The lower layer a field's value comes from, when it is not set here. */
-function inheritedSource(
-  field: ProfileField,
-): SubagentProfileSource | undefined {
-  const source = configuration?.origins.fields[field];
-  return source && source !== scope ? source : undefined;
-}
-
-function sentenceCase(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 function valueLabel(field: ProfileField, value: unknown): string {
   return profileFieldValueLabel(field, value, models) || "Empty";
+}
+
+/** Revert is offered only for fields this layer sets on a customized profile. */
+function revertable(field: ProfileField): boolean {
+  return customizing && isLocal(field);
+}
+
+function revertLabel(field: ProfileField, title: string): string {
+  const inherited = configuration?.inherited?.[field];
+  return inherited === undefined
+    ? `Revert ${title}`
+    : `Revert ${title} to ${valueLabel(field, inherited)}`;
 }
 
 function pin(field: ProfileField): void {
@@ -368,6 +335,14 @@ function leave(action: () => void): void {
   } else action();
 }
 
+/** "Same model as lead" covers both model and thinking. */
+function setModelLead(value: boolean): void {
+  pin("model");
+  pin("thinking");
+  form.modelLead = value;
+  if (value) form.thinking = "lead";
+}
+
 function setLabel(value: string): void {
   pin("label");
   form.label = value;
@@ -397,13 +372,6 @@ function setToolDelta(names: readonly string[], delta: string): void {
   form.tools = tools;
 }
 
-/** Tinted rows: set in this layer when customizing, otherwise differing from the lead. */
-function toolChanged(names: readonly string[]): boolean {
-  if (!customizing) return toolDelta(names) !== "same";
-  const local = localAfter.tools ?? {};
-  return names.some((name) => Object.hasOwn(local, name));
-}
-
 function skillDelta(name: string): Delta {
   const value = form.skills[name];
   return value === true ? "on" : value === false ? "off" : "same";
@@ -417,12 +385,6 @@ function setSkillDelta(name: string, delta: string): void {
   else if (delta === "off") skillMap[name] = false;
   else delete skillMap[name];
   form.skills = skillMap;
-}
-
-function skillChanged(name: string): boolean {
-  if (!customizing) return skillDelta(name) !== "same";
-  const local = localAfter.skills;
-  return typeof local === "object" && Object.hasOwn(local, name);
 }
 
 async function save(): Promise<void> {
@@ -469,292 +431,498 @@ function shown(field: keyof typeof errors): string | undefined {
 
 <svelte:window onkeydown={onKeydown} />
 
-{#snippet dot(layer: SubagentProfileSource)}
-  <span
-    class={cn("size-2 shrink-0 rounded-full", profileLayerDotClasses[layer])}
-    aria-hidden="true"
-  ></span>
-{/snippet}
-
-{#snippet provenance(field: ProfileField, title: string)}
-  {#if customizing}
-    <span
-      class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-    >
-      {#if isLocal(field)}
-        {@render dot(scope)}
-        <span>Changed here ·</span>
-        <Button
-          variant="link"
-          size="sm"
-          class="h-auto p-0"
-          disabled={saving}
-          onclick={() => resetField(field)}>Revert</Button
-        >
-      {:else if inheritedSource(field)}
-        {@const source = inheritedSource(field)!}
-        {@render dot(source)}
-        <span>From {profileLayerLabels[source]}</span>
-      {:else if configuration?.local && Object.hasOwn(configuration.local, field)}
-        <span>Reverts when saved</span>
-      {/if}
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger
-          class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-          aria-label={`${title} field options`}
-          title={`${title} field options`}
-          disabled={saving}
-        >
-          <Ellipsis class="size-3.5" aria-hidden="true" />
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Content align="end" class="w-56">
-          {#if isLocal(field)}
-            <DropdownMenu.Item onSelect={() => resetField(field)}>
-              <RotateCcw aria-hidden="true" />Revert to inherited value
-            </DropdownMenu.Item>
-          {:else}
-            <DropdownMenu.Item onSelect={() => pin(field)}>
-              <Lock aria-hidden="true" />Keep this value here
-            </DropdownMenu.Item>
-          {/if}
-          <DropdownMenu.Item onSelect={() => (tab = "layers")}>
-            <Layers aria-hidden="true" />Show where values come from
-          </DropdownMenu.Item>
-        </DropdownMenu.Content>
-      </DropdownMenu.Root>
-    </span>
-  {/if}
-{/snippet}
-
-{#snippet revertHint(field: ProfileField)}
-  {#if customizing && isLocal(field) && configuration?.inherited?.[field] !== undefined}
-    <p class="text-xs text-muted-foreground">
-      Revert to {valueLabel(
-        field,
-        configuration.inherited[field],
-      )}{inheritedSource(field)
-        ? ` (from ${profileLayerLabels[inheritedSource(field)!]})`
-        : ""}.
-    </p>
+{#snippet revert(field: ProfileField, title: string)}
+  {#if revertable(field)}
+    <IconAction
+      icon={RotateCcw}
+      label={revertLabel(field, title)}
+      disabled={saving}
+      onclick={() => resetField(field)}
+    />
   {/if}
 {/snippet}
 
 {#snippet error(field: keyof typeof errors)}
   {#if shown(field)}
-    <p class="text-xs text-destructive" role="alert">{shown(field)}</p>
+    <p class="col-span-full text-xs text-destructive" role="alert">
+      {shown(field)}
+    </p>
+  {/if}
+{/snippet}
+
+{#snippet usage(used: number, max: number, text: string)}
+  {#if used > max * 0.8}
+    <p
+      class={cn(
+        "col-span-full text-xs tabular-nums text-muted-foreground",
+        used > max && "text-destructive",
+      )}
+    >
+      {text}
+    </p>
   {/if}
 {/snippet}
 
 <div class="flex min-h-full flex-col">
-  <div class="mx-auto grid w-full max-w-3xl flex-1 content-start gap-5 pb-8">
-    <nav
-      aria-label="Breadcrumb"
-      class="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"
-    >
-      <Button
-        variant="ghost"
-        size="sm"
-        class="-ml-1.5"
+  <div class="mx-auto grid w-full max-w-3xl flex-1 content-start gap-6 pb-8">
+    <header class="flex min-w-0 items-center gap-2">
+      <IconAction
+        icon={ChevronLeft}
+        label="Back to profiles"
         onclick={() => leave(onBack)}
-      >
-        <ChevronLeft aria-hidden="true" />Sub-agents
-      </Button>
-      <span aria-hidden="true">/</span>
-      <span class="truncate text-foreground" aria-current="page"
-        >{creating ? "New profile" : baseline.label || baseline.name}</span
-      >
-    </nav>
-
-    <header class="flex items-start gap-3">
-      <div class="grid min-w-0 flex-1 gap-1">
-        {#if creating}
-          <h1 class="text-lg font-semibold">New profile</h1>
-          <p
-            class="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
-          >
-            Will be saved to
-            <span class="inline-flex items-center gap-1.5 text-foreground"
-              >{@render dot(scope)}{scopeLabel}</span
-            >,
-            {scope === "user"
-              ? "available in all projects."
-              : "shared through the project's files."}
-          </p>
-        {:else}
-          <h1 class="flex min-w-0 items-center gap-2 text-lg font-semibold">
-            <span class="truncate">{baseline.label || baseline.name}</span>
-            <Badge variant={layerBadges[originLayer]}
-              >{profileLayerLabels[originLayer]}</Badge
-            >
-          </h1>
-          <div
-            class="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
-          >
-            {#if configuration}
-              <span
-                class="inline-flex gap-0.5"
-                title="Layers that set values for this profile"
-              >
-                {#each layerStrip as layer (layer)}
-                  {@const contributes = Object.values(
-                    configuration.origins.fields,
-                  ).includes(layer)}
-                  <span
-                    class={cn(
-                      "inline-flex size-4 items-center justify-center rounded-sm text-[0.6875rem] font-semibold",
-                      contributes
-                        ? [profileLayerDotClasses[layer], "text-background"]
-                        : "border border-border text-muted-foreground",
-                      layer === scope &&
-                        "ring-1 ring-foreground ring-offset-1 ring-offset-background",
-                    )}
-                    aria-label={`${profileLayerLabels[layer]}${contributes ? " sets values" : ""}${layer === scope ? ", editing" : ""}`}
-                    >{profileLayerLabels[layer].charAt(0)}</span
-                  >
-                {/each}
-              </span>
-            {/if}
-            <span class="inline-flex flex-wrap items-center gap-1.5">
-              Editing
-              <span class="inline-flex items-center gap-1.5 text-foreground"
-                >{@render dot(scope)}{scopeLabel}</span
-              >{#if customizing}. {profileLayerLabels[originLayer]} values stay unchanged.{/if}
-            </span>
-          </div>
-        {/if}
-      </div>
+      />
+      <h3 class="truncate text-base font-semibold text-foreground">
+        {creating ? "New profile" : baseline.label || baseline.name}
+      </h3>
+      {#if nameDetail}
+        <span class="truncate text-xs text-muted-foreground">{nameDetail}</span>
+      {/if}
       {#if !creating}
-        <div class="flex shrink-0 items-center gap-2">
-          <Label for="profile-enabled" class="text-sm text-muted-foreground"
-            >Available</Label
+        <Badge variant={layerBadges[originLayer]}
+          >{profileLayerLabels[originLayer]}</Badge
+        >
+      {/if}
+      {#if onDuplicate || onResetCustomizations || onDelete}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            class={cn(
+              buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              "ml-auto",
+            )}
+            aria-label="Profile actions"
+            title="Profile actions"
           >
-          <Switch
-            id="profile-enabled"
-            checked={form.enabled}
-            disabled={saving}
-            aria-label="Available to the lead"
-            onCheckedChange={(value) => {
-              pin("enabled");
-              form.enabled = value;
-            }}
-          />
-          {#if onDuplicate || onResetCustomizations || onDelete}
-            <DropdownMenu.Root>
-              <DropdownMenu.Trigger
-                class={buttonVariants({ variant: "ghost", size: "icon" })}
-                aria-label="Profile actions"
-                title="Profile actions"
+            <Ellipsis class="size-3.5" aria-hidden="true" />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end" class="w-56">
+            {#if onDuplicate}
+              <DropdownMenu.Item onSelect={() => leave(() => onDuplicate?.())}>
+                <Copy aria-hidden="true" />Duplicate as new profile
+              </DropdownMenu.Item>
+            {/if}
+            {#if onResetCustomizations}
+              <DropdownMenu.Item onSelect={() => onResetCustomizations?.()}>
+                <RotateCcw aria-hidden="true" />Reset customizations
+              </DropdownMenu.Item>
+            {/if}
+            {#if onDelete}
+              <DropdownMenu.Separator />
+              <DropdownMenu.Item
+                variant="destructive"
+                onSelect={() => onDelete?.()}
               >
-                <Ellipsis aria-hidden="true" />
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Content align="end" class="w-56">
-                {#if onDuplicate}
-                  <DropdownMenu.Item
-                    onSelect={() => leave(() => onDuplicate?.())}
-                  >
-                    <Copy aria-hidden="true" />Duplicate as new profile
-                  </DropdownMenu.Item>
-                {/if}
-                {#if onResetCustomizations}
-                  <DropdownMenu.Item onSelect={() => onResetCustomizations?.()}>
-                    <RotateCcw aria-hidden="true" />Reset customizations
-                  </DropdownMenu.Item>
-                {/if}
-                {#if onDelete}
-                  <DropdownMenu.Separator />
-                  <DropdownMenu.Item
-                    variant="destructive"
-                    onSelect={() => onDelete?.()}
-                  >
-                    <Trash2 aria-hidden="true" />Delete profile
-                  </DropdownMenu.Item>
-                {/if}
-              </DropdownMenu.Content>
-            </DropdownMenu.Root>
-          {/if}
-        </div>
+                <Trash2 aria-hidden="true" />Delete profile
+              </DropdownMenu.Item>
+            {/if}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
       {/if}
     </header>
 
     {#if conflict}
-      <div
-        role="alert"
-        class="flex gap-2.5 rounded-md border border-warning/40 bg-warning/8 p-3"
-      >
-        <TriangleAlert
-          class="mt-0.5 size-4 shrink-0 text-warning"
-          aria-hidden="true"
-        />
-        <div class="grid gap-0.5 text-sm">
-          <p class="font-medium">
-            subagents.json changed while you were editing
-          </p>
-          <p class="text-xs text-muted-foreground">
-            Your unsaved changes are kept. Saving may be refused until you go
-            back and reopen the latest version.
-          </p>
-        </div>
-      </div>
+      <SettingsInlineMessage
+        tone="warning"
+        text="subagents.json changed on disk. Your edits are kept, but saving may be refused until you reopen the profile."
+      />
     {/if}
+    {#if repairing}
+      <SettingsInlineMessage
+        tone="warning"
+        text="This profile is incomplete. Missing values use the defaults shown here when you save."
+      />
+    {/if}
+    {#each configuration?.diagnostics ?? [] as diagnostic, index (index)}
+      <SettingsInlineMessage
+        tone={diagnostic.severity === "blocking" ? "destructive" : "warning"}
+        text={profileDiagnosticSummary(diagnostic)}
+      />
+    {/each}
+    {#each unknownTools as name (name)}
+      <SettingsInlineMessage
+        tone="warning"
+        text={`Unknown tool ${name} is kept but not enabled.`}
+      />
+    {/each}
+    {#each unavailableSkills as name (name)}
+      <SettingsInlineMessage
+        tone="warning"
+        text={`Skill ${name} isn't available and won't be loaded.`}
+      />
+    {/each}
 
-    {#if repairing || configuration?.diagnostics.length || unknownTools.length || unavailableSkills.length}
-      <div class="grid gap-1">
-        {#if repairing}
-          <p class="text-xs text-warning">
-            Repair this incomplete profile. Missing required values use the
-            displayed defaults when you save; existing instructions and
-            selections are kept.
-          </p>
-        {/if}
-        {#each configuration?.diagnostics ?? [] as diagnostic, index (index)}
-          <p
-            class={cn(
-              "text-xs break-words",
-              diagnostic.severity === "blocking"
-                ? "text-destructive"
-                : "text-warning",
-            )}
+    <SettingsSection
+      id="profile-general"
+      title="General"
+      info="The lead reads “When to use” to pick a profile. The model is fixed when a sub-agent starts."
+    >
+      <SettingsGroup>
+        <SettingsRow label="Label" htmlFor="profile-label" layout="responsive">
+          {#snippet badges()}{@render revert("label", "label")}{/snippet}
+          {#snippet control()}
+            <Input
+              id="profile-label"
+              class="sm:w-72"
+              value={form.label}
+              oninput={(event) => setLabel(event.currentTarget.value)}
+              placeholder="Reviewer"
+              disabled={saving}
+            />
+          {/snippet}
+          {@render error("label")}
+        </SettingsRow>
+
+        {#if !form.nameLocked}
+          <SettingsRow
+            label="Name"
+            description="How the lead refers to it. Can't be changed later."
+            htmlFor="profile-name"
+            layout="responsive"
           >
-            {profileDiagnosticSummary(diagnostic)}
-          </p>
-        {/each}
-        {#each unknownTools as name (name)}
-          <p class="text-xs text-warning">
-            Unknown tool {name} ({form.tools[name] === false
-              ? "disabled"
-              : "requested"}). Kept on save; unavailable tools are not enabled
-            on the sub-agent.
-          </p>
-        {/each}
-        {#each unavailableSkills as name (name)}
-          <p class="text-xs text-warning">
-            Unavailable skill {name} ({form.skills[name]
-              ? "requested"
-              : "disabled"}). Kept on save; unavailable skills are not loaded.
-          </p>
-        {/each}
-      </div>
-    {/if}
+            {#snippet control()}
+              <Input
+                id="profile-name"
+                class={cn("sm:w-72", clashName && "border-warning")}
+                value={form.name}
+                oninput={(event) => {
+                  form.name = event.currentTarget.value;
+                  form.nameEdited = true;
+                }}
+                placeholder="reviewer"
+                disabled={saving}
+              />
+            {/snippet}
+            {#if clashName}
+              <p class="col-span-full text-xs text-warning" role="alert">
+                {clashName} already exists.
+                {#if onEditExisting}
+                  <Button
+                    variant="link"
+                    size="sm"
+                    class="h-auto p-0 text-xs"
+                    onclick={() =>
+                      leave(() => onEditExisting?.(clashName ?? ""))}
+                    >{clashBuiltIn
+                      ? `Customize ${clashBuiltIn.label} instead`
+                      : `Edit ${clashName} instead`}</Button
+                  >
+                {/if}
+              </p>
+            {:else if form.name}
+              {@render error("name")}
+            {/if}
+          </SettingsRow>
+        {/if}
 
-    {#if creating}
-      {@render settingsForm()}
-    {:else}
-      <Tabs.Root
-        value={tab}
-        onValueChange={(value) => (tab = value as typeof tab)}
-      >
-        <Tabs.List>
-          <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
-          <Tabs.Trigger value="layers">Where values come from</Tabs.Trigger>
-        </Tabs.List>
-        <Tabs.Content value="settings" class="pt-3">
-          {@render settingsForm()}
-        </Tabs.Content>
-        <Tabs.Content value="layers" class="pt-3">
-          {@render layersTable()}
-        </Tabs.Content>
-      </Tabs.Root>
-    {/if}
+        <SettingsToggleRow
+          label="Same model as lead"
+          description="Start on the lead's model and thinking level."
+          checked={form.modelLead}
+          disabled={saving}
+          onCheckedChange={setModelLead}
+        >
+          {#snippet badges()}{#if revertable("model") || revertable("thinking")}
+              <IconAction
+                icon={RotateCcw}
+                label="Revert model and thinking"
+                disabled={saving}
+                onclick={() => {
+                  if (revertable("model")) resetField("model");
+                  if (revertable("thinking")) resetField("thinking");
+                }}
+              />
+            {/if}{/snippet}
+        </SettingsToggleRow>
+        {#if !form.modelLead}
+          <SettingsRow label="Model" layout="responsive">
+            {#snippet control()}
+              <ModelPicker
+                label="Model"
+                class="w-full sm:w-72"
+                {models}
+                value={form.model}
+                thinkingLevel={form.thinking === "lead"
+                  ? undefined
+                  : form.thinking}
+                disabled={saving}
+                onChange={(next) => {
+                  pin("model");
+                  pin("thinking");
+                  form.model = next.model;
+                  form.thinking = next.thinkingLevel;
+                }}
+              />
+            {/snippet}
+            {@render error("model")}
+            {#if thinkingIncompatible && !reset.includes("thinking") && !reset.includes("model")}
+              <p class="col-span-full text-xs text-destructive" role="alert">
+                This model doesn't support {form.thinking} thinking. Pick a supported
+                level; the profile can't be used until they match.
+              </p>
+            {/if}
+          </SettingsRow>
+        {/if}
+
+        <SettingsRow
+          label="When to use"
+          htmlFor="profile-description"
+          layout="stacked"
+        >
+          {#snippet badges()}{@render revert(
+              "description",
+              "description",
+            )}{/snippet}
+          <Textarea
+            id="profile-description"
+            class="min-h-16"
+            bind:value={
+              () => form.description,
+              (value) => {
+                form.description = value;
+                pin("description");
+              }
+            }
+            placeholder="Reviews diffs for correctness risks and returns findings with file and line."
+            disabled={saving}
+          />
+          {@render usage(
+            form.description.trim().length,
+            SUBAGENT_PROFILE_DESCRIPTION_MAX_LENGTH,
+            `${form.description.trim().length} / ${SUBAGENT_PROFILE_DESCRIPTION_MAX_LENGTH} characters`,
+          )}
+          {@render error("description")}
+        </SettingsRow>
+
+        {#if !creating}
+          <SettingsToggleRow
+            label="Available to the lead"
+            checked={form.enabled}
+            disabled={saving}
+            onCheckedChange={(value) => {
+              pin("enabled");
+              form.enabled = value;
+            }}
+          >
+            {#snippet badges()}{@render revert(
+                "enabled",
+                "availability",
+              )}{/snippet}
+          </SettingsToggleRow>
+        {/if}
+      </SettingsGroup>
+    </SettingsSection>
+
+    <SettingsSection
+      id="profile-access"
+      title="Access"
+      info="Sub-agents never ask for approval, and can't ask questions, present plans or start their own sub-agents."
+    >
+      <SettingsGroup>
+        <SettingsRow label="Permission" layout="stacked">
+          {#snippet badges()}{@render revert(
+              "permission",
+              "permission",
+            )}{/snippet}
+          <SettingsChoiceCards
+            items={permissionItems}
+            variant="radio"
+            value={form.permission}
+            ariaLabel="Permission"
+            disabled={saving}
+            onValueChange={(value) => {
+              pin("permission");
+              form.permission = value as SubagentProfileForm["permission"];
+            }}
+          />
+        </SettingsRow>
+        <SettingsRow label="Skills" layout="responsive">
+          {#snippet badges()}{@render revert("skills", "skills")}{/snippet}
+          {#snippet control()}
+            <SelectField
+              items={skillsModeItems}
+              value={form.skillsMode}
+              ariaLabel="Skills"
+              class="sm:w-72"
+              disabled={saving}
+              onValueChange={(value) => {
+                pin("skills");
+                form.skillsMode = value as SubagentProfileForm["skillsMode"];
+              }}
+            />
+          {/snippet}
+          {@render error("skills")}
+        </SettingsRow>
+      </SettingsGroup>
+
+      {#if form.skillsMode === "custom"}
+        <SettingsGroup title="Skills">
+          {#each skillNames as name (name)}
+            <SettingsRow label={name}>
+              {#snippet control()}
+                <SelectField
+                  items={deltaItems}
+                  value={skillDelta(name)}
+                  ariaLabel={`${name} for this profile`}
+                  class="w-36"
+                  disabled={saving}
+                  onValueChange={(value) => setSkillDelta(name, value)}
+                />
+              {/snippet}
+            </SettingsRow>
+          {:else}
+            <p class="text-xs text-muted-foreground">
+              No skills are available.
+            </p>
+          {/each}
+        </SettingsGroup>
+      {/if}
+    </SettingsSection>
+
+    <SettingsSection
+      id="profile-tools"
+      title="Tools"
+      info="Changes from the lead's tools. File, shell and search tools follow the permission."
+    >
+      {#snippet actions()}{@render revert("tools", "tools")}{/snippet}
+      {#each toolGroups as group (group.key)}
+        {@const delta = toolDelta(group.names)}
+        <SettingsRow label={group.label}>
+          {#snippet control()}
+            {#if delta === "custom"}
+              <Badge
+                variant="outline"
+                title="Edit subagents.json to change these settings"
+                >Custom settings</Badge
+              >
+            {:else}
+              <SelectField
+                items={deltaItems}
+                value={delta}
+                ariaLabel={`${group.label} for this profile`}
+                class="w-36"
+                disabled={saving}
+                onValueChange={(value) => setToolDelta(group.names, value)}
+              />
+            {/if}
+          {/snippet}
+        </SettingsRow>
+      {/each}
+      {@render error("tools")}
+    </SettingsSection>
+
+    <SettingsSection
+      id="profile-instructions"
+      title="Instructions"
+      info="Markdown added to the sub-agent's system prompt. The lead's assignment comes on top."
+    >
+      {#snippet actions()}{@render revert(
+          "instructions",
+          "instructions",
+        )}{/snippet}
+      <Textarea
+        id="profile-instructions-text"
+        aria-label="Instructions"
+        bind:value={
+          () => form.instructions,
+          (value) => {
+            form.instructions = value;
+            pin("instructions");
+          }
+        }
+        class="min-h-48"
+        placeholder="e.g. You review diffs. For each finding give file:line, severity (blocker / should-fix / nit), and a suggested fix. Don't edit files."
+        disabled={saving}
+      />
+      {@render usage(
+        instructionBytes,
+        SUBAGENT_INSTRUCTIONS_MAX_BYTES,
+        `${(instructionBytes / 1024).toFixed(1)} KB of ${SUBAGENT_INSTRUCTIONS_MAX_BYTES / 1024} KB`,
+      )}
+      {@render error("instructions")}
+    </SettingsSection>
+
+    <SettingsSection id="profile-compaction" title="Compaction">
+      {#snippet actions()}{@render revert("compaction", "compaction")}{/snippet}
+      <SettingsGroup>
+        <SettingsRow label="Compaction" layout="responsive">
+          {#snippet control()}
+            <SelectField
+              items={compactionItems}
+              value={form.compactionMode}
+              ariaLabel="Compaction"
+              class="sm:w-72"
+              disabled={saving}
+              onValueChange={(value) => {
+                pin("compaction");
+                form.compactionMode =
+                  value as SubagentProfileForm["compactionMode"];
+              }}
+            />
+          {/snippet}
+        </SettingsRow>
+        {#if form.compactionMode === "profile"}
+          <SettingsToggleRow
+            label="Auto-compact"
+            checked={form.compactionAuto}
+            disabled={saving}
+            onCheckedChange={(value) => {
+              form.compactionAuto = value;
+              pin("compaction");
+            }}
+          />
+          <SettingsRow label="Compaction profile" layout="stacked">
+            <SettingsChoiceCards
+              items={compactionProfileItems}
+              variant="radio"
+              value={form.compactionProfile}
+              ariaLabel="Compaction profile"
+              disabled={saving}
+              onValueChange={(value) => {
+                pin("compaction");
+                form.compactionProfile =
+                  value as SubagentProfileForm["compactionProfile"];
+              }}
+            />
+          </SettingsRow>
+          {#if form.compactionProfile === "custom"}
+            <div class="grid gap-3 py-1.5 sm:grid-cols-2">
+              <SettingsFieldRow
+                id="profile-trigger"
+                label="Compact at"
+                type="number"
+                min={60}
+                max={90}
+                step={1}
+                suffix="%"
+                hint="60–90% context used"
+                value={String(form.triggerPercent)}
+                disabled={saving}
+                onValueChange={(value) => {
+                  pin("compaction");
+                  form.triggerPercent = Number(value);
+                }}
+              />
+              <SettingsFieldRow
+                id="profile-keep"
+                label="Retain recent"
+                type="number"
+                min={5}
+                max={40}
+                step={1}
+                suffix="%"
+                hint="5–40% kept verbatim"
+                value={String(form.keepRecentPercent)}
+                disabled={saving}
+                onValueChange={(value) => {
+                  pin("compaction");
+                  form.keepRecentPercent = Number(value);
+                }}
+              />
+            </div>
+          {/if}
+        {/if}
+      </SettingsGroup>
+      {@render error("compaction")}
+    </SettingsSection>
   </div>
 
   <!-- The settings viewport pads its bottom by 4rem; stick to its real edge. -->
@@ -762,23 +930,19 @@ function shown(field: keyof typeof errors): string | undefined {
     class="sticky -bottom-16 z-10 border-t border-border bg-background pt-2.5 pb-5"
   >
     <div class="mx-auto flex w-full max-w-3xl items-center gap-3">
-      {@render dot(scope)}
       <p class="m-0 min-w-0 flex-1 truncate text-xs text-muted-foreground">
         {#if saveError}
-          <span class="text-destructive" role="alert">{saveError}</span> ·
+          <span class="text-destructive" role="alert">{saveError}</span>
         {:else if attempted && errorCount > 0}
           <span class="text-destructive" role="alert"
             >Fix {errorCount}
             {errorCount === 1 ? "issue" : "issues"} before saving</span
-          > ·
+          >
         {:else if !creating && dirty}
-          <span class="text-foreground"
-            >{changeCount > 0
-              ? `${changeCount} unsaved ${changeCount === 1 ? "change" : "changes"}`
-              : "Unsaved changes"}</span
-          > ·
+          <span class="text-foreground">Unsaved changes</span>
+        {:else}
+          Saves to <span class="font-mono">{filePath}</span>
         {/if}
-        Saves to <span class="font-mono">{filePath}</span>
       </p>
       {#if creating}
         <Button variant="ghost" disabled={saving} onclick={() => leave(onBack)}
@@ -813,709 +977,3 @@ function shown(field: keyof typeof errors): string | undefined {
   }}
   onCancel={() => (pendingLeave = undefined)}
 />
-
-{#snippet layersTable()}
-  {#if configuration}
-    <div class="grid gap-2">
-      <p class="text-xs text-muted-foreground">
-        Saved values per field. Inherited combines all lower layers; Result is
-        what the lead uses. Unsaved changes are not shown here.
-      </p>
-      <div class="overflow-x-auto rounded-md border border-border bg-card">
-        <table class="w-full table-fixed text-sm">
-          <thead class="text-left text-xs text-muted-foreground">
-            <tr class="border-b border-border">
-              <th class="w-28 px-3 py-2 font-medium">Field</th>
-              <th class="px-3 py-2 font-medium">Inherited</th>
-              <th class="px-3 py-2 font-medium">
-                <span class="inline-flex items-center gap-1.5"
-                  >{@render dot(scope)}This layer</span
-                >
-              </th>
-              <th class="px-3 py-2 font-medium">Result</th>
-              <th class="w-10 px-1 py-2"
-                ><span class="sr-only">Actions</span></th
-              >
-            </tr>
-          </thead>
-          <tbody>
-            {#each tableFields as field (field)}
-              {@const inherited = configuration.inherited?.[field]}
-              {@const local = configuration.local?.[field]}
-              {@const result = configuration.effective?.[field]}
-              {@const resultSource = configuration.origins.fields[field]}
-              {@const lowerSource = inheritedSource(field)}
-              <tr class="border-b border-border last:border-b-0">
-                <td class="px-3 py-1.5 align-top"
-                  >{sentenceCase(profileFieldLabel(field))}</td
-                >
-                <td
-                  class={cn(
-                    "px-3 py-1.5 align-top",
-                    local !== undefined && "text-muted-foreground",
-                  )}
-                >
-                  {#if inherited === undefined}
-                    <span class="text-muted-foreground">—</span>
-                  {:else}
-                    <span class="flex min-w-0 items-center gap-1.5">
-                      {#if lowerSource}{@render dot(lowerSource)}{/if}
-                      <span
-                        class="truncate"
-                        title={valueLabel(field, inherited)}
-                        >{valueLabel(field, inherited)}</span
-                      >
-                    </span>
-                  {/if}
-                </td>
-                <td class="px-3 py-1.5 align-top">
-                  {#if local === undefined}
-                    <span class="text-muted-foreground">—</span>
-                  {:else}
-                    <span
-                      class="block truncate"
-                      title={valueLabel(field, local)}
-                      >{valueLabel(field, local)}</span
-                    >
-                  {/if}
-                </td>
-                <td class="px-3 py-1.5 align-top">
-                  {#if result === undefined}
-                    <span class="text-muted-foreground">—</span>
-                  {:else}
-                    <span class="flex min-w-0 items-center gap-1.5">
-                      {#if resultSource}{@render dot(resultSource)}{/if}
-                      <span class="truncate" title={valueLabel(field, result)}
-                        >{valueLabel(field, result)}</span
-                      >
-                    </span>
-                  {/if}
-                </td>
-                <td class="px-1 py-1 align-top">
-                  {#if reset.includes(field)}
-                    <span
-                      class="text-xs text-muted-foreground"
-                      title="Reverts when saved"
-                    >
-                      <RotateCcw
-                        class="size-3.5"
-                        aria-label="Reverts when saved"
-                      />
-                    </span>
-                  {:else if local !== undefined && customizing}
-                    <IconAction
-                      icon={RotateCcw}
-                      label={`Revert ${profileFieldLabel(field)}`}
-                      disabled={saving}
-                      onclick={() => resetField(field)}
-                    />
-                  {/if}
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-      <p class="text-xs text-muted-foreground">
-        Tools and skills combine per item across layers. Conversation changes
-        are not shown here.
-      </p>
-    </div>
-  {/if}
-{/snippet}
-
-{#snippet settingsForm()}
-  <div class="grid gap-8">
-    {#if customizing}
-      <p class="flex gap-2 text-xs text-muted-foreground">
-        <Info class="mt-px size-3.5 shrink-0" aria-hidden="true" />
-        <span
-          >Fields with a dashed outline use values from lower layers. Changing
-          one saves only that field to {scopeLabel}. Use <i>Revert</i> on a field
-          to undo it.</span
-        >
-      </p>
-    {/if}
-
-    <!-- Identity -->
-    <section class="grid gap-4" aria-labelledby="profile-identity">
-      <div class="grid gap-0.5">
-        <h2 id="profile-identity" class="text-sm font-semibold">Identity</h2>
-        <p class="text-xs text-muted-foreground">
-          How you and the lead recognise this profile.
-        </p>
-      </div>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div class="grid content-start gap-1.5">
-          <div class="flex min-h-6 items-center gap-2">
-            <Label for="profile-label">Label</Label>
-            {@render provenance("label", "Label")}
-          </div>
-          <Input
-            id="profile-label"
-            class={dashed("label")}
-            value={form.label}
-            oninput={(event) => setLabel(event.currentTarget.value)}
-            placeholder="Reviewer"
-            disabled={saving}
-          />
-          {@render revertHint("label")}
-          {@render error("label")}
-        </div>
-        <div class="grid content-start gap-1.5">
-          <div class="flex min-h-6 items-center gap-2">
-            <Label for="profile-name">Name</Label>
-            <span class="text-xs text-muted-foreground">used by the lead</span>
-          </div>
-          {#if form.nameLocked}
-            <div class="relative">
-              <Lock
-                class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Input
-                id="profile-name"
-                class="pl-8"
-                value={form.name}
-                readonly
-                disabled
-              />
-            </div>
-            <p class="text-xs text-muted-foreground">
-              Names can't change after creation. Use <i>Duplicate</i> to make a renamed
-              copy.
-            </p>
-          {:else}
-            <Input
-              id="profile-name"
-              class={clashName ? "border-warning" : undefined}
-              value={form.name}
-              oninput={(event) => {
-                form.name = event.currentTarget.value;
-                form.nameEdited = true;
-              }}
-              placeholder="reviewer"
-              disabled={saving}
-            />
-            {#if clashName}
-              <p class="text-xs text-warning" role="alert">
-                A profile named <b>{clashName}</b> already exists here.
-                {#if onEditExisting}
-                  <Button
-                    variant="link"
-                    size="sm"
-                    class="h-auto p-0"
-                    onclick={() =>
-                      leave(() => onEditExisting?.(clashName ?? ""))}
-                    >{clashBuiltIn
-                      ? `Customize ${clashBuiltIn.label} instead`
-                      : `Edit ${clashName}`}</Button
-                  >, or pick another name.
-                {:else}
-                  Pick another name.
-                {/if}
-              </p>
-            {:else if form.name && shown("name")}
-              <p class="text-xs text-destructive" role="alert">
-                {shown("name")}
-              </p>
-            {:else}
-              <p class="text-xs text-muted-foreground">
-                Lowercase letters, numbers and hyphens. Fixed once created.
-              </p>
-            {/if}
-          {/if}
-        </div>
-      </div>
-      <div class="grid gap-1.5">
-        <div class="flex min-h-6 items-center gap-2">
-          <Label for="profile-description">When should the lead use it?</Label>
-          <span
-            class={cn(
-              "text-xs tabular-nums text-muted-foreground",
-              form.description.trim().length >
-                SUBAGENT_PROFILE_DESCRIPTION_MAX_LENGTH && "text-destructive",
-            )}
-            >{form.description.trim().length} / {SUBAGENT_PROFILE_DESCRIPTION_MAX_LENGTH}</span
-          >
-          {@render provenance("description", "Description")}
-        </div>
-        <Textarea
-          id="profile-description"
-          class={cn("min-h-16", dashed("description"))}
-          bind:value={
-            () => form.description,
-            (value) => {
-              form.description = value;
-              pin("description");
-            }
-          }
-          placeholder="Reviews diffs for correctness risks and returns findings with file and line."
-          disabled={saving}
-        />
-        {@render revertHint("description")}
-        {#if shown("description")}
-          {@render error("description")}
-        {:else}
-          <p class="text-xs text-muted-foreground">
-            The lead reads this to pick a profile. Say what it is good at and
-            what it returns.
-          </p>
-        {/if}
-      </div>
-    </section>
-
-    <!-- Model -->
-    <section class="grid gap-4" aria-labelledby="profile-model">
-      <div class="grid gap-0.5">
-        <h2 id="profile-model" class="text-sm font-semibold">Model</h2>
-        <p class="text-xs text-muted-foreground">
-          Fixed when a sub-agent is created. "Same as lead" copies the lead's
-          current choice.
-        </p>
-      </div>
-      <div class="grid gap-4 sm:grid-cols-2">
-        <div class="grid content-start gap-1.5">
-          <div class="flex min-h-6 items-center gap-2">
-            <Label>Model</Label>
-            {@render provenance("model", "Model")}
-          </div>
-          <ModelPicker
-            label="Model"
-            class={cn("w-full", dashed("model"))}
-            {models}
-            value={form.model}
-            thinkingLevel={undefined}
-            showReasoning={false}
-            disabled={saving}
-            inheritOption={{
-              label: "Same as lead",
-              description:
-                "Sub-agents start on the model of the lead that created them.",
-            }}
-            inherit={form.modelLead}
-            onInherit={() => {
-              form.modelLead = true;
-              pin("model");
-            }}
-            onChange={(next) => {
-              form.model = next.model;
-              form.modelLead = false;
-              pin("model");
-            }}
-          />
-          {@render revertHint("model")}
-          {@render error("model")}
-        </div>
-        <div class="grid content-start gap-1.5">
-          <div class="flex min-h-6 items-center gap-2">
-            <Label>Thinking</Label>
-            {@render provenance("thinking", "Thinking")}
-          </div>
-          <SelectField
-            items={thinkingItems}
-            value={form.thinking}
-            ariaLabel="Thinking"
-            class={dashed("thinking")}
-            disabled={saving}
-            onValueChange={(value) => {
-              pin("thinking");
-              form.thinking = value as SubagentProfileForm["thinking"];
-            }}
-          />
-          {@render revertHint("thinking")}
-        </div>
-      </div>
-      {#if thinkingIncompatible && !reset.includes("thinking") && !reset.includes("model")}
-        <p class="text-xs text-destructive" role="alert">
-          This model doesn't support {form.thinking} thinking. Choose a supported
-          level; the profile stays blocked until they match. Your selection is kept.
-        </p>
-      {/if}
-    </section>
-
-    <!-- Permission, tools and skills -->
-    <section class="grid gap-5" aria-labelledby="profile-capabilities">
-      <div class="grid gap-0.5">
-        <h2 id="profile-capabilities" class="text-sm font-semibold">
-          What it may do
-        </h2>
-        <p class="text-xs text-muted-foreground">
-          Sub-agents never ask you for approval, so only these two rule sets
-          exist.
-        </p>
-      </div>
-      <div class="grid gap-1.5">
-        <div class="flex min-h-6 items-center gap-2">
-          <Label id="profile-permission-label">Permission</Label>
-          {@render provenance("permission", "Permission")}
-        </div>
-        <RadioGroup.Root
-          value={form.permission}
-          disabled={saving}
-          aria-labelledby="profile-permission-label"
-          class="grid gap-2 sm:grid-cols-2"
-          onValueChange={(value) => {
-            pin("permission");
-            form.permission = value as SubagentProfileForm["permission"];
-          }}
-        >
-          {#each permissionItems as item (item.value)}
-            {@const Icon = item.icon}
-            <Label
-              class={cn(
-                "flex cursor-pointer items-start gap-2.5 rounded-md border border-border p-3 font-normal transition-colors hover:bg-accent/50 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-selected",
-                dashed("permission"),
-              )}
-            >
-              <RadioGroup.Item value={item.value} class="mt-0.5" />
-              <span class="grid gap-0.5">
-                <span class="flex items-center gap-1.5 text-sm font-medium">
-                  <Icon class="size-3.5" aria-hidden="true" />{item.label}
-                </span>
-                <span class="text-xs text-muted-foreground">{item.detail}</span>
-              </span>
-            </Label>
-          {/each}
-        </RadioGroup.Root>
-        {@render revertHint("permission")}
-      </div>
-
-      <div class="grid gap-1.5">
-        <div class="flex min-h-6 items-center gap-2">
-          <Label id="profile-tools-label">Tools</Label>
-          <span class="text-xs text-muted-foreground"
-            >Differences from the lead's tools</span
-          >
-          {@render provenance("tools", "Tools")}
-        </div>
-        <ul
-          class={cn(
-            "m-0 list-none divide-y divide-border rounded-md border border-border p-0",
-            dashed("tools"),
-          )}
-          aria-labelledby="profile-tools-label"
-        >
-          {#each toolGroups as group (group.key)}
-            {@const delta = toolDelta(group.names)}
-            {@const toolSource = group.names
-              .map((name) => configuration?.origins.tools[name])
-              .find((source) => source !== undefined)}
-            <li
-              class={cn(
-                "flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5",
-                toolChanged(group.names) && "bg-muted",
-              )}
-            >
-              <span class="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
-                <span class="truncate">{group.label}</span>
-                {#if customizing && toolSource}
-                  <span
-                    title={`Set in ${profileLayerLabels[toolSource]}`}
-                    class="inline-flex">{@render dot(toolSource)}</span
-                  >
-                {/if}
-              </span>
-              {#if delta === "custom"}
-                <Badge
-                  variant="outline"
-                  title="Edit subagents.json to change these settings"
-                  >Custom settings</Badge
-                >
-              {:else}
-                <ToggleGroup.Root
-                  type="single"
-                  size="sm"
-                  variant="chip"
-                  spacing={1}
-                  value={delta}
-                  disabled={saving}
-                  aria-label={`${group.label} for this profile`}
-                  onValueChange={(value) => {
-                    if (value) setToolDelta(group.names, value);
-                  }}
-                >
-                  <ToggleGroup.Item value="same">Same as lead</ToggleGroup.Item>
-                  <ToggleGroup.Item value="on">On</ToggleGroup.Item>
-                  <ToggleGroup.Item value="off">Off</ToggleGroup.Item>
-                </ToggleGroup.Root>
-              {/if}
-            </li>
-          {/each}
-        </ul>
-        {@render revertHint("tools")}
-        {@render error("tools")}
-        <p class="text-xs text-muted-foreground">
-          File, shell and search tools follow the permission above. Sub-agents
-          can never ask questions, present plans or start their own sub-agents.
-        </p>
-      </div>
-
-      <div class="grid gap-1.5">
-        <div class="flex min-h-6 items-center gap-2">
-          <Label id="profile-skills-label">Skills</Label>
-          {@render provenance("skills", "Skills")}
-        </div>
-        <ToggleGroup.Root
-          type="single"
-          variant="outline"
-          value={form.skillsMode}
-          disabled={saving}
-          aria-labelledby="profile-skills-label"
-          onValueChange={(value) => {
-            if (!value) return;
-            pin("skills");
-            form.skillsMode = value as SubagentProfileForm["skillsMode"];
-          }}
-        >
-          <ToggleGroup.Item value="inherit" class={dashed("skills")}
-            >Same as lead</ToggleGroup.Item
-          >
-          <ToggleGroup.Item value="none" class={dashed("skills")}
-            >None</ToggleGroup.Item
-          >
-          <ToggleGroup.Item value="custom" class={dashed("skills")}
-            >Choose…</ToggleGroup.Item
-          >
-        </ToggleGroup.Root>
-        {#if form.skillsMode === "custom"}
-          {#if skillNames.length === 0}
-            <p class="text-xs text-muted-foreground">
-              No skills are available.
-            </p>
-          {:else}
-            <ul
-              class={cn(
-                "m-0 list-none divide-y divide-border rounded-md border border-border p-0",
-                dashed("skills"),
-              )}
-              aria-label="Skill changes"
-            >
-              {#each skillNames as name (name)}
-                {@const skillSource = configuration?.origins.skills[name]}
-                <li
-                  class={cn(
-                    "flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5",
-                    skillChanged(name) && "bg-muted",
-                  )}
-                >
-                  <span
-                    class="flex min-w-0 flex-1 items-center gap-1.5 text-sm"
-                  >
-                    <span class="truncate">{name}</span>
-                    {#if customizing && skillSource}
-                      <span
-                        title={`Set in ${profileLayerLabels[skillSource]}`}
-                        class="inline-flex">{@render dot(skillSource)}</span
-                      >
-                    {/if}
-                  </span>
-                  <ToggleGroup.Root
-                    type="single"
-                    size="sm"
-                    variant="chip"
-                    spacing={1}
-                    value={skillDelta(name)}
-                    disabled={saving}
-                    aria-label={`${name} for this profile`}
-                    onValueChange={(value) => {
-                      if (value) setSkillDelta(name, value);
-                    }}
-                  >
-                    <ToggleGroup.Item value="same"
-                      >Same as lead</ToggleGroup.Item
-                    >
-                    <ToggleGroup.Item value="on">On</ToggleGroup.Item>
-                    <ToggleGroup.Item value="off">Off</ToggleGroup.Item>
-                  </ToggleGroup.Root>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        {/if}
-        {@render revertHint("skills")}
-        {@render error("skills")}
-      </div>
-    </section>
-
-    <!-- Instructions -->
-    <section class="grid gap-3" aria-labelledby="profile-instructions">
-      <div class="flex items-start gap-2">
-        <div class="grid flex-1 gap-0.5">
-          <h2 id="profile-instructions" class="text-sm font-semibold">
-            Instructions
-          </h2>
-          <p class="text-xs text-muted-foreground">
-            Added to the sub-agent's system prompt. The assignment from the lead
-            comes on top.
-          </p>
-        </div>
-        {@render provenance("instructions", "Instructions")}
-      </div>
-      {#if customizing && !isLocal("instructions")}
-        <div
-          class="max-h-64 overflow-auto rounded-md border border-dashed border-border p-3 text-sm whitespace-pre-wrap text-muted-foreground"
-        >
-          {form.instructions || "No instructions."}
-        </div>
-        <div class="flex items-start gap-3">
-          <p class="flex-1 text-xs text-muted-foreground">
-            Read-only until you choose <i>Customize</i>, which copies this text
-            so you can edit it here. Later updates to the lower layer won't
-            reach a customized copy, and you can revert at any time.
-          </p>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={saving}
-            onclick={() => pin("instructions")}
-          >
-            <Pencil aria-hidden="true" />Customize
-          </Button>
-        </div>
-      {:else}
-        <Textarea
-          id="profile-instructions-text"
-          aria-labelledby="profile-instructions"
-          bind:value={
-            () => form.instructions,
-            (value) => {
-              form.instructions = value;
-              pin("instructions");
-            }
-          }
-          class="min-h-48"
-          placeholder="e.g. You review diffs. For each finding give file:line, severity (blocker / should-fix / nit), and a suggested fix. Don't edit files."
-          disabled={saving}
-        />
-        <div class="flex items-start gap-3 text-xs text-muted-foreground">
-          <span class="flex-1"
-            >Markdown. Optional, but strongly recommended.</span
-          >
-          <span
-            class={cn(
-              "tabular-nums",
-              instructionBytes > SUBAGENT_INSTRUCTIONS_MAX_BYTES &&
-                "text-destructive",
-            )}
-            >{(instructionBytes / 1024).toFixed(1)} KB of {SUBAGENT_INSTRUCTIONS_MAX_BYTES /
-              1024} KB</span
-          >
-        </div>
-        {@render revertHint("instructions")}
-        {@render error("instructions")}
-      {/if}
-    </section>
-
-    <!-- Advanced -->
-    <Collapsible.Root bind:open={advancedOpen}>
-      <section class="grid gap-3" aria-labelledby="profile-advanced">
-        <div class="flex items-center gap-2">
-          <Collapsible.Trigger
-            id="profile-advanced"
-            class="group flex items-center gap-1 text-sm font-semibold"
-          >
-            <ChevronRight
-              class="size-4 transition-transform group-data-[state=open]:rotate-90"
-              aria-hidden="true"
-            />
-            Advanced
-          </Collapsible.Trigger>
-          {#if !advancedOpen}
-            <span class="text-xs text-muted-foreground"
-              >Compaction: {form.compactionMode === "inherit"
-                ? "Same as lead"
-                : "Custom"}</span
-            >
-          {/if}
-          {@render provenance("compaction", "Compaction")}
-        </div>
-        <Collapsible.Content class="grid gap-3 pl-5">
-          <div class="grid gap-1.5">
-            <Label>Compaction</Label>
-            <SelectField
-              items={compactionItems}
-              value={form.compactionMode}
-              ariaLabel="Compaction"
-              class={dashed("compaction")}
-              disabled={saving}
-              onValueChange={(value) => {
-                pin("compaction");
-                form.compactionMode =
-                  value as SubagentProfileForm["compactionMode"];
-              }}
-            />
-          </div>
-          {#if form.compactionMode === "profile"}
-            <div class="flex items-center justify-between gap-3">
-              <Label for="profile-compaction-auto">Auto-compact</Label>
-              <Switch
-                id="profile-compaction-auto"
-                bind:checked={
-                  () => form.compactionAuto,
-                  (value) => {
-                    form.compactionAuto = value;
-                    pin("compaction");
-                  }
-                }
-                disabled={saving}
-              />
-            </div>
-            <SelectField
-              items={compactionProfileItems}
-              value={form.compactionProfile}
-              ariaLabel="Compaction profile"
-              class={dashed("compaction")}
-              disabled={saving}
-              onValueChange={(value) => {
-                pin("compaction");
-                form.compactionProfile =
-                  value as SubagentProfileForm["compactionProfile"];
-              }}
-            />
-            {#if form.compactionProfile === "custom"}
-              <div class="grid gap-3 sm:grid-cols-2">
-                <div class="grid gap-1.5">
-                  <Label for="profile-trigger">Compact at (%)</Label>
-                  <Input
-                    id="profile-trigger"
-                    type="number"
-                    min={60}
-                    max={90}
-                    class={dashed("compaction")}
-                    value={String(form.triggerPercent)}
-                    disabled={saving}
-                    oninput={(event) => {
-                      pin("compaction");
-                      form.triggerPercent = Number(event.currentTarget.value);
-                    }}
-                  />
-                </div>
-                <div class="grid gap-1.5">
-                  <Label for="profile-keep">Keep recent (%)</Label>
-                  <Input
-                    id="profile-keep"
-                    type="number"
-                    min={5}
-                    max={40}
-                    class={dashed("compaction")}
-                    value={String(form.keepRecentPercent)}
-                    disabled={saving}
-                    oninput={(event) => {
-                      pin("compaction");
-                      form.keepRecentPercent = Number(
-                        event.currentTarget.value,
-                      );
-                    }}
-                  />
-                </div>
-              </div>
-            {/if}
-          {/if}
-          {@render revertHint("compaction")}
-          {@render error("compaction")}
-        </Collapsible.Content>
-      </section>
-    </Collapsible.Root>
-  </div>
-{/snippet}

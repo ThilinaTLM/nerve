@@ -1,22 +1,30 @@
 <script lang="ts">
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { openSettingsPane } from "$lib/application/settings";
-import { SettingsListItem } from "$lib/presentation/settings";
+import ToolConfigureButton from "./ToolConfigureButton.svelte";
+import ToolGroupItem from "./ToolGroupItem.svelte";
+
+const tools = [
+  {
+    name: "subagent_prompt",
+    description: "Assign work to a sub-agent or follow up with one.",
+  },
+  {
+    name: "subagent_status",
+    description: "Check sub-agent progress and read final responses.",
+  },
+  { name: "subagent_stop", description: "Stop a running sub-agent." },
+];
 </script>
 
-<SettingsListItem
+<ToolGroupItem
   title="Sub-agents"
-  description="Delegate work to sub-agents with their own profiles. Profiles, models and permissions are configured on the Sub-agents page."
+  description="Delegate work to sub-agents with their own profiles."
+  {tools}
 >
   {#snippet actions()}
-    <Button
-      size="sm"
-      variant="outline"
+    <ToolConfigureButton
+      label="Configure Sub-agents"
       onclick={() => void openSettingsPane("subagents")}
-    >
-      Open Sub-agents
-      <ChevronRight class="size-3.5" aria-hidden="true" />
-    </Button>
+    />
   {/snippet}
-</SettingsListItem>
+</ToolGroupItem>

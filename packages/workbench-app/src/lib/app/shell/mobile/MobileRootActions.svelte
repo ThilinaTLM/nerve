@@ -90,7 +90,7 @@ function newChat() {
 {#if !project}
   <MobileActionSheet
     open={pickerOpen}
-    title="New chat in…"
+    title="New chat in project"
     items={pickerItems}
     onOpenChange={(open) => (pickerOpen = open)}
   />

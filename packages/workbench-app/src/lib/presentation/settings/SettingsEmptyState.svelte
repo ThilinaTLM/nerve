@@ -25,7 +25,8 @@ let {
 <div
   class={cn(
     "flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2 text-xs",
-    variant === "card" && "rounded-md border border-dashed bg-card px-3 py-2",
+    variant === "card" &&
+      "rounded-md border border-dashed bg-card px-3 py-2 group-data-settings-surface/surface:border-0 group-data-settings-surface/surface:bg-transparent group-data-settings-surface/surface:px-0",
     className,
   )}
 >
