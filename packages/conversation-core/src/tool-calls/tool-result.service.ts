@@ -21,6 +21,7 @@ import {
   projectAgentResult,
 } from "@nervekit/tools/result-projection";
 import type { AssetStore } from "../assets/asset-store.js";
+import { planReviewDisplayResult } from "./plan-review-result.js";
 
 export async function prepareToolResult(
   assets: AssetStore,
@@ -66,7 +67,7 @@ export async function prepareToolResult(
       block.type === "image" ? await saveImage(block) : block,
     );
   const completeResult = {
-    ...result,
+    ...planReviewDisplayResult(call, outcome, result),
     ...(result.contentBlocks ? { contentBlocks: completeBlocks } : {}),
   };
   const full = JSON.stringify(completeResult);

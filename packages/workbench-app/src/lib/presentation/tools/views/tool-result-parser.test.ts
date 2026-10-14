@@ -46,6 +46,32 @@ describe("recorded planning tools", () => {
     });
   }
 
+  it("reads the complete reviewed snapshot from stored result details", () => {
+    const view = parseToolView(
+      call(
+        "plan_mode_present",
+        { file_path: "/workspace/plan.md" },
+        {
+          content: "Plan approved.",
+          details: {
+            decision: "approve",
+            review: {
+              id: "tool_plan",
+              content: "# Reviewed plan",
+              status: "accepted",
+              planPath: "/snapshot/plan.md",
+            },
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "plan_mode");
+    if (view.kind !== "plan_mode") return;
+    assert.equal(view.planPreview, "# Reviewed plan");
+    assert.equal(view.outcome, "accepted");
+    assert.equal(view.planPath, "/snapshot/plan.md");
+  });
+
   it("keeps plan presentation and review data specialized", () => {
     const view = parseToolView(
       call(
