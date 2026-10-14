@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onDestroy, untrack, type Snippet } from "svelte";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
-import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
+import X from "@lucide/svelte/icons/x";
 import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import {
@@ -353,30 +353,27 @@ const chatGptAudioConfigured = $derived(chatGptAudioAuth.configured);
 const fileDropSupported = $derived(Boolean(getDesktopBridge()?.files));
 const supportsAudioRecording = $derived(voiceInputSession.isSupported());
 const micDisabled = $derived(
-  Boolean(editorOverlay) ||
-    !interactive ||
-    stopping ||
-    !voiceTarget ||
-    voiceInputSession.pending ||
-    (!recording &&
-      (!canPrompt || !supportsAudioRecording || voiceBusyElsewhere)),
+  !transcribing &&
+    (Boolean(editorOverlay) ||
+      !interactive ||
+      stopping ||
+      !voiceTarget ||
+      voiceInputSession.pending ||
+      (!recording &&
+        (!canPrompt || !supportsAudioRecording || voiceBusyElsewhere))),
 );
 const micTitle = $derived(
-  recording
-    ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
-    : voiceBusyElsewhere
-      ? "Voice recording is active in another conversation"
-      : voiceInputSession.retryAttempt > 0 &&
-          voiceTarget &&
-          voiceInputSession.isTargetActive(voiceTarget)
-        ? `Retrying transcription ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}…`
-        : transcribing
-          ? "Transcribing audio…"
-          : !chatGptAudioConfigured
-            ? "Connect ChatGPT to use voice input"
-            : micShortcut
-              ? `Record voice prompt (${micShortcut})`
-              : "Record voice prompt",
+  transcribing
+    ? `Cancel transcription${cancelMicShortcut ? ` (${cancelMicShortcut})` : " (Esc)"}${voiceInputSession.retryAttempt > 0 ? ` — retry ${voiceInputSession.retryAttempt}/${voiceInputSession.maxRetries}` : ""}`
+    : recording
+      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — ${cancelMicShortcut ?? "Esc"} to cancel; right-click to cancel (${formatElapsed(voiceInputSession.elapsedMs)} / ${formatElapsed(voiceInputSession.maxDurationMs)})`
+      : voiceBusyElsewhere
+        ? "Voice recording is active in another conversation"
+        : !chatGptAudioConfigured
+          ? "Connect ChatGPT to use voice input"
+          : micShortcut
+            ? `Record voice prompt (${micShortcut})`
+            : "Record voice prompt",
 );
 const sendAriaLabel = $derived(
   voiceSubmitPending
@@ -475,6 +472,10 @@ const modelRuntimeChangeHint = $derived(
 );
 
 function toggleRecording() {
+  if (transcribing && voiceTarget) {
+    void voiceInputSession.cancel(voiceTarget);
+    return;
+  }
   if (!interactive || micDisabled || compacting || stopping || !voiceTarget)
     return;
   if (!recording && !chatGptAudioConfigured) {
@@ -485,7 +486,7 @@ function toggleRecording() {
 }
 
 function cancelRecordingShortcut() {
-  if (!recording || !voiceTarget) return false;
+  if ((!recording && !transcribing) || !voiceTarget) return false;
   void voiceInputSession.cancel(voiceTarget);
   return true;
 }
@@ -501,7 +502,10 @@ $effect(() => {
 });
 
 $effect(() => {
-  if (lastComposerEscapeToken === undefined || !interactive) {
+  if (
+    lastComposerEscapeToken === undefined ||
+    (!interactive && !transcribing)
+  ) {
     lastComposerEscapeToken = composerEscapeToken;
     return;
   }
@@ -511,7 +515,7 @@ $effect(() => {
 });
 
 $effect(() => {
-  if (lastMicShortcutToken === undefined || !interactive) {
+  if (lastMicShortcutToken === undefined || (!interactive && !transcribing)) {
     lastMicShortcutToken = micShortcutToken;
     return;
   }
@@ -521,7 +525,7 @@ $effect(() => {
 });
 
 function handleMicContextMenu(event: MouseEvent) {
-  if (!recording || !voiceTarget) return;
+  if ((!recording && !transcribing) || !voiceTarget) return;
   event.preventDefault();
   void voiceInputSession.cancel(voiceTarget);
 }
@@ -702,16 +706,18 @@ function handleMicContextMenu(event: MouseEvent) {
       disabled={micDisabled}
       onclick={toggleRecording}
       oncontextmenu={handleMicContextMenu}
-      aria-label={recording
-        ? "Stop recording; right-click to cancel"
-        : chatGptAudioConfigured
-          ? "Record voice prompt"
-          : "Connect ChatGPT to use voice input"}
+      aria-label={transcribing
+        ? "Cancel transcription"
+        : recording
+          ? "Stop recording; right-click to cancel"
+          : chatGptAudioConfigured
+            ? "Record voice prompt"
+            : "Connect ChatGPT to use voice input"}
       aria-keyshortcuts={micShortcutAria}
       title={micTitle}
     >
       {#if transcribing}
-        <Spinner class="size-3.5" />
+        <X size={14} strokeWidth={2.4} />
       {:else}
         <Mic size={14} strokeWidth={2.4} />
       {/if}

@@ -127,30 +127,27 @@ const voiceBusyElsewhere = $derived(
 const chatGptAudioConfigured = $derived(Boolean(voice?.chatGptConfigured()));
 const supportsAudioRecording = $derived(Boolean(voice?.session.isSupported()));
 const micDisabled = $derived(
-  !voice ||
-    !voiceTarget ||
-    Boolean(submitting) ||
-    voice.session.pending ||
-    (!recording && (!pending || voiceBusyElsewhere)),
+  !transcribing &&
+    (!voice ||
+      !voiceTarget ||
+      Boolean(submitting) ||
+      voice.session.pending ||
+      (!recording && (!pending || voiceBusyElsewhere))),
 );
 const micTitle = $derived(
   !voice
     ? ""
-    : recording
-      ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — right-click to cancel (${formatElapsed(voice.session.elapsedMs)} / ${formatElapsed(voice.session.maxDurationMs)})`
-      : voiceBusyElsewhere
-        ? "Voice recording is active elsewhere"
-        : voice.session.retryAttempt > 0 &&
-            voiceTarget &&
-            voice.session.isTargetActive(voiceTarget)
-          ? `Retrying transcription ${voice.session.retryAttempt}/${voice.session.maxRetries}…`
-          : transcribing
-            ? "Transcribing audio…"
-            : !chatGptAudioConfigured
-              ? "Connect ChatGPT to use voice input"
-              : micShortcut
-                ? `Record voice reply (${micShortcut})`
-                : "Record voice reply",
+    : transcribing
+      ? `Cancel transcription (Esc)${voice.session.retryAttempt > 0 ? ` — retry ${voice.session.retryAttempt}/${voice.session.maxRetries}` : ""}`
+      : recording
+        ? `Stop recording${micShortcut ? ` (${micShortcut})` : ""} — right-click to cancel (${formatElapsed(voice.session.elapsedMs)} / ${formatElapsed(voice.session.maxDurationMs)})`
+        : voiceBusyElsewhere
+          ? "Voice recording is active elsewhere"
+          : !chatGptAudioConfigured
+            ? "Connect ChatGPT to use voice input"
+            : micShortcut
+              ? `Record voice reply (${micShortcut})`
+              : "Record voice reply",
 );
 
 function clearRegisteredVoiceTarget(cancelActive: boolean): void {
@@ -251,6 +248,10 @@ function actionErrorMessage(error: unknown, fallback: string): string {
 }
 
 function toggleRecording() {
+  if (voice && voiceTarget && transcribing) {
+    void voice.session.cancel(voiceTarget);
+    return;
+  }
   if (!voice || micDisabled || !voiceTarget) return;
   if (!recording && !chatGptAudioConfigured) {
     audioAuthDialogOpen = true;
@@ -260,6 +261,22 @@ function toggleRecording() {
 }
 
 function handleReplyKeydown(event: KeyboardEvent) {
+  if (event.defaultPrevented || event.isComposing) return;
+  if (
+    event.key === "Escape" &&
+    !event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.shiftKey &&
+    voice &&
+    voiceTarget &&
+    (recording || transcribing)
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    void voice.session.cancel(voiceTarget);
+    return;
+  }
   const vKey = event.key.toLowerCase() === "v" || event.code === "KeyV";
   if (
     vKey &&
@@ -274,13 +291,13 @@ function handleReplyKeydown(event: KeyboardEvent) {
 }
 
 function handleMicContextMenu(event: MouseEvent) {
-  if (!voice || !recording || !voiceTarget) return;
+  if (!voice || (!recording && !transcribing) || !voiceTarget) return;
   event.preventDefault();
   void voice.session.cancel(voiceTarget);
 }
 
-// CodeMirror owns the editor's key handling; Alt+V (mic) isn't bound there, so
-// a plain DOM listener on the wrapper keeps the shortcut working without
+// CodeMirror owns editor shortcuts; a plain DOM listener handles unclaimed
+// voice shortcuts (Alt+V and Escape) on the reply without
 // tripping a11y's keydown-on-non-interactive-element rule.
 function replyFieldKeydown(node: HTMLElement) {
   node.addEventListener("keydown", handleReplyKeydown);
@@ -387,16 +404,18 @@ function replyFieldKeydown(node: HTMLElement) {
               disabled={micDisabled}
               onclick={toggleRecording}
               oncontextmenu={handleMicContextMenu}
-              aria-label={recording
-                ? "Stop recording; right-click to cancel"
-                : chatGptAudioConfigured
-                  ? "Record voice reply"
-                  : "Connect ChatGPT to use voice input"}
+              aria-label={transcribing
+                ? "Cancel transcription"
+                : recording
+                  ? "Stop recording; right-click to cancel"
+                  : chatGptAudioConfigured
+                    ? "Record voice reply"
+                    : "Connect ChatGPT to use voice input"}
               aria-keyshortcuts={micShortcutAria}
               title={micTitle}
             >
               {#if transcribing}
-                <Spinner class="size-3.5" />
+                <X size={14} strokeWidth={2.4} />
               {:else}
                 <Mic size={14} strokeWidth={2.4} />
               {/if}

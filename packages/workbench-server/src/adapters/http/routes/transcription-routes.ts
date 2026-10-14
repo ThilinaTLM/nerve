@@ -55,6 +55,7 @@ export function createTranscriptionRoutes(
           durationMs: parseDurationMs(form.get("durationMs")),
         },
         state.storage.settings.transcription,
+        { signal: c.req.raw.signal },
       );
       return c.json(result);
     }),
