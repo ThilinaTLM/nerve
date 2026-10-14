@@ -37,10 +37,9 @@ describe("settings typography", () => {
     assert.match(sectionTitle, /font-semibold/);
     assert.match(sectionTitle, /text-foreground/);
 
-    const rowTitle = /<span class="truncate (text-sm[^"]*)">\{title\}/.exec(
-      listItem,
-    );
+    const rowTitle = /<span\s+class="([^"]+)"\s*>\s*\{title\}/s.exec(listItem);
     assert.ok(rowTitle, "expected a list item title span");
+    assert.match(rowTitle[1], /\btext-sm\b/);
     assert.doesNotMatch(
       rowTitle[1],
       /font-(medium|semibold|bold)/,
