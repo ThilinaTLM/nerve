@@ -2,24 +2,35 @@ import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import { subagentProfileNameSchema } from "./constants.js";
 import {
-  subagentProfileDraftSchema,
   subagentProfileSchema,
   subagentProfileScopeSchema,
 } from "./subagent-profile.js";
 
+import {
+  subagentProfileEntrySchema,
+  subagentProfilePatchSchema,
+  subagentProfilesConfigurationSchema,
+} from "./subagent-configuration.js";
+
 const projectIdSchema = z.string().startsWith("proj_");
-const okResultSchema = z.object({ ok: z.literal(true) });
 const host = ["workbench_server"] as const;
 
 /** Scope plus project; `projectId` is required when `scope` is `project`. */
 const scopedParams = {
   scope: subagentProfileScopeSchema,
   projectId: projectIdSchema.optional(),
+  conversationId: z.string().min(1).optional(),
 };
 function requireProjectForProjectScope(
-  value: { scope: string; projectId?: string },
+  value: { scope: string; projectId?: string; conversationId?: string },
   context: z.RefinementCtx,
 ) {
+  if (value.scope === "conversation" && !value.conversationId)
+    context.addIssue({
+      code: "custom",
+      path: ["conversationId"],
+      message: "conversationId is required for conversation scope",
+    });
   if (value.scope === "project" && !value.projectId)
     context.addIssue({
       code: "custom",
@@ -30,35 +41,47 @@ function requireProjectForProjectScope(
 
 export const subagentProfilesListParamsSchema = z.object({
   projectId: projectIdSchema.optional(),
+  conversationId: z.string().min(1).optional(),
 });
-export const subagentProfilesListResultSchema = z.object({
-  /** Effective profiles plus shadowed and invalid ones. */
-  profiles: z.array(subagentProfileSchema),
-});
-export const subagentProfilesSaveParamsSchema = z
+export const subagentProfilesConfigurationParamsSchema = z
+  .object(scopedParams)
+  .superRefine(requireProjectForProjectScope);
+export const subagentProfilesConfigurationResultSchema =
+  subagentProfilesConfigurationSchema;
+const mutationParams = {
+  ...scopedParams,
+  name: subagentProfileNameSchema,
+  /** Null asserts the file is absent; omitted disables optimistic concurrency. */
+  expectedDigest: z.string().min(1).nullable().optional(),
+};
+export const subagentProfilesUpdateParamsSchema = z
   .object({
-    ...scopedParams,
-    profile: subagentProfileDraftSchema,
-    /** Set when renaming; the file with this name is replaced. */
-    previousName: subagentProfileNameSchema.optional(),
+    ...mutationParams,
+    patch: subagentProfilePatchSchema,
   })
   .superRefine(requireProjectForProjectScope);
-export const subagentProfilesSaveResultSchema = z.object({
-  profile: subagentProfileSchema,
-});
-export const subagentProfilesDeleteParamsSchema = z
-  .object({ ...scopedParams, name: subagentProfileNameSchema })
+export const subagentProfilesUpdateResultSchema =
+  subagentProfilesConfigurationSchema;
+export const subagentProfilesResetParamsSchema = z
+  .object({
+    ...mutationParams,
+    /** Omit to remove the local entry. */
+    field: subagentProfileEntrySchema.keyof().optional(),
+  })
   .superRefine(requireProjectForProjectScope);
-/** Stored in the user's `config/subagents.json`; overrides the file's `enabled`. */
-export const subagentProfilesSetEnabledParamsSchema = z.object({
-  name: subagentProfileNameSchema,
-  enabled: z.boolean(),
+export const subagentProfilesResetResultSchema =
+  subagentProfilesConfigurationSchema;
+export const subagentProfilesListResultSchema = z.object({
+  /** Resolved profiles; blocked profiles carry an error and are never advertised. */
+  profiles: z.array(subagentProfileSchema),
 });
 export const subagentProfilesTrustParamsSchema = z.object({
   projectId: projectIdSchema,
-  name: subagentProfileNameSchema,
   digest: z.string().min(1),
 });
+
+export const subagentProfilesTrustResultSchema =
+  subagentProfilesConfigurationSchema;
 
 export const subagentProfilesOperationDefinitions = [
   defineOperation(
@@ -71,36 +94,36 @@ export const subagentProfilesOperationDefinitions = [
     "operation.subagentProfiles.list",
   ),
   defineOperation(
-    "subagentProfiles.save",
-    subagentProfilesSaveParamsSchema,
-    subagentProfilesSaveResultSchema,
-    "mutation",
+    "subagentProfiles.configuration",
+    subagentProfilesConfigurationParamsSchema,
+    subagentProfilesConfigurationResultSchema,
+    "read",
     "none",
     host,
-    "operation.subagentProfiles.save",
+    "operation.subagentProfiles.configuration",
   ),
   defineOperation(
-    "subagentProfiles.delete",
-    subagentProfilesDeleteParamsSchema,
-    okResultSchema,
+    "subagentProfiles.update",
+    subagentProfilesUpdateParamsSchema,
+    subagentProfilesUpdateResultSchema,
     "mutation",
     "none",
     host,
-    "operation.subagentProfiles.delete",
+    "operation.subagentProfiles.update",
   ),
   defineOperation(
-    "subagentProfiles.setEnabled",
-    subagentProfilesSetEnabledParamsSchema,
-    okResultSchema,
+    "subagentProfiles.reset",
+    subagentProfilesResetParamsSchema,
+    subagentProfilesResetResultSchema,
     "mutation",
     "none",
     host,
-    "operation.subagentProfiles.setEnabled",
+    "operation.subagentProfiles.reset",
   ),
   defineOperation(
     "subagentProfiles.trust",
     subagentProfilesTrustParamsSchema,
-    subagentProfilesSaveResultSchema,
+    subagentProfilesTrustResultSchema,
     "mutation",
     "none",
     host,

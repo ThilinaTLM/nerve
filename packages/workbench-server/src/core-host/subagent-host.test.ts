@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { SubagentProfile } from "@nervekit/contracts/subagents";
+import { createProfileAvailability } from "./subagent-profile-availability.js";
 import { createSubagentHost } from "./subagent-host.js";
 
 const lead = {
@@ -31,14 +32,32 @@ const profile = (
 function setup(profiles: SubagentProfile[], unavailable = false) {
   const calls: string[] = [];
   const initialized: unknown[] = [];
+  const capabilitySnapshots: SubagentProfile[] = [];
   const host = createSubagentHost({
     profiles: {
       usable: async () =>
         profiles.filter(
           (item) => item.enabled && !item.error && item.trust !== "untrusted",
         ),
-      find: async (_project, name) => profiles.find((p) => p.name === name),
+      find: async (_context, name) => profiles.find((p) => p.name === name),
     },
+    availability: createProfileAvailability({
+      parent: () => lead,
+      resources: async () => ({ tools: new Map(), skills: new Map() }),
+      modelInfo: async () => {
+        if (unavailable) throw new Error("Model unavailable");
+        return {
+          supportedThinkingLevels: [
+            "off",
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+          ],
+        } as never;
+      },
+    }),
     models: {
       resolve: async (selection) => {
         calls.push(`${selection.provider}/${selection.modelId}`);
@@ -52,11 +71,12 @@ function setup(profiles: SubagentProfile[], unavailable = false) {
       },
     },
     parent: () => ({ projectId: "p", config: lead }),
-    initializeCapabilities: async (_p, child) => {
+    initializeCapabilities: async (_p, child, profile) => {
+      capabilitySnapshots.push(profile);
       initialized.push(child);
     },
   });
-  return { host, calls, initialized };
+  return { host, calls, initialized, capabilitySnapshots };
 }
 
 void test("lead model and thinking are copied; instructions and permission map", async () => {
@@ -99,7 +119,7 @@ void test("an unavailable model fails creation with a clear error", async () => 
   const { host } = setup([profile("deep", { model: "openai/nope" })], true);
   await assert.rejects(
     host.resolveProfile({ parentId: "x", profile: "deep" }),
-    /model openai\/nope is not available/,
+    /Model openai\/nope is not available/,
   );
 });
 
@@ -130,17 +150,13 @@ void test("initializeChild writes capabilities and a compaction override unless 
       compaction: { profile: "balanced", triggerPercent: 70 },
     }),
   ]);
-  await host.initializeChild({
-    parentId: "x",
-    childId: "c1",
-    profile: "inherit",
-  });
+  await (
+    await host.resolveProfile({ parentId: "x", profile: "inherit" })
+  ).initializeChild("c1");
   assert.deepEqual(initialized, ["c1"]);
-  await host.initializeChild({
-    parentId: "x",
-    childId: "c2",
-    profile: "tight",
-  });
+  await (
+    await host.resolveProfile({ parentId: "x", profile: "tight" })
+  ).initializeChild("c2");
   assert.deepEqual(initialized[2], [
     "c2",
     {
@@ -150,4 +166,29 @@ void test("initializeChild writes capabilities and a compaction override unless 
       customKeepRecentPercent: 15,
     },
   ]);
+});
+
+void test("initialization uses the resolved snapshot after a concurrent edit or deletion", async () => {
+  const original = profile("snapshot", {
+    tools: { web_fetch: false },
+    compaction: { profile: "balanced", triggerPercent: 70 },
+  });
+  const profiles = [original];
+  const { host, initialized, capabilitySnapshots } = setup(profiles);
+  const resolved = await host.resolveProfile({
+    parentId: "x",
+    profile: "snapshot",
+  });
+  original.compaction = "inherit";
+  original.permission = "autonomous";
+  original.tools.web_fetch = true;
+  profiles.length = 0;
+  await resolved.initializeChild("child");
+  assert.equal(resolved.config.permissionRuleSetId, "read_only");
+  assert.equal(capabilitySnapshots[0].tools.web_fetch, false);
+  assert.equal(
+    (initialized[1] as [string, { customTriggerPercent: number }])[1]
+      .customTriggerPercent,
+    70,
+  );
 });

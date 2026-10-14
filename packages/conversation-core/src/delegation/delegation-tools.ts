@@ -250,11 +250,7 @@ export function createDelegationTools(
             ...overrides,
           },
         });
-        await host.initializeChild({
-          parentId,
-          childId: child.conversation.id,
-          profile: profile.name,
-        });
+        await profile.initializeChild(child.conversation.id);
         submit(child.conversation.id);
         lines.push(`${assignment.name} (${profile.name}): created`);
       }

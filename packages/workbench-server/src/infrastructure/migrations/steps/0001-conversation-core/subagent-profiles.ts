@@ -6,9 +6,21 @@ import {
   copyFileSync,
   renameSync,
   lstatSync,
+  readFileSync,
 } from "node:fs";
-import { join } from "node:path";
-import { atomicWrite, readJson, writeJson } from "./configuration.js";
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
+import {
+  profilesDocument,
+  profileConversionReceipt,
+  enabledPreferences,
+  profileEntry,
+  parseProfileMarkdown,
+  type ProfileEntry,
+} from "./subagent-profile-format.js";
+import { join, resolve, parse, relative, isAbsolute, sep } from "node:path";
+import { readJson, writeJson } from "./configuration.js";
 import type { Legacy } from "./legacy.reader.js";
 
 // Frozen copies of the built-in profile text at the conversion boundary.
@@ -53,21 +65,8 @@ function profileFile(
   model: string,
   thinking: string,
   compaction: unknown,
-): string {
-  const base = builtIns[name];
-  const frontmatter = [
-    ["label", base.label],
-    ["description", base.description],
-    ["model", model],
-    ["thinking", thinking],
-    ["permission", base.permission],
-    ["compaction", compaction],
-    ["skills", base.skills],
-  ]
-    // JSON scalars and flow maps are valid YAML.
-    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-    .join("\n");
-  return `---\n${frontmatter}\n---\n\n${base.instructions}\n`;
+): ProfileEntry {
+  return profileEntry.parse({ ...builtIns[name], model, thinking, compaction });
 }
 
 const modelId = (selection: Legacy | undefined): string | null =>
@@ -77,11 +76,11 @@ const modelId = (selection: Legacy | undefined): string | null =>
     ? `${selection.provider}/${selection.modelId}`
     : null;
 
-/** Customized legacy Explore/async-subagent settings become user profile files. */
+/** Customized legacy Explore/async-subagent settings become user JSON entries. */
 function customizedProfiles(
   harness: Legacy,
-): Array<[keyof typeof builtIns, string]> {
-  const profiles: Array<[keyof typeof builtIns, string]> = [];
+): Array<[keyof typeof builtIns, ProfileEntry]> {
+  const profiles: Array<[keyof typeof builtIns, ProfileEntry]> = [];
   const explore = harness.exploreAgent as Legacy | undefined;
   if (explore) {
     const model = modelId(explore.model);
@@ -122,63 +121,256 @@ function customizedProfiles(
   return profiles;
 }
 
-/**
- * Moves the Explore/async-subagent settings and the legacy tool names out of
- * `config/harness.json`. Profile files are written first so an interrupted run
- * converts again from the unchanged harness file.
+const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+const own = <T>(record: Record<string, T>, name: string): T | undefined =>
+  Object.hasOwn(record, name) ? record[name] : undefined;
+
+/** Reject symlinks in every existing ancestor, including dangling target links.
+ * Migration paths must be regular directories/files, not redirects outside a scope.
  */
-export function convertSubagentSettings(home: string): number {
-  const path = join(home, "config", "harness.json");
-  if (!existsSync(path)) return 0;
-  const harness = readJson(path);
-  let changed = 0;
-  const profiles = customizedProfiles(harness);
-  for (const [name, content] of profiles) {
-    const target = join(home, "agent", "subagents", `${name}.md`);
-    if (!existsSync(target)) atomicWrite(target, content);
-    changed++;
+function verifyAncestors(path: string): void {
+  const absolute = resolve(path);
+  const root = parse(absolute).root;
+  const parts = absolute.slice(root.length).split(sep).filter(Boolean);
+  let current = root;
+  for (let index = 0; index < parts.length; index++) {
+    current = join(current, parts[index]);
+    let stat;
+    try {
+      stat = lstatSync(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") break;
+      throw error;
+    }
+    assert(!stat.isSymbolicLink(), `Symlinked migration path: ${current}`);
+    if (index < parts.length - 1)
+      assert(stat.isDirectory(), `Expected directory ${current}`);
   }
-  const disabled: unknown = harness.tools?.disabled;
-  if (Array.isArray(disabled)) {
-    const names = disabled.map(String);
-    const hasExplore = names.includes("explore");
-    const groupDisabled = names.some(
-      (name) =>
-        legacySubagentTools.includes(name) || subagentTools.includes(name),
+}
+
+/** Capture before user conversion and retain across retries of the draft step. */
+export function captureLegacyProfileEnablement(
+  home: string,
+  scratch: string,
+): Record<string, boolean> {
+  const snapshot = join(scratch, "subagent-legacy-enablement.json");
+  verifyAncestors(snapshot);
+  if (existsSync(snapshot))
+    return enabledPreferences.parse(readJson(snapshot)).enabled;
+  const target = join(home, "config", "subagents.json");
+  const harnessPath = join(home, "config", "harness.json");
+  verifyAncestors(target);
+  verifyAncestors(harnessPath);
+  const existing = existsSync(target) ? readJson(target) : undefined;
+  const preferences =
+    existing && !Object.hasOwn(existing, "schemaVersion")
+      ? enabledPreferences.parse(existing).enabled
+      : {};
+  if (existsSync(target) && !existing) profilesDocument.parse(existing);
+  if (existing && Object.hasOwn(existing, "schemaVersion"))
+    profilesDocument.parse(existing);
+  const disabled = readJson(harnessPath).tools?.disabled;
+  if (Array.isArray(disabled) && disabled.includes("explore"))
+    preferences.explore = false;
+  writeJson(snapshot, { enabled: preferences });
+  assert.deepEqual(
+    enabledPreferences.parse(readJson(snapshot)).enabled,
+    preferences,
+  );
+  return preferences;
+}
+
+export function profileReceiptPath(scratch: string, root: string): string {
+  return join(scratch, `subagent-profiles-${hash(resolve(root))}.json`);
+}
+
+type ScopeOptions = {
+  legacyEnabled?: Record<string, boolean>;
+  receiptPath?: string;
+  inheritedProfiles?: Record<string, ProfileEntry>;
+};
+
+/** Verify atomic JSON before deleting sources. A receipt records the planned
+ * document and source hashes before replacement; resume re-verifies both against
+ * disk. Without that evidence, any different existing entry is a collision.
+ * Markdown trust never authorizes the new JSON document.
+ */
+export function convertProfileScope(
+  root: string,
+  markdownDirectory: string,
+  customizations: Array<[string, ProfileEntry]> = [],
+  disabledExplore = false,
+  options: ScopeOptions = {},
+): number {
+  const target = join(root, "config", "subagents.json");
+  const sourceRelative = relative(resolve(root), resolve(markdownDirectory));
+  assert(
+    sourceRelative &&
+      !sourceRelative.startsWith("..") &&
+      !isAbsolute(sourceRelative),
+    "Profile sources outside scope",
+  );
+  verifyAncestors(target);
+  verifyAncestors(markdownDirectory);
+  if (options.receiptPath) verifyAncestors(options.receiptPath);
+  const hasTarget = existsSync(target);
+  const existing = hasTarget ? readJson(target) : undefined;
+  const oldPreferences =
+    existing && !Object.hasOwn(existing, "schemaVersion")
+      ? enabledPreferences.parse(existing)
+      : undefined;
+  const document = profilesDocument.parse(
+    oldPreferences || !hasTarget
+      ? { schemaVersion: 1, profiles: {} }
+      : existing,
+  );
+  const canonicalExploreEnabled = oldPreferences
+    ? undefined
+    : own(document.profiles, "explore")?.enabled;
+  const receipt =
+    options.receiptPath && existsSync(options.receiptPath)
+      ? profileConversionReceipt.parse(readJson(options.receiptPath))
+      : undefined;
+  const verifiedResume =
+    receipt && !oldPreferences && isDeepStrictEqual(receipt.document, document);
+  const sources: Record<string, string> = {};
+  if (existsSync(markdownDirectory)) {
+    assert(
+      lstatSync(markdownDirectory).isDirectory(),
+      "Expected regular profile directory",
     );
-    if (hasExplore) {
-      const preferences = readJson(join(home, "config", "subagents.json"), {
-        enabled: {},
-      });
-      writeJson(join(home, "config", "subagents.json"), {
-        ...preferences,
-        enabled: { ...preferences.enabled, explore: false },
-      });
+    for (const file of readdirSync(markdownDirectory).sort()) {
+      if (file.startsWith(".") || !/\.md$/i.test(file)) continue;
+      const path = join(markdownDirectory, file);
+      verifyAncestors(path);
+      assert(lstatSync(path).isFile(), `Expected regular profile file ${path}`);
+      const name = file.replace(/\.md$/i, "");
+      const raw = readFileSync(path, "utf8");
+      const entry = parseProfileMarkdown(name, raw);
+      const enabled = own(options.legacyEnabled ?? {}, name);
+      if (enabled !== undefined) entry.enabled = enabled;
+      const current = own(document.profiles, name);
+      const inherited = own(options.inheritedProfiles ?? {}, name);
+      if (!current && inherited) {
+        const missingTools = Object.keys(inherited.tools ?? {}).filter(
+          (key) => !Object.hasOwn(entry.tools ?? {}, key),
+        );
+        const lowerSkills = inherited.skills;
+        const upperSkills = entry.skills;
+        const missingSkills =
+          lowerSkills &&
+          typeof lowerSkills === "object" &&
+          upperSkills &&
+          typeof upperSkills === "object"
+            ? Object.keys(lowerSkills).filter(
+                (key) => !Object.hasOwn(upperSkills, key),
+              )
+            : [];
+        assert(
+          !missingTools.length && !missingSkills.length,
+          `Manual review required for legacy project subagent ${name} at ${path}: whole-definition capability shadowing cannot become sparse JSON without changing parent inheritance (tools: ${missingTools.join(", ") || "none"}; skills: ${missingSkills.join(", ") || "none"}). Resolve the selections explicitly in ${target} and archive the reviewed conflicting Markdown before retrying; legacy files have not been removed.`,
+        );
+      }
+      const resumedSource =
+        verifiedResume && own(receipt.sources, path) === hash(raw);
+      assert(
+        !current || isDeepStrictEqual(current, entry) || resumedSource,
+        `Subagent profile collision: ${name} at ${target}`,
+      );
+      if (!current) document.profiles[name] = entry;
+      sources[path] = hash(raw);
     }
-    if (
-      hasExplore ||
-      names.some((name) => legacySubagentTools.includes(name))
-    ) {
-      harness.tools.disabled = [
-        ...new Set([
-          ...names.filter(
-            (name) =>
-              name !== "explore" &&
-              !legacySubagentTools.includes(name) &&
-              !subagentTools.includes(name),
-          ),
-          ...(groupDisabled ? subagentTools : []),
-        ]),
-      ];
-      changed++;
-    }
+  }
+  for (const [name, entry] of customizations)
+    if (!Object.hasOwn(document.profiles, name))
+      document.profiles[name] = entry;
+  for (const [name, enabled] of Object.entries(oldPreferences?.enabled ?? {}))
+    document.profiles[name] = { ...own(document.profiles, name), enabled };
+  if (
+    disabledExplore &&
+    (oldPreferences || canonicalExploreEnabled === undefined)
+  )
+    document.profiles.explore = {
+      ...own(document.profiles, "explore"),
+      enabled: false,
+    };
+  if (
+    !Object.keys(sources).length &&
+    !customizations.length &&
+    !oldPreferences &&
+    !disabledExplore
+  )
+    return 0;
+  profilesDocument.parse(document);
+  if (options.receiptPath) {
+    verifyAncestors(options.receiptPath);
+    writeJson(options.receiptPath, { document, sources });
+  }
+  verifyAncestors(target);
+  writeJson(target, document);
+  assert.deepEqual(
+    profilesDocument.parse(readJson(target)),
+    document,
+    `Subagent JSON verification failed: ${target}`,
+  );
+  for (const [path, digest] of Object.entries(sources)) {
+    verifyAncestors(path);
+    assert.equal(
+      hash(readFileSync(path, "utf8")),
+      digest,
+      `Profile changed during conversion: ${path}`,
+    );
+    rmSync(path);
+  }
+  return (
+    Object.keys(sources).length +
+    customizations.length +
+    (oldPreferences ? 1 : 0)
+  );
+}
+
+/** Harness conversion is committed only after the consolidated user JSON is verified. */
+export function convertSubagentSettings(
+  home: string,
+  scratch?: string,
+): number {
+  const path = join(home, "config", "harness.json");
+  verifyAncestors(path);
+  const harness = readJson(path);
+  const disabled: unknown = harness.tools?.disabled;
+  const names = Array.isArray(disabled) ? disabled.map(String) : [];
+  const hasExplore = names.includes("explore");
+  let changed = convertProfileScope(
+    home,
+    join(home, "agent", "subagents"),
+    customizedProfiles(harness),
+    hasExplore,
+    { receiptPath: scratch ? profileReceiptPath(scratch, home) : undefined },
+  );
+  const groupDisabled = names.some(
+    (name) =>
+      legacySubagentTools.includes(name) || subagentTools.includes(name),
+  );
+  if (hasExplore || names.some((name) => legacySubagentTools.includes(name))) {
+    harness.tools.disabled = [
+      ...new Set([
+        ...names.filter(
+          (name) =>
+            name !== "explore" &&
+            !legacySubagentTools.includes(name) &&
+            !subagentTools.includes(name),
+        ),
+        ...(groupDisabled ? subagentTools : []),
+      ]),
+    ];
+    changed++;
   }
   if ("exploreAgent" in harness || "asyncSubagent" in harness) {
     delete harness.exploreAgent;
     delete harness.asyncSubagent;
     changed++;
   }
-  if (changed) writeJson(path, harness);
+  if (changed && existsSync(path)) writeJson(path, harness);
   return changed;
 }
 

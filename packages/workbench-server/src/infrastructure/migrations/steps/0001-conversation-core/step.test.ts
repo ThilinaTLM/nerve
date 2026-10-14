@@ -105,26 +105,30 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
     "subagent_status",
     "subagent_stop",
   ]);
-  assert.deepEqual(
-    JSON.parse(await readFile(join(home, "config/subagents.json"), "utf8")),
-    { enabled: { explore: false } },
+  const profiles = JSON.parse(
+    await readFile(join(home, "config/subagents.json"), "utf8"),
   );
-  const exploreProfile = await readFile(
-    join(home, "agent/subagents/explore.md"),
-    "utf8",
+  assert.equal(profiles.schemaVersion, 1);
+  assert.equal(profiles.profiles.explore.enabled, false);
+  assert.equal(profiles.profiles.explore.model, "fixture/explorer");
+  assert.equal(profiles.profiles.explore.thinking, "high");
+  assert.equal(profiles.profiles.developer.model, "lead");
+  assert.deepEqual(profiles.profiles.developer.compaction, {
+    profile: "custom",
+    triggerPercent: 75,
+    keepRecentPercent: 20,
+  });
+  assert.equal(existsSync(join(home, "agent/subagents/explore.md")), false);
+  const projectProfiles = JSON.parse(
+    await readFile(join(home, "project/.nerve/config/subagents.json"), "utf8"),
   );
-  assert(exploreProfile.includes('model: "fixture/explorer"'));
-  assert(exploreProfile.includes('thinking: "high"'));
-  assert(exploreProfile.includes("You are a read-only researcher."));
-  const developerProfile = await readFile(
-    join(home, "agent/subagents/developer.md"),
-    "utf8",
+  assert.equal(
+    projectProfiles.profiles.reviewer.instructions,
+    "Review this fixture only.",
   );
-  assert(developerProfile.includes('model: "lead"'));
-  assert(
-    developerProfile.includes(
-      'compaction: {"profile":"custom","triggerPercent":75,"keepRecentPercent":20}',
-    ),
+  assert.equal(
+    existsSync(join(home, "project/.nerve/subagents/reviewer.md")),
+    false,
   );
   assert.deepEqual(harness.defaults, { permissionRuleSetId: "autonomous" });
   assert.deepEqual(harness.lastSelection, { permissionRuleSetId: "custom" });

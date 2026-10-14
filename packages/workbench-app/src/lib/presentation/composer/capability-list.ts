@@ -1,12 +1,9 @@
-/** Layout and filtering rules for the composer's tools-and-skills panel.
- *
- * Both tabs share one geometry: the body is sized from the longer list, and the
- * filter field appears based on both counts, so switching tabs never resizes the
- * popover under the pointer. */
+/** Layout and filtering rules for the composer's capabilities popover.
+ * Tools and skills share a body height; search depends on the active list. */
 
 export type CapabilityDecisionOrigin = "conversation" | "project" | "user";
 
-/** Above this many rows in either tab, the panel offers a filter field. */
+/** Above this many rows in the active list, the panel offers a filter field. */
 export const CAPABILITY_SEARCH_THRESHOLD = 8;
 /** Matches the row's `min-h-7`. */
 export const CAPABILITY_ROW_REM = 1.75;
@@ -15,11 +12,8 @@ export const CAPABILITY_BODY_PADDING_REM = 0.5;
 export const CAPABILITY_MIN_ROWS = 4;
 export const CAPABILITY_MAX_ROWS = 9;
 
-export function showCapabilitySearch(
-  toolCount: number,
-  skillCount: number,
-): boolean {
-  return Math.max(toolCount, skillCount) > CAPABILITY_SEARCH_THRESHOLD;
+export function showCapabilitySearch(rowCount: number): boolean {
+  return rowCount > CAPABILITY_SEARCH_THRESHOLD;
 }
 
 export function capabilityBodyHeight(

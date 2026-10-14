@@ -25,7 +25,13 @@ import {
   readJson,
   writeJson,
 } from "./configuration.js";
-import { convertSubagentSettings } from "./subagent-profiles.js";
+import {
+  captureLegacyProfileEnablement,
+  convertProfileScope,
+  profileReceiptPath,
+  convertSubagentSettings,
+} from "./subagent-profiles.js";
+import { profilesDocument } from "./subagent-profile-format.js";
 import { LegacyReader, type Legacy } from "./legacy.reader.js";
 import { CoreStorage } from "./storage.js";
 import { coreSchemaV1 } from "./schema.js";
@@ -390,9 +396,13 @@ export default defineStep({
       "Upgrading configuration",
     );
     await setImmediate();
+    const legacyEnabled = captureLegacyProfileEnablement(
+      ctx.paths.home,
+      ctx.scratchDir,
+    );
     const conversions = {
       ...convertConfiguration(ctx.paths.home, ctx.scratchDir),
-      subagentSettings: convertSubagentSettings(ctx.paths.home),
+      subagentSettings: convertSubagentSettings(ctx.paths.home, ctx.scratchDir),
     };
     ctx.log(`Configuration conversions: ${JSON.stringify(conversions)}`);
     const reader = new LegacyReader(source);
@@ -417,6 +427,27 @@ export default defineStep({
       progress: () =>
         ctx.progress("import", ++done, total, "Importing conversations"),
     });
+    const userProfiles = profilesDocument.parse(
+      readJson(join(ctx.paths.home, "config", "subagents.json"), {
+        schemaVersion: 1,
+        profiles: {},
+      }),
+    ).profiles;
+    const projectStorage = new CoreStorage(ctx.paths.sqlitePath, false);
+    try {
+      for (const row of projectStorage.sqlite
+        .prepare("SELECT directory FROM project")
+        .all()) {
+        const root = join(String(row.directory), ".nerve");
+        convertProfileScope(root, join(root, "subagents"), [], false, {
+          legacyEnabled,
+          inheritedProfiles: userProfiles,
+          receiptPath: profileReceiptPath(ctx.scratchDir, root),
+        });
+      }
+    } finally {
+      projectStorage.close();
+    }
     ctx.progress(
       "preserve-task-outputs",
       undefined,

@@ -24,8 +24,10 @@ export const registry: RegisteredStep[] = [
   { step, checksum: "a".repeat(64), stage: "draft" },
 ];
 export async function fixture(t: TestContext): Promise<string> {
-  const home = await mkdtemp(join(tmpdir(), "nerve-step-0001-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
+  const temporary = await mkdtemp(join(tmpdir(), "nerve-step-0001-"));
+  // Every step test uses a fresh pre-step slot 2 and temporary fixture projects.
+  const home = join(temporary, "storage-2");
+  t.after(() => rm(temporary, { recursive: true, force: true }));
   for (const directory of [
     "data/conversations/one",
     "data/tasks/task_old",
@@ -36,6 +38,20 @@ export async function fixture(t: TestContext): Promise<string> {
     "migrations/0009-old",
   ])
     await mkdir(join(home, directory), { recursive: true });
+  await mkdir(join(home, "project/.nerve/subagents"), { recursive: true });
+  await writeFile(
+    join(home, "project/.nerve/subagents/reviewer.md"),
+    `---
+description: Fixture reviewer
+model: lead
+thinking: lead
+permission: read_only
+compaction: inherit
+skills: none
+---
+Review this fixture only.
+`,
+  );
   await writeFile(
     join(home, "manifest.json"),
     JSON.stringify({ format: "nerve-home", version: 1 }),

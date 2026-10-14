@@ -80,7 +80,19 @@ Converts a 0.34.1 home to the conversation-core layout:
 1. Rename `data/nerve.sqlite` (and its WAL/SHM files) to `data/nerve.sqlite.migrating`. When resuming, keep the renamed file and discard any partial new database.
 2. Create a new `data/nerve.sqlite` with the core schema and import projects, conversations, events, inputs, async bash, trust, scratch notes and assets from the old database. The importer code is copied into the step folder and frozen there.
 3. Write conversation capability and permission files under `data/conversations/<id>/config/`.
-4. Convert configuration: permission levels become permission rule sets; prompt-suggestion files use `permissionRuleSets`.
+4. Convert configuration: permission levels become permission rule sets; prompt-suggestion files use `permissionRuleSets`. The [sub-agent profile implementation](subagent-profiles.md) extends this same unreleased step: legacy `exploreAgent`/`asyncSubagent` customization, `agent/subagents/*.md`, registered projects' `.nerve/subagents/*.md`, and user-global `{ enabled: ... }` preferences become versioned scoped `config/subagents.json` documents. Preserve profile names, instructions, settings and explicit toggles; verify replacements before removing legacy sources. Reassess project trust for the new document content rather than carrying forward per-Markdown-file trust. No permanent dual loader or new database schema is required.
 5. Delete legacy files: task bundles, the query cache, journal and old migration folders.
 6. `verify`: the selected history of every conversation matches the old database, tool calls and results pair up, heads map, and foreign keys and integrity checks pass.
 7. Delete `data/nerve.sqlite.migrating`, with no backup.
+
+### Profile conversion limits and manual review
+
+Home migration can convert user resources and projects registered in the migrating home's database. It cannot discover or auto-convert unregistered projects or every directory on disk. When an old project is opened later, its profiles must be explicitly converted to canonical `.nerve/config/subagents.json`; there is no runtime legacy Markdown loader.
+
+Conflicting legacy/canonical configuration, malformed documents, and incompatible legacy capability shadowing require manual review. Preserve the relevant source files and stop migration with an actionable error until the conflict is explicitly resolved; do not guess enabled state, overwrite malformed documents, or delete project sources before a safe replacement is verified.
+
+In particular, legacy same-name user/project definitions replaced whole tool and skill maps, whereas canonical sparse maps merge by key. Extra inherited map keys can therefore change effective capabilities even after all legacy project fields are copied. If that shadowing cannot be preserved safely, fail before deleting project sources and require an explicit capability decision rather than inventing toggles. Resolve the reported configuration and retry the resumable migration.
+
+### Development homes with an earlier draft applied
+
+Extending unreleased step 0001 does **not** rerun it when the home's ledger already records that step as applied. A development home upgraded with an earlier draft therefore requires a baseline rebuild/copy: use a fresh slot, or copy a pre-upgrade baseline into an isolated slot and run the extended migration there. Do not remove ledger entries to force replay against already-converted data. This is a dev-only limitation of evolving draft migrations, not a new released migration or a compatibility loader.

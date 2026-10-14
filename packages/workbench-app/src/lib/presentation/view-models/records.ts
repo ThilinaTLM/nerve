@@ -80,6 +80,8 @@ export type AgentActivitySnapshot = {
 
 export type ConversationRecord = {
   id: string;
+  /** Only an explicit null identifies a saved lead conversation. */
+  parentConversationId?: string | null;
   projectId: string;
   title: string;
   mode: "planning" | "coding";

@@ -31,9 +31,11 @@ This workflow requires Electron's native path bridge and is not available in a n
 
 Contextual prompt chips appear above the editor. Selecting one inserts or sends reusable content, depending on the suggestion. Built-ins cover common Git follow-ups; user and project definitions can add more.
 
-## Tools and skills
+## Capabilities
 
-The compact wrench/library control shows selected optional tools and skills for the conversation. Its two tabs let you toggle an item without changing user or project defaults. A dot marks conversations with explicit overrides; reset removes those overrides and resumes inheritance.
+The compact **Capabilities** control has three tabs: **Tools**, **Skills**, and **Sub-agents**. Tools and Skills let you toggle items without changing user or project defaults. A dot marks conversations with explicit capability overrides; the header reset removes tool, skill, and delegation overrides and resumes inheritance, without resetting profile fields. The Settings button opens the settings page for the selected tab.
+
+In a saved lead conversation, **Sub-agents** has a **Delegation** switch and one row per profile, with an on/off switch and a short summary. A dot marks profiles changed in this conversation. Turning Delegation off removes the delegation tools; profile switches cannot turn it back on. Open a profile's row to change its model and thinking for this conversation. A value changed here shows **This conversation · Revert**. Changes apply only to sub-agents created afterwards. Existing children keep their configuration; open a child and use its own model and thinking controls to change it. Pending conversations and children do not expose editable profiles.
 
 Tools with settings show a configure button that opens the same dialog as **Settings → Tools**, scoped to the conversation: the Jira, Confluence, or Tavily profile; the Image explanation model; Image generation model and output defaults; and the Kroki server for diagram export. A conversation's tool settings replace that tool's inherited settings as a whole, and saving values equal to the inherited ones removes the override.
 

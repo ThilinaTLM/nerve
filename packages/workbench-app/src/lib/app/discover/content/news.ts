@@ -16,7 +16,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     summary:
       "Async Subagents let the lead assign autonomous implementation work while it continues with its own tasks.",
     details: [
-      "Enable sub-agents in Settings → Sub-agents, or for the current conversation from Tools and skills beside the composer.",
+      "Enable sub-agents in Settings → Sub-agents, or for the current conversation from Capabilities → Sub-agents beside the composer.",
       "Named teammates share the project worktree, retain their own context for follow-up assignments, and appear in the Agents pill.",
       "Teammates do not automatically receive the lead transcript, so assignments should include relevant findings, paths, and constraints.",
       "Up to four teammate assignments can run at once. Completion is delivered durably and can wake the lead.",
@@ -41,7 +41,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
       "Type @launch: to find a background launch and insert its launch ID, or @pr: to find a pull request and insert its GitHub URL.",
       "Right-click in the editor for Undo, Redo, Cut, Copy, Paste, and Select all.",
       "Use Shift+Tab for Coding or Planning, Alt+M for models, and Alt+T for reasoning levels. Ctrl or Cmd+N now works while typing.",
-      "Open Tools and skills beside the composer to quickly enable or disable capabilities for this conversation. Changes apply to the next run.",
+      "Open Capabilities beside the composer to quickly enable or disable capabilities for this conversation. Changes apply to the next run.",
       "Slash commands have distinct icons, and /new starts a fresh conversation.",
     ],
     action: {

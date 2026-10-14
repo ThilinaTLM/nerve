@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { subagentRecordSchema } from "./record-schema.js";
 import {
   capabilityToolNameSchema,
   capabilityToolSettingsSchema,
 } from "../capabilities/capabilities.js";
+import { toolNameSchema } from "../tools/tool-name.js";
 import { thinkingLevelSchema } from "../models/models.js";
 import { compactionProfileSchema } from "../settings/settings.js";
 import {
@@ -17,10 +19,15 @@ export const subagentProfileSourceSchema = z.enum([
   "builtin",
   "user",
   "project",
+  "conversation",
 ]);
 export type SubagentProfileSource = z.infer<typeof subagentProfileSourceSchema>;
 
-export const subagentProfileScopeSchema = z.enum(["user", "project"]);
+export const subagentProfileScopeSchema = z.enum([
+  "user",
+  "project",
+  "conversation",
+]);
 export type SubagentProfileScope = z.infer<typeof subagentProfileScopeSchema>;
 
 /** `lead` copies the lead's model at creation; otherwise `<provider>/<modelId>`. */
@@ -38,7 +45,7 @@ export type SubagentProfileThinking = z.infer<
   typeof subagentProfileThinkingSchema
 >;
 
-/** Compaction written as the child's conversation override, in the file's shorthand. */
+/** Compaction materialized as the child's conversation override. */
 export const subagentCompactionOverrideSchema = z
   .object({
     auto: z.boolean().optional(),
@@ -69,41 +76,44 @@ const toolSettingsSchemas: Record<string, z.ZodType> =
  * Changes from the lead's effective capability tools: `<tool>: false` removes,
  * `true` adds one the lead has disabled, an object replaces that tool's settings.
  */
-export const subagentProfileToolsSchema = z
-  .record(
-    z.string().min(1).max(64),
-    z.union([z.boolean(), z.record(z.string(), z.unknown())]),
-  )
-  .superRefine((tools, context) => {
-    for (const [name, value] of Object.entries(tools)) {
-      if (!allowedToolKeys.has(name)) {
-        context.addIssue({
-          code: "custom",
-          path: [name],
-          message: `Unknown or non-configurable tool ${name}`,
-        });
-        continue;
-      }
-      if (typeof value === "boolean") continue;
-      const settings = toolSettingsSchemas[name];
-      if (!settings) {
-        context.addIssue({
-          code: "custom",
-          path: [name],
-          message: `Tool ${name} has no settings; use true or false`,
-        });
-        continue;
-      }
-      const parsed = settings.safeParse(value);
-      if (!parsed.success)
-        for (const issue of parsed.error.issues)
-          context.addIssue({
-            code: "custom",
-            path: [name, ...issue.path],
-            message: issue.message,
-          });
+export const subagentProfileToolsSchema = subagentRecordSchema(
+  z.string().min(1).max(64),
+  z.union([z.boolean(), subagentRecordSchema(z.string(), z.unknown())]),
+).superRefine((tools, context) => {
+  for (const [name, value] of Object.entries(tools)) {
+    if (
+      !allowedToolKeys.has(name) &&
+      (toolNameSchema.safeParse(name).success ||
+        name === "subagents" ||
+        name === "fileEditing")
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: [name],
+        message: `Forbidden or non-configurable tool ${name}`,
+      });
+      continue;
     }
-  });
+    if (!allowedToolKeys.has(name) || typeof value === "boolean") continue;
+    const settings = toolSettingsSchemas[name];
+    if (!settings) {
+      context.addIssue({
+        code: "custom",
+        path: [name],
+        message: `Tool ${name} has no settings; use true or false`,
+      });
+      continue;
+    }
+    const parsed = settings.safeParse(value);
+    if (!parsed.success)
+      for (const issue of parsed.error.issues)
+        context.addIssue({
+          code: "custom",
+          path: [name, ...issue.path],
+          message: issue.message,
+        });
+  }
+});
 export type SubagentProfileTools = z.infer<typeof subagentProfileToolsSchema>;
 
 export const subagentSkillNameSchema = z.string().trim().min(1).max(256);
@@ -111,12 +121,12 @@ export const subagentSkillNameSchema = z.string().trim().min(1).max(256);
 export const subagentProfileSkillsSchema = z.union([
   z.literal("inherit"),
   z.literal("none"),
-  z.record(subagentSkillNameSchema, z.boolean()),
+  subagentRecordSchema(subagentSkillNameSchema, z.boolean()),
 ]);
 export type SubagentProfileSkills = z.infer<typeof subagentProfileSkillsSchema>;
 
-/** Frontmatter of a profile Markdown file; the body is the instructions. */
-export const subagentProfileFrontmatterSchema = z
+/** Complete profile settings, excluding the name and instructions. */
+export const subagentProfileFieldsSchema = z
   .object({
     label: z
       .string()
@@ -138,12 +148,10 @@ export const subagentProfileFrontmatterSchema = z
     skills: subagentProfileSkillsSchema,
   })
   .strict();
-export type SubagentProfileFrontmatter = z.infer<
-  typeof subagentProfileFrontmatterSchema
->;
+export type SubagentProfileFields = z.infer<typeof subagentProfileFieldsSchema>;
 
-/** The editable content of a profile: what Settings saves to a file. */
-export const subagentProfileDraftSchema = subagentProfileFrontmatterSchema
+/** A complete editable profile, used for replacement, copying and duplication. */
+export const subagentProfileDraftSchema = subagentProfileFieldsSchema
   .extend({
     name: subagentProfileNameSchema,
     instructions: subagentInstructionsSchema,
@@ -155,9 +163,8 @@ export const subagentProfileTrustSchema = z.enum(["trusted", "untrusted"]);
 export type SubagentProfileTrust = z.infer<typeof subagentProfileTrustSchema>;
 
 /**
- * A resolved profile for UI and server. Invalid files carry `error` plus
- * fallback values (model/thinking `lead`, `read_only`, `inherit`, no tool
- * changes, skills `none`, empty instructions) and are never offered to the lead.
+ * A resolved creation-time template for UI and server. Blocking diagnostics
+ * also populate `error`; blocked profiles must never be offered to the lead.
  */
 export const subagentProfileSchema = z.object({
   name: subagentProfileNameSchema,
@@ -174,10 +181,8 @@ export const subagentProfileSchema = z.object({
   instructions: z.string(),
   path: z.string().min(1).optional(),
   digest: z.string().min(1).optional(),
-  /** Project profiles only; other sources are always trusted. */
+  /** Trust of all contributing entries, including project overrides inherited by conversation scope. */
   trust: subagentProfileTrustSchema.optional(),
-  /** A higher-precedence profile with the same name hides this one. */
-  shadowed: z.boolean().optional(),
   error: z.string().optional(),
 });
 export type SubagentProfile = z.infer<typeof subagentProfileSchema>;

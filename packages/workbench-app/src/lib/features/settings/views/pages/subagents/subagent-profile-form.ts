@@ -9,6 +9,9 @@ import {
   type SubagentProfile,
   type SubagentProfileDraft,
   type SubagentProfileThinking,
+  type SubagentProfileEntry,
+  type SubagentProfilePatch,
+  type SubagentProfileConfiguration,
 } from "@nervekit/contracts/subagents";
 import type { CompactionProfile } from "@nervekit/contracts/settings";
 import type { SubagentPermissionRuleSetId } from "@nervekit/contracts/subagents";
@@ -53,7 +56,7 @@ export type FormField =
   | "skills"
   | "instructions";
 
-/** Blank Developer-like draft, the starting point of Add. */
+/** Blank draft for a new profile: read-only and the lead's values for everything else. */
 export function blankForm(): SubagentProfileForm {
   return {
     nameLocked: false,
@@ -65,7 +68,7 @@ export function blankForm(): SubagentProfileForm {
     modelLead: true,
     model: undefined,
     thinking: "lead",
-    permission: "autonomous",
+    permission: "read_only",
     compactionMode: "inherit",
     compactionAuto: true,
     compactionProfile: "balanced",
@@ -116,7 +119,10 @@ export function formFromProfile(
     model,
     thinking: profile.thinking,
     permission: profile.permission,
-    tools: structuredClone(profile.tools),
+    // JSON clone: profiles often arrive as reactive proxies, which structuredClone rejects.
+    tools: JSON.parse(
+      JSON.stringify(profile.tools),
+    ) as SubagentProfileForm["tools"],
     skillsMode:
       profile.skills === "inherit" || profile.skills === "none"
         ? profile.skills
@@ -149,7 +155,32 @@ export function formFromProfile(
   return form;
 }
 
-/** The profile file content for a form, in the contract's shorthand. */
+/** Only parsed local entries are repairable; invalid raw entries must be removed deliberately. */
+export function formFromConfiguration(
+  configuration: SubagentProfileConfiguration,
+): SubagentProfileForm | undefined {
+  if (configuration.effective) return formFromProfile(configuration.effective);
+  if (configuration.local === null) return undefined;
+  const inherited = configuration.inherited ?? {};
+  const local = configuration.local;
+  const fields = { ...inherited, ...local };
+  const skills =
+    typeof inherited.skills === "object" && typeof local.skills === "object"
+      ? { ...inherited.skills, ...local.skills }
+      : fields.skills;
+  return formFromProfile({
+    ...formToDraft(blankForm()),
+    ...fields,
+    name: configuration.name,
+    label: fields.label ?? configuration.name,
+    enabled: fields.enabled ?? true,
+    tools: { ...inherited.tools, ...local.tools },
+    skills: skills ?? "inherit",
+    source: "user",
+  });
+}
+
+/** The profile content for a form, in the contract's shorthand. */
 export function formToDraft(form: SubagentProfileForm): SubagentProfileDraft {
   const draft: SubagentProfileDraft = {
     name: form.name.trim(),
@@ -174,18 +205,183 @@ export function formToDraft(form: SubagentProfileForm): SubagentProfileDraft {
                 }
               : {}),
           },
-    skills:
-      form.skillsMode === "custom"
-        ? Object.keys(form.skills).length > 0
-          ? { ...form.skills }
-          : "inherit"
-        : form.skillsMode,
+    skills: form.skillsMode === "custom" ? { ...form.skills } : form.skillsMode,
     instructions: form.instructions,
   };
   const label = form.label.trim();
   if (label) draft.label = label;
   if (Object.keys(form.tools).length > 0) draft.tools = { ...form.tools };
   return draft;
+}
+
+export type ProfileField = keyof SubagentProfileEntry;
+
+/** Compare against the opening snapshot, not the lower layer: equal local values stay pinned. */
+export function formToPatch(
+  form: SubagentProfileForm,
+  initial: SubagentProfileForm,
+  choices: {
+    pinned?: readonly ProfileField[];
+    reset?: readonly ProfileField[];
+    tools?: readonly string[];
+    skills?: readonly string[];
+    resetMaps?: readonly ("tools" | "skills")[];
+    local?: SubagentProfileEntry | null;
+    repair?: SubagentProfileConfiguration;
+  } = {},
+): SubagentProfilePatch {
+  const before = formToDraft(initial);
+  const after = formToDraft(form);
+  const patch: Record<string, unknown> = {};
+  const reset = new Set(choices.reset);
+  const pinned = new Set(choices.pinned);
+  if (choices.repair?.effective === null && choices.repair.local !== null) {
+    for (const field of [
+      "description",
+      "model",
+      "thinking",
+      "permission",
+      "compaction",
+      "skills",
+      "instructions",
+    ] as const) {
+      if (
+        choices.repair.local[field] === undefined &&
+        choices.repair.inherited?.[field] === undefined
+      )
+        pinned.add(field);
+    }
+  }
+  for (const field of [
+    ...new Set([...Object.keys(before), ...Object.keys(after)]),
+  ] as (keyof SubagentProfileDraft)[]) {
+    if (field === "name") continue;
+    if (reset.has(field)) {
+      patch[field] = null;
+      continue;
+    }
+    if (field === "tools" || field === "skills") continue;
+    if (
+      pinned.has(field) ||
+      JSON.stringify(before[field]) !== JSON.stringify(after[field])
+    )
+      patch[field] = after[field] ?? null;
+  }
+  for (const field of ["tools", "skills"] as const) {
+    if (reset.has(field)) {
+      patch[field] = null;
+      continue;
+    }
+    const lower = before[field] ?? {};
+    const next = after[field] ?? {};
+    if (choices.resetMaps?.includes(field) && typeof next === "object") {
+      const changes: Record<string, unknown> = {};
+      const local = choices.local?.[field];
+      if (local && typeof local === "object")
+        for (const name of Object.keys(local)) changes[name] = null;
+      const names = pinned.has(field)
+        ? Object.keys(next)
+        : (choices[field] ?? []);
+      for (const name of names) changes[name] = next[name] ?? null;
+      patch[field] = changes;
+      continue;
+    }
+
+    if (typeof next !== "object" || typeof lower !== "object") {
+      if (pinned.has(field) || JSON.stringify(lower) !== JSON.stringify(next))
+        patch[field] = next;
+      continue;
+    }
+    const changes: Record<string, unknown> = {};
+    for (const name of new Set([
+      ...Object.keys(lower),
+      ...Object.keys(next),
+      ...(choices[field] ?? []),
+    ])) {
+      if (
+        pinned.has(field) ||
+        choices[field]?.includes(name) ||
+        JSON.stringify(lower[name]) !== JSON.stringify(next[name])
+      )
+        changes[name] = next[name] ?? null;
+    }
+    if (Object.keys(changes).length || pinned.has(field))
+      patch[field] = changes;
+  }
+  for (const field of reset) patch[field] = null;
+  return patch as SubagentProfilePatch;
+}
+
+/**
+ * This layer's entry once the patch is saved, mirroring the server's patch
+ * semantics: null deletes a field or a map member, a map patch merges.
+ */
+export function localEntryAfterSave(
+  local: SubagentProfileEntry | null | undefined,
+  patch: SubagentProfilePatch,
+): SubagentProfileEntry {
+  const entry: Record<string, unknown> = { ...local };
+  for (const [field, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) {
+      delete entry[field];
+      continue;
+    }
+    if (
+      (field === "tools" || field === "skills") &&
+      typeof value === "object"
+    ) {
+      const current = entry[field];
+      const selections: Record<string, unknown> =
+        typeof current === "object" && current !== null ? { ...current } : {};
+      for (const [key, selected] of Object.entries(value)) {
+        if (selected === null) delete selections[key];
+        else selections[key] = selected;
+      }
+      entry[field] = selections;
+    } else entry[field] = value;
+  }
+  return entry as SubagentProfileEntry;
+}
+
+/** Reset controls to the lower profile's values, not the lead's current values. */
+export function formWithInheritedField(
+  form: SubagentProfileForm,
+  field: ProfileField,
+  inherited: SubagentProfileEntry | null,
+): SubagentProfileForm {
+  const defaults = formToDraft(blankForm());
+  const lower = formFromProfile({
+    ...defaults,
+    ...inherited,
+    name: form.name,
+    label: inherited?.label ?? form.name,
+    enabled: inherited?.enabled ?? true,
+    tools: inherited?.tools ?? {},
+    source: "builtin",
+  });
+  const keys: Record<ProfileField, readonly (keyof SubagentProfileForm)[]> = {
+    label: ["label"],
+    description: ["description"],
+    enabled: ["enabled"],
+    model: ["modelLead", "model"],
+    thinking: ["thinking"],
+    permission: ["permission"],
+    instructions: ["instructions"],
+    tools: ["tools"],
+    skills: ["skillsMode", "skills"],
+    compaction: [
+      "compactionMode",
+      "compactionAuto",
+      "compactionProfile",
+      "triggerPercent",
+      "keepRecentPercent",
+    ],
+  };
+  return {
+    ...form,
+    ...Object.fromEntries(keys[field].map((key) => [key, lower[key]])),
+  };
 }
 
 /**
@@ -195,7 +391,10 @@ export function formToDraft(form: SubagentProfileForm): SubagentProfileDraft {
  */
 export function validateForm(
   form: SubagentProfileForm,
-  context: { takenNames?: readonly string[] } = {},
+  context: {
+    takenNames?: readonly string[];
+    resetFields?: readonly ProfileField[];
+  } = {},
 ): FormErrors {
   const errors: FormErrors = {};
   if (form.label.trim().length > SUBAGENT_PROFILE_LABEL_MAX_LENGTH)
@@ -217,6 +416,10 @@ export function validateForm(
       const field = fieldOf(issue.path[0]);
       if (field && !errors[field]) errors[field] = issue.message;
     }
+  for (const field of context.resetFields ?? []) {
+    const errorField = fieldOf(field);
+    if (errorField) delete errors[errorField];
+  }
   return errors;
 }
 

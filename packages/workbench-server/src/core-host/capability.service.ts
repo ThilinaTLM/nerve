@@ -340,7 +340,9 @@ export class CapabilityService {
     const { inherited } = await this.configuration(projectId, parentId);
     const patch: CapabilityPatch = { tools: {}, toolSettings: {}, skills: {} };
     for (const [name, value] of Object.entries(profile.tools)) {
-      const tool = capabilityToolNameSchema.parse(name);
+      const parsed = capabilityToolNameSchema.safeParse(name);
+      if (!parsed.success || parsed.data === "subagents") continue;
+      const tool = parsed.data;
       if (typeof value === "boolean") patch.tools![tool] = { enabled: value };
       else Object.assign(patch.toolSettings!, { [tool]: value });
     }

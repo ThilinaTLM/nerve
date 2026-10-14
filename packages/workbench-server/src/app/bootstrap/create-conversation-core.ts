@@ -18,6 +18,12 @@ import {
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
 import { ConversationHarnessSettings } from "../../core-host/conversation-harness.service.js";
+import { createProfileModelInfo } from "../../core-host/profile-model-availability.js";
+import { profileToolAvailability } from "../../core-host/profile-tool-availability.js";
+import { createProfileAvailability } from "../../core-host/subagent-profile-availability.js";
+import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import { userCapabilitySelection } from "../../core-host/user-capability-selection.js";
+import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { createSubagentHost } from "../../core-host/subagent-host.js";
 import type { SubagentProfileService } from "../../domains/subagents/subagent-profile.service.js";
 import { CapabilityService } from "../../core-host/capability.service.js";
@@ -165,6 +171,8 @@ export function createConversationCore(
       tools: tools.definitions,
       skills: deps.nerveSkills.skills,
       agentBrowserSkills: deps.agentBrowserSkills.skills,
+      hasExistingSubagents: (id) =>
+        (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       get capabilities(): CapabilityService {
         return capabilities;
       },
@@ -219,12 +227,79 @@ export function createConversationCore(
     changed: (projectId, conversationId) =>
       capabilities.notifyChanged(projectId, conversationId),
   });
+  const profileModelInfo = createProfileModelInfo({
+    customModels: () => deps.providerCatalog.resolvedModels(),
+    providerMetadata: async (provider) =>
+      (await deps.auth.listProviderMetadata()).find(
+        (metadata) => metadata.provider === provider,
+      ),
+  });
+  const profileAvailability = createProfileAvailability({
+    parent: (id) => core.getSnapshot(id).config,
+    modelInfo: profileModelInfo,
+    resources: async ({ projectId, conversationId }, profile) => {
+      const project = projectId ? core.projects.get(projectId) : undefined;
+      if (projectId && !project)
+        throw new Error(`Project not found: ${projectId}`);
+      const settings = deps.storage.settings;
+      const configuration = projectId
+        ? await capabilities.configuration(projectId, conversationId)
+        : {
+            effective: userCapabilitySelection(settings),
+            availableTools: capabilityToolNameSchema.options,
+            toolProfileOptions: {
+              jira: settings.providers.atlassianProfiles,
+              confluence: settings.providers.atlassianProfiles,
+              web_search: settings.providers.tavilyProfiles,
+            },
+          };
+      const installed = new Set(
+        (
+          await tools.definitions(project?.directory ?? deps.storage.paths.home)
+        ).map((tool) =>
+          tool.name.startsWith("jira_")
+            ? "jira"
+            : tool.name.startsWith("confluence_")
+              ? "confluence"
+              : tool.name,
+        ),
+      );
+      const python =
+        profile.tools.python_exec === true
+          ? await resolvePythonRuntime({
+              cwd: project?.directory ?? deps.storage.paths.home,
+              manualPath: settings.runtime.pythonExecutablePath,
+            })
+          : undefined;
+      const available = await profileToolAvailability({
+        profile,
+        installed,
+        configuration,
+        credentialConfigured: async (key) =>
+          Boolean(await deps.auth.credentialType(key)),
+        modelAvailable: async (selection) => {
+          await profileModelInfo(selection);
+        },
+        pythonAvailable: python?.available,
+      });
+      const { skills } = await listAvailableSkills(project?.directory, {
+        storageHome: deps.storage.paths.home,
+        nerveSkills: deps.nerveSkills.skills,
+        agentBrowserSkills: deps.agentBrowserSkills.skills,
+      });
+      return {
+        tools: available,
+        skills: new Map(skills.map((skill) => [skill.name, undefined])),
+      };
+    },
+  });
   const subagentHost = createSubagentHost({
     profiles: {
-      usable: (projectId) => subagentProfiles().usable(projectId),
-      find: (projectId, name) => subagentProfiles().find(projectId, name),
+      usable: (context) => subagentProfiles().usable(context),
+      find: (context, name) => subagentProfiles().find(context, name),
     },
     models,
+    availability: profileAvailability,
     harness,
     parent: (parentId) => {
       const snapshot = core.getSnapshot(parentId);
@@ -247,5 +322,5 @@ export function createConversationCore(
     ...createAsyncBashTools(core),
   ])
     core.registerCoreTool(handler);
-  return { core, storage, capabilities, harness };
+  return { core, storage, capabilities, harness, profileAvailability };
 }

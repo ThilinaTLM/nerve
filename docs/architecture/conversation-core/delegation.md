@@ -2,15 +2,15 @@
 
 Part of the [conversation core redesign](README.md).
 
-> **Status:** Current implementation. Owning contracts, the delegation handlers in `conversation-core` and the host adapters in `workbench-server` are authoritative.
+> **Status:** Current implementation. Owning contracts, delegation handlers and host adapters are authoritative. See [profile customization](../subagent-profiles.md) for scoped JSON configuration.
 
-A lead delegates to **sub-agents** with three tools. A sub-agent is an ordinary child conversation. What kind of sub-agent it is (persona, model, permission rule set, tools, skills, compaction) comes from a **profile**, a Markdown file that is applied once, when the sub-agent is created.
+A lead delegates to **sub-agents** with three tools. A sub-agent is an ordinary child conversation. What kind of sub-agent it is (persona, model, permission rule set, tools, skills, compaction) comes from a **profile**, resolved from scoped JSON configuration and applied once, when the sub-agent is created.
 
 ## Principles
 
-- **A profile is a template, not a policy.** It is applied at creation through existing mechanisms: conversation configuration, the conversation `capabilities.json` and the conversation `harness.json`. Nothing about the profile is stored on the child or looked up later. Editing or deleting a profile affects only sub-agents created afterwards.
+- **A profile is a template, not a policy.** It is applied at creation through existing mechanisms: conversation configuration, the conversation `capabilities.json` and the conversation `harness.json`. Its name may be derived from the creating tool call for provenance and assignment checks, but is never a live configuration binding. Editing or deleting a profile affects only sub-agents created afterwards.
 - **A sub-agent is a conversation.** It has the same runtime, history, controls and per-conversation configuration as a lead. A small set of host-enforced rules is the only difference.
-- **Conversation core knows nothing about profiles.** It talks to the host through the `SubagentHost` port. The host owns profile files, trust and capability files.
+- **Conversation core knows nothing about profiles.** It talks to the host through the `SubagentHost` port. The host owns profile documents, trust and capability files.
 - **The lead's context is the scarce resource.** Tool definitions, arguments, results and notices are sized for long-running leads, and nobody polls: completion notices wake the lead.
 - **Asynchronous only.** There is no blocking delegation tool; parallel research is several sub-agents in one batch.
 
@@ -20,25 +20,27 @@ A lead delegates to **sub-agents** with three tools. A sub-agent is an ordinary 
 | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`contracts/subagents`](../../../packages/contracts/src/domains/subagents/)                       | Limits, blocked tool names, allowed rule sets, profile schemas, built-in profiles, the `subagentProfiles.*` operations                                                              |
 | [`conversation-core/delegation`](../../../packages/conversation-core/src/delegation/)             | The three tool handlers, batch validation, notices, report spill, status formatting, the [`SubagentHost`](../../../packages/conversation-core/src/delegation/subagent-host.ts) port |
-| [`workbench-server/domains/subagents`](../../../packages/workbench-server/src/domains/subagents/) | Profile files, precedence, enablement, project trust (`SubagentProfileService`)                                                                                                     |
+| [`workbench-server/domains/subagents`](../../../packages/workbench-server/src/domains/subagents/) | Scoped profile documents, resolution, diagnostics, enablement and project trust                                                                                                     |
 | [`workbench-server/core-host`](../../../packages/workbench-server/src/core-host/)                 | `SubagentHost` implementation, tool filtering and profile enum per turn, instructions in the system prompt, conversation `harness.json`, child capability files                     |
 
 ## Profiles
 
-A profile is one Markdown file: frontmatter for configuration, body for instructions. The file name without `.md` is the profile name, and it is what the lead passes as `profile`. The format is defined by `subagentProfileFrontmatterSchema`; the user-facing description is the [profile format reference](../../../packages/website/src/content/docs/reference/subagent-profiles.md).
+Each writable scope has one versioned `config/subagents.json` document containing named entries and their instructions. The entry key is what the lead passes as `profile`. See the [profile customization reference](../subagent-profiles.md) for ownership and resolution decisions and the [profile format reference](../../../packages/website/src/content/docs/reference/subagent-profiles.md) for fields and examples.
 
-| Level    | Location                                                        | Notes                                                        |
-| -------- | --------------------------------------------------------------- | ------------------------------------------------------------ |
-| Built-in | `builtInSubagentProfiles` in contracts (`explore`, `developer`) | Read-only; editing one writes a user file with the same name |
-| User     | `<NERVE_HOME>/agent/subagents/*.md`                             | Created and edited from Settings                             |
-| Project  | `<project>/.nerve/subagents/*.md`                               | Used only while trusted                                      |
+| Level        | Location                                                        | Notes                                                            |
+| ------------ | --------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Built-in     | `builtInSubagentProfiles` in contracts (`explore`, `developer`) | Read-only defaults; both use `model: "lead"`, `thinking: "lead"` |
+| User         | `<NERVE_HOME>/config/subagents.json`                            | Full Settings editor                                             |
+| Project      | `<project>/.nerve/config/subagents.json`                        | Full Settings editor; exact document content must be trusted     |
+| Conversation | `<NERVE_HOME>/data/conversations/<id>/config/subagents.json`    | Conversation-owned overrides; deleted with its owner             |
 
-- **Precedence:** project beats user beats built-in, by name. The first definition stays authoritative even when it is invalid, disabled or untrusted, so a lower one never reappears. Shadowed definitions are still listed for Settings.
-- **Invalid files** are listed with their error and fallback values, and are never offered to the lead. One broken file does not hide the others.
-- **Enablement:** a per-profile switch in `config/subagents.json` (`SubagentEnablementService`) overrides the file's `enabled` without rewriting the file. The `subagents` capability remains the master switch at user, project and conversation level.
-- **Project trust:** a project profile can grant `autonomous` permission and inject instructions, so a cloned repository must not do that silently. Each project profile is a `TRUSTED_RESOURCE` (kind `subagent_profile`) bound to its content digest. Until trusted it is listed with a Trust action and not offered. Editing the file requires trust again; saves made from Nerve's own Settings are trusted on save. Deleting a project profile removes its trust record.
-- **Usable** means enabled, valid, trusted and not shadowed (`isUsable`). The lead sees only usable profiles.
-- **Blocked configuration:** `permission` accepts only the rule sets in `subagentPermissionRuleSetIds`, and `tools` rejects the names in `subagentBlockedToolNames`. Core tools are not toggleable per profile; the permission rule set governs them.
+- **Precedence:** resolve by name through built-in → user → project → conversation. Entries are sparse overrides: missing fields inherit, scalars/instructions replace, tool and skill maps merge by name, and structured compaction replaces as a whole. New names must resolve to valid complete profiles.
+- **Reset and copy:** reset removes a local field or entry. Explicit values stay pinned even when equal to inherited values. Copy-to-scope materializes the effective fields, while duplicating under a new name creates an independent profile.
+- **Enablement:** `enabled` belongs to the same scoped document, not a separate preference file. Higher scopes can re-enable profiles; the `subagents` capability remains the master switch.
+- **Project trust:** profiles can grant autonomous permission and inject instructions. Untrusted project content is visible but blocks affected profiles; conversation overrides cannot bypass it. External edits invalidate trust. Editing, toggling or resetting an entry in an untrusted imported project document does not trust it or activate untouched entries; explicit whole-document trust is required. Nerve-authored updates can automatically trust missing/new documents or updates to previously exact-trusted documents only.
+- **Diagnostics:** preserve unknown/unavailable enabled tools and skills with warnings, but omit them from the child. Skill loadability follows existing resource-loader policy, with no independent skill trust system or new database gate; profile trust covers the project `subagents.json` document only. An unavailable explicit model or known incompatible thinking level blocks creation; never silently substitute or downgrade. Invalid entries do not hide unrelated valid entries or silently reveal a lower same-name profile. Malformed documents are visible errors, not empty configuration.
+- **Usable:** enabled, valid, trusted and free of blocking diagnostics. Capability warnings alone permit use with reduced capabilities. Advertising and creation use the same conversation-aware resolver, with availability rechecked at creation.
+- **Blocked configuration:** permission accepts only `read_only` or `autonomous`. Forbidden tools are validation errors, not availability warnings. Core tools are governed by permission rather than profile toggles; runtime restrictions always apply.
 
 ## Agent interface
 
@@ -46,7 +48,7 @@ Three tools in the `subagents` capability group: `subagent_prompt`, `subagent_st
 
 ### Profile enum per turn
 
-Each turn, turn resources rewrite the `subagent_prompt` definition so `profile` is an enum of the currently usable profiles with their one-line descriptions (`withSubagentProfiles`). With no usable profile, or with the `subagents` capability off, all three tools are removed. Descriptions are paid for on every lead turn, which is why they are capped at 200 characters.
+Each turn, turn resources rewrite the `subagent_prompt` definition so `profile` is an enum of the currently usable profiles with their one-line descriptions (`withSubagentProfiles`). With no usable profiles but existing children, all three tools remain available for follow-ups, status and stop; the prompt schema omits `profile`, and attempts to create a new child fail. Disabling or deleting the last usable profile therefore affects future creations only, not controls for existing children. With neither usable profiles nor existing children, all three tools are removed. Turning the master `subagents` capability off removes the entire group regardless of existing children. Descriptions are paid for on every lead turn, which is why they are capped at 200 characters.
 
 ### `subagent_prompt`
 
@@ -99,7 +101,7 @@ On creation the host copies the profile into the places a lead is configured thr
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `model`, `thinking` | `model` and `reasoning_level`; `lead` copies the lead's current values. A named model must resolve or creation fails.               |
 | `permission`        | `permission_rule_set_id`                                                                                                            |
-| Body                | `conversation_config.instructions`                                                                                                  |
+| `instructions`      | `conversation_config.instructions`                                                                                                  |
 | `tools`, `skills`   | The child's `capabilities.json`: the lead's conversation overrides plus the profile's changes (`CapabilityService.initializeChild`) |
 | `compaction`        | The child's `harness.json`, unless `inherit`                                                                                        |
 
@@ -139,10 +141,11 @@ The UI adds no behavior of its own; it renders the data above.
 
 - **Agents pill** at the top right of the transcript area, shown when the conversation tree has sub-agents or the viewed conversation has background commands. Its popover lists the lead and sub-agents as a tree and the viewed conversation's background commands. Finished sub-agents fold after ten minutes without activity; failed ones stay.
 - **Waiting state:** the transcript activity row stays visible after a turn while sub-agents or background commands are pending, and names them.
-- **Sub-agent view:** a sub-agent opens in the main view with the lead's transcript and composer components. The composer editor is covered by "Sub-agents take prompts only from their lead." with a way back; the toolbar controls (permission within the two rule sets, model, tools and skills, context popover) stay usable.
+- **Sub-agent view:** a sub-agent opens in the main view with the lead's transcript and composer components. The composer editor is covered by "Sub-agents take prompts only from their lead." with a way back; the toolbar controls (permission within the two rule sets, model, Capabilities popover for tools and skills, context popover) stay usable.
 - **Context popover:** usage and compaction, per-conversation compaction override and instructions, and session details. It replaces the former Context dock panel.
-- **Settings → Sub-agents:** profile list with source, enabled switch, trust state, and an editor, in user and project scope.
+- **Settings → Sub-agents:** full user/project editor for label, description, instructions, enabled state, model, thinking, permission, tools, skills and compaction; copy-to-scope, duplicate, field origins, resets, trust and diagnostics. Project edits write project configuration.
+- **Conversation profiles:** the composer’s **Capabilities → Sub-agents** tab, alongside **Tools** and **Skills**, provides per-profile enabled, model and thinking controls with inherited values, per-field reset and diagnostics. The master delegation capability toggle is distinct from these profile controls. Profile overrides affect new children only; existing children retain their creation-time configuration and any direct edits. To switch an existing child after model usage limits, open that child and edit its own model/thinking controls; a follow-up retains those edits.
 
 ## Legacy
 
-The `explore` tool, `subagent_new` and `subagent_list`, the `exploreAgent` and `asyncSubagent` settings, and `data/reports/` are gone. Step 0001 of the [storage migrations](../migrations.md) converts customized settings into user profile files and `config/subagents.json`, and moves existing reports into the owning child's `reports/` directory. Old transcripts keep rendering; the app derives `explore` or `developer` for legacy children from the legacy tool name.
+The `explore` tool, `subagent_new` and `subagent_list`, the `exploreAgent` and `asyncSubagent` settings, and `data/reports/` are gone. The unreleased step 0001 of the [storage migrations](../migrations.md) converts customized user settings and legacy Markdown profiles/enablement for user scope and registered projects into versioned scoped `config/subagents.json` documents, and moves existing reports into the owning child's `reports/` directory. Preserve explicit toggles and instructions, reassess project trust, and avoid permanent dual loading. Conflicts, malformed documents and incompatible whole-map legacy capability shadowing stop conversion with an actionable error, preserving sources until explicitly resolved; sparse merges must not guess enabled state for extra inherited keys. Unregistered old projects opened later require canonical `.nerve/config/subagents.json` conversion; migration does not discover every directory and there is no runtime legacy loader. Dev-only homes with an earlier draft of step 0001 already applied need a baseline rebuild/copy, because extending the step does not rerun an applied ledger entry. Old transcripts keep rendering; the app derives `explore` or `developer` for legacy children from the legacy tool name.

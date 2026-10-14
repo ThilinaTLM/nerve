@@ -36,6 +36,7 @@ import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
+import type { CapabilitySubagentProfiles } from "./capability-subagent-slot";
 
 type Props = {
   controlsDisabled: boolean;
@@ -81,12 +82,15 @@ type Props = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
+  capabilityProfiles?: CapabilitySubagentProfiles;
+  capabilityScopeKey?: string;
+  subagentControlsEnabled?: boolean;
   capabilityDisabled?: boolean;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
 };
 
 let {
@@ -130,6 +134,9 @@ let {
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
+  capabilityProfiles,
+  capabilityScopeKey,
+  subagentControlsEnabled = false,
   capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
   onConfigureCapabilityTool,
@@ -311,18 +318,22 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       {onCompact}
     />
 
-    <ComposerCapabilitiesPopover
-      configuration={capabilityConfiguration}
-      skills={capabilitySkills}
-      loading={capabilityLoading}
-      error={capabilityError}
-      disabled={capabilityDisabled}
-      onPatch={onCapabilityPatch}
-      onConfigureTool={onConfigureCapabilityTool}
-      onReset={onResetCapabilities}
-      onRefresh={onRefreshCapabilities}
-      onOpenSettings={onOpenCapabilitySettings}
-    />
+    {#key capabilityScopeKey}
+      <ComposerCapabilitiesPopover
+        configuration={capabilityConfiguration}
+        subagentProfiles={capabilityProfiles}
+        {subagentControlsEnabled}
+        skills={capabilitySkills}
+        loading={capabilityLoading}
+        error={capabilityError}
+        disabled={capabilityDisabled}
+        onPatch={onCapabilityPatch}
+        onConfigureTool={onConfigureCapabilityTool}
+        onReset={onResetCapabilities}
+        onRefresh={onRefreshCapabilities}
+        onOpenSettings={onOpenCapabilitySettings}
+      />
+    {/key}
 
     <ComposerModelPicker
       {models}

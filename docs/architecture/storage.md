@@ -20,7 +20,7 @@ Nerve separates portable configuration, secrets, core relational data, managed f
 │   ├── launches/           # workbench launch logs
 │   ├── images/
 │   └── plans/
-├── agent/                  # user-authored instructions, skills, suggestions and sub-agent profiles
+├── agent/                  # user-authored instructions, skills and suggestions
 ├── tls/
 ├── tmp/
 ├── cache/
@@ -80,7 +80,7 @@ Compaction settings have the same layers in `harness.json`: user `config/harness
 
 Prompt suggestions are Markdown files (built-in, `agent/suggestions/`, `<project>/.nerve/suggestions/`). Trust in a suggestion's JavaScript predicate is a `TRUSTED_RESOURCE` row for its exact content; enabled/disabled choices live in `config/prompt-suggestions.json`.
 
-Sub-agent profiles are Markdown files too (built-in, `agent/subagents/`, `<project>/.nerve/subagents/`). Project profiles are trusted per file content through `TRUSTED_RESOURCE`; per-profile enabled switches live in `config/subagents.json`. See [delegation](conversation-core/delegation.md#profiles).
+Sub-agent profiles use one versioned JSON document per writable scope as described in the [customization reference](subagent-profiles.md): user `config/subagents.json`, project `<project>/.nerve/config/subagents.json`, and conversation `data/conversations/<id>/config/subagents.json`. Each contains sparse named overrides including enabled state and instructions; there are no separate Markdown definitions or enablement preferences. Built-in → user → project → conversation resolution retains explicit values until reset; copy-to-scope materializes effective fields. Project document trust is bound to exact content through existing trust storage, with no new database tables or columns. Entry edits, toggles and resets in an untrusted imported document do not grant whole-document trust or activate untouched entries; explicit whole-document trust is required. Nerve-authored updates may automatically trust missing/new documents or updates to previously exact-trusted documents only. Profile-document trust does not establish independent trust for skill content; skill loadability retains existing resource-loader security semantics, with no new skill trust system or database gate. Conversation documents are deleted with their owner. Profiles configure new children only; existing children use their own configuration. See [delegation](conversation-core/delegation.md#profiles). Conversion covers user resources and registered projects, not all directories on disk. Conflicts, malformed documents and incompatible legacy capability shadowing stop migration for explicit manual resolution while preserving sources. Later-opened unregistered old projects need canonical `.nerve/config/subagents.json`; there is no runtime legacy loader. See [conversion limits](migrations.md#profile-conversion-limits-and-manual-review). Dev homes with an earlier draft of step 0001 already applied need a baseline rebuild/copy; an extension does not rerun an applied ledger entry (see [migration limitation](migrations.md#development-homes-with-an-earlier-draft-applied)).
 
 ## In-memory state and restart
 

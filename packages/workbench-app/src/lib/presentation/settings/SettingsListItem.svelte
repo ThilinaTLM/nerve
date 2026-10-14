@@ -9,6 +9,8 @@ type Props = {
   detail?: Snippet;
   /** Supporting information on its own line under the title. */
   description?: string;
+  /** Wrapped supporting content below the description; never competes with the title. */
+  supporting?: Snippet;
   class?: string;
   tourId?: string;
   leading?: Snippet;
@@ -24,6 +26,7 @@ let {
   title,
   detail,
   description,
+  supporting,
   class: className,
   tourId,
   leading,
@@ -48,10 +51,12 @@ let {
     {#if content}
       {@render content()}
     {:else}
-      <div class="grid min-w-0 gap-0.5">
-        <div class="flex min-w-0 items-baseline gap-1.5">
+      <div class="grid min-w-0 w-full gap-0.5">
+        <div class="flex min-w-0 flex-wrap items-baseline gap-1.5">
           {#if title}
-            <span class="truncate text-sm text-foreground">{title}</span>
+            <span class="max-w-full shrink-0 truncate text-sm text-foreground"
+              >{title}</span
+            >
           {/if}
           {#if detail}
             <span
@@ -61,7 +66,9 @@ let {
             </span>
           {/if}
           {#if status}
-            <span class="flex flex-none items-center gap-1.5 self-center">
+            <span
+              class="flex max-w-full flex-none flex-wrap items-center gap-1.5 self-center"
+            >
               {@render status()}
             </span>
           {/if}
@@ -70,6 +77,11 @@ let {
           <p class="truncate text-xs text-muted-foreground">
             {description}
           </p>
+        {/if}
+        {#if supporting}
+          <div class="min-w-0 w-full">
+            {@render supporting()}
+          </div>
         {/if}
       </div>
     {/if}

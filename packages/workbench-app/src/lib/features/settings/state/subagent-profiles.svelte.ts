@@ -1,14 +1,17 @@
 import {
-  onEvent,
+  onAnyEvent,
   onWorkbenchReconnect,
 } from "$lib/application/events/workbench-event-bus";
 import {
-  listSubagentProfiles,
-  type SubagentProfile,
+  readSubagentProfiles,
+  type ProfileSettingsScope,
 } from "../api/subagent-profiles.api";
 
 export const subagentProfilesState = $state({
-  profiles: [] as SubagentProfile[],
+  configuration: undefined as
+    | import("@nervekit/contracts/subagents").SubagentProfilesConfiguration
+    | undefined,
+  scope: "user" as ProfileSettingsScope["scope"],
   loaded: false,
   loading: false,
   error: undefined as string | undefined,
@@ -22,14 +25,24 @@ let request = 0;
 
 export async function refreshSubagentProfiles(
   projectId: string | undefined = subagentProfilesState.projectId,
+  scope: ProfileSettingsScope["scope"] = subagentProfilesState.scope,
 ): Promise<void> {
   const current = ++request;
+  if (
+    subagentProfilesState.projectId !== projectId ||
+    subagentProfilesState.scope !== scope
+  ) {
+    subagentProfilesState.configuration = undefined;
+    subagentProfilesState.loaded = false;
+    subagentProfilesState.error = undefined;
+  }
   subagentProfilesState.projectId = projectId;
+  subagentProfilesState.scope = scope;
   subagentProfilesState.loading = true;
   try {
-    const profiles = await listSubagentProfiles(projectId);
+    const configuration = await readSubagentProfiles({ scope, projectId });
     if (current !== request) return;
-    subagentProfilesState.profiles = profiles;
+    subagentProfilesState.configuration = configuration;
     subagentProfilesState.loaded = true;
     subagentProfilesState.error = undefined;
   } catch (error) {
@@ -46,7 +59,16 @@ export function registerSubagentProfileEventHandlers(): () => void {
     if (subagentProfilesState.watching) void refreshSubagentProfiles();
   };
   const disposers = [
-    onEvent("subagentProfiles.changed", refresh),
+    onAnyEvent((event) => {
+      if (
+        event.type === "subagentProfiles.changed" ||
+        event.type === "applicationConfiguration.updated" ||
+        event.type === "settings.updated" ||
+        event.type === "project.capabilities.changed" ||
+        /^(providers|auth|secrets|skills)\./.test(event.type)
+      )
+        refresh();
+    }),
     onWorkbenchReconnect(refresh),
   ];
   return () => {
