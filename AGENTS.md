@@ -16,7 +16,9 @@
 
 **UI and styling**
 
+- Create planning wireframes with shared UI components and styles as local, mock-only Svelte files in the gitignored `packages/workbench-app/src/lib/app/design-lab/wireframes/` directory (kebab-case filenames, served at `/dev/wireframes/<name>` in development), rather than standalone HTML files.
+
 - Use official shadcn-svelte components from `packages/ui-kit/src/lib/components/ui` and `@lucide/svelte` icons. Improve core components rather than adding wrappers, one-off variants, or size levels.
 - Use theme-token Tailwind utilities, including `success`/`warning`/`info`. Use `destructive` for readable red text/tints; opaque fills use `destructive-solid` with `destructive-solid-foreground`.
-- Surface ladder: `well` (recessed output) < `panel` (shell chrome) < `background` < `card` < `popover`. Controls share heights `xs`/`sm`/`default`/`lg`; Button's `icon-xs`/`icon-sm`/`icon`/`icon-lg` match them. Monospace is only for code, logs, and paths.
+- Surface ladder: `well` (recessed output) < `panel` (shell chrome) < `background` < `card` < `popover`. Controls use two height tokens, `--spacing-control` (28px) and `--spacing-control-sm` (24px), enlarged on coarse pointers: Button `default`/`sm`/`icon`/`icon-sm`, ToggleGroup `default`/`sm`, one-size fields/Switch/Checkbox/Radio/IconAction, underline-only Tabs. Never add a size level or patch control heights via class. Monospace is only for code, logs, and paths.
 - Shared CSS/tokens live in `packages/ui-kit/src/styles/` (`app.css` entrypoint). Global classes must be deliberate contracts used by at least two components; `scripts/checks/style-policy.mjs` owns the partial allowlist. Follow `packages/workbench-app/AGENTS.md` for the full styling model.

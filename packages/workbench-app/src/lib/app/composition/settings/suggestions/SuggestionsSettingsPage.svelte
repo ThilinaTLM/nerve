@@ -160,7 +160,6 @@ function copyPath(path: string): void {
           {#snippet actions()}
             {#if !status.stale}
               <Switch
-                size="settings"
                 checked={status.enabled}
                 disabled={savingKey === status.definitionKey}
                 aria-label={`Enable ${status.label} prompt suggestion`}
@@ -176,7 +175,7 @@ function copyPath(path: string): void {
                 >
                 <Button
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   ariaLabel="Copy suggestion path"
                   onclick={() => copyPath(status.path)}
                 >
@@ -187,21 +186,21 @@ function copyPath(path: string): void {
             {#if status.requiresTrust && status.trustId}
               <div class="flex flex-wrap gap-1">
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   disabled={savingTrustId === status.trustId}
                   onclick={() => updateTrust(status.trustId, "allowed")}
                   >Allow</Button
                 >
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="destructive"
                   disabled={savingTrustId === status.trustId}
                   onclick={() => updateTrust(status.trustId, "denied")}
                   >Deny</Button
                 >
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="ghost"
                   disabled={savingTrustId === status.trustId}
                   onclick={() => updateTrust(status.trustId, "unset")}
@@ -235,7 +234,7 @@ function copyPath(path: string): void {
     {#snippet actions()}
       <Button
         variant="outline"
-        size="xs"
+        size="sm"
         onclick={() => refreshPromptSuggestionStatuses(activeProject?.id)}
         >Retry</Button
       >

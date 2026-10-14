@@ -49,11 +49,16 @@ Application `*Host` components are state/effect adapters around canonical featur
 - **File-type icons are deliberately outside the token system.** The Material
   Icon Theme sprite in `$lib/features/filesystem/views` keeps its own multi-hued
   palette so file types stay recognizable; do not recolour it with theme tokens.
-- **Controls share one compact height scale** — 24 / 28 / 32 / 36px, exposed as
-  `xs` / `sm` / `default` / `lg` on Button, Toggle, Input, and Select. Pick a
-  size; never patch a control's height or padding through `class`, and never add
-  a new size level. If a size feels wrong, fix the core component in `ui-kit`
-  (`control-scale.test.ts` enforces this).
+- **Controls share a compact desktop scale of two heights** — the theme tokens
+  `--spacing-control` (28px) and `--spacing-control-sm` (24px), raised under
+  `@media (pointer: coarse)` (36 / 32px), so touch sizing needs no per-component
+  rules. Button is exactly `default` / `sm` / `icon` / `icon-sm`; ToggleGroup is
+  `chip` or `outline` × `default` / `sm`; IconAction is one size (24px). Fields
+  (Input, Textarea, Select, SearchInput, SelectField) are one 28px height with no
+  size prop; Switch, Checkbox, and Radio have one size; Tabs are underline-only.
+  Pick from these; never add a size level, and never patch a control's height or
+  padding through `class`. If a size feels wrong, fix the core component in
+  `ui-kit` (`control-scale.test.ts` enforces this).
 - **Tier 2 (escape hatch): a scoped `<style>` block in the component** — allowed
   ONLY for things utilities cannot express (see the list below). Use theme tokens
   inside it too.
@@ -143,11 +148,12 @@ it to `CardShell`. Adding a notice kind is a mapper, a thin card and one
 Dock panel content (Conversations, Git, Context, Notes, Tasks) must be built from
 the `$lib/presentation/panels` primitives — `PanelView`, `PanelHeader`,
 `PanelToolbar`, `PanelToolbarButton`, `PanelSectionHeader`, `PanelList`,
-`PanelRow`, `PanelTree`, `PanelPropertyRow`, `PanelBanner`, `PanelEmpty`.
+`PanelRow`, `PanelTree`, `PanelBanner`, `PanelEmpty`.
 
-- A panel view's root is `PanelView`. It owns the height, the single scroll
-  region, the sticky toolbar, and the banner slot; views must not manage their
-  own `h-full`/`overflow`/padding frame or add a second scroll container.
+- A panel view's root is `PanelView`. It owns the height, the sticky toolbar,
+  and the banner slot; its content owns the one scroll region (a `ScrollArea`,
+  `VirtualList`, or `PanelTree virtualized`). Views must not manage their own
+  `h-full`/`overflow`/padding frame or add a second scroll container.
 - Views are movable between the left, right, and bottom docks, so a view may not
   assume its width, orientation, or which dock hosts it. Use the container width
   (not the dock id) when adapting layout.
@@ -233,6 +239,8 @@ src/styles/
 - Startup ordering tests use deferred dependencies and phase events, never timing thresholds.
 
 ## Misc
+
+- Create planning wireframes as local, mock-only Svelte components in the gitignored `src/lib/app/design-lab/wireframes/` directory using shared UI components and styles; kebab-case filenames are automatically discoverable at `/dev/wireframes/<name>` during development, so prefer this over standalone HTML files.
 
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
   spinners use the shared `Spinner` component

@@ -55,12 +55,12 @@ const progress = $derived(
           {/if}
         {/snippet}
         {#snippet actions()}
-          <Button size="xs" onclick={() => onStartGuide(guide.id)}>
+          <Button size="sm" onclick={() => onStartGuide(guide.id)}>
             {guide.actionLabel ?? "Start"}
           </Button>
           <Button
             variant="ghost"
-            size="xs"
+            size="sm"
             onclick={() => onMarkCompleted(guide.id)}
           >
             <Check class="size-3.5" aria-hidden="true" />
@@ -83,7 +83,7 @@ const progress = $derived(
       <div class="px-1 py-1">
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           onclick={() => (completedOpen = !completedOpen)}
           aria-expanded={completedOpen}
         >
@@ -112,7 +112,7 @@ const progress = $derived(
           {#snippet actions()}
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onclick={() => onStartGuide(guide.id)}
             >
               Replay

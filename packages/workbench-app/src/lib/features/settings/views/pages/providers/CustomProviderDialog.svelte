@@ -165,7 +165,6 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="custom-provider-name">Display name</Label>
         <Input
-          size="xs"
           id="custom-provider-name"
           value={displayName}
           oninput={(event) => onDisplayNameInput(event.currentTarget.value)}
@@ -176,7 +175,6 @@ async function submit() {
       <div class="grid gap-1.5">
         <Label for="custom-provider-id">Provider id</Label>
         <Input
-          size="xs"
           id="custom-provider-id"
           bind:value={id}
           oninput={() => (idTouched = true)}
@@ -205,7 +203,6 @@ async function submit() {
     <div class="grid gap-1.5">
       <Label for="custom-provider-base-url">Base URL</Label>
       <Input
-        size="xs"
         id="custom-provider-base-url"
         bind:value={baseUrl}
         placeholder="http://localhost:11434/v1"
@@ -218,7 +215,6 @@ async function submit() {
         API key {hasKey ? "(stored — leave blank to keep)" : "(optional)"}
       </Label>
       <Input
-        size="xs"
         id="custom-provider-key"
         type="password"
         autocomplete="off"
@@ -265,10 +261,8 @@ Another-Header: value"
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={() => void submit()} disabled={!canSubmit}>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={() => void submit()} disabled={!canSubmit}>
       {busy ? "Saving…" : editing ? "Save provider" : "Add provider"}
     </Button>
   {/snippet}

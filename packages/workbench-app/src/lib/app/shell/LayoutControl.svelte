@@ -96,7 +96,7 @@ function changeZoomLevel(delta: number) {
       <div class="flex items-center gap-1" aria-label="Zoom controls">
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           ariaLabel="Zoom out"
           title="Zoom out"
           disabled={clampedZoomLevel <= MIN_ZOOM_LEVEL}
@@ -106,7 +106,7 @@ function changeZoomLevel(delta: number) {
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           ariaLabel="Reset zoom"
           title="Reset zoom"
           disabled={clampedZoomLevel === 0}
@@ -116,7 +116,7 @@ function changeZoomLevel(delta: number) {
         </Button>
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           ariaLabel="Zoom in"
           title="Zoom in"
           disabled={clampedZoomLevel >= MAX_ZOOM_LEVEL}

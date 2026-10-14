@@ -181,7 +181,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   <PopoverFooter>
     <Button
       variant="ghost"
-      size="xs"
+      size="sm"
       class="justify-start text-muted-foreground"
       disabled={!enabled}
       onclick={() => {
@@ -194,7 +194,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     </Button>
     <Button
       variant="ghost"
-      size="xs"
+      size="sm"
       class="justify-start text-muted-foreground"
       disabled={!enabled}
       onclick={() => {

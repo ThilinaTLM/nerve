@@ -39,7 +39,7 @@ let { stash, busy, mutation, onApply, onDrop }: Props = $props();
       </span>
     </div>
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={busy}
       onclick={() => onApply(stash)}
@@ -52,7 +52,7 @@ let { stash, busy, mutation, onApply, onDrop }: Props = $props();
       Apply
     </Button>
     <Button
-      size="icon-xs"
+      size="icon-sm"
       variant="ghost"
       class="text-destructive hover:bg-destructive/10 hover:text-destructive"
       aria-label={`Drop ${stash.ref}`}

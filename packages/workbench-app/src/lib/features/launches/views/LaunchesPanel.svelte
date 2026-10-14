@@ -203,7 +203,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
         >
           {#snippet action()}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               disabled={!model.capabilities.manageDefinitions.enabled}
               onclick={() => (launchDialog = { kind: "create" })}
@@ -281,7 +281,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
           <div bind:this={runsFooter} class="mt-auto shrink-0 p-1">
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               class="w-full text-muted-foreground"
               onclick={() => (runsDialogOpen = true)}>See More</Button
             >
@@ -293,7 +293,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
 {/snippet}
 
 <div class="h-full min-h-0" bind:clientWidth={panelWidth}>
-  <PanelView scroll={false} padded={false}>
+  <PanelView>
     {#snippet banner()}
       <PanelHeader
         title="Launches"

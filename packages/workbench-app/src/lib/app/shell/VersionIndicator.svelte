@@ -96,7 +96,7 @@ onDestroy(() => {
             >
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               ariaLabel={copiedCommand === "latest"
                 ? "Latest release command copied"
                 : "Copy latest release command"}
@@ -131,7 +131,7 @@ onDestroy(() => {
             >
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               ariaLabel={copiedCommand === "pinned"
                 ? "Pinned release command copied"
                 : "Copy pinned release command"}
@@ -174,7 +174,7 @@ onDestroy(() => {
       <PopoverFooter>
         <Button
           variant="ghost"
-          size="xs"
+          size="sm"
           href={latestRelease.releaseUrl}
           target="_blank"
           rel="noreferrer"

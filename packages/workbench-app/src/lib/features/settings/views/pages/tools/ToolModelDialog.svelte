@@ -84,9 +84,7 @@ function save(): void {
   />
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={save} disabled={!canSave}>Save</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={save} disabled={!canSave}>Save</Button>
   {/snippet}
 </Dialog>

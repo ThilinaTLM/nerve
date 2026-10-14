@@ -51,7 +51,6 @@ let {
 </div>
 <div class="flex flex-none items-center gap-2.5">
   <Button
-    size="sm"
     disabled={!path || loading}
     title={path ? `Open ${path}` : "Open"}
     onclick={onOpen}

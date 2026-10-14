@@ -24,7 +24,7 @@ const tabTriggerClass =
 />
 <Tabs.Root value="conversation" class="min-h-0 flex-1 gap-0">
   <div class="shrink-0 border-b px-4">
-    <Tabs.List variant="line" class="h-9 gap-0 p-0">
+    <Tabs.List class="h-9 gap-0 p-0">
       <Tabs.Trigger value="conversation" class={tabTriggerClass}
         >Conversation</Tabs.Trigger
       >

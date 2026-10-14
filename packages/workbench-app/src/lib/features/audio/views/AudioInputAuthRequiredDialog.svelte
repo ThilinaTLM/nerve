@@ -59,8 +59,8 @@ function openProviderSettings() {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={closeDialog}>Close</Button>
-    <Button size="sm" onclick={openProviderSettings}>
+    <Button variant="ghost" onclick={closeDialog}>Close</Button>
+    <Button onclick={openProviderSettings}>
       <KeyRound size={15} strokeWidth={2.1} />
       Open authentication
     </Button>

@@ -197,7 +197,6 @@ onDestroy(() => void flowController.dispose());
           {/if}
         </label>
         <Input
-          size="xs"
           id="add-provider-api-key"
           type="password"
           autocomplete="off"
@@ -274,7 +273,6 @@ onDestroy(() => void flowController.dispose());
                   >{interaction.manualEntry.label}</label
                 >
                 <Input
-                  size="xs"
                   id="oauth-manual-redirect"
                   type="text"
                   autocomplete="off"
@@ -325,7 +323,6 @@ onDestroy(() => void flowController.dispose());
               }}
             >
               <Input
-                size="xs"
                 type={interaction.inputKind === "secret" ? "password" : "text"}
                 autocomplete="off"
                 placeholder={interaction.placeholder ?? "Enter a response"}
@@ -400,17 +397,13 @@ onDestroy(() => void flowController.dispose());
 
   {#snippet footer()}
     {#if flowController.flow?.state === "succeeded"}
-      <Button size="sm" onclick={() => void flowController.close()}>Done</Button
-      >
+      <Button onclick={() => void flowController.close()}>Done</Button>
     {:else}
-      <Button
-        size="sm"
-        variant="ghost"
-        onclick={() => void flowController.close()}>Cancel</Button
+      <Button variant="ghost" onclick={() => void flowController.close()}
+        >Cancel</Button
       >
       {#if flowController.step === "api-key"}
         <Button
-          size="sm"
           onclick={() => void flowController.submitApiKey()}
           disabled={flowController.busy ||
             flowController.apiKey.trim().length === 0}
@@ -419,7 +412,6 @@ onDestroy(() => void flowController.dispose());
         </Button>
       {:else if flowController.step === "oauth" && (activeInteraction?.type === "text_input" || (activeInteraction?.type === "browser" && activeInteraction.manualEntry))}
         <Button
-          size="sm"
           onclick={() => void flowController.submitResponse()}
           disabled={responseDisabled}>Submit</Button
         >

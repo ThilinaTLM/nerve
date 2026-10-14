@@ -137,7 +137,6 @@ const destructiveActions = $derived(
     <div class="flex flex-none items-center gap-1.5">
       {#if effective}
         <Switch
-          size="settings"
           class="relative"
           checked={enabled}
           disabled={busy}
@@ -148,7 +147,7 @@ const destructiveActions = $derived(
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           class={cn(
-            buttonVariants({ variant: "ghost", size: "icon-xs" }),
+            buttonVariants({ variant: "ghost", size: "icon-sm" }),
             "relative",
           )}
           aria-label={`${label} actions`}

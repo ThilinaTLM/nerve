@@ -80,7 +80,7 @@ function handleKeydown(event: KeyboardEvent) {
 >
   <Textarea
     bind:ref={input}
-    class="max-h-24 min-h-7 resize-y border-0 bg-transparent px-2 py-1 font-mono text-xs leading-5 shadow-none"
+    class="max-h-24 resize-y border-0 bg-transparent px-2 py-1 font-mono text-xs leading-5 shadow-none"
     value={query}
     rows={1}
     aria-label="Find text"
@@ -102,7 +102,7 @@ function handleKeydown(event: KeyboardEvent) {
     >
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         pressed={caseSensitive}
         active={caseSensitive}
         ariaLabel="Match case"
@@ -113,7 +113,7 @@ function handleKeydown(event: KeyboardEvent) {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         pressed={wholeWord}
         active={wholeWord}
         ariaLabel="Match whole word"
@@ -124,7 +124,7 @@ function handleKeydown(event: KeyboardEvent) {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         pressed={regexp}
         active={regexp}
         ariaLabel="Use regular expression"
@@ -136,7 +136,7 @@ function handleKeydown(event: KeyboardEvent) {
       <span class="mx-0.5 h-4 w-px bg-border" aria-hidden="true"></span>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Previous match"
         title="Previous match (Ctrl/Cmd+Shift+Enter)"
         disabled={!query || !valid}
@@ -146,7 +146,7 @@ function handleKeydown(event: KeyboardEvent) {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Next match"
         title="Next match (Ctrl/Cmd+Enter)"
         disabled={!query || !valid}
@@ -156,7 +156,7 @@ function handleKeydown(event: KeyboardEvent) {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Close find"
         title="Close find (Escape)"
         onclick={onClose}

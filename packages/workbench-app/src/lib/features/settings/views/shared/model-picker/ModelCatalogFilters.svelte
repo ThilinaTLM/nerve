@@ -88,7 +88,6 @@ function capabilityTitle(capability: ModelCapability): string {
       <SearchInput
         bind:value={query}
         bind:ref={searchRef}
-        size="sm"
         class="flex-1"
         placeholder="Search models"
         ariaLabel="Search models"
@@ -107,7 +106,6 @@ function capabilityTitle(capability: ModelCapability): string {
           }}
         >
           <Select.Trigger
-            size="sm"
             aria-label="Filter by provider"
             class="min-w-0 flex-1 @xl:w-44 @xl:flex-none"
           >
@@ -134,7 +132,6 @@ function capabilityTitle(capability: ModelCapability): string {
       {/if}
       <ToggleGroup.Root
         type="multiple"
-        size="sm"
         spacing={1}
         variant="chip"
         value={capabilities}

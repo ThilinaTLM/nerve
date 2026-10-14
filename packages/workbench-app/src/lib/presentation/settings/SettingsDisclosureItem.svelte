@@ -24,7 +24,6 @@ type Props = {
   titleDetail?: Snippet;
   actions?: Snippet;
   detail: Snippet;
-  variant?: "plain" | "card";
 };
 
 let {
@@ -38,23 +37,11 @@ let {
   titleDetail,
   actions,
   detail,
-  variant = "plain",
 }: Props = $props();
 </script>
 
-<Collapsible.Root
-  bind:open
-  class={cn(
-    "min-w-0",
-    variant === "card" && "overflow-hidden rounded-md border bg-card",
-    className,
-  )}
->
-  <SettingsListItem
-    {leading}
-    {actions}
-    class={variant === "card" ? "px-3" : undefined}
-  >
+<Collapsible.Root bind:open class={cn("min-w-0", className)}>
+  <SettingsListItem {leading} {actions}>
     {#snippet content()}
       <Collapsible.Trigger
         class="group/disclosure flex min-w-0 flex-1 items-start gap-2 rounded-sm py-0.5"
@@ -94,10 +81,7 @@ let {
   </SettingsListItem>
 
   <Collapsible.Content
-    class={cn(
-      "grid gap-1.5 pt-0 pr-3 pb-2 text-xs text-muted-foreground",
-      variant === "card" ? "pl-8.5" : "pl-5.5",
-    )}
+    class="grid gap-1.5 pt-0 pr-3 pb-2 pl-5.5 text-xs text-muted-foreground"
   >
     {@render detail()}
   </Collapsible.Content>

@@ -41,7 +41,7 @@ let {
     {#if onBack}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel={backLabel}
         onclick={onBack}
       >

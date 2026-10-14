@@ -24,7 +24,7 @@ type Props = {
 
 let {
   variant = "default",
-  size = "sm",
+  size = "default",
   disabled = false,
   menuAlign = "end",
   menuClass,

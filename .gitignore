@@ -15,6 +15,9 @@ target/
 .env.*
 !.env.example
 
+# Local Design Lab prototypes (runner and catalog remain versioned)
+/packages/workbench-app/src/lib/app/design-lab/wireframes/
+
 # Editor & Agents
 .vscode
 .zed

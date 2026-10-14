@@ -159,7 +159,7 @@ function requestCompact(): void {
                 {#snippet child({ props })}
                   <span {...props} class="inline-flex">
                     <Button
-                      size="icon-xs"
+                      size="icon-sm"
                       variant="ghost"
                       class="text-muted-foreground hover:text-foreground"
                       ariaLabel="Copy session details"
@@ -251,7 +251,7 @@ function requestCompact(): void {
 
     <PopoverFooter>
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         disabled={compactActionDisabled}
         title={compacting

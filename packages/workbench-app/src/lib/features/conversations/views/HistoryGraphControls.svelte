@@ -74,7 +74,7 @@ $effect(() => {
   >
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Zoom in"
       title="Zoom in"
       onclick={() => void zoomIn({ duration: 120 })}
@@ -83,7 +83,7 @@ $effect(() => {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Zoom out"
       title="Zoom out"
       onclick={() => void zoomOut({ duration: 120 })}
@@ -92,7 +92,7 @@ $effect(() => {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Fit entire graph"
       title="Fit entire graph"
       onclick={fitAll}
@@ -101,7 +101,7 @@ $effect(() => {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Focus active entry"
       title="Focus active entry"
       onclick={focusActive}
@@ -112,7 +112,7 @@ $effect(() => {
       <span class="mx-0.5 h-5 w-px bg-border" aria-hidden="true"></span>
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel={allExpanded
           ? "Collapse all tool runs"
           : "Expand all tool runs"}

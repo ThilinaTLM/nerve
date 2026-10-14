@@ -110,7 +110,7 @@ function open(pr: GithubPr) {
   {#snippet actions()}
     <Button
       variant="ghost"
-      size={filterCount ? "sm" : "icon-sm"}
+      size={filterCount ? "default" : "icon"}
       ariaLabel={filterCount
         ? `Pull request filters, ${filterCount} active`
         : "Pull request filters"}
@@ -121,7 +121,7 @@ function open(pr: GithubPr) {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Refresh pull requests"
       disabled={model.loadingPullRequests}
       onclick={() => void gitActions.refreshPullRequests(repository)}
@@ -184,7 +184,6 @@ function open(pr: GithubPr) {
         <Label>Author</Label>
         <ToggleGroup.Root
           type="single"
-          size="sm"
           variant="outline"
           class="w-full"
           value={draft.author}
@@ -215,7 +214,6 @@ function open(pr: GithubPr) {
         <Label>Drafts</Label>
         <ToggleGroup.Root
           type="single"
-          size="sm"
           variant="outline"
           class="w-full"
           value={draft.drafts}
@@ -257,7 +255,6 @@ function open(pr: GithubPr) {
         <Label>Sort</Label>
         <ToggleGroup.Root
           type="single"
-          size="sm"
           variant="outline"
           class="w-full"
           value={draft.sort}

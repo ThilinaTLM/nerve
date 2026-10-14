@@ -112,7 +112,6 @@ function setPercent(
       <Label for="conversation-compaction-auto">Auto-compact</Label>
       <Switch
         id="conversation-compaction-auto"
-        size="settings"
         bind:checked={draft.auto}
         disabled={saving}
       />

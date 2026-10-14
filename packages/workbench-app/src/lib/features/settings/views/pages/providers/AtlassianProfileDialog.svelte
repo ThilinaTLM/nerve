@@ -108,12 +108,7 @@ async function save(): Promise<void> {
     label="Profile name"
     class="sm:col-span-2"
   >
-    <Input
-      size="xs"
-      id="atlassian-profile-name"
-      bind:value={name}
-      placeholder="Work"
-    />
+    <Input id="atlassian-profile-name" bind:value={name} placeholder="Work" />
   </SettingsFormField>
   <SettingsFormField
     id="atlassian-site-url"
@@ -121,7 +116,6 @@ async function save(): Promise<void> {
     class="sm:col-span-2"
   >
     <Input
-      size="xs"
       id="atlassian-site-url"
       bind:value={siteUrl}
       placeholder="https://example.atlassian.net"
@@ -129,7 +123,6 @@ async function save(): Promise<void> {
   </SettingsFormField>
   <SettingsFormField id="atlassian-email" label="Email" class="sm:col-span-2">
     <Input
-      size="xs"
       id="atlassian-email"
       type="email"
       bind:value={email}
@@ -142,7 +135,6 @@ async function save(): Promise<void> {
     class="sm:col-span-2"
   >
     <Input
-      size="xs"
       id="atlassian-token"
       type="password"
       bind:value={token}
@@ -153,7 +145,6 @@ async function save(): Promise<void> {
   </SettingsFormField>
   <SettingsFormField id="atlassian-project-key" label="Default project key">
     <Input
-      size="xs"
       id="atlassian-project-key"
       bind:value={defaultProjectKey}
       placeholder="PROJ"
@@ -161,7 +152,6 @@ async function save(): Promise<void> {
   </SettingsFormField>
   <SettingsFormField id="atlassian-space-key" label="Default space key">
     <Input
-      size="xs"
       id="atlassian-space-key"
       bind:value={defaultSpaceKey}
       placeholder="DOCS"

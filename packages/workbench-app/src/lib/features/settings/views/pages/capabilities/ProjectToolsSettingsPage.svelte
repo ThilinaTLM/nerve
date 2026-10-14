@@ -141,7 +141,7 @@ const sections = $derived([
 {#if error}
   <SettingsInlineMessage tone="destructive" text={error}>
     {#snippet actions()}
-      <Button size="xs" variant="outline" onclick={() => onRetry?.()}
+      <Button size="sm" variant="outline" onclick={() => onRetry?.()}
         >Retry</Button
       >
     {/snippet}
@@ -167,7 +167,7 @@ const sections = $derived([
     {/snippet}
     {#snippet end()}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         class="text-muted-foreground"
         disabled={overrideCount === 0}
@@ -203,7 +203,6 @@ const sections = $derived([
                           <Switch
                             checked
                             disabled
-                            size="settings"
                             aria-label={`${row.label} tools are always enabled`}
                           />
                         </span>
@@ -248,7 +247,6 @@ const sections = $derived([
                     />
                   {/if}
                   <Switch
-                    size="settings"
                     checked={state.enabled}
                     disabled={locked || loading}
                     aria-label={`Enable ${row.label} tools for this project`}

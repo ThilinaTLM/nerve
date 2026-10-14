@@ -79,7 +79,7 @@ const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
     {#if row.pullRequest}
       <Button
         variant="link"
-        size="xs"
+        size="sm"
         class="h-5 px-1"
         title={`Open pull request #${row.pullRequest.number}${row.pullRequest.isDraft ? " (draft)" : ""}`}
         ariaLabel={`Open pull request #${row.pullRequest.number}`}
@@ -99,7 +99,7 @@ const canDelete = $derived(enabled && canDeleteBranch(branch, baseBranch));
     {:else}
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         class="text-destructive hover:bg-destructive/10 hover:text-destructive"
         disabled={!canDelete}
         ariaLabel={`Delete branch ${branch.name}`}

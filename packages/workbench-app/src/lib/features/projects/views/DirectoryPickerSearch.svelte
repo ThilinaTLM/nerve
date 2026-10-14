@@ -37,7 +37,7 @@ let {
     {#if onBack}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         title="Back to projects"
         ariaLabel="Back to projects"
         onclick={onBack}
@@ -66,7 +66,7 @@ let {
   >
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       disabled={!parent || loading}
       title="Parent directory"
       ariaLabel="Parent directory"
@@ -76,7 +76,7 @@ let {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       disabled={loading}
       title="Refresh"
       ariaLabel="Refresh"

@@ -337,7 +337,6 @@ $effect(() => {
 {#snippet recentFooter()}
   <Button
     variant="outline"
-    size="sm"
     data-tour-id="guide-project-browse"
     onclick={() => enterBrowse()}
   >

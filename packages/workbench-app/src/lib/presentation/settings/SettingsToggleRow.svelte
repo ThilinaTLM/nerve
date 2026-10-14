@@ -34,7 +34,6 @@ function handleCheckedChange(next: boolean): void {
     <Switch
       bind:checked
       {disabled}
-      size="settings"
       aria-label={label}
       onCheckedChange={handleCheckedChange}
     />

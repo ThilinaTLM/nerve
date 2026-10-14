@@ -52,7 +52,7 @@ const trailingToggles = $derived(
     : icons[toggle.dock].closed}
   <Button
     variant="ghost"
-    size="icon-xs"
+    size="icon-sm"
     class="rounded-sm text-muted-foreground max-sm:size-9"
     ariaLabel={`Toggle ${toggle.label}`}
     title={toggle.open ? `Hide ${toggle.label}` : `Show ${toggle.label}`}

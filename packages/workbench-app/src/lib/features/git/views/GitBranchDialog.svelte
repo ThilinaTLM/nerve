@@ -120,7 +120,7 @@ function openPullRequest(number: number): void {
       <div class="flex min-w-0 flex-wrap items-center gap-2">
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon"
           disabled={loadingBranches}
           ariaLabel="Refresh branches"
           title="Refresh branches"
@@ -134,7 +134,7 @@ function openPullRequest(number: number): void {
         </Button>
         <Button
           variant={showRemoteBranches ? "default" : "outline"}
-          size="icon-sm"
+          size="icon"
           pressed={showRemoteBranches}
           ariaLabel={showRemoteBranches
             ? "Hide remote branches"
@@ -151,7 +151,6 @@ function openPullRequest(number: number): void {
           bind:value={branchFilter}
           placeholder="Search branches or PRs"
           ariaLabel="Search branches or pull requests"
-          size="sm"
           class="min-w-48 flex-1"
         />
         {#if loadingPrHeads && !loadingBranches}
@@ -205,7 +204,7 @@ function openPullRequest(number: number): void {
         bind:value={newBranchName}
         placeholder="feature/branch-name"
         autofocus
-        class="h-9 font-mono text-sm"
+        class="font-mono text-sm"
         aria-label="New branch name"
         aria-invalid={showNameError}
       />
@@ -227,19 +226,12 @@ function openPullRequest(number: number): void {
         {resultCount}
         {resultCount === 1 ? "result" : "results"}
       </span>
-      <Button
-        size="sm"
-        disabled={!branchesEnabled}
-        onclick={() => (view = "create")}
-      >
+      <Button disabled={!branchesEnabled} onclick={() => (view = "create")}>
         <GitBranchPlus /> New branch
       </Button>
     {:else}
-      <Button size="sm" variant="ghost" onclick={() => (view = "switch")}
-        >Back</Button
-      >
+      <Button variant="ghost" onclick={() => (view = "switch")}>Back</Button>
       <Button
-        size="sm"
         disabled={!branchesEnabled || creatingBranch || !isValidName}
         onclick={() => onCreateBranch(selectedRepo)}
       >

@@ -58,7 +58,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       {#snippet child({ props })}
         <span {...props} class="inline-flex">
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="ghost"
             disabled={disabled || !compaction}
             class="relative text-muted-foreground hover:text-foreground"
@@ -104,7 +104,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       {#snippet child({ props })}
         <span {...props} class="inline-flex">
           <Button
-            size="icon-xs"
+            size="icon-sm"
             variant="ghost"
             {disabled}
             class="relative text-muted-foreground hover:text-foreground"

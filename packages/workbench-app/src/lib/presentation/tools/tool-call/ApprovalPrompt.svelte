@@ -136,7 +136,6 @@ const permissionRuleSetLabel = $derived(
     {#snippet actions()}
       {#if hasPersistentChoice}
         <SplitButton
-          size="sm"
           disabled={Boolean(decision)}
           menuAlign="end"
           menuClass="w-56"
@@ -186,7 +185,6 @@ const permissionRuleSetLabel = $derived(
         </SplitButton>
       {:else}
         <Button
-          size="sm"
           disabled={Boolean(decision)}
           onclick={() => void decide("approve")}
         >
@@ -198,7 +196,6 @@ const permissionRuleSetLabel = $derived(
         </Button>
       {/if}
       <Button
-        size="sm"
         variant="outline"
         disabled={Boolean(decision)}
         onclick={() => void decide("deny")}

@@ -74,11 +74,8 @@ const description = $derived(
   {:else if error && !details}
     <div class="grid gap-3">
       <p class="m-0 text-sm text-destructive">{error}</p>
-      <Button
-        size="sm"
-        variant="outline"
-        class="w-fit"
-        onclick={() => void onRetry?.()}>Retry</Button
+      <Button variant="outline" class="w-fit" onclick={() => void onRetry?.()}
+        >Retry</Button
       >
     </div>
   {:else if details}

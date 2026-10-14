@@ -59,7 +59,7 @@ $effect(() => {
           : `${rowCount} loaded`}
     </span>
     <Button
-      size="icon-xs"
+      size="icon-sm"
       variant="ghost"
       ariaLabel="Close find"
       title="Close find"

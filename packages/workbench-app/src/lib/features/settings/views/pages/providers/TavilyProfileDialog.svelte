@@ -85,16 +85,10 @@ async function save(): Promise<void> {
   onSave={() => void save()}
 >
   <SettingsFormField id="tavily-profile-name" label="Profile name">
-    <Input
-      size="xs"
-      id="tavily-profile-name"
-      bind:value={name}
-      placeholder="Work"
-    />
+    <Input id="tavily-profile-name" bind:value={name} placeholder="Work" />
   </SettingsFormField>
   <SettingsFormField id="tavily-profile-key" label="API key">
     <Input
-      size="xs"
       id="tavily-profile-key"
       type="password"
       bind:value={apiKey}

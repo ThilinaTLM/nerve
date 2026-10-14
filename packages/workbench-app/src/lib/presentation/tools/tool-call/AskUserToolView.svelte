@@ -326,7 +326,7 @@ function replyFieldKeydown(node: HTMLElement) {
       {#each QUICK_REPLIES as phrase (phrase)}
         <Button
           type="button"
-          size="xs"
+          size="sm"
           variant="outline"
           class="bg-well text-muted-foreground hover:bg-accent hover:text-foreground"
           disabled={Boolean(submitting)}
@@ -381,7 +381,7 @@ function replyFieldKeydown(node: HTMLElement) {
             />
             <Button
               variant={recording ? "destructive" : "ghost"}
-              size="icon-sm"
+              size="icon"
               class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
               type="button"
               disabled={micDisabled}
@@ -407,7 +407,6 @@ function replyFieldKeydown(node: HTMLElement) {
       <CardFooter cardActions={detailsAction ? [detailsAction] : []}>
         {#snippet actions()}
           <Button
-            size="sm"
             variant="outline"
             type="button"
             disabled={Boolean(submitting)}
@@ -420,7 +419,6 @@ function replyFieldKeydown(node: HTMLElement) {
             {/if}
           </Button>
           <Button
-            size="sm"
             type="submit"
             disabled={!trimmedAnswer || Boolean(submitting)}
           >

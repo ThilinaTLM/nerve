@@ -235,7 +235,6 @@ function setTavilyProfile(profileId?: string): void {
                   <Switch
                     checked
                     disabled
-                    size="settings"
                     aria-label={`${group.label} tools are always enabled`}
                   />
                 </span>
@@ -246,7 +245,6 @@ function setTavilyProfile(profileId?: string): void {
         </Tooltip.Provider>
       {:else}
         <Switch
-          size="settings"
           checked={enabled}
           disabled={(group.id === "vision" && !visionReady) ||
             (group.id === "image-generation" && !imageGenerationReady) ||

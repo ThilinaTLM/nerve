@@ -70,7 +70,7 @@ const hasChanges = $derived(
           <TriangleAlert class="size-7 text-destructive" strokeWidth={1.7} />
           <strong class="text-foreground">Could not load diff</strong>
           <p class="m-0 max-w-xl text-sm">{view.error}</p>
-          <Button variant="outline" size="sm" onclick={onRefresh}>Retry</Button>
+          <Button variant="outline" onclick={onRefresh}>Retry</Button>
         </div>
       {:else if view.data?.binary}
         <div

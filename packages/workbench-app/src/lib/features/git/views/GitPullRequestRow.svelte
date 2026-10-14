@@ -105,7 +105,7 @@ async function copyLink() {
       class="flex shrink-0 items-center opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
     >
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title="Copy pull request link"
         aria-label={`Copy link to PR #${pr.number}`}
@@ -114,7 +114,7 @@ async function copyLink() {
         <Link aria-hidden="true" />
       </Button>
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         href={pr.url}
         target="_blank"

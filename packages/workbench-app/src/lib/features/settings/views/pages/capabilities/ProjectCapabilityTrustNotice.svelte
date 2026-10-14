@@ -20,7 +20,7 @@ let { trust, onTrust }: Props = $props();
     text={`${trust.reason} Until you trust it on this machine, these overrides are inactive and your user settings apply.`}
   >
     {#snippet actions()}
-      <Button size="xs" variant="outline" onclick={() => onTrust?.(true)}>
+      <Button size="sm" variant="outline" onclick={() => onTrust?.(true)}>
         <ShieldCheck class="size-3.5" />Trust file
       </Button>
     {/snippet}

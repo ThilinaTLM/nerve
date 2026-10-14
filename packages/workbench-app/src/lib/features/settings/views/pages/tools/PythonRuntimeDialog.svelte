@@ -67,7 +67,6 @@ function resetPath(): void {
         >Python executable</Label
       >
       <Input
-        size="xs"
         id="tools-python-executable"
         bind:value={pathDraft}
         placeholder="Auto-detect"
@@ -82,12 +81,8 @@ function resetPath(): void {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" variant="outline" onclick={resetPath}
-      >Use auto-detect</Button
-    >
-    <Button size="sm" onclick={savePath}>Save</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button variant="outline" onclick={resetPath}>Use auto-detect</Button>
+    <Button onclick={savePath}>Save</Button>
   {/snippet}
 </Dialog>

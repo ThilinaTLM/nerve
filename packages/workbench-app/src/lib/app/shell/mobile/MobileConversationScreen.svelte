@@ -68,7 +68,7 @@ let menuOpen = $state(false);
     {#if menuItems.length}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="Conversation actions"
         onclick={() => (menuOpen = true)}
       >

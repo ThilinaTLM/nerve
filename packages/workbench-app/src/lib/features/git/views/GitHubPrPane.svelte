@@ -107,7 +107,7 @@ function changeTab(value: string) {
   >
     <span class="text-destructive">{error}</span>
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       onclick={() => onSectionRetry?.(section)}
     >
@@ -147,7 +147,7 @@ function changeTab(value: string) {
         </Empty.Description>
       </Empty.Header>
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         onclick={() => onSectionRetry?.("core")}
       >
@@ -176,7 +176,7 @@ function changeTab(value: string) {
         <span class="min-w-0 flex-1 truncate"
           >Could not fully refresh: {view.refreshError}</span
         >
-        <Button size="xs" variant="ghost" onclick={() => onRefresh?.()}>
+        <Button size="sm" variant="ghost" onclick={() => onRefresh?.()}>
           <RotateCcw class="size-3" /> Retry
         </Button>
       </div>
@@ -188,7 +188,7 @@ function changeTab(value: string) {
       class="min-h-0 flex-1 gap-0"
     >
       <div class="shrink-0 border-b px-4">
-        <Tabs.List variant="line" class="h-9 gap-0 p-0">
+        <Tabs.List class="h-9 gap-0 p-0">
           <Tabs.Trigger value="conversation" class={tabTriggerClass}>
             Conversation
             {#if conversation}{@render tabCount(

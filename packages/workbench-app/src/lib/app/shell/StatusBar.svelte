@@ -190,7 +190,7 @@ function gitStatusTitle(status: GitStatus): string {
     {#if pendingApprovals > 0}
       <Button
         variant="ghost"
-        size="xs"
+        size="sm"
         class={cn(
           STATUS_BAR_CHIP_BUTTON,
           "text-warning hover:text-warning focus-visible:text-warning",

@@ -4,16 +4,10 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 let {
   ariaLabel,
-  variant = "bordered",
   class: className,
   children,
 }: {
   ariaLabel?: string;
-  /**
-   * `bordered` is one card surface holding hairline-separated rows. `plain` drops the
-   * frame for lists that already sit inside a surface.
-   */
-  variant?: "bordered" | "plain";
   class?: string;
   children: Snippet;
 } = $props();
@@ -23,8 +17,7 @@ let {
   role={ariaLabel ? "list" : undefined}
   aria-label={ariaLabel}
   class={cn(
-    "divide-y divide-border",
-    variant === "bordered" && "overflow-hidden rounded-md border bg-card",
+    "divide-y divide-border overflow-hidden rounded-md border bg-card",
     className,
   )}
 >

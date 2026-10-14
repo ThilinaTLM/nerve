@@ -71,9 +71,7 @@ function submit(): void {
     <SettingsChoiceCards {items} bind:value={choice} ariaLabel="Start from" />
   </div>
   {#snippet footer()}
-    <Button size="sm" variant="outline" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={submit}>Continue</Button>
+    <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={submit}>Continue</Button>
   {/snippet}
 </DialogShell>

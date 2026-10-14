@@ -263,7 +263,6 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    size="default"
     class="w-full min-w-0 justify-start rounded-none text-left font-normal"
     aria-current={row.viewed ? "page" : undefined}
     aria-label={`Open ${row.name}${row.profile ? ` (${row.profile})` : ""}: ${agentStatus[row.state]}`}
@@ -286,7 +285,6 @@ const agentStatus: Record<AgentRowState, string> = {
   <Button
     data-row-action
     variant="ghost"
-    size="default"
     class="w-full min-w-0 justify-start rounded-none text-left font-normal"
     aria-label={`Open command tab: ${command.command} (${COMMAND_STATE_LABEL[command.status]})`}
     title={command.command}
@@ -315,7 +313,6 @@ const agentStatus: Record<AgentRowState, string> = {
   {#if folded.length}
     <Button
       variant="ghost"
-      size="sm"
       class="w-full min-w-0 justify-start rounded-none text-left text-xs font-normal text-muted-foreground hover:text-foreground"
       aria-expanded={showFolded}
       aria-controls={`${componentId}-folded`}
@@ -407,7 +404,7 @@ const agentStatus: Record<AgentRowState, string> = {
             </span>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               title="Collapse activity"
               aria-label="Collapse activity"
               onclick={() => collapse()}
@@ -471,7 +468,6 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={agentsTrigger}
               variant="ghost"
-              size="default"
               class="min-w-0 flex-auto rounded-none text-xs"
               aria-expanded={open === "agents"}
               aria-controls={open === "agents"
@@ -496,7 +492,6 @@ const agentStatus: Record<AgentRowState, string> = {
             <Button
               bind:ref={commandsTrigger}
               variant="ghost"
-              size="default"
               class="min-w-0 flex-auto rounded-none text-xs"
               aria-expanded={open === "commands"}
               aria-controls={open === "commands"

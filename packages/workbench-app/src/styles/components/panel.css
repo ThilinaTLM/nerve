@@ -1,14 +1,6 @@
 /* Cross-component contracts of the workbench panel primitives.
- * Everything here spans two or more components: the shared indent step is set
- * by PanelRow and PanelPropertyRow, and the hover-reveal is read by both. */
-
-/* One indentation step per nesting level, on top of the base row inset. Rows can
- * drop the base inset (`--panel-row-inset: 0px`) to align with the panel edge. */
-.panel-row {
-  padding-left: calc(
-    var(--panel-row-inset, 0.5rem) + var(--panel-indent, 0) * 0.75rem
-  );
-}
+ * Everything here spans two or more components: the hover tint is shared by
+ * PanelRow and PanelRowCard. */
 
 .panel-row-hoverable:hover {
   background: color-mix(in oklab, var(--accent) 55%, transparent);
@@ -19,19 +11,4 @@
  * PanelRow, which Svelte scoping cannot express. */
 .panel-row-card-selected .panel-row-hoverable:hover {
   background: color-mix(in oklab, var(--primary) 8%, transparent);
-}
-
-.panel-hover-actions {
-  opacity: 0;
-  transition: opacity 120ms ease;
-}
-
-.panel-row:hover .panel-hover-actions {
-  opacity: 1;
-}
-
-@media (pointer: coarse) {
-  .panel-hover-actions {
-    opacity: 1;
-  }
 }

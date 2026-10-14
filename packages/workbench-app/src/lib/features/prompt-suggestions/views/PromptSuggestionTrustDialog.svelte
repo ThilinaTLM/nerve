@@ -86,17 +86,14 @@ function decideLater() {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" disabled={saving} onclick={decideLater}
+    <Button variant="ghost" disabled={saving} onclick={decideLater}
       >Decide later</Button
     >
     <Button
-      size="sm"
       variant="destructive"
       disabled={saving}
       onclick={() => apply("denied")}>Deny</Button
     >
-    <Button size="sm" disabled={saving} onclick={() => apply("allowed")}
-      >Allow</Button
-    >
+    <Button disabled={saving} onclick={() => apply("allowed")}>Allow</Button>
   {/snippet}
 </DialogShell>

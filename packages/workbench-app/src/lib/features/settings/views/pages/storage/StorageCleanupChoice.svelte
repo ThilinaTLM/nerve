@@ -50,7 +50,6 @@ const hasAmount = $derived(amount !== undefined);
     <div class="flex items-center gap-1.5">
       <Input
         type="number"
-        size="xs"
         min={amountMin}
         max={amountMax}
         value={String(amount)}

@@ -12,7 +12,6 @@ let { controller }: Props = $props();
 </script>
 
 <Button
-  size="sm"
   variant="outline"
   disabled={controller.loading ||
     controller.refreshing ||
@@ -26,7 +25,6 @@ let { controller }: Props = $props();
   {controller.refreshing ? "Calculating…" : "Refresh"}
 </Button>
 <Button
-  size="sm"
   disabled={!controller.usage ||
     controller.active ||
     controller.operationLoading}

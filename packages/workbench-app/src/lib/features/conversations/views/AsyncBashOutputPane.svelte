@@ -69,7 +69,7 @@ const lines = $derived(asyncBashLogLines(streams));
         {#if bash?.status === "running"}
           <Button
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             ariaLabel="Stop command"
             title="Stop"
             disabled={stopping}

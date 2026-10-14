@@ -57,7 +57,6 @@ type Props = {
   }) => void;
   requiredCapabilities?: ModelCapability[];
   showReasoning?: boolean;
-  size?: "xs" | "sm";
   class?: string;
   tourId?: string;
   emptyMessage?: string;
@@ -77,7 +76,6 @@ let {
   onChange,
   requiredCapabilities = [],
   showReasoning = true,
-  size = "sm",
   class: className,
   tourId,
   emptyMessage = "Authenticate a provider before choosing a model.",
@@ -251,7 +249,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
   {triggerTitle}
   triggerClass={cn(
     "flex min-w-0 justify-start gap-1.5 rounded-md border border-input pr-1.5 pl-2 text-left text-sm shadow-xs transition-colors hover:bg-accent/50 data-[state=open]:ring-3 data-[state=open]:ring-ring/50 dark:bg-input/30",
-    size === "xs" ? "h-6" : "h-7",
+    "h-control",
     disabled && "pointer-events-none opacity-50",
     className,
   )}
@@ -375,7 +373,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
       >
       <ToggleGroup.Root
         type="single"
-        size="xs"
+        size="sm"
         spacing={1}
         variant="chip"
         value={thinkingLevel}

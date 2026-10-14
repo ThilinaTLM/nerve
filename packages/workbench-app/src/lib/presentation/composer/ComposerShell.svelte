@@ -89,7 +89,7 @@ let {
         {#if showStop}
           <Button
             variant="destructive"
-            size="icon-sm"
+            size="icon"
             type="button"
             disabled={stopDisabled || stopping}
             onclick={onAbort}
@@ -105,7 +105,7 @@ let {
           </Button>
         {/if}
         <Button
-          size="icon-sm"
+          size="icon"
           class="inset-ring-1 inset-ring-primary-foreground/18"
           type="submit"
           disabled={submitDisabled}

@@ -55,7 +55,6 @@ $effect(() => {
   <div class="px-3 pt-3">
     <ToggleGroup.Root
       type="single"
-      size="sm"
       variant="outline"
       class="w-full"
       value={scope}

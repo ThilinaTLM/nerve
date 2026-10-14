@@ -75,7 +75,7 @@ const empty = $derived(!news.featured && news.current.length === 0);
           <div class="px-1 py-1">
             <Button
               variant="ghost"
-              size="xs"
+              size="sm"
               onclick={() => (archiveOpen = !archiveOpen)}
               aria-expanded={archiveOpen}
             >

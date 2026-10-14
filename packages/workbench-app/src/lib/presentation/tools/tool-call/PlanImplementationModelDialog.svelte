@@ -159,7 +159,7 @@ $effect(() => {
           {#if providerChips.length > 2}
             <ToggleGroup.Root
               type="single"
-              size="xs"
+              size="sm"
               spacing={1}
               variant="outline"
               value={providerFilter}
@@ -254,10 +254,10 @@ $effect(() => {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => handleOpenChange(false)}
+    <Button variant="ghost" onclick={() => handleOpenChange(false)}
       >Cancel</Button
     >
-    <Button size="sm" onclick={confirmSelection} disabled={confirmDisabled}
+    <Button onclick={confirmSelection} disabled={confirmDisabled}
       >{confirmLabel}</Button
     >
   {/snippet}

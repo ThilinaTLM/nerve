@@ -149,11 +149,10 @@ function handleOpenChange(next: boolean) {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => handleOpenChange(false)}
+    <Button variant="ghost" onclick={() => handleOpenChange(false)}
       >Cancel</Button
     >
     <Button
-      size="sm"
       variant="destructive"
       onclick={handleConfirm}
       disabled={disabled || removeCount === 0}

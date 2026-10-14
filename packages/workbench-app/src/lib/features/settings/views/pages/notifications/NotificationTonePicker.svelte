@@ -77,7 +77,7 @@ function previewTone(tone: NotificationTone): void {
         />
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           ariaLabel={`Preview ${option.label}`}
           title={`Preview ${option.label}`}
           disabled={option.value === "none"}

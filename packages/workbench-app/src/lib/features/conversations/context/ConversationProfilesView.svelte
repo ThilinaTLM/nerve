@@ -138,7 +138,7 @@ function revertTitle(
       ></span>
       This conversation ·
       <Button
-        size="xs"
+        size="sm"
         variant="link"
         class="h-auto px-0"
         disabled={blocked}
@@ -157,7 +157,7 @@ function revertTitle(
   <div class="grid min-w-0 gap-2">
     <div class="flex min-h-7 min-w-0 items-center gap-1">
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         ariaLabel="Back to sub-agents"
         title="Back to sub-agents"
@@ -180,7 +180,6 @@ function revertTitle(
         >
         {@render provenance(profile, "enabled")}
         <Switch
-          size="sm"
           checked={profile.effective?.enabled ?? false}
           disabled={blocked}
           aria-label={`${label} available in this conversation`}
@@ -211,10 +210,7 @@ function revertTitle(
             });
         }}
       >
-        <Select.Trigger
-          size="sm"
-          class="w-full"
-          aria-label={`Thinking for ${label}`}
+        <Select.Trigger class="w-full" aria-label={`Thinking for ${label}`}
           >{profileFieldValueLabel(
             "thinking",
             thinking,
@@ -254,12 +250,10 @@ function revertTitle(
     <!-- Same order as the Tools tab: configure, then the switch on the right edge. -->
     <IconAction
       icon={Settings2}
-      size="xs"
       label={`Configure ${label} for this conversation`}
       onclick={() => (editing = profile.name)}
     />
     <Switch
-      size="sm"
       checked={!problem?.blocking && (profile.effective?.enabled ?? false)}
       disabled={blocked || problem?.blocking}
       aria-label={`Enable ${label} for new sub-agents in this conversation`}
@@ -273,7 +267,7 @@ function revertTitle(
     <p role="alert" class="px-1.5 wrap-anywhere text-destructive">
       {error}
       {#if !configuration && !loading}
-        <Button size="xs" variant="link" class="h-auto px-0" onclick={onRefresh}
+        <Button size="sm" variant="link" class="h-auto px-0" onclick={onRefresh}
           >Retry</Button
         >
       {/if}

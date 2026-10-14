@@ -52,7 +52,7 @@ let {
   {variant}
   {href}
   {download}
-  size={showLabel ? "xs" : "icon-xs"}
+  size={showLabel ? "sm" : "icon-sm"}
   class={cn("shrink-0", dense && !showLabel && "size-5 rounded-sm", className)}
   ariaLabel={label}
   title={title ?? label}

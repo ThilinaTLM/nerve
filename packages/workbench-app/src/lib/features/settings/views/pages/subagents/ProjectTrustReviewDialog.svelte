@@ -90,10 +90,8 @@ function capitalize(text: string): string {
     {/each}
   </div>
   {#snippet footer()}
-    <Button size="sm" variant="outline" onclick={() => (open = false)}
-      >Not now</Button
-    >
-    <Button size="sm" disabled={busy || !configuration.digest} onclick={onTrust}
+    <Button variant="outline" onclick={() => (open = false)}>Not now</Button>
+    <Button disabled={busy || !configuration.digest} onclick={onTrust}
       >Trust this version</Button
     >
   {/snippet}

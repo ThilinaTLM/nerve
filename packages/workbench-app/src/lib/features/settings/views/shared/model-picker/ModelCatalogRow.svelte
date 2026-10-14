@@ -175,7 +175,6 @@ const reasoning = $derived(model ? modelSupportsReasoning(model) : false);
       <Checkbox
         checked={selected}
         {disabled}
-        size="sm"
         aria-label={`Include ${label}`}
         onCheckedChange={(next) => {
           if (next !== selected) onclick?.();

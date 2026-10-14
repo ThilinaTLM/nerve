@@ -45,7 +45,7 @@ let {
 <SettingsSection id={sectionId} {title}>
   {#snippet actions()}
     <Button
-      size="xs"
+      size="sm"
       data-tour-id={addTourId}
       onclick={onAdd}
       disabled={addDisabled}>{addLabel}</Button

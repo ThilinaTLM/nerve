@@ -199,7 +199,7 @@ async function jumpToLatest(): Promise<void> {
 
   {#if !atEnd || detached}
     <Button
-      size="icon-sm"
+      size="icon"
       variant="outline"
       class="absolute right-5.5 bottom-3 rounded-full shadow-sm"
       ariaLabel="Jump to latest output"

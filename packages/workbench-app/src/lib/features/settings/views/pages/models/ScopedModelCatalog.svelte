@@ -87,7 +87,6 @@ function toggle(selection: ModelSelection, checked: boolean): void {
     {#snippet leading()}
       <ToggleGroup.Root
         type="single"
-        size="sm"
         spacing={1}
         variant="chip"
         value={view}
@@ -120,7 +119,7 @@ function toggle(selection: ModelSelection, checked: boolean): void {
               composer.</span
             >
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               onclick={() => (viewChoice = "all")}>Browse all models</Button
             >

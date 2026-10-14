@@ -49,7 +49,6 @@ let {
       {max}
       {step}
       {disabled}
-      size="xs"
       bind:value
       oninput={(event) =>
         onValueChange?.((event.currentTarget as HTMLInputElement).value)}

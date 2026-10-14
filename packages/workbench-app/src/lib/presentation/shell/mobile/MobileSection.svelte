@@ -38,7 +38,7 @@ let menuOpen = $state(false);
       {#if menuItems?.length}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           class="ml-auto"
           ariaLabel={`${title} actions`}
           aria-haspopup="dialog"
