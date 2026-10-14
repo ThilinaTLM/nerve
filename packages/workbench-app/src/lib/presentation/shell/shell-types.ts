@@ -2,6 +2,7 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 
 import type { Component } from "svelte";
+import type { ConversationActivity } from "../conversations/conversation-activity.js";
 
 /** The three panel docks around the editor area. */
 export type DockId = "left" | "right" | "bottom";
@@ -88,6 +89,7 @@ export type WorkbenchTabToggle = {
 };
 
 export type WorkbenchTabStatus = {
+  conversationActivity?: ConversationActivity;
   label?: string;
   tone?: StatusTone;
   pulse?: boolean;

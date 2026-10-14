@@ -41,7 +41,6 @@ export {
   sidebarProjects,
   sidebarConversations,
   sidebarAgents,
-  sidebarActivity,
   updateConversationStateAndRefresh,
   pruneProjectConversationsAndRefresh,
 } from "./adapters/conversation-sidebar.adapter";

@@ -1,12 +1,12 @@
 <script lang="ts">
 import { type ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { PanelRow, PanelRowCard } from "$lib/presentation/panels";
-import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
-import { idleConversationActivity } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
+import { idleConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import type { ConversationRow } from "$lib/domain/projects/project-tree";
 import { shortAgentModel } from "$lib/domain/projects/project-tree";
 import { permissionRuleSetDisplayName } from "$lib/domain/permissions/rule-set-options";
-import ConversationStatusIndicator from "./ConversationStatusIndicator.svelte";
+import ConversationActivityIndicator from "$lib/presentation/conversations/ConversationActivityIndicator.svelte";
 
 type Props = {
   row: ConversationRow;
@@ -14,7 +14,7 @@ type Props = {
   isOpen?: boolean;
   /** Conversation currently shown in the main pane. */
   isActive?: boolean;
-  activity?: ConversationActivityState;
+  activity?: ConversationActivity;
   menuItems: ContextMenuItem[];
   onOpenConversation?: (conversationId: string) => void;
 };
@@ -57,7 +57,11 @@ const tooltip = $derived(
     active={isActive}
   >
     {#snippet leading()}
-      <ConversationStatusIndicator activity={dotActivity} {isOpen} />
+      <ConversationActivityIndicator
+        activity={dotActivity}
+        {isOpen}
+        size="md"
+      />
     {/snippet}
   </PanelRow>
 </PanelRowCard>

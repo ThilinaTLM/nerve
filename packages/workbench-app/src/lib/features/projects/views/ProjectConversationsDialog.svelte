@@ -7,7 +7,7 @@ import type {
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
-import type { ConversationActivityState } from "$lib/domain/projects/sidebar-view-models";
+import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import {
@@ -26,7 +26,7 @@ type Props = {
   agents?: AgentRecord[];
   selectedConversationId?: string;
   openConversationTabIds?: Set<string>;
-  conversationActivityById?: Record<string, ConversationActivityState>;
+  conversationActivityById?: Record<string, ConversationActivity>;
   hideCompleted?: boolean;
   onOpenConversation?: (conversationId: string) => void;
   buildMenu?: (conversation: ConversationRecord) => ContextMenuItem[];

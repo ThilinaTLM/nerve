@@ -1,5 +1,9 @@
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationSummary, ToolCall } from "@nervekit/contracts/core";
+import {
+  type ConversationActivity,
+  summaryActivity,
+} from "../../conversations/conversation-activity.js";
 export type MobileInboxKind =
   | "approval"
   | "question"
@@ -28,6 +32,7 @@ export type MobileInboxItem = {
 export type MobileInboxInput = {
   conversations: readonly ConversationSummary[];
   toolCalls?: readonly ToolCall[];
+  activityById?: Readonly<Record<string, ConversationActivity>>;
   projectNameById?: Readonly<Record<string, string>>;
   recentLimit?: number;
 };
@@ -93,35 +98,33 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
     b.updatedAt.localeCompare(a.updatedAt),
   )) {
     if (claimed.has(conversation.id)) continue;
-    const status = conversation.status;
+    const activity =
+      input.activityById?.[conversation.id] ?? summaryActivity(conversation);
     const item: MobileInboxItem = {
       id: conversation.id,
       kind:
-        status === "running"
+        activity.indicator === "running"
           ? "running"
-          : status === "failed" ||
-              status === "interrupted" ||
-              status === "waiting"
-            ? "error"
-            : "recent",
+          : activity.indicator === "needs-user"
+            ? "question"
+            : activity.indicator === "error"
+              ? "error"
+              : activity.indicator === "awaiting-async"
+                ? "awaiting-async"
+                : "recent",
       conversationId: conversation.id,
       title: conversation.title,
-      kindLabel: status === "idle" ? "Recent" : status,
-      detail: status === "idle" ? "" : status,
-      tone:
-        status === "running"
-          ? "info"
-          : status === "failed"
-            ? "destructive"
-            : status === "interrupted" || status === "waiting"
-              ? "warning"
-              : "neutral",
-      pulse: status === "running",
+      kindLabel: activity.label ?? "Recent",
+      detail: activity.label ?? "",
+      tone: activity.tone,
+      pulse: activity.pulse,
       at: conversation.updatedAt,
       projectLabel: input.projectNameById?.[conversation.projectId],
     };
     if (item.kind === "running") model.running.push(item);
-    else if (item.kind === "error") model.needsYou.push(item);
+    else if (item.kind === "error" || item.kind === "question")
+      model.needsYou.push(item);
+    else if (item.kind === "awaiting-async") model.awaitingAsync.push(item);
     else if (model.recent.length < (input.recentLimit ?? 8))
       model.recent.push(item);
   }

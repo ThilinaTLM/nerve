@@ -1,5 +1,5 @@
 <script lang="ts">
-import Hourglass from "@lucide/svelte/icons/hourglass";
+import ClockAlert from "@lucide/svelte/icons/clock-alert";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import MessageCircleMore from "@lucide/svelte/icons/message-circle-more";
 import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question";
@@ -118,12 +118,12 @@ const hasActivity = $derived(
             <button
               {...props}
               type="button"
-              class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-warning/10 px-1.5 py-0.5 text-warning"
+              class="inline-flex cursor-help items-center gap-1 rounded-sm border-0 bg-info/10 px-1.5 py-0.5 text-info"
               aria-label={awaitingAsyncLabel}
               onclick={(event) => event.stopPropagation()}
               onkeydown={(event) => event.stopPropagation()}
             >
-              <Hourglass class="size-3.5" aria-hidden="true" />
+              <ClockAlert class="size-3.5" aria-hidden="true" />
               <span>{item.activity.awaitingAsync}</span>
             </button>
           {/snippet}

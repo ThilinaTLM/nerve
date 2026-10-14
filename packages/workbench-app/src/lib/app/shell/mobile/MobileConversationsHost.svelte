@@ -1,5 +1,4 @@
 <script lang="ts">
-import { waitingConversationIds } from "$lib/features/conversations";
 import Plus from "@lucide/svelte/icons/plus";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
@@ -13,11 +12,7 @@ import {
   buildConversationSections,
   conversationLastUserPromptAt,
 } from "$lib/domain/projects/project-tree";
-import {
-  sidebarConversations,
-  sidebarAgents,
-  sidebarActivity,
-} from "$lib/features/projects";
+import { sidebarConversations, sidebarAgents } from "$lib/features/projects";
 import { conversationListPreferences } from "$lib/features/projects";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceSelectors } from "$lib/application/workspace";
@@ -52,9 +47,7 @@ const conversations = $derived(
     ),
   ),
 );
-const activityById = $derived(
-  sidebarActivity(conversations, waitingConversationIds()),
-);
+const activityById = $derived(workspaceSelectors.conversationActivityById);
 const sections = $derived(
   buildConversationSections({
     conversations,

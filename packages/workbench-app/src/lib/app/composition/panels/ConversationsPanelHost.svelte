@@ -1,12 +1,10 @@
 <script lang="ts">
-import { waitingConversationIds } from "$lib/features/conversations";
 import ProjectConversationNavigator from "$lib/features/projects/views/ProjectConversationNavigator.svelte";
 import { projectNavigatorSignals } from "$lib/features/projects/state/project-navigator-signals.svelte";
 import {
   sidebarProjects,
   sidebarConversations,
   sidebarAgents,
-  sidebarActivity,
   updateConversationStateAndRefresh,
   pruneProjectConversationsAndRefresh,
 } from "$lib/features/projects/adapters/conversation-sidebar.adapter";
@@ -37,7 +35,7 @@ const openConversationTabIds = $derived(
   workspaceSelectors.openConversationTabIds,
 );
 const conversationActivityById = $derived(
-  sidebarActivity(conversations, waitingConversationIds()),
+  workspaceSelectors.conversationActivityById,
 );
 </script>
 

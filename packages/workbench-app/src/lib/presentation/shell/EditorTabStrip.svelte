@@ -11,6 +11,7 @@ import ContextMenu, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
+import ConversationActivityIndicator from "../conversations/ConversationActivityIndicator.svelte";
 import type {
   WorkbenchTabIdentity,
   WorkbenchTabMenuBuilder,
@@ -386,6 +387,11 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
               >
                 <ToggleIcon size={12} strokeWidth={2.2} aria-hidden="true" />
               </button>
+            {:else if tab.status?.conversationActivity}
+              <ConversationActivityIndicator
+                activity={tab.status.conversationActivity}
+                isOpen={true}
+              />
             {:else if tab.status?.tone}
               <StatusDot
                 tone={tab.status.tone}
@@ -488,7 +494,12 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     aria-hidden="true"
   >
     <div class="inline-grid h-8 w-5.5 place-items-center pl-1.5">
-      {#if draggedTab.status?.tone}
+      {#if draggedTab.status?.conversationActivity}
+        <ConversationActivityIndicator
+          activity={draggedTab.status.conversationActivity}
+          isOpen={true}
+        />
+      {:else if draggedTab.status?.tone}
         <StatusDot tone={draggedTab.status.tone} pulse={false} />
       {:else if PreviewIcon}
         <PreviewIcon size={12} strokeWidth={2.2} />
