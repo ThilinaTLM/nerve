@@ -277,7 +277,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
     {#if canManage}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="New launch"
         onclick={openCreate}
       >
@@ -286,7 +286,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
     {/if}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Launch actions"
       onclick={() => (screenMenuOpen = true)}
     >
@@ -314,7 +314,6 @@ const screenMenu = $derived<ContextMenuItem[]>([
           {#snippet trailing()}
             <Button
               variant="outline"
-              size="sm"
               ariaLabel={`Run ${name.text}`}
               disabled={!canStart ||
                 model.runningDefinitionId === entry.definition.id}

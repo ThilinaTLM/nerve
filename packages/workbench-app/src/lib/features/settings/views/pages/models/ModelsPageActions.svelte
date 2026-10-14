@@ -17,5 +17,5 @@ function clearScope(): void {
 </script>
 
 {#if settingsDraft.scopedModels.length > 0}
-  <Button variant="ghost" size="sm" onclick={clearScope}>Clear scope</Button>
+  <Button variant="ghost" onclick={clearScope}>Clear scope</Button>
 {/if}

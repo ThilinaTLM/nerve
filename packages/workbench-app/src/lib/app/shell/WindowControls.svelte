@@ -90,8 +90,8 @@ const closeTitle = $derived(
   >
     <Button
       variant="ghost"
-      size="icon-sm"
-      class="size-7 rounded-full"
+      size="icon"
+      class="rounded-full"
       ariaLabel="Minimize window"
       title="Minimize"
       disabled={quitting}
@@ -101,8 +101,8 @@ const closeTitle = $derived(
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
-      class="size-7 rounded-full"
+      size="icon"
+      class="rounded-full"
       ariaLabel={maximized ? "Restore window" : "Maximize window"}
       title={maximized ? "Restore" : "Maximize"}
       disabled={quitting}
@@ -116,7 +116,7 @@ const closeTitle = $derived(
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="size-7 rounded-full hover:bg-destructive-solid hover:text-destructive-solid-foreground focus-visible:bg-destructive-solid focus-visible:text-destructive-solid-foreground"
       ariaLabel={closeLabel}
       title={closeTitle}
@@ -137,7 +137,7 @@ const closeTitle = $derived(
   >
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="group/linux-control size-7 rounded-full hover:bg-transparent focus-visible:bg-transparent"
       ariaLabel="Minimize window"
       title="Minimize"
@@ -152,7 +152,7 @@ const closeTitle = $derived(
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="group/linux-control size-7 rounded-full hover:bg-transparent focus-visible:bg-transparent"
       ariaLabel={maximized ? "Restore window" : "Maximize window"}
       title={maximized ? "Restore" : "Maximize"}
@@ -171,7 +171,7 @@ const closeTitle = $derived(
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="group/linux-control size-7 rounded-full hover:bg-transparent focus-visible:bg-transparent"
       ariaLabel={closeLabel}
       title={closeTitle}

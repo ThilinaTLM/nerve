@@ -16,7 +16,6 @@ type Props = {
   tone?: "neutral" | "destructive";
   /** Marks the action as the current state, e.g. the starred default. */
   active?: boolean;
-  size?: "xs" | "sm";
   disabled?: boolean;
   /** Swaps the icon for a spinner and blocks activation. */
   busy?: boolean;
@@ -33,7 +32,6 @@ let {
   onclick,
   tone = "neutral",
   active = false,
-  size = "xs",
   disabled = false,
   busy = false,
   side = "top",
@@ -52,7 +50,7 @@ let {
         <span {...props} {...rest} class="inline-flex">
           <Button
             variant="ghost"
-            size={size === "sm" ? "icon-sm" : "icon-xs"}
+            size="icon-sm"
             disabled={disabled || busy}
             ariaLabel={label}
             data-tour-id={tourId}

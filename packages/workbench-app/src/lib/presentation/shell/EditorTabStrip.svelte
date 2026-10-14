@@ -334,7 +334,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   {#if canScrollLeft || canScrollRight}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="rounded-none border-r-border/62"
       ariaLabel="Scroll tabs left"
       disabled={!canScrollLeft}
@@ -449,7 +449,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
   {#if canScrollLeft || canScrollRight}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       class="rounded-none border-l-border/62"
       ariaLabel="Scroll tabs right"
       disabled={!canScrollRight}
@@ -463,7 +463,7 @@ function menuItems(tab: WorkbenchTabModel, index: number): ContextMenuItem[] {
     <div class="flex items-center px-1">
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel={newLabel}
         aria-keyshortcuts={newShortcutAria}
         data-tour-id="tab-new-conversation"

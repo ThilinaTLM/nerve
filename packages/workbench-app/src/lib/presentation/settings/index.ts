@@ -22,7 +22,6 @@ export type { SettingsStat } from "./SettingsStatGrid.svelte";
 export { default as SettingsEmptyState } from "./SettingsEmptyState.svelte";
 export { default as SettingsInlineMessage } from "./SettingsInlineMessage.svelte";
 export { default as SettingsToolbar } from "./SettingsToolbar.svelte";
-export { default as SettingsKeyValueRow } from "./SettingsKeyValueRow.svelte";
 export type {
   SettingsChoice,
   SettingsPageDef,

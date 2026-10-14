@@ -49,7 +49,6 @@ function openCleanUp(): void {
     >
       {#snippet control()}
         <Button
-          size="sm"
           variant="outline"
           disabled={cleanUpDisabled}
           onclick={openCleanUp}

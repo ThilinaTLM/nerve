@@ -10,8 +10,6 @@ type Props = {
   value?: string;
   placeholder?: string;
   ariaLabel?: string;
-  /** Height. Search fields are dense by default. */
-  size?: "xs" | "sm";
   /** Replaces the leading magnifier (e.g. a tag filter). */
   icon?: Component<{ class?: string; "aria-hidden"?: "true" }>;
   clearable?: boolean;
@@ -34,7 +32,6 @@ let {
   value = $bindable(""),
   placeholder = "Search",
   ariaLabel = "Search",
-  size = "xs",
   icon: Icon = Search,
   clearable = true,
   disabled = false,
@@ -66,7 +63,6 @@ function setValue(next: string): void {
     <Input
       bind:ref
       bind:value
-      {size}
       {placeholder}
       {ariaLabel}
       {disabled}
@@ -89,7 +85,7 @@ function setValue(next: string): void {
     {#if clearable && value}
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         class="absolute top-1/2 right-0.5 -translate-y-1/2"
         ariaLabel={`Clear ${ariaLabel.toLowerCase()}`}
         {disabled}

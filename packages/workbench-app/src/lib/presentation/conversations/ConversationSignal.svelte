@@ -81,7 +81,6 @@ const launchpad = $derived(variant === "launchpad");
           <Button
             type="button"
             variant="outline"
-            size="lg"
             class="group gap-2 bg-card text-xs shadow-sm hover:border-primary/40 @sm:text-sm"
             disabled={startersDisabled}
             onclick={() => onSelectStarter?.(starter)}

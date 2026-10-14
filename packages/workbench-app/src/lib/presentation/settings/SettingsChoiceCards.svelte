@@ -47,7 +47,6 @@ let {
         <RadioGroup.Item
           value={item.value}
           disabled={disabled || item.disabled}
-          size="sm"
           class="translate-y-px"
         />
         <span

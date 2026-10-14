@@ -196,7 +196,7 @@ const diagnostics = $derived<SettingsStat[]>([
         text={`${pendingDaemonRestart ? "Changes saved. Restart the daemon to apply them." : ""}${pendingDesktopRestart ? " Restart Nerve to apply desktop changes." : ""}`}
       />
       {#if pendingDaemonRestart && daemonCapability?.canRestart}
-        <Button size="xs" disabled={daemonRestarting} onclick={onRestartDaemon}>
+        <Button size="sm" disabled={daemonRestarting} onclick={onRestartDaemon}>
           {daemonRestarting ? "Restarting…" : "Restart daemon"}
         </Button>
       {/if}

@@ -549,6 +549,21 @@
   --syntax-link: oklch(0.85 0.12 254);
 }
 
+/* Control heights. A non-inline @theme keeps the utilities (`h-control`,
+ * `size-control-sm`, ...) pointing at the variable, so the coarse-pointer
+ * override below reaches every control without per-component media queries. */
+@theme {
+  --spacing-control: 1.75rem;
+  --spacing-control-sm: 1.5rem;
+}
+
+@media (pointer: coarse) {
+  :root {
+    --spacing-control: 2.25rem;
+    --spacing-control-sm: 2rem;
+  }
+}
+
 @theme inline {
   /* Nerve's compact readable scale keeps everyday use comfortable at 100% zoom. */
   --text-xs: 0.8125rem;

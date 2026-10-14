@@ -266,7 +266,7 @@ function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Branches"
       disabled={!model.availability.available}
       onclick={() => pushMobileScreen({ kind: "branches", projectId })}
@@ -275,7 +275,7 @@ function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Refresh"
       disabled={model.refreshing}
       onclick={() => void gitActions.refreshAll()}
@@ -284,7 +284,7 @@ function menu(file: GitFileChange, area: GitDiffArea): ContextMenuItem[] {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Sync actions"
       disabled={!summary?.hasRemote}
       onclick={() => (remoteSheetOpen = true)}

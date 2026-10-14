@@ -42,7 +42,6 @@ function save(): void {
       <Label for="tools-kroki-url">Kroki URL</Label>
       <Input
         id="tools-kroki-url"
-        size="xs"
         bind:value={urlDraft}
         aria-invalid={parsed.success ? undefined : "true"}
         placeholder={defaultKrokiToolSettings.url}
@@ -61,9 +60,7 @@ function save(): void {
     </p>
   </div>
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" disabled={!parsed.success} onclick={save}>Save</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button disabled={!parsed.success} onclick={save}>Save</Button>
   {/snippet}
 </Dialog>

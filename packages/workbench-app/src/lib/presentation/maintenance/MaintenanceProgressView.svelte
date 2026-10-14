@@ -125,7 +125,7 @@ const progress = $derived.by(() => {
   {/if}
   {#if active && operation.cancellable && onCancel}
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       disabled={operation.cancellationRequested}
       onclick={onCancel}

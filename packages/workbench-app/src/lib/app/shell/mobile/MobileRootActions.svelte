@@ -59,12 +59,12 @@ function newChat() {
 }
 </script>
 
-<Button variant="ghost" size="icon-sm" ariaLabel="New chat" onclick={newChat}>
+<Button variant="ghost" size="icon" ariaLabel="New chat" onclick={newChat}>
   <Plus size={18} strokeWidth={2.1} />
 </Button>
 <Button
   variant="ghost"
-  size="icon-sm"
+  size="icon"
   ariaLabel={discoverBadge.kind === "count"
     ? `Settings, ${discoverBadge.value} new`
     : "Settings"}

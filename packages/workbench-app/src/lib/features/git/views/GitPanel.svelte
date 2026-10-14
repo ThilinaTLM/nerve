@@ -65,7 +65,7 @@ const remoteBusy = $derived(
 );
 </script>
 
-<PanelView padded={false} scroll={false}>
+<PanelView>
   {#snippet banner()}<GitPanelBanner {model} />{/snippet}
 
   {#if model.availability.available && model.repositories.length > 0}

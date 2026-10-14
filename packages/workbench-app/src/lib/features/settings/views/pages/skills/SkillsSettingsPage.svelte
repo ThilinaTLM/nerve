@@ -232,7 +232,7 @@ function copyPath(path: string): void {
 {#if error}
   <SettingsInlineMessage tone="destructive" text={error}>
     {#snippet actions()}
-      <Button size="xs" variant="outline" onclick={() => onRetry?.()}
+      <Button size="sm" variant="outline" onclick={() => onRetry?.()}
         >Retry</Button
       >
     {/snippet}
@@ -272,7 +272,7 @@ function copyPath(path: string): void {
     {/snippet}
     {#snippet end()}
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         class="text-muted-foreground"
         disabled={visibleEntries.length === 0 || locked}
@@ -282,7 +282,7 @@ function copyPath(path: string): void {
         {query ? "Enable shown" : "Enable all"}
       </Button>
       <Button
-        size="xs"
+        size="sm"
         variant="ghost"
         class="text-muted-foreground"
         disabled={visibleEntries.length === 0 || locked}
@@ -293,7 +293,7 @@ function copyPath(path: string): void {
       </Button>
       {#if scope === "project"}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           class="text-muted-foreground"
           disabled={overrideCount === 0}
@@ -347,7 +347,6 @@ function copyPath(path: string): void {
                 />
               {/if}
               <Switch
-                size="settings"
                 checked={entry.enabled}
                 disabled={locked}
                 aria-label={scope === "user"
@@ -389,7 +388,7 @@ function copyPath(path: string): void {
     >
       {#snippet actions()}
         <Button
-          size="xs"
+          size="sm"
           variant="ghost"
           class="text-muted-foreground"
           onclick={clearAllOrphans}
@@ -405,7 +404,7 @@ function copyPath(path: string): void {
           >
             {#snippet actions()}
               <Button
-                size="xs"
+                size="sm"
                 variant="ghost"
                 class="text-muted-foreground"
                 onclick={() => clearOrphans([orphan])}

@@ -118,18 +118,18 @@ function start(): void {
       </div>
       <div class="flex flex-wrap gap-1.5">
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={() => resetSelection(recommendedCleanupSelection())}
           >Recommended</Button
         >
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={() => resetSelection(allCleanupSelection(selection))}
           >Select all</Button
         >
-        <Button size="xs" variant="ghost" onclick={() => resetSelection()}
+        <Button size="sm" variant="ghost" onclick={() => resetSelection()}
           >Clear</Button
         >
       </div>
@@ -228,11 +228,8 @@ function start(): void {
     <span class="mr-auto text-xs text-muted-foreground">
       Will free ≈ {footprint.upTo ? "up to " : ""}{formatBytes(footprint.bytes)}
     </span>
-    <Button size="sm" variant="outline" onclick={() => (open = false)}
-      >Cancel</Button
-    >
+    <Button variant="outline" onclick={() => (open = false)}>Cancel</Button>
     <Button
-      size="sm"
       variant="destructive"
       disabled={!request || !!selectionError}
       onclick={() => (confirmOpen = true)}

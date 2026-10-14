@@ -117,7 +117,7 @@ function selectRun(launchId: string): void {
   {#if launch.status === "stopping"}
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-sm"
       ariaLabel="Force kill launch"
       title="Force kill"
       disabled={!canCancel}
@@ -128,7 +128,7 @@ function selectRun(launchId: string): void {
   {:else}
     <Button
       variant="ghost"
-      size="icon-xs"
+      size="icon-sm"
       ariaLabel="Restart launch"
       title="Restart"
       disabled={!canRestart}
@@ -139,7 +139,7 @@ function selectRun(launchId: string): void {
     {#if active}
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Stop launch"
         title="Stop"
         disabled={!canCancel}

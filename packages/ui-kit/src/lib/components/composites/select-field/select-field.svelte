@@ -40,7 +40,6 @@ const selectedLabel = $derived(
 
 <Select.Root type="single" bind:value {disabled} {onValueChange}>
   <Select.Trigger
-    size="sm"
     aria-label={ariaLabel}
     class={cn("w-full min-w-0", triggerClass, className)}
   >

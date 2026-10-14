@@ -63,7 +63,7 @@ async function create() {
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="New note"
       disabled={entry?.creating}
       onclick={() => void create()}

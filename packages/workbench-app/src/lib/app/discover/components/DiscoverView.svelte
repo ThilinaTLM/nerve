@@ -61,7 +61,7 @@ const outdated = $derived(
           {/if}
           <DropdownMenu.Root>
             <DropdownMenu.Trigger
-              class={buttonVariants({ variant: "ghost", size: "icon-xs" })}
+              class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
               aria-label="Discover options"
               title="Discover options"
             >

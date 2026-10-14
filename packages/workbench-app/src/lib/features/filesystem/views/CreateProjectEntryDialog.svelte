@@ -77,13 +77,10 @@ async function submit(event?: SubmitEvent): Promise<void> {
   </form>
 
   {#snippet footer()}
-    <Button
-      size="sm"
-      variant="ghost"
-      disabled={saving}
-      onclick={() => (open = false)}>Cancel</Button
+    <Button variant="ghost" disabled={saving} onclick={() => (open = false)}
+      >Cancel</Button
     >
-    <Button size="sm" disabled={!valid || saving} onclick={() => void submit()}>
+    <Button disabled={!valid || saving} onclick={() => void submit()}>
       {saving ? "Creating…" : `Create ${kind === "file" ? "file" : "folder"}`}
     </Button>
   {/snippet}

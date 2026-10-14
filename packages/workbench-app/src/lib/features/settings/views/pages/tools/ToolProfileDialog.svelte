@@ -92,14 +92,8 @@ function manageProfiles(): void {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" variant="outline" onclick={manageProfiles}
-      >Manage profiles</Button
-    >
-    <Button size="sm" onclick={save} disabled={profiles.length === 0}
-      >Save</Button
-    >
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button variant="outline" onclick={manageProfiles}>Manage profiles</Button>
+    <Button onclick={save} disabled={profiles.length === 0}>Save</Button>
   {/snippet}
 </Dialog>

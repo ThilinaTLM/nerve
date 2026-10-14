@@ -21,19 +21,16 @@ export const buttonVariants = tv({
         "bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
       link: "text-primary underline-offset-4 hover:underline",
     },
-    /* Compact desktop control scale: 24 / 28 / 32 / 36px with a matching
-     * padding step. Every other control in the kit derives from these. */
+    /* Compact desktop control scale: two heights, driven by the
+     * `--spacing-control*` tokens (taller on coarse pointers). Every other
+     * control in the kit derives from these. */
     size: {
       default:
-        "h-8 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-      xs: "h-6 gap-1 px-1.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg:not([class*='size-'])]:size-3",
-      sm: "h-7 gap-1 px-2 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
-      lg: "h-9 gap-1.5 px-3 has-data-[icon=inline-end]:pr-2.5 has-data-[icon=inline-start]:pl-2.5",
-      icon: "size-8",
-      "icon-xs":
-        "size-6 in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
-      "icon-sm": "size-7 in-data-[slot=button-group]:rounded-md",
-      "icon-lg": "size-9",
+        "h-control gap-1 px-2 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
+      sm: "h-control-sm gap-1 px-1.5 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1 has-data-[icon=inline-start]:pl-1 [&_svg:not([class*='size-'])]:size-3",
+      icon: "size-control in-data-[slot=button-group]:rounded-md",
+      "icon-sm":
+        "size-control-sm in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
     },
   },
   defaultVariants: {

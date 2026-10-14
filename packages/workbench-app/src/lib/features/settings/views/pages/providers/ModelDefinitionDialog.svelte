@@ -155,10 +155,8 @@ async function submit() {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={() => void submit()} disabled={!canSubmit}>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={() => void submit()} disabled={!canSubmit}>
       {busy ? "Saving…" : editing ? "Save model" : "Add model"}
     </Button>
   {/snippet}

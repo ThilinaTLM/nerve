@@ -6,6 +6,7 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, loadEnv } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { designLabBuildPlugin } from "./vite-design-lab";
 import { materialIconThemePlugin } from "./vite-material-icon-theme";
 
 function nerveHome(env: Record<string, string>): string {
@@ -61,6 +62,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      designLabBuildPlugin(),
       materialIconThemePlugin(),
       svelte(),
       tailwindcss(),

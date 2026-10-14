@@ -152,7 +152,7 @@ function branch(data: HistoryFlowNodeData) {
           <Button
             class="nodrag nopan"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             ariaLabel="Expand collapsed steps"
             title="Expand collapsed steps"
             onclick={(event) => {
@@ -229,7 +229,7 @@ function branch(data: HistoryFlowNodeData) {
           <Button
             class="nodrag nopan"
             variant="ghost"
-            size="icon-xs"
+            size="icon-sm"
             ariaLabel="Branch from here"
             title="Branch from here"
             onclick={(event) => {
@@ -243,7 +243,7 @@ function branch(data: HistoryFlowNodeData) {
             <Button
               class="nodrag nopan"
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               ariaLabel="Edit and resend"
               title="Edit and resend"
               onclick={(event) => {

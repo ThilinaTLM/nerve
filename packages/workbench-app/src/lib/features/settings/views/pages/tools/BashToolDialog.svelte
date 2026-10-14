@@ -91,7 +91,6 @@ function save(): void {
       </div>
       <Switch
         id="tools-bash-auto-promotion-enabled"
-        size="settings"
         checked={enabledDraft}
         aria-label="Enable automatic backgrounding"
         onCheckedChange={(checked) => (enabledDraft = checked)}
@@ -102,7 +101,6 @@ function save(): void {
       <Label for="tools-bash-auto-promotion-seconds">Background after</Label>
       <div class="flex items-center gap-2">
         <Input
-          size="xs"
           id="tools-bash-auto-promotion-seconds"
           type="number"
           min={1}
@@ -129,7 +127,6 @@ function save(): void {
         </p>
         <div class="flex items-center gap-2">
           <Input
-            size="xs"
             id="tools-bash-max-timeout-seconds"
             type="number"
             min={1}
@@ -150,9 +147,7 @@ function save(): void {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={save} disabled={!validDraft}>Save</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={save} disabled={!validDraft}>Save</Button>
   {/snippet}
 </Dialog>

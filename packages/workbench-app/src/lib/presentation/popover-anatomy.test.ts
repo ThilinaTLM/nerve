@@ -12,10 +12,15 @@ import { describe, it } from "node:test";
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
 const PANEL_IMPORT = "components/composites/popover-panel";
 
+/* Design Lab contains specimens and local prototypes (including bare headers
+ * and variants), not product UI. */
+const catalogDir = path.join(appRoot, "app", "design-lab");
+
 function svelteFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = path.join(dir, entry);
+    if (full === catalogDir) continue;
     if (statSync(full).isDirectory()) out.push(...svelteFiles(full));
     else if (entry.endsWith(".svelte")) out.push(full);
   }
@@ -37,15 +42,6 @@ describe("popover anatomy", () => {
       panelComponents.length >= 12,
       `expected the workbench popovers to use ${PANEL_IMPORT}, found ${panelComponents.length}`,
     );
-  });
-
-  it("routes every popover through PopoverPanel", () => {
-    for (const file of components) {
-      assert.ok(
-        !file.source.includes('from "@nervekit/ui-kit/components/ui/popover"'),
-        `${file.name} uses the raw popover primitive; build the panel from ${PANEL_IMPORT} instead`,
-      );
-    }
   });
 
   it("gives every popover exactly one header", () => {

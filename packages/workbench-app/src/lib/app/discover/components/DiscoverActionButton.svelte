@@ -15,7 +15,7 @@ let { action, variant = "outline", onAction }: Props = $props();
 {#if action.kind === "external"}
   <Button
     {variant}
-    size="xs"
+    size="sm"
     href={action.href}
     target="_blank"
     rel="noreferrer"
@@ -23,7 +23,7 @@ let { action, variant = "outline", onAction }: Props = $props();
     {action.label}
   </Button>
 {:else}
-  <Button {variant} size="xs" onclick={() => onAction(action)}>
+  <Button {variant} size="sm" onclick={() => onAction(action)}>
     {action.label}
   </Button>
 {/if}

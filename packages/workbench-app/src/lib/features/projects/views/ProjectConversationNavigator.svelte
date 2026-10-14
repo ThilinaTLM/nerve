@@ -133,7 +133,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
 </script>
 
 <Tooltip.Provider delayDuration={300} disableHoverableContent>
-  <PanelView padded={false} scroll={false}>
+  <PanelView>
     <PanelHeader title="Conversations" count={rowCount}>
       {#snippet trailing()}
         <PanelToolbarButton
@@ -173,7 +173,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
         {#snippet action()}
           <Button
             variant="outline"
-            size="xs"
+            size="sm"
             onclick={() => onNewConversationInProject?.(activeProject.dir)}
           >
             <Plus />

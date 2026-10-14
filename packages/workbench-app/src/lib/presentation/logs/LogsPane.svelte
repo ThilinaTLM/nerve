@@ -229,19 +229,11 @@ $effect(() => {
                   <Spinner class="size-3.5" />Loading older logs…
                 </span>
               {:else if model.historyError}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onclick={actions.onLoadEarlier}
-                >
+                <Button variant="ghost" onclick={actions.onLoadEarlier}>
                   Could not load older logs. Retry
                 </Button>
               {:else if model.hasMoreBefore}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onclick={actions.onLoadEarlier}
-                >
+                <Button variant="ghost" onclick={actions.onLoadEarlier}>
                   Load older logs
                 </Button>
               {:else}

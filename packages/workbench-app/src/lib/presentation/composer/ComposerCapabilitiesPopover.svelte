@@ -333,7 +333,6 @@ const subagentSlot: CapabilitySubagentSlot = {
     {#if row.overridden}
       <IconAction
         icon={RotateCcw}
-        size="xs"
         label={`Reset ${row.label} to the inherited setting`}
         onclick={row.reset}
       />
@@ -341,13 +340,11 @@ const subagentSlot: CapabilitySubagentSlot = {
     {#if row.configure}
       <IconAction
         icon={Settings2}
-        size="xs"
         label={`Configure ${row.label}`}
         onclick={row.configure}
       />
     {/if}
     <Switch
-      size="sm"
       checked={row.enabled}
       disabled={disabled || loading}
       aria-label={`Enable ${row.label} for this conversation`}
@@ -421,7 +418,7 @@ const subagentSlot: CapabilitySubagentSlot = {
     {#snippet actions()}
       {#if overrideCount > 0}
         <Button
-          size="icon-xs"
+          size="icon-sm"
           variant="ghost"
           ariaLabel="Reset conversation capability overrides; profile overrides are unchanged"
           title={`Reset ${overrideCount} conversation override${overrideCount === 1 ? "" : "s"}`}
@@ -431,7 +428,7 @@ const subagentSlot: CapabilitySubagentSlot = {
         </Button>
       {/if}
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
         title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
@@ -445,7 +442,7 @@ const subagentSlot: CapabilitySubagentSlot = {
   <PopoverSearch class={showSearch ? "grid gap-2" : undefined}>
     <ToggleGroup.Root
       type="single"
-      size="xs"
+      size="sm"
       spacing={1}
       variant="chip"
       value={tab}

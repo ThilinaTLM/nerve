@@ -151,7 +151,6 @@ function apply(): void {
 
   {#snippet footer()}
     <Button
-      size="sm"
       variant="ghost"
       onclick={() => {
         onReset();
@@ -159,10 +158,7 @@ function apply(): void {
       }}
       disabled={!canReset}>Reset defaults</Button
     >
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}
-      >Cancel</Button
-    >
-    <Button size="sm" onclick={apply} disabled={!canApply}>Apply filters</Button
-    >
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={apply} disabled={!canApply}>Apply filters</Button>
   {/snippet}
 </Dialog>

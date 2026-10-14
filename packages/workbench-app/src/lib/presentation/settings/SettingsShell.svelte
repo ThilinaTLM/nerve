@@ -174,7 +174,7 @@ async function selectSection(sectionId: string): Promise<void> {
         {#if onScopeChange}
           <ToggleGroup.Root
             type="single"
-            size="xs"
+            size="sm"
             variant="outline"
             value={scope}
             aria-label="Settings scope"

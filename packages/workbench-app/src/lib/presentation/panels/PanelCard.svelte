@@ -79,7 +79,6 @@ function cancel(): void {
         bind:ref={titleInput}
         type="text"
         value={title}
-        size="xs"
         maxlength={titleMaxLength}
         aria-label="Note title"
         class="min-w-0 flex-1 font-normal shadow-none"

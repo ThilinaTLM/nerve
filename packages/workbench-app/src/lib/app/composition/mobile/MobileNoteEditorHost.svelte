@@ -97,7 +97,7 @@ async function rename(event: SubmitEvent) {
     {#if note}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="Note actions"
         onclick={() => (menuOpen = true)}
       >

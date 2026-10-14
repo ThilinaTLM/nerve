@@ -39,7 +39,7 @@ function blocked(guide: ResolvedGuide): boolean {
         {#snippet actions()}
           <Button
             variant={guide.completed ? "ghost" : "outline"}
-            size="xs"
+            size="sm"
             onclick={() => onStartGuide(guide.id)}
           >
             {guide.completed ? "Replay" : (guide.actionLabel ?? "Start")}

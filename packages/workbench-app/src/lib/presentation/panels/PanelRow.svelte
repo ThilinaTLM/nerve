@@ -1,25 +1,15 @@
 <script lang="ts">
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
-import type { Component, Snippet } from "svelte";
+import type { Snippet } from "svelte";
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import {
-  StatusDot,
-  type StatusDotVariant,
-} from "@nervekit/ui-kit/components/composites/status-dot";
 import { cn } from "@nervekit/ui-kit/utils";
 
 let {
-  icon: Icon,
-  status,
-  statusVariant = "solid",
-  pulse = false,
   label,
   labelLines = 1,
   description,
-  meta,
-  metaMono = false,
   title,
   mono = false,
   tone = "neutral",
@@ -29,11 +19,9 @@ let {
   active = false,
   disabled = false,
   dense = false,
-  stacked = false,
   hoverable = true,
   alwaysShowActions = false,
   overlayActions = false,
-  ariaLabel,
   ariaExpanded,
   role = "listitem",
   tabindex,
@@ -44,30 +32,19 @@ let {
   dataId,
   draggable,
   ondragstart,
-  ondragend,
   onkeydown,
   onfocus,
   leading,
-  labelTrailing,
   badges,
   actions,
   menuItems,
   class: className,
   onclick,
-  ondblclick,
 }: {
-  icon?: Component;
-  /** Leading status dot tone; takes precedence over `icon`. */
-  status?: StatusTone;
-  statusVariant?: StatusDotVariant;
-  pulse?: boolean;
   label: string;
   /** Maximum visible lines for the primary label. */
   labelLines?: 1 | 2;
   description?: string;
-  /** Third line under the description; stacked rows only. */
-  meta?: string;
-  metaMono?: boolean;
   title?: string;
   mono?: boolean;
   tone?: StatusTone;
@@ -80,15 +57,12 @@ let {
   disabled?: boolean;
   /** Uses the compact row rhythm intended for dense file/status lists. */
   dense?: boolean;
-  /** Renders the description on its own line below the label. */
-  stacked?: boolean;
   /** Enables the shared row background on pointer hover. */
   hoverable?: boolean;
   /** Keeps trailing actions visible instead of revealing them on hover. */
   alwaysShowActions?: boolean;
   /** Reveals actions over the row so hidden controls reserve no width. */
   overlayActions?: boolean;
-  ariaLabel?: string;
   ariaExpanded?: boolean;
   /** Outer row semantics. Tree rows opt into `treeitem`; list rows keep the default. */
   role?: "listitem" | "treeitem" | "none";
@@ -103,26 +77,21 @@ let {
   dataId?: string;
   draggable?: boolean;
   ondragstart?: (event: DragEvent) => void;
-  ondragend?: (event: DragEvent) => void;
   onkeydown?: (event: KeyboardEvent) => void;
   onfocus?: (event: FocusEvent) => void;
   /** Compact content rendered before the primary label. */
   leading?: Snippet;
-  /** Compact content rendered inline after the label; stacked rows only. */
-  labelTrailing?: Snippet;
   badges?: Snippet;
   actions?: Snippet;
   menuItems?: ContextMenuItem[];
   class?: string;
   onclick?: (event: MouseEvent) => void;
-  ondblclick?: (event: MouseEvent) => void;
 } = $props();
 
 const rowStyle = $derived(
   [
     indent > 0 ? `--panel-indent:${indent}` : undefined,
     flush ? "--panel-row-inset:0px" : undefined,
-    !flush && stacked ? "--panel-row-inset:0.75rem" : undefined,
   ]
     .filter(Boolean)
     .join(";") || undefined,
@@ -153,16 +122,17 @@ const toneClass = $derived(
   <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
   <div
     class={cn(
-      "panel-row group/panel-row flex min-w-0 items-center rounded-sm",
+      "group/panel-row flex min-w-0 items-center rounded-sm",
+      // One indent step per nesting level on top of the base inset; `flush`
+      // zeroes the inset via `--panel-row-inset`.
+      "pl-[calc(var(--panel-row-inset,0.5rem)+var(--panel-indent,0)*0.75rem)]",
       hoverable && "panel-row-hoverable",
       actions && overlayActions && "relative",
-      stacked
-        ? "min-h-10 gap-2 py-2 pr-3 text-xs"
-        : labelLines === 2
-          ? "h-9 gap-2 py-0.5 pr-3 text-xs"
-          : dense
-            ? "h-5 gap-1 pr-1 text-xs"
-            : "h-7 gap-1.5 pr-1.5 text-xs",
+      labelLines === 2
+        ? "h-9 gap-2 py-0.5 pr-3 text-xs"
+        : dense
+          ? "h-5 gap-1 pr-1 text-xs"
+          : "h-7 gap-1.5 pr-1.5 text-xs",
       selected && "bg-selected text-foreground",
       tabindex !== undefined &&
         "focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -178,7 +148,6 @@ const toneClass = $derived(
     data-panel-row-id={dataId}
     {draggable}
     {ondragstart}
-    {ondragend}
     {onkeydown}
     {onfocus}
   >
@@ -186,78 +155,32 @@ const toneClass = $derived(
       type="button"
       {disabled}
       tabindex={contentTabindex}
-      aria-label={ariaLabel}
       aria-expanded={role === "treeitem" ? undefined : ariaExpanded}
       aria-current={active ? "true" : undefined}
       title={title ?? description ?? label}
       class={cn(
         "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
-        stacked || labelLines === 2 ? "gap-2" : dense ? "gap-1" : "gap-1.5",
+        labelLines === 2 ? "gap-2" : dense ? "gap-1" : "gap-1.5",
       )}
       {onclick}
-      {ondblclick}
     >
-      {#if status}
-        <StatusDot
-          tone={status}
-          variant={statusVariant}
-          {pulse}
-          class="shrink-0"
-        />
-      {:else if Icon}
-        <Icon
-          class="size-3.5 shrink-0 text-muted-foreground"
-          aria-hidden="true"
-        />
-      {/if}
       {#if leading}
         <span class="flex shrink-0 items-center text-muted-foreground">
           {@render leading()}
         </span>
       {/if}
-      {#if stacked}
-        <span class="flex min-w-0 flex-1 flex-col leading-tight">
-          <span class="flex min-w-0 items-center gap-1.5">
-            <span
-              class={cn(
-                labelLayoutClass,
-                toneClass,
-                mono && "font-mono",
-                active && "font-medium",
-              )}>{label}</span
-            >
-            {#if labelTrailing}
-              <span class="flex shrink-0 items-center">
-                {@render labelTrailing()}
-              </span>
-            {/if}
-          </span>
-          {#if description}
-            <span class="truncate text-muted-foreground">{description}</span>
-          {/if}
-          {#if meta}
-            <span
-              class={cn(
-                "truncate text-muted-foreground",
-                metaMono && "font-mono",
-              )}>{meta}</span
-            >
-          {/if}
-        </span>
-      {:else}
-        <span
-          class={cn(
-            labelLayoutClass,
-            toneClass,
-            mono && "font-mono",
-            active && "font-medium",
-          )}>{label}</span
+      <span
+        class={cn(
+          labelLayoutClass,
+          toneClass,
+          mono && "font-mono",
+          active && "font-medium",
+        )}>{label}</span
+      >
+      {#if description}
+        <span class="min-w-0 flex-1 truncate text-muted-foreground"
+          >{description}</span
         >
-        {#if description}
-          <span class="min-w-0 flex-1 truncate text-muted-foreground"
-            >{description}</span
-          >
-        {/if}
       {/if}
     </button>
     {#if badges}
@@ -270,7 +193,7 @@ const toneClass = $derived(
         class={cn(
           "flex shrink-0 items-center gap-0.5",
           !alwaysShowActions &&
-            "panel-hover-actions group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100",
+            "opacity-0 transition-opacity duration-120 ease-[ease] group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100 pointer-coarse:opacity-100",
           !alwaysShowActions &&
             overlayActions &&
             "pointer-events-none absolute top-1/2 right-1 z-10 -translate-y-1/2 rounded-sm bg-background/95 pl-1 shadow-sm group-focus-within/panel-row:pointer-events-auto group-hover/panel-row:pointer-events-auto",

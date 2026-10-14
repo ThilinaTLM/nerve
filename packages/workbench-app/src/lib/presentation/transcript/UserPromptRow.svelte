@@ -92,7 +92,7 @@ const menuTarget = $derived(
                 <Button
                   {...props}
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   disabled={!prompt || !onForcePush || Boolean(pendingAction)}
                   ariaLabel="Force push all queued prompts"
                   onclick={() => void runAction("force-push")}
@@ -111,7 +111,7 @@ const menuTarget = $derived(
                 <Button
                   {...props}
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   disabled={!prompt ||
                     !onMoveToComposer ||
                     Boolean(pendingAction)}
@@ -130,7 +130,7 @@ const menuTarget = $derived(
                 <Button
                   {...props}
                   variant="ghost"
-                  size="icon-xs"
+                  size="icon-sm"
                   disabled={!prompt || !onDiscard || Boolean(pendingAction)}
                   ariaLabel="Discard queued prompt"
                   onclick={() => void runAction("discard")}

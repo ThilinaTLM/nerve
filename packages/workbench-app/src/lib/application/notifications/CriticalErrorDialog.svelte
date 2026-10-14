@@ -25,7 +25,7 @@ const open = $derived(Boolean(criticalErrorState.current));
       </AlertDialog.Description>
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Action size="sm" onclick={acknowledgeCriticalError}>
+      <AlertDialog.Action onclick={acknowledgeCriticalError}>
         OK
       </AlertDialog.Action>
     </AlertDialog.Footer>

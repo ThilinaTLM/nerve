@@ -74,7 +74,7 @@ const scroll = createConversationScrollController({
   {:else if active && scroll.showLatest}
     <Button
       variant="outline"
-      size="icon-lg"
+      size="icon"
       ariaLabel="Scroll to latest"
       title="Scroll to latest"
       onclick={() => scroll.jumpToBottom()}

@@ -65,16 +65,15 @@ function handleCancel() {
       {/if}
     </AlertDialog.Header>
     <AlertDialog.Footer>
-      <AlertDialog.Cancel size="sm" onclick={handleCancel}
+      <AlertDialog.Cancel onclick={handleCancel}
         >{cancelLabel}</AlertDialog.Cancel
       >
       {#if secondaryLabel}
-        <Button size="sm" variant="outline" onclick={handleSecondary}>
+        <Button variant="outline" onclick={handleSecondary}>
           {secondaryLabel}
         </Button>
       {/if}
       <AlertDialog.Action
-        size="sm"
         variant={confirmVariant ?? (destructive ? "destructive" : "default")}
         onclick={handleConfirm}
       >

@@ -42,7 +42,7 @@ $effect(() => {
 });
 </script>
 
-<PanelView padded={false} scroll={false}>
+<PanelView>
   {#snippet banner()}
     <PanelHeader title="Notes" count={project?.notes.length}>
       {#snippet trailing()}
@@ -66,7 +66,7 @@ $effect(() => {
         Could not load scratch notes.
         {#snippet actions()}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() => void loadScratchNotes(projectId, true)}>Retry</Button
           >
@@ -84,7 +84,7 @@ $effect(() => {
       >
         {#snippet action()}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={project.creating}
             onclick={() => void createScratchNote(projectId)}

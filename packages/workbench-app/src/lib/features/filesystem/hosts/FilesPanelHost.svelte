@@ -446,7 +446,7 @@ $effect(() => {
   {/if}
 {/snippet}
 
-<PanelView scroll={false} padded={false} banner={header}>
+<PanelView banner={header}>
   {#if !activeProject}
     <PanelEmpty
       icon={Files}

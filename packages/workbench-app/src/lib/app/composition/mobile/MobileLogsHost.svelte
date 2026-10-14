@@ -154,7 +154,7 @@ const menuItems = $derived<ContextMenuItem[]>([
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Refresh logs"
       disabled={model.loading}
       onclick={refreshNow}
@@ -163,7 +163,7 @@ const menuItems = $derived<ContextMenuItem[]>([
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Log actions"
       onclick={() => (menuOpen = true)}
     >
@@ -174,7 +174,6 @@ const menuItems = $derived<ContextMenuItem[]>([
   <div class="grid gap-2 px-3 pt-2">
     <ToggleGroup.Root
       type="single"
-      size="sm"
       variant="outline"
       class="w-full"
       value={model.level}
@@ -214,7 +213,6 @@ const menuItems = $derived<ContextMenuItem[]>([
       <div class="flex justify-center px-3 py-2">
         <Button
           variant="outline"
-          size="sm"
           disabled={model.loadingEarlier}
           onclick={() => void controller.loadEarlier()}
         >
@@ -256,7 +254,7 @@ const menuItems = $derived<ContextMenuItem[]>([
       <pre
         class="mx-3 min-h-0 overflow-auto whitespace-pre-wrap break-words rounded-md bg-well p-3 font-mono text-xs">{text}</pre>
       <div class="flex justify-end px-3 pb-3">
-        <Button variant="outline" size="sm" onclick={() => void copy(text)}>
+        <Button variant="outline" onclick={() => void copy(text)}>
           <Copy />
           Copy
         </Button>

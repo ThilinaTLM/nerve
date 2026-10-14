@@ -486,7 +486,7 @@ function shown(field: keyof typeof errors): string | undefined {
         <span>Changed here ·</span>
         <Button
           variant="link"
-          size="xs"
+          size="sm"
           class="h-auto p-0"
           disabled={saving}
           onclick={() => resetField(field)}>Revert</Button
@@ -500,7 +500,7 @@ function shown(field: keyof typeof errors): string | undefined {
       {/if}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          class={buttonVariants({ variant: "ghost", size: "icon-xs" })}
+          class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
           aria-label={`${title} field options`}
           title={`${title} field options`}
           disabled={saving}
@@ -553,7 +553,7 @@ function shown(field: keyof typeof errors): string | undefined {
     >
       <Button
         variant="ghost"
-        size="xs"
+        size="sm"
         class="-ml-1.5"
         onclick={() => leave(onBack)}
       >
@@ -630,7 +630,6 @@ function shown(field: keyof typeof errors): string | undefined {
           >
           <Switch
             id="profile-enabled"
-            size="settings"
             checked={form.enabled}
             disabled={saving}
             aria-label="Available to the lead"
@@ -642,7 +641,7 @@ function shown(field: keyof typeof errors): string | undefined {
           {#if onDuplicate || onResetCustomizations || onDelete}
             <DropdownMenu.Root>
               <DropdownMenu.Trigger
-                class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                class={buttonVariants({ variant: "ghost", size: "icon" })}
                 aria-label="Profile actions"
                 title="Profile actions"
               >
@@ -782,22 +781,15 @@ function shown(field: keyof typeof errors): string | undefined {
         Saves to <span class="font-mono">{filePath}</span>
       </p>
       {#if creating}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={saving}
-          onclick={() => leave(onBack)}>Cancel</Button
+        <Button variant="ghost" disabled={saving} onclick={() => leave(onBack)}
+          >Cancel</Button
         >
       {:else}
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={saving || !dirty}
-          onclick={discard}>Discard</Button
+        <Button variant="ghost" disabled={saving || !dirty} onclick={discard}
+          >Discard</Button
         >
       {/if}
       <Button
-        size="sm"
         disabled={!canSave}
         title="Save (Ctrl+S)"
         onclick={() => void save()}
@@ -1011,7 +1003,7 @@ function shown(field: keyof typeof errors): string | undefined {
                 {#if onEditExisting}
                   <Button
                     variant="link"
-                    size="xs"
+                    size="sm"
                     class="h-auto p-0"
                     onclick={() =>
                       leave(() => onEditExisting?.(clashName ?? ""))}
@@ -1233,7 +1225,7 @@ function shown(field: keyof typeof errors): string | undefined {
               {:else}
                 <ToggleGroup.Root
                   type="single"
-                  size="xs"
+                  size="sm"
                   variant="chip"
                   spacing={1}
                   value={delta}
@@ -1266,7 +1258,6 @@ function shown(field: keyof typeof errors): string | undefined {
         </div>
         <ToggleGroup.Root
           type="single"
-          size="sm"
           variant="outline"
           value={form.skillsMode}
           disabled={saving}
@@ -1321,7 +1312,7 @@ function shown(field: keyof typeof errors): string | undefined {
                   </span>
                   <ToggleGroup.Root
                     type="single"
-                    size="xs"
+                    size="sm"
                     variant="chip"
                     spacing={1}
                     value={skillDelta(name)}
@@ -1374,7 +1365,7 @@ function shown(field: keyof typeof errors): string | undefined {
             reach a customized copy, and you can revert at any time.
           </p>
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             disabled={saving}
             onclick={() => pin("instructions")}
@@ -1460,7 +1451,6 @@ function shown(field: keyof typeof errors): string | undefined {
               <Label for="profile-compaction-auto">Auto-compact</Label>
               <Switch
                 id="profile-compaction-auto"
-                size="settings"
                 bind:checked={
                   () => form.compactionAuto,
                   (value) => {

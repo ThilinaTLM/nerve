@@ -186,7 +186,7 @@ async function createBranch(event: SubmitEvent) {
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Refresh branches"
       disabled={branchState.loadingBranches}
       onclick={refresh}
@@ -195,7 +195,7 @@ async function createBranch(event: SubmitEvent) {
     </Button>
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="New branch"
       disabled={!enabled}
       onclick={() => (createOpen = true)}

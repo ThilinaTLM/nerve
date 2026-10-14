@@ -244,13 +244,12 @@ function handleKeydown(event: KeyboardEvent): void {
     </div>
 
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <Button variant="ghost" size="sm" onclick={onClose}
+      <Button variant="ghost" onclick={onClose}
         >{modal ? "Not now" : "Close guide"}</Button
       >
       <div class="flex items-center gap-2">
         <Button
           variant="outline"
-          size="sm"
           disabled={index === 0 || preparing}
           onclick={onBack}
         >
@@ -258,12 +257,12 @@ function handleKeydown(event: KeyboardEvent): void {
           Back
         </Button>
         {#if last}
-          <Button size="sm" disabled={preparing} onclick={onComplete}>
+          <Button disabled={preparing} onclick={onComplete}>
             <Check class="size-3.5" aria-hidden="true" />
             {modal ? "Finish" : "Finish guide"}
           </Button>
         {:else}
-          <Button size="sm" disabled={preparing} onclick={onNext}>
+          <Button disabled={preparing} onclick={onNext}>
             Next
             <ArrowRight class="size-3.5" aria-hidden="true" />
           </Button>

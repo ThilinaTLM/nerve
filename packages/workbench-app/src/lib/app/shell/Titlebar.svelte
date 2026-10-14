@@ -126,7 +126,7 @@ let {
       {/if}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         class="relative max-sm:hidden"
         data-tour-id="help"
         ariaLabel={discoverBadge.kind === "count"
@@ -157,7 +157,7 @@ let {
       {#if applicationLogsEnabled}
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon"
           ariaLabel="Open Nerve logs"
           title="Open Nerve logs"
           active={logsActive}
@@ -169,7 +169,7 @@ let {
       {/if}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="Open settings"
         title="Open settings"
         data-tour-id="settings"

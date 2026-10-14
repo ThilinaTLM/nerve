@@ -182,7 +182,6 @@ function submit(): void {
         >
           <Button
             type="button"
-            size="sm"
             class="pointer-events-auto"
             title={overlay.message}
             onclick={overlay.onAction}

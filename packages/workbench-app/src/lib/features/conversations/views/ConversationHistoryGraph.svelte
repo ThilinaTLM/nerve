@@ -312,7 +312,7 @@ function minimapNodeColor(node: Node): string {
             >
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               ariaLabel="Close details"
               title="Close details"
               onclick={() => (inspectorOpen = false)}

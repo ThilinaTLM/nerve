@@ -68,7 +68,6 @@ function setProfile(id: IntegrationId, profileId: string): void {
         }}
       />
       <Switch
-        size="settings"
         checked={settingsDraft.tools[integration.id].enabled &&
           ready(integration.id)}
         disabled={!ready(integration.id)}

@@ -696,7 +696,7 @@ function handleMicContextMenu(event: MouseEvent) {
     />
     <Button
       variant={recording ? "destructive" : "outline"}
-      size="icon-sm"
+      size="icon"
       class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
       type="button"
       disabled={micDisabled}

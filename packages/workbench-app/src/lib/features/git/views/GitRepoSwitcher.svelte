@@ -156,7 +156,7 @@ async function createBranch(repository: string): Promise<void> {
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       <ToggleGroup.Root
         type="single"
-        size="xs"
+        size="sm"
         variant="chip"
         spacing={1}
         value={selectedRepo}
@@ -250,7 +250,7 @@ async function createBranch(repository: string): Promise<void> {
       <!-- Ahead/behind counts live on the Pull and Push buttons below; the
            branch control only picks a branch. -->
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title="Manage branches"
         aria-label={`Manage branches in ${repoPathLabel(repoSummary)}`}

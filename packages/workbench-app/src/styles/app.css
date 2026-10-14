@@ -6,3 +6,5 @@
 @import "@xyflow/svelte/dist/base.css";
 @import "./components.css";
 @source "../**/*.{svelte,ts}";
+/* Removed only in dev by vite-design-lab, before Tailwind scans sources. */
+@source not "../lib/app/design-lab/**";

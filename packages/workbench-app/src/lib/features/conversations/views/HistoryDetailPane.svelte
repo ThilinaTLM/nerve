@@ -86,7 +86,7 @@ async function copyId(id: string) {
       the tree.
     </p>
     <div>
-      <Button size="sm" onclick={() => onNavigateToEntry?.(undefined)}>
+      <Button onclick={() => onNavigateToEntry?.(undefined)}>
         <GitBranch class="size-4" strokeWidth={2} />
         New branch from beginning
       </Button>
@@ -116,11 +116,7 @@ async function copyId(id: string) {
       {/each}
     </div>
     <div class="flex">
-      <Button
-        variant="outline"
-        size="sm"
-        onclick={() => onExpandSegment?.(segment.id)}
-      >
+      <Button variant="outline" onclick={() => onExpandSegment?.(segment.id)}>
         <UnfoldVertical class="size-4" strokeWidth={2} />
         Expand in tree
       </Button>
@@ -203,16 +199,12 @@ async function copyId(id: string) {
         </button>
       </div>
       <div class="flex flex-wrap gap-2">
-        <Button size="sm" onclick={() => onNavigateToEntry?.(entry.id)}>
+        <Button onclick={() => onNavigateToEntry?.(entry.id)}>
           <GitBranch class="size-4" strokeWidth={2} />
           Branch from here
         </Button>
         {#if entry.role === "user"}
-          <Button
-            variant="outline"
-            size="sm"
-            onclick={() => onEditEntry?.(entry)}
-          >
+          <Button variant="outline" onclick={() => onEditEntry?.(entry)}>
             <Pencil class="size-4" strokeWidth={2} />
             Edit & resend
           </Button>

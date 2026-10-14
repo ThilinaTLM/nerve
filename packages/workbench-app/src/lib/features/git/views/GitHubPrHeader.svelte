@@ -160,7 +160,7 @@ const StateIcon = $derived(
 
     <div class="flex shrink-0 items-center gap-0.5">
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title="Refresh pull request"
         aria-label={loading
@@ -179,7 +179,7 @@ const StateIcon = $derived(
         {/if}
       </Button>
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title="Copy pull request link"
         aria-label="Copy pull request link"
@@ -189,7 +189,7 @@ const StateIcon = $derived(
         <Link aria-hidden="true" />
       </Button>
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title="Open pull request on GitHub"
         aria-label="Open pull request on GitHub"
@@ -199,7 +199,7 @@ const StateIcon = $derived(
         <ExternalLink aria-hidden="true" />
       </Button>
       <Button
-        size="icon-xs"
+        size="icon-sm"
         variant="ghost"
         title={checkedOut
           ? `${display?.headRefName ?? "This branch"} is already checked out`

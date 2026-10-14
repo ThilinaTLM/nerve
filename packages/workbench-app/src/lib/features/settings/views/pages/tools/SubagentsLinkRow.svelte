@@ -11,7 +11,7 @@ import { SettingsListItem } from "$lib/presentation/settings";
 >
   {#snippet actions()}
     <Button
-      size="xs"
+      size="sm"
       variant="outline"
       onclick={() => void openSettingsPane("subagents")}
     >

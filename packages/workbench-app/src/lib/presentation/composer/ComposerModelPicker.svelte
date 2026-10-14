@@ -184,7 +184,7 @@ $effect(() => {
       {#if providerChips.length > 2}
         <ToggleGroup.Root
           type="single"
-          size="xs"
+          size="sm"
           spacing={1}
           variant="chip"
           value={providerFilter}
@@ -239,7 +239,7 @@ $effect(() => {
       <PopoverSection label="Reasoning effort" separated>
         <ToggleGroup.Root
           type="single"
-          size="xs"
+          size="sm"
           spacing={1}
           variant="chip"
           value={thinkingLevel}

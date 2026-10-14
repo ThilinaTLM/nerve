@@ -155,7 +155,7 @@ let {
     >
       {#snippet actions()}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={() => onScopeChange("user")}
         >

@@ -12,7 +12,7 @@ let { label, tourId, onclick }: Props = $props();
 </script>
 
 <Button
-  size="xs"
+  size="sm"
   variant="outline"
   aria-label={label}
   title={label}

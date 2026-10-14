@@ -135,7 +135,6 @@ function save(): void {
         <Label for="tools-image-generation-size">Size</Label>
         <Input
           id="tools-image-generation-size"
-          size="sm"
           bind:value={sizeDraft}
           aria-invalid={validSize ? undefined : "true"}
           placeholder="auto or 1024x1024"
@@ -163,9 +162,7 @@ function save(): void {
   </div>
 
   {#snippet footer()}
-    <Button size="sm" variant="ghost" onclick={() => (open = false)}>
-      Cancel
-    </Button>
-    <Button size="sm" onclick={save} disabled={!validSize}>Save</Button>
+    <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
+    <Button onclick={save} disabled={!validSize}>Save</Button>
   {/snippet}
 </Dialog>

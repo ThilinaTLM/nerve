@@ -201,7 +201,7 @@ function handleSubmit(event: Event) {
     <PopoverFooter>
       <Button
         variant="ghost"
-        size="xs"
+        size="sm"
         class="justify-start"
         data-tour-id="guide-project-browse"
         onclick={browseProjects}
@@ -233,7 +233,6 @@ function handleSubmit(event: Event) {
       >
         <Button
           variant="ghost"
-          size="sm"
           class={`w-full min-w-0 gap-1.5 rounded-md bg-transparent px-2 hover:bg-transparent dark:hover:bg-transparent ${active ? "text-foreground data-[active]:bg-transparent" : "text-muted-foreground hover:text-foreground"}`}
           pressed={active}
           aria-current={active ? "page" : undefined}

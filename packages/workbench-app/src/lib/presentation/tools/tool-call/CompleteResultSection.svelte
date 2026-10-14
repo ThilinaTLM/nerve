@@ -141,11 +141,8 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
       </p>
     {:else if error}
       <p class="m-0 text-sm text-destructive">{error}</p>
-      <Button
-        size="sm"
-        variant="outline"
-        class="w-fit"
-        onclick={() => void loadInitial()}>Retry</Button
+      <Button variant="outline" class="w-fit" onclick={() => void loadInitial()}
+        >Retry</Button
       >
     {:else if activated && done && text.length === 0}
       <p class="m-0 text-sm text-muted-foreground">
@@ -165,7 +162,6 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
       {#if !done}
         <div class="flex flex-wrap items-center gap-2">
           <Button
-            size="sm"
             variant="outline"
             disabled={loading}
             onclick={() => void loadOne(requestGeneration)}
@@ -173,7 +169,6 @@ const large = $derived(descriptor.byteLength > SMALL_RESULT_BYTES);
             {loading ? "Loading…" : "Load next chunk"}
           </Button>
           <Button
-            size="sm"
             variant="ghost"
             disabled={loading}
             onclick={() => void loadAll()}>Load all</Button

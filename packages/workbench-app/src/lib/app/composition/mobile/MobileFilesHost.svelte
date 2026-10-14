@@ -84,7 +84,7 @@ function open(entry: FilesystemProjectEntry) {
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="Refresh"
       disabled={directory?.loading || directory?.refreshing}
       onclick={() =>
@@ -113,7 +113,6 @@ function open(entry: FilesystemProjectEntry) {
       <div class="flex justify-center px-3 py-2">
         <Button
           variant="outline"
-          size="sm"
           disabled={directory.loading}
           onclick={() =>
             void loadFileExplorerDirectory(projectId, path, { append: true })}

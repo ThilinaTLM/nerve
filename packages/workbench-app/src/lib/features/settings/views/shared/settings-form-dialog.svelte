@@ -46,18 +46,10 @@ let {
     {/if}
   </div>
   {#snippet footer()}
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={busy}
-      onclick={() => (open = false)}>Cancel</Button
+    <Button variant="ghost" disabled={busy} onclick={() => (open = false)}
+      >Cancel</Button
     >
-    <Button
-      size="sm"
-      disabled={busy}
-      data-tour-id={saveTourId}
-      onclick={() => onSave()}
-    >
+    <Button disabled={busy} data-tour-id={saveTourId} onclick={() => onSave()}>
       {#if busy}<Spinner class="size-3.5" />{/if}
       {saveLabel}
     </Button>

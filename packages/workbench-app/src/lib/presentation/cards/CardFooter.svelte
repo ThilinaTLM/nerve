@@ -64,7 +64,6 @@ const show = $derived(
       >
         {#if primaryAction}
           <Button
-            size="sm"
             aria-label={primaryAction.ariaLabel}
             onclick={primaryAction.onClick}
           >

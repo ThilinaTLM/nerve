@@ -66,7 +66,7 @@ async function copyDiagnostics() {
                 class="mt-2 max-h-48 overflow-auto rounded-md bg-well p-2 font-mono text-xs whitespace-pre-wrap break-all select-text">{diagnostics}</pre>
               <Button
                 class="mt-2"
-                size="xs"
+                size="sm"
                 variant="outline"
                 onclick={copyDiagnostics}
               >

@@ -247,7 +247,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     <PopoverHeader title="Permissions">
       {#snippet actions()}
         <Button
-          size="icon-xs"
+          size="icon-sm"
           variant="ghost"
           disabled={permissionRuleSetsLoading}
           ariaLabel="Refresh permission rule sets"
@@ -260,7 +260,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
           />
         </Button>
         <Button
-          size="icon-xs"
+          size="icon-sm"
           variant="ghost"
           ariaLabel="Open permission settings"
           title="Open permission settings"

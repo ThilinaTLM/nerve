@@ -112,7 +112,7 @@ function stateTone(state: string) {
             {#if agent && subagents}
               <div class="flex justify-end">
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   aria-label={`Open ${assignment.name}`}
                   onclick={() => subagents.open(agent.id)}>Open</Button
@@ -140,7 +140,7 @@ function stateTone(state: string) {
           </span>
           {#if agent && subagents}
             <Button
-              size="xs"
+              size="sm"
               variant="outline"
               aria-label={`Open ${row.name}`}
               onclick={() => subagents.open(agent.id)}>Open</Button

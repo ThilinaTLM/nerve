@@ -13,7 +13,7 @@ let { trust, onTrust }: Props = $props();
 
 {#if trust.status === "trusted"}
   <Button
-    size="xs"
+    size="sm"
     variant="ghost"
     class="text-muted-foreground"
     title={`Project capability file trusted on this machine on ${new Date(

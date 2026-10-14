@@ -182,13 +182,13 @@ const runItems = $derived<ContextMenuItem[]>(
 >
   {#snippet actions()}
     {#if entry?.isActive}
-      <Button variant="ghost" size="icon-sm" ariaLabel="Stop" onclick={stop}>
+      <Button variant="ghost" size="icon" ariaLabel="Stop" onclick={stop}>
         <Square size={17} strokeWidth={1.9} />
       </Button>
     {:else if launch}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="Restart"
         onclick={() => void restart()}
       >
@@ -198,7 +198,7 @@ const runItems = $derived<ContextMenuItem[]>(
     {#if launch}
       <Button
         variant="ghost"
-        size="icon-sm"
+        size="icon"
         ariaLabel="Launch output actions"
         onclick={() => (menuOpen = true)}
       >

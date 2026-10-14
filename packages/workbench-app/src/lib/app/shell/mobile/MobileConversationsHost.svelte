@@ -83,7 +83,7 @@ const total = $derived(
   {#snippet actions()}
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       ariaLabel="New chat"
       disabled={!project}
       onclick={() => project && void startMobileConversation(project)}

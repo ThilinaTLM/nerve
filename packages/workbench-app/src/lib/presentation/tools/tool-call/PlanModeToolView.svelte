@@ -296,7 +296,6 @@ async function rejectPlan() {
       {#snippet actions()}
         <SplitButton
           variant={acceptVariant}
-          size="sm"
           disabled={actionsDisabled}
           menuAlign="end"
           menuClass="w-60"
@@ -364,7 +363,6 @@ async function rejectPlan() {
         </SplitButton>
 
         <Button
-          size="sm"
           variant="outline"
           disabled={actionsDisabled}
           onclick={rejectPlan}

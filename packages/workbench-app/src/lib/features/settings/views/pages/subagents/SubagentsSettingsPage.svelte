@@ -474,7 +474,7 @@ function trustProject(): void {
       text="Project delegation comes from .nerve/config/capabilities.json, which isn't trusted yet."
     >
       {#snippet actions()}<Button
-          size="xs"
+          size="sm"
           variant="outline"
           onclick={() => onTrust?.(true)}>Trust capabilities</Button
         >{/snippet}
@@ -561,7 +561,7 @@ function trustProject(): void {
   {#if error}
     <SettingsInlineMessage tone="destructive" text={error}>
       {#snippet actions()}
-        <Button size="xs" variant="outline" onclick={() => onRetry?.()}
+        <Button size="sm" variant="outline" onclick={() => onRetry?.()}
           >Retry</Button
         >
       {/snippet}
@@ -581,7 +581,7 @@ function trustProject(): void {
       </p>
       {#snippet actions()}
         <Button
-          size="xs"
+          size="sm"
           variant="outline"
           disabled={busyName !== undefined || !profileConfiguration?.digest}
           onclick={() => (trustReviewOpen = true)}>Review…</Button
@@ -622,7 +622,7 @@ function trustProject(): void {
         />
       {/if}
       <Button
-        size="xs"
+        size="sm"
         variant="outline"
         onclick={() => (newProfileOpen = true)}
         disabled={!canCreate}
@@ -641,7 +641,7 @@ function trustProject(): void {
       >
         {#snippet actions()}
           <Button
-            size="xs"
+            size="sm"
             variant="outline"
             onclick={() => void refreshSubagentProfiles(listProjectId, scope)}
             >Retry</Button
@@ -670,7 +670,7 @@ function trustProject(): void {
           >
             {#snippet actions()}
               <Button
-                size="xs"
+                size="sm"
                 variant="outline"
                 disabled={!canCreate}
                 onclick={() => (newProfileOpen = true)}

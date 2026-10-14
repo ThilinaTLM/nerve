@@ -83,18 +83,12 @@ function confirmDrop(): void {
 
   {#snippet footer()}
     {#if dropCandidate}
-      <Button
-        size="sm"
-        variant="ghost"
-        onclick={() => (dropCandidate = undefined)}>Cancel</Button
+      <Button variant="ghost" onclick={() => (dropCandidate = undefined)}
+        >Cancel</Button
       >
-      <Button size="sm" variant="destructive" onclick={confirmDrop}
-        >Drop stash</Button
-      >
+      <Button variant="destructive" onclick={confirmDrop}>Drop stash</Button>
     {:else}
-      <Button size="sm" variant="ghost" onclick={() => (open = false)}>
-        Close
-      </Button>
+      <Button variant="ghost" onclick={() => (open = false)}>Close</Button>
     {/if}
   {/snippet}
 </Dialog>

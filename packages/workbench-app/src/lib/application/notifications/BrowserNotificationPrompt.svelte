@@ -29,15 +29,10 @@ import {
           </p>
         </div>
         <div class="flex flex-wrap justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onclick={dismissBrowserNotificationPrompt}>Not now</Button
+          <Button variant="ghost" onclick={dismissBrowserNotificationPrompt}
+            >Not now</Button
           >
-          <Button
-            size="sm"
-            onclick={() => void requestBrowserNotificationPermission()}
-          >
+          <Button onclick={() => void requestBrowserNotificationPermission()}>
             Enable notifications
           </Button>
         </div>

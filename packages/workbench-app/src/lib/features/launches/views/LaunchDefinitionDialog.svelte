@@ -98,7 +98,6 @@ function submit() {
     <div class="grid gap-1.5">
       <Label for="launch-definition-label">Name</Label>
       <Input
-        size="xs"
         id="launch-definition-label"
         bind:value={label}
         placeholder="web-dev"
@@ -124,7 +123,6 @@ function submit() {
     <div class="grid gap-1.5">
       <Label for="launch-definition-port">Port</Label>
       <Input
-        size="xs"
         id="launch-definition-port"
         bind:value={port}
         type="number"
@@ -160,7 +158,6 @@ function submit() {
     <div class="grid gap-1.5">
       <Label for="launch-definition-cwd">Working directory</Label>
       <Input
-        size="xs"
         id="launch-definition-cwd"
         bind:value={cwd}
         placeholder={projectCwd
@@ -177,13 +174,10 @@ function submit() {
   </div>
 
   {#snippet footer()}
-    <Button
-      size="sm"
-      variant="ghost"
-      onclick={() => (open = false)}
-      disabled={saving}>Cancel</Button
+    <Button variant="ghost" onclick={() => (open = false)} disabled={saving}
+      >Cancel</Button
     >
-    <Button size="sm" onclick={submit} disabled={!canSave}
+    <Button onclick={submit} disabled={!canSave}
       >{saving ? "Saving…" : dialogSubmitLabel}</Button
     >
   {/snippet}

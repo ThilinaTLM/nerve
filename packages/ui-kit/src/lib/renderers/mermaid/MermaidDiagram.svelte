@@ -236,7 +236,7 @@ $effect(() => {
     <FloatingToolbar label="Diagram controls" isolatePointer>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         pressed={wheelZoomEnabled}
         active={wheelZoomEnabled}
         ariaLabel={wheelZoomEnabled
@@ -251,7 +251,7 @@ $effect(() => {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Zoom out"
         title="Zoom out"
         disabled={scale <= MIN_SCALE}
@@ -261,7 +261,7 @@ $effect(() => {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Zoom in"
         title="Zoom in"
         disabled={scale >= MAX_SCALE}
@@ -271,7 +271,7 @@ $effect(() => {
       </Button>
       <Button
         variant="ghost"
-        size="icon-xs"
+        size="icon-sm"
         ariaLabel="Fit diagram to view"
         title="Fit to view"
         onclick={fitDiagram}
@@ -281,7 +281,7 @@ $effect(() => {
       {#if onOpenStandalone}
         <Button
           variant="ghost"
-          size="icon-xs"
+          size="icon-sm"
           ariaLabel="Open diagram in tab"
           title="Open diagram in tab"
           onclick={onOpenStandalone}

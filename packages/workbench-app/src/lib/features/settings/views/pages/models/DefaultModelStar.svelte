@@ -75,7 +75,7 @@ function choose(level: ThinkingLevel): void {
   <PopoverBody>
     <ToggleGroup.Root
       type="single"
-      size="xs"
+      size="sm"
       spacing={1}
       variant="chip"
       value={activeLevel}

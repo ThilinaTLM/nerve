@@ -104,7 +104,7 @@ function unavailableMessage(
       >
     </Empty.Header>
     <Empty.Content class="gap-1">
-      <Button size="xs" variant="outline" onclick={() => onRetry?.()}>
+      <Button size="sm" variant="outline" onclick={() => onRetry?.()}>
         <RotateCcw class="size-3" /> Retry
       </Button>
     </Empty.Content>
@@ -219,7 +219,7 @@ function unavailableMessage(
               </Empty.Header>
               <Empty.Content>
                 <Button
-                  size="xs"
+                  size="sm"
                   variant="outline"
                   onclick={() => onFileDiffRetry?.()}
                 >
