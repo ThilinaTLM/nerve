@@ -156,9 +156,28 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
-const profileScope = $derived(
-  conversationProfileScope(activeProject?.id, activeConversation, interactive),
-);
+const profileScope = $derived.by(() => {
+  const pending = activePendingConversation;
+  return conversationProfileScope(
+    activeProject?.id,
+    activeConversation,
+    interactive,
+    pending
+      ? {
+          pendingId: pending.id,
+          document: pending.subagentProfileOverrides,
+          lead: {
+            model: pending.config.model,
+            reasoningLevel: pending.config.reasoningLevel,
+          },
+          readonly: () => pending.sending,
+          onDocumentChange: (document) => {
+            pending.subagentProfileOverrides = document;
+          },
+        }
+      : undefined,
+  );
+});
 const capabilityScopeKey = $derived(
   `${activeProject?.id ?? "none"}:${activeConversation?.id ?? activePendingConversation?.id ?? "none"}:${interactive}`,
 );
@@ -515,7 +534,7 @@ function handleMicContextMenu(event: MouseEvent) {
     {query}
     unavailableReason={activeConversation
       ? "Sub-agents can't delegate; configure profiles in the lead conversation."
-      : "Save the conversation to configure sub-agent profiles."}
+      : "Sub-agent profiles are unavailable for this conversation."}
   />
 {/snippet}
 

@@ -3,6 +3,7 @@ import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
   SubagentProfile,
   SubagentProfileDiagnostic,
+  SubagentProfilesLeadContext,
 } from "@nervekit/contracts/subagents";
 import type { AgentModelInfo } from "@nervekit/harness/models";
 
@@ -11,6 +12,8 @@ export interface ProfileAvailabilityContext {
   conversationId?: string;
   /** Creation-only snapshot: validate exactly the model/thinking that will be copied. */
   parentConfig?: ConversationConfig;
+  /** Read-only draft preview: only values inherited by model/thinking. */
+  lead?: SubagentProfilesLeadContext;
 }
 export type ProfileAvailability = (
   profile: SubagentProfile,
@@ -66,6 +69,7 @@ export function createProfileAvailability(options: {
       }
     }
     const parent =
+      context.lead ??
       context.parentConfig ??
       (context.conversationId
         ? options.parent(context.conversationId)

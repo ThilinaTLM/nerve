@@ -100,3 +100,29 @@ void test("thinking compatibility uses the selected model and current parent thi
     [],
   );
 });
+
+void test("draft lead context validates inherited model and thinking without loading a saved parent", async () => {
+  const selected: unknown[] = [];
+  const check = createProfileAvailability({
+    parent: () => {
+      throw new Error("Draft must not load a parent");
+    },
+    modelInfo: async (model) => {
+      selected.push(model);
+      return { ...info, supportedThinkingLevels: ["off"] };
+    },
+    resources: async () => ({ tools: new Map(), skills: new Map() }),
+  });
+  const diagnostics = await check(profile(), {
+    projectId: "proj_one",
+    lead: { model: lead.model, reasoningLevel: "high" },
+  });
+  assert.deepEqual(selected, [lead.model]);
+  assert.equal(diagnostics[0]?.code, "unsupported_thinking");
+  assert.deepEqual(
+    await check(profile(), {
+      lead: { model: lead.model, reasoningLevel: "off" },
+    }),
+    [],
+  );
+});
