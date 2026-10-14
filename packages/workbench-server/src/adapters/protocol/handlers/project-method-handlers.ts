@@ -33,6 +33,10 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
         params?.conversationId,
       ),
     }),
+    "subagentProfiles.preview": (state, params) =>
+      state.subagentProfiles.preview(params),
+    "subagentProfiles.replaceConversation": (state, params) =>
+      state.subagentProfiles.replaceConversation(params),
     "subagentProfiles.configuration": (state, params) =>
       state.subagentProfiles.configuration(params),
     "subagentProfiles.update": (state, params) =>

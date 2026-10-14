@@ -1,4 +1,5 @@
 <script lang="ts">
+import { onDestroy } from "svelte";
 import {
   onEvent,
   onWorkbenchReconnect,
@@ -31,30 +32,39 @@ let {
   capability?: CapabilitySubagentSlot;
 } = $props();
 const projectId = $derived(scope?.projectId);
-const conversationId = $derived(scope?.conversationId);
+const conversationId = $derived(
+  scope?.kind === "saved" ? scope.conversationId : undefined,
+);
 let state = $state<ConversationProfileState>({ loading: false, saving: false });
 const controller = new ConversationProfileController({
   read: (scope) =>
     requestWorkbench("subagentProfiles.configuration", {
       scope: "conversation",
-      ...scope,
+      projectId: scope.projectId,
+      conversationId: scope.conversationId,
     }),
   update: (scope, name, patch, expectedDigest) =>
     requestWorkbench("subagentProfiles.update", {
       scope: "conversation",
-      ...scope,
+      projectId: scope.projectId,
+      conversationId: scope.conversationId,
       name,
       patch,
       expectedDigest,
     }),
+  preview: (input) => requestWorkbench("subagentProfiles.preview", input),
   changed: (next) => {
     state = next;
   },
 });
 $effect(() => {
   if (!scope) slot?.setCounts(undefined);
-  else if (state.configuration)
-    slot?.setCounts(conversationProfileCounts(state.configuration));
+  else
+    slot?.setCounts(
+      state.configuration
+        ? conversationProfileCounts(state.configuration)
+        : undefined,
+    );
 });
 
 const models = $derived(
@@ -64,13 +74,11 @@ const models = $derived(
   ),
 );
 $effect(() => {
-  controller.follow(
-    projectId && conversationId ? { projectId, conversationId } : undefined,
-  );
-  return () => controller.follow(undefined);
+  controller.follow(scope);
 });
+onDestroy(() => controller.follow(undefined));
 $effect(() => {
-  if (!conversationId) return;
+  if (!projectId) return;
   const dispose = onEvent("subagentProfiles.changed", (event) => {
     if (
       (!event.data.projectId || event.data.projectId === projectId) &&
@@ -131,11 +139,12 @@ function selection(value: string | undefined): ModelSelection | undefined {
   {query}
   unavailableReason={!scope
     ? (unavailableReason ??
-      "Save the conversation to configure sub-agent profiles.")
+      "Sub-agent profiles are unavailable for this conversation.")
     : undefined}
   configuration={state.configuration}
   loading={state.loading}
   saving={state.saving}
+  readonly={scope?.kind === "pending" && scope.readonly?.()}
   error={state.error}
   models={settingsState.models}
   delegation={slot?.delegation}

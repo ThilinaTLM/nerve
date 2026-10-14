@@ -13,7 +13,8 @@ import {
 import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/PromptSuggestionTrustDialog.svelte";
 import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
+import { submitPendingConversation } from "$lib/app/composition/conversations/submit-pending-conversation";
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { createId } from "@nervekit/contracts";
 import type {
   ConversationConfig,
@@ -328,28 +329,24 @@ async function submitPrompt(
     if (pending.sending) return;
     pending.sending = true;
     try {
-      const snapshot = pending.createdConversationId
-        ? await requestConversation("conversation.getSnapshot", {
-            conversationId: pending.createdConversationId,
-          })
-        : await requestConversation("conversation.create", {
+      const snapshot = await submitPendingConversation(pending, text, {
+        create: (input) =>
+          requestConversation("conversation.create", {
             id: createId("conv"),
-            projectId: pending.projectId,
-            title: pending.title,
-            config: pending.config,
-          });
-      pending.createdConversationId = snapshot.conversation.id;
-      await updateCapabilities({
-        projectId: pending.projectId,
-        conversationId: snapshot.conversation.id,
-        layer: "conversation",
-        replace: pending.capabilityOverrides ?? emptyCapabilityOverrides(),
-      });
-      await requestConversation("input.submit", {
-        conversationId: snapshot.conversation.id,
-        inputId: createId("input"),
-        text,
-        source: "user",
+            ...input,
+          }),
+        getSnapshot: (conversationId) =>
+          requestConversation("conversation.getSnapshot", { conversationId }),
+        saveCapabilities: updateCapabilities,
+        saveProfiles: (input) =>
+          requestWorkbench("subagentProfiles.replaceConversation", input),
+        submit: (conversationId, prompt) =>
+          requestConversation("input.submit", {
+            conversationId,
+            inputId: createId("input"),
+            text: prompt,
+            source: "user",
+          }),
       });
       if (options.clearComposer === false)
         composerSignals.createdConversationDraft = {

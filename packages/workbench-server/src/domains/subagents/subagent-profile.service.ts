@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
@@ -8,6 +9,11 @@ import {
   resolveSubagentProfiles,
   subagentProfileEntrySchema,
   subagentProfileNameSchema,
+  subagentProfilesDocumentSchema,
+  subagentProfilesPreviewParamsSchema,
+  subagentProfilesReplaceConversationParamsSchema,
+  type SubagentProfilesDocument,
+  type SubagentProfilesLeadContext,
   type SubagentProfile,
   type SubagentProfileDiagnostic,
   type SubagentProfileLayer,
@@ -28,6 +34,7 @@ export type SubagentAvailabilityContext = {
   projectId?: string;
   conversationId?: string;
   parentConfig?: ConversationConfig;
+  lead?: SubagentProfilesLeadContext;
 };
 export type SubagentProfileScopeInput = {
   scope: SubagentProfileScope;
@@ -87,13 +94,35 @@ export class SubagentProfileService {
       );
     if (input.scope === "conversation")
       layers.push(await this.readLayer(input));
-    const result = resolveSubagentProfiles({ layers, scope: input.scope });
+    return this.assemble(layers, input.scope, {
+      projectId: target.projectId,
+      conversationId: target.conversationId,
+      ...(parentConfig ? { parentConfig } : {}),
+    });
+  }
+
+  async preview(input: {
+    projectId: string;
+    document: SubagentProfilesDocument;
+    lead: SubagentProfilesLeadContext;
+  }): Promise<SubagentProfilesConfiguration> {
+    const { projectId, document, lead } =
+      subagentProfilesPreviewParamsSchema.parse(input);
+    const layers: SubagentProfileLayer[] = [
+      await this.readLayer({ scope: "user" }),
+      await this.readLayer({ scope: "project", projectId }),
+      { source: "conversation", document, trust: "trusted" },
+    ];
+    return this.assemble(layers, "conversation", { projectId, lead });
+  }
+
+  private async assemble(
+    layers: SubagentProfileLayer[],
+    scope: SubagentProfileScope,
+    context: SubagentAvailabilityContext,
+  ): Promise<SubagentProfilesConfiguration> {
+    const result = resolveSubagentProfiles({ layers, scope });
     if (this.deps.availability) {
-      const context = {
-        projectId: target.projectId,
-        conversationId: target.conversationId,
-        ...(parentConfig ? { parentConfig } : {}),
-      };
       for (const configuration of result.profiles) {
         if (!configuration.effective) continue;
         const diagnostics = await this.deps.availability(
@@ -199,6 +228,60 @@ export class SubagentProfileService {
       return this.configuration(input);
     });
   }
+  replaceConversation(input: {
+    projectId: string;
+    conversationId: string;
+    document: SubagentProfilesDocument;
+    expectedDigest: string | null;
+  }): Promise<SubagentProfilesConfiguration> {
+    // Validate and snapshot before joining the mutation queue.
+    const parsed = subagentProfilesReplaceConversationParamsSchema.parse(input);
+    return this.mutate(async () => {
+      const scope = {
+        scope: "conversation" as const,
+        projectId: parsed.projectId,
+        conversationId: parsed.conversationId,
+      };
+      const target = this.target(scope);
+      const layer = await this.readLayer(scope);
+      if (layer.error) throw new Error(layer.error);
+      const existing =
+        layer.document === undefined
+          ? undefined
+          : subagentProfilesDocumentSchema.safeParse(layer.document);
+      if (existing && !existing.success)
+        throw new Error(
+          "Invalid sub-agent profile document; review it before saving.",
+        );
+      // A lost successful response may be retried with the previous digest.
+      // Only a fully valid, semantically identical document permits that retry.
+      if (
+        existing?.success &&
+        isDeepStrictEqual(existing.data, parsed.document)
+      )
+        return this.configuration(scope);
+      if (parsed.expectedDigest !== (layer.digest ?? null))
+        throw new Error(
+          "Sub-agent profile document changed; reload before saving.",
+        );
+      await assertProtectedPath(target);
+      await mkdir(dirname(target.path), { recursive: true, mode: 0o700 });
+      await assertProtectedPath(target);
+      const latest = await this.readLayer(scope);
+      if (latest.error || latest.digest !== layer.digest)
+        throw new Error(
+          "Sub-agent profile document changed; reload before saving.",
+        );
+      await atomicWriteFile(
+        target.path,
+        `${JSON.stringify(parsed.document, null, 2)}\n`,
+        { mode: 0o600 },
+      );
+      this.notify(target);
+      return this.configuration(scope);
+    });
+  }
+
   trust(
     projectId: string,
     digest: string,

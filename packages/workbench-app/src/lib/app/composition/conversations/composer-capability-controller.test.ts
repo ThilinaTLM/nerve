@@ -8,14 +8,30 @@ const pendingRoot = { projectId };
 const lead = { id: "conv_lead", parentConversationId: null };
 const child = { id: "conv_child", parentConversationId: lead.id };
 
-test("pending root drafts can edit the master without acquiring a profile read scope", () => {
+test("pending root drafts can edit the master and acquire a pending profile scope", () => {
   assert.equal(
     canEditComposerDelegation(projectId, undefined, pendingRoot),
     true,
   );
-  assert.equal(conversationProfileScope(projectId, undefined), undefined);
+  const pending = {
+    pendingId: "draft_one",
+    lead: {
+      model: { provider: "openai", modelId: "gpt-5" },
+      reasoningLevel: "high" as const,
+    },
+    onDocumentChange: () => {},
+  };
+  assert.deepEqual(
+    conversationProfileScope(projectId, undefined, true, pending),
+    {
+      kind: "pending",
+      projectId,
+      ...pending,
+    },
+  );
   assert.equal(canEditComposerDelegation(projectId, lead, undefined), true);
   assert.deepEqual(conversationProfileScope(projectId, lead), {
+    kind: "saved",
     projectId,
     conversationId: lead.id,
   });

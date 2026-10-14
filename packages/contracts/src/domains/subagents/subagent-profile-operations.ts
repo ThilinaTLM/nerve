@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { defineOperation } from "../../operations/definition.js";
 import { subagentProfileNameSchema } from "./constants.js";
 import {
@@ -10,6 +11,7 @@ import {
   subagentProfileEntrySchema,
   subagentProfilePatchSchema,
   subagentProfilesConfigurationSchema,
+  subagentProfilesDocumentSchema,
 } from "./subagent-configuration.js";
 
 const projectIdSchema = z.string().startsWith("proj_");
@@ -48,6 +50,34 @@ export const subagentProfilesConfigurationParamsSchema = z
   .superRefine(requireProjectForProjectScope);
 export const subagentProfilesConfigurationResultSchema =
   subagentProfilesConfigurationSchema;
+export const subagentProfilesLeadContextSchema = z
+  .object({
+    model: modelSelectionSchema,
+    reasoningLevel: thinkingLevelSchema,
+  })
+  .strict();
+export type SubagentProfilesLeadContext = z.infer<
+  typeof subagentProfilesLeadContextSchema
+>;
+export const subagentProfilesPreviewParamsSchema = z
+  .object({
+    projectId: projectIdSchema,
+    document: subagentProfilesDocumentSchema,
+    lead: subagentProfilesLeadContextSchema,
+  })
+  .strict();
+export const subagentProfilesPreviewResultSchema =
+  subagentProfilesConfigurationSchema;
+export const subagentProfilesReplaceConversationParamsSchema = z
+  .object({
+    projectId: projectIdSchema,
+    conversationId: z.string().min(1),
+    document: subagentProfilesDocumentSchema,
+    expectedDigest: z.string().min(1).nullable(),
+  })
+  .strict();
+export const subagentProfilesReplaceConversationResultSchema =
+  subagentProfilesConfigurationSchema;
 const mutationParams = {
   ...scopedParams,
   name: subagentProfileNameSchema,
@@ -84,6 +114,24 @@ export const subagentProfilesTrustResultSchema =
   subagentProfilesConfigurationSchema;
 
 export const subagentProfilesOperationDefinitions = [
+  defineOperation(
+    "subagentProfiles.preview",
+    subagentProfilesPreviewParamsSchema,
+    subagentProfilesPreviewResultSchema,
+    "read",
+    "none",
+    host,
+    "operation.subagentProfiles.preview",
+  ),
+  defineOperation(
+    "subagentProfiles.replaceConversation",
+    subagentProfilesReplaceConversationParamsSchema,
+    subagentProfilesReplaceConversationResultSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.subagentProfiles.replaceConversation",
+  ),
   defineOperation(
     "subagentProfiles.list",
     subagentProfilesListParamsSchema.optional(),

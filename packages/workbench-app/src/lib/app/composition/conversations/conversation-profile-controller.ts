@@ -1,23 +1,62 @@
-import type {
-  SubagentProfilePatch,
-  SubagentProfilesConfiguration,
+import {
+  applySubagentProfilePatch,
+  type SubagentProfilesDocument,
+  type SubagentProfilePatch,
+  type SubagentProfilesConfiguration,
 } from "@nervekit/contracts/subagents";
 
-export interface ConversationProfileScope {
+import type { ConversationConfig } from "@nervekit/contracts/core";
+
+export interface SavedConversationProfileScope {
+  kind: "saved";
   projectId: string;
   conversationId: string;
 }
+export interface PendingConversationProfileScope {
+  kind: "pending";
+  projectId: string;
+  pendingId: string;
+  document?: SubagentProfilesDocument;
+  lead: Pick<ConversationConfig, "model" | "reasoningLevel">;
+  /** Read at mutation time so first-send locking does not wait for an effect. */
+  readonly?: () => boolean;
+  onDocumentChange(document: SubagentProfilesDocument): void;
+}
+export type ConversationProfileScope =
+  | SavedConversationProfileScope
+  | PendingConversationProfileScope;
+
 export function conversationProfileScope(
   projectId: string | undefined,
   conversation:
     | { id: string; parentConversationId?: string | null }
     | undefined,
   interactive = true,
+  pending?: Omit<PendingConversationProfileScope, "kind" | "projectId">,
 ): ConversationProfileScope | undefined {
-  return interactive && projectId && conversation?.parentConversationId === null
-    ? { projectId, conversationId: conversation.id }
+  if (!interactive || !projectId) return;
+  if (conversation)
+    return conversation.parentConversationId === null
+      ? { kind: "saved", projectId, conversationId: conversation.id }
+      : undefined;
+  return pending ? { kind: "pending", projectId, ...pending } : undefined;
+}
+
+function scopeKey(scope?: ConversationProfileScope): string | undefined {
+  return (
+    scope &&
+    `${scope.projectId}:${scope.kind}:${scope.kind === "saved" ? scope.conversationId : scope.pendingId}`
+  );
+}
+function pendingInputKey(scope?: ConversationProfileScope): string | undefined {
+  return scope?.kind === "pending"
+    ? JSON.stringify([scope.document, scope.lead])
     : undefined;
 }
+const emptyDocument = (): SubagentProfilesDocument => ({
+  schemaVersion: 1,
+  profiles: {},
+});
 
 export interface ConversationProfileState {
   configuration?: SubagentProfilesConfiguration;
@@ -26,13 +65,20 @@ export interface ConversationProfileState {
   error?: string;
 }
 interface Dependencies {
-  read(scope: ConversationProfileScope): Promise<SubagentProfilesConfiguration>;
+  read(
+    scope: SavedConversationProfileScope,
+  ): Promise<SubagentProfilesConfiguration>;
   update(
-    scope: ConversationProfileScope,
+    scope: SavedConversationProfileScope,
     name: string,
     patch: SubagentProfilePatch,
     expectedDigest: string | null,
   ): Promise<SubagentProfilesConfiguration>;
+  preview(input: {
+    projectId: string;
+    document: SubagentProfilesDocument;
+    lead: PendingConversationProfileScope["lead"];
+  }): Promise<SubagentProfilesConfiguration>;
   changed(state: ConversationProfileState): void;
 }
 
@@ -41,19 +87,28 @@ export class ConversationProfileController {
   private scope?: ConversationProfileScope;
   private generation = 0;
   private mutationEpoch = 0;
+  private revision = 0;
+  private inputKey?: string;
   private mutationError?: string;
   private queue: Promise<void> = Promise.resolve();
   private state: ConversationProfileState = { loading: false, saving: false };
   constructor(private readonly dependencies: Dependencies) {}
 
   follow(scope?: ConversationProfileScope): void {
-    if (
-      this.scope?.conversationId === scope?.conversationId &&
-      this.scope?.projectId === scope?.projectId
-    )
+    const inputKey = pendingInputKey(scope);
+    if (scopeKey(this.scope) === scopeKey(scope)) {
+      this.scope = scope;
+      if (inputKey !== this.inputKey) {
+        this.inputKey = inputKey;
+        this.revision++;
+        void this.refresh();
+      }
       return;
+    }
     this.scope = scope;
+    this.inputKey = inputKey;
     this.generation++;
+    this.revision++;
     this.mutationError = undefined;
     this.publish({ loading: false, saving: false });
     if (scope) void this.refresh();
@@ -73,12 +128,25 @@ export class ConversationProfileController {
   refresh(): Promise<void> {
     const scope = this.scope;
     const generation = this.generation;
+    const revision = this.revision;
     return this.enqueue(async () => {
-      if (!scope || generation !== this.generation) return;
+      if (
+        !scope ||
+        generation !== this.generation ||
+        revision !== this.revision
+      )
+        return;
       this.publish({ ...this.state, loading: true });
       try {
-        const configuration = await this.dependencies.read(scope);
-        if (generation === this.generation)
+        const configuration =
+          scope.kind === "saved"
+            ? await this.dependencies.read(scope)
+            : await this.dependencies.preview({
+                projectId: scope.projectId,
+                document: scope.document ?? emptyDocument(),
+                lead: scope.lead,
+              });
+        if (generation === this.generation && revision === this.revision)
           this.publish({
             configuration,
             loading: false,
@@ -86,19 +154,48 @@ export class ConversationProfileController {
             error: this.mutationError,
           });
       } catch (error) {
-        if (generation === this.generation)
-          this.publish({ ...this.state, loading: false, error: String(error) });
+        if (generation === this.generation && revision === this.revision)
+          this.publish({
+            ...this.state,
+            loading: false,
+            saving: false,
+            error: String(error),
+          });
       }
     });
   }
 
   mutate(name: string, patch: SubagentProfilePatch): Promise<void> {
+    const pending = this.scope;
+    if (pending?.kind === "pending") {
+      if (
+        pending.readonly?.() ||
+        !this.state.configuration ||
+        this.state.configuration.diagnostics.some(
+          (d) => d.severity === "blocking",
+        )
+      )
+        return Promise.resolve();
+      const document = applySubagentProfilePatch(
+        pending.document ?? emptyDocument(),
+        name,
+        patch,
+      );
+      // Commit to the draft owner before any asynchronous preview (or Send).
+      this.scope = { ...pending, document };
+      this.inputKey = pendingInputKey(this.scope);
+      this.revision++;
+      pending.onDocumentChange(document);
+      this.publish({ ...this.state, error: undefined });
+      return this.refresh();
+    }
     const epoch = this.mutationEpoch;
     const scope = this.scope;
     const generation = this.generation;
     return this.enqueue(async () => {
       if (
         !scope ||
+        scope.kind !== "saved" ||
         generation !== this.generation ||
         epoch !== this.mutationEpoch ||
         !this.state.configuration

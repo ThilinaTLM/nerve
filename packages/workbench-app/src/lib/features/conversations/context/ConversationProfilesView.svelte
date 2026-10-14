@@ -35,6 +35,7 @@ let {
   configuration,
   loading,
   saving,
+  readonly = false,
   error,
   models,
   delegation,
@@ -48,6 +49,7 @@ let {
   configuration?: SubagentProfilesConfiguration;
   loading: boolean;
   saving: boolean;
+  readonly?: boolean;
   error?: string;
   /** Used to name models in summaries. */
   models: ModelInfo[];
@@ -64,7 +66,8 @@ let {
 let editing = $state<string | undefined>();
 
 const blocked = $derived(
-  saving ||
+  readonly ||
+    saving ||
     loading ||
     !configuration ||
     configuration.diagnostics.some((d) => d.severity === "blocking"),
