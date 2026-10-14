@@ -99,7 +99,11 @@ export function createTurnResourcesPort(options: {
       const selected = [
         ...(await options.tools(projectDir)),
         ...coreTools,
-      ].filter((tool) => !(isChild && blocked.has(tool.name)));
+      ].filter(
+        (tool) =>
+          !(isChild && blocked.has(tool.name)) &&
+          (tool.name !== "plan_mode_present" || config.mode === "planning"),
+      );
       const filtered = selected.filter((tool) => {
         const name = tool.name.startsWith("subagent_")
           ? "subagents"
