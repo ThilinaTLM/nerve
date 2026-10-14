@@ -34,6 +34,20 @@ describe("file display classification", () => {
     }
   });
 
+  it("recognizes HTML paths but keeps editing as the default", () => {
+    for (const path of [
+      "wireframe.html",
+      "mockups/index.htm",
+      "INDEX.HTML?raw=1#header",
+      "preview.HTM",
+    ]) {
+      assert.equal(fileRenderKind(path), "html", path);
+      assert.equal(defaultFileDisplayMode(path), "raw", path);
+      assert.equal(isMarkdownPath(path), false, path);
+      assert.equal(isMermaidPath(path), false, path);
+    }
+  });
+
   it("keeps other files in raw mode", () => {
     for (const path of [undefined, "README", "diagram.svg", "notes.txt"]) {
       assert.equal(fileRenderKind(path), undefined, String(path));

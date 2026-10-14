@@ -1,5 +1,12 @@
 import type { FileDisplayMode } from "@nervekit/ui-kit/display/file-display";
 
+export type HtmlPreviewViewModel = {
+  url?: string;
+  loading?: boolean;
+  error?: string;
+  blocked?: boolean;
+};
+
 export type FilePaneContent = {
   path: string;
   relativePath?: string;

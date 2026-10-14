@@ -176,3 +176,57 @@ export const clipboardImageUploadResponseSchema = z.object({
 export type ClipboardImageUploadResponse = z.infer<
   typeof clipboardImageUploadResponseSchema
 >;
+
+export const htmlPreviewResourceCategorySchema = z.enum([
+  "script",
+  "style",
+  "image",
+  "font",
+]);
+export type HtmlPreviewResourceCategory = z.infer<
+  typeof htmlPreviewResourceCategorySchema
+>;
+
+export const htmlPreviewApprovalSchema = z.object({
+  origin: z
+    .string()
+    .max(2_048)
+    .refine((value) => {
+      try {
+        const url = new URL(value);
+        return (
+          (url.protocol === "https:" || url.protocol === "http:") &&
+          url.origin === value
+        );
+      } catch {
+        return false;
+      }
+    }, "Expected an exact HTTP(S) origin"),
+  category: htmlPreviewResourceCategorySchema,
+});
+export type HtmlPreviewApproval = z.infer<typeof htmlPreviewApprovalSchema>;
+
+export const htmlPreviewCreateRequestSchema = z.object({
+  projectId: z.string().min(1),
+  path: z.string().min(1).max(4_096),
+  text: z.string().max(1_048_576),
+  approvals: z.array(htmlPreviewApprovalSchema).max(128).optional(),
+});
+export type HtmlPreviewCreateRequest = z.infer<
+  typeof htmlPreviewCreateRequestSchema
+>;
+export const htmlPreviewCreateResponseSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{64}$/),
+  url: z.string().regex(/^\/html-preview\/[a-f0-9]{64}\/document$/),
+});
+export type HtmlPreviewCreateResponse = z.infer<
+  typeof htmlPreviewCreateResponseSchema
+>;
+export const htmlPreviewRevokeRequestSchema = z.object({
+  id: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export const htmlPreviewResourceMessageSchema = z.object({
+  type: z.literal("nerve:html-preview-resource"),
+  category: htmlPreviewResourceCategorySchema,
+  url: z.string().max(4_096).url(),
+});

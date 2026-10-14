@@ -9,7 +9,11 @@ import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { CodeMirrorViewer } from "$lib/presentation/code";
 import { MermaidPane } from "$lib/presentation/mermaid";
 import { resolveFilePaneModel } from "./file-pane-model.js";
-import type { FilePaneViewModel } from "./file-pane-contracts.js";
+import type {
+  FilePaneViewModel,
+  HtmlPreviewViewModel,
+} from "./file-pane-contracts.js";
+import HtmlPreviewPane from "./HtmlPreviewPane.svelte";
 
 let {
   view,
@@ -20,6 +24,10 @@ let {
   onToggleWrap,
   onChange,
   onSave,
+  htmlPreview,
+  htmlPreviewUnavailable,
+  onHtmlResourceMessage,
+  onRetryHtmlPreview,
 }: {
   view?: FilePaneViewModel;
   onOpenFile?: (path: string, line?: number) => void;
@@ -29,6 +37,10 @@ let {
   onToggleWrap?: () => void;
   onChange?: (text: string) => void;
   onSave?: () => void;
+  htmlPreview?: HtmlPreviewViewModel;
+  htmlPreviewUnavailable?: string;
+  onHtmlResourceMessage?: (data: unknown) => void;
+  onRetryHtmlPreview?: () => void;
 } = $props();
 
 const resolved = $derived(view ? resolveFilePaneModel(view) : undefined);
@@ -96,6 +108,15 @@ const showMermaidPreview = $derived(
         </p>
       {/if}
     </div>
+  {:else if file?.type === "text" && resolved?.renderKind === "html" && resolved.displayMode === "rendered"}
+    <HtmlPreviewPane
+      preview={htmlPreview}
+      unavailable={htmlPreviewUnavailable}
+      title={`HTML preview: ${resolved.filePath}`}
+      dirty={view?.dirty}
+      onResourceMessage={onHtmlResourceMessage}
+      onRetry={onRetryHtmlPreview}
+    />
   {:else if showMermaidPreview && file?.type === "text" && resolved}
     <MermaidPane
       source={view?.draft ?? file.text ?? ""}

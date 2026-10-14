@@ -1,4 +1,6 @@
 import type {
+  HtmlPreviewCreateRequest,
+  HtmlPreviewCreateResponse,
   ClipboardImageUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
@@ -9,6 +11,7 @@ import type {
   FilesystemProjectEntryCreateResponse,
 } from "@nervekit/contracts/filesystem";
 import {
+  apiDeleteNoContent,
   apiGet,
   apiPost,
   apiPut,
@@ -16,6 +19,21 @@ import {
 } from "$lib/platform/http/api-client";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
+
+export function createHtmlPreview(
+  request: HtmlPreviewCreateRequest,
+): Promise<HtmlPreviewCreateResponse> {
+  return apiPost<HtmlPreviewCreateResponse>(
+    "/api/filesystem/html-preview",
+    request,
+  );
+}
+
+export function revokeHtmlPreview(id: string): Promise<void> {
+  return apiDeleteNoContent(
+    `/api/filesystem/html-preview/${encodeURIComponent(id)}`,
+  );
+}
 
 export async function uploadClipboardImage(file: File): Promise<string> {
   const response = await apiPost<ClipboardImageUploadResponse>(

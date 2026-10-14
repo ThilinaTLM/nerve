@@ -433,6 +433,7 @@ const textExtensions = new Set([
   ".go",
   ".h",
   ".html",
+  ".htm",
   ".java",
   ".js",
   ".json",

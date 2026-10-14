@@ -1,6 +1,7 @@
 import { parseCookieHeader } from "./cookies.js";
 import type { MiddlewareHandler } from "hono";
 import { requestContextFor } from "./request-context.js";
+import { requestLogPath } from "./request-log-path.js";
 
 export type ClientAuthMode = "bearer" | "cookie" | "none";
 
@@ -30,11 +31,35 @@ export function unauthorized() {
   );
 }
 
+/** Browser isolation is checked before credentials: dev proxies may inject bearer tokens. */
+export function isBlockedBrowserApiRequest(request: Request): boolean {
+  const origin = request.headers.get("origin");
+  const site = request.headers.get("sec-fetch-site");
+  if (origin === "null" || site === "cross-site") return true;
+  // Same-site is not same-origin (ports and sibling hosts can differ).
+  if (site === "same-site") return true;
+  // Browsers set this forbidden header; reverse proxies may rewrite upstream host/scheme.
+  if (site === "same-origin") return false;
+  if (origin && origin !== new URL(request.url).origin) return true;
+  return false;
+}
+
 export function createApiAuthMiddleware(token: string): MiddlewareHandler {
   return async (c, next) => {
+    if (isBlockedBrowserApiRequest(c.req.raw)) {
+      return c.json(
+        {
+          error: {
+            code: "FORBIDDEN",
+            message: "Cross-origin browser API requests are not allowed.",
+          },
+        },
+        403,
+      );
+    }
     if (!isAuthorized(c.req.raw, token)) {
       const method = c.req.method;
-      const path = new URL(c.req.url).pathname;
+      const path = requestLogPath(c.req.url);
       await requestContextFor(c)?.logger.warn(
         `${method} ${path} authorization failed`,
         {

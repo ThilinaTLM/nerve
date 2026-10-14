@@ -29,6 +29,25 @@ describe("resolveFilePaneModel", () => {
     assert.equal(mermaid.displayMode, "rendered");
   });
 
+  it("defaults HTML to code while preserving explicit preview and targeted lines", () => {
+    for (const path of ["mock.html", "MOCK.HTM"]) {
+      const html = resolveFilePaneModel(view(path));
+      assert.equal(html.renderKind, "html");
+      assert.equal(html.displayMode, "raw");
+      assert.equal(
+        resolveFilePaneModel({ ...view(path), displayMode: "rendered" })
+          .displayMode,
+        "rendered",
+      );
+      assert.equal(resolveFilePaneModel(view(path, 4)).displayMode, "raw");
+      assert.equal(
+        resolveFilePaneModel({ ...view(path, 4), displayMode: "rendered" })
+          .displayMode,
+        "rendered",
+      );
+    }
+  });
+
   it("resolves Markdown links from the loaded file directory", () => {
     assert.equal(
       resolveFilePaneModel(view("/repo/docs/guide.md")).linkBasePath,

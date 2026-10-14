@@ -1,6 +1,7 @@
 import type { Context, Handler } from "hono";
 import { errorResponse } from "./errors.js";
 import { requestContextFor } from "./request-context.js";
+import { requestLogPath } from "./request-log-path.js";
 
 export function routeHandler(
   handler: (c: Context) => Response | Promise<Response>,
@@ -10,7 +11,7 @@ export function routeHandler(
       return await handler(c);
     } catch (error) {
       const method = c.req.method;
-      const path = new URL(c.req.url).pathname;
+      const path = requestLogPath(c.req.url);
       await requestContextFor(c)?.logger.error(
         `${method} ${path} handler failed`,
         {
