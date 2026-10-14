@@ -1,11 +1,22 @@
 import type { ModelInfo } from "@nervekit/contracts/models";
 import type {
-  SubagentProfile,
   SubagentProfileConfiguration,
+  SubagentProfileEntry,
   SubagentProfileScope,
   SubagentProfileDiagnostic,
+  SubagentProfileSource,
+  SubagentProfilesDocument,
 } from "@nervekit/contracts/subagents";
-import { modelDisplayName } from "$lib/presentation/utils/model";
+import {
+  profileCreatedHere,
+  profileCustomizedFields,
+  profileDescription,
+  profileFieldLabel,
+  profileFieldValueLabel,
+  profileLabel,
+  profileOriginLayer,
+  type ProfileField,
+} from "$lib/presentation/subagents/profile-layers";
 
 /** Invalid local entries have no parsed local value, but can still be removed whole. */
 export function canResetProfileEntry(
@@ -89,20 +100,231 @@ export function profileRowDiagnostics(
   };
 }
 
-/** One line: model, thinking level when set, and the permission rule set. */
-export function profileSummary(
-  profile: SubagentProfile,
-  models: readonly ModelInfo[],
-): string {
-  const parts: string[] = [];
-  if (profile.model === "lead") parts.push("Lead's model");
-  else {
-    const match = models.find(
-      (model) => `${model.provider}/${model.modelId}` === profile.model,
-    );
-    parts.push(match ? modelDisplayName(match) : profile.model);
+/** The layers Settings edits; conversations are edited in the popover. */
+export type ProfileSettingsLayer = Exclude<
+  SubagentProfileScope,
+  "conversation"
+>;
+
+export type ProfileGroup = {
+  origin: SubagentProfileSource;
+  title: string;
+  profiles: SubagentProfileConfiguration[];
+};
+
+const groupTitles: Record<
+  ProfileSettingsLayer,
+  Partial<Record<SubagentProfileSource, string>>
+> = {
+  user: { user: "Your profiles", builtin: "Built-in" },
+  project: {
+    project: "Project profiles",
+    user: "From User",
+    builtin: "Built-in",
+  },
+};
+
+/** Profiles created here first, then inherited ones by layer; empty groups are skipped. */
+export function groupProfilesByOrigin(
+  profiles: readonly SubagentProfileConfiguration[],
+  scope: ProfileSettingsLayer,
+): ProfileGroup[] {
+  const titles = groupTitles[scope];
+  const groups = (Object.keys(titles) as SubagentProfileSource[]).map(
+    (origin): ProfileGroup => ({
+      origin,
+      title: titles[origin] ?? origin,
+      profiles: [],
+    }),
+  );
+  for (const profile of profiles) {
+    const origin = profileOriginLayer(profile, scope);
+    (
+      groups.find((group) => group.origin === origin) ?? groups[0]
+    ).profiles.push(profile);
   }
-  if (profile.thinking !== "lead") parts.push(`${profile.thinking} thinking`);
-  parts.push(profile.permission === "read_only" ? "Read-only" : "Autonomous");
-  return parts.join(" · ");
+  return groups.filter((group) => group.profiles.length > 0);
+}
+
+export function profileMatchesFilter(
+  profile: SubagentProfileConfiguration,
+  query: string,
+): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return [
+    profile.name,
+    profileLabel(profile),
+    profileDescription(profile) ?? "",
+  ]
+    .join("\n")
+    .toLowerCase()
+    .includes(needle);
+}
+
+export type ProfileRowProblems = {
+  /** Diagnostics shown under the row; document failures are explained above the list. */
+  diagnostics: SubagentProfileDiagnostic[];
+  documentBlock?: string;
+  blocked: boolean;
+  reduced: boolean;
+  needsReview: boolean;
+};
+
+export function profileRowProblems(
+  profile: SubagentProfileConfiguration,
+  documentDiagnostics: readonly SubagentProfileDiagnostic[],
+  scope: SubagentProfileScope,
+): ProfileRowProblems {
+  const row = profileRowDiagnostics(profile, documentDiagnostics, scope);
+  const blocked =
+    row.documentBlock !== undefined ||
+    row.diagnostics.some((item) => item.severity === "blocking");
+  return {
+    ...row,
+    blocked,
+    reduced: !blocked && row.diagnostics.length > 0,
+    needsReview: profile.trust === "untrusted",
+  };
+}
+
+export type ProfileRowActions = {
+  edit: boolean;
+  duplicate: boolean;
+  /** The other settings layer this profile can be copied into. */
+  copyTo?: ProfileSettingsLayer;
+  exportJson: boolean;
+  resetCustomizations: boolean;
+  delete: boolean;
+};
+
+/** Only the actions that apply to a row; built-ins are never deletable. */
+export function profileRowActions(
+  profile: SubagentProfileConfiguration,
+  scope: SubagentProfileScope,
+  options: { canCopyToProject: boolean },
+): ProfileRowActions {
+  const effective = profile.effective !== null;
+  const origin = profileOriginLayer(profile, scope);
+  const createdHere = profileCreatedHere(profile, scope);
+  const resettable = canResetProfileEntry(profile, scope);
+  let copyTo: ProfileSettingsLayer | undefined;
+  if (
+    effective &&
+    scope === "user" &&
+    origin === "user" &&
+    options.canCopyToProject
+  )
+    copyTo = "project";
+  if (
+    effective &&
+    scope === "project" &&
+    (origin === "project" ||
+      (origin === "user" && profileCustomizedFields(profile, scope).length > 0))
+  )
+    copyTo = "user";
+  return {
+    edit: effective || profile.local !== null,
+    duplicate: effective,
+    ...(copyTo ? { copyTo } : {}),
+    exportJson: effective,
+    resetCustomizations: resettable && !createdHere,
+    delete: resettable && createdHere && origin !== "builtin",
+  };
+}
+
+function lowerLayerValues(
+  profile: SubagentProfileConfiguration,
+  scope: SubagentProfileScope,
+): string {
+  if (scope === "user") return "Built-in values";
+  return profileOriginLayer(profile, scope) === "user"
+    ? "User values"
+    : "User and Built-in values";
+}
+
+/** Confirmation copy for removing this layer's changes to an inherited profile. */
+export function profileResetConfirmation(
+  profile: SubagentProfileConfiguration,
+  scope: SubagentProfileScope,
+  models: readonly ModelInfo[],
+): { title: string; description: string; confirmLabel: string } {
+  const label = profileLabel(profile);
+  const fields = profileCustomizedFields(profile, scope);
+  const changes = fields.map((field) => {
+    const local = profile.local?.[field];
+    const inherited = profile.inherited?.[field];
+    return `${profileFieldLabel(field)} (${profileFieldValueLabel(field, local, models)} → ${profileFieldValueLabel(field, inherited, models)})`;
+  });
+  const removed = changes.length
+    ? `Removes ${changes.join(", ")}.`
+    : "Removes this layer's entry.";
+  const shared =
+    scope === "project" ? " Teammates who use this repo are affected too." : "";
+  return {
+    title: `Reset ${label} ${scope === "project" ? "for this project" : "in User settings"}?`,
+    description: `${removed} ${label} will use the ${lowerLayerValues(profile, scope)} again.${shared}`,
+    confirmLabel:
+      fields.length > 0
+        ? `Reset ${fields.length} change${fields.length === 1 ? "" : "s"}`
+        : "Reset",
+  };
+}
+
+export function profileDeleteConfirmation(
+  profile: SubagentProfileConfiguration,
+  scope: SubagentProfileScope,
+  filePath: string,
+): { title: string; description: string } {
+  const label = profileLabel(profile);
+  const shared =
+    scope === "project" ? " Teammates who use this repo lose it too." : "";
+  return {
+    title: `Delete ${label}?`,
+    description: `Removes ${label} from ${filePath}. The lead can no longer assign work to it.${shared}`,
+  };
+}
+
+export type ProfileTrustReviewEntry = {
+  name: string;
+  label: string;
+  /** Created by the project rather than customizing an inherited profile. */
+  isNew: boolean;
+  autonomous: boolean;
+  description?: string;
+  instructions?: string;
+  /** Other fields the entry sets, as readable label/value pairs. */
+  fields: { label: string; value: string }[];
+};
+
+const reviewSkipped = new Set<ProfileField>([
+  "label",
+  "description",
+  "instructions",
+]);
+
+/** What each project entry would change once the file is trusted. */
+export function profileTrustReviewEntries(
+  document: SubagentProfilesDocument | null,
+  profiles: readonly SubagentProfileConfiguration[],
+  models: readonly ModelInfo[],
+): ProfileTrustReviewEntry[] {
+  return Object.entries(document?.profiles ?? {}).map(([name, entry]) => {
+    const profile = profiles.find((item) => item.name === name);
+    const fields = (Object.keys(entry) as (keyof SubagentProfileEntry)[])
+      .filter((field) => !reviewSkipped.has(field))
+      .map((field) => ({
+        label: profileFieldLabel(field),
+        value: profileFieldValueLabel(field, entry[field], models),
+      }));
+    return {
+      name,
+      label: entry.label ?? (profile ? profileLabel(profile) : name),
+      isNew: profile ? profileCreatedHere(profile, "project") : true,
+      autonomous: entry.permission === "autonomous",
+      ...(entry.description ? { description: entry.description } : {}),
+      ...(entry.instructions ? { instructions: entry.instructions } : {}),
+      fields,
+    };
+  });
 }

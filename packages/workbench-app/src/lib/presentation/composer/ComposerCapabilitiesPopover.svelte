@@ -9,7 +9,7 @@ import Settings from "@lucide/svelte/icons/settings";
 import Settings2 from "@lucide/svelte/icons/settings-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
-import type { Component, Snippet } from "svelte";
+import type { Component } from "svelte";
 import {
   isConfigurableCapabilityTool,
   type CapabilityConfiguration,
@@ -35,6 +35,11 @@ import {
   capabilityToolState,
 } from "./capability-origin";
 import type { CapabilitySkillRow } from "./capability-skill-row";
+import type {
+  CapabilitySubagentCounts,
+  CapabilitySubagentProfiles,
+  CapabilitySubagentSlot,
+} from "./capability-subagent-slot";
 import {
   capabilityBodyHeight,
   filterCapabilityRows,
@@ -88,7 +93,7 @@ type Props = {
   onReset?: () => void;
   onRefresh?: () => void;
   onOpenSettings?: (page: "tools" | "skills" | "subagents") => void;
-  subagentProfiles?: Snippet<[query: string]>;
+  subagentProfiles?: CapabilitySubagentProfiles;
   subagentControlsEnabled?: boolean;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureTool?: (group: CapabilityToolGroup) => void;
@@ -276,6 +281,19 @@ function openSettings(): void {
   open = false;
   onOpenSettings?.(tab);
 }
+
+let subagentCounts = $state<CapabilitySubagentCounts | undefined>();
+const subagentSlot: CapabilitySubagentSlot = {
+  get delegation() {
+    return subagentControlsEnabled ? delegationRow : undefined;
+  },
+  get delegationOff() {
+    return subagentRow?.enabled === false;
+  },
+  setCounts: (counts) => {
+    subagentCounts = counts;
+  },
+};
 </script>
 
 {#snippet capabilityRow(row: Row)}
@@ -336,6 +354,17 @@ function openSettings(): void {
       onCheckedChange={row.toggle}
     />
   </div>
+{/snippet}
+
+{#snippet delegationRow()}
+  {#if subagentRow}
+    {@render capabilityRow({ ...subagentRow, label: "Delegation" })}
+  {:else if loading && !configuration}
+    <p class="px-1.5 text-muted-foreground">Loading delegation…</p>
+  {:else}
+    <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
+  {/if}
+  {#if error}<p class="px-1.5 text-warning" role="alert">{error}</p>{/if}
 {/snippet}
 
 {#snippet capabilityList(rows: Row[], kind: "tools" | "skills")}
@@ -435,9 +464,14 @@ function openSettings(): void {
         Skills
         <span data-slot="toggle-count">{enabledSkills}/{skills.length}</span>
       </ToggleGroup.Item>
-      <ToggleGroup.Item value="subagents" class="flex-none"
-        >Sub-agents</ToggleGroup.Item
-      >
+      <ToggleGroup.Item value="subagents" class="flex-none">
+        Sub-agents
+        {#if subagentCounts}
+          <span data-slot="toggle-count"
+            >{subagentCounts.enabled}/{subagentCounts.total}</span
+          >
+        {/if}
+      </ToggleGroup.Item>
     </ToggleGroup.Root>
     {#if showSearch}
       <SearchInput
@@ -460,32 +494,17 @@ function openSettings(): void {
       {@render capabilityList(optionalToolRows, "tools")}
     {:else if tab === "skills"}
       {@render capabilityList(skillRows, "skills")}
-    {:else}
-      {#if subagentControlsEnabled}
-        {#if subagentRow}
-          {@render capabilityRow(subagentRow)}
-          <p class="mb-3 px-1.5 text-xs text-muted-foreground">
-            Delegation master switch: when off, the lead has no sub-agent tools.
-            Profile switches cannot enable delegation.
-          </p>
-        {:else if loading && !configuration}
-          <p class="px-1.5 text-xs text-muted-foreground">
-            Loading delegation capability…
-          </p>
-        {:else}
-          <p class="mb-3 px-1.5 text-xs text-warning">
-            The delegation capability is unavailable in this conversation.
-          </p>
-        {/if}
-        {#if error}<p class="px-1.5 text-xs text-warning" role="alert">
-            {error}
-          </p>{/if}
-      {/if}
-      {#if open && tab === "subagents" && subagentProfiles}{@render subagentProfiles(
-          query,
-        )}{:else}<p class="px-1.5 text-xs text-muted-foreground">
-          Sub-agent profiles are available in saved lead conversations.
-        </p>{/if}
+    {:else if !subagentProfiles}
+      {#if subagentControlsEnabled}{@render delegationRow()}{/if}
+      <p class="px-1.5 text-muted-foreground">
+        Sub-agent profiles are available in saved lead conversations.
+      </p>
+    {/if}
+    <!-- Mounted while open so the tab count is known on every tab. -->
+    {#if open && subagentProfiles}
+      <div class={tab === "subagents" ? "grid min-w-0 grid-cols-1" : "hidden"}>
+        {@render subagentProfiles(query, subagentSlot)}
+      </div>
     {/if}
   </PopoverBody>
 </Popover>

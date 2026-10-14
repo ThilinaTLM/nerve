@@ -7,9 +7,13 @@ import type {
 } from "@nervekit/contracts/subagents";
 import {
   canResetProfileEntry,
-  profileSummary,
+  groupProfilesByOrigin,
   profileDiagnosticSummary,
+  profileResetConfirmation,
+  profileRowActions,
   profileRowDiagnostics,
+  profileRowProblems,
+  profileTrustReviewEntries,
 } from "./subagent-profile-rows";
 
 const base: SubagentProfile = {
@@ -205,15 +209,151 @@ describe("profile diagnostics", () => {
   });
 });
 
-describe("profile summary", () => {
-  it("summarizes model, thinking and permissions", () => {
-    assert.equal(profileSummary(base, []), "Lead's model · Read-only");
-    assert.equal(
-      profileSummary(
-        { ...base, model: "x/y", thinking: "high", permission: "autonomous" },
-        [],
-      ),
-      "x/y · high thinking · Autonomous",
+function configured(
+  name: string,
+  origin: "builtin" | "user" | "project",
+  local: SubagentProfileConfiguration["local"] = null,
+): SubagentProfileConfiguration {
+  return {
+    name,
+    local,
+    inherited: origin === "builtin" ? { model: "lead" } : null,
+    effective: { ...base, name, label: name },
+    origins: {
+      fields: {
+        description: origin,
+        model: origin,
+        ...(local?.model ? { model: "project" as const } : {}),
+      },
+      tools: {},
+      skills: {},
+    },
+    trust: "trusted",
+    diagnostics: [],
+  };
+}
+
+describe("profile list", () => {
+  it("groups profiles by the layer that created them and skips empty groups", () => {
+    const groups = groupProfilesByOrigin(
+      [
+        configured("explore", "builtin"),
+        configured("reviewer", "user"),
+        configured("release", "project"),
+      ],
+      "project",
     );
+    assert.deepEqual(
+      groups.map((group) => [group.title, group.profiles.map((p) => p.name)]),
+      [
+        ["Project profiles", ["release"]],
+        ["From User", ["reviewer"]],
+        ["Built-in", ["explore"]],
+      ],
+    );
+    assert.deepEqual(
+      groupProfilesByOrigin([configured("explore", "builtin")], "user").map(
+        (group) => group.title,
+      ),
+      ["Built-in"],
+    );
+  });
+
+  it("offers only applicable row actions and never deletes built-ins", () => {
+    const builtin = profileRowActions(
+      configured("explore", "builtin", { model: "a/b" }),
+      "project",
+      { canCopyToProject: true },
+    );
+    assert.equal(builtin.delete, false);
+    assert.equal(builtin.resetCustomizations, true);
+    assert.equal(builtin.copyTo, undefined);
+
+    const own = profileRowActions(
+      configured("reviewer", "user", { label: "Reviewer" }),
+      "user",
+      { canCopyToProject: true },
+    );
+    assert.equal(own.delete, true);
+    assert.equal(own.resetCustomizations, false);
+    assert.equal(own.copyTo, "project");
+    assert.equal(
+      profileRowActions(configured("reviewer", "user", {}), "user", {
+        canCopyToProject: false,
+      }).copyTo,
+      undefined,
+    );
+
+    const inherited = profileRowActions(
+      configured("reviewer", "user"),
+      "project",
+      { canCopyToProject: true },
+    );
+    assert.equal(inherited.resetCustomizations, false);
+    assert.equal(inherited.delete, false);
+    assert.equal(inherited.copyTo, undefined);
+  });
+
+  it("flags blocking, reduced and untrusted rows", () => {
+    const profile = configured("explore", "builtin");
+    assert.deepEqual(
+      profileRowProblems(
+        {
+          ...profile,
+          trust: "untrusted",
+          diagnostics: [
+            { severity: "warning", code: "unavailable_tool", message: "x" },
+          ],
+        },
+        [],
+        "project",
+      ),
+      {
+        diagnostics: [
+          { severity: "warning", code: "unavailable_tool", message: "x" },
+        ],
+        blocked: false,
+        reduced: true,
+        needsReview: true,
+      },
+    );
+  });
+
+  it("names each reset change with its before and after value", () => {
+    const confirmation = profileResetConfirmation(
+      configured("explore", "builtin", { model: "x/y" }),
+      "project",
+      [],
+    );
+    assert.equal(confirmation.title, "Reset explore for this project?");
+    assert.match(confirmation.description, /model \(x\/y → Same as lead\)/);
+    assert.match(confirmation.description, /User and Built-in values/);
+    assert.match(confirmation.description, /Teammates/);
+    assert.equal(confirmation.confirmLabel, "Reset 1 change");
+  });
+
+  it("lists what each untrusted project entry sets", () => {
+    const [entry] = profileTrustReviewEntries(
+      {
+        schemaVersion: 1,
+        profiles: {
+          release: {
+            label: "Release",
+            permission: "autonomous",
+            instructions: "Ship it",
+          },
+        },
+      },
+      [],
+      [],
+    );
+    assert.deepEqual(entry, {
+      name: "release",
+      label: "Release",
+      isNew: true,
+      autonomous: true,
+      instructions: "Ship it",
+      fields: [{ label: "permission", value: "Autonomous" }],
+    });
   });
 });

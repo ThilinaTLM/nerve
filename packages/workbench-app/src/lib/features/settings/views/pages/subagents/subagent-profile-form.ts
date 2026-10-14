@@ -56,7 +56,7 @@ export type FormField =
   | "skills"
   | "instructions";
 
-/** Blank Developer-like draft, the starting point of Add. */
+/** Blank draft for a new profile: read-only and the lead's values for everything else. */
 export function blankForm(): SubagentProfileForm {
   return {
     nameLocked: false,
@@ -68,7 +68,7 @@ export function blankForm(): SubagentProfileForm {
     modelLead: true,
     model: undefined,
     thinking: "lead",
-    permission: "autonomous",
+    permission: "read_only",
     compactionMode: "inherit",
     compactionAuto: true,
     compactionProfile: "balanced",
@@ -119,7 +119,10 @@ export function formFromProfile(
     model,
     thinking: profile.thinking,
     permission: profile.permission,
-    tools: structuredClone(profile.tools),
+    // JSON clone: profiles often arrive as reactive proxies, which structuredClone rejects.
+    tools: JSON.parse(
+      JSON.stringify(profile.tools),
+    ) as SubagentProfileForm["tools"],
     skillsMode:
       profile.skills === "inherit" || profile.skills === "none"
         ? profile.skills
@@ -307,6 +310,38 @@ export function formToPatch(
   }
   for (const field of reset) patch[field] = null;
   return patch as SubagentProfilePatch;
+}
+
+/**
+ * This layer's entry once the patch is saved, mirroring the server's patch
+ * semantics: null deletes a field or a map member, a map patch merges.
+ */
+export function localEntryAfterSave(
+  local: SubagentProfileEntry | null | undefined,
+  patch: SubagentProfilePatch,
+): SubagentProfileEntry {
+  const entry: Record<string, unknown> = { ...local };
+  for (const [field, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) {
+      delete entry[field];
+      continue;
+    }
+    if (
+      (field === "tools" || field === "skills") &&
+      typeof value === "object"
+    ) {
+      const current = entry[field];
+      const selections: Record<string, unknown> =
+        typeof current === "object" && current !== null ? { ...current } : {};
+      for (const [key, selected] of Object.entries(value)) {
+        if (selected === null) delete selections[key];
+        else selections[key] = selected;
+      }
+      entry[field] = selections;
+    } else entry[field] = value;
+  }
+  return entry as SubagentProfileEntry;
 }
 
 /** Reset controls to the lower profile's values, not the lead's current values. */

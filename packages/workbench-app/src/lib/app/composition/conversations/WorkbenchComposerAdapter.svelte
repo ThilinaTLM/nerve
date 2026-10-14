@@ -50,6 +50,7 @@ import {
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 import ConversationProfilesHost from "./ConversationProfilesHost.svelte";
+import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
 import { conversationProfileScope } from "./conversation-profile-controller";
 import { bindComposerVoiceInput } from "./composer-voice-input";
 
@@ -507,13 +508,14 @@ function handleMicContextMenu(event: MouseEvent) {
 }
 </script>
 
-{#snippet capabilityProfiles(query: string)}
+{#snippet capabilityProfiles(query: string, capability: CapabilitySubagentSlot)}
   <ConversationProfilesHost
+    {capability}
     scope={profileScope}
     {query}
     unavailableReason={activeConversation
-      ? "Sub-agents cannot delegate. To change an existing child's model or thinking, use that child's own conversation controls. Configure profiles in its saved lead conversation."
-      : "Save a lead conversation before configuring sub-agent profiles. Pending conversations do not have a profile scope."}
+      ? "Sub-agents can't delegate; configure profiles in the lead conversation."
+      : "Save the conversation to configure sub-agent profiles."}
   />
 {/snippet}
 

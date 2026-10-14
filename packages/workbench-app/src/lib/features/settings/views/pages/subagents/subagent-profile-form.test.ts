@@ -9,6 +9,7 @@ import {
   formToPatch,
   formWithInheritedField,
   formFromConfiguration,
+  localEntryAfterSave,
   parseProfileModel,
   validateForm,
 } from "./subagent-profile-form";
@@ -81,7 +82,7 @@ describe("profile form conversion", () => {
       enabled: true,
       model: "lead",
       thinking: "lead",
-      permission: "autonomous",
+      permission: "read_only",
       compaction: "inherit",
       skills: "inherit",
       instructions: "",
@@ -202,6 +203,19 @@ describe("scoped sparse updates", () => {
         skills: { old_skill: null, lint: false },
       },
     );
+  });
+
+  it("predicts the saved local entry: null deletes, maps merge and stay present", () => {
+    assert.deepEqual(
+      localEntryAfterSave(
+        { model: "a/b", tools: { web_search: false, jira: true } },
+        { model: null, thinking: "high", tools: { jira: null } },
+      ),
+      { thinking: "high", tools: { web_search: false } },
+    );
+    assert.deepEqual(localEntryAfterSave(null, { tools: { jira: null } }), {
+      tools: {},
+    });
   });
 
   it("allows resetting a required local value even when no lower profile supplies it", () => {

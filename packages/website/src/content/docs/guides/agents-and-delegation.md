@@ -38,7 +38,7 @@ Stopping a sub-agent from its own view notifies the lead. Stopping it through th
 
 ## Write your own profile
 
-The scoped JSON implementation provides a full **Settings → Sub-agents** editor in user and project scope, with enabled state, model, thinking, instructions, permissions, capabilities, compaction, copy-to-scope and reset. Project profiles require trust in the exact document content. In a saved lead conversation, **Capabilities → Sub-agents** provides enabled, model and thinking overrides for newly created children, without changing reusable user/project defaults. Explicit overrides stay pinned until reset. See the [profile format reference](/reference/subagent-profiles/).
+Choose **New profile** under **Settings → Sub-agents** in user scope (all projects) or project scope (shared through the repository). Start blank or from a copy of an existing profile. New profiles are read-only and use the lead's model, thinking, tools and skills until you change them. Describe when the lead should use the profile, because the lead chooses profiles by their description. To adjust an existing profile for one layer, open it and change only the fields you need; everything else keeps following the lower layer. Project profiles require trust in the exact document content. In a saved lead conversation, **Capabilities → Sub-agents** changes availability, model and thinking for newly created children only. See the [profile format reference](/reference/subagent-profiles/).
 
 Profile changes never reconfigure an existing child. If its model hits usage limits, open that child's view and change its own model and thinking level directly. A follow-up to the same name keeps those changes; it does not reapply the profile.
 

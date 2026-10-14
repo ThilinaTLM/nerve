@@ -8,6 +8,8 @@ import { observeConversationChannel } from "$lib/application/startup/conversatio
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
 import ModelPicker from "$lib/features/settings/views/shared/model-picker/ModelPicker.svelte";
 import ConversationProfilesView from "$lib/features/conversations/context/ConversationProfilesView.svelte";
+import { conversationProfileCounts } from "$lib/features/conversations/context/conversation-profile-diagnostics";
+import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import {
@@ -20,10 +22,13 @@ let {
   scope,
   query = "",
   unavailableReason,
+  capability: slot,
 }: {
   scope?: ConversationProfileScope;
   query?: string;
   unavailableReason?: string;
+  /** Provided by the composer's Capabilities popover. */
+  capability?: CapabilitySubagentSlot;
 } = $props();
 const projectId = $derived(scope?.projectId);
 const conversationId = $derived(scope?.conversationId);
@@ -46,6 +51,12 @@ const controller = new ConversationProfileController({
     state = next;
   },
 });
+$effect(() => {
+  if (!scope) slot?.setCounts(undefined);
+  else if (state.configuration)
+    slot?.setCounts(conversationProfileCounts(state.configuration));
+});
+
 const models = $derived(
   authenticatedRealModelOptions(
     settingsState.models,
@@ -120,12 +131,15 @@ function selection(value: string | undefined): ModelSelection | undefined {
   {query}
   unavailableReason={!scope
     ? (unavailableReason ??
-      "Save a lead conversation before configuring sub-agent profiles.")
+      "Save the conversation to configure sub-agent profiles.")
     : undefined}
   configuration={state.configuration}
   loading={state.loading}
   saving={state.saving}
   error={state.error}
+  models={settingsState.models}
+  delegation={slot?.delegation}
+  delegationOff={slot?.delegationOff}
   onPatch={(name, patch) => {
     void controller.mutate(name, patch);
   }}
@@ -136,6 +150,7 @@ function selection(value: string | undefined): ModelSelection | undefined {
   {#snippet modelEditor(profile, disabled)}
     <ModelPicker
       label={`Model for ${profile.name}`}
+      class="w-full"
       {models}
       value={selection(profile.effective?.model ?? profile.local?.model)}
       thinkingLevel={undefined}
@@ -143,9 +158,8 @@ function selection(value: string | undefined): ModelSelection | undefined {
       {disabled}
       inherit={(profile.effective?.model ?? profile.local?.model) === "lead"}
       inheritOption={{
-        label: "Use parent's model",
-        description:
-          "Copy this conversation's model when creating a child. This is an explicit choice, not a profile reset.",
+        label: "Same as lead",
+        description: "Use the lead's model when the sub-agent is created.",
       }}
       onInherit={() => {
         void controller.mutate(profile.name, { model: "lead" });

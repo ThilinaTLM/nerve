@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nerve · Sub-agent profiles redesign · Profile editor</title>
+    <link rel="stylesheet" href="wireframe.css" />
+  </head>
+  <body>
+    <div class="study">
+      <nav class="study-nav" aria-label="Study pages">
+        <span class="brand">Sub-agent profiles study</span>
+        <a href="index.html">1 · Overview</a>
+        <a href="settings.html">2 · Settings list</a>
+        <a href="editor.html" aria-current="page">3 · Profile editor</a>
+        <a href="conversation.html">4 · Conversation</a>
+      </nav>
+      <h1>Profile editor</h1>
+      <p class="lede">
+        A full page inside Settings, replacing today’s dialog. It has room for
+        long instructions and tool lists, and the back button and links work.
+        The same editor handles creating a profile and customizing an inherited
+        one. The only difference is that inherited fields show where their value
+        comes from and offer <i>Revert</i>.
+      </p>
+
+      <div class="state-switch" data-group="mode">
+        <button data-show="override" aria-pressed="true">
+          Customize built-in in Project
+        </button>
+        <button data-show="new">Create new in User</button>
+        <button data-show="clash">Name clash</button>
+        <button data-show="layers">Where values come from</button>
+        <button data-show="fieldmenu">Field ⋯ menu</button>
+        <button data-show="conflict">File changed on disk</button>
+      </div>
+
+      <div class="with-notes">
+        <div class="window rel">
+          <div
+            class="settings"
+            style="grid-template-columns: 200px minmax(0, 1fr)"
+          >
+            <aside class="settings-side">
+              <div class="title">Settings</div>
+              <div
+                class="seg"
+                data-nav
+                style="margin: 0 4px 10px; display: flex"
+              >
+                <button
+                  style="flex: 1"
+                  data-state-of="mode"
+                  data-state="override layers fieldmenu conflict"
+                  aria-pressed="false"
+                >
+                  User
+                </button>
+                <button
+                  style="flex: 1"
+                  data-state-of="mode"
+                  data-state="override layers fieldmenu conflict"
+                  aria-pressed="true"
+                >
+                  Project
+                </button>
+                <button
+                  style="flex: 1"
+                  data-state-of="mode"
+                  data-state="new clash"
+                  aria-pressed="true"
+                >
+                  User
+                </button>
+                <button
+                  style="flex: 1"
+                  data-state-of="mode"
+                  data-state="new clash"
+                  aria-pressed="false"
+                >
+                  Project
+                </button>
+              </div>
+              <div class="side-item">Permissions</div>
+              <div class="side-item">Tools</div>
+              <div class="side-item active">Sub-agents</div>
+              <div class="side-item">Skills</div>
+              <div class="side-item">…</div>
+            </aside>
+            <div style="display: flex; flex-direction: column; min-width: 0">
+              <main class="settings-main" style="max-width: none; flex: 1">
+                <div class="crumbs">
+                  <a
+                    href="settings.html"
+                    class="row"
+                    style="color: inherit; text-decoration: none"
+                    ><span data-icon="chevronLeft"></span>Sub-agents</a
+                  >
+                  <span>/</span>
+                  <span
+                    data-state-of="mode"
+                    data-state="override layers fieldmenu conflict"
+                    >Explore</span
+                  >
+                  <span data-state-of="mode" data-state="new clash"
+                    >New profile</span
+                  >
+                </div>
+
+                <!-- Header: override -->
+                <div
+                  class="editor-head"
+                  data-state-of="mode"
+                  data-state="override layers fieldmenu conflict"
+                >
+                  <span
+                    class="avatar"
+                    style="width: 40px; height: 40px"
+                    data-icon="telescope"
+                  ></span>
+                  <div style="flex: 1">
+                    <h1>Explore <span class="badge">Built-in</span></h1>
+                    <div class="row small subtle" style="margin-top: 2px">
+                      <span
+                        class="strip"
+                        title="Layers that set values for this profile"
+                      >
+                        <span class="l-builtin on">B</span
+                        ><span class="l-user on">U</span
+                        ><span class="l-project on here">P</span>
+                      </span>
+                      <span
+                        >Editing
+                        <span class="origin l-project"
+                          ><span class="layer-dot"></span>Project · nerve</span
+                        >. Built-in values stay unchanged.</span
+                      >
+                    </div>
+                  </div>
+                  <span class="small muted">Available</span>
+                  <button
+                    class="switch"
+                    role="switch"
+                    aria-checked="true"
+                    aria-label="Explore available to the lead"
+                  ></button>
+                  <button
+                    class="icon-btn"
+                    data-icon="more"
+                    aria-label="Profile actions"
+                  ></button>
+                </div>
+                <!-- Header: new -->
+                <div
+                  class="editor-head"
+                  data-state-of="mode"
+                  data-state="new clash"
+                >
+                  <span
+                    class="avatar"
+                    style="width: 40px; height: 40px"
+                    data-icon="test"
+                  ></span>
+                  <div style="flex: 1">
+                    <h1>New profile</h1>
+                    <div class="small subtle">
+                      Will be saved to
+                      <span class="origin l-user"
+                        ><span class="layer-dot"></span>User</span
+                      >, available in all projects.
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  class="banner warning"
+                  data-state-of="mode"
+                  data-state="conflict"
+                >
+                  <span data-icon="alert"></span>
+                  <div class="body">
+                    <b>subagents.json changed while you were editing</b>
+                    <span class="muted"
+                      >Someone (or git) changed this project’s file. Your 2
+                      unsaved changes are kept. Review the latest version, or
+                      save over it.</span
+                    >
+                  </div>
+                  <button class="btn xs">Show latest</button>
+                  <button class="btn xs">Save over it</button>
+                </div>
+
+                <div
+                  class="seg sm"
+                  style="margin: 14px 0 4px"
+                  data-state-of="mode"
+                  data-state="override layers fieldmenu conflict"
+                  data-nav
+                >
+                  <button
+                    aria-pressed="true"
+                    data-state-of="mode"
+                    data-state="override fieldmenu conflict"
+                  >
+                    Settings
+                  </button>
+                  <button
+                    aria-pressed="false"
+                    data-state-of="mode"
+                    data-state="override fieldmenu conflict"
+                  >
+                    Where values come from
+                  </button>
+                  <button
+                    aria-pressed="false"
+                    data-state-of="mode"
+                    data-state="layers"
+                  >
+                    Settings
+                  </button>
+                  <button
+                    aria-pressed="true"
+                    data-state-of="mode"
+                    data-state="layers"
+                  >
+                    Where values come from
+                  </button>
+                </div>
+
+                <!-- ===== LAYERS TAB ===== -->
+                <div
+                  data-state-of="mode"
+                  data-state="layers"
+                  style="margin-top: 12px"
+                >
+                  <p class="small muted" style="margin: 0 0 10px">
+                    Every field, every layer. The highlighted cell is the value
+                    used. Click a Project cell to edit it. Other layers open in
+                    their own settings.
+                  </p>
+                  <div class="card" style="padding: 4px">
+                    <table class="layers-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 120px">Field</th>
+                          <th>
+                            <span class="origin l-builtin"
+                              ><span class="layer-dot"></span>Built-in</span
+                            >
+                          </th>
+                          <th>
+                            <span class="origin l-user"
+                              ><span class="layer-dot"></span>User</span
+                            >
+                            <a class="xs" href="#">edit</a>
+                          </th>
+                          <th>
+                            <span class="origin l-project"
+                              ><span class="layer-dot"></span>Project ·
+                              nerve</span
+                            >
+                          </th>
+                          <th style="width: 32px"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td>Available</td>
+                          <td class="win l-builtin">On</td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Description</td>
+                          <td class="win l-builtin">
+                            Read-only codebase and web research…
+                          </td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Model</td>
+                          <td class="lose">Same as lead</td>
+                          <td class="lose">Claude Haiku 4.5</td>
+                          <td class="win l-project">GPT-5 mini</td>
+                          <td>
+                            <button
+                              class="icon-btn"
+                              data-icon="reset"
+                              title="Revert Project value"
+                            ></button>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Thinking</td>
+                          <td class="lose">Same as lead</td>
+                          <td class="win l-user">Low</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Permission</td>
+                          <td class="win l-builtin">Read-only</td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Tools</td>
+                          <td class="win l-builtin">Same as lead</td>
+                          <td class="empty">—</td>
+                          <td class="win l-project">+Jira</td>
+                          <td>
+                            <button
+                              class="icon-btn"
+                              data-icon="reset"
+                              title="Revert Project value"
+                            ></button>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>Skills</td>
+                          <td class="win l-builtin">Same as lead</td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Compaction</td>
+                          <td class="win l-builtin">Same as lead</td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                        <tr>
+                          <td>Instructions</td>
+                          <td class="win l-builtin">
+                            You are a read-only researcher…
+                            <a class="xs" href="#">view</a>
+                          </td>
+                          <td class="empty">—</td>
+                          <td class="empty">—</td>
+                          <td></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <p class="xs subtle">
+                    Tools combine per tool: Project adds Jira on top of the
+                    lead’s tools. Conversation changes are not shown here. They
+                    live in each conversation’s Capabilities popover.
+                  </p>
+                </div>
+
+                <!-- ===== FORM ===== -->
+                <div
+                  class="editor"
+                  data-state-of="mode"
+                  data-state="override new fieldmenu conflict clash"
+                  style="margin-top: 10px"
+                >
+                  <div>
+                    <div
+                      class="banner info"
+                      data-state-of="mode"
+                      data-state="override fieldmenu conflict"
+                      style="margin-top: 0"
+                    >
+                      <span data-icon="info"></span>
+                      <div class="body small muted">
+                        Fields with a dashed outline use values from lower
+                        layers. Changing one saves only that field to this
+                        project. Use
+                        <i>Revert</i> on a field to undo it.
+                      </div>
+                    </div>
+
+                    <!-- Identity -->
+                    <section
+                      class="fsec"
+                      style="border-top: 0; padding-top: 6px"
+                    >
+                      <h2>Identity</h2>
+                      <p class="help">
+                        How you and the lead recognise this profile.
+                      </p>
+                      <div class="two">
+                        <div class="field inherited-when-override">
+                          <div class="field-label">
+                            Label
+                            <span class="spacer"></span>
+                            <span
+                              class="prov l-builtin"
+                              data-state-of="mode"
+                              data-state="override fieldmenu conflict"
+                              ><span class="layer-dot"></span>From
+                              Built-in</span
+                            >
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                          >
+                            Explore
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="new"
+                            style="color: var(--foreground)"
+                          >
+                            Test runner<span
+                              style="
+                                border-left: 1.5px solid var(--primary);
+                                height: 16px;
+                              "
+                            ></span>
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="clash"
+                            style="color: var(--foreground)"
+                          >
+                            Reviewer<span
+                              style="
+                                border-left: 1.5px solid var(--primary);
+                                height: 16px;
+                              "
+                            ></span>
+                          </div>
+                        </div>
+                        <div class="field">
+                          <div class="field-label">
+                            Name <span class="prov">used by the lead</span>
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            style="color: var(--subtle)"
+                          >
+                            <span data-icon="lock"></span>explore
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="new"
+                            style="color: var(--muted-foreground)"
+                          >
+                            test-runner <span class="spacer"></span
+                            ><span class="xs subtle">from label · edit</span>
+                          </div>
+                          <div
+                            class="input"
+                            data-state-of="mode"
+                            data-state="clash"
+                            style="
+                              color: var(--muted-foreground);
+                              border-color: var(--warning);
+                            "
+                          >
+                            reviewer <span class="spacer"></span
+                            ><span class="xs subtle">from label · edit</span>
+                          </div>
+                          <div
+                            class="field-help"
+                            data-state-of="mode"
+                            data-state="new"
+                          >
+                            Lowercase, numbers and hyphens. Fixed once created.
+                          </div>
+                          <div
+                            class="field-help"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                          >
+                            Names can’t change after creation. Use
+                            <i>Duplicate</i> to make a renamed copy.
+                          </div>
+                          <div
+                            class="field-warn"
+                            data-state-of="mode"
+                            data-state="clash"
+                          >
+                            You already have a User profile named
+                            <b>reviewer</b>. <a href="#">Edit Reviewer</a>, or
+                            pick another name. (For a Built-in name: “Customize
+                            Explore instead”.)
+                          </div>
+                        </div>
+                      </div>
+                      <div
+                        class="field"
+                        data-state-of="mode"
+                        data-state="override fieldmenu conflict new clash"
+                      >
+                        <div class="field-label">
+                          When should the lead use it?
+                          <span class="spacer"></span>
+                          <span
+                            class="prov l-builtin"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            ><span class="layer-dot"></span>From Built-in</span
+                          >
+                          <span
+                            class="xs subtle"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            >78 / 200</span
+                          >
+                          <span
+                            class="xs subtle"
+                            data-state-of="mode"
+                            data-state="new clash"
+                            >71 / 200</span
+                          >
+                        </div>
+                        <div
+                          class="input"
+                          style="
+                            height: auto;
+                            min-height: 32px;
+                            padding: 6px 10px;
+                          "
+                          data-state-of="mode"
+                          data-state="override fieldmenu conflict"
+                        >
+                          Read-only codebase and web research; returns a report
+                          with paths and evidence.
+                        </div>
+                        <div
+                          class="input"
+                          style="
+                            height: auto;
+                            min-height: 32px;
+                            padding: 6px 10px;
+                          "
+                          data-state-of="mode"
+                          data-state="new clash"
+                        >
+                          Runs the test suite for a scope, triages failures, and
+                          reports root causes.
+                        </div>
+                        <div class="field-help">
+                          The lead reads this to pick a profile. Say what it is
+                          good at and what it returns.
+                        </div>
+                      </div>
+                    </section>
+
+                    <!-- Model -->
+                    <section class="fsec">
+                      <h2>Model</h2>
+                      <p class="help">
+                        Fixed when a sub-agent is created. “Same as lead” copies
+                        the lead’s current choice.
+                      </p>
+                      <div class="two">
+                        <div class="field">
+                          <div class="field-label">
+                            Model
+                            <span class="spacer"></span>
+                            <span
+                              class="prov here l-project"
+                              data-state-of="mode"
+                              data-state="override fieldmenu conflict"
+                              ><span class="layer-dot"></span>Changed here ·
+                              <button class="btn link">Revert</button></span
+                            >
+                            <button
+                              class="icon-btn"
+                              style="width: 20px; height: 20px"
+                              data-icon="more"
+                              aria-label="Model field options"
+                              data-state-of="mode"
+                              data-state="override fieldmenu conflict"
+                            ></button>
+                          </div>
+                          <div
+                            class="select"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                          >
+                            GPT-5 mini <span class="xs subtle">OpenAI</span>
+                          </div>
+                          <div
+                            class="select"
+                            data-state-of="mode"
+                            data-state="new clash"
+                          >
+                            Same as lead
+                            <span class="xs subtle">now Claude Opus 4.5</span>
+                          </div>
+                          <div
+                            class="field-help"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                          >
+                            Revert to Claude Haiku 4.5 (from User).
+                          </div>
+                        </div>
+                        <div
+                          class="field inherited"
+                          data-state-of="mode"
+                          data-state="override fieldmenu conflict"
+                        >
+                          <div class="field-label">
+                            Thinking
+                            <span class="spacer"></span>
+                            <span class="prov l-user"
+                              ><span class="layer-dot"></span>From User</span
+                            >
+                          </div>
+                          <div class="select">Low</div>
+                        </div>
+                        <div
+                          class="field"
+                          data-state-of="mode"
+                          data-state="new clash"
+                        >
+                          <div class="field-label">Thinking</div>
+                          <div class="select">Same as lead</div>
+                          <div class="field-help">
+                            Levels the selected model can’t use are unavailable.
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <!-- Permission -->
+                    <section class="fsec">
+                      <h2>What it may do</h2>
+                      <p class="help">
+                        Sub-agents never ask you for approval, so only these two
+                        rule sets exist.
+                      </p>
+                      <div
+                        class="field"
+                        data-state-of="mode"
+                        data-state="override fieldmenu conflict new clash"
+                      >
+                        <div class="field-label">
+                          Permission
+                          <span class="spacer"></span>
+                          <span
+                            class="prov l-builtin"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            ><span class="layer-dot"></span>From Built-in</span
+                          >
+                        </div>
+                        <div class="radio-cards" role="radiogroup">
+                          <div
+                            class="radio-card"
+                            role="radio"
+                            aria-checked="true"
+                            tabindex="0"
+                          >
+                            <b data-icon="eye">Read-only</b>
+                            <span
+                              >Reads files and the web. Can’t change
+                              anything.</span
+                            >
+                          </div>
+                          <div
+                            class="radio-card"
+                            role="radio"
+                            aria-checked="false"
+                            tabindex="0"
+                          >
+                            <b data-icon="hammer">Autonomous</b>
+                            <span
+                              >Edits files and runs commands without
+                              asking.</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="field">
+                        <div class="field-label">
+                          Tools
+                          <span class="xs subtle" style="font-weight: 400"
+                            >Differences from the lead’s tools</span
+                          >
+                          <span class="spacer"></span>
+                          <span
+                            class="prov here l-project"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            ><span class="layer-dot"></span>1 changed here ·
+                            <button class="btn link">Revert all</button></span
+                          >
+                        </div>
+                        <div class="tools">
+                          <div class="tool-row">
+                            <span
+                              >Web access
+                              <a class="xs" href="#" style="margin-left: 6px"
+                                >settings…</a
+                              ></span
+                            ><span class="tri"
+                              ><button aria-pressed="true">Same as lead</button
+                              ><button>On</button><button>Off</button></span
+                            ><span class="eff on">→ on</span>
+                          </div>
+                          <div class="tool-row">
+                            <span>Image explanation</span
+                            ><span class="tri"
+                              ><button aria-pressed="true">Same as lead</button
+                              ><button>On</button><button>Off</button></span
+                            ><span class="eff">→ off</span>
+                          </div>
+                          <div class="tool-row">
+                            <span>Python</span
+                            ><span class="tri"
+                              ><button aria-pressed="true">Same as lead</button
+                              ><button>On</button><button>Off</button></span
+                            ><span class="eff on">→ on</span>
+                          </div>
+                          <div
+                            class="tool-row changed"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                          >
+                            <span class="row"
+                              >Jira
+                              <span
+                                class="layer-dot l-project"
+                                title="Changed here"
+                              ></span></span
+                            ><span class="tri"
+                              ><button>Same as lead</button
+                              ><button aria-pressed="true">On</button
+                              ><button>Off</button></span
+                            ><span class="eff on">→ on</span>
+                          </div>
+                          <div
+                            class="tool-row"
+                            data-state-of="mode"
+                            data-state="new clash"
+                          >
+                            <span>Jira</span
+                            ><span class="tri"
+                              ><button aria-pressed="true">Same as lead</button
+                              ><button>On</button><button>Off</button></span
+                            ><span class="eff">→ off</span>
+                          </div>
+                          <div class="tool-row">
+                            <span>Confluence</span
+                            ><span class="tri"
+                              ><button aria-pressed="true">Same as lead</button
+                              ><button>On</button><button>Off</button></span
+                            ><span class="eff">→ off</span>
+                          </div>
+                          <div class="tool-row" style="color: var(--subtle)">
+                            <span
+                              >+ 2 more
+                              <span class="xs"
+                                >(Generate image, Diagram export)</span
+                              ></span
+                            ><span></span><span></span>
+                          </div>
+                        </div>
+                        <div class="field-help">
+                          File, shell and search tools follow the permission
+                          above. Sub-agents can never ask questions, present
+                          plans or start their own sub-agents.
+                        </div>
+                      </div>
+
+                      <div
+                        class="field inherited"
+                        data-state-of="mode"
+                        data-state="override fieldmenu conflict new clash"
+                      >
+                        <div class="field-label">
+                          Skills
+                          <span class="spacer"></span>
+                          <span
+                            class="prov l-builtin"
+                            data-state-of="mode"
+                            data-state="override fieldmenu conflict"
+                            ><span class="layer-dot"></span>From Built-in</span
+                          >
+                        </div>
+                        <div class="seg sm">
+                          <button aria-pressed="true">Same as lead</button
+                          ><button>None</button><button>Choose…</button>
+                        </div>
+                        <div class="field-help">
+                          Same as lead: 15 skills, currently 2 enabled.
+                        </div>
+                      </div>
+                    </section>
+
+                    <!-- Instructions -->
+                    <section class="fsec">
+                      <h2>Instructions</h2>
+                      <p class="help">
+                        Added to the sub-agent’s system prompt. The assignment
+                        from the lead comes on top.
+                      </p>
+                      <div
+                        class="field inherited"
+                        data-state-of="mode"
+                        data-state="override fieldmenu conflict"
+                      >
+                        <div class="field-label">
+                          <span class="prov l-builtin"
+                            ><span class="layer-dot"></span>From Built-in</span
+                          >
+                          <span class="spacer"></span>
+                          <button class="btn xs" data-icon="pen">
+                            Customize
+                          </button>
+                        </div>
+                        <div class="textarea" style="min-height: 120px">
+                          You are a read-only researcher. Investigate the
+                          assignment and report what you find; do not modify
+                          files. - Search and read the codebase, and use the web
+                          when the assignment needs it. - Stay within the
+                          assignment. Prefer a few targeted searches over
+                          exhaustive reading. - Back every claim with evidence…
+                        </div>
+                        <div class="field-help">
+                          Read-only until you choose <i>Customize</i>, which
+                          copies this text so you can edit it here. Later
+                          Built-in updates won’t reach a customized copy, and
+                          you can revert at any time.
+                        </div>
+                      </div>
+                      <div
+                        class="field"
+                        data-state-of="mode"
+                        data-state="new clash"
+                      >
+                        <div class="textarea" style="color: var(--subtle)">
+                          e.g. You review diffs. For each finding give
+                          file:line, severity (blocker / should-fix / nit), and
+                          a suggested fix. Don’t edit files.
+                        </div>
+                        <div class="row xs subtle">
+                          <span
+                            >Markdown. Optional, but strongly recommended.</span
+                          ><span class="spacer"></span
+                          ><span>0 KB of 16 KB</span>
+                        </div>
+                      </div>
+                    </section>
+
+                    <!-- Advanced -->
+                    <section class="fsec">
+                      <h2 class="row">
+                        <span data-icon="chevronRight"></span>Advanced
+                      </h2>
+                      <p class="help" style="margin-left: 22px">
+                        Compaction:
+                        <b style="color: var(--foreground); font-weight: 500"
+                          >Same as lead</b
+                        >
+                        <span
+                          class="prov l-builtin"
+                          data-state-of="mode"
+                          data-state="override fieldmenu conflict"
+                          ><span class="layer-dot"></span>From Built-in</span
+                        >
+                      </p>
+                    </section>
+
+                    <section
+                      class="fsec"
+                      data-state-of="mode"
+                      data-state="override fieldmenu conflict"
+                    >
+                      <div class="row">
+                        <div style="flex: 1">
+                          <div style="font-weight: 550; font-size: 13px">
+                            Reset Explore for this project
+                          </div>
+                          <div class="small muted">
+                            Remove all 2 Project changes. User and Built-in
+                            values apply again.
+                          </div>
+                        </div>
+                        <button class="btn danger xs" data-icon="reset">
+                          Reset customizations…
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+                </div>
+              </main>
+
+              <!-- Save bar -->
+              <div
+                class="savebar"
+                data-state-of="mode"
+                data-state="override fieldmenu conflict"
+              >
+                <span
+                  class="layer-dot l-project"
+                  style="background: var(--layer-project)"
+                ></span>
+                <span class="small">2 unsaved changes</span>
+                <span class="xs subtle"
+                  >· saves to .nerve/config/subagents.json</span
+                >
+                <span class="spacer"></span>
+                <button class="btn">Discard</button>
+                <button class="btn primary">
+                  Save
+                  <span
+                    class="kbd"
+                    style="color: inherit; border-color: currentColor"
+                    >⌘S</span
+                  >
+                </button>
+              </div>
+              <div class="savebar" data-state-of="mode" data-state="new">
+                <span
+                  class="layer-dot l-user"
+                  style="background: var(--layer-user)"
+                ></span>
+                <span class="xs subtle"
+                  >Saves to ~/.nerve/config/subagents.json · turned on when
+                  created</span
+                >
+                <span class="spacer"></span>
+                <button class="btn">Cancel</button>
+                <button class="btn primary">Create profile</button>
+              </div>
+              <div class="savebar" data-state-of="mode" data-state="clash">
+                <span class="field-err">Fix 1 issue: name already in use</span>
+                <span class="spacer"></span>
+                <button class="btn">Cancel</button>
+                <button class="btn primary" disabled style="opacity: 0.5">
+                  Create profile
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Field menu -->
+          <div
+            class="menu"
+            style="left: 520px; top: 548px"
+            data-state-of="mode"
+            data-state="fieldmenu"
+          >
+            <div class="label">Model · changed in Project</div>
+            <div class="mi" data-icon="reset">
+              Revert to Claude Haiku 4.5<span class="hint">User</span>
+            </div>
+            <div class="mi" data-icon="lock">Keep this value here</div>
+            <div class="mi" data-icon="layers">Show where values come from</div>
+            <div class="sep"></div>
+            <div class="label">Inherited fields offer</div>
+            <div class="mi" data-icon="pen">Set a value here</div>
+            <div class="mi" data-icon="lock">
+              Keep current value here<span class="hint">pin</span>
+            </div>
+          </div>
+        </div>
+
+        <ol class="notes">
+          <li>
+            <b>Full page instead of a dialog.</b> Breadcrumb back to the list.
+            Unsaved changes are checked on navigation. The page has a URL, so it
+            can be opened from the conversation popover.
+          </li>
+          <li>
+            <b>Header</b>: label, origin badge, the B/U/P strip (filled = that
+            layer sets values, ring = layer being edited) and the profile’s
+            on/off switch.
+          </li>
+          <li>
+            <b>Provenance on the field</b> replaces the old “Scope overrides”
+            list. Inherited fields are dashed and say “From User”. Changed
+            fields say “Changed here · Revert”, and the help line names the
+            value Revert restores.
+          </li>
+          <li>
+            <b>Pin is rare</b>, so it lives in the field’s ⋯ menu as “Keep this
+            value here”.
+          </li>
+          <li>
+            <b>Instructions</b> are read-only when inherited.
+            <i>Customize</i> copies the text so you can edit it, and warns that
+            later Built-in updates won’t reach the copy.
+          </li>
+          <li>
+            <b>Tools</b> use a tri-state per tool (Same as lead / On / Off) with
+            a live “→ on/off” result. Changed rows are tinted. Tools with
+            settings get a <i>settings…</i> link for a per-profile override.
+          </li>
+          <li>
+            <b>“Same as lead”</b> shows the current resolved value (“now Claude
+            Opus 4.5”). Thinking levels the chosen model can’t use are disabled
+            before you save.
+          </li>
+          <li>
+            <b>Creating</b>: the name is derived from the label, can be edited,
+            and is locked after creation. A name clash links to the existing
+            profile (“Edit Reviewer”, or “Customize Explore instead” for a
+            built-in), because a profile with the same name in this layer would
+            customize that profile, not create a new one. The description is
+            required and has a counter, because the lead chooses profiles by it.
+          </li>
+          <li>
+            <b>Explicit Save</b> for this form (multi-field validation, shared
+            file), with a count of changes and the target file. Optimistic
+            concurrency shows a non-destructive conflict banner.
+          </li>
+        </ol>
+      </div>
+    </div>
+    <script src="wireframe.js"></script>
+    <script>
+      // In override mode, label/description render as inherited (dashed).
+      const bar = document.querySelector('[data-group="mode"]');
+      const sync = () => {
+        const mode = bar.querySelector('[aria-pressed="true"]').dataset.show;
+        document
+          .querySelectorAll(".inherited-when-override")
+          .forEach((n) =>
+            n.classList.toggle("inherited", mode !== "new" && mode !== "clash"),
+          );
+        document
+          .querySelectorAll(".fsec .field:has(.prov.l-builtin)")
+          .forEach((n) =>
+            n.classList.toggle("inherited", mode !== "new" && mode !== "clash"),
+          );
+      };
+      bar.addEventListener("click", sync);
+      sync();
+    </script>
+  </body>
+</html>

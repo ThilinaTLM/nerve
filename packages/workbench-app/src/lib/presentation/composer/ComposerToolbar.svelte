@@ -36,6 +36,7 @@ import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
+import type { CapabilitySubagentProfiles } from "./capability-subagent-slot";
 
 type Props = {
   controlsDisabled: boolean;
@@ -81,7 +82,7 @@ type Props = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: Snippet<[query: string]>;
+  capabilityProfiles?: CapabilitySubagentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
   capabilityDisabled?: boolean;

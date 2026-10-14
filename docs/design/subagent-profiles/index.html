@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nerve · Sub-agent profiles redesign · Overview</title>
+    <link rel="stylesheet" href="wireframe.css" />
+  </head>
+  <body>
+    <div class="study">
+      <nav class="study-nav" aria-label="Study pages">
+        <span class="brand">Sub-agent profiles study</span>
+        <a href="index.html" aria-current="page">1 · Overview</a>
+        <a href="settings.html">2 · Settings list</a>
+        <a href="editor.html">3 · Profile editor</a>
+        <a href="conversation.html">4 · Conversation</a>
+      </nav>
+
+      <h1>Sub-agent profiles: one model, four layers</h1>
+      <p class="lede">
+        A redesign proposal for creating, customizing and overriding sub-agent
+        profiles across Built-in, User, Project and Conversation layers. The
+        goal: simple for the common case (“use a cheaper model for Explore in
+        this chat”), and flexible for the deep case (“create a team-shared
+        Reviewer with its own instructions, tools and permissions”). All screens
+        are mock data. No application code is involved.
+      </p>
+
+      <h2>What is hard today</h2>
+      <div class="cols3">
+        <div class="tile">
+          <h3 data-icon="layers">Inheritance is shown as raw data</h3>
+          <ul>
+            <li>
+              Editor has a separate “Scope overrides” list with a
+              <i>Pin</i> and <i>Reset</i> button for each of ten fields, far
+              from the field it describes.
+            </li>
+            <li>
+              Popover shows <code>explore · builtin</code>,
+              <code>Model: lead · builtin</code>,
+              <code>Inherited: enabled true, model lead…</code>.
+            </li>
+            <li>
+              “Inherited” badge does not say <i>from where</i>, or what was
+              changed.
+            </li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h3 data-icon="more">Actions are ambiguous</h3>
+          <ul>
+            <li>
+              Five unlabeled icons per row (edit, power, download, duplicate,
+              reset). Download really means “copy into this scope”.
+            </li>
+            <li>
+              Enable/disable is a power icon <i>and</i> an “Enabled” badge, not
+              a switch.
+            </li>
+            <li>
+              “Reset” means different things: remove override, restore built-in,
+              delete a profile.
+            </li>
+          </ul>
+        </div>
+        <div class="tile">
+          <h3 data-icon="message">Conversation view is too heavy</h3>
+          <ul>
+            <li>
+              Three paragraphs of explanation before the first profile. The
+              Tools and Skills tabs are one-line rows; Sub-agents is a long
+              form.
+            </li>
+            <li>
+              Each profile expands to a model picker, thinking select and three
+              Reset buttons, all visible at once.
+            </li>
+            <li>
+              There is no way to keep a conversation tweak as a project default.
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <h2>Design principles</h2>
+      <div class="cols2">
+        <div class="tile">
+          <ol style="margin: 0; padding-left: 18px" class="small muted">
+            <li>
+              <b style="color: var(--foreground)">One profile, many layers.</b>
+              A profile has one name. Built-in, user and project layers either
+              <i>create</i> it or <i>customize</i> it. They never make a second
+              copy with the same name.
+            </li>
+            <li>
+              <b style="color: var(--foreground)"
+                >Inheritance shown on the field.</b
+              >
+              Each field says where its value comes from (“From Built-in”) and
+              has a <i>Revert</i> link on the field itself. There is no separate
+              inheritance panel to cross-reference.
+            </li>
+            <li>
+              <b style="color: var(--foreground)"
+                >The page tells you which layer you are editing.</b
+              >
+              Its header says which layer receives your edits and which file
+              holds them. No edit can reach another layer by accident.
+            </li>
+          </ol>
+        </div>
+        <div class="tile">
+          <ol
+            start="4"
+            style="margin: 0; padding-left: 18px"
+            class="small muted"
+          >
+            <li>
+              <b style="color: var(--foreground)"
+                >The right depth at each layer.</b
+              >
+              Conversation: switches and a model/thinking quick-edit. Settings:
+              the full editor. The popover links to Settings for anything
+              deeper.
+            </li>
+            <li>
+              <b style="color: var(--foreground)"
+                >Safe defaults when you create.</b
+              >
+              New profiles start read-only and use the lead’s model, thinking,
+              tools and skills. The description is required because the lead
+              uses it to choose a profile.
+            </li>
+            <li>
+              <b style="color: var(--foreground)"
+                >Every change can be reversed.</b
+              >
+              <i>Revert field</i>, <i>Reset customizations</i> and
+              <i>Delete profile</i> are separate actions with separate wording.
+              Built-in profiles can be disabled, but never deleted.
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <h2>The layer model</h2>
+      <p class="lede">
+        Resolution goes bottom-up: each layer sets only the fields it changes,
+        and the nearest layer wins. This is the current server model (sparse
+        entries, origins, pin/reset, trust). The redesign changes how it is
+        presented, not how it is stored.
+      </p>
+      <div class="stackviz">
+        <div class="lay l-conversation">
+          <b><span class="layer-dot"></span>This conversation</b>
+          <span class="can"
+            >Turn profiles on/off, change model and thinking. Quick, temporary,
+            only for new sub-agents in this chat.</span
+          >
+          <span class="xs subtle">Stored with the conversation</span>
+        </div>
+        <div class="lay l-project">
+          <b><span class="layer-dot"></span>Project</b>
+          <span class="can"
+            >Create profiles for this repo. Customize any field of inherited
+            profiles. Shared with the team. Must be trusted.</span
+          >
+          <span class="xs subtle mono">.nerve/config/subagents.json</span>
+        </div>
+        <div class="lay l-user">
+          <b><span class="layer-dot"></span>User</b>
+          <span class="can"
+            >Your personal profiles in every project. Customize built-ins
+            everywhere.</span
+          >
+          <span class="xs subtle mono">~/.nerve/config/subagents.json</span>
+        </div>
+        <div class="lay l-builtin">
+          <b><span class="layer-dot"></span>Built-in</b>
+          <span class="can"
+            >Explore, Developer. Read-only definitions shipped with Nerve. You
+            can customize them in higher layers, not change them here.</span
+          >
+          <span class="xs subtle">Shipped with Nerve</span>
+        </div>
+      </div>
+
+      <h3>Example: how one profile resolves</h3>
+      <div class="card" style="padding: 4px 4px; max-width: 980px">
+        <table class="layers-table">
+          <thead>
+            <tr>
+              <th>Field</th>
+              <th>
+                <span class="origin l-builtin"
+                  ><span class="layer-dot"></span>Built-in</span
+                >
+              </th>
+              <th>
+                <span class="origin l-user"
+                  ><span class="layer-dot"></span>User</span
+                >
+              </th>
+              <th>
+                <span class="origin l-project"
+                  ><span class="layer-dot"></span>Project · nerve</span
+                >
+              </th>
+              <th>
+                <span class="origin l-conversation"
+                  ><span class="layer-dot"></span>Conversation</span
+                >
+              </th>
+              <th>Result</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Model</td>
+              <td class="lose">Same as lead</td>
+              <td class="lose l-user">Claude Haiku 4.5</td>
+              <td class="empty">—</td>
+              <td class="win l-conversation">GPT-5 mini</td>
+              <td>GPT-5 mini</td>
+            </tr>
+            <tr>
+              <td>Thinking</td>
+              <td class="lose">Same as lead</td>
+              <td class="win l-user">Low</td>
+              <td class="empty">—</td>
+              <td class="empty">—</td>
+              <td>Low</td>
+            </tr>
+            <tr>
+              <td>Permission</td>
+              <td class="win l-builtin">Read-only</td>
+              <td class="empty">—</td>
+              <td class="empty">—</td>
+              <td class="empty">—</td>
+              <td>Read-only</td>
+            </tr>
+            <tr>
+              <td>Tools</td>
+              <td class="lose">Same as lead</td>
+              <td class="empty">—</td>
+              <td class="win l-project">Jira on</td>
+              <td class="empty">—</td>
+              <td>Lead’s tools + Jira</td>
+            </tr>
+            <tr>
+              <td>Instructions</td>
+              <td class="win l-builtin">“You are a read-only researcher…”</td>
+              <td class="empty">—</td>
+              <td class="empty">—</td>
+              <td class="empty">—</td>
+              <td>Built-in text</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small muted">
+        The editor’s <b>Where values come from</b> tab shows exactly this table,
+        so nobody has to reconstruct inheritance in their head.
+      </p>
+
+      <h2>What you can do at each layer</h2>
+      <div class="card" style="padding: 4px; max-width: 980px">
+        <table class="terms">
+          <thead>
+            <tr>
+              <th>Action</th>
+              <th>Built-in</th>
+              <th>User</th>
+              <th>Project</th>
+              <th>Conversation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Create new profile</td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>— <span class="subtle">(open Settings)</span></td>
+            </tr>
+            <tr>
+              <td>Turn a profile on/off</td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>✓</td>
+            </tr>
+            <tr>
+              <td>Change model, thinking</td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>✓</td>
+            </tr>
+            <tr>
+              <td>
+                Change instructions, permission, tools, skills, compaction,
+                description
+              </td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>— <span class="subtle">(open Settings)</span></td>
+            </tr>
+            <tr>
+              <td>Revert a field to the inherited value</td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>✓</td>
+            </tr>
+            <tr>
+              <td>Reset all customizations of a profile</td>
+              <td>—</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>✓</td>
+            </tr>
+            <tr>
+              <td>Delete profile</td>
+              <td>Never</td>
+              <td>Own profiles</td>
+              <td>Own profiles</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Duplicate as new profile</td>
+              <td>Source</td>
+              <td>✓</td>
+              <td>✓</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Save to another layer</td>
+              <td>—</td>
+              <td>Copy to project</td>
+              <td>Copy to user</td>
+              <td>Save as project / user default</td>
+            </tr>
+            <tr>
+              <td>Trust</td>
+              <td>—</td>
+              <td>—</td>
+              <td>Required before project instructions/permissions apply</td>
+              <td>—</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Vocabulary</h2>
+      <div class="card" style="padding: 4px; max-width: 980px">
+        <table class="terms">
+          <thead>
+            <tr>
+              <th>Today</th>
+              <th>Proposed</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <span class="strike">builtin</span> /
+                <span class="strike">user</span> /
+                <span class="strike">project</span> (raw source)
+              </td>
+              <td>
+                Built-in · User · Project · This conversation, each with a
+                coloured dot
+              </td>
+              <td>
+                Readable labels and consistent colours across Settings and the
+                popover
+              </td>
+            </tr>
+            <tr>
+              <td><span class="strike">Inherited</span> badge</td>
+              <td>“From Built-in” / “Customized here” / “Created here”</td>
+              <td>
+                Says where the value comes from, and whether this layer changed
+                it
+              </td>
+            </tr>
+            <tr>
+              <td>
+                <span class="strike">lead</span>,
+                <span class="strike">Use parent's model</span>
+              </td>
+              <td>“Same as lead”</td>
+              <td>
+                One phrase for model, thinking, tools, skills and compaction
+              </td>
+            </tr>
+            <tr>
+              <td><span class="strike">Pin</span></td>
+              <td>“Keep this value here” (in the field’s ⋯ menu)</td>
+              <td>
+                Rare. Keeps a value fixed when the inherited value changes later
+              </td>
+            </tr>
+            <tr>
+              <td><span class="strike">Reset</span> (overloaded)</td>
+              <td>Revert field · Reset customizations · Delete profile</td>
+              <td>Each action does one thing and is named for it</td>
+            </tr>
+            <tr>
+              <td><span class="strike">Copy to scope</span> (download icon)</td>
+              <td>“Copy to Project…” / “Copy to User…”</td>
+              <td>Names the layer that receives the copy</td>
+            </tr>
+            <tr>
+              <td>
+                <span class="strike">Inherit lower profile</span> (tool delta)
+              </td>
+              <td>
+                Tri-state: Same as lead · On · Off, plus a live result column
+              </td>
+              <td>Shows the resulting value next to the choice</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Screens in this study</h2>
+      <div class="cols3">
+        <a class="tile" href="settings.html" style="text-decoration: none">
+          <h3 style="color: var(--foreground)" data-icon="users">
+            2 · Settings › Sub-agents
+          </h3>
+          <p>
+            User and Project lists with origin marks, a switch on each row, a ⋯
+            menu, untrusted / disabled / empty / error states, and the New
+            profile dialog.
+          </p>
+        </a>
+        <a class="tile" href="editor.html" style="text-decoration: none">
+          <h3 style="color: var(--foreground)" data-icon="pen">
+            3 · Profile editor
+          </h3>
+          <p>
+            Full-page editor in two modes: creating a new profile, and
+            customizing an inherited one. Inheritance is shown on each field.
+            Includes a layers table, the lead’s view of the profile, and a save
+            bar.
+          </p>
+        </a>
+        <a class="tile" href="conversation.html" style="text-decoration: none">
+          <h3 style="color: var(--foreground)" data-icon="message">
+            4 · Conversation popover
+          </h3>
+          <p>
+            Sub-agents tab with one-line rows like the Tools tab, a quick-edit
+            panel per profile, and a way to save a conversation tweak as a
+            project default.
+          </p>
+        </a>
+      </div>
+    </div>
+    <script src="wireframe.js"></script>
+  </body>
+</html>

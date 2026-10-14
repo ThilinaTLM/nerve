@@ -5,6 +5,7 @@ import type {
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import type { CapabilitySubagentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
@@ -128,7 +129,7 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: Snippet<[query: string]>;
+  capabilityProfiles?: CapabilitySubagentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
 };

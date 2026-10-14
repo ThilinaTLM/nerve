@@ -1,29 +1,25 @@
 <script lang="ts">
-import ChevronRight from "@lucide/svelte/icons/chevron-right";
-import * as Collapsible from "@nervekit/ui-kit/components/ui/collapsible";
-import type { SubagentProfileDiagnostic } from "@nervekit/contracts/subagents";
-import Copy from "@lucide/svelte/icons/copy";
-import Pencil from "@lucide/svelte/icons/pencil";
+import FileBraces from "@lucide/svelte/icons/file-braces";
 import Plus from "@lucide/svelte/icons/plus";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
-import Lock from "@lucide/svelte/icons/lock";
-import Power from "@lucide/svelte/icons/power";
-import Download from "@lucide/svelte/icons/download";
 import { SvelteSet } from "svelte/reactivity";
-import {
-  type SubagentProfileConfiguration,
-  type SubagentProfilePatch,
-  type SubagentProfileDraft,
+import type {
+  SubagentProfileConfiguration,
+  SubagentProfileDraft,
+  SubagentProfilePatch,
 } from "@nervekit/contracts/subagents";
 import { subagentToolNames } from "@nervekit/contracts/tools";
 import type {
   CapabilityConfiguration,
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
+import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
+import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
+import { cn } from "@nervekit/ui-kit/utils";
 import type {
   AuthProviderMetadata,
   AvailableSkill,
@@ -41,41 +37,52 @@ import {
   SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
-  SettingsListItem,
   SettingsSection,
   SettingsToggleRow,
 } from "$lib/presentation/settings";
+import {
+  profileLabel,
+  profileLayerDotClasses,
+  profileOriginLayer,
+} from "$lib/presentation/subagents/profile-layers";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
 import {
+  readSubagentProfiles,
   resetSubagentProfile,
-  updateSubagentProfile,
   trustSubagentProfile,
+  updateSubagentProfile,
 } from "../../../api/subagent-profiles.api";
 import {
   refreshSubagentProfiles,
   subagentProfilesState,
 } from "../../../state/subagent-profiles.svelte";
-import {
-  ProfileSettingsSession,
-  type ProfileSettingsSnapshot,
-} from "./subagent-profile-session";
 import type { SettingsChange } from "../settings-change";
 import { configurableToolOrder } from "../tools/tool-catalog";
 import { ensureToolsDraft } from "../tools/tools-draft";
-import SubagentProfileDialog from "./SubagentProfileDialog.svelte";
+import NewProfileDialog from "./NewProfileDialog.svelte";
+import ProfileDiagnosticMessage from "./ProfileDiagnosticMessage.svelte";
+import ProjectTrustReviewDialog from "./ProjectTrustReviewDialog.svelte";
+import SubagentProfileEditor from "./SubagentProfileEditor.svelte";
+import SubagentProfileRow from "./SubagentProfileRow.svelte";
 import {
   blankForm,
-  formFromProfile,
   formFromConfiguration,
+  formFromProfile,
   formToDraft,
   type SubagentProfileForm,
 } from "./subagent-profile-form";
 import {
-  canResetProfileEntry,
-  profileSummary,
-  profileRowDiagnostics,
-  profileDiagnosticSummary,
+  groupProfilesByOrigin,
+  profileDeleteConfirmation,
+  profileMatchesFilter,
+  profileResetConfirmation,
+  profileRowActions,
+  type ProfileSettingsLayer,
 } from "./subagent-profile-rows";
+import {
+  ProfileSettingsSession,
+  type ProfileSettingsSnapshot,
+} from "./subagent-profile-session";
 
 type Props = {
   scope: "user" | "project";
@@ -93,6 +100,8 @@ type Props = {
   onPatch?: (patch: CapabilityPatch) => void;
   onTrust?: (trusted: boolean) => void;
   onRetry?: () => void;
+  /** Opens a project-relative file in the workbench file viewer. */
+  onOpenFile?: (path: string) => void;
 };
 
 let {
@@ -110,25 +119,56 @@ let {
   onPatch,
   onTrust,
   onRetry,
+  onOpenFile,
 }: Props = $props();
+
+const userFilePath = "~/.nerve/config/subagents.json";
+const projectFilePath = ".nerve/config/subagents.json";
+/** The filter appears only once the list is long enough to need it. */
+const filterThreshold = 6;
 
 const projectScope = $derived(scope === "project");
 const listProjectId = $derived(projectScope ? projectId : undefined);
+const scopeName = $derived(projectScope ? (projectName ?? "Project") : "User");
+const filePath = $derived(projectScope ? projectFilePath : userFilePath);
 const profileConfiguration = $derived(subagentProfilesState.configuration);
 const profiles = $derived(profileConfiguration?.profiles ?? []);
+const documentDiagnostics = $derived(profileConfiguration?.diagnostics ?? []);
 const configurationInvalid = $derived(
-  profileConfiguration?.diagnostics.some(
-    (item) => item.code === "invalid_document",
-  ) ?? false,
+  documentDiagnostics.some((item) => item.code === "invalid_document"),
 );
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
-const scopeLabel = $derived(
-  projectScope ? ".nerve/config/subagents.json" : "user config/subagents.json",
-);
 const takenNames = $derived(profiles.map((profile) => profile.name));
-let editing = $state<SubagentProfileConfiguration>();
+/** The loaded document belongs to the page's current target. */
+const loadedHere = $derived(
+  subagentProfilesState.loaded &&
+    subagentProfilesState.scope === scope &&
+    subagentProfilesState.projectId === listProjectId,
+);
+
+type EditorView = {
+  kind: "editor";
+  mode: "create" | "edit";
+  initial: SubagentProfileForm;
+  configuration?: SubagentProfileConfiguration;
+  snapshot: ProfileSettingsSnapshot;
+};
+let view = $state.raw<{ kind: "list" } | EditorView>({ kind: "list" });
+let saving = $state(false);
+let busyName = $state<string>();
+let actionError = $state<string>();
+let filter = $state("");
+let newProfileOpen = $state(false);
+let trustReviewOpen = $state(false);
+let confirmOpen = $state(false);
+let confirmation = $state.raw<{
+  kind: "reset" | "delete";
+  profile: SubagentProfileConfiguration;
+  fromEditor: boolean;
+}>();
+
 const session = new ProfileSettingsSession();
 function isCurrent(snapshot: ProfileSettingsSnapshot): boolean {
   return (
@@ -137,11 +177,6 @@ function isCurrent(snapshot: ProfileSettingsSnapshot): boolean {
     snapshot.target.projectId === listProjectId
   );
 }
-let editorSnapshot: ProfileSettingsSnapshot | undefined;
-let dialogOpen = $state(false);
-let dialogForm = $state<SubagentProfileForm>(blankForm());
-let busyName = $state<string>();
-let actionError = $state<string>();
 
 $effect(() => {
   subagentProfilesState.watching = true;
@@ -156,8 +191,11 @@ $effect(() => {
   void skills;
   const target = { scope, projectId: listProjectId };
   if (session.navigate(target)) {
-    dialogOpen = false;
-    editorSnapshot = undefined;
+    view = { kind: "list" };
+    confirmOpen = false;
+    newProfileOpen = false;
+    trustReviewOpen = false;
+    filter = "";
     busyName = undefined;
     actionError = undefined;
   }
@@ -165,7 +203,7 @@ $effect(() => {
     void refreshSubagentProfiles(target.projectId, target.scope);
 });
 
-// Master switch. User scope stores the group's tools in the disabled list;
+// Delegation. User scope stores the group's tools in the disabled list;
 // project scope pins the `subagents` capability for the project.
 const disabledTools = $derived(new Set(settingsDraft.tools?.disabled ?? []));
 const userEnabled = $derived(
@@ -183,6 +221,9 @@ const projectState = $derived(
 const projectLocked = $derived(
   configuration?.trust.status === "untrusted" ||
     configuration?.trust.status === "invalid",
+);
+const delegationEnabled = $derived(
+  projectScope ? (projectState?.enabled ?? true) : userEnabled,
 );
 
 function setUserEnabled(enabled: boolean): void {
@@ -204,53 +245,107 @@ function setProjectEnabled(enabled: boolean): void {
   });
 }
 
+const groups = $derived(
+  groupProfilesByOrigin(
+    profiles.filter((profile) => profileMatchesFilter(profile, filter)),
+    scope,
+  ),
+);
+const noProjectProfiles = $derived(
+  projectScope &&
+    !profiles.some(
+      (profile) => profileOriginLayer(profile, scope) === "project",
+    ),
+);
+const listBusy = $derived(
+  busyName !== undefined ||
+    subagentProfilesState.loading ||
+    configurationInvalid,
+);
+const canCreate = $derived(
+  !configurationInvalid &&
+    busyName === undefined &&
+    loadedHere &&
+    !subagentProfilesState.loading,
+);
+
 function openEditor(
-  form: SubagentProfileForm,
+  mode: "create" | "edit",
+  initial: SubagentProfileForm,
   profile?: SubagentProfileConfiguration,
 ): void {
   if (busyName !== undefined) return;
-  editing = profile;
-  editorSnapshot = session.capture(
-    { scope, projectId: listProjectId },
-    profileConfiguration?.digest ?? null,
-  );
-  dialogForm = form;
-  dialogOpen = true;
-}
-function add(): void {
-  openEditor(blankForm());
+  view = {
+    kind: "editor",
+    mode,
+    initial,
+    ...(profile ? { configuration: profile } : {}),
+    snapshot: session.capture(
+      { scope, projectId: listProjectId },
+      profileConfiguration?.digest ?? null,
+    ),
+  };
 }
 function edit(profile: SubagentProfileConfiguration): void {
   const form = formFromConfiguration(profile);
-  if (form) openEditor(form, profile);
+  if (form) openEditor("edit", form, profile);
 }
 function duplicate(profile: SubagentProfileConfiguration): void {
   if (profile.effective)
     openEditor(
+      "create",
       formFromProfile(profile.effective, { duplicate: true, takenNames }),
     );
 }
+function startNew(source: SubagentProfileConfiguration | undefined): void {
+  if (source) duplicate(source);
+  else openEditor("create", blankForm());
+}
+function editExisting(name: string): void {
+  const profile = profiles.find((item) => item.name === name);
+  if (profile) edit(profile);
+}
+
+const editorConflict = $derived(
+  view.kind === "editor" &&
+    !saving &&
+    loadedHere &&
+    (profileConfiguration?.digest ?? null) !== view.snapshot.digest,
+);
+
 async function save(
   draft: SubagentProfileDraft,
   patch: SubagentProfilePatch,
 ): Promise<void> {
-  const snapshot = editorSnapshot;
-  if (!snapshot || !isCurrent(snapshot))
+  const editor = view;
+  if (editor.kind !== "editor" || !isCurrent(editor.snapshot))
     throw new Error("Settings scope changed. Reopen the profile editor.");
+  const snapshot = editor.snapshot;
   const { name, ...complete } = draft;
-  await updateSubagentProfile({
-    ...snapshot.target,
-    name,
-    expectedDigest: snapshot.digest,
-    patch: editing ? patch : { ...complete, tools: complete.tools ?? {} },
-  });
-  if (!isCurrent(snapshot)) return;
-  await refreshSubagentProfiles(
-    snapshot.target.projectId,
-    snapshot.target.scope,
-  );
-  if (isCurrent(snapshot)) notify.success(`Saved ${draft.label ?? name}`);
+  saving = true;
+  try {
+    await updateSubagentProfile({
+      ...snapshot.target,
+      name,
+      expectedDigest: snapshot.digest,
+      patch:
+        editor.mode === "edit"
+          ? patch
+          : { ...complete, tools: complete.tools ?? {} },
+    });
+    if (!isCurrent(snapshot)) return;
+    await refreshSubagentProfiles(
+      snapshot.target.projectId,
+      snapshot.target.scope,
+    );
+    if (!isCurrent(snapshot)) return;
+    notify.success(`Saved ${draft.label ?? name}`);
+    if (view === editor) view = { kind: "list" };
+  } finally {
+    saving = false;
+  }
 }
+
 async function run(
   name: string,
   action: (snapshot: ProfileSettingsSnapshot) => Promise<unknown>,
@@ -276,61 +371,153 @@ async function run(
     if (isCurrent(snapshot)) busyName = undefined;
   }
 }
-function update(
+function setEnabled(
   profile: SubagentProfileConfiguration,
-  patch: SubagentProfilePatch,
+  enabled: boolean,
 ): void {
   void run(profile.name, (snapshot) =>
     updateSubagentProfile({
       ...snapshot.target,
       name: profile.name,
       expectedDigest: snapshot.digest,
-      patch,
+      patch: { enabled },
     }),
   );
 }
-function copy(profile: SubagentProfileConfiguration): void {
-  if (!profile.effective) return;
-  const { name, ...patch } = formToDraft(formFromProfile(profile.effective));
-  if (name !== profile.name) return;
-  update(profile, { ...patch, tools: patch.tools ?? {} });
+function profileDraft(
+  profile: SubagentProfileConfiguration,
+): SubagentProfileDraft | undefined {
+  return profile.effective
+    ? formToDraft(formFromProfile(profile.effective))
+    : undefined;
 }
-function remove(profile: SubagentProfileConfiguration): void {
-  void run(profile.name, (snapshot) =>
+/** Writes the whole resolved profile into the other settings layer. */
+function copyTo(
+  profile: SubagentProfileConfiguration,
+  target: ProfileSettingsLayer,
+): void {
+  const draft = profileDraft(profile);
+  const targetProjectId = target === "project" ? projectId : undefined;
+  if (!draft || (target === "project" && !targetProjectId)) return;
+  const { name, ...complete } = draft;
+  const label = profileLabel(profile);
+  const targetName = target === "project" ? (projectName ?? "project") : "User";
+  void run(profile.name, async (snapshot) => {
+    const destination = { scope: target, projectId: targetProjectId };
+    const current = await readSubagentProfiles(destination);
+    await updateSubagentProfile({
+      ...destination,
+      name,
+      expectedDigest: current.digest,
+      patch: { ...complete, tools: complete.tools ?? {} },
+    });
+    if (isCurrent(snapshot)) notify.success(`Copied ${label} to ${targetName}`);
+  });
+}
+async function exportJson(
+  profile: SubagentProfileConfiguration,
+): Promise<void> {
+  const draft = profileDraft(profile);
+  if (!draft) return;
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(draft, null, 2));
+    notify.success(`Copied ${profileLabel(profile)} as JSON`);
+  } catch {
+    notify.error("Could not copy to the clipboard");
+  }
+}
+function confirmRemoval(
+  kind: "reset" | "delete",
+  profile: SubagentProfileConfiguration,
+  fromEditor = false,
+): void {
+  confirmation = { kind, profile, fromEditor };
+  confirmOpen = true;
+}
+const confirmCopy = $derived.by(() => {
+  if (!confirmation) return undefined;
+  const { kind, profile } = confirmation;
+  if (kind === "delete")
+    return {
+      ...profileDeleteConfirmation(profile, scope, filePath),
+      confirmLabel: "Delete profile",
+    };
+  return profileResetConfirmation(profile, scope, usableModels);
+});
+function remove(): void {
+  const pending = confirmation;
+  if (!pending) return;
+  if (pending.fromEditor) view = { kind: "list" };
+  void run(pending.profile.name, (snapshot) =>
     resetSubagentProfile({
       ...snapshot.target,
-      name: profile.name,
+      name: pending.profile.name,
       expectedDigest: snapshot.digest,
     }),
   );
 }
-function trust(profile: SubagentProfileConfiguration): void {
+function trustProject(): void {
   if (!projectId || !profileConfiguration?.digest) return;
   const digest = profileConfiguration.digest;
   const trustedProjectId = projectId;
-  void run(profile.name, () =>
+  trustReviewOpen = false;
+  void run("", () =>
     trustSubagentProfile({ projectId: trustedProjectId, digest }),
   );
 }
 </script>
 
-{#snippet diagnosticDetails(diagnostic: SubagentProfileDiagnostic)}
-  {#if profileDiagnosticSummary(diagnostic) !== diagnostic.message}
-    <Collapsible.Root class="min-w-0">
-      <Collapsible.Trigger
-        class="group flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-      >
-        <ChevronRight
-          class="size-3.5 shrink-0 transition-transform group-data-[state=open]:rotate-90"
-          aria-hidden="true"
-        />
-        Technical details
-      </Collapsible.Trigger>
-      <Collapsible.Content>
-        <pre
-          class="mt-1 max-h-40 overflow-auto rounded-sm bg-well p-2 font-mono text-xs whitespace-pre-wrap break-all select-text">{diagnostic.message}</pre>
-      </Collapsible.Content>
-    </Collapsible.Root>
+{#snippet delegation()}
+  {#if projectScope && projectLocked}
+    <SettingsInlineMessage
+      tone="warning"
+      text="Project delegation comes from .nerve/config/capabilities.json, which isn't trusted yet."
+    >
+      {#snippet actions()}<Button
+          size="xs"
+          variant="outline"
+          onclick={() => onTrust?.(true)}>Trust capabilities</Button
+        >{/snippet}
+    </SettingsInlineMessage>
+  {/if}
+  <SettingsGroup>
+    {#if projectScope}
+      {#if projectState}
+        <SettingsToggleRow
+          label="Delegation"
+          description={`Let the lead hand work to sub-agents in this project. ${projectState.originLabel}.`}
+          checked={projectState.enabled}
+          disabled={projectLocked || loading}
+          onCheckedChange={setProjectEnabled}
+        >
+          {#snippet badges()}
+            {#if projectState.stored}
+              <Badge variant="neutral">Project</Badge>
+              <IconAction
+                icon={RotateCcw}
+                label="Reset delegation to your user setting"
+                onclick={() => onPatch?.(capabilityResetPatch(["subagents"]))}
+              />
+            {/if}
+          {/snippet}
+        </SettingsToggleRow>
+      {:else}
+        <Skeleton class="h-10 w-full" />
+      {/if}
+    {:else}
+      <SettingsToggleRow
+        label="Delegation"
+        description="Let the lead hand work to sub-agents. When off, the lead has no sub-agent tools and profiles are not offered."
+        checked={userEnabled}
+        onCheckedChange={setUserEnabled}
+      />
+    {/if}
+  </SettingsGroup>
+  {#if !delegationEnabled}
+    <SettingsInlineMessage
+      tone="info"
+      text="Delegation is off. Profiles are kept and can still be edited, but the lead can't use them until delegation is turned back on."
+    />
   {/if}
 {/snippet}
 
@@ -339,6 +526,36 @@ function trust(profile: SubagentProfileConfiguration): void {
     variant="card"
     title="Select a project"
     description="Project profiles are stored in .nerve/config/subagents.json."
+  />
+{:else if view.kind === "editor"}
+  {@const editor = view}
+  {@const profile = editor.configuration}
+  {@const actions = profile
+    ? profileRowActions(profile, scope, { canCopyToProject: false })
+    : undefined}
+  <SubagentProfileEditor
+    mode={editor.mode}
+    initial={editor.initial}
+    configuration={profile}
+    {scope}
+    {scopeName}
+    {filePath}
+    models={usableModels}
+    {skills}
+    {takenNames}
+    conflict={editorConflict}
+    onSave={save}
+    onBack={() => (view = { kind: "list" })}
+    onEditExisting={editExisting}
+    onDuplicate={profile && actions?.duplicate
+      ? () => duplicate(profile)
+      : undefined}
+    onResetCustomizations={profile && actions?.resetCustomizations
+      ? () => confirmRemoval("reset", profile, true)
+      : undefined}
+    onDelete={profile && actions?.delete
+      ? () => confirmRemoval("delete", profile, true)
+      : undefined}
   />
 {:else}
   {#if error}
@@ -350,92 +567,69 @@ function trust(profile: SubagentProfileConfiguration): void {
       {/snippet}
     </SettingsInlineMessage>
   {/if}
-  {#if projectScope && configuration}
-    {#if projectLocked}
-      <SettingsInlineMessage
-        tone="warning"
-        text="The master switch comes from the separate project capabilities.json. Trust it to apply project capability settings. Profile instructions and permissions require their own subagents.json trust below."
-      >
-        {#snippet actions()}<Button
-            size="xs"
-            variant="outline"
-            onclick={() => onTrust?.(true)}>Trust project capabilities</Button
-          >{/snippet}
-      </SettingsInlineMessage>
-    {/if}
+  {@render delegation()}
+
+  {#if projectScope && profileConfiguration?.trust === "untrusted"}
+    <SettingsInlineMessage tone="warning">
+      <p class="text-xs font-medium">
+        Review this project's sub-agent settings
+      </p>
+      <p class="text-xs">
+        Until you review .nerve/config/subagents.json, its instructions and
+        permissions are ignored and the profiles that depend on them can't be
+        used. Editing one profile here doesn't approve the rest of the file.
+      </p>
+      {#snippet actions()}
+        <Button
+          size="xs"
+          variant="outline"
+          disabled={busyName !== undefined || !profileConfiguration?.digest}
+          onclick={() => (trustReviewOpen = true)}>Review…</Button
+        >
+      {/snippet}
+    </SettingsInlineMessage>
   {/if}
 
-  {#if profileConfiguration?.trust === "untrusted"}
-    <SettingsInlineMessage
-      tone="warning"
-      text="Editing or resetting one project profile does not approve other entries. Review the whole project subagents.json before choosing Trust project subagents.json."
-    />
-  {/if}
-
-  <p class="text-xs text-muted-foreground">
-    Profile changes apply to newly created sub-agents. Existing sub-agents keep
-    their configuration.
-  </p>
-  {#each profileConfiguration?.diagnostics ?? [] as diagnostic, index (index)}
+  {#each documentDiagnostics as diagnostic, index (index)}
     <SettingsInlineMessage
       tone={diagnostic.severity === "blocking" ? "destructive" : "warning"}
     >
-      <p class="text-xs break-words">{profileDiagnosticSummary(diagnostic)}</p>
-      {@render diagnosticDetails(diagnostic)}
+      <ProfileDiagnosticMessage {diagnostic} />
     </SettingsInlineMessage>
   {/each}
-  <SettingsSection
-    id="profiles"
-    title="Profiles"
-    info="The lead assigns work to sub-agents by profile. Fields inherit from lower scopes unless explicitly pinned."
-  >
+
+  <SettingsSection id="profiles" title="Profiles">
     {#snippet actions()}
+      {#if loadedHere}
+        <span class="text-xs text-muted-foreground">{profiles.length}</span>
+      {/if}
+      {#if profiles.length > filterThreshold}
+        <SearchInput
+          bind:value={filter}
+          placeholder="Filter profiles"
+          ariaLabel="Filter profiles"
+          class="w-44"
+        />
+      {/if}
+      {#if projectScope && onOpenFile}
+        <IconAction
+          icon={FileBraces}
+          label={profileConfiguration?.digest
+            ? `Open ${projectFilePath}`
+            : `${projectFilePath} doesn't exist yet; it's created when you save a project change`}
+          disabled={!profileConfiguration?.digest}
+          onclick={() => onOpenFile?.(projectFilePath)}
+        />
+      {/if}
       <Button
         size="xs"
         variant="outline"
-        onclick={add}
-        disabled={configurationInvalid ||
-          busyName !== undefined ||
-          !subagentProfilesState.loaded ||
-          subagentProfilesState.loading}
+        onclick={() => (newProfileOpen = true)}
+        disabled={!canCreate}
       >
-        <Plus class="size-3.5" aria-hidden="true" />Add profile
+        <Plus class="size-3.5" aria-hidden="true" />New profile
       </Button>
     {/snippet}
-
-    <SettingsGroup>
-      {#if projectScope}
-        {#if projectState}
-          <SettingsToggleRow
-            label="Sub-agents"
-            description={projectState.originLabel}
-            checked={projectState.enabled}
-            disabled={projectLocked || loading}
-            onCheckedChange={setProjectEnabled}
-          >
-            {#snippet badges()}
-              {#if projectState.stored}
-                <Badge variant="neutral">Project</Badge>
-                <IconAction
-                  icon={RotateCcw}
-                  label="Reset sub-agents to your user setting"
-                  onclick={() => onPatch?.(capabilityResetPatch(["subagents"]))}
-                />
-              {/if}
-            {/snippet}
-          </SettingsToggleRow>
-        {:else}
-          <Skeleton class="h-10 w-full" />
-        {/if}
-      {:else}
-        <SettingsToggleRow
-          label="Sub-agents"
-          description="Let agents delegate work to sub-agents. When off, the lead has no sub-agent tools."
-          checked={userEnabled}
-          onCheckedChange={setUserEnabled}
-        />
-      {/if}
-    </SettingsGroup>
 
     {#if actionError}
       <SettingsInlineMessage tone="destructive" text={actionError} />
@@ -462,132 +656,105 @@ function trust(profile: SubagentProfileConfiguration): void {
         <Skeleton class="h-9 w-full" />
       </div>
     {:else}
-      <SettingsList ariaLabel="Sub-agent profiles">
-        {#each profiles as profile (profile.name)}
-          {@const effective = profile.effective}
-          {@const busy =
-            busyName !== undefined ||
-            subagentProfilesState.loading ||
-            configurationInvalid}
-          {@const rowDiagnostics = profileRowDiagnostics(
-            profile,
-            profileConfiguration?.diagnostics ?? [],
-            scope,
-          )}
-          {@const blocked = rowDiagnostics.diagnostics.some(
-            (item) => item.severity === "blocking",
-          )}
-          <SettingsListItem
-            title={effective?.label ?? profile.name}
-            description={effective?.description}
+      <div
+        class={cn(
+          "grid gap-3 transition-opacity",
+          !delegationEnabled && "opacity-60",
+        )}
+      >
+        {#if noProjectProfiles && !filter}
+          <SettingsEmptyState
+            variant="card"
+            title="No project-specific profiles yet"
+            description="The profiles below come from User and Built-in. Customize one for this repo, or create a profile the whole team can use."
           >
-            {#snippet detail()}
-              <span>{profile.name}</span>
-              {#if effective}<span>· {profileSummary(effective, models)}</span
-                >{/if}
-            {/snippet}
-            {#snippet status()}
-              <Badge variant="neutral"
-                >{profile.local ? scope : "Inherited"}</Badge
-              >
-              {#if rowDiagnostics.documentBlock}<Badge variant="destructive"
-                  >Configuration blocked</Badge
-                >{/if}
-              {#if blocked}<Badge variant="destructive">Profile blocked</Badge>
-              {:else if rowDiagnostics.diagnostics.length && !rowDiagnostics.documentBlock}<Badge
-                  variant="warning">Usable with reduced capabilities</Badge
-                >{/if}
-              {#if effective}<Badge variant="neutral"
-                  >{effective.enabled ? "Enabled" : "Disabled"}</Badge
-                >{/if}
-            {/snippet}
-            {#snippet supporting()}
-              <div class="grid min-w-0 gap-1">
-                {#if rowDiagnostics.documentBlock}
-                  <p class="text-xs text-destructive break-words">
-                    {rowDiagnostics.documentBlock}
-                  </p>
-                {/if}
-                {#each rowDiagnostics.diagnostics as diagnostic, index (index)}
-                  <div class="min-w-0">
-                    <p
-                      class={diagnostic.severity === "blocking"
-                        ? "text-xs text-destructive whitespace-pre-wrap break-words"
-                        : "text-xs text-warning whitespace-pre-wrap break-words"}
-                    >
-                      {profileDiagnosticSummary(diagnostic)}
-                    </p>
-                    {@render diagnosticDetails(diagnostic)}
-                  </div>
-                {/each}
-              </div>
-            {/snippet}
             {#snippet actions()}
-              {#if profile.trust === "untrusted"}
-                <IconAction
-                  icon={Lock}
-                  label="Trust project subagents.json"
-                  disabled={busy}
-                  onclick={() => trust(profile)}
-                />
-              {/if}
-              {#if effective || profile.local !== null}
-                <IconAction
-                  icon={Pencil}
-                  label={`Edit ${profile.name}`}
-                  disabled={busy}
-                  onclick={() => edit(profile)}
-                />
-              {/if}
-              {#if effective}
-                <IconAction
-                  icon={Power}
-                  label={`${effective.enabled ? "Disable" : "Enable"} ${profile.name} in ${scope} scope`}
-                  disabled={busy}
-                  onclick={() =>
-                    update(profile, { enabled: !effective.enabled })}
-                />
-                <IconAction
-                  icon={Download}
-                  label={`Copy ${profile.name} to ${scope} scope`}
-                  disabled={busy}
-                  onclick={() => copy(profile)}
-                />
-                <IconAction
-                  icon={Copy}
-                  label={`Duplicate ${profile.name}`}
-                  disabled={busy}
-                  onclick={() => duplicate(profile)}
-                />
-              {/if}
-              {#if canResetProfileEntry(profile, scope)}
-                <IconAction
-                  icon={RotateCcw}
-                  label={`Reset local entry ${profile.name}`}
-                  disabled={busy}
-                  onclick={() => remove(profile)}
-                />
-              {/if}
+              <Button
+                size="xs"
+                variant="outline"
+                disabled={!canCreate}
+                onclick={() => (newProfileOpen = true)}
+              >
+                <Plus class="size-3.5" aria-hidden="true" />New project profile
+              </Button>
             {/snippet}
-          </SettingsListItem>
+          </SettingsEmptyState>
+        {/if}
+        {#each groups as group (group.origin)}
+          <div class="grid gap-1.5">
+            <h4
+              class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+            >
+              <span
+                class={cn(
+                  "size-1.5 rounded-full",
+                  profileLayerDotClasses[group.origin],
+                )}
+                aria-hidden="true"
+              ></span>
+              {group.title}
+            </h4>
+            <SettingsList ariaLabel={group.title}>
+              {#each group.profiles as profile (profile.name)}
+                <SubagentProfileRow
+                  {profile}
+                  {scope}
+                  models={usableModels}
+                  {documentDiagnostics}
+                  busy={listBusy}
+                  canCopyToProject={!!projectId}
+                  onOpen={() => edit(profile)}
+                  onEnabledChange={(enabled) => setEnabled(profile, enabled)}
+                  onDuplicate={() => duplicate(profile)}
+                  onCopy={(target) => copyTo(profile, target)}
+                  onExport={() => void exportJson(profile)}
+                  onResetCustomizations={() => confirmRemoval("reset", profile)}
+                  onDelete={() => confirmRemoval("delete", profile)}
+                />
+              {/each}
+            </SettingsList>
+          </div>
+        {:else}
+          {#if filter}
+            <p class="text-xs text-muted-foreground">
+              No profiles match “{filter}”.
+            </p>
+          {/if}
         {/each}
-      </SettingsList>
-      {#if projectScope && projectName}
+      </div>
+      {#if projectScope}
         <p class="text-xs text-muted-foreground">
-          Showing profiles available in {projectName}.
+          Commit <span class="font-mono">{projectFilePath}</span> to share these profiles.
+          Teammates are asked to review them before they apply.
         </p>
       {/if}
     {/if}
   </SettingsSection>
+{/if}
 
-  <SubagentProfileDialog
-    bind:open={dialogOpen}
-    initial={dialogForm}
-    configuration={editing}
-    {scopeLabel}
+<NewProfileDialog
+  bind:open={newProfileOpen}
+  {scope}
+  {scopeName}
+  {profiles}
+  onContinue={startNew}
+/>
+{#if profileConfiguration && projectScope}
+  <ProjectTrustReviewDialog
+    bind:open={trustReviewOpen}
+    configuration={profileConfiguration}
     models={usableModels}
-    {skills}
-    {takenNames}
-    onSave={save}
+    busy={busyName !== undefined}
+    onTrust={trustProject}
+  />
+{/if}
+{#if confirmCopy}
+  <ConfirmDialog
+    bind:open={confirmOpen}
+    title={confirmCopy.title}
+    description={confirmCopy.description}
+    confirmLabel={confirmCopy.confirmLabel}
+    destructive={confirmation?.kind === "delete"}
+    onConfirm={remove}
   />
 {/if}

@@ -12,6 +12,7 @@ import type {
   UpdateSettingsRequest,
 } from "$lib/api";
 import { projectView } from "$lib/features/conversations/adapters/core-context.adapter";
+import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import SuggestionsSettingsPage from "./suggestions/SuggestionsSettingsPage.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { SettingsPageDef } from "$lib/presentation/settings";
@@ -125,6 +126,9 @@ let {
       onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
       onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
       onRetry={() => void controllers.loadProjectCapabilities()}
+      onOpenFile={activeProject
+        ? (path) => void openFilePane({ projectId: activeProject.id, path })
+        : undefined}
     />
   {:else if scope === "project" && page.id === "skills"}
     <SkillsSettingsPage

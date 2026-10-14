@@ -78,7 +78,7 @@ export const settingsPages: SettingsPageDef[] = [
     label: "Sub-agents",
     icon: Users,
     description:
-      "Profiles the lead can assign work to. Project settings override individual fields and inherit the rest from user and built-in profiles.",
+      "Profiles the lead can assign work to. Changes apply to new sub-agents; running ones keep their settings.",
     sections: [{ id: "profiles", label: "Profiles" }],
   },
   {
