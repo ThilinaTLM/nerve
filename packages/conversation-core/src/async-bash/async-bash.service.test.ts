@@ -6,6 +6,8 @@ import { test } from "node:test";
 import { openCoreStorage } from "../storage/core-storage.js";
 import { AssetStore } from "../assets/asset-store.js";
 import { AsyncBashService } from "./async-bash.service.js";
+import { InputQueueService } from "../inputs/input-queue.service.js";
+import type { BackgroundProcess, ProcessPort } from "../ports.js";
 
 async function fixture() {
   const directory = await mkdtemp(join(tmpdir(), "nerve-bash-pages-"));
@@ -138,7 +140,10 @@ void test("completed history prefers combined output, tails and appends byte pag
       13,
     );
     // Existing agent diagnostics remain a formatted string API.
-    assert.equal(typeof (await f.service.logs("conv_1", "bash_1")), "string");
+    assert.match(
+      await f.service.logs("conv_1", "bash_1"),
+      /\(completed; exit code: 0\)/,
+    );
   } finally {
     await f.close();
   }
@@ -236,3 +241,103 @@ void test("missing outputs are empty and unsafe asset files never expose paths",
     await f.close();
   }
 });
+
+void test("agent log headers distinguish actual, unknown and running exit codes", async () => {
+  const f = await fixture();
+  try {
+    await f.output("output", "hello");
+    for (const [status, exitCode] of [
+      ["completed", 0],
+      ["failed", 7],
+      ["lost", null],
+      ["running", null],
+    ] as const) {
+      f.storage.asyncBash.update(f.bash.id, { status, exitCode });
+      const logs = await f.service.logs("conv_1", f.bash.id);
+      const expected =
+        status === "running"
+          ? "(running)"
+          : `(${status}; exit code: ${exitCode ?? "unknown"})`;
+      assert.ok(logs.includes(expected), logs);
+      if (status === "running") assert.doesNotMatch(logs, /exit code:/);
+    }
+  } finally {
+    await f.close();
+  }
+});
+
+for (const exitCode of [0, 7, null]) {
+  void test(`process completion automatically queues one explicit exit-code notice (${exitCode ?? "unknown"})`, async () => {
+    const f = await fixture();
+    try {
+      const stdout = await f.output("stdout", "hello");
+      const stderr = await f.output("stderr", "");
+      const status =
+        exitCode === null
+          ? "cancelled"
+          : exitCode === 0
+            ? "completed"
+            : "failed";
+      const process: BackgroundProcess = {
+        ref: "process",
+        outputFiles: {
+          stdout: f.assets.path(stdout.logicalPath),
+          stderr: f.assets.path(stderr.logicalPath),
+        },
+        wait: async () => ({ status, exitCode }),
+        cancel: async () => {},
+      };
+      const processes = {} as ProcessPort;
+      const inputs = new InputQueueService({
+        storage: f.storage,
+        processes,
+        emit: () => {},
+        requestWake: () => {},
+      });
+      let finished!: () => void;
+      const completion = new Promise<void>((resolve) => {
+        finished = resolve;
+      });
+      const service = new AsyncBashService({
+        storage: f.storage,
+        assets: f.assets,
+        processes,
+        inputs,
+        emit: (change) => {
+          if (
+            change.asyncBash.some(
+              (row) => row.toolCallId === "tool_2" && row.status !== "running",
+            )
+          )
+            finished();
+        },
+      });
+      const bash = await service.adopt({
+        conversationId: "conv_1",
+        toolCallId: "tool_2",
+        command: "echo hello",
+        cwd: f.bash.workingDirectory,
+        process,
+      });
+      await completion;
+      const queued = f.storage.inputs.list("conv_1");
+      assert.equal(queued.length, 1);
+      const notice = queued[0]!.content;
+      assert.notEqual(typeof notice, "string");
+      if (typeof notice === "string") throw new Error("Expected system notice");
+      assert.equal(notice.subtype, "async_bash_event");
+      if (notice.subtype !== "async_bash_event")
+        throw new Error("Expected bash notice");
+      assert.equal(
+        notice.text,
+        `echo hello\nStatus: ${status}; exit code: ${exitCode ?? "unknown"}\nhello`,
+      );
+      assert.equal(notice.exitCode, exitCode);
+      assert.equal(notice.status, status);
+      assert.equal(notice.producer, bash.id);
+      assert.equal(f.storage.asyncBash.get(bash.id)?.exitCode, exitCode);
+    } finally {
+      await f.close();
+    }
+  });
+}

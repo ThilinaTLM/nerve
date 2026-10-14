@@ -14,8 +14,9 @@ void test("small process output stays inline without file locators", async () =>
       output: "hello\n",
       outputFiles: { combined: "/capture/output.txt" },
       status: "completed",
+      exitCode: 0,
     }),
-    "hello\n",
+    "Status: completed; exit code: 0\nhello\n",
   );
 });
 void test("large captures retain diagnostics from the whole file and recovery paths", async () => {
@@ -31,6 +32,7 @@ void test("large captures retain diagnostics from the whole file and recovery pa
       exitCode: 1,
       captureTruncated: true,
     });
+    assert.match(projected, /^Status: failed; exit code: 1/);
     assert.match(projected, /ERROR middle-file diagnostic/);
     assert.match(projected, /line 0/);
     assert.match(projected, /line 199/);
@@ -83,4 +85,51 @@ void test("pages use zero-based offsets, continuation, defaults and inline bound
   assert.match(cut, /File:/);
   await assert.rejects(projectProcessOutputPage({ output, offset: -1 }));
   await assert.rejects(projectProcessOutputPage({ output, limit: 501 }));
+});
+
+void test("inline and empty process results always retain terminal exit codes", async () => {
+  for (const exitCode of [0, 7]) {
+    for (const output of ["", "some output\n"]) {
+      const projected = await projectProcessOutput({
+        output,
+        status: exitCode === 0 ? "completed" : "failed",
+        exitCode,
+      });
+      assert.match(
+        projected,
+        new RegExp(`^Status: .*; exit code: ${exitCode}`),
+      );
+      assert.ok(projected.includes(output));
+    }
+  }
+  assert.equal(
+    await projectProcessOutput({ output: "", status: "lost", exitCode: null }),
+    "Status: lost; exit code: unknown",
+  );
+  assert.equal(
+    await projectProcessOutput({ output: "", status: "running" }),
+    "Status: running",
+  );
+  assert.equal(
+    await projectProcessOutput({ output: "", exitCode: 0 }),
+    "Process exit code: 0.",
+  );
+});
+
+void test("overflow success and terminal log pages retain exit codes", async () => {
+  const output = Array.from({ length: 200 }, (_, i) => `line ${i}`).join("\n");
+  assert.match(
+    await projectProcessOutput({ output, status: "completed", exitCode: 0 }),
+    /^Status: completed; exit code: 0/,
+  );
+  for (const exitCode of [0, 7, null]) {
+    assert.equal(
+      await projectProcessOutputPage({
+        output: "one",
+        status: "completed",
+        exitCode,
+      }),
+      `Lines 0-0 of 1 (completed; exit code: ${exitCode ?? "unknown"}).\none`,
+    );
+  }
 });

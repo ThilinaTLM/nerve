@@ -95,6 +95,7 @@ export class AsyncBashService {
     return projectProcessOutputPage({
       outputFiles: this.outputFiles(assets),
       status: row.status,
+      exitCode: row.exitCode,
       ...page,
     });
   }
@@ -317,7 +318,7 @@ export class AsyncBashService {
         inputId: createId("input"),
         subtype: "async_bash_event",
         producer: row.id,
-        text: `${row.command}\nStatus: ${status}; exit code: ${exitCode ?? "unknown"}${output ? `\n${output}` : ""}`,
+        text: `${row.command}\n${output}`,
         details: {
           bashId: row.id,
           status,

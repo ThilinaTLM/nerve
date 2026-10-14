@@ -95,7 +95,7 @@ export class LaunchTool {
     this.options.notify(
       owner,
       launch,
-      `${launchDescription(undefined, launch)}\nStatus: ${launch.status}; exit code: ${launch.exitCode ?? "unknown"}${output ? `\n${output}` : ""}`,
+      `${launchDescription(undefined, launch)}\n${output}`,
     );
   }
 
