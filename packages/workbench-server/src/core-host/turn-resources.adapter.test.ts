@@ -32,12 +32,19 @@ async function prepare(options: {
   instructions?: string | null;
   hasExistingSubagents?: boolean;
   subagentsEnabled?: boolean;
+  mode?: ConversationConfig["mode"];
+  planToolSource?: "host" | "core";
 }) {
   const home = await mkdtemp(join(tmpdir(), "nerve-turn-"));
   try {
     const port = createTurnResourcesPort({
       home,
-      tools: () => [tool("read")],
+      tools: () => [
+        tool("read"),
+        ...(options.planToolSource === "host"
+          ? [tool("plan_mode_present")]
+          : []),
+      ],
       skills: [],
       agentBrowserSkills: [],
       hasExistingSubagents: (id) => {
@@ -84,13 +91,16 @@ async function prepare(options: {
         parentConversationId: options.parent,
       } as Conversation,
       config: {
-        mode: "coding",
+        mode: options.mode,
         workingDirectory: home,
         systemPrompt: null,
         instructions: options.instructions ?? null,
       } as ConversationConfig,
       projectDir: home,
-      coreTools,
+      coreTools:
+        options.planToolSource === "host"
+          ? coreTools.filter((entry) => entry.name !== "plan_mode_present")
+          : coreTools,
     });
   } finally {
     await rm(home, { recursive: true });
@@ -98,6 +108,39 @@ async function prepare(options: {
 }
 
 const names = (tools: ToolDefinition[]) => tools.map((entry) => entry.name);
+
+for (const planToolSource of ["host", "core"] as const) {
+  for (const mode of [undefined, "coding", "planning"] as const) {
+    void test(`${planToolSource} plan tool is gated in ${mode ?? "default"} mode`, async () => {
+      const { tools, systemPrompt } = await prepare({
+        parent: null,
+        usable: [],
+        mode,
+        planToolSource,
+      });
+      assert.equal(
+        names(tools).includes("plan_mode_present"),
+        mode === "planning",
+      );
+      assert.ok(names(tools).includes("read"));
+      assert.ok(names(tools).includes("ask_user"));
+      if (mode !== "planning")
+        assert.doesNotMatch(
+          systemPrompt,
+          /plan_mode_present|<mode_controls>|<plan_mode/,
+        );
+    });
+  }
+}
+
+void test("planning mode does not expose blocked tools to sub-agents", async () => {
+  const { tools } = await prepare({
+    parent: "lead",
+    usable: [],
+    mode: "planning",
+  });
+  assert.deepEqual(names(tools), ["read"]);
+});
 
 void test("sub-agent conversations lose blocked tools", async () => {
   const { tools } = await prepare({

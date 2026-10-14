@@ -22,11 +22,19 @@ function assertUserOwnedMode(prompt: string) {
   );
 }
 
-void test("default coding prompt leaves mode changes to the user", () => {
-  const prompt = buildNerveSystemPrompt({ cwd: "/w", mode: "coding" });
-  assertUserOwnedMode(prompt);
-  assert.doesNotMatch(prompt, /<plan_mode active=/);
-});
+function assertNoPlanningGuidance(prompt: string) {
+  assert.doesNotMatch(
+    prompt,
+    /<mode_controls>|<plan_mode|plan_mode_present|planning mode|plan_dir/,
+  );
+}
+
+for (const mode of [undefined, "coding"] as const) {
+  void test(`${mode ?? "default"} prompt omits planning guidance`, () => {
+    const prompt = buildNerveSystemPrompt({ cwd: "/w", mode });
+    assertNoPlanningGuidance(prompt);
+  });
+}
 
 void test("planning prompt retains read-only work and user-approved implementation", () => {
   const prompt = buildNerveSystemPrompt({
@@ -48,7 +56,7 @@ void test("planning prompt retains read-only work and user-approved implementati
 });
 
 for (const mode of ["coding", "planning"] as const) {
-  void test(`custom ${mode} prompt receives additive user-owned mode guidance`, () => {
+  void test(`custom ${mode} prompt receives mode-appropriate guidance`, () => {
     const customPrompt = "Follow this custom persona exactly.";
     const prompt = buildNerveSystemPrompt({
       cwd: "/w",
@@ -56,7 +64,10 @@ for (const mode of ["coding", "planning"] as const) {
       customPrompt,
     });
     assert.ok(prompt.startsWith(`${customPrompt}\n\n`));
-    assertUserOwnedMode(prompt);
+    if (mode === "planning") {
+      assertUserOwnedMode(prompt);
+      assert.match(prompt, /<plan_mode active="true"/);
+    } else assertNoPlanningGuidance(prompt);
     assert.doesNotMatch(prompt, /You are Nerve's coding agent/);
   });
 }

@@ -46,7 +46,7 @@ export function buildNerveSystemPrompt(
   return [
     basePrompt,
     options.appendSystemPrompt,
-    buildModeOwnershipInstructions(),
+    options.mode === "planning" ? buildModeOwnershipInstructions() : "",
     planModeBlock,
     formatProjectInstructions(options.contextFiles ?? []),
     options.instructions?.trim()
