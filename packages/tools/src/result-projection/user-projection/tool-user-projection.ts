@@ -641,13 +641,18 @@ export function buildUserProjection(
     }
 
     case "plan_mode_present": {
-      const review = record(resultRecord.review);
+      const details = record(resultRecord.details);
+      const reviewValue = resultRecord.review ?? details.review;
+      const review = record(reviewValue);
       const content = firstLines(stringField(review.content));
+      const previewDetails = { ...details };
+      delete previewDetails.review;
       resultPreview = {
         ...resultRecord,
+        ...(details.review ? { details: previewDetails } : {}),
         review:
           content.value === undefined
-            ? resultRecord.review
+            ? reviewValue
             : { ...review, content: content.value },
       };
       ({ hidden, noun } = textOverflowStats([content]));

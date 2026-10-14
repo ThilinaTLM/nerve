@@ -560,7 +560,9 @@ export function parseToolView(
 
     case "plan_mode_present": {
       const resultRecord = asRecord(rawResult);
-      const review = asRecord(resultRecord.review);
+      const review = asRecord(
+        resultRecord.review ?? asRecord(resultRecord.details).review,
+      );
       const interactionSummary =
         toolCall.interaction?.kind === "plan_review"
           ? toolCall.interaction.request.summary

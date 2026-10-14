@@ -79,7 +79,8 @@ function stringField(value: unknown): string | undefined {
 function reviewFromResult(
   value: unknown,
 ): Partial<PlanReviewRecord> | undefined {
-  const review = asRecord(asRecord(value).review);
+  const result = asRecord(value);
+  const review = asRecord(result.review ?? asRecord(result.details).review);
   return typeof review.id === "string" || typeof review.content === "string"
     ? (review as Partial<PlanReviewRecord>)
     : undefined;
