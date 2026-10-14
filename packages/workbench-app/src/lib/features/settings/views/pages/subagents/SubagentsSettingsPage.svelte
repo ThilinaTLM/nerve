@@ -9,9 +9,11 @@ import type {
   SubagentProfilePatch,
 } from "@nervekit/contracts/subagents";
 import { subagentToolNames } from "@nervekit/contracts/tools";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
+import {
+  capabilityToolEnabled,
+  type CapabilityConfiguration,
+  type CapabilityPatch,
+  type CapabilityToolName,
 } from "@nervekit/contracts/capabilities";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
@@ -42,7 +44,6 @@ import {
 } from "$lib/presentation/settings";
 import {
   profileLabel,
-  profileLayerDotClasses,
   profileOriginLayer,
 } from "$lib/presentation/subagents/profile-layers";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
@@ -77,6 +78,8 @@ import {
   profileMatchesFilter,
   profileResetConfirmation,
   profileRowActions,
+  profileRowSummary,
+  type ProfileLeadContext,
   type ProfileSettingsLayer,
 } from "./subagent-profile-rows";
 import {
@@ -244,6 +247,15 @@ function setProjectEnabled(enabled: boolean): void {
     tools: capabilityTogglePatch(projectState, ["subagents"], enabled),
   });
 }
+
+const lead = $derived<ProfileLeadContext>({
+  models: usableModels,
+  leadTool: (name: CapabilityToolName) =>
+    projectScope && configuration
+      ? capabilityToolEnabled(configuration.effective, name)
+      : !(disabledTools as ReadonlySet<string>).has(name),
+  leadSkills: skills.map((skill) => skill.name),
+});
 
 const groups = $derived(
   groupProfilesByOrigin(
@@ -468,57 +480,59 @@ function trustProject(): void {
 </script>
 
 {#snippet delegation()}
-  {#if projectScope && projectLocked}
-    <SettingsInlineMessage
-      tone="warning"
-      text="Project delegation comes from .nerve/config/capabilities.json, which isn't trusted yet."
-    >
-      {#snippet actions()}<Button
-          size="sm"
-          variant="outline"
-          onclick={() => onTrust?.(true)}>Trust capabilities</Button
-        >{/snippet}
-    </SettingsInlineMessage>
-  {/if}
-  <SettingsGroup>
-    {#if projectScope}
-      {#if projectState}
-        <SettingsToggleRow
-          label="Delegation"
-          description={`Let the lead hand work to sub-agents in this project. ${projectState.originLabel}.`}
-          checked={projectState.enabled}
-          disabled={projectLocked || loading}
-          onCheckedChange={setProjectEnabled}
-        >
-          {#snippet badges()}
-            {#if projectState.stored}
-              <Badge variant="neutral">Project</Badge>
-              <IconAction
-                icon={RotateCcw}
-                label="Reset delegation to your user setting"
-                onclick={() => onPatch?.(capabilityResetPatch(["subagents"]))}
-              />
-            {/if}
-          {/snippet}
-        </SettingsToggleRow>
+  <SettingsSection id="delegation" title="Delegation">
+    {#if projectScope && projectLocked}
+      <SettingsInlineMessage
+        tone="warning"
+        text="Project delegation comes from .nerve/config/capabilities.json, which isn't trusted yet."
+      >
+        {#snippet actions()}<Button
+            size="sm"
+            variant="outline"
+            onclick={() => onTrust?.(true)}>Trust capabilities</Button
+          >{/snippet}
+      </SettingsInlineMessage>
+    {/if}
+    <SettingsGroup>
+      {#if projectScope}
+        {#if projectState}
+          <SettingsToggleRow
+            label="Let the lead delegate"
+            description={`${projectState.originLabel}.`}
+            checked={projectState.enabled}
+            disabled={projectLocked || loading}
+            onCheckedChange={setProjectEnabled}
+          >
+            {#snippet badges()}
+              {#if projectState.stored}
+                <Badge variant="neutral">Project</Badge>
+                <IconAction
+                  icon={RotateCcw}
+                  label="Reset delegation to your user setting"
+                  onclick={() => onPatch?.(capabilityResetPatch(["subagents"]))}
+                />
+              {/if}
+            {/snippet}
+          </SettingsToggleRow>
+        {:else}
+          <Skeleton class="h-10 w-full" />
+        {/if}
       {:else}
-        <Skeleton class="h-10 w-full" />
+        <SettingsToggleRow
+          label="Let the lead delegate"
+          description="When off, the lead has no sub-agent tools and profiles aren't offered."
+          checked={userEnabled}
+          onCheckedChange={setUserEnabled}
+        />
       {/if}
-    {:else}
-      <SettingsToggleRow
-        label="Delegation"
-        description="Let the lead hand work to sub-agents. When off, the lead has no sub-agent tools and profiles are not offered."
-        checked={userEnabled}
-        onCheckedChange={setUserEnabled}
+    </SettingsGroup>
+    {#if !delegationEnabled}
+      <SettingsInlineMessage
+        tone="info"
+        text="Profiles stay editable, but the lead can't use them while delegation is off."
       />
     {/if}
-  </SettingsGroup>
-  {#if !delegationEnabled}
-    <SettingsInlineMessage
-      tone="info"
-      text="Delegation is off. Profiles are kept and can still be edited, but the lead can't use them until delegation is turned back on."
-    />
-  {/if}
+  </SettingsSection>
 {/snippet}
 
 {#if projectScope && !projectId}
@@ -538,7 +552,6 @@ function trustProject(): void {
     initial={editor.initial}
     configuration={profile}
     {scope}
-    {scopeName}
     {filePath}
     models={usableModels}
     {skills}
@@ -584,7 +597,7 @@ function trustProject(): void {
           size="sm"
           variant="outline"
           disabled={busyName !== undefined || !profileConfiguration?.digest}
-          onclick={() => (trustReviewOpen = true)}>Review…</Button
+          onclick={() => (trustReviewOpen = true)}>Review</Button
         >
       {/snippet}
     </SettingsInlineMessage>
@@ -681,25 +694,15 @@ function trustProject(): void {
           </SettingsEmptyState>
         {/if}
         {#each groups as group (group.origin)}
-          <div class="grid gap-1.5">
-            <h4
-              class="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
-            >
-              <span
-                class={cn(
-                  "size-1.5 rounded-full",
-                  profileLayerDotClasses[group.origin],
-                )}
-                aria-hidden="true"
-              ></span>
-              {group.title}
-            </h4>
+          <SettingsGroup title={group.title}>
             <SettingsList ariaLabel={group.title}>
               {#each group.profiles as profile (profile.name)}
                 <SubagentProfileRow
                   {profile}
                   {scope}
-                  models={usableModels}
+                  summary={profile.effective
+                    ? profileRowSummary(profile.effective, lead).join(" · ")
+                    : undefined}
                   {documentDiagnostics}
                   busy={listBusy}
                   canCopyToProject={!!projectId}
@@ -713,7 +716,7 @@ function trustProject(): void {
                 />
               {/each}
             </SettingsList>
-          </div>
+          </SettingsGroup>
         {:else}
           {#if filter}
             <p class="text-xs text-muted-foreground">

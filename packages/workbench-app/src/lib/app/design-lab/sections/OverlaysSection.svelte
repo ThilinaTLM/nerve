@@ -391,14 +391,14 @@ const toolOutput = [
           {/snippet}
         </DropdownMenu.Trigger>
         <DropdownMenu.Content align="end" class="w-56">
-          <DropdownMenu.Item>Edit…</DropdownMenu.Item>
-          <DropdownMenu.Item>Duplicate as new profile…</DropdownMenu.Item>
+          <DropdownMenu.Item>Edit</DropdownMenu.Item>
+          <DropdownMenu.Item>Duplicate as new profile</DropdownMenu.Item>
           <DropdownMenu.Item>Copy to project</DropdownMenu.Item>
           <DropdownMenu.Item>Export as JSON</DropdownMenu.Item>
           <DropdownMenu.Separator />
-          <DropdownMenu.Item>Reset customizations…</DropdownMenu.Item>
+          <DropdownMenu.Item>Reset customizations</DropdownMenu.Item>
           <DropdownMenu.Item variant="destructive"
-            >Delete profile…</DropdownMenu.Item
+            >Delete profile</DropdownMenu.Item
           >
         </DropdownMenu.Content>
       </DropdownMenu.Root>

@@ -91,11 +91,11 @@ function describe(base: string, setting: ResolvedLeaf): string {
   if (!setting.editable) {
     const saved = Object.is(setting.activeValue, setting.savedValue)
       ? ""
-      : ` Saved setting: ${formatSettingValue(setting.savedValue)}.`;
-    return `${base} Controlled by ${setting.source.name ?? setting.source.kind}.${saved} Unset the override to edit it here.`;
+      : `; saved ${formatSettingValue(setting.savedValue)}`;
+    return `${base} Set by ${setting.source.name ?? setting.source.kind}${saved}.`;
   }
   if (setting.pendingRestart) {
-    return `${base} Pending restart; currently active: ${formatSettingValue(setting.activeValue)}.`;
+    return `${base} Applies after restart; active ${formatSettingValue(setting.activeValue)}.`;
   }
   return base;
 }
@@ -182,8 +182,18 @@ const diagnostics = $derived<SettingsStat[]>([
     label: "Index",
     value: status?.storage?.indexHealthy ? "healthy" : "unknown",
   },
-  { label: "Data directory", value: status?.dataDir ?? "—", wide: true },
-  { label: "SQLite", value: status?.storage?.sqlitePath ?? "—", wide: true },
+  {
+    label: "Data directory",
+    value: status?.dataDir ?? "—",
+    wide: true,
+    mono: true,
+  },
+  {
+    label: "SQLite",
+    value: status?.storage?.sqlitePath ?? "—",
+    wide: true,
+    mono: true,
+  },
 ]);
 </script>
 

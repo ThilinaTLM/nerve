@@ -1,6 +1,7 @@
 <script lang="ts">
 import ChevronLeft from "@lucide/svelte/icons/chevron-left";
 import Settings2 from "@lucide/svelte/icons/settings-2";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { Snippet } from "svelte";
 import { thinkingLevels, type ModelInfo } from "@nervekit/contracts/models";
 import type {
@@ -231,22 +232,24 @@ function revertTitle(
 
 {#snippet profileRow(profile: SubagentProfileConfiguration, label: string)}
   {@const problem = conversationProfileProblem(profile, shared)}
-  {@const line = problem?.message ?? summary(profile)}
   <div
     class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
   >
-    <div class="grid min-w-0 flex-1">
-      <span class="flex min-w-0 items-center gap-1.5">
-        <span class="truncate">{label}</span>
-        {#if changedHere(profile)}{@render changedDot()}{/if}
-      </span>
-      {#if line}
+    <span class="flex min-w-0 flex-1 items-center gap-1.5">
+      <span class="truncate" title={summary(profile) || undefined}>{label}</span
+      >
+      {#if changedHere(profile)}{@render changedDot()}{/if}
+      {#if problem}
         <span
-          class={`truncate ${problem ? "text-warning" : "text-muted-foreground"}`}
-          title={problem?.detail ?? line}>{line}</span
+          class="inline-flex flex-none text-warning"
+          role="img"
+          aria-label={problem.message}
+          title={problem.detail ?? problem.message}
         >
+          <TriangleAlert class="size-3.5" aria-hidden="true" />
+        </span>
       {/if}
-    </div>
+    </span>
     <!-- Same order as the Tools tab: configure, then the switch on the right edge. -->
     <IconAction
       icon={Settings2}

@@ -3,6 +3,8 @@ export type SettingsStat = {
   label: string;
   value: string;
   wide?: boolean;
+  /** Paths and identifiers; monospace is only for code, logs and paths. */
+  mono?: boolean;
 };
 </script>
 
@@ -21,16 +23,17 @@ let { items, class: className }: Props = $props();
   {#each items as item (item.label)}
     <div
       class={cn(
-        "grid min-w-0 gap-0.5 rounded-md border border-border/50 px-2.5 py-2",
+        "grid min-w-0 gap-0.5 rounded-md bg-foreground/4 px-2.5 py-2",
         item.wide && "md:col-span-2",
       )}
     >
+      <span class="truncate text-xs text-muted-foreground">{item.label}</span>
       <span
-        class="font-mono text-xs tracking-wide text-muted-foreground uppercase"
-        >{item.label}</span
-      >
-      <span class="truncate font-mono text-xs font-medium text-foreground"
-        >{item.value}</span
+        class={cn(
+          "truncate text-sm text-foreground",
+          item.mono && "font-mono text-xs",
+        )}
+        title={item.value}>{item.value}</span
       >
     </div>
   {/each}

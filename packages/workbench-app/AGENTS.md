@@ -38,6 +38,17 @@ Application `*Host` components are state/effect adapters around canonical featur
   no description paragraph; put the detail in a `SettingsInfoHint` tooltip
   beside the title so section- and row-level grey text stay distinguishable.
   `settings-typography.test.ts` enforces this.
+- **Settings sections are surfaces.** `SettingsSection` draws its body as a
+  bordered `card` (`rounded-lg`) with the heading outside, above it; the
+  surface, not a rule or a divider, separates sections. Put a section's rows
+  straight in it; don't add horizontal rules between sections or rows. Nested
+  cards read the `data-settings-surface` contract and sit flush instead of
+  stacking card-in-card (`SettingsList`, `SettingsEmptyState variant="card"`,
+  the model catalog). Group related controls into few sections; a sub-page
+  should not spend a section on one or two rows.
+- **Action labels never end in an ellipsis.** Menu items, buttons, and titles
+  read `Edit`, `Review`, `Delete profile` — not `Edit…`. Reserve `…` for
+  in-progress status text such as `Saving…` and for placeholders.
 - **Settings uses one set of list patterns.** Entity lists are a single
   `SettingsList` (bordered `card` surface, hairline-divided rows) holding
   `SettingsListItem` rows, never a stack of individually tinted cards. A row's

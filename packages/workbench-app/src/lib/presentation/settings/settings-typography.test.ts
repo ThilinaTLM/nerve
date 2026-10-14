@@ -90,4 +90,23 @@ describe("settings typography", () => {
       assert.match(text, /SettingsInfoHint/, `${path} should offer info`);
     }
   });
+
+  it("separates sections with a surface, and nested cards sit flush in it", () => {
+    /* Sections sitting straight on the page read as one undivided stream. The
+     * surface separates them; cards inside it drop their own chrome so they
+     * never stack card-in-card. */
+    const section = source("./SettingsSection.svelte");
+    assert.match(section, /data-settings-surface/);
+    assert.match(section, /rounded-lg border bg-card/);
+    for (const path of [
+      "./SettingsList.svelte",
+      "./SettingsEmptyState.svelte",
+    ]) {
+      assert.match(
+        source(path),
+        /group-data-settings-surface\/surface:/,
+        `${path} should sit flush inside a section surface`,
+      );
+    }
+  });
 });

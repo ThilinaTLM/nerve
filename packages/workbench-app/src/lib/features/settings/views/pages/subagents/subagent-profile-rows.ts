@@ -1,5 +1,10 @@
+import {
+  capabilityToolNameSchema,
+  type CapabilityToolName,
+} from "@nervekit/contracts/capabilities";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import type {
+  SubagentProfile,
   SubagentProfileConfiguration,
   SubagentProfileEntry,
   SubagentProfileScope,
@@ -14,9 +19,12 @@ import {
   profileFieldLabel,
   profileFieldValueLabel,
   profileLabel,
+  profileModelLabel,
   profileOriginLayer,
+  profilePermissionLabel,
   type ProfileField,
 } from "$lib/presentation/subagents/profile-layers";
+import { capabilityToolGroupsFor } from "$lib/presentation/composer/capability-tool-labels";
 
 /** Invalid local entries have no parsed local value, but can still be removed whole. */
 export function canResetProfileEntry(
@@ -327,4 +335,66 @@ export function profileTrustReviewEntries(
       fields,
     };
   });
+}
+
+/** What the lead has, so a profile row can count what its sub-agents get. */
+export type ProfileLeadContext = {
+  models: readonly ModelInfo[];
+  /** The lead has this capability tool enabled. */
+  leadTool: (name: CapabilityToolName) => boolean;
+  /** Skills the lead loads. */
+  leadSkills: readonly string[];
+};
+
+const thinkingShortLabels: Record<string, string> = {
+  off: "Off",
+  minimal: "Min",
+  low: "Low",
+  medium: "Med",
+  high: "High",
+  xhigh: "XHigh",
+  max: "Max",
+};
+
+const profileToolGroups = capabilityToolGroupsFor(
+  capabilityToolNameSchema.options.filter((name) => name !== "subagents"),
+);
+
+/**
+ * The collapsed row line: model with short thinking, permission, then how many
+ * optional tool groups and skills a new sub-agent gets.
+ */
+export function profileRowSummary(
+  profile: SubagentProfile,
+  lead: ProfileLeadContext,
+): string[] {
+  const model =
+    profile.model === "lead"
+      ? "Lead's model"
+      : profileModelLabel(profile.model, lead.models);
+  const thinking =
+    profile.thinking === "lead"
+      ? ""
+      : ` (${thinkingShortLabels[profile.thinking] ?? profile.thinking})`;
+  const toolsOn = profileToolGroups.filter((group) =>
+    group.names.every((name) => {
+      const value = profile.tools[name];
+      return value === undefined ? lead.leadTool(name) : value !== false;
+    }),
+  ).length;
+  const skills =
+    profile.skills === "none"
+      ? 0
+      : profile.skills === "inherit"
+        ? lead.leadSkills.length
+        : lead.leadSkills.filter(
+            (name) =>
+              (profile.skills as Record<string, boolean>)[name] !== false,
+          ).length;
+  return [
+    `${model}${thinking}`,
+    profilePermissionLabel(profile.permission),
+    `${toolsOn}/${profileToolGroups.length} tools`,
+    skills === 0 ? "No skills" : `${skills} skill${skills === 1 ? "" : "s"}`,
+  ];
 }
