@@ -4,6 +4,7 @@ import Clipboard from "@lucide/svelte/icons/clipboard";
 import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
 import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
@@ -28,6 +29,8 @@ import {
 } from "./session-info";
 import {
   conversationUsageMetrics,
+  expectedCacheRate,
+  isCacheRateCritical,
   emptyConversationUsage,
   type ConversationUsageMetrics,
   type ConversationUsageSummary,
@@ -115,13 +118,7 @@ const ownMetrics = $derived(
 const subagentMetrics = $derived(
   conversationUsageMetrics(agentUsage?.subagents ?? emptyConversationUsage()),
 );
-const totalMetrics = $derived(
-  conversationUsageMetrics(agentUsage?.total ?? emptyConversationUsage()),
-);
 const subagentCount = $derived(agentUsage?.subagentCount ?? 0);
-const totalTokenCount = $derived(
-  totalMetrics.promptTokens + totalMetrics.output,
-);
 const percent = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return (tokens / contextLimit) * 100;
@@ -143,7 +140,14 @@ const ringTone = $derived<StatusTone>(
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
-const title = $derived.by(() => {
+// Judged on this agent's all-time recorded usage, which is what drives cost.
+const cacheCritical = $derived(!!agentUsage && isCacheRateCritical(ownMetrics));
+const cacheWarning = $derived(
+  cacheCritical && ownMetrics.cacheRate != null
+    ? `Low prompt cache: ${Math.round(ownMetrics.cacheRate)}% of input was cached across ${ownMetrics.responseCount} requests (expected at least ${expectedCacheRate(ownMetrics.responseCount)}% by now). Uncached input costs more.`
+    : undefined,
+);
+const contextTitle = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return `Context: ${tokens.toLocaleString()} / ${contextLimit.toLocaleString()} tokens`;
   }
@@ -152,6 +156,9 @@ const title = $derived.by(() => {
   }
   return "Context window unknown";
 });
+const title = $derived(
+  cacheWarning ? `${cacheWarning}\n${contextTitle}` : contextTitle,
+);
 const windowLabel = $derived(
   contextLimit > 0 ? formatTokens(contextLimit) : "—",
 );
@@ -179,7 +186,7 @@ function requestCompact(): void {
 }
 </script>
 
-{#snippet usageRows(m: ConversationUsageMetrics, total: number | null = null)}
+{#snippet usageRows(m: ConversationUsageMetrics)}
   {@const rate =
     m.cacheRate == null ? "Unavailable" : `${Math.round(m.cacheRate)}%`}
   <PopoverProperties>
@@ -198,13 +205,6 @@ function requestCompact(): void {
       value={`${formatTokens(m.output)} tokens`}
       title={`${m.output.toLocaleString()} tokens`}
     />
-    {#if total != null}
-      <PopoverProperty
-        label="Total tokens"
-        value={`${formatTokens(total)} tokens`}
-        title={`${total.toLocaleString()} tokens (input including cache + output)`}
-      />
-    {/if}
   </PopoverProperties>
 {/snippet}
 
@@ -233,7 +233,14 @@ function requestCompact(): void {
         data-tone={tone}
         data-tour-id="composer-context"
       >
-        <ProgressRing percent={ringPercent} tone={ringTone} />
+        {#if cacheCritical}
+          <TriangleAlert
+            class="size-3 flex-none text-warning"
+            aria-label="Low prompt cache rate"
+          />
+        {:else}
+          <ProgressRing percent={ringPercent} tone={ringTone} />
+        {/if}
         <span class="ctx-percent">{percentLabel}</span>
         <span class="ctx-window font-medium text-muted-foreground"
           >/{windowLabel}</span
@@ -343,6 +350,16 @@ function requestCompact(): void {
             }`}
       />
 
+      {#if cacheWarning}
+        <div class="flex items-start gap-2 px-1.5 pt-2" role="status">
+          <TriangleAlert
+            class="mt-0.5 size-3.5 shrink-0 text-warning"
+            aria-hidden="true"
+          />
+          <p class="text-warning">{cacheWarning}</p>
+        </div>
+      {/if}
+
       {#if agentUsage && subagentCount > 0}
         <PopoverSection label="This agent" separated>
           {#if agentUsageError}
@@ -362,13 +379,6 @@ function requestCompact(): void {
           {:else}
             <p class="px-1.5 text-muted-foreground">No responses yet.</p>
           {/if}
-        </PopoverSection>
-        <PopoverSection label="All agents" separated>
-          {@render usageRows(totalMetrics, totalTokenCount)}
-          <p class="px-1.5 pt-1 text-muted-foreground">
-            Cumulative recorded response tokens, not combined context window
-            usage.
-          </p>
         </PopoverSection>
       {:else}
         <PopoverSection label="Token usage" separated>

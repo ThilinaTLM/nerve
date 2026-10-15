@@ -159,3 +159,37 @@ test("dispose ignores a pending response", async () => {
   assert.equal(h.state().usage, undefined);
   assert.equal(h.scheduled(), false);
 });
+
+test("without polling, usage refreshes on enable and invalidate only", async () => {
+  let requests = 0;
+  const gate = deferred<ConversationAgentUsage>();
+  let first = true;
+  const h = setup(async () => {
+    requests++;
+    if (first) {
+      first = false;
+      return gate.promise;
+    }
+    return result();
+  });
+  h.controller.configure("lead", true, false);
+  await flush();
+  assert.equal(requests, 1);
+  // An invalidation during an in-flight fetch is not lost.
+  h.controller.invalidate();
+  gate.resolve(result());
+  await flush();
+  await flush();
+  assert.equal(requests, 2);
+  assert.equal(h.scheduled(), false);
+  h.controller.invalidate();
+  await flush();
+  assert.equal(requests, 3);
+  assert.equal(h.scheduled(), false);
+  // Opening details switches to polling.
+  h.controller.configure("lead", true, true);
+  await flush();
+  assert.equal(requests, 4);
+  assert.ok(h.scheduled());
+  h.controller.dispose();
+});

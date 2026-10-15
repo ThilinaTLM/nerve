@@ -259,10 +259,18 @@ const agentUsageController = new ConversationAgentUsageController({
   },
 });
 $effect(() => {
+  // All-time usage also drives the badge's cache warning, so fetch it while the
+  // conversation is active; poll only while the details are open.
   agentUsageController.configure(
     store?.conversationId,
-    usageOpen && active && !!store?.connected,
+    active && !!store?.connected,
+    usageOpen,
   );
+});
+// Each new response changes recorded usage.
+$effect(() => {
+  void conversationUsage.responseCount;
+  untrack(() => agentUsageController.invalidate());
 });
 $effect(() => () => agentUsageController.dispose());
 const contextWindow = $derived(
