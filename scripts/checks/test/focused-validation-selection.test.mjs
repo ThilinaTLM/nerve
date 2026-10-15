@@ -90,8 +90,11 @@ test("app edits prepare dependency declarations and run only affected package ch
   const path = "packages/workbench-app/src/index.ts";
   const plan = f.select("check", [path]);
   assert.equal(plan.mode, "focused");
-  assert.deepEqual(plan.packages, ["@nervekit/workbench-app"]);
-  assert.deepEqual(plan.files, { format: [path], lint: [path] });
+  assert.deepEqual(plan.stages.packages.targets, ["@nervekit/workbench-app"]);
+  assert.deepEqual(
+    { format: plan.stages.format.targets, lint: plan.stages.lint.targets },
+    { format: [path], lint: [path] },
+  );
   assert.deepEqual(plan.commands[0].args, [
     "exec",
     "tsc",
@@ -145,7 +148,7 @@ test("shared contracts include transitive consumers and newly added workspace pa
   f.pkg("unrelated");
   const plan = f.select("check", ["packages/contracts/src/index.ts"]);
   assert.equal(plan.mode, "focused");
-  assert.deepEqual(plan.packages, [
+  assert.deepEqual(plan.stages.packages.targets, [
     "@nervekit/contracts",
     "@nervekit/new-consumer",
     "@nervekit/protocol",
@@ -175,14 +178,14 @@ test("UI styles select website's complete package check and root input owners se
   f.write("packages/ui-kit/src/styles/theme.css", "");
   const style = f.select("check", ["packages/ui-kit/src/styles/theme.css"]);
   assert.equal(style.mode, "focused");
-  assert.deepEqual(style.packages, [
+  assert.deepEqual(style.stages.packages.targets, [
     "@nervekit/ui-kit",
     "@nervekit/website",
     "@nervekit/workbench-app",
   ]);
   assert.ok(hasCommand(style, "check"));
   const asset = f.select("check", ["assets/brand/logo.png"]);
-  assert.deepEqual(asset.packages, [
+  assert.deepEqual(asset.stages.packages.targets, [
     "@nervekit/desktop-shell",
     "@nervekit/new-consumer",
   ]);
@@ -214,6 +217,11 @@ test("Rust runs crate formatting/checks while native TS avoids Rust and still ch
   const ts = f.select("check", ["packages/native/src/index.ts"]);
   assert.equal(ts.mode, "focused");
   assert.ok(hasCommand(ts, "tsc"));
+  assert.ok(
+    ts.commands
+      .find((command) => command.stage === "prepare")
+      .args.includes("packages/native/tsconfig.json"),
+  );
   assert.equal(hasCommand(ts, "check:native"), false);
   assert.equal(
     hasCommand(f.select("fix", ["packages/native/src/index.ts"]), "fix:native"),
@@ -228,7 +236,7 @@ test("Rust runs crate formatting/checks while native TS avoids Rust and still ch
     f.write(path, "");
     assert.ok(hasCommand(f.select("fix", [path]), "fix:native"));
     assert.ok(hasCommand(f.select("check", [path]), "check:native"));
-    assert.equal(f.select("check", [path]).files.lint.length, 0);
+    assert.equal(f.select("check", [path]).stages.lint.targets.length, 0);
   }
 });
 
@@ -245,7 +253,10 @@ test("deletions, package configuration, fixtures, and runtime Markdown retain pa
   ]) {
     const plan = f.select("check", [path]);
     assert.equal(plan.mode, "focused", path);
-    assert.deepEqual(plan.packages, ["@nervekit/consumer", "@nervekit/skills"]);
+    assert.deepEqual(plan.stages.packages.targets, [
+      "@nervekit/consumer",
+      "@nervekit/skills",
+    ]);
     assert.ok(hasCommand(plan, "migrations:check"));
   }
   const deletedFix = f.select("fix", ["packages/skills/src/deleted.ts"]);
@@ -263,12 +274,13 @@ test("prose-only input formats prose but avoids global/package checks; website M
     "packages/protocol/AGENTS.md",
   ]);
   assert.equal(prose.mode, "focused");
-  assert.deepEqual(prose.packages, []);
+  assert.deepEqual(prose.stages.packages.targets, []);
   assert.equal(prose.commands.length, 1);
   assert.equal(hasCommand(prose, "migrations:check"), false);
   f.write("packages/website/src/content/docs/page.md", "# Content\n");
   assert.deepEqual(
-    f.select("check", ["packages/website/src/content/docs/page.md"]).packages,
+    f.select("check", ["packages/website/src/content/docs/page.md"]).stages
+      .packages.targets,
     ["@nervekit/website"],
   );
   assert.equal(f.select("check", []).mode, "none");
@@ -287,50 +299,133 @@ test("formatter/linter eligibility skips generated/deleted files and unsupported
   inputs.push("packages/website/src/deleted.ts");
   const plan = f.select("check", inputs, { lintFiles: new Set() });
   assert.equal(plan.mode, "focused");
-  assert.deepEqual(plan.files.format, [
+  assert.deepEqual(plan.stages.format.targets, [
     "packages/website/src/style.css",
     "packages/website/src/file.ts",
   ]);
-  assert.deepEqual(plan.files.lint, []);
+  assert.deepEqual(plan.stages.lint.targets, []);
 });
 
-test("global/unknown inputs fall back exactly once to original full command", (t) => {
+test("configuration changes produce mixed stages, not root command fallbacks", (t) => {
   const f = fixture(t);
   f.pkg("protocol");
-  for (const path of [
-    ".oxfmtrc.json",
-    ".prettierignore",
-    ".gitignore",
-    "eslint.config.js",
-    "tsconfig.base.json",
-    "package.json",
-    "pnpm-lock.yaml",
-    "rust-toolchain.toml",
-    "scripts/checks/example.mjs",
-    "unowned.ts",
-  ]) {
-    for (const operation of ["fix", "check"]) {
-      const plan = f.select(operation, [path]);
-      assert.equal(plan.mode, "full", path);
-      assert.deepEqual(
-        plan.commands.map((command) => command.args),
-        [["run", operation]],
-      );
-    }
+  f.pkg("native");
+  f.write("eslint.config.js", "export default [];");
+  f.write(".oxfmtrc.json", "{}");
+  const format = f.select("check", [".oxfmtrc.json"]);
+  assert.equal(format.mode, "mixed");
+  assert.equal(format.stages.format.scope, "all");
+  assert.equal(format.stages.lint.scope, "none");
+  assert.equal(format.stages.packages.scope, "none");
+  assert.equal(format.stages.native.scope, "none");
+  const lint = f.select("check", ["eslint.config.js"]);
+  assert.equal(lint.stages.format.scope, "changed");
+  assert.equal(lint.stages.lint.scope, "all");
+  assert.equal(lint.stages.packages.scope, "none");
+  assert.equal(lint.stages.native.scope, "none");
+  assert.ok(
+    hasCommand(lint, "tsc"),
+    "typed lint prepares declarations independently",
+  );
+  const unknown = f.select("check", ["unowned.ts"]);
+  assert.equal(unknown.stages.packages.scope, "all");
+  assert.equal(unknown.stages.format.scope, "none");
+  assert.equal(unknown.stages.lint.scope, "none");
+  assert.equal(unknown.stages.native.scope, "none");
+  assert.equal(hasCommand(unknown, "check:native"), false);
+  assert.deepEqual(
+    unknown.commands.find((command) => command.stage === "packages").args,
+    ["-r", "--filter", "!@nervekit/native", "run", "check"],
+  );
+  assert.ok(unknown.commands.every((command) => command.stage !== "fallback"));
+});
+
+test("explicit broad config scopes work even without a changed tool-supported file", (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  const format = f.select("check", [".prettierignore"]);
+  assert.equal(format.stages.format.scope, "all");
+  assert.deepEqual(format.stages.format.targets, ["."]);
+  assert.deepEqual(
+    format.commands.find((command) => command.stage === "format").args,
+    ["exec", "oxfmt", "--check"],
+  );
+  const lint = f.select("check", [".eslintignore"]);
+  assert.equal(lint.stages.lint.scope, "all");
+  assert.deepEqual(
+    lint.commands.find((command) => command.stage === "lint").args,
+    ["exec", "eslint", "."],
+  );
+});
+
+test("repository-wide lint autofix gets a final repository-wide formatting pass", (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  f.write("eslint.config.js", "export default [];");
+  const plan = f.select("fix", ["eslint.config.js"]);
+  assert.equal(plan.stages.format.scope, "all");
+  assert.equal(plan.stages.lint.scope, "all");
+  assert.equal(plan.stages.packages.scope, "none");
+  assert.deepEqual(plan.commands.at(-1).args, ["exec", "oxfmt"]);
+  assert.equal(plan.commands[0].args.at(-1), join(f.root, "eslint.config.js"));
+  assert.equal(hasCommand(plan, "fix:native"), false);
+});
+
+test("package config lint autofix expands final formatting to consumers, not unrelated files", (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  f.pkg("consumer", ["protocol"]);
+  f.pkg("unrelated");
+  const path = "packages/protocol/tsconfig.json";
+  const plan = f.select("fix", [path]);
+  assert.equal(plan.stages.lint.scope, "packages");
+  assert.deepEqual(plan.stages.lint.targets, [
+    "packages/consumer/src/index.ts",
+    "packages/protocol/src/index.ts",
+  ]);
+  assert.equal(plan.stages.format.scope, "packages");
+  assert.deepEqual(plan.stages.format.targets, [
+    "packages/consumer/src/index.ts",
+    "packages/protocol/src/index.ts",
+    path,
+  ]);
+  assert.ok(
+    plan.commands
+      .at(-1)
+      .args.includes(join(f.root, "packages/consumer/src/index.ts")),
+  );
+  assert.equal(plan.stages.packages.scope, "none");
+});
+
+test("lockfile broadens npm checks but never enables unrelated Rust", (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  f.pkg("native");
+  for (const operation of ["fix", "check"]) {
+    const plan = f.select(operation, ["pnpm-lock.yaml"]);
+    assert.equal(plan.stages.format.scope, "all");
+    assert.equal(plan.stages.lint.scope, "all");
+    assert.equal(
+      plan.stages.packages.scope,
+      operation === "check" ? "all" : "none",
+    );
+    assert.equal(plan.stages.native.scope, "none");
+    assert.equal(hasCommand(plan, "check:native"), false);
+    assert.ok(plan.commands.every((command) => command.stage !== "fallback"));
   }
 });
 
-test("unsupported checks/preparation conservatively fall back instead of skipping", (t) => {
+test("unsupported required checks/preparation fail clearly before execution", (t) => {
   const f = fixture(t);
   f.pkg("missing", [], { scripts: {} });
-  assert.equal(
-    f.select("check", ["packages/missing/src/index.ts"]).mode,
-    "full",
+  assert.throws(
+    () => f.select("check", ["packages/missing/src/index.ts"]),
+    /Unsupported emitted API preparation|No package check/,
   );
   f.pkg("custom", [], { scripts: { check: "custom-check" } });
-  assert.equal(
-    f.select("check", ["packages/custom/src/index.ts"]).mode,
-    "full",
+  assert.throws(
+    () => f.select("check", ["packages/custom/src/index.ts"]),
+    /Unsupported emitted API preparation/,
   );
   f.pkg("invalid-config");
   f.write(
@@ -340,18 +435,18 @@ test("unsupported checks/preparation conservatively fall back instead of skippin
       include: ["src/**/*.ts"],
     }),
   );
-  assert.equal(
-    f.select("check", ["packages/invalid-config/src/index.ts"]).mode,
-    "full",
+  assert.throws(
+    () => f.select("check", ["packages/invalid-config/src/index.ts"]),
+    /Unsupported declaration preparation/,
   );
   f.pkg("broken");
   f.write(
     "packages/broken/tsconfig.json",
     JSON.stringify({ compilerOptions: { noEmit: true } }),
   );
-  assert.equal(
-    f.select("check", ["packages/broken/src/index.ts"]).mode,
-    "full",
+  assert.throws(
+    () => f.select("check", ["packages/broken/src/index.ts"]),
+    /Unsupported declaration preparation/,
   );
 });
 
@@ -380,21 +475,139 @@ test("file batches are bounded, preserve all targets, and never produce an empty
   assert.equal(f.select("fix", []).commands.length, 0);
 });
 
-test("duplicate workspace metadata cannot silently hide package checks", (t) => {
+test("invalid workspace graph cannot cause repository-wide autofix", (t) => {
   const f = fixture(t);
   f.pkg("protocol");
   f.pkg("duplicate", [], { name: "@nervekit/protocol" });
-  const plan = f.select("check", ["packages/protocol/src/index.ts"]);
-  assert.equal(plan.mode, "full");
-  assert.match(plan.reason, /workspace name/);
+  const path = "packages/protocol/src/index.ts";
+  const fix = f.select("fix", [path]);
+  assert.equal(fix.stages.format.scope, "changed");
+  assert.equal(fix.stages.lint.scope, "changed");
+  assert.equal(fix.stages.packages.scope, "none");
+  assert.throws(() => f.select("check", [path]), /workspace name/);
 });
 
-test("missing workspace dependencies yield full fallback", (t) => {
+test("missing workspace dependencies fail package validation without expanding file stages", (t) => {
   const f = fixture(t);
   f.pkg("protocol", ["missing"]);
-  const plan = f.select("check", ["packages/protocol/src/index.ts"]);
-  assert.equal(plan.mode, "full");
-  assert.match(plan.reason, /Unknown workspace dependency/);
+  assert.throws(
+    () => f.select("check", ["packages/protocol/src/index.ts"]),
+    /Unknown workspace dependency/,
+  );
+  const plan = f.select("fix", ["packages/protocol/src/index.ts"]);
+  assert.equal(plan.stages.format.scope, "changed");
+  assert.equal(plan.stages.lint.scope, "changed");
+});
+
+test("manifest metadata is compared to Git baseline without package-wide validation", async (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  const manifest = {
+    name: "fixture",
+    version: "1",
+    scripts: { dev: "node dev.mjs" },
+  };
+  f.write("package.json", JSON.stringify(manifest));
+  const git = (...args) =>
+    execFileSync("git", args, { cwd: f.root, stdio: "ignore" });
+  git("init", "--quiet");
+  git("add", ".");
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.com",
+    "commit",
+    "--quiet",
+    "-m",
+    "baseline",
+  );
+  f.write("package.json", JSON.stringify({ ...manifest, version: "2" }));
+  git("add", "package.json");
+  f.write(
+    "package.json",
+    JSON.stringify({
+      ...manifest,
+      version: "3",
+      scripts: { dev: "node other.mjs" },
+    }),
+  );
+  const plan = await planFocusedValidation(f.root, "check", "HEAD");
+  assert.equal(plan.stages.format.scope, "changed");
+  assert.deepEqual(plan.stages.format.targets, ["package.json"]);
+  assert.equal(plan.stages.lint.scope, "none");
+  assert.equal(plan.stages.packages.scope, "none");
+  assert.equal(plan.stages.native.scope, "none");
+  assert.equal(hasCommand(plan, "tsc"), false);
+  f.write("package.json", "invalid JSON");
+  await assert.rejects(
+    planFocusedValidation(f.root, "fix", "HEAD"),
+    /Cannot read current root package.json/,
+  );
+  f.write("package.json", JSON.stringify({ ...manifest, scripts: [] }));
+  await assert.rejects(
+    planFocusedValidation(f.root, "fix", "HEAD"),
+    /expected string values/,
+  );
+});
+
+test("unavailable baseline manifest broadens packages but preserves file scope", async (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  const git = (...args) =>
+    execFileSync("git", args, { cwd: f.root, stdio: "ignore" });
+  git("init", "--quiet");
+  git("add", ".");
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.com",
+    "commit",
+    "--quiet",
+    "-m",
+    "baseline",
+  );
+  f.write("package.json", JSON.stringify({ name: "fixture" }));
+  const plan = await planFocusedValidation(f.root, "check", "HEAD");
+  assert.equal(plan.stages.packages.scope, "all");
+  assert.equal(plan.stages.format.scope, "changed");
+  assert.equal(plan.stages.lint.scope, "none");
+  assert.ok(
+    plan.stages.packages.reasons.some((reason) =>
+      /baseline|compar/i.test(reason),
+    ),
+  );
+});
+
+test("invalid baseline and missing current manifests broaden only package scope", async (t) => {
+  const f = fixture(t);
+  f.pkg("protocol");
+  f.write("package.json", "invalid baseline JSON");
+  const git = (...args) =>
+    execFileSync("git", args, { cwd: f.root, stdio: "ignore" });
+  git("init", "--quiet");
+  git("add", ".");
+  git(
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.com",
+    "commit",
+    "--quiet",
+    "-m",
+    "baseline",
+  );
+  f.write("package.json", JSON.stringify({ name: "fixture" }));
+  const fixed = await planFocusedValidation(f.root, "check", "HEAD");
+  assert.equal(fixed.stages.packages.scope, "all");
+  assert.equal(fixed.stages.format.scope, "changed");
+  assert.equal(fixed.stages.lint.scope, "none");
+  rmSync(join(f.root, "package.json"));
+  const removed = await planFocusedValidation(f.root, "check", "HEAD");
+  assert.equal(removed.stages.packages.scope, "all");
+  assert.equal(removed.stages.format.scope, "none");
+  assert.equal(removed.stages.lint.scope, "none");
 });
 
 test("planning uses ESLint's configured ignores without executing validation tools", async (t) => {
@@ -423,14 +636,21 @@ test("planning uses ESLint's configured ignores without executing validation too
   f.write("packages/protocol/src/index.ts", "// changed\n");
   const plan = await planFocusedValidation(f.root, "check", "HEAD");
   assert.equal(plan.mode, "focused");
-  assert.deepEqual(plan.files.lint, ["packages/protocol/src/index.ts"]);
-  assert.equal(plan.files.format.length, 2);
+  assert.deepEqual(plan.stages.lint.targets, [
+    "packages/protocol/src/index.ts",
+  ]);
+  assert.equal(plan.stages.format.targets.length, 2);
+  f.write("eslint.config.mjs", 'throw new Error("bad lint config");');
+  await assert.rejects(
+    planFocusedValidation(f.root, "fix", "HEAD"),
+    /bad lint config/,
+  );
 });
 
 test("Git discovery failure produces an explicit full fallback", async (t) => {
   const f = fixture(t);
   const plan = await planFocusedValidation(f.root, "check", "does-not-exist");
-  assert.equal(plan.mode, "full");
-  assert.match(plan.reason, /Cannot discover validation scope/);
+  assert.equal(plan.mode, "full-fallback");
+  assert.match(plan.reason, /Cannot discover changed files/);
   assert.deepEqual(plan.commands[0].args, ["run", "check"]);
 });

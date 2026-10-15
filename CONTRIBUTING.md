@@ -14,7 +14,9 @@ Install Node.js 24+, pnpm 11.20.0, and rustup (toolchain pinned in `rust-toolcha
 
 Focused commands default to `--base origin/main`: changes since its merge-base with HEAD, plus staged, unstaged, and untracked nonignored files. Use `--base HEAD` for local changes only, or `--dry-run` to preview scope and commands without executing them. Neither command runs tests.
 
-Global/unknown scope or unavailable Git/base explicitly falls back to full `pnpm fix` or `pnpm check`. **Full fix can mutate files repository-wide.** Use full commands for explicit broad validation. Focused checks are not equivalent to full validation; CI and release requirements are unchanged.
+Formatting, linting, package/type checks, and Rust have independent scopes. Root `package.json` metadata and ordinary script edits stay narrow; unknown ownership broadens only package checks. Configuration changes broaden relevant stages. Lockfile/workspace resolution uncertainty conservatively broadens formatting, linting, and package checks, not Rust. See [scripts/README.md](scripts/README.md) for scope rules; `--dry-run` shows each stage's scope and reasons.
+
+Only unavailable Git/base or change inventory triggers full `pnpm fix` or `pnpm check` fallback. **Full fix can mutate files repository-wide.** Repository-wide format/lint autofix also warns; full lint autofix requires a final full formatting pass. Use full commands for explicit broad validation. Focused checks are not equivalent to full validation; CI and release requirements are unchanged.
 
 Keep scripts and their tests in the owning domain (see [scripts/README.md](scripts/README.md)).
 

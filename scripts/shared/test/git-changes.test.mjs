@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { isIgnoredPath, readGitState } from "../git-changes.mjs";
+import { isIgnoredPath, readGitFile, readGitState } from "../git-changes.mjs";
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "nerve-git-changes-"));
@@ -13,17 +13,85 @@ function fixture(t) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
     writeFileSync(join(root, path), text);
   }
-  return { root, write };
-}
-
-test("Git discovery includes branch, staged, unstaged, untracked, and renamed paths with spaces", (t) => {
-  const f = fixture(t);
   const git = (...args) =>
     execFileSync("git", args, {
-      cwd: f.root,
+      cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
+  return { root, write, git };
+}
+
+function baselineFixture(t) {
+  const f = fixture(t);
+  f.git("init", "-q");
+  f.git("config", "user.email", "test@example.invalid");
+  f.git("config", "user.name", "Test");
+  f.write("file with spaces.json", '{"version": "baseline"}\n');
+  f.write("nested/empty.txt", "");
+  f.write("literal[1].txt", "literal\n");
+  f.git("add", ".");
+  f.git("commit", "-qm", "baseline");
+  return { ...f, baseline: f.git("rev-parse", "HEAD") };
+}
+
+test("baseline reader returns exact committed text, including spaced and literal filenames", (t) => {
+  const f = baselineFixture(t);
+  assert.equal(
+    readGitFile(f.root, f.baseline, "file with spaces.json"),
+    '{"version": "baseline"}\n',
+  );
+  assert.equal(readGitFile(f.root, f.baseline, "nested/empty.txt"), "");
+  assert.equal(readGitFile(f.root, f.baseline, "literal[1].txt"), "literal\n");
+});
+
+test("baseline reader returns null only for absent files at a valid baseline", (t) => {
+  const f = baselineFixture(t);
+  f.write("new file.json", "{}");
+  f.git("add", "new file.json");
+  assert.equal(readGitFile(f.root, f.baseline, "new file.json"), null);
+  assert.equal(readGitFile(f.root, f.baseline, "missing/file.json"), null);
+  assert.throws(() => readGitFile(f.root, f.baseline, "nested"), /not a file/);
+});
+
+test("baseline reader propagates invalid revisions and unavailable repositories", (t) => {
+  const f = baselineFixture(t);
+  for (const revision of [
+    "missing-revision",
+    "--help",
+    "HEAD:file with spaces.json",
+  ]) {
+    assert.throws(() => readGitFile(f.root, revision, "missing.json"));
+  }
+  const unavailable = fixture(t);
+  assert.throws(() =>
+    readGitFile(unavailable.root, f.baseline, "missing.json"),
+  );
+});
+
+test("baseline reader ignores later commits, staged edits, and worktree edits", (t) => {
+  const f = baselineFixture(t);
+  const path = "file with spaces.json";
+  f.write(path, '{"version": "later commit"}\n');
+  f.git("add", path);
+  f.git("commit", "-qm", "later");
+  f.write(path, '{"version": "staged"}\n');
+  f.git("add", path);
+  f.write(path, '{"version": "worktree"}\n');
+  assert.equal(
+    readGitFile(f.root, f.baseline, path),
+    '{"version": "baseline"}\n',
+  );
+  rmSync(join(f.root, path));
+  assert.equal(
+    readGitFile(f.root, f.baseline, path),
+    '{"version": "baseline"}\n',
+  );
+});
+
+test("Git discovery includes branch, staged, unstaged, untracked, and renamed paths with spaces", (t) => {
+  const f = fixture(t);
+  const { git } = f;
   git("init", "-q");
   git("config", "user.email", "test@example.invalid");
   git("config", "user.name", "Test");

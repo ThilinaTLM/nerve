@@ -14,10 +14,30 @@ function fixture(overrides = {}) {
     base: "origin/main",
     baseline: "abc123",
     reason: "Changed package inputs",
-    files: { format: ["packages/a/file with spaces.ts"], lint: [] },
-    packages: ["@nervekit/a"],
+    stages: {
+      prepare: { scope: "none", targets: [], reasons: [] },
+      format: {
+        scope: "changed",
+        targets: ["packages/a/file with spaces.ts"],
+        reasons: ["Changed format inputs"],
+      },
+      lint: { scope: "none", targets: [], reasons: [] },
+      policies: {
+        scope: "all",
+        targets: [],
+        reasons: ["Runtime inputs changed"],
+      },
+      migrations: { scope: "none", targets: [], reasons: [] },
+      packages: {
+        scope: "packages",
+        targets: ["@nervekit/a"],
+        reasons: ["Affected consumers"],
+      },
+      native: { scope: "none", targets: [], reasons: [] },
+    },
     commands: [
       {
+        stage: "format",
         command: "pnpm",
         args: [
           "exec",
@@ -29,6 +49,7 @@ function fixture(overrides = {}) {
         reason: "Check formatting",
       },
       {
+        stage: "policies",
         command: "node",
         args: ["scripts/checks/check-package-boundaries.mjs"],
         reason: "Check boundaries",
@@ -36,6 +57,29 @@ function fixture(overrides = {}) {
     ],
     ...overrides,
   };
+}
+
+function fallback(operation = "check", overrides = {}) {
+  return fixture({
+    mode: "full-fallback",
+    operation,
+    reason: "Git inventory unavailable",
+    stages: Object.fromEntries(
+      Object.keys(fixture().stages).map((name) => [
+        name,
+        { scope: "none", targets: [], reasons: [] },
+      ]),
+    ),
+    commands: [
+      {
+        stage: "fallback",
+        command: "pnpm",
+        args: ["run", operation],
+        reason: "Git inventory unavailable",
+      },
+    ],
+    ...overrides,
+  });
 }
 
 const quiet = () => {};
@@ -68,14 +112,14 @@ test("report includes baseline, selection, reasons, commands and full-fix warnin
     "Focused check: focused",
     "origin/main (abc123)",
     "Changed package inputs",
-    "Format files (1)",
-    "Lint files (0)",
+    "format: changed (1 targets)",
+    "lint: none (0 targets)",
     "@nervekit/a",
     '"packages/a/file with spaces.ts"',
     "Check formatting",
   ])
     assert.ok(report.includes(text), text);
-  const full = describePlan(fixture({ mode: "full", operation: "fix" }));
+  const full = describePlan(fallback("fix"));
   assert.match(
     full,
     /WARNING: full fix may modify files throughout the repository/,
@@ -105,15 +149,7 @@ test("execution preserves argument arrays and root cwd without a shell", () => {
 });
 
 test("dry run never spawns, including full fallback", () => {
-  for (const plan of [
-    fixture(),
-    fixture({
-      mode: "full",
-      commands: [
-        { command: "pnpm", args: ["run", "check"], reason: "Fallback" },
-      ],
-    }),
-  ])
+  for (const plan of [fixture(), fallback()])
     executePlan(plan, "/repo", {
       dryRun: true,
       spawn: () => assert.fail("spawned"),
@@ -144,24 +180,16 @@ test("failure, signal and spawn error all stop subsequent commands", () => {
 });
 
 test("full fallback runs once and recursive or malformed fallback is rejected", () => {
-  const step = {
-    command: "pnpm",
-    args: ["run", "fix"],
-    reason: "Unknown ownership",
-  };
+  const step = fallback("fix").commands[0];
   let calls = 0;
-  executePlan(
-    fixture({ mode: "full", operation: "fix", commands: [step] }),
-    "/repo",
-    {
-      pnpmPath: "",
-      log: quiet,
-      spawn: () => {
-        calls++;
-        return { status: 0 };
-      },
+  executePlan(fallback("fix"), "/repo", {
+    pnpmPath: "",
+    log: quiet,
+    spawn: () => {
+      calls++;
+      return { status: 0 };
     },
-  );
+  });
   assert.equal(calls, 1);
   for (const commands of [
     [],
@@ -170,11 +198,7 @@ test("full fallback runs once and recursive or malformed fallback is rejected", 
   ])
     assert.throws(
       () =>
-        executePlan(
-          fixture({ mode: "full", operation: "fix", commands }),
-          "/repo",
-          { dryRun: true },
-        ),
+        executePlan(fallback("fix", { commands }), "/repo", { dryRun: true }),
       /exactly once/,
     );
   assert.throws(
@@ -259,12 +283,83 @@ test("main reports planning and execution failures as unsuccessful exits", async
         if (planningFailure) throw new Error("Planning failed");
         return fixture();
       },
-      spawn: () => ({ status: 3 }),
+      spawn: () => {
+        assert.equal(planningFailure, false, "planning errors must not spawn");
+        return { status: 3 };
+      },
     });
     assert.deepEqual(exits, [1]);
     assert.match(
       errors[0],
       planningFailure ? /Planning failed/ : /failed \(3\)/,
     );
+  }
+});
+
+test("mixed scopes report every stage and warn only for broad autofix", () => {
+  for (const name of ["format", "lint"]) {
+    const stages = {
+      ...fixture().stages,
+      [name]: {
+        scope: "all",
+        targets: ["."],
+        reasons: ["Tool configuration changed"],
+      },
+    };
+    const report = describePlan(
+      fixture({ mode: "mixed", operation: "fix", stages }),
+    );
+    assert.match(report, /Focused fix: mixed/);
+    assert.match(report, /WARNING: repository-wide format\/lint autofix/);
+    assert.match(report, /Tool configuration changed/);
+    for (const stage of Object.keys(stages))
+      assert.ok(report.includes(`${stage}:`));
+    assert.doesNotMatch(
+      describePlan(fixture({ mode: "mixed", stages })),
+      /WARNING/,
+    );
+  }
+  assert.doesNotMatch(describePlan(fixture({ operation: "fix" })), /WARNING/);
+});
+
+test("invalid stage plans and unsafe commands never spawn, even in dry run", () => {
+  const step = fixture().commands[0];
+  for (const plan of [
+    "pnpm check",
+    fixture({ mode: "full" }),
+    fixture({ stages: {} }),
+    fixture({
+      stages: {
+        ...fixture().stages,
+        lint: { scope: "full", targets: [], reasons: [] },
+      },
+    }),
+    fixture({
+      stages: {
+        ...fixture().stages,
+        format: { scope: "changed", targets: "file.ts", reasons: [] },
+      },
+    }),
+    fixture({ commands: ["pnpm check"] }),
+    ...[
+      { stage: "unknown" },
+      { stage: "fallback" },
+      { command: "pnpm\0" },
+      { args: ["exec", "eslint\0"] },
+      { args: [42] },
+      { reason: {} },
+      { args: ["run", "check:focused"] },
+    ].map((override) => fixture({ commands: [{ ...step, ...override }] })),
+    fallback("fix", { stages: fixture().stages }),
+  ]) {
+    for (const dryRun of [false, true])
+      assert.throws(
+        () =>
+          executePlan(plan, "/repo", {
+            dryRun,
+            spawn: () => assert.fail("spawned"),
+          }),
+        /Invalid validation|Full fallback|Recursive focused/,
+      );
   }
 });

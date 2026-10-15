@@ -20,53 +20,114 @@ export function parseArguments(args, operation) {
   return options;
 }
 
+const stageNames = [
+  "prepare",
+  "format",
+  "lint",
+  "policies",
+  "migrations",
+  "packages",
+  "native",
+];
+const isText = (value) => typeof value === "string" && !value.includes("\0");
+const isTextArray = (value) => Array.isArray(value) && value.every(isText);
+
 export function describePlan(plan) {
+  validateCommands(plan);
   const lines = [
     `Focused ${plan.operation}: ${plan.mode}`,
     `Base: ${plan.base}${plan.baseline ? ` (${plan.baseline})` : ""}`,
   ];
   if (plan.reason) lines.push(`Reason: ${plan.reason}`);
-  if (plan.mode === "full" && plan.operation === "fix")
-    lines.push("WARNING: full fix may modify files throughout the repository.");
-  for (const kind of ["format", "lint"]) {
-    lines.push(
-      `\n${kind === "format" ? "Format" : "Lint"} files (${plan.files[kind].length}):`,
-    );
-    lines.push(...plan.files[kind].map((file) => `  ${file}`));
+  if (plan.operation === "fix") {
+    if (plan.mode === "full-fallback")
+      lines.push(
+        "WARNING: full fix may modify files throughout the repository.",
+      );
+    else if (
+      plan.stages.format.scope === "all" ||
+      plan.stages.lint.scope === "all"
+    )
+      lines.push(
+        "WARNING: repository-wide format/lint autofix may modify files throughout the repository.",
+      );
   }
-  lines.push(`\nPackages (${plan.packages.length}):`);
-  lines.push(...plan.packages.map((name) => `  ${name}`));
+  for (const name of stageNames) {
+    const stage = plan.stages[name];
+    lines.push(`\n${name}: ${stage.scope} (${stage.targets.length} targets)`);
+    lines.push(...stage.targets.map((target) => `  ${target}`));
+    lines.push(...stage.reasons.map((reason) => `  Reason: ${reason}`));
+  }
   lines.push("\nExecution plan:");
   if (!plan.commands.length) lines.push("  No commands needed.");
   for (const step of plan.commands)
     lines.push(
-      `  ${[step.command, ...step.args].map((arg) => JSON.stringify(arg)).join(" ")} — ${step.reason}`,
+      `  [${step.stage}] ${[step.command, ...step.args].map((arg) => JSON.stringify(arg)).join(" ")} — ${step.reason}`,
     );
   return lines.join("\n");
 }
 
 function validateCommands(plan) {
+  if (
+    !plan ||
+    !["fix", "check"].includes(plan.operation) ||
+    !["none", "focused", "mixed", "full-fallback"].includes(plan.mode) ||
+    !isText(plan.base) ||
+    !(plan.baseline == null || isText(plan.baseline)) ||
+    !(plan.reason === undefined || isText(plan.reason)) ||
+    !plan.stages ||
+    !Array.isArray(plan.commands)
+  )
+    throw new Error("Invalid validation plan");
+  for (const name of stageNames) {
+    const stage = plan.stages[name];
+    if (
+      !stage ||
+      !["none", "changed", "packages", "all"].includes(stage.scope) ||
+      !isTextArray(stage.targets) ||
+      !isTextArray(stage.reasons)
+    )
+      throw new Error(`Invalid validation stage: ${name}`);
+  }
   for (const step of plan.commands) {
     if (
-      typeof step.command !== "string" ||
-      !step.command ||
-      step.command.includes("\0") ||
-      !Array.isArray(step.args) ||
-      step.args.some((arg) => typeof arg !== "string" || arg.includes("\0"))
+      !step ||
+      !(
+        stageNames.includes(step.stage) ||
+        (plan.mode === "full-fallback" && step.stage === "fallback")
+      ) ||
+      !isText(step.command) ||
+      !step.command.trim() ||
+      !isTextArray(step.args) ||
+      !isText(step.reason)
     )
       throw new Error("Invalid validation command");
   }
   if (
-    plan.mode === "full" &&
+    plan.mode === "full-fallback" &&
     (plan.commands.length !== 1 ||
+      plan.commands[0].stage !== "fallback" ||
       plan.commands[0].command !== "pnpm" ||
       plan.commands[0].args.length !== 2 ||
       plan.commands[0].args[0] !== "run" ||
-      plan.commands[0].args[1] !== plan.operation)
+      plan.commands[0].args[1] !== plan.operation ||
+      stageNames.some(
+        (name) =>
+          plan.stages[name].scope !== "none" ||
+          plan.stages[name].targets.length,
+      ))
   )
     throw new Error(
-      "Full fallback must invoke pnpm run fix/check exactly once",
+      "Full fallback must invoke pnpm run fix/check exactly once with no selected stages",
     );
+  if (
+    plan.commands.some(
+      (step) =>
+        step.command === "pnpm" &&
+        step.args.some((arg) => ["fix:focused", "check:focused"].includes(arg)),
+    )
+  )
+    throw new Error("Recursive focused validation command");
 }
 
 export function executePlan(
