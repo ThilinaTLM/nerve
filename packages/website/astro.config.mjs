@@ -127,7 +127,7 @@ export default defineConfig({
                   link: "/guides/agents-and-delegation/",
                 },
                 {
-                  label: "Run background tasks",
+                  label: "Launch configurations and async Bash",
                   link: "/guides/background-tasks/",
                 },
                 {
@@ -146,7 +146,7 @@ export default defineConfig({
                 { label: "Personalize Nerve", link: "/guides/personalize/" },
                 { label: "Configure Settings", link: "/guides/settings/" },
                 {
-                  label: "Import, export, and open editors",
+                  label: "Back up history and open editors",
                   link: "/guides/import-export-editors/",
                 },
               ],

@@ -9,9 +9,9 @@ The contracts and tool manifest define the agent-callable catalog. Definitions d
 
 ## Local versus host tools
 
-Local executors cover files/search, finite Bash/Python, Web, Jira, and Confluence. Host-mediated tools cover questions, to-dos, background tasks, sub-agents, and plan review because they need durable Workbench state or suspend the run.
+Local executors cover files/search, Bash/Python, Web, Jira and Confluence. Conversation-core handlers own questions, to-dos, asynchronous sub-agent delegation and plan review. The server supplies host integrations, including the `launch` tool for user-defined run configurations.
 
-Every dispatch produces persisted lifecycle records. File mutations serialize per path; shell/Python can stream but remain finite; supervised task processes are separate. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
+Accepted calls use the durable core tool lifecycle. File mutations serialize per path. Python remains finite; Bash can return immediately in the background or promote after its configured foreground limit. `async_bash` manages conversation-owned runs; `launch` manages separate workbench launch instances. Async Bash queues completion notices instead of requiring polling. Agent-started launches queue exit notices when they finish naturally while the daemon retains their in-memory ownership; cancelled launches suppress those notices, and launch ownership does not survive restart. See [tool output lifecycle](/developers/tool-output-lifecycle/) for the execution states, durable/live event split, and output budgets.
 
 ## Policy decisions
 
@@ -31,7 +31,7 @@ The permission engine combines manifest metadata, normalized arguments and targe
 
 User, project, and conversation overlays are each bound to exactly one permission rule set. A Planning grant does not affect Supervised or Autonomous, and a coding grant does not affect Planning. Ownership scopes still determine precedence within that rule set: conversation replaces project, project replaces ordinary user rules, and user guardrails cannot be overridden.
 
-User overlays are stored under `~/.nerve/config/permissions.json`; project overlays are stored under `<project>/.nerve/config/permissions.json`; conversation overlays are stored with managed conversation data. Each scope uses one atomic document containing groups shaped as `overlays: [{ ruleSetId, rules }]`, rather than one file per rule set. The complete project document digest must be trusted before any project group is active.
+User overlays are stored under `<NERVE_HOME>/config/permissions.json`; project overlays are stored under `<project>/.nerve/config/permissions.json`; conversation overlays are stored with managed conversation data. Each scope uses one atomic document containing groups shaped as `overlays: [{ ruleSetId, rules }]`, rather than one file per rule set. The complete project document digest must be trusted before any project group is active.
 
 Durable approval choices retain the permission rule set captured when the call was evaluated. Changing a conversation's selected rule set while an approval is pending cannot redirect the saved grant. If a selected custom set becomes missing, malformed, disabled, or incompatible, the host falls back to Baseline without applying overlays.
 

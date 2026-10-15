@@ -18,9 +18,9 @@ A Nerve project points to a local directory. The project record and conversation
 3. In the picker, choose **Recent** or **Browse**. You can browse from your home directory or enter a path directly.
 4. Select the repository or workspace root, then create a conversation.
 
-The switcher filters known projects by name and directory path and supports arrow-key navigation. Its activity indicators highlight projects with conversations waiting for you, active or failed runs, or running background tasks. The full picker highlights common project signals such as Git, package workspaces, Python, Rust, and Go; hidden directories are omitted from normal browsing.
+The switcher filters known projects by name and directory path and supports arrow-key navigation. Its activity indicators highlight projects with conversations waiting for you, active or failed runs, or running launches. The full picker highlights common project signals such as Git, package workspaces, Python, Rust, and Go; hidden directories are omitted from normal browsing.
 
-Nerve resolves absolute and symbolic paths where possible and reuses an existing project record for the same canonical directory. Switching changes the selected Workbench scope; it does not discard the other project's persisted conversations or tasks.
+Nerve resolves absolute and symbolic paths where possible and reuses an existing project record for the same canonical directory. Switching changes the selected Workbench scope; it does not discard the other project's persisted conversations or launches.
 
 Selecting a directory gives enabled agent tools direct access to that workspace according to the current permission level. Nerve does not require the directory to contain Git, but a clean Git working tree makes review and recovery easier.
 
@@ -40,9 +40,8 @@ You will see text and any thinking returned by the provider, plus cards for file
 
 ## Navigate the workbench
 
-- Conversations and Tasks start in the left dock.
-- Conversations, Files, Tasks, and Notes start in the left dock; Git, Pull Requests, and Context start in the right dock.
-- Conversations, file previews, task logs, PR details, settings, auth, and logs open as center tabs.
+- Conversations, Files, Launches, and Notes start in the left dock; Git, Pull Requests, and Context start in the right dock.
+- Conversations, file previews, launch and background-command output, PR details, settings, auth, and logs open as center tabs.
 - Panels can move, hide, and resize; layout is stored in browser local storage.
 
 :::tip
@@ -53,7 +52,7 @@ Below 1024px, dock views move into compact sheets. Below 640px, Inbox, Chats, Wo
   light={projectsLight}
   dark={projectsDark}
   alt="The Nerve project switcher showing three local projects with activity indicators and workspace paths"
-  caption="What to notice: each project keeps its own conversations, tasks, Git state, context, and notes, while activity remains visible when you switch away."
+  caption="What to notice: each project keeps its own conversations, launches, Git state, context, and notes, while activity remains visible when you switch away."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />

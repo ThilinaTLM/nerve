@@ -17,7 +17,7 @@ When work completes or needs attention, Nerve chooses the best available deliver
 2. browser notification when permission is granted;
 3. in-app toast fallback.
 
-Notification sounds are configured independently. A task event inserted into a conversation is not the same as an operating-system notification.
+Notification sounds are configured independently. A background-work completion notice delivered to an agent is not the same as an operating-system notification.
 
 ## Keyboard shortcuts
 

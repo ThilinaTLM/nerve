@@ -13,13 +13,15 @@ That runs, in order:
 1. **Seed** — `packages/workbench-server/scripts/seed-demo-home.ts` builds a
    throwaway home at `$TMPDIR/nerve-demo-home` and three synthetic projects
    under `$TMPDIR/nerve-demo-workspace`, with realistic repositories,
-   conversations, file edits, branches, and background-task history.
+   conversations, file edits, branches, retained sub-agents, and asynchronous
+   Bash output.
 2. **Build** — `pnpm build:workbench-runtime`, so the daemon serves the current
    workbench rather than a stale bundle.
 3. **Daemon** — started on `127.0.0.1:3847` against the demo home.
 4. **Capture** — `capture.mjs` drives Chromium through each scene in
    `scenes.mjs`, in light and dark, writing PNGs and text snapshots to
-   `.screenshots/` (gitignored).
+   an isolated `.screenshots/refresh-*` directory (gitignored). Only this
+   invocation's output is privacy-checked and optimized.
 5. **Privacy check** — `check-captures.mjs` scans the text snapshots for
    credentials, emails, private IPs, real home paths, and unexpected absolute
    paths.
@@ -44,12 +46,25 @@ pnpm --filter @nervekit/website exec playwright install chromium
 ## Useful flags
 
 ```sh
-# One scene, one theme, reusing an existing seed and build
-node scripts/screenshots/run.mjs --scenes=git --theme=dark --skip-seed --skip-build
+# From packages/website: refresh the three current desktop pairs
+node scripts/screenshots/run.mjs --kind=desktop --scenes=conversation,async-bash,launches
+
+# One scene in both themes, reusing an existing seed and build
+node scripts/screenshots/run.mjs --kind=desktop --scenes=git --skip-seed --skip-build
 
 # Include the pull-request scene (needs network and GitHub auth, see below)
 node scripts/screenshots/run.mjs --github
 ```
+
+`--kind` selects `desktop`, `mobile`, or `both` (default). `--scenes` accepts
+comma-separated IDs from `scenes.mjs`: `conversation` shows retained sub-agents,
+`async-bash` shows retained background command output, and `launches` shows
+project launch configurations and a completed run. Optimization requires both
+light and dark captures, so omit `--theme` when running the full pipeline.
+The runner prints the isolated raw-output directory for inspection.
+
+Historical `tasks` assets remain unchanged for existing landing-page consumers;
+the current Launches scene writes a separate `launches` pair.
 
 ## Sizes
 

@@ -11,7 +11,7 @@ Start with the narrowest symptom:
 - Daemon will not connect, port is busy, token fails, or mobile certificate fails → [Connectivity](/troubleshooting/connectivity/)
 - OAuth/API key fails, a model is absent, or voice is unavailable → [Providers](/troubleshooting/providers/)
 - Linux copy/drag freezes or platform process behavior differs → [Platform](/troubleshooting/platform/)
-- A server/watcher did not recover → [Tasks and recovery](/troubleshooting/tasks-and-recovery/)
+- A server/watcher did not recover → [Launch and process recovery](/troubleshooting/tasks-and-recovery/)
 - Startup reports incompatible state or migration did not bring history → [Storage and migration](/troubleshooting/storage-and-migration/)
 
 ## Collect safe context

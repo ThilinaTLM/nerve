@@ -14,7 +14,7 @@ rectangle "Desktop workbench" as local {
   component "desktop-shell\nElectron launcher and\nlocal-daemon owner" as desktop
   component "workbench-app\nBrowser workbench host" as workbench_app
   component "workbench-server\nLocal API, protocol, runtime,\nand static web host" as workbench_server
-  database "NERVE_HOME\nFile-first source of truth\nSQLite rebuildable index/cache" as nerve_home
+  database "NERVE_HOME\nCore SQLite history and state\nManaged files, configuration and secrets" as nerve_home
 }
 
 cloud "Model and credential providers" as providers
@@ -25,14 +25,14 @@ user --> workbench_app : uses workbench UI
 
 desktop --> workbench_server : owns/spawns local daemon\nor monitors existing/remote daemon
 workbench_server --> workbench_app : serves bundled web assets
-workbench_app <--> workbench_server : HTTP + Protocol v1 WebSocket\nworkspace and conversation streams
-workbench_server --> nerve_home : authoritative files + rebuildable index
+workbench_app <--> workbench_server : HTTP + Protocol v1 WebSocket\nindependent conversation/workbench channels
+workbench_server --> nerve_home : core SQLite + managed files
 workbench_server --> providers : model/auth requests
 workbench_server --> resources : Git, files, tools
 
 legend bottom
   |= Runtime link |= Meaning |
-  | workbench-app <-> workbench-server | Local UI API/protocol; server owns workbench stream state |
+  | workbench-app <-> workbench-server | Local UI API/protocol; server hosts core and workbench services |
   Nerve Protocol v1 supplies strict envelopes, catalog RPC/events, session lifecycle,
   replay from processed cursors, bounded delivery, and snapshot recovery.
 endlegend

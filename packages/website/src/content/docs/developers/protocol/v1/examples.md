@@ -32,6 +32,8 @@ sidebar:
 
 ## Exact stream subscription
 
+Send this on `/ws/conversations`; the workbench connection has no durable workspace stream.
+
 ```json
 {
   "protocol": "nerve",
@@ -44,10 +46,7 @@ sidebar:
   "data": {
     "sessionId": "session_01",
     "subscriptionId": "sub_01",
-    "streams": [
-      { "stream": "workspace", "processedSeq": 18 },
-      { "stream": "conv/conv_1", "processedSeq": 42 }
-    ]
+    "streams": [{ "stream": "conv/conv_1", "processedSeq": 42 }]
   }
 }
 ```
@@ -73,14 +72,25 @@ sidebar:
       {
         "id": "evt_43",
         "seq": 43,
-        "type": "run.started",
+        "type": "conversation.event",
         "ts": "2026-07-18T12:00:02.000Z",
         "data": {
+          "id": "evt_43",
           "conversationId": "conv_1",
-          "agentId": "agent_1",
-          "projectId": "proj_1",
-          "runId": "run_1",
-          "startedAt": "2026-07-18T12:00:02.000Z"
+          "sequence": 43,
+          "previousEventId": "evt_42",
+          "turnId": null,
+          "inputId": "input_1",
+          "createdAt": "2026-07-18T12:00:02.000Z",
+          "type": "user_message",
+          "llmRepresentation": "user",
+          "payload": {
+            "text": "Inspect the project",
+            "originalText": "Inspect the project",
+            "source": "user",
+            "senderConversationId": null,
+            "commandPreparation": null
+          }
         }
       }
     ]
@@ -89,6 +99,8 @@ sidebar:
 ```
 
 ## Ephemeral notification
+
+This launch notice is sent on `/ws/workbench`, independently of the conversation stream above.
 
 ```json
 {

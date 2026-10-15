@@ -139,7 +139,7 @@ Stopping a lead pauses it and cascades to its sub-agents and their background co
 
 The UI adds no behavior of its own; it renders the data above.
 
-- **Agents pill** at the top right of the transcript area, shown when the conversation tree has sub-agents or the viewed conversation has background commands. Its popover lists the lead and sub-agents as a tree and the viewed conversation's background commands. Finished sub-agents fold after ten minutes without activity; failed ones stay.
+- **Transcript activity island** combines conversation navigation with Agents and Commands controls. Its expandable view presents the lead/sub-agent tree and background commands from current conversation state. It is presentation, not a separate execution or recovery store.
 - **Waiting state:** the transcript activity row stays visible after a turn while sub-agents or background commands are pending, and names them.
 - **Sub-agent view:** a sub-agent opens in the main view with the lead's transcript and composer components. The composer editor is covered by "Sub-agents take prompts only from their lead." with a way back; the toolbar controls (permission within the two rule sets, model, Capabilities popover for tools and skills, context popover) stay usable.
 - **Context popover:** usage and compaction, per-conversation compaction override and instructions, and session details. It replaces the former Context dock panel.

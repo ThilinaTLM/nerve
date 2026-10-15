@@ -33,18 +33,18 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 
 ## Glossary
 
-| Term               | Meaning                                                                                   |
-| ------------------ | ----------------------------------------------------------------------------------------- |
-| Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls |
-| Child conversation | Conversation with a parent; created by `subagent_prompt`                                  |
-| Sub-agent          | A child conversation configured from a profile; see [delegation](delegation.md)           |
-| Profile            | Markdown file whose configuration and instructions seed a sub-agent at creation           |
-| Instructions       | Persona and working rules rendered as their own section of a conversation's system prompt |
-| Turn               | One model invocation plus the processing of the tool calls it issued                      |
-| Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events    |
-| Event              | Append-only durable fact in a conversation's history                                      |
-| Async bash         | A conversation-owned background command from a background or promoted `bash` call         |
-| Launch             | A run of a user-defined launch definition, started from the UI or the `launch` tool       |
+| Term               | Meaning                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------- |
+| Conversation       | Persistent entity with configuration, branchable history, queue and unfinished tool calls       |
+| Child conversation | Conversation with a parent; created by `subagent_prompt`                                        |
+| Sub-agent          | A child conversation configured from a profile; see [delegation](delegation.md)                 |
+| Profile            | Scoped JSON template whose resolved configuration and instructions seed a sub-agent at creation |
+| Instructions       | Persona and working rules rendered as their own section of a conversation's system prompt       |
+| Turn               | One model invocation plus the processing of the tool calls it issued                            |
+| Execution          | A span of turns started by an input or assignment, bounded by `execution_state` events          |
+| Event              | Append-only durable fact in a conversation's history                                            |
+| Async bash         | A conversation-owned background command from a background or promoted `bash` call               |
+| Launch             | A run of a user-defined launch definition, started from the UI or the `launch` tool             |
 
 ## Decisions
 

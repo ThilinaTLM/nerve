@@ -87,7 +87,7 @@ Sub-agent profiles use one versioned JSON document per writable scope as describ
 - Streaming text/thinking, argument drafts, tool progress and channel notices are ephemeral.
 - Workbench file and git monitors, integration health and the latest maintenance operation live in service memory. Reconnect re-fetches snapshots; no workspace replay is persisted.
 - Launch instances start empty after daemon restart; graceful shutdown cancels them. A crash may leave detached processes, intentionally without recovery.
-- Async bash identity/status/output references are durable, but native process handles are instance-local. Failed verified reattachment marks running rows `lost`; effects are not blindly replayed.
+- Async bash identity/status/output references are durable, but native process handles are instance-local. The workbench adapter cannot reconstruct those handles after daemon restart, so previously running rows become `lost`; commands are not replayed.
 - Execution slots and in-progress command preparation live in memory; after a restart, the unfinished tool-call and input rows drive recovery. Pause is stored and survives restarts. See [async bash and launches](conversation-core/async-bash-and-launches.md) and [channels](conversation-core/channels.md).
 
 Stopping a conversation pauses it and cascades through descendants/async bash. Deletion stops work before removing files and rows; project deletion leaves project-authored files untouched.

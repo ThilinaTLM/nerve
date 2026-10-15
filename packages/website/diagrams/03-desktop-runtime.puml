@@ -26,17 +26,17 @@ node "Electron desktop application" as electron {
 
 node "Owned local child process\n@nervekit/workbench-server" as owned_daemon {
   component "HTTP router + auth\n/api/* and health" as http
-  component "Protocol v1 WebSocket\nlocal streams, replay, resync" as ws
+  component "Protocol v1 channels\nconversation replay + workbench notices" as ws
   component "Static web host\nBundled workbench-app assets" as static
-  component "Server domain runtime\nGit, tasks, tools, harness, runs" as host
+  component "Server host runtime\nConversation core, Git, launches, tools" as host
 }
 
 node "Existing local daemon\n(unowned, monitor only)" as existing_daemon
 cloud "Remote daemon\n(token required, monitor only)" as remote_daemon
 
 folder "Active NERVE_HOME" as nerve_home {
-  folder "File-first authoritative state\nconversations, projects, events, settings, auth" as files
-  database "SQLite\nRebuildable index/cache only" as sqlite
+  folder "Managed files\noutput, configuration and secrets" as files
+  database "Core SQLite\nProjects, conversations, events, unfinished work" as sqlite
   folder "logs / crashes" as diagnostics
 }
 
@@ -57,7 +57,7 @@ ipc_handlers <--> app : window state, close-to-tray,\nnotifications, clipboard, 
 
 app --> ui
 app <--> http : same-origin REST / HTTP\nHttpOnly nerve_token cookie or Bearer token
-app <--> ws : Protocol v1 WebSocket\napplication operations and local events
+app <--> ws : Protocol v1 WebSockets\n/ws/conversations + /ws/workbench
 static --> app : HTML / JS / CSS assets
 
 owned_daemon --> files

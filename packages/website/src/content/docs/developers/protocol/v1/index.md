@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-This directory documents the implemented Nerve Protocol v1. The wire envelopes, event catalog, and operation catalog in `packages/contracts/src/wire/`, `packages/contracts/src/events/`, and `packages/contracts/src/operations/`, together with the sessions in `packages/protocol/`, are authoritative.
+This directory documents the implemented Nerve Protocol v1. The wire envelopes, event catalog, and operation catalog in `packages/contracts/src/wire/`, `packages/contracts/src/events/`, and `packages/contracts/src/operations/` and `packages/contracts/src/domains/core/channel.ts`, together with the sessions in `packages/protocol/`, are authoritative.
 
 Protocol v1 connects the workbench app (`ui`) with the server (`workbench_server`). The schema also reserves `desktop_shell` and `cli` wire roles for catalog targeting and future clients, but the current desktop shell manages daemon lifecycle outside the Protocol v1 session and no CLI client is implemented.
 

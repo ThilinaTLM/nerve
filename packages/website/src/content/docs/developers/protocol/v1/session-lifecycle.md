@@ -35,4 +35,4 @@ Heartbeat data is only `{ sessionId, sentAt }`. A graceful goodbye carries the s
 
 The browser client ID is stored at `nerve.protocol.clientId`; the tab instance ID is stored at `nerve.protocol.instanceId`.
 
-Workbench cursors are installed from snapshots and kept in application state. Cursor values advance only after successful reducer application.
+Conversation cursors are installed from snapshots and kept in application state. Cursor values advance only after successful reducer application.

@@ -13,11 +13,12 @@ The operation catalog declares the allowed target roles for every method. The wo
 
 ## Link and streams
 
-| Link                  | Client                | Server                          | Sequenced streams                                     |
-| --------------------- | --------------------- | ------------------------------- | ----------------------------------------------------- |
-| workbench UI → server | shared client session | workbench shared server session | `workspace`, selected `conv/<conversationId>` streams |
+| Link                                  | Client                     | Server               | Sequenced streams                        |
+| ------------------------------------- | -------------------------- | -------------------- | ---------------------------------------- |
+| conversation UI → `/ws/conversations` | independent client session | conversation channel | selected `conv/<conversationId>` streams |
+| workbench UI → `/ws/workbench`        | independent client session | workbench channel    | none; ephemeral snapshot invalidations   |
 
-Each stream has one sequence owner and a dense positive sequence. Only sequenced events enter stream logs. Ephemeral events use `event.notify`, have no sequence, and never change a cursor.
+Each stream has one sequence owner and a dense positive sequence. Conversation events are sequenced directly from core SQLite. Ephemeral events use `event.notify`, have no sequence, and never change a cursor.
 
 ## Guarantees
 

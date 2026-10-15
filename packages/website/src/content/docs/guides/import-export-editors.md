@@ -1,21 +1,17 @@
 ---
-title: Import, export, and open editors
-description: Move conversation records and launch supported external editors.
+title: Back up history and open editors
+description: Preserve conversation state and launch supported external editors.
 sidebar:
   order: 14
 ---
 
-## Export a conversation
+## Preserve conversation history
 
-Nerve can export JSON, Markdown, or HTML. The JSON bundle uses `nerve.conversation.v1` and includes the project, conversation, agents, and all stored entries—not only the active branch. Markdown and escaped HTML are convenient reading formats, not round-trip substitutes for the JSON bundle.
+The current workbench does not expose conversation bundle import or JSON/Markdown/HTML export. Older instructions for `nerve.conversation.v1` are not a supported workflow in this version.
 
-Exports can contain prompts, model output, tool arguments/output, paths, and operational details. Review before sharing.
+To preserve history, stop every Nerve process using the home and back up the complete `NERVE_HOME`, including configuration, encrypted credentials, database sidecars, and referenced managed files. Back up project directories separately: a home backup does not contain your source tree or project-resident `.nerve` configuration. See [storage and migration](/operations/storage-migration/).
 
-## Import JSON
-
-Import creates new IDs and remaps parent references. Valid entries from the complete tree are retained. Malformed optional agent or entry records are skipped instead of failing the entire bundle, so inspect the imported history before treating it as complete.
-
-Importing a conversation does not import its original project directory or source files. Associate work with a directory available on the current machine.
+Conversation state and tool output can contain prompts, source, paths, commands, and provider details. Do not share a complete home or its secret files as a diagnostic attachment.
 
 ## Open an external editor or terminal
 
@@ -25,7 +21,7 @@ The workbench can edit small regular text files inside the project. Use an exter
 
 ## Project removal and pruning
 
-Removing a Nerve project cascades its Nerve conversations and associated records; it does not delete the project directory. Pruning can remove old inactive conversations by age/count while skipping running/awaiting agents and active tasks.
+Removing a Nerve project cascades its Nerve conversations and associated records; it does not delete the project directory. Pruning can remove old inactive conversations by age/count while protecting active or awaiting work.
 
 ## Next steps
 

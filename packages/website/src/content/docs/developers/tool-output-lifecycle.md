@@ -1,65 +1,51 @@
 ---
 title: Tool output lifecycle
-description: Trace tool execution, live output, durable events, and bounded result projections.
+description: Trace core tool execution, ephemeral output, durable events, and bounded result projections.
 sidebar:
   order: 7
 ---
 
-Tool output crosses several boundaries with different responsibilities. A limit at one boundary must not be reused as a substitute for another, and live projections are never the recovery source for process truth.
+Tool output crosses separate execution, storage, model and presentation boundaries. Live output is never the recovery source for process truth.
 
 ## Execution lifecycle
 
-`ToolExecutorService` updates the persisted tool-call record to `running`, emits the lifecycle update, and delegates execution to `OrchestrationToolDispatcher`. It validates producer artifact claims and prepares the complete result before recording `completed`. Execution errors become `failed`; an approval or interaction suspension leaves the current interaction state for the run to resume.
+Conversation-core's `ToolCallService` creates unfinished calls from a persisted assistant message. Calls pass through `supervising`, optional `awaiting_approval`, `ready`, `running`, and optional `awaiting_input`. Draft arguments before persistence are memory-only.
 
-Run-owned tool calls send lifecycle updates to the run execution sink so the run coordinator commits and publishes the durable event. Tool calls outside a run publish their lifecycle update directly. Policy denials happen before this execution path and remain distinct from execution failures.
+The host permission port evaluates authority; core persists supervision and interactions. Execution uses a registered core handler or the host tool port. Settlement appends one `tool_call_response` event and deletes the unfinished row in the same transaction. Terminal outcomes are `completed`, `failed`, `denied`, `cancelled` or `indeterminate`; they are response outcomes, not retained active rows.
 
-The contract status vocabulary is `committed`, `waiting`, `running`, `completed`, `denied`, `failed`, and `cancelled`. The exact record and event schemas live in [`records.schema.ts`](https://github.com/ThilinaTLM/nerve/blob/main/packages/contracts/src/domains/tools/records.schema.ts).
+A running call has an execution claim. Recovery retries only tools declared safe to replay; uncertain effects settle as `indeterminate`. Suspended interactions survive restart. Independent calls progress separately, but the next model request waits for all unfinished calls in the turn to settle.
 
-## Output projections
+## Output boundaries
 
-The source process result remains complete in its durable log or artifact. The live conversation view, stored tool result, model context, and transcript preview are separate bounded projections:
+| Boundary              | Responsibility                                                                                      |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| Process capture       | Preserve captured stdout/stderr in managed files, reporting capture truncation.                     |
+| Live updates          | Send ephemeral text, argument, progress and output deltas; bounded delivery may merge or drop them. |
+| Complete result       | Preserve recoverable payload bytes in owner-scoped assets when bounding requires them.              |
+| Agent projection      | Apply the catalog's semantic result policy and byte/line/item strategy.                             |
+| Transcript projection | Transfer at most six tool-appropriate lines/items; retrieve details on demand.                      |
 
-| Boundary                 | Owner                              | Responsibility                                                                                       |
-| ------------------------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Process bytes            | `@nervekit/tools` process adapters | Decode UTF-8 incrementally and preserve full output in the process output files or result store.     |
-| Live framing             | `splitLiveOutputChunks`            | Split output into UTF-8-safe events before publication.                                              |
-| Launch output            | `LaunchService`                    | Append durable output first, then publish bounded live updates and observers.                        |
-| Conversation live output | `LiveToolOutputPublisher`          | Serialize each tool call's output queue, publish offsets, and update the rolling runtime projection. |
-| Complete result          | Tool-result preparation            | Preserve exact JSON before storage bounding whenever projection needs payload recovery.              |
-| Agent projection         | Adaptive result projector          | Select one semantic representation, then apply the catalog profile's byte/line/item strategy.        |
-| Transcript projection    | Tool-call transcript projection    | Keep six tool-appropriate lines/items and load complete details only on demand.                      |
+The contracts define the durable facts and live delta shapes. `packages/tools/src/result-projection/` owns semantic candidates, profiles and strategies; conversation-core owns settlement, asset references and history transfer. The app renders these projections rather than maintaining another execution lifecycle.
 
-The shared live-output budgets are defined by the contracts package:
+## Final results and process logs
 
-- one live event carries at most **8 KiB of UTF-8 output** before event metadata;
-- the rolling projection retains at most **32,000 characters**;
-- the rolling projection retains at most **400 chunks**.
+Every active catalog tool declares a semantic result policy. A fitting canonical candidate is unchanged. Overflow uses a strategy such as continuation-aware source heads, process diagnostics, whole-item listings or artifact indexes. Exact payload recovery is owner/digest verified; managed result files live beneath `data/conversations/<conversationId>/tool-calls/<toolCallId>/`.
 
-These values come from [`conversation.schema.ts`](https://github.com/ThilinaTLM/nerve/blob/main/packages/contracts/src/domains/conversations/conversation.schema.ts). They are protocol and UI projection limits, not claims about the amount of output Nerve preserves in its source log or artifacts.
+Foreground Bash, promotion, async Bash notices, process log reads and launch exit notices share the `process_diagnostics` projection. Up to 84 lines and 12 KB stays inline without a file path. Larger output uses a 16-line, 4 KB summary with head, tail and diagnostic lines selected from the whole captured file, plus paths for `read`/`grep`. Capture truncation at 16 MiB is reported. These are candidate-payload budgets, not strict total response caps: status, truncation and path formatting can add text. They are not performance claims.
 
-## Final-result contract
+Async Bash captures `stdout.txt`, `stderr.txt` and interleaved `output.txt` as conversation-owned assets. Launch logs live under `data/launches/<launchId>/`. `async_bash logs` and `launch logs` use a 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report ranges, status, a next offset when needed and a path when the page does not cover all output.
 
-Every active catalog tool declares one semantic result policy. The projector first builds a canonical candidate, preserving status, continuation, media, and validated artifact facts. A fitting candidate is returned unchanged. Overflow then uses the profile strategy—for example continuation-aware source heads, compact process diagnostics, whole-item listings/searches, or artifact indexes. Profile budgets are centralized in `packages/tools/src/result-projection/profiles.ts`; the conservative unknown-tool fallback remains 200 lines and 24,000 UTF-8 bytes.
+A promoted Bash call settles with its async run identity; later completion arrives as a queued `async_bash_event`, not another settlement of the original tool call. Sub-agent final responses have a separate notice cap, spilling the full text to the child's report file.
 
-Only the host artifact validator can issue an agent-readable descriptor. It accepts managed regular files, rejects symlink chains and unsafe roots, and never opens artifact content during projection. When no exact artifact or continuation exists, preparation writes the complete result before bounding at `data/conversations/<bare-conversation-id>/tool-calls/<bare-tool-call-id>/result.json`. The payload reference remains owner/digest verified and version 2.
+## Durable versus ephemeral delivery
 
-Process output uses one `process_diagnostics` projector for foreground Bash, promotion, async Bash completion notices, both log tools, and launch exit notices. Up to 84 lines and 12 KB stays inline without a file path. Larger output uses a 16-line, 4 KB summary with head, tail, and diagnostic lines selected from the whole file, plus output paths for `read`/`grep`. Capture truncation at 16 MiB is reported.
+`conversation.event` replays directly from SQLite event sequences on `/ws/conversations`. Tool-call state, queue changes and `conversation.live` are ephemeral notifications; snapshots restore current state after reconnect. The `/ws/workbench` channel carries launch and other workbench invalidations without durable replay. There is no separate run-event publisher or notification journal.
 
-Async Bash captures `stdout.txt`, `stderr.txt`, and interleaved `output.txt` as conversation-owned assets. Launch logs live under `data/launches/<launchId>/`. Agent-facing `async_bash logs` and `launch logs` use 0-based `offset` and `limit` (default 100, maximum 500); omitted offset returns the last lines. Pages report line ranges, status, a next offset when needed, and a file path when the page does not cover the whole output.
-
-The UI contract is independent: transcript events contain at most six lines/items with existing tool-specific head/tail semantics and omit validated artifacts and projection snapshots. Each call has its own model budget. Sub-agent final responses are capped separately when completion notices are built, with the full text saved to a report file.
-
-## Durable and live publication
-
-Run lifecycle events use `WorkbenchRunEventPublisher` and strictly awaited, idempotently sequenced publication. Progress notifications use `WorkbenchRunNotifyPublisher`; they are queued and intentionally lossy because a transient observer or transport failure must not change the durable run record.
-
-`LiveToolOutputPublisher` similarly publishes transient conversation output through the best-effort event boundary while applying the same delta to the local runtime projection. It serializes updates per tool call and drains before a caller requires completion. A live publication failure is diagnosed at its explicit async boundary; it cannot orphan the supervised process or replace the durable output.
-
-New streamed tools and provider integrations must use the canonical UTF-8 chunker and live-output publisher. Detached promises need an explicit diagnostic boundary, while genuine daemon programming errors remain subject to the fail-fast unhandled-rejection policy.
+The transcript activity island presents navigation, sub-agents and background commands using current conversation state. It is a view of the runtime, not a durable execution or recovery store.
 
 ## Related pages
 
 - [Tools and approval policy](/developers/tools-policy/)
-- [Harness and agent loop](/developers/harness/)
+- [Harness and conversation runtime](/developers/harness/)
 - [Persistence and security boundaries](/developers/persistence-security/)
 - [Protocol v1](/developers/protocol/v1/)

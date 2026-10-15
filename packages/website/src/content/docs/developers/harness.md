@@ -1,40 +1,49 @@
 ---
-title: Harness and agent loop
-description: Trace Nerve's model streaming, queues, tools, compaction, resources, and recovery.
+title: Harness and conversation runtime
+description: Trace model streaming, durable inputs, tools, asynchronous delegation, and recovery.
 sidebar:
   order: 3
 ---
 
-Nerve's `AgentHarness` is a persisted, evented conversation facade. pi-ai supplies model/provider metadata and streaming primitives; Nerve composes product behavior around them.
+Nerve separates the generic agent loop from the durable conversation runtime. `@nervekit/harness` supplies model/provider resolution, streaming, context and compaction primitives. `@nervekit/conversation-core` owns conversation history, queued inputs, tool-call lifecycle, execution scheduling, delegation and async Bash. The workbench server supplies environment ports for resources, permissions, profiles, model access and local execution.
 
 ## A turn
 
-At each turn, the workbench runtime resolves model/auth, thinking, mode, permission, resources/system prompt, and active tools. The harness snapshots this configuration, calls pi-ai streaming, and converts assistant text/thinking and tool calls into persisted/live artifacts.
+Core resolves turn resources through host ports and calls the harness. Assistant text, thinking, argument drafts and progress stream as ephemeral updates; completed messages become durable conversation events. Configuration changes take effect at subsequent turn/provider-request boundaries rather than rewriting an in-flight request.
 
-Model or thinking updates during a turn become pending configuration and apply to a later provider request.
+Tool calls from a persisted assistant message become unfinished `TOOL_CALL` rows. Supervision, approval, execution and user-input suspension belong to core. Settlement appends a `tool_call_response` event and deletes the unfinished row transactionally. Independent calls can progress separately; the next model request waits for the turn's unfinished calls to settle.
 
-## Tool execution
+## Inputs and control
 
-The generic loop can run independent tools in parallel. Global configuration or a tool declaration can force sequential execution. Hooks can block a call, patch results, or terminate handling. The server adapter is the authority for tool availability, approval suspension, user input, policy, and persisted lifecycle records.
+`INPUT_QUEUE` contains undelivered input, not a second transcript. Delivery appends conversation facts and removes the queued rows transactionally. User prompts, sub-agent completion notices and background-command notices use this boundary.
 
-## Queues
+Pause prevents automatic wakes without aborting current work. Stop pauses the conversation and cancels its current work, descendants and background commands. A new user prompt resumes its receiving conversation; system notices do not. Force push interrupts only the current conversation turn, clears pause and drains eligible inputs without the stop cascade.
 
-Steering messages inject after a completed model/tool batch; follow-up messages run when work would otherwise end. Queue handling defaults to one-at-a-time, can coalesce consecutive user messages, and supports next-turn content prepending.
+## Context and compaction
 
-## Context
+Selected-head history drives both transcript and model context; replay covers all branches in event-sequence order. Core reconstructs model context from those facts using harness primitives. Compaction settings resolve through user, project and conversation `harness.json` files; a conversation override replaces the inherited compaction setting as a whole. Compaction summaries are history events, not a separate checkpoint store.
 
-The harness owns generic compaction/summarization. The workbench adds automatic thresholds, continuation caps, durable checkpoints, host retries, restart recovery, and context-overflow recovery that navigates before the failed assistant entry, compacts, and continues.
+Context usage is an estimate, not a guarantee of an exact provider request-token count. Provider overhead and opaque reasoning can make local estimates differ from billed usage.
 
-## Resources and children
+## Asynchronous sub-agents
 
-The server loads effective AGENTS/SYSTEM/skills according to scope and toggles. Sub-agents are child conversations created from profiles; each has its own transcript, and its final responses reach the lead as completion notices.
+`subagent_prompt` submits a validated batch of named assignments and returns without waiting for child completion. New names create ordinary child conversations from resolved profiles; existing names receive follow-ups using their current child configuration. `subagent_status` inspects them and `subagent_stop` stops their work without deleting them. Completion notices wake the lead, so polling is unnecessary.
+
+Profiles resolve through built-in → user → project → conversation `subagents.json` documents. Project content requires exact-document trust. Profiles are creation-time templates: changing a profile affects future children, not existing ones. Built-in `explore` and `developer` inherit the lead's model and thinking at creation. Children cannot delegate again, ask the user or use plan-mode tools; their permission selection is restricted to `read_only` or `autonomous`.
+
+## Background commands and launches
+
+`bash` can return immediately with `background: true` or promote a long-running foreground command according to Bash settings. Core tracks these runs durably; `async_bash` lists, reads logs or stops them. Completion queues a notice. A child with background commands can finish its execution, accept follow-ups and wake again when a command completes.
+
+`launch` is separate host-managed work: user-defined run configurations live in `.nerve/launches/definitions.json`, while launch instances are memory-only. Agents can inspect/start/restart/stop them but have no definition-editing tool action.
+
+## Recovery
+
+On restart, unfinished inputs and tool rows drive recovery. Suspended interactions remain available. Running effects are replayed only when declared safe; uncertain outcomes settle as `indeterminate`. The workbench process adapter cannot reconstruct native handles after restart, so previously running async Bash records become `lost`; commands are not replayed. Launch instances are not recovered. Ephemeral streaming frames are not replayed.
 
 ## Next steps
 
 - [Tools and policy](/developers/tools-policy/)
-- [Resource reference](/reference/resources/)
+- [Tool output lifecycle](/developers/tool-output-lifecycle/)
+- [Sub-agent profiles](/reference/subagent-profiles/)
 - [Protocol](/developers/protocol/)
-
-Compaction budgets opaque reasoning without modifying provider signatures. Individual assistant output usage provides a retention floor (reasoning is already part of output); missing usage falls back to an opaque-size heuristic. Post-compaction estimates use the same context reconstruction as execution, not sliced historical checkpoints. Before fresh provider usage, automatic decisions recompute the retained context rather than trust stored historical estimates.
-
-Summary generation uses one bounded request for history and any removed turn prefix, with at most one quality-repair retry. Failure does not silently substitute an extractive checkpoint. Conversation estimates exclude system/tool/provider overhead and cannot guarantee an exact request-token count.

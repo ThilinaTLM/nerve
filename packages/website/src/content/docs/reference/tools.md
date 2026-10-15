@@ -34,6 +34,12 @@ Choose an image-capable fallback model and its thinking level under **Settings �
 
 Configure and enable image generation separately. `generate_image` accepts a prompt while provider, model, and output options remain user-owned settings. The generated raster file is retained as a tool-call artifact and its path is returned to the agent. The initial OpenAI Codex integration uses ChatGPT subscription image access rather than OpenAI API-key billing.
 
+## Diagram export
+
+- `kroki_export`
+
+Disabled by default. Configure a trusted Kroki endpoint under **Settings → Tools → Third party → Diagram export**, then enable the tool. Diagram source is sent to that server; use a self-hosted endpoint for private diagrams. It accepts source from a file or inline and returns a linked SVG or PNG artifact. See [diagram settings and limits](/guides/settings/#diagram-export).
+
 ## Interaction and to-dos
 
 - `ask_user`
@@ -49,7 +55,7 @@ Questions suspend a run. To-dos are structured current-work state, not backgroun
 
 Bash accepts a project-relative or absolute `cwd` inside the project. With auto-promotion enabled, a still-running command moves to the background after the configured wait; there is no `timeout` parameter. With promotion disabled, foreground calls require `timeout` in seconds and are killed when it expires. Explicit background runs return at once and have no time limit. Their optional `ready` string is an HTTP(S) URL or output regex, checked for up to 60 seconds without stopping the process on readiness timeout.
 
-Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions accept a definition or launch ID; `status` takes no ID. Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
+Check `launch status` before starting a server; prefer the user's definitions in `.nerve/launches/definitions.json`. Agents cannot create or edit definitions. Launch actions select an exact, case-sensitive `name` (the trimmed label, or trimmed command when unnamed); `status` takes no selector. `logs`, `stop`, and `restart` optionally accept `runId` from status, otherwise they select the latest run. `start` accepts only `name`. Definition IDs and the old `id` argument are not selectors. Duplicate saved names require renaming in the UI even when a run ID is supplied. See the [launch guide](/guides/background-tasks/#agent-tool-contract). Async Bash and agent-started launches notify the conversation on exit; do not poll. Both log tools use a 0-based `offset` and `limit` (default 100, maximum 500), returning the last lines when offset is omitted. Read actions never ask for approval; start, restart, and stop use command policy.
 
 ## Delegation and planning
 

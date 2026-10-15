@@ -1,15 +1,17 @@
 ---
-title: Run background launches
+title: Launch configurations and async Bash
 description: Supervise servers, watchers, and other long-running processes.
 sidebar:
   order: 10
 ---
 
 import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
-import tasksDark from "../../../assets/screenshots/desktop/tasks-dark.webp";
-import tasksLight from "../../../assets/screenshots/desktop/tasks-light.webp";
+import launchesDark from "../../../assets/screenshots/desktop/launches-dark.webp";
+import launchesLight from "../../../assets/screenshots/desktop/launches-light.webp";
+import asyncBashDark from "../../../assets/screenshots/desktop/async-bash-dark.webp";
+import asyncBashLight from "../../../assets/screenshots/desktop/async-bash-light.webp";
 
-Nerve separates a durable **launch definition** from immutable **launch runs**. A definition owns its name (stored as a label), command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
+Nerve separates a durable **launch configuration** (a saved definition) from its individual **launch runs**. A definition owns its name (stored as a label), command, working directory, and launch policy. Restarting creates a new run in the same lineage, so the launch and tab remain stable while prior output stays in History.
 
 - `single` (default): launching an active definition focuses its current run.
 - `concurrent`: launching can create another active run.
@@ -17,6 +19,16 @@ Nerve separates a durable **launch definition** from immutable **launch runs**. 
 Use `bash` for commands and `launch` for the user's saved dev servers. Bash can run explicitly in the background or move there automatically after a user-controlled wait. Background runs always notify the conversation on exit. A launch is separate from an agent todo: launches supervise processes, while todos describe work inside a conversation.
 
 Before starting a server, check `launch status` and prefer an existing launch definition. Definitions live in `.nerve/launches/definitions.json`; only the user can create or edit them.
+
+## Create a launch configuration
+
+1. Open **Launches** and choose **Create launch**.
+2. Enter a name and command, such as `Web dev` and `pnpm dev`.
+3. Optionally choose a working directory and TCP port. A blank working directory uses the project root; relative paths resolve from it.
+4. Choose **Single run** to focus an existing active process, or **Concurrent runs** to allow multiple processes.
+5. Save, then use the play control to start it. Inspect output and readiness before opening the service.
+
+The panel also supports editing, duplicating, deleting configurations, and saving an existing run as a configuration. Editing changes future starts; existing runs keep their original command. Deleting a configuration is distinct from stopping a process or removing retained run output. Give saved configurations unique names so the agent can select them reliably.
 
 ## Agent tool contract
 
@@ -62,11 +74,22 @@ Quitting the desktop app terminates active local process trees before its owned 
 
 ## Launch controls
 
+Async Bash appears under **Commands** in the transcript's activity island. Select a command to open its output tab, inspect exit state and elapsed time, load earlier output, jump to the latest lines, or stop it while it is running. This is separate from the saved Launches panel.
+
+<DocsScreenshot
+  light={asyncBashLight}
+  dark={asyncBashDark}
+  alt="The transcript activity island with Commands expanded to show a completed background verification command"
+  caption="Commands stays beside Agents above the composer. Select a command to inspect its output without confusing it with a saved launch configuration."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
+
 The Launches panel lets you inspect saved definitions and their runs, start or restart the current definition, stop a launch, and inspect retained output. Agents use the same definitions through `launch`; they cannot create or edit them. A new start or restart creates a new launch without changing the definition's identity.
 
 <DocsScreenshot
-  light={tasksLight}
-  dark={tasksDark}
+  light={launchesLight}
+  dark={launchesDark}
   alt="The Nerve Launches panel listing saved launch definitions and their recent runs beside the conversation that started them"
   caption="What to notice: a launch definition keeps its identity while each run stays separately inspectable, with its readiness, status, and retained output."
   widths={[480, 768, 1024, 1440]}
@@ -75,7 +98,7 @@ The Launches panel lets you inspect saved definitions and their runs, start or r
 
 ## Agent notifications
 
-Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with its name, command, status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
+Explicit and auto-promoted background Bash runs always queue an `async_bash_event` completion notice. When a launch started by an agent exits on its own, the starting conversation receives a notice with its name, command, status, exit code, and a projected output tail. These notices can wake the agent; do not poll for completion. Launch notification ownership is held in memory and does not survive daemon restart. Workbench launch updates to the UI are separate from desktop/browser toast notifications.
 
 ## Next steps
 

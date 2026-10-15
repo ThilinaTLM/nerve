@@ -13,6 +13,15 @@ The schema reserves `workbench_server`, `ui`, `desktop_shell`, and `cli` roles s
 
 The operation catalog declares method schemas, roles, capabilities, idempotency, and transport exposure. The public event catalog declares payload, source roles, delivery class, and routing.
 
+## Product channels
+
+The app opens two independent Protocol v1 connections:
+
+- `/ws/conversations` serves conversation operations, durable `conv/<conversationId>` event streams and ephemeral conversation state/live notices.
+- `/ws/workbench` serves files, Git/GitHub, launches, settings and other workbench operations. Notices invalidate snapshots; there is no durable workspace stream or workbench replay.
+
+Both have their own session, buffers and reconnect lifecycle. Durable conversation replay reads core SQLite directly. A detail snapshot's `lastSequence` fences the subscription boundary; selected-head history determines what the transcript shows, while replay includes all branches.
+
 ## Session and streams
 
 After `hello → welcome → ready`, the client sends the complete desired stream/cursor set. Each stream independently becomes live, replays retained events, requests a snapshot, or is unavailable. Replay arrives before buffered live events.

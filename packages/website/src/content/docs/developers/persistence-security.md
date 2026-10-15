@@ -9,7 +9,11 @@ sidebar:
 
 Projects and conversations live under `NERVE_HOME`. Canonical conversation records and durable protocol events use SQLite. Complete truncated tool results use private owner-scoped files beneath `<NERVE_HOME>/data/conversations/`, referenced by digest-bearing conversation records. Ephemeral notifications are not persisted or replayed.
 
-The same database also contains rebuildable query projections. Code must keep the canonical conversation records distinct from disposable indexes and caches.
+`@nervekit/conversation-core` owns `data/nerve.sqlite`, using synchronous `node:sqlite`, WAL, foreign keys and synchronous transactions. Current configuration is separate from append-only history. `TOOL_CALL` and `INPUT_QUEUE` retain only unfinished work: settlement/delivery appends facts and deletes those rows transactionally. There are no separate agent/run tables, query-projection store or durable notification journal.
+
+Replay reads conversation event sequences directly from SQLite; transcript/model context follow the selected history branch. Detail snapshots carry `lastSequence` so clients can subscribe from the snapshot boundary without scanning the entire durable tail. Live deltas stay ephemeral and do not trigger durable writes for every presentation frame. These are implementation choices, not measured throughput or latency guarantees.
+
+Scoped permissions, capabilities, harness settings and sub-agent profiles are JSON files. Project documents require exact-content trust where applicable. Launch definitions live at `<project>/.nerve/launches/definitions.json`; launch logs are files and instances are memory-only. Async Bash records and output references are durable, but process handles are local to the daemon and cannot be reconstructed after restart, so previously running records become `lost`.
 
 ## Filesystem safety
 
@@ -23,7 +27,9 @@ Schemas reject secret-like protocol metadata keys, but a broad error/details sch
 
 ## Migration
 
-Manifest versioning prevents automatic downgrade and malformed/future resets. Ordinary startup is fail-closed. A dedicated offline migrator accepts only the released Nerve 0.26 `nerve-workbench-state` v2 layout with its immutable ledger through `0012-remove-workers`. It reads that layout directly into a validated `nerve-home` v1 staging home with the canonical SQLite schema-v1 baseline; migration 0013 and other post-0.26 intermediate migrations are not prerequisites and never run against the source. Development-only intermediate homes and databases are rejected. The migrator uses a sibling lock/journal, re-encrypts recognized credentials, converts semantic conversation state and referenced managed files, and retains the complete legacy tree under `backups/`. Desktop supplies explicit consent and presentation; remote shell mode never touches local `NERVE_HOME` data. Logs, caches, task runtime state, daemon metadata, and TLS identity are regenerated rather than imported.
+Startup applies ordered, resumable home migrations before opening application storage and reports upgrade progress. The current baseline is release 0.34.1; older homes must first be opened with that release. Fresh homes initialize at the latest layout. Applied home steps are recorded in `manifest.json`; core SQL migrations have their own checksum ledger.
+
+The conversation-core conversion also converts managed files and configuration, including legacy task definitions and scoped sub-agent profiles. Malformed or conflicting profile conversion requires manual resolution rather than a permanent legacy loader. Rehearse migrations on a copied home, not live data. See the repository's [storage migration architecture](https://github.com/ThilinaTLM/nerve/blob/main/docs/architecture/migrations.md) for exact supported inputs and failure behavior.
 
 ## Electron boundary
 

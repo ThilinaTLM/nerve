@@ -28,18 +28,7 @@ export type DemoStep =
       readonly result: unknown;
     }
   | { readonly type: "compaction"; readonly text: string }
-  | { readonly type: "explore_report"; readonly text: string }
-  | {
-      readonly type: "task_event";
-      readonly text: string;
-      readonly taskName: string;
-      readonly event: "ready" | "completed" | "failed";
-      readonly status: "running" | "completed" | "failed";
-      readonly commandPreview: string;
-      readonly command?: string;
-      readonly output?: string;
-      readonly exitCode?: number;
-    };
+  | { readonly type: "agent_report"; readonly text: string };
 
 export interface DemoBranch {
   /** Index into `steps` the branch continues from. */
@@ -55,8 +44,14 @@ export interface DemoConversation {
   readonly ageHours: number;
   readonly pinned?: boolean;
   readonly completed?: boolean;
-  /** Number of read-only Explore children to attach. */
-  readonly exploreChildren?: number;
+  /** Unified retained sub-agents, created with named profiles. */
+  readonly children?: readonly {
+    readonly name: string;
+    readonly profile: string;
+    readonly task: string;
+    readonly report: string;
+  }[];
+  readonly asyncCommand?: string;
   readonly steps: readonly DemoStep[];
   readonly branches?: readonly DemoBranch[];
 }
@@ -67,6 +62,23 @@ const rateLimiting: DemoConversation = {
   permissionRuleSetId: "supervised",
   ageHours: 2,
   pinned: true,
+  asyncCommand: "pnpm test --filter rate-limit",
+  children: [
+    {
+      name: "Middleware review",
+      profile: "explore",
+      task: "Review rate-limit middleware and edge cases.",
+      report:
+        "The burst option is wired correctly. The limit is per replica; shared state would be needed for a fleet-wide cap.",
+    },
+    {
+      name: "Booking route review",
+      profile: "explore",
+      task: "Check booking route wiring and validation coverage.",
+      report:
+        "POST /bookings uses the limiter. Existing booking validation remains unchanged.",
+    },
+  ],
   steps: [
     {
       type: "user",
@@ -163,28 +175,19 @@ const rateLimiting: DemoConversation = {
       },
     },
     {
-      type: "task_event",
-      text: "Started the API verification suite in the background.",
-      taskName: "aurora-api tests",
-      event: "ready",
-      status: "running",
-      commandPreview: "pnpm test",
-    },
-    {
-      type: "task_event",
-      text: "The background verification suite completed successfully.",
-      taskName: "aurora-api tests",
-      event: "completed",
-      status: "completed",
-      commandPreview: "pnpm test",
-      command: "pnpm test",
-      output:
-        "✔ rate limit allows traffic under the window\n✔ rate limit rejects past the burst allowance\n✔ booking creation still succeeds when unthrottled\n\n42 tests passed in 3.8s",
-      exitCode: 0,
+      type: "tool",
+      toolName: "bash",
+      risk: "command",
+      repo: "aurora-api",
+      args: { command: "pnpm test --filter rate-limit", background: true },
+      result: {
+        content: "Background verification completed: 3 tests passed.",
+        details: { exitCode: 0, signal: null },
+      },
     },
     {
       type: "assistant",
-      text: "Rate limiting is in place on POST /bookings: a 60 second sliding window, 120 sustained requests per client key, and a 160 request burst allowance. The middleware already tracked per-key hits, so the change was a burst option plus wiring — all 42 tests pass in the background suite.\n\nThe limiter is in-process, so it counts per API replica rather than across the fleet. If festival on-sales need a fleet-wide cap, that needs shared state and is worth a separate change.",
+      text: "Rate limiting is in place on POST /bookings: a 60 second sliding window, 120 sustained requests per client key, and a 160 request burst allowance. The middleware already tracked per-key hits, so the change was a burst option plus wiring — all 3 tests pass in the background suite.\n\nThe limiter is in-process, so it counts per API replica rather than across the fleet. If festival on-sales need a fleet-wide cap, that needs shared state and is worth a separate change.",
     },
   ],
 };
@@ -194,7 +197,22 @@ const flakyDeploy: DemoConversation = {
   mode: "coding",
   permissionRuleSetId: "supervised",
   ageHours: 26,
-  exploreChildren: 2,
+  children: [
+    {
+      name: "Staging readiness",
+      profile: "explore",
+      task: "Inspect staging readiness and cold start settings.",
+      report:
+        "The 5 second readiness budget is too short for cold starts at 500m CPU. Evidence: deploy/staging.tf and compose.yaml.",
+    },
+    {
+      name: "Production comparison",
+      profile: "explore",
+      task: "Compare production and staging startup settings.",
+      report:
+        "Production uses 1000m CPU and starts within the same readiness budget. Evidence: deploy/production.tf.",
+    },
+  ],
   steps: [
     {
       type: "user",
@@ -220,12 +238,12 @@ const flakyDeploy: DemoConversation = {
       },
     },
     {
-      type: "explore_report",
-      text: "Explore child 1 — staging readiness\n\nThe staging API service declares two replicas at 500m CPU while the readiness probe allows a 5 second startup budget. Cold starts in the compose build path routinely exceed that budget, so one replica is marked unhealthy and the deploy is rolled back.\n\nEvidence: deploy/staging.tf:2-5, compose.yaml:3-7.",
+      type: "agent_report",
+      text: "Staging readiness · explore profile — staging readiness\n\nThe staging API service declares two replicas at 500m CPU while the readiness probe allows a 5 second startup budget. Cold starts in the compose build path routinely exceed that budget, so one replica is marked unhealthy and the deploy is rolled back.\n\nEvidence: deploy/staging.tf:2-5, compose.yaml:3-7.",
     },
     {
-      type: "explore_report",
-      text: "Explore child 2 — production comparison\n\nProduction runs six replicas at 1000m CPU with the same probe budget. At that CPU allocation the startup path completes inside the budget, which is why the same manifest shape is stable in production.\n\nEvidence: deploy/production.tf:1-5.",
+      type: "agent_report",
+      text: "Production comparison · explore profile — production comparison\n\nProduction runs six replicas at 1000m CPU with the same probe budget. At that CPU allocation the startup path completes inside the budget, which is why the same manifest shape is stable in production.\n\nEvidence: deploy/production.tf:1-5.",
     },
     {
       type: "assistant",
@@ -317,19 +335,19 @@ const flakyDeploy: DemoConversation = {
           },
         },
         {
-          type: "task_event",
-          text: "The staging smoke task completed successfully.",
-          taskName: "staging smoke",
-          event: "completed",
-          status: "completed",
-          commandPreview: "pnpm smoke --env staging",
-          command: "pnpm smoke --env staging --runs 3",
-          output: "18 checks passed in 42s\nno rollbacks across 3 deploys",
-          exitCode: 0,
+          type: "tool",
+          toolName: "launch",
+          risk: "command",
+          repo: "aurora-infra",
+          args: { action: "start", name: "staging smoke" },
+          result: {
+            content:
+              "The synthetic staging smoke launch completed successfully. 18 checks passed across 3 deploys.",
+          },
         },
         {
           type: "assistant",
-          text: "Readiness budget raised to 20 seconds in staging. The smoke task ran three consecutive deploys without a rollback.",
+          text: "Readiness budget raised to 20 seconds in staging. The smoke launch ran three consecutive deploys without a rollback.",
         },
       ],
     },
@@ -499,7 +517,7 @@ const shortConversations: readonly DemoConversation[] = [
     ],
   },
   {
-    title: "Add a staging smoke task",
+    title: "Add a staging smoke launch",
     mode: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 120,
