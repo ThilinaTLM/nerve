@@ -1,5 +1,10 @@
 <script lang="ts">
-import { Badge } from "@nervekit/ui-kit/components/ui/badge";
+import { Badge, badgeVariants } from "@nervekit/ui-kit/components/ui/badge";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
+import CircleX from "@lucide/svelte/icons/circle-x";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import CircleMinus from "@lucide/svelte/icons/circle-minus";
+import CircleHelp from "@lucide/svelte/icons/circle-help";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -52,6 +57,14 @@ let checking = $state<Record<string, boolean>>({});
 let checkErrors = $state<Record<string, string>>({});
 /** Saved profiles to test once the daemon has persisted them. Not rendered. */
 let awaitingSave: string[] = [];
+
+const healthIcons = {
+  check: CircleCheck,
+  x: CircleX,
+  alert: TriangleAlert,
+  minus: CircleMinus,
+  help: CircleHelp,
+};
 
 const services = [
   { id: "jira", label: "Jira" },
@@ -181,18 +194,18 @@ async function remove(): Promise<void> {
             {#each services as service (service.id)}
               {@const result = health[profile.id]?.[service.id]}
               {@const badge = atlassianHealthBadge(result)}
+              {@const HealthIcon = healthIcons[badge.glyph]}
+              {@const label = `${service.label}: ${badge.label}`}
               <Tooltip.Root>
-                <Tooltip.Trigger>
-                  {#snippet child({ props })}
-                    <span {...props}>
-                      <Badge variant={badge.tone}
-                        >{service.label}: {badge.label}</Badge
-                      >
-                    </span>
-                  {/snippet}
+                <Tooltip.Trigger
+                  aria-label={label}
+                  class={badgeVariants({ variant: badge.tone })}
+                >
+                  <HealthIcon data-icon="inline-start" aria-hidden="true" />
+                  {service.label}
                 </Tooltip.Trigger>
                 <Tooltip.Content side="top"
-                  >{atlassianHealthDetail(result)}</Tooltip.Content
+                  >{label}. {atlassianHealthDetail(result)}</Tooltip.Content
                 >
               </Tooltip.Root>
             {/each}
