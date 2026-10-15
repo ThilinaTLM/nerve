@@ -58,6 +58,7 @@ export function tabLabel(tab: CenterTabModel): string {
     const name = tab.path?.split("/").pop() ?? "Diff";
     return tab.area === "staged" ? `${name} (staged)` : name;
   }
+  if (tab.kind === "system-prompt") return "System prompt";
   if (tab.kind === "settings") return "Settings";
   if (tab.kind === "logs") return "Nerve Logs";
   if (tab.kind === "discover") return "Discover";
@@ -83,6 +84,7 @@ export function tabTitle(tab: CenterTabModel, homeDir?: string): string {
     return tab.title
       ? `#${tab.number} ${tab.title}`
       : `Pull request #${tab.number}`;
+  if (tab.kind === "system-prompt") return "System prompt for the next request";
   if (tab.kind === "settings") return "Workbench settings";
   if (tab.kind === "logs") return "Nerve application logs";
   if (tab.kind === "discover") return "Discover Nerve";

@@ -75,6 +75,7 @@ type Props = {
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onCompact?: () => void;
+  onOpenSystemPrompt?: () => void | Promise<void>;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
@@ -127,6 +128,7 @@ let {
   onModelChange,
   onThinkingLevelChange,
   onCompact,
+  onOpenSystemPrompt,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
@@ -316,6 +318,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       {compacting}
       {compactDisabled}
       {onCompact}
+      {onOpenSystemPrompt}
     />
 
     {#key capabilityScopeKey}

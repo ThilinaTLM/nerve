@@ -43,6 +43,8 @@ import {
   discardAsyncBashTab,
 } from "$lib/features/conversations/state/async-bash-tabs.svelte";
 
+import { discardSystemPromptPane } from "$lib/features/conversations/state/system-prompt-pane.svelte";
+
 export function registerWorkspaceReadModels(): () => void {
   const unregisterLists = registerConversationLists(
     (id) => new ConversationListStore(id),
@@ -56,7 +58,11 @@ export function registerWorkspaceReadModels(): () => void {
         return waitingConversationIds();
       },
     },
-    commands: { cancelVoiceInputTargets, discardAsyncBashTab },
+    commands: {
+      cancelVoiceInputTargets,
+      discardAsyncBashTab,
+      discardSystemPromptPane,
+    },
   };
   const unregisterPorts = registerWorkspaceFeaturePorts({
     conversations,

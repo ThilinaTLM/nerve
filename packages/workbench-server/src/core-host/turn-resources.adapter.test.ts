@@ -3,10 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type {
-  Conversation,
-  ConversationConfig,
-} from "@nervekit/contracts/core";
+import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
   toolDefinitionByName,
   type ToolDefinition,
@@ -73,6 +70,9 @@ async function prepare(options: {
         }),
       } as never,
       subagentProfiles: {
+        preview: async () => {
+          throw new Error("Not a draft");
+        },
         usable: async (context) => {
           assert.notEqual(
             options.subagentsEnabled,
@@ -89,7 +89,7 @@ async function prepare(options: {
         id: "c",
         projectId: "p",
         parentConversationId: options.parent,
-      } as Conversation,
+      },
       config: {
         mode: options.mode,
         workingDirectory: home,

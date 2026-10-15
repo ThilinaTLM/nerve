@@ -1,3 +1,4 @@
+import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
@@ -8,6 +9,7 @@ import type {
 import type { AgentModelInfo } from "@nervekit/harness/models";
 
 export interface ProfileAvailabilityContext {
+  capabilityOverrides?: CapabilityOverridesDocument;
   projectId?: string;
   conversationId?: string;
   /** Creation-only snapshot: validate exactly the model/thinking that will be copied. */

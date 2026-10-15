@@ -31,6 +31,10 @@ type Dependencies<Snapshot extends SnapshotIdentity> = {
     config: Omit<ConversationConfig, "conversationId">;
   }): Promise<Snapshot>;
   getSnapshot(conversationId: string): Promise<Snapshot>;
+  configure(
+    conversationId: string,
+    config: Omit<ConversationConfig, "conversationId">,
+  ): Promise<unknown>;
   saveCapabilities(input: {
     projectId: string;
     conversationId: string;
@@ -67,9 +71,19 @@ export async function submitPendingConversation<
     : undefined;
   const projectId = pending.projectId;
   const expectedDigest = pending.subagentProfileDigest ?? null;
-  const snapshot = pending.createdConversationId
-    ? await dependencies.getSnapshot(pending.createdConversationId)
-    : await dependencies.create({ projectId, title: pending.title, config });
+  let snapshot: Snapshot;
+  if (pending.createdConversationId) {
+    // A failed first send can leave a persisted conversation while the user keeps
+    // editing the draft. Apply current settings before retrying the input.
+    await dependencies.configure(pending.createdConversationId, config);
+    snapshot = await dependencies.getSnapshot(pending.createdConversationId);
+  } else {
+    snapshot = await dependencies.create({
+      projectId,
+      title: pending.title,
+      config,
+    });
+  }
   const conversationId = snapshot.conversation.id;
   // Record each successful stage immediately so a downstream failure is retryable.
   pending.createdConversationId = conversationId;

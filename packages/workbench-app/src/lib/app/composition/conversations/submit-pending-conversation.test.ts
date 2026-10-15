@@ -39,6 +39,11 @@ function setup(pending = draft()) {
       calls.push(`get:${id}`);
       return snapshot;
     },
+    configure: async (id: string, config: Pending["config"]) => {
+      assert.equal(id, "conv_one");
+      assert.deepEqual(config, pending.config);
+      calls.push("configure");
+    },
     saveCapabilities: async () => {
       calls.push("capabilities");
     },
@@ -121,6 +126,7 @@ test("a failed profile save retains the draft and created conversation, and neve
   };
   await submitPendingConversation(pending, "hello", dependencies);
   assert.deepEqual(calls.slice(3), [
+    "configure",
     "get:conv_one",
     "capabilities",
     "profiles-retry",
@@ -143,6 +149,7 @@ test("input failure retries with the saved digest instead of creating another co
   dependencies.submit = successfulSubmit;
   await submitPendingConversation(pending, "hello", dependencies);
   assert.deepEqual(calls.slice(4), [
+    "configure",
     "get:conv_one",
     "capabilities",
     "profiles",
@@ -167,7 +174,12 @@ test("external profile conflicts stop retries without accepting the new digest",
     submitPendingConversation(pending, "hello", dependencies),
     /Document changed/,
   );
-  assert.deepEqual(calls, ["get:conv_one", "capabilities", "conflict"]);
+  assert.deepEqual(calls, [
+    "configure",
+    "get:conv_one",
+    "capabilities",
+    "conflict",
+  ]);
   assert.equal(pending.subagentProfileDigest, "previous-digest");
   assert.equal(
     pending.subagentProfileOverrides?.profiles.explore?.enabled,
@@ -191,4 +203,26 @@ test("pending configuration is snapshotted before asynchronous creation", async 
   release();
   await submission;
   assert.equal(profileInputs[0]?.document.profiles.explore?.enabled, false);
+});
+
+test("retry sends the edited draft configuration rather than the previously created configuration", async () => {
+  const { pending, calls, dependencies } = setup();
+  pending.createdConversationId = "conv_one";
+  pending.config.instructions = "Use these instructions for the next request";
+  pending.config.mode = "planning";
+  const configurations: Pending["config"][] = [];
+  dependencies.configure = async (id, config) => {
+    assert.equal(id, "conv_one");
+    calls.push("configure");
+    configurations.push(config);
+  };
+  await submitPendingConversation(pending, "hello", dependencies);
+  assert.deepEqual(configurations, [pending.config]);
+  assert.deepEqual(calls, [
+    "configure",
+    "get:conv_one",
+    "capabilities",
+    "profiles",
+    "input:conv_one:hello",
+  ]);
 });

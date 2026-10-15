@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  isEphemeralCenterTab,
   mostRecentTab,
   reorderTabs,
   startupTabActivationLane,
@@ -49,4 +50,10 @@ test("closing an async bash tab falls back by MRU and reordering retains routing
   );
   assert.equal(mostRecentTab(tabs, [], [first, second]), conversation);
   assert.deepEqual(reorderTabs(tabs, first, 0), [first, conversation, second]);
+});
+
+test("pending conversations and system prompt snapshots are not persisted", () => {
+  assert.ok(isEphemeralCenterTab({ kind: "system-prompt", id: "conv_1" }));
+  assert.ok(isEphemeralCenterTab({ kind: "pending-conversation", id: "p" }));
+  assert.ok(!isEphemeralCenterTab({ kind: "conversation", id: "conv_1" }));
 });

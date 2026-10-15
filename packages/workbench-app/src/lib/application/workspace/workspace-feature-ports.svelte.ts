@@ -84,6 +84,7 @@ export interface WorkspaceFeaturePorts {
     };
     commands: {
       discardAsyncBashTab(id: string): void;
+      discardSystemPromptPane(sourceId: string): void;
       cancelVoiceInputTargets(targets: VoiceInputTarget[]): Promise<void>;
     };
   };

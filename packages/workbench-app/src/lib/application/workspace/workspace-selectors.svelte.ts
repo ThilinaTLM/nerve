@@ -378,6 +378,18 @@ export const workspaceSelectors = {
       this.openMermaidTabs,
       this.openPrTabs,
       this.openDiffTabs,
+      workspaceState.openCenterTabs.flatMap((tab) =>
+        tab.kind === "system-prompt"
+          ? [
+              {
+                kind: tab.kind,
+                id: tab.id,
+                active: activeTabMatches(tab.kind, tab.id),
+                sending: false,
+              },
+            ]
+          : [],
+      ),
       this.openSettingsTabs,
       this.openLogsTabs,
       this.openDiscoverTabs,

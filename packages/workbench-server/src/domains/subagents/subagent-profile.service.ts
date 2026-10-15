@@ -1,3 +1,4 @@
+import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
@@ -31,6 +32,7 @@ export type SubagentConversationContext = {
   parentConfig?: ConversationConfig;
 };
 export type SubagentAvailabilityContext = {
+  capabilityOverrides?: CapabilityOverridesDocument;
   projectId?: string;
   conversationId?: string;
   parentConfig?: ConversationConfig;
@@ -105,15 +107,21 @@ export class SubagentProfileService {
     projectId: string;
     document: SubagentProfilesDocument;
     lead: SubagentProfilesLeadContext;
+    capabilityOverrides?: CapabilityOverridesDocument;
   }): Promise<SubagentProfilesConfiguration> {
+    const { capabilityOverrides, ...params } = input;
     const { projectId, document, lead } =
-      subagentProfilesPreviewParamsSchema.parse(input);
+      subagentProfilesPreviewParamsSchema.parse(params);
     const layers: SubagentProfileLayer[] = [
       await this.readLayer({ scope: "user" }),
       await this.readLayer({ scope: "project", projectId }),
       { source: "conversation", document, trust: "trusted" },
     ];
-    return this.assemble(layers, "conversation", { projectId, lead });
+    return this.assemble(layers, "conversation", {
+      projectId,
+      lead,
+      ...(capabilityOverrides !== undefined ? { capabilityOverrides } : {}),
+    });
   }
 
   private async assemble(

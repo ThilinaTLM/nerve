@@ -41,6 +41,23 @@ import {
   capabilityOriginSchema,
 } from "../capabilities/capabilities.js";
 
+import { subagentProfilesDocumentSchema } from "../subagents/subagent-configuration.js";
+
+export const previewSystemPromptParamsSchema = z.union([
+  z.object({ conversationId: z.string() }).strict(),
+  z
+    .object({
+      projectId: z.string(),
+      config: conversationConfigSchema.omit({ conversationId: true }),
+      capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
+      subagentProfileOverrides: subagentProfilesDocumentSchema.optional(),
+    })
+    .strict(),
+]);
+export type PreviewSystemPromptParams = z.infer<
+  typeof previewSystemPromptParamsSchema
+>;
+
 const emptyParams = z.object({}).optional();
 const host = ["workbench_server"] as const;
 
@@ -230,6 +247,15 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.conversation.getSnapshot",
+  ),
+  defineOperation(
+    "conversation.previewSystemPrompt",
+    previewSystemPromptParamsSchema,
+    z.object({ systemPrompt: z.string() }),
+    "read",
+    "none",
+    host,
+    "operation.conversation.previewSystemPrompt",
   ),
   defineOperation(
     "conversation.getHistory",

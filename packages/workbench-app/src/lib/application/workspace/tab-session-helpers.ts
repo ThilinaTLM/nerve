@@ -4,6 +4,11 @@ export function tabIdentityKey(tab: CenterTabIdentity): string {
   return `${tab.kind}:${tab.id}`;
 }
 
+/** In-memory tabs whose content is never written to workspace storage. */
+export function isEphemeralCenterTab(tab: CenterTabIdentity): boolean {
+  return tab.kind === "pending-conversation" || tab.kind === "system-prompt";
+}
+
 export function startupTabActivationLane(
   tab: CenterTabIdentity | undefined,
 ): "critical" | "progressive" | "none" {

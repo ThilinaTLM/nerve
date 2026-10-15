@@ -11,7 +11,10 @@ import {
   subagentBlockedToolNames,
   type SubagentProfile,
 } from "@nervekit/contracts/subagents";
-import type { SubagentProfileService } from "../domains/subagents/subagent-profile.service.js";
+import {
+  isUsable,
+  type SubagentProfileService,
+} from "../domains/subagents/subagent-profile.service.js";
 
 const blocked: ReadonlySet<string> = new Set(subagentBlockedToolNames);
 
@@ -85,15 +88,23 @@ export function createTurnResourcesPort(options: {
   skills: readonly Skill[];
   agentBrowserSkills: readonly Skill[];
   capabilities: CapabilityService;
-  subagentProfiles: Pick<SubagentProfileService, "usable">;
+  subagentProfiles: Pick<SubagentProfileService, "usable" | "preview">;
   hasExistingSubagents(conversationId: string): boolean | Promise<boolean>;
 }): TurnResourcesPort {
   return {
-    async prepare({ conversation, config, projectDir, coreTools = [] }) {
+    async prepare({
+      conversation,
+      config,
+      projectDir,
+      coreTools = [],
+      capabilityOverrides,
+      subagentProfileOverrides,
+    }) {
       const { effective, availableTools, toolProfileOptions } =
         await options.capabilities.configuration(
           conversation.projectId,
           conversation.id,
+          capabilityOverrides,
         );
       const isChild = conversation.parentConversationId !== null;
       const selected = [
@@ -129,11 +140,30 @@ export function createTurnResourcesPort(options: {
       const tools = filtered.some((tool) => tool.name === "subagent_prompt")
         ? withSubagentProfiles(
             filtered,
-            await options.subagentProfiles.usable({
-              projectId: conversation.projectId,
-              conversationId: conversation.id,
-            }),
-            await options.hasExistingSubagents(conversation.id),
+            conversation.id
+              ? await options.subagentProfiles.usable({
+                  projectId: conversation.projectId,
+                  conversationId: conversation.id,
+                })
+              : (
+                  await options.subagentProfiles.preview({
+                    projectId: conversation.projectId,
+                    document: subagentProfileOverrides ?? {
+                      schemaVersion: 1,
+                      profiles: {},
+                    },
+                    lead: {
+                      model: config.model,
+                      reasoningLevel: config.reasoningLevel,
+                    },
+                    capabilityOverrides,
+                  })
+                ).profiles.flatMap(({ effective }) =>
+                  effective && isUsable(effective) ? [effective] : [],
+                ),
+            conversation.id
+              ? await options.hasExistingSubagents(conversation.id)
+              : false,
           )
         : filtered;
       const resources = await loadHarnessResources(projectDir, {

@@ -8,7 +8,11 @@ import type {
 } from "@nervekit/contracts/core";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 import { buildModelMessages } from "../context/index.js";
-import type { ModelPort, TurnResourcesPort } from "../ports.js";
+import type {
+  ModelPort,
+  TurnResourcesPort,
+  TurnPreparationInput,
+} from "../ports.js";
 import type { CoreEmitter } from "./core-change.js";
 
 export interface ModelTurnInput {
@@ -27,18 +31,33 @@ export class ModelTurn {
     private readonly emit: CoreEmitter,
     private readonly assets?: AssetStore,
   ) {}
-  async run(input: ModelTurnInput) {
-    const resolved = await this.models.resolve(input.config.model);
+  async prepare(input: TurnPreparationInput) {
     const resources = await this.resources.prepare({
-      ...input,
+      conversation: input.conversation,
+      config: input.config,
+      projectDir: input.projectDir,
+      ...(input.capabilityOverrides
+        ? { capabilityOverrides: input.capabilityOverrides }
+        : {}),
+      ...(input.subagentProfileOverrides
+        ? { subagentProfileOverrides: input.subagentProfileOverrides }
+        : {}),
       coreTools: this.coreDefinitions(),
     });
+    return {
+      ...resources,
+      systemPrompt: input.config.systemPrompt ?? resources.systemPrompt,
+    };
+  }
+  async run(input: ModelTurnInput) {
+    const resolved = await this.models.resolve(input.config.model);
+    const resources = await this.prepare(input);
     input.signal.throwIfAborted();
     const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
     const stream = streamSimpleWithModel(
       resolved.model,
       {
-        systemPrompt: input.config.systemPrompt ?? resources.systemPrompt,
+        systemPrompt: resources.systemPrompt,
         messages: buildModelMessages(
           input.path,
           this.assets
