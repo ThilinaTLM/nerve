@@ -32,52 +32,81 @@ export class ModelTurn {
     private readonly assets?: AssetStore,
   ) {}
   async prepare(input: TurnPreparationInput) {
-    const resources = await this.resources.prepare({
-      conversation: input.conversation,
-      config: input.config,
+    const snapshot: TurnPreparationInput = {
+      conversation: structuredClone(input.conversation),
+      config: structuredClone(input.config),
       projectDir: input.projectDir,
-      ...(input.capabilityOverrides
-        ? { capabilityOverrides: input.capabilityOverrides }
+      capabilityOverrides: structuredClone(input.capabilityOverrides),
+      subagentProfileOverrides: structuredClone(input.subagentProfileOverrides),
+    };
+    const customPrompt = snapshot.config.systemPrompt;
+    const resources = await this.resources.prepare({
+      conversation: snapshot.conversation,
+      config: snapshot.config,
+      projectDir: snapshot.projectDir,
+      ...(snapshot.capabilityOverrides
+        ? { capabilityOverrides: snapshot.capabilityOverrides }
         : {}),
-      ...(input.subagentProfileOverrides
-        ? { subagentProfileOverrides: input.subagentProfileOverrides }
+      ...(snapshot.subagentProfileOverrides
+        ? { subagentProfileOverrides: snapshot.subagentProfileOverrides }
         : {}),
       coreTools: this.coreDefinitions(),
     });
     return {
       ...resources,
-      systemPrompt: input.config.systemPrompt ?? resources.systemPrompt,
+      systemPrompt: customPrompt ?? resources.systemPrompt,
     };
   }
-  async run(input: ModelTurnInput) {
-    const resolved = await this.models.resolve(input.config.model);
-    const resources = await this.prepare(input);
-    input.signal.throwIfAborted();
+  async prepareRequest(input: ModelTurnInput) {
+    // Own the inputs before awaiting host preparation; later saves must not alter
+    // an already prepared provider attempt.
+    const config = structuredClone(input.config);
+    const resolved = structuredClone(
+      await this.models.resolve(structuredClone(config.model)),
+    );
+    const resources = await this.prepare({ ...input, config });
     const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
+    return {
+      resolved,
+      reasoning:
+        config.reasoningLevel === "off" ? undefined : config.reasoningLevel,
+      mode: config.mode,
+      systemPrompt: resources.systemPrompt,
+      tools: structuredClone(
+        [...tools.values()].map(({ name, description, parameters }) => ({
+          name,
+          description,
+          parameters,
+        })),
+      ),
+    } as const;
+  }
+  async run(input: ModelTurnInput) {
+    return this.runPrepared(input, await this.prepareRequest(input));
+  }
+  async runPrepared(
+    input: ModelTurnInput,
+    prepared: Awaited<ReturnType<ModelTurn["prepareRequest"]>>,
+  ) {
+    input.signal.throwIfAborted();
+    const { resolved } = prepared;
     const stream = streamSimpleWithModel(
       resolved.model,
       {
-        systemPrompt: resources.systemPrompt,
+        systemPrompt: prepared.systemPrompt,
         messages: buildModelMessages(
           input.path,
           this.assets
             ? await loadProjectionOptions(input.path, this.assets)
             : {},
         ),
-        tools: [...tools.values()].map(({ name, description, parameters }) => ({
-          name,
-          description,
-          parameters,
-        })),
+        tools: prepared.tools,
       },
       {
         apiKey: resolved.apiKey,
         headers: resolved.headers,
         signal: input.signal,
-        reasoning:
-          input.config.reasoningLevel === "off"
-            ? undefined
-            : input.config.reasoningLevel,
+        reasoning: prepared.reasoning,
       },
     );
     const argumentDrafts = new Map<number, string>();

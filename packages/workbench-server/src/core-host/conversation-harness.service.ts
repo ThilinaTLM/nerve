@@ -7,6 +7,7 @@ import {
 } from "@nervekit/contracts/core";
 import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { atomicWriteJson } from "../infrastructure/storage-bootstrap/index.js";
+import { ConfigurationScopePaths } from "../infrastructure/configuration/scope-paths.js";
 
 export interface ConversationHarnessOptions {
   dataPath: string;
@@ -27,14 +28,14 @@ export interface ConversationHarnessOptions {
 export class ConversationHarnessSettings {
   constructor(private readonly options: ConversationHarnessOptions) {}
 
-  private path(conversationId: string) {
-    return join(
-      this.options.dataPath,
-      "conversations",
-      conversationId,
-      "config",
+  private path(conversationId: string, projectId?: string) {
+    return new ConfigurationScopePaths({
+      conversationsPath: join(this.options.dataPath, "conversations"),
+      projectOf: (id) => this.options.projectOf(id),
+    }).resolve(
+      { scope: "conversation", conversationId, projectId },
       "harness.json",
-    );
+    ).path;
   }
 
   private async read(conversationId: string) {
@@ -63,8 +64,7 @@ export class ConversationHarnessSettings {
     projectId: string,
     conversationId: string,
   ): Promise<ConversationHarnessSettingsResult> {
-    if (this.options.projectOf(conversationId) !== projectId)
-      throw new Error("Conversation does not belong to project");
+    this.path(conversationId, projectId);
     const inherited = await this.options.projectCompaction(projectId);
     const own = (await this.read(conversationId)).compaction;
     const source = own

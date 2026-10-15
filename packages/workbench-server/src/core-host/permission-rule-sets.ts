@@ -2,9 +2,10 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { permissionRuleSetSchema } from "@nervekit/contracts/permissions";
 import { builtInPermissionRuleSets } from "@nervekit/tools/policy";
+import { userConfigurationRoot } from "../infrastructure/configuration/scope-paths.js";
 
 export async function listPermissionRuleSets(home: string) {
-  const directory = join(home, "config", "rule-sets");
+  const directory = join(userConfigurationRoot(home), "rule-sets");
   const files = await readdir(directory).catch(
     (error: NodeJS.ErrnoException) => {
       if (error.code === "ENOENT") return [];

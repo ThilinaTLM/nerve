@@ -12,11 +12,13 @@ import {
   loadPermissionOverlay,
   mutatePermissionOverlay,
   overlayDigest,
-  projectOverlayPath,
   trustProjectPermissions,
-  userOverlayPath,
 } from "./permission-overlays.js";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
+import {
+  ConfigurationScopePaths,
+  userConfigurationRoot,
+} from "../infrastructure/configuration/scope-paths.js";
 
 export type PermissionRuleTarget = {
   scope: "user" | "project";
@@ -55,11 +57,13 @@ export function createPermissionConfigurationService(options: {
 }): PermissionConfigurationService {
   const { home, storage } = options;
 
-  const projectPath = (projectId: string): string => {
-    const directory = options.projectDirectory(projectId);
-    if (!directory) throw new Error("Project not found");
-    return projectOverlayPath(directory);
-  };
+  const paths = new ConfigurationScopePaths({
+    userConfigPath: userConfigurationRoot(home),
+    projectDirectory: options.projectDirectory,
+  });
+  const userPath = paths.resolve({ scope: "user" }, "permissions.json").path;
+  const projectPath = (projectId: string): string =>
+    paths.resolve({ scope: "project", projectId }, "permissions.json").path;
 
   async function readProject(projectId: string): Promise<ProjectOverlayState> {
     const path = projectPath(projectId);
@@ -128,7 +132,7 @@ export function createPermissionConfigurationService(options: {
     const catalog = await listPermissionRuleSets(home);
     let userOverlays = emptyOverlayDocument();
     try {
-      userOverlays = await loadPermissionOverlay("user", userOverlayPath(home));
+      userOverlays = await loadPermissionOverlay("user", userPath);
     } catch (error) {
       diagnostics.push(`User permissions file is invalid: ${message(error)}`);
     }
@@ -160,7 +164,7 @@ export function createPermissionConfigurationService(options: {
     const catalog = await listPermissionRuleSets(home);
     if (!catalog.some((ruleSet) => ruleSet.id === target.ruleSetId))
       throw new Error(`Unknown permission rule set: ${target.ruleSetId}`);
-    if (target.scope === "user") return userOverlayPath(home);
+    if (target.scope === "user") return userPath;
     if (!target.projectId)
       throw new Error("A project is required to edit project permissions.");
     const project = await readProject(target.projectId);

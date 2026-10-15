@@ -19,6 +19,7 @@ import {
   type InitializedStorage,
 } from "../infrastructure/storage-bootstrap/index.js";
 import { resolveProjectSettings } from "../infrastructure/configuration/index.js";
+import { ConfigurationScopePaths } from "../infrastructure/configuration/scope-paths.js";
 import { listAvailableSkills } from "./resource-loader.js";
 import type { Skill } from "@nervekit/harness/resources";
 import type { SubagentProfile } from "@nervekit/contracts/subagents";
@@ -67,26 +68,24 @@ export class CapabilityService {
     if (!project) throw new Error(`Project not found: ${projectId}`);
     return project;
   }
+  private scopePaths() {
+    return new ConfigurationScopePaths({
+      conversationsPath: join(this.storage.paths.dataPath, "conversations"),
+      projectDirectory: (id) => this.project(id).directory,
+      projectOf: (id) => this.core.getSnapshot(id).conversation.projectId,
+    });
+  }
   private projectPath(projectId: string) {
-    return join(
-      this.project(projectId).directory,
-      ".nerve",
-      "config",
+    return this.scopePaths().resolve(
+      { scope: "project", projectId },
       "capabilities.json",
-    );
+    ).path;
   }
   private conversationPath(projectId: string, conversationId: string) {
-    if (
-      this.core.getSnapshot(conversationId).conversation.projectId !== projectId
-    )
-      throw new Error("Conversation does not belong to project");
-    return join(
-      this.storage.paths.dataPath,
-      "conversations",
-      conversationId,
-      "config",
+    return this.scopePaths().resolve(
+      { scope: "conversation", projectId, conversationId },
       "capabilities.json",
-    );
+    ).path;
   }
   private async read(path: string) {
     let content: string;

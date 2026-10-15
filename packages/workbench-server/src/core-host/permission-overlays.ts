@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import type { CoreStorage } from "@nervekit/conversation-core";
 import { createId } from "@nervekit/contracts";
 import {
@@ -9,14 +8,6 @@ import {
   type PermissionOverlayOrigin,
 } from "@nervekit/contracts/permissions";
 import { atomicWriteJson } from "../infrastructure/storage-bootstrap/index.js";
-
-export function userOverlayPath(home: string): string {
-  return join(home, "config", "permissions.json");
-}
-
-export function projectOverlayPath(projectDir: string): string {
-  return join(projectDir, ".nerve", "config", "permissions.json");
-}
 
 export function emptyOverlayDocument(): PermissionOverlayDocument {
   return { schemaVersion: 2, overlays: [] };

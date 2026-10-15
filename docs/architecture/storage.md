@@ -52,6 +52,8 @@ Current configuration is separate from append-only event history. Every event li
 
 ## Files and permissions
 
+[Scoped configuration](configuration.md) defines the common user (`<NERVE_HOME>/config/`), project (`<project>/.nerve/config/`) and conversation (`<NERVE_HOME>/data/conversations/<id>/config/`) roots across tools, skill selections, profiles, permission overlays and compaction. Built-in defaults have no writable root. Domains retain separate documents and merge rules; SQLite conversation configuration remains an intentional exception. The same document defines shared path infrastructure, save guarantees and next-request freshness.
+
 The host supplies an asset root at `<NERVE_HOME>/data`. New managed output lives under:
 
 - `conversations/<conversationId>/tool-calls/<toolCallId>/...`

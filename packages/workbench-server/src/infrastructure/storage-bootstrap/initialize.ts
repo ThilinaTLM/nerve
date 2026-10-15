@@ -24,6 +24,8 @@ import {
   type StorageStartupLock,
 } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
+import { serializeSettingsMutation } from "./settings-mutations.js";
+
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
   ["secretsPath", 0o700],
@@ -148,7 +150,19 @@ export async function initializeStorage(
   }
 }
 
-export async function writeSettings(
+export function writeSettings(
+  storage: InitializedStorage,
+  patch: UpdateSettingsRequest | ((current: Settings) => UpdateSettingsRequest),
+): Promise<Settings> {
+  return serializeSettingsMutation(storage, () =>
+    applySettingsPatch(
+      storage,
+      typeof patch === "function" ? patch(storage.settings) : patch,
+    ),
+  );
+}
+
+async function applySettingsPatch(
   storage: InitializedStorage,
   patch: UpdateSettingsRequest,
 ): Promise<Settings> {

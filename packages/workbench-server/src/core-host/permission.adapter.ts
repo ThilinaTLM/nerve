@@ -21,30 +21,45 @@ import {
   loadPermissionOverlay,
   mutatePermissionOverlay,
   overlayDigest,
-  projectOverlayPath,
   trustProjectPermissions,
-  userOverlayPath,
 } from "./permission-overlays.js";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
 import { requiresBashTimeoutArgument } from "./tool-host.adapter.js";
+import {
+  ConfigurationScopePaths,
+  userConfigurationRoot,
+} from "../infrastructure/configuration/scope-paths.js";
 
 export function createPermissionPort(
   home: string,
   storage: CoreStorage,
   bashSettings?: (projectDir: string) => Promise<BashToolSettings>,
 ): PermissionPort {
-  const paths = (conversationId: string, projectDir: string) => ({
-    user: userOverlayPath(home),
-    project: projectOverlayPath(projectDir),
-    conversation: join(
-      home,
-      "data",
-      "conversations",
-      conversationId,
-      "config",
+  const paths = (conversationId: string, projectDir: string) => {
+    const resolver = new ConfigurationScopePaths({
+      userConfigPath: userConfigurationRoot(home),
+      conversationsPath: join(home, "data", "conversations"),
+      // The core supplies the active project's directory to the permission port.
+      projectDirectory: () => projectDir,
+      projectOf: (id) => {
+        const conversation = storage.conversations.get(id);
+        if (!conversation) throw new Error("Conversation not found");
+        return conversation.projectId;
+      },
+    });
+    const conversation = resolver.resolve(
+      { scope: "conversation", conversationId },
       "permissions.json",
-    ),
-  });
+    );
+    return {
+      user: resolver.resolve({ scope: "user" }, "permissions.json").path,
+      project: resolver.resolve(
+        { scope: "project", projectId: conversation.projectId },
+        "permissions.json",
+      ).path,
+      conversation: conversation.path,
+    };
+  };
   return {
     async evaluate(input) {
       const selected = (await listPermissionRuleSets(home)).find(

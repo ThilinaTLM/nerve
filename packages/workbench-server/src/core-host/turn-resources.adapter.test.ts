@@ -4,6 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { ConversationConfig } from "@nervekit/contracts/core";
+import type { Skill } from "@nervekit/harness/resources";
+import { NerveSkillCatalog } from "@nervekit/skills";
+import { AgentBrowserSkillCatalog } from "./agent-browser-skills.js";
+import { listAvailableSkills } from "./resource-loader.js";
 import {
   toolDefinitionByName,
   type ToolDefinition,
@@ -42,8 +46,10 @@ async function prepare(options: {
           ? [tool("plan_mode_present")]
           : []),
       ],
-      skills: [],
-      agentBrowserSkills: [],
+      skillCatalogs: {
+        nerve: { skills: [] },
+        agentBrowser: { skills: [] },
+      },
       hasExistingSubagents: (id) => {
         assert.equal(id, "c");
         assert.notEqual(
@@ -247,6 +253,96 @@ void test("the master capability removes sub-agent tools even with existing chil
     names(tools).some((name) => name.startsWith("subagent_")),
     false,
   );
+});
+
+void test("preparation reads initialized catalogs and current selections without changing prior prompts", async () => {
+  const home = await mkdtemp(join(tmpdir(), "nerve-catalog-turn-"));
+  const nerve = new NerveSkillCatalog();
+  const browserSkill: Skill = {
+    name: "core",
+    description: "Browser automation",
+    filePath: join(home, "core", "SKILL.md"),
+    content: "Use the browser",
+  };
+  const agentBrowser = new AgentBrowserSkillCatalog({
+    async run(args) {
+      return args[1] === "--json"
+        ? JSON.stringify({
+            data: [{ name: "core", description: browserSkill.description }],
+          })
+        : `---\nname: core\ndescription: ${browserSkill.description}\n---\n${browserSkill.content}`;
+    },
+  });
+  const enabled = { nerve: ["skill-creator"], agentBrowser: ["core"] };
+  try {
+    // Isolate catalog selection from skills installed in the developer's home.
+    const disabledFileSkills = (
+      await listAvailableSkills(home, { storageHome: home })
+    ).skills.map(({ name }) => name);
+    const port = createTurnResourcesPort({
+      home,
+      tools: () => [tool("read")],
+      skillCatalogs: { nerve, agentBrowser },
+      capabilities: {
+        configuration: async () => ({
+          effective: {
+            disabledTools: [],
+            toolProfiles: {},
+            enabledNerveSkills: [...enabled.nerve],
+            enabledAgentBrowserSkills: [...enabled.agentBrowser],
+            disabledFileSkills,
+          },
+          availableTools: ["read"],
+          toolProfileOptions: { jira: [], confluence: [], web_search: [] },
+        }),
+      } as never,
+      subagentProfiles: {
+        usable: async () => [],
+        preview: async () => {
+          throw new Error("No profile preview expected");
+        },
+      },
+      hasExistingSubagents: () => false,
+    });
+    const input = {
+      conversation: { id: "c", projectId: "p", parentConversationId: null },
+      config: {
+        mode: "coding",
+        workingDirectory: home,
+        systemPrompt: null,
+        instructions: null,
+      } as ConversationConfig,
+      projectDir: home,
+    };
+    // Consumers exist before initialization, but execution starts after readiness.
+    assert.equal(nerve.skills.length, 0);
+    assert.equal(agentBrowser.skills.length, 0);
+    await nerve.initialize();
+    await agentBrowser.initialize();
+    const initialized = await port.prepare(input);
+    assert.match(initialized.systemPrompt, /<name>skill-creator<\/name>/);
+    assert.match(initialized.systemPrompt, /<name>core<\/name>/);
+    assert.doesNotMatch(initialized.systemPrompt, /<name>team-lead<\/name>/);
+
+    enabled.nerve = ["team-lead"];
+    enabled.agentBrowser = [];
+    const changed = await port.prepare(input);
+    assert.match(changed.systemPrompt, /<name>team-lead<\/name>/);
+    assert.doesNotMatch(
+      changed.systemPrompt,
+      /<name>(skill-creator|core)<\/name>/,
+    );
+    assert.match(initialized.systemPrompt, /<name>skill-creator<\/name>/);
+
+    enabled.nerve = [];
+    assert.doesNotMatch(
+      (await port.prepare(input)).systemPrompt,
+      /<available_skills>/,
+    );
+  } finally {
+    await agentBrowser.shutdown();
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 void test("instructions render between context files and skills", () => {
