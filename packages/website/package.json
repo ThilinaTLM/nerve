@@ -29,7 +29,7 @@
     "@tailwindcss/vite": "4.3.1",
     "astro": "7.2.8",
     "gsap": "3.15.0",
-    "sharp": "0.35.4",
+    "sharp": "0.35.5",
     "tailwindcss": "4.3.1"
   },
   "devDependencies": {
