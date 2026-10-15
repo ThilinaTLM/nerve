@@ -14,6 +14,7 @@ import type {
   UserQuestionRecord,
 } from "$lib/presentation/view-models/conversation";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import type { ComposerSuggestion } from "./composer-suggestion";
@@ -46,6 +47,9 @@ export type PromptComposerProps = {
   selectedModelKey?: string;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
+  agentUsage?: ConversationAgentUsage;
+  agentUsageLoading?: boolean;
+  agentUsageError?: string;
   contextWindow?: number;
   todos?: TodoItem[];
   focusToken?: number;
@@ -70,6 +74,8 @@ export type PromptComposerProps = {
   onSubmit?: () => void;
   onAbort?: () => void;
   onCompact?: () => void;
+  onUsageOpenChange?: (open: boolean) => void;
+  onUsageRetry?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;

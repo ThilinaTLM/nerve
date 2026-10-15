@@ -21,6 +21,7 @@ import type {
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
 
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Popover, {
@@ -63,6 +64,11 @@ type Props = {
   thinkingShortcut?: string;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
+  agentUsage?: ConversationAgentUsage;
+  agentUsageLoading?: boolean;
+  agentUsageError?: string;
+  onUsageOpenChange?: (open: boolean) => void;
+  onUsageRetry?: () => void;
   contextWindow: number;
   compacting?: boolean;
   compactDisabled?: boolean;
@@ -116,6 +122,11 @@ let {
   thinkingShortcut,
   contextUsage,
   conversationUsage,
+  agentUsage,
+  agentUsageLoading,
+  agentUsageError,
+  onUsageOpenChange,
+  onUsageRetry,
   contextWindow,
   compacting = false,
   compactDisabled = false,
@@ -314,6 +325,11 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       {contextActions}
       {contextUsage}
       {conversationUsage}
+      {agentUsage}
+      {agentUsageLoading}
+      {agentUsageError}
+      {onUsageOpenChange}
+      {onUsageRetry}
       {contextWindow}
       {compacting}
       {compactDisabled}

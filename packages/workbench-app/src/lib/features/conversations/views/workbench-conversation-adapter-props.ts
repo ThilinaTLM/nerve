@@ -16,6 +16,7 @@ import type {
   UserQuestionRecord,
 } from "$lib/presentation/view-models/conversation";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
@@ -79,6 +80,9 @@ export type WorkbenchConversationAdapterProps = {
   planReviewThinkingLevel?: AgentRecord["thinkingLevel"];
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
+  agentUsage?: ConversationAgentUsage;
+  agentUsageLoading?: boolean;
+  agentUsageError?: string;
   contextWindow?: number;
   composerFocusToken?: number;
   composerEscapeToken?: number;
@@ -107,6 +111,8 @@ export type WorkbenchConversationAdapterProps = {
   onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onAbort?: () => void;
   onCompact?: () => void;
+  onUsageOpenChange?: (open: boolean) => void;
+  onUsageRetry?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onNewConversationInProject?: (
     projectDir: string,

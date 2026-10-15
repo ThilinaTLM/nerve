@@ -65,6 +65,9 @@ let {
   planReviewThinkingLevel = "off",
   contextUsage,
   conversationUsage,
+  agentUsage,
+  agentUsageLoading,
+  agentUsageError,
   contextWindow = 0,
   composerFocusToken = 0,
   composerEscapeToken = 0,
@@ -87,6 +90,8 @@ let {
   onDismissUserQuestion,
   onAbort,
   onCompact,
+  onUsageOpenChange,
+  onUsageRetry,
   onOpenSystemPrompt,
   onNewConversationInProject,
   onOpenFile,
@@ -301,6 +306,9 @@ function menuForTranscript(
       permissionRuleSetsError,
       contextUsage,
       conversationUsage,
+      agentUsage,
+      agentUsageLoading,
+      agentUsageError,
       contextWindow,
       capabilities: {
         voice: true,
@@ -358,6 +366,9 @@ function menuForTranscript(
       {selectedModelKey}
       {contextUsage}
       {conversationUsage}
+      {agentUsage}
+      {agentUsageLoading}
+      {agentUsageError}
       {contextWindow}
       todos={composerTodos}
       focusToken={composerFocusToken}
@@ -379,6 +390,8 @@ function menuForTranscript(
       {onSubmit}
       {onAbort}
       onCompact={activeConversation ? onCompact : undefined}
+      {onUsageOpenChange}
+      {onUsageRetry}
       {onOpenSystemPrompt}
       {onModelChange}
       {onThinkingLevelChange}

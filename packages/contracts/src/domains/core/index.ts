@@ -173,3 +173,12 @@ export type {
 } from "./core-operations.js";
 
 export * from "./compaction-accounting.js";
+
+export {
+  conversationUsageSummarySchema,
+  conversationAgentUsageSchema,
+} from "./conversation-usage.js";
+export type {
+  ConversationUsageSummary,
+  ConversationAgentUsage,
+} from "./conversation-usage.js";

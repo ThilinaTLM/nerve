@@ -249,6 +249,15 @@ export const conversationChannelOperations = [
     "operation.conversation.getSnapshot",
   ),
   defineOperation(
+    "conversation.getUsage",
+    coreOperationSchemas["conversation.getUsage"].params,
+    coreOperationSchemas["conversation.getUsage"].result,
+    "read",
+    "none",
+    host,
+    "operation.conversation.getUsage",
+  ),
+  defineOperation(
     "conversation.previewSystemPrompt",
     previewSystemPromptParamsSchema,
     z.object({ systemPrompt: z.string() }),

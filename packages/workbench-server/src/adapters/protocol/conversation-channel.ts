@@ -193,6 +193,8 @@ export function createConversationProtocolSession(
         previewSystemPromptParamsSchema.parse(params),
       ),
     }),
+    "conversation.getUsage": ({ conversationId }) =>
+      core.getUsage(conversationId),
     "conversation.getHistory": ({ conversationId, ...page }) =>
       core.getHistory(conversationId, page),
     "toolCall.getDetails": ({ conversationId, toolCallId }) =>

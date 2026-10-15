@@ -1,14 +1,7 @@
+import type { ConversationUsageSummary } from "@nervekit/contracts/core";
 import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 
-export interface ConversationUsageSummary {
-  responseCount: number;
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  totalTokens: number;
-  cost: number;
-}
+export type { ConversationUsageSummary } from "@nervekit/contracts/core";
 
 export interface ConversationUsageMetrics extends ConversationUsageSummary {
   hasUsage: boolean;

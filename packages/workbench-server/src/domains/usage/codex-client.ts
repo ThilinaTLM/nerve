@@ -19,8 +19,6 @@ type CacheEntry = {
   blockedUntil: number;
 };
 
-type HeaderLike = Record<string, string | number | boolean | null | undefined>;
-
 let cache: CacheEntry | null = null;
 
 function cacheFile(cacheDir: string): string {
@@ -276,109 +274,6 @@ export function parseCodexUsageResponse(
   };
 }
 
-function headerValue(headers: HeaderLike, name: string): string | undefined {
-  const wanted = `x-codex-${name}`.toLowerCase();
-  for (const [key, value] of Object.entries(headers)) {
-    if (key.toLowerCase() === wanted && value != null) return String(value);
-  }
-  return undefined;
-}
-
-function headerNumber(headers: HeaderLike, name: string): number | null {
-  return numberValue(headerValue(headers, name));
-}
-
-function headerResetAfter(
-  headers: HeaderLike,
-  prefix: string,
-  nowMs: number,
-): number | null {
-  return (
-    headerNumber(headers, `${prefix}-reset-after-seconds`) ??
-    resetAfterFromResetAt(headerNumber(headers, `${prefix}-reset-at`), nowMs)
-  );
-}
-
-function headerWindow(
-  headers: HeaderLike,
-  prefix: string,
-  nowMs: number,
-): SubscriptionWindow | null {
-  const usedPercent = headerNumber(headers, `${prefix}-used-percent`);
-  if (usedPercent == null) return null;
-  return {
-    usedPercent,
-    resetsAt: null,
-    resetAfterSeconds: headerResetAfter(headers, prefix, nowMs),
-    windowMinutes: headerNumber(headers, `${prefix}-window-minutes`),
-  };
-}
-
-/** Parse Codex rate-limit usage from provider response headers. */
-export function parseCodexUsageHeaders(
-  headers: HeaderLike,
-  nowMs = Date.now(),
-): SubscriptionUsage | null {
-  const primary = headerWindow(headers, "primary", nowMs);
-  const secondary = headerWindow(headers, "secondary", nowMs);
-  if (!primary && !secondary) return null;
-  const { session, weekly } = classifyCodexWindows(primary, secondary);
-  return {
-    provider: "openai-codex",
-    session,
-    weekly,
-    planType: headerValue(headers, "plan-type") ?? null,
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function mergeWindow(
-  base: SubscriptionWindow | null,
-  update: SubscriptionWindow | null,
-): SubscriptionWindow | null {
-  if (!base) return update;
-  if (!update) return base;
-  return {
-    usedPercent: update.usedPercent ?? base.usedPercent,
-    resetsAt: update.resetsAt ?? base.resetsAt,
-    resetAfterSeconds: update.resetAfterSeconds ?? base.resetAfterSeconds,
-    windowMinutes: update.windowMinutes ?? base.windowMinutes,
-  };
-}
-
-/** Merge a newer snapshot over a base, preferring defined fields. */
-export function mergeCodexUsage(
-  base: SubscriptionUsage | null,
-  update: SubscriptionUsage,
-): SubscriptionUsage {
-  const normalizedUpdate = normalizeCodexSnapshot(update);
-  if (!base) return normalizedUpdate;
-
-  const normalizedBase = normalizeCodexSnapshot(base);
-  let updateSession = normalizedUpdate.session;
-  let updateWeekly = normalizedUpdate.weekly;
-
-  // Rolling headers can omit window duration. Preserve the known slot from the
-  // full snapshot when there is only one active Codex window.
-  if (
-    updateSession?.windowMinutes == null &&
-    !updateWeekly &&
-    !normalizedBase.session &&
-    normalizedBase.weekly
-  ) {
-    updateWeekly = updateSession;
-    updateSession = null;
-  }
-
-  return {
-    provider: "openai-codex",
-    session: mergeWindow(normalizedBase.session, updateSession),
-    weekly: mergeWindow(normalizedBase.weekly, updateWeekly),
-    planType: normalizedUpdate.planType ?? normalizedBase.planType,
-    updatedAt: normalizedUpdate.updatedAt,
-  };
-}
-
 function decodeBase64UrlJson(segment: string): Record<string, unknown> | null {
   try {
     const normalized = segment.replace(/-/g, "+").replace(/_/g, "/");
@@ -467,8 +362,7 @@ async function fetchApi(
 
 /**
  * Fetch Codex subscription usage from the backend endpoint using an OAuth
- * bearer token. Memoized for {@link CACHE_MAX_AGE_MS} with rate-limit backoff;
- * live updates also arrive via {@link parseCodexUsageHeaders}.
+ * bearer token. Memoized for {@link CACHE_MAX_AGE_MS} with rate-limit backoff.
  */
 export async function fetchCodexUsage(
   token: string,
@@ -538,13 +432,4 @@ export async function fetchCodexUsage(
   cache = { data, time: now, blockedUntil: 0 };
   await writeCacheFile(cacheDir, data);
   return data;
-}
-
-/** Persist a header-derived snapshot into the cache. */
-export async function writeCodexUsageCache(
-  cacheDir: string,
-  data: SubscriptionUsage,
-): Promise<void> {
-  cache = { data, time: Date.now(), blockedUntil: 0 };
-  await writeCacheFile(cacheDir, data);
 }

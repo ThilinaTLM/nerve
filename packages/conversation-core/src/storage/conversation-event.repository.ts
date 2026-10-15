@@ -4,6 +4,8 @@ import {
   transferConversationEvent,
   type TransferredConversationEvent,
   type ConversationEvent,
+  type ConversationAgentUsage,
+  type ConversationUsageSummary,
   type EventTreeNode,
 } from "@nervekit/contracts/core";
 import type { CoreDatabase } from "./database.js";
@@ -22,6 +24,53 @@ export interface HistoryPage {
 
 export class ConversationEventRepository {
   constructor(private readonly db: CoreDatabase) {}
+
+  getUsage(conversationId: string): ConversationAgentUsage {
+    const rows = this.db.sqlite
+      .prepare(`WITH RECURSIVE agents(id) AS (
+      SELECT id FROM conversation WHERE id = ?
+      UNION SELECT c.id FROM conversation c JOIN agents a ON c.parent_conversation_id = a.id
+    ) SELECT a.id = ? AS is_own, COUNT(DISTINCT a.id) AS agent_count,
+      COUNT(e.id) AS responseCount,
+      COALESCE(SUM(json_extract(e.payload, '$.usage.input')), 0) AS input,
+      COALESCE(SUM(json_extract(e.payload, '$.usage.output')), 0) AS output,
+      COALESCE(SUM(json_extract(e.payload, '$.usage.cacheRead')), 0) AS cacheRead,
+      COALESCE(SUM(json_extract(e.payload, '$.usage.cacheWrite')), 0) AS cacheWrite,
+      COALESCE(SUM(json_extract(e.payload, '$.usage.cost.total')), 0) AS cost
+      FROM agents a LEFT JOIN conversation_event e ON e.conversation_id = a.id
+        AND e.event_type = 'assistant_message'
+      GROUP BY is_own`)
+      .all(conversationId, conversationId);
+    if (!rows.length)
+      throw new Error(`Conversation not found: ${conversationId}`);
+    const summary = (isOwn: boolean): ConversationUsageSummary => {
+      const row = rows.find((row) => Boolean(row.is_own) === isOwn);
+      const input = Number(row?.input ?? 0);
+      const output = Number(row?.output ?? 0);
+      const cacheRead = Number(row?.cacheRead ?? 0);
+      const cacheWrite = Number(row?.cacheWrite ?? 0);
+      return {
+        responseCount: Number(row?.responseCount ?? 0),
+        input,
+        output,
+        cacheRead,
+        cacheWrite,
+        totalTokens: input + cacheRead + cacheWrite + output,
+        cost: Number(row?.cost ?? 0),
+      };
+    };
+    const own = summary(true);
+    const subagents = summary(false);
+    const total = { ...own };
+    for (const key of Object.keys(total) as (keyof ConversationUsageSummary)[])
+      total[key] += subagents[key];
+    return {
+      own,
+      subagents,
+      total,
+      subagentCount: Number(rows.find((row) => !row.is_own)?.agent_count ?? 0),
+    };
+  }
 
   get(id: string): ConversationEvent | null {
     const row = this.db.sqlite

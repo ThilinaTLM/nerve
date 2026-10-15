@@ -59,6 +59,10 @@ import {
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
 import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
+import {
+  ConversationAgentUsageController,
+  type AgentUsageState,
+} from "$lib/features/conversations/state/conversation-agent-usage";
 import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
 import { updateCapabilities } from "$lib/features/conversations/adapters/core-capabilities.adapter";
 import {
@@ -245,6 +249,22 @@ $effect(() => {
 const conversationUsage = $derived(
   context?.conversationUsage ?? summarizeConversationUsage([]),
 );
+let usageOpen = $state(false);
+let agentUsageState = $state<AgentUsageState>({ loading: false });
+const agentUsageController = new ConversationAgentUsageController({
+  fetch: (conversationId) =>
+    requestConversation("conversation.getUsage", { conversationId }),
+  publish: (state) => {
+    agentUsageState = state;
+  },
+});
+$effect(() => {
+  agentUsageController.configure(
+    store?.conversationId,
+    usageOpen && active && !!store?.connected,
+  );
+});
+$effect(() => () => agentUsageController.dispose());
 const contextWindow = $derived(
   context?.contextWindow ??
     settingsState.models.find((m) => modelKey(m) === selectedModelKey)
@@ -713,6 +733,13 @@ const teamRunning = $derived(
   {slashCompletions}
   contextUsage={context?.contextUsage}
   {conversationUsage}
+  agentUsage={agentUsageState.usage}
+  agentUsageLoading={agentUsageState.loading}
+  agentUsageError={agentUsageState.error}
+  onUsageOpenChange={(open) => {
+    usageOpen = open;
+  }}
+  onUsageRetry={() => agentUsageController.retry()}
   {contextWindow}
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}
