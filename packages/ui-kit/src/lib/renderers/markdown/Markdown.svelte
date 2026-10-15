@@ -1,7 +1,7 @@
 <script lang="ts">
 import { mount, tick, unmount, untrack } from "svelte";
 import { prefersReducedMotion } from "svelte/motion";
-import { writeClipboardText } from "@nervekit/ui-kit/browser/clipboard";
+import CodeCopyButton from "./CodeCopyButton.svelte";
 import {
   decorateMarkdownHtml,
   getHighlightedMarkdownSync,
@@ -116,21 +116,6 @@ let highlightToken = 0;
 async function handleClick(event: MouseEvent) {
   const target = event.target;
   if (!(target instanceof Element)) return;
-  const button = target.closest<HTMLButtonElement>("button[data-copy-code]");
-  if (button) {
-    const code =
-      button.closest(".code-block")?.querySelector("pre code")?.textContent ??
-      "";
-    if (!code) return;
-    try {
-      await writeClipboardText(code);
-      onCopy?.(true);
-    } catch {
-      onCopy?.(false);
-    }
-    return;
-  }
-
   if (!onOpenFile) return;
   const anchor = target.closest<HTMLAnchorElement>("a[href]");
   const href = anchor?.getAttribute("href");
@@ -145,10 +130,39 @@ async function handleClick(event: MouseEvent) {
   onOpenFile(path, split.line);
 }
 
-function copyButtonHandler(node: HTMLDivElement) {
+function copyButtonHandler(node: HTMLDivElement, initialHtml: string) {
+  let currentHtml = initialHtml;
+  let buttons: ReturnType<typeof mount>[] = [];
+  function clear() {
+    for (const button of buttons) void unmount(button);
+    buttons = [];
+  }
+  function enhance() {
+    clear();
+    for (const target of node.querySelectorAll<HTMLElement>(
+      "[data-copy-code]",
+    )) {
+      const code =
+        target.closest(".code-block")?.querySelector("pre code")?.textContent ??
+        "";
+      buttons.push(
+        mount(CodeCopyButton, {
+          target,
+          props: { code, onCopy: (ok: boolean) => onCopy?.(ok) },
+        }),
+      );
+    }
+  }
+  enhance();
   node.addEventListener("click", handleClick);
   return {
+    update(nextHtml: string) {
+      if (nextHtml === currentHtml) return;
+      currentHtml = nextHtml;
+      enhance();
+    },
     destroy() {
+      clear();
       node.removeEventListener("click", handleClick);
     },
   };
@@ -519,7 +533,7 @@ $effect(() => () => {
 {#if showingStreaming}
   <div
     class="markdown select-text"
-    use:copyButtonHandler
+    use:copyButtonHandler={streamingPrefixHtml}
     use:mermaidHandler={{
       html: streamingPrefixHtml,
       source: streamingPrefixSource,
@@ -552,7 +566,7 @@ $effect(() => () => {
 {:else}
   <div
     class="markdown select-text"
-    use:copyButtonHandler
+    use:copyButtonHandler={html}
     use:mermaidHandler={{ html, source: text, sourceLineStart, onOpenMermaid }}
   >
     <!-- eslint-disable-next-line svelte/no-at-html-tags -- renderMarkdown applies rehype-sanitize before producing markup. -->
@@ -714,30 +728,22 @@ $effect(() => () => {
 
 .markdown :global(.code-copy) {
   position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
+  top: calc(var(--spacing) * 1);
+  right: calc(var(--spacing) * 1);
   z-index: 1;
   opacity: 0;
-  border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
-  border-radius: 0.25rem;
-  background: var(--input);
-  color: var(--muted-foreground);
-  padding: 0.12rem 0.38rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  cursor: pointer;
   transition: opacity 0.12s ease;
 }
 
 .markdown :global(.code-block:hover .code-copy),
-.markdown :global(.code-copy:focus-visible) {
+.markdown :global(.code-copy:focus-within) {
   opacity: 1;
 }
 
-.markdown :global(.code-copy:hover) {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--primary);
+@media (hover: none) {
+  .markdown :global(.code-copy) {
+    opacity: 1;
+  }
 }
 
 .markdown :global(.mermaid-block) {
