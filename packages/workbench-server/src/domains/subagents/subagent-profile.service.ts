@@ -120,7 +120,7 @@ export class SubagentProfileService {
     return this.assemble(layers, "conversation", {
       projectId,
       lead,
-      capabilityOverrides,
+      ...(capabilityOverrides !== undefined ? { capabilityOverrides } : {}),
     });
   }
 
