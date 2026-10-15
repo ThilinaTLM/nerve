@@ -106,11 +106,9 @@ function clonePreWithTrimmedCode(pre: Element, code: string): Element {
 function wrapCodeBlock(pre: Element): Element {
   const shell = document.createElement("div");
   shell.className = "code-block";
-  const button = document.createElement("button");
-  button.type = "button";
+  const button = document.createElement("span");
   button.className = "code-copy";
   button.dataset.copyCode = "";
-  button.textContent = "Copy";
   shell.append(button, pre);
   return shell;
 }
