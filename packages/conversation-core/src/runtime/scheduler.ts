@@ -6,6 +6,7 @@ import type { CoreEmitter } from "./core-change.js";
 import type { ConversationRunner } from "./conversation-runner.js";
 import { openExecutionId, type StatusService } from "./status.js";
 import { shutdownReason } from "./shutdown.js";
+import { hasRejectedPlan } from "./plan-rejection.js";
 
 export class ConversationScheduler {
   private readonly slots = new Map<
@@ -45,9 +46,24 @@ export class ConversationScheduler {
       if (explicit) throw new Error("Conversation not found");
       return;
     }
-    if (conversation.paused || this.options.toolCalls.openRows(id).length)
-      return;
+    if (this.options.toolCalls.openRows(id).length) return;
     const existing = openExecutionId(this.options.storage, id);
+    if (conversation.paused) {
+      // Restored reviews have no live runner. Complete them only after all sibling
+      // tools settle; their later wakes must not leave a rejected execution open.
+      const started = existing && this.options.storage.events.get(existing);
+      if (
+        existing &&
+        started &&
+        hasRejectedPlan(this.options.storage.events.since(id, started.sequence))
+      )
+        this.options.status.transition(id, {
+          subtype: "execution_state",
+          transition: "completed",
+          executionId: existing,
+        });
+      return;
+    }
     if (
       !explicit &&
       !existing &&

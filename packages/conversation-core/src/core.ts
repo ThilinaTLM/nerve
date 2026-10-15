@@ -235,6 +235,7 @@ export class ConversationCore {
         this.configure(id, patch);
       },
       readPlan: options.readPlan,
+      onPlanRejected: (id) => this.scheduler.pause(id),
     }).values())
       this.registerCoreTool(handler);
     for (const handler of options.coreTools ?? [])

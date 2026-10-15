@@ -101,7 +101,7 @@ function buildModeOwnershipInstructions(): string {
   return promptText`
     <mode_controls>
     Conversation mode is user-controlled. Only the user can enter planning mode or manually leave it; ask the user to change mode when needed.
-    Presenting a plan with plan_mode_present does not change mode. User approval of the plan switches to coding mode; rejection leaves the mode unchanged.
+    Presenting a plan with plan_mode_present does not change mode. User approval of the plan switches to coding mode; rejection leaves the mode unchanged and ends the current execution. After rejection, wait for a new user prompt before revising the plan or doing any further work.
     </mode_controls>
   `;
 }

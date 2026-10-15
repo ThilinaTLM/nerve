@@ -23,6 +23,7 @@ import type { ModelTurn } from "./model-turn.js";
 import type { StatusService } from "./status.js";
 import { abortable } from "./abortable.js";
 import { shutdownReason } from "./shutdown.js";
+import { hasRejectedPlan } from "./plan-rejection.js";
 
 export interface ExecutionFinished {
   conversationId: string;
@@ -237,6 +238,16 @@ export class ConversationRunner {
         signal.throwIfAborted();
         await abortable(toolCalls.waitForTurn(id, turnId), signal);
         signal.throwIfAborted();
+        // Rejection ends this execution, rather than resuming it to revise the plan.
+        // The persisted pause gate blocks other wakes until a new user prompt.
+        if (
+          hasRejectedPlan(
+            storage.events
+              .since(id, event.sequence)
+              .filter((response) => response.turnId === turnId),
+          )
+        )
+          break;
         if (
           !calls.length &&
           !inputs.hasDeliverable(id, { kind: "turn", executionId })
