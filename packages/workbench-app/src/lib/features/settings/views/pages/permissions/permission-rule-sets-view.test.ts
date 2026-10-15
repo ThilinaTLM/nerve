@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type {
   PermissionPolicyConfiguration,
+  PermissionRule,
   PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
 import {
   isDefaultEligible,
+  newRuleTemplate,
   overlaySummary,
+  ruleMetadata,
   ruleSetRole,
+  validateRuleSource,
 } from "./permission-rule-sets-view";
 
 function ruleSet(
@@ -23,22 +27,36 @@ function ruleSet(
   } as PermissionRuleSetSummary;
 }
 
+function rule(id: string, overrides: Partial<PermissionRule> = {}) {
+  return {
+    id,
+    enabled: true,
+    priority: 10,
+    enforcement: "overridable",
+    when: { toolNames: ["bash"] },
+    decision: "prompt",
+    ...overrides,
+  } as PermissionRule;
+}
+
 function configuration(
   projectRuleCounts: Record<string, number>,
   userRuleCounts: Record<string, number>,
+  trust: PermissionPolicyConfiguration["projectTrust"]["status"] = "trusted",
 ): PermissionPolicyConfiguration {
   const document = (counts: Record<string, number>) => ({
     schemaVersion: 2 as const,
     overlays: Object.entries(counts).map(([ruleSetId, count]) => ({
       ruleSetId,
-      rules: Array.from({ length: count }, (_, index) => ({
-        id: `${ruleSetId}-${index}`,
-      })),
+      rules: Array.from({ length: count }, (_, index) =>
+        rule(`${ruleSetId}-${index}`, { priority: index }),
+      ),
     })),
   });
   return {
     projectOverlays: document(projectRuleCounts),
     userOverlays: document(userRuleCounts),
+    projectTrust: { status: trust },
   } as unknown as PermissionPolicyConfiguration;
 }
 
@@ -92,34 +110,116 @@ describe("permission rule set view helpers", () => {
     assert.equal(ruleSetRole(ruleSet({ id: "supervised" })), "Coding");
   });
 
-  it("counts overrides per rule set and scope", () => {
+  it("summarises user and project override counts per rule set", () => {
     const summary = overlaySummary(
       configuration({ supervised: 2 }, { supervised: 1, autonomous: 4 }),
       "supervised",
     );
     assert.deepEqual(summary, {
-      project: 2,
       user: 1,
-      label: "Project 2 · User 1",
+      project: 2,
+      label: "1 user override · 2 project overrides",
     });
   });
 
-  it("omits the scopes that have no overrides", () => {
+  it("omits scopes without overrides and reports none at all", () => {
     assert.equal(
       overlaySummary(configuration({}, { supervised: 3 }), "supervised").label,
-      "User 3",
+      "3 user overrides",
     );
     assert.equal(
-      overlaySummary(configuration({ supervised: 1 }, {}), "supervised").label,
-      "Project 1",
+      overlaySummary(configuration({ supervised: 2 }, {}), "autonomous").label,
+      "No overrides",
     );
   });
 
-  it("reports rule sets with no overrides at all", () => {
-    const summary = overlaySummary(
-      configuration({ supervised: 2 }, {}),
-      "autonomous",
+  it("flags project overrides that are not applied", () => {
+    assert.equal(
+      overlaySummary(
+        configuration({ supervised: 1 }, {}, "untrusted"),
+        "supervised",
+      ).label,
+      "1 project override (not applied)",
     );
-    assert.deepEqual(summary, { project: 0, user: 0, label: "No overrides" });
+  });
+
+  it("describes a rule by its tools, condition count and decision", () => {
+    assert.deepEqual(
+      ruleMetadata(
+        rule("a", {
+          decision: "deny",
+          when: { toolNames: ["bash", "read"], baseRisks: ["write"] },
+        }),
+      ),
+      ["bash, read", "2 conditions", "Block"],
+    );
+    assert.deepEqual(ruleMetadata(rule("b", { when: {}, decision: "allow" })), [
+      "Any tool",
+      "0 conditions",
+      "Allow",
+    ]);
+  });
+
+  it("creates a valid starting rule that avoids existing IDs and priorities", () => {
+    const siblings = [rule("new-rule-1", { priority: 0 })];
+    const template = newRuleTemplate(siblings);
+    const validation = validateRuleSource(
+      template,
+      "user",
+      "supervised",
+      siblings,
+    );
+    assert.equal(validation.error, undefined);
+    assert.equal(validation.rule?.id, "new-rule-2");
+    assert.equal(validation.rule?.priority, 1);
+  });
+
+  it("validates JSON syntax, the rule schema, and sibling conflicts", () => {
+    const siblings = [rule("a", { priority: 5 })];
+    assert.match(
+      validateRuleSource("{", "user", "supervised", siblings).error ?? "",
+      /Invalid JSON/,
+    );
+    assert.match(
+      validateRuleSource(
+        JSON.stringify(rule("b", { priority: 5000 })),
+        "user",
+        "supervised",
+        siblings,
+      ).error ?? "",
+      /priority/,
+    );
+    assert.match(
+      validateRuleSource(
+        JSON.stringify(rule("a", { priority: 6 })),
+        "user",
+        "supervised",
+        siblings,
+      ).error ?? "",
+      /unique/i,
+    );
+    assert.match(
+      validateRuleSource(
+        JSON.stringify(rule("b", { priority: 5 })),
+        "user",
+        "supervised",
+        siblings,
+      ).error ?? "",
+      /unique/i,
+    );
+  });
+
+  it("applies the project restriction against guardrails", () => {
+    const guardrail = rule("g", { enforcement: "guardrail", decision: "deny" });
+    assert.equal(
+      validateRuleSource(JSON.stringify(guardrail), "user", "supervised", [])
+        .error,
+      undefined,
+    );
+    assert.match(
+      validateRuleSource(JSON.stringify(guardrail), "project", "supervised", [])
+        .error ?? "",
+      /overridable/,
+    );
   });
 });

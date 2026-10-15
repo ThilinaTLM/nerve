@@ -1,26 +1,30 @@
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
-import { createId } from "@nervekit/contracts";
 import { supervisionSchema } from "@nervekit/contracts/core";
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import {
   permissionOverlayDocumentForOriginSchema,
   permissionRuleSchema,
   type PermissionOverlayDocument,
-  type PermissionOverlayOrigin,
 } from "@nervekit/contracts/permissions";
 import {
   composeEffectivePermissionPolicy,
   evaluatePermissionRequest,
   normalizePermissionRequest,
 } from "@nervekit/tools/policy";
-import { atomicWriteJson } from "../infrastructure/storage-bootstrap/index.js";
 import {
   buildBashToolDefinition,
   type BashToolSettings,
 } from "@nervekit/tools/catalog";
+import {
+  loadPermissionOverlay,
+  mutatePermissionOverlay,
+  overlayDigest,
+  projectOverlayPath,
+  trustProjectPermissions,
+  userOverlayPath,
+} from "./permission-overlays.js";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
 import { requiresBashTimeoutArgument } from "./tool-host.adapter.js";
 
@@ -30,8 +34,8 @@ export function createPermissionPort(
   bashSettings?: (projectDir: string) => Promise<BashToolSettings>,
 ): PermissionPort {
   const paths = (conversationId: string, projectDir: string) => ({
-    user: join(home, "config", "permissions.json"),
-    project: join(projectDir, ".nerve", "config", "permissions.json"),
+    user: userOverlayPath(home),
+    project: projectOverlayPath(projectDir),
     conversation: join(
       home,
       "data",
@@ -41,21 +45,6 @@ export function createPermissionPort(
       "permissions.json",
     ),
   });
-  const load = async (
-    origin: PermissionOverlayOrigin,
-    path: string,
-  ): Promise<PermissionOverlayDocument> => {
-    try {
-      return permissionOverlayDocumentForOriginSchema(origin).parse(
-        JSON.parse(await readFile(path, "utf8")),
-      );
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return { schemaVersion: 2, overlays: [] };
-      throw error;
-    }
-  };
-  const writes = new Map<string, Promise<void>>();
   return {
     async evaluate(input) {
       const selected = (await listPermissionRuleSets(home)).find(
@@ -66,8 +55,11 @@ export function createPermissionPort(
           `Unknown or disabled permission rule set: ${input.ruleSetId}`,
         );
       const path = paths(input.conversationId, input.projectDir);
-      const user = await load("user", path.user);
-      const conversation = await load("conversation", path.conversation);
+      const user = await loadPermissionOverlay("user", path.user);
+      const conversation = await loadPermissionOverlay(
+        "conversation",
+        path.conversation,
+      );
       const projectId = storage.conversations.get(
         input.conversationId,
       )?.projectId;
@@ -79,7 +71,7 @@ export function createPermissionPort(
       let project: PermissionOverlayDocument | undefined;
       if (trusted?.status === "trusted") {
         const content = await readFile(path.project, "utf8");
-        const digest = `sha256:${createHash("sha256").update(content).digest("hex")}`;
+        const digest = overlayDigest(content);
         if (trusted.contentDigest === digest)
           project = permissionOverlayDocumentForOriginSchema("project").parse(
             JSON.parse(content),
@@ -136,65 +128,26 @@ export function createPermissionPort(
     },
     async addRule(input) {
       const path = paths(input.conversationId, input.projectDir)[input.scope];
-      const write = (writes.get(path) ?? Promise.resolve())
-        .catch(() => undefined)
-        .then(async () => {
-          const document = await load(input.scope, path);
-          let overlay = document.overlays.find(
-            (item) => item.ruleSetId === input.ruleSetId,
-          );
-          if (!overlay) {
-            overlay = { ruleSetId: input.ruleSetId, rules: [] };
-            document.overlays.push(overlay);
-          }
-          const rule = permissionRuleSchema.parse(input.rule);
-          overlay.rules = [
-            ...overlay.rules.filter((item) => item.id !== rule.id),
-            rule,
-          ];
-          const parsed = permissionOverlayDocumentForOriginSchema(
-            input.scope,
-          ).parse(document);
-          await atomicWriteJson(path, parsed, 0o600);
-          if (input.scope === "project") {
-            const projectId = storage.conversations.get(
-              input.conversationId,
-            )?.projectId;
-            if (!projectId) throw new Error("Conversation not found");
-            const contentDigest = `sha256:${createHash("sha256")
-              .update(await readFile(path))
-              .digest("hex")}`;
-            const existing = storage.trustedResources.find(
-              "project_permissions",
-              projectId,
-              path,
-            );
-            const now = new Date().toISOString();
-            if (existing)
-              storage.trustedResources.update(existing.id, {
-                contentDigest,
-                status: "trusted",
-                updatedAt: now,
-              });
-            else
-              storage.trustedResources.insert({
-                id: createId("trust"),
-                kind: "project_permissions",
-                projectId,
-                path,
-                name: null,
-                contentDigest,
-                status: "trusted",
-                createdAt: now,
-                updatedAt: now,
-              });
-          }
-        });
-      writes.set(path, write);
-      try {
-        await write;
-      } finally {
-        if (writes.get(path) === write) writes.delete(path);
+      const rule = permissionRuleSchema.parse(input.rule);
+      await mutatePermissionOverlay(input.scope, path, (document) => {
+        let overlay = document.overlays.find(
+          (item) => item.ruleSetId === input.ruleSetId,
+        );
+        if (!overlay) {
+          overlay = { ruleSetId: input.ruleSetId, rules: [] };
+          document.overlays.push(overlay);
+        }
+        overlay.rules = [
+          ...overlay.rules.filter((item) => item.id !== rule.id),
+          rule,
+        ];
+      });
+      if (input.scope === "project") {
+        const projectId = storage.conversations.get(
+          input.conversationId,
+        )?.projectId;
+        if (!projectId) throw new Error("Conversation not found");
+        await trustProjectPermissions(storage, projectId, path);
       }
     },
   };

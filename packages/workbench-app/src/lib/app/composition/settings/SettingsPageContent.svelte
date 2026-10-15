@@ -22,6 +22,7 @@ import { Button } from "@nervekit/ui-kit/components/ui/button";
 import CompactionSettingsPage from "$lib/features/settings/views/pages/compaction/CompactionSettingsPage.svelte";
 import ModelsSettingsPage from "$lib/features/settings/views/pages/models/ModelsSettingsPage.svelte";
 import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifications/NotificationsSettingsPage.svelte";
+import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
 import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
@@ -130,6 +131,16 @@ let {
         ? (path) => void openFilePane({ projectId: activeProject.id, path })
         : undefined}
     />
+  {:else if page.id === "permissions"}
+    <PermissionsSettingsPage
+      {scope}
+      {settingsDraft}
+      controller={controllers.permissionsController}
+      projectId={activeProject?.id}
+      projectName={activeProject?.name}
+      {onSettingsChange}
+      {onScopeChange}
+    />
   {:else if scope === "project" && page.id === "skills"}
     <SkillsSettingsPage
       scope="project"
@@ -197,12 +208,6 @@ let {
       {models}
       {authProviders}
       {onSettingsChange}
-    />
-  {:else if page.id === "permissions"}
-    <SettingsEmptyState
-      variant="card"
-      title="Conversation permission rules"
-      description="Select the permission rule set in the conversation composer. Permission overlays are managed in their permissions.json files."
     />
   {:else if page.id === "tools"}
     <ToolsSettingsPage

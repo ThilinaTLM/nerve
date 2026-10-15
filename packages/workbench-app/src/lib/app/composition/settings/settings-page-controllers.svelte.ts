@@ -23,6 +23,7 @@ import {
   retainConversationStore,
   type ConversationStore,
 } from "$lib/features/conversations";
+import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
 export type SettingsScope = "user" | "project";
 export function createSettingsPageControllers(deps: {
@@ -172,6 +173,7 @@ export function createSettingsPageControllers(deps: {
     return retained.release;
   });
   const storageController = new StoragePageController();
+  const permissionsController = new PermissionsPageController();
   const suggestionsPageState = new SuggestionsPageState();
   function readComposerSelection(): Settings["lastAgentSelection"] {
     const saved = settingsState.settingsDraft?.lastAgentSelection;
@@ -203,6 +205,7 @@ export function createSettingsPageControllers(deps: {
     setProjectCapabilityTrust,
     suggestionsPageState,
     storageController,
+    permissionsController,
     readComposerSelection,
   };
 }

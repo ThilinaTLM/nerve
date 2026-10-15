@@ -58,10 +58,10 @@ export const settingsPages: SettingsPageDef[] = [
     label: "Permissions",
     icon: Shield,
     description:
-      "Choose a simple default and manage focused allow or block exceptions.",
+      "Choose the default rule set and manage the allow, ask or block overrides each one applies.",
     sections: [
+      { id: "default", label: "Default" },
       { id: "rule-sets", label: "Rule sets" },
-      { id: "overlays", label: "Overrides" },
     ],
   },
   {

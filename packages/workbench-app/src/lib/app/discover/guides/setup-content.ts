@@ -321,7 +321,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "permissions",
-        sectionId: "rule-sets",
+        sectionId: "default",
       },
     },
     {

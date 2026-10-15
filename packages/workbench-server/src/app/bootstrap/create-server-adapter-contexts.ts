@@ -17,6 +17,7 @@ import type { ApplicationLogger } from "../../infrastructure/diagnostics/index.j
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import type { SecretProvider } from "../../infrastructure/secrets/index.js";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { createPermissionConfigurationService } from "../../core-host/permission-configuration.js";
 import type { RuntimeServices } from "./create-runtime-services.js";
 
 interface AdapterInfrastructure {
@@ -91,6 +92,12 @@ export function createServerAdapterContexts(
       conversationCore: services.conversationCore,
       capabilities: services.capabilities,
       harness: services.harness,
+      permissionConfiguration: createPermissionConfigurationService({
+        home: infrastructure.storage.paths.home,
+        storage: services.coreStorage,
+        projectDirectory: (id) =>
+          services.conversationCore.projects.get(id)?.directory,
+      }),
       host: infrastructure.host,
       port: infrastructure.port,
       events: infrastructure.events,
