@@ -130,11 +130,6 @@ const pages = $derived(
     if (page.id === "skills")
       return { ...page, sections, description: skillsDescription };
     if (settingsScope === "user") return { ...page, sections };
-    if (page.id === "permissions")
-      return {
-        ...page,
-        sections: sections.filter((section) => section.id === "overlays"),
-      };
     if (!projectScopedPageIds.has(page.id)) return { ...page, sections: [] };
     return { ...page, sections };
   }),

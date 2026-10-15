@@ -265,6 +265,28 @@ export function createConversationProtocolSession(
     "permissionRuleSet.list": async () => ({
       ruleSets: await listPermissionRuleSets(platform.storage.paths.home),
     }),
+    "permission.configuration.get": async ({ projectId } = {}) => {
+      if (projectId) projects.add(projectId);
+      return state.permissionConfiguration.get(projectId);
+    },
+    "permission.rule.save": ({
+      scope,
+      projectId,
+      ruleSetId,
+      previousRuleId,
+      rule,
+    }) =>
+      state.permissionConfiguration.saveRule({
+        scope,
+        projectId,
+        ruleSetId,
+        previousRuleId,
+        rule,
+      }),
+    "permission.rule.delete": (input) =>
+      state.permissionConfiguration.deleteRule(input),
+    "permission.projectTrust.grant": ({ projectId }) =>
+      state.permissionConfiguration.grantProjectTrust(projectId),
     "skill.list": ({ projectId } = {}) => {
       const project = projectId ? core.projects.get(projectId) : null;
       if (projectId && !project) throw new Error("Project not found");

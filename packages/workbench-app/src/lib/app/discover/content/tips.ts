@@ -44,7 +44,7 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
     action: {
       kind: "settings",
       pageId: "permissions",
-      sectionId: "rule-sets",
+      sectionId: "default",
       label: "Review permissions",
     },
   },

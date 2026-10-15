@@ -12,7 +12,12 @@ import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 import { defineContentEvent } from "../../events/definition.js";
 import { modelInfoSchema } from "../models/models.js";
-import { permissionRuleSetSchema } from "../permissions/permission-rule-sets.js";
+import {
+  permissionPolicyConfigurationSchema,
+  permissionRuleSchema,
+  permissionRuleSetIdSchema,
+  permissionRuleSetSchema,
+} from "../permissions/permission-rule-sets.js";
 import { availableSkillsResponseSchema } from "../skills/skill.js";
 import { toolDescriptorSchema } from "../tools/records.js";
 import { completionItemSchema } from "../completions/completion.js";
@@ -38,6 +43,14 @@ import {
 
 const emptyParams = z.object({}).optional();
 const host = ["workbench_server"] as const;
+
+const permissionRuleTarget = z.object({
+  /** Overlay file to edit; conversation overlays are written by approvals only. */
+  scope: z.enum(["user", "project"]),
+  /** Required for project scope and used to report project overlays and trust. */
+  projectId: z.string().optional(),
+  ruleSetId: permissionRuleSetIdSchema,
+});
 
 const harnessScope = z.object({
   projectId: z.string(),
@@ -397,6 +410,46 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.permissionRuleSet.list",
+  ),
+  defineOperation(
+    "permission.configuration.get",
+    z.object({ projectId: z.string().optional() }).optional(),
+    permissionPolicyConfigurationSchema,
+    "read",
+    "none",
+    host,
+    "operation.permission.configuration.get",
+  ),
+  defineOperation(
+    "permission.rule.save",
+    permissionRuleTarget.extend({
+      /** Existing rule ID being edited; omit to add a rule. */
+      previousRuleId: z.string().optional(),
+      rule: permissionRuleSchema,
+    }),
+    permissionPolicyConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.permission.rule.save",
+  ),
+  defineOperation(
+    "permission.rule.delete",
+    permissionRuleTarget.extend({ ruleId: z.string() }),
+    permissionPolicyConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.permission.rule.delete",
+  ),
+  defineOperation(
+    "permission.projectTrust.grant",
+    z.object({ projectId: z.string() }),
+    permissionPolicyConfigurationSchema,
+    "mutation",
+    "none",
+    host,
+    "operation.permission.projectTrust.grant",
   ),
   defineOperation(
     "skill.list",
