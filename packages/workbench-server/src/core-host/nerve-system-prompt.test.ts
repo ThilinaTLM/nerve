@@ -16,6 +16,7 @@ function assertUserOwnedMode(prompt: string) {
     prompt,
     /User approval of the plan switches to coding mode; rejection leaves the mode unchanged/,
   );
+  assert.match(prompt, /After rejection, wait for a new user prompt/);
   assert.doesNotMatch(
     prompt,
     /plan_mode_enter|plan_mode_force_exit|Use Plan Mode only/,

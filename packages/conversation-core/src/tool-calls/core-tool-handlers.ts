@@ -15,6 +15,7 @@ export interface CoreToolHandlerOptions {
     conversationId: string,
     patch: Partial<Omit<ConversationConfig, "conversationId">>,
   ): void | Promise<void>;
+  onPlanRejected(conversationId: string): void;
   // The host decides which plan files can be read; the core owns the reviewed copy.
   readPlan?(input: {
     conversationId: string;
@@ -117,6 +118,7 @@ export function createCoreToolHandlers(
         throw new Error("Expected plan-review decision");
       if (resolution.decision === "approve")
         await options.configure(call.conversationId, { mode: "coding" });
+      else options.onPlanRejected(call.conversationId);
       return {
         content:
           resolution.decision === "approve"

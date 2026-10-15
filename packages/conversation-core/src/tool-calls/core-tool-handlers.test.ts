@@ -8,6 +8,7 @@ import { createCoreToolHandlers } from "./core-tool-handlers.js";
 const handler = createCoreToolHandlers({
   assets: {} as AssetStore,
   configure() {},
+  onPlanRejected() {},
 }).get("ask_user");
 const call = {
   toolName: "ask_user",
@@ -44,6 +45,7 @@ test("agents have no planning-mode entry or force-exit handlers", () => {
   const handlers = createCoreToolHandlers({
     assets: {} as AssetStore,
     configure() {},
+    onPlanRejected() {},
   });
   assert.equal(handlers.has("plan_mode_enter"), false);
   assert.equal(handlers.has("plan_mode_force_exit"), false);
@@ -52,6 +54,7 @@ test("agents have no planning-mode entry or force-exit handlers", () => {
 
 function planReview() {
   const changes: unknown[] = [];
+  const rejections: string[] = [];
   const planCall = {
     id: "tc_plan",
     conversationId: "conv_1",
@@ -73,24 +76,28 @@ function planReview() {
     async readPlan() {
       return "# Implementation plan\n\nImplement the approved approach.";
     },
+    onPlanRejected(conversationId) {
+      rejections.push(conversationId);
+    },
     configure(conversationId, patch) {
       changes.push({ conversationId, patch });
     },
   }).get("plan_mode_present")!;
-  return { changes, planCall, planHandler };
+  return { changes, rejections, planCall, planHandler };
 }
 
 test("presenting a plan requests review without changing mode", async () => {
-  const { changes, planCall, planHandler } = planReview();
+  const { changes, rejections, planCall, planHandler } = planReview();
   const outcome = await planHandler.execute(planCall, ctx);
   assert.equal(outcome.kind, "awaiting_input");
   if (outcome.kind !== "awaiting_input") assert.fail("Expected plan review");
   assert.equal(outcome.interaction.kind, "plan_review");
+  assert.deepEqual(rejections, []);
   assert.deepEqual(changes, []);
 });
 
 test("user approval of a plan switches the conversation to coding", async () => {
-  const { changes, planCall, planHandler } = planReview();
+  const { changes, rejections, planCall, planHandler } = planReview();
   const result = await planHandler.resolve!(
     planCall,
     { kind: "plan_review", decision: "approve" },
@@ -100,10 +107,11 @@ test("user approval of a plan switches the conversation to coding", async () => 
     { conversationId: "conv_1", patch: { mode: "coding" } },
   ]);
   assert.match(result.content ?? "", /Plan approved/);
+  assert.deepEqual(rejections, []);
 });
 
-test("user rejection of a plan leaves mode unchanged and returns feedback", async () => {
-  const { changes, planCall, planHandler } = planReview();
+test("user rejection gates automatic work, leaves mode unchanged and returns feedback", async () => {
+  const { changes, rejections, planCall, planHandler } = planReview();
   const result = await planHandler.resolve!(
     planCall,
     {
@@ -115,4 +123,5 @@ test("user rejection of a plan leaves mode unchanged and returns feedback", asyn
   );
   assert.deepEqual(changes, []);
   assert.equal(result.content, "Plan rejected. Use a smaller scope.");
+  assert.deepEqual(rejections, ["conv_1"]);
 });
