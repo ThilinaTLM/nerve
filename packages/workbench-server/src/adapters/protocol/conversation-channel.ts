@@ -2,6 +2,7 @@ import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/st
 import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import {
+  previewSystemPromptParamsSchema,
   conversationChannelOperations,
   transferConversationEvent,
   type ConversationEvent,
@@ -187,6 +188,11 @@ export function createConversationProtocolSession(
     },
     "conversation.getSnapshot": ({ conversationId }) =>
       core.getSnapshot(conversationId),
+    "conversation.previewSystemPrompt": async (params) => ({
+      systemPrompt: await core.previewSystemPrompt(
+        previewSystemPromptParamsSchema.parse(params),
+      ),
+    }),
     "conversation.getHistory": ({ conversationId, ...page }) =>
       core.getHistory(conversationId, page),
     "toolCall.getDetails": ({ conversationId, toolCallId }) =>

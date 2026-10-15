@@ -150,11 +150,13 @@ export {
   coreOperationSchemas,
 } from "./core-operations.js";
 export {
+  previewSystemPromptParamsSchema,
   conversationChannelOperations,
   conversationChannelEvents,
   conversationChannelEventSchemas,
 } from "./channel.js";
 export type {
+  PreviewSystemPromptParams,
   ConversationChannelOperationName,
   ConversationChannelOperationParams,
   ConversationChannelOperationResult,

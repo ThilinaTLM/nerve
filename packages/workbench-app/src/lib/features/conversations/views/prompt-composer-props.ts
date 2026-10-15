@@ -70,6 +70,7 @@ export type PromptComposerProps = {
   onSubmit?: () => void;
   onAbort?: () => void;
   onCompact?: () => void;
+  onOpenSystemPrompt?: () => void | Promise<void>;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;

@@ -106,6 +106,7 @@ export class CapabilityService {
   async configuration(
     projectId: string,
     conversationId?: string,
+    replace?: CapabilityOverridesDocument,
   ): Promise<CapabilityConfiguration> {
     const settings = this.storage.settings;
     const user = userCapabilitySelection(settings);
@@ -146,12 +147,18 @@ export class CapabilityService {
       };
     }
     const trusted = trust.status === "trusted" ? project.document : undefined;
-    const conversation = conversationId
-      ? await this.read(this.conversationPath(projectId, conversationId))
-      : undefined;
-    const inherited = conversationId
-      ? resolveCapabilitySelection({ user, project: trusted })
-      : user;
+    const conversation = replace
+      ? {
+          document: capabilityOverridesDocumentSchema.parse(replace),
+          digest: "draft",
+        }
+      : conversationId
+        ? await this.read(this.conversationPath(projectId, conversationId))
+        : undefined;
+    const inherited =
+      conversationId || replace
+        ? resolveCapabilitySelection({ user, project: trusted })
+        : user;
     const atlassian = settings.providers.atlassianProfiles.map((profile) => ({
       id: profile.id,
       name: profile.name,

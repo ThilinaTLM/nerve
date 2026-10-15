@@ -17,6 +17,8 @@ export type CenterTabIdentity =
   | { kind: "mermaid"; id: string }
   | { kind: "pr"; id: string }
   | { kind: "diff"; id: string }
+  /** Ephemeral in-memory prompt snapshot; id is the conversation source id. */
+  | { kind: "system-prompt"; id: string }
   | { kind: "settings"; id: "settings" }
   | { kind: "logs"; id: "logs" }
   | { kind: "discover"; id: "discover" };

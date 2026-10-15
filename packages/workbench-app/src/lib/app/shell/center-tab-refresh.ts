@@ -28,6 +28,9 @@ export function createCenterTabRefresh(
       case "discover":
         dependencies.selectTab(tab);
         return;
+      case "system-prompt":
+        // Snapshot of one request; reopening it fetches a new one.
+        return;
       case "file":
         dependencies.refreshFile(tab.id);
         return;

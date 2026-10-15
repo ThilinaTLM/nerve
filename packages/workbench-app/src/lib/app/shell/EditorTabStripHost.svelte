@@ -146,6 +146,7 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
   else if (tab.kind === "settings") model.icon = Settings;
   else if (tab.kind === "logs") model.icon = Logs;
   else if (tab.kind === "discover") model.icon = Compass;
+  else if (tab.kind === "system-prompt") model.icon = TextAlignStart;
 
   return model;
 }
@@ -205,7 +206,8 @@ function tabMenu(tab: WorkbenchTabModel): ContextMenuItem[] {
     label: "Refresh",
     icon: RefreshCw,
     shortcut: refreshShortcut,
-    disabled: !onRefresh,
+    // A prompt snapshot cannot be refreshed in place; reopen it from the composer.
+    disabled: !onRefresh || source.kind === "system-prompt",
     onSelect: () => onRefresh?.(identity),
   });
 

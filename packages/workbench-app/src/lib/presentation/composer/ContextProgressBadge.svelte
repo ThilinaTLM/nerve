@@ -2,8 +2,10 @@
 import type { Snippet } from "svelte";
 import Clipboard from "@lucide/svelte/icons/clipboard";
 import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
+import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
 import type { ContextUsage } from "@nervekit/contracts/models";
+import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
@@ -40,6 +42,8 @@ type Props = {
   compacting?: boolean;
   compactDisabled?: boolean;
   onCompact?: () => void;
+  /** Prepares and opens the next-request system prompt using current settings. */
+  onOpenSystemPrompt?: () => void | Promise<void>;
 };
 
 let {
@@ -51,10 +55,12 @@ let {
   compacting = false,
   compactDisabled = false,
   onCompact,
+  onOpenSystemPrompt,
 }: Props = $props();
 
 let open = $state(false);
 let confirmCompactOpen = $state(false);
+let systemPromptBusy = $state(false);
 let sessionCopied = $state(false);
 let sessionCopiedTimer: ReturnType<typeof setTimeout> | undefined;
 $effect(() => () => clearTimeout(sessionCopiedTimer));
@@ -119,6 +125,16 @@ const meterTone = $derived<"accent" | "warning" | "destructive">(
   tone === "error" ? "destructive" : tone === "warning" ? "warning" : "accent",
 );
 
+async function openSystemPrompt(): Promise<void> {
+  if (!onOpenSystemPrompt || systemPromptBusy) return;
+  systemPromptBusy = true;
+  try {
+    await onOpenSystemPrompt();
+  } finally {
+    systemPromptBusy = false;
+  }
+}
+
 function requestCompact(): void {
   if (compactActionDisabled) return;
   open = false;
@@ -126,7 +142,7 @@ function requestCompact(): void {
 }
 </script>
 
-{#if contextLimit > 0 || percent != null}
+{#if onOpenSystemPrompt || contextLimit > 0 || percent != null}
   <Popover
     bind:open
     size="md"
@@ -197,6 +213,36 @@ function requestCompact(): void {
                 <p class="border-t pt-1 text-muted-foreground">
                   Click to copy all session details
                 </p>
+              </Tooltip.Content>
+            </Tooltip.Root>
+          </Tooltip.Provider>
+        {/if}
+        {#if onOpenSystemPrompt}
+          <Tooltip.Provider delayDuration={200}>
+            <Tooltip.Root ignoreNonKeyboardFocus>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <span {...props} class="inline-flex">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      class="text-muted-foreground hover:text-foreground"
+                      ariaLabel="Open system prompt"
+                      disabled={systemPromptBusy}
+                      onclick={() => void openSystemPrompt()}
+                    >
+                      {#if systemPromptBusy}
+                        <Spinner class="size-3.5" />
+                      {:else}
+                        <FileText class="size-3.5" aria-hidden="true" />
+                      {/if}
+                    </Button>
+                  </span>
+                {/snippet}
+              </Tooltip.Trigger>
+              <Tooltip.Content side="top" class="max-w-xs">
+                Open the system prompt for the next request using current
+                settings. Changes before sending may change it.
               </Tooltip.Content>
             </Tooltip.Root>
           </Tooltip.Provider>

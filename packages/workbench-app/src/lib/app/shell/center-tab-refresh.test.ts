@@ -34,6 +34,7 @@ describe("center tab refresh", () => {
       { kind: "diff", id: "diff_1" },
       { kind: "settings", id: "settings" },
       { kind: "logs", id: "logs" },
+      { kind: "system-prompt", id: "conv_1" },
     ];
     tabs.forEach(refresh);
     assert.deepEqual(calls, [

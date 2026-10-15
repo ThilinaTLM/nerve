@@ -128,6 +128,7 @@ function submit(): void {
       compacting={model.compacting}
       compactDisabled={blocked || !actions.onCompact}
       onCompact={actions.onCompact}
+      onOpenSystemPrompt={actions.onOpenSystemPrompt}
       todos={model.todos}
       models={model.models}
       selectedModelKey={model.selectedModelKey}

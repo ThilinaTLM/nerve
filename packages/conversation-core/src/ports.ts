@@ -1,3 +1,5 @@
+import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
+import type { SubagentProfilesDocument } from "@nervekit/contracts/subagents";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
   CommandResult,
@@ -22,13 +24,22 @@ export interface ModelPort {
   }>;
 }
 
+export interface TurnPreparationInput {
+  conversation: Pick<Conversation, "projectId" | "parentConversationId"> & {
+    id?: string;
+  };
+  config: Omit<ConversationConfig, "conversationId">;
+  projectDir: string;
+  capabilityOverrides?: CapabilityOverridesDocument;
+  subagentProfileOverrides?: SubagentProfilesDocument;
+}
+
 export interface TurnResourcesPort {
-  prepare(input: {
-    conversation: Conversation;
-    config: ConversationConfig;
-    projectDir: string;
-    coreTools?: ToolDefinition[];
-  }): Promise<{ systemPrompt: string; tools: ToolDefinition[] }>;
+  prepare(
+    input: TurnPreparationInput & {
+      coreTools?: ToolDefinition[];
+    },
+  ): Promise<{ systemPrompt: string; tools: ToolDefinition[] }>;
 }
 
 export interface PermissionPort {

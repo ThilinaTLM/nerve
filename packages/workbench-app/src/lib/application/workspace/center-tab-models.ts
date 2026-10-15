@@ -86,6 +86,14 @@ export type DiffTabModel = {
   error?: string;
 };
 
+export type SystemPromptTabModel = {
+  kind: "system-prompt";
+  id: string;
+  active: boolean;
+  sending: boolean;
+  error?: string;
+};
+
 export type SettingsTabModel = {
   kind: "settings";
   id: "settings";
@@ -142,6 +150,7 @@ export type CenterTabModel =
   | MermaidTabModel
   | PrTabModel
   | DiffTabModel
+  | SystemPromptTabModel
   | SettingsTabModel
   | LogsTabModel
   | DiscoverTabModel;

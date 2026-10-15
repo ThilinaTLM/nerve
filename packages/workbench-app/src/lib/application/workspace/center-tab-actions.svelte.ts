@@ -133,6 +133,10 @@ export async function closeCenterTabs(
       workspaceFeaturePorts().conversations.commands.discardAsyncBashTab(
         tab.id,
       );
+    if (tab.kind === "system-prompt")
+      workspaceFeaturePorts().conversations.commands.discardSystemPromptPane(
+        tab.id,
+      );
     if (tab.kind === "pending-conversation")
       pendingConversations.delete(tab.id);
     if (tab.kind === "file")

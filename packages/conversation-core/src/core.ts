@@ -3,6 +3,7 @@ import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
 import { parseInlineCommandPrompt } from "@nervekit/contracts/completions";
 import type {
+  PreviewSystemPromptParams,
   QueuedInput,
   ToolCall,
   ConversationSnapshot,
@@ -92,6 +93,7 @@ export class ConversationCore {
   private readonly coreTools = new Map<string, CoreToolHandler>();
   private readonly scheduler: ConversationScheduler;
   private readonly runner: ConversationRunner;
+  private readonly modelTurn: ModelTurn;
   private readonly status: StatusService;
   private starting?: Promise<void>;
   private closing?: Promise<void>;
@@ -183,7 +185,7 @@ export class ConversationCore {
         return { projectDir: project.directory, config };
       },
     });
-    const modelTurn = new ModelTurn(
+    this.modelTurn = new ModelTurn(
       options.models,
       options.turnResources,
       () => [...this.coreTools.values()].map((handler) => handler.definition),
@@ -196,7 +198,7 @@ export class ConversationCore {
       inputs: this.inputs,
       toolCalls: this.toolCalls,
       models: options.models,
-      modelTurn,
+      modelTurn: this.modelTurn,
       status: this.status,
       emit,
       now,
@@ -304,6 +306,32 @@ export class ConversationCore {
       this.options.storage.events.toolResponse(conversationId, toolCallId)
         ?.payload.arguments ?? null
     );
+  }
+  /** Snapshot of the next request's current system prompt; does not run a model. */
+  async previewSystemPrompt(input: PreviewSystemPromptParams): Promise<string> {
+    const { storage } = this.options;
+    const saved = "conversationId" in input;
+    const conversation = saved
+      ? storage.conversations.get(input.conversationId)
+      : { projectId: input.projectId, parentConversationId: null };
+    const config = saved
+      ? storage.conversations.getConfig(input.conversationId)
+      : input.config;
+    if (!conversation || !config) throw new Error("Conversation not found");
+    const project = storage.projects.get(conversation.projectId);
+    if (!project) throw new Error("Project not found");
+    const prepared = await this.modelTurn.prepare({
+      conversation,
+      config,
+      projectDir: project.directory,
+      ...(!saved
+        ? {
+            capabilityOverrides: input.capabilityOverrides,
+            subagentProfileOverrides: input.subagentProfileOverrides,
+          }
+        : {}),
+    });
+    return prepared.systemPrompt;
   }
   async contextUsage(id: string): Promise<ContextUsage> {
     const config = this.options.storage.conversations.getConfig(id);

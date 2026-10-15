@@ -237,13 +237,20 @@ export function createConversationCore(
   const profileAvailability = createProfileAvailability({
     parent: (id) => core.getSnapshot(id).config,
     modelInfo: profileModelInfo,
-    resources: async ({ projectId, conversationId }, profile) => {
+    resources: async (
+      { projectId, conversationId, capabilityOverrides },
+      profile,
+    ) => {
       const project = projectId ? core.projects.get(projectId) : undefined;
       if (projectId && !project)
         throw new Error(`Project not found: ${projectId}`);
       const settings = deps.storage.settings;
       const configuration = projectId
-        ? await capabilities.configuration(projectId, conversationId)
+        ? await capabilities.configuration(
+            projectId,
+            conversationId,
+            capabilityOverrides,
+          )
         : {
             effective: userCapabilitySelection(settings),
             availableTools: capabilityToolNameSchema.options,

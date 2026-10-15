@@ -107,6 +107,7 @@ export type WorkbenchConversationAdapterProps = {
   onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onAbort?: () => void;
   onCompact?: () => void;
+  onOpenSystemPrompt?: () => void | Promise<void>;
   onNewConversationInProject?: (
     projectDir: string,
     initialMode?: AgentRecord["mode"],

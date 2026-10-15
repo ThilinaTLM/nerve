@@ -14,6 +14,8 @@ import PromptSuggestionTrustDialog from "$lib/features/prompt-suggestions/views/
 import type { ComposerSuggestion } from "$lib/features/conversations/views/composer-suggestion";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { submitPendingConversation } from "$lib/app/composition/conversations/submit-pending-conversation";
+import { captureSystemPromptPreview } from "$lib/app/composition/conversations/system-prompt-preview";
+import { openSystemPromptPane } from "$lib/features/conversations/state/system-prompt-pane.svelte";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { createId } from "@nervekit/contracts";
 import type {
@@ -337,6 +339,11 @@ async function submitPrompt(
           }),
         getSnapshot: (conversationId) =>
           requestConversation("conversation.getSnapshot", { conversationId }),
+        configure: (conversationId, patch) =>
+          requestConversation("conversation.configure", {
+            conversationId,
+            patch,
+          }),
         saveCapabilities: updateCapabilities,
         saveProfiles: (input) =>
           requestWorkbench("subagentProfiles.replaceConversation", input),
@@ -404,6 +411,29 @@ async function compactActiveConversation() {
     await store?.control("compact");
   } finally {
     compacting = false;
+  }
+}
+let openingSystemPrompt = false;
+async function openSystemPrompt() {
+  if (openingSystemPrompt) return;
+  const target = captureSystemPromptPreview({
+    pending: activePendingConversation,
+    conversation: store?.snapshot?.conversation,
+  });
+  if (!target) return;
+  openingSystemPrompt = true;
+  try {
+    const { systemPrompt } = await requestConversation(
+      "conversation.previewSystemPrompt",
+      target.params,
+    );
+    await openSystemPromptPane({
+      projectId: target.projectId,
+      sourceId: target.sourceId,
+      text: systemPrompt,
+    });
+  } finally {
+    openingSystemPrompt = false;
   }
 }
 const cancelActiveCompaction = abortActiveRun;
@@ -705,6 +735,9 @@ const teamRunning = $derived(
   onCompact={() => {
     void runActivePaneAction(compactActiveConversation);
   }}
+  onOpenSystemPrompt={activePendingConversation || activeConversation
+    ? () => runActivePaneAction(openSystemPrompt)
+    : undefined}
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
   onOpenTask={openTaskFromNotice}

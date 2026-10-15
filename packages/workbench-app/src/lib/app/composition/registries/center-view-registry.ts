@@ -9,6 +9,8 @@ export type CenterViewModule = Promise<{ default: Component }>;
 export const centerViewLoaders = {
   "async-bash": () =>
     import("$lib/features/conversations/adapters/AsyncBashCenterHost.svelte"),
+  "system-prompt": () =>
+    import("$lib/features/conversations/adapters/SystemPromptCenterHost.svelte"),
   launch: () => import("$lib/features/launches/hosts/LaunchCenterHost.svelte"),
   file: () => import("$lib/features/filesystem/hosts/FileCenterHost.svelte"),
   mermaid: () =>

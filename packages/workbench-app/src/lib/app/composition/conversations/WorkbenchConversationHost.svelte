@@ -87,6 +87,7 @@ let {
   onDismissUserQuestion,
   onAbort,
   onCompact,
+  onOpenSystemPrompt,
   onNewConversationInProject,
   onOpenFile,
   onOpenTask,
@@ -378,6 +379,7 @@ function menuForTranscript(
       {onSubmit}
       {onAbort}
       onCompact={activeConversation ? onCompact : undefined}
+      {onOpenSystemPrompt}
       {onModelChange}
       {onThinkingLevelChange}
       {onModeChange}

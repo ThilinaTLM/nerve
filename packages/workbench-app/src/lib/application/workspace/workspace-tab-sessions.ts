@@ -22,6 +22,7 @@ import {
   mostRecentTab,
   reorderTabs,
   tabIdentityKey,
+  isEphemeralCenterTab,
 } from "./tab-session-helpers";
 
 import {
@@ -487,7 +488,7 @@ export function persistWorkspaceTabSessions(): void {
       .slice(0, maxSessions)
       .map(([key, session]) => {
         const tabs = session.tabs.flatMap((tab): StoredTab[] => {
-          if (tab.kind === "pending-conversation") return [];
+          if (isEphemeralCenterTab(tab)) return [];
           if (tab.kind === "file") {
             const view =
               workspaceFeaturePorts().filesystem.read.fileViews[
