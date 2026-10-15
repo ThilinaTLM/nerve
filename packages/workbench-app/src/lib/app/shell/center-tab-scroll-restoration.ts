@@ -94,14 +94,26 @@ function elementAtPath(
   return current;
 }
 
+function isRetainedScrollport(element: HTMLElement): boolean {
+  // A view can own its direct viewport without opting nested tool-output
+  // scrollports out of generic tab restoration.
+  return (
+    element.matches(SCROLLPORT_SELECTOR) &&
+    element.parentElement?.dataset.centerScrollRestoration !== "self"
+  );
+}
+
 function scrollports(root: HTMLElement): HTMLElement[] {
-  return [...root.querySelectorAll<HTMLElement>(SCROLLPORT_SELECTOR)];
+  return [...root.querySelectorAll<HTMLElement>(SCROLLPORT_SELECTOR)].filter(
+    isRetainedScrollport,
+  );
 }
 
 function snapshotForElement(
   root: HTMLElement,
   element: HTMLElement,
 ): ScrollPosition | undefined {
+  if (!isRetainedScrollport(element)) return undefined;
   const path = elementPath(root, element);
   if (!path) return undefined;
   const signature = elementSignature(element);
@@ -122,7 +134,13 @@ function resolveScrollport(
   position: ScrollPosition,
 ): HTMLElement | undefined {
   const exact = elementAtPath(root, position.path);
-  if (exact && elementSignature(exact) === position.signature) return exact;
+  if (
+    exact &&
+    isRetainedScrollport(exact) &&
+    elementSignature(exact) === position.signature
+  ) {
+    return exact;
+  }
   return scrollports(root).filter(
     (candidate) => elementSignature(candidate) === position.signature,
   )[position.ordinal];
@@ -206,7 +224,7 @@ export const retainCenterTabScroll: Action<
 
   const handleScroll = (event: Event) => {
     if (!active || restoring || !(event.target instanceof HTMLElement)) return;
-    if (!event.target.matches(SCROLLPORT_SELECTOR)) return;
+    if (!isRetainedScrollport(event.target)) return;
     const position = snapshotForElement(root, event.target);
     if (position) scrollSnapshots.record(tabKey, position);
   };
