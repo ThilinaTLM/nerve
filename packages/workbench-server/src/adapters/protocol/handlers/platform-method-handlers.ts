@@ -165,8 +165,9 @@ async function updateApplicationConfiguration(
   patch: UpdateApplicationConfigurationRequest,
 ) {
   assertApplicationConfigurationEditable(state.applicationConfiguration, patch);
-  const normalized = normalizeRemoteAccessPatch(state, patch);
-  const settings = await writeSettings(state.storage, normalized);
+  const settings = await writeSettings(state.storage, (current) =>
+    normalizeRemoteAccessPatch(current.application.network.host, patch),
+  );
   const resolved = resolveApplicationConfiguration({
     settings,
     env: process.env,
@@ -183,7 +184,7 @@ async function updateApplicationConfiguration(
 }
 
 function normalizeRemoteAccessPatch(
-  state: PlatformMethodContext,
+  host: string,
   patch: UpdateApplicationConfigurationRequest,
 ): UpdateApplicationConfigurationRequest {
   const allowRemote = patch.application?.network?.allowRemote;
@@ -193,7 +194,6 @@ function normalizeRemoteAccessPatch(
   ) {
     return patch;
   }
-  const host = state.storage.settings.application.network.host;
   const nextHost = allowRemote
     ? host === "127.0.0.1" || host === "localhost"
       ? "0.0.0.0"

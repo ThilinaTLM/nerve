@@ -101,8 +101,10 @@ void test("fresh resources/settings and draft overrides use the same production 
     const port = createTurnResourcesPort({
       home,
       tools: () => [toolDefinitionByName("read")!],
-      skills: [],
-      agentBrowserSkills: [],
+      skillCatalogs: {
+        nerve: { skills: [] },
+        agentBrowser: { skills: [] },
+      },
       capabilities,
       subagentProfiles: profiles,
       hasExistingSubagents: () => false,

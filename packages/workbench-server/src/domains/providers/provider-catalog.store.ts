@@ -7,6 +7,7 @@ import {
 } from "@nervekit/contracts/providers";
 import { type HeaderConfig } from "@nervekit/contracts/settings";
 import type { InitializedStorage } from "../../infrastructure/storage-bootstrap/index.js";
+import { serializeSettingsMutation } from "../../infrastructure/storage-bootstrap/settings-mutations.js";
 import { writeHomeConfiguration } from "../../infrastructure/configuration/index.js";
 import { resolveProjectConfiguration } from "../../infrastructure/configuration/index.js";
 
@@ -31,65 +32,70 @@ export class ProviderCatalogStore {
     return this.#catalog;
   }
 
-  private async write(next: ProviderCatalog): Promise<ProviderCatalog> {
-    const validated = providerCatalogSchema.parse(next);
-    const authentication = this.storage.configuration.providers.authentication;
-    this.storage.configuration = await writeHomeConfiguration(
-      this.storage.paths,
-      {
-        ...this.storage.configuration,
-        providers: {
-          version: 1,
-          providers: validated.providers.map(({ headers, ...provider }) => ({
-            ...provider,
-            headers: mapLiteralHeaders(headers),
-          })),
-          models: validated.models.map(({ headers, ...model }) => ({
-            ...model,
-            ...(headers ? { headers: mapLiteralHeaders(headers) } : {}),
-          })),
-          authentication,
+  private write(
+    update: (current: ProviderCatalog) => ProviderCatalog,
+  ): Promise<ProviderCatalog> {
+    return serializeSettingsMutation(this.storage, async () => {
+      const validated = providerCatalogSchema.parse(
+        update(toCatalog(this.storage.configuration.providers)),
+      );
+      const authentication =
+        this.storage.configuration.providers.authentication;
+      this.storage.configuration = await writeHomeConfiguration(
+        this.storage.paths,
+        {
+          ...this.storage.configuration,
+          providers: {
+            version: 1,
+            providers: validated.providers.map(({ headers, ...provider }) => ({
+              ...provider,
+              headers: mapLiteralHeaders(headers),
+            })),
+            models: validated.models.map(({ headers, ...model }) => ({
+              ...model,
+              ...(headers ? { headers: mapLiteralHeaders(headers) } : {}),
+            })),
+            authentication,
+          },
         },
-      },
-    );
-    this.#catalog = validated;
-    return validated;
+      );
+      this.#catalog = validated;
+      return validated;
+    });
   }
 
   async upsertProvider(provider: CustomProvider): Promise<ProviderCatalog> {
     await this.ensureLoaded();
-    return this.write({
-      ...this.#catalog,
+    return this.write((current) => ({
+      ...current,
       providers: [
-        ...this.#catalog.providers.filter((item) => item.id !== provider.id),
+        ...current.providers.filter((item) => item.id !== provider.id),
         provider,
       ],
-    });
+    }));
   }
 
   async deleteProvider(id: string): Promise<ProviderCatalog> {
     await this.ensureLoaded();
-    return this.write({
-      ...this.#catalog,
-      providers: this.#catalog.providers.filter(
-        (provider) => provider.id !== id,
-      ),
-      models: this.#catalog.models.filter((model) => model.provider !== id),
-    });
+    return this.write((current) => ({
+      ...current,
+      providers: current.providers.filter((provider) => provider.id !== id),
+      models: current.models.filter((model) => model.provider !== id),
+    }));
   }
 
   async upsertModel(model: ModelDefinition): Promise<ProviderCatalog> {
     await this.ensureLoaded();
-    return this.write({
-      ...this.#catalog,
+    return this.write((current) => ({
+      ...current,
       models: [
-        ...this.#catalog.models.filter(
+        ...current.models.filter(
           (item) =>
             item.provider !== model.provider || item.modelId !== model.modelId,
         ),
         model,
       ],
-    });
+    }));
   }
 
   async deleteModel(
@@ -97,12 +103,12 @@ export class ProviderCatalogStore {
     modelId: string,
   ): Promise<ProviderCatalog> {
     await this.ensureLoaded();
-    return this.write({
-      ...this.#catalog,
-      models: this.#catalog.models.filter(
+    return this.write((current) => ({
+      ...current,
+      models: current.models.filter(
         (model) => model.provider !== provider || model.modelId !== modelId,
       ),
-    });
+    }));
   }
 
   async resolvedModelsWithCredentials(

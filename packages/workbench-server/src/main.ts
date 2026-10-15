@@ -395,6 +395,8 @@ async function main() {
         loggerHydrateDurationMs,
       },
     });
+    // Catalog readiness precedes core recovery/execution and mounting request handlers.
+    // Consumers retain catalog owners, not the pre-initialization array values.
     const agentSkillsStartedAt = performance.now();
     await state.nerveSkills.initialize();
     await state.logger.info("Built-in Nerve skills initialized", {

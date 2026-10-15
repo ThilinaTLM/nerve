@@ -12,6 +12,8 @@
 
 ## Storage and ownership
 
+Profiles share the [configuration scope roots](configuration.md#scope-directories) with tools, skill selections and permission overlays, while retaining their own document and resolution semantics. [Request preparation](configuration.md#request-preparation-and-effective-time) uses current profile availability for each LLM request; profile edits configure new children only, not existing children.
+
 Each writable scope has one versioned JSON document containing all local profile entries, including instructions. There are no Markdown profile files or separate sub-agent directories in this format.
 
 | Scope        | Location                                                     |

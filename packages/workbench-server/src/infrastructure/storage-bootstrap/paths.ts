@@ -1,5 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { userConfigurationRoot } from "../configuration/scope-paths.js";
 
 export interface StoragePaths {
   home: string;
@@ -47,7 +48,7 @@ export function resolveDataDir(explicitHome = process.env.NERVE_HOME): string {
 }
 
 export function storagePaths(home = resolveDataDir()): StoragePaths {
-  const configPath = join(home, "config");
+  const configPath = userConfigurationRoot(home);
   const secretsPath = join(home, "secrets");
   const dataPath = join(home, "data");
   const agentPath = join(home, "agent");

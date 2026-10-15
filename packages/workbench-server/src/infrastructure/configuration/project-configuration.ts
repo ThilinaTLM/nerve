@@ -12,6 +12,7 @@ import type { InitializedStorage } from "../storage-bootstrap/initialize.js";
 import { readJsonFile } from "../storage-bootstrap/json.js";
 import { settingsFromConfiguration } from "./home-configuration.js";
 import { HOME_CONFIGURATION_CODECS } from "./home-configuration-codecs.js";
+import { projectConfigurationRoot } from "./scope-paths.js";
 
 export interface ConfigurationResolutionInput {
   env?: NodeJS.ProcessEnv;
@@ -24,7 +25,7 @@ export async function resolveProjectConfiguration(
   projectDir: string,
   input: ConfigurationResolutionInput = {},
 ): Promise<UserConfiguration> {
-  const root = join(projectDir, ".nerve", "config");
+  const root = projectConfigurationRoot(projectDir);
   const [harnessRaw, uiRaw, providersRaw, integrationsRaw] = await Promise.all([
     optionalJson(join(root, "harness.json")),
     optionalJson(join(root, "ui.json")),

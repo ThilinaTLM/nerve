@@ -6,6 +6,7 @@ Root `docs/` is for maintainers working across package boundaries. Public produc
 
 - [Codebase architecture](architecture/codebase.md) — package ownership, dependencies, naming, and runtime composition boundaries.
 - [Storage architecture](architecture/storage.md) — `NERVE_HOME`, SQLite, managed files, capability and permission files, in-memory state.
+- [Scoped configuration](architecture/configuration.md) — shared scope directories, domain-owned layering, save guarantees and when changes take effect during execution.
 - [Storage migrations](architecture/migrations.md) — how a home is upgraded between releases.
 - [Conversation core](architecture/conversation-core/README.md) — conversation as the portable agent core: data model, event tree, tool-call lifecycle, input queue, delegation and sub-agent profiles, channels and legacy import.
 - [Permissions](architecture/permissions.md) — permission rule sets, overlays and the evaluator.

@@ -169,8 +169,10 @@ export function createConversationCore(
     turnResources: createTurnResourcesPort({
       home: deps.storage.paths.home,
       tools: tools.definitions,
-      skills: deps.nerveSkills.skills,
-      agentBrowserSkills: deps.agentBrowserSkills.skills,
+      skillCatalogs: {
+        nerve: deps.nerveSkills,
+        agentBrowser: deps.agentBrowserSkills,
+      },
       hasExistingSubagents: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
       get capabilities(): CapabilityService {

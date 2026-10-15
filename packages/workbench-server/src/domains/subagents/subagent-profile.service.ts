@@ -2,7 +2,7 @@ import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabiliti
 import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
 import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
-import { dirname, isAbsolute, join, relative, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
 import type { TrustedResourceService } from "@nervekit/conversation-core";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
@@ -24,6 +24,7 @@ import {
 } from "@nervekit/contracts/subagents";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
 import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/index.js";
+import { ConfigurationScopePaths } from "../../infrastructure/configuration/scope-paths.js";
 
 export type SubagentConversationContext = {
   projectId: string;
@@ -319,38 +320,18 @@ export class SubagentProfileService {
   }
 
   private target(input: SubagentProfileScopeInput): Target {
-    let projectId = input.projectId;
-    if (input.conversationId) {
-      if (!/^[a-zA-Z0-9_-]+$/.test(input.conversationId))
-        throw new Error("Invalid conversation id.");
-      const conversation = this.deps.getConversation(input.conversationId);
-      if (projectId && conversation.projectId !== projectId)
-        throw new Error("Conversation does not belong to this project.");
-      projectId = conversation.projectId;
-    }
-    if (input.scope === "user")
-      return { path: this.deps.userPath, root: dirname(this.deps.userPath) };
-    if (!projectId) throw new Error("A project is required for this scope.");
-    const project = this.deps.getProject(projectId);
-    if (input.scope === "project")
-      return {
-        path: join(project.directory, ".nerve", "config", "subagents.json"),
-        root: project.directory,
-        projectId,
-      };
-    if (!input.conversationId)
-      throw new Error("A conversation is required for conversation scope.");
-    return {
-      path: join(
-        this.deps.conversationsPath,
-        input.conversationId,
-        "config",
-        "subagents.json",
-      ),
-      root: this.deps.conversationsPath,
-      projectId,
-      conversationId: input.conversationId,
-    };
+    const target = new ConfigurationScopePaths({
+      userConfigPath: dirname(this.deps.userPath),
+      conversationsPath: this.deps.conversationsPath,
+      projectDirectory: (id) => this.deps.getProject(id).directory,
+      projectOf: (id) => this.deps.getConversation(id).projectId,
+    }).resolve(
+      input,
+      input.scope === "user" ? basename(this.deps.userPath) : "subagents.json",
+    );
+    // Profiles also require the owning project to still exist for conversation scope.
+    if (input.scope === "conversation") this.deps.getProject(target.projectId!);
+    return target;
   }
   private async readLayer(
     input: SubagentProfileScopeInput,

@@ -6,6 +6,7 @@ import {
   assistantMessagePayloadSchema,
   type ConversationEvent,
 } from "@nervekit/contracts/core";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { isRetryableProviderError } from "@nervekit/harness/models";
 import {
@@ -53,16 +54,21 @@ export class ConversationRunner {
       .pathFromHead(id, { limit: Number.MAX_SAFE_INTEGER })
       .reverse();
   }
-  async compact(id: string, signal: AbortSignal): Promise<void> {
-    const config = this.options.storage.conversations.getConfig(id);
-    if (!config) throw new Error("Conversation not found");
-    const resolved = await abortable(
-      this.options.models.resolve(config.model),
-      signal,
+  async compact(id: string, signal: AbortSignal): Promise<ModelSelection> {
+    const storedConfig = this.options.storage.conversations.getConfig(id);
+    if (!storedConfig) throw new Error("Conversation not found");
+    const config = structuredClone(storedConfig);
+    const resolved = structuredClone(
+      await abortable(
+        this.options.models.resolve(structuredClone(config.model)),
+        signal,
+      ),
     );
-    const autoSettings = await abortable(
-      Promise.resolve(this.options.compactionSettings?.(id)),
-      signal,
+    const autoSettings = structuredClone(
+      await abortable(
+        Promise.resolve(this.options.compactionSettings?.(id)),
+        signal,
+      ),
     );
     const path = this.path(id);
     const projectionOptions = this.options.assets
@@ -95,6 +101,7 @@ export class ConversationRunner {
       return appended;
     });
     this.options.emit({ kind: "event_appended", conversationId: id, event });
+    return config.model;
   }
   async run(
     id: string,
@@ -134,43 +141,57 @@ export class ConversationRunner {
           status.refresh(id);
         });
         const turnId = createId("turn");
-        const conversation = storage.conversations.get(id);
-        const config = storage.conversations.getConfig(id);
-        if (!conversation || !config) throw new Error("Conversation not found");
-        const project = storage.projects.get(conversation.projectId);
-        if (!project) throw new Error("Project not found");
-        const resolved = await abortable(
-          this.options.models.resolve(config.model),
-          signal,
-        );
-        const autoSettings = await abortable(
-          Promise.resolve(this.options.compactionSettings?.(id)),
-          signal,
-        );
-        if (
-          shouldCompact(
-            estimatePathUsage(this.path(id)),
-            resolved.model,
-            autoSettings,
-          )
-        )
-          await this.compact(id, signal);
         let overflowRetried = false;
+        // Avoid repeated compaction without a provider attempt, but reconsider
+        // capacity if preparation selects a different model after compaction.
+        let compactedModel: ModelSelection | undefined;
         let attempt = 1;
         const maxAttempts = 3;
         let message;
         while (true) {
           signal.throwIfAborted();
           try {
+            // Configuration belongs to an attempt, not to the logical turn.
+            // Input delivery stays outside this loop so retries never replay it.
+            const conversation = storage.conversations.get(id);
+            const config = storage.conversations.getConfig(id);
+            if (!conversation || !config)
+              throw new Error("Conversation not found");
+            const project = storage.projects.get(conversation.projectId);
+            if (!project) throw new Error("Project not found");
+            const input = {
+              conversation,
+              config,
+              projectDir: project.directory,
+              path: this.path(id),
+              turnId,
+              signal,
+            };
+            const prepared = await abortable(
+              this.options.modelTurn.prepareRequest(input),
+              signal,
+            );
+            const autoSettings = await abortable(
+              Promise.resolve(this.options.compactionSettings?.(id)),
+              signal,
+            );
+            if (
+              !(
+                compactedModel?.provider === config.model.provider &&
+                compactedModel.modelId === config.model.modelId
+              ) &&
+              shouldCompact(
+                estimatePathUsage(input.path),
+                prepared.resolved.model,
+                autoSettings,
+              )
+            ) {
+              compactedModel = await this.compact(id, signal);
+              continue;
+            }
+            compactedModel = undefined;
             message = await abortable(
-              this.options.modelTurn.run({
-                conversation,
-                config,
-                projectDir: project.directory,
-                path: this.path(id),
-                turnId,
-                signal,
-              }),
+              this.options.modelTurn.runPrepared(input, prepared),
               signal,
             );
             if (
@@ -178,7 +199,7 @@ export class ConversationRunner {
               !overflowRetried
             ) {
               overflowRetried = true;
-              await this.compact(id, signal);
+              compactedModel = await this.compact(id, signal);
               continue;
             }
             if (

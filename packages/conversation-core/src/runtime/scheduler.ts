@@ -92,7 +92,9 @@ export class ConversationScheduler {
     if (this.isExecuting(id)) throw new Error("Conversation is executing");
     const controller = new AbortController();
     const done = Promise.resolve()
-      .then(() => this.options.runner.compact(id, controller.signal))
+      .then(async () => {
+        await this.options.runner.compact(id, controller.signal);
+      })
       .finally(() => {
         this.slots.delete(id);
         if (!this.stopping.has(id)) this.wake(id);

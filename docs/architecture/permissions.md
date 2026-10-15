@@ -38,6 +38,10 @@ The evaluator fails closed: invalid arguments, a target that cannot be normalize
 
 The decision, matched rule, reason, suggested rules and the authority it was made under are stored on the call's `TOOL_CALL` row and kept in its `tool_call_response` event, so a later policy edit does not change why a call ran or stopped.
 
+## Changes during execution
+
+The selected rule set and overlays are read when a tool call enters supervision, independently of the system prompt sent to the model. Changing configuration does not automatically reauthorize an already-approved call or cancel an executing tool. Planning mode affects the selected policy at subsequent evaluations. See [scoped configuration](configuration.md#request-preparation-and-effective-time) for per-LLM-request freshness and the separate authorization boundary.
+
 ## Overlay files
 
 | Owner        | File                                                           |
@@ -45,6 +49,8 @@ The decision, matched rule, reason, suggested rules and the authority it was mad
 | User         | `<NERVE_HOME>/config/permissions.json`                         |
 | Project      | `<project>/.nerve/config/permissions.json`                     |
 | Conversation | `<NERVE_HOME>/data/conversations/<id>/config/permissions.json` |
+
+These files use the shared [configuration scope roots](configuration.md#scope-directories); rule-set definitions remain distinct from overlays.
 
 Each file holds `overlays: [{ ruleSetId, rules }]`. A project file applies only while the user trusts its exact content (a `TRUSTED_RESOURCE` row with the file's digest); any edit requires trust again. "Always allow" in an approval writes a rule into the overlay the user picks; there is no grant table. Rules never contain secrets.
 

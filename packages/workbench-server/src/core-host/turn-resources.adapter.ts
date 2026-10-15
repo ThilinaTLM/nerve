@@ -85,8 +85,10 @@ type AssignmentsSchema = {
 export function createTurnResourcesPort(options: {
   home: string;
   tools(projectDir: string): ToolDefinition[] | Promise<ToolDefinition[]>;
-  skills: readonly Skill[];
-  agentBrowserSkills: readonly Skill[];
+  skillCatalogs: {
+    nerve: { readonly skills: readonly Skill[] };
+    agentBrowser: { readonly skills: readonly Skill[] };
+  };
   capabilities: CapabilityService;
   subagentProfiles: Pick<SubagentProfileService, "usable" | "preview">;
   hasExistingSubagents(conversationId: string): boolean | Promise<boolean>;
@@ -168,8 +170,8 @@ export function createTurnResourcesPort(options: {
         : filtered;
       const resources = await loadHarnessResources(projectDir, {
         storageHome: options.home,
-        nerveSkills: options.skills,
-        agentBrowserSkills: options.agentBrowserSkills,
+        nerveSkills: options.skillCatalogs.nerve.skills,
+        agentBrowserSkills: options.skillCatalogs.agentBrowser.skills,
         enabledNerveSkillNames: effective.enabledNerveSkills,
         enabledAgentBrowserSkillNames: effective.enabledAgentBrowserSkills,
         disabledSkillNames: effective.disabledFileSkills,
