@@ -15,16 +15,26 @@ const result = (
 });
 
 describe("atlassianHealthBadge", () => {
-  it("only calls refused credentials rejected", () => {
-    assert.deepEqual(atlassianHealthBadge(result({ status: "rejected" })), {
-      label: "Credentials rejected",
-      tone: "destructive",
+  it("keeps each outcome distinct with a label, tone, and status glyph", () => {
+    const outcomes = [
+      ["verified", "Verified", "success", "check"],
+      ["rejected", "Credentials rejected", "destructive", "x"],
+      ["restricted", "Access restricted", "warning", "alert"],
+      ["unavailable", "Not on this site", "neutral", "minus"],
+      ["unreachable", "Couldn’t check", "warning", "alert"],
+    ] as const;
+    for (const [status, label, tone, glyph] of outcomes) {
+      assert.deepEqual(atlassianHealthBadge(result({ status })), {
+        label,
+        tone,
+        glyph,
+      });
+    }
+    assert.deepEqual(atlassianHealthBadge(undefined), {
+      label: "Not checked",
+      tone: "neutral",
+      glyph: "help",
     });
-    assert.equal(
-      atlassianHealthBadge(result({ status: "unreachable" })).tone,
-      "warning",
-    );
-    assert.equal(atlassianHealthBadge(undefined).label, "Not checked");
   });
 });
 

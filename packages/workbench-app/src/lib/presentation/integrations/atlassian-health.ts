@@ -6,7 +6,12 @@ import type {
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import { relativeTimeLabel } from "@nervekit/ui-kit/display/time";
 
-export type HealthBadge = { label: string; tone: StatusTone };
+export type HealthGlyph = "check" | "x" | "alert" | "minus" | "help";
+export type HealthBadge = {
+  label: string;
+  tone: StatusTone;
+  glyph: HealthGlyph;
+};
 
 /** Results older than this are re-checked when the Providers page opens. */
 export const ATLASSIAN_HEALTH_MAX_AGE_MS = 15 * 60 * 1000;
@@ -21,17 +26,17 @@ export function atlassianHealthBadge(
 ): HealthBadge {
   switch (result?.status) {
     case "verified":
-      return { label: "Verified", tone: "success" };
+      return { label: "Verified", tone: "success", glyph: "check" };
     case "rejected":
-      return { label: "Credentials rejected", tone: "destructive" };
+      return { label: "Credentials rejected", tone: "destructive", glyph: "x" };
     case "restricted":
-      return { label: "Access restricted", tone: "warning" };
+      return { label: "Access restricted", tone: "warning", glyph: "alert" };
     case "unavailable":
-      return { label: "Not on this site", tone: "neutral" };
+      return { label: "Not on this site", tone: "neutral", glyph: "minus" };
     case "unreachable":
-      return { label: "Couldn’t check", tone: "warning" };
+      return { label: "Couldn’t check", tone: "warning", glyph: "alert" };
     default:
-      return { label: "Not checked", tone: "neutral" };
+      return { label: "Not checked", tone: "neutral", glyph: "help" };
   }
 }
 
