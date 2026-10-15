@@ -22,9 +22,15 @@ Two profiles ship with Nerve:
 
 A sub-agent keeps its own context between assignments and does **not** see the lead's transcript, so a good assignment includes findings, paths, constraints, and the expected outcome. Sub-agents never ask you questions, use plan mode, or create further sub-agents.
 
+## Use the Team Lead skill
+
+Optionally enable the built-in **team-lead** skill in **Settings → Skills** for orchestration guidance. Enable **Sub-agents** separately: a skill supplies instructions, not delegation access or extra authority. Team Lead guides the lead to assign scoped, non-overlapping work, review handoffs and changes, and coordinate validation and corrections before reporting completion. Keep the orchestration skill on the lead rather than passing it to implementation children.
+
 ## Follow progress
 
-When a conversation has sub-agents, an **Agents** pill appears at the top right of the transcript. It shows how many are working and how many background commands are running. Open it to see the lead and its sub-agents with state, model, and context usage, and to stop or read the output of background commands. Sub-agents that have been idle for ten minutes fold under an **earlier** row; failed ones stay visible.
+The **activity island** sits at the bottom of the transcript, beside the activity row above the composer. Its **Agents** section lists retained sub-agents with state and profile; **Commands** lists all running async Bash commands and the five most recently settled commands. Select an agent to open its conversation or a command to open its output tab.
+
+Lists fold by count, not age: a six-row budget keeps live work and the viewed agent visible, with older settled rows under **Show older**. Counts show running/total while work is active. In a child view, the island also provides a way back to the lead; when scrolled away from the newest transcript entries, it offers a jump to the latest output.
 
 While the lead waits for sub-agents or background commands, the activity row at the bottom of the transcript names what it is waiting for.
 
@@ -42,15 +48,15 @@ Choose **New profile** under **Settings → Sub-agents** in user scope (all proj
 
 Profile changes never reconfigure an existing child. If its model hits usage limits, open that child's view and change its own model and thinking level directly. A follow-up to the same name keeps those changes; it does not reapply the profile.
 
-| Choose              | When you need                                        | Authority                                   | Lifecycle                                               |
-| ------------------- | ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
-| **Sub-agent**       | Parallel research, or implementation with follow-ups | Set by its profile: read-only or autonomous | Reusable; stays until its lead conversation is deleted  |
-| **Background task** | A server, watcher, or other long-running process     | Process supervision, not model reasoning    | Durable launch definition with separately retained runs |
+| Choose                   | When you need                                        | Authority                                   | Lifecycle                                               |
+| ------------------------ | ---------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| **Sub-agent**            | Parallel research, or implementation with follow-ups | Set by its profile: read-only or autonomous | Reusable; stays until its lead conversation is deleted  |
+| **Launch configuration** | A server, watcher, or other long-running process     | Process supervision, not model reasoning    | Durable launch definition with separately retained runs |
 
 ## Related pages
 
 - [Control the lead agent](/guides/agent-controls/)
-- [Run background tasks](/guides/background-tasks/)
+- [Launch configurations and async Bash](/guides/background-tasks/)
 - [Configure Settings](/guides/settings/)
 - [Agent tool catalog](/reference/tools/)
 - [Sub-agent profile format](/reference/subagent-profiles/)

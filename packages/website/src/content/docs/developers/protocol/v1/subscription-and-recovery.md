@@ -26,12 +26,14 @@ The client validates dense continuity even after the server accepted a subscript
 
 ## Snapshots
 
-For `snapshot_required`, the application loads the authorized workspace or conversation snapshot for that stream, installs snapshot state first, installs the snapshot cursor, and then resubscribes. Workspace snapshots include complete agent and conversation activity projections; conversation snapshots include the selected conversation activity. `agent.activity_changed` and `conversation.activity_changed` events also carry complete replacement snapshots, so clients do not infer lifecycle transitions from run or tool events. Transient `conversation.live.*` notifications are intentionally absent from replay: active turns, draft progress, and bounded output come from the conversation snapshot, while partial state is discarded after a server crash.
+For `snapshot_required`, load the authorized conversation snapshot, install its state and `lastSequence`, then resubscribe from that cursor. Reducer invariant violations use the same recovery boundary rather than advancing a cursor over corrupt state.
 
-Reducer lifecycle violations use the same recovery boundary: mark state corrupted, remove or suspend the affected stream, load a fresh snapshot, then subscribe from that snapshot cursor.
+Current-state notices (`conversation.head`, `conversation.config`, `conversation.toolCall`, `conversation.queue`, `conversation.asyncBash`) and `conversation.live` are ephemeral. Reconnect re-fetches list/detail snapshots and starts with empty live state; durable `conversation.event` replay is separate. Selected-head history drives transcript rendering even though replay covers all branches.
 
-## Retention and migration
+## Workbench recovery
 
-Stream readers expose their earliest retained sequence. A retention gap is never represented as a synthetic event or sparse sequence. Legacy sparse workbench logs are archived into a pre-dense epoch and new streams begin from sequence 1.
+The independent `/ws/workbench` connection does not have durable streams or replay. Panels reload snapshots and restore monitor demand after reconnect. Conversation connections recover first so workbench panels can resolve project/conversation state.
 
-The transient-conversation-events migration archives prior conversation journals and installs an empty high-water barrier above each old stream. This deliberately makes every pre-migration conversation cursor require one fresh snapshot without adding a runtime compatibility path or renumbering future durable events.
+## Storage boundary
+
+Conversation replay reads core SQLite sequences, not legacy journals. Unknown or deleted conversations make only their stream unavailable. There is no runtime legacy journal reader or separate durable workspace notification store.

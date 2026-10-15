@@ -44,11 +44,11 @@ Compaction summarizes earlier work. Important file-operation context is preserve
 
 Host retries are enabled by default for retryable failures: three retries with a 2-second exponential base delay, for four total attempts. Provider-library request retries are a separate layer and should not be assumed to share the same classification.
 
-After daemon restart, active runs with valid checkpoints become interrupted and can be continued. Invalid checkpoints fail. Manual continuation verifies the run belongs to the agent and resumes from recoverable persisted state.
+After daemon restart, Nerve reconciles pending tool calls, queued input, and async Bash records. An open execution without pending tool work becomes interrupted. Recovery does not silently rerun the old provider execution; new deliverable queued input can wake a conversation. Inspect the last stored messages and tool results before continuing with a follow-up prompt.
 
 Background work is separate from model execution. Explicit and auto-promoted async Bash runs always queue completion notices, and launches started by an agent notify the starting conversation when they exit on their own. Sub-agents deliver a completion notice to their lead when each execution finishes. A daemon restart does not recover processes: async Bash becomes `lost`, and launch instances are memory-only. Durable launch definitions and retained output remain available for inspection and a fresh start.
 
 ## Next steps
 
 - [Process recovery](/troubleshooting/tasks-and-recovery/)
-- [Conversation import/export](/guides/import-export-editors/)
+- [Backups and external editors](/guides/import-export-editors/)

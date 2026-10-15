@@ -12,6 +12,8 @@ package "Shared desktop foundations" as foundations {
   component "@nervekit/contracts\nTransport-neutral API, operation,\nevent, policy, and storage schemas" as contracts
   component "@nervekit/protocol\nProtocol v1 codec, sessions, RPC,\nreplay, cursors, and bounded delivery" as protocol
   component "@nervekit/harness\nModel conversation, harness,\nand agent loop runtime" as harness
+  component "@nervekit/skills\nBuilt-in skills and harness resource integration" as skills
+  component "@nervekit/conversation-core\nDurable history, inputs, tools, delegation\nand async Bash through environment ports" as core
   component "@nervekit/tools\nCanonical coding tool catalog,\nexecutors, and policy contracts" as tools
   component "@nervekit/native\nNormalized Rust N-API Git, process,\nplatform, and runtime primitives" as native
   component "@nervekit/ui-kit\nContract-free shadcn-svelte primitives,\ntheme, utilities, and renderers" as ui_kit
@@ -25,8 +27,18 @@ package "Desktop workbench" as local {
 
 protocol -[#3567a8]-> contracts
 harness -[#3567a8]-> contracts
+harness -[#3567a8]-> native
+skills -[#3567a8]-> harness
+core -[#3567a8]-> contracts
+core -[#3567a8]-> native
+core -[#3567a8]-> harness
+core -[#3567a8]-> skills
+core -[#3567a8]-> tools
 tools -[#3567a8]-> contracts
+tools -[#3567a8]-> native
 
+workbench_server -[#3567a8]-> core
+workbench_server -[#3567a8]-> skills
 workbench_server -[#3567a8]-> contracts
 workbench_server -[#3567a8]-> protocol
 workbench_server -[#3567a8]-> harness
@@ -41,7 +53,7 @@ desktop_shell -[#3567a8]-> workbench_server
 rectangle "Runtime link (not a package import)" as runtime_links {
   component "workbench-app" as rt_workbench_app
   component "workbench-server" as rt_workbench_server
-  rt_workbench_app <..> rt_workbench_server : HTTP / WebSocket\nworkspace and conversation streams
+  rt_workbench_app <..> rt_workbench_server : HTTP / WebSocket\nindependent workbench and conversation channels
 }
 runtime_links -[hidden]down-> local
 
@@ -52,8 +64,8 @@ note bottom of ui_kit
   UI kit intentionally has no @nervekit dependency.
 end note
 note bottom of workbench_server
-  Port-driven run semantics and concrete process drivers
-  remain separate internal directory boundaries.
+  Implements conversation-core environment ports;
+  owns workbench services and concrete process drivers.
 end note
 note bottom of workbench_app
   Presentation cannot import app shells, feature state,

@@ -5,17 +5,17 @@
 [![npm](https://img.shields.io/npm/v/%40nervekit%2Fdesktop?logo=npm)](https://www.npmjs.com/package/@nervekit/desktop)
 [![License](https://img.shields.io/github/license/ThilinaTLM/nerve)](LICENSE)
 
-**A free, open-source coding workbench for AI agents — built to get more work out of every token.**
+**A free, open-source coding workbench for AI agents — with parallel teammates and visible, steerable work.**
 
-Run it on the AI subscription you already pay for, or your own API key. The harness keeps its own footprint small: a 363-character generated base prompt, only the tools a run can actually use, tool results capped before they reach the model, and automatic compaction before the window runs out.
+Run it on a supported AI subscription you already pay for, or your own API key. Delegate research and implementation to asynchronous subagents while you keep working. The harness loads applicable tools and guidance, bounds tool output, and automatically compacts long conversations.
 
-Everything else — conversations, context, permissions, Git, pull requests, and background tasks — lives in one window, visible and steerable while it runs, and stays on your disk.
+Conversations, context, permissions, Git, pull requests, launch configurations, and background command logs share one workbench. Conversation history and work artifacts persist locally, with agent and command activity visible while work runs.
 
 [Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/conversation-dark.webp">
-  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a coding conversation with file edits, a background verification task, retained output, and the composer controls">
+  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a completed Bash result, profile-based subagent assignments, and the expanded Agents activity island">
 </picture>
 
 > [!NOTE]
@@ -35,13 +35,15 @@ The first launch may download Electron's platform binary. Nerve starts a local l
 
 ## Highlights
 
-- **A lean harness.** The generated base prompt is one 363-character block; tool rules, planning instructions, and project context are appended only when they apply, and gated tools never reach the request at all.
-- **Bounded context, not a dead end.** Tool results reaching the model are capped at 24,000 bytes while the complete output stays retrievable on disk, and long conversations compact automatically instead of ending.
-- **Use the AI access you already have.** Sign in to a supported provider subscription over OAuth, or paste an API key. Credentials are stored encrypted on your machine and the model catalog comes from the provider.
+- **Focused context.** Applicable tools, project guidance, and skills shape each run. Bounded tool results keep large outputs out of the model context while retained artifacts remain available for inspection; automatic compaction helps long conversations continue.
+- **Use the AI access you already have.** Sign in to a supported provider subscription over OAuth, or paste an API key. Credentials are stored encrypted on your machine and available models are exposed through the runtime catalog.
 - **Steerable, branchable conversations.** Change the model, thinking level, agent mode, or permission rule set mid-conversation — it applies from the next provider request — and fork from any earlier entry without losing the original lineage.
 - **Permissions enforced in policy, not prompts.** Read-only, supervised, and autonomous levels, planning mode, rule sets, and per-project or per-conversation overlays, evaluated before a tool runs.
 - **Multiple projects and repositories.** Repositories are discovered beneath a workspace root, each with its own branch and working-tree state, Git operations, and GitHub pull requests.
-- **Delegation with oversight.** Supervised background tasks with retained logs, and bounded read-only Explore sub-agents that research in parallel and report back.
+- **Profile-based async subagents.** Use the built-in Explore profile for read-only research or Developer for implementation in the shared worktree. Named teammates retain context for follow-ups, report completion without polling, and can be configured through layered profiles.
+- **Background work you can inspect.** Bash commands can run asynchronously with completion notices and dedicated log tabs. The conversation activity island brings agent and command status together; project launch configurations give recurring servers and watchers reusable start, stop, restart, and log controls.
+
+A shared conversation core owns conversation execution and durable state for lead agents and subagents; the workbench server connects it to providers, tools, and the UI. See the [architecture guide](https://nerve.tlmtech.dev/developers/architecture/) for package and persistence boundaries.
 
 Permission policy is Nerve's tool authorization and review layer, not an OS or container sandbox. Local-first is not offline-only: provider, Git, voice, web, and integration calls leave your machine when you use them.
 

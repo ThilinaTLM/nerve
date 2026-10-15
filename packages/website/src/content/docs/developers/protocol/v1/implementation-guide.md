@@ -17,6 +17,8 @@ A host composition supplies:
 - an unsequenced notification publisher;
 - bounded buffers and redacted diagnostics.
 
+In Nerve's current host, `/ws/conversations` supplies stream reads directly from conversation-core SQLite and snapshots with `lastSequence`. `/ws/workbench` supplies ephemeral workbench notices and snapshot reloads, not durable streams. These mappings belong to the server adapter; generic sessions and replay machinery stay in `packages/protocol`, and domain schemas stay in `packages/contracts`.
+
 Producers derive delivery and stream routing from the public-event catalog. They must not allocate sequences for ephemeral events. Persisted append operations validate lifecycle transitions before commit.
 
 A consumer applies a sequenced event before advancing its cursor. On a gap, retention miss, or reducer lifecycle violation, recover the affected stream through a snapshot and resubscribe. Polling may refresh optional presentation data but is not protocol recovery.

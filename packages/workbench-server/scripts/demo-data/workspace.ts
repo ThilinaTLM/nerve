@@ -55,6 +55,15 @@ const AURORA_REPOS: readonly DemoRepo[] = [
   }
 }
 `,
+      "test/rate-limit.test.ts": `import { test } from "node:test";
+import { strict as assert } from "node:assert";
+
+// Isolated, synthetic screenshot verification; no application services needed.
+const allow = (hits: number, burst = 160) => hits <= burst;
+test("rate limit allows traffic under the window", () => assert.ok(allow(120)));
+test("rate limit rejects past the burst allowance", () => assert.equal(allow(161), false));
+test("booking creation remains available below the cap", () => assert.ok(allow(1)));
+`,
       "src/server.ts": `import { createServer } from "node:http";
 import { router } from "./router.js";
 

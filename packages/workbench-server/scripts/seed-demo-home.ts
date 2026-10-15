@@ -11,27 +11,21 @@
  * The script refuses to run unless both paths live under the system temp
  * directory, so a mistyped variable cannot touch ~/.nerve or a real project.
  *
- * Data is written through the same lifecycle services the daemon uses — no raw
- * SQL — so the seeded home is a legitimate home rather than a lookalike.
+ * Data is written through the current core services and schema-valid event
+ * repositories — no raw SQL and no provider calls.
  */
 
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createId } from "@nervekit/contracts";
-import type { ToolCallRecord } from "@nervekit/contracts/tools";
-import { composeServerRuntime } from "../src/app/runtime/server-runtime.js";
-import { shutdownServerRuntime } from "../src/app/runtime/server-runtime.js";
+import { z } from "zod";
+import type { AssistantContent } from "@nervekit/contracts/core";
 import {
-  initializeStorage,
-  type InitializedStorage,
-} from "../src/infrastructure/storage-bootstrap/index.js";
-import { ToolCallRepository } from "../src/domains/tools/artifacts/tool-call.repository.js";
-import { LaunchRepository } from "../src/domains/launches/persistence/launch.repository.js";
-import {
-  type LaunchRecord,
-  launchRecordSchema,
-} from "@nervekit/contracts/launches";
+  composeServerRuntime,
+  shutdownServerRuntime,
+} from "../src/app/runtime/server-runtime.js";
+import { initializeStorage } from "../src/infrastructure/storage-bootstrap/index.js";
 import {
   DEMO_PROJECT_CONVERSATIONS,
   type DemoConversation,
@@ -78,156 +72,125 @@ type Services = ReturnType<typeof composeServerRuntime>["services"];
 
 interface SeedContext {
   readonly services: Services;
-  readonly toolCalls: ToolCallRepository;
   readonly projectId: string;
   readonly workspace: string;
 }
 
-/**
- * Appends one demo step. Tool steps need two records: a transcript entry that
- * anchors the card at the right position, and the durable tool-call record the
- * card is rendered from.
- *
- * `lineage` reports whether the new entry can parent later entries. System
- * entries (tool anchors, compaction notices) are transcript-only and are not
- * mirrored into the harness tree, so they must not become parents — the next
- * real message continues from the last mirrored entry instead.
- */
-async function appendStep(
-  context: SeedContext,
-  options: {
-    conversationId: string;
-    agentId: string;
-    runId: string;
-    parentEntryId: string | null;
-    step: DemoStep;
-    createdAt: string;
-    tokensBefore: number;
+const usage = {
+  input: 18400,
+  output: 640,
+  cacheRead: 12800,
+  cacheWrite: 2100,
+  totalTokens: 33940,
+  cost: {
+    input: 0.02,
+    output: 0.01,
+    cacheRead: 0.001,
+    cacheWrite: 0.01,
+    total: 0.041,
   },
-): Promise<{ entryId: string; lineage: boolean }> {
-  const { services, toolCalls, projectId, workspace } = context;
-  const { conversationId, agentId, runId, parentEntryId, step, createdAt } =
-    options;
+};
 
+/** Use the current schema-valid event repository, never legacy agent records or raw SQL. */
+function appendStep(
+  context: SeedContext,
+  conversationId: string,
+  step: DemoStep,
+  previousEventId: string | null,
+  createdAt: string,
+): string {
+  const { coreStorage } = context.services;
+  const fields = {
+    id: createId("evt"),
+    conversationId,
+    previousEventId,
+    turnId: createId("turn"),
+    inputId: null,
+    createdAt,
+  };
+  const assistant = (content: AssistantContent[]) =>
+    coreStorage.events.append({
+      ...fields,
+      type: "assistant_message",
+      llmRepresentation: "assistant",
+      payload: {
+        content,
+        usage,
+        stopReason: "stop",
+        api: "anthropic-messages",
+        provider: DEMO_MODEL.provider,
+        model: DEMO_MODEL.modelId,
+      },
+    });
+  if (step.type === "user")
+    return coreStorage.events.append({
+      ...fields,
+      type: "user_message",
+      llmRepresentation: "user",
+      payload: {
+        text: step.text,
+        originalText: step.text,
+        source: "user",
+        senderConversationId: null,
+        commandPreparation: null,
+      },
+    }).id;
   if (step.type === "tool") {
     const toolCallId = createId("tool");
-    /* Real runs anchor a tool card to a placeholder assistant message through
-     * `liveMessageId`; the seed uses the same mechanism so the transcript and
-     * history graph pair them exactly as they would after a live run. */
-    const liveMessageId = createId("msg");
-    const cwd = step.repo ? `${workspace}/${step.repo}` : workspace;
-    const record: ToolCallRecord = {
-      id: toolCallId,
-      agentId,
-      conversationId,
-      projectId,
-      toolName: step.toolName,
-      runId,
-      liveMessageId,
-      contentIndex: 0,
-      risk: step.risk,
-      args: step.args,
-      argsPreview: step.args,
-      cwd,
-      status: "completed",
-      revision: 1,
-      attempt: 1,
-      interactions: [],
-      result: step.result,
-      resultPreview: step.result,
-      createdAt,
-      updatedAt: createdAt,
-      settledAt: createdAt,
-    } as ToolCallRecord;
-    await toolCalls.create(record);
-    /* The anchor is an assistant entry rather than a system one: system
-     * entries are not mirrored into the harness tree, so they cannot carry
-     * lineage and would fall outside the active branch the transcript reads.
-     * Its text is never displayed — the timeline replaces the entry with the
-     * tool card. */
-    const entry = await services.conversationLifecycle.appendEntry({
-      conversationId,
-      agentId,
-      runId,
-      parentEntryId,
-      role: "assistant",
-      liveMessageId,
-      text: `[Tool call: ${step.toolName}]`,
-      details: { toolRecordId: toolCallId, toolName: step.toolName },
-      createdAt,
-    });
-    return { entryId: entry.id, lineage: true };
-  }
-
-  const shared = {
-    conversationId,
-    agentId,
-    runId,
-    parentEntryId,
-    createdAt,
-    tokensBefore: options.tokensBefore,
-  };
-
-  if (step.type === "launch_event") {
-    /* The seed builds an explicit active branch. Use a mirrored anchor so the
-     * notice participates in that branch; transcript projection still renders
-     * `launch_event` entries as system notices, matching a live notification. */
-    const entry = await services.conversationLifecycle.appendEntry({
-      ...shared,
-      role: "assistant",
-      kind: "launch_event",
-      text: step.text,
-      details: {
-        type: "launch_event",
-        taskName: step.taskName,
-        event: step.event,
-        status: step.status,
-        commandPreview: step.commandPreview,
-        command: step.command,
-        output: step.output,
-        exitCode: step.exitCode,
+    const args = z.record(z.string(), z.json()).parse(step.args);
+    const anchor = assistant([
+      {
+        type: "toolCall",
+        id: toolCallId,
+        name: step.toolName,
+        arguments: args,
       },
-    });
-    return { entryId: entry.id, lineage: true };
-  }
-
-  if (step.type === "user") {
-    const entry = await services.conversationLifecycle.appendEntry({
-      ...shared,
-      role: "user",
-      text: step.text,
-    });
-    return { entryId: entry.id, lineage: true };
-  }
-
-  if (step.type === "assistant") {
-    const entry = await services.conversationLifecycle.appendEntry({
-      ...shared,
-      role: "assistant",
-      text: step.text,
-      usage: {
-        input: 18_400,
-        output: 640,
-        cacheRead: 12_800,
-        cacheWrite: 2_100,
-        totalTokens: 33_940,
-        cost: 0.041,
+    ]);
+    return coreStorage.events.append({
+      ...fields,
+      id: createId("evt"),
+      previousEventId: anchor.id,
+      type: "tool_call_response",
+      llmRepresentation: "tool_result",
+      payload: {
+        toolCallId,
+        providerCallId: toolCallId,
+        toolName: step.toolName,
+        arguments: args,
+        origin: "model",
+        assistantEventId: anchor.id,
+        contentIndex: 0,
+        outcome: "completed",
+        agentProjection: [{ type: "text", text: JSON.stringify(step.result) }],
+        userProjection: {
+          argsPreview: args,
+          resultPreview: z.json().parse(step.result),
+        },
+        supervision: null,
+        interactionResolution: null,
+        resolutionRequestId: null,
+        assetIds: [],
       },
-      details: step.thinking
-        ? { thinkingBlocks: [{ type: "thinking", text: step.thinking }] }
-        : undefined,
-    });
-    return { entryId: entry.id, lineage: true };
+    }).id;
   }
-
-  const entry = await services.conversationLifecycle.appendEntry({
-    ...shared,
-    role: step.type === "compaction" ? "system" : "assistant",
-    kind: step.type,
-    text: step.text,
-    ...(step.type === "compaction" ? { summary: step.text } : {}),
-  });
-  return { entryId: entry.id, lineage: step.type !== "compaction" };
+  if (step.type === "compaction")
+    return coreStorage.events.append({
+      ...fields,
+      type: "compaction",
+      llmRepresentation: "user",
+      payload: {
+        summary: step.text,
+        firstKeptEventId: previousEventId,
+        tokensBefore: 48000,
+        details: null,
+      },
+    }).id;
+  return assistant([
+    ...(step.type === "assistant" && step.thinking
+      ? [{ type: "thinking" as const, thinking: step.thinking }]
+      : []),
+    { type: "text", text: step.text },
+  ]).id;
 }
 
 async function seedConversation(
@@ -235,95 +198,163 @@ async function seedConversation(
   demo: DemoConversation,
 ): Promise<void> {
   const { services, projectId, workspace } = context;
-  const conversation = await services.conversationLifecycle.createConversation({
+  const { conversationCore, coreStorage } = services;
+  const { conversation } = await conversationCore.conversations.create({
     projectId,
     title: demo.title,
-    mode: demo.mode,
-    permissionRuleSetId: demo.permissionRuleSetId,
-  });
-  const agent = await services.agentLifecycle.createAgent({
-    conversationId: conversation.id,
-    projectId,
-    projectDir: workspace,
-    mode: demo.mode,
-    permissionRuleSetId: demo.permissionRuleSetId,
-    model: DEMO_MODEL,
-    thinkingLevel: "medium",
-  });
-  for (let index = 0; index < (demo.exploreChildren ?? 0); index += 1) {
-    await services.agentLifecycle.createAgent({
-      conversationId: conversation.id,
-      projectId,
-      projectDir: workspace,
-      parentAgentId: agent.id,
-      task: `Explore task ${index + 1}`,
+    config: {
       model: DEMO_MODEL,
-    });
-  }
-
-  const runId = createId("run");
-  /* Per step index, the entry a branch may fork from (undefined for
-   * transcript-only steps such as tool anchors). */
-  const lineageEntryIds: (string | undefined)[] = [];
-  let parentEntryId: string | null = null;
-  let tokensBefore = 12_000;
-
+      reasoningLevel: "medium",
+      systemPrompt: null,
+      instructions: null,
+      mode: demo.mode,
+      permissionRuleSetId: demo.permissionRuleSetId,
+      workingDirectory: workspace,
+    },
+  });
+  let head: string | null = null;
+  const anchors: string[] = [];
   for (const [index, step] of demo.steps.entries()) {
-    const appended = await appendStep(context, {
-      conversationId: conversation.id,
-      agentId: agent.id,
-      runId,
-      parentEntryId,
+    head = appendStep(
+      context,
+      conversation.id,
       step,
-      createdAt: at(demo.ageHours, index * 45),
-      tokensBefore,
-    });
-    if (appended.lineage) parentEntryId = appended.entryId;
-    lineageEntryIds.push(appended.lineage ? appended.entryId : undefined);
-    tokensBefore += 3_400;
+      head,
+      at(demo.ageHours, index * 45),
+    );
+    anchors.push(head);
   }
-
-  /* Branches are appended from an earlier entry, exactly as navigating back
-   * and continuing would produce. The main line stays the active branch. */
+  const mainHead = head;
   for (const [branchIndex, branch] of (demo.branches ?? []).entries()) {
-    /* Fork from the nearest mirrored entry at or before the requested step,
-     * since transcript-only entries cannot parent a branch. */
-    let anchor: string | undefined;
-    for (let index = branch.fromStep; index >= 0 && !anchor; index -= 1) {
-      anchor = lineageEntryIds[index];
-    }
-    if (!anchor) continue;
-    let branchParent: string | null = anchor;
-    for (const [stepIndex, step] of branch.steps.entries()) {
-      const appended = await appendStep(context, {
-        conversationId: conversation.id,
-        agentId: agent.id,
-        runId: createId("run"),
-        parentEntryId: branchParent,
+    let parent = anchors[branch.fromStep] ?? null;
+    for (const [index, step] of branch.steps.entries()) {
+      parent = appendStep(
+        context,
+        conversation.id,
         step,
-        createdAt: at(
+        parent,
+        at(
           demo.ageHours,
-          (branch.fromStep + 1) * 45 + branchIndex * 600 + stepIndex * 45,
+          (branch.fromStep + 1) * 45 + branchIndex * 600 + index * 45,
         ),
-        tokensBefore,
-      });
-      if (appended.lineage) branchParent = appended.entryId;
+      );
     }
   }
-
-  const lastEntryId = parentEntryId ?? undefined;
-  await services.conversationLifecycle.updateConversation({
-    ...services.conversationLifecycle.getConversation(conversation.id),
-    activeEntryId: lastEntryId,
-    pinned: demo.pinned,
-    completedAt: demo.completed ? at(demo.ageHours - 1) : undefined,
-    createdAt: at(demo.ageHours),
+  // Retained child conversations are the current unified sub-agent model.
+  for (const child of demo.children ?? []) {
+    const args = {
+      assignments: [
+        { name: child.name, profile: child.profile, prompt: child.task },
+      ],
+    };
+    head = appendStep(
+      context,
+      conversation.id,
+      {
+        type: "tool",
+        toolName: "subagent_prompt",
+        risk: "agent_spawn",
+        args,
+        result: {
+          content: "Assignment completed.",
+          details: { name: child.name, profile: child.profile },
+        },
+      },
+      head,
+      at(demo.ageHours, 650),
+    );
+    const response = coreStorage.events.get(head)!;
+    if (response.type !== "tool_call_response")
+      throw new Error("Missing sub-agent creation response");
+    const parentToolCallId = response.payload.toolCallId;
+    const created = await conversationCore.conversations.create({
+      projectId,
+      parentConversationId: conversation.id,
+      parentToolCallId,
+      title: child.name,
+      config: {
+        model: DEMO_MODEL,
+        reasoningLevel: "medium",
+        systemPrompt: null,
+        instructions: null,
+        mode: "coding",
+        permissionRuleSetId: "read_only",
+        workingDirectory: workspace,
+      },
+    });
+    appendStep(
+      context,
+      created.conversation.id,
+      { type: "assistant", text: child.report },
+      null,
+      at(demo.ageHours, 680),
+    );
+  }
+  if (demo.children?.length) {
+    head = appendStep(
+      context,
+      conversation.id,
+      {
+        type: "assistant",
+        text: "Both profile-based reviews are complete. Open an agent in the activity island to inspect its conversation; the background verification command is retained under Commands.",
+      },
+      head,
+      at(demo.ageHours, 700),
+    );
+  }
+  if (demo.asyncCommand) {
+    const bashId = createId("bash");
+    const response = anchors
+      .map((id) => coreStorage.events.get(id))
+      .find(
+        (event) =>
+          event?.type === "tool_call_response" &&
+          event.payload.toolName === "bash" &&
+          event.payload.arguments.command === demo.asyncCommand,
+      );
+    if (response?.type !== "tool_call_response")
+      throw new Error("Missing background bash tool response");
+    const toolCallId = response.payload.toolCallId;
+    coreStorage.asyncBash.insert({
+      id: bashId,
+      conversationId: conversation.id,
+      toolCallId,
+      command: demo.asyncCommand,
+      workingDirectory: `${workspace}/aurora-api`,
+      status: "completed",
+      processRef: null,
+      exitCode: 0,
+      startedAt: at(demo.ageHours, 500),
+      finishedAt: at(demo.ageHours, 540),
+    });
+    const output =
+      "✔ rate limit allows traffic under the window\n✔ rate limit rejects past the burst allowance\n✔ booking creation remains available below the cap\n\n3 tests passed\n";
+    for (const [stream, content] of Object.entries({
+      stdout: output,
+      stderr: "",
+      output,
+    })) {
+      await conversationCore.assets.write({
+        conversationId: conversation.id,
+        toolCallId,
+        asyncBashId: bashId,
+        category: "bash_output",
+        mediaType: "text/plain",
+        logicalPath: `conversations/${conversation.id}/bash/${bashId}/${stream}.txt`,
+        content,
+      });
+    }
+  }
+  coreStorage.conversations.update(conversation.id, {
+    headEventId: head ?? mainHead,
+    pinnedAt: demo.pinned ? at(demo.ageHours) : null,
+    completedAt: demo.completed ? at(demo.ageHours - 1) : null,
     updatedAt: at(demo.ageHours, demo.steps.length * 45),
     lastUserMessageAt: at(demo.ageHours),
   });
 }
 
-/** Project-resident task definitions, so the Launchs panel is not empty. */
+/** Project-resident launch configurations, shared by the UI and launch tool. */
 async function writeLaunchDefinitions(workspace: string): Promise<void> {
   const now = new Date(SEED_NOW).toISOString();
   const definitions = [
@@ -351,89 +382,6 @@ async function writeLaunchDefinitions(workspace: string): Promise<void> {
     `${JSON.stringify({ version: 1, definitions }, undefined, 2)}\n`,
     "utf8",
   );
-}
-
-async function seedLaunches(
-  context: SeedContext,
-  storage: InitializedStorage,
-): Promise<void> {
-  const { services, projectId, workspace } = context;
-  const repository = new LaunchRepository(storage);
-  const conversationId = services.conversationLifecycle
-    .listConversations()
-    .find((conversation) => conversation.projectId === projectId)?.id;
-
-  const definitions = [
-    {
-      name: "aurora-web dev",
-      command: "pnpm dev",
-      cwd: `${workspace}/aurora-web`,
-      status: "running" as const,
-      logs: [
-        "VITE v7.2.1  ready in 412 ms",
-        "➜  Local:   http://127.0.0.1:5173/",
-        "➜  press h + enter to show help",
-        "12:04:19 [vite] page reload src/lib/VenueCard.svelte",
-      ],
-    },
-    {
-      name: "aurora-api tests",
-      command: "pnpm test",
-      cwd: `${workspace}/aurora-api`,
-      status: "completed" as const,
-      logs: [
-        "✔ rate limit allows traffic under the window (4.1ms)",
-        "✔ rate limit rejects past the burst allowance (2.8ms)",
-        "# tests 42",
-        "# pass 42",
-        "# fail 0",
-      ],
-    },
-    {
-      name: "staging smoke",
-      command: "pnpm smoke --env staging",
-      cwd: `${workspace}/aurora-infra`,
-      status: "completed" as const,
-      logs: [
-        "18 checks passed in 42s",
-        "no rollbacks observed across 3 deploys",
-      ],
-    },
-  ];
-
-  for (const [index, definition] of definitions.entries()) {
-    const id = createId("launch");
-    const paths = repository.bundles.paths(id);
-    const record: LaunchRecord = launchRecordSchema.parse({
-      id,
-      name: definition.name,
-      displayName: definition.name,
-      projectId,
-      conversationId,
-      cwd: definition.cwd,
-      command: definition.command,
-      status: definition.status,
-      readiness:
-        definition.status === "running"
-          ? { outcome: "ready", detectedAt: at(1) }
-          : { outcome: "none" },
-      stdoutPath: paths.stdoutPath,
-      stderrPath: paths.stderrPath,
-      combinedPath: paths.combinedPath,
-      logsPath: paths.eventsPath,
-      startedAt: at(2, index * 120),
-      updatedAt: at(0.5),
-      finishedAt: definition.status === "completed" ? at(0.5) : undefined,
-      exitCode: definition.status === "completed" ? 0 : undefined,
-      origin: { kind: "api" },
-      visibility: "background",
-    });
-    await repository.write(record);
-    const output = `${definition.logs.join("\n")}\n`;
-    await writeFile(paths.stdoutPath, output, "utf8");
-    await writeFile(paths.stderrPath, "", "utf8");
-    await writeFile(paths.combinedPath, output, "utf8");
-  }
 }
 
 async function main(): Promise<void> {
@@ -483,9 +431,6 @@ async function main(): Promise<void> {
       "sk-ant-demo-screenshot-fixture-key",
     );
 
-    const toolCalls = new ToolCallRepository(
-      fixture.services.conversationJournal,
-    );
     /* Create Aurora last so narrow layouts, which intentionally hide the
      * title-bar project switcher, open on the project used by mobile scenes. */
     for (const demoProject of [...DEMO_PROJECTS].reverse()) {
@@ -493,8 +438,8 @@ async function main(): Promise<void> {
       if (!workspace) {
         throw new Error(`Missing demo workspace for ${demoProject.id}`);
       }
-      const project = await fixture.services.projectLifecycle.createProject({
-        dir: workspace,
+      const project = await fixture.services.conversationCore.projects.create({
+        directory: workspace,
         name: demoProject.name,
       });
       /* Project fallback selection sorts by millisecond timestamps. Keep the
@@ -502,7 +447,6 @@ async function main(): Promise<void> {
       await new Promise((fulfil) => setTimeout(fulfil, 2));
       const context: SeedContext = {
         services: fixture.services,
-        toolCalls,
         projectId: project.id,
         workspace,
       };
@@ -518,7 +462,6 @@ async function main(): Promise<void> {
 
       if (demoProject.id === "aurora") {
         await writeLaunchDefinitions(workspace);
-        await seedLaunches(context, storage);
       }
     }
 

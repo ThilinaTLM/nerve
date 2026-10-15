@@ -6,6 +6,8 @@ export type TourStepId =
   | "permission"
   | "mode"
   | "context"
+  | "capabilities"
+  | "activity"
   | "model"
   | "send"
   | "history"
@@ -73,10 +75,10 @@ export const tourSteps: readonly TourStep[] = [
   },
   {
     id: "mode",
-    introducedIn: 1,
+    introducedIn: 2,
     title: "Switch between coding and planning",
     description:
-      "Coding mode implements changes. Planning mode inspects and prepares a reviewed approach before edits.",
+      "You choose Coding or Planning here, or with Shift+Tab; the agent cannot switch modes. Coding implements changes. Planning inspects the project and presents a written plan for your review.",
     targetId: "composer-mode",
   },
   {
@@ -102,6 +104,23 @@ export const tourSteps: readonly TourStep[] = [
     description:
       "Use voice input to dictate when it is configured, then send the prompt to start the agent run.",
     targetId: "composer-send-actions",
+  },
+  {
+    id: "capabilities",
+    introducedIn: 2,
+    title: "Choose capabilities and sub-agents",
+    description:
+      "Capabilities beside the composer controls optional tools for this conversation; changes apply to the next run. Enable Sub-agents to delegate asynchronous work using profiles configured in Settings → Sub-agents. Teammates share your worktree but cannot see the lead's conversation, so include context and clear editing boundaries in assignments.",
+    targetId: "composer-capabilities",
+    fallback:
+      "Open a conversation to find Capabilities beside the composer, or configure profiles in Settings → Sub-agents.",
+  },
+  {
+    id: "activity",
+    introducedIn: 2,
+    title: "Follow agents and background commands",
+    description:
+      "When there is activity, the transcript activity island beside the composer offers Agents and Commands. Open a teammate's transcript or a background command's output, use Back to lead to return, or Jump to latest to catch up. Bash can run in the background and reports its exit automatically; async_bash lets the agent read logs or stop a command.",
   },
   {
     id: "history",
@@ -131,10 +150,10 @@ export const tourSteps: readonly TourStep[] = [
   },
   {
     id: "launches",
-    introducedIn: 1,
-    title: "Track reusable launches",
+    introducedIn: 2,
+    title: "Run saved project commands",
     description:
-      "The Launches panel organizes saved launch definitions and their runs so you can launch, monitor, and revisit repeatable agent work.",
+      "Launch configs replace task definitions for reusable project commands such as dev servers. Create a config in Launches with a command, optional working directory and port, and a single or concurrent run policy. Start, restart, stop, and inspect output here. The agent's launch tool runs existing configs but cannot create or edit them.",
     targetId: "launches-panel",
   },
   {

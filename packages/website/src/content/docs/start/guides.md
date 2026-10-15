@@ -17,7 +17,7 @@ The catalog currently includes:
 - **Configure scoped models** — choose which authenticated models appear in conversation pickers.
 - **Configure agent defaults** — set the default mode, permission, model, thinking level, and sub-agent profiles.
 - **Set up web search** — configure Tavily under **Settings → Tools → Integrations**.
-- **Work through the Workbench** — a tour of conversations, the composer, reviews, panels, files, Git, tasks, providers, Settings, and status.
+- **Work through the Workbench** — a tour of conversations, the composer, reviews, panels, files, Git, launches, providers, Settings, and status.
 
 Setup entries are short coaches that take you to the relevant screen. The Workbench entry is a guided tour and requires an active project. If you start another guide first, Nerve offers to open a project before continuing.
 

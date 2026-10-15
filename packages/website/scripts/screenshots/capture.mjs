@@ -29,6 +29,7 @@ const { values } = parseArgs({
     "base-url": { type: "string", default: "http://127.0.0.1:3847" },
     out: { type: "string", default: ".screenshots" },
     scenes: { type: "string" },
+    kind: { type: "string", default: "both" },
     theme: { type: "string", default: "both" },
     github: { type: "boolean", default: false },
   },
@@ -100,6 +101,12 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
       try {
         await scene.drive(page);
       } catch (error) {
+        await mkdir(join(outDir, kind), { recursive: true });
+        await writeFile(
+          join(outDir, kind, `${scene.id}-${mode}-failed.txt`),
+          await page.locator("body").ariaSnapshot(),
+          "utf8",
+        );
         throw new Error(
           `Scene ${kind}/${scene.id} (${mode}) failed to reach its state`,
           { cause: error },
@@ -128,20 +135,22 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
 
 const browser = await chromium.launch();
 try {
-  await captureGroup({
-    browser,
-    scenes: DESKTOP_SCENES,
-    viewport: DESKTOP_VIEWPORT,
-    scale: DESKTOP_SCALE,
-    kind: "desktop",
-  });
-  await captureGroup({
-    browser,
-    scenes: MOBILE_SCENES,
-    viewport: MOBILE_VIEWPORT,
-    scale: MOBILE_SCALE,
-    kind: "mobile",
-  });
+  if (values.kind !== "mobile")
+    await captureGroup({
+      browser,
+      scenes: DESKTOP_SCENES,
+      viewport: DESKTOP_VIEWPORT,
+      scale: DESKTOP_SCALE,
+      kind: "desktop",
+    });
+  if (values.kind !== "desktop")
+    await captureGroup({
+      browser,
+      scenes: MOBILE_SCENES,
+      viewport: MOBILE_VIEWPORT,
+      scale: MOBILE_SCALE,
+      kind: "mobile",
+    });
 } finally {
   await browser.close();
 }

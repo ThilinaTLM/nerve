@@ -57,11 +57,34 @@ export const DESKTOP_SCENES = [
   },
   {
     id: "conversation",
-    alt: "A Nerve conversation showing file edits, a background verification task, retained output, and the composer",
+    alt: "A Nerve conversation with the activity island expanded to show two retained profile-based sub-agents and a retained background command",
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
-      await page.mouse.wheel(0, 1200);
-      await page.waitForTimeout(500);
+      await page
+        .getByText("Both profile-based reviews are complete.", { exact: false })
+        .scrollIntoViewIfNeeded();
+      await page.mouse.move(650, 450);
+      await page.mouse.wheel(0, 2000);
+      await page.waitForTimeout(400);
+      await page.getByRole("button", { name: /^Agents: / }).click();
+      await page.getByRole("region", { name: "Agents", exact: true }).waitFor();
+    },
+  },
+  {
+    id: "async-bash",
+    alt: "The conversation activity island showing a completed asynchronous bash command",
+    async drive(page) {
+      await openConversation(page, RATE_LIMIT_CONVERSATION);
+      await page
+        .getByText("Both profile-based reviews are complete.", { exact: false })
+        .scrollIntoViewIfNeeded();
+      await page.mouse.move(650, 450);
+      await page.mouse.wheel(0, 2000);
+      await page.waitForTimeout(400);
+      await page.getByRole("button", { name: /^Commands: / }).click();
+      await page
+        .getByRole("region", { name: "Commands", exact: true })
+        .waitFor();
     },
   },
   {
@@ -106,18 +129,29 @@ export const DESKTOP_SCENES = [
     },
   },
   {
-    id: "tasks",
-    alt: "The Nerve tasks panel listing a running development server and completed validation runs beside their retained output",
+    id: "launches",
+    alt: "The Nerve Launches panel showing saved project launch configurations and a completed verification run with retained output",
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page
         .locator('section[data-dock="left"], section[data-dock="bottom"]')
-        .getByRole("tab", { name: "Tasks" })
+        .getByRole("tab", { name: "Launches" })
         .first()
         .click();
       await page.waitForTimeout(600);
-      /* Deliberately no clicks inside the panel: its row controls are restart
-       * and delete actions, and a capture must never mutate demo state. */
+      const row = page
+        .getByRole("listitem")
+        .filter({ hasText: "aurora-api tests" });
+      const output = row.getByRole("button", { name: /aurora-api tests/ });
+      // Start once in the throwaway workspace; reuse that exact run in dark mode.
+      if (await output.isDisabled()) {
+        await row
+          .getByRole("button", { name: "Run launch", exact: true })
+          .click();
+        await page.waitForTimeout(1500);
+      }
+      await output.click();
+      await page.waitForTimeout(6000);
     },
   },
   {

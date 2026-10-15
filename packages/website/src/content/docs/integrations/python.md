@@ -11,9 +11,9 @@ A call accepts exactly one inline script or script-file path. It is finite, non-
 
 Environment overrides with sensitive-looking keys are rejected so an agent cannot casually supply obvious secrets through the tool argument. This does not scrub secrets inherited by the Python process or printed by user code.
 
-## Choose tasks for servers
+## Choose launches for servers
 
-Do not use Python execution for web servers, watchers, daemons, or scripts waiting for input. Use a supervised [background task](/guides/background-tasks/).
+Do not use Python execution for web servers, watchers, daemons, or scripts waiting for input. Use a saved [launch configuration](/guides/background-tasks/) for a server or watcher, or `bash` with background execution for a conversation-owned command.
 
 :::caution[Not a hard sandbox]
 Planning mode can restrict ordinary writes to the artifact directory and can disable network access, but source comments explicitly exclude protection against malicious Python, native extensions, or filesystem tricks. Treat Python as local code execution.
@@ -21,6 +21,6 @@ Planning mode can restrict ordinary writes to the artifact directory and can dis
 
 ## Next steps
 
-- [Background tasks](/guides/background-tasks/)
+- [Launch configurations and async Bash](/guides/background-tasks/)
 - [Remote daemon behavior](/operations/remote-daemon/)
 - [Tool and permission policy](/developers/tools-policy/)

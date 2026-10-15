@@ -17,9 +17,9 @@ NERVE_ELECTRON_OZONE_PLATFORM=x11 npx @nervekit/desktop@latest
 
 Supported values are `x11`, `wayland`, and `auto`. Unset uses Electron's default.
 
-## Process recovery differs by OS
+## Processes do not recover after restart
 
-Linux verifies `/proc` start identity and process groups. macOS uses process-start fingerprints/groups. Windows uses process creation time and process-tree termination. If Nerve cannot safely prove identity, a task becomes `recovery_unknown` and destructive PID actions remain blocked.
+Nerve does not reattach background processes after daemon restart on any supported OS. Async Bash becomes `lost`; launch instances are memory-only, while saved configurations and log files remain. Inspect output and process identity before starting a replacement. Process-tree termination is platform-specific and can be affected by detached children or security software; see [process recovery](/troubleshooting/tasks-and-recovery/).
 
 ## File locking
 

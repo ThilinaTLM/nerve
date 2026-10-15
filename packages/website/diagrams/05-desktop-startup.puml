@@ -19,15 +19,11 @@ alt Another instance already owns the lock
   Main --> User: Focus existing instance and quit this launch
 else Lock acquired
   Main -> Home: Prepare active data directory
-  alt Unversioned legacy local NERVE_HOME
-    Home --> User: Ask before replacing legacy home
-    alt User accepts migration
-      Home -> Home: Rename complete home to timestamped backup
-      Home -> Home: Initialize current store and restore readable auth only
-    else User declines
-      Home --> Main: Quit without changing the home
-    end
-  end
+  note over Main,Home
+    Desktop prepares the home and presents migration consent/status.
+    Server owns storage inspection and migration execution.
+    Remote mode does not migrate local NERVE_HOME.
+  end note
 
   Main -> Main: Configure loopback proxy bypass and tray
   Main -> Window: Create window and show loading page
@@ -41,7 +37,8 @@ else Lock acquired
     note over Supervisor,Daemon: Reuse and monitor; owned = false
   else No healthy local daemon
     Supervisor -> Daemon: Spawn workbench-server child
-    Daemon -> Daemon: Initialize file-first storage, runtime, auth, and listeners
+    Daemon -> Daemon: Start HTTP lifecycle status and run pending home migrations
+    Daemon -> Daemon: Open core SQLite, managed files, runtime and authenticated services
     Daemon --> Supervisor: Ready metadata (URL, token, capabilities)
     note over Supervisor,Daemon: Supervise child and restart with backoff; owned = true
   end
@@ -56,8 +53,8 @@ else Lock acquired
   Daemon --> Window: Bundled workbench-app HTML / JS / CSS
   Window -> App: Start Svelte application
   App -> Daemon: Authenticated REST requests
-  App -> Daemon: Open Protocol v1 WebSocket (local stream)
-  Daemon --> App: Welcome, recovery snapshot/replay, then live events
+  App -> Daemon: Open /ws/conversations and /ws/workbench
+  Daemon --> App: Independent sessions; conversation replay and workbench snapshots
 
   loop Health monitoring
     Supervisor -> Daemon: Health check

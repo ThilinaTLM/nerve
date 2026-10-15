@@ -44,10 +44,14 @@ Shared foundations stay transport- and framework-neutral:
 
 - `@nervekit/contracts` owns API, operation, event, policy, tool, model, and storage schemas.
 - `@nervekit/protocol` owns the Protocol v1 codec, sessions, RPC, replay, cursors, snapshots, and bounded delivery.
-- `@nervekit/harness` owns model resolution, conversation behavior, the generic agent loop, resources, and compaction.
+- `@nervekit/harness` owns model resolution, the generic agent loop, streaming/context primitives, resources and compaction.
+- `@nervekit/conversation-core` owns durable conversation history, inputs, tool lifecycle, delegation, async Bash and execution scheduling through host ports.
+- `@nervekit/skills` owns built-in skills and harness resource integration.
 - `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, and Git/GitHub utilities.
 - `@nervekit/native` provides normalized TypeScript façades over the Rust N-API Git, process, platform, and runtime primitives used by the server.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
+
+Conversation core does not depend on protocol, workbench-server or UI: the server implements its environment ports. Contracts own domain shapes; protocol owns session and delivery mechanics.
 
 The product hosts compose those foundations:
 

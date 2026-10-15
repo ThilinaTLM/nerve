@@ -11,7 +11,7 @@ Nerve places review gates beside the work that caused them. While one is pending
 
 In supervised mode, non-read actions pause before execution. Review the tool name, arguments, risk, workspace target, and any preview. Approve only the request you understand. A denied or failed action remains visible in the transcript.
 
-Supervised mode automatically allows safe reads. When Nerve can describe a bounded tool rule, **Always in project** saves it only for the current Nerve project; **Always for user** applies it to every project. Project exceptions live in Nerve's host-side project metadata under `~/.nerve/projects/<project-id>`, not in the agent-writable workspace. Python and destructive, secret, or deployment calls offer approval once only. Autonomous permission skips normal approval for allowed risks but still honors explicit blocks; Read only denies disallowed tools rather than offering an approval override.
+Supervised mode automatically allows safe reads. When Nerve can describe a bounded tool rule, **Always in project** saves it only for the current Nerve project; **Always for user** applies it to every project. User rules live in `<NERVE_HOME>/config/permissions.json`; project rules live in `.nerve/config/permissions.json`. Project allow rules require trust in the exact document content; external edits invalidate that trust. Review imported project rules before trusting them. Python and destructive, secret, or deployment calls offer approval once only. Autonomous permission skips normal approval for allowed risks but still honors explicit blocks; Read only denies disallowed tools rather than offering an approval override.
 
 ## User questions
 
@@ -29,7 +29,7 @@ Review file scope, validation, migration impact, and security assumptions before
 
 ## Transparency after resolution
 
-Tool lifecycle states—requested, started, output, completed, or failed—remain in history. Replayed events are deduplicated after reconnect, and long outputs are bounded or stored as artifacts/transcripts rather than silently injected in full.
+Tool arguments, decisions, results, and failures stay associated with the requesting work. Pending tool state is distinct from completed history; reconnect reconciles it with stored conversation events. Long output is bounded or stored as linked artifacts rather than silently injected in full.
 
 ## Next steps
 

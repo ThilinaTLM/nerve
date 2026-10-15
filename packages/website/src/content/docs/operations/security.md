@@ -15,13 +15,15 @@ Application data travels directly between the renderer and daemon over HTTP/Nerv
 
 ## Permission policy
 
-Read-only, supervised, and autonomous levels govern agent tool dispatch. Planning adds its own restrictions. These reduce authority and create review points; they do not isolate commands or Python from the operating system.
+Read-only, supervised, and autonomous are the built-in permission rule sets governing agent tool dispatch. Planning adds its own restrictions. These reduce authority and create review points; they do not isolate commands or Python from the operating system.
+
+User overrides are stored under `<NERVE_HOME>/config/permissions.json`; project overrides use `.nerve/config/permissions.json`. Project allow rules require exact-content trust, so externally edited rules must be reviewed again. A sub-agent has its own profile-selected read-only or autonomous rule set; enabling Developer grants unattended shared-worktree mutation, not merely another read tool.
 
 Direct user-initiated Git/PR/editor actions have their own UI confirmations and are not agent tool approvals.
 
 ## Resource containment
 
-Managed commands always have wall-time, bounded-output, process-admission, and tree-termination controls. Linux desktop additionally runs the daemon in a delegated cgroup v2 scope and applies aggregate CPU, memory, and process/thread limits to each execution tree. Windows 11 uses Job Objects with equivalent job-level limits. macOS has no direct equivalent, so hard tree-wide CPU, memory, and process-count limits are reported unsupported.
+Managed commands have bounded-output, process-admission, and tree-termination controls. Foreground Bash timeout behavior depends on auto-promotion settings; background Bash has no time limit. Linux desktop additionally runs the daemon in a delegated cgroup v2 scope and applies aggregate CPU, memory, and process/thread limits to each execution tree. Windows 11 uses Job Objects with equivalent job-level limits. macOS has no direct equivalent, so hard tree-wide CPU, memory, and process-count limits are reported unsupported.
 
 Resource containment protects daemon availability; it is not a security sandbox. Commands still run as the same user and retain filesystem, network, credential, and same-user process access. On Linux, `NERVE_ALLOW_UNCONTAINED_PROCESSES=1` explicitly disables the default delegated-scope requirement for compatibility and should be used only when that weaker behavior is understood.
 

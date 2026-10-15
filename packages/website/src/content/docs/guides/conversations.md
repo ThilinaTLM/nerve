@@ -21,17 +21,21 @@ The virtualized transcript can show:
 - provider-returned thinking;
 - tool calls, live output, and artifacts;
 - approvals, questions, and plans;
-- queued prompts and task events;
+- queued prompts and background-work notices;
 - compaction and branch summaries;
 - retry, interruption, failure, and continuation states.
 
 Thinking is only visible when a provider returns it. Nerve does not reconstruct private reasoning a provider withholds. Transcript entries are durable history and model context; the current activity indicator is a rebuildable projection rather than another transcript state machine.
 
+## Follow concurrent work
+
+The activity island above the composer brings **Agents**, **Commands**, return-to-lead navigation, and the jump to the latest output into one place. Agents open child conversations; commands open async Bash output tabs. Saved servers and watchers are managed separately in **Launches**. See [delegation](/guides/agents-and-delegation/#follow-progress) and [launch configurations](/guides/background-tasks/).
+
 ## Delete carefully
 
-Removing a project first removes its Nerve conversations and associated state; it does not mean “delete the source directory.” Conversation pruning protects conversations with active runs, pending human input, awaited asynchronous work, or active tasks and can remove related inactive task/tool/log/index records.
+Removing a project first removes its Nerve conversations and associated state; it does not mean “delete the source directory.” Conversation pruning protects conversations with active runs, pending human input, or awaited asynchronous work, and can remove related inactive records and managed files.
 
 ## Next steps
 
 - [History, branches, and recovery](/guides/history-and-recovery/)
-- [Import, export, and editors](/guides/import-export-editors/)
+- [Backups and external editors](/guides/import-export-editors/)

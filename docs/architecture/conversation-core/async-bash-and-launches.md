@@ -2,7 +2,7 @@
 
 Part of the [conversation core redesign](README.md).
 
-> **Status:** Target design, being implemented. Implementers must follow this document exactly. Anything that needs to go beyond it (extra parameters, new components, new abstractions, compatibility code, schema changes) is reported to the lead before it is built.
+> **Status:** Current implementation. Tool catalog, core handlers and workbench launch adapters are authoritative.
 
 ## Goals
 
@@ -52,7 +52,7 @@ The schema and description are built per turn from the bash settings.
 | Enabled   | No `timeout` parameter. Still running after `afterMs` → becomes async bash.                          | Returns at once    |
 | Disabled  | `timeout` (seconds) is **required**, 1 – `maxTimeoutMs`. The process tree is killed when it expires. | Returns at once    |
 
-Background runs (explicit or promoted) have no time limit. They end on exit, `async_bash stop`, conversation stop/delete, or daemon shutdown, and always queue a completion notice.
+Background runs (explicit or promoted) have no time limit. They end on exit, `async_bash stop`, conversation stop/delete, or daemon shutdown. Async Bash settlement commits terminal state and its queued completion notice together; pause may defer delivery.
 
 Parameters:
 
@@ -132,7 +132,7 @@ Additional behavior:
 - A port conflict is reported with the listener's PID and process name. The agent never terminates foreign listeners; only the user can, from the UI.
 - If the definition has a port, `start`/`restart` wait up to 30 s for it to listen and report `Ready :{port}` or `Not listening after 30s`.
 - `restart` stops the launch and starts the **current** definition. With nothing running it starts.
-- When a launch started by the agent exits on its own, the starting conversation receives a queued notice (status, exit code, projected tail) like async bash.
+- While the daemon retains the in-memory starting-conversation ownership, a launch started by the agent that exits on its own queues a notice (status, exit code, projected tail). Launch instances and ownership are not durable across restart; this is not a guaranteed post-shutdown notification.
 - Agents cannot create or edit definitions: there is no action for it, and the default permission rule set asks before writes to `.nerve/launches/**`.
 
 ### Prompt guidance
@@ -158,7 +158,7 @@ File: {path}            (only if the page did not cover the whole output)
 
 Async bash pages read a combined `output.txt` (stdout and stderr interleaved in arrival order) written by the host next to `stdout.txt` and `stderr.txt`. Launch pages read the existing launch log files.
 
-The foreground `bash` path in workbench-server must return stdout, stderr and the output files to the projector instead of the current last-64,000-characters-per-stream result, so diagnostics and paths work.
+The foreground `bash` host path supplies captured output and file references to the shared projector so diagnostics and paths use the same policy as background output.
 
 ## Naming
 

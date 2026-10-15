@@ -11,34 +11,34 @@ import conversationLight from "../../../assets/screenshots/desktop/conversation-
 import rightSheetDark from "../../../assets/screenshots/mobile/right-sheet-dark.webp";
 import rightSheetLight from "../../../assets/screenshots/mobile/right-sheet-light.webp";
 
-The desktop layout has a conversation/task dock, a tabbed center workspace, and a secondary dock. Drag resize handles to allocate space. Panel views can move among left, right, and bottom docks or be hidden; Nerve repairs obsolete saved layouts after upgrades. The title-bar Help button opens the built-in Guides catalog, including a full Workbench tour.
+The desktop layout has a conversation/launch dock, a tabbed center workspace, and a secondary dock. Drag resize handles to allocate space. Panel views can move among left, right, and bottom docks or be hidden; Nerve repairs obsolete saved layouts after upgrades. The title-bar Help button opens the built-in Guides catalog, including a full Workbench tour.
 
 ## Dock views
 
 Seven views can live in docks:
 
-- **Conversations**, **Files**, **Tasks**, and **Notes** begin on the left.
+- **Conversations**, **Files**, **Launches**, and **Notes** begin on the left.
 - **Git**, **Pull Requests**, and **Context** begin on the right.
 
 Notes are a project panel, not a center tab. Panels intentionally adapt to their current width rather than assuming a particular dock.
 
 ## Center tabs
 
-The center workspace opens conversations, pending conversations, task output, file previews, pull request details, Settings, authentication, and Nerve logs. Reorder tabs or close the current tab, tabs to either side, or all others. Conversations stay mounted when hidden so live transcript state remains stable.
+The center workspace opens conversations, pending conversations, launch and background-command output, file previews, pull request details, Settings, authentication, and Nerve logs. Reorder tabs or close the current tab, tabs to either side, or all others. Conversations stay mounted when hidden so live transcript state remains stable.
 
 ## Switch projects and find work
 
-The title bar keeps up to five recent projects in reach on desktop, two in compact layouts, and one on phones. Open the project switcher for the complete recent list. It searches project names and directory paths, supports arrow keys plus Enter or Space, marks the current project, and shows activity from conversations and running tasks. **Browse for a project** opens the full Recent/Browse directory picker for a location that is not already known to Nerve.
+The title bar keeps up to five recent projects in reach on desktop, two in compact layouts, and one on phones. Open the project switcher for the complete recent list. It searches project names and directory paths, supports arrow keys plus Enter or Space, marks the current project, and shows activity from conversations and running launches. **Browse for a project** opens the full Recent/Browse directory picker for a location that is not already known to Nerve.
 
 Project menus provide shortcuts for a new conversation, an external editor or terminal, conversation pruning, and removing the Nerve project record. Removing a record does not delete the source directory.
 
-Conversation search is a separate modal and filters the selected project's conversations. The navigator initially bounds long lists and exposes more entries on demand. Switching projects changes the selected scope without deleting server-side conversations or tasks.
+Conversation search is a separate modal and filters the selected project's conversations. The navigator initially bounds long lists and exposes more entries on demand. Switching projects changes the selected scope without deleting server-side conversations or launches.
 
 <DocsScreenshot
   light={conversationLight}
   dark={conversationDark}
-  alt="The Nerve desktop workbench showing the conversation navigator, a transcript with tool calls and their output, and the Git panel"
-  caption="What to notice: navigation, transcript, and project panels share one shell. Dock views can move or hide without interrupting the active conversation."
+  alt="The Nerve desktop workbench showing the conversation navigator, a completed Bash result, two sub-agent assignment cards, the expanded Agents activity island, and the Git panel"
+  caption="What to notice: the transcript keeps command results and delegation visible, while the Agents activity island opens child conversations. Navigation and project panels remain alongside the work."
   widths={[480, 768, 1024, 1440]}
   sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
 />
@@ -53,7 +53,7 @@ Layout and active-tab preferences are browser-local. A different browser profile
   light={rightSheetLight}
   dark={rightSheetDark}
   alt="The Nerve phone layout with the Git Changes detail screen opened from the Workspace tab"
-  caption="At phone width, the Workspace tab keeps Git, pull requests, files, tasks, context, and notes reachable without compressing the conversation."
+  caption="At phone width, the Workspace tab keeps Git, pull requests, files, launches, context, and notes reachable without compressing the conversation."
   widths={[390, 585, 780, 1170]}
   sizes="min(24rem, calc(100vw - 3rem))"
   variant="phone"
@@ -61,7 +61,7 @@ Layout and active-tab preferences are browser-local. A different browser profile
 
 ## Built-in tour
 
-Choose **Help → Guides → Work through the Workbench** for an interactive tour of the composer, review controls, panels, files, Git, tasks, providers, Settings, and status. The tour needs an active project and can be replayed after completion.
+Choose **Help → Guides → Work through the Workbench** for an interactive tour of the composer, review controls, panels, files, Git, launches, providers, Settings, and status. The tour needs an active project and can be replayed after completion.
 
 ## Next steps
 

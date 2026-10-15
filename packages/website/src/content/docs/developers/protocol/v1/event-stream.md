@@ -28,14 +28,7 @@ type EventBatch = {
 
 Every adjacent event satisfies `next.seq === previous.seq + 1`. Empty batches use null bounds. Only catalog events with `delivery: "sequenced"` may appear.
 
-Implemented stream routing is deterministic:
-
-| Stream                  | Owner and contents                                                                              |
-| ----------------------- | ----------------------------------------------------------------------------------------------- |
-| `workspace`             | Workbench workspace facts such as conversation lifecycle, settings, agents, projects, and plans |
-| `conv/<conversationId>` | Conversation, run, turn, live-message, and tool-call events carrying that conversation ID       |
-
-One WebSocket can carry several subscribed streams. Opening a conversation changes the exact subscription set; it does not open another socket.
+The conversation channel (`/ws/conversations`) routes durable `conversation.event` envelopes to `conv/<conversationId>`. One conversation socket can subscribe to several retained conversations. The workbench uses its own `/ws/workbench` connection with ephemeral invalidation notices, not a durable `workspace` stream.
 
 A client skips exact duplicates, rejects gaps, applies each event, and advances that stream's cursor only after the reducer succeeds. A reducer invariant violation triggers snapshot recovery rather than cursor advancement.
 
@@ -49,10 +42,10 @@ type NotifyEvent = { id: string; type: string; ts: string; data: unknown };
 
 Notifications are never persisted in stream logs, never replayed, and never consume sequence numbers. Catalog-approved `latest_by_scope` or `concat_delta` notifications may coalesce while queued. Concatenated deltas preserve their exact text and first offset; latest-value updates preserve the newest cumulative snapshot.
 
-All `conversation.live.*` updates are notifications. They project in-progress turns, messages, tool drafts, progress, and bounded output from the server's active-run state. Reconnect recovery fetches the authoritative conversation snapshot instead of replaying presentation frames. Completed entries, run transitions, tool-call lifecycle records, supervision decisions, checkpoints, and final results remain sequenced durable facts.
+`conversation.live` carries text, thinking, tool-argument and progress deltas. Head, configuration, unfinished tool-call, input-queue and async-Bash changes also have ephemeral notices. Reconnect re-fetches current list/detail snapshots and replays durable history; transient frames are not recovered.
 
-## Persistence and retention
+## Persistence and history
 
-Workbench logs are per stream and maintain dense local high-water metadata. The current host defaults group supersedable deltas for up to 25 ms or 64 events; lifecycle events force an immediate flush and fsync. On restart, the next sequence is `max(meta.lastSeq, logTailSeq) + 1`.
+Conversation-core's `CONVERSATION_EVENT` is the durable source. Each conversation has its own append sequence, independent of the selected history branch. Tool settlement appends a response and deletes the unfinished call transactionally. There is no separate stream journal, run-event log or durable workbench notification store.
 
-These are host storage defaults, not wire guarantees. The owning [`StreamLog` implementation](https://github.com/ThilinaTLM/nerve/blob/main/packages/workbench-server/src/infrastructure/events/stream-log.ts) appends group commits until a journal reaches its current high-water mark (normally 6,250 events or 10 MiB), then atomically compacts it back to the latest 5,000 events and at most 8 MiB. Truncation never renumbers retained events. A cursor below `earliestAvailableSeq - 1` therefore requires a repository-derived snapshot followed by a new subscription.
+Snapshots carry `lastSequence`; clients subscribe from that boundary to avoid a snapshot/replay race. History transfer is bounded by count and bytes and uses transcript projections for tool responses. Full details are fetched with `toolCall.getDetails`. Retention metadata and replay control are protocol mechanics; do not infer a journal compaction policy from them.
