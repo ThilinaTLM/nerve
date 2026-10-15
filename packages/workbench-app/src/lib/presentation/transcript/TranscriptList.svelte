@@ -341,7 +341,13 @@ $effect(() => {
 {:else}
   <!-- `isolate` keeps the scroll fades' z-index inside the transcript, so
        overlays that rise over it from the composer (activity island) stay on top. -->
-  <div class="relative isolate h-full min-h-0 overflow-hidden">
+  <!-- The conversation controller owns the direct VirtualScroller viewport.
+       Nested tool-output scrollports still use generic tab restoration. Keep
+       the viewport a direct child of this ownership boundary. -->
+  <div
+    class="relative isolate h-full min-h-0 overflow-hidden"
+    data-center-scroll-restoration="self"
+  >
     <VirtualScroller
       bind:controller
       bind:atEnd
