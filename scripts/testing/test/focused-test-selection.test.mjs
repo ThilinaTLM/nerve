@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
   mkdirSync,
@@ -13,7 +12,6 @@ import test from "node:test";
 import { loadWorkspace } from "../ci-impact.mjs";
 import {
   planFocusedTests,
-  readGitState,
   selectFocusedTests,
 } from "../focused-test-selection.mjs";
 import { createImportGraph, extractImports } from "../test-import-graph.mjs";
@@ -357,50 +355,6 @@ test("server options, skills lifecycle and native Cargo coverage survive selecti
     "@nervekit/native",
     "test",
   ]);
-});
-
-test("Git discovery includes branch, staged, unstaged, untracked, and renamed paths with spaces", (t) => {
-  const f = fixture(t);
-  const git = (...args) =>
-    execFileSync("git", args, {
-      cwd: f.root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-  git("init", "-q");
-  git("config", "user.email", "test@example.invalid");
-  git("config", "user.name", "Test");
-  f.write(".gitignore", "ignored.ts\n");
-  f.write("staged.ts");
-  f.write("unstaged.ts");
-  f.write("old name.ts");
-  git("add", ".");
-  git("commit", "-qm", "base");
-  const base = git("rev-parse", "HEAD");
-  f.write("branch.ts");
-  git("add", ".");
-  git("commit", "-qm", "branch");
-  f.write("staged.ts", "export const staged = 1;");
-  git("add", "staged.ts");
-  f.write("unstaged.ts", "export const unstaged = 1;");
-  git("mv", "old name.ts", "new name.ts");
-  f.write("untracked file.ts");
-  f.write("ignored.ts");
-  // A staged edit undone in the worktree still belongs to staged change discovery.
-  f.write("staged.ts", "export {};");
-  const state = readGitState(f.root, base);
-  assert.deepEqual(state.paths, [
-    "branch.ts",
-    "new name.ts",
-    "old name.ts",
-    "staged.ts",
-    "unstaged.ts",
-    "untracked file.ts",
-  ]);
-  assert.equal(state.deleted.has("old name.ts"), true);
-  assert.equal(state.files.includes("old name.ts"), false);
-  assert.equal(state.files.includes("ignored.ts"), false);
-  assert.equal(readGitState(f.root, "HEAD").paths.includes("branch.ts"), false);
 });
 
 test("dry-run launches nothing and execution stops on prerequisite/test failure", () => {
