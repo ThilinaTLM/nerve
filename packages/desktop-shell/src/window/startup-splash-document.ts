@@ -27,18 +27,29 @@ place-items: center;
 background: var(--splash-bg);
 color: var(--splash-fg);
 font-family: var(--splash-font-sans);
+/* Frameless desktop window: the backdrop moves it while no titlebar
+exists; ignored outside Electron. */
+-webkit-app-region: drag;
 transition:
 opacity 280ms ease,
 transform 280ms ease,
 filter 280ms ease;
+}
+/* Hidden while a startup failure is shown; a retry shows it again. */
+#startup-splash.is-hidden {
+display: none;
 }
 #startup-splash.is-dismissed {
 opacity: 0;
 transform: scale(1.03);
 filter: blur(4px);
 pointer-events: none;
+/* Drag regions ignore pointer-events; release the window during the
+fade so the revealed workbench is clickable at once. */
+-webkit-app-region: no-drag;
 }
 #startup-splash-content {
+-webkit-app-region: no-drag;
 transform: scale(var(--nerve-inverse-zoom-scale, 1));
 transform-origin: center;
 }
