@@ -20,13 +20,16 @@ export function resolveProcessShell(
     shellPath?: string;
     login?: boolean;
   },
+  resolution: Omit<
+    NonNullable<Parameters<typeof resolveBashShellConfig>[0]>,
+    "shellPath" | "env"
+  > = {},
 ) {
-  if (options.login)
-    return {
-      shell: options.shellPath!,
-      args: ["-lc", command],
-      env: { ...process.env, ...options.env },
-    };
+  const shellConfig = resolveBashShellConfig({
+    ...resolution,
+    shellPath: options.shellPath,
+    env: { ...process.env, ...options.env },
+  });
   return resolveProjectShellInvocation(command, {
     cwd: options.cwd,
     env: {
@@ -37,7 +40,10 @@ export function resolveProcessShell(
       TERM: "dumb",
       ...options.env,
     },
-    shellConfig: resolveBashShellConfig({ shellPath: options.shellPath }),
+    shellConfig: options.login
+      ? { ...shellConfig, args: ["-lc"] }
+      : shellConfig,
+    platform: resolution.platform,
   });
 }
 

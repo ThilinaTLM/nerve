@@ -17,7 +17,20 @@ import type {
 
 export class CoreProcessHost implements ProcessPort {
   private readonly active = new Map<string, BackgroundProcess>();
-  constructor(private readonly shellPath: string) {}
+  constructor(
+    private readonly shellPath:
+      | string
+      | ((
+          cwd: string,
+        ) => string | undefined | Promise<string | undefined>) = () =>
+      undefined,
+  ) {}
+
+  private resolveShellPath(cwd: string) {
+    return typeof this.shellPath === "function"
+      ? this.shellPath(cwd)
+      : this.shellPath;
+  }
 
   async spawn(input: {
     command: string;
@@ -34,7 +47,7 @@ export class CoreProcessHost implements ProcessPort {
       combined: join(input.artifactDir, "output.txt"),
     };
     const { managed: process } = spawnShellProcess(input.command, {
-      shellPath: this.shellPath,
+      shellPath: await this.resolveShellPath(input.cwd),
       login: true,
       cwd: input.cwd,
       env: input.env,
@@ -132,7 +145,7 @@ export class CoreProcessHost implements ProcessPort {
   async run(input: Parameters<ProcessPort["run"]>[0]) {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const { managed: process } = spawnShellProcess(input.command, {
-      shellPath: this.shellPath,
+      shellPath: await this.resolveShellPath(input.cwd),
       login: true,
       cwd: input.cwd,
       policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },

@@ -12,6 +12,7 @@ import type {
 } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
+import { unrefSpawnedProjectLauncher } from "./project-launch-spawn.js";
 
 type TerminalLauncher = {
   source: NonNullable<ExternalTerminalStatus["source"]>;
@@ -115,8 +116,7 @@ export class ProjectTerminalService {
           windowsHide: launcher.windowsHide,
         },
       );
-      child.once("error", () => undefined);
-      child.unref();
+      await unrefSpawnedProjectLauncher(child);
     } catch (error) {
       throw new ApplicationError(
         500,

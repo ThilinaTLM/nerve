@@ -1,6 +1,6 @@
 import type { ChildProcess, SpawnOptions } from "node:child_process";
 import { constants } from "node:fs";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, extname, isAbsolute, join, resolve } from "node:path";
 import crossSpawn from "cross-spawn";
@@ -215,6 +215,7 @@ async function isExecutableFile(
   platform: ExecutablePlatform,
 ): Promise<boolean> {
   try {
+    if (!(await stat(path)).isFile()) return false;
     await access(path, platform === "win32" ? constants.F_OK : constants.X_OK);
     return true;
   } catch {

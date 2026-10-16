@@ -1,5 +1,5 @@
 import { stat } from "node:fs/promises";
-import { isAbsolute, resolve } from "node:path";
+import { resolveNativePath } from "../filesystem/native-path.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
 
 export async function resolveCommandCwd(
@@ -14,7 +14,7 @@ export async function resolveCommandCwd(
       { argument: "cwd" },
     );
   }
-  const cwd = isAbsolute(value) ? resolve(value) : resolve(baseCwd, value);
+  const cwd = resolveNativePath(baseCwd, value);
   let info;
   try {
     info = await stat(cwd);

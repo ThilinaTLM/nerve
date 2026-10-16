@@ -4,6 +4,7 @@ export * from "./errors/tool-error.js";
 export * from "./executable/executable.js";
 export * from "./filesystem/edit.js";
 export * from "./filesystem/path.js";
+export * from "./filesystem/native-path.js";
 export * from "./output/live-output.js";
 export * from "./output/output-budget.js";
 export * from "./process/command-cwd.js";

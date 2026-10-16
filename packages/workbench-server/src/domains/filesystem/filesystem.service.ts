@@ -15,15 +15,13 @@ import {
   basename,
   dirname,
   extname,
-  isAbsolute,
   join,
   parse,
-  posix,
   relative,
   resolve,
-  win32,
 } from "node:path";
 import { createInterface } from "node:readline";
+import { isPathInside, resolveNativePath } from "@nervekit/tools/execution";
 import {
   clipboardImageUploadRequestSchema,
   type FilesystemProjectEntry,
@@ -458,8 +456,7 @@ const textExtensions = new Set([
 ]);
 
 function isInside(root: string, candidate: string): boolean {
-  const rel = relative(root, candidate);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+  return isPathInside(root, candidate);
 }
 
 export function normalizeIncomingFilePath(
@@ -467,35 +464,7 @@ export function normalizeIncomingFilePath(
   rawPath: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  let path = rawPath.trim();
-
-  if (path.toLowerCase().startsWith("file://")) {
-    try {
-      const url = new URL(path);
-      const decoded = decodeURIComponent(url.pathname);
-      path = url.hostname ? `//${url.hostname}${decoded}` : decoded;
-      path = path.replace(/^\/([A-Za-z]:\/)/, "$1");
-    } catch {
-      // Leave malformed file URLs to the normal resolver/stat error path.
-    }
-  }
-
-  if (platform === "win32") {
-    const msys = path.match(/^\/([A-Za-z])(?:\/|$)(.*)$/);
-    const wsl = path.match(/^\/mnt\/([A-Za-z])(?:\/|$)(.*)$/);
-    const drive = wsl ?? msys;
-    if (drive) {
-      const [, letter, rest = ""] = drive;
-      path = `${letter?.toUpperCase()}:/${rest}`;
-    }
-
-    if (!path.startsWith("//")) path = path.replaceAll("/", "\\");
-  }
-
-  const pathApi = platform === "win32" ? win32 : posix;
-  return pathApi.isAbsolute(path)
-    ? pathApi.resolve(path)
-    : pathApi.resolve(root, path);
+  return resolveNativePath(root, rawPath, platform);
 }
 
 function resolveProjectFile(root: string, rawPath: string): string {

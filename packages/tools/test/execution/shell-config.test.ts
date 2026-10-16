@@ -48,6 +48,84 @@ describe("bash shell config resolver", () => {
     );
   });
 
+  it("finds per-user Git installations", () => {
+    const shell =
+      "C:\\Users\\dev\\AppData\\Local\\Programs\\Git\\bin\\bash.exe";
+    assert.equal(
+      resolveBashShellConfig({
+        platform: "win32",
+        env: { LOCALAPPDATA: "C:\\Users\\dev\\AppData\\Local" },
+        pathExists: (path) => path === shell,
+        runCommand: noCommand,
+      }).shell,
+      shell,
+    );
+  });
+
+  for (const directory of ["cmd", "bin"]) {
+    for (const bashDirectory of ["bin", "usr\\bin"]) {
+      it(`derives Git root from ${directory}/git.exe for ${bashDirectory}`, () => {
+        const git = `D:\\Portable Git\\${directory}\\git.exe`;
+        const shell = `D:\\Portable Git\\${bashDirectory}\\bash.exe`;
+        assert.equal(
+          resolveBashShellConfig({
+            platform: "win32",
+            env: {},
+            pathExists: (path) => path === git || path === shell,
+            runCommand: (command, args) => {
+              assert.equal(command, "where");
+              return args[0] === "git.exe"
+                ? { stdout: `${git}\r\n`, status: 0 }
+                : { stdout: "", status: 1 };
+            },
+          }).shell,
+          shell,
+        );
+      });
+    }
+  }
+
+  it("skips WSL and missing PATH entries to find a later bash", () => {
+    const shell = "D:\\msys64\\usr\\bin\\bash.exe";
+    assert.equal(
+      resolveBashShellConfig({
+        platform: "win32",
+        env: { SystemRoot: "C:\\Windows" },
+        pathExists: (path) => path !== "D:\\missing\\bash.exe",
+        runCommand: () => ({
+          stdout: `c:\\WINDOWS\\system32\\bash.exe\r\nD:\\missing\\bash.exe\r\n${shell}\r\n`,
+          status: 0,
+        }),
+      }).shell,
+      shell,
+    );
+  });
+
+  it("does not use the WSL launcher as an automatic fallback", () => {
+    assert.throws(
+      () =>
+        resolveBashShellConfig({
+          platform: "win32",
+          env: { WINDIR: "C:\\Windows" },
+          pathExists: () => true,
+          runCommand: (_command, args) =>
+            args[0] === "bash.exe"
+              ? { stdout: "C:\\Windows\\System32\\bash.exe", status: 0 }
+              : { stdout: "", status: 1 },
+        }),
+      /No bash shell found/,
+    );
+    assert.equal(
+      resolveBashShellConfig({
+        platform: "win32",
+        shellPath: "C:\\Windows\\System32\\bash.exe",
+        pathExists: () => true,
+        runCommand: noCommand,
+      }).shell,
+      "C:\\Windows\\System32\\bash.exe",
+    );
+  });
+
   it("throws an actionable error when Windows bash is missing", () => {
     assert.throws(
       () =>

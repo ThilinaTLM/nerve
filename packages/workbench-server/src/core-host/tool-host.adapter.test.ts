@@ -9,6 +9,7 @@ import { createToolHostPort } from "./tool-host.adapter.js";
 
 void test("bash host validates turn settings, project cwd and untimed background readiness", async () => {
   const project = await mkdtemp(join(tmpdir(), "nerve-bash-host-"));
+  const outside = await mkdtemp(join(tmpdir(), "nerve-bash-outside-"));
   try {
     const stdout = join(project, "stdout.txt");
     const stderr = join(project, "stderr.txt");
@@ -89,6 +90,10 @@ void test("bash host validates turn settings, project cwd and untimed background
       /inside the project/,
     );
     await assert.rejects(
+      execute({ command: "echo", timeout: 1, cwd: outside }),
+      /inside the project/,
+    );
+    await assert.rejects(
       execute({ command: "echo", timeout: 1, ready: "ready" }),
       /background:true/,
     );
@@ -150,7 +155,10 @@ void test("bash host validates turn settings, project cwd and untimed background
     await execute({ command: "echo" });
     assert.equal(spawned?.timeoutMs, undefined);
   } finally {
-    await rm(project, { recursive: true, force: true });
+    await Promise.all([
+      rm(project, { recursive: true, force: true }),
+      rm(outside, { recursive: true, force: true }),
+    ]);
   }
 });
 

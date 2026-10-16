@@ -20,6 +20,7 @@ import type {
 } from "@nervekit/contracts/projects";
 import { ApplicationError } from "../../core/application-error.js";
 import { resolveProjectLaunchTarget } from "./project-launch-target.js";
+import { unrefSpawnedProjectLauncher } from "./project-launch-spawn.js";
 
 type EditorLauncherSource = NonNullable<ExternalEditorStatus["source"]>;
 
@@ -186,8 +187,7 @@ export class ProjectEditorService {
           windowsHide: true,
         },
       );
-      child.once("error", () => undefined);
-      child.unref();
+      await unrefSpawnedProjectLauncher(child);
     } catch (error) {
       throw new ApplicationError(
         500,
