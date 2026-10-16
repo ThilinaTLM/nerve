@@ -1,409 +1,246 @@
 # Storage migrations
 
-This is the standard for storage migrations. The target lifecycle and safety
-rules below apply to every future step. The final status table distinguishes
-implemented behavior from framework work still planned; it is not a claim that
-step 0001 already meets every rule.
-
-See [startup](startup.md) for server boot and recovery UI ownership, and
-[storage](storage.md) for the home layout and conversation-core storage.
+One mechanism upgrades a Nerve home across changes to SQLite data, managed files
+and configuration formats. It runs before normal storage opens, while HTTP and
+the workbench recovery screen are available. See [startup](startup.md) for boot
+ownership and [storage](storage.md) for the home layout.
 
 ## Guarantee
 
-A stable release must never fail to start or lose the home because of one broken
-conversation or settings file. Invalid LLM output, crashes and manual edits are
-normal inputs to recovery, not reasons to abandon the home.
+A stable release must not fail to start or lose the home because of an individual
+broken conversation or settings file. Invalid LLM output, crashes and manual edits
+are normal recovery inputs. Isolate damaged units; keep healthy data usable.
+Only home-wide damage stops an upgrade. Before commit, the previous version's
+home must remain restorable without manual ledger edits.
 
-Only home-wide damage stops an upgrade. Even then, before commit, the previous
-version's home must be restorable. Recovery must not require editing a ledger or
-finding a backup by hand.
+This is the migration standard, not a claim of exhaustive corruption coverage.
+The limits at the end describe the remaining coverage and automation boundaries.
+Runtime damaged-conversation handling is outside this document; the same
+preservation and attribution principles apply there.
 
-## When a migration exists
+## When a step exists
 
-A step exists only when a release changes on-disk storage: SQLite schema or data,
-managed files, or configuration document formats. Releases without such changes
-have no step. All unreleased changes since the last release belong in one step;
-extend that draft rather than adding another. The root `package.json` version
-identifies the latest release.
+Add a step only for on-disk changes. Releases without storage changes have none.
+All unreleased home changes since the latest release belong in one draft step;
+extend it rather than adding another. The root `package.json` version identifies
+the latest release.
 
-Pure SQL changes inside conversation core use its ordered transactional
-`SCHEMA_MIGRATIONS`. These are atomic and fast; failure leaves the database
-untouched, so they need no file rollback journal. A home step coordinates changes
-across stores, files or configuration. Do not duplicate the core's SQL machinery.
+Pure SQL changes inside conversation core use its transactional
+`SCHEMA_MIGRATIONS`, separately from home steps. They are atomic and fast; a
+failed transaction leaves the database untouched and needs no file journal.
+Use a home step to coordinate conversions across stores, files or configuration.
+Database schema changes still require explicit prior approval under `AGENTS.md`.
 
-An up-to-date home must pay only a manifest read for migration discovery, not a
-scan of conversations or configuration. The current runner also attempts cleanup
-of applied-step scratch directories and stale recovery files; it does not walk
-conversation data when no step is pending.
+An up-to-date home reads the manifest and performs one existence check for a
+cleanup marker. There is no conversation/configuration scan. Only an interrupted
+upgrade with cleanup outstanding triggers recovery cleanup on that path.
 
-## Frozen steps
+## Baseline and frozen release policy
 
-A step never imports application code. Use Node built-ins, the framework and
-local frozen shapes/helpers, so later refactors cannot change an old conversion.
-A released step is never edited; fixes are new steps.
+There is one baseline: **0.34.1**. Older homes must be opened with that version
+first. No permanent legacy loader or compatibility sweep belongs in the runtime.
+A fresh home starts at the latest layout with all registered steps recorded;
+no conversion runs.
 
-There is one baseline: release **0.34.1**. Older homes must be opened with 0.34.1
-first. No compatibility sweep or permanent legacy loader belongs in the runtime.
+An existing home needs an ordered manifest ledger, or the recognized 0.34.1
+manifest/database migration history. Unsupported homes report
+`Run Nerve 0.34.1 first`. Unknown/out-of-order ledger entries and changed released
+checksums fail admission.
 
-```text
-packages/workbench-server/src/infrastructure/migrations/
-├── framework/          # runner, context, ledger, lock, recovery, worker
-├── steps/
-│   ├── index.ts        # ordered registry
-│   └── 0001-conversation-core/
-└── migrations.lock.json
-```
+Steps live in `infrastructure/migrations/steps/`, with an ordered registry and
+`migrations.lock.json`. A step imports only Node built-ins, the framework and
+frozen local helpers/shapes, never application code. Later refactors must not
+change an old conversion.
 
-`migrations.lock.json` records each step's checksum and stage: `draft`, or
-`released` with `releasedIn`. Checksums cover file names and bytes in stable order.
-Registry, folders and lock IDs must match. `pnpm check` rejects changed released
-steps. Draft steps may change until release.
+The lock records each folder's checksum and `draft` or `released` stage, with
+`releasedIn` for released steps. Checksums cover names and bytes in stable order.
+Registry, folders and lock IDs must match. Drafts may evolve until release;
+released steps are immutable and checks reject changes. Fixes ship as new steps.
+Step-specific conversion mappings and development-home caveats belong in each
+[step README](../../packages/workbench-server/src/infrastructure/migrations/steps/0001-conversation-core/README.md),
+not in this architecture.
 
-## Admission and ledger
+## Lock and ledger
 
-The runner works under the home startup lock. Startup retains that lock through
-storage opening and daemon publication. Standalone migration and recovery acquire
-the same lock; two processes must never upgrade one home concurrently.
+Migration and recovery share the home startup lock. The startup caller retains
+it through storage opening and daemon publication; standalone tools acquire the
+same lock. Two processes must never upgrade one home concurrently.
 
-- Empty home: initialize the latest layout and record every step as applied.
-  No conversion runs.
-- Existing home with a ledger: validate its ordered prefix against the registry.
-  Unknown/out-of-order IDs and released checksum mismatches fail admission.
-- Existing home without a ledger: require manifest version 1 and the 0.34.1
-  database ledger's first ten migration IDs (0001–0010). Otherwise report
-  `Run Nerve 0.34.1 first`.
+`manifest.json` stores `migrations: [{ id, checksum, appliedAt }]` outside SQLite,
+so a step can replace the database. The runner keeps original manifest bytes for
+the pending step; baseline admission also preserves the pre-ledger manifest.
+Rollback restores the appropriate original bytes, not a reconstructed document.
 
-The home ledger is `manifest.json`:
-`migrations: [{ id, checksum, appliedAt }]`. It lives outside SQLite so a step can
-replace the database. Append it atomically after successful verification and
-commit, then remove the step scratch directory.
+After commit, append the ledger atomically, then remove scratch state. An
+interrupted ledger/scratch cleanup resumes on the next start. The ledger is not
+a database schema version: conversation core owns its separate SQL ledger.
 
-Baseline admission retains the original manifest as
-`migrations/work/manifest.before.json` before adding an empty ledger. Recovery
-restores those original bytes when rolling back the initial, unrecorded step.
-The current backup logic is for baseline admission, not a general manifest
-snapshot before every future step.
+## Lifecycle
 
-## Standard lifecycle
-
-The framework must enforce four phases. Separate `check` and `commit` hooks are
-planned; today's interface has `run`, optional `verify`, and optional rollback
-hooks. Step 0001 implements its own preflight and commit boundary inside them.
+The runner orders `check` → `run` → `verify` → `commit`, collects phase failures,
+and owns the verified marker. Steps supply conversion and invariant logic.
 
 ```mermaid
 flowchart TD
-  A["check: read only"] -->|"inputs valid"| B["run: isolated units"]
-  A -->|"units failed"| U{"User decides"}
-  B -->|"units failed"| U
-  B -->|"units migrated"| C["verify: attribute failures"]
-  C -->|"units failed"| U
-  C -->|"verified"| D["commit: marker, then legacy deletion"]
+  A["check: read only"] -->|"valid inputs"| B["run: isolated units"]
+  B -->|"converted"| C["verify: attribute failures"]
+  C -->|"verified marker"| D["commit: delete legacy sources"]
+  D -->|"ledger and cleanup"| E["migration complete"]
+  A -->|"bad units"| U{"User decides"}
+  B -->|"bad units"| U
+  C -->|"bad units"| U
   U -->|"set aside and continue"| A
   U -->|"restore previous version"| R["rollback"]
-  A -->|"home-wide failure"| F["stop and offer restore"]
+  A -->|"home-wide damage"| F["stop and offer restore"]
   B -->|"home-wide failure"| F
   C -->|"home-wide failure"| F
   F -->|"restore"| R
-  D -->|"record ledger"| E["ready"]
 ```
 
-### Check
+- **Check:** read-only validation of the inputs the step owns and will consume.
+  Validate shapes as well as syntax; report all bad units together. Distinguish
+  absent optional inputs from missing required data. Set-aside writes wait for run.
+- **Run:** journal writes and convert one isolated unit at a time. Roll back a
+  failed unit's transaction, files and report entries, then continue other units.
+- **Verify:** attribute record/history/asset failures to units. Schema identity,
+  integrity and genuinely cross-unit invariants remain home-wide and fatal.
+  Reuse import receipts and digests; verification must be proportional to data.
+- **Commit:** the runner persists the verified marker before invoking legacy
+  deletion. This is the point of no return: rollback is unavailable afterwards.
+  A verified retry skips conversion and resumes commit, report and ledger work.
 
-Read-only. Validate every input the step will read, including its shape, not just
-JSON syntax. Report all bad units together rather than stopping on the first.
-Read only declared owned paths. Missing optional inputs are not corruption;
-missing required inputs must be attributed to their owner.
+No irreversible source deletion before commit. Reversible journaled replacements
+are allowed during run. Commit failure needs cleanup retry, not a promise of
+pre-commit rollback. Admission damage may prevent rollback from being offered,
+but must not mutate the source home.
 
-Do not add a second full input scan for safety. Check reads only what run will
-read anyway; retain checked data or bounded per-unit results for run. No writes,
-renames or set-aside operations occur during check.
+## Framework toolkit and units
 
-### Run
+Current unit kinds are `conversation` and `configuration`, extensible for other
+independent owners. A failure carries `{ kind, id, title?, reason }`.
+IDs are opaque, stable unit identities. File-backed configuration units use
+absolute paths; database-backed configuration units may use stable legacy-record
+identifiers instead.
+The framework raises one `DiscardableMigrationError` containing phase failures.
 
-Process one isolated unit at a time. Journal in-place writes before they happen.
-A failed unit rolls back its database transaction, files and report entries; other
-units continue. Collect failures and raise one `DiscardableMigrationError` for
-the phase after all units have been attempted.
+- `ownedPaths` and `ctx.ownPaths(...)` declare exact input paths and trusted roots.
+  Unrelated files must never be read or become upgrade blockers.
+- `ctx.readJson(path, schema)` checks owned JSON, records checked text and
+  attributes invalid input to its unit or configuration file.
+- `ctx.unit({ kind, id, title }, fn, options)` provides file isolation, optional
+  transaction/checkpoint hooks, and aggregated errors. Steps must supply the
+  database transaction and report checkpoint where those resources are involved.
+- `ctx.fs` journals filesystem mutations automatically and rejects writes during
+  check. Use it rather than bypassing the framework with raw conversion writes.
+- `ctx.quarantine(...)` preserves selected units; `ctx.loss(...)` records losses.
+  `scratchDir`, persisted discard decisions, progress and logging support resume.
 
-A unit is `{ kind, id, title? }`. Current kinds are `conversation` and
-`configuration`; extend them when another independent owner is needed.
-Conversation IDs identify source conversations; configuration IDs are absolute
-file paths. Failure items also carry a short, actionable `reason`.
-
-### Verify
-
-Verify the replacement against the checked source and import receipts. Attribute
-history, record and asset failures to their unit and report all failed units
-at once. Home-wide checks remain fatal: schema identity, database integrity and
-cross-unit invariants cannot be waived by discarding an arbitrary conversation.
-
-Verification is proportional to the data. Reuse digests, mapped heads, coverage
-counts and other import receipts rather than repeatedly walking the same source.
-Do not turn an attributable record failure into a home-wide exception.
-
-### Commit
-
-This is the point of no return: persist the verified marker first, then delete
-legacy sources. Rollback is unavailable once the marker exists. No destructive
-operation occurs before commit; reversible, journaled replacements are allowed.
-The runner must own the marker and commit phase rather than trusting each step
-to order them correctly. This framework ownership is planned.
-
-A crash after the marker resumes cleanup, not conversion. A crash after the ledger
-append resumes scratch cleanup. Never delete the only source before verification.
-Commit failure may require cleanup retry; it cannot promise pre-commit rollback.
+A stray configuration file from another branch must not block an upgrade.
+The framework's ownership checks are a boundary, not permission for steps to
+scan arbitrary directories or import live application validators.
 
 ## Cost and rollback
 
-No full-home backup or snapshot per migration. Retain legacy sources and keep a
-write-ahead journal only for in-place changes:
+No full-home backup or snapshot per migration. Retain legacy sources and journal
+only in-place changes: original file bytes/metadata, renames and directory entry
+snapshots. New-layout contents are rebuilt or removed, not copied into a backup.
+Preserve the first original state across retries. Use atomic replacements and
+resumable rollback; framework restoration precedes any step-specific source undo.
 
-- original bytes of files rewritten or removed, with required file metadata;
-- renames and their original locations;
-- directory entry snapshots, so rollback can remove newly created layout dirs.
+Check must not introduce a second full read pass for safety. Reuse checked data,
+digests and import receipts instead of repeated walks. Set-aside uses rename
+where possible; export failed rows from shared databases rather than copying the
+whole database. An import whose only failed units left no destination state can
+be reused after discard, with verification only; avoid rebuilding healthy data.
 
-New-layout file contents are not journaled: they can be removed and rebuilt.
-Preserve the first original state across retries, not an intermediate rewrite.
-Use atomic file replacement. Rollback itself must resume safely after a crash.
+## Quarantine and success reports
 
-One read pass per unit is the target, not repeated preflight/import scans.
-Set-aside uses rename rather than copy wherever possible. Export only failed
-rows when their source is a shared database. Do not copy the whole database for
-one bad conversation.
+Set aside means preservation, not deletion. Migration quarantine lives under
+`home/quarantine/<step>/<unit>/`, with raw files or exported records and a reason.
+The framework gives units safe, collision-resistant directory names. Quarantine
+survives successful upgrade; rollback reverses pre-commit quarantine moves.
 
-Discarding only import-time failures already reuses the completed import in
-step 0001: those units left no imported state, so retry only re-verifies.
-Discarding verification failures currently rebuilds the import without them.
+Reports under `migrations/reports/` retain set-aside units, reasons, quarantine
+paths and recorded losses after scratch cleanup. The workbench presents unseen
+reports after success, for example “2 conversations were set aside”.
+`GET /api/storage/upgrade-reports` lists unseen reports;
+`POST /api/storage/upgrade-reports/:step/dismiss` marks a report seen without
+deleting its data. Damaged reports do not block the workbench.
 
-## Framework toolkit
+Prefer conservative per-record salvage before whole-unit quarantine: keep readable
+records and record any lost record explicitly rather than inventing history.
+General salvage coverage is still evolving; do not assume every record kind can
+be repaired automatically.
 
-The following is planned framework API, not the current `StepContext`:
+## Runtime-owned settings
 
-- `ctx.fs`: automatically journal writes, renames and removals.
-- `ctx.unit({ kind, id, title }, fn)`: isolate transaction, files and report
-  entries; aggregate unit failures without stopping the step.
-- `ctx.readJson(path, schema)`: checked reads attributed to the current unit.
-- Declared owned paths: files outside them are never read or upgrade-blocking.
-- Runner-owned verified marker and commit, with rollback as the framework default
-  rather than an optional per-step hook.
+Migrations never overwrite an unreadable runtime-owned home document: `daemon`,
+`harness`, `ui`, `permissions`, `providers` or `integrations`. Runtime reads use
+in-memory defaults for invalid documents, preserve source bytes and expose a
+non-blocking settings-health notice. Normal startup remains available.
 
-Owned paths matter: step 0001 currently enumerates all JSON in user and registered
-project configuration directories. A leftover `config/mcp.json` from an unmerged
-branch can therefore block an upgrade even though no conversion owns it. The
-standard forbids that behavior; narrowing ownership is planned, not implemented.
+Writes to invalid documents are blocked until explicit resolution. Reset moves
+the original to `quarantine/settings/` and writes defaults; reload validates a
+user-repaired file before clearing the invalid state. Both refresh live settings
+and dependent services, including provider catalog notifications. Merely editing
+the file does not silently authorize saving cached defaults over it.
 
-Today's context provides `paths`, `scratchDir`, persisted `discarded` IDs,
-`progress(...)` and `log(message)`. Steps currently use filesystem and SQLite APIs
-directly. Unit isolation and checked reads are step-local, not framework defaults.
+Invalid permissions or harness settings require explicit tool approval until
+reset or reload; fallback defaults must not grant autonomous execution.
+Settings health and resolution use `/api/settings/health` and
+`/api/settings/health/resolve`, not a blocking migration recovery screen.
 
-## Set aside and salvage
+## Recovery and progress
 
-The standard's set-aside operation is quarantine, not deletion. Planned location:
-`home/quarantine/<step>/<unit>/`, containing raw source bytes or records and the
-reason. Use rename for standalone files and export only failed database rows.
-Quarantined data must remain recoverable after successful upgrade.
+Failures persist in `migrations/last-failure.json` with step, phase, error, time,
+optional `discardable` units and `rollbackAvailable`. The daemon remains alive
+in `failed`; workbench-owned screens offer set-aside/continue or restore where
+available. Electron only handles an unreachable server, not migration decisions.
 
-A persisted upgrade report must survive scratch cleanup and be shown after
-success, for example: “2 conversations were set aside”. This is planned.
-Prefer per-record salvage before quarantining an entire unit: import readable
-records, insert a placeholder for a lost record and record the loss explicitly.
-This is planned; never silently invent history or silently drop damage.
+`POST /api/lifecycle/retry` accepts `{ discardIds }` or an empty retry request.
+Only reported IDs are accepted; decisions persist in step scratch across restart.
+`POST /api/lifecycle/rollback` restores the pending step and manifest, then enters
+terminal, non-retryable `MIGRATION_ROLLED_BACK`. The daemon stays up so the desktop
+supervisor cannot rerun the upgrade. Quit and reinstall the previous version to
+use the restored home. Accepted recovery requests return 202; unavailable actions
+return 409. See [startup](startup.md) for lifecycle polling and authentication.
 
-Current behavior differs: discarded conversations are excluded and their legacy
-directories are deleted during committed cleanup; the legacy database is also
-removed. Discarded configuration is renamed to adjacent `.corrupt` files, with
-numeric suffixes on collisions. Runtime resets use `.invalid-<time>` files.
-These are not the planned quarantine/report contract.
+Every long phase reports a plain-language label and counts when known.
+The runner logs phase durations, periodic progress, completion and failure report
+paths. Step logs/checkpoints are temporary, unlike upgrade reports. Daemon
+migration runs in a worker thread so synchronous SQLite cannot starve HTTP.
+Long loops also yield. Standalone `pnpm storage:migrate --home <dir> [--dry-run]`
+uses the same runner; dry-run plans admission/pending steps, not corruption checks.
 
-## Settings and runtime
+## Tests, rehearsals and limits
 
-The runtime owns six home documents: `daemon`, `harness`, `ui`, `permissions`,
-`providers` and `integrations`. A migration never rewrites an unreadable one.
-Step 0001 leaves it untouched and treats it as empty for conversion purposes.
-Startup validates all six and reports invalid documents together as
-`CONFIGURATION_INVALID`. On request it renames the selected originals aside and
-writes runtime defaults. This explicit reset flow is implemented.
+Each step needs focused unit tests plus the shared corruption suite. Generated
+cases truncate JSON inputs, garbage record kinds and remove required files;
+assert attributable failures, byte-identical source rollback and set-aside retry.
+Safe optional/runtime inputs may succeed without a migration failure. Known gaps
+must remain explicit, not hidden behind a passing happy-path test.
 
-Starting on in-memory defaults without overwriting the file, with a non-blocking
-notice, is planned. Today invalid runtime settings still block readiness until
-repaired or reset; the stronger startup guarantee is not yet automatic.
+Crash-resume tests currently inject exceptions at progress events, not every
+filesystem durability boundary or process-kill window. Finer crash coverage
+remains necessary; resumability is not established by phase tests alone.
 
-The same principles apply to damaged conversations at runtime, but runtime
-conversation recovery is outside this document. See [storage](storage.md).
-Any database table/column change requires explicit prior approval under the root
-`AGENTS.md`; recovery is not permission to grow the schema.
+`pnpm storage:rehearse` copies a stopped baseline into an isolated slot, redirects
+registered projects to slot-local `.nerve` copies, optionally injects corruption
+and writes checksums of the prepared baseline. It prints instructions for starting
+the daemon, exercising recovery and checking restoration. It does not yet drive
+the lifecycle API automatically. Copied credentials can still reach real providers;
+project copies contain configuration, not working trees. Never rehearse on real
+homes or write real project repositories. Full copied homes here are test
+isolation, not the production migration strategy.
 
-## Recovery protocol
+## Writing a step
 
-The runner writes `migrations/last-failure.json` with `step`, `phase`, `error`,
-`failedAt`, optional `discardable` items and `rollbackAvailable`. Global failures
-stop the upgrade and offer restore when rollback remains available. A failure
-before a rollback-capable step is established may not offer it today.
-
-The daemon stays alive in `failed`, serving lifecycle routes and the workbench
-recovery screen. Recovery is workbench-owned, not an Electron error page.
-
-- `POST /api/lifecycle/retry` accepts `{ discardIds }` or an empty request for
-  ordinary retry. IDs must come from the reported failures.
-- Migration discard choices accumulate in the step scratch directory's
-  `discarded.json`; they survive restart until the step records successfully.
-- `POST /api/lifecycle/rollback` restores the failed, unrecorded step if available,
-  then restores the baseline manifest backup where applicable.
-- Successful rollback enters terminal `MIGRATION_ROLLED_BACK`, with retry disabled.
-  The daemon stays up so the desktop supervisor does not restart the upgrade.
-  Quit and reinstall the previous version to use the restored home.
-
-Accepted recovery requests return 202 with the new lifecycle; unavailable actions
-return 409. Follow progress through `GET /api/lifecycle`. See [startup](startup.md)
-for authentication, boot gating and reconnection rather than duplicating them here.
-
-## Progress and resumption
-
-Every long phase has a plain-language label and, when known, a count and total:
-“Importing conversations”, 120 of 393. Startup exposes this as `upgrading`.
-The workbench splash shows the label and determinate progress when possible.
-
-The runner logs start, phase changes with previous-phase duration, periodic
-progress, and completion or failure with the report path. Step logs and checkpoints
-live in its scratch directory and are removed after success. Do not rely on them
-as the eventual persisted user-facing upgrade report.
-
-Daemon migrations run in a worker thread so synchronous SQLite does not starve
-HTTP or lifecycle polling. Long loops also yield to the event loop. Standalone
-`pnpm storage:migrate --home <dir> [--dry-run]` uses the same runner on a stopped
-home; dry-run plans admission and pending steps, not a full corruption check.
-
-## Step 0001 — conversation core
-
-The draft converts the 0.34.1 home to conversation core and file-owned config:
-
-1. Require 4 GiB free, plus a runtime check for 15% of legacy database size.
-   Rename legacy SQLite sidecars before the main file to
-   `data/nerve.sqlite.migrating`. Retain that source across retries; discard any
-   partial destination database on a full rerun.
-2. Preflight user/project JSON and conversation overlays before configuration
-   conversion. Collect invalid configuration items together; leave unreadable
-   runtime-owned documents for startup recovery. This preflight is inside run,
-   after source rename, and is not the target read-only framework check.
-3. Convert permission levels/rules, suggestion predicates and enablement,
-   sub-agent settings and scoped profiles, and project task/launch definitions.
-   Journal in-place config/project changes. Reassess trust for converted content.
-4. Import projects, trust, scratch notes, conversations, events, queued inputs,
-   async bash and assets using frozen local schema/importer code. Each source
-   conversation tree has its own transaction and report/file rollback. Continue
-   after a failed conversation and collect failures for verify.
-5. Write child/root capability and permission overlays under full conversation
-   IDs. Preserve referenced task outputs in conversation storage; convert launch
-   log directory names with journaled renames, retaining collisions.
-6. Verify selected history, user-message digests, mapped heads, tool pairing,
-   projected payloads, asset sizes/coverage, row counts, schema checksum, foreign
-   keys and `quick_check`. Attribute supported history/event/asset failures to
-   source conversations; home-wide assertions remain fatal.
-7. Raise one `DiscardableMigrationError` containing import and verification
-   failures before marking verified. Otherwise write `verified.json`, update
-   manifest version to 2, then remove legacy sources. This is today's step-owned
-   commit inside `verify`, not a separate framework hook.
-8. Delete excluded legacy conversation dirs, relocated payload sources, task and
-   report bundles, query cache, old journals/migration folders and obsolete
-   databases. Delete `.migrating` sidecars and database last. The runner then
-   appends the ledger and removes scratch, including the rollback journal.
-
-A verified retry resumes verification/cleanup using the summary even after source
-removal. No backup remains after success. Before the marker, rollback restores
-journaled files, links, directory entries and renames, removes the new database,
-and returns the retained source and sidecars to their original names.
-
-Processes are not resumed. Imported bash process references remain null.
-Historical lossy mappings and missing assets are counted in the import summary;
-this is not the planned general per-record salvage or durable upgrade report.
-Some ancillary records (agents, tasks and queued inputs) are decoded globally
-before the conversation loop; corruption there can still abort the whole step.
-Moving those reads into attributable units is required by the standard.
-
-### Profile conversion limits and manual review
-
-Conversion covers user resources and projects registered in the source database,
-not unregistered projects or arbitrary directories. Later-opened old projects
-need explicit canonical `.nerve/config/subagents.json` conversion; there is no
-runtime legacy Markdown loader.
-
-Conflicting legacy/canonical documents and incompatible capability shadowing
-still require manual resolution in step 0001. Legacy same-name definitions
-replaced entire tool/skill maps; canonical sparse maps merge keys. Do not invent
-toggles or silently broaden capabilities. Preserve sources and retry after an
-explicit decision. These conversion conflicts are not all isolated discardable
-units today; the framework standard requires that improvement.
-
-### Development homes with an earlier draft applied
-
-Extending unreleased step 0001 does not rerun an already-applied ledger entry.
-Use a fresh slot or copy a pre-upgrade baseline into an isolated slot and run the
-extended migration there. Do not remove ledger entries to force replay against
-converted data. This is a dev-only draft limitation, not a new released step or
-compatibility loader.
-
-## Testing and rehearsal
-
-Each step needs unit tests for corruption handling, attribution, retry and rollback.
-Step 0001 tests aggregated failures, import reuse, verification-failure re-import,
-configuration set-aside, and restoration of original database/file bytes.
-
-Planned shared corruption suite, required for every step:
-
-- Truncate each JSON input, garbage each record kind, and remove required files.
-- Assert unit damage is never fatal unless it is genuinely home-wide.
-- Assert rollback restores byte-identical sources and set-aside completes.
-- Crash and resume at every phase, including marker/cleanup/ledger boundaries.
-
-Planned `pnpm storage:rehearse` automates copying a baseline home into a slot,
-redirecting registered projects to slot-local `.nerve` copies, injecting corruption,
-checksumming the baseline and driving the lifecycle API. Real repositories must
-never receive rehearsal writes. Full copied baselines are test isolation, not a
-per-migration production backup strategy. Use copied/fresh slots, not slot 1.
-
-Manual PR rehearsal covered 311 conversations, roughly 90–100 seconds of import,
-and byte-identical restoration. This is evidence for that copied home, not proof
-that every corruption or crash boundary is covered.
-
-## Writing a new step
-
-- Confirm an on-disk change needs a home step rather than core SQL alone.
-  Extend the current unreleased step when one exists.
-- Declare owned paths and independent units; never scan unrelated files.
-- Check every required input read-only and aggregate all bad units.
-- Run journaled, isolated units; roll back failed unit files and report entries.
-- Verify per-unit results and keep home-wide invariants fatal.
-- Commit only after verification: marker first, legacy deletion second.
-- Make run, cleanup and rollback resumable; do not add full-home snapshots.
-- Keep imports frozen and local; use clear progress labels and bounded diagnostics.
-- Add unit tests and, when available, pass the shared corruption/rehearsal suite.
-- Register the ordinal folder/ID and lock entry as `draft`; freeze checksum and
-  record `releasedIn` when changing its stage to `released`.
-- Until the planned toolkit lands, supply these guarantees explicitly in the step;
-  the existing interface does not enforce them for you.
-
-## Implementation status
-
-| Item                                                                           | Status                                                                        |
-| ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| 0.34.1 admission, manifest ledger, home lock, released-step immutability       | Implemented                                                                   |
-| Fresh-home latest layout; pending-only conversion                              | Implemented                                                                   |
-| Strict manifest-read-only up-to-date fast path                                 | Planned; runner also attempts recovery cleanup                                |
-| Transactional core `SCHEMA_MIGRATIONS`                                         | Implemented                                                                   |
-| Worker, lifecycle progress and phase logging                                   | Implemented                                                                   |
-| Retained source, write-ahead journal, resumable cleanup and rollback           | Implemented in step 0001                                                      |
-| Conversation transaction/file/report isolation and aggregated failures         | Implemented in step 0001; ancillary global decoding still has gaps            |
-| Attributed verification                                                        | Implemented for supported per-conversation checks; global checks remain fatal |
-| Import-time discard reuse and re-verification                                  | Implemented                                                                   |
-| Read-only check/run/verify/commit enforced by runner                           | Planned                                                                       |
-| Framework journal, `ctx.fs`, `ctx.unit`, `ctx.readJson`, default rollback      | Planned                                                                       |
-| Owned-path declarations and no unrelated-file blocking                         | Planned                                                                       |
-| One-pass checked inputs and receipt-based verification without re-walks        | Planned; step 0001 still rescans source/configuration                         |
-| Quarantine rather than conversation deletion/scattered aside files             | Planned                                                                       |
-| Per-record salvage and persisted post-success upgrade report                   | Planned                                                                       |
-| Unreadable runtime settings preserved, `CONFIGURATION_INVALID`, explicit reset | Implemented                                                                   |
-| Non-blocking startup on in-memory settings defaults                            | Planned                                                                       |
-| Failure fields, retry/discard, rollback API and terminal rollback state        | Implemented                                                                   |
-| Manifest restoration on rollback                                               | Implemented for initial baseline admission; per-step generalization planned   |
-| Per-step recovery unit tests                                                   | Implemented for step 0001                                                     |
-| Shared mandatory corruption/crash suite and `pnpm storage:rehearse`            | Planned                                                                       |
+- Confirm a home step is needed; pure core SQL stays separate. Extend the current
+  unreleased draft when one exists.
+- Declare owned inputs and units; check read-only, run isolated journaled writes,
+  verify attributed results, and reserve legacy deletion for commit.
+- Keep imports frozen/local, actions resumable and progress labels understandable.
+- Supply transaction/report hooks and source-specific rollback where needed.
+- Test corruption, quarantine, byte restoration and resume using isolated fixtures.
+- Register the ordinal ID/folder and draft lock entry; freeze its checksum and
+  record `releasedIn` when promoting to released.
