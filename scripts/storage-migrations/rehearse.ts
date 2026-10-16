@@ -1,15 +1,13 @@
-import { createHash } from "node:crypto";
 import {
   cp,
   lstat,
   mkdir,
-  readFile,
   realpath,
   readdir,
   rm,
   writeFile,
 } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { join, relative } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import {
   assertSlotPaths,
@@ -18,6 +16,7 @@ import {
 import { acquireStorageHomeLock } from "../../packages/workbench-server/src/infrastructure/storage-bootstrap/home-lock.js";
 import { cloneNerveHome } from "./home-operations.js";
 import { redirectProject, rehearseOptions } from "./rehearse-options.js";
+import { writeRehearsalBaseline } from "./rehearse-baseline.js";
 async function list(path: string): Promise<string[]> {
   const result: string[] = [];
   for (const entry of (await readdir(path, { withFileTypes: true })).sort(
@@ -165,18 +164,8 @@ try {
     await writeFile(candidates[0], preset === "runtime-shape" ? "[]" : '{"');
     console.log(`Corrupted ${candidates[0]}`);
   }
-  const paths = [...(await list(slot.home)), ...(await list(projects))];
-  const lines = [];
-  for (const path of paths) {
-    if (/[\n\r\\]/.test(path)) throw new Error("Unsupported checksum path");
-    lines.push(
-      `${createHash("sha256")
-        .update(await readFile(path))
-        .digest("hex")}  ${resolve(path)}`,
-    );
-  }
   const checksum = join(slot.data, `storage-${slot.slot}-baseline.sha`);
-  await writeFile(checksum, `${lines.join("\n")}\n`, { mode: 0o600 });
+  await writeRehearsalBaseline(slot.home, projects, checksum);
   console.log(
     `Next: pnpm dev --slot ${slot.slot}\nUse the recovery UI to restore, stop the daemon, then verify:\nsha256sum -c '${checksum}'\nOr migrate offline: pnpm storage:migrate --home '${slot.home}'`,
   );

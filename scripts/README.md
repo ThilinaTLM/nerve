@@ -53,3 +53,11 @@ restoration, then run `sha256sum -c data/storage-3-baseline.sha` from the checko
 The script never starts a server or drives destructive recovery automatically.
 Copies remain available for inspection; `--keep` suppresses the printed cleanup
 command. Credentials are copied: this is storage isolation, not a provider sandbox.
+
+Baseline hashing reads files in 64 KiB chunks and streams checksum lines to an
+atomic, mode-0600 output file. If preparation completed but hashing failed, keep
+the slot stopped and run
+`pnpm exec tsx scripts/storage-migrations/rehearse-baseline.ts --slot 3` to create
+only the baseline checksums. This does not copy, redirect projects, or inject
+corruption again; do not use it after starting an upgrade, since it hashes the
+slot's current state.
