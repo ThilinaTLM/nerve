@@ -2,25 +2,19 @@
 import socialPreview from "../assets/social-preview.png";
 import MarketingLayout from "../layouts/MarketingLayout.astro";
 import ClosingCta from "../components/marketing/ClosingCta.astro";
-import ContextEngine from "../components/marketing/ContextEngine.astro";
-import DefaultsGrid from "../components/marketing/DefaultsGrid.astro";
-import DelegationRow from "../components/marketing/DelegationRow.astro";
-import EventAnatomy from "../components/marketing/EventAnatomy.astro";
 import Hero from "../components/marketing/Hero.astro";
-import HistoryBranching from "../components/marketing/HistoryBranching.astro";
-import HotSwapLab from "../components/marketing/HotSwapLab.astro";
-import AuthorityDial from "../components/marketing/AuthorityDial.astro";
-import PocketWorkbench from "../components/marketing/PocketWorkbench.astro";
-import ProviderAccess from "../components/marketing/ProviderAccess.astro";
-import RepoConstellation from "../components/marketing/RepoConstellation.astro";
+import LiveRun from "../components/marketing/LiveRun.astro";
+import ParallelTeam from "../components/marketing/ParallelTeam.astro";
 import Section from "../components/marketing/Section.astro";
-import SignalStrip from "../components/marketing/SignalStrip.astro";
-import TrustBoundary from "../components/marketing/TrustBoundary.astro";
-import WorkbenchTour from "../components/marketing/WorkbenchTour.astro";
+import TokenLedger from "../components/marketing/TokenLedger.astro";
+import WorkbenchMap from "../components/marketing/WorkbenchMap.astro";
 
+/* Six beats, one argument: a lean harness (hero, ledger), a transcript you can
+ * see through and steer (live run), the workbench around it, parallel work,
+ * and the install. Everything else lives in the docs. */
 const title = "Nerve — more work per token, more control per run";
 const description =
-  "Free, open-source coding workbench for AI agents. Run it on the subscription you already pay for, with a lean harness and bounded context that make it last — plus live steering, branchable history, and permissions you control.";
+  "Free, open-source coding workbench for AI agents. A lean, well-tested harness spends your subscription on your problem; a transparent transcript, Git, pull requests, an editor, and parallel sub-agents sit around it.";
 const ogImage = new URL(socialPreview.src, Astro.site).href;
 ---
 
@@ -33,119 +27,42 @@ const ogImage = new URL(socialPreview.src, Astro.site).href;
 >
   <Hero />
 
-  <SignalStrip />
-
   <Section
-    id="providers"
-    eyebrow="Bring the access you already pay for"
-    title="Use your subscription, not a second bill."
-    lede="Sign in to a supported provider with OAuth, or paste an API key. Either way the credential stays on your machine and the model list comes from the provider."
+    id="lean"
+    tone="sunken"
+    eyebrow="Lean by design"
+    title="Your tokens go to your problem."
+    lede="Every token the harness spends describing itself is one your plan doesn't spend on your code. So the prompt is tiny, tools are earned, and outputs are capped — not lost."
   >
-    <ProviderAccess />
+    <TokenLedger />
   </Section>
 
   <Section
-    id="context"
-    tone="sunken"
-    eyebrow="Token efficiency by design"
-    title="A lean harness makes your plan go further."
-    lede="Every token the harness spends on itself is one you do not spend on your problem. Nerve keeps what it sends small, caps what comes back, and compacts before the window runs out."
+    id="run"
+    eyebrow="Transparent by default"
+    title="Watch every step. Steer without stopping."
+    lede="A run is a stack of typed events you can read, retune, gate, and rewind — while it is still running."
   >
-    <ContextEngine />
+    <LiveRun />
   </Section>
 
   <Section
     id="workbench"
-    eyebrow="One workbench, the whole loop"
-    title="From prompt to merged change without leaving the window."
-    lede="Conversation, files, context, Git, pull requests, and background tasks are panels in one shell, bound to the same project and moving together."
-  >
-    <WorkbenchTour />
-  </Section>
-
-  <Section
-    id="hotswap"
     tone="sunken"
-    eyebrow="Retune while it runs"
-    title="Change course without restarting the run."
-    lede="Model, thinking level, agent mode, permission rule set — change any of them on an active conversation and it applies from the next provider request. Queue a steering message instead of killing the run."
+    eyebrow="The whole loop, one window"
+    title="From prompt to pull request without leaving."
+    lede="Transcript, editor, Git, pull requests, and background tasks are panels of one workbench, bound to the same project."
   >
-    <HotSwapLab />
+    <WorkbenchMap />
   </Section>
 
   <Section
-    id="anatomy"
-    eyebrow="Nothing happens off-screen"
-    title="A run is not a spinner. It's a stack of typed events."
-    lede="Prompts, provider reasoning when the provider returns it, tool calls, results, approvals, and recovery are separate typed events. Each keeps its evidence, and all of it stays in history."
+    id="parallel"
+    eyebrow="Parallel by nature"
+    title="Many projects. A team of agents. All at once."
+    lede="Every conversation is its own tab in its own project. Inside one, a lead agent hands work to sub-agents you shape — and they report back with receipts."
   >
-    <EventAnatomy />
-  </Section>
-
-  <Section
-    id="history"
-    tone="sunken"
-    eyebrow="Change course without starting over"
-    title="Every conversation is a tree you can walk back into."
-    lede="Go back to any earlier entry and continue from there. The earlier lineage stays intact, you can edit and resend a prompt, and the settings you pick apply to the branch you continue on."
-  >
-    <HistoryBranching />
-  </Section>
-
-  <Section
-    id="authority"
-    eyebrow="Authority, not vibes"
-    title="Decide what the agent may do — before it does it."
-    lede="Read-only, supervised, or autonomous — plus coding and planning modes, permission rule sets, and per-project or per-conversation overlays. Nerve evaluates the policy before the tool runs, not in the system prompt."
-  >
-    <AuthorityDial />
-  </Section>
-
-  <Section
-    id="fullstack"
-    tone="sunken"
-    eyebrow="Built for real codebases"
-    title="Multiple projects. Multiple repos. In parallel."
-    lede="Point Nerve at the directory holding your API, web app, and infrastructure repos. It discovers them, tracks branch and working-tree state per repository, and every conversation opens as its own tab — so several pieces of work can move at the same time."
-  >
-    <RepoConstellation />
-  </Section>
-
-  <Section
-    id="delegation"
-    eyebrow="Delegate, keep oversight"
-    title="Hand off the long jobs. Keep the receipts."
-    lede="Run dev servers, watchers, and validation as supervised background tasks with streamed, retained logs — and send bounded read-only sub-agents to research in parallel and report back."
-  >
-    <DelegationRow />
-  </Section>
-
-  <Section
-    id="local"
-    tone="sunken"
-    eyebrow="Local by default, connected by choice"
-    title="And it all stays on your machine."
-    lede="Nerve runs as a loopback daemon on your machine. Projects, conversations, and settings live in ~/.nerve. There is no Nerve server to send anything to — outbound traffic goes only where you point it."
-  >
-    <TrustBoundary />
-  </Section>
-
-  <Section
-    id="defaults"
-    eyebrow="Tuned defaults, visible seams"
-    title="Details that add up."
-    lede="Provider hiccups, context limits, and daily friction are handled by defaults you can see and change, never by dead ends."
-  >
-    <DefaultsGrid />
-  </Section>
-
-  <Section
-    id="mobile"
-    tone="sunken"
-    eyebrow="Wherever the daemon is reachable"
-    title="A workbench that adapts, not a desktop squeezed onto a phone"
-  >
-    <PocketWorkbench />
+    <ParallelTeam />
   </Section>
 
   <ClosingCta />

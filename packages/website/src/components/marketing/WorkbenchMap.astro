@@ -1,0 +1,722 @@
+---
+import conversationDark from "../../assets/screenshots/desktop/conversation-dark.webp";
+import conversationLight from "../../assets/screenshots/desktop/conversation-light.webp";
+import editorDark from "../../assets/screenshots/desktop/editor-dark.webp";
+import editorLight from "../../assets/screenshots/desktop/editor-light.webp";
+import gitDark from "../../assets/screenshots/desktop/git-dark.webp";
+import gitLight from "../../assets/screenshots/desktop/git-light.webp";
+import pullRequestDark from "../../assets/screenshots/desktop/pull-request-dark.webp";
+import pullRequestLight from "../../assets/screenshots/desktop/pull-request-light.webp";
+import launchesDark from "../../assets/screenshots/desktop/launches-dark.webp";
+import launchesLight from "../../assets/screenshots/desktop/launches-light.webp";
+import phoneDark from "../../assets/screenshots/mobile/conversation-dark.webp";
+import phoneLight from "../../assets/screenshots/mobile/conversation-light.webp";
+import DeviceFrame from "./DeviceFrame.astro";
+import PhoneFrame from "./PhoneFrame.astro";
+import ThemeScreenshot from "./ThemeScreenshot.astro";
+
+/* One large product shot, five regions. Each stop names the screenshot that
+ * shows its panel and a rectangle on it (percent of the shot): `x y w h` is the
+ * spotlight; the pin sits on its top-right corner. The editor stop shows the
+ * file tree and a file open in the built-in editor (facts:
+ * guides/files-context-notes.md). */
+
+const slides = {
+  conversation: {
+    dark: conversationDark,
+    light: conversationLight,
+    alt: "Nerve workbench: conversation list, a transcript with retained command output and sub-agent cards, and the Git panel",
+  },
+  editor: {
+    dark: editorDark,
+    light: editorLight,
+    alt: "Nerve with the project file tree and rate-limit.ts open in the built-in editor with an unsaved change",
+  },
+  git: {
+    dark: gitDark,
+    light: gitLight,
+    alt: "Nerve workbench showing edit diffs in the transcript beside the Git changes panel with staged and unstaged files",
+  },
+  pr: {
+    dark: pullRequestDark,
+    light: pullRequestLight,
+    alt: "Nerve pull request view with summary, mergeability and checks beside the pull requests panel",
+  },
+  launches: {
+    dark: launchesDark,
+    light: launchesLight,
+    alt: "Nerve launches panel listing launch configurations beside the retained output of a test run",
+  },
+} as const;
+
+const stops = [
+  {
+    key: "transcript",
+    chip: "Transcript",
+    slide: "conversation",
+    title: "Transcript",
+    line: "Every command, edit and sub-agent is a typed event you can open.",
+    x: 19.2,
+    y: 8.8,
+    w: 57,
+    h: 87,
+  },
+  {
+    key: "editor",
+    chip: "Editor & files",
+    slide: "editor",
+    title: "Editor & files",
+    line: "Edit project text files in place; saves are atomic and revision-checked.",
+    x: 0.4,
+    y: 8.8,
+    w: 75.6,
+    h: 59,
+    m: { x: 19.8, y: 9, w: 42, h: 36 },
+  },
+  {
+    key: "git",
+    chip: "Git",
+    slide: "git",
+    title: "Git",
+    line: "Stage, commit, push, pull and sync per repository.",
+    x: 76.3,
+    y: 8.8,
+    w: 23.4,
+    h: 31.5,
+  },
+  {
+    key: "pr",
+    chip: "Pull requests",
+    slide: "pr",
+    title: "Pull requests",
+    line: "Summary, mergeability and checks beside the work. Needs gh.",
+    x: 19.8,
+    y: 9,
+    w: 55.4,
+    h: 50,
+  },
+  {
+    key: "tasks",
+    chip: "Background tasks",
+    slide: "launches",
+    title: "Background tasks",
+    line: "Supervised runs with retained logs, one click to restart.",
+    x: 0.4,
+    y: 8.8,
+    w: 75.6,
+    h: 31,
+    m: { x: 0.4, y: 9, w: 46, h: 31 },
+  },
+] as const;
+
+const slideKeys = Object.keys(slides) as (keyof typeof slides)[];
+const first = stops[0];
+
+/* Phones zoom to a tighter region than desktop so text stays legible. */
+const mobile = (stop: (typeof stops)[number]) =>
+  "m" in stop ? stop.m : { x: stop.x, y: stop.y, w: stop.w, h: stop.h };
+
+const rect = (stop: (typeof stops)[number]) => ({
+  "--wb-mx": `${mobile(stop).x}%`,
+  "--wb-my": `${mobile(stop).y}%`,
+  "--wb-mw": `${mobile(stop).w}%`,
+  "--wb-mh": `${mobile(stop).h}%`,
+  "--wb-x": `${stop.x}%`,
+  "--wb-y": `${stop.y}%`,
+  "--wb-w": `${stop.w}%`,
+  "--wb-h": `${stop.h}%`,
+  /* Desktop zoom is edge-anchored: the shot grows away from a frame edge, so
+   * one side (and the top) stays aligned and never cuts text. */
+  "--wb-ox": stop.x + stop.w / 2 > 66 ? "100%" : "0%",
+  "--wb-oy": "0%",
+  /* Right-hand regions are not zoomed: the spotlight alone does the work and
+   * the left panes are never cropped. */
+  "--wb-z": stop.x + stop.w / 2 > 66 ? "1" : "1.05",
+  "--wb-cx": `${mobile(stop).x + mobile(stop).w / 2}%`,
+  "--wb-cy": `${mobile(stop).y + mobile(stop).h / 2}%`,
+  /* On phones the spotlit region is scaled to fill the width. */
+  "--wb-fit": String(Math.min(100 / mobile(stop).w, 3)),
+});
+---
+
+<div
+  class="wb"
+  data-workbench
+  data-active="0"
+  data-slide={first.slide}
+  style={rect(first)}
+>
+  <div class="wb-stage">
+    <span class="wb-floor" aria-hidden="true"></span>
+    <DeviceFrame label="nerve · workbench" depth={3} tilt>
+      <div class="wb-view" data-wb-view>
+        <div class="wb-zoom">
+          {
+            slideKeys.map((key, index) => (
+              <div
+                class="wb-slide"
+                data-wb-slide={key}
+                data-on={key === first.slide ? "" : undefined}
+              >
+                <ThemeScreenshot
+                  dark={slides[key].dark}
+                  light={slides[key].light}
+                  alt={slides[key].alt}
+                  widths={[1200, 1800, 2400]}
+                  sizes="(min-width: 1280px) 1180px, 100vw"
+                  loading={index === 0 ? "eager" : "lazy"}
+                  draggable={false}
+                />
+              </div>
+            ))
+          }
+          <div class="wb-lift">
+          <span class="wb-spot" aria-hidden="true"></span>
+          {
+            stops.map((stop, index) => (
+              <button
+                type="button"
+                class="wb-pin"
+                data-wb-pin={index}
+                data-slide={stop.slide}
+                tabindex="-1"
+                aria-label={`${stop.title}: ${stop.line}`}
+                style={{
+                  "--pl": `${stop.x + stop.w - 1}%`,
+                  "--pt": `${stop.y + stop.h}%`,
+                  "--pml": `${mobile(stop).x + mobile(stop).w - 1}%`,
+                  "--pmt": `${mobile(stop).y + mobile(stop).h}%`,
+                }}
+              >
+                <span class="wb-pin-dot" aria-hidden="true" />
+                <span class="wb-pin-label">{stop.chip}</span>
+              </button>
+            ))
+          }
+          </div>
+        </div>
+      </div>
+    </DeviceFrame>
+
+    <div class="wb-phone stage-3d">
+      <div class="wb-phone-tilt tilt-target" data-tilt data-tilt-max="9">
+      <PhoneFrame caption="On your LAN">
+        <ThemeScreenshot
+          dark={phoneDark}
+          light={phoneLight}
+          alt="The same Nerve conversation on a phone"
+          widths={[260, 390, 600]}
+          sizes="180px"
+          loading="lazy"
+          draggable={false}
+        />
+      </PhoneFrame>
+      </div>
+    </div>
+  </div>
+
+  <div class="wb-foot">
+    <div class="wb-info">
+      <div class="wb-captions" aria-live="polite">
+        {
+          stops.map((stop, index) => (
+            <p
+              class="wb-cap"
+              data-wb-cap={index}
+              data-on={index === 0 ? "" : undefined}
+            >
+              <span class="card-title">{stop.title}</span>
+              <span class="body-text">{stop.line}</span>
+            </p>
+          ))
+        }
+      </div>
+      <div class="seg wb-chips" role="group" aria-label="Workbench panels">
+        {
+          stops.map((stop, index) => (
+            <button
+              type="button"
+              class="seg-btn wb-chip"
+              data-wb-chip={index}
+              aria-pressed={index === 0 ? "true" : "false"}
+              data-spot={JSON.stringify({
+                slide: stop.slide,
+                ...rect(stop),
+              })}
+            >
+              {stop.chip}
+            </button>
+          ))
+        }
+      </div>
+    </div>
+    <p class="wb-pocket meta-text">
+      Also in your pocket — opt in to LAN access and open the same workbench
+      from your phone.
+      <a class="link-arrow" href="/operations/lan-mobile/">Set up</a>
+    </p>
+  </div>
+</div>
+
+<script>
+  /* Critical-path interactivity: pins, chips and the spotlight work with no
+   * motion runtime. The stage (stage/workbench.ts) only adds auto-advance and
+   * an entrance, driving this through the `wb:select` event. */
+  interface Spot {
+    slide: string;
+    [key: `--wb-${string}`]: string;
+  }
+
+  const root = document.querySelector<HTMLElement>("[data-workbench]");
+  if (root) {
+    const chips = [...root.querySelectorAll<HTMLButtonElement>("[data-wb-chip]")];
+    const pins = [...root.querySelectorAll<HTMLButtonElement>("[data-wb-pin]")];
+    const caps = [...root.querySelectorAll<HTMLElement>("[data-wb-cap]")];
+    const slides = [...root.querySelectorAll<HTMLElement>("[data-wb-slide]")];
+    const spots: Spot[] = chips.map((chip) =>
+      JSON.parse(chip.dataset.spot ?? "{}"),
+    );
+
+    const select = (index: number): void => {
+      const spot = spots[index];
+      if (!spot) return;
+      root.dataset.active = String(index);
+      root.dataset.slide = spot.slide;
+      for (const [key, value] of Object.entries(spot)) {
+        if (key.startsWith("--")) root.style.setProperty(key, value);
+      }
+      chips.forEach((chip, i) =>
+        chip.setAttribute("aria-pressed", String(i === index)),
+      );
+      caps.forEach((cap, i) => cap.toggleAttribute("data-on", i === index));
+      slides.forEach((slide) =>
+        slide.toggleAttribute("data-on", slide.dataset.wbSlide === spot.slide),
+      );
+      pins.forEach((pin, i) => {
+        pin.toggleAttribute("data-current", i === index);
+        pin.setAttribute("aria-pressed", String(i === index));
+      });
+    };
+
+    root.dataset.js = "";
+    for (const pin of pins) pin.tabIndex = 0;
+
+    const user = (index: number): void => {
+      root.dispatchEvent(new CustomEvent("wb:user"));
+      select(index);
+    };
+
+    chips.forEach((chip, i) => chip.addEventListener("click", () => user(i)));
+    pins.forEach((pin, i) => {
+      pin.addEventListener("click", () => user(i));
+      pin.addEventListener("focus", () => user(i));
+      /* Hover only previews on a real pointer, never on touch taps. */
+      pin.addEventListener("pointerenter", (event) => {
+        if (event.pointerType === "mouse") user(i);
+      });
+    });
+
+    root.addEventListener("wb:select", (event) => {
+      select((event as CustomEvent<number>).detail);
+    });
+    select(0);
+  }
+</script>
+
+<style>
+  .wb {
+    --wb-x: 0%;
+    --wb-y: 0%;
+    --wb-w: 100%;
+    --wb-h: 100%;
+    --wb-ox: 50%;
+    --wb-oy: 50%;
+    --wb-zoom: var(--wb-z, 1.05);
+    --wb-phone: clamp(7.5rem, 12vw, 10.5rem);
+    --wb-ease: 800ms var(--ease-out-expo);
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .wb-stage {
+    position: relative;
+  }
+
+  .wb-view {
+    position: relative;
+    overflow: hidden;
+    perspective: 1500px;
+    perspective-origin: 50% 40%;
+    aspect-ratio: 2419 / 1512;
+    background-color: var(--background);
+  }
+
+  .wb-zoom {
+    position: absolute;
+    inset: 0;
+    transform: scale(1);
+    transform-origin: var(--wb-ox) var(--wb-oy);
+    transform-style: preserve-3d;
+    transition:
+      transform var(--wb-ease),
+      transform-origin var(--wb-ease);
+  }
+
+  .wb[data-js] .wb-zoom {
+    transform: scale(var(--wb-zoom));
+  }
+
+  /* Panel switch in depth: the outgoing shot recedes and tilts away, the
+   * incoming one comes forward to the glass. */
+  /* Spotlight and pins lift toward the viewer as one layer. The layer is
+   * scaled back by exactly the perspective magnification, about the
+   * projection centre expressed in its own (zoomed) space, so the raised
+   * outline lands on the content with no visible offset. */
+  .wb-lift {
+    --wb-lift: 22;
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform-origin:
+      calc(var(--wb-ox) + (50% - var(--wb-ox)) / var(--wb-zoom))
+      calc(var(--wb-oy) + (40% - var(--wb-oy)) / var(--wb-zoom));
+    transform: translateZ(calc(var(--wb-lift) * 1px))
+      scale(calc(1 - var(--wb-lift) * var(--wb-zoom) / 1500));
+  }
+
+  .wb-slide {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transform: translateZ(-180px) rotateY(-7deg);
+    transform-origin: 50% 50%;
+    transition:
+      opacity 650ms var(--ease-out-expo),
+      transform 1000ms var(--ease-out-expo);
+  }
+
+  .wb-slide[data-on] {
+    z-index: 1;
+    opacity: 1;
+    transform: none;
+  }
+
+  .wb-slide :global(img) {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The spotlight: the region stays at full strength and the rest of the shot
+   * recedes towards the page background. */
+  .wb-spot {
+    position: absolute;
+    left: var(--wb-x);
+    top: var(--wb-y);
+    width: var(--wb-w);
+    height: var(--wb-h);
+    border: 1px solid color-mix(in oklab, var(--primary) 70%, transparent);
+    border-radius: var(--radius-chip);
+    /* A raised callout: the region lifts toward the viewer with a shadow. */
+    box-shadow:
+      0 0 0 100vmax color-mix(in oklab, var(--background) 44%, transparent),
+      0 1.25rem 2.25rem -0.25rem color-mix(in oklab, black 45%, transparent),
+      0 0 1.5rem color-mix(in oklab, var(--primary) 30%, transparent);
+    opacity: 0;
+    z-index: 2;
+    pointer-events: none;
+    transition:
+      left var(--wb-ease),
+      top var(--wb-ease),
+      width var(--wb-ease),
+      height var(--wb-ease),
+      opacity 400ms var(--ease-out-expo);
+  }
+
+  .wb[data-js] .wb-spot {
+    opacity: 1;
+  }
+
+  /* Pins ------------------------------------------------------------------- */
+
+  .wb-pin {
+    position: absolute;
+    left: var(--pl);
+    top: var(--pt);
+    display: none;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.2rem 0.55rem 0.2rem 0.3rem;
+    border: 1px solid var(--myelin);
+    border-radius: var(--radius-pill);
+    background-color: var(--card);
+    color: var(--foreground);
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: var(--depth-2);
+    cursor: pointer;
+    /* Pins stay one size however far the shot is zoomed. */
+    transform: scale(calc(1 / var(--wb-zoom)));
+    transform-origin: 100% 50%;
+    translate: -100% -50%;
+    transition:
+      border-color 200ms var(--ease-out-expo),
+      background-color 200ms var(--ease-out-expo);
+  }
+
+  .wb[data-js] .wb-pin[data-slide] {
+    display: none;
+  }
+
+  .wb[data-js][data-slide="conversation"] .wb-pin[data-slide="conversation"],
+  .wb[data-js][data-slide="editor"] .wb-pin[data-slide="editor"],
+  .wb[data-js][data-slide="git"] .wb-pin[data-slide="git"],
+  .wb[data-js][data-slide="pr"] .wb-pin[data-slide="pr"],
+  .wb[data-js][data-slide="launches"] .wb-pin[data-slide="launches"] {
+    display: inline-flex;
+  }
+
+  .wb-pin-dot {
+    position: relative;
+    width: 0.65rem;
+    height: 0.65rem;
+    margin-left: 0.15rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+  }
+
+  .wb-pin[data-current] {
+    border-color: var(--primary);
+    background-color: color-mix(in oklab, var(--primary) 18%, var(--card));
+  }
+
+  .wb-pin[data-current] .wb-pin-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid var(--signal);
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .wb-pin[data-current] .wb-pin-dot::after {
+      animation: wb-ping 2s var(--ease-out-expo) infinite;
+    }
+  }
+
+  @keyframes wb-ping {
+    from {
+      transform: scale(1);
+      opacity: 0.9;
+    }
+
+    to {
+      transform: scale(3);
+      opacity: 0;
+    }
+  }
+
+  .wb-pin:focus-visible,
+  .wb-chip:focus-visible {
+    outline: 2px solid var(--ring, var(--primary));
+    outline-offset: 2px;
+  }
+
+  /* Phone ------------------------------------------------------------------ */
+
+  .wb-phone {
+    display: none;
+  }
+
+  .wb-phone-tilt {
+    translate: 0 0 40px;
+  }
+
+  /* Soft contact shadow and glow under the device, brightening as it lands. */
+  .wb-floor {
+    position: absolute;
+    z-index: -1;
+    inset: auto 6% -1.6rem;
+    height: 3rem;
+    border-radius: 50%;
+    background: radial-gradient(
+      ellipse at center,
+      color-mix(in oklab, var(--primary) 34%, transparent),
+      transparent 68%
+    );
+    filter: blur(18px);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  /* Footer ----------------------------------------------------------------- */
+
+  .wb-foot {
+    display: grid;
+    gap: 1rem;
+    align-items: end;
+  }
+
+  .wb-info {
+    display: grid;
+    gap: 0.9rem;
+    justify-items: start;
+  }
+
+  .wb-captions {
+    display: grid;
+  }
+
+  /* Captions stack in one cell so the row never changes height. */
+  .wb-cap {
+    grid-area: 1 / 1;
+    display: grid;
+    gap: 0.2rem;
+    margin: 0;
+    opacity: 0;
+    transform: translateY(0.4rem);
+    transition:
+      opacity 400ms var(--ease-out-expo),
+      transform 400ms var(--ease-out-expo);
+    pointer-events: none;
+  }
+
+  .wb-cap[data-on] {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .wb-chips {
+    max-width: 100%;
+  }
+
+  .wb-chip {
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Auto-advance progress, written by the stage while it is in charge. */
+  .wb-chip::after {
+    content: "";
+    position: absolute;
+    inset: auto 0.5rem 0 0.5rem;
+    height: 2px;
+    border-radius: var(--radius-pill);
+    background-color: var(--primary);
+    transform: scaleX(0);
+    transform-origin: 0 50%;
+  }
+
+  .wb[data-auto] .wb-chip[aria-pressed="true"]::after {
+    transform: scaleX(var(--wb-progress, 0));
+  }
+
+  .wb-pocket {
+    margin: 0;
+  }
+
+  .wb-pocket :global(.link-arrow) {
+    margin-left: 0.35rem;
+  }
+
+  /* Phones: a 1180px screenshot is unreadable at 358px, so the zoom becomes the
+   * point — the active region is scaled to fill the width and centred. */
+  @media (max-width: 767px) {
+    .wb {
+      --wb-zoom: var(--wb-fit, 1.5);
+    }
+
+    .wb-pin {
+      left: var(--pml);
+      top: var(--pmt);
+    }
+
+    .wb-spot {
+      left: var(--wb-mx);
+      top: var(--wb-my);
+      width: var(--wb-mw);
+      height: var(--wb-mh);
+    }
+
+    /* The mobile zoom is large, so the raised layer is flattened there. */
+    .wb-lift {
+      transform: none;
+    }
+
+    .wb[data-js] .wb-zoom {
+      transform-origin: 0 0;
+      transform: translate(
+          clamp(
+            calc(100% - var(--wb-zoom) * 100%),
+            calc(50% - var(--wb-zoom) * var(--wb-cx)),
+            0%
+          ),
+          clamp(
+            calc(100% - var(--wb-zoom) * 100%),
+            calc(50% - var(--wb-zoom) * var(--wb-cy)),
+            0%
+          )
+        )
+        scale(var(--wb-zoom));
+    }
+  }
+
+  @media (min-width: 768px) {
+    .wb {
+      gap: 1.5rem;
+    }
+
+    .wb-phone {
+      position: absolute;
+      z-index: 2;
+      right: 2.5%;
+      bottom: -3.2rem;
+      display: none;
+      width: var(--wb-phone);
+    }
+
+    .wb-phone :global(.phone-frame) {
+      box-shadow: var(--depth-3);
+    }
+
+    .wb-foot {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 22rem);
+      gap: 2rem;
+      /* Room for the part of the phone that hangs below the frame. */
+    }
+
+    .wb-pocket {
+      text-align: left;
+      /* The phone sits to the right of this note, under the shot. */
+      align-self: start;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .wb-phone {
+      display: block;
+    }
+
+    .wb-foot {
+      padding-right: calc(var(--wb-phone) + 4%);
+    }
+  }
+
+  @media (min-width: 768px) and (max-width: 1023px) {
+    .wb-foot {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wb-zoom,
+    .wb-spot,
+    .wb-slide,
+    .wb-cap {
+      transition: none;
+    }
+  }
+</style>

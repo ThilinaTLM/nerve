@@ -1,22 +1,13 @@
-/* The four motion primitives every stage is built from.
+/* The motion primitives every stage is built from.
  *
  * One idea runs through all of them: a signal propagating through a nervous
  * system. Things either *arrive* (P1 masked lines, P2 depth settle) or they
- * *conduct* (P3 an impulse travelling a real path, P4 scrubbed parallax).
- * Keeping the vocabulary this small is what makes ten sections read as one
- * page rather than ten separate demos.
+ * *conduct* (P3 a path drawing itself before an impulse travels it). Keeping
+ * the vocabulary this small is what makes the sections read as one page rather
+ * than separate demos.
  */
 
-import {
-  allowEntrance,
-  gsap,
-  jitter,
-  MotionPathPlugin,
-  playWhileVisible,
-  qa,
-  ScrollTrigger,
-  SplitText,
-} from "./runtime";
+import { allowEntrance, gsap, ScrollTrigger, SplitText } from "./runtime";
 
 /* P1 — masked line reveal --------------------------------------------------
  *
@@ -148,116 +139,7 @@ export function settleIn(
 
 /* P3 — conduction ----------------------------------------------------------
  *
- * A path draws itself, then carries an impulse. This is the primitive that
- * makes the diagrams argue for the product: nothing lights up on its own, it
- * lights up because something reached it. */
-export interface ConductOptions {
-  /* Seconds for one traversal. */
-  duration?: number;
-  /* Pause between traversals, jittered per index so parallel branches desync. */
-  gap?: number;
-  index?: number;
-  /* Called with 0..1 progress of the impulse, for lighting what it passes. */
-  onProgress?: (progress: number) => void;
-  draw?: boolean;
-}
-
-export function conduct(
-  path: SVGPathElement,
-  options: ConductOptions = {},
-): gsap.core.Timeline | undefined {
-  const svg = path.ownerSVGElement;
-  if (!svg) return undefined;
-
-  const {
-    duration = 2.4,
-    gap = 1.2,
-    index = 0,
-    onProgress,
-    draw = true,
-  } = options;
-
-  if (draw) drawPath(path, index);
-
-  const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-  dot.setAttribute("r", "3");
-  dot.setAttribute("class", "impulse-dot");
-  dot.setAttribute("aria-hidden", "true");
-  path.parentNode?.appendChild(dot);
-
-  const timeline = gsap.timeline({
-    repeat: -1,
-    repeatDelay: gap + jitter(index, 1.4),
-    paused: true,
-    delay: jitter(index + 7, 0.9),
-  });
-
-  timeline
-    .set(dot, { opacity: 0 })
-    .to(dot, { opacity: 1, duration: 0.18 }, 0)
-    .to(
-      dot,
-      {
-        motionPath: { path, align: path, alignOrigin: [0.5, 0.5] },
-        duration,
-        ease: "none",
-        onUpdate: onProgress
-          ? function onTick(this: gsap.core.Tween) {
-              onProgress(this.progress());
-            }
-          : undefined,
-      },
-      0,
-    )
-    .to(dot, { opacity: 0, duration: 0.22 }, duration - 0.1);
-
-  playWhileVisible(svg, timeline);
-  return timeline;
-}
-
-/* A bright segment travelling along a path, drawn with the path's own stroke.
- *
- * Used where `conduct` cannot be: an SVG with `preserveAspectRatio="none"`
- * scales non-uniformly, so a circle following the path would render as a
- * stretched ellipse, while a dash on a `non-scaling-stroke` path stays exact.
- */
-export function travelDash(
-  path: SVGPathElement,
-  options: {
-    duration?: number;
-    gap?: number;
-    segment?: number;
-    onProgress?: (progress: number) => void;
-  } = {},
-): void {
-  const { duration = 3.2, gap = 1, segment = 70, onProgress } = options;
-  const length = path.getTotalLength();
-  if (!Number.isFinite(length) || length === 0) return;
-
-  const timeline = gsap.timeline({
-    repeat: -1,
-    repeatDelay: gap,
-    paused: true,
-  });
-  timeline.fromTo(
-    path,
-    { strokeDasharray: `${segment} ${length}`, strokeDashoffset: segment },
-    {
-      strokeDashoffset: -length,
-      duration,
-      ease: "none",
-      onUpdate: onProgress
-        ? function onTick(this: gsap.core.Tween) {
-            onProgress(this.progress());
-          }
-        : undefined,
-    },
-  );
-
-  playWhileVisible(path.ownerSVGElement ?? path, timeline);
-}
-
-/* Draws a path by animating stroke-dashoffset. The authored state is fully
+ * Draws a path by animating stroke-dashoffset. The authored state is fully
  * drawn, so this only ever runs as an enhancement. */
 export function drawPath(path: SVGPathElement, index = 0): void {
   if (!allowEntrance && !path.isConnected) return;
@@ -282,85 +164,3 @@ export function drawPath(path: SVGPathElement, index = 0): void {
     },
   );
 }
-
-/* P4 — bounded scrub parallax ----------------------------------------------
- *
- * Written to a custom property, never to `transform`, because most of the
- * elements worth parallaxing already compose a transform from tilt and depth
- * variables. The range is deliberately small: this is depth, not travel. */
-export function parallax(
-  element: HTMLElement | null,
-  options: {
-    trigger?: Element;
-    from?: number;
-    to?: number;
-    property?: string;
-  } = {},
-): void {
-  if (!element) return;
-
-  const {
-    trigger = element,
-    from = 24,
-    to = -24,
-    property = "--stage-parallax",
-  } = options;
-
-  gsap.fromTo(
-    element,
-    { [property]: `${from}px` },
-    {
-      [property]: `${to}px`,
-      ease: "none",
-      scrollTrigger: {
-        trigger,
-        start: "top bottom",
-        end: "bottom top",
-        scrub: 0.6,
-      },
-    },
-  );
-}
-
-/* An idle drift that keeps a composition breathing without asking for
- * attention. Amplitude stays under half a line of text. */
-export function drift(
-  elements: HTMLElement[],
-  options: { amount?: number; base?: number; property?: string } = {},
-): void {
-  const { amount = 7, base = 6.5, property } = options;
-
-  for (const [index, element] of elements.entries()) {
-    const shared = {
-      duration: base + jitter(index, 3),
-      delay: jitter(index + 3, 1.5),
-      repeat: -1,
-      yoyo: true,
-      ease: "sine.inOut",
-    } as const;
-
-    /* Elements that already compose their own transform drift through a custom
-     * property so this never overwrites their depth or tilt. */
-    if (property) {
-      gsap.fromTo(
-        element,
-        { [property]: `${-amount / 2}px` },
-        { [property]: `${amount / 2}px`, ...shared },
-      );
-      continue;
-    }
-    gsap.to(element, { y: `+=${amount}`, ...shared });
-  }
-}
-
-/* Convenience for the many "every card in this grid" cases. */
-export function settleChildren(
-  root: ParentNode | null,
-  selector: string,
-  stagger = 0.06,
-): void {
-  if (!root) return;
-  settleIn(qa(selector, root), { stagger });
-}
-
-export { MotionPathPlugin };

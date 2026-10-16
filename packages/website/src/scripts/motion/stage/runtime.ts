@@ -42,10 +42,8 @@ export const allowEntrance: boolean = performance.now() < 1200;
 
 export const DESKTOP = "(min-width: 1024px)";
 export const COMPACT = "(max-width: 1023px)";
-export const WIDE = "(min-width: 1280px)";
-export const FINE_POINTER = "(hover: hover) and (pointer: fine)";
 
-export { gsap, MotionPathPlugin, ScrollTrigger, SplitText };
+export { gsap, ScrollTrigger, SplitText };
 
 export const q = <T extends Element = HTMLElement>(
   selector: string,

@@ -178,3 +178,34 @@ const {
     </div>
   </div>
 </div>
+
+<style>
+  /* Top-anchored: the turn fills the panel from the first row and, once full,
+   * the sim scrolls to the newest row. (The shared default is bottom-anchored,
+   * which leaves the upper half of the panel empty while a turn is starting.)
+   * The authored static transcript scrolls instead of clipping, so no-JS and
+   * reduced-motion visitors can still reach every row. */
+  .run-panel :global(.run-feed) {
+    position: relative;
+    justify-content: flex-start;
+    overflow-x: clip;
+    overflow-y: auto;
+    scrollbar-width: none;
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .run-panel :global(.run-feed) {
+    height: clamp(20rem, 44vh, 24.5rem);
+  }
+
+  .run-panel :global(.run-feed::-webkit-scrollbar) {
+    display: none;
+  }
+
+  /* Once live the feed is unclipped: the sim prunes rows that no longer fit,
+   * so there is no scroller to flatten the 3D stack in the hero. */
+  .run-panel :global(.run-feed[data-live]) {
+    overflow: visible;
+  }
+</style>

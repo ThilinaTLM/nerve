@@ -432,6 +432,41 @@ function trim(feed: HTMLOListElement): void {
   while (feed.children.length > MAX_ROWS) feed.firstElementChild?.remove();
 }
 
+/* The feed fills from the top and is never scrolled (a scroller would flatten
+ * the hero's 3D stack). When the newest row no longer fits, the oldest rows
+ * leave and the survivors glide up into the gap (FLIP on the `translate`
+ * property, which composes with the rows' own `transform`). Tool rows grow when
+ * they resolve, so this runs again shortly after. */
+function fit(feed: HTMLOListElement): void {
+  const room = (): number => {
+    const last = feed.lastElementChild as HTMLElement | null;
+    if (!last) return 0;
+    const bottom = parseFloat(getComputedStyle(feed).paddingBottom) || 0;
+    return feed.clientHeight - bottom - (last.offsetTop + last.offsetHeight);
+  };
+  if (room() >= 0 || feed.children.length < 2) return;
+
+  const kids = [...feed.children] as HTMLElement[];
+  const before = new Map(kids.map((el) => [el, el.offsetTop]));
+  while (room() < 0 && feed.children.length > 1) {
+    feed.firstElementChild?.remove();
+  }
+  for (const el of feed.children as Iterable<HTMLElement>) {
+    const delta = (before.get(el) ?? el.offsetTop) - el.offsetTop;
+    if (delta > 1) {
+      el.animate([{ translate: `0 ${delta}px` }, { translate: "0 0" }], {
+        duration: 420,
+        easing: "cubic-bezier(0.2, 0.9, 0.25, 1)",
+      });
+    }
+  }
+}
+
+function follow(feed: HTMLOListElement): void {
+  fit(feed);
+  window.setTimeout(() => fit(feed), 120);
+}
+
 /* Engine --------------------------------------------------------------------- */
 
 export function startRunSim(
@@ -516,7 +551,7 @@ export function startRunSim(
     taskIndex += 1;
     queue = buildTurn(task, config);
 
-    if (options.loop) {
+    if (options.loop && wait > 1500) {
       /* Let the finished turn linger before it fades, and bring the next
        * prompt in shortly after the wipe so the panel never sits empty. */
       window.setTimeout(() => {
@@ -545,6 +580,7 @@ export function startRunSim(
     const item = renderRow(row, "running");
     refs.feed.append(item);
     trim(refs.feed);
+    follow(refs.feed);
 
     if (row.kind === "gate") {
       waitingGate = true;
@@ -560,7 +596,9 @@ export function startRunSim(
     if (row.kind === "tool") {
       const runFor = row.runFor ?? 700;
       window.setTimeout(() => {
-        if (!destroyed) item.dataset.state = "done";
+        if (destroyed) return;
+        item.dataset.state = "done";
+        follow(refs.feed);
       }, runFor);
       const next = queue[0];
       schedule(runFor + (next ? next.wait : 2600));
@@ -576,7 +614,8 @@ export function startRunSim(
   const start = (): void => {
     clearFeed();
     queue = [];
-    schedule(400);
+    /* Open the first turn at once: the panel should never sit empty. */
+    beginTurn(250);
   };
 
   const observer = new IntersectionObserver(([entry]) => {

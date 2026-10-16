@@ -1,31 +1,87 @@
 ---
+/* The finale. One heartbeat line runs the width of the section: flat, then it
+ * fires. The three steps are nodes on an axon beneath it, the install command
+ * and buttons sit under that, and the trust facts close the page as a single
+ * monospace ribbon followed by a slow ticker of small polish details.
+ *
+ * The authored markup is the finished state (a beating line, charged nodes, a
+ * wrapped static ticker). `closingStage` only replays the flatline-to-beat
+ * entrance. The ticker is CSS-only and runs just when motion is allowed. */
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 
 const steps = [
-  { step: "01", label: "Install the desktop shell", meta: "Node.js 24+" },
-  {
-    step: "02",
-    label: "Connect a provider",
-    meta: "Your subscription over OAuth, or an API key",
-  },
-  { step: "03", label: "Open your first project", meta: "Any local repository" },
+  { step: "01", label: "Install", meta: "Node.js 24+" },
+  { step: "02", label: "Connect a provider", meta: "Subscription or API key" },
+  { step: "03", label: "Open a project", meta: "Any local repository" },
 ];
+
+const trust = [
+  "local loopback daemon",
+  "state in ~/.nerve",
+  "no Nerve account, no product analytics",
+  "Apache-2.0",
+  "Linux · macOS · Windows 11",
+];
+
+const details = [
+  "Automatic retries",
+  "Context compaction",
+  "Continue from failure",
+  "Spend stays visible",
+  "Voice prompts",
+  "Prompt suggestions",
+  "Light, dark & system themes",
+];
+
+/* Flat, then three beats, then flat again. */
+const spike = (x: number): string =>
+  `L ${x} 50 L ${x + 14} 8 L ${x + 30} 92 L ${x + 44} 50`;
+const trace = [
+  "M 0 50",
+  "L 560 50",
+  spike(580),
+  "L 680 50",
+  spike(700),
+  "L 800 50",
+  spike(820),
+  "L 1200 50",
+].join(" ");
 ---
 
 <section class="closing-section" aria-labelledby="closing-title">
   <div class="container-page">
     <Reveal class="closing">
+      <div class="closing-pulse" aria-hidden="true">
+        <svg viewBox="0 0 1200 100" preserveAspectRatio="none">
+          <path class="pulse-base" d={trace} pathLength="1"></path>
+          <path class="pulse-live" d={trace} pathLength="1"></path>
+          <path class="pulse-run" d={trace} pathLength="1"></path>
+        </svg>
+      </div>
+
       <div class="closing-lead">
         <p class="eyebrow">Ready when you are</p>
         <h2 id="closing-title" class="closing-title">
           Run it on your own machine.
         </h2>
-        <p class="lede">
-          Three steps, no Nerve account, and no product analytics. Free and open
-          source under Apache-2.0, developed in the open.
-        </p>
+      </div>
 
+      <ol class="closing-steps">
+        {
+          steps.map((item) => (
+            <li>
+              <span class="synapse-node" data-charged="true" aria-hidden="true" />
+              <span class="step-index">{item.step}</span>
+              <strong>{item.label}</strong>
+              <span class="meta-text">{item.meta}</span>
+            </li>
+          ))
+        }
+      </ol>
+
+      <div class="closing-cta">
+        <InstallCommand class="closing-install" />
         <div class="closing-actions">
           <a class="btn btn-primary" href="/start/install/">
             Install Nerve <span aria-hidden="true">→</span>
@@ -35,31 +91,26 @@ const steps = [
             Star on GitHub
           </a>
         </div>
-
-        <p class="meta-text">
-          A star is the cheapest way to help other developers find it.
-        </p>
       </div>
 
-      <div class="closing-setup">
-        <ol class="closing-steps">
-          {
-            steps.map((item) => (
-              <li>
-                <span class="step-index">{item.step}</span>
-                <span class="step-text">
-                  <strong>{item.label}</strong>
-                  <span class="meta-text">{item.meta}</span>
-                </span>
-              </li>
-            ))
-          }
-        </ol>
+      <ul class="closing-ribbon" aria-label="Trust facts">
+        {
+          trust.map((fact) => (
+            <li>
+              <span class="ribbon-dot" aria-hidden="true"></span>
+              {fact}
+            </li>
+          ))
+        }
+      </ul>
 
-        <InstallCommand class="closing-install" />
-        <p class="meta-text closing-note">
-          Apache-2.0 · Linux, Windows 11, and macOS · loopback by default
-        </p>
+      <div class="closing-ticker" aria-label="Small details that are built in">
+        <ul class="ticker-track">
+          {details.map((item) => <li>{item}</li>)}
+        </ul>
+        <ul class="ticker-track ticker-copy" aria-hidden="true">
+          {details.map((item) => <li>{item}</li>)}
+        </ul>
       </div>
     </Reveal>
   </div>
@@ -67,130 +118,162 @@ const steps = [
 
 <style>
   .closing-section {
-    padding-block: var(--section-pad);
+    padding-block: clamp(2.5rem, 4vw, 4rem) clamp(2rem, 3vw, 3rem);
   }
 
   .closing {
     display: grid;
     min-width: 0;
-    gap: clamp(2.5rem, 6vw, 5rem);
-    padding-block: clamp(3rem, 6vw, 5rem);
-    border-top: 1px solid var(--hairline);
+    gap: clamp(1.5rem, 2.6vw, 2.25rem);
+    justify-items: center;
+    text-align: center;
   }
+
+  /* The heartbeat ---------------------------------------------------------- */
+
+  .closing-pulse {
+    width: 100%;
+    height: clamp(3.5rem, 6vw, 5rem);
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 10%,
+      black 90%,
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 10%,
+      black 90%,
+      transparent
+    );
+  }
+
+  .closing-pulse svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  .pulse-base,
+  .pulse-live,
+  .pulse-run {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .pulse-base {
+    stroke: var(--myelin-dim);
+    stroke-width: 1.5;
+  }
+
+  .pulse-live {
+    stroke: var(--primary);
+    stroke-width: 1.5;
+    filter: drop-shadow(
+      0 0 0.45rem color-mix(in oklab, var(--primary) 45%, transparent)
+    );
+  }
+
+  /* Only the stage turns the travelling pulse on. */
+  .pulse-run {
+    stroke: var(--signal);
+    stroke-width: 2.5;
+    opacity: 0;
+    filter: drop-shadow(0 0 0.4rem var(--signal-soft));
+  }
+
+  /* Headline ---------------------------------------------------------------- */
 
   .closing-lead {
-    position: relative;
     display: grid;
-    min-width: 0;
-    gap: 1rem;
-    align-content: start;
-    justify-items: start;
-  }
-
-  /* The terminal bouton discharging once into the call to action. Created and
-   * fired by the closing stage; absent with no script. */
-  .closing-lead :global(.closing-discharge) {
-    position: absolute;
-    top: -0.75rem;
-    left: -0.75rem;
-    width: 1.5rem;
-    height: 1.5rem;
-    border-radius: var(--radius-pill);
-    background: radial-gradient(
-      circle,
-      color-mix(in oklab, var(--signal) 55%, transparent),
-      transparent 70%
-    );
-    opacity: 0;
-    pointer-events: none;
+    gap: 0.9rem;
+    justify-items: center;
   }
 
   .closing-title {
     margin: 0;
-    max-width: 15ch;
     font-family: var(--font-display);
-    font-size: clamp(2.25rem, 1.5rem + 2.5vw, 3.5rem);
+    font-size: clamp(2.5rem, 1.2rem + 4vw, 4.25rem);
     font-weight: 600;
-    line-height: 1.04;
-    letter-spacing: -0.035em;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    text-wrap: balance;
   }
 
-  .closing-lead .lede {
-    max-width: 32rem;
-  }
-
-  .closing-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-top: 0.5rem;
-  }
-
-  .closing-actions .btn,
-  .closing-actions .btn:hover,
-  .closing-actions .btn:focus-visible {
-    box-shadow: none;
-  }
-
-  .closing-actions .btn-primary::after {
-    display: none;
-  }
-
-  .closing-setup {
-    display: grid;
-    min-width: 0;
-    gap: 1.25rem;
-    align-content: start;
-  }
+  /* Steps: three nodes on one axon ---------------------------------------- */
 
   .closing-steps {
+    position: relative;
     display: grid;
+    width: 100%;
+    max-width: 44rem;
     margin: 0;
     padding: 0;
     list-style: none;
-    border-block: 1px solid var(--hairline);
+    text-align: left;
   }
 
   .closing-steps li {
+    position: relative;
     display: grid;
-    grid-template-columns: 2rem minmax(0, 1fr);
-    gap: 0.9rem;
-    align-items: start;
-    padding-block: 1rem;
+    grid-template-columns: auto 1fr;
+    column-gap: 0.8rem;
+    row-gap: 0.1rem;
+    align-items: center;
+    padding-block: 0.7rem;
   }
 
-  .closing-steps li + li {
-    border-top: 1px solid var(--hairline);
+  .closing-steps li :global(.synapse-node) {
+    grid-row: 1 / span 2;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Mobile: a vertical axon through the nodes, masked by each node. */
+  .closing-steps li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(0.35rem - 0.5px);
+    width: 1px;
+    height: 100%;
+    background-color: var(--myelin);
   }
 
   .step-index {
-    padding-top: 0.15rem;
-    color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
+    display: none;
   }
 
-  .step-text {
-    display: grid;
-    min-width: 0;
-    gap: 0.15rem;
-  }
-
-  .step-text strong {
+  .closing-steps strong {
     font-size: 0.95rem;
     font-weight: 600;
     letter-spacing: -0.01em;
   }
 
-  .closing-setup :global(.closing-install),
-  .closing-setup :global(.closing-install:hover),
-  .closing-setup :global(.closing-install:focus-within) {
-    max-width: none;
-    box-shadow: none;
+  /* Install + actions -------------------------------------------------------- */
+
+  .closing-cta {
+    display: grid;
+    width: 100%;
+    justify-items: center;
+    gap: 1rem;
   }
 
-  .closing-note {
-    margin: 0;
+  .closing-cta :global(.closing-install) {
+    max-width: 26rem;
+    text-align: left;
+  }
+
+  .closing-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem;
   }
 
   @media (max-width: 479px) {
@@ -200,10 +283,163 @@ const steps = [
     }
   }
 
-  @media (min-width: 900px) {
-    .closing {
-      grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.85fr);
-      align-items: start;
+  /* Trust ribbon ------------------------------------------------------------ */
+
+  .closing-ribbon {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.4rem 1.4rem;
+    width: 100%;
+    margin: 0;
+    padding: 0.85rem 0;
+    border-block: 1px solid var(--hairline);
+    list-style: none;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: -0.005em;
+  }
+
+  .closing-ribbon li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ribbon-dot {
+    width: 0.3rem;
+    height: 0.3rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--signal);
+    box-shadow: var(--glow-signal);
+  }
+
+  /* Ticker ------------------------------------------------------------------ */
+
+  .closing-ticker {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+    mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 8%,
+      black 92%,
+      transparent
+    );
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent,
+      black 8%,
+      black 92%,
+      transparent
+    );
+  }
+
+  .ticker-track {
+    display: flex;
+    flex: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem 0;
+    min-width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ticker-track li {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  .ticker-track li + li::before {
+    content: "";
+    width: 1.5rem;
+    height: 1px;
+    margin-inline: 0.75rem;
+    background-image: repeating-linear-gradient(
+      90deg,
+      var(--myelin) 0 3px,
+      transparent 3px 6px
+    );
+  }
+
+  /* Static (wrapped, single copy) unless motion is welcome. */
+  .ticker-copy {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .closing-ticker {
+      justify-content: flex-start;
+    }
+
+    .ticker-track {
+      flex-wrap: nowrap;
+      justify-content: flex-start;
+      min-width: auto;
+      animation: closing-ticker 48s linear infinite;
+    }
+
+    .ticker-copy {
+      display: flex;
+    }
+
+    /* Spacing between the end of one copy and the start of the next. */
+    .ticker-track::after {
+      content: "";
+      width: 3.75rem;
+      flex: none;
+    }
+
+    .closing-ticker:hover .ticker-track,
+    .closing-ticker:focus-within .ticker-track {
+      animation-play-state: paused;
+    }
+  }
+
+  @keyframes closing-ticker {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+
+  /* Desktop: the steps become one row of nodes on a horizontal axon. */
+  @media (min-width: 700px) {
+    .closing-steps {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1.5rem;
+    }
+
+    .closing-steps li {
+      grid-template-columns: 1fr;
+      justify-items: start;
+      row-gap: 0.15rem;
+      padding-block: 0;
+    }
+
+    .closing-steps li :global(.synapse-node) {
+      grid-row: auto;
+      margin-bottom: 0.5rem;
+    }
+
+    .closing-steps li:not(:last-child)::before {
+      top: calc(0.35rem - 0.5px);
+      left: 0.7rem;
+      right: -1.5rem;
+      width: auto;
+      height: 1px;
+      background-color: transparent;
+      background-image: repeating-linear-gradient(
+        90deg,
+        var(--myelin) 0 4px,
+        transparent 4px 8px
+      );
     }
   }
 </style>

@@ -32,6 +32,7 @@ async function openConversation(page, title) {
   await selectProject(page);
   await page.getByRole("tab", { name: "Conversations" }).first().click();
   await page.getByText(title, { exact: false }).first().click();
+  await openRightPanel(page, "Git");
   await page.waitForTimeout(600);
 }
 
@@ -49,7 +50,7 @@ export const DESKTOP_SCENES = [
     id: "projects",
     alt: "The Nerve project switcher showing three active local projects and their workspace paths",
     async drive(page) {
-      await selectProject(page);
+      await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page.getByRole("button", { name: "Switch project" }).click();
       await page.getByPlaceholder("Search projects").focus();
       await page.waitForTimeout(400);
@@ -101,6 +102,31 @@ export const DESKTOP_SCENES = [
     },
   },
   {
+    id: "editor",
+    alt: "The Nerve built-in text editor with an unsaved rate-limit draft, project file tree, and Git changes",
+    async drive(page) {
+      await openConversation(page, RATE_LIMIT_CONVERSATION);
+      await page.getByRole("tab", { name: "Files", exact: true }).click();
+      const tree = page.getByRole("tree", { name: "Aurora files" });
+      for (const name of ["aurora-api", "src", "middleware"]) {
+        const folder = tree.getByRole("treeitem", { name, exact: true });
+        await folder.click();
+      }
+      await tree.getByRole("treeitem", { name: /rate-limit\.ts/ }).click();
+      const editor = page.getByRole("textbox", {
+        name: /File contents: .*rate-limit\.ts/,
+      });
+      await editor.click();
+      await page.keyboard.press("ControlOrMeta+End");
+      await page.keyboard.press("Enter");
+      await page.keyboard.insertText(
+        "// Keep burst capacity configurable for busy booking windows.\n",
+      );
+      await page.keyboard.press("ControlOrMeta+Home");
+      await page.waitForTimeout(500);
+    },
+  },
+  {
     id: "history",
     alt: "The Nerve conversation history graph zoomed into a cluster where several branches diverge from earlier entries",
     async drive(page) {
@@ -116,12 +142,17 @@ export const DESKTOP_SCENES = [
       await page.getByRole("menuitem", { name: "Branch history" }).click();
       await page.waitForSelector('[data-tour-id="conversation-history"]');
       await page.waitForTimeout(1200);
+      const closeDetails = page.getByRole("button", {
+        name: "Close details",
+        exact: true,
+      });
+      if (await closeDetails.isVisible()) await closeDetails.click();
       await page.getByRole("button", { name: "Fit entire graph" }).click();
       await page.waitForTimeout(400);
       /* Zoom past the graph's "detail" tier (0.85) so node cards render their
        * text; a fitted graph shows shape but no readable content. */
       const zoomIn = page.getByRole("button", { name: "Zoom in" });
-      for (let index = 0; index < 6; index += 1) {
+      for (let index = 0; index < 4; index += 1) {
         await zoomIn.click();
         await page.waitForTimeout(150);
       }
@@ -186,13 +217,46 @@ export const DESKTOP_SCENES = [
   },
 ];
 
-/* Phone width uses a tabbed root with conversations under Chats. Opening one
- * pushes the transcript as a full-screen detail view. */
+/* Phone width opens on Inbox with recent conversations. Opening one pushes
+ * the transcript as a full-screen detail view. */
+async function openMobileRoot(page) {
+  const navigation = page.getByRole("navigation", { name: "Primary" });
+  for (
+    let depth = 0;
+    depth < 5 && !(await navigation.isVisible());
+    depth += 1
+  ) {
+    await page.getByRole("button", { name: /^Back/ }).first().click();
+  }
+  await navigation.waitFor();
+}
+
 async function openMobileConversation(page, title = RATE_LIMIT_CONVERSATION) {
-  await page.getByRole("button", { name: "Chats" }).click();
+  await openMobileRoot(page);
+  await page.getByRole("button", { name: "Inbox", exact: true }).click();
   await page.waitForTimeout(400);
   await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
   await page.waitForTimeout(1200);
+  // Let virtual rows finish measuring before fixing the final reading position.
+  for (let pass = 0; pass < 3; pass += 1) {
+    await page
+      .getByRole("region", { name: "Conversation transcript", exact: true })
+      .evaluate((viewport) => {
+        viewport.scrollTop = viewport.scrollHeight;
+      });
+    await page.waitForTimeout(600);
+  }
+  const review = await page
+    .getByRole("button", { name: "Open Middleware review", exact: true })
+    .boundingBox();
+  if (!review)
+    throw new Error("The retained middleware review must be visible");
+  await page
+    .getByRole("region", { name: "Conversation transcript", exact: true })
+    .evaluate((viewport, delta) => {
+      viewport.scrollTop += delta;
+    }, review.y - 320);
+  await page.waitForTimeout(600);
 }
 
 export const MOBILE_SCENES = [
@@ -201,7 +265,6 @@ export const MOBILE_SCENES = [
     alt: "The Nerve conversation and composer at phone width",
     async drive(page) {
       await openMobileConversation(page);
-      await page.mouse.wheel(0, 900);
       await page.waitForTimeout(600);
     },
   },
@@ -210,10 +273,7 @@ export const MOBILE_SCENES = [
     alt: "The Nerve model and reasoning-effort picker open at phone width",
     async drive(page) {
       await openMobileConversation(page);
-      /* The phone transcript opens at its saved reading position. Bring the
-       * fixed composer controls into the rendered viewport before opening the
-       * picker. */
-      await page.mouse.wheel(0, 900);
+      /* Open the fixed composer picker after the transcript has settled. */
       await page.waitForTimeout(500);
       await page.locator('[data-tour-id="composer-model"]:visible').click();
       await page.waitForTimeout(500);
@@ -221,11 +281,12 @@ export const MOBILE_SCENES = [
   },
   {
     id: "right-sheet",
-    alt: "The Nerve Git Changes screen opened from the phone workspace tab",
+    alt: "The Nerve Git Changes screen opened from the phone project home",
     async drive(page) {
-      await page.getByRole("button", { name: "Workspace" }).click();
-      await page.waitForTimeout(500);
-      await page.getByRole("button", { name: /^Git Changes/ }).click();
+      await openMobileRoot(page);
+      await page.getByRole("button", { name: "Projects", exact: true }).click();
+      await page.getByRole("button", { name: /^Aurora / }).click();
+      await page.getByRole("button", { name: /^Git changes/ }).click();
       await page.waitForTimeout(800);
     },
   },
