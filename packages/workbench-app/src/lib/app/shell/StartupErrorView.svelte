@@ -44,6 +44,11 @@ let confirming = $state<"discard" | "rollback" | undefined>();
 // Confirmations portal into the full-screen layer: portaled to <body> they
 // would stack under it while their modal state blocks all pointer input.
 let layer = $state<HTMLElement>();
+// The frameless desktop window has no titlebar here: the backdrop moves the
+// window, while the card and confirmations stay interactive (escape-hatch
+// reason 7).
+const dragClass = "[-webkit-app-region:drag]";
+const noDragClass = "[-webkit-app-region:no-drag]";
 
 async function copyDiagnostics() {
   try {
@@ -94,18 +99,13 @@ async function copyDiagnostics() {
 {#if serverLifecycleState.phase === "failed"}
   <div
     bind:this={layer}
-    class="fixed inset-0 z-[1000] grid place-items-center bg-background p-4 text-foreground"
+    class={[
+      "fixed inset-0 z-[1000] grid place-items-center bg-background p-4 text-foreground",
+      isDesktop && dragClass,
+    ]}
   >
-    {#if isDesktop}
-      <!-- Frameless window: keep it movable while no titlebar is mounted
-           (escape-hatch reason 7). -->
-      <div
-        aria-hidden="true"
-        class="absolute inset-x-0 top-0 h-10 [-webkit-app-region:drag]"
-      ></div>
-    {/if}
     <div
-      class="grid w-full max-w-md gap-4 rounded-lg border bg-card p-6 shadow-md"
+      class="grid w-full max-w-md gap-4 rounded-lg border bg-card p-6 shadow-md [-webkit-app-region:no-drag]"
     >
       {#if retrying}
         <ServerLifecycleStatus
@@ -206,6 +206,7 @@ async function copyDiagnostics() {
   </div>
 
   <ConfirmDialog
+    class={noDragClass}
     portalProps={{ to: layer }}
     open={confirming === "discard"}
     title={plan.conversations.length
@@ -222,6 +223,7 @@ async function copyDiagnostics() {
     }}
   />
   <ConfirmDialog
+    class={noDragClass}
     portalProps={{ to: layer }}
     open={confirming === "rollback"}
     title="Restore previous version?"
