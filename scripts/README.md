@@ -35,3 +35,21 @@ Full commands remain available for explicit broad validation. Focused checks do 
 See [Contributing](../CONTRIBUTING.md) for test selection and validation, and the [release checklist](../docs/runbooks/release.md) for direct release commands. Package-local script trees are outside this layout.
 
 Daily development: `pnpm desktop:dev`, `pnpm dev`, and `pnpm dev:ui` accept `--slot N`. `pnpm storage:copy --slot N` seeds an unused disposable slot from a stopped `~/.nerve`. Add `--from <path>` to copy another stopped home instead: `pnpm storage:copy --from data/storage-0-34-1-do-not-use --slot 4` or `pnpm storage:copy --from data/storage-2 --slot 4`. Relative source paths resolve from the working directory. The destination must be unused; desktop profiles are not copied. Copied credentials and project paths can still access real providers/files, so storage isolation is not a sandbox. `pnpm desktop:prod` explicitly launches source code against real user data. Home migrations run before startup storage opens; `pnpm storage:migrate --home <copied-home> [--dry-run]` rehearses the same runner against a stopped copy. Step 0001 replaces the legacy database with conversation core at `data/nerve.sqlite`; later pure core schema migrations run when that database opens.
+
+### Storage migration rehearsal
+
+`pnpm storage:rehearse --from /absolute/baseline-home --slot 3 [--corrupt PRESET] [--keep]`
+copies a stopped baseline with `cloneNerveHome`, redirects registered legacy
+projects to `data/storage-3-projects/<basename>` (only `.nerve` is copied), and
+writes `data/storage-3-baseline.sha`. Slot 1 is always refused. Existing homes
+and project copies require `--force-reset` (both are then removed under the slot lock).
+Project basename collisions and symbolic links are refused rather than merged.
+
+Presets are `config`, `overlay`, `conversation`, `message`, `runtime-json`, and
+`runtime-shape`; selection is deterministic and missing inputs are errors.
+Checksums cover the copied home and project configuration **after** redirection
+and corruption. Follow the printed start/restore commands, stop the daemon after
+restoration, then run `sha256sum -c data/storage-3-baseline.sha` from the checkout.
+The script never starts a server or drives destructive recovery automatically.
+Copies remain available for inspection; `--keep` suppresses the printed cleanup
+command. Credentials are copied: this is storage isolation, not a provider sandbox.
