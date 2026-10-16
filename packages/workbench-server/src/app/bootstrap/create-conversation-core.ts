@@ -49,9 +49,10 @@ export function createConversationCore(
   const models = createModelPort(deps.auth, deps.providerCatalog, (name) =>
     deps.secrets.get(name),
   );
-  const processes = new CoreProcessHost(
-    deps.storage.settings.runtime.shellPath ?? "/bin/bash",
-  );
+  const processes = new CoreProcessHost(async (cwd) => {
+    const settings = await resolveProjectSettings(deps.storage, cwd);
+    return settings.runtime.shellPath;
+  });
   const imageGeneration = new ImageGenerationService([
     new OpenAiCodexImageGenerationProvider(deps.auth),
   ]);

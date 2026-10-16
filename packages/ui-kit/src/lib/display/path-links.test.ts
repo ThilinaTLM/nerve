@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  joinLocalPath,
   localPathDirectory,
+  normalizePathForCompare,
   parseLocalFileHref,
   relativePathForDisplay,
   resolveDisplayPath,
@@ -9,6 +11,46 @@ import {
 } from "./path-links";
 
 describe("path link helpers", () => {
+  it("preserves filesystem roots when joining and finding directories", () => {
+    for (const [root, joined] of [
+      ["/", "/child"],
+      ["C:\\", "C:\\child"],
+      ["C:/", "C:/child"],
+      ["\\\\server\\share", "\\\\server\\share\\child"],
+      ["//server/share", "//server/share/child"],
+    ]) {
+      assert.equal(joinLocalPath(root!, "child"), joined);
+      assert.equal(localPathDirectory(root!), root);
+      assert.equal(localPathDirectory(joined!), root);
+    }
+    assert.equal(localPathDirectory("//server/share///"), "//server/share");
+    assert.equal(joinLocalPath("/", ""), "/");
+    assert.equal(joinLocalPath("C:", "child"), "C:child");
+    assert.equal(joinLocalPath("C:", ""), "C:");
+  });
+
+  it("keeps absolute roots distinct from empty and drive-relative paths", () => {
+    assert.equal(normalizePathForCompare("/"), "/");
+    assert.equal(normalizePathForCompare("C:\\"), "c:/");
+    assert.notEqual(normalizePathForCompare("/"), normalizePathForCompare(""));
+    assert.notEqual(
+      normalizePathForCompare("C:/"),
+      normalizePathForCompare("C:"),
+    );
+    assert.equal(relativePathForDisplay("/child", "/"), "child");
+    assert.equal(relativePathForDisplay("C:\\child", "C:/"), "child");
+    assert.equal(relativePathForDisplay("C:/child", "C:"), "C:/child");
+    assert.equal(relativePathForDisplay("/child", ""), "/child");
+    assert.equal(
+      relativePathForDisplay("//server/share/child", "//server/share/"),
+      "child",
+    );
+    assert.equal(
+      relativePathForDisplay("//server/share-other/child", "//server/share"),
+      "//server/share-other/child",
+    );
+  });
+
   it("resolves display paths without prefixing Windows absolutes", () => {
     assert.equal(
       resolveDisplayPath("src/App.svelte", "C:\\Users\\me\\repo"),

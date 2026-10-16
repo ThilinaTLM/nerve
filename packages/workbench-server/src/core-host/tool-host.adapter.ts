@@ -1,5 +1,4 @@
 import { realpath, readFile } from "node:fs/promises";
-import { resolve, relative, isAbsolute } from "node:path";
 import { projectProcessOutput } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
 import type { ToolCallOrigin } from "@nervekit/contracts/core";
@@ -14,7 +13,11 @@ import {
   createTodoHandlers,
   createToolDispatcher,
 } from "@nervekit/tools/runtime";
-import type { ToolExecutionContext } from "@nervekit/tools/execution";
+import {
+  isPathInside,
+  resolveNativePath,
+  type ToolExecutionContext,
+} from "@nervekit/tools/execution";
 import { toolNameSchema } from "@nervekit/contracts/tools";
 import type { CoreProcessHost } from "./process.adapter.js";
 import type { LaunchTool } from "./launch-tool.js";
@@ -145,10 +148,11 @@ export function createToolHostPort(
         new URL(args.ready);
       const project = await realpath(input.projectDir ?? input.cwd);
       const cwd = await realpath(
-        typeof args.cwd === "string" ? resolve(project, args.cwd) : input.cwd,
+        typeof args.cwd === "string"
+          ? resolveNativePath(project, args.cwd)
+          : input.cwd,
       );
-      const inside = relative(project, cwd);
-      if (inside === ".." || inside.startsWith("../") || isAbsolute(inside))
+      if (!isPathInside(project, cwd))
         throw new Error("cwd must resolve inside the project");
       if (input.signal.aborted)
         throw new DOMException("Cancelled", "AbortError");

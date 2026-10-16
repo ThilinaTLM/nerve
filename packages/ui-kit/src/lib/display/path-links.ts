@@ -17,16 +17,19 @@ function isPathSeparator(char: string | undefined): boolean {
   return char === "/" || char === "\\";
 }
 
-function trimTrailingSeparators(path: string): string {
-  if (WINDOWS_DRIVE_PREFIX.test(path)) return path;
-  let end = path.length;
-  while (end > 0 && isPathSeparator(path[end - 1])) end -= 1;
-  return path.slice(0, end);
+function localPathRootLength(path: string): number {
+  if (WINDOWS_DRIVE_ROOT.test(path)) return 3;
+  if (path.startsWith("\\\\") || path.startsWith("//")) {
+    const share = /^[^\\/]+[\\/][^\\/]+/.exec(path.slice(2));
+    if (share) return 2 + share[0].length;
+  }
+  return path.startsWith("/") ? 1 : 0;
 }
 
-function trimTrailingForwardSlashes(path: string): string {
+function trimTrailingSeparators(path: string): string {
+  const rootLength = localPathRootLength(path);
   let end = path.length;
-  while (end > 0 && path[end - 1] === "/") end -= 1;
+  while (end > rootLength && isPathSeparator(path[end - 1])) end -= 1;
   return path.slice(0, end);
 }
 
@@ -44,7 +47,7 @@ export function normalizePathForCompare(path: string): string {
   const unc = value.startsWith("//");
   value = value.replace(/\/{2,}/g, "/");
   if (unc && !value.startsWith("//")) value = `/${value}`;
-  value = trimTrailingForwardSlashes(value);
+  value = trimTrailingSeparators(value);
   if (/^[A-Za-z]:($|\/)/.test(value)) {
     value = `${value[0]?.toLowerCase()}${value.slice(1)}`;
   }
@@ -59,7 +62,13 @@ export function joinLocalPath(base: string, child: string): string {
   const normalizedChild = cleanChild.replace(/[\\/]+/g, sep);
   const trimmedBase = trimTrailingSeparators(base.trim());
   if (!trimmedBase || trimmedBase === ".") return normalizedChild;
-  return `${trimmedBase}${sep}${normalizedChild.replace(/^[\\/]+/, "")}`;
+  if (!normalizedChild) return trimmedBase;
+  const joinSeparator =
+    isPathSeparator(trimmedBase.at(-1)) ||
+    WINDOWS_DRIVE_PREFIX.test(trimmedBase)
+      ? ""
+      : sep;
+  return `${trimmedBase}${joinSeparator}${normalizedChild.replace(/^[\\/]+/, "")}`;
 }
 
 export function relativePathForDisplay(
@@ -69,6 +78,9 @@ export function relativePathForDisplay(
   if (!path) return undefined;
   const normalizedPath = normalizePathForCompare(path);
   const normalizedCwd = normalizePathForCompare(cwd);
+  if (isAbsoluteLocalPath(path) !== isAbsoluteLocalPath(cwd)) {
+    return path.replace(/\\/g, "/");
+  }
   const windowsComparison =
     isWindowsLikePath(normalizedPath) || isWindowsLikePath(normalizedCwd);
   const comparePath = windowsComparison
@@ -100,6 +112,8 @@ export function resolveDisplayPath(
 export function localPathDirectory(path: string): string {
   const value = trimTrailingSeparators(path.trim());
   if (!value) return ".";
+  const rootLength = localPathRootLength(value);
+  if (rootLength && value.length === rootLength) return value;
 
   const slash = value.lastIndexOf("/");
   const backslash = value.lastIndexOf("\\");

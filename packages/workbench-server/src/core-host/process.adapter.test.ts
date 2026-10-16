@@ -43,3 +43,37 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+void test("shell settings are read lazily for each run and spawn", async () => {
+  let calls = 0;
+  let current = "first";
+  const host = new CoreProcessHost(async (cwd) => {
+    calls++;
+    assert.equal(cwd, "project-directory");
+    throw new Error(`shell unavailable: ${current}`);
+  });
+  assert.equal(calls, 0, "construction must not require an installed shell");
+  await assert.rejects(
+    host.run({
+      command: "pwd",
+      cwd: "project-directory",
+      signal: new AbortController().signal,
+    }),
+    /shell unavailable: first/,
+  );
+  current = "updated";
+  const dir = await mkdtemp(join(tmpdir(), "nerve-shell-settings-"));
+  try {
+    await assert.rejects(
+      host.spawn({
+        command: "pwd",
+        cwd: "project-directory",
+        artifactDir: dir,
+      }),
+      /shell unavailable: updated/,
+    );
+    assert.equal(calls, 2);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

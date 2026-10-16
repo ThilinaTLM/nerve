@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, writeFile } from "node:fs/promises";
+import { chmod, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
@@ -69,6 +69,66 @@ describe("executable resolution", () => {
 
     assert.deepEqual(resolved, { path: expected, kind: "windows_script" });
   });
+
+  it(
+    "follows symlinks to executable files but rejects symlinks to directories",
+    { skip: process.platform === "win32" },
+    async () => {
+      const project = await createTempProject("nerve-executable-symlink-");
+      const target = await writeExecutable(project.root, "target", "");
+      const fileLink = join(project.root, "file-link");
+      const directoryLink = join(project.root, "directory-link");
+      await symlink(target, fileLink);
+      await symlink(project.root, directoryLink);
+
+      assert.deepEqual(
+        await locateExecutable(fileLink, { platform: "linux" }),
+        {
+          path: fileLink,
+          kind: "native",
+        },
+      );
+      assert.equal(
+        await locateExecutable(directoryLink, { platform: "linux" }),
+        undefined,
+      );
+    },
+  );
+
+  for (const platform of ["linux", "win32"] as const) {
+    it(`skips directory candidates on ${platform}`, async () => {
+      const project = await createTempProject("nerve-executable-directory-");
+      const first = join(project.root, "first");
+      const second = join(project.root, "second");
+      const name = platform === "win32" ? "python.exe" : "python";
+      await mkdir(join(first, name), { recursive: true });
+      await mkdir(second);
+      const expected = join(second, name);
+      await writeFile(expected, "content", { mode: 0o755 });
+
+      assert.deepEqual(
+        await locateExecutable(name, {
+          platform,
+          env: { PATH: [first, second].join(platform === "win32" ? ";" : ":") },
+          homeDir: join(project.root, "home"),
+        }),
+        { path: expected, kind: "native" },
+      );
+    });
+
+    it(`rejects an explicit directory on ${platform}`, async () => {
+      const project = await createTempProject(
+        "nerve-executable-explicit-directory-",
+      );
+      const directory = join(project.root, "python.exe");
+      await mkdir(directory);
+
+      assert.equal(
+        await locateExecutable(directory, { platform, env: {} }),
+        undefined,
+      );
+    });
+  }
 
   it("adds deterministic GUI application fallback directories without duplicates", async () => {
     const directories = await executableSearchDirectories({

@@ -1,6 +1,7 @@
 import { access } from "node:fs/promises";
 import { homedir } from "node:os";
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
+import { resolveNativePath } from "./native-path.js";
 
 const UNICODE_SPACES = /[\u00a0\u2007\u202f]/g;
 
@@ -16,7 +17,7 @@ export function expandToolPathInput(input: string): string {
 
 export function resolveToCwd(cwd: string, input: string): string {
   const expanded = expandToolPathInput(input);
-  return isAbsolute(expanded) ? resolve(expanded) : resolve(cwd, expanded);
+  return resolveNativePath(cwd, expanded);
 }
 
 export function resolveToolPath(cwd: string, input: unknown): string {

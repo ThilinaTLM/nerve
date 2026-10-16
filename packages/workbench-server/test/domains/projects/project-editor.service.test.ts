@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import type { Project } from "@nervekit/contracts/core";
 import type { ResolvedExecutable } from "@nervekit/tools/execution";
+import { ApplicationError } from "../../../src/core/application-error.js";
 import { ProjectEditorService } from "../../../src/domains/projects/project-editor.service.js";
 
 function projectAt(dir: string): Project {
@@ -21,7 +22,15 @@ function projectAt(dir: string): Project {
 
 function childProcessStub(): ChildProcess {
   const child = new EventEmitter() as ChildProcess;
-  child.unref = () => child;
+  let spawned = false;
+  child.unref = () => {
+    assert.equal(spawned, true, "must wait for spawn before unref");
+    return child;
+  };
+  setImmediate(() => {
+    spawned = true;
+    child.emit("spawn");
+  });
   return child;
 }
 
@@ -98,4 +107,35 @@ describe("ProjectEditorService", () => {
         error instanceof Error && error.message.includes("not available"),
     );
   });
+});
+
+void it("reports asynchronous launch errors without unref", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-launch-error-"));
+  let unrefCalled = false;
+  const service = new ProjectEditorService(() => projectAt(root), {
+    locate: async () => ({ path: "code", kind: "native" }),
+    spawnCommand: () => {
+      const child = new EventEmitter() as ChildProcess;
+      child.unref = () => {
+        unrefCalled = true;
+        return child;
+      };
+      setImmediate(() => child.emit("error", new Error("launch denied")));
+      return child;
+    },
+  });
+  try {
+    await assert.rejects(
+      service.openProject("project", { editor: "vscode" }),
+      (error: unknown) => {
+        assert.ok(error instanceof ApplicationError);
+        assert.equal(error.code, "EDITOR_OPEN_FAILED");
+        assert.equal(error.message, "launch denied");
+        return true;
+      },
+    );
+    assert.equal(unrefCalled, false);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
