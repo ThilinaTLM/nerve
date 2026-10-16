@@ -21,7 +21,7 @@ import {
 } from "./conversation-overlays.importer.js";
 import type { EventMapping } from "./events.mapper.js";
 import type { SelectedPathVerification } from "./selected-path.validation.js";
-import type { DiscardableItem } from "../../framework/step.js";
+import type { StepContext, DiscardableItem } from "../../framework/step.js";
 import {
   decode,
   ImportIds,
@@ -33,6 +33,9 @@ import {
 
 export interface CoreImportSummary {
   paths: ImportReport["paths"];
+  sourceConversationCount: number;
+  salvagedRecords: ImportReport["salvagedRecords"];
+  titles: Record<string, string | undefined>;
   /** Source conversations whose import failed; nothing of them was kept. */
   failedConversations: DiscardableItem[];
   /** Source conversation IDs not imported: failed or discarded by the user. */
@@ -44,12 +47,28 @@ export interface CoreImportSummary {
   selectedPaths: SelectedPathVerification;
   overlays: ImportedConversationOverlays;
   assets: {
+    sourceFiles: ImportReport["sourceFiles"];
     diskFiles: number;
     trackedFiles: number;
     missingFiles: number;
     missingAssetIds: string[];
     relocatedPayloads: Record<string, string>;
   };
+}
+
+async function transaction<T>(
+  storage: ReturnType<typeof openCoreStorage>,
+  action: () => Promise<T>,
+): Promise<T> {
+  storage.sqlite.exec("BEGIN IMMEDIATE");
+  try {
+    const value = await action();
+    storage.sqlite.exec("COMMIT");
+    return value;
+  } catch (error) {
+    storage.sqlite.exec("ROLLBACK");
+    throw error;
+  }
 }
 
 async function loadByConversation(
@@ -157,23 +176,48 @@ async function importTrust(
   ]) {
     for (const { row, data } of reader.documents(namespace)) {
       await setImmediate();
-      insert(namespace, data, String(row.document_id));
+      if (reader.context)
+        await reader.context.unit(
+          {
+            kind: "configuration",
+            id: `legacy-record:${namespace}/${row.document_id}`,
+            title: "Prompt suggestion trust",
+          },
+          () => insert(namespace, data, String(row.document_id)),
+        );
+      else insert(namespace, data, String(row.document_id));
     }
   }
   const cachePath = join(home, "cache", "query-cache.sqlite");
   if (!existsSync(cachePath)) return;
-  const cache = new LegacyReader(cachePath);
+  const cache = new LegacyReader(cachePath, reader.context);
   try {
     if (cache.hasTable("prompt_suggestion_trust"))
       for (const row of cache.db
         .prepare("SELECT trust_id, json FROM prompt_suggestion_trust")
         .iterate()) {
         await setImmediate();
-        insert(
-          "prompt_suggestion_trust",
-          decode(row.json),
-          String(row.trust_id),
-        );
+        const importRow = () =>
+          insert(
+            "prompt_suggestion_trust",
+            decode(row.json),
+            String(row.trust_id),
+          );
+        if (reader.context)
+          await reader.context.unit(
+            {
+              kind: "configuration",
+              id: `legacy-record:prompt_suggestion_trust/${row.trust_id}`,
+              title: "Prompt suggestion trust",
+            },
+            importRow,
+            {
+              quarantine: {
+                records: [{ table: "prompt_suggestion_trust", row }],
+              },
+            },
+          );
+        else importRow();
       }
   } finally {
     cache.close();
@@ -201,6 +245,7 @@ export function conversationTitle(conversation: Legacy): string | undefined {
 
 export async function importCoreStorage(input: {
   home: string;
+  context?: StepContext;
   progress(conversationId: string): void;
   scratchDir: string;
   /** Source conversation IDs the user chose to drop. */
@@ -214,15 +259,30 @@ export async function importCoreStorage(input: {
     throw new Error(
       "Legacy database must be a regular file, not a symbolic link",
     );
-  const reader = new LegacyReader(oldPath);
+  const reader = new LegacyReader(oldPath, input.context);
   const report = new ImportReport();
-  let storage;
+  const titles: Record<string, string | undefined> = {};
+  let sourceConversationCount: number;
+  let opened: ReturnType<typeof openCoreStorage>;
+  try {
+    sourceConversationCount = Number(
+      reader.db
+        .prepare(
+          "SELECT count(*) AS n FROM domain_documents WHERE namespace = 'conversation'",
+        )
+        .get()!.n,
+    );
+    opened = openCoreStorage(newPath);
+  } catch (error) {
+    reader.close();
+    throw error;
+  }
+  const storage = opened;
   let overlays: ImportedConversationOverlays;
   let preferences: CoreImportSummary["preferences"];
   const failedConversations: DiscardableItem[] = [];
   const excludedConversations: string[] = [];
   try {
-    storage = openCoreStorage(newPath);
     const mapping: EventMapping = {
       storage,
       ids: new ImportIds(),
@@ -237,18 +297,34 @@ export async function importCoreStorage(input: {
     };
     for (const { data } of reader.documents("project")) {
       await setImmediate();
-      storage.projects.insert(
-        projectSchema.parse({
-          id: mapping.ids.get("proj", data.id),
-          name: data.name ?? "Imported project",
-          directory: data.dir ?? data.directory,
-          createdAt: iso(data.createdAt),
-          updatedAt: iso(data.updatedAt ?? data.createdAt),
-        }),
-      );
+      const insert = () =>
+        storage.projects.insert(
+          projectSchema.parse({
+            id: mapping.ids.get("proj", data.id),
+            name: data.name ?? "Imported project",
+            directory: data.dir ?? data.directory,
+            createdAt: iso(data.createdAt),
+            updatedAt: iso(data.updatedAt ?? data.createdAt),
+          }),
+        );
+      if (input.context)
+        await input.context.unit(
+          {
+            kind: "configuration",
+            id: `legacy-record:project/${data.id}`,
+            title: "Project settings",
+          },
+          insert,
+        );
+      else insert();
     }
     await importTrust(reader, mapping, home, input.scratchDir);
-    preferences = convertDocumentPreferences(reader, storage, home);
+    preferences = await convertDocumentPreferences(
+      reader,
+      storage,
+      home,
+      input.context,
+    );
     const overlayImporter = new ConversationOverlaysImporter(
       home,
       dataDir,
@@ -258,28 +334,44 @@ export async function importCoreStorage(input: {
     overlays = overlayImporter.counts;
     for (const { row, data } of reader.documents("scratch_notes")) {
       await setImmediate();
-      const notes: Legacy[] = Array.isArray(data) ? data : (data.notes ?? []);
-      for (const note of notes) {
-        await setImmediate();
-        const projectId = mapping.ids.get(
-          "proj",
-          note.projectId ?? String(row.scope_id),
-        );
-        if (!storage.projects.get(projectId)) {
-          report.skip("Note for missing project");
-          continue;
+      const insertNotes = async () => {
+        const notes: Legacy[] = Array.isArray(data) ? data : (data.notes ?? []);
+        for (const note of notes) {
+          await setImmediate();
+          const projectId = mapping.ids.get(
+            "proj",
+            note.projectId ?? String(row.scope_id),
+          );
+          if (!storage.projects.get(projectId)) {
+            report.skip("Note for missing project");
+            continue;
+          }
+          storage.scratchNotes.insert(
+            scratchNoteSchema.parse({
+              id: mapping.ids.get("note", note.id),
+              projectId,
+              title: note.title ?? "",
+              content: note.content ?? note.text ?? "",
+              createdAt: iso(note.createdAt),
+              updatedAt: iso(note.updatedAt ?? note.createdAt),
+            }),
+          );
         }
-        storage.scratchNotes.insert(
-          scratchNoteSchema.parse({
-            id: mapping.ids.get("note", note.id),
-            projectId,
-            title: note.title ?? "",
-            content: note.content ?? note.text ?? "",
-            createdAt: iso(note.createdAt),
-            updatedAt: iso(note.updatedAt ?? note.createdAt),
-          }),
+      };
+      if (input.context)
+        await input.context.unit(
+          {
+            kind: "configuration",
+            id: `legacy-record:scratch_notes/${row.document_id}`,
+            title: "Project scratch notes",
+          },
+          insertNotes,
+          {
+            transaction: (action) => transaction(storage, action),
+            checkpoint: () => report.checkpoint(),
+          },
         );
-      }
+      else await insertNotes();
     }
     report.skip(
       "Approval settlement workflow dropped; persisted rule files are unchanged",
@@ -357,6 +449,7 @@ export async function importCoreStorage(input: {
         continue;
       }
       const conversation = source.data;
+      titles[source.id] = conversationTitle(conversation);
       mapping.origins.clear();
       mapping.toolAssets.clear();
       mapping.responseEvents.clear();
@@ -364,43 +457,82 @@ export async function importCoreStorage(input: {
       const restoreReport = report.checkpoint();
       const overlayCounts = { ...overlayImporter.counts };
       let copied = 0;
-      try {
-        storage.transaction(() => {
-          importConversation(
-            reader,
-            mapping,
-            conversation,
-            agents.get(conversation.id) ?? [],
-            (inputs.get(conversation.id) ?? []).sort(
-              (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
-            ),
-            tasks.get(conversation.id) ?? [],
-          );
-          overlayImporter.importConversation(
-            mapping.ids.get("proj", conversation.projectId),
-            conversation.id,
-            mapping.ids.get("conv", conversation.id),
-          );
-          for (const agent of agents.get(conversation.id) ?? []) {
-            if (agent.parentAgentId) {
-              copied += copyExploreReports(
-                dataDir,
-                conversation.id,
-                agent.id,
-                mapping.ids.get("conv", agent.id),
-              );
-              overlayImporter.importConversation(
-                mapping.ids.get("proj", conversation.projectId),
-                conversation.id,
-                mapping.ids.get("conv", agent.id),
-                Array.isArray(agent.tools) ? agent.tools : undefined,
-              );
-            }
+      const migrate = () => {
+        const ancillaryFailure = reader.failures.find(
+          (item) => item.kind === "conversation" && item.id === conversation.id,
+        );
+        if (ancillaryFailure) throw new Error(ancillaryFailure.reason);
+        if (
+          !storage.projects.get(mapping.ids.get("proj", conversation.projectId))
+        )
+          throw new Error("Conversation project is missing or unreadable");
+
+        importConversation(
+          reader,
+          mapping,
+          conversation,
+          agents.get(conversation.id) ?? [],
+          (inputs.get(conversation.id) ?? []).sort(
+            (a, b) => (a.sequence ?? 0) - (b.sequence ?? 0),
+          ),
+          tasks.get(conversation.id) ?? [],
+        );
+        overlayImporter.importConversation(
+          mapping.ids.get("proj", conversation.projectId),
+          conversation.id,
+          mapping.ids.get("conv", conversation.id),
+        );
+        for (const agent of agents.get(conversation.id) ?? []) {
+          if (agent.parentAgentId) {
+            copied += copyExploreReports(
+              dataDir,
+              conversation.id,
+              agent.id,
+              mapping.ids.get("conv", agent.id),
+            );
+            overlayImporter.importConversation(
+              mapping.ids.get("proj", conversation.projectId),
+              conversation.id,
+              mapping.ids.get("conv", agent.id),
+              Array.isArray(agent.tools) ? agent.tools : undefined,
+            );
           }
-        });
+        }
+      };
+      let unitFailed = false;
+      let unitError: unknown;
+      try {
+        if (input.context) {
+          await input.context.unit(
+            {
+              kind: "conversation",
+              id: conversation.id,
+              title: conversationTitle(conversation),
+            },
+            async () => {
+              try {
+                migrate();
+              } catch (error) {
+                unitFailed = true;
+                unitError = error;
+                throw error;
+              }
+            },
+            {
+              transaction: (action) => transaction(storage, action),
+              checkpoint: () => () => {
+                restoreReport();
+                Object.assign(overlayImporter.counts, overlayCounts);
+                removeImportedFiles(dataDir, mapping, conversation.id, agents);
+              },
+            },
+          );
+          if (unitFailed) throw unitError;
+        } else storage.transaction(migrate);
         seenConversations.add(conversation.id);
         reportsCopied += copied;
       } catch (error) {
+        if (input.context && !unitFailed) throw error;
         // The transaction rolled back; drop its report entries and files too,
         // so the rest of the upgrade and its verification exclude it entirely.
         restoreReport();
@@ -417,6 +549,9 @@ export async function importCoreStorage(input: {
       input.progress(conversation.id);
       await setImmediate();
     }
+    failedConversations.push(
+      ...reader.failures.filter((item) => item.kind === "configuration"),
+    );
     // Reports with no known child are deleted with `data/reports` in cleanup.
     report.skip(
       "Explore report without a known child conversation",
@@ -456,6 +591,9 @@ export async function importCoreStorage(input: {
   }
   const summary: CoreImportSummary = {
     paths: report.paths,
+    salvagedRecords: report.salvagedRecords,
+    sourceConversationCount,
+    titles,
     failedConversations,
     excludedConversations,
     preferences,
@@ -465,6 +603,7 @@ export async function importCoreStorage(input: {
     selectedPaths: report.selectedPaths,
     overlays,
     assets: {
+      sourceFiles: report.sourceFiles,
       diskFiles: report.diskFiles,
       trackedFiles: report.trackedFiles,
       missingFiles: report.missingFiles,

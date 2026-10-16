@@ -103,7 +103,27 @@ void test("0001 reports every failed conversation and completes once they are di
   } finally {
     db.close();
   }
-  // Discarded conversations leave no legacy or new-layout files behind.
+  const upgrade = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
+    ),
+  );
+  const broken = upgrade.setAside.find(
+    (item: { id: string }) => item.id === "conv_broken",
+  );
+  assert(
+    existsSync(
+      join(broken.quarantinePath, "payload/broken/tool-calls/call/result.json"),
+    ),
+  );
+  const rows = await readFile(
+    join(broken.quarantinePath, "payload/records.jsonl"),
+    "utf8",
+  );
+  assert(rows.includes("conv_broken"));
+  assert(!rows.includes("conv_two"));
+  // Set-aside conversations leave no active legacy or new-layout files behind.
   assert.equal(existsSync(join(home, "data/conversations/broken")), false);
   assert.equal(existsSync(join(home, "data/conversations/conv_broken")), false);
   assert.equal(existsSync(join(home, "migrations/last-failure.json")), false);
@@ -234,9 +254,36 @@ void test("0001 checks configuration before converting and sets discarded files 
 
   await discardFailedItems(home, [rules, overlay]);
   await runMigrations(home, { registry });
-  assert.equal(await readFile(`${rules}.corrupt`, "utf8"), "{ truncated");
+  const upgrade = JSON.parse(
+    await readFile(
+      join(home, "migrations/reports/0001-conversation-core.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(upgrade.step, "0001-conversation-core");
+  assert.equal(upgrade.setAside.length, 2);
+  const ruleEntry = upgrade.setAside.find(
+    (item: { id: string }) => item.id === rules,
+  );
+  assert.equal(
+    await readFile(
+      join(ruleEntry.quarantinePath, "payload/custom.json"),
+      "utf8",
+    ),
+    "{ truncated",
+  );
+  const reason = JSON.parse(
+    await readFile(join(ruleEntry.quarantinePath, "reason.json"), "utf8"),
+  );
+  assert.equal(reason.originalPath, rules);
+  assert.equal(reason.kind, "configuration");
   assert.equal(existsSync(rules), false);
-  assert(existsSync(`${overlay}.corrupt`));
+  const overlayEntry = upgrade.setAside.find(
+    (item: { id: string }) => item.id === overlay,
+  );
+  assert(
+    existsSync(join(overlayEntry.quarantinePath, "payload/capabilities.json")),
+  );
   // Runtime-owned documents are never reported or rewritten by the step.
   assert.equal(await readFile(harness, "utf8"), "not json");
 });

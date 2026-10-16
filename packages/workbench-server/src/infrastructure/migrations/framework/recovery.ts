@@ -1,5 +1,8 @@
+import { syncDirectory, syncFile } from "./durability.js";
+import { existsSync } from "node:fs";
+import { RollbackJournal } from "./rollback-journal.js";
 import { copyFile, readFile, rename, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { atomicWriteJson, pathExists } from "../../storage-bootstrap/json.js";
 import {
   storagePaths,
@@ -90,8 +93,26 @@ export async function discardFailedItems(
         `Only items reported by the last upgrade attempt can be discarded${unknown.length ? `: ${unknown.join(", ")}` : ""}.`,
       );
     const scratchDir = join(paths.migrationWorkPath, report.step);
+    const dependencyPath = join(scratchDir, "unit-dependencies.json");
+    const dependencies: Record<string, string[]> = (await pathExists(
+      dependencyPath,
+    ))
+      ? JSON.parse(await readFile(dependencyPath, "utf8"))
+      : {};
+    const chosen = new Set(ids);
+    for (const id of chosen)
+      for (const child of dependencies[id] ?? [])
+        if (failed.has(child)) chosen.add(child);
     const discarded = readDiscardedItems(scratchDir);
-    for (const id of ids) discarded.add(id);
+    const detailsPath = join(scratchDir, "discarded-details.json");
+    const details: DiscardableItem[] = (await pathExists(detailsPath))
+      ? JSON.parse(await readFile(detailsPath, "utf8"))
+      : [];
+    for (const item of report.discardable ?? [])
+      if (chosen.has(item.id) && !details.some((saved) => saved.id === item.id))
+        details.push(item);
+    await atomicWriteJson(detailsPath, details, 0o600);
+    for (const id of chosen) discarded.add(id);
     await atomicWriteJson(
       discardedItemsPath(scratchDir),
       [...discarded].sort(),
@@ -117,7 +138,7 @@ export async function rollbackFailedMigration(
     const registry = options.registry ?? MIGRATION_REGISTRY;
     const { manifest } = await readMigrationHome(paths);
     const entry = planMigrations(manifest, registry)[0];
-    if (entry?.step.id !== report.step || !entry.step.rollback)
+    if (entry?.step.id !== report.step)
       throw new Error(`Upgrade step ${report.step} is not pending.`);
     const { context } = createStepContext(
       paths,
@@ -125,17 +146,34 @@ export async function rollbackFailedMigration(
       entry.step.description,
       () => undefined,
     );
-    if (entry.step.canRollback?.(context) === false)
+    if (existsSync(join(context.scratchDir, "verified.json")))
       throw new Error("The failed upgrade cannot be rolled back.");
-    await entry.step.rollback(context);
-    await rm(context.scratchDir, { recursive: true, force: true });
-    const backup = manifestBackupPath(paths);
-    if (!manifest.migrations?.length && (await pathExists(backup))) {
+    if (existsSync(join(context.scratchDir, "rollback")))
+      new RollbackJournal(context.scratchDir).restore();
+    await entry.step.rollback?.(context);
+    const baselineBackup = manifestBackupPath(paths);
+    const restoredMarker = join(context.scratchDir, "manifest-restored.json");
+    if (!(await pathExists(restoredMarker))) {
+      const backup =
+        !manifest.migrations?.length && (await pathExists(baselineBackup))
+          ? baselineBackup
+          : join(context.scratchDir, "manifest.before.json");
+      if (!(await pathExists(backup)))
+        throw new Error("Missing pre-step manifest rollback snapshot.");
       const temporary = `${paths.manifestPath}.rollback`;
       await copyFile(backup, temporary);
+      syncFile(temporary);
       await rename(temporary, paths.manifestPath);
-      await rm(backup, { force: true });
+      syncDirectory(dirname(paths.manifestPath));
+      // Keep the chosen bytes until this marker is durable. In particular, a
+      // resumed baseline rollback must never fall back to the admitted ledger.
+      await atomicWriteJson(restoredMarker, {}, 0o600);
     }
+    await rm(baselineBackup, { force: true });
+    await rm(context.scratchDir, { recursive: true, force: true });
+    await rm(join(paths.migrationWorkPath, "cleanup-needed.json"), {
+      force: true,
+    });
     await rm(paths.migrationFailureReportPath, { force: true });
   });
 }

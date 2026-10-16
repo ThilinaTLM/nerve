@@ -1,3 +1,6 @@
+import { includeFailures, replaceLosses } from "../../framework/toolkit.js";
+import { quarantineDiscardedConversations } from "./quarantine.js";
+import { HOME_CONFIGURATION_FILES } from "./owned-paths.js";
 import { assertProjectedPayload } from "./result-projection.js";
 import { setImmediate } from "node:timers/promises";
 import { rm } from "node:fs/promises";
@@ -13,7 +16,7 @@ import {
   rmSync,
   statfsSync,
 } from "node:fs";
-import { basename, dirname, isAbsolute, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import {
   DiscardableMigrationError,
   defineStep,
@@ -21,13 +24,19 @@ import {
   type StepContext,
 } from "../../framework/step.js";
 import {
-  conversationTitle,
   failureReason,
   importCoreStorage,
   type CoreImportSummary,
 } from "./importer.service.js";
-import { RollbackJournal, withRollbackJournal } from "./rollback-journal.js";
-import { preflightConfiguration, resetPreflight } from "./config-preflight.js";
+import {
+  RollbackJournal,
+  withRollbackJournal,
+} from "../../framework/rollback-journal.js";
+import {
+  checkConfiguration,
+  preflightConfiguration,
+  resetPreflight,
+} from "./config-preflight.js";
 import {
   atomicWrite,
   convertConfiguration,
@@ -48,6 +57,11 @@ import {
   verifySelectedPath,
   type SelectedPathVerification,
 } from "./selected-path.validation.js";
+
+const checkedConfiguration = new WeakMap<
+  StepContext,
+  Awaited<ReturnType<typeof checkConfiguration>>
+>();
 
 const suffixes = ["", "-wal", "-shm"];
 const summaryPath = (ctx: StepContext) =>
@@ -91,14 +105,6 @@ async function preserveBashOutputs(ctx: StepContext): Promise<void> {
     storage.close();
   }
 }
-function* files(path: string): Generator<string> {
-  if (!existsSync(path)) return;
-  for (const entry of readdirSync(path, { withFileTypes: true })) {
-    const child = join(path, entry.name);
-    if (entry.isDirectory()) yield* files(child);
-    else if (entry.isFile()) yield child;
-  }
-}
 interface CheckResult {
   selected: SelectedPathVerification;
   /** Conversations that failed verification, keyed by source conversation. */
@@ -110,10 +116,6 @@ async function check(
   summary: CoreImportSummary,
 ): Promise<CheckResult> {
   const storage = new CoreStorage(ctx.paths.sqlitePath, false);
-  const reader =
-    existsSync(sourcePath(ctx)) && !existsSync(verifiedPath(ctx))
-      ? new LegacyReader(sourcePath(ctx))
-      : undefined;
   const selected: SelectedPathVerification = {
     roots: 0,
     children: 0,
@@ -134,7 +136,7 @@ async function check(
     if (!failures.has(source)) failures.set(source, reason);
   };
   const excluded = new Set(summary.excludedConversations);
-  const titles = new Map<string, string | undefined>();
+  const titles = new Map(Object.entries(summary.titles ?? {}));
   try {
     const schema = storage.sqlite
       .prepare("SELECT version, checksum FROM schema_migrations")
@@ -160,7 +162,7 @@ async function check(
         orphanToolResults: 0,
       };
       try {
-        verifySelectedPath({ ...path, reader, storage, summary: one });
+        verifySelectedPath({ ...path, storage, summary: one });
       } catch (error) {
         fail(path.conversationId, failureReason(error));
         continue;
@@ -182,6 +184,25 @@ async function check(
           path.conversationId,
           `History verification failed: ${problems.join(", ")}`,
         );
+    }
+    for (const receipt of summary.salvagedRecords ?? []) {
+      try {
+        const event = storage.events.get(receipt.eventId);
+        assert(
+          event?.type === "system_event" &&
+            event.llmRepresentation === "none" &&
+            event.payload.subtype === "notification" &&
+            event.payload.producer === "import:migration_loss",
+          `Missing history-loss placeholder for ${receipt.sourceRecordId}`,
+        );
+        assert.equal(
+          createHash("sha256").update(event.payload.text).digest("hex"),
+          receipt.textDigest,
+          `Changed history-loss placeholder for ${receipt.sourceRecordId}`,
+        );
+      } catch (error) {
+        fail(receipt.conversationId, failureReason(error));
+      }
     }
     for (const [table, expected] of Object.entries(summary.counts)) {
       assert(/^[a-z_]+$/.test(table));
@@ -315,46 +336,28 @@ async function check(
       summary.assets.trackedFiles,
       "Asset coverage changed",
     );
-    if (reader) {
-      let scanned = 0;
-      for (const source of reader.conversations()) {
-        await setImmediate();
-        if (excluded.has(source.id)) continue;
-        assert(source.data, `Unreadable source conversation ${source.id}`);
-        const data = source.data;
-        titles.set(data.id, conversationTitle(data));
-        assert(/^conv_[A-Za-z0-9_-]+$/.test(data.id));
-        for (const path of files(
-          join(ctx.paths.conversationsPath, data.id.slice(5), "tool-calls"),
-        )) {
-          if (
-            !paths.has(
-              summary.assets.relocatedPayloads[
-                relative(ctx.paths.dataPath, path).split("\\").join("/")
-              ] ?? relative(ctx.paths.dataPath, path).split("\\").join("/"),
-            )
-          )
-            fail(data.id, `Untracked source asset: ${path}`);
-          scanned++;
-          if (scanned % 100 === 0) await setImmediate();
-        }
-      }
-      assert.equal(
-        scanned,
-        summary.assets.diskFiles,
-        "Source asset coverage changed",
-      );
-      assert.equal(
-        selected.roots + excluded.size,
-        Number(
-          reader.db
-            .prepare(
-              "SELECT count(*) AS n FROM domain_documents WHERE namespace = 'conversation'",
-            )
-            .get()!.n,
-        ),
-      );
+    // Import receipts cover source history and asset enumeration; verify only
+    // replacement data, without decoding or walking retained sources again.
+    for (const receipt of summary.assets.sourceFiles) {
+      const logical =
+        summary.assets.relocatedPayloads[receipt.logicalPath] ??
+        receipt.logicalPath;
+      if (!paths.has(logical))
+        fail(
+          receipt.conversationId,
+          `Untracked source asset: ${receipt.logicalPath}`,
+        );
     }
+    assert.equal(
+      summary.assets.sourceFiles.length,
+      summary.assets.diskFiles,
+      "Source asset receipt coverage changed",
+    );
+    assert.equal(
+      selected.roots + excluded.size,
+      summary.sourceConversationCount,
+      "Source conversation receipt coverage changed",
+    );
     assert.equal(
       selected.roots + selected.children,
       summary.counts.conversation,
@@ -369,7 +372,6 @@ async function check(
       })),
     };
   } finally {
-    reader?.close();
     storage.close();
   }
 }
@@ -377,15 +379,8 @@ async function cleanup(
   ctx: StepContext,
   summary: CoreImportSummary,
 ): Promise<void> {
-  // Discarded conversations leave nothing behind: their legacy directories
-  // would otherwise be unreferenced once the legacy database is removed.
-  for (const id of summary.excludedConversations) {
-    if (!/^conv_[A-Za-z0-9_-]+$/.test(id)) continue;
-    await rm(join(ctx.paths.conversationsPath, id.slice(5)), {
-      recursive: true,
-      force: true,
-    });
-  }
+  // Set-aside source directories were moved to permanent quarantine before
+  // cleanup; never recursively delete an excluded owner's only source.
   for (const logical of Object.keys(summary.assets.relocatedPayloads)) {
     assert(!isAbsolute(logical) && !logical.split(/[\\/]/).includes(".."));
     await rm(join(ctx.paths.dataPath, logical), { force: true });
@@ -406,7 +401,7 @@ async function cleanup(
     await rm(path, { recursive: true, force: true });
   }
   for (const name of readdirSync(ctx.paths.migrationsPath)) {
-    if (name !== "work" && name !== "last-failure.json")
+    if (!["work", "last-failure.json", "reports"].includes(name))
       await rm(join(ctx.paths.migrationsPath, name), {
         recursive: true,
         force: true,
@@ -455,7 +450,7 @@ async function convert(
         renameSync(`${original}${suffix}`, `${source}${suffix}`);
       }
   }
-  const sourceReader = new LegacyReader(source);
+  const sourceReader = new LegacyReader(source, ctx);
   try {
     for (const table of [
       "domain_documents",
@@ -479,19 +474,26 @@ async function convert(
     "Checking configuration files",
   );
   await setImmediate();
-  const preflightReader = new LegacyReader(source);
   let invalid: DiscardableItem[];
-  try {
-    invalid = preflightConfiguration({
-      home: ctx.paths.home,
-      dataDir: ctx.paths.dataPath,
-      reader: preflightReader,
-      discarded: ctx.discarded,
-      journal,
-      log: (message) => ctx.log(message),
-    });
-  } finally {
-    preflightReader.close();
+  const checked = checkedConfiguration.get(ctx);
+  if (checked) {
+    invalid = checked.failures;
+    if (!invalid.length) checked.apply(journal, (message) => ctx.log(message));
+  } else {
+    const preflightReader = new LegacyReader(source, ctx);
+    try {
+      invalid = await preflightConfiguration({
+        home: ctx.paths.home,
+        context: ctx,
+        dataDir: ctx.paths.dataPath,
+        reader: preflightReader,
+        discarded: ctx.discarded,
+        journal,
+        log: (message) => ctx.log(message),
+      });
+    } finally {
+      preflightReader.close();
+    }
   }
   // Nothing is converted yet: report every unreadable file at once.
   if (invalid.length) throw new DiscardableMigrationError(invalid);
@@ -506,12 +508,25 @@ async function convert(
     ctx.paths.home,
     ctx.scratchDir,
   );
+  const profileTarget = join(ctx.paths.home, "config", "subagents.json");
   const conversions = {
-    ...convertConfiguration(ctx.paths.home, ctx.scratchDir),
-    subagentSettings: convertSubagentSettings(ctx.paths.home, ctx.scratchDir),
+    ...(await convertConfiguration(ctx.paths.home, ctx.scratchDir, ctx)),
+    subagentSettings: await ctx.unit(
+      {
+        kind: "configuration",
+        id: profileTarget,
+        title: "User sub-agent profiles",
+      },
+      () => convertSubagentSettings(ctx.paths.home, ctx.scratchDir),
+      {
+        quarantine: {
+          files: [profileTarget, join(ctx.paths.home, "agent", "subagents")],
+        },
+      },
+    ),
   };
   ctx.log(`Configuration conversions: ${JSON.stringify(conversions)}`);
-  const reader = new LegacyReader(source);
+  const reader = new LegacyReader(source, ctx);
   let total: number;
   try {
     total = Number(
@@ -531,6 +546,7 @@ async function convert(
   journal.snapshotDirectory(ctx.paths.conversationsPath);
   const summary = await importCoreStorage({
     home: ctx.paths.home,
+    context: ctx,
     scratchDir: ctx.scratchDir,
     discarded: ctx.discarded,
     progress: () =>
@@ -548,11 +564,26 @@ async function convert(
       .prepare("SELECT directory FROM project")
       .all()) {
       const root = join(String(row.directory), ".nerve");
-      convertProfileScope(root, join(root, "subagents"), [], false, {
-        legacyEnabled,
-        inheritedProfiles: userProfiles,
-        receiptPath: profileReceiptPath(ctx.scratchDir, root),
-      });
+      const target = join(root, "config", "subagents.json");
+      await ctx.unit(
+        {
+          kind: "configuration",
+          id: target,
+          title: "Project sub-agent profiles",
+        },
+        () =>
+          convertProfileScope(root, join(root, "subagents"), [], false, {
+            legacyEnabled,
+            inheritedProfiles: userProfiles,
+            receiptPath: profileReceiptPath(ctx.scratchDir, root),
+          }),
+        {
+          quarantine: {
+            files: [target, join(root, "subagents")],
+            root: String(row.directory),
+          },
+        },
+      );
     }
   } finally {
     projectStorage.close();
@@ -613,6 +644,31 @@ export default defineStep({
   description:
     "Convert the 0.34.1 home to conversation core and file-owned configuration",
   requiresFreeBytes: 4 * 1024 ** 3,
+  ownedPaths: (ctx) =>
+    HOME_CONFIGURATION_FILES.map((name) =>
+      join(ctx.paths.home, "config", name),
+    ),
+  async check(ctx) {
+    const reader = new LegacyReader(
+      existsSync(sourcePath(ctx)) ? sourcePath(ctx) : ctx.paths.sqlitePath,
+      ctx,
+    );
+    try {
+      const checked = await checkConfiguration({
+        home: ctx.paths.home,
+        context: ctx,
+        dataDir: ctx.paths.dataPath,
+        reader,
+        discarded: ctx.discarded,
+      });
+      checkedConfiguration.set(ctx, checked);
+      checked.failures.push(...reader.failures);
+      if (checked.failures.length)
+        throw new DiscardableMigrationError(checked.failures);
+    } finally {
+      reader.close();
+    }
+  },
   async run(ctx) {
     mkdirSync(ctx.scratchDir, { recursive: true, mode: 0o700 });
     if (existsSync(verifiedPath(ctx))) {
@@ -625,6 +681,7 @@ export default defineStep({
       ctx.log(
         "Reusing the previous import: discarded conversations were never imported",
       );
+      quarantineDiscardedConversations(ctx);
       return;
     }
     // A full run rebuilds the database; never trust a summary of a prior run.
@@ -632,6 +689,9 @@ export default defineStep({
     const journal = new RollbackJournal(ctx.scratchDir);
     try {
       await withRollbackJournal(journal, () => convert(ctx, journal));
+      const summary = readJson(summaryPath(ctx)) as CoreImportSummary;
+      quarantineDiscardedConversations(ctx);
+      includeFailures(ctx, summary.failedConversations);
     } finally {
       resetPreflight();
     }
@@ -659,9 +719,18 @@ export default defineStep({
     ctx.log(
       `Verified: ${JSON.stringify(selected)}; foreign keys clean; quick_check ok`,
     );
-    // The runner appends its ledger only after this verify returns. This marker
-    // bridges a crash after deleting the source but before the ledger append.
-    writeJson(verifiedPath(ctx), { verifiedAt: new Date().toISOString() });
+  },
+  async commit(ctx) {
+    const summary = readJson(summaryPath(ctx)) as CoreImportSummary;
+    const losses = Object.entries(summary.lossyMappings).map(
+      ([reason, count]) => ({ reason, count }),
+    );
+    if (summary.assets.missingFiles)
+      losses.push({
+        reason: "Missing legacy assets",
+        count: summary.assets.missingFiles,
+      });
+    replaceLosses(ctx, losses);
     const manifest = readJson(ctx.paths.manifestPath);
     atomicWrite(
       ctx.paths.manifestPath,
@@ -676,12 +745,9 @@ export default defineStep({
     await setImmediate();
     await cleanup(ctx, summary);
   },
-  canRollback: (ctx) => !existsSync(verifiedPath(ctx)),
   async rollback(ctx) {
     // Verification never passed, so the legacy database is intact.
     assert(!existsSync(verifiedPath(ctx)), "Upgrade already verified");
-    if (existsSync(join(ctx.scratchDir, "rollback")))
-      new RollbackJournal(ctx.scratchDir).restore();
     const source = sourcePath(ctx),
       original = ctx.paths.sqlitePath,
       restoring = join(ctx.scratchDir, "restoring-database");

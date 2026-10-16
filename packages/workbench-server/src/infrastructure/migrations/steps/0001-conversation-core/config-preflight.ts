@@ -1,17 +1,16 @@
+import { checkedText } from "../../framework/toolkit.js";
 import assert from "node:assert/strict";
 import {
-  existsSync,
-  lstatSync,
-  readFileSync,
-  readdirSync,
-  renameSync,
-} from "node:fs";
+  HOME_CONFIGURATION_FILES,
+  PROJECT_CONFIGURATION_FILES,
+} from "./owned-paths.js";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
-import type { DiscardableItem } from "../../framework/step.js";
+import type { StepContext, DiscardableItem } from "../../framework/step.js";
 import { capabilityOverridesDocumentSchema } from "./capabilities.js";
 import type { Legacy, LegacyReader } from "./legacy.reader.js";
 import { convertPermissionRules } from "./process-history.js";
-import type { RollbackJournal } from "./rollback-journal.js";
+import type { RollbackJournal } from "../../framework/rollback-journal.js";
 import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
 import {
   enabledPreferences,
@@ -49,6 +48,9 @@ const definitions: Validate = (document) =>
     "Expected version 1 with a definitions list",
   );
 const validators: Record<string, Validate> = {
+  "capabilities.json": (document) => {
+    capabilityOverridesDocumentSchema.parse(document);
+  },
   "prompt-suggestions.json": (document) =>
     assert(
       document.version === 1 &&
@@ -65,6 +67,7 @@ const validators: Record<string, Validate> = {
 
 interface Candidate {
   path: string;
+  root: string;
   title: string;
   validate?: Validate;
 }
@@ -77,20 +80,6 @@ function reasonOf(error: unknown): string {
     return `${issue.path.length ? `${issue.path.join(".")}: ` : ""}${issue.message}`;
   const message = error instanceof Error ? error.message : String(error);
   return message.split("\n")[0].slice(0, 300);
-}
-
-function check(candidate: Candidate): string | undefined {
-  try {
-    if (!lstatSync(candidate.path).isFile())
-      return "Not a regular file (for example a symbolic link or directory)";
-    const document: Legacy = JSON.parse(readFileSync(candidate.path, "utf8"));
-    object(document);
-    candidate.validate?.(document);
-    return undefined;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    return reasonOf(error);
-  }
 }
 
 function jsonFiles(directory: string): string[] {
@@ -111,10 +100,11 @@ function candidates(
   const user = (path: string, validate?: Validate) =>
     result.push({
       path,
+      root: home,
       title: `User settings: ${relative(home, path)}`,
       validate: validate ?? validators[basename(path)],
     });
-  for (const path of jsonFiles(join(home, "config"))) user(path);
+  for (const name of HOME_CONFIGURATION_FILES) user(join(home, "config", name));
   for (const path of jsonFiles(join(home, "config", "rule-sets"))) user(path);
 
   for (const { data } of reader.documents("project")) {
@@ -124,11 +114,12 @@ function candidates(
     const project = (path: string, validate?: Validate) =>
       result.push({
         path,
+        root: resolve(directory),
         title: `Project ${data.name ?? basename(directory)}: ${relative(directory, path)}`,
         validate,
       });
-    for (const path of jsonFiles(join(nerve, "config")))
-      project(path, validators[basename(path)]);
+    for (const name of PROJECT_CONFIGURATION_FILES)
+      project(join(nerve, "config", name), validators[name]);
     project(join(nerve, "tasks", "definitions.json"), definitions);
     project(join(nerve, "launches", "definitions.json"), definitions);
   }
@@ -144,12 +135,14 @@ function candidates(
     result.push(
       {
         path: join(directory, "capabilities.json"),
+        root: home,
         title: `Conversation ${name}: capabilities.json`,
         validate: (document) =>
           capabilityOverridesDocumentSchema.parse(document),
       },
       {
         path: join(directory, "permissions.json"),
+        root: home,
         title: `Conversation ${name}: permissions.json`,
         validate: (document) => {
           convertPermissionRules(document);
@@ -163,61 +156,110 @@ function candidates(
   return result;
 }
 
-function asideName(path: string): string {
-  for (let index = 1; ; index++) {
-    const candidate = `${path}.corrupt${index === 1 ? "" : `-${index}`}`;
-    if (!lstatSync(candidate, { throwIfNoEntry: false })) return candidate;
-  }
-}
-
 /**
  * Validate every JSON configuration file the step will read before any is
- * converted. Discarded files are set aside as `<file>.corrupt` (journaled, so
- * rollback returns them); the rest are returned for the user to decide on.
+ * converted. Set-aside moves are deferred until run and journaled for rollback.
  */
-export function preflightConfiguration(input: {
+export async function checkConfiguration(input: {
   home: string;
+  context: StepContext;
   dataDir: string;
   reader: LegacyReader;
   discarded: ReadonlySet<string>;
-  journal: RollbackJournal;
-  log(message: string): void;
-}): DiscardableItem[] {
+}): Promise<{
+  failures: DiscardableItem[];
+  apply(journal: RollbackJournal, log: (message: string) => void): void;
+}> {
   unreadable = new Set();
+  checkedDocuments.clear();
+  checkedTexts.clear();
   const failures: DiscardableItem[] = [];
-  for (const candidate of candidates(
+  const files = candidates(
     input.home,
     input.dataDir,
     input.reader,
     input.discarded,
-  )) {
-    const reason = check(candidate);
-    if (!reason) continue;
+  );
+  for (const candidate of files)
+    input.context.ownPaths([candidate.path], candidate.root);
+  for (const candidate of files) {
     const path = resolve(candidate.path);
+    if (!lstatSync(path, { throwIfNoEntry: false })) continue;
     const runtime =
-      resolve(candidate.path, "..") === resolve(input.home, "config") &&
+      resolve(path, "..") === resolve(input.home, "config") &&
       RUNTIME_DOCUMENTS.has(basename(path));
-    if (runtime) {
-      unreadable.add(path);
-      input.log(`Unreadable ${path} left for startup recovery: ${reason}`);
-    } else if (input.discarded.has(path)) {
-      const aside = asideName(path);
-      input.journal.preserveFile(path);
-      input.journal.preserveFile(aside);
-      renameSync(path, aside);
-      input.log(`Set aside at user request: ${path} -> ${aside}`);
-    } else
-      failures.push({
-        kind: "configuration",
-        id: path,
-        title: candidate.title,
-        reason,
-      });
+    const item = {
+      kind: "configuration" as const,
+      id: path,
+      title: candidate.title,
+    };
+    await input.context.unit(
+      item,
+      () => {
+        try {
+          assert(lstatSync(path).isFile(), "Not a regular file");
+          const value = input.context.readJson(path, {
+            parse(value: unknown) {
+              const document = value as Legacy;
+              object(document);
+              candidate.validate?.(structuredClone(document));
+              return document;
+            },
+          });
+          if (value) {
+            checkedDocuments.set(path, value);
+            const text = checkedText(input.context, path);
+            if (text !== undefined) checkedTexts.set(path, text);
+          }
+        } catch (error) {
+          if (runtime) {
+            unreadable.add(path);
+            return;
+          }
+          failures.push({ ...item, reason: reasonOf(error) });
+          throw error;
+        }
+      },
+      runtime ? {} : { quarantine: { files: [path], root: candidate.root } },
+    );
   }
-  return failures;
+  return { failures, apply() {} };
+}
+
+export async function preflightConfiguration(
+  input: Parameters<typeof checkConfiguration>[0] & {
+    journal: RollbackJournal;
+    log(message: string): void;
+  },
+): Promise<DiscardableItem[]> {
+  const checked = await checkConfiguration(input);
+  return checked.failures;
+}
+
+const checkedDocuments = new Map<string, Legacy>();
+const checkedTexts = new Map<string, string>();
+export function consumeCheckedText(path: string): string | undefined {
+  const key = resolve(path);
+  const text = checkedTexts.get(key);
+  checkedTexts.delete(key);
+  return text;
+}
+/** A checked input is consumed once; subsequent reads observe conversion writes. */
+export function consumeCheckedDocument(path: string): Legacy | undefined {
+  const key = resolve(path);
+  const value = checkedDocuments.get(key);
+  checkedDocuments.delete(key);
+  return value;
 }
 
 /** Forget the preflight's unreadable documents once the attempt ends. */
 export function resetPreflight(): void {
   unreadable = new Set();
+  checkedDocuments.clear();
+  checkedTexts.clear();
+}
+
+export function invalidateCheckedDocument(path: string): void {
+  checkedDocuments.delete(resolve(path));
+  checkedTexts.delete(resolve(path));
 }

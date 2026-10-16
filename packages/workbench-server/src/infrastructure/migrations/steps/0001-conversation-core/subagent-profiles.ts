@@ -22,7 +22,7 @@ import {
 import { join, resolve, parse, relative, isAbsolute, sep } from "node:path";
 import { readJson, writeJson } from "./configuration.js";
 import type { Legacy } from "./legacy.reader.js";
-import { preserveForRollback } from "./rollback-journal.js";
+import { preserveForRollback } from "../../framework/rollback-journal.js";
 import { isUnreadableDocument } from "./config-preflight.js";
 
 // Frozen copies of the built-in profile text at the conversion boundary.

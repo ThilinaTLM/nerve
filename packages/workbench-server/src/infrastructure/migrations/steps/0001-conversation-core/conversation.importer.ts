@@ -1,3 +1,5 @@
+import { MessageSalvage } from "./message-salvage.js";
+import assert from "node:assert/strict";
 import { conversationEventSchema } from "./shapes.js";
 import type { AssetOwner } from "./assets.importer.js";
 import { collectAssets, insertAssets } from "./assets.importer.js";
@@ -11,7 +13,7 @@ import {
 } from "./events.mapper.js";
 import { iso, type Legacy, type LegacyReader } from "./legacy.reader.js";
 import { importPendingInput } from "./input.mapper.js";
-import { verifySelectedPath } from "./selected-path.validation.js";
+import { userMessageDigest } from "./selected-path.validation.js";
 import {
   importConversationScopes,
   type ImportScope,
@@ -310,7 +312,34 @@ export function importConversation(
     if (lastSourceId)
       predecessors.set(lastSourceId, { id: scope.head, scope: scope.id });
   };
-  for (const { row, data } of reader.records(conversation.id)) {
+  const sourceHistory = new Map<
+    string,
+    { parent: string | null; userDigest?: string }
+  >();
+  const salvage = new MessageSalvage(
+    reader,
+    mapping.report,
+    conversation,
+    agents,
+    inputs.length > 0 || tasks.length > 0,
+  );
+  for (const { row, data } of reader.records(
+    conversation.id,
+    undefined,
+    (row, error) => salvage.recover(row, error),
+  )) {
+    salvage.observe(row, data);
+    const sourceContext = data.modelContext?.entry;
+    sourceHistory.set(String(row.id), {
+      parent:
+        sourceContext && "parentId" in sourceContext
+          ? sourceContext.parentId
+          : (data.entry?.parentEntryId ?? null),
+      userDigest:
+        sourceContext?.message?.role === "user"
+          ? userMessageDigest(sourceContext.message)
+          : undefined,
+    });
     const scope = owner(row.agent_id);
     if (row.kind === "run") continue;
     if (row.kind === "tool_call" || row.kind === "tool_batch") continue;
@@ -406,6 +435,7 @@ export function importConversation(
     const event = mapMessage(mapping, row, data, base, call);
     if (event) {
       append(scope, event);
+      salvage.recordEvent(data, event);
       predecessors.set(String(row.id), { id: event.id, scope: scope.id });
       if (entry.id)
         predecessors.set(entry.id, { id: event.id, scope: scope.id });
@@ -553,12 +583,19 @@ export function importConversation(
           ? conversation.id
           : `${conversation.id}/${scope.sourceAgentId}`,
     };
-    const oldUserDigests = verifySelectedPath({
-      ...expectation,
-      reader,
-      storage: mapping.storage,
-      summary: mapping.report.selectedPaths,
-    });
+    const oldUserDigests: string[] = [];
+    const seen = new Set<string>();
+    let sourceId = oldLeafId;
+    while (sourceId) {
+      assert(!seen.has(sourceId), `Source history cycle ${sourceId}`);
+      seen.add(sourceId);
+      const receipt = sourceHistory.get(sourceId);
+      assert(receipt, `Missing source leaf/predecessor ${sourceId}`);
+      if (receipt.userDigest) oldUserDigests.push(receipt.userDigest);
+      sourceId = receipt.parent;
+    }
+    if (expectation.isRoot) mapping.report.selectedPaths.roots++;
+    else mapping.report.selectedPaths.children++;
     mapping.report.paths.push({ ...expectation, oldUserDigests });
   }
   for (const input of inputs)

@@ -21,7 +21,10 @@ import {
 import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
 import type { CoreStorage } from "./storage.js";
 import type { ImportReport, Legacy } from "./legacy.reader.js";
-import { isUnreadableDocument } from "./config-preflight.js";
+import {
+  consumeCheckedText,
+  isUnreadableDocument,
+} from "./config-preflight.js";
 
 export interface ImportedConversationOverlays {
   capabilitiesWritten: number;
@@ -79,7 +82,7 @@ export class ConversationOverlaysImporter {
     );
     let document;
     try {
-      const content = readFileSync(path, "utf8");
+      const content = consumeCheckedText(path) ?? readFileSync(path, "utf8");
       const parsed = capabilityOverridesDocumentSchema.parse(
         JSON.parse(content),
       );
@@ -108,7 +111,7 @@ export class ConversationOverlaysImporter {
       if (!lstatSync(path).isFile())
         throw new Error("Legacy overlay must be a regular file");
       this.assertContained(path);
-      return readFileSync(path, "utf8");
+      return consumeCheckedText(path) ?? readFileSync(path, "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;

@@ -1,3 +1,5 @@
+import { syncDirectory, syncFile } from "./durability.js";
+import { movePreservingSource } from "./move.js";
 import assert from "node:assert/strict";
 import {
   chmodSync,
@@ -61,6 +63,7 @@ export class RollbackJournal {
 
   /** Call before writing, replacing or removing a file outside the scratch dir. */
   preserveFile(path: string): void {
+    this.#refresh();
     path = resolve(path);
     const rel = relative(this.#scratch, path);
     if (!rel.startsWith("..") && !isAbsolute(rel)) return;
@@ -76,6 +79,8 @@ export class RollbackJournal {
       backup = join("files", String(this.#entries.length));
       mode = stat.mode & 0o777;
       copyFileSync(path, join(this.#root, backup));
+      syncFile(join(this.#root, backup));
+      syncDirectory(dirname(join(this.#root, backup)));
     } else {
       for (
         let parent = dirname(path);
@@ -101,6 +106,7 @@ export class RollbackJournal {
 
   /** Call before adding children to a directory; rollback removes new ones. */
   snapshotDirectory(path: string): void {
+    this.#refresh();
     path = resolve(path);
     if (this.#known.has(`directory:${path}`)) return;
     this.#append({
@@ -110,54 +116,94 @@ export class RollbackJournal {
     });
   }
 
-  /** Undo journaled changes, newest first. Idempotent across interruptions. */
-  restore(): void {
-    for (const entry of [...this.#entries].reverse()) {
-      if (entry.kind === "rename") {
-        if (existsSync(entry.to) && !existsSync(entry.from))
-          renameSync(entry.to, entry.from);
-      } else if (entry.kind === "directory") {
-        if (!existsSync(entry.path)) continue;
-        if (entry.entries === null) {
-          rmSync(entry.path, { recursive: true, force: true });
-          continue;
-        }
-        const original = new Set(entry.entries);
-        for (const name of readdirSync(entry.path))
-          if (!original.has(name))
-            rmSync(join(entry.path, name), { recursive: true, force: true });
-      } else if (entry.link !== undefined) {
-        if (lstatSync(entry.path, { throwIfNoEntry: false })?.isSymbolicLink())
-          continue;
-        rmSync(entry.path, { force: true });
-        mkdirSync(dirname(entry.path), { recursive: true });
-        symlinkSync(entry.link, entry.path);
-      } else if (entry.backup) {
-        mkdirSync(dirname(entry.path), { recursive: true });
-        const temporary = `${entry.path}.rollback`;
-        copyFileSync(join(this.#root, entry.backup), temporary);
-        if (entry.mode !== undefined) chmodSync(temporary, entry.mode);
-        renameSync(temporary, entry.path);
-      } else {
-        rmSync(entry.path, { force: true });
-        for (const directory of entry.createdDirectories) {
-          try {
-            rmdirSync(directory);
-          } catch {
-            // Not empty: something else now lives there.
-          }
+  /** Undo newest-first, checkpointing each inverse so rollback itself resumes. */
+  restore(onProgress?: (done: number, total: number) => void): void {
+    this.#refresh();
+    const progressPath = join(this.#root, "progress.json");
+    const completed = new Set<number>(
+      existsSync(progressPath)
+        ? JSON.parse(readFileSync(progressPath, "utf8"))
+        : [],
+    );
+    for (let index = this.#entries.length - 1; index >= 0; index--) {
+      if (completed.has(index)) continue;
+      this.#restoreEntry(this.#entries[index]);
+      completed.add(index);
+      const temporary = `${progressPath}.tmp`;
+      writeFileSync(temporary, JSON.stringify([...completed]), { mode: 0o600 });
+      syncFile(temporary);
+      renameSync(temporary, progressPath);
+      syncDirectory(this.#root);
+      onProgress?.(completed.size, this.#entries.length);
+    }
+  }
+
+  #restoreEntry(entry: JournalEntry): void {
+    if (entry.kind === "rename") {
+      if (
+        lstatSync(entry.to, { throwIfNoEntry: false }) &&
+        !lstatSync(entry.from, { throwIfNoEntry: false })
+      )
+        movePreservingSource(entry.to, entry.from);
+    } else if (entry.kind === "directory") {
+      if (!existsSync(entry.path)) return;
+      if (entry.entries === null) {
+        rmSync(entry.path, { recursive: true, force: true });
+        return;
+      }
+      const original = new Set(entry.entries);
+      for (const name of readdirSync(entry.path))
+        if (!original.has(name))
+          rmSync(join(entry.path, name), { recursive: true, force: true });
+    } else if (entry.link !== undefined) {
+      if (
+        lstatSync(entry.path, { throwIfNoEntry: false })?.isSymbolicLink() &&
+        readlinkSync(entry.path) === entry.link
+      )
+        return;
+      rmSync(entry.path, { force: true });
+      mkdirSync(dirname(entry.path), { recursive: true });
+      symlinkSync(entry.link, entry.path);
+    } else if (entry.backup) {
+      mkdirSync(dirname(entry.path), { recursive: true });
+      const temporary = `${entry.path}.rollback`;
+      copyFileSync(join(this.#root, entry.backup), temporary);
+      if (entry.mode !== undefined) chmodSync(temporary, entry.mode);
+      syncFile(temporary);
+      renameSync(temporary, entry.path);
+      syncDirectory(dirname(entry.path));
+    } else {
+      rmSync(entry.path, { force: true });
+      for (const directory of entry.createdDirectories) {
+        try {
+          rmdirSync(directory);
+        } catch {
+          /* Other files now live here. */
         }
       }
     }
   }
 
+  #refresh(): void {
+    if (!existsSync(this.#index)) return;
+    const entries = JSON.parse(
+      readFileSync(this.#index, "utf8"),
+    ) as JournalEntry[];
+    this.#entries.splice(0, this.#entries.length, ...entries);
+    this.#known.clear();
+    for (const entry of entries) this.#known.add(key(entry));
+  }
+
   #append(entry: JournalEntry): void {
-    if (this.#known.has(key(entry))) return;
+    this.#refresh();
+    if (entry.kind !== "rename" && this.#known.has(key(entry))) return;
     this.#entries.push(entry);
     this.#known.add(key(entry));
     const temporary = `${this.#index}.tmp`;
     writeFileSync(temporary, JSON.stringify(this.#entries), { mode: 0o600 });
+    syncFile(temporary);
     renameSync(temporary, this.#index);
+    syncDirectory(this.#root);
   }
 }
 
@@ -168,6 +214,10 @@ function key(entry: JournalEntry): string {
 }
 
 let active: RollbackJournal | undefined;
+let unitJournal: RollbackJournal | undefined;
+export function setUnitJournal(journal: RollbackJournal | undefined): void {
+  unitJournal = journal;
+}
 
 /** Run `action` with every conversion helper journaling into `journal`. */
 export async function withRollbackJournal<T>(
@@ -185,4 +235,5 @@ export async function withRollbackJournal<T>(
 /** No-op outside a migration attempt (e.g. the runtime project.create move). */
 export function preserveForRollback(path: string): void {
   active?.preserveFile(path);
+  unitJournal?.preserveFile(path);
 }

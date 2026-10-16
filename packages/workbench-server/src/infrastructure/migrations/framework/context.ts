@@ -1,3 +1,12 @@
+import {
+  checkedJson,
+  initializeToolkit,
+  ownPaths,
+  quarantine,
+  recordLoss,
+  runUnit,
+} from "./toolkit.js";
+import { MigrationFilesystem } from "./filesystem.js";
 import { readFileSync } from "node:fs";
 import { appendFile, mkdir, statfs } from "node:fs/promises";
 import { join } from "node:path";
@@ -47,6 +56,12 @@ export function createStepContext(
   let logError: unknown;
   const context: StepContext = {
     paths,
+    fs: new MigrationFilesystem(scratchDir),
+    ownPaths: (paths, root) => ownPaths(context, paths, root),
+    unit: (item, fn, options) => runUnit(context, item, fn, options),
+    readJson: (path, schema) => checkedJson(context, path, schema),
+    quarantine: (item, payload) => quarantine(context, item, payload),
+    loss: (reason, count) => recordLoss(context, reason, count),
     scratchDir,
     discarded: readDiscardedItems(scratchDir),
     progress: (phase, done, total, label) =>
@@ -66,6 +81,8 @@ export function createStepContext(
         });
     },
   };
+  context.fs.recoverUnit();
+  initializeToolkit(context);
   return {
     context,
     async flushLog() {

@@ -1,7 +1,7 @@
 # 0001 — conversation core (draft)
 
 Frozen conversion from the 0.34.1 layout. Runtime imports are Node built-ins and
-the framework step definition only. The local schema SQL is an exact snapshot of
+the framework only. The local schema SQL is an exact snapshot of
 the approved core v1, including its `schema_migrations` checksum. No schema change
 is introduced here.
 
@@ -13,52 +13,110 @@ Every conversation tree commits separately, with an event-loop yield and progres
 update. A retry restarts the import from the retained source, using deterministic
 IDs. Managed config writes and promoted-output copies are idempotent.
 
-Verification re-walks every old selected leaf and mapped new head, checks user
-message digests and tool pairing, row counts, source file coverage, destination
-asset sizes, schema checksum, foreign keys and `quick_check`. The successful
-checkpoint retains only source-message digests and mapped heads, not snapshots.
-It permits verification/cleanup to resume after source removal but before the
-framework ledger append. No legacy data is removed before verification.
+Verification uses import receipts (source-message digests, mapped heads, source
+conversation count and enumerated asset paths), then checks replacement history,
+tool pairing, projected payloads, row counts, asset coverage/sizes, schema checksum,
+foreign keys and `quick_check`. It does not re-walk source histories or source
+asset directories. Destination payload and file checks remain necessary: import
+receipts cannot prove the replacement has not been damaged after import.
 
-## Failed conversations, discard and rollback
+The runner executes read-only `check`, isolated `run`, and `verify`; it persists
+`verified.json` before calling `commit`. Once marked, a restart retries cleanup
+only, and rollback is unavailable. No legacy database is removed before commit.
 
-Before converting anything, `config-preflight.ts` checks every JSON configuration
-file the step reads:
+## Ownership, failed units and rollback
 
-- user `config/*.json` and `config/rule-sets/*.json`
-- per-conversation `capabilities.json` and `permissions.json`, against the importer's schemas
-- project `.nerve/config/*.json`, plus `tasks` and `launches` definitions
+The frozen JSON ownership set derives from v0.34.1:
 
-Unreadable files are reported together as discardable `configuration` items. A
-discarded file is set aside as `<file>.corrupt`. The six runtime-owned home
-documents (`daemon`, `harness`, `ui`, `permissions`, `providers`, `integrations`)
-are never reported or rewritten. The step reads an unreadable one as empty, and
-startup then offers to reset it to runtime defaults (`CONFIGURATION_INVALID`).
+- Home `config/{daemon,harness,ui,permissions,providers,integrations}.json`:
+  `infrastructure/storage-bootstrap/paths.ts`.
+- Home `config/rule-sets/*.json`:
+  `domains/permissions/permission-policy.service.ts` (`customRuleSets`).
+- Registered projects' `.nerve/config/{harness,ui,providers,integrations}.json`:
+  `infrastructure/configuration/project-configuration.ts`.
+- Project and conversation permissions/capabilities overlays:
+  `domains/{permissions,capabilities}` services.
+- Project `.nerve/tasks/definitions.json`:
+  `domains/task-definitions/task-definition.repository.ts`.
+- Conversion outputs (`subagents.json`, home `prompt-suggestions.json`, project
+  `.nerve/launches/definitions.json`) are also checked to avoid overwriting a
+  conflicting existing target. Legacy sub-agent and suggestion Markdown resources
+  are owned conversion inputs, not arbitrary project files.
 
-A conversation that fails to import (including an unreadable document) rolls back
-its transaction, report entries and new-layout files, and the import continues.
-Verification attributes history, event, asset and source-file failures to their
-source conversation and continues. Home-wide checks (schema, row counts, foreign
-keys, `quick_check`) still abort. If any conversation failed, verify throws
-`ConversationMigrationError` before the verified marker, and nothing is removed.
-The failure report lists the conversations and whether a rollback is available.
+Unowned JSON, including `config/mcp.json` and old `config/settings.json`, is ignored.
+Checked reads have exact-path ownership enforcement and reject symlink traversal.
+The check retains JSON documents for conversion instead of reparsing them.
+Unreadable runtime-owned home documents are left for runtime settings recovery.
 
-- Discard: the IDs go to `discarded-conversations.json` in the scratch directory.
-  The next attempt reruns the import without them, and cleanup deletes their
-  legacy directories.
-- Rollback (until the verified marker exists): `rollback-journal.ts` writes ahead
-  the original bytes of every in-place config/project file write or removal
-  (symlinks are kept as links), the `data/launches` renames, and a snapshot of
-  `data/conversations` entries. Rollback replays the journal, drops the new
-  database, returns `nerve.sqlite.migrating` and its sidecars, and the framework
-  restores the original manifest. The server then stays in a terminal
-  `MIGRATION_ROLLED_BACK` state until it is quit.
+`ctx.unit` aggregates independent failures, isolates journaled file changes and
+report checkpoints, and supports a caller-supplied transaction hook. Conversation
+imports retain their SQLite transaction. Ancillary decoding uses relational owner
+columns and valid owning documents; an unowned unreadable record becomes a
+configuration unit `legacy-record:<namespace>/<document_id>`. An unreadable project
+also reports its affected conversations. Missing project relationships during a
+conversation import belong to that conversation, not the whole home.
+
+Set-aside choices survive retries in scratch `discarded.json`. Files move into
+`home/quarantine/0001-conversation-core/<unit>/payload/<basename>` with `reason.json`.
+Database-backed units stream only their own raw rows to `payload/records.jsonl`
+(`{ table, row }`, with SQLite BLOB values encoded as `{ "$blob": "<base64>" }`)
+and move their managed directories. Repeated exports deduplicate rows. Moves use rename, with synced copy/remove
+across devices. Quarantine survives successful upgrade until the user deletes it.
+Import-only failed conversations reuse the previous completed import when excluded;
+verification failures require a rebuild.
+
+The framework writes a private `migrations/reports/0001-conversation-core.json`
+after successful commit if units were set aside or import losses were recorded.
+Reports and sibling `.seen` dismissal files survive scratch cleanup.
+
+Before verification, framework rollback restores journaled original file bytes,
+renames and directory entries; the extra step hook removes the replacement DB and
+returns the retained source/sidecars. The framework restores the exact pre-step
+manifest, including baseline admission bytes when applicable. Rollback is resumable.
+
+## Conservative message salvage
+
+Automatic repair is deliberately bounded to **JSON-decode failures in non-root
+`message` rows** of an otherwise provably linear, single-agent text history:
+
+- One explicit root agent with a stored model and an existing project; no child
+  agents, queued inputs, tasks, runs, or tool-associated asset rows.
+- Intact relational conversation/agent IDs and stored timestamps, positive unique
+  increasing sequences,
+  and a complete parent chain: the first row has no parent and every later row
+  names the preceding row. A damaged row must have a surviving predecessor.
+- Selected-head rows agree on the terminal record. Every readable neighbor is a
+  text-only user/assistant message whose embedded parent agrees with the columns.
+  Branches, ambiguous heads, non-text/tool-bearing neighbors, and malformed
+  ownership are not repaired. Valid JSON with a broken semantic shape is not
+  treated as a decode failure.
+
+A lost row becomes an existing `system_event/notification`, visible in the
+transcript, explicitly saying its speaker/content are unknown. It is history-only
+(`llmRepresentation: "none"`), not an invented user/assistant message or tool fact.
+Readable user **and** assistant messages and their chain are retained. Nothing in
+this repair guesses authorization, permissions, configuration, or tool outcomes;
+those records remain configuration/conversation failures when unreadable.
+
+Each damaged raw row is streamed to its own journaled quarantine entry before
+verification/cleanup, with its exact BLOB bytes encoded losslessly. The owning
+conversation is retained, so this does **not** add a whole-conversation set-aside
+report item. Instead each durable report loss identifies the source conversation,
+record ID, sequence, decode damage, and quarantine path. Placeholder digests join
+import receipts; verification checks their identity/text and surviving history
+without rereading source JSON. Only damaged units pay a metadata-only chain pass.
+
+If later evidence makes repair unsafe, the conversation transaction, raw-record
+archive, receipts, and loss entries roll back together and the entire conversation
+is reported. Pre-commit home rollback restores original database/configuration
+bytes. Successful salvage needs one import; its receipts and raw archive also
+survive the existing import-reuse-on-discard path for unrelated failed units.
 
 ## Configuration conversion
 
 - Harness `defaults` / `lastSelection`: `permissionLevel` → `permissionRuleSetId`.
-- Flat settings `defaultPermissionLevel` / `lastAgentSelection.permissionLevel`:
-  rule-set keys. Explicit existing IDs win. Other configuration is preserved.
+- Owned settings permission-selection keys become rule-set keys. Explicit existing
+  IDs win. Unowned legacy `settings.json` is not converted.
 - User suggestion frontmatter: `when.permissionLevels` → `permissionRuleSets`,
   without modifying body text or JavaScript. Predicate approval is retained only
   if its JS hash matches; file digests are then bound to the converted content.
@@ -93,23 +151,40 @@ The failure report lists the conversations and whether a rollback is available.
   fields are not written into SQLite. Core tools cannot be hidden by optional
   capability overlays; permission policy remains authoritative.
 
+## Profile conversion limits
+
+Only user resources and registered projects are converted. Later-opened old
+projects need explicit canonical `.nerve/config/subagents.json` conversion;
+there is no runtime legacy Markdown profile loader. Preserve profile names,
+instructions, settings, and explicit toggles. Conflicting legacy/canonical
+profiles or incompatible whole-map versus sparse-map capability shadowing are
+configuration-unit failures for the canonical profile target. Repair the source
+and retry, or explicitly set the unit aside; do not invent toggles or broaden
+capabilities. Raw sources remain recoverable.
+
+## Development homes with an earlier draft applied
+
+Extending this unreleased step does not rerun an already-applied ledger entry.
+Use a fresh home or an isolated copy of a pre-upgrade baseline; do not remove
+ledger entries to replay against converted data. This is a draft-development
+limitation, not a compatibility loader or a new released migration step.
+
 ## Cleanup and limits
 
 Referenced task outputs are copied to
 `data/conversations/<id>/async-bash/<bashId>/` before deleting `data/tasks`.
 After verification: remove the `.migrating` database/sidecars, query-cache database
 and sidecars, `journal` / `data/journal`, old `data/migrations` and root migration
-entries (except framework `work` and `last-failure.json`), `migration-journal.json`,
+entries (except framework `work`, `reports` and `last-failure.json`), `migration-journal.json`,
 and obsolete `data/state.sqlite` / `data/core.sqlite`. Existing tool-call files
 remain referenced in their old managed directories. The runner removes its
 scratch directory (including the rollback journal) after recording the ledger.
-No backup is retained after success.
+No whole-home backup is retained after success; quarantine and upgrade reports remain.
 
 Disk admission requires 4 GiB, with an additional runtime check for 15% of the
 source DB size. No processes resume; imported bash `processRef` stays null.
-Historical losses remain documented in the architecture migration notes, including
-indeterminate calls, unsupported user-image/config fields and already-missing
-asset references. This development rehearsal is not production-home coverage.
+Import summaries and durable reports record losses such as indeterminate calls,
+unsupported user-image/config fields and already-missing asset references. This development rehearsal is not production-home coverage.
 
 ## Rehearsal evidence
 
@@ -128,3 +203,15 @@ also passed the current application schema in a separate read-only check.
 Evidence: `/tmp/m1-rehearsal.log`, `/tmp/m1-rehearsal-summary.json`, and
 `/tmp/m1-dry-run-after.log`. Final copied-slot timings/startup and validation are
 recorded in the completion handoff.
+
+A separate earlier PR recovery rehearsal covered 311 conversations, roughly
+90–100 seconds of import, and byte-identical restoration. That copied-home evidence
+predates the conservative message-salvage extension above; it is not evidence of
+universal repair or exhaustive crash coverage. This extension's tests use fresh
+temporary homes, not real storage slots.
+
+The shared suite injects crash exceptions at progress events; targeted journal
+unit tests also interrupt rollback checkpoints. These do not cover every process-
+kill/durability window. `pnpm storage:rehearse` prepares isolated home/project copies,
+optional corruptions and baseline checksums, and prints manual lifecycle recovery
+instructions; it does not automatically drive the recovery API.

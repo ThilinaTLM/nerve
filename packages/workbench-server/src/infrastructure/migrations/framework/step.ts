@@ -1,3 +1,5 @@
+import type { QuarantinePayload, UnitOptions } from "./toolkit.js";
+import type { MigrationFilesystem } from "./filesystem.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 
 export interface MigrationProgress {
@@ -45,6 +47,19 @@ function describeItems(items: DiscardableItem[]): string {
 
 export interface StepContext {
   paths: StoragePaths;
+  fs: MigrationFilesystem;
+  ownPaths(paths: readonly string[], root?: string): void;
+  unit<T>(
+    item: Omit<DiscardableItem, "reason">,
+    fn: () => T | Promise<T>,
+    options?: UnitOptions,
+  ): Promise<T | undefined>;
+  readJson<T>(
+    path: string,
+    schema: { parse(value: unknown): T },
+  ): T | undefined;
+  quarantine(item: DiscardableItem, payload: QuarantinePayload): string;
+  loss(reason: string, count?: number): void;
   scratchDir: string;
   /** Item IDs the user chose to discard after a failed attempt. */
   discarded: ReadonlySet<string>;
@@ -56,10 +71,15 @@ export interface MigrationStep {
   id: string;
   description: string;
   requiresFreeBytes?: number;
+  ownedPaths?(
+    context: StepContext,
+  ): Promise<readonly string[]> | readonly string[];
+  /** Read-only validation before conversion starts. */
+  check?(context: StepContext): Promise<void>;
   run(context: StepContext): Promise<void>;
+  /** Legacy cleanup, called only after the runner persists verification. */
+  commit?(context: StepContext): Promise<void>;
   verify?(context: StepContext): Promise<void>;
-  /** Whether `rollback` can still restore the pre-step home. */
-  canRollback?(context: StepContext): boolean;
   /** Restores the pre-step home after a failed, unrecorded attempt. */
   rollback?(context: StepContext): Promise<void>;
 }

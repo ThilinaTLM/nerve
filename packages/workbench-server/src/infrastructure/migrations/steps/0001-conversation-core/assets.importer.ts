@@ -118,6 +118,10 @@ export function collectAssets(
   )) {
     mapping.report.diskFiles++;
     const logicalPath = relative(root, path).split("\\").join("/");
+    mapping.report.sourceFiles.push({
+      conversationId: oldConversationId,
+      logicalPath,
+    });
     const toolSegment = logicalPath.split("/")[3];
     const oldToolId = toolSegment.startsWith("tool_")
       ? toolSegment

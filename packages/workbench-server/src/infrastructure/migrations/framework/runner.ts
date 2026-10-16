@@ -1,3 +1,13 @@
+import { syncDirectory, syncFile } from "./durability.js";
+import {
+  applyQuarantine,
+  finishPhase,
+  startPhase,
+  writeUpgradeReport,
+  toolkitState,
+} from "./toolkit.js";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { copyFile, mkdir, rm } from "node:fs/promises";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 import { storagePaths } from "../../storage-bootstrap/paths.js";
@@ -107,12 +117,30 @@ export async function runMigrations(
         0o600,
       );
     }
+    const cleanupMarker = join(paths.migrationWorkPath, "cleanup-needed.json");
+    if (!fresh && !pending.length) {
+      // The common path pays one cheap check, never a directory/data scan.
+      if (await pathExists(cleanupMarker)) {
+        for (const applied of manifest.migrations ?? [])
+          await rm(join(paths.migrationWorkPath, applied.id), {
+            recursive: true,
+            force: true,
+          });
+        await rm(manifestBackupPath(paths), { force: true });
+        await rm(paths.migrationFailureReportPath, { force: true });
+        await rm(cleanupMarker, { force: true });
+      }
+      return result;
+    }
     // Admit the baseline before a step can replace/delete its old DB. The
     // original manifest is kept so a failed step can be rolled back.
     if (!fresh && !manifest.migrations) {
       await mkdir(paths.migrationWorkPath, { recursive: true, mode: 0o700 });
-      if (!(await pathExists(manifestBackupPath(paths))))
+      if (!(await pathExists(manifestBackupPath(paths)))) {
         await copyFile(paths.manifestPath, manifestBackupPath(paths));
+        syncFile(manifestBackupPath(paths));
+        syncDirectory(paths.migrationWorkPath);
+      }
       await atomicWriteJson(
         paths.manifestPath,
         { ...manifest, migrations: [] },
@@ -128,9 +156,6 @@ export async function runMigrations(
     }
     for (const entry of pending) {
       stepId = entry.step.id;
-      phase = "disk-check";
-      if (entry.step.requiresFreeBytes !== undefined)
-        await assertFreeDisk(home, entry.step.requiresFreeBytes);
       const { context, flushLog } = createStepContext(
         paths,
         stepId,
@@ -139,16 +164,72 @@ export async function runMigrations(
       );
       current = { entry, context };
       await mkdir(context.scratchDir, { recursive: true, mode: 0o700 });
+      await atomicWriteJson(cleanupMarker, {}, 0o600);
+      const backup = join(context.scratchDir, "manifest.before.json");
+      if (!(await pathExists(backup))) {
+        await copyFile(paths.manifestPath, backup);
+        syncFile(backup);
+        syncDirectory(context.scratchDir);
+      }
       try {
-        context.progress("run", undefined, undefined, entry.step.description);
-        await entry.step.run(context);
+        if (
+          await pathExists(
+            join(context.scratchDir, "rollback", "progress.json"),
+          )
+        )
+          throw new Error(
+            "Storage rollback is in progress; finish restoring the previous version before retrying.",
+          );
+        context.fs.recoverUnit();
+        if (!(await pathExists(join(context.scratchDir, "verified.json")))) {
+          phase = "disk-check";
+          if (entry.step.requiresFreeBytes !== undefined)
+            await assertFreeDisk(home, entry.step.requiresFreeBytes);
+          startPhase(context, "check");
+          context.progress(
+            "check",
+            undefined,
+            undefined,
+            "Checking migration inputs",
+          );
+          context.ownPaths((await entry.step.ownedPaths?.(context)) ?? []);
+          await entry.step.check?.(context);
+          finishPhase(context);
+          startPhase(context, "run");
+          applyQuarantine(context);
+          context.progress("run", undefined, undefined, entry.step.description);
+          await entry.step.run(context);
+          finishPhase(context);
+          startPhase(context, "verify");
+          context.progress(
+            "verify",
+            undefined,
+            undefined,
+            "Verifying migrated storage",
+          );
+          await entry.step.verify?.(context);
+          finishPhase(context);
+          await atomicWriteJson(
+            join(context.scratchDir, "verified.json"),
+            {
+              verifiedAt: new Date().toISOString(),
+            },
+            0o600,
+          );
+        }
         context.progress(
-          "verify",
+          "commit",
           undefined,
           undefined,
-          "Verifying migrated storage",
+          "Finishing storage upgrade",
         );
-        await entry.step.verify?.(context);
+        startPhase(context, "commit");
+        await entry.step.commit?.(context);
+        await writeUpgradeReport(
+          context,
+          entry.step.id,
+          entry.step.description,
+        );
         await flushLog();
         context.progress(
           "ledger",
@@ -165,6 +246,7 @@ export async function runMigrations(
       await rm(context.scratchDir, { recursive: true, force: true });
     }
     await rm(manifestBackupPath(paths), { force: true });
+    await rm(cleanupMarker, { force: true });
     await rm(paths.migrationFailureReportPath, { force: true });
     if (pending.length)
       log(
@@ -173,6 +255,12 @@ export async function runMigrations(
     return result;
   } catch (error) {
     if (!options.dryRun) {
+      if (current)
+        await atomicWriteJson(
+          join(current.context.scratchDir, "unit-dependencies.json"),
+          toolkitState(current.context).dependencies,
+          0o600,
+        );
       const failure: MigrationFailureReport = {
         step: stepId,
         phase,
@@ -204,10 +292,7 @@ export async function runMigrations(
 function rollbackAvailable(
   current: { entry: RegisteredStep; context: StepContext } | undefined,
 ): boolean {
-  if (!current?.entry.step.rollback) return false;
-  try {
-    return current.entry.step.canRollback?.(current.context) ?? true;
-  } catch {
-    return false;
-  }
+  return (
+    !!current && !existsSync(join(current.context.scratchDir, "verified.json"))
+  );
 }
