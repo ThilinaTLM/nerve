@@ -96,7 +96,8 @@ async function copyDiagnostics() {
   {/if}
 {/snippet}
 
-{#if serverLifecycleState.phase === "failed"}
+<!-- While the boot splash shows a retry's progress, this view steps aside. -->
+{#if serverLifecycleState.phase === "failed" && !serverLifecycleState.splashRetry}
   <div
     bind:this={layer}
     class={[

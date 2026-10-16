@@ -1,6 +1,7 @@
 import type { ServerLifecycle } from "@nervekit/contracts/status";
 import {
-  dismissStartupSplash,
+  hideStartupSplash,
+  showStartupSplash,
   updateStartupSplash,
 } from "$lib/app/shell/startup-splash";
 import { onServerStarting } from "$lib/platform/http/server-starting-signal";
@@ -30,6 +31,8 @@ export const serverLifecycleState = $state({
   view: describeLifecycle(undefined) as LifecycleView,
   /** A retry was accepted and the server is working through it. */
   retrying: false,
+  /** The boot splash shows the retry's progress instead of the error view. */
+  splashRetry: false,
   retryError: undefined as string | undefined,
   /** Post-load reconnect overlay is visible. */
   reconnecting: false,
@@ -52,10 +55,12 @@ async function settle(onPending?: () => void): Promise<Settled> {
       if (lifecycle?.state === "failed") {
         serverLifecycleState.phase = "failed";
         serverLifecycleState.retrying = false;
-        dismissStartupSplash();
+        serverLifecycleState.splashRetry = false;
+        hideStartupSplash();
         return "failed";
       }
       if (lifecycle?.state === "ready") {
+        // The splash stays up until the workbench reveal fades it out.
         serverLifecycleState.retrying = false;
         if (bootVersion === undefined) {
           bootVersion = lifecycle.version;
@@ -119,6 +124,7 @@ async function runRecovery(
     return false;
   }
   serverLifecycleState.retrying = true;
+  serverLifecycleState.splashRetry = showStartupSplash();
   serverLifecycleState.lifecycle = accepted;
   const wasBooting = bootVersion === undefined;
   const result = await settle();

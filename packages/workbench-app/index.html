@@ -198,6 +198,10 @@
           transform 280ms ease,
           filter 280ms ease;
       }
+      /* Hidden while a startup failure is shown; a retry shows it again. */
+      #startup-splash.is-hidden {
+        display: none;
+      }
       #startup-splash.is-dismissed {
         opacity: 0;
         transform: scale(1.03);

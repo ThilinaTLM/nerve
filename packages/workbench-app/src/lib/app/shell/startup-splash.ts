@@ -28,6 +28,22 @@ export function dismissStartupSplash(): void {
   });
 }
 
+/**
+ * Hides the splash behind a startup failure without removing it, so a retry
+ * can show the same splash and progress again.
+ */
+export function hideStartupSplash(): void {
+  document.getElementById("startup-splash")?.classList.add("is-hidden");
+}
+
+/** Shows a hidden splash for a retry; false when it was already removed. */
+export function showStartupSplash(): boolean {
+  const splash = document.getElementById("startup-splash");
+  if (!splash || splash.classList.contains("is-dismissed")) return false;
+  splash.classList.remove("is-hidden");
+  return true;
+}
+
 export interface StartupSplashView {
   status: string;
   detail?: string;
