@@ -6,11 +6,12 @@
  * headline is not animated twice.
  */
 
-import { anatomyStage } from "./anatomy";
-import { constellationStage } from "./constellation";
-import { defaultsStage } from "./defaults";
+import { closingStage } from "./closing";
 import { heroStage } from "./hero";
-import { leanStage } from "./lean";
+import { ledgerStage } from "./ledger";
+import { liveRunStage } from "./live-run";
+import { teamStage } from "./team";
+import { workbenchStage } from "./workbench";
 import { revealLines, settleIn } from "./primitives";
 import {
   fontsReady,
@@ -20,13 +21,6 @@ import {
   refreshOnAssets,
   ScrollTrigger,
 } from "./runtime";
-import {
-  authorityStage,
-  closingStage,
-  pocketStage,
-  signalStripStage,
-} from "./sections";
-import { tourStage } from "./tour";
 
 /* Section headings and any block that opted into the generic arrival. Elements
  * claimed by a stage carry `is-revealed` already and are skipped. */
@@ -83,14 +77,10 @@ export function initStage(): void {
   void fontsReady().then(() => {
     heroStage();
     revealPass();
-    signalStripStage();
-    anatomyStage();
-    authorityStage();
-    leanStage();
-    constellationStage();
-    tourStage();
-    defaultsStage();
-    pocketStage();
+    ledgerStage();
+    liveRunStage();
+    workbenchStage();
+    teamStage();
     closingStage();
     axonRail();
 

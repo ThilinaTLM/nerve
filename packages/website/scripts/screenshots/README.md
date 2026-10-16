@@ -59,7 +59,9 @@ node scripts/screenshots/run.mjs --github
 `--kind` selects `desktop`, `mobile`, or `both` (default). `--scenes` accepts
 comma-separated IDs from `scenes.mjs`: `conversation` shows retained sub-agents,
 `async-bash` shows retained background command output, and `launches` shows
-project launch configurations and a completed run. Optimization requires both
+project launch configurations and a completed run. `editor` opens the rate-limit
+middleware in the built-in text editor and leaves an unsaved draft with the
+conversation available in the adjacent tab. Optimization requires both
 light and dark captures, so omit `--theme` when running the full pipeline.
 The runner prints the isolated raw-output directory for inspection.
 

@@ -1,0 +1,1003 @@
+---
+/* The live run — one transcript, four beats.
+ *
+ * Authored as four complete, compact panels stacked in order: that is what
+ * mobile, no-JS, and reduced-motion visitors read. On desktop the stage
+ * (`scripts/motion/stage/live-run.ts`) sets `data-pinned`, which re-lays the
+ * same markup as one panel inside a pinned scroll story with a step rail. The
+ * run itself is illustrative; the event types, the gate and the policy matrix
+ * (edit: read_only blocks, supervised asks, autonomous allows) are real.
+ */
+
+const beats = [
+  {
+    title: "Typed events",
+    line: "Prompt, reasoning, tool call — each a typed row with bounded output.",
+  },
+  {
+    title: "Steer mid-run",
+    line: "Queue a message or swap model and thinking. It applies from the next request.",
+  },
+  {
+    title: "The gate is real",
+    line: "Policy decides before the tool runs. Nothing below the gate executes.",
+  },
+  {
+    title: "Rewind and branch",
+    line: "Select any earlier entry and continue from it. The old lineage stays.",
+  },
+];
+
+const check = {
+  circle: "M21.5 12a9.5 9.5 0 1 1-19 0 9.5 9.5 0 0 1 19 0Z",
+  tick: "m8.5 12.5 2.5 2.5 4.5-5",
+};
+---
+
+<div class="lr" data-live-run>
+  <nav class="lr-rail" aria-label="Run beats" data-lr-rail>
+    <ol>
+      {
+        beats.map((beat, index) => (
+          <li>
+            <a
+              href={`#lr-beat-${index + 1}`}
+              data-lr-step={index}
+              aria-current={index === 0 ? "step" : undefined}
+            >
+              <span class="lr-num">{String(index + 1).padStart(2, "0")}</span>
+              <span class="lr-step-text">
+                <b class="lr-step-title">{beat.title}</b>
+                <span class="lr-step-line"><span>{beat.line}</span></span>
+              </span>
+            </a>
+          </li>
+        ))
+      }
+    </ol>
+  </nav>
+
+  <div class="lr-3d" data-lr-3d><div class="lr-tilt" data-tilt data-tilt-max="3"><div class="lr-panel" data-lr-panel>
+    <div class="lr-bar" aria-hidden="true">
+      <span class="label-chip"><i class="lr-live"></i>conversation · retry-budget</span>
+      <span class="label-chip">illustrative run</span>
+    </div>
+
+    <div class="lr-beats">
+      <!-- 1 · Typed events -->
+      <article class="lr-beat" id="lr-beat-1" data-lr-beat="0" aria-labelledby="lr-t1">
+        <header class="lr-beat-head">
+          <span class="lr-num">01</span>
+          <h3 id="lr-t1" class="lr-step-title">{beats[0]!.title}</h3>
+          <p class="meta-text">{beats[0]!.line}</p>
+        </header>
+        <ol class="lr-feed">
+          <li class="lr-row" data-lr-row style="--k: var(--primary)">
+            <span class="lr-tag">prompt</span>
+            <div class="run-prompt">
+              <span class="run-prompt-label">You</span>
+              <p>Add a retry budget to the run recovery path.</p>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row style="--k: var(--muted-foreground)">
+            <span class="lr-tag">reasoning</span>
+            <div class="run-thinking">
+              <p>Locating the recovery entry point before editing anything.</p>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row style="--k: var(--signal)">
+            <span class="lr-tag">tool_call</span>
+            <div class="run-tool" data-tool="read">
+              <div class="run-tool-head">
+                <span class="run-tool-status">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={check.circle}></path><path d={check.tick}></path>
+                  </svg>
+                </span>
+                <b class="run-tool-name">read</b>
+                <code class="run-tool-args">packages/harness/src/run-recovery.ts</code>
+              </div>
+              <div class="run-tool-out" data-lr-out>
+                <pre><span data-lr-out-line>export async function recoverRun(run: Run) &#123;</span><span data-lr-out-line>  const attempt = run.recovery.attempts;</span><span data-lr-out-line>  if (attempt &gt;= MAX_ATTEMPTS) return fail(run);</span><span data-lr-out-line>  …</span></pre>
+              </div>
+              <div class="run-tool-foot" data-lr-foot>
+                <span class="run-tool-lines">200 of 214 lines</span>
+                <span class="run-tool-more">full output retained</span>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </article>
+
+      <!-- 2 · Steer mid-run -->
+      <article class="lr-beat" id="lr-beat-2" data-lr-beat="1" aria-labelledby="lr-t2">
+        <header class="lr-beat-head">
+          <span class="lr-num">02</span>
+          <h3 id="lr-t2" class="lr-step-title">{beats[1]!.title}</h3>
+          <p class="meta-text">{beats[1]!.line}</p>
+        </header>
+        <ol class="lr-feed">
+          <li class="lr-row" data-lr-row style="--k: var(--signal)">
+            <span class="lr-tag">tool_call</span>
+            <div class="run-tool" data-tool="grep">
+              <div class="run-tool-head">
+                <span class="run-tool-status">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={check.circle}></path><path d={check.tick}></path>
+                  </svg>
+                </span>
+                <b class="run-tool-name">grep</b>
+                <code class="run-tool-args">MAX_ATTEMPTS packages/harness</code>
+              </div>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row data-lr-steer style="--k: var(--primary)">
+            <span class="lr-tag">steering</span>
+            <div class="run-prompt lr-steer">
+              <span class="run-prompt-label">You</span>
+              <p>Keep it small — no new dependencies.</p>
+              <span class="lr-badge" data-tone="info">queued</span>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row data-lr-config style="--k: var(--signal)">
+            <span class="lr-tag">config</span>
+            <div class="run-note">
+              <code>
+                model Opus → GPT · thinking high → low
+              </code>
+              <span class="run-note-status">applies from next request</span>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row style="--k: var(--foreground)">
+            <span class="lr-tag">reply</span>
+            <div class="run-prose">
+              <p>Same run, new settings — I'll use the existing timer.</p>
+            </div>
+          </li>
+        </ol>
+      </article>
+
+      <!-- 3 · The gate is real -->
+      <article class="lr-beat" id="lr-beat-3" data-lr-beat="2" aria-labelledby="lr-t3">
+        <header class="lr-beat-head">
+          <span class="lr-num">03</span>
+          <h3 id="lr-t3" class="lr-step-title">{beats[2]!.title}</h3>
+          <p class="meta-text">{beats[2]!.line}</p>
+        </header>
+        <ol class="lr-feed">
+          <li class="lr-row" data-lr-row style="--k: var(--warning)">
+            <span class="lr-tag">policy</span>
+            <div class="lr-policy">
+              <p class="lr-policy-head"><code>edit</code> — evaluated before it runs</p>
+              <ul class="lr-pills">
+                <li data-lr-pill>
+                  <span class="label-chip">read_only</span>
+                  <span class="state-pill state-block">block</span>
+                </li>
+                <li data-lr-pill data-active>
+                  <span class="label-chip">supervised</span>
+                  <span class="state-pill state-approval">ask</span>
+                </li>
+                <li data-lr-pill>
+                  <span class="label-chip">autonomous</span>
+                  <span class="state-pill state-allow">allow</span>
+                </li>
+              </ul>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row style="--k: var(--warning)">
+            <span class="lr-tag">approval</span>
+            <div class="run-gate lr-gate" data-gate-state="approved" data-lr-gate>
+              <span class="lr-gate-tint" aria-hidden="true"></span>
+              <span class="run-gate-dot" aria-hidden="true"></span>
+              <b>approval</b>
+              <span class="run-gate-text">edit run-recovery.ts</span>
+              <span class="lr-gate-slot">
+                <span class="run-approve lr-approve" aria-hidden="true" data-lr-approve>Approve</span>
+                <span class="run-gate-status lr-ok" data-lr-ok>approved</span>
+              </span>
+            </div>
+          </li>
+          <li class="lr-row" data-lr-row data-lr-edit style="--k: var(--success)">
+            <span class="lr-tag">edit</span>
+            <div class="run-tool" data-tool="edit">
+              <div class="run-tool-head">
+                <span class="run-tool-status">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d={check.circle}></path><path d={check.tick}></path>
+                  </svg>
+                </span>
+                <b class="run-tool-name">edit</b>
+                <code class="run-tool-args">run-recovery.ts</code>
+                <span class="lr-delta"><i>+12</i> <u>−3</u></span>
+              </div>
+              <div class="run-tool-out lr-diff">
+                <pre><span class="lr-del" data-lr-diff>- const MAX_ATTEMPTS = 1;</span><span class="lr-ins" data-lr-diff>+ const MAX_ATTEMPTS = 3;</span><span class="lr-ins" data-lr-diff>+ const BACKOFF_MS = 2_000; // doubles</span></pre>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </article>
+
+      <!-- 4 · Rewind and branch -->
+      <article class="lr-beat" id="lr-beat-4" data-lr-beat="3" aria-labelledby="lr-t4">
+        <header class="lr-beat-head">
+          <span class="lr-num">04</span>
+          <h3 id="lr-t4" class="lr-step-title">{beats[3]!.title}</h3>
+          <p class="meta-text">{beats[3]!.line}</p>
+        </header>
+        <div class="lr-fork">
+          <div class="lr-tree-wrap" data-lr-tree-wrap>
+            <div class="lr-tree-rot" data-lr-tree-rot>
+              <svg class="lr-tree" viewBox="0 0 300 250" data-lr-layer="old" aria-hidden="true">
+                <path class="lr-edge lr-edge-old" d="M44 90V218"></path>
+                <circle class="lr-node" cx="44" cy="150" r="5"></circle>
+                <circle class="lr-node" cx="44" cy="218" r="5"></circle>
+                <text class="lr-label" x="58" y="154">edit</text>
+                <text class="lr-label" x="58" y="222">reply</text>
+              </svg>
+              <svg
+                class="lr-tree"
+                viewBox="0 0 300 250"
+                data-lr-layer="front"
+                role="img"
+                aria-label="Conversation tree: a main lineage of prompt, read, edit and reply. The read entry is selected and a new branch with its own edit and reply grows from it while the original lineage remains."
+              >
+                <path class="lr-edge" d="M44 36V90"></path>
+                <path class="lr-edge lr-edge-new" d="M44 90C44 126 118 114 118 152V218" data-lr-branch></path>
+                <circle class="lr-node" cx="44" cy="36" r="5"></circle>
+                <text class="lr-label" x="58" y="40">prompt</text>
+                <circle class="lr-node lr-node-sel" cx="44" cy="90" r="5"></circle>
+                <text class="lr-label lr-label-sel" x="58" y="94">read</text>
+                <circle class="lr-ring" cx="44" cy="90" r="11" data-lr-ring></circle>
+                <circle class="lr-node lr-node-new" cx="118" cy="152" r="5" data-lr-new></circle>
+                <circle class="lr-node lr-node-new" cx="118" cy="218" r="5" data-lr-new></circle>
+                <text class="lr-label lr-label-new" x="132" y="156" data-lr-new-label>edit</text>
+                <text class="lr-label lr-label-new" x="132" y="222" data-lr-new-label>reply</text>
+              </svg>
+            </div>
+          </div>
+
+          <div class="lr-detail" data-lr-detail>
+            <span class="label-chip">selected entry</span>
+            <p class="lr-detail-title"><code>tool_call · read</code></p>
+            <p class="meta-text">Ran with Opus · high — earlier entries keep their settings.</p>
+            <span class="lr-branch-chip"><i></i>New branch · GPT · low</span>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div class="lr-composer" aria-hidden="true">
+      <span class="run-chip" data-value="coding">Coding</span>
+      <span class="run-chip" data-lr-perm>supervised</span>
+      <span class="lr-hint">Steer the running agent…</span>
+      <span class="run-chip lr-model" data-lr-model>
+        <span data-lr-model-from>Opus · high</span>
+        <span data-lr-model-to>GPT · low</span>
+      </span>
+    </div>
+  </div></div></div>
+
+  <p class="meta-text lr-note">Illustrative run.</p>
+</div>
+
+<style>
+  .lr {
+    display: grid;
+    gap: 1.25rem;
+    min-width: 0;
+  }
+
+  /* ---- Stacked mode (default): four compact panels ---------------------- */
+
+  .lr-note {
+    margin: 0;
+  }
+
+  .lr[data-pinned] .lr-note {
+    display: none;
+  }
+
+  .lr-rail,
+  .lr-bar,
+  .lr-composer {
+    display: none;
+  }
+
+  .lr-beats {
+    display: grid;
+    gap: 1rem;
+    min-width: 0;
+  }
+
+  @media (min-width: 900px) {
+    .lr-beats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .lr-beat {
+    display: grid;
+    align-content: start;
+    gap: 0.9rem;
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+  }
+
+  .lr-beat-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.15rem 0.7rem;
+    align-items: baseline;
+  }
+
+  .lr-beat-head .meta-text {
+    grid-column: 2;
+    margin: 0;
+  }
+
+  .lr-num {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+  }
+
+  .lr-step-title {
+    margin: 0;
+    color: var(--foreground);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  /* ---- Rows: the typed-event stack --------------------------------------- */
+
+  .lr-feed {
+    position: relative;
+    display: grid;
+    gap: 0.8rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The conduction line the event tags hang from. */
+  .lr-feed::before {
+    content: "";
+    position: absolute;
+    top: 0.7rem;
+    bottom: 0.7rem;
+    left: 0.17rem;
+    width: 1px;
+    background: linear-gradient(var(--myelin), var(--myelin));
+  }
+
+  .lr-row {
+    display: grid;
+    grid-template-columns: 5.3rem minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: start;
+    min-width: 0;
+  }
+
+  .lr-tag {
+    position: relative;
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    padding-top: 0.38rem;
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .lr-tag::before {
+    content: "";
+    flex: none;
+    width: 0.38rem;
+    height: 0.38rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--k, var(--primary));
+    box-shadow: 0 0 0 3px var(--card);
+  }
+
+  .lr-row > :not(.lr-tag) {
+    min-width: 0;
+  }
+
+  .lr-row .run-prompt p {
+    white-space: normal;
+  }
+
+  .lr-row .run-tool-args {
+    min-width: 0;
+  }
+
+  .lr-steer {
+    flex-wrap: wrap;
+  }
+
+  .lr-steer p {
+    flex: 1 1 8rem;
+  }
+
+  .lr-badge {
+    padding: 0.1rem 0.45rem;
+    border: 1px solid color-mix(in oklab, var(--info) 55%, var(--border));
+    border-radius: var(--radius-chip);
+    background-color: color-mix(in oklab, var(--info) 12%, transparent);
+    color: var(--info);
+    font-family: var(--font-mono);
+    font-size: 0.64rem;
+    white-space: nowrap;
+  }
+
+  .run-note {
+    flex-wrap: wrap;
+    gap: 0.25rem 0.75rem;
+  }
+
+  .run-note code {
+    white-space: normal;
+  }
+
+  .lr-row .run-tool-out pre {
+    white-space: pre;
+  }
+
+  .lr-row .run-tool-out pre span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .lr-delta {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .lr-delta i {
+    color: var(--success);
+    font-style: normal;
+  }
+
+  .lr-delta u {
+    color: var(--destructive);
+    text-decoration: none;
+  }
+
+  .lr-ins,
+  .lr-del {
+    padding-inline: 0.25rem;
+    margin-inline: -0.25rem;
+    border-radius: 2px;
+  }
+
+  .lr-ins {
+    background-color: color-mix(in oklab, var(--success) 14%, transparent);
+    color: var(--success);
+  }
+
+  .lr-del {
+    background-color: color-mix(in oklab, var(--destructive) 12%, transparent);
+    color: var(--destructive);
+  }
+
+  /* Policy row */
+  .lr-policy {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: color-mix(in oklab, var(--surface-sunken) 55%, var(--card));
+  }
+
+  .lr-policy-head {
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+  }
+
+  .lr-policy-head code {
+    color: var(--foreground);
+    font-weight: 700;
+  }
+
+  .lr-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.9rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .lr-pills li {
+    display: inline-flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .lr-pills li[data-active] .label-chip {
+    color: var(--foreground);
+  }
+
+  /* Gate row */
+  .lr-gate {
+    position: relative;
+  }
+
+  .lr-gate > * {
+    position: relative;
+  }
+
+  .lr-gate-tint {
+    display: none;
+  }
+
+  .lr-gate-slot {
+    display: grid;
+    margin-left: auto;
+  }
+
+  .lr-gate-slot > * {
+    grid-area: 1 / 1;
+    margin: 0;
+    text-align: right;
+  }
+
+  .lr-approve {
+    display: none;
+  }
+
+  .lr-ok {
+    align-self: center;
+  }
+
+  /* Fork */
+  .lr-fork {
+    display: grid;
+    gap: 0.9rem;
+    align-items: center;
+  }
+
+  @media (min-width: 520px) {
+    .lr-fork {
+      grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+      gap: 1.25rem;
+    }
+  }
+
+  .lr-tree-wrap {
+    min-width: 0;
+  }
+
+  .lr-tree-rot {
+    display: grid;
+  }
+
+  .lr-tree-rot > svg {
+    grid-area: 1 / 1;
+  }
+
+  .lr-tree {
+    width: 100%;
+    max-height: 17rem;
+    overflow: visible;
+  }
+
+  .lr-edge {
+    fill: none;
+    stroke: var(--myelin);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .lr-edge-old {
+    opacity: 0.55;
+  }
+
+  .lr-edge-new {
+    stroke: var(--primary);
+    stroke-width: 2;
+  }
+
+  .lr-node {
+    fill: var(--card);
+    stroke: var(--muted-foreground);
+    stroke-width: 1.5;
+  }
+
+  .lr-node-sel {
+    fill: var(--primary);
+    stroke: var(--primary);
+  }
+
+  .lr-node-new {
+    fill: var(--primary);
+    stroke: var(--primary);
+  }
+
+  .lr-ring {
+    fill: none;
+    stroke: var(--primary);
+    stroke-width: 1.5;
+    opacity: 0.55;
+  }
+
+  .lr-label {
+    fill: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+
+  .lr-label-sel,
+  .lr-label-new {
+    fill: var(--foreground);
+  }
+
+  .lr-detail {
+    display: grid;
+    gap: 0.45rem;
+    justify-items: start;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: color-mix(in oklab, var(--surface-sunken) 55%, var(--card));
+  }
+
+  .lr-detail p {
+    margin: 0;
+  }
+
+  .lr-detail-title code {
+    color: var(--foreground);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .lr-branch-chip {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.2rem 0.6rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 55%, var(--border));
+    border-radius: var(--radius-pill);
+    background-color: color-mix(in oklab, var(--primary) 10%, transparent);
+    color: var(--foreground);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+
+  .lr-branch-chip i {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--primary);
+  }
+
+  .lr-model [data-lr-model-to] {
+    display: none;
+  }
+
+  /* ---- Pinned mode: one panel, a step rail ------------------------------- */
+
+  .lr[data-pinned] {
+    grid-template-columns: minmax(15rem, 19rem) minmax(0, 1fr);
+    gap: clamp(2rem, 4vw, 4rem);
+    align-items: stretch;
+    height: min(25rem, calc(100svh - var(--nav-height, 4rem) - 4rem));
+  }
+
+  .lr[data-pinned] .lr-rail {
+    display: flex;
+    align-items: center;
+  }
+
+  .lr[data-pinned] .lr-rail ol {
+    position: relative;
+    display: grid;
+    gap: 1.6rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The rail: a hairline with a charge that fills as the story advances. */
+  .lr[data-pinned] .lr-rail ol::before,
+  .lr[data-pinned] .lr-rail ol::after {
+    content: "";
+    position: absolute;
+    top: 0.9rem;
+    bottom: 0.9rem;
+    left: 0.85rem;
+    width: 1px;
+    background-color: var(--hairline);
+  }
+
+  .lr[data-pinned] .lr-rail ol::after {
+    background: linear-gradient(var(--primary), var(--signal));
+    transform: scaleY(var(--lr-progress, 0));
+    transform-origin: top;
+  }
+
+  .lr-rail a {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1.7rem minmax(0, 1fr);
+    gap: 0.8rem;
+    align-items: start;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    transition: color 300ms var(--ease-out-expo);
+  }
+
+  .lr-rail a .lr-num {
+    display: grid;
+    place-items: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background-color: var(--background);
+    color: var(--muted-foreground);
+    transition:
+      border-color 300ms var(--ease-out-expo),
+      color 300ms var(--ease-out-expo),
+      background-color 300ms var(--ease-out-expo);
+  }
+
+  .lr-step-text {
+    display: grid;
+    gap: 0.25rem;
+    padding-top: 0.2rem;
+  }
+
+  .lr-rail .lr-step-title {
+    color: inherit;
+    font-size: 1.05rem;
+  }
+
+  .lr-step-line > span {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .lr-step-line {
+    display: grid;
+    grid-template-rows: 0fr;
+    margin: 0;
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    line-height: 1.5;
+    opacity: 0;
+    transition:
+      grid-template-rows 450ms var(--ease-out-expo),
+      opacity 300ms var(--ease-out-expo);
+  }
+
+  .lr-rail a[aria-current="step"] {
+    color: var(--foreground);
+  }
+
+  .lr-rail a[aria-current="step"] .lr-num {
+    border-color: var(--primary);
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  .lr-rail a[aria-current="step"] .lr-step-line {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .lr-rail a:hover:not([aria-current="step"]) {
+    color: var(--foreground);
+  }
+
+  .lr-rail a:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 4px;
+    border-radius: var(--radius-chip);
+  }
+
+  .lr[data-pinned] .lr-3d,
+  .lr[data-pinned] .lr-tilt {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+  }
+
+  .lr[data-pinned] .lr-3d {
+    perspective: var(--stage-perspective);
+  }
+
+  .lr[data-pinned] .lr-tree-wrap {
+    perspective: 700px;
+  }
+
+  .lr[data-pinned] .lr-tree-rot {
+    transform-style: preserve-3d;
+  }
+
+  .lr[data-pinned] .lr-panel {
+    position: relative;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 1.4);
+    background-color: var(--background);
+    box-shadow: var(--depth-3, var(--depth-2));
+  }
+
+  .lr[data-pinned] .lr-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--hairline);
+    background-color: var(--panel, var(--surface-sunken));
+  }
+
+  .lr-live {
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--success);
+  }
+
+  .lr[data-pinned] .lr-beats {
+    position: relative;
+    z-index: 1;
+    display: block;
+    perspective: 1100px;
+    min-height: 0;
+  }
+
+  .lr[data-pinned] .lr-beat {
+    position: absolute;
+    inset: 0;
+    align-content: start;
+    padding: 1.25rem 1.4rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lr[data-pinned] .lr-feed,
+  .lr[data-pinned] .lr-fork {
+    perspective: 900px;
+  }
+
+  .lr[data-pinned] .lr-beat-head {
+    display: none;
+  }
+
+  .lr[data-pinned] .lr-feed::before {
+    background: var(--myelin);
+  }
+
+  .lr[data-pinned] .lr-tag::before {
+    box-shadow: 0 0 0 3px var(--background);
+  }
+
+  .lr[data-pinned] .lr-composer {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin: 0 1rem 1rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: calc(var(--radius) * 1.2);
+    background-color: color-mix(in oklab, var(--card) 45%, var(--background));
+  }
+
+  .lr-hint {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--muted-foreground);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lr[data-pinned] .lr-model {
+    display: inline-grid;
+  }
+
+  .lr[data-pinned] .lr-model > span {
+    grid-area: 1 / 1;
+  }
+
+  .lr[data-pinned] .lr-model [data-lr-model-to] {
+    display: inline;
+    opacity: 0;
+  }
+
+  .lr[data-pinned] .lr-gate {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border));
+    background-color: color-mix(in oklab, var(--warning) 7%, var(--card));
+  }
+
+  .lr[data-pinned] .run-gate-dot {
+    background-color: var(--warning);
+  }
+
+  .lr[data-pinned] .lr-approve {
+    display: inline-block;
+  }
+
+  .lr[data-pinned] .lr-ok {
+    opacity: 0;
+  }
+
+  .lr[data-pinned] .lr-gate-tint {
+    position: absolute;
+    inset: -1px;
+    display: block;
+    border: 1px solid color-mix(in oklab, var(--success) 40%, var(--border));
+    border-radius: inherit;
+    background-color: color-mix(in oklab, var(--success) 8%, var(--card));
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .lr[data-pinned] .lr-gate-tint::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0.8rem;
+    width: 0.4rem;
+    height: 0.4rem;
+    border-radius: var(--radius-pill);
+    background-color: var(--success);
+    transform: translateY(-50%);
+  }
+
+  .lr[data-pinned] .lr-gate-tint {
+    z-index: 0;
+  }
+
+  .lr[data-pinned] .lr-gate > :not(.lr-gate-tint) {
+    z-index: 1;
+  }
+
+  .lr[data-pinned] .lr-beat[data-lr-beat="3"] {
+    align-content: center;
+  }
+
+  .lr[data-pinned] .lr-fork {
+    grid-template-columns: minmax(0, 24rem) minmax(0, 1fr);
+    gap: 2.5rem;
+    justify-items: start;
+  }
+
+  .lr[data-pinned] .lr-tree {
+    max-height: 15rem;
+  }
+
+  .lr[data-pinned] .lr-detail {
+    max-width: 22rem;
+  }
+</style>

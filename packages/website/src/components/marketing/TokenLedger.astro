@@ -1,0 +1,705 @@
+---
+/* Lean harness, in three plain beats.
+ *
+ * 1. The whole built-in system prompt is 363 characters (the sentence below is
+ *    the real prompt). The ghosted pile is a generic, illustrative silhouette —
+ *    not a measurement of anything.
+ * 2. A default coding run exposes 18 tools; tools the run cannot use (Python,
+ *    Jira, Confluence, vision, planning-only) are never sent.
+ * 3. Tool results reaching the model are capped at 24,000 bytes / 200 lines
+ *    with a pointer to the full retained output, which the agent reads on
+ *    demand. "1.8 MB of test output" is an illustrative example.
+ *
+ * Without JS every beat is a complete static picture, stacked. On desktop the
+ * stage file pins the three beats into one scrubbed 3D scene.
+ */
+
+const namedTools = [
+  "read",
+  "edit",
+  "write",
+  "grep",
+  "bash",
+  "explore",
+  "launch",
+  "web_search",
+];
+const restTools = 18 - namedTools.length;
+const unusedTools = ["python", "jira", "confluence", "vision"];
+
+const providers = [
+  "Anthropic",
+  "OpenAI Codex",
+  "GitHub Copilot",
+  "Any API key",
+];
+---
+
+<div class="ledger" data-ledger>
+  <div class="ledger-stage" data-ledger-stage>
+    <!-- 1 · 363 characters ------------------------------------------------ -->
+    <section class="ledger-beat" data-ledger-beat aria-labelledby="ledger-h1">
+      <div class="ledger-copy" data-ledger-copy>
+        <p class="ledger-big" aria-hidden="true">
+          <span data-ledger-n="363">363</span>
+        </p>
+        <h3 class="ledger-title" id="ledger-h1">
+          <span class="sr-only">363 </span>characters.
+        </h3>
+        <p class="ledger-line">That's the whole built-in system prompt.</p>
+      </div>
+
+      <div class="ledger-scene stage-3d" data-ledger-scene>
+        <div class="ledger-world">
+          <div class="ledger-pile" aria-hidden="true">
+            {
+              Array.from({ length: 8 }, (_, i) => (
+                <span class="ledger-pz" style={`--i:${i}`}>
+                  <span class="ledger-page" data-ledger-page />
+                </span>
+              ))
+            }
+            <span class="ledger-pile-label"
+              >a typical wall of instructions · illustrative</span
+            >
+          </div>
+          <div class="ledger-pz ledger-pz-card">
+            <figure class="ledger-prompt" data-ledger-prompt>
+              <span class="ledger-glow" aria-hidden="true"></span>
+              <blockquote>
+                You are Nerve's coding agent. Work safely in the current
+                project and keep responses concise.
+              </blockquote>
+              <figcaption class="ledger-prompt-tag">system prompt</figcaption>
+            </figure>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2 · only the tools it needs -------------------------------------- -->
+    <section class="ledger-beat" data-ledger-beat aria-labelledby="ledger-h2">
+      <div class="ledger-copy" data-ledger-copy>
+        <p class="ledger-big" aria-hidden="true">
+          <span data-ledger-n="18">18</span><small>tools</small>
+        </p>
+        <h3 class="ledger-title" id="ledger-h2">Only the tools it needs.</h3>
+        <p class="ledger-line">The rest are never sent.</p>
+      </div>
+
+      <div class="ledger-scene stage-3d" data-ledger-scene>
+        <div class="ledger-world ledger-world-tools">
+          <ul class="ledger-tiles" aria-label="Tools on a default coding run">
+            {
+              namedTools.map((tool) => (
+                <li class="ledger-cell">
+                  <span class="ledger-tile is-named" data-ledger-tile>
+                    {tool}
+                  </span>
+                </li>
+              ))
+            }
+            {
+              Array.from({ length: restTools }, () => (
+                <li class="ledger-cell" aria-hidden="true">
+                  <span class="ledger-tile" data-ledger-tile>
+                    <i></i><i></i>
+                  </span>
+                </li>
+              ))
+            }
+          </ul>
+          <ul class="ledger-tiles ledger-unused" aria-label="Never sent">
+            {
+              unusedTools.map((tool) => (
+                <li class="ledger-cell">
+                  <span class="ledger-tile is-unused" data-ledger-unused>
+                    {tool}
+                  </span>
+                </li>
+              ))
+            }
+            <li class="ledger-unused-note">never sent</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 · trimmed, not lost -------------------------------------------- -->
+    <section class="ledger-beat" data-ledger-beat aria-labelledby="ledger-h3">
+      <div class="ledger-copy" data-ledger-copy>
+        <p class="ledger-big" aria-hidden="true">
+          <span data-ledger-n="24">24</span><small>KB</small>
+        </p>
+        <h3 class="ledger-title" id="ledger-h3">
+          Big outputs, trimmed — not lost.
+        </h3>
+        <p class="ledger-line">
+          The full output stays on disk. The agent opens it when it needs it.
+        </p>
+      </div>
+
+      <div class="ledger-scene stage-3d" data-ledger-scene>
+        <div class="ledger-world ledger-world-fold">
+          <figure class="ledger-sheet" data-ledger-sheet>
+            <figcaption class="ledger-sheet-tag">
+              <span>1.8 MB of test output</span>
+              <span class="ledger-eg">example</span>
+            </figcaption>
+            <div class="ledger-folds">
+              {
+                Array.from({ length: 6 }, () => (
+                  <span class="ledger-fold" data-ledger-fold aria-hidden="true">
+                    <i></i><i></i><i></i><i></i>
+                  </span>
+                ))
+              }
+            </div>
+          </figure>
+
+          <div class="ledger-out">
+            <div class="ledger-model" data-ledger-model>
+              <p class="ledger-model-size">24 KB</p>
+              <p class="ledger-model-label">to the model</p>
+              <span class="ledger-model-lines" aria-hidden="true">
+                <i></i><i></i><i></i>
+              </span>
+              <span class="ledger-pointer">+ pointer to the rest</span>
+            </div>
+
+            <div class="ledger-drawer" data-ledger-drawer>
+              <p class="ledger-drawer-label">Archive · kept in full</p>
+              <span class="ledger-stored" data-ledger-stored aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i>
+              </span>
+              <span class="ledger-pointer ledger-pointer-ok"
+                >read on demand</span
+              >
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ledger-close">
+    <p class="ledger-close-title">
+      Runs on the plan you already pay for.
+    </p>
+    <ul class="ledger-chips" aria-label="Supported sign-in methods">
+      {providers.map((name) => <li class="ledger-chip">{name}</li>)}
+      <li class="ledger-chip ledger-chip-warm">
+        auto-compacts before the window fills
+      </li>
+    </ul>
+    <a class="link-arrow" href="/developers/tool-output-lifecycle/">
+      How tool output reaches the model <span aria-hidden="true">→</span>
+    </a>
+  </div>
+</div>
+
+<style>
+  .ledger {
+    display: grid;
+    gap: clamp(2rem, 4vw, 3rem);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* Stage ----------------------------------------------------------------- */
+
+  .ledger-stage {
+    display: grid;
+    gap: clamp(3rem, 7vw, 5rem);
+  }
+
+  .ledger-beat {
+    display: grid;
+    gap: 1.5rem;
+    align-items: center;
+  }
+
+  @media (min-width: 900px) {
+    .ledger-beat {
+      grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+      gap: 3rem;
+    }
+  }
+
+  /* The stage file pins the beats into one scene on desktop. */
+  [data-pinned="true"] .ledger-stage {
+    position: relative;
+    display: block;
+    height: min(600px, 74vh);
+  }
+
+  [data-pinned="true"] .ledger-beat {
+    position: absolute;
+    inset: 0;
+  }
+
+  .ledger-copy {
+    display: grid;
+    gap: 0.5rem;
+    align-content: center;
+  }
+
+  .ledger-big {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(4.5rem, 3rem + 7vw, 9rem);
+    font-weight: 600;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    background: linear-gradient(120deg, var(--primary), var(--signal));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ledger-big small {
+    margin-inline-start: 0.15em;
+    font-size: 0.3em;
+    letter-spacing: 0;
+  }
+
+  .ledger-title {
+    margin: 0;
+    color: var(--foreground);
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.5rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .ledger-line {
+    margin: 0.35rem 0 0;
+    max-width: 26ch;
+    color: var(--muted-foreground);
+    font-size: var(--text-lede);
+    line-height: 1.4;
+  }
+
+  /* Scenes ---------------------------------------------------------------- */
+
+  .ledger-scene {
+    position: relative;
+    height: clamp(280px, 52vw, 420px);
+  }
+
+  .ledger-world {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: rotateX(8deg) rotateY(-22deg);
+  }
+
+  /* 1 · pile + prompt */
+
+  .ledger-pile {
+    position: absolute;
+    inset: 16% 54% 10% 8%;
+    transform-style: preserve-3d;
+  }
+
+  .ledger-pz {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    transform: translate3d(
+      calc(var(--i, 0) * -20px),
+      calc(var(--i, 0) * -9px),
+      calc(var(--i, 0) * -34px)
+    );
+  }
+
+  .ledger-page {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 1px dashed color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+    border-radius: var(--radius-chip);
+    background:
+      repeating-linear-gradient(
+        180deg,
+        transparent 0 13px,
+        color-mix(in oklab, var(--muted-foreground) 24%, transparent) 13px 15px
+      ),
+      color-mix(in oklab, var(--card) 70%, transparent);
+    opacity: calc(0.9 - var(--i, 0) * 0.07);
+  }
+
+  .ledger-pile-label {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: -2rem;
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+    text-align: center;
+  }
+
+  .ledger-pz-card {
+    inset: auto 0 24% 36%;
+    transform: translateZ(150px);
+  }
+
+  .ledger-prompt {
+    position: relative;
+    margin: 0;
+    padding: 1.25rem 1.35rem 1rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 60%, var(--border));
+    border-radius: var(--radius-card);
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--primary) 12%, var(--card)),
+      var(--card)
+    );
+    box-shadow: var(--depth-3), var(--glow-primary);
+  }
+
+  .ledger-glow {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    box-shadow: 0 0 40px 4px color-mix(in oklab, var(--primary) 45%, transparent);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  .ledger-prompt blockquote {
+    position: relative;
+    margin: 0;
+    color: var(--foreground);
+    font-size: clamp(0.95rem, 0.85rem + 0.5vw, 1.2rem);
+    font-weight: 500;
+    line-height: 1.4;
+  }
+
+  .ledger-prompt-tag {
+    position: relative;
+    margin-top: 0.75rem;
+    color: var(--primary);
+    font-size: var(--text-eyebrow);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* 2 · tools */
+
+  .ledger-world-tools {
+    display: grid;
+    gap: 1.25rem;
+    align-content: center;
+    transform: rotateX(18deg) rotateY(-14deg);
+  }
+
+  .ledger-tiles {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: clamp(0.35rem, 1vw, 0.65rem);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    transform-style: preserve-3d;
+  }
+
+  .ledger-cell {
+    perspective: 700px;
+  }
+
+  .ledger-tile {
+    display: grid;
+    place-items: center;
+    gap: 0.3rem;
+    aspect-ratio: 1.25;
+    padding: 0.3rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--card);
+    box-shadow: var(--depth-1);
+    color: var(--muted-foreground);
+    font-family: var(--font-mono);
+    font-size: clamp(0.55rem, 0.4rem + 0.5vw, 0.8rem);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform-style: preserve-3d;
+    backface-visibility: hidden;
+  }
+
+  .ledger-tile.is-named {
+    border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+    color: var(--foreground);
+  }
+
+  .ledger-tile i {
+    display: block;
+    width: 55%;
+    height: 3px;
+    border-radius: 2px;
+    background-color: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
+  }
+
+  .ledger-unused {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .ledger-tile.is-unused {
+    border-style: dashed;
+    background-color: transparent;
+    box-shadow: none;
+    opacity: 0.45;
+    text-decoration: line-through;
+  }
+
+  .ledger-unused-note {
+    grid-column: span 2;
+    color: var(--destructive);
+    font-size: var(--text-meta);
+    padding-inline-start: 0.4rem;
+  }
+
+  /* 3 · fold */
+
+  .ledger-world-fold {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(1rem, 3vw, 2.5rem);
+    align-items: center;
+    transform: rotateX(6deg) rotateY(-12deg);
+  }
+
+  .ledger-sheet {
+    position: relative;
+    margin: 0;
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: var(--card);
+    box-shadow: var(--depth-2);
+    transform-style: preserve-3d;
+  }
+
+  .ledger-sheet-tag {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    justify-content: space-between;
+    font-size: var(--text-meta);
+    font-weight: 500;
+  }
+
+  .ledger-eg {
+    color: var(--muted-foreground);
+    font-weight: 400;
+  }
+
+  .ledger-folds {
+    display: grid;
+    transform-style: preserve-3d;
+  }
+
+  .ledger-fold {
+    display: grid;
+    gap: 5px;
+    padding: 6px 4px;
+    background-color: color-mix(in oklab, var(--surface-sunken) 80%, var(--card));
+    transform-style: preserve-3d;
+  }
+
+  .ledger-fold + .ledger-fold {
+    border-top: 1px solid var(--hairline);
+  }
+
+  .ledger-fold i,
+  .ledger-model-lines i,
+  .ledger-stored i {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background-color: color-mix(in oklab, var(--muted-foreground) 45%, transparent);
+  }
+
+  .ledger-fold i:nth-child(2n),
+  .ledger-stored i:nth-child(2n) {
+    width: 72%;
+  }
+
+  .ledger-fold i:nth-child(3n) {
+    width: 45%;
+  }
+
+  .ledger-out {
+    display: grid;
+    gap: 1rem;
+    transform-style: preserve-3d;
+  }
+
+  .ledger-model {
+    display: grid;
+    gap: 0.25rem;
+    padding: 1rem 1.1rem;
+    border: 1px solid color-mix(in oklab, var(--primary) 60%, var(--border));
+    border-radius: var(--radius-card);
+    background: linear-gradient(
+      160deg,
+      color-mix(in oklab, var(--primary) 12%, var(--card)),
+      var(--card)
+    );
+    box-shadow: var(--depth-3), var(--glow-primary);
+    transform: translateZ(60px);
+  }
+
+  .ledger-model-size {
+    margin: 0;
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 1.2rem + 1.5vw, 2.4rem);
+    font-weight: 600;
+    line-height: 1;
+  }
+
+  .ledger-model-label {
+    margin: 0;
+    color: var(--foreground);
+    font-size: 0.95rem;
+  }
+
+  .ledger-model-lines {
+    display: grid;
+    gap: 5px;
+    margin-block: 0.35rem;
+  }
+
+  .ledger-model-lines i:nth-child(2) {
+    width: 80%;
+  }
+
+  .ledger-model-lines i:nth-child(3) {
+    width: 55%;
+  }
+
+  .ledger-pointer {
+    justify-self: start;
+    padding: 0.15rem 0.55rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+  }
+
+  .ledger-pointer-ok {
+    border-color: color-mix(in oklab, var(--success) 50%, var(--border));
+    color: var(--success);
+  }
+
+  .ledger-drawer {
+    display: grid;
+    gap: 0.5rem;
+    padding: 0.85rem 1.1rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    background-color: var(--surface-sunken);
+    box-shadow: inset 0 2px 8px color-mix(in oklab, black 25%, transparent);
+    overflow: hidden;
+  }
+
+  .ledger-drawer-label {
+    margin: 0;
+    font-size: var(--text-meta);
+    font-weight: 500;
+  }
+
+  .ledger-stored {
+    display: grid;
+    gap: 5px;
+    padding: 8px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-chip);
+    background-color: var(--card);
+  }
+
+  /* Closing line ---------------------------------------------------------- */
+
+  .ledger-close {
+    display: grid;
+    gap: 0.9rem;
+    justify-items: start;
+    padding-top: 2rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .ledger-close-title {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(1.3rem, 1.1rem + 1vw, 1.8rem);
+    font-weight: 600;
+  }
+
+  .ledger-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .ledger-chip {
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    background-color: var(--card);
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .ledger-chip-warm {
+    border-color: color-mix(in oklab, var(--warning) 45%, var(--border));
+    color: var(--warning);
+  }
+
+  /* Small screens: lighter 3D, tighter scenes. */
+  @media (max-width: 899px) {
+    .ledger-scene {
+      height: clamp(260px, 70vw, 340px);
+    }
+
+    .ledger-world,
+    .ledger-world-tools,
+    .ledger-world-fold {
+      transform: rotateX(4deg) rotateY(-6deg);
+    }
+
+    .ledger-pz {
+      transform: translateZ(calc(var(--i, 0) * -12px));
+    }
+
+    .ledger-pz-card {
+      transform: translateZ(50px);
+    }
+
+    .ledger-pile {
+      inset-inline-end: 50%;
+    }
+
+    .ledger-pz-card {
+      inset-inline-start: 30%;
+    }
+
+    .ledger-world-fold {
+      gap: 0.75rem;
+    }
+  }
+</style>

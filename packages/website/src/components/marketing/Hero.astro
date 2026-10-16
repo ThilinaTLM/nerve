@@ -1,11 +1,12 @@
 ---
 /* The hero.
  *
- * Instead of a screenshot, the stage is a live simulated run: typed events
- * arriving in a transcript, a review gate pausing the stream, a diff landing.
- * `scripts/run-sim.ts` drives it; the rows authored below are the same
- * canonical turn, so no-JS and reduced-motion visitors read an identical,
- * complete transcript.
+ * One tilted 3D device with the live simulated run (`run-simulation.ts`). Each
+ * typed event lands as a glass card that rises off the transcript into depth;
+ * the approval card hangs highest until it is approved, then snaps back. The
+ * scroll-out collapses the layers flat (`stage/hero.ts`). The rows authored
+ * below are the canonical turn, so no-JS and reduced-motion visitors read a
+ * complete, flat transcript.
  */
 
 import DendriteField from "./DendriteField.astro";
@@ -13,16 +14,6 @@ import DeviceFrame from "./DeviceFrame.astro";
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 import RunPanel, { type StaticRow } from "./RunPanel.astro";
-
-/* The efficiency claims carried in the hero, each quoting something the
- * repository actually does: the generated base prompt is a 363-character
- * block, the default coding run exposes 18 tools and omits the rest, and
- * tool results reaching the model are capped before compaction ever runs. */
-const proof = [
-  { value: "363 chars", label: "base system prompt" },
-  { value: "18 tools", label: "nothing you aren't using" },
-  { value: "24 KB cap", label: "per tool result, then compaction" },
-];
 
 /* Mirrors `buildTurn(TASKS[0], defaults)` with the gate already resolved. */
 const staticRows: StaticRow[] = [
@@ -80,10 +71,6 @@ const staticRows: StaticRow[] = [
         </span>
       </Reveal>
 
-      <Reveal delay={40}>
-        <p class="hero-brandline">See everything. Steer it live.</p>
-      </Reveal>
-
       <Reveal delay={80}>
         <h1 class="display-title">
           More work per token.<br /><span class="gradient-text hero-charge"
@@ -94,22 +81,10 @@ const staticRows: StaticRow[] = [
 
       <Reveal delay={160}>
         <p class="lede hero-lede">
-          A free, open-source coding workbench that runs on the AI subscription
-          you already pay for — and a harness built to make it last.
+          An open-source coding workbench on a lean, well-tested harness — your
+          subscription goes to your problem, and every step stays in plain
+          sight.
         </p>
-      </Reveal>
-
-      <Reveal delay={200}>
-        <ul class="hero-proof">
-          {
-            proof.map((item) => (
-              <li>
-                <span class="hero-proof-value">{item.value}</span>
-                <span class="hero-proof-label">{item.label}</span>
-              </li>
-            ))
-          }
-        </ul>
       </Reveal>
 
       <Reveal delay={240}>
@@ -148,10 +123,7 @@ const staticRows: StaticRow[] = [
 
       <Reveal delay={320} class="hero-install">
         <InstallCommand />
-        <p class="meta-text">
-          Local-first, no Nerve account, no product analytics · Linux · macOS ·
-          Windows 11
-        </p>
+        <p class="meta-text">Linux · macOS · Windows · local-first</p>
       </Reveal>
     </div>
 
@@ -160,7 +132,7 @@ const staticRows: StaticRow[] = [
         class="hero-deck tilt-target"
         data-hero-deck
         data-tilt
-        data-tilt-max="3"
+        data-tilt-max="5"
       >
         <DeviceFrame label="nerve · live run" depth={3}>
           <RunPanel
@@ -172,15 +144,11 @@ const staticRows: StaticRow[] = [
       </div>
     </Reveal>
   </div>
+</section>
 
-  <div class="hero-cue" aria-hidden="true">
-    <span class="cue-track"></span>
-    <span class="cue-label">Follow the signal</span>
-  </div>
 <script>
   import "../../scripts/marketing/github-stars";
 </script>
-</section>
 
 <style>
   .hero {
@@ -188,9 +156,8 @@ const staticRows: StaticRow[] = [
     isolation: isolate;
     overflow: clip;
     min-height: calc(100svh - var(--nav-height));
-    /* Tight enough that the whole argument — headline, lede, the three
-     * efficiency figures, and the install command — lands inside one viewport
-     * at common laptop heights. */
+    /* Tight enough that the headline, lede, install command, and the whole
+     * device land inside one viewport at common laptop heights. */
     padding-block: clamp(1.5rem, 3.5vw, 4rem) clamp(2.25rem, 5vw, 5rem);
     display: grid;
     align-content: center;
@@ -247,7 +214,7 @@ const staticRows: StaticRow[] = [
     z-index: 2;
     display: grid;
     align-items: center;
-    gap: clamp(3rem, 5vw, 5rem);
+    gap: clamp(2rem, 5vw, 5rem);
   }
 
   .hero-copy {
@@ -264,48 +231,8 @@ const staticRows: StaticRow[] = [
     font-size: clamp(2.3rem, 1.15rem + 2.3vw, 3.35rem);
   }
 
-  /* The retained brand line, demoted to an eyebrow above the category
-   * headline so the first thing read is what Nerve actually is. */
-  .hero-brandline {
-    margin: 0;
-    color: var(--muted-foreground);
-    font-size: var(--text-meta);
-    font-weight: 500;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
   .hero-lede {
     max-width: 34rem;
-  }
-
-  /* Three concrete efficiency figures directly under the lede: the hero has to
-   * make the cost argument before a visitor scrolls, and numbers do it in less
-   * vertical space than another paragraph would. */
-  .hero-proof {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem 1.75rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .hero-proof li {
-    display: grid;
-    gap: 0.1rem;
-  }
-
-  .hero-proof-value {
-    color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 500;
-  }
-
-  .hero-proof-label {
-    color: var(--muted-foreground);
-    font-size: var(--text-meta);
   }
 
   .hero-actions {
@@ -395,47 +322,151 @@ const staticRows: StaticRow[] = [
     transition: transform 120ms linear;
   }
 
-  /* Cue ------------------------------------------------------------------ */
+  /* The exploded run ----------------------------------------------------- *
+   * The deck is one preserve-3d stack: device plate at z=0, each transcript
+   * event a glass card floating above it. Every ancestor between the deck and
+   * the cards must stay unclipped and unfiltered or the browser flattens the
+   * stack, so the clipping the shared frame normally does is handed to the
+   * plate's own background and radius. */
 
-  .hero-cue {
-    position: absolute;
-    z-index: 2;
-    bottom: 1.75rem;
-    left: 50%;
-    display: grid;
-    justify-items: center;
-    gap: 0.5rem;
-    transform: translateX(-50%);
+  .hero-deck :global(.device-wrap),
+  .hero-deck :global(.device),
+  .hero-deck :global(.device-screen),
+  .hero-deck :global(.run-panel),
+  .hero-deck :global(.run-feed[data-live]) {
+    transform-style: preserve-3d;
   }
 
-  .cue-track {
+  .hero-deck :global(.device),
+  .hero-deck :global(.device-screen) {
+    overflow: visible;
+  }
+
+  .hero-deck :global(.run-panel) {
+    border-radius: 0 0 var(--radius-screen) var(--radius-screen);
+  }
+
+  /* The plate's soft ground shadow sells the height of the layers above it. */
+  .hero-deck :global(.device) {
+    box-shadow: 0 40px 80px -40px color-mix(in oklab, black 55%, transparent);
+  }
+
+  /* Live feed: top-anchored, unclipped. The sim prunes rows that no longer
+   * fit, so nothing needs a scroller (a scroller would flatten the stack). */
+  .hero-deck :global(.run-feed[data-live]) {
     position: relative;
-    width: 1px;
-    height: 2.5rem;
-    background-color: var(--myelin-dim);
-    overflow: hidden;
+    overflow: visible;
+    mask-image: none;
+    -webkit-mask-image: none;
+    gap: 0.7rem;
   }
 
-  .cue-track::after {
+  /* Depth is data: --zk is the kind's resting height, --r is recency (1 for
+   * the newest card, sinking for older ones), --lift-k collapses everything
+   * (the scroll-out scrubs it to 0). Pointer parallax is free: the deck tilts
+   * in 3D, so layers at different z shift by different amounts. */
+  .hero-deck :global(.run-feed[data-live] .run-item) {
+    --zk: 72px;
+    --r: 0.4;
+    --z: calc(var(--zk) * var(--r) * var(--lift-k, 1));
+    position: relative;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-card);
+    background-color: color-mix(in oklab, var(--card) 92%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in oklab, white 10%, transparent);
+    transform: translate3d(0, 0, var(--z))
+      rotateX(calc(var(--r) * var(--lift-k, 1) * -3deg))
+      rotateZ(calc(var(--tw, 1) * var(--r) * var(--lift-k, 1) * 0.35deg));
+    transition: --r 560ms cubic-bezier(0.34, 1.5, 0.64, 1);
+    animation: hero-rise 640ms cubic-bezier(0.2, 0.9, 0.25, 1.1) backwards;
+  }
+
+  .hero-deck :global(.run-feed[data-live] .run-item:nth-child(even)) {
+    --tw: -1;
+  }
+
+  .hero-deck :global(.run-feed[data-live] .run-item:nth-last-child(1)) {
+    --r: 1;
+  }
+  .hero-deck :global(.run-feed[data-live] .run-item:nth-last-child(2)) {
+    --r: 0.75;
+  }
+  .hero-deck :global(.run-feed[data-live] .run-item:nth-last-child(3)) {
+    --r: 0.55;
+  }
+
+  .hero-deck :global(.run-feed[data-live] .run-tool) {
+    --zk: 100px;
+  }
+  .hero-deck :global(.run-feed[data-live] .run-prose) {
+    --zk: 88px;
+  }
+  .hero-deck :global(.run-feed[data-live] .run-thinking) {
+    --zk: 56px;
+  }
+  .hero-deck :global(.run-feed[data-live] .run-gate) {
+    --zk: 120px;
+  }
+
+  /* The approval card hangs highest and breathes until it is approved, then
+   * snaps back into the stack (the --r transition overshoots slightly). */
+  .hero-deck :global(.run-feed[data-live] .run-gate[data-gate-state="waiting"]) {
+    --r: 1.5;
+    box-shadow:
+      inset 0 1px 0 color-mix(in oklab, white 12%, transparent),
+      0 0 28px -8px color-mix(in oklab, var(--warning) 55%, transparent);
+    animation:
+      hero-rise 640ms cubic-bezier(0.2, 0.9, 0.25, 1.1) backwards,
+      hero-gate-pulse 1.8s ease-in-out 640ms infinite;
+  }
+
+  /* A soft contact shadow under each card; opacity follows height. */
+  .hero-deck :global(.run-feed[data-live] .run-item)::before {
     content: "";
     position: absolute;
-    top: 0;
-    left: -0.125rem;
-    width: 0.35rem;
-    height: 0.35rem;
-    border-radius: var(--radius-pill);
-    background-color: var(--signal);
-    box-shadow: var(--glow-signal);
-    animation: cue-drop 2.2s var(--ease-out-expo) infinite;
+    inset: 10px 10px -18px;
+    z-index: -1;
+    border-radius: inherit;
+    background: color-mix(in oklab, black 55%, transparent);
+    filter: blur(16px);
+    opacity: calc(0.18 + var(--r) * 0.3);
+    transform: translateZ(calc(var(--z) * -0.9));
+    pointer-events: none;
   }
 
-  .cue-label {
-    color: var(--muted-foreground);
-    font-size: var(--text-eyebrow);
-    font-weight: 600;
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
+  :global(:root[data-theme="light"]) .hero-deck :global(.run-feed[data-live] .run-item)::before {
+    background: color-mix(in oklab, var(--foreground) 40%, transparent);
   }
+
+  @property --r {
+    syntax: "<number>";
+    inherits: false;
+    initial-value: 1;
+  }
+
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 16px, calc(var(--z) * -1 - 30px)) rotateX(8deg)
+        scale(0.97);
+    }
+  }
+
+  @keyframes hero-gate-pulse {
+    50% {
+      transform: translate3d(0, 0, calc(var(--z) * 1.12))
+        rotateX(calc(var(--r) * var(--lift-k, 1) * -3deg));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero-deck :global(.run-item) {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
 
   /* Responsive ----------------------------------------------------------- */
 
@@ -450,10 +481,6 @@ const staticRows: StaticRow[] = [
       min-height: 0;
     }
 
-    .hero-cue {
-      display: none;
-    }
-
     /* Fully flat on small screens: the tilt controller does not run, and the
      * perspective context plus `will-change` promotion would rasterize the
      * panel as a texture — visibly soft text on high-DPR phone screens. */
@@ -466,6 +493,14 @@ const staticRows: StaticRow[] = [
       transform: none;
       will-change: auto;
       transition: none;
+    }
+  }
+
+  /* Mobile keeps depth subtle: no perspective, so each card only lifts a
+   * couple of pixels with its shadow. */
+  @media (max-width: 1199px) {
+    .hero-deck :global(.run-feed[data-live] .run-item) {
+      transform: translateY(calc(var(--r) * var(--lift-k, 1) * -2px));
     }
   }
 </style>

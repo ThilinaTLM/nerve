@@ -162,8 +162,6 @@ html[data-motion-ready] [data-reveal-child]:not(.is-revealed) {
 /* Elements a stage settles individually without a `[data-reveal]` wrapper.
  * They must share the pre-hidden state, or they would be readable on entry
  * and then yanked to opacity zero when their scroll trigger fires. */
-html[data-motion-ready] .anatomy-slot:not(.is-revealed),
-html[data-motion-ready] .tour-points li:not(.is-revealed),
 html[data-motion-ready] .closing-steps li:not(.is-revealed),
 html[data-motion-ready] .section-header .eyebrow:not(.is-revealed),
 html[data-motion-ready] .section-header .lede:not(.is-revealed) {
@@ -177,9 +175,6 @@ html[data-motion-ready] .section-header .lede:not(.is-revealed) {
  * linger into the measurement. Every selector here is claimed by a stage —
  * the generic header pass or a section's own module — so none can strand. */
 html[data-motion-ready] .section-header .section-title:not(.is-revealed),
-html[data-motion-ready] .pocket-copy .section-title:not(.is-revealed),
-html[data-motion-ready] .tour-title:not(.is-revealed),
-html[data-motion-ready] .history-title:not(.is-revealed),
 html[data-motion-ready] #closing-title:not(.is-revealed) {
   opacity: 0;
 }

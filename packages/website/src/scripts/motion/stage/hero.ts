@@ -1,7 +1,8 @@
 /* §1 Hero.
  *
  * Two movements. On load the copy arrives line by line and the live-run panel
- * settles out of depth; on scroll the composition lifts away. The transcript
+ * settles out of depth; on scroll the exploded run layers collapse flat into
+ * the device (`--lift-k`, scrubbed) and the composition lifts away. The transcript
  * inside the panel is driven by `scripts/run-sim.ts`, not by the stage: the
  * stage choreographs the frame, the sim owns the content.
  */
@@ -16,7 +17,6 @@ export function heroStage(): void {
   const deck = q("[data-hero-deck]", hero);
   const copy = q("[data-hero-copy]", hero);
   const glow = q(".hero-glow", hero);
-  const cue = q(".hero-cue", hero);
 
   /* The hero owns its own entrance, so the generic reveal pass must not claim
    * these wrappers as well. */
@@ -108,12 +108,24 @@ export function heroStage(): void {
   if (deck) {
     out.fromTo(
       deck,
-      { "--deck-rotate-x": "2deg", "--deck-lift": "0px", "--deck-scale": 1 },
+      {
+        "--deck-rotate-x": "2deg",
+        "--deck-lift": "0px",
+        "--deck-scale": 1,
+      },
       {
         "--deck-rotate-x": "0deg",
         "--deck-lift": "-28px",
         "--deck-scale": 0.97,
       },
+      0,
+    );
+    /* The exploded layers collapse flat into the device, finishing before the
+     * hero has fully left so the hand-off to the next section is calm. */
+    out.fromTo(
+      deck,
+      { "--lift-k": 1 },
+      { "--lift-k": 0, ease: "power2.in", duration: 0.35 },
       0,
     );
   }
@@ -126,5 +138,4 @@ export function heroStage(): void {
     );
   }
   if (glow) out.fromTo(glow, { opacity: 0.18 }, { opacity: 0.05 }, 0);
-  if (cue) out.to(cue, { opacity: 0, duration: 0.12 }, 0);
 }
