@@ -46,6 +46,7 @@ function preloadApiShape() {
     },
     app: {
       retryStartup: invoke,
+      quit: invoke,
       reportRendererCoreReady: invoke,
       onQuitStarted: subscribe,
     },
@@ -139,6 +140,7 @@ describe("desktop preload API", () => {
       api.window.close({ closeToTray: true }),
       api.window.getState(),
       api.app.retryStartup(),
+      api.app.quit(),
       api.daemon.getCapability(),
       api.daemon.restart(),
       api.settings.setCloseToTray(false),
@@ -155,6 +157,7 @@ describe("desktop preload API", () => {
       ["desktop.window.close", { closeToTray: true }],
       ["desktop.window.getState"],
       ["desktop.startup.retry"],
+      ["desktop.app.quit"],
       ["desktop.daemon.getCapability"],
       ["desktop.daemon.restart"],
       ["desktop.settings.setCloseToTray", false],

@@ -21,6 +21,7 @@ import {
 import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
 import type { CoreStorage } from "./storage.js";
 import type { ImportReport, Legacy } from "./legacy.reader.js";
+import { isUnreadableDocument } from "./config-preflight.js";
 
 export interface ImportedConversationOverlays {
   capabilitiesWritten: number;
@@ -46,10 +47,10 @@ export class ConversationOverlaysImporter {
   private userSelection(): CapabilitySelection {
     if (this.user) return this.user;
     const read = (name: string): Legacy => {
+      const path = join(this.home, "config", `${name}.json`);
+      if (isUnreadableDocument(path)) return {};
       try {
-        return JSON.parse(
-          readFileSync(join(this.home, "config", `${name}.json`), "utf8"),
-        );
+        return JSON.parse(readFileSync(path, "utf8"));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         return {};

@@ -14,8 +14,11 @@ import {
 import { dirname, join, resolve } from "node:path";
 import type { Legacy, LegacyReader } from "./legacy.reader.js";
 import type { CoreStorage } from "./storage.js";
+import { preserveForRollback } from "./rollback-journal.js";
+import { isUnreadableDocument } from "./config-preflight.js";
 
 export function atomicWrite(path: string, content: string): void {
+  preserveForRollback(path);
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
   try {
@@ -28,6 +31,7 @@ export function atomicWrite(path: string, content: string): void {
 export const writeJson = (path: string, value: unknown) =>
   atomicWrite(path, `${JSON.stringify(value, null, 2)}\n`);
 export function readJson(path: string, fallback: Legacy = {}): Legacy {
+  if (isUnreadableDocument(path)) return fallback;
   try {
     assert(
       lstatSync(path).isFile(),
@@ -338,6 +342,7 @@ export function moveProjectLaunchDefinitions(
       definition.id = definition.id.replace(/^taskdef_/, "launchdef_");
   }
   writeJson(target, document);
+  preserveForRollback(old);
   rmSync(old);
   return true;
 }

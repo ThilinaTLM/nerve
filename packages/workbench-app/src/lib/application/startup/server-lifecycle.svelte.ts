@@ -18,6 +18,7 @@ import {
   describeLifecycle,
   fetchLifecycle,
   postLifecycleRetry,
+  postLifecycleRollback,
   readyAction,
   type LifecycleView,
 } from "./server-lifecycle";
@@ -90,12 +91,31 @@ export async function waitForServerReady(): Promise<boolean> {
  * Retries a failed start. Resolves true when the caller should run the
  * initial workbench startup (the app had never loaded).
  */
-export async function retryServerStart(): Promise<boolean> {
+export async function retryServerStart(
+  discardIds?: string[],
+): Promise<boolean> {
+  return runRecovery(
+    () => postLifecycleRetry(discardIds),
+    "Nerve could not start another attempt. Please try again.",
+  );
+}
+
+/** Restores the pre-upgrade data; settles on the terminal rolled-back failure. */
+export async function rollbackServerUpgrade(): Promise<void> {
+  await runRecovery(
+    postLifecycleRollback,
+    "Nerve could not restore your previous data.",
+  );
+}
+
+async function runRecovery(
+  post: () => Promise<ServerLifecycle | undefined>,
+  errorMessage: string,
+): Promise<boolean> {
   serverLifecycleState.retryError = undefined;
-  const accepted = await postLifecycleRetry();
+  const accepted = await post();
   if (!accepted) {
-    serverLifecycleState.retryError =
-      "Nerve could not start another attempt. Please try again.";
+    serverLifecycleState.retryError = errorMessage;
     return false;
   }
   serverLifecycleState.retrying = true;

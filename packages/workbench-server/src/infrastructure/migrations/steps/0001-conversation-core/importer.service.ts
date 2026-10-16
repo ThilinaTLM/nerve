@@ -5,7 +5,8 @@ import {
   scratchNoteSchema,
   trustedResourceSchema,
 } from "./shapes.js";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import assert from "node:assert/strict";
+import { existsSync, lstatSync, realpathSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { setImmediate } from "node:timers/promises";
@@ -20,6 +21,7 @@ import {
 } from "./conversation-overlays.importer.js";
 import type { EventMapping } from "./events.mapper.js";
 import type { SelectedPathVerification } from "./selected-path.validation.js";
+import type { DiscardableItem } from "../../framework/step.js";
 import {
   decode,
   ImportIds,
@@ -31,6 +33,10 @@ import {
 
 export interface CoreImportSummary {
   paths: ImportReport["paths"];
+  /** Source conversations whose import failed; nothing of them was kept. */
+  failedConversations: DiscardableItem[];
+  /** Source conversation IDs not imported: failed or discarded by the user. */
+  excludedConversations: string[];
   preferences: { enablement: number; taskDefinitions: number };
   counts: Record<string, number>;
   skipped: Record<string, number>;
@@ -174,10 +180,31 @@ async function importTrust(
   }
 }
 
+/** One line, bounded: shown to the user beside the conversation title. */
+export function failureReason(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const line =
+    message
+      .split("\n")[0]
+      // Corrupt source bytes can carry control characters into parser messages.
+      // eslint-disable-next-line no-control-regex
+      .replace(/[\u0000-\u001f\u007f]/g, "")
+      .trim() || "Unknown error";
+  return line.length > 300 ? `${line.slice(0, 297)}...` : line;
+}
+
+export function conversationTitle(conversation: Legacy): string | undefined {
+  return typeof conversation.title === "string" && conversation.title.trim()
+    ? conversation.title.trim()
+    : undefined;
+}
+
 export async function importCoreStorage(input: {
   home: string;
   progress(conversationId: string): void;
   scratchDir: string;
+  /** Source conversation IDs the user chose to drop. */
+  discarded: ReadonlySet<string>;
 }): Promise<CoreImportSummary> {
   const home = realpathSync(resolve(input.home));
   const dataDir = realpathSync(join(home, "data"));
@@ -192,6 +219,8 @@ export async function importCoreStorage(input: {
   let storage;
   let overlays: ImportedConversationOverlays;
   let preferences: CoreImportSummary["preferences"];
+  const failedConversations: DiscardableItem[] = [];
+  const excludedConversations: string[] = [];
   try {
     storage = openCoreStorage(newPath);
     const mapping: EventMapping = {
@@ -311,12 +340,30 @@ export async function importCoreStorage(input: {
     }
     const seenConversations = new Set<string>();
     let reportsCopied = 0;
-    for (const { data: conversation } of reader.documents("conversation")) {
-      seenConversations.add(conversation.id);
+    for (const source of reader.conversations()) {
+      if (input.discarded.has(source.id) || !source.data) {
+        excludedConversations.push(source.id);
+        if (input.discarded.has(source.id)) {
+          report.skip("Conversation discarded after a failed upgrade attempt");
+          removeImportedFiles(dataDir, mapping, source.id, agents);
+        } else
+          failedConversations.push({
+            kind: "conversation",
+            id: source.id,
+            reason: `Unreadable conversation record: ${failureReason(source.error)}`,
+          });
+        input.progress(source.id);
+        await setImmediate();
+        continue;
+      }
+      const conversation = source.data;
       mapping.origins.clear();
       mapping.toolAssets.clear();
       mapping.responseEvents.clear();
       mapping.providerResponseEvents.clear();
+      const restoreReport = report.checkpoint();
+      const overlayCounts = { ...overlayImporter.counts };
+      let copied = 0;
       try {
         storage.transaction(() => {
           importConversation(
@@ -336,7 +383,7 @@ export async function importCoreStorage(input: {
           );
           for (const agent of agents.get(conversation.id) ?? []) {
             if (agent.parentAgentId) {
-              reportsCopied += copyExploreReports(
+              copied += copyExploreReports(
                 dataDir,
                 conversation.id,
                 agent.id,
@@ -351,14 +398,24 @@ export async function importCoreStorage(input: {
             }
           }
         });
-        input.progress(conversation.id);
-        await setImmediate();
+        seenConversations.add(conversation.id);
+        reportsCopied += copied;
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        throw new Error(`Import failed for ${conversation.id}: ${reason}`, {
-          cause: error,
+        // The transaction rolled back; drop its report entries and files too,
+        // so the rest of the upgrade and its verification exclude it entirely.
+        restoreReport();
+        Object.assign(overlayImporter.counts, overlayCounts);
+        removeImportedFiles(dataDir, mapping, conversation.id, agents);
+        excludedConversations.push(conversation.id);
+        failedConversations.push({
+          kind: "conversation",
+          id: conversation.id,
+          title: conversationTitle(conversation),
+          reason: failureReason(error),
         });
       }
+      input.progress(conversation.id);
+      await setImmediate();
     }
     // Reports with no known child are deleted with `data/reports` in cleanup.
     report.skip(
@@ -399,6 +456,8 @@ export async function importCoreStorage(input: {
   }
   const summary: CoreImportSummary = {
     paths: report.paths,
+    failedConversations,
+    excludedConversations,
     preferences,
     counts,
     skipped: Object.fromEntries(report.skipped),
@@ -414,4 +473,42 @@ export async function importCoreStorage(input: {
     },
   };
   return summary;
+}
+
+/** New-layout directories of one source conversation and its child agents. */
+export function importedDirectories(
+  dataDir: string,
+  ids: ImportIds,
+  conversationId: string,
+  agents: readonly Legacy[],
+): string[] {
+  return [
+    ids.get("conv", conversationId),
+    ...agents
+      .filter((agent) => agent.parentAgentId)
+      .map((agent) => ids.get("conv", agent.id)),
+  ].map((id) => {
+    assert(/^conv_[A-Za-z0-9_-]+$/.test(id), `Unsafe conversation ID ${id}`);
+    return join(dataDir, "conversations", id);
+  });
+}
+
+/** Best effort: leftovers are unreferenced and removed by a later rollback. */
+function removeImportedFiles(
+  dataDir: string,
+  mapping: EventMapping,
+  conversationId: string,
+  agents: Map<string, Legacy[]>,
+): void {
+  try {
+    for (const directory of importedDirectories(
+      dataDir,
+      mapping.ids,
+      conversationId,
+      agents.get(conversationId) ?? [],
+    ))
+      rmSync(directory, { recursive: true, force: true });
+  } catch {
+    // An unsafe ID never names a directory this step created.
+  }
 }

@@ -1,4 +1,4 @@
-import { chmod, mkdir } from "node:fs/promises";
+import { chmod, mkdir, rename } from "node:fs/promises";
 import {
   defaultUserConfiguration,
   type IntegrationsConfig,
@@ -38,16 +38,56 @@ export async function initializeHomeConfiguration(
 export async function readHomeConfiguration(
   paths: StoragePaths,
 ): Promise<UserConfiguration> {
-  const [daemon, harness, ui, permissions, providers, integrations] =
-    await Promise.all([
-      readConfigDocument("daemon", paths.daemonConfigPath),
-      readConfigDocument("harness", paths.harnessConfigPath),
-      readConfigDocument("ui", paths.uiConfigPath),
-      readConfigDocument("permissions", paths.permissionsConfigPath),
-      readConfigDocument("providers", paths.providersConfigPath),
-      readConfigDocument("integrations", paths.integrationsConfigPath),
-    ]);
-  return { daemon, harness, ui, permissions, providers, integrations };
+  const documents = documentPaths(paths);
+  const results = await Promise.allSettled(
+    documents.map(([id, path]) => readConfigDocument(id, path)),
+  );
+  const invalid = results.flatMap((result) =>
+    result.status === "rejected"
+      ? [result.reason as HomeConfigurationDocumentError]
+      : [],
+  );
+  if (invalid.length) throw new HomeConfigurationInvalidError(invalid);
+  return Object.fromEntries(
+    documents.map(([id], index) => [
+      id,
+      (results[index] as PromiseFulfilledResult<unknown>).value,
+    ]),
+  ) as unknown as UserConfiguration;
+}
+
+/**
+ * Sets each listed document aside as `<file>.invalid-<time>` and writes its
+ * default, after the user chose to reset it. Only the six home documents
+ * qualify.
+ */
+export async function resetHomeConfigurationDocuments(
+  paths: StoragePaths,
+  selected: readonly string[],
+): Promise<void> {
+  const known = new Map(
+    documentPaths(paths).map(([id, path]) => [path, id] as const),
+  );
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  for (const path of selected) {
+    const id = known.get(path);
+    if (!id) throw new Error(`Not a Nerve configuration document: ${path}`);
+    if (await pathExists(path)) await rename(path, `${path}.invalid-${stamp}`);
+    await atomicWriteJson(path, defaultUserConfiguration[id], CONFIG_MODE);
+  }
+}
+
+function documentPaths(
+  paths: StoragePaths,
+): Array<[HomeConfigurationDocumentId, string]> {
+  return [
+    ["daemon", paths.daemonConfigPath],
+    ["harness", paths.harnessConfigPath],
+    ["ui", paths.uiConfigPath],
+    ["permissions", paths.permissionsConfigPath],
+    ["providers", paths.providersConfigPath],
+    ["integrations", paths.integrationsConfigPath],
+  ];
 }
 
 export async function writeHomeConfiguration(
@@ -73,6 +113,29 @@ export class HomeConfigurationDocumentError extends Error {
       cause,
     });
     this.name = "HomeConfigurationDocumentError";
+  }
+
+  /** One line for the user, e.g. the JSON syntax error or first schema issue. */
+  get reason(): string {
+    const cause = this.cause as
+      | (Error & {
+          code?: string;
+          issues?: { path: unknown[]; message: string }[];
+        })
+      | undefined;
+    if (cause?.code === "ENOENT") return "The file is missing";
+    const issue = cause?.issues?.[0];
+    if (issue)
+      return `${issue.path.length ? `${issue.path.join(".")}: ` : ""}${issue.message}`;
+    return cause instanceof Error ? cause.message : "The file is invalid";
+  }
+}
+
+/** Every invalid home document, so the user can reset them in one step. */
+export class HomeConfigurationInvalidError extends Error {
+  constructor(readonly documents: HomeConfigurationDocumentError[]) {
+    super(documents.map((document) => document.message).join("\n"));
+    this.name = "HomeConfigurationInvalidError";
   }
 }
 

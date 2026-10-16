@@ -4,6 +4,7 @@ export type QuitSource =
   | "native-window-close"
   | "tray-quit"
   | "signal"
+  | "renderer"
   | "unknown";
 
 export interface QuitOptions {

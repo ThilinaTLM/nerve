@@ -1,4 +1,4 @@
-import { mkdir, rm } from "node:fs/promises";
+import { copyFile, mkdir, rm } from "node:fs/promises";
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 import { storagePaths } from "../../storage-bootstrap/paths.js";
 import {
@@ -13,10 +13,14 @@ import {
   recordMigration,
 } from "./ledger.js";
 import {
+  DiscardableMigrationError,
   validateRegistry,
   type MigrationProgress,
   type RegisteredStep,
+  type StepContext,
 } from "./step.js";
+import { manifestBackupPath, type MigrationFailureReport } from "./recovery.js";
+import { pathExists } from "../../storage-bootstrap/json.js";
 
 export interface MigrationOptions {
   dryRun?: boolean;
@@ -38,6 +42,7 @@ export async function runMigrations(
     options.lock ?? (await acquireStorageHomeLock(home, { timeoutMs: 0 }));
   const paths = storagePaths(home);
   let stepId: string | null = null;
+  let current: { entry: RegisteredStep; context: StepContext } | undefined;
   let phase = "plan";
   const startedAt = performance.now();
   let phaseStartedAt = startedAt;
@@ -102,8 +107,12 @@ export async function runMigrations(
         0o600,
       );
     }
-    // Admit the baseline before a step can replace/delete its old DB.
+    // Admit the baseline before a step can replace/delete its old DB. The
+    // original manifest is kept so a failed step can be rolled back.
     if (!fresh && !manifest.migrations) {
+      await mkdir(paths.migrationWorkPath, { recursive: true, mode: 0o700 });
+      if (!(await pathExists(manifestBackupPath(paths))))
+        await copyFile(paths.manifestPath, manifestBackupPath(paths));
       await atomicWriteJson(
         paths.manifestPath,
         { ...manifest, migrations: [] },
@@ -128,6 +137,7 @@ export async function runMigrations(
         entry.step.description,
         report,
       );
+      current = { entry, context };
       await mkdir(context.scratchDir, { recursive: true, mode: 0o700 });
       try {
         context.progress("run", undefined, undefined, entry.step.description);
@@ -151,8 +161,10 @@ export async function runMigrations(
         await flushLog();
       }
       phase = "cleanup";
+      current = undefined;
       await rm(context.scratchDir, { recursive: true, force: true });
     }
+    await rm(manifestBackupPath(paths), { force: true });
     await rm(paths.migrationFailureReportPath, { force: true });
     if (pending.length)
       log(
@@ -161,19 +173,20 @@ export async function runMigrations(
     return result;
   } catch (error) {
     if (!options.dryRun) {
-      await atomicWriteJson(
-        paths.migrationFailureReportPath,
-        {
-          step: stepId,
-          phase,
-          error:
-            error instanceof Error
-              ? (error.stack ?? error.message)
-              : String(error),
-          failedAt: new Date().toISOString(),
-        },
-        0o600,
-      );
+      const failure: MigrationFailureReport = {
+        step: stepId,
+        phase,
+        error:
+          error instanceof Error
+            ? (error.stack ?? error.message)
+            : String(error),
+        failedAt: new Date().toISOString(),
+        ...(error instanceof DiscardableMigrationError
+          ? { discardable: error.items }
+          : {}),
+        rollbackAvailable: rollbackAvailable(current),
+      };
+      await atomicWriteJson(paths.migrationFailureReportPath, failure, 0o600);
     }
     if (!options.dryRun)
       log(
@@ -185,5 +198,16 @@ export async function runMigrations(
     );
   } finally {
     if (!options.lock) await lock.release();
+  }
+}
+
+function rollbackAvailable(
+  current: { entry: RegisteredStep; context: StepContext } | undefined,
+): boolean {
+  if (!current?.entry.step.rollback) return false;
+  try {
+    return current.entry.step.canRollback?.(current.context) ?? true;
+  } catch {
+    return false;
   }
 }

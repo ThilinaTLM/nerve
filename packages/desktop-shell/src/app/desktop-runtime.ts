@@ -155,6 +155,7 @@ export class DesktopRuntime {
         runtime.#closeToTray = value;
       },
       closeWindowOrQuit,
+      quitApp: () => requestQuit({ source: "renderer", hideWindows: true }),
       sendWindowState,
       showDesktopNotification: (payload) =>
         ports.showDesktopNotification(payload, showMainWindow),

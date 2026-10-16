@@ -20,6 +20,40 @@ checkpoint retains only source-message digests and mapped heads, not snapshots.
 It permits verification/cleanup to resume after source removal but before the
 framework ledger append. No legacy data is removed before verification.
 
+## Failed conversations, discard and rollback
+
+Before converting anything, `config-preflight.ts` checks every JSON configuration
+file the step reads:
+
+- user `config/*.json` and `config/rule-sets/*.json`
+- per-conversation `capabilities.json` and `permissions.json`, against the importer's schemas
+- project `.nerve/config/*.json`, plus `tasks` and `launches` definitions
+
+Unreadable files are reported together as discardable `configuration` items. A
+discarded file is set aside as `<file>.corrupt`. The six runtime-owned home
+documents (`daemon`, `harness`, `ui`, `permissions`, `providers`, `integrations`)
+are never reported or rewritten. The step reads an unreadable one as empty, and
+startup then offers to reset it to runtime defaults (`CONFIGURATION_INVALID`).
+
+A conversation that fails to import (including an unreadable document) rolls back
+its transaction, report entries and new-layout files, and the import continues.
+Verification attributes history, event, asset and source-file failures to their
+source conversation and continues. Home-wide checks (schema, row counts, foreign
+keys, `quick_check`) still abort. If any conversation failed, verify throws
+`ConversationMigrationError` before the verified marker, and nothing is removed.
+The failure report lists the conversations and whether a rollback is available.
+
+- Discard: the IDs go to `discarded-conversations.json` in the scratch directory.
+  The next attempt reruns the import without them, and cleanup deletes their
+  legacy directories.
+- Rollback (until the verified marker exists): `rollback-journal.ts` writes ahead
+  the original bytes of every in-place config/project file write or removal
+  (symlinks are kept as links), the `data/launches` renames, and a snapshot of
+  `data/conversations` entries. Rollback replays the journal, drops the new
+  database, returns `nerve.sqlite.migrating` and its sidecars, and the framework
+  restores the original manifest. The server then stays in a terminal
+  `MIGRATION_ROLLED_BACK` state until it is quit.
+
 ## Configuration conversion
 
 - Harness `defaults` / `lastSelection`: `permissionLevel` → `permissionRuleSetId`.
@@ -68,7 +102,8 @@ and sidecars, `journal` / `data/journal`, old `data/migrations` and root migrati
 entries (except framework `work` and `last-failure.json`), `migration-journal.json`,
 and obsolete `data/state.sqlite` / `data/core.sqlite`. Existing tool-call files
 remain referenced in their old managed directories. The runner removes its
-scratch directory after recording the ledger. No backup is retained.
+scratch directory (including the rollback journal) after recording the ledger.
+No backup is retained after success.
 
 Disk admission requires 4 GiB, with an additional runtime check for 15% of the
 source DB size. No processes resume; imported bash `processRef` stays null.

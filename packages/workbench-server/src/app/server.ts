@@ -147,6 +147,7 @@ export function createApp(
   lifecycle: LifecycleControls = {
     holder: createServerLifecycleHolder({ initial: "ready" }),
     retry: () => undefined,
+    rollback: () => undefined,
   },
 ): Hono {
   const app = new Hono();

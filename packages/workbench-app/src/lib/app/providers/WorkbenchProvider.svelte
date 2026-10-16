@@ -50,6 +50,7 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { shouldRevealWorkbench } from "$lib/application/startup/workbench-startup-machine";
 import {
   retryServerStart,
+  rollbackServerUpgrade,
   startReconnectMonitor,
   waitForServerReady,
 } from "$lib/application/startup/server-lifecycle.svelte";
@@ -259,8 +260,10 @@ async function runWorkbenchStartup(): Promise<void> {
   if (startedOnSettings) void openSettingsPane();
 }
 
-async function retryStartup(): Promise<void> {
-  if (await retryServerStart()) await runWorkbenchStartup();
+async function retryStartup(discardIds?: string[]): Promise<void> {
+  if (await retryServerStart(discardIds)) {
+    await runWorkbenchStartup();
+  }
 }
 
 onMount(() => {
@@ -301,5 +304,9 @@ onMount(() => {
 {#if revealWorkbench}
   {@render children?.()}
 {/if}
-<StartupErrorView onRetry={() => void retryStartup()} />
+<StartupErrorView
+  onRetry={() => void retryStartup()}
+  onDiscardAndRetry={(ids) => void retryStartup(ids)}
+  onRollback={() => void rollbackServerUpgrade()}
+/>
 <ServerReconnectOverlay />

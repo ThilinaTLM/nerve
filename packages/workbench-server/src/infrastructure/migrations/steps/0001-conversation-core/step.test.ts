@@ -242,7 +242,7 @@ void test("0001 verification failure keeps the source and task bundles; verified
         }
       },
     }),
-    /Selected history verification failed/,
+    /1 conversation could not be upgraded/,
   );
   assert(context);
   assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
@@ -422,7 +422,7 @@ void test("0001 rejects inline result or base64 image payloads before deleting t
           }
         },
       }),
-      /Inline complete result|Inline base64 image/,
+      /1 conversation could not be upgraded/,
     );
     assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
     assert(

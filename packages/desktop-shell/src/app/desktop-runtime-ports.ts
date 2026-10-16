@@ -83,6 +83,7 @@ export interface DesktopRuntimePorts {
     restartDaemon: () => Promise<void>;
     retryStartup: () => boolean;
     reportRendererCoreReady: () => void;
+    quitApp: () => void;
   }): () => void;
   showDesktopNotification(
     payload: unknown,

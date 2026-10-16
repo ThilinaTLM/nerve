@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { appendFile, mkdir, statfs } from "node:fs/promises";
 import { join } from "node:path";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
@@ -16,6 +17,24 @@ export async function assertFreeDisk(
   }
 }
 
+/** User decision persisted beside the step's scratch state until it is recorded. */
+export const discardedItemsPath = (scratchDir: string) =>
+  join(scratchDir, "discarded.json");
+
+export function readDiscardedItems(scratchDir: string): Set<string> {
+  try {
+    const ids: unknown = JSON.parse(
+      readFileSync(discardedItemsPath(scratchDir), "utf8"),
+    );
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string"))
+      throw new Error("Invalid discarded item list");
+    return new Set(ids);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return new Set();
+    throw error;
+  }
+}
+
 export function createStepContext(
   paths: StoragePaths,
   id: string,
@@ -29,6 +48,7 @@ export function createStepContext(
   const context: StepContext = {
     paths,
     scratchDir,
+    discarded: readDiscardedItems(scratchDir),
     progress: (phase, done, total, label) =>
       onProgress({ step: id, description, phase, done, total, label }),
     log(message) {

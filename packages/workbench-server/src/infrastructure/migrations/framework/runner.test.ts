@@ -96,6 +96,7 @@ void test("failure retains checkpoints, ledger commits only after verify, rerun 
       async (ctx) => {
         runs++;
         assert.deepEqual(Object.keys(ctx).sort(), [
+          "discarded",
           "log",
           "paths",
           "progress",

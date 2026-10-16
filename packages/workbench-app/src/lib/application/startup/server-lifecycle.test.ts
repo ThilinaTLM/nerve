@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ServerLifecycle } from "@nervekit/contracts/status";
-import { describeLifecycle, readyAction } from "./server-lifecycle";
+import {
+  describeLifecycle,
+  discardPlan,
+  failureKind,
+  postLifecycleRetry,
+  postLifecycleRollback,
+  readyAction,
+} from "./server-lifecycle";
 
 const base: ServerLifecycle = {
   state: "upgrading",
@@ -41,4 +48,80 @@ test("reload only when the server version changed", () => {
     "resume",
   );
   assert.equal(readyAction(undefined, ready), "resume");
+});
+
+test("failure kind picks the recovery screen", () => {
+  const failure = {
+    code: "MIGRATION_FAILED",
+    message: "boom",
+    retryable: true,
+  };
+  assert.equal(failureKind(failure), "generic");
+  assert.equal(failureKind(undefined), "generic");
+  assert.equal(
+    failureKind({
+      ...failure,
+      discardable: [{ kind: "conversation", id: "conv_1", reason: "corrupt" }],
+    }),
+    "discardable",
+  );
+  assert.equal(
+    failureKind({ ...failure, code: "MIGRATION_ROLLED_BACK" }),
+    "rolled-back",
+  );
+});
+
+test("retry sends discard ids only when given; rollback posts no body", async () => {
+  const calls: { url: string; init?: RequestInit }[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    calls.push({ url, init });
+    return new Response(JSON.stringify(base), { status: 202 });
+  }) as typeof fetch;
+  try {
+    await postLifecycleRetry();
+    await postLifecycleRetry(["conv_1", "conv_2"]);
+    await postLifecycleRollback();
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.equal(calls[0]?.init?.body, undefined);
+  assert.equal(
+    calls[1]?.init?.body,
+    JSON.stringify({ discardIds: ["conv_1", "conv_2"] }),
+  );
+  assert.equal(calls[2]?.url, "/api/lifecycle/rollback");
+  assert.equal(calls[2]?.init?.body, undefined);
+});
+
+test("refused recovery requests resolve undefined", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    new Response("{}", { status: 409 })) as typeof fetch;
+  try {
+    assert.equal(await postLifecycleRollback(), undefined);
+    assert.equal(await postLifecycleRetry(["x"]), undefined);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test("discard plan copy fits files, conversations, and both", () => {
+  const file = { kind: "configuration" as const, id: "/a", reason: "bad" };
+  const conv = { kind: "conversation" as const, id: "c", reason: "bad" };
+  const files = discardPlan([file, { ...file, id: "/b" }]);
+  assert.equal(files.heading, "Some settings files couldn't be read");
+  assert.equal(files.action, "Reset 2 files and continue");
+  assert.match(files.confirmation, /original files are kept/);
+  assert.doesNotMatch(files.confirmation, /deleted/);
+
+  const convs = discardPlan([conv, conv, conv]);
+  assert.equal(convs.action, "Discard 3 conversations and continue");
+  assert.match(convs.confirmation, /permanently deleted/);
+
+  const mixed = discardPlan([file, conv]);
+  assert.equal(mixed.action, "Discard and continue");
+  assert.match(mixed.confirmation, /permanently deleted.*reset to defaults/);
+  assert.equal(mixed.conversations.length, 1);
+  assert.equal(mixed.files.length, 1);
 });

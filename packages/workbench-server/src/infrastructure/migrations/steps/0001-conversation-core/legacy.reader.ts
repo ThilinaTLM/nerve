@@ -72,6 +72,29 @@ export class LegacyReader {
       yield { row, data: decode(row.data) };
     }
   }
+  /**
+   * Conversation documents, decoded per row so one corrupt document cannot
+   * stop the walk. `id` is the stable source key used for discard decisions;
+   * `data` is absent exactly when the document could not be read.
+   */
+  *conversations(): Generator<{ id: string; data?: Legacy; error?: unknown }> {
+    for (const row of this.db
+      .prepare(
+        "SELECT document_id, data FROM domain_documents WHERE namespace = 'conversation'",
+      )
+      .iterate()) {
+      let data: Legacy;
+      try {
+        data = decode(row.data);
+        if (!data || typeof data !== "object" || typeof data.id !== "string")
+          throw new Error("Conversation document has no ID");
+      } catch (error) {
+        yield { id: String(row.document_id), error };
+        continue;
+      }
+      yield { id: data.id, data };
+    }
+  }
   record(id: string): Legacy | null {
     const row = this.db
       .prepare("SELECT data FROM conversation_records WHERE id = ?")
@@ -119,5 +142,31 @@ export class ImportReport {
   }
   loss(reason: string): void {
     this.losses.set(reason, (this.losses.get(reason) ?? 0) + 1);
+  }
+  /** Returns a function that drops everything recorded after this call. */
+  checkpoint(): () => void {
+    const selected = structuredClone(this.selectedPaths);
+    const skipped = new Map(this.skipped);
+    const losses = new Map(this.losses);
+    const paths = this.paths.length;
+    const missing = this.missingAssetIds.length;
+    // Payloads are only ever added, so later keys are exactly the new ones.
+    const relocated = Object.keys(this.relocatedPayloads).length;
+    const { diskFiles, trackedFiles, missingFiles } = this;
+    return () => {
+      Object.assign(this.selectedPaths, selected);
+      for (const [map, saved] of [
+        [this.skipped, skipped],
+        [this.losses, losses],
+      ] as const) {
+        map.clear();
+        for (const [key, value] of saved) map.set(key, value);
+      }
+      this.paths.length = paths;
+      this.missingAssetIds.length = missing;
+      for (const key of Object.keys(this.relocatedPayloads).slice(relocated))
+        delete this.relocatedPayloads[key];
+      Object.assign(this, { diskFiles, trackedFiles, missingFiles });
+    };
   }
 }
