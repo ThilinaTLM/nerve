@@ -25,7 +25,7 @@ export function compactionSummary(settings: AutoCompactionSettings): string {
     : label;
 }
 
-/** What the effective setting does, e.g. `Compact at 80% and retain about 15% recent context`. */
+/** What the effective setting does, e.g. `Compact at 80% and retain about 4% recent context`. */
 export function compactionDetail(settings: AutoCompactionSettings): string {
   if (!settings.auto) return "Auto-compaction is off";
   if (settings.profile === "custom")
@@ -52,7 +52,7 @@ export function compactionDraftError(
   return field === "customTriggerPercent"
     ? "Compact at must be a whole number from 60 to 90."
     : field === "customKeepRecentPercent"
-      ? "Retain recent must be a whole number from 5 to 40."
+      ? "Retain recent must be a whole number from 1 to 40."
       : "Invalid compaction settings.";
 }
 

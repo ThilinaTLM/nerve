@@ -905,11 +905,11 @@ function shown(field: keyof typeof errors): string | undefined {
                 id="profile-keep"
                 label="Retain recent"
                 type="number"
-                min={5}
+                min={1}
                 max={40}
                 step={1}
                 suffix="%"
-                hint="5–40% kept verbatim"
+                hint="1–40% kept verbatim"
                 value={String(form.keepRecentPercent)}
                 disabled={saving}
                 onValueChange={(value) => {

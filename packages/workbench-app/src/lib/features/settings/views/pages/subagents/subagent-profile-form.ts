@@ -73,7 +73,7 @@ export function blankForm(): SubagentProfileForm {
     compactionAuto: true,
     compactionProfile: "balanced",
     triggerPercent: 80,
-    keepRecentPercent: 15,
+    keepRecentPercent: 4,
     tools: {},
     skillsMode: "inherit",
     skills: {},

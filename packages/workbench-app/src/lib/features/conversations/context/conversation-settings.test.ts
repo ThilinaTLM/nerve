@@ -44,7 +44,7 @@ describe("compaction", () => {
   it("describes what the effective setting does", () => {
     assert.equal(
       compactionDetail(base),
-      "Compact at 80% and retain about 15% recent context",
+      "Compact at 80% and retain about 4% recent context",
     );
     assert.equal(
       compactionDetail({
@@ -62,12 +62,18 @@ describe("compaction", () => {
 
   it("validates custom bounds and compares drafts", () => {
     assert.equal(compactionDraftError(base), undefined);
+    for (const customKeepRecentPercent of [1, 4, 40]) {
+      assert.equal(
+        compactionDraftError({ ...base, customKeepRecentPercent }),
+        undefined,
+      );
+    }
     assert.match(
       compactionDraftError({ ...base, customTriggerPercent: 95 }) ?? "",
       /Compact at/,
     );
     assert.match(
-      compactionDraftError({ ...base, customKeepRecentPercent: 1 }) ?? "",
+      compactionDraftError({ ...base, customKeepRecentPercent: 0 }) ?? "",
       /Retain recent/,
     );
     assert.equal(compactionsEqual(base, { ...base }), true);

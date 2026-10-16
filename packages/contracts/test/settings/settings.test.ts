@@ -11,6 +11,38 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
+  it("defaults recent compaction retention to 4% and accepts 1–40%", () => {
+    assert.equal(defaultSettings.compaction.customKeepRecentPercent, 4);
+    assert.equal(defaultHarnessConfig.compaction.customKeepRecentPercent, 4);
+    for (const value of [1, 4, 40, 0, 41, 1.5]) {
+      assert.equal(
+        updateSettingsRequestSchema.safeParse({
+          compaction: { customKeepRecentPercent: value },
+        }).success,
+        [1, 4, 40].includes(value),
+      );
+      assert.equal(
+        harnessConfigSchema.safeParse({
+          ...defaultHarnessConfig,
+          compaction: {
+            ...defaultHarnessConfig.compaction,
+            customKeepRecentPercent: value,
+          },
+        }).success,
+        [1, 4, 40].includes(value),
+      );
+      assert.equal(
+        settingsSchema.safeParse({
+          ...defaultSettings,
+          compaction: {
+            ...defaultSettings.compaction,
+            customKeepRecentPercent: value,
+          },
+        }).success,
+        [1, 4, 40].includes(value),
+      );
+    }
+  });
   it("defaults and bounds the foreground bash timeout setting", () => {
     assert.equal(defaultSettings.tools.bash.maxTimeoutMs, 900_000);
     for (const maxTimeoutMs of [1000, 3_600_000]) {

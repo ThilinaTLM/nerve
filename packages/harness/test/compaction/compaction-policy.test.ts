@@ -2,7 +2,9 @@ import type { AssistantMessage, Usage } from "@earendil-works/pi-ai";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  DEFAULT_COMPACTION_SETTINGS,
   deriveAutoCompactionPolicy,
+  deriveManualCompactionSettings,
   isContextOverflowAssistantMessage,
   shouldAutoCompact,
 } from "../../src/compaction/compaction.js";
@@ -45,12 +47,72 @@ describe("auto-compaction policy", () => {
 
     assert.equal(policy.profile, "balanced");
     assert.equal(policy.thresholdPercent, 80);
-    assert.equal(policy.keepRecentPercent, 15);
+    assert.equal(policy.keepRecentPercent, 4);
     assert.equal(policy.thresholdTokens, 160_000);
     assert.equal(policy.triggerReserveTokens, 40_000);
-    assert.equal(policy.keepRecentTokens, 30_000);
+    assert.equal(policy.keepRecentTokens, 8_000);
     assert.equal(policy.summaryReserveTokens, 16_000);
     assert.equal(policy.safetyHeadroomTokens, 20_000);
+  });
+
+  it("uses small recent-context targets without changing profile triggers", () => {
+    for (const [profile, thresholdPercent, keepRecentTokens] of [
+      ["aggressive", 70, 4_000],
+      ["balanced", 80, 8_000],
+      ["conservative", 90, 16_000],
+    ] as const) {
+      const settings = {
+        auto: false,
+        profile,
+        customTriggerPercent: 80,
+        customKeepRecentPercent: 3,
+      };
+      const policy = deriveAutoCompactionPolicy(200_000, settings);
+      assert.equal(policy.thresholdPercent, thresholdPercent);
+      assert.equal(policy.keepRecentTokens, keepRecentTokens);
+      assert.equal(
+        deriveManualCompactionSettings(200_000, settings).keepRecentTokens,
+        keepRecentTokens,
+      );
+    }
+    assert.equal(DEFAULT_COMPACTION_SETTINGS.keepRecentTokens, 5_000);
+  });
+
+  it("allows one-percent custom retention and preserves explicit higher values", () => {
+    for (const [requested, expected] of [
+      [0, 2_000],
+      [1, 2_000],
+      [15, 30_000],
+      [50, 80_000],
+    ]) {
+      const policy = deriveAutoCompactionPolicy(200_000, {
+        auto: true,
+        profile: "custom",
+        customTriggerPercent: 80,
+        customKeepRecentPercent: requested,
+      });
+      assert.equal(policy.keepRecentTokens, expected);
+    }
+  });
+
+  it("keeps a small-context floor without exceeding available headroom", () => {
+    for (const window of [1, 1_000, 8_000, 32_000]) {
+      const policy = deriveAutoCompactionPolicy(window, {
+        auto: true,
+        profile: "aggressive",
+        customTriggerPercent: 80,
+        customKeepRecentPercent: 3,
+      });
+      const available = Math.max(
+        0,
+        policy.thresholdTokens -
+          policy.summaryReserveTokens -
+          policy.safetyHeadroomTokens,
+      );
+      assert.ok(policy.keepRecentTokens <= available);
+      assert.ok(policy.keepRecentTokens >= 0);
+      if (window === 32_000) assert.equal(policy.keepRecentTokens, 1_000);
+    }
   });
 
   it("does not auto-compact unknown usage, unknown windows, or when disabled", () => {

@@ -30,7 +30,7 @@ Choose edit on a user entry. Nerve navigates to its parent, copies the old text 
 
 ## Context compaction
 
-Automatic compaction defaults to a balanced profile: trigger near 80% context use and retain roughly 15%. Aggressive and conservative profiles use 70/10 and 90/25. A run can automatically continue after compaction up to three times.
+Automatic compaction defaults to a balanced profile: trigger near 80% context use and retain roughly 4% of the model's context window as recent messages, plus a summary of older history. Aggressive and conservative profiles use 70/2 and 90/8 (trigger/retention percentages). For a 200,000-token window, these retention targets are 4,000, 8,000, and 16,000 tokens respectively. Custom retention allows 1–40%; a small-context safety floor of up to 1,000 tokens applies, subject to available headroom. Existing custom percentages are unchanged. A run can automatically continue after compaction up to three times.
 
 Compaction keeps recent messages intact, including provider reasoning state. Retention estimates account for signed reasoning using individual assistant output usage where available. Tool calls and their results stay together; one oversized newest group may exceed the retention target and is reported as a warning.
 
