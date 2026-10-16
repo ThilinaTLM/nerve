@@ -109,7 +109,12 @@ export function createServerAdapterContexts(
         port: infrastructure.port,
         statusResponse: infrastructure.statusResponse,
       },
-      settings: { storage: infrastructure.storage },
+      settings: {
+        storage: infrastructure.storage,
+        events: infrastructure.events,
+        providerCatalog: infrastructure.providerCatalog,
+      },
+      upgradeReports: { storage: infrastructure.storage },
       auth: {
         auth: infrastructure.auth,
         credentialKey: infrastructure.credentialKey,

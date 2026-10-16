@@ -1,9 +1,4 @@
-import { basename } from "node:path";
 import type { ServerLifecycleFailure } from "@nervekit/contracts/status";
-import { HomeConfigurationInvalidError } from "../../infrastructure/configuration/home-configuration.js";
-
-/** Invalid home documents; retrying with `discardIds` resets them. */
-export const CONFIGURATION_INVALID = "CONFIGURATION_INVALID";
 import { FLOOR_ERROR } from "../../infrastructure/migrations/framework/ledger.js";
 import { readMigrationFailureReport } from "../../infrastructure/migrations/framework/recovery.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
@@ -27,19 +22,6 @@ export async function classifyStorageFailure(
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof StartupFailureError) {
     return { code: error.code, message, retryable: error.retryable };
-  }
-  if (error instanceof HomeConfigurationInvalidError) {
-    return {
-      code: CONFIGURATION_INVALID,
-      message: "Some Nerve settings files are invalid",
-      retryable: true,
-      discardable: error.documents.map((document) => ({
-        kind: "configuration" as const,
-        id: document.path,
-        title: `User settings: ${basename(document.path)}`,
-        reason: document.reason,
-      })),
-    };
   }
   if (message.includes(FLOOR_ERROR)) {
     return { code: "HOME_UNSUPPORTED", message, retryable: false };

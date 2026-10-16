@@ -159,7 +159,7 @@ async function copyDiagnostics() {
         </div>
         {#if kind === "discardable"}
           <ScrollArea class="max-h-48 rounded-md border bg-well">
-            {#each [{ label: "Conversations", items: plan.conversations, note: "" }, { label: "Settings files", items: plan.files, note: "Reset to defaults; the original is kept beside it." }] as group (group.label)}
+            {#each [{ label: "Conversations", items: plan.conversations, note: "" }, { label: "Settings files", items: plan.files, note: "Original files are kept in quarantine." }] as group (group.label)}
               {#if group.items.length}
                 <div
                   class="px-3 pt-2 text-xs font-semibold text-muted-foreground"

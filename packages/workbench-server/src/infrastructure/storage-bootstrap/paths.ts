@@ -36,6 +36,7 @@ export interface StoragePaths {
   migrationsPath: string;
   migrationWorkPath: string;
   migrationFailureReportPath: string;
+  migrationReportsPath: string;
   backupsPath: string;
   storageBackupsPath: string;
   quarantineFilesPath: string;
@@ -87,6 +88,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     migrationsPath,
     migrationWorkPath: join(migrationsPath, "work"),
     migrationFailureReportPath: join(migrationsPath, "last-failure.json"),
+    migrationReportsPath: join(migrationsPath, "reports"),
     backupsPath: join(home, "backups"),
     storageBackupsPath: join(home, "backups", "storage"),
     quarantineFilesPath: join(dataPath, "quarantine", "files"),

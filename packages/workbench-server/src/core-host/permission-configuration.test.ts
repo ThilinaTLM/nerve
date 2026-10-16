@@ -128,6 +128,8 @@ void test("invalid files produce diagnostics and are never overwritten", async (
 void test("saves, edits, and deletes single user rules while preserving the others", async () => {
   const f = await fixture();
   try {
+    // Startup initializes this document; a missing/invalid home file needs explicit resolution.
+    await writeFile(f.userFile, overlay());
     await f.service.saveRule({
       scope: "user",
       ruleSetId: "supervised",

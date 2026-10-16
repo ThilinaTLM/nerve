@@ -18,6 +18,7 @@ import {
   settingsFromConfiguration,
   writeHomeConfiguration,
 } from "../configuration/home-configuration.js";
+import type { HomeConfigurationDocumentId } from "../configuration/home-configuration-codecs.js";
 import { inspectNerveHome } from "./state-layout.js";
 import {
   acquireStorageStartupLock,
@@ -25,6 +26,26 @@ import {
 } from "./startup-lock.js";
 import { EncryptedFileSecretProvider } from "../secrets/index.js";
 import { serializeSettingsMutation } from "./settings-mutations.js";
+
+function settingsDocumentsTouched(
+  patch: UpdateSettingsRequest,
+): HomeConfigurationDocumentId[] {
+  const ids = new Set<HomeConfigurationDocumentId>();
+  for (const key of Object.keys(patch)) {
+    if (["application", "logging"].includes(key)) ids.add("daemon");
+    else if (["ui", "desktop", "notifications", "transcription"].includes(key))
+      ids.add("ui");
+    else if (key === "providers") ids.add("integrations");
+    else if (key === "permissions") ids.add("permissions");
+    else if (key !== "tools") ids.add("harness");
+  }
+  for (const key of Object.keys(patch.tools ?? {})) {
+    ids.add(
+      ["jira", "confluence", "web"].includes(key) ? "integrations" : "harness",
+    );
+  }
+  return [...ids];
+}
 
 const HOME_DIRECTORIES: Array<[keyof StoragePaths, number]> = [
   ["configPath", 0o755],
@@ -357,6 +378,7 @@ async function applySettingsPatch(
   storage.configuration = await writeHomeConfiguration(
     storage.paths,
     configurationWithSettings(storage.configuration, next),
+    settingsDocumentsTouched(patch),
   );
   storage.settings = settingsFromConfiguration(storage.configuration);
   return storage.settings;

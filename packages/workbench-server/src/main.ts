@@ -183,11 +183,7 @@ async function main() {
   let boundPort = requestedPort;
   const controls: LifecycleControls = {
     holder,
-    ...storageRecoveryControls(
-      dataDir,
-      () => sequence,
-      () => holder.get().failure,
-    ),
+    ...storageRecoveryControls(dataDir, () => sequence),
   };
   const switchable = createAppSwitch(
     createBootApp({

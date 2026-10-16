@@ -101,34 +101,22 @@ export function discardPlan(items: readonly Discardable[]): DiscardPlan {
     "conversation",
     "conversations",
   );
-  const deletes = `${conversationCount} will be permanently deleted. This can't be undone.`;
-  const resets = `${fileCount} will be reset to defaults; the original ${
-    files.length === 1 ? "file is" : "files are"
-  } kept beside ${files.length === 1 ? "it" : "them"}.`;
-  if (conversations.length && files.length) {
-    return {
-      conversations,
-      files,
-      heading: "Some data couldn't be read or upgraded",
-      action: "Discard and continue",
-      confirmation: `${deletes} ${resets}`,
-    };
-  }
-  if (files.length) {
-    return {
-      conversations,
-      files,
-      heading: "Some settings files couldn't be read",
-      action: `Reset ${fileCount} and continue`,
-      confirmation: resets,
-    };
-  }
+  const confirmation =
+    "These items will be set aside in quarantine. Their original data is kept until you delete it.";
   return {
     conversations,
     files,
-    heading: "Some conversations couldn't be upgraded",
-    action: `Discard ${conversationCount} and continue`,
-    confirmation: deletes,
+    heading:
+      conversations.length && files.length
+        ? "Some data couldn't be read or upgraded"
+        : files.length
+          ? "Some settings files couldn't be upgraded"
+          : "Some conversations couldn't be upgraded",
+    action:
+      conversations.length && files.length
+        ? "Set aside and continue"
+        : `Set aside ${files.length ? fileCount : conversationCount} and continue`,
+    confirmation,
   };
 }
 
@@ -189,7 +177,7 @@ async function postLifecycleAction(
 
 /**
  * Asks the server to retry a failed start; `undefined` if not accepted.
- * `discardIds` permanently drops those failed conversations.
+ * `discardIds` sets aside those failed units in quarantine.
  */
 export function postLifecycleRetry(
   discardIds?: string[],

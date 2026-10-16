@@ -110,18 +110,18 @@ test("discard plan copy fits files, conversations, and both", () => {
   const file = { kind: "configuration" as const, id: "/a", reason: "bad" };
   const conv = { kind: "conversation" as const, id: "c", reason: "bad" };
   const files = discardPlan([file, { ...file, id: "/b" }]);
-  assert.equal(files.heading, "Some settings files couldn't be read");
-  assert.equal(files.action, "Reset 2 files and continue");
-  assert.match(files.confirmation, /original files are kept/);
+  assert.equal(files.heading, "Some settings files couldn't be upgraded");
+  assert.equal(files.action, "Set aside 2 files and continue");
+  assert.match(files.confirmation, /original data is kept/);
   assert.doesNotMatch(files.confirmation, /deleted/);
 
   const convs = discardPlan([conv, conv, conv]);
-  assert.equal(convs.action, "Discard 3 conversations and continue");
-  assert.match(convs.confirmation, /permanently deleted/);
+  assert.equal(convs.action, "Set aside 3 conversations and continue");
+  assert.match(convs.confirmation, /quarantine/);
 
   const mixed = discardPlan([file, conv]);
-  assert.equal(mixed.action, "Discard and continue");
-  assert.match(mixed.confirmation, /permanently deleted.*reset to defaults/);
+  assert.equal(mixed.action, "Set aside and continue");
+  assert.match(mixed.confirmation, /quarantine/);
   assert.equal(mixed.conversations.length, 1);
   assert.equal(mixed.files.length, 1);
 });

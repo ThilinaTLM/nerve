@@ -1,8 +1,12 @@
-import { chmod, mkdir, rename } from "node:fs/promises";
+import { chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import {
   defaultUserConfiguration,
   type IntegrationsConfig,
   type Settings,
+  type SettingsHealth,
   settingsSchema,
   type UserConfiguration,
   integrationsConfigSchema,
@@ -20,6 +24,35 @@ import {
 } from "./home-configuration-codecs.js";
 
 const CONFIG_MODE = 0o600;
+// A repaired file must be explicitly reloaded before cached defaults can be saved.
+const invalidDocuments = new Map<string, SettingsHealth["invalid"][number]>();
+
+export function isHomeConfigurationInvalid(path: string): boolean {
+  return invalidDocuments.has(path);
+}
+
+export function assertHomeConfigurationPathWritable(path: string): void {
+  const problem = invalidDocuments.get(path);
+  if (problem)
+    throw new Error(
+      `Cannot save invalid ${problem.id} settings: ${problem.reason}. Reset to defaults or fix the file and Reload first.`,
+    );
+}
+
+export async function reloadHomeConfigurationDocument(
+  paths: StoragePaths,
+  id: HomeConfigurationDocumentId,
+): Promise<void> {
+  const path = documentPaths(paths).find(([key]) => key === id)?.[1];
+  if (!path) throw new Error(`Not a Nerve configuration document: ${id}`);
+  try {
+    await readConfigDocument(id, path);
+    invalidDocuments.delete(path);
+  } catch (error) {
+    if (!(error instanceof HomeConfigurationDocumentError)) throw error;
+    invalidDocuments.set(path, { id, path, reason: error.reason });
+  }
+}
 
 export async function initializeHomeConfiguration(
   paths: StoragePaths,
@@ -42,39 +75,107 @@ export async function readHomeConfiguration(
   const results = await Promise.allSettled(
     documents.map(([id, path]) => readConfigDocument(id, path)),
   );
-  const invalid = results.flatMap((result) =>
-    result.status === "rejected"
-      ? [result.reason as HomeConfigurationDocumentError]
-      : [],
-  );
-  if (invalid.length) throw new HomeConfigurationInvalidError(invalid);
+  for (const [index, [id, path]] of documents.entries()) {
+    const result = results[index];
+    if (result.status === "rejected") {
+      const error = result.reason as HomeConfigurationDocumentError;
+      invalidDocuments.set(path, { id, path, reason: error.reason });
+    }
+  }
   return Object.fromEntries(
-    documents.map(([id], index) => [
+    documents.map(([id, path], index) => [
       id,
-      (results[index] as PromiseFulfilledResult<unknown>).value,
+      results[index].status === "fulfilled" && !invalidDocuments.has(path)
+        ? (results[index] as PromiseFulfilledResult<unknown>).value
+        : structuredClone(defaultUserConfiguration[id]),
     ]),
   ) as unknown as UserConfiguration;
 }
 
-/**
- * Sets each listed document aside as `<file>.invalid-<time>` and writes its
- * default, after the user chose to reset it. Only the six home documents
- * qualify.
- */
-export async function resetHomeConfigurationDocuments(
+/** Read-only health check: invalid source bytes are never rewritten by reads. */
+export async function readSettingsHealth(
   paths: StoragePaths,
-  selected: readonly string[],
-): Promise<void> {
-  const known = new Map(
-    documentPaths(paths).map(([id, path]) => [path, id] as const),
-  );
-  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  for (const path of selected) {
-    const id = known.get(path);
-    if (!id) throw new Error(`Not a Nerve configuration document: ${path}`);
-    if (await pathExists(path)) await rename(path, `${path}.invalid-${stamp}`);
-    await atomicWriteJson(path, defaultUserConfiguration[id], CONFIG_MODE);
+): Promise<SettingsHealth> {
+  const invalid: SettingsHealth["invalid"] = [];
+  for (const [id, path] of documentPaths(paths)) {
+    try {
+      await readConfigDocument(id, path);
+    } catch (error) {
+      if (!(error instanceof HomeConfigurationDocumentError)) throw error;
+      invalidDocuments.set(path, { id, path, reason: error.reason });
+    }
+    const problem = invalidDocuments.get(path);
+    if (problem) invalid.push(problem);
   }
+  return { invalid };
+}
+
+export async function assertHomeConfigurationWritable(
+  paths: StoragePaths,
+  ids: readonly HomeConfigurationDocumentId[],
+): Promise<void> {
+  const invalid = (await readSettingsHealth(paths)).invalid.filter((item) =>
+    ids.includes(item.id),
+  );
+  if (invalid.length)
+    throw new Error(
+      `Cannot save invalid settings: ${invalid.map((item) => `${item.id}: ${item.reason}`).join("; ")}. Reset to defaults or fix the file and Reload first.`,
+    );
+}
+
+/** Explicit reset preserves the original permanently, outside migration scratch. */
+export async function resetHomeConfigurationDocument(
+  paths: StoragePaths,
+  id: HomeConfigurationDocumentId,
+): Promise<void> {
+  const path = documentPaths(paths).find(([key]) => key === id)?.[1];
+  if (!path) throw new Error(`Not a Nerve configuration document: ${id}`);
+  const problem = (await readSettingsHealth(paths)).invalid.find(
+    (item) => item.id === id,
+  );
+  if (!problem)
+    throw new Error(`${id} settings are no longer invalid. Reload first.`);
+  const root = join(paths.home, "quarantine", "settings");
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  const hash = createHash("sha256")
+    .update(randomUUID())
+    .digest("hex")
+    .slice(0, 12);
+  const entry = join(root, `configuration-${id}-${hash}`);
+  // Exclusive entry creation prevents collisions from overwriting quarantine.
+  await mkdir(entry, { mode: 0o700 });
+  const payload = join(entry, "payload");
+  await mkdir(payload, { mode: 0o700 });
+  await atomicWriteJson(
+    join(entry, "reason.json"),
+    {
+      kind: "configuration",
+      id: path,
+      title: `${id}.json`,
+      reason: problem.reason,
+      originalPath: path,
+      quarantinedAt: new Date().toISOString(),
+    },
+    CONFIG_MODE,
+  );
+  if (await pathExists(path)) {
+    const target = join(payload, basename(path));
+    try {
+      await rename(path, target);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EXDEV") throw error;
+      await copyFile(path, target);
+      const handle = await open(target, "r+");
+      try {
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await rm(path);
+    }
+  }
+  await atomicWriteJson(path, defaultUserConfiguration[id], CONFIG_MODE);
+  invalidDocuments.delete(path);
 }
 
 function documentPaths(
@@ -93,12 +194,28 @@ function documentPaths(
 export async function writeHomeConfiguration(
   paths: StoragePaths,
   configuration: UserConfiguration,
+  touched: readonly HomeConfigurationDocumentId[] = [
+    "daemon",
+    "harness",
+    "ui",
+    "providers",
+    "integrations",
+  ],
 ): Promise<UserConfiguration> {
   const parsed = decodeConfiguration(configuration);
-  for (const document of configDocuments(paths, parsed)) {
-    if (document.path === paths.permissionsConfigPath) continue;
-    await atomicWriteJson(document.path, document.value, CONFIG_MODE);
-    await chmod(document.path, CONFIG_MODE).catch(() => undefined);
+  const current = await readHomeConfiguration(paths);
+  const changed = documentPaths(paths).filter(
+    ([id]) =>
+      id !== "permissions" &&
+      touched.includes(id) &&
+      !isDeepStrictEqual(current[id], parsed[id]),
+  );
+  // Preflight all documents before the first write, so a rejected save is atomic
+  // with respect to invalid-file protection.
+  await assertHomeConfigurationWritable(paths, touched);
+  for (const [id, path] of changed) {
+    await atomicWriteJson(path, parsed[id], CONFIG_MODE);
+    await chmod(path, CONFIG_MODE).catch(() => undefined);
   }
   return parsed;
 }
@@ -128,14 +245,6 @@ export class HomeConfigurationDocumentError extends Error {
     if (issue)
       return `${issue.path.length ? `${issue.path.join(".")}: ` : ""}${issue.message}`;
     return cause instanceof Error ? cause.message : "The file is invalid";
-  }
-}
-
-/** Every invalid home document, so the user can reset them in one step. */
-export class HomeConfigurationInvalidError extends Error {
-  constructor(readonly documents: HomeConfigurationDocumentError[]) {
-    super(documents.map((document) => document.message).join("\n"));
-    this.name = "HomeConfigurationInvalidError";
   }
 }
 

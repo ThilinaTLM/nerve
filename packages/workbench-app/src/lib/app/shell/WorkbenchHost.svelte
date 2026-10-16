@@ -2,6 +2,7 @@
 import { WorkbenchShell } from "$lib/presentation/shell";
 import MobileWorkbenchHost from "$lib/app/shell/mobile/MobileWorkbenchHost.svelte";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
+import SettingsHealthNotice from "$lib/app/shell/SettingsHealthNotice.svelte";
 import WorkbenchEditorHost from "$lib/app/shell/WorkbenchEditorHost.svelte";
 import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.svelte";
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
@@ -23,6 +24,7 @@ import {
 import { createWorkbenchGitPanelAdapter } from "$lib/features/git";
 import BrowserNotificationPrompt from "$lib/application/notifications/BrowserNotificationPrompt.svelte";
 import CriticalErrorDialog from "$lib/application/notifications/CriticalErrorDialog.svelte";
+import { UpgradeReportNotice } from "$lib/features/storage-upgrade";
 import { DiscoverStartupHost } from "$lib/app/discover";
 import { GuideOverlayHost } from "$lib/app/discover/guides";
 import { maintenance, workspaceSelectors } from "$lib/application/workspace";
@@ -82,8 +84,10 @@ $effect(() => {
 </script>
 
 {#snippet workbenchOverlays()}
+  <SettingsHealthNotice />
   <BrowserNotificationPrompt />
   <CriticalErrorDialog />
+  <UpgradeReportNotice />
   <DiscoverStartupHost />
   <GuideOverlayHost />
   <DesktopShutdownOverlay />
