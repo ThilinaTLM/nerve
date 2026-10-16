@@ -41,8 +41,9 @@ const isDesktop = $derived(desktopRuntime.isDesktop);
 let copied = $state(false);
 let confirming = $state<"discard" | "rollback" | undefined>();
 
-// Above the full-screen startup layer (z-[1000]) that hosts this view.
-const dialogClass = "z-[1100]";
+// Confirmations portal into the full-screen layer: portaled to <body> they
+// would stack under it while their modal state blocks all pointer input.
+let layer = $state<HTMLElement>();
 
 async function copyDiagnostics() {
   try {
@@ -92,6 +93,7 @@ async function copyDiagnostics() {
 
 {#if serverLifecycleState.phase === "failed"}
   <div
+    bind:this={layer}
     class="fixed inset-0 z-[1000] grid place-items-center bg-background p-4 text-foreground"
   >
     <div
@@ -196,7 +198,7 @@ async function copyDiagnostics() {
   </div>
 
   <ConfirmDialog
-    class={dialogClass}
+    portalProps={{ to: layer }}
     open={confirming === "discard"}
     title={plan.conversations.length
       ? "Discard and continue?"
@@ -212,7 +214,7 @@ async function copyDiagnostics() {
     }}
   />
   <ConfirmDialog
-    class={dialogClass}
+    portalProps={{ to: layer }}
     open={confirming === "rollback"}
     title="Restore previous version?"
     description="This undoes the upgrade and restores your data as it was before. Afterwards you need to quit Nerve and reinstall the previous version."
