@@ -96,6 +96,14 @@ async function copyDiagnostics() {
     bind:this={layer}
     class="fixed inset-0 z-[1000] grid place-items-center bg-background p-4 text-foreground"
   >
+    {#if isDesktop}
+      <!-- Frameless window: keep it movable while no titlebar is mounted
+           (escape-hatch reason 7). -->
+      <div
+        aria-hidden="true"
+        class="absolute inset-x-0 top-0 h-10 [-webkit-app-region:drag]"
+      ></div>
+    {/if}
     <div
       class="grid w-full max-w-md gap-4 rounded-lg border bg-card p-6 shadow-md"
     >

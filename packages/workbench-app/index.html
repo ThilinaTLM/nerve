@@ -171,6 +171,12 @@
         background: var(--splash-bg);
         color: var(--splash-fg);
       }
+      /* Declaring a region makes Electron replace the drag regions left by the
+         previous page (the desktop shell's all-drag loading page), so no state
+         without a titlebar inherits a window-wide drag handle. */
+      html {
+        -webkit-app-region: no-drag;
+      }
 
       /* startup-splash:begin */
       #startup-splash,
