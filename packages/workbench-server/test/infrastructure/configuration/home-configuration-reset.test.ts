@@ -15,6 +15,8 @@ import {
   initializeHomeConfiguration,
   readHomeConfiguration,
   readSettingsHealth,
+  isHomeConfigurationInvalid,
+  revalidateHomeConfigurationAfterMigration,
   reloadHomeConfigurationDocument,
   resetHomeConfigurationDocument,
   writeHomeConfiguration,
@@ -116,9 +118,92 @@ void test("all six runtime documents can be invalid without blocking configurati
     (await readSettingsHealth(paths)).invalid.map((item) => item.id),
     ids,
   );
+  await revalidateHomeConfigurationAfterMigration(paths);
+  assert.equal((await readSettingsHealth(paths)).invalid.length, 6);
   for (const id of ids)
     assert.equal(
       await readFile(join(paths.configPath, `${id}.json`), "utf8"),
       "broken",
     );
+});
+
+void test("successful migration clears pre-bind legacy schema failures, but no-op startup retains manual-repair recovery", async (t) => {
+  const { fixture } =
+    await import("../../../src/infrastructure/migrations/steps/0001-conversation-core/step-fixture.js");
+  const { initializeStorage, readCurrentSettingsForBootstrap } =
+    await import("../../../src/infrastructure/storage-bootstrap/initialize.js");
+  const { EncryptedFileSecretProvider } =
+    await import("../../../src/infrastructure/secrets/index.js");
+  const { createPermissionPort } =
+    await import("../../../src/core-host/permission.adapter.js");
+  const home = await fixture(t);
+  const paths = storagePaths(home);
+  await initializeHomeConfiguration(paths);
+  await new EncryptedFileSecretProvider(home).initialize();
+  const legacy = {
+    ...defaultUserConfiguration.harness,
+    defaults: {
+      ...defaultUserConfiguration.harness.defaults,
+      permissionRuleSetId: "read_only",
+      permissionLevel: "autonomous",
+    },
+    lastSelection: {
+      ...defaultUserConfiguration.harness.lastSelection,
+      permissionRuleSetId: "read_only",
+      permissionLevel: "autonomous",
+    },
+  };
+  await writeFile(paths.harnessConfigPath, JSON.stringify(legacy));
+  // Match main.ts: bind settings are read before the migration worker starts.
+  await readCurrentSettingsForBootstrap(home);
+  assert.equal(isHomeConfigurationInvalid(paths.harnessConfigPath), true);
+  assert.match(
+    (await readSettingsHealth(paths)).invalid.find(
+      (item) => item.id === "harness",
+    )?.reason ?? "",
+    /permissionLevel/,
+  );
+  const storage = await initializeStorage(home, {
+    localToken: "fixture-token",
+  });
+  assert.equal(
+    storage.configuration.harness.defaults.permissionRuleSetId,
+    "read_only",
+  );
+  assert.equal(storage.settings.defaultPermissionRuleSetId, "read_only");
+  assert.equal(isHomeConfigurationInvalid(paths.harnessConfigPath), false);
+  assert.deepEqual(await readSettingsHealth(paths), { invalid: [] });
+  const convertedBytes = await readFile(paths.harnessConfigPath, "utf8");
+  const converted = JSON.parse(convertedBytes);
+  assert.equal("permissionLevel" in converted.defaults, false);
+  assert.equal("permissionLevel" in converted.lastSelection, false);
+  const port = createPermissionPort(home, {
+    conversations: { get: () => ({ projectId: "project" }) },
+    trustedResources: { find: () => undefined },
+  } as unknown as import("@nervekit/conversation-core").CoreStorage);
+  const request = {
+    conversationId: "conversation",
+    projectDir: home,
+    cwd: home,
+    ruleSetId: "autonomous",
+    toolName: "bash",
+    args: { command: "pwd" },
+    origin: "user" as const,
+  };
+  assert.equal((await port.evaluate(request)).decision, "allow");
+  assert.equal(await readFile(paths.harnessConfigPath, "utf8"), convertedBytes);
+  // A later startup with no applied steps is not a trusted conversion boundary.
+  await writeFile(paths.harnessConfigPath, "{ manually broken");
+  await readHomeConfiguration(paths);
+  await writeFile(paths.harnessConfigPath, convertedBytes);
+  const reopened = await initializeStorage(home, {
+    localToken: "fixture-token",
+  });
+  assert.deepEqual(
+    reopened.configuration.harness,
+    defaultUserConfiguration.harness,
+  );
+  assert.equal(isHomeConfigurationInvalid(paths.harnessConfigPath), true);
+  assert.equal((await port.evaluate(request)).decision, "approval");
+  assert.equal(await readFile(paths.harnessConfigPath, "utf8"), convertedBytes);
 });

@@ -54,6 +54,21 @@ export async function reloadHomeConfigurationDocument(
   }
 }
 
+/**
+ * A successful framework conversion can repair documents rejected by the
+ * pre-migration bind-settings read. Revalidate only cached failures; leave
+ * unreadable sources in recovery. Never use this for a no-op migration check
+ * or ordinary reads, where manual repairs still require explicit Reload.
+ */
+export async function revalidateHomeConfigurationAfterMigration(
+  paths: StoragePaths,
+): Promise<void> {
+  for (const [id, path] of documentPaths(paths)) {
+    if (invalidDocuments.has(path))
+      await reloadHomeConfigurationDocument(paths, id);
+  }
+}
+
 export async function initializeHomeConfiguration(
   paths: StoragePaths,
 ): Promise<UserConfiguration> {

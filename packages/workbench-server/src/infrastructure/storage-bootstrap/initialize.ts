@@ -15,6 +15,7 @@ import {
   configurationWithSettings,
   initializeHomeConfiguration,
   readHomeConfiguration,
+  revalidateHomeConfigurationAfterMigration,
   settingsFromConfiguration,
   writeHomeConfiguration,
 } from "../configuration/home-configuration.js";
@@ -139,6 +140,12 @@ export async function initializeStorage(
       await mkdir(directory, { recursive: true, mode });
       await chmod(directory, mode).catch(() => undefined);
     }
+
+    // The bind-settings read ran before migration and may have cached legacy
+    // schema failures. Only an actual successful conversion grants automatic
+    // revalidation; up-to-date startup must not accept manual repairs silently.
+    if (migrationResult.pending.length > 0)
+      await revalidateHomeConfigurationAfterMigration(paths);
 
     const configuration = fresh
       ? await initializeHomeConfiguration(paths)
