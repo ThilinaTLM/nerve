@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "unified-async-work",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.35.0",
     featured: true,
     artwork: "workbench",
     title: "Keep delegated work in view",
@@ -32,7 +32,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "launch-configurations",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.35.0",
     title: "Launch configs replace task definitions",
     summary:
       "Save project commands in Launches, then start, restart, stop, or inspect their output.",
@@ -45,7 +45,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "background-bash",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.35.0",
     title: "Let shell work continue in the background",
     summary:
       "Run bash in the background immediately, or use configurable auto-backgrounding (120s by default).",
@@ -53,7 +53,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "transcript-activity-island",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.35.0",
     title: "One place for conversation activity",
     summary:
       "Open Agents or Commands beside the composer to inspect teammates and background command output.",
