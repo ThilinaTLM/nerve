@@ -90,7 +90,12 @@ async function copyDiagnostics() {
 
 {#snippet quitButton()}
   {#if isDesktop}
-    <Button variant="outline" onclick={() => void quitDesktopApp()}>
+    <!-- An escape, not a recovery choice: kept quiet and apart. -->
+    <Button
+      class="mr-auto"
+      variant="ghost"
+      onclick={() => void quitDesktopApp()}
+    >
       Quit Nerve
     </Button>
   {/if}
@@ -106,7 +111,7 @@ async function copyDiagnostics() {
     ]}
   >
     <div
-      class="grid w-full max-w-md gap-4 rounded-lg border bg-card p-6 shadow-md [-webkit-app-region:no-drag]"
+      class="grid w-full max-w-xl gap-4 rounded-lg border bg-card p-6 shadow-md [-webkit-app-region:no-drag]"
     >
       {#if retrying}
         <ServerLifecycleStatus
@@ -184,7 +189,9 @@ async function copyDiagnostics() {
             {serverLifecycleState.retryError}
           </p>
         {/if}
-        <div class="flex flex-wrap justify-end gap-2">
+        <!-- One row: quiet escape left, then the alternative, then the
+             recommended way forward (its confirmation spells out the cost). -->
+        <div class="flex flex-wrap items-center justify-end gap-2">
           {@render quitButton()}
           {#if failure?.rollbackAvailable}
             <Button variant="outline" onclick={() => (confirming = "rollback")}>
@@ -192,10 +199,7 @@ async function copyDiagnostics() {
             </Button>
           {/if}
           {#if kind === "discardable"}
-            <Button
-              variant="destructive"
-              onclick={() => (confirming = "discard")}
-            >
+            <Button onclick={() => (confirming = "discard")}>
               {plan.action}
             </Button>
           {:else if failure?.retryable}
