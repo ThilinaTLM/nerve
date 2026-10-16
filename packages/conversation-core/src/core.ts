@@ -257,6 +257,9 @@ export class ConversationCore {
   getSnapshot(id: string): ConversationSnapshot {
     return this.conversations.snapshot(id);
   }
+  getUsage(id: string) {
+    return this.options.storage.events.getUsage(id);
+  }
   getHistory(
     id: string,
     page: { beforeEventId?: string; limit: number },

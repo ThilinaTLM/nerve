@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { conversationAgentUsageSchema } from "./conversation-usage.js";
 import {
   asyncBashLogsRequestSchema,
   asyncBashLogsResponseSchema,
@@ -101,6 +102,10 @@ export const coreOperationSchemas = {
   "conversation.list": {
     params: listConversationsRequestSchema,
     result: z.array(conversationSummarySchema),
+  },
+  "conversation.getUsage": {
+    params: conversationId,
+    result: conversationAgentUsageSchema,
   },
   "conversation.getSnapshot": {
     params: conversationId,

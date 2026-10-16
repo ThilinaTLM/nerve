@@ -4,6 +4,7 @@ import type {
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
 import type { CapabilitySubagentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
@@ -96,6 +97,9 @@ export type ConversationComposerModel = {
   permissionRuleSetsError?: string;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
+  agentUsage?: ConversationAgentUsage;
+  agentUsageLoading?: boolean;
+  agentUsageError?: string;
   contextWindow?: number;
   hint?: string;
   placeholder?: string;
@@ -182,6 +186,8 @@ export type ConversationPaneActions = {
   onAbort?: () => void;
   onCompact?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
+  onUsageOpenChange?: (open: boolean) => void;
+  onUsageRetry?: () => void;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
   onModeChange?: (value: Mode) => void;

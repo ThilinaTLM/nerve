@@ -1,9 +1,11 @@
 <script lang="ts">
-import type { Snippet } from "svelte";
+import { untrack, type Snippet } from "svelte";
 import Clipboard from "@lucide/svelte/icons/clipboard";
 import ClipboardCheck from "@lucide/svelte/icons/clipboard-check";
 import FileText from "@lucide/svelte/icons/file-text";
 import FoldVertical from "@lucide/svelte/icons/fold-vertical";
+import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage } from "@nervekit/contracts/models";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -27,7 +29,10 @@ import {
 } from "./session-info";
 import {
   conversationUsageMetrics,
+  expectedCacheRate,
+  isCacheRateCritical,
   emptyConversationUsage,
+  type ConversationUsageMetrics,
   type ConversationUsageSummary,
 } from "../usage/conversation-usage.js";
 
@@ -44,6 +49,14 @@ type Props = {
   onCompact?: () => void;
   /** Prepares and opens the next-request system prompt using current settings. */
   onOpenSystemPrompt?: () => void | Promise<void>;
+  /** Cumulative recorded response usage for this conversation and its
+   * sub-agents. Replaces `conversationUsage` when the owner supplies it. */
+  agentUsage?: ConversationAgentUsage;
+  agentUsageLoading?: boolean;
+  agentUsageError?: string;
+  /** Notifies the owner so aggregate usage is fetched only while open. */
+  onUsageOpenChange?: (open: boolean) => void;
+  onUsageRetry?: () => void;
 };
 
 let {
@@ -56,6 +69,11 @@ let {
   compactDisabled = false,
   onCompact,
   onOpenSystemPrompt,
+  agentUsage,
+  agentUsageLoading = false,
+  agentUsageError,
+  onUsageOpenChange,
+  onUsageRetry,
 }: Props = $props();
 
 let open = $state(false);
@@ -80,11 +98,27 @@ const tokens = $derived(contextUsage?.tokens ?? null);
 const conversationMetrics = $derived(
   conversationUsageMetrics(conversationUsage ?? emptyConversationUsage()),
 );
-const cacheRateLabel = $derived(
-  conversationMetrics.cacheRate == null
-    ? "Unavailable"
-    : `${Math.round(conversationMetrics.cacheRate)}%`,
+let reportedOpen = false;
+$effect(() => {
+  const next = open;
+  if (next === reportedOpen) return;
+  reportedOpen = next;
+  untrack(() => onUsageOpenChange?.(next));
+});
+
+$effect(() => () => {
+  if (!reportedOpen) return;
+  reportedOpen = false;
+  untrack(() => onUsageOpenChange?.(false));
+});
+
+const ownMetrics = $derived(
+  conversationUsageMetrics(agentUsage?.own ?? emptyConversationUsage()),
 );
+const subagentMetrics = $derived(
+  conversationUsageMetrics(agentUsage?.subagents ?? emptyConversationUsage()),
+);
+const subagentCount = $derived(agentUsage?.subagentCount ?? 0);
 const percent = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return (tokens / contextLimit) * 100;
@@ -106,7 +140,14 @@ const ringTone = $derived<StatusTone>(
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
-const title = $derived.by(() => {
+// Judged on this agent's all-time recorded usage, which is what drives cost.
+const cacheCritical = $derived(!!agentUsage && isCacheRateCritical(ownMetrics));
+const cacheWarning = $derived(
+  cacheCritical && ownMetrics.cacheRate != null
+    ? `Low prompt cache: ${Math.round(ownMetrics.cacheRate)}% of input was cached across ${ownMetrics.responseCount} requests (expected at least ${expectedCacheRate(ownMetrics.responseCount)}% by now). Uncached input costs more.`
+    : undefined,
+);
+const contextTitle = $derived.by(() => {
   if (tokens != null && contextLimit > 0) {
     return `Context: ${tokens.toLocaleString()} / ${contextLimit.toLocaleString()} tokens`;
   }
@@ -115,6 +156,9 @@ const title = $derived.by(() => {
   }
   return "Context window unknown";
 });
+const title = $derived(
+  cacheWarning ? `${cacheWarning}\n${contextTitle}` : contextTitle,
+);
 const windowLabel = $derived(
   contextLimit > 0 ? formatTokens(contextLimit) : "—",
 );
@@ -142,6 +186,37 @@ function requestCompact(): void {
 }
 </script>
 
+{#snippet usageRows(m: ConversationUsageMetrics)}
+  {@const rate =
+    m.cacheRate == null ? "Unavailable" : `${Math.round(m.cacheRate)}%`}
+  <PopoverProperties>
+    <PopoverProperty
+      label="Input"
+      value={`${formatTokens(m.promptTokens)} tokens`}
+      title={`${m.promptTokens.toLocaleString()} tokens`}
+    />
+    <PopoverProperty
+      label="Cached input"
+      value={`${formatTokens(m.cachedTokens)} tokens · ${rate}`}
+      title={`${m.cachedTokens.toLocaleString()} tokens · ${rate} of all input tokens`}
+    />
+    <PopoverProperty
+      label="Output"
+      value={`${formatTokens(m.output)} tokens`}
+      title={`${m.output.toLocaleString()} tokens`}
+    />
+  </PopoverProperties>
+{/snippet}
+
+{#snippet staleNotice()}
+  <div class="flex items-center gap-2 px-1.5 pb-1" role="status">
+    <p class="text-warning">Refresh failed; showing earlier totals.</p>
+    {#if onUsageRetry}
+      <Button size="sm" variant="ghost" onclick={onUsageRetry}>Retry</Button>
+    {/if}
+  </div>
+{/snippet}
+
 {#if onOpenSystemPrompt || contextLimit > 0 || percent != null}
   <Popover
     bind:open
@@ -158,7 +233,14 @@ function requestCompact(): void {
         data-tone={tone}
         data-tour-id="composer-context"
       >
-        <ProgressRing percent={ringPercent} tone={ringTone} />
+        {#if cacheCritical}
+          <TriangleAlert
+            class="size-3 flex-none text-warning"
+            aria-label="Low prompt cache rate"
+          />
+        {:else}
+          <ProgressRing percent={ringPercent} tone={ringTone} />
+        {/if}
         <span class="ctx-percent">{percentLabel}</span>
         <span class="ctx-window font-medium text-muted-foreground"
           >/{windowLabel}</span
@@ -268,31 +350,73 @@ function requestCompact(): void {
             }`}
       />
 
-      <PopoverSection label="Token usage" separated>
-        {#if conversationMetrics.hasUsage}
-          <PopoverProperties>
-            <PopoverProperty
-              label="Input"
-              value={`${formatTokens(conversationMetrics.promptTokens)} tokens`}
-              title={`${conversationMetrics.promptTokens.toLocaleString()} tokens`}
-            />
-            <PopoverProperty
-              label="Cached input"
-              value={`${formatTokens(conversationMetrics.cachedTokens)} tokens · ${cacheRateLabel}`}
-              title={`${conversationMetrics.cachedTokens.toLocaleString()} tokens · ${cacheRateLabel} of all input tokens`}
-            />
-            <PopoverProperty
-              label="Output"
-              value={`${formatTokens(conversationMetrics.output)} tokens`}
-              title={`${conversationMetrics.output.toLocaleString()} tokens`}
-            />
-          </PopoverProperties>
-        {:else}
-          <p class="px-1.5 text-muted-foreground">
-            Available after the first response.
-          </p>
-        {/if}
-      </PopoverSection>
+      {#if cacheWarning}
+        <div class="flex items-start gap-2 px-1.5 pt-2" role="status">
+          <TriangleAlert
+            class="mt-0.5 size-3.5 shrink-0 text-warning"
+            aria-hidden="true"
+          />
+          <p class="text-warning">{cacheWarning}</p>
+        </div>
+      {/if}
+
+      {#if agentUsage && subagentCount > 0}
+        <PopoverSection label="This agent" separated>
+          {#if agentUsageError}
+            {@render staleNotice()}
+          {/if}
+          {#if ownMetrics.hasUsage}
+            {@render usageRows(ownMetrics)}
+          {:else}
+            <p class="px-1.5 text-muted-foreground">
+              Available after the first response.
+            </p>
+          {/if}
+        </PopoverSection>
+        <PopoverSection label={`Sub-agents (${subagentCount})`} separated>
+          {#if subagentMetrics.hasUsage}
+            {@render usageRows(subagentMetrics)}
+          {:else}
+            <p class="px-1.5 text-muted-foreground">No responses yet.</p>
+          {/if}
+        </PopoverSection>
+      {:else}
+        <PopoverSection label="Token usage" separated>
+          {#if agentUsage}
+            {#if agentUsageError}
+              {@render staleNotice()}
+            {/if}
+            {#if ownMetrics.hasUsage}
+              {@render usageRows(ownMetrics)}
+            {:else}
+              <p class="px-1.5 text-muted-foreground">
+                Available after the first response.
+              </p>
+            {/if}
+          {:else if onUsageOpenChange}
+            {#if agentUsageError}
+              <div class="flex items-center gap-2 px-1.5">
+                <p class="text-destructive">Token usage unavailable.</p>
+                {#if onUsageRetry}
+                  <Button size="sm" variant="ghost" onclick={onUsageRetry}>
+                    Retry
+                  </Button>
+                {/if}
+              </div>
+            {:else}
+              <p class="px-1.5 text-muted-foreground" role="status">
+                {agentUsageLoading ? "Loading…" : "Available when opened."}
+              </p>
+            {/if}
+          {:else if conversationMetrics.hasUsage}
+            {@render usageRows(conversationMetrics)}
+          {:else}
+            <p class="px-1.5 text-muted-foreground">
+              Available after the first response.
+            </p>
+          {/if}
+        </PopoverSection>
+      {/if}
     </PopoverBody>
 
     <PopoverFooter>

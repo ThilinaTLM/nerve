@@ -107,6 +107,9 @@ export class ModelTurn {
         headers: resolved.headers,
         signal: input.signal,
         reasoning: prepared.reasoning,
+        // Stable per-conversation key: OpenAI Codex uses it as prompt_cache_key and
+        // session routing; without it prompt caching is largely lost.
+        sessionId: input.conversation.id,
       },
     );
     const argumentDrafts = new Map<number, string>();

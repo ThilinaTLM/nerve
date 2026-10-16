@@ -27,6 +27,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
     let resolutions = 0;
     let streams = 0;
     let requestPrompt: string | undefined;
+    let requestSessionId: string | undefined;
     provider.setResponses([
       async () => {
         streams++;
@@ -65,6 +66,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
       "streamSimple",
       (...args: Parameters<typeof originalStream>) => {
         requestPrompt = args[1].systemPrompt;
+        requestSessionId = args[2]?.sessionId;
         return originalStream.apply(registry, args);
       },
     );
@@ -131,6 +133,8 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
       });
       assert.match(result.errorMessage ?? "", /Captured stream boundary/);
       assert.equal(requestPrompt, expected);
+      // Provider prompt caching (e.g. Codex prompt_cache_key) keys on the conversation.
+      assert.equal(requestSessionId, "conv_preview");
       assert.deepEqual(Buffer.from(requestPrompt!), Buffer.from(expected));
       assert.equal(resolutions, 1);
       assert.equal(streams, 1);

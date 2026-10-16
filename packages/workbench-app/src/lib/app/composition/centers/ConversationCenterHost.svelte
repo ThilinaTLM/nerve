@@ -59,6 +59,10 @@ import {
 } from "$lib/features/conversations/state/composer-signals.svelte";
 import { retainConversationStore } from "$lib/features/conversations/state/open-conversation-stores";
 import type { ConversationStore } from "$lib/features/conversations/state/core-conversation-store.svelte";
+import {
+  ConversationAgentUsageController,
+  type AgentUsageState,
+} from "$lib/features/conversations/state/conversation-agent-usage";
 import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
 import { updateCapabilities } from "$lib/features/conversations/adapters/core-capabilities.adapter";
 import {
@@ -245,6 +249,30 @@ $effect(() => {
 const conversationUsage = $derived(
   context?.conversationUsage ?? summarizeConversationUsage([]),
 );
+let usageOpen = $state(false);
+let agentUsageState = $state<AgentUsageState>({ loading: false });
+const agentUsageController = new ConversationAgentUsageController({
+  fetch: (conversationId) =>
+    requestConversation("conversation.getUsage", { conversationId }),
+  publish: (state) => {
+    agentUsageState = state;
+  },
+});
+$effect(() => {
+  // All-time usage also drives the badge's cache warning, so fetch it while the
+  // conversation is active; poll only while the details are open.
+  agentUsageController.configure(
+    store?.conversationId,
+    active && !!store?.connected,
+    usageOpen,
+  );
+});
+// Each new response changes recorded usage.
+$effect(() => {
+  void conversationUsage.responseCount;
+  untrack(() => agentUsageController.invalidate());
+});
+$effect(() => () => agentUsageController.dispose());
 const contextWindow = $derived(
   context?.contextWindow ??
     settingsState.models.find((m) => modelKey(m) === selectedModelKey)
@@ -713,6 +741,13 @@ const teamRunning = $derived(
   {slashCompletions}
   contextUsage={context?.contextUsage}
   {conversationUsage}
+  agentUsage={agentUsageState.usage}
+  agentUsageLoading={agentUsageState.loading}
+  agentUsageError={agentUsageState.error}
+  onUsageOpenChange={(open) => {
+    usageOpen = open;
+  }}
+  onUsageRetry={() => agentUsageController.retry()}
   {contextWindow}
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}

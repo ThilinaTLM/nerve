@@ -124,6 +124,11 @@ function submit(): void {
       thinkingShortcut={model.thinkingShortcut}
       contextUsage={model.contextUsage}
       conversationUsage={model.conversationUsage}
+      agentUsage={model.agentUsage}
+      agentUsageLoading={model.agentUsageLoading}
+      agentUsageError={model.agentUsageError}
+      onUsageOpenChange={actions.onUsageOpenChange}
+      onUsageRetry={actions.onUsageRetry}
       contextWindow={model.contextWindow ?? 0}
       compacting={model.compacting}
       compactDisabled={blocked || !actions.onCompact}

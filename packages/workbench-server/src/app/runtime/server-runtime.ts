@@ -151,7 +151,6 @@ export function composeServerRuntime(
     auth,
     events,
     cacheDir: join(storage.paths.home, "cache", "usage"),
-    logger,
   });
   const nerveSkills = new NerveSkillCatalog();
   const agentBrowserSkills = new AgentBrowserSkillCatalog();

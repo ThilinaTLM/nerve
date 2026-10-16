@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import {
   capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
@@ -129,6 +130,61 @@ const usage = {
   totalTokens: 881_400,
   cost: 1.84,
 };
+
+const subagentUsage = {
+  responseCount: 9,
+  input: 96_000,
+  output: 12_300,
+  cacheRead: 410_000,
+  cacheWrite: 20_000,
+  totalTokens: 538_300,
+  cost: 0.9,
+};
+const sumUsage = (a: typeof usage, b: typeof usage): typeof usage => ({
+  responseCount: a.responseCount + b.responseCount,
+  input: a.input + b.input,
+  output: a.output + b.output,
+  cacheRead: a.cacheRead + b.cacheRead,
+  cacheWrite: a.cacheWrite + b.cacheWrite,
+  totalTokens: a.totalTokens + b.totalTokens,
+  cost: a.cost + b.cost,
+});
+const agentUsageExamples: {
+  title: string;
+  agentUsage?: ConversationAgentUsage;
+  loading?: boolean;
+  error?: string;
+}[] = [
+  {
+    title: "Agent usage: no sub-agents",
+    agentUsage: {
+      own: usage,
+      subagents: {
+        ...usage,
+        responseCount: 0,
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+        cacheWrite: 0,
+        totalTokens: 0,
+        cost: 0,
+      },
+      total: usage,
+      subagentCount: 0,
+    },
+  },
+  {
+    title: "Agent usage: sub-agents",
+    agentUsage: {
+      own: usage,
+      subagents: subagentUsage,
+      total: sumUsage(usage, subagentUsage),
+      subagentCount: 3,
+    },
+  },
+  { title: "Agent usage: loading", loading: true },
+  { title: "Agent usage: unavailable", error: "Request failed" },
+];
 
 const contextLevels: { title: string; usage: ContextUsage }[] = [
   {
@@ -466,6 +522,25 @@ const actions: ConversationPaneActions = {
               contextWindow={200_000}
               {session}
               conversationUsage={usage}
+              onCompact={noop}
+            />
+          </div>
+        {/each}
+        {#each agentUsageExamples as example (example.title)}
+          <div class="flex flex-col items-start gap-1">
+            <span class="text-xs text-muted-foreground">{example.title}</span>
+            <ContextProgressBadge
+              contextUsage={{
+                tokens: 70_000,
+                contextWindow: 200_000,
+                percent: 35,
+              }}
+              contextWindow={200_000}
+              agentUsage={example.agentUsage}
+              agentUsageLoading={example.loading}
+              agentUsageError={example.error}
+              onUsageOpenChange={noop}
+              onUsageRetry={noop}
               onCompact={noop}
             />
           </div>
