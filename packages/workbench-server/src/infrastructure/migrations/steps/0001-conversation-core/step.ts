@@ -583,6 +583,31 @@ async function convert(
   );
 }
 
+/**
+ * A completed attempt whose only failures were import failures already holds
+ * exactly the database a rerun without them would build: each failed
+ * conversation's transaction, files and report entries were rolled back. Once
+ * the user discards all of them, verification can run again directly.
+ * Conversations that failed verification exist in the database, so
+ * discarding any of them (or retrying without discards) re-imports.
+ */
+function reusePreviousImport(ctx: StepContext): boolean {
+  if (!existsSync(summaryPath(ctx)) || !existsSync(sourcePath(ctx)))
+    return false;
+  const summary = readJson(summaryPath(ctx)) as CoreImportSummary;
+  const excluded = new Set(summary.excludedConversations);
+  // Configuration items are absolute paths; they were settled before import.
+  const conversations = [...ctx.discarded].filter((id) => !isAbsolute(id));
+  if (
+    !summary.failedConversations.length ||
+    !summary.failedConversations.every(({ id }) => ctx.discarded.has(id)) ||
+    !conversations.every((id) => excluded.has(id))
+  )
+    return false;
+  writeJson(summaryPath(ctx), { ...summary, failedConversations: [] });
+  return true;
+}
+
 export default defineStep({
   id: "0001-conversation-core",
   description:
@@ -596,6 +621,14 @@ export default defineStep({
     }
     if (ctx.discarded.size)
       ctx.log(`Discarding at user request: ${[...ctx.discarded].join(", ")}`);
+    if (reusePreviousImport(ctx)) {
+      ctx.log(
+        "Reusing the previous import: discarded conversations were never imported",
+      );
+      return;
+    }
+    // A full run rebuilds the database; never trust a summary of a prior run.
+    rmSync(summaryPath(ctx), { force: true });
     const journal = new RollbackJournal(ctx.scratchDir);
     try {
       await withRollbackJournal(journal, () => convert(ctx, journal));

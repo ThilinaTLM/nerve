@@ -78,7 +78,14 @@ void test("0001 reports every failed conversation and completes once they are di
     /Only items reported/,
   );
   await discardFailedItems(home, ["conv_corrupt", "conv_broken"]);
-  await runMigrations(home, { registry });
+  // Both failed during import, so the previous import is verified as is.
+  const phases = new Set<string>();
+  await runMigrations(home, {
+    registry,
+    onProgress: ({ phase }) => phases.add(phase),
+  });
+  assert.equal(phases.has("import"), false);
+  assert(phases.has("verify-history-and-assets"));
 
   const db = new DatabaseSync(join(home, "data/nerve.sqlite"), {
     readOnly: true,
@@ -246,4 +253,40 @@ void test("0001 rollback returns configuration files that were set aside", async
   assert.equal(existsSync(`${rules}.corrupt`), false);
   assert(existsSync(overlay));
   assert.equal(existsSync(`${overlay}.corrupt`), false);
+});
+
+void test("0001 re-imports when a conversation that failed verification is discarded", async (t) => {
+  const home = await fixture(t);
+  const corrupt = ({ phase }: { phase: string }) => {
+    if (phase !== "verify") return;
+    const db = new DatabaseSync(join(home, "data/nerve.sqlite"));
+    try {
+      db.exec(
+        "UPDATE conversation_event SET payload = json_set(payload, '$.text', 'corrupted') WHERE conversation_id = 'conv_one'",
+      );
+    } finally {
+      db.close();
+    }
+  };
+  await assert.rejects(runMigrations(home, { registry, onProgress: corrupt }));
+  await discardFailedItems(home, ["conv_one"]);
+  const phases = new Set<string>();
+  await runMigrations(home, {
+    registry,
+    onProgress: ({ phase }) => phases.add(phase),
+  });
+  assert(phases.has("import"));
+  const db = new DatabaseSync(join(home, "data/nerve.sqlite"), {
+    readOnly: true,
+  });
+  try {
+    assert.equal(
+      db
+        .prepare("SELECT count(*) AS n FROM conversation WHERE id = 'conv_one'")
+        .get()!.n,
+      0,
+    );
+  } finally {
+    db.close();
+  }
 });
