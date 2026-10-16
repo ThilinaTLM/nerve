@@ -109,7 +109,10 @@ describe("executable resolution", () => {
       assert.deepEqual(
         await locateExecutable(name, {
           platform,
-          env: { PATH: [first, second].join(platform === "win32" ? ";" : ":") },
+          // Inject directories directly: a Windows host's drive-letter paths
+          // cannot be represented in a simulated POSIX colon-delimited PATH.
+          env: {},
+          additionalDirectories: [first, second],
           homeDir: join(project.root, "home"),
         }),
         { path: expected, kind: "native" },
