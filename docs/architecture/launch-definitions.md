@@ -8,14 +8,14 @@ For agent-facing launch selection, permissions, execution, and output behavior, 
 
 ## Ownership
 
-| Owner | Responsibility |
-| --- | --- |
-| [Contracts](../../packages/contracts/src/domains/launch-definitions/) | Persisted and runtime schemas, typed entry references, request/response and event contracts. |
+| Owner                                                                                               | Responsibility                                                                                                     |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [Contracts](../../packages/contracts/src/domains/launch-definitions/)                               | Persisted and runtime schemas, typed entry references, request/response and event contracts.                       |
 | [Server launch-definitions domain](../../packages/workbench-server/src/domains/launch-definitions/) | Project ownership, document loading, hierarchy validation, revision checks, structural mutations, and persistence. |
-| [Server launches domain](../../packages/workbench-server/src/domains/launches/) | Process execution, single/concurrent policy, readiness, cancellation, and run output. |
-| [App launches feature](../../packages/workbench-app/src/lib/features/launches/) | Project catalog cache, tree projection, activity counts, and organization actions. |
-| App composition | Active-project selection, feature registration, and wiring activity into shell badges. |
-| Protocol | Transport, RPC, events, and reconnect mechanics; no launch-folder lifecycle rules. |
+| [Server launches domain](../../packages/workbench-server/src/domains/launches/)                     | Process execution, single/concurrent policy, readiness, cancellation, and run output.                              |
+| [App launches feature](../../packages/workbench-app/src/lib/features/launches/)                     | Project catalog cache, tree projection, activity counts, and organization actions.                                 |
+| App composition                                                                                     | Active-project selection, feature registration, and wiring activity into shell badges.                             |
+| Protocol                                                                                            | Transport, RPC, events, and reconnect mechanics; no launch-folder lifecycle rules.                                 |
 
 Agents can operate launches through the launch tool, but cannot create, rename, move, or delete definitions or folders through that tool. User management APIs remain distinct from execution capabilities.
 
@@ -37,11 +37,11 @@ Missing files represent an empty catalog. Invalid files do not: report their pat
 
 The following describes the logical persisted model. The contracts package owns its executable validators and serialization.
 
-| Record | Fields | Meaning |
-| --- | --- | --- |
-| Catalog | `version: 2`, `folders`, `definitions` | One complete project document. Both collections are required. |
-| Folder | `id`, `label`, `parentFolderId`, `order` | Stable `launchfolder_` ID, nonblank display name, nullable parent folder ID, and nonnegative integer sibling position. |
-| Definition | `id`, `scope`, `label?`, `command`, `cwd?`, `port?`, `runPolicy`, `createdAt`, `updatedAt`, `parentFolderId`, `order` | Execution configuration plus its placement. |
+| Record     | Fields                                                                                                                | Meaning                                                                                                                |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Catalog    | `version: 2`, `folders`, `definitions`                                                                                | One complete project document. Both collections are required.                                                          |
+| Folder     | `id`, `label`, `parentFolderId`, `order`                                                                              | Stable `launchfolder_` ID, nonblank display name, nullable parent folder ID, and nonnegative integer sibling position. |
+| Definition | `id`, `scope`, `label?`, `command`, `cwd?`, `port?`, `runPolicy`, `createdAt`, `updatedAt`, `parentFolderId`, `order` | Execution configuration plus its placement.                                                                            |
 
 Definition execution fields retain their own contract:
 
@@ -112,15 +112,15 @@ The server validates the complete catalog on load and before persistence. Invali
 
 Read operations return a complete runtime catalog and an opaque revision token. All user management mutations include the project ID and the revision against which the user acted.
 
-| Operation | Semantics |
-| --- | --- |
-| Create folder | Add a named folder at a destination parent and optional insertion anchor. |
-| Rename folder | Change its label without changing identity, placement, descendants, or runs. |
-| Delete folder | Delete an empty folder only. A nonempty folder must first be emptied; there is no implicit recursive deletion or promotion. |
-| Create definition | Create execution configuration and placement in one document mutation. |
-| Update definition | Change execution configuration without unintentionally resetting placement. |
-| Delete definition | Remove its catalog record and normalize siblings; do not stop or erase linked runs. |
-| Move entry | Reparent and/or reorder either kind of entry atomically. |
+| Operation         | Semantics                                                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Create folder     | Add a named folder at a destination parent and optional insertion anchor.                                                   |
+| Rename folder     | Change its label without changing identity, placement, descendants, or runs.                                                |
+| Delete folder     | Delete an empty folder only. A nonempty folder must first be emptied; there is no implicit recursive deletion or promotion. |
+| Create definition | Create execution configuration and placement in one document mutation.                                                      |
+| Update definition | Change execution configuration without unintentionally resetting placement.                                                 |
+| Delete definition | Remove its catalog record and normalize siblings; do not stop or erase linked runs.                                         |
+| Move entry        | Reparent and/or reorder either kind of entry atomically.                                                                    |
 
 Moves express intent rather than client-assigned position numbers:
 

@@ -1,9 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
-import type {
-  CreateLaunchDefinitionRequest,
-  UpdateLaunchDefinitionRequest,
-} from "@nervekit/contracts/launch-definitions";
+import type { UpdateLaunchDefinitionRequest } from "@nervekit/contracts/launch-definitions";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
@@ -14,7 +11,10 @@ import {
   isValidLaunchPort,
   launchDefinitionRequest,
 } from "./launch-panel-controller";
+import type { LaunchFolderOption } from "./launch-tree";
 import type { LaunchPanelDefinition } from "./launch-panel-types";
+
+const ROOT = "__root__";
 
 type Props = {
   open?: boolean;
@@ -27,12 +27,16 @@ type Props = {
     runPolicy?: "single" | "concurrent";
   };
   projectCwd?: string;
+  /** Destination choices; the picker only appears when creating. */
+  folders?: readonly LaunchFolderOption[];
+  parentFolderId?: string | null;
   saving?: boolean;
   title?: string;
   description?: string;
   submitLabel?: string;
   onSave?: (
-    input: CreateLaunchDefinitionRequest | UpdateLaunchDefinitionRequest,
+    input: UpdateLaunchDefinitionRequest,
+    parentFolderId: string | null,
   ) => void;
   onOpenChange?: (open: boolean) => void;
 };
@@ -42,6 +46,8 @@ let {
   definition,
   initial,
   projectCwd,
+  folders = [],
+  parentFolderId = null,
   saving = false,
   title,
   description,
@@ -56,6 +62,7 @@ let commandText = $state(source?.command ?? "");
 let cwd = $state(source?.cwd ?? "");
 let port = $state<number | undefined>(source?.port);
 let runPolicy = $state<"single" | "concurrent">(source?.runPolicy ?? "single");
+let destination = $state(untrack(() => parentFolderId ?? ROOT));
 
 const dialogTitle = $derived(
   title ?? (definition ? "Edit launch" : "Create launch"),
@@ -83,7 +90,7 @@ const canSave = $derived(!saving && request !== undefined);
 
 function submit() {
   if (!canSave || !request) return;
-  onSave?.(request);
+  onSave?.(request, destination === ROOT ? null : destination);
 }
 </script>
 
@@ -104,6 +111,25 @@ function submit() {
         disabled={saving}
       />
     </div>
+
+    {#if !definition}
+      <div class="grid gap-1.5">
+        <Label for="launch-definition-folder">Folder</Label>
+        <SelectField
+          bind:value={destination}
+          ariaLabel="Launch folder"
+          items={[
+            { value: ROOT, label: "Top level" },
+            ...folders.map((folder) => ({
+              value: folder.id,
+              label: folder.label,
+            })),
+          ]}
+          disabled={saving}
+          triggerClass="h-7 px-2 text-xs"
+        />
+      </div>
+    {/if}
 
     <div class="grid gap-1.5">
       <Label for="launch-definition-command">Command</Label>

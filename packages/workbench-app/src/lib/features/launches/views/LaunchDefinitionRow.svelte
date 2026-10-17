@@ -27,6 +27,11 @@ let {
   entry,
   capabilities,
   active = false,
+  depth = 0,
+  position,
+  setSize,
+  tabindex,
+  moveItems = [],
   onOpen,
   onRun,
   onCancel,
@@ -41,6 +46,14 @@ let {
   entry: LaunchDefinitionEntry;
   capabilities: LaunchEntryCapabilities;
   active?: boolean;
+  /** Tree nesting level; 0 is the top level. */
+  depth?: number;
+  position?: number;
+  setSize?: number;
+  /** Roving tabindex supplied by the owning tree. */
+  tabindex?: number;
+  /** Move actions appended to the context menu. */
+  moveItems?: ContextMenuItem[];
   onOpen?: (launchId: string) => void;
   onRun?: () => void;
   onCancel?: (launchId: string) => void;
@@ -159,6 +172,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
       onSelect: () => onCopy?.(cwd),
     });
   if (trailing.length > 0) items.push({ type: "separator" }, ...trailing);
+  if (moveItems.length > 0) items.push({ type: "separator" }, ...moveItems);
   return items;
 });
 </script>
@@ -170,7 +184,14 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
     mono={label.isCommand}
     tone={label.isCommand ? "neutral" : undefined}
     disabled={!latest}
-    indent={0}
+    indent={depth}
+    role="treeitem"
+    ariaLevel={depth + 1}
+    ariaPosInSet={position}
+    ariaSetSize={setSize}
+    {tabindex}
+    contentTabindex={tabindex === undefined ? undefined : -1}
+    dataId={`definition:${entry.definition.id}`}
     alwaysShowActions
     {active}
     onclick={() => latest && onOpen?.(latest.id)}

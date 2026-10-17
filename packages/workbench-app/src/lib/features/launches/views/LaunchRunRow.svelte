@@ -57,7 +57,19 @@ let {
 const run = $derived(entry.run);
 const label = $derived(launchRunLabel(entry));
 const startedAt = $derived(formatLaunchRunTime(run.startedAt));
-const tooltip = $derived([run.command, run.cwd].filter(Boolean).join("\n"));
+const unavailable = $derived(entry.definitionUnavailable === true);
+const description = $derived(
+  unavailable ? `${startedAt} · Definition unavailable` : startedAt,
+);
+const tooltip = $derived(
+  [
+    run.command,
+    run.cwd,
+    unavailable ? "Definition unavailable while the catalog is unreadable" : "",
+  ]
+    .filter(Boolean)
+    .join("\n"),
+);
 
 const menuItems = $derived.by<ContextMenuItem[]>(() => {
   const items: ContextMenuItem[] = [
@@ -138,7 +150,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 <PanelRowCard selected={active} {menuItems}>
   <PanelRow
     label={nested ? startedAt : label.text}
-    description={nested ? undefined : startedAt}
+    description={nested ? (unavailable ? description : undefined) : description}
     title={tooltip}
     mono={!nested && label.isCommand}
     tone={nested || label.isCommand ? "neutral" : undefined}
