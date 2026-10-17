@@ -146,3 +146,14 @@ pnpm exec tsx --test test/infrastructure/persistence/storage-files.test.ts test/
 ```
 
 Focused formatting/checks are serialized by the lead after shared-worktree edits finish; benchmark claims are not full-validation equivalence.
+
+## Follow-up proposals
+
+| Proposal                                                      | Native part                                                                                                         | What stays in TypeScript                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [Concurrent Git operations](git-operations.md)                | Single-walk repository discovery and batched, cancellable multi-repository snapshots                                | Per-repository lanes, CLI mutations (pull/push/fetch), progress parsing, cancellation policy |
+| [Unified completion](unified-completion.md)                   | Generalized search index with typed fields, fuzzy matching and top-k; lower cold-build and memory cost than PR #458 | Providers, permissions, freshness, usage history, protocol                                   |
+| [Activity inbox](activity-inbox.md)                           | None directly; native operations report through it                                                                  | Activity model, retention, UI                                                                |
+| [Native library organization](native-library-organization.md) | Domain-first layout, small shared core, per-domain bindings                                                         | Façade policy                                                                                |
+
+**Text-edit diff kernel (candidate 3 above)** remains conditional: profile large and adversarial edits first, then consider an async `text` domain that computes bounded patches while TypeScript keeps permissions, the write queue and atomic writes.
