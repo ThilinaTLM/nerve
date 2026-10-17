@@ -1,3 +1,4 @@
+import { launchEntryIdentity } from "$lib/domain/workspace/launch-entry-identity";
 import type {
   LaunchDefinition,
   UpdateLaunchDefinitionRequest,
@@ -33,13 +34,6 @@ const REMOVABLE_STATUSES = new Set([
   "cancelled",
 ]);
 
-const DEFINITION_ALPHABETICAL_WEIGHT = 0.7;
-const DEFINITION_RECENCY_WEIGHT = 0.3;
-const definitionCollator = new Intl.Collator(undefined, {
-  sensitivity: "base",
-  numeric: true,
-});
-
 export type LaunchGroups = {
   running: LaunchRecord[];
   finished: LaunchRecord[];
@@ -61,6 +55,9 @@ export function normalizeLaunchDefinition(
 ): LaunchPanelDefinition {
   return {
     id: definition.id,
+    scope: definition.scope,
+    parentFolderId: definition.parentFolderId,
+    order: definition.order,
     label: definition.label,
     command: definition.command,
     cwd: definition.cwd,
@@ -122,7 +119,7 @@ export function launchPortConflictDescription(
 
 /** The center tab a run belongs to: its definition, restart chain, or itself. */
 export function launchEntryId(launch: LaunchRecord): string {
-  return launch.definitionId ?? launch.restartRootLaunchId ?? launch.id;
+  return launchEntryIdentity(launch);
 }
 
 /** Every run sharing `launchId`'s center-tab entry, newest first. */
@@ -192,16 +189,25 @@ export function formatLaunchRunTime(startedAt: string): string {
 
 /**
  * Projects the panel into its two sections: saved definitions with their own runs
- * nested underneath, and the ad-hoc runs that no definition started. Both are
- * newest first.
+ * nested underneath, and standalone/unresolved runs. Definitions retain manual
+ * placement order; runs are newest first.
  */
 export function projectLaunchPanel(
   definitions: readonly LaunchPanelDefinition[],
   launches: readonly LaunchRecord[],
+  catalogAuthoritative = true,
 ): { definitions: LaunchDefinitionEntry[]; runs: LaunchRunEntry[] } {
   const runsByDefinition = new Map<string, LaunchRecord[]>();
   for (const launch of launches) {
-    if (!launch.definitionId) continue;
+    if (
+      !launch.definitionId ||
+      !definitions.some(
+        (definition) =>
+          definition.id === launch.definitionId &&
+          definition.scope.projectId === launch.projectId,
+      )
+    )
+      continue;
     const runs = runsByDefinition.get(launch.definitionId) ?? [];
     runs.push(launch);
     runsByDefinition.set(launch.definitionId, runs);
@@ -217,8 +223,21 @@ export function projectLaunchPanel(
   );
 
   const runEntries = launches
-    .filter((run) => !run.definitionId)
-    .map((run) => toRunEntry(run))
+    .filter(
+      (run) =>
+        !run.definitionId ||
+        !definitions.some(
+          (definition) =>
+            definition.id === run.definitionId &&
+            definition.scope.projectId === run.projectId,
+        ),
+    )
+    .map((run) => ({
+      ...toRunEntry(run),
+      ...(run.definitionId && !catalogAuthoritative
+        ? { definitionUnavailable: true }
+        : {}),
+    }))
     .sort((left, right) =>
       right.run.startedAt.localeCompare(left.run.startedAt),
     );
@@ -226,52 +245,44 @@ export function projectLaunchPanel(
   return { definitions: definitionEntries, runs: runEntries };
 }
 
-function definitionSortLabel(entry: LaunchDefinitionEntry): string {
-  const label = entry.definition.label?.trim();
-  return label || entry.definition.command;
-}
-
-function definitionRecency(entry: LaunchDefinitionEntry): string {
-  return entry.latestRun?.startedAt ?? entry.definition.updatedAt;
-}
-
-/**
- * Keeps saved launches primarily alphabetical while allowing recent activity to
- * improve their position modestly. Rank blending avoids the distracting jump
- * to first place caused by a strict newest-first comparison.
- */
+/** Placement, never labels or execution recency, controls saved order. */
 function sortDefinitionEntries(
   entries: LaunchDefinitionEntry[],
 ): LaunchDefinitionEntry[] {
-  const alphabetical = [...entries].sort(
-    (left, right) =>
-      definitionCollator.compare(
-        definitionSortLabel(left),
-        definitionSortLabel(right),
-      ) || left.definition.id.localeCompare(right.definition.id),
-  );
-  const recent = [...entries].sort(
-    (left, right) =>
-      definitionRecency(right).localeCompare(definitionRecency(left)) ||
-      left.definition.id.localeCompare(right.definition.id),
-  );
-  const alphabeticalRank = new Map(
-    alphabetical.map((entry, index) => [entry.key, index]),
-  );
-  const recencyRank = new Map(recent.map((entry, index) => [entry.key, index]));
-  const score = (entry: LaunchDefinitionEntry) =>
-    (alphabeticalRank.get(entry.key) ?? 0) * DEFINITION_ALPHABETICAL_WEIGHT +
-    (recencyRank.get(entry.key) ?? 0) * DEFINITION_RECENCY_WEIGHT;
+  return entries.sort((a, b) => a.definition.order - b.definition.order);
+}
 
-  return [...entries].sort(
-    (left, right) =>
-      score(left) - score(right) ||
-      definitionCollator.compare(
-        definitionSortLabel(left),
-        definitionSortLabel(right),
-      ) ||
-      left.definition.id.localeCompare(right.definition.id),
+/** Distinct active definitions in each folder's complete descendant subtree. */
+export function launchActivity(
+  definitions: readonly LaunchPanelDefinition[],
+  folders: readonly import("@nervekit/contracts/launch-definitions").LaunchFolder[],
+  launches: readonly LaunchRecord[],
+) {
+  const active = new Set(
+    definitions
+      .filter((definition) =>
+        launches.some(
+          (run) =>
+            run.projectId === definition.scope.projectId &&
+            run.definitionId === definition.id &&
+            ACTIVE_LAUNCH_STATUSES.has(run.status),
+        ),
+      )
+      .map((definition) => definition.id),
   );
+  const folderCounts = new Map<string, number>();
+  for (const definition of definitions) {
+    if (!active.has(definition.id)) continue;
+    let parent = definition.parentFolderId;
+    const visited = new Set<string>();
+    while (parent && !visited.has(parent)) {
+      visited.add(parent);
+      folderCounts.set(parent, (folderCounts.get(parent) ?? 0) + 1);
+      parent =
+        folders.find((folder) => folder.id === parent)?.parentFolderId ?? null;
+    }
+  }
+  return { activeDefinitionCount: active.size, folderCounts };
 }
 
 /** Status-derived row facts for one run. */
@@ -316,6 +327,18 @@ export function createLaunchPanelActions(
     available() && model().capabilities[capability].enabled;
 
   return {
+    createFolder: (input) => {
+      if (enabled("manageDefinitions")) return host.createFolder(input);
+    },
+    renameFolder: (folder, label) => {
+      if (enabled("manageDefinitions")) return host.renameFolder(folder, label);
+    },
+    deleteFolder: (folder) => {
+      if (enabled("manageDefinitions")) return host.deleteFolder(folder);
+    },
+    moveEntry: (input) => {
+      if (enabled("manageDefinitions")) return host.moveEntry(input);
+    },
     selectLaunch: (launchId) => host.selectLaunch(launchId),
     openLaunchOutput: (launchId) => {
       if (enabled("logs")) return host.openLaunchOutput(launchId);

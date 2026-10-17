@@ -1,11 +1,11 @@
 <script lang="ts">
-import Ban from "@lucide/svelte/icons/ban";
-import Bookmark from "@lucide/svelte/icons/bookmark";
+import Circle from "@lucide/svelte/icons/circle";
+import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import CircleCheck from "@lucide/svelte/icons/circle-check";
+import CircleDot from "@lucide/svelte/icons/circle-dot";
 import CirclePlay from "@lucide/svelte/icons/circle-play";
+import CircleSlash from "@lucide/svelte/icons/circle-slash";
 import CircleX from "@lucide/svelte/icons/circle-x";
-import Radio from "@lucide/svelte/icons/radio";
-import TimerOff from "@lucide/svelte/icons/timer-off";
 import type { LaunchStatus } from "@nervekit/contracts/launches";
 import { Spinner } from "@nervekit/ui-kit/components/ui/spinner";
 import { cn } from "@nervekit/ui-kit/utils";
@@ -18,10 +18,15 @@ let {
   class?: string;
 } = $props();
 
+// Every state is a circular glyph so the status column reads as one family.
 const presentation = $derived.by(() => {
   switch (status) {
     case "saved":
-      return { icon: Bookmark, label: "Saved", color: "text-muted-foreground" };
+      return {
+        icon: Circle,
+        label: "Not run yet",
+        color: "text-muted-foreground",
+      };
     case "starting":
       return { icon: undefined, label: "Starting", color: "text-warning" };
     case "running":
@@ -33,7 +38,7 @@ const presentation = $derived.by(() => {
       };
     case "ready":
       return {
-        icon: Radio,
+        icon: CircleDot,
         label: "Ready",
         color: "text-success",
         pulse: true,
@@ -49,9 +54,17 @@ const presentation = $derived.by(() => {
     case "failed":
       return { icon: CircleX, label: "Failed", color: "text-destructive" };
     case "timed_out":
-      return { icon: TimerOff, label: "Timed out", color: "text-destructive" };
+      return {
+        icon: CircleAlert,
+        label: "Timed out",
+        color: "text-destructive",
+      };
     case "cancelled":
-      return { icon: Ban, label: "Cancelled", color: "text-muted-foreground" };
+      return {
+        icon: CircleSlash,
+        label: "Cancelled",
+        color: "text-muted-foreground",
+      };
   }
 });
 

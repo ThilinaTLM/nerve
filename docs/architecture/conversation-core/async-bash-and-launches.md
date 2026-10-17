@@ -31,6 +31,8 @@ Part of the [conversation core redesign](README.md).
 | Output      | `ASSET` rows owned by the conversation              | Log files under `data/launches/<launchId>/`                                                 |
 | Completion  | Queued `async_bash_event` notice                    | Workbench notice to the UI; a queued notice to the conversation that started it (see below) |
 
+The [launch definitions architecture](../launch-definitions.md) owns the project catalog schema, folder hierarchy, ordering, management operations, and conversion rules. Folder organization does not change the execution and tool-selection boundaries described here.
+
 Conversation core does not depend on launches. The `launch` tool is a host tool executed by workbench-server through the existing `ToolHostPort`; core never imports workbench code.
 
 ## Tools

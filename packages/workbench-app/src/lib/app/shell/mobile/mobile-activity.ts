@@ -2,7 +2,6 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { ConversationActivity } from "$lib/presentation/conversations/conversation-activity";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
-import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 
 /**
  * The phone Activity tab: everything moving right now, across projects.
@@ -71,14 +70,7 @@ export function launchProject<P extends ProjectLike>(
   launch: LaunchRecord,
   projects: readonly P[],
 ): P | undefined {
-  if (launch.projectId) {
-    const owned = projects.find((project) => project.id === launch.projectId);
-    if (owned) return owned;
-  }
-  // Deepest matching directory wins for nested projects.
-  return projects
-    .filter((project) => isPathInDirectory(launch.cwd, project.directory))
-    .sort((left, right) => right.directory.length - left.directory.length)[0];
+  return projects.find((project) => project.id === launch.projectId);
 }
 
 /**

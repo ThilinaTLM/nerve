@@ -56,6 +56,9 @@ export type {
 export type {
   CreateLaunchDefinitionRequest,
   LaunchDefinition,
+  LaunchDefinitionCatalog,
+  LaunchFolder,
+  LaunchCatalogEntryRef,
   UpdateLaunchDefinitionRequest,
 } from "@nervekit/contracts/launch-definitions";
 export type {

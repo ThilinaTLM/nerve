@@ -3,6 +3,8 @@ import { test } from "node:test";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import {
   isValidLaunchPort,
+  launchActivity,
+  launchEntryId,
   projectLaunchPanel,
   siblingLaunchRuns,
   launchDefinitionRequest,
@@ -16,6 +18,7 @@ function run(id: string, patch: Partial<LaunchRecord> = {}): LaunchRecord {
   const now = new Date().toISOString();
   return {
     id,
+    projectId: "proj_a",
     cwd: "/repo",
     command: "pnpm dev",
     status: "running",
@@ -53,6 +56,9 @@ function definition(
   const now = new Date().toISOString();
   return {
     id: "launchdef_a",
+    scope: { kind: "project", projectId: "proj_a" },
+    parentFolderId: null,
+    order: 0,
     label: "Web",
     command: "pnpm dev",
     runPolicy: "single",
@@ -76,94 +82,58 @@ test("collapses a definition's concurrent runs into one definition entry while l
   assert.equal(projected.runs.length, 0);
 });
 
-test("blends alphabetical and recency ranks without moving a newly run launch to the top", () => {
+test("saved placement order wins over names and execution recency", () => {
+  const projected = projectLaunchPanel(
+    [
+      definition({ id: "launchdef_z", label: "Zulu", order: 0 }),
+      definition({ id: "launchdef_a", label: "Alpha", order: 1 }),
+    ],
+    [run("recent", { definitionId: "launchdef_a" })],
+  );
+  assert.deepEqual(
+    projected.definitions.map((entry) => entry.definition.label),
+    ["Zulu", "Alpha"],
+  );
+});
+test("copied IDs never join runs across projects; orphans remain controllable", () => {
+  const projected = projectLaunchPanel(
+    [definition()],
+    [
+      run("other", { projectId: "proj_b", definitionId: "launchdef_a" }),
+      run("orphan", { definitionId: "launchdef_deleted" }),
+    ],
+  );
+  assert.equal(projected.definitions[0]?.runs.length, 0);
+  assert.equal(projected.runs.length, 2);
+  assert.notEqual(
+    launchEntryId(run("a", { definitionId: "launchdef_a" })),
+    launchEntryId(
+      run("b", { projectId: "proj_b", definitionId: "launchdef_a" }),
+    ),
+  );
+  assert.equal(
+    launchEntryId(run("retry", { restartRootLaunchId: "root" })),
+    "root",
+  );
+});
+test("counts distinct active definitions through all folder ancestors", () => {
   const definitions = [
-    definition({ id: "launchdef_alpha", label: "Alpha" }),
-    definition({ id: "launchdef_bravo", label: "Bravo" }),
-    definition({ id: "launchdef_charlie", label: "Charlie" }),
-    definition({ id: "launchdef_zulu", label: "Zulu" }),
+    definition({ parentFolderId: "child" }),
+    definition({ id: "launchdef_b", parentFolderId: "parent" }),
   ];
-  const projected = projectLaunchPanel(definitions, [
-    run("launch_zulu", {
-      definitionId: "launchdef_zulu",
-      startedAt: "2026-01-04T00:00:00Z",
-    }),
-    run("launch_alpha", {
-      definitionId: "launchdef_alpha",
-      startedAt: "2026-01-03T00:00:00Z",
-    }),
-    run("launch_bravo", {
-      definitionId: "launchdef_bravo",
-      startedAt: "2026-01-02T00:00:00Z",
-    }),
-    run("launch_charlie", {
-      definitionId: "launchdef_charlie",
-      startedAt: "2026-01-01T00:00:00Z",
-    }),
+  const folders = [
+    { id: "parent", label: "Parent", parentFolderId: null, order: 0 },
+    { id: "child", label: "Child", parentFolderId: "parent", order: 0 },
+  ];
+  const activity = launchActivity(definitions, folders, [
+    run("a", { definitionId: "launchdef_a", status: "starting" }),
+    run("b", { definitionId: "launchdef_a", status: "stopping" }),
+    run("c", { definitionId: "launchdef_b", status: "ready" }),
+    run("orphan", { definitionId: "deleted" }),
   ]);
-
-  assert.deepEqual(
-    projected.definitions.map((entry) => entry.definition.label),
-    ["Alpha", "Bravo", "Zulu", "Charlie"],
-  );
-});
-
-test("lets recency modestly improve nearby alphabetical positions", () => {
-  const projected = projectLaunchPanel(
-    [
-      definition({ id: "launchdef_alpha", label: "Alpha" }),
-      definition({ id: "launchdef_bravo", label: "Bravo" }),
-      definition({ id: "launchdef_charlie", label: "Charlie" }),
-      definition({ id: "launchdef_delta", label: "Delta" }),
-    ],
-    [
-      run("launch_bravo", {
-        definitionId: "launchdef_bravo",
-        startedAt: "2026-01-04T00:00:00Z",
-      }),
-      run("launch_charlie", {
-        definitionId: "launchdef_charlie",
-        startedAt: "2026-01-03T00:00:00Z",
-      }),
-      run("launch_delta", {
-        definitionId: "launchdef_delta",
-        startedAt: "2026-01-02T00:00:00Z",
-      }),
-      run("launch_alpha", {
-        definitionId: "launchdef_alpha",
-        startedAt: "2026-01-01T00:00:00Z",
-      }),
-    ],
-  );
-
-  assert.deepEqual(
-    projected.definitions.map((entry) => entry.definition.label),
-    ["Bravo", "Alpha", "Charlie", "Delta"],
-  );
-});
-
-test("sorts equally ranked definitions deterministically by label", () => {
-  const timestamp = "2026-01-01T00:00:00Z";
-  const projected = projectLaunchPanel(
-    [
-      definition({
-        id: "launchdef_zebra",
-        label: "zebra",
-        updatedAt: timestamp,
-      }),
-      definition({
-        id: "launchdef_alpha",
-        label: "Alpha",
-        updatedAt: timestamp,
-      }),
-    ],
-    [],
-  );
-
-  assert.deepEqual(
-    projected.definitions.map((entry) => entry.definition.id),
-    ["launchdef_alpha", "launchdef_zebra"],
-  );
+  assert.equal(activity.activeDefinitionCount, 2);
+  assert.equal(activity.folderCounts.get("parent"), 2);
+  assert.equal(activity.folderCounts.get("child"), 1);
 });
 
 test("lists only ad-hoc runs at the top level", () => {
@@ -293,4 +263,46 @@ test("groups sibling runs by their center-tab entry, newest first", () => {
     ["t4", "t3"],
   );
   assert.deepEqual(siblingLaunchRuns(launches, "missing"), []);
+});
+
+test("cold catalog failures keep linked runs visible without asserting deletion", () => {
+  const runs = [run("linked", { definitionId: "launchdef_a" }), run("unsaved")];
+  const projected = projectLaunchPanel([], runs, false);
+  assert.equal(projected.runs.length, 2);
+  assert.equal(
+    projected.runs.find((entry) => entry.key === "linked")
+      ?.definitionUnavailable,
+    true,
+  );
+  assert.equal(
+    projected.runs.find((entry) => entry.key === "linked")?.isActive,
+    true,
+  );
+  assert.equal(
+    projected.runs.find((entry) => entry.key === "unsaved")
+      ?.definitionUnavailable,
+    undefined,
+  );
+});
+test("retained catalog data still joins known definitions while failures mark only unresolved runs", () => {
+  const projected = projectLaunchPanel(
+    [definition()],
+    [
+      run("linked", { definitionId: "launchdef_a" }),
+      run("unknown", { definitionId: "launchdef_unknown" }),
+    ],
+    false,
+  );
+  assert.equal(projected.definitions[0]?.runs.length, 1);
+  assert.equal(projected.runs.length, 1);
+  assert.equal(projected.runs[0]?.definitionUnavailable, true);
+});
+test("authoritative deletion exposes normal orphan runs with all controls", () => {
+  const projected = projectLaunchPanel(
+    [],
+    [run("deleted", { definitionId: "launchdef_a", status: "stopping" })],
+    true,
+  );
+  assert.equal(projected.runs[0]?.definitionUnavailable, undefined);
+  assert.equal(projected.runs[0]?.canForceKill, true);
 });

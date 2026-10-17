@@ -14,6 +14,9 @@ function definition(patch: { label?: string; cwd?: string } = {}) {
   return {
     definition: {
       id: "d1",
+      scope: { kind: "project" as const, projectId: "proj_a" },
+      parentFolderId: null,
+      order: 0,
       command: "pnpm dev",
       createdAt: "",
       updatedAt: "",

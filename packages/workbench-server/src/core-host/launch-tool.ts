@@ -142,6 +142,9 @@ export class LaunchTool {
     const launches = await this.options.launches.list({
       projectId: project.id,
     });
+    const definitionIds = new Set(definitions.map((item) => item.id));
+    const isStandalone = (launch: LaunchRecord) =>
+      !launch.definitionId || !definitionIds.has(launch.definitionId);
     if (action === "status")
       return {
         content:
@@ -155,7 +158,7 @@ export class LaunchTool {
                 : [formatLaunchStatus(definition)];
             }),
             ...launches
-              .filter((launch) => !launch.definitionId)
+              .filter(isStandalone)
               .map((launch) => formatLaunchStatus(undefined, launch)),
           ].join("\n") || "No launches.",
       };
@@ -171,7 +174,7 @@ export class LaunchTool {
     const matchingLaunches = definition
       ? launches.filter((item) => item.definitionId === definition.id)
       : launches.filter(
-          (item) => !item.definitionId && launchName(item) === name,
+          (item) => isStandalone(item) && launchName(item) === name,
         );
     const runId =
       args.runId === undefined ? undefined : String(args.runId).trim();
@@ -225,7 +228,7 @@ export class LaunchTool {
       if (!isTerminalLaunchStatus(stopped.status))
         throw new Error("Launch is still running and cannot be restarted");
     }
-    const definitionId = definition?.id ?? launch?.definitionId;
+    const definitionId = definition?.id;
     if (
       action === "start" &&
       !definitionId &&

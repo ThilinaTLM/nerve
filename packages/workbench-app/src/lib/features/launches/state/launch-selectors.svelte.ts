@@ -1,11 +1,10 @@
-import { isPathInDirectory } from "$lib/domain/filesystem/project-path";
 export interface LaunchSelectorWorkspaceReadModel {
-  readonly activeProjectDir: string | undefined;
+  readonly activeProjectId: string | undefined;
   readonly activeCenterTab: { kind: string; id: string } | undefined;
 }
 
 const unregisteredWorkspaceReadModel: LaunchSelectorWorkspaceReadModel = {
-  activeProjectDir: undefined,
+  activeProjectId: undefined,
   activeCenterTab: undefined,
 };
 
@@ -28,10 +27,10 @@ export const launchSelectors = {
     return launchState.launches;
   },
   get scopedLaunches() {
-    const projectDir = workspaceReadModel.activeProjectDir;
-    if (!projectDir) return [];
-    return launchState.launches.filter((launch) =>
-      isPathInDirectory(launch.cwd, projectDir),
+    const projectId = workspaceReadModel.activeProjectId;
+    if (!projectId) return [];
+    return launchState.launches.filter(
+      (launch) => launch.projectId === projectId,
     );
   },
   get selectedLaunch() {

@@ -1,5 +1,6 @@
 <script lang="ts">
 import EyeOff from "@lucide/svelte/icons/eye-off";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import MoveLeft from "@lucide/svelte/icons/move-left";
 import MoveRight from "@lucide/svelte/icons/move-right";
 import PanelBottom from "@lucide/svelte/icons/panel-bottom";
@@ -245,6 +246,8 @@ const tourIdByView: Record<string, string> = {
   >
     {#each views as view, index (view.id)}
       {@const Icon = view.icon}
+      {@const activity =
+        view.activity && view.activity.count > 0 ? view.activity : undefined}
       {@const remainingIndex = remainingViews.findIndex(
         (candidate) => candidate.id === view.id,
       )}
@@ -264,8 +267,12 @@ const tourIdByView: Record<string, string> = {
           data-tour-id={tourIdByView[view.id]}
           role="tab"
           aria-selected={view.id === activeViewId}
-          aria-label={view.title}
-          title={view.title}
+          aria-label={activity
+            ? `${view.title}, ${activity.description}`
+            : view.title}
+          title={activity
+            ? `${view.title}: ${activity.description}`
+            : view.title}
           draggable={draggable && Boolean(onMove)}
           ondragstart={(event) => {
             if (!onMove) return;
@@ -295,6 +302,14 @@ const tourIdByView: Record<string, string> = {
           onclick={() => onSelect?.(view.id)}
         >
           <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
+          {#if activity}
+            <Badge
+              variant="accent"
+              class="pointer-events-none absolute right-0 top-0 origin-top-right scale-75 rounded-full"
+              aria-hidden="true"
+              >{activity.count > 99 ? "99+" : activity.count}</Badge
+            >
+          {/if}
         </button>
       </ContextMenu>
     {/each}

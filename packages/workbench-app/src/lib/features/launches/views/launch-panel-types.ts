@@ -8,12 +8,18 @@ import type {
 } from "@nervekit/contracts/launches";
 import type {
   CreateLaunchDefinitionRequest,
+  LaunchFolder,
+  LaunchCatalogEntryRef,
+  LaunchDefinition,
   UpdateLaunchDefinitionRequest,
 } from "@nervekit/contracts/launch-definitions";
 import type { FeatureCapability } from "$lib/domain/capabilities/feature-capability";
 
 export interface LaunchPanelDefinition {
   readonly id: string;
+  readonly scope: LaunchDefinition["scope"];
+  readonly parentFolderId: string | null;
+  readonly order: number;
   readonly label?: string;
   readonly command: string;
   readonly cwd?: string;
@@ -28,6 +34,8 @@ export interface LaunchRunEntry {
   readonly key: string;
   readonly run: LaunchRecord;
   readonly definition?: LaunchPanelDefinition;
+  /** Linked definition cannot currently be resolved from an authoritative catalog. */
+  readonly definitionUnavailable?: boolean;
   readonly isActive: boolean;
   readonly canForceKill: boolean;
   readonly isRemovable: boolean;
@@ -66,6 +74,10 @@ export type LaunchEntryCapabilities = {
 };
 
 export interface LaunchPanelModel {
+  readonly projectId?: string;
+  readonly folders: readonly LaunchFolder[];
+  readonly catalogRevision?: string;
+  readonly catalogError?: string;
   readonly availability:
     | { readonly available: true }
     | { readonly available: false; readonly message: string };
@@ -88,6 +100,23 @@ export interface LaunchPanelModel {
 }
 
 export interface LaunchPanelActions {
+  readonly createFolder: (input: {
+    label: string;
+    parentFolderId: string | null;
+  }) => void | Promise<void>;
+  readonly renameFolder: (
+    folder: LaunchFolder,
+    label: string,
+  ) => void | Promise<void>;
+  readonly deleteFolder: (folder: LaunchFolder) => void | Promise<void>;
+  readonly moveEntry: (input: {
+    /** Drag/menu intent may retain the revision from when it was created. */
+    expectedRevision?: string;
+    entry: LaunchCatalogEntryRef;
+    destinationFolderId: string | null;
+    beforeSibling: LaunchCatalogEntryRef | null;
+  }) => void | Promise<void>;
+
   readonly selectLaunch: (launchId: string | undefined) => void | Promise<void>;
   readonly openLaunchOutput: (launchId: string) => void | Promise<void>;
   readonly startLaunch: (request: StartLaunchRequest) => void | Promise<void>;

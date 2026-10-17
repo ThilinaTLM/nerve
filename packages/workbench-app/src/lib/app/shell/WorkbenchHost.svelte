@@ -8,6 +8,7 @@ import WorkbenchPanelHost from "$lib/app/composition/hosts/WorkbenchPanelHost.sv
 import ProjectDialogHost from "$lib/app/shell/ProjectDialogHost.svelte";
 import WorkbenchStatusBarHost from "$lib/app/shell/WorkbenchStatusBarHost.svelte";
 import WorkbenchTitlebarHost from "$lib/app/shell/WorkbenchTitlebarHost.svelte";
+import { createLaunchCatalogActivity } from "$lib/app/composition/registrations/launch-catalog-activity.svelte";
 import { panelViewDescriptors } from "$lib/app/composition/registries/panel-registry";
 import { responsive } from "$lib/app/shell/responsive.svelte";
 import {
@@ -32,6 +33,23 @@ import { onDestroy } from "svelte";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 
+const launchActivity = createLaunchCatalogActivity();
+const descriptors = $derived(
+  panelViewDescriptors.map((descriptor) =>
+    descriptor.id === "launches"
+      ? {
+          ...descriptor,
+          activity:
+            launchActivity.count > 0
+              ? {
+                  count: launchActivity.count,
+                  description: `${launchActivity.count} active saved launch ${launchActivity.count === 1 ? "configuration" : "configurations"}`,
+                }
+              : undefined,
+        }
+      : descriptor,
+  ),
+);
 onDestroy(() => maintenance.dispose());
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
@@ -98,7 +116,7 @@ $effect(() => {
 {:else}
   <WorkbenchShell
     layout={shellLayout.current}
-    descriptors={panelViewDescriptors}
+    {descriptors}
     compact={isCompact}
     primarySheetOpen={shellSheets.primary}
     secondarySheetOpen={shellSheets.secondary}

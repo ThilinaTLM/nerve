@@ -15,6 +15,8 @@ import {
 const definition: LaunchDefinition = {
   id: "launchdef_dev",
   scope: { kind: "project", projectId: "proj_one" },
+  parentFolderId: null,
+  order: 0,
   label: "Dev",
   command: "old command",
   runPolicy: "single",
@@ -563,4 +565,26 @@ void test("restart cannot start another execution when selected run fails to sto
   assert.equal(f.starts.length, 0);
   assert.equal(f.restarts.length, 0);
   assert.equal(latest.status, "running");
+});
+
+void test("deleted definitions leave project-owned runs selectable as standalone", async () => {
+  const f = fixture();
+  f.options.definitions.list = async () => [];
+  f.options.definitions.get = async () => {
+    throw new Error("Deleted definition must not be resolved");
+  };
+  f.setRows([
+    { ...record, cwd: "/external", status: "completed" },
+    { ...record, id: "launch_foreign", projectId: "proj_other" },
+  ]);
+  const status = await f.tool.execute({ action: "status" }, "conv_one");
+  assert.match(status.content, /launch_one completed/);
+  assert.doesNotMatch(status.content, /launch_foreign/);
+  await f.tool.execute(
+    { action: "restart", name: "Dev", runId: record.id },
+    "conv_one",
+    "user",
+  );
+  assert.deepEqual(f.restarts, [record.id]);
+  assert.deepEqual(f.starts, []);
 });

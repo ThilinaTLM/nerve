@@ -16,6 +16,7 @@ export const launchMethodHandlers: WorkbenchMethodHandlerMapFor<LaunchMethodCont
     }),
     "launch.startDefinition": (state, params) =>
       state.launchDefinitionOperations.launch(
+        params.projectId,
         params.definitionId,
         params.terminateListeners,
       ),

@@ -1,13 +1,16 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import ListTodo from "@lucide/svelte/icons/list-todo";
+import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Plus from "@lucide/svelte/icons/plus";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import type {
-  CreateLaunchDefinitionRequest,
+  LaunchFolder,
   UpdateLaunchDefinitionRequest,
 } from "@nervekit/contracts/launch-definitions";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
   Handle as PaneResizer,
@@ -25,7 +28,8 @@ import {
   createPanelRowFit,
 } from "$lib/presentation/panels";
 import LaunchDefinitionDialog from "./LaunchDefinitionDialog.svelte";
-import LaunchDefinitionRow from "./LaunchDefinitionRow.svelte";
+import LaunchDefinitionTree from "./LaunchDefinitionTree.svelte";
+import LaunchFolderDialog from "./LaunchFolderDialog.svelte";
 import LaunchOutputPane from "./LaunchOutputPane.svelte";
 import LaunchRunRow from "./LaunchRunRow.svelte";
 import LaunchRunsDialog from "./LaunchRunsDialog.svelte";
@@ -34,6 +38,11 @@ import {
   launchPanelActiveItemKey,
   launchPortConflictDescription,
 } from "./launch-panel-controller.js";
+import {
+  buildLaunchTree,
+  launchFolderOptions,
+  siblingsOf,
+} from "./launch-tree.js";
 import type {
   LaunchEntryCapabilities,
   LaunchPanelActions,
@@ -49,8 +58,20 @@ let {
   actions: LaunchPanelActions;
 } = $props();
 
+// Without a valid catalog snapshot, a missing definition proves nothing, so
+// linked runs must stay attached instead of looking deleted.
+const catalogAuthoritative = $derived(
+  model.catalogError === undefined && model.catalogRevision !== undefined,
+);
 const projected = $derived(
-  projectLaunchPanel(model.definitions, model.launches),
+  projectLaunchPanel(model.definitions, model.launches, catalogAuthoritative),
+);
+const tree = $derived(buildLaunchTree(model.folders, projected.definitions));
+const folderOptions = $derived(launchFolderOptions(tree));
+// Structural edits wait for a valid catalog revision; an unreadable catalog
+// must not look like an empty one we could overwrite.
+const canEditCatalog = $derived(
+  model.capabilities.manageDefinitions.enabled && catalogAuthoritative,
 );
 const activeItemKey = $derived(launchPanelActiveItemKey(model.selectedLaunch));
 const selectedSiblingRuns = $derived.by(() => {
@@ -67,13 +88,22 @@ const selectedSiblingRuns = $derived.by(() => {
     .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
 });
 type LaunchDialogSession =
-  | { kind: "create" }
+  | { kind: "create"; parentFolderId?: string | null }
   | { kind: "edit"; definition: LaunchPanelDefinition }
   | { kind: "duplicate"; definition: LaunchPanelDefinition }
   | { kind: "save-run"; launch: LaunchRecord };
 
 let launchDialog = $state<LaunchDialogSession | undefined>();
+type FolderDialogSession =
+  | { kind: "create"; parentFolderId: string | null }
+  | { kind: "rename"; folder: LaunchFolder };
+
+let folderDialog = $state<FolderDialogSession | undefined>();
+let deleteFolder = $state<LaunchFolder | undefined>();
 let saving = $state(false);
+// `saving` is shared by every dialog. Each save and each project reset takes a
+// new generation, and only the latest generation may clear the busy flag.
+let saveGeneration = 0;
 let confirmPruneOpen = $state(false);
 let forceKillLaunch = $state<LaunchRecord | undefined>();
 let deleteDefinition = $state<LaunchPanelDefinition | undefined>();
@@ -105,14 +135,35 @@ const capabilities = $derived<LaunchEntryCapabilities>({
   remove: model.capabilities.remove.enabled,
   logs: model.capabilities.logs.enabled,
   copy: model.capabilities.copy.enabled,
-  manageDefinitions: model.capabilities.manageDefinitions.enabled,
+  manageDefinitions: canEditCatalog,
+});
+
+// Dialogs and confirmations hold raw folder/definition IDs that a copied
+// project can share, so they never survive a project switch.
+let lastProjectId = untrack(() => model.projectId);
+$effect(() => {
+  const projectId = model.projectId;
+  if (projectId === lastProjectId) return;
+  lastProjectId = projectId;
+  launchDialog = undefined;
+  folderDialog = undefined;
+  deleteFolder = undefined;
+  deleteDefinition = undefined;
+  forceKillLaunch = undefined;
+  cleanupRunIds = [];
+  confirmPruneOpen = false;
+  runsDialogOpen = false;
+  saveGeneration += 1;
+  saving = false;
 });
 
 async function saveDefinition(
-  input: CreateLaunchDefinitionRequest | UpdateLaunchDefinitionRequest,
+  input: UpdateLaunchDefinitionRequest,
+  parentFolderId: string | null,
 ): Promise<void> {
   const session = launchDialog;
   if (!session) return;
+  const generation = ++saveGeneration;
   saving = true;
   try {
     if (session.kind === "edit") {
@@ -120,14 +171,19 @@ async function saveDefinition(
     } else {
       await panelActions.createDefinition({
         ...input,
+        parentFolderId,
+        beforeSibling: null,
         ...(session.kind === "save-run"
           ? { sourceLaunchId: session.launch.id }
           : {}),
       });
     }
-    launchDialog = undefined;
+    // A newer dialog (or project switch) must not be closed by this save.
+    if (launchDialog === session) launchDialog = undefined;
+  } catch {
+    // The action layer already notified; keep the dialog open to retry.
   } finally {
-    saving = false;
+    if (generation === saveGeneration) saving = false;
   }
 }
 
@@ -155,10 +211,60 @@ async function cleanupRuns(): Promise<void> {
   await panelActions.cleanupRuns(ids);
 }
 
+function dialogParentFolderId(session: LaunchDialogSession): string | null {
+  if (session.kind === "create") return session.parentFolderId ?? null;
+  if (session.kind === "duplicate") return session.definition.parentFolderId;
+  return null;
+}
+
+async function saveFolder(
+  label: string,
+  parentFolderId: string | null,
+): Promise<void> {
+  const session = folderDialog;
+  if (!session) return;
+  const generation = ++saveGeneration;
+  saving = true;
+  try {
+    if (session.kind === "rename")
+      await panelActions.renameFolder(session.folder, label);
+    else await panelActions.createFolder({ label, parentFolderId });
+    if (folderDialog === session) folderDialog = undefined;
+  } catch {
+    // The action layer already notified (e.g. a name conflict); keep the
+    // dialog open so the name can be corrected.
+  } finally {
+    if (generation === saveGeneration) saving = false;
+  }
+}
+
+/** Names already taken by the renamed folder's siblings. */
+function siblingFolderLabels(folder: LaunchFolder): string[] {
+  return siblingsOf(tree, folder.parentFolderId).flatMap((node) =>
+    node.kind === "folder" && node.id !== folder.id ? [node.folder.label] : [],
+  );
+}
+
+async function removeFolder(): Promise<void> {
+  if (!deleteFolder) return;
+  const folder = deleteFolder;
+  deleteFolder = undefined;
+  try {
+    await panelActions.deleteFolder(folder);
+  } catch {
+    // Already reported by the action layer.
+  }
+}
+
 async function removeDefinition(): Promise<void> {
   if (!deleteDefinition) return;
-  await panelActions.deleteDefinition(deleteDefinition);
+  const definition = deleteDefinition;
   deleteDefinition = undefined;
+  try {
+    await panelActions.deleteDefinition(definition);
+  } catch {
+    // Already reported by the action layer.
+  }
 }
 
 async function confirmForceKill(): Promise<void> {
@@ -195,7 +301,9 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
     >
       {#if model.definitionsLoading && model.definitions.length === 0}
         <p class="py-1 text-xs text-muted-foreground">Loading launches…</p>
-      {:else if projected.definitions.length === 0}
+      {:else if model.catalogError && projected.definitions.length === 0 && model.folders.length === 0}
+        <!-- No snapshot to show; the banner explains why. -->
+      {:else if projected.definitions.length === 0 && model.folders.length === 0}
         <PanelEmpty
           icon={ListTodo}
           title="No launch configurations yet"
@@ -205,7 +313,7 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
             <Button
               size="sm"
               variant="outline"
-              disabled={!model.capabilities.manageDefinitions.enabled}
+              disabled={!canEditCatalog}
               onclick={() => (launchDialog = { kind: "create" })}
             >
               <Plus />
@@ -214,33 +322,38 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
           {/snippet}
         </PanelEmpty>
       {:else}
-        <PanelList role="none" class="gap-1">
-          {#each projected.definitions as entry (entry.key)}
-            <LaunchDefinitionRow
-              {entry}
-              {capabilities}
-              active={activeItemKey === entry.key}
-              onOpen={(id) => void panelActions.openLaunchOutput(id)}
-              onRun={() => void panelActions.runDefinition(entry.definition)}
-              onCancel={(id) => void panelActions.cancelLaunch(id)}
-              onForceKill={requestForceKill}
-              onRestart={(id) => void panelActions.restartLaunch(id)}
-              onEdit={() =>
-                (launchDialog = {
-                  kind: "edit",
-                  definition: entry.definition,
-                })}
-              onDuplicate={() =>
-                (launchDialog = {
-                  kind: "duplicate",
-                  definition: entry.definition,
-                })}
-              onDelete={() => (deleteDefinition = entry.definition)}
-              onCleanupRuns={(ids) => (cleanupRunIds = ids)}
-              onCopy={(text) => void panelActions.copyText(text)}
-            />
-          {/each}
-        </PanelList>
+        <!-- Re-key per project: copied catalogs share IDs, so open menus,
+             focus, collapse state, and drags must not carry over. -->
+        {#key model.projectId}
+          <LaunchDefinitionTree
+            nodes={tree}
+            {capabilities}
+            {activeItemKey}
+            {canEditCatalog}
+            projectId={model.projectId}
+            catalogRevision={model.catalogRevision}
+            onOpen={(id) => void panelActions.openLaunchOutput(id)}
+            onRun={(definition) => void panelActions.runDefinition(definition)}
+            onCancel={(id) => void panelActions.cancelLaunch(id)}
+            onForceKill={requestForceKill}
+            onRestart={(id) => void panelActions.restartLaunch(id)}
+            onEdit={(definition) =>
+              (launchDialog = { kind: "edit", definition })}
+            onDuplicate={(definition) =>
+              (launchDialog = { kind: "duplicate", definition })}
+            onDelete={(definition) => (deleteDefinition = definition)}
+            onCleanupRuns={(ids) => (cleanupRunIds = ids)}
+            onCopy={(text) => void panelActions.copyText(text)}
+            onMove={(request) => panelActions.moveEntry(request)}
+            onNewLaunch={(parentFolderId) =>
+              (launchDialog = { kind: "create", parentFolderId })}
+            onNewFolder={(parentFolderId) =>
+              (folderDialog = { kind: "create", parentFolderId })}
+            onRenameFolder={(folder) =>
+              (folderDialog = { kind: "rename", folder })}
+            onDeleteFolder={(folder) => (deleteFolder = folder)}
+          />
+        {/key}
       {/if}
     </div>
 
@@ -303,10 +416,19 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       >
         {#snippet trailing()}
           {#if model.availability.available}
-            <PanelToolbarButton
+            <IconAction
+              icon={FolderPlus}
+              label="New folder"
+              side="bottom"
+              disabled={!canEditCatalog}
+              onclick={() =>
+                (folderDialog = { kind: "create", parentFolderId: null })}
+            />
+            <IconAction
               icon={Plus}
-              label="Create launch"
-              disabled={!model.capabilities.manageDefinitions.enabled}
+              label="New launch configuration"
+              side="bottom"
+              disabled={!canEditCatalog}
               onclick={() => (launchDialog = { kind: "create" })}
             />
           {/if}
@@ -314,8 +436,18 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       </PanelHeader>
       {#if !model.availability.available}
         <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
-      {:else if model.notice}
-        <PanelBanner tone="info">{model.notice}</PanelBanner>
+      {:else}
+        {#if model.catalogError}
+          <PanelBanner tone="destructive">
+            {model.catalogError}
+            {projected.definitions.length > 0 || model.folders.length > 0
+              ? " Showing the last known launches; editing is disabled."
+              : ""}
+          </PanelBanner>
+        {/if}
+        {#if model.notice}
+          <PanelBanner tone="info">{model.notice}</PanelBanner>
+        {/if}
       {/if}
     {/snippet}
 
@@ -375,6 +507,8 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
       definition={session.kind === "edit" ? session.definition : undefined}
       initial={dialogInitial(session)}
       projectCwd={model.defaultCwd}
+      folders={folderOptions}
+      parentFolderId={dialogParentFolderId(session)}
       title={session.kind === "duplicate"
         ? "Duplicate launch"
         : session.kind === "save-run"
@@ -391,7 +525,8 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
           ? "Save launch"
           : undefined}
       {saving}
-      onSave={(input) => void saveDefinition(input)}
+      onSave={(input, parentFolderId) =>
+        void saveDefinition(input, parentFolderId)}
       onOpenChange={(open) => {
         if (!open) launchDialog = undefined;
       }}
@@ -432,6 +567,38 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
   onCancel={() => (cleanupRunIds = [])}
   onOpenChange={(open) => {
     if (!open) cleanupRunIds = [];
+  }}
+/>
+{#if folderDialog}
+  {@const session = folderDialog}
+  {#key session}
+    <LaunchFolderDialog
+      open
+      mode={session.kind}
+      initialLabel={session.kind === "rename" ? session.folder.label : ""}
+      parentFolderId={session.kind === "create" ? session.parentFolderId : null}
+      folders={folderOptions}
+      existingLabels={session.kind === "rename"
+        ? siblingFolderLabels(session.folder)
+        : []}
+      {saving}
+      onSave={(label, parentFolderId) => void saveFolder(label, parentFolderId)}
+      onOpenChange={(open) => {
+        if (!open) folderDialog = undefined;
+      }}
+    />
+  {/key}
+{/if}
+<ConfirmDialog
+  open={Boolean(deleteFolder)}
+  destructive
+  title="Delete empty folder?"
+  description="Only the empty folder is removed. Launch configurations are never deleted with it."
+  confirmLabel="Delete folder"
+  onConfirm={() => void removeFolder()}
+  onCancel={() => (deleteFolder = undefined)}
+  onOpenChange={(open) => {
+    if (!open) deleteFolder = undefined;
   }}
 />
 <ConfirmDialog

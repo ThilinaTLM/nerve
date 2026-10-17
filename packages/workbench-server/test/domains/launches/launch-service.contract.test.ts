@@ -161,6 +161,7 @@ test("definition launch returns a port conflict and starts only after confirmed 
   });
   const service = createService(ports);
   const request = {
+    projectId: "proj_one",
     definitionId: "launchdef_web",
     definitionRunPolicy: "single" as const,
     definitionPort: 3000,
@@ -607,4 +608,125 @@ test("process output is bounded, ephemeral, and delegated to retained logs", asy
   const chunks = output.map((event) => (event.data as { text: string }).text);
   assert.equal(chunks.join(""), "x".repeat(20_000));
   assert.ok(chunks.every((chunk) => Buffer.byteLength(chunk) <= 8 * 1024));
+});
+
+test("single definition identity is project-qualified, including pending starts", async () => {
+  const records = new Map<string, LaunchRecord>();
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let portChecks = 0;
+  let bothChecking!: () => void;
+  const checking = new Promise<void>((resolve) => {
+    bothChecking = resolve;
+  });
+  const ports = servicePortsForRecords(records, [], {
+    definitionPortGuard: {
+      prepare: async () => {
+        if (++portChecks === 2) bothChecking();
+        await blocked;
+        return [];
+      },
+    },
+  });
+  let nextId = 0;
+  ports.ids = { next: () => `launch_${++nextId}` };
+  const service = createService(ports);
+  const request = {
+    definitionId: "launchdef_copied",
+    definitionRunPolicy: "single" as const,
+    definitionPort: 3000,
+    cwd: "/external/shared-cwd",
+    command: "pnpm dev",
+  };
+  const first = service.launchDefinition({ ...request, projectId: "proj_one" });
+  const second = service.launchDefinition({
+    ...request,
+    projectId: "proj_copy",
+  });
+  await checking;
+  release();
+  const [one, copy] = await Promise.all([first, second]);
+  assert.equal(one.disposition, "started");
+  assert.equal(copy.disposition, "started");
+  assert.equal(records.size, 2);
+  for (const projectId of ["proj_one", "proj_copy"]) {
+    const focused = await service.launchDefinition({ ...request, projectId });
+    assert.equal(focused.disposition, "focused_existing");
+    if (focused.disposition !== "port_conflict")
+      assert.equal(focused.launch.projectId, projectId);
+  }
+});
+
+test("pending starts for the same project definition coalesce", async () => {
+  const records = new Map<string, LaunchRecord>();
+  let release!: () => void;
+  let checking!: () => void;
+  const checked = new Promise<void>((resolve) => {
+    checking = resolve;
+  });
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let checks = 0;
+  const service = createService(
+    servicePortsForRecords(records, [], {
+      definitionPortGuard: {
+        prepare: async () => {
+          checks++;
+          checking();
+          await blocked;
+          return [];
+        },
+      },
+    }),
+  );
+  const request = {
+    projectId: "proj_one",
+    definitionId: "launchdef_one",
+    definitionRunPolicy: "single" as const,
+    definitionPort: 3000,
+    cwd: "/project",
+    command: "pnpm dev",
+  };
+  const first = service.launchDefinition(request);
+  await checked;
+  const second = service.launchDefinition(request);
+  release();
+  const results = await Promise.all([first, second]);
+  assert.deepEqual(
+    results.map((result) => result.disposition),
+    ["started", "focused_existing"],
+  );
+  assert.equal(checks, 1);
+  assert.equal(records.size, 1);
+});
+
+test("restart and output retain the run's project identity with an external cwd", async () => {
+  const records = new Map<string, LaunchRecord>();
+  const ports = servicePortsForRecords(records, []);
+  let nextId = 0;
+  ports.ids = { next: () => `launch_${++nextId}` };
+  const queried: LaunchRecord[] = [];
+  ports.logs.query = async (launch) => {
+    queried.push(launch);
+    return { events: [], nextCursor: 0 };
+  };
+  const service = createService(ports);
+  const original = await service.start({
+    definitionId: "launchdef_copied",
+    projectId: "proj_copy",
+    command: "original command",
+    cwd: "/external",
+  });
+  records.set(original.id, { ...original, status: "completed" });
+  const restarted = await service.restart(original.id);
+  assert.equal(restarted.projectId, "proj_copy");
+  assert.equal(restarted.definitionId, "launchdef_copied");
+  assert.equal(restarted.cwd, "/external");
+  assert.equal(restarted.command, "original command");
+  await service.logs(restarted.id, {});
+  assert.equal(queried[0]?.projectId, "proj_copy");
+  assert.equal(queried[0]?.id, restarted.id);
 });

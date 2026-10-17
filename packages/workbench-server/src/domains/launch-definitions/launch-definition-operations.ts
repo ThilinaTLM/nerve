@@ -11,52 +11,65 @@ export class LaunchDefinitionOperations {
     private readonly launches: LaunchService,
     private readonly listProjects: () => Project[],
   ) {}
-
-  async create(projectId: string, request: CreateLaunchDefinitionRequest) {
+  async create(
+    projectId: string,
+    request: CreateLaunchDefinitionRequest,
+    expectedRevision: string,
+  ) {
     if (request.sourceLaunchId) {
       const source = await this.launches.require(request.sourceLaunchId);
       if (source.projectId !== projectId)
         throw new Error("Source launch does not belong to this project.");
     }
-    const definition = await this.definitions.create(projectId, request);
-    if (!request.sourceLaunchId) return definition;
+    const result = await this.definitions.create(
+      projectId,
+      request,
+      expectedRevision,
+    );
+    if (!request.sourceLaunchId) return result;
     try {
       await this.launches.associateDefinition(
         request.sourceLaunchId,
-        definition.id,
+        result.definition.id,
       );
-      return definition;
+      return result;
     } catch (error) {
+      // Compensation must not undo somebody else's committed catalog changes.
       await this.definitions
-        .remove(projectId, definition.id)
-        .catch(() => undefined);
+        .remove(projectId, result.definition.id, result.revision)
+        .catch((compensationError) => {
+          console.error(
+            "Could not compensate launch definition association failure",
+            {
+              projectId,
+              definitionId: result.definition.id,
+              compensationError,
+            },
+          );
+        });
       throw error;
     }
   }
-
   async launch(
+    projectId: string,
     definitionId: string,
     terminateListeners?: LaunchPortConflictListener[],
   ) {
-    for (const project of this.listProjects()) {
-      const definition = (await this.definitions.list(project.id)).find(
-        (item) => item.id === definitionId,
-      );
-      if (!definition) continue;
-      return this.launches.launchDefinition({
-        definitionId: definition.id,
-        definitionRunPolicy: definition.runPolicy,
-        definitionPort: definition.port,
-        terminateListeners,
-        projectId: project.id,
-        cwd: resolveLaunchWorkingDirectory(
-          definition.cwd ?? project.directory,
-          project.directory,
-        ),
-        command: definition.command,
-        displayName: definition.label ?? definition.command,
-      });
-    }
-    throw new Error("Launch definition not found.");
+    const project = this.listProjects().find((p) => p.id === projectId);
+    if (!project) throw new Error("Project not found.");
+    const definition = await this.definitions.get(projectId, definitionId);
+    return this.launches.launchDefinition({
+      definitionId: definition.id,
+      definitionRunPolicy: definition.runPolicy,
+      definitionPort: definition.port,
+      terminateListeners,
+      projectId,
+      cwd: resolveLaunchWorkingDirectory(
+        definition.cwd ?? project.directory,
+        project.directory,
+      ),
+      command: definition.command,
+      displayName: definition.label ?? definition.command,
+    });
   }
 }

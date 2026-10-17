@@ -1,3 +1,4 @@
+import { launchEntryIdentity } from "$lib/domain/workspace/launch-entry-identity";
 import type { CancelLaunchRequest } from "@nervekit/contracts/launches";
 import {
   cancelLaunch,
@@ -5,7 +6,7 @@ import {
   pruneLaunches,
   restartLaunch,
   startLaunch,
-} from "$lib/api";
+} from "$lib/features/launches/api/launches.api";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import {
   loadLaunchLogWindow,
@@ -58,9 +59,7 @@ function forgetLaunch(launchId: string) {
   const remaining = launchState.launches
     .filter(
       (launch) =>
-        launch.id !== launchId &&
-        (launch.definitionId ?? launch.restartRootLaunchId ?? launch.id) ===
-          entryId,
+        launch.id !== launchId && launchEntryIdentity(launch) === entryId,
     )
     .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   if (remaining[0]) setLaunchEntryRun(entryId, remaining[0].id);
