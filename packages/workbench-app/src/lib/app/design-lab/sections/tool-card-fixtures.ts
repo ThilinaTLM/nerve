@@ -36,10 +36,19 @@ type CallInput = {
   interaction?: ToolCallTranscriptRecord["interaction"];
   execution?: ToolCallTranscriptRecord["execution"];
   previewOverflow?: ToolCallTranscriptRecord["previewOverflow"];
+  supervision?: ToolCallTranscriptRecord["supervision"];
+  /** Open call still being checked by the supervisor. */
+  supervising?: boolean;
+  /** Execution time of a settled call; sets `startedAt`/`settledAt`. */
+  durationMs?: number;
 };
 
 export function sampleCall(input: CallInput): ToolCallTranscriptRecord {
   const created = isoAgo(input.ageMs ?? 4_000);
+  const status = input.status ?? "completed";
+  // Settled calls carry an execution window so the lead chip shows a duration.
+  const settled = ["completed", "failed", "cancelled"].includes(status);
+  const durationMs = input.durationMs ?? (settled ? 1_300 : undefined);
   return {
     id: input.id,
     agentId: AGENT_ID,
@@ -58,8 +67,21 @@ export function sampleCall(input: CallInput): ToolCallTranscriptRecord {
     interaction: input.interaction,
     execution: input.execution,
     previewOverflow: input.previewOverflow,
+    supervision: input.supervision,
+    supervising: input.supervising,
+    ...(durationMs === undefined
+      ? {}
+      : {
+          startedAt: created,
+          settledAt: new Date(Date.parse(created) + durationMs).toISOString(),
+        }),
   };
 }
+
+const approvedDestructive = {
+  decision: "approval",
+  effectiveRisk: "destructive",
+} as const;
 
 /** Full (non-preview) record, as the details dialog fetches it. */
 export function sampleDetails(call: ToolCallTranscriptRecord): ToolCallDetails {
@@ -216,6 +238,33 @@ export const bashCompleted = sampleCall({
   toolName: "bash",
   args: { command: "pnpm exec tsx --test tool-activity-state.test.ts" },
   result: text(TEST_OUTPUT),
+  durationMs: 4_200,
+});
+
+/** Approval was required, then granted: the risk chip stays after completion. */
+export const bashCompletedAfterApproval = sampleCall({
+  id: "tool_bash_ok_approved",
+  toolName: "bash",
+  args: { command: "rm -rf node_modules && pnpm install" },
+  result: text(TEST_OUTPUT),
+  durationMs: 18_400,
+  supervision: approvedDestructive,
+});
+
+export const bashSupervising = sampleCall({
+  id: "tool_bash_check",
+  toolName: "bash",
+  status: "committed",
+  supervising: true,
+  args: { command: "pnpm exec tsx --test registry.test.ts" },
+});
+
+export const bashQueued = sampleCall({
+  id: "tool_bash_queued",
+  toolName: "bash",
+  status: "committed",
+  args: { command: "pnpm build" },
+  supervision: { decision: "approval", effectiveRisk: "command" },
 });
 
 export const bashLongCommand = sampleCall({
@@ -263,6 +312,7 @@ export const bashWaiting = sampleCall({
   toolName: "bash",
   status: "waiting",
   args: { command: "rm -rf node_modules && pnpm install" },
+  supervision: approvedDestructive,
   interaction: {
     kind: "approval",
     status: "pending",
@@ -287,6 +337,20 @@ export const bashWaitingPersistent = sampleCall({
   toolName: "bash",
   status: "waiting",
   args: { command: "pnpm test" },
+  supervision: { decision: "approval", effectiveRisk: "command" },
+  interaction: {
+    kind: "approval",
+    status: "pending",
+    requestedAt: isoAgo(2_000),
+    updatedAt: isoAgo(2_000),
+    request: {
+      risk: "command",
+      reason: "Runs a command in the project workspace.",
+      offeredScopes: ["single_call", "always_project"],
+      suggestedExceptions: [],
+      suggestedRules: [],
+    },
+  },
 });
 export const bashWaitingPersistentApproval = sampleApproval("tool_bash_wait2", {
   risk: "command",
@@ -298,6 +362,7 @@ export const bashFailed = sampleCall({
   id: "tool_bash_fail",
   toolName: "bash",
   status: "failed",
+  durationMs: 840,
   args: { command: "pnpm exec tsx --test missing.test.ts" },
   error:
     "Command exited with code 1\nError: Cannot find module './missing.test.ts'\n    at Module._resolveFilename (node:internal/modules/cjs/loader:1225:15)\n    at Module._load (node:internal/modules/cjs/loader:1051:27)",
@@ -309,43 +374,76 @@ export const bashDraftStreaming = sampleDraft({
   args: { command: "pnpm exec tsx --test src/lib/presentation/tools/vie" },
 });
 
+const askUserSingleQuestion = {
+  id: "location",
+  question: "Should the gallery live under $lib/app or $lib/presentation?",
+  context:
+    "The gallery imports presentation, ui-kit and contracts, but nothing from features.",
+  recommendation: "$lib/app — it is allowed to import presentation.",
+  options: [
+    {
+      label: "$lib/app",
+      description: "May import presentation",
+      recommended: true,
+    },
+    { label: "$lib/presentation", description: "Stays stateless" },
+  ],
+};
+const askUserMultiQuestions = [
+  askUserSingleQuestion,
+  {
+    id: "tests",
+    question: "Which tests should run before the change merges?",
+    options: [
+      { label: "Unit only" },
+      { label: "Unit + browser", recommended: true },
+    ],
+  },
+  { id: "notes", question: "Anything else the gallery should cover?" },
+];
+
 const askUserInteraction = (
   status: "pending" | "resolved" | "cancelled",
+  questions: ReadonlyArray<(typeof askUserMultiQuestions)[number]>,
 ): ToolCallTranscriptRecord["interaction"] => ({
   kind: "user_input",
   status,
   requestedAt: isoAgo(5_000),
   updatedAt: isoAgo(1_000),
-  request: {
-    question: "Should the gallery live under $lib/app or $lib/presentation?",
-    required: true,
-    context:
-      "The gallery imports presentation, ui-kit and contracts, but nothing from features.",
-    recommendation: "$lib/app — it is allowed to import presentation.",
-  },
+  request: { questions: [...questions], required: true },
 });
 
 export const askUserPending = sampleCall({
   id: "tool_ask_wait",
   toolName: "ask_user",
   status: "waiting",
-  args: {
-    question: "Should the gallery live under $lib/app or $lib/presentation?",
-    context:
-      "The gallery imports presentation, ui-kit and contracts, but nothing from features.",
-    recommendation: "$lib/app — it is allowed to import presentation.",
-  },
-  interaction: askUserInteraction("pending"),
+  args: { questions: [askUserSingleQuestion] },
+  interaction: askUserInteraction("pending", [askUserSingleQuestion]),
 });
 export const askUserQuestion: UserQuestionRecord = {
   toolCallId: "tool_ask_wait",
   agentId: AGENT_ID,
   conversationId: CONVERSATION_ID,
   projectId: PROJECT_ID,
-  question: "Should the gallery live under $lib/app or $lib/presentation?",
-  context:
-    "The gallery imports presentation, ui-kit and contracts, but nothing from features.",
-  recommendation: "$lib/app — it is allowed to import presentation.",
+  questions: [askUserSingleQuestion],
+  status: "pending",
+  requestedAt: isoAgo(5_000),
+  updatedAt: isoAgo(1_000),
+};
+
+export const askUserMultiPending = sampleCall({
+  id: "tool_ask_multi",
+  toolName: "ask_user",
+  status: "waiting",
+  args: { questions: askUserMultiQuestions },
+  interaction: askUserInteraction("pending", askUserMultiQuestions),
+});
+export const askUserMultiQuestion: UserQuestionRecord = {
+  toolCallId: "tool_ask_multi",
+  agentId: AGENT_ID,
+  conversationId: CONVERSATION_ID,
+  projectId: PROJECT_ID,
+  questions: askUserMultiQuestions,
   status: "pending",
   requestedAt: isoAgo(5_000),
   updatedAt: isoAgo(1_000),
@@ -354,11 +452,56 @@ export const askUserQuestion: UserQuestionRecord = {
 export const askUserAnswered = sampleCall({
   id: "tool_ask_ok",
   toolName: "ask_user",
+  args: { questions: askUserMultiQuestions },
+  result: {
+    questions: [
+      {
+        id: "location",
+        question: askUserSingleQuestion.question,
+        answer: {
+          option: "$lib/app",
+          text: "Keep the gallery out of features.",
+        },
+      },
+      {
+        id: "tests",
+        question: askUserMultiQuestions[1].question,
+        skipped: true,
+      },
+      {
+        id: "notes",
+        question: askUserMultiQuestions[2].question,
+        answer: { text: "Cover the voice states too." },
+      },
+    ],
+  },
+});
+
+export const askUserDismissed = sampleCall({
+  id: "tool_ask_dismissed",
+  toolName: "ask_user",
+  args: { questions: [askUserSingleQuestion] },
+  result: {
+    questions: [{ id: "location", question: askUserSingleQuestion.question }],
+    dismissed: true,
+  },
+});
+
+/** Legacy flat call and result, as persisted before multi-question support. */
+export const askUserLegacy = sampleCall({
+  id: "tool_ask_legacy",
+  toolName: "ask_user",
   args: { question: "Which package manager should the script use?" },
   result: {
     question: "Which package manager should the script use?",
     response: "pnpm — the workspace is already pinned to it.",
   },
+});
+
+export const askUserDraftStreaming = sampleDraft({
+  toolName: "ask_user",
+  argsText:
+    '{"questions":[{"id":"location","question":"Should the gallery live under $lib/app or $lib/presentation?","options":[{"label":"$lib/app","description":"May import"},{"label":"$lib/pres',
 });
 
 const subagentAssignments = [
@@ -392,9 +535,88 @@ export const subagentPrompt = sampleCall({
     context: "Polish pass: audit the shared UI kit before the gallery lands.",
     assignments: subagentAssignments,
   },
-  result: text(
-    "reviewer (reviewer): created\ntester (coder): follow-up queued (running)",
-  ),
+  result: {
+    ...text(
+      "reviewer (reviewer): created\ntester (coder): follow-up queued (running)",
+    ),
+    details: {
+      assignments: [
+        { name: "reviewer", profile: "reviewer", disposition: "created" },
+        { name: "tester", profile: "coder", disposition: "follow_up" },
+      ],
+    },
+  },
+});
+
+export const subagentPromptDraft = sampleDraft({
+  toolName: "subagent_prompt",
+  argsText:
+    '{"context":"Polish pass: audit the shared UI kit before the gallery lands.","assignments":[{"name":"reviewer","profile":"reviewer","prompt":"Review the diff in packages/ui-kit for token',
+});
+
+export const subagentPromptRejected = sampleCall({
+  id: "tool_sub_rejected",
+  toolName: "subagent_prompt",
+  args: { assignments: subagentAssignments },
+  result: {
+    ...text("reviewer (reviewer): created\ntester: rejected"),
+    details: {
+      assignments: [
+        { name: "reviewer", profile: "reviewer", disposition: "created" },
+        {
+          name: "tester",
+          profile: "coder",
+          disposition: "rejected",
+          reason: "Profile coder is unavailable in this project.",
+        },
+      ],
+    },
+  },
+});
+
+export const subagentStatus = sampleCall({
+  id: "tool_sub_status",
+  toolName: "subagent_status",
+  args: {},
+  result: {
+    ...text(
+      "reviewer · reviewer · running · ctx 34% · active 20s ago\ntester · coder · idle · ctx 12% · active 4m ago",
+    ),
+    details: {
+      agents: [
+        {
+          name: "reviewer",
+          profile: "reviewer",
+          state: "running",
+          contextPercent: 34,
+          lastActivityAt: isoAgo(20_000),
+        },
+        {
+          name: "tester",
+          profile: "coder",
+          state: "idle",
+          contextPercent: 12,
+          lastActivityAt: isoAgo(240_000),
+        },
+      ],
+    },
+  },
+});
+
+export const subagentStop = sampleCall({
+  id: "tool_sub_stop",
+  toolName: "subagent_stop",
+  args: { names: ["reviewer", "tester", "ghost"] },
+  result: {
+    ...text("reviewer: stopped\ntester: already idle\nghost: not found"),
+    details: {
+      results: [
+        { name: "reviewer", outcome: "stopped", runMs: 94_000 },
+        { name: "tester", outcome: "already_idle" },
+        { name: "ghost", outcome: "not_found" },
+      ],
+    },
+  },
 });
 
 const PLAN_CONTENT = `## Plan: UI gallery

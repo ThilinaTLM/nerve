@@ -89,6 +89,17 @@ export function parseJiraView(
   const updatedFields = arrayField(details.updatedFields)
     .filter((field): field is string => typeof field === "string")
     .slice(0, JIRA_FIELD_DISPLAY_LIMIT);
+  const issueKey =
+    stringField(details.issueKey) ??
+    issue?.key ??
+    stringField(args.issue_key) ??
+    stringField(args.parent_key);
+  const self = stringField(details.self);
+  const apiBase = self?.match(/^(https?:\/\/.+?)\/rest\/api\//)?.[1];
+  const issueUrl =
+    apiBase && issueKey
+      ? `${apiBase}/browse/${encodeURIComponent(issueKey)}`
+      : undefined;
   return {
     kind: "jira",
     action,
@@ -116,11 +127,8 @@ export function parseJiraView(
         .join(" · ") ||
         undefined),
     jql: stringField(details.jql) ?? stringField(args.jql),
-    issueKey:
-      stringField(details.issueKey) ??
-      issue?.key ??
-      stringField(args.issue_key) ??
-      stringField(args.parent_key),
+    issueKey,
+    issueUrl,
     projectKey,
     issueType: stringField(details.issueType) ?? stringField(args.issue_type),
     summary: compactText(

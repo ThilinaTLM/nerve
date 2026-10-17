@@ -1,4 +1,5 @@
 <script lang="ts">
+import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import { untrack } from "svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
 import GitCommitHorizontal from "@lucide/svelte/icons/git-commit-horizontal";
@@ -22,6 +23,7 @@ import type {
   ConversationConfig,
   InteractionResolution,
   EventTreeNode,
+  UserInputAnswer,
 } from "@nervekit/contracts/core";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type {
@@ -520,8 +522,11 @@ function setComposerPermissionRuleSet(value: string) {
 async function resolve(toolCallId: string, resolution: InteractionResolution) {
   await store?.resolve(toolCallId, resolution);
 }
-function answerUserQuestion(toolCallId: string, answer: string) {
-  return resolve(toolCallId, { kind: "user_input", answers: { answer } });
+function answerUserQuestion(
+  toolCallId: string,
+  answers: Record<string, UserInputAnswer>,
+) {
+  return resolve(toolCallId, { kind: "user_input", answers });
 }
 function dismissUserQuestion(toolCallId: string) {
   return resolve(toolCallId, {
@@ -701,11 +706,13 @@ const teamRunning = $derived(
   onOpenPendingWork={openPendingWork}
   subagents={{
     list: () =>
-      (leadStore?.snapshot?.children ?? []).map((child) => ({
-        id: child.id,
-        name: child.title,
-        status: child.status,
-      })),
+      [...(leadStore?.snapshot?.children ?? [])]
+        .sort(compareSubagents)
+        .map((child) => ({
+          id: child.id,
+          name: child.title,
+          status: child.status,
+        })),
     open: (id) => viewAgent(id),
   }}
   editorOverlay={composerOverlay}

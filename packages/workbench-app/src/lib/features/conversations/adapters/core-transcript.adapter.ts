@@ -258,6 +258,20 @@ function toolRecord(
           ? "executing"
           : status,
     risk: conversationCatalog.toolRisks[p.toolName],
+    supervision: p.supervision
+      ? {
+          decision: p.supervision.decision,
+          reason: p.supervision.reason,
+          effectiveRisk: p.supervision.effectiveRisk,
+        }
+      : undefined,
+    supervising: open && source.state === "supervising" ? true : undefined,
+    // An open running call started executing when it last changed state.
+    startedAt: open
+      ? source.state === "running"
+        ? source.updatedAt
+        : undefined
+      : source.payload.startedAt,
     cwd: snapshot.config.workingDirectory,
     revision: 1,
     attempt: 1,

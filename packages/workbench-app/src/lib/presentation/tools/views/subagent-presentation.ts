@@ -20,11 +20,9 @@ export function subagentPresentation(
         (item) => item.disposition === "follow_up",
       ).length;
       primaryArg ??=
-        view.assignments.length === 1
-          ? { text: view.assignments[0].name }
-          : view.assignments.length > 1
-            ? { text: plural(view.assignments.length, "sub-agent") }
-            : undefined;
+        view.assignments.length > 0
+          ? { text: plural(view.assignments.length, "sub-agent") }
+          : undefined;
       if (created > 0) meta.push({ text: `${created} created` });
       if (followUps > 0) meta.push({ text: `${followUps} follow-up` });
       break;
@@ -48,7 +46,9 @@ export function subagentPresentation(
       break;
     case "stop":
       primaryArg ??=
-        view.names.length > 0 ? { text: view.names.join(", ") } : undefined;
+        view.names.length > 0
+          ? { text: plural(view.names.length, "sub-agent") }
+          : undefined;
       break;
   }
   return { ...base, primaryArg, meta };

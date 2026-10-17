@@ -4,6 +4,7 @@ import type {
   ToolView,
 } from "../views/tool-result-view";
 import ToolArgumentBody from "./ToolArgumentBody.svelte";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -35,31 +36,42 @@ const argsBody = $derived({
     tone: entry.redacted ? ("warning" as const) : undefined,
   })),
 });
+const showArgs = $derived(
+  view.args.length > 0 &&
+    (toolCall.status === "failed" ||
+      toolCall.status === "denied" ||
+      toolCall.status === "cancelled"),
+);
+const hasResult = $derived(Boolean(view.resultText) || Boolean(resultBody));
 </script>
 
-<div class="grid gap-2" aria-label="Recorded tool output">
-  {#if view.resultText}
-    <div class="grid gap-1.5">
-      <p class="m-0 text-xs font-medium text-muted-foreground">Result</p>
-      <p
-        class="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
-        class:line-clamp-6={!expanded}
-      >
-        {view.resultText}
-      </p>
-    </div>
-  {:else if resultBody}
-    <ToolArgumentBody body={resultBody} />
-  {:else if toolCall.status === "completed"}
-    <p class="m-0 text-xs text-muted-foreground">No output.</p>
-  {/if}
+{#if hasResult || showArgs || toolCall.status === "completed"}
+  <ToolSections>
+    {#if view.resultText}
+      <div class="px-2.5 py-2" aria-label="Recorded tool output">
+        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">Result</p>
+        <p
+          class="m-0 whitespace-pre-wrap text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]"
+          class:line-clamp-6={!expanded}
+        >
+          {view.resultText}
+        </p>
+      </div>
+    {:else if resultBody}
+      <div class="px-2.5 py-2" aria-label="Recorded tool output">
+        <ToolArgumentBody body={resultBody} />
+      </div>
+    {:else if toolCall.status === "completed"}
+      <div class="px-2.5 py-2 text-xs text-muted-foreground">No output.</div>
+    {/if}
 
-  {#if view.args.length > 0 && (toolCall.status === "failed" || toolCall.status === "denied" || toolCall.status === "cancelled")}
-    <div class="grid gap-1.5">
-      <p class="m-0 text-xs font-medium text-muted-foreground">
-        Recorded arguments
-      </p>
-      <ToolArgumentBody body={argsBody} />
-    </div>
-  {/if}
-</div>
+    {#if showArgs}
+      <div class="px-2.5 py-2">
+        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">
+          Recorded arguments
+        </p>
+        <ToolArgumentBody body={argsBody} />
+      </div>
+    {/if}
+  </ToolSections>
+{/if}

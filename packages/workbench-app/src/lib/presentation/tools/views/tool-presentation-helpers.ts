@@ -1,3 +1,4 @@
+import type { MetaItem } from "../../cards/card-presentation";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 import { VIEW_TOOL_DETAILS_LABEL } from "./tool-details-label";
@@ -102,4 +103,60 @@ export function statusDot(
     return { tone: "destructive", pulse: false };
   }
   return { tone: "success", pulse: false };
+}
+
+function formatCount(
+  value: number | undefined,
+  noun: string,
+): string | undefined {
+  if (value === undefined || value <= 0) return undefined;
+  return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
+}
+
+export function hasOutputArtifactPath(
+  view: ToolView,
+  path: string | undefined,
+): boolean {
+  return Boolean(
+    path &&
+    "outputArtifacts" in view &&
+    view.outputArtifacts?.some((artifact) => artifact.path === path),
+  );
+}
+
+export function outputMeta(
+  view: ToolView,
+  options: { includeLiveLimit?: boolean } = {},
+): MetaItem[] {
+  const limits = "outputLimits" in view ? view.outputLimits : undefined;
+  const artifacts =
+    "outputArtifacts" in view ? view.outputArtifacts : undefined;
+  const meta: MetaItem[] = [];
+  if (limits?.model?.truncated) {
+    const lines = formatCount(limits.model.omittedLines, "line");
+    const chars = formatCount(limits.model.omittedChars, "char");
+    meta.push({
+      text: ["LLM trimmed", lines ?? chars].filter(Boolean).join(" · "),
+      tone: "warning",
+    });
+  }
+  if (options.includeLiveLimit !== false && limits?.live?.capped) {
+    const chars = formatCount(limits.live.omittedChars, "char");
+    meta.push({
+      text: ["live tail", chars ? `${chars} omitted` : undefined]
+        .filter(Boolean)
+        .join(" · "),
+      tone: "info",
+    });
+  }
+  for (const artifact of artifacts ?? []) {
+    const label =
+      artifact.kind === "raw_result"
+        ? "raw result"
+        : artifact.kind === "fetched_content"
+          ? "fetched content"
+          : "full output";
+    meta.push({ text: label, mono: true, openPath: artifact.path });
+  }
+  return meta;
 }

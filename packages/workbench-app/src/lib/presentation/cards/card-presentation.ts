@@ -5,6 +5,8 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
  * transcript notices so timeline metadata has a single visual family.
  */
 export type MetaItem = {
+  /** Stable identity; the footer keys chips by `key ?? text`. */
+  key?: string;
   text: string;
   tone?: StatusTone;
   mono?: boolean;

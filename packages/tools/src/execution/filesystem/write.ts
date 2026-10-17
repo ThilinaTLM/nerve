@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
   FilesystemExecutionContext,
@@ -16,6 +16,13 @@ export async function executeWrite(
   if (typeof args.content !== "string")
     throw new Error("Tool argument 'content' must be a string.");
   return withFileMutationQueue(path, async () => {
+    const outcome = await stat(path).then(
+      () => "overwritten" as const,
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return "created" as const;
+        throw error;
+      },
+    );
     await mkdir(dirname(path), { recursive: true });
     await writeTextFileAtomically(path, args.content as string);
     const bytesWritten = Buffer.byteLength(args.content as string, "utf8");
@@ -26,6 +33,8 @@ export async function executeWrite(
       contentBlocks: [{ type: "text", text: content }],
       details: {
         bytesWritten,
+        bytes: bytesWritten,
+        outcome,
         mutationSummary: {
           operation: "write",
           outcome: "succeeded",

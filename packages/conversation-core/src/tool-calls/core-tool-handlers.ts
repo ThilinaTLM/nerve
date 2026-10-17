@@ -1,8 +1,11 @@
 import { basename } from "node:path";
-import type { ConversationConfig } from "@nervekit/contracts/core";
+import type {
+  ConversationConfig,
+  UserInputAnswer,
+} from "@nervekit/contracts/core";
 import {
   planReviewRequestSchema,
-  userInputRequestSchema,
+  normalizeUserInputRequest,
 } from "@nervekit/contracts/core";
 import type { AskUserResult } from "@nervekit/contracts/tools";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
@@ -24,16 +27,25 @@ export interface CoreToolHandlerOptions {
   }): Promise<string>;
 }
 
-// The UI sends a single `answer`; any other shape is rendered as `key: value` lines.
-function answerText(
-  answers: Record<string, string | readonly string[]>,
-): string {
-  const join = (value: string | readonly string[]) =>
-    typeof value === "string" ? value : value.join(", ");
-  if (answers.answer !== undefined) return join(answers.answer);
-  return Object.entries(answers)
-    .map(([key, value]) => `${key}: ${join(value)}`)
-    .join("\n");
+function normalizeAnswer(
+  value: string | string[] | UserInputAnswer | undefined,
+): UserInputAnswer | undefined {
+  const answer =
+    typeof value === "string"
+      ? { text: value }
+      : Array.isArray(value)
+        ? {
+            text: value
+              .map((part) => part.trim())
+              .filter(Boolean)
+              .join(", "),
+          }
+        : value;
+  const option = answer?.option?.trim();
+  const text = answer?.text?.trim();
+  return option || text
+    ? { ...(option ? { option } : {}), ...(text ? { text } : {}) }
+    : undefined;
 }
 
 export function createCoreToolHandlers(
@@ -54,22 +66,30 @@ export function createCoreToolHandlers(
         kind: "awaiting_input",
         interaction: {
           kind: "user_input",
-          request: userInputRequestSchema.parse(call.arguments),
+          request: normalizeUserInputRequest(call.arguments),
         },
       };
     },
     async resolve(call, resolution) {
       if (resolution.kind !== "user_input")
         throw new Error("Expected user-input answer");
-      const { question, context, recommendation } =
-        userInputRequestSchema.parse(call.arguments);
+      const request = normalizeUserInputRequest(
+        call.interaction?.kind === "user_input"
+          ? call.interaction.request
+          : call.arguments,
+      );
       const result: AskUserResult = {
-        question,
-        context,
-        recommendation,
-        ...(resolution.dismissed
-          ? { dismissed: true }
-          : { response: answerText(resolution.answers) }),
+        questions: request.questions.map(({ id, question }) => {
+          const answer = resolution.dismissed
+            ? undefined
+            : normalizeAnswer(resolution.answers[id]);
+          return {
+            id,
+            question,
+            ...(answer ? { answer } : { skipped: true as const }),
+          };
+        }),
+        ...(resolution.dismissed ? { dismissed: true } : {}),
       };
       return { content: JSON.stringify(result) };
     },

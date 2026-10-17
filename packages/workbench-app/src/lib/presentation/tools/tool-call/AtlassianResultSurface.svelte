@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   children?: Snippet;
@@ -8,6 +9,6 @@ type Props = {
 let { children }: Props = $props();
 </script>
 
-<div class="min-w-0 divide-y overflow-hidden rounded-sm border bg-well">
+<ToolSections>
   {#if children}{@render children()}{/if}
-</div>
+</ToolSections>

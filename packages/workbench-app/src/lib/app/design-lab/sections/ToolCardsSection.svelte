@@ -26,6 +26,11 @@ const cwd = fx.SAMPLE_CWD;
 const bashCases: LabeledCard[] = [
   { label: "Drafting", props: { draft: fx.bashDraftStreaming, cwd } },
   {
+    label: "ask_user — drafting",
+    props: { draft: fx.askUserDraftStreaming, cwd },
+  },
+  { label: "Checking", props: { toolCall: fx.bashSupervising, cwd } },
+  {
     label: "Awaiting approval",
     props: {
       toolCall: fx.bashWaiting,
@@ -45,12 +50,17 @@ const bashCases: LabeledCard[] = [
       onDenyApproval: noop,
     },
   },
+  { label: "Queued", props: { toolCall: fx.bashQueued, cwd } },
   { label: "Running", props: { toolCall: fx.bashRunning, cwd } },
   {
     label: "Running — live output",
     props: { toolCall: fx.bashRunningLive, liveOutput: fx.bashLiveOutput, cwd },
   },
   { label: "Completed", props: { toolCall: fx.bashCompleted, cwd } },
+  {
+    label: "Completed — after approval (risk chip stays)",
+    props: { toolCall: fx.bashCompletedAfterApproval, cwd },
+  },
   {
     label: "Completed — long output (collapsed window)",
     props: { toolCall: fx.bashLongOutput, cwd },
@@ -61,6 +71,19 @@ const bashCases: LabeledCard[] = [
   },
   { label: "Non-zero exit", props: { toolCall: fx.bashNonZeroExit, cwd } },
   { label: "Failed", props: { toolCall: fx.bashFailed, cwd } },
+  {
+    label: "Completed — multiline command (own section)",
+    props: { toolCall: vfx.bashMultiline, cwd },
+  },
+  { label: "python — running", props: { toolCall: vfx.pythonRunning, cwd } },
+  {
+    label: "python — completed",
+    props: { toolCall: vfx.pythonCompleted, cwd },
+  },
+  {
+    label: "launch — completed",
+    props: { toolCall: vfx.launchCompleted, cwd },
+  },
 ];
 
 const fileCases: LabeledCard[] = [
@@ -78,6 +101,14 @@ const fileCases: LabeledCard[] = [
     props: { toolCall: vfx.editCompleted, cwd, onOpenFile: noop },
   },
   {
+    label: "edit — multiple operations",
+    props: { toolCall: vfx.editMultiOp, cwd, onOpenFile: noop },
+  },
+  {
+    label: "edit — failed (error is the last section)",
+    props: { toolCall: vfx.editFailed, cwd, onOpenFile: noop },
+  },
+  {
     label: "edit — drafting (streamed diff)",
     props: { draft: vfx.editDraft, cwd },
   },
@@ -92,6 +123,10 @@ const searchCases: LabeledCard[] = [
   {
     label: "grep — completed",
     props: { toolCall: vfx.grepCompleted, cwd, onOpenFile: noop },
+  },
+  {
+    label: "ls — completed",
+    props: { toolCall: vfx.lsCompleted, cwd, onOpenFile: noop },
   },
   {
     label: "find — completed",
@@ -113,6 +148,34 @@ const searchCases: LabeledCard[] = [
     label: "web_fetch — failed",
     props: { toolCall: vfx.webFetchFailed, cwd },
   },
+  {
+    label: "jira_create_issue — drafting",
+    props: { draft: vfx.jiraCreateDraft, cwd },
+  },
+  {
+    label: "jira_create_issue — completed",
+    props: { toolCall: vfx.jiraCreateCompleted, cwd },
+  },
+  {
+    label: "jira_search_issues — completed",
+    props: { toolCall: vfx.jiraSearchCompleted, cwd },
+  },
+  {
+    label: "confluence_search_pages — completed",
+    props: { toolCall: vfx.confluenceSearchCompleted, cwd },
+  },
+  {
+    label: "generate_image — running",
+    props: { toolCall: vfx.generateImageRunning, cwd },
+  },
+  {
+    label: "generate_image — completed",
+    props: { toolCall: vfx.generateImageCompleted, cwd, onOpenFile: noop },
+  },
+  {
+    label: "explain_image — completed",
+    props: { toolCall: vfx.explainImageCompleted, cwd, onOpenFile: noop },
+  },
 ];
 
 const interactionCases: LabeledCard[] = [
@@ -127,8 +190,26 @@ const interactionCases: LabeledCard[] = [
     },
   },
   {
+    label: "ask_user — several questions",
+    props: {
+      toolCall: fx.askUserMultiPending,
+      pendingUserQuestion: fx.askUserMultiQuestion,
+      cwd,
+      onAnswerUserQuestion: noop,
+      onDismissUserQuestion: noop,
+    },
+  },
+  {
     label: "ask_user — answered",
     props: { toolCall: fx.askUserAnswered, cwd },
+  },
+  {
+    label: "ask_user — dismissed",
+    props: { toolCall: fx.askUserDismissed, cwd },
+  },
+  {
+    label: "ask_user — legacy result",
+    props: { toolCall: fx.askUserLegacy, cwd },
   },
   {
     label: "plan_mode_present — awaiting review",
@@ -151,8 +232,24 @@ const interactionCases: LabeledCard[] = [
     props: { toolCall: fx.subagentRunning, cwd },
   },
   {
+    label: "subagent_prompt — drafting",
+    props: { draft: fx.subagentPromptDraft, cwd },
+  },
+  {
     label: "subagent — completed",
     props: { toolCall: fx.subagentPrompt, cwd },
+  },
+  {
+    label: "subagent_prompt — rejected assignment",
+    props: { toolCall: fx.subagentPromptRejected, cwd },
+  },
+  {
+    label: "subagent_status — listing",
+    props: { toolCall: fx.subagentStatus, cwd },
+  },
+  {
+    label: "subagent_stop — outcomes",
+    props: { toolCall: fx.subagentStop, cwd },
   },
 ];
 

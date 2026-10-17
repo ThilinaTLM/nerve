@@ -4,6 +4,7 @@ import type {
   ToolView,
 } from "../views/tool-result-view";
 import ToolOutputBlock from "./ToolOutputBlock.svelte";
+import ToolSections from "./ToolSections.svelte";
 let {
   toolCall,
   view,
@@ -19,17 +20,24 @@ let {
 
 <!-- The source block comes from the persistent argument region above. -->
 {#if view.path}
-  <section class="grid gap-1" aria-label="Exported diagram">
-    <ToolOutputBlock
-      text={view.path}
-      collapsedLines={1}
-      {expanded}
-      onActivate={() => view.path && onOpenFile?.(view.path)}
-      activateLabel="Open exported diagram in a file tab"
-    />
-  </section>
+  <ToolSections>
+    <div class="px-2.5 py-2" aria-label="Exported diagram">
+      <ToolOutputBlock
+        text={view.path}
+        collapsedLines={1}
+        {expanded}
+        onActivate={() => view.path && onOpenFile?.(view.path)}
+        activateLabel="Open exported diagram in a file tab"
+      />
+    </div>
+  </ToolSections>
 {:else if toolCall.status === "completed"}
-  <section class="grid gap-1" aria-label="Exported diagram">
-    <p class="m-0 text-xs text-muted-foreground">No diagram file returned.</p>
-  </section>
+  <ToolSections>
+    <div
+      class="px-2.5 py-2 text-xs text-muted-foreground"
+      aria-label="Exported diagram"
+    >
+      No diagram file returned.
+    </div>
+  </ToolSections>
 {/if}

@@ -1,6 +1,7 @@
 /** Presentation-owned run review shapes. No runtime schemas. */
 import type { ToolCallTranscriptRecord } from "./tool-records";
 import type { ThinkingLevel, ModelSelection } from "@nervekit/contracts/models";
+import type { UserInputQuestion } from "@nervekit/contracts/core";
 
 export type ApprovalRecord = {
   toolCallId: string;
@@ -190,13 +191,10 @@ export type UserQuestionRecord = {
   agentId: string;
   conversationId: string;
   projectId: string;
-  question: string;
+  questions: UserInputQuestion[];
   status: "pending" | "answered" | "dismissed";
   requestedAt: string;
   updatedAt: string;
-  context?: string | undefined;
-  recommendation?: string | undefined;
-  answer?: string | undefined;
   resolvedAt?: string | undefined;
 };
 

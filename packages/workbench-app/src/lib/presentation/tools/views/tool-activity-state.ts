@@ -12,6 +12,7 @@ import type {
 import type { RecoveryIssue } from "$lib/presentation/view-models/conversation";
 import type { StatusTone } from "@nervekit/ui-kit/display/status";
 import type { CardGlyph, MetaItem } from "../../cards/card-presentation";
+import type { LeadStage } from "../../cards/lead-chip";
 
 export type ToolActivityPhase = "drafting" | "prepared" | ToolCallStatus;
 
@@ -22,6 +23,8 @@ export type ToolActivityResultMode = "none" | "placeholder" | "output";
 export type ToolLifecycleVisualStage =
   | "drafting"
   | "prepared"
+  /** Open call the supervisor is still checking. */
+  | "supervising"
   | "approval"
   | "interaction"
   /** Approved and durably queued; not yet dispatched. */
@@ -60,17 +63,14 @@ type DeriveToolActivitySectionsInput = {
   outcomeUnknown?: boolean;
   /** Executing-state placeholder configured by the lifecycle spec. */
   resultPlaceholder?: ToolResultPlaceholder;
-  footerItems?: readonly Pick<
-    MetaItem,
-    "tone" | "mono" | "openPath" | "href"
-  >[];
+  footerItems?: readonly Pick<MetaItem, "key" | "text">[];
   hasDetailsAction?: boolean;
 };
 
 export function deriveToolLifecycleVisualStage(input: {
   draft?: Pick<ConversationLiveToolDraftBlockSnapshot, "done">;
   toolCall?: Pick<ToolCallTranscriptRecord, "status"> &
-    Partial<Pick<ToolCallTranscriptRecord, "interaction">>;
+    Partial<Pick<ToolCallTranscriptRecord, "interaction" | "supervising">>;
   outcomeUnknown?: boolean;
 }): ToolLifecycleVisualStage {
   if (!input.toolCall) return input.draft?.done ? "prepared" : "drafting";
@@ -82,7 +82,7 @@ export function deriveToolLifecycleVisualStage(input: {
         ? "approval"
         : "interaction";
     case "committed":
-      return "queued";
+      return input.toolCall.supervising ? "supervising" : "queued";
     case "running":
       return "executing";
     case "completed":
@@ -126,6 +126,8 @@ export function toolLifecycleStageIndicator(
   stage: ToolLifecycleVisualStage,
 ): ToolLifecycleStageIndicator | undefined {
   switch (stage) {
+    case "supervising":
+      return { tone: "info", pulse: true, label: "Checking" };
     case "queued":
       return {
         tone: "info",
@@ -142,6 +144,38 @@ export function toolLifecycleStageIndicator(
   }
 }
 
+/** Maps the card's visual stage onto the lead chip's lifecycle vocabulary. */
+export function leadStageFor(
+  stage: ToolLifecycleVisualStage,
+  status?: ToolCallStatus,
+  options?: { dismissed?: boolean },
+): LeadStage {
+  if (options?.dismissed && stage === "completed") return "dismissed";
+  switch (stage) {
+    case "drafting":
+    case "prepared":
+      return "drafting";
+    case "supervising":
+      return "supervising";
+    case "approval":
+      return "approval";
+    case "interaction":
+      return "waiting_for_user";
+    case "queued":
+      return "queued";
+    case "executing":
+      return "running";
+    case "outcome_unknown":
+      return "outcome_unknown";
+    case "completed":
+      return "completed";
+    case "cancelled":
+      return "cancelled";
+    case "failed":
+      return status === "denied" ? "denied" : "failed";
+  }
+}
+
 /** Tool call ids whose external outcome recovery could not determine. */
 export function outcomeUnknownToolCallIds(
   issues: readonly Pick<RecoveryIssue, "code" | "proposalId">[] | undefined,
@@ -155,19 +189,15 @@ export function outcomeUnknownToolCallIds(
   return ids;
 }
 
+/**
+ * Chips are keyed and append-only, so only their count (not tone/text) is a
+ * structural change.
+ */
 function footerStructure(
   items: DeriveToolActivitySectionsInput["footerItems"],
   hasDetailsAction: boolean,
 ): string {
-  return [
-    ...(items ?? []).map(
-      (item) =>
-        `${item.tone ?? "default"}:${item.mono ? "mono" : "text"}:${
-          item.openPath ? "file" : item.href ? "link" : "label"
-        }`,
-    ),
-    hasDetailsAction ? "details" : "",
-  ].join(",");
+  return `chips:${items?.length ?? 0}${hasDetailsAction ? ",details" : ""}`;
 }
 
 /**
@@ -251,8 +281,9 @@ export function deriveToolActivitySections(
   const errorVisible = Boolean(
     terminalFailure && input.toolCall?.error?.trim(),
   );
+  // The footer persists through approval (it hosts Approve/Deny); interactive
+  // tools (ask_user, plan review) still own their own action row.
   const footerVisible =
-    interactionMode === "none" &&
     !input.hasInteraction &&
     ((input.footerItems?.length ?? 0) > 0 || Boolean(input.hasDetailsAction));
   const footerShape = footerStructure(

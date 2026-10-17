@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type {
   AgentRecord,
   ApprovalWithToolCall,
@@ -55,7 +56,10 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
-  onAnswerUserQuestion?: (toolCallId: string, answer: string) => void;
+  onAnswerUserQuestion?: (
+    toolCallId: string,
+    answers: Record<string, UserInputAnswer>,
+  ) => void | Promise<void>;
   onDismissUserQuestion?: (toolCallId: string) => void;
   onGrantApproval?: (
     toolCallId: string,

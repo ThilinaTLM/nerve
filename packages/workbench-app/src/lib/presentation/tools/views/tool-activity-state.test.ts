@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
+  leadStageFor,
   toolLifecycleStageIndicator,
   visibleLifecycleStage,
 } from "./tool-activity-state";
@@ -95,5 +96,44 @@ describe("tool argument lifecycle", () => {
         true,
       );
     }
+  });
+});
+
+describe("lead stage", () => {
+  it("shows supervising calls as checking instead of queued", () => {
+    const stage = deriveToolLifecycleVisualStage({
+      toolCall: { status: "committed", supervising: true },
+    });
+    assert.equal(stage, "supervising");
+    assert.equal(leadStageFor(stage), "supervising");
+    assert.equal(
+      deriveToolLifecycleVisualStage({ toolCall: { status: "committed" } }),
+      "queued",
+    );
+  });
+
+  it("separates denied from failed and keeps drafts at drafting", () => {
+    assert.equal(leadStageFor("failed", "denied"), "denied");
+    assert.equal(leadStageFor("failed", "failed"), "failed");
+    assert.equal(leadStageFor("prepared"), "drafting");
+    assert.equal(leadStageFor("interaction"), "waiting_for_user");
+    assert.equal(leadStageFor("executing"), "running");
+  });
+
+  it("keeps the footer through approval but not interactive tools", () => {
+    const base = {
+      toolCall: { status: "waiting" as const },
+      argumentRegion: "persistent" as const,
+      footerItems: [{ key: "lead", text: "needs approval" }],
+    };
+    assert.equal(
+      deriveToolActivitySections({ ...base, hasApproval: true }).footerVisible,
+      true,
+    );
+    assert.equal(
+      deriveToolActivitySections({ ...base, hasInteraction: true })
+        .footerVisible,
+      false,
+    );
   });
 });

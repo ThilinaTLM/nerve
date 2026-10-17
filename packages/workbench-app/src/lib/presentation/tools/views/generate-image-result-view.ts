@@ -1,3 +1,4 @@
+import { generateImageResultDetailsSchema } from "@nervekit/contracts/tools";
 import {
   asRecord,
   parseToolExecutionResult,
@@ -21,5 +22,6 @@ export function parseGenerateImageView(
     kind: "generate_image",
     prompt: stringField(args.prompt),
     paths,
+    images: generateImageResultDetailsSchema.safeParse(details).data?.images,
   };
 }

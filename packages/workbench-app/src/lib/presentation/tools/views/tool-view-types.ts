@@ -28,7 +28,26 @@ import type {
   ToolOutputLimitsPayload,
 } from "@nervekit/contracts/tools";
 import type { LaunchStatus } from "@nervekit/contracts/launches";
+import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type { RedactedStructuredEntry } from "../lifecycle/argument-source";
+
+export type AskUserViewOption = {
+  /** Undefined while the option object is open but its label has not streamed. */
+  label?: string;
+  description?: string;
+  recommended?: boolean;
+};
+
+/** One ask_user question; fields are optional only while arguments stream. */
+export type AskUserViewQuestion = {
+  id: string;
+  question?: string;
+  context?: string;
+  recommendation?: string;
+  options: AskUserViewOption[];
+  answer?: UserInputAnswer;
+  skipped?: boolean;
+};
 
 export type ToolOutputInfo = {
   outputLimits?: ToolOutputLimitsPayload;
@@ -83,7 +102,9 @@ export type SubagentAssignmentView = {
   profile?: string;
   prompt: string;
   /** Whether the call created the sub-agent or queued a follow-up. */
-  disposition?: "created" | "follow_up";
+  disposition?: "created" | "follow_up" | "rejected";
+  reason?: string;
+  agentId?: string;
   /** Sub-agent state reported by the result when the follow-up was queued. */
   queuedState?: string;
 };
@@ -91,6 +112,9 @@ export type SubagentAssignmentView = {
 /** One line of a `subagent_status` listing. */
 export type SubagentStatusRow = {
   name: string;
+  agentId?: string;
+  contextPercent?: number;
+  lastActivityAt?: string;
   profile?: string;
   state: string;
   context?: string;
@@ -98,7 +122,12 @@ export type SubagentStatusRow = {
 };
 
 /** One line of a `subagent_stop` result. */
-export type SubagentStopLine = { name: string; outcome: string };
+export type SubagentStopLine = {
+  name: string;
+  outcome: "stopped" | "already_idle" | "not_found" | "failed";
+  runMs?: number;
+  reason?: string;
+};
 
 export type ToolView =
   | {
@@ -124,6 +153,12 @@ export type ToolView =
       kind: "generate_image";
       prompt?: string;
       paths: string[];
+      images?: Array<{
+        path: string;
+        bytes?: number;
+        width?: number;
+        height?: number;
+      }>;
     }
   | {
       kind: "bash";
@@ -179,6 +214,12 @@ export type ToolView =
       path?: string;
       relPath?: string;
       operationCount: number;
+      operations?: Array<{
+        index: number;
+        status: "applied" | "failed" | "not_applied";
+        error?: string;
+      }>;
+      appliedCount?: number;
       additions: number;
       deletions: number;
       diff?: string;
@@ -187,6 +228,7 @@ export type ToolView =
     }
   | {
       kind: "write";
+      outcome?: "created" | "overwritten";
       path?: string;
       relPath?: string;
       bytes?: number;
@@ -198,11 +240,14 @@ export type ToolView =
       kind: "grep";
       pattern?: string;
       matchCount: number;
+      totalMatches?: number;
+      totalFiles?: number;
       fileCount: number;
       allMatches: GroupedMatches[];
     }
   | {
       kind: "find";
+      totalEntries?: number;
       pattern?: string;
       paths: string[];
       openPaths: string[];
@@ -210,6 +255,7 @@ export type ToolView =
     }
   | {
       kind: "ls";
+      totalEntries?: number;
       path?: string;
       relPath?: string;
       entries: Array<FileEntry & { openPath?: string }>;
@@ -217,11 +263,11 @@ export type ToolView =
     }
   | {
       kind: "ask_user";
-      question?: string;
-      context?: string;
-      recommendation?: string;
-      answer?: string;
+      questions: AskUserViewQuestion[];
+      /** The whole call was dismissed; unanswered questions read "Not answered". */
       dismissed: boolean;
+      /** Arguments are still streaming in: missing values render as skeletons. */
+      streaming?: boolean;
     }
   | {
       kind: "todos";
@@ -270,6 +316,7 @@ export type ToolView =
       query?: string;
       jql?: string;
       issueKey?: string;
+      issueUrl?: string;
       projectKey?: string;
       issueType?: string;
       summary?: string;

@@ -6,6 +6,7 @@ import type { FileEntry } from "@nervekit/contracts/tools";
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
 import { getToolMotion, resultRowEnterDelay } from "./tool-motion-context";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -30,39 +31,45 @@ const visible = $derived(expanded ? sorted : sorted.slice(0, COLLAPSED_LINES));
 </script>
 
 {#if view.total === 0 && toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">Empty directory.</p>
+  <ToolSections>
+    <div class="px-2.5 py-2 text-xs text-muted-foreground">
+      Empty directory.
+    </div>
+  </ToolSections>
 {:else if view.total > 0}
-  <ul
-    class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-normal text-foreground"
-  >
-    {#each visible as entry, index (entry.path)}
-      <li
-        class="flex items-center gap-1.5"
-        class:stream-item-enter={toolMotion.enter}
-        style:--stream-item-delay={toolMotion.enter
-          ? resultRowEnterDelay(index)
-          : undefined}
-      >
-        {#if entry.kind === "directory"}<Folder
-            size={12}
-            strokeWidth={2}
-            class="flex-none text-muted-foreground"
-          />{:else}<FileIcon
-            size={12}
-            strokeWidth={2}
-            class="flex-none text-muted-foreground"
-          />{/if}
-        {#if entry.kind === "file"}
-          <button
-            type="button"
-            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
-            onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}
-            >{entry.path}</button
-          >
-        {:else}
-          <span>{entry.path}</span>
-        {/if}
-      </li>
-    {/each}
-  </ul>
+  <ToolSections>
+    <ul
+      class="m-0 list-none px-2.5 py-2 font-mono text-xs leading-normal text-foreground"
+    >
+      {#each visible as entry, index (entry.path)}
+        <li
+          class="flex items-center gap-1.5"
+          class:stream-item-enter={toolMotion.enter}
+          style:--stream-item-delay={toolMotion.enter
+            ? resultRowEnterDelay(index)
+            : undefined}
+        >
+          {#if entry.kind === "directory"}<Folder
+              size={12}
+              strokeWidth={2}
+              class="flex-none text-muted-foreground"
+            />{:else}<FileIcon
+              size={12}
+              strokeWidth={2}
+              class="flex-none text-muted-foreground"
+            />{/if}
+          {#if entry.kind === "file"}
+            <button
+              type="button"
+              class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
+              onclick={() => onOpenFile?.(entry.openPath ?? entry.path)}
+              >{entry.path}</button
+            >
+          {:else}
+            <span>{entry.path}</span>
+          {/if}
+        </li>
+      {/each}
+    </ul>
+  </ToolSections>
 {/if}

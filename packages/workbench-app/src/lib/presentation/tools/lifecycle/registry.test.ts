@@ -30,15 +30,8 @@ describe("tool lifecycle registry", () => {
         rows: 2,
       });
     }
-    for (const name of [
-      "write",
-      "edit",
-      "todos_set",
-      "ask_user",
-      "plan_mode_present",
-      "jira_create_issue",
-      "confluence_update_page",
-    ] as const) {
+    assert.equal(toolLifecycleRegistry.todos_set.argumentRegion, "persistent");
+    for (const name of ["plan_mode_present"] as const) {
       assert.equal(
         toolLifecycleRegistry[name].argumentRegion,
         "until-result",
@@ -46,6 +39,7 @@ describe("tool lifecycle registry", () => {
       );
     }
     for (const name of [
+      "ask_user",
       "read",
       "grep",
       "find",
@@ -74,7 +68,7 @@ describe("tool lifecycle registry", () => {
   it("lists sub-agent assignments by name until output or rejection takes over", () => {
     assert.equal(
       toolLifecycleRegistry.subagent_prompt.argumentRegion,
-      "until-settled",
+      "persistent",
     );
     const batch = presentToolArguments(
       "subagent_prompt",
@@ -90,23 +84,28 @@ describe("tool lifecycle registry", () => {
       "executing",
     );
     assert.equal(batch.primaryArg?.text, "2 sub-agents");
-    assert.deepEqual(batch.body, {
-      kind: "text-summary",
-      text: "auth (explore)\nfix",
-    });
+    assert.equal(batch.body.kind, "entities");
+    if (batch.body.kind === "entities") {
+      assert.deepEqual(
+        batch.body.items.map((item) => item.key),
+        ["0", "1"],
+      );
+      assert.equal(batch.body.items[0].body, "Look");
+      assert.equal(batch.body.context?.text, "shared");
+    }
     const single = presentToolArguments(
       "subagent_prompt",
       { args: { assignments: [{ name: "auth", prompt: "Look" }] } },
       "drafting",
     );
-    assert.equal(single.primaryArg?.text, "auth");
+    assert.equal(single.primaryArg?.text, "1 sub-agent");
     assert.equal(
       presentToolArguments(
         "subagent_stop",
         { args: { names: ["a", "b"] } },
         "completed",
       ).primaryArg?.text,
-      "a, b",
+      "2 sub-agents",
     );
   });
 
@@ -132,7 +131,7 @@ describe("tool lifecycle registry", () => {
       );
       assert.equal(presentation.primaryArg?.text, "restart Web dev server");
       assert.deepEqual(presentation.secondary, [
-        { text: "Run: launch_previous" },
+        { key: "run-id", text: "Run: launch_previous" },
       ]);
       assert.equal(presentation.body.kind, "none");
       assert.doesNotMatch(JSON.stringify(presentation), /launchdef_historical/);
@@ -187,7 +186,7 @@ describe("tool lifecycle registry", () => {
     }
   });
 
-  it("hides failed file mutation previews but keeps executable input context", () => {
+  it("preserves file mutation and executable input context on failure", () => {
     const edit = presentToolArguments(
       "edit",
       {
@@ -214,8 +213,8 @@ describe("tool lifecycle registry", () => {
       "failed",
     );
 
-    assert.equal(edit.body.kind, "none");
-    assert.equal(write.body.kind, "none");
+    assert.equal(edit.body.kind, "diff-sections");
+    assert.equal(write.body.kind, "code");
     assert.equal(bash.body.kind, "code");
     assert.equal(python.body.kind, "code");
   });

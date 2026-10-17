@@ -206,7 +206,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_create_page: spec({
     name: "confluence_create_page",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "confluence",
     present: (source) => {
       const space = source.string("space_key") ?? source.string("space_id");
@@ -231,7 +231,7 @@ export const confluenceToolLifecycleSpecs = {
   }),
   confluence_update_page: spec({
     name: "confluence_update_page",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "confluence",
     present: (source) => {
       const page = source.string("page_id") ?? source.string("page_file");

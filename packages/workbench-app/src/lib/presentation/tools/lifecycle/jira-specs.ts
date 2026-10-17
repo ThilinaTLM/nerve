@@ -231,7 +231,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_create_issue: spec({
     name: "jira_create_issue",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "jira",
     present: (source) => {
       const project = source.string("project_key");
@@ -282,7 +282,7 @@ export const jiraToolLifecycleSpecs = {
   }),
   jira_update_issue: spec({
     name: "jira_update_issue",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "jira",
     present: (source) => {
       const description =

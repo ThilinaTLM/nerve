@@ -72,257 +72,239 @@ function outcomeTitle(text: string): string {
 </script>
 
 {#if toolCall.status === "completed"}
-  <AtlassianResultSurface>
-    {#if view.action === "search_issues"}
-      {#each view.issues.slice(0, limit) as issue (issue.key)}
-        <JiraIssueCard {issue} {siteUrl} />
-      {:else}
-        <AtlassianOutcomeRow title="No issues found." icon="list" />
-      {/each}
-    {:else if view.action === "search_users"}
-      {#each view.users.slice(0, limit) as user (user.accountId)}
-        <JiraUserCard {user} />
-      {:else}
-        <AtlassianOutcomeRow title="No users found." icon="comment" />
-      {/each}
-    {:else if view.action === "get_issue"}
-      {#if view.issue}
-        <JiraIssueCard issue={view.issue} {siteUrl} />
-      {:else}
-        <AtlassianOutcomeRow
-          title={view.issueKey ? `Fetched ${view.issueKey}` : "Issue fetched"}
-          detail="Open Details for the complete response."
-        />
-      {/if}
-      {#if expanded}
-        {#each view.transitions as transition (transition.id)}
-          <JiraTransitionRow {transition} />
+  <!-- create/update: the persistent draft sections are the record; the key
+       arrives as a card chip. -->
+  {#if view.action !== "create_issue" && view.action !== "update_issue"}
+    <AtlassianResultSurface>
+      {#if view.action === "search_issues"}
+        {#each view.issues.slice(0, limit) as issue (issue.key)}
+          <JiraIssueCard {issue} {siteUrl} />
+        {:else}
+          <AtlassianOutcomeRow title="No issues found." icon="list" />
         {/each}
-      {/if}
-    {:else if view.action === "get_project"}
-      {#if view.project}
-        <JiraProjectHeader project={view.project} />
-      {:else}
-        <AtlassianOutcomeRow
-          title={view.projectKey
-            ? `Fetched project ${view.projectKey}`
-            : "Project fetched"}
-        />
-      {/if}
-      {#if expanded}
-        {#each view.fields as field (field.id)}
-          <JiraFieldRow {field} />
+      {:else if view.action === "search_users"}
+        {#each view.users.slice(0, limit) as user (user.accountId)}
+          <JiraUserCard {user} />
+        {:else}
+          <AtlassianOutcomeRow title="No users found." icon="comment" />
         {/each}
-      {/if}
-    {:else if view.action === "search_boards"}
-      {#each view.boards.slice(0, limit) as board (board.id)}
-        <AtlassianResourceRow
-          icon="board"
-          id={board.id}
-          title={board.name}
-          detail={joined(board.type, board.projectKey, board.projectName)}
-        />
-      {:else}
-        <AtlassianOutcomeRow title="No boards found." />
-      {/each}
-    {:else if view.action === "get_board"}
-      {#if view.board}
-        <AtlassianResourceRow
-          icon="board"
-          id={view.board.id}
-          title={view.board.name}
-          detail={joined(
-            view.board.type,
-            view.board.projectKey,
-            view.board.projectName,
-          )}
-        />
-      {:else}
-        <AtlassianOutcomeRow
-          title={view.boardId
-            ? `Fetched board ${view.boardId}`
-            : "Board fetched"}
-          detail="Open Details for the complete response."
-        />
-      {/if}
-      {#if expanded}
-        {#each view.sprints as sprint (sprint.id)}
+      {:else if view.action === "get_issue"}
+        {#if view.issue}
+          <JiraIssueCard issue={view.issue} {siteUrl} />
+        {:else}
+          <AtlassianOutcomeRow
+            title={view.issueKey ? `Fetched ${view.issueKey}` : "Issue fetched"}
+            detail="Open Details for the complete response."
+          />
+        {/if}
+        {#if expanded}
+          {#each view.transitions as transition (transition.id)}
+            <JiraTransitionRow {transition} />
+          {/each}
+        {/if}
+      {:else if view.action === "get_project"}
+        {#if view.project}
+          <JiraProjectHeader project={view.project} />
+        {:else}
+          <AtlassianOutcomeRow
+            title={view.projectKey
+              ? `Fetched project ${view.projectKey}`
+              : "Project fetched"}
+          />
+        {/if}
+        {#if expanded}
+          {#each view.fields as field (field.id)}
+            <JiraFieldRow {field} />
+          {/each}
+        {/if}
+      {:else if view.action === "search_boards"}
+        {#each view.boards.slice(0, limit) as board (board.id)}
+          <AtlassianResourceRow
+            icon="board"
+            id={board.id}
+            title={board.name}
+            detail={joined(board.type, board.projectKey, board.projectName)}
+          />
+        {:else}
+          <AtlassianOutcomeRow title="No boards found." />
+        {/each}
+      {:else if view.action === "get_board"}
+        {#if view.board}
+          <AtlassianResourceRow
+            icon="board"
+            id={view.board.id}
+            title={view.board.name}
+            detail={joined(
+              view.board.type,
+              view.board.projectKey,
+              view.board.projectName,
+            )}
+          />
+        {:else}
+          <AtlassianOutcomeRow
+            title={view.boardId
+              ? `Fetched board ${view.boardId}`
+              : "Board fetched"}
+            detail="Open Details for the complete response."
+          />
+        {/if}
+        {#if expanded}
+          {#each view.sprints as sprint (sprint.id)}
+            <AtlassianResourceRow
+              icon="sprint"
+              id={sprint.id}
+              title={sprint.name}
+              status={sprint.state}
+              detail={joined(sprint.goal, sprint.startDate, sprint.endDate)}
+            />
+          {/each}
+          {#each view.backlogIssues as issue (issue.key)}
+            <JiraIssueCard {issue} {siteUrl} />
+          {/each}
+        {/if}
+      {:else if view.action === "get_sprint"}
+        {#if view.sprint}
           <AtlassianResourceRow
             icon="sprint"
-            id={sprint.id}
-            title={sprint.name}
-            status={sprint.state}
-            detail={joined(sprint.goal, sprint.startDate, sprint.endDate)}
+            id={view.sprint.id}
+            title={view.sprint.name}
+            status={view.sprint.state}
+            detail={joined(
+              view.sprint.goal,
+              view.sprint.startDate,
+              view.sprint.endDate,
+            )}
           />
-        {/each}
-        {#each view.backlogIssues as issue (issue.key)}
-          <JiraIssueCard {issue} {siteUrl} />
-        {/each}
-      {/if}
-    {:else if view.action === "get_sprint"}
-      {#if view.sprint}
+        {:else}
+          <AtlassianOutcomeRow
+            title={view.sprintId
+              ? `Fetched sprint ${view.sprintId}`
+              : "Sprint fetched"}
+          />
+        {/if}
+        {#if expanded}
+          {#each view.issues as issue (issue.key)}
+            <JiraIssueCard {issue} {siteUrl} />
+          {/each}
+        {/if}
+      {:else if view.action === "download_attachment"}
         <AtlassianResourceRow
-          icon="sprint"
-          id={view.sprint.id}
-          title={view.sprint.name}
-          status={view.sprint.state}
+          icon="attachment"
+          id={view.attachmentId}
+          title={view.filename ??
+            view.attachment?.filename ??
+            "Downloaded attachment"}
           detail={joined(
-            view.sprint.goal,
-            view.sprint.startDate,
-            view.sprint.endDate,
+            view.mediaType ?? view.attachment?.mediaType,
+            formatBytes(view.bytes ?? view.attachment?.bytes),
           )}
         />
-      {:else}
-        <AtlassianOutcomeRow
-          title={view.sprintId
-            ? `Fetched sprint ${view.sprintId}`
-            : "Sprint fetched"}
-        />
-      {/if}
-      {#if expanded}
-        {#each view.issues as issue (issue.key)}
-          <JiraIssueCard {issue} {siteUrl} />
-        {/each}
-      {/if}
-    {:else if view.action === "download_attachment"}
-      <AtlassianResourceRow
-        icon="attachment"
-        id={view.attachmentId}
-        title={view.filename ??
-          view.attachment?.filename ??
-          "Downloaded attachment"}
-        detail={joined(
-          view.mediaType ?? view.attachment?.mediaType,
-          formatBytes(view.bytes ?? view.attachment?.bytes),
-        )}
-      />
-    {:else if view.action === "create_issue"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.issueKey ? `Created ${view.issueKey}` : "Created issue",
-        )}
-        detail={view.summary}
-        tone={outcomeTone()}
-        icon="add"
-      />
-    {:else if view.action === "update_issue"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.issueKey ? `Updated ${view.issueKey}` : "Updated issue",
-        )}
-        detail={view.updatedFields?.length
-          ? view.updatedFields.slice(0, 3).join(", ") +
-            (view.updatedFields.length > 3
-              ? ` · +${view.updatedFields.length - 3} more`
-              : "")
-          : undefined}
-        tone={outcomeTone()}
-        icon="edit"
-      />
-    {:else if view.action === "manage_comment"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `${past(view.operation)} comment${view.commentId ? ` ${view.commentId}` : ""}`,
-        )}
-        detail={view.comment?.bodyPreview}
-        tone={outcomeTone(view.operation === "delete")}
-        icon="comment"
-      />
-    {:else if view.action === "manage_worklog"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `${past(view.operation)} worklog${view.worklogId ? ` ${view.worklogId}` : ""}`,
-        )}
-        detail={joined(
-          view.worklog?.timeSpent,
-          view.worklog?.started,
-          view.worklog?.commentPreview,
-        )}
-        tone={outcomeTone(view.operation === "delete")}
-        icon="timer"
-      />
-    {:else if view.action === "manage_issue_link"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.operation === "delete"
-            ? `Deleted issue link${view.linkId ? ` ${view.linkId}` : ""}`
-            : `Created ${view.linkType ?? "issue"} link`,
-        )}
-        detail={view.otherIssueKey
-          ? `${view.issueKey ?? "Issue"} ↔ ${view.otherIssueKey}`
-          : undefined}
-        tone={outcomeTone(view.operation === "delete")}
-      />
-    {:else if view.action === "manage_attachment"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.operation === "delete"
-            ? `Deleted attachment${view.attachmentId ? ` ${view.attachmentId}` : ""}`
-            : `Uploaded ${view.filename ?? "attachment"}`,
-        )}
-        detail={view.operation === "delete"
-          ? undefined
-          : joined(view.issueKey, formatBytes(view.bytes))}
-        tone={outcomeTone(view.operation === "delete")}
-        icon="link"
-      />
-    {:else if view.action === "manage_sprint"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `${past(view.operation)} sprint${view.sprintId ? ` ${view.sprintId}` : ""}`,
-        )}
-        detail={joined(
-          view.sprint?.name,
-          view.resultingState ?? view.sprint?.state,
-          view.sprint?.goal,
-        )}
-        tone={outcomeTone(view.operation === "delete")}
-        icon="file-upload"
-      />
-    {:else if view.action === "manage_backlog"}
-      {@const target = view.issueKey ?? "issue"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.operation === "move_to_backlog"
-            ? `Moved ${target} to backlog`
-            : view.operation === "move_to_sprint"
-              ? `Moved ${target} to sprint ${view.sprintId ?? ""}`.trim()
-              : view.rankBeforeIssueKey
-                ? `Ranked ${target} before ${view.rankBeforeIssueKey}`
-                : view.rankAfterIssueKey
-                  ? `Ranked ${target} after ${view.rankAfterIssueKey}`
-                  : `Updated backlog placement for ${target}`,
-        )}
-        tone={outcomeTone()}
-        icon="arrow"
-      />
-    {:else if view.action === "transition_issue"}
-      {#if view.transition}
+      {:else if view.action === "manage_comment"}
         <AtlassianOutcomeRow
           title={outcomeTitle(
-            `Transitioned ${view.issueKey ?? "issue"}${view.transition.to ? ` to ${view.transition.to}` : ""}`,
+            `${past(view.operation)} comment${view.commentId ? ` ${view.commentId}` : ""}`,
           )}
-          detail={view.transition.name}
-          tone={outcomeTone()}
+          detail={view.comment?.bodyPreview}
+          tone={outcomeTone(view.operation === "delete")}
+          icon="comment"
         />
-      {:else if view.transitions.length > 0}
-        {#each view.transitions.slice(0, limit) as transition (transition.id)}
-          <JiraTransitionRow {transition} />
-        {/each}
+      {:else if view.action === "manage_worklog"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            `${past(view.operation)} worklog${view.worklogId ? ` ${view.worklogId}` : ""}`,
+          )}
+          detail={joined(
+            view.worklog?.timeSpent,
+            view.worklog?.started,
+            view.worklog?.commentPreview,
+          )}
+          tone={outcomeTone(view.operation === "delete")}
+          icon="timer"
+        />
+      {:else if view.action === "manage_issue_link"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            view.operation === "delete"
+              ? `Deleted issue link${view.linkId ? ` ${view.linkId}` : ""}`
+              : `Created ${view.linkType ?? "issue"} link`,
+          )}
+          detail={view.otherIssueKey
+            ? `${view.issueKey ?? "Issue"} ↔ ${view.otherIssueKey}`
+            : undefined}
+          tone={outcomeTone(view.operation === "delete")}
+        />
+      {:else if view.action === "manage_attachment"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            view.operation === "delete"
+              ? `Deleted attachment${view.attachmentId ? ` ${view.attachmentId}` : ""}`
+              : `Uploaded ${view.filename ?? "attachment"}`,
+          )}
+          detail={view.operation === "delete"
+            ? undefined
+            : joined(view.issueKey, formatBytes(view.bytes))}
+          tone={outcomeTone(view.operation === "delete")}
+          icon="link"
+        />
+      {:else if view.action === "manage_sprint"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            `${past(view.operation)} sprint${view.sprintId ? ` ${view.sprintId}` : ""}`,
+          )}
+          detail={joined(
+            view.sprint?.name,
+            view.resultingState ?? view.sprint?.state,
+            view.sprint?.goal,
+          )}
+          tone={outcomeTone(view.operation === "delete")}
+          icon="file-upload"
+        />
+      {:else if view.action === "manage_backlog"}
+        {@const target = view.issueKey ?? "issue"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            view.operation === "move_to_backlog"
+              ? `Moved ${target} to backlog`
+              : view.operation === "move_to_sprint"
+                ? `Moved ${target} to sprint ${view.sprintId ?? ""}`.trim()
+                : view.rankBeforeIssueKey
+                  ? `Ranked ${target} before ${view.rankBeforeIssueKey}`
+                  : view.rankAfterIssueKey
+                    ? `Ranked ${target} after ${view.rankAfterIssueKey}`
+                    : `Updated backlog placement for ${target}`,
+          )}
+          tone={outcomeTone()}
+          icon="arrow"
+        />
+      {:else if view.action === "transition_issue"}
+        {#if view.transition}
+          <AtlassianOutcomeRow
+            title={outcomeTitle(
+              `Transitioned ${view.issueKey ?? "issue"}${view.transition.to ? ` to ${view.transition.to}` : ""}`,
+            )}
+            detail={view.transition.name}
+            tone={outcomeTone()}
+          />
+        {:else if view.transitions.length > 0}
+          {#each view.transitions.slice(0, limit) as transition (transition.id)}
+            <JiraTransitionRow {transition} />
+          {/each}
+        {:else}
+          <AtlassianOutcomeRow
+            title={`No transitions available for ${view.issueKey ?? "issue"}.`}
+          />
+        {/if}
       {:else}
         <AtlassianOutcomeRow
-          title={`No transitions available for ${view.issueKey ?? "issue"}.`}
+          title={`Completed ${operationLabel(view.action)}`}
+          detail="Open Details for the complete response."
         />
       {/if}
-    {:else}
-      <AtlassianOutcomeRow
-        title={`Completed ${operationLabel(view.action)}`}
-        detail="Open Details for the complete response."
-      />
-    {/if}
-  </AtlassianResultSurface>
+    </AtlassianResultSurface>
+  {/if}
 {:else if fallbackSummary}
   <ToolArgumentBody
+    section
     body={{ kind: "atlassian-summary", text: fallbackSummary }}
   />
 {/if}

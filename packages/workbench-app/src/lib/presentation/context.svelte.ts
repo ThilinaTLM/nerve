@@ -38,6 +38,8 @@ export interface VoiceInputSessionLike {
       onError: (message: string) => void;
     },
   ): () => void;
+  /** Stops the recording for `target` and transcribes it; true when text arrived. */
+  stop(target: VoiceInputTargetRef): Promise<boolean>;
   toggle(target: VoiceInputTargetRef): void | Promise<void>;
   cancel(target: VoiceInputTargetRef): void | Promise<void>;
   cancelIfTarget(target: VoiceInputTargetRef): void | Promise<void>;
@@ -64,7 +66,7 @@ export interface AtlassianLinkCapability {
 }
 
 export interface SubagentsCapability {
-  /** Reactive getter: the sub-agents of the conversation being viewed. */
+  /** Reactive getter: sub-agents, newest parent prompt first (then creation time and name). */
   list: () => readonly SubagentRef[];
   /** Shows a sub-agent in the main view. */
   open: (conversationId: string) => void;
@@ -103,6 +105,12 @@ export interface ConversationUiCapabilities {
   voice?: VoiceInputCapability;
   /** Composer-grade reply input (paste image, completions, file drop) for the ask-user card. */
   askReply?: AskReplyComposerCapability;
+  /**
+   * Resolve a workspace image file (absolute path) to a displayable `data:`
+   * URL. Resolves `undefined` when the file is missing, not an image, or too
+   * large; callers then keep their placeholder.
+   */
+  imageSource?: (path: string) => Promise<string | undefined>;
   /** Site URLs used to build external Jira/Confluence links. */
   atlassian?: AtlassianLinkCapability;
 }

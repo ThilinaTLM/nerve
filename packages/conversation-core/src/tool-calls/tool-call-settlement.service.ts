@@ -8,6 +8,12 @@ export class ToolCallSettlement {
   private readonly settlements = new Map<string, Promise<void>>();
   private readonly barriers = new Map<string, Set<() => void>>();
   private closed = false;
+  private readonly executionStarts = new Map<string, string>();
+
+  recordExecutionStart(call: ToolCall): void {
+    if (call.state === "running")
+      this.executionStarts.set(call.id, call.updatedAt);
+  }
   constructor(private readonly options: ToolCallServiceOptions) {}
   waitForTurn(conversationId: string, turnId: string): Promise<void> {
     if (
@@ -122,6 +128,9 @@ export class ToolCallSettlement {
           assistantEventId: row.assistantEventId,
           contentIndex: row.contentIndex,
           outcome,
+          startedAt:
+            this.executionStarts.get(row.id) ??
+            (row.state === "running" ? row.updatedAt : undefined),
           agentProjection: prepared.agentProjection,
           userProjection: prepared.userProjection,
           supervision: row.supervision,
@@ -136,6 +145,7 @@ export class ToolCallSettlement {
       return event;
     });
     if (!event) return;
+    this.executionStarts.delete(call.id);
     this.options.emit({
       kind: "event_appended",
       conversationId: call.conversationId,

@@ -9,6 +9,19 @@ import {
 } from "@nervekit/contracts/core";
 import type { CoreDatabase } from "./database.js";
 
+// Queue rows disappear on delivery. Keep the original acceptance timestamp in
+// user-message payloads, falling back to event time for historical messages.
+const LAST_PARENT_PROMPT = `(SELECT MAX(prompt_at) FROM (
+  SELECT accepted_at AS prompt_at FROM input_queue
+  WHERE conversation_id = c.id AND source = 'parent_conversation'
+    AND sender_conversation_id = c.parent_conversation_id
+  UNION ALL
+  SELECT COALESCE(json_extract(payload, '$.acceptedAt'), created_at) AS prompt_at
+  FROM conversation_event WHERE conversation_id = c.id AND event_type = 'user_message'
+    AND json_extract(payload, '$.source') = 'parent_conversation'
+    AND json_extract(payload, '$.senderConversationId') = c.parent_conversation_id
+))`;
+
 export class ConversationRepository {
   constructor(private readonly db: CoreDatabase) {}
 
@@ -91,7 +104,7 @@ export class ConversationRepository {
   getSummary(id: string): ConversationSummary | null {
     const row = this.db.sqlite
       .prepare(
-        "SELECT c.*, config.mode, config.model, config.permission_rule_set_id, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?",
+        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?`,
       )
       .get(id);
     return row ? mapSummary(row) : null;
@@ -103,7 +116,7 @@ export class ConversationRepository {
   }): ConversationSummary[] {
     return this.db.sqlite
       .prepare(
-        "SELECT c.*, config.mode, config.model, config.permission_rule_set_id, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id",
+        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
       )
       .all(input.projectId, input.parentConversationId ?? null)
       .map(mapSummary);
@@ -184,6 +197,7 @@ export class ConversationRepository {
 function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
   return conversationSummarySchema.parse({
     ...mapConversation(row),
+    lastParentPromptAt: row.last_parent_prompt_at,
     childCount: row.child_count,
     mode: row.mode,
     model: JSON.parse(String(row.model)),

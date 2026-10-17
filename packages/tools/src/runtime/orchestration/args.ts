@@ -1,3 +1,7 @@
+import {
+  normalizeUserInputRequest,
+  type UserInputRequest,
+} from "@nervekit/contracts/core";
 import { ToolValidationError } from "../types.js";
 
 export type TodoItem = { todo: string; done: boolean };
@@ -25,13 +29,24 @@ export function parseTodos(args: Record<string, unknown>): TodoItem[] {
   });
 }
 
-export function parseQuestion(args: Record<string, unknown>) {
-  const question = requiredString(args.question, "question");
-  return {
-    question,
-    context: optionalString(args.context),
-    recommendation: optionalString(args.recommendation),
-  };
+/** ask_user request; accepts `questions[]` and the legacy flat shape. */
+export function parseQuestion(args: Record<string, unknown>): UserInputRequest {
+  let request: UserInputRequest;
+  try {
+    request = normalizeUserInputRequest(args);
+  } catch {
+    throw new ToolValidationError(
+      "ask_user requires 1-5 questions, each with a non-empty question.",
+    );
+  }
+  const questions = request.questions.map((entry) => ({
+    ...entry,
+    question: entry.question.trim(),
+  }));
+  if (questions.some((entry) => !entry.question)) {
+    throw new ToolValidationError("Each ask_user question must be non-empty.");
+  }
+  return { questions };
 }
 
 export function parsePlanRequest(args: Record<string, unknown>) {

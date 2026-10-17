@@ -38,10 +38,20 @@ describe("tool draft argument projection", () => {
       '{"edits":[{"oldText":"old A","newText":"new A"},{"oldText":"old B","newText":"new',
     );
     assert.deepEqual(summary.argumentBody, {
-      kind: "diff",
-      text: "-old A\n+new A\n-old B\n+new",
+      kind: "diff-sections",
       tail: true,
+      sections: [
+        { key: "0", caption: "Edit 1", text: "-old A\n+new A" },
+        { key: "1", caption: "Edit 2", text: "-old B\n+new" },
+      ],
     });
+    assert.deepEqual(
+      summary.meta.map((item) => [item.key, item.text]),
+      [
+        ["add", "+2"],
+        ["del", "−2"],
+      ],
+    );
     assert.equal(summary.operationCount, 2);
     assert.equal(summary.estimatedAdditions, 2);
     assert.equal(summary.estimatedDeletions, 2);
@@ -68,7 +78,7 @@ describe("tool draft argument projection", () => {
     if (long.argumentBody?.kind !== "code") assert.fail("expected code");
     assert.equal(long.argumentBody.text.length, 24_000);
     assert.ok(long.argumentBody.text.endsWith("END"));
-    assert.ok(long.meta.some((item) => item.text === "50003 bytes"));
+    assert.deepEqual(long.meta, [{ key: "write-lines", text: "1 line" }]);
   });
 
   it("does not truncate edit operations to the structured fallback item limit", () => {
@@ -81,14 +91,14 @@ describe("tool draft argument projection", () => {
     assert.equal(summary.operationCount, 20);
     assert.equal(summary.estimatedAdditions, 20);
     assert.equal(summary.estimatedDeletions, 20);
-    if (summary.argumentBody?.kind !== "diff") assert.fail("expected diff");
-    assert.equal(
-      summary.argumentBody.text,
-      edits
-        .slice(-5)
-        .flatMap((edit) => [`-${edit.oldText}`, `+${edit.newText}`])
-        .join("\n"),
-    );
+    if (summary.argumentBody?.kind !== "diff-sections")
+      assert.fail("expected diff sections");
+    assert.equal(summary.argumentBody.sections.length, 20);
+    assert.deepEqual(summary.argumentBody.sections.at(-1), {
+      key: "19",
+      caption: "Edit 20",
+      text: "-old 19\n+new 19",
+    });
   });
 
   it("keeps settled argument tails at their existing six-line and 6000-character limits", () => {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { userInputAnswerSchema } from "../core/tool-call.js";
 import {
   confluenceAttachmentSummarySchema,
   confluenceCommentSummarySchema,
@@ -234,10 +235,10 @@ export type ProcessStreamsResultDetails = z.infer<
 
 const baseEditResultDetailsSchema = z
   .object({
-    diff: z.string(),
+    diff: z.string().optional(),
     firstChangedLine: z.number().optional(),
-    lineEnding: z.union([z.literal("\n"), z.literal("\r\n")]),
-    bom: z.boolean(),
+    lineEnding: z.union([z.literal("\n"), z.literal("\r\n")]).optional(),
+    bom: z.boolean().optional(),
   })
   .passthrough();
 
@@ -262,18 +263,16 @@ export const editOperationResultSchema = z
       ])
       .optional(),
     sourceIndex: z.number().int().nonnegative().optional(),
+    status: z.enum(["applied", "failed", "not_applied"]).optional(),
+    error: z.string().optional(),
     matchMode: z.enum(["exact", "trimmed", "whitespace"]).optional(),
     occurrence: z.number().int().positive().optional(),
     matchCount: z.number().int().nonnegative().optional(),
     startLine: z.number().int().positive().optional(),
     endLine: z.number().int().positive().optional(),
-    matchedBy: z.enum([
-      "unique",
-      "occurrence",
-      "line_range",
-      "line_insert",
-      "patch",
-    ]),
+    matchedBy: z
+      .enum(["unique", "occurrence", "line_range", "line_insert", "patch"])
+      .optional(),
   })
   .passthrough();
 export type EditOperationResult = z.infer<typeof editOperationResultSchema>;
@@ -281,6 +280,7 @@ export type EditOperationResult = z.infer<typeof editOperationResultSchema>;
 export const editOperationResultDetailsSchema =
   baseEditResultDetailsSchema.extend({
     dryRun: z.boolean().optional(),
+    appliedCount: z.number().int().nonnegative().optional(),
     operationCount: z.number().int().nonnegative(),
     operations: z.array(editOperationResultSchema),
   });
@@ -362,6 +362,66 @@ export const grepMatchSchema = z.object({
   text: z.string(),
 });
 export type GrepMatch = z.infer<typeof grepMatchSchema>;
+
+export const writeResultDetailsSchema = z.looseObject({
+  outcome: z.enum(["created", "overwritten"]).optional(),
+  bytes: z.number().int().nonnegative().optional(),
+});
+export const grepResultDetailsSchema = z.looseObject({
+  totalMatches: z.number().int().nonnegative().optional(),
+  totalFiles: z.number().int().nonnegative().optional(),
+});
+export const findResultDetailsSchema = z.looseObject({
+  totalEntries: z.number().int().nonnegative().optional(),
+});
+export const lsResultDetailsSchema = findResultDetailsSchema;
+const generatedImageSchema = z.looseObject({
+  path: z.string(),
+  mimeType: z.string().optional(),
+  bytes: z.number().int().nonnegative().optional(),
+  width: z.number().int().positive().optional(),
+  height: z.number().int().positive().optional(),
+});
+export const generateImageResultDetailsSchema = z.looseObject({
+  images: z.array(generatedImageSchema).optional(),
+});
+const subagentAssignmentResultSchema = z.object({
+  name: z.string(),
+  profile: z.string().optional(),
+  disposition: z.enum(["created", "follow_up", "rejected"]),
+  agentId: z.string().optional(),
+  reason: z.string().optional(),
+});
+export const subagentPromptResultDetailsSchema = z.looseObject({
+  assignments: z.array(subagentAssignmentResultSchema).optional(),
+});
+const subagentStatusEntrySchema = z.object({
+  name: z.string(),
+  agentId: z.string().optional(),
+  profile: z.string().optional(),
+  state: z.enum([
+    "running",
+    "waiting",
+    "idle",
+    "stopped",
+    "failed",
+    "interrupted",
+  ]),
+  contextPercent: z.number().min(0).max(100).optional(),
+  lastActivityAt: z.string().datetime().optional(),
+});
+export const subagentStatusResultDetailsSchema = z.looseObject({
+  agents: z.array(subagentStatusEntrySchema).optional(),
+});
+const subagentStopEntrySchema = z.object({
+  name: z.string(),
+  outcome: z.enum(["stopped", "already_idle", "not_found", "failed"]),
+  runMs: z.number().nonnegative().optional(),
+  reason: z.string().optional(),
+});
+export const subagentStopResultDetailsSchema = z.looseObject({
+  results: z.array(subagentStopEntrySchema).optional(),
+});
 
 export const webSearchResultDetailsSchema = z.object({
   query: z.string(),
@@ -707,10 +767,14 @@ export type ToolExecutionResultPayload = z.infer<
 
 /** Result of ask_user (resolved question). */
 export const askUserResultSchema = z.object({
-  question: z.string(),
-  context: z.string().optional(),
-  recommendation: z.string().optional(),
-  response: z.string().optional(),
+  questions: z.array(
+    z.object({
+      id: z.string(),
+      question: z.string(),
+      answer: userInputAnswerSchema.optional(),
+      skipped: z.literal(true).optional(),
+    }),
+  ),
   dismissed: z.boolean().optional(),
 });
 export type AskUserResult = z.infer<typeof askUserResultSchema>;

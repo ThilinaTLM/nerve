@@ -156,6 +156,12 @@ void test(
         .getEventsSince("conv_tools", 0)
         .filter((event) => event.type === "tool_call_response");
       assert.equal(responses.length, 2);
+      for (const response of responses) {
+        const running = beforeRows.find(
+          (row) => row.id === response.payload.toolCallId,
+        )!;
+        assert.equal(response.payload.startedAt, running.updatedAt);
+      }
       assert.equal(
         responses.every(
           (event) =>
@@ -191,6 +197,7 @@ void test(
     const execution = deferred<void>();
     const started = deferred<void>();
     let executions = 0;
+    let emitProgress: (() => void) | undefined;
     const config = options(
       directory,
       ":memory:",
@@ -200,7 +207,8 @@ void test(
         },
       },
       {
-        execute: async () => {
+        execute: async ({ onProgress }) => {
+          emitProgress = () => onProgress({ chunk: "still running" });
           executions++;
           started.resolve();
           await execution.promise;
@@ -211,6 +219,9 @@ void test(
     );
     config.permissions.evaluate = async () => ({
       decision: "approval",
+      effectiveRisk: "destructive",
+      reason: "Destructive command needs review",
+      matchedRule: { id: "review_commands" },
       suggestedRules: [],
       authority: null,
     });
@@ -245,6 +256,14 @@ void test(
       await core.resolveInteraction(resolution);
       await started.promise;
       assert.equal(executions, 1);
+      const running = config.storage.toolCalls.get(call.id)!;
+      assert.equal(running.state, "running");
+      emitProgress!();
+      assert.equal(
+        config.storage.toolCalls.get(call.id)?.updatedAt,
+        running.updatedAt,
+      );
+      assert.equal(running.supervision?.effectiveRisk, "destructive");
       const response = deferred<ConversationEvent>();
       const unsubscribe = core.subscribe((change) => {
         if (
@@ -260,6 +279,15 @@ void test(
       if (event.type !== "tool_call_response")
         throw new Error("Missing response");
       assert.equal(event.payload.outcome, "failed");
+      assert.equal(event.payload.startedAt, running.updatedAt);
+      assert.deepEqual(event.payload.supervision, {
+        decision: "approval",
+        effectiveRisk: "destructive",
+        reason: "Destructive command needs review",
+        matchedRule: { id: "review_commands" },
+        suggestedRules: [],
+        authority: null,
+      });
       assert.equal(event.payload.resolutionRequestId, "resolution_test");
       assert.equal(event.inputId, "input_approval");
       assert.equal(config.storage.toolCalls.get(call.id), null);
@@ -387,6 +415,10 @@ for (const action of ["stop", "forcePush"] as const) {
           responses.every((event) => event.payload.outcome !== "indeterminate"),
         );
         for (const event of responses) {
+          assert.equal(
+            event.payload.startedAt !== undefined,
+            event.payload.toolName !== "write",
+          );
           assert.equal(event.payload.outcome, "cancelled");
           const stored = config.storage.events
             .since("conv_cancel", 0)

@@ -3,6 +3,7 @@ import type { StatusTone } from "@nervekit/ui-kit/display/status";
 
 import type { CardGlyph, PrimaryArg } from "./card-presentation";
 import StatusGlyph from "./StatusGlyph.svelte";
+import SlotText from "./SlotText.svelte";
 
 type Props = {
   dotTone: StatusTone;
@@ -13,6 +14,8 @@ type Props = {
   glyph?: CardGlyph;
   badge: string;
   arg?: PrimaryArg;
+  /** The argument is not known yet: reserve its slot with a skeleton. */
+  argPending?: boolean;
   onOpenFile?: (path: string, line?: number) => void;
 };
 
@@ -24,6 +27,7 @@ let {
   glyph,
   badge,
   arg,
+  argPending = false,
   onOpenFile,
 }: Props = $props();
 </script>
@@ -39,7 +43,13 @@ let {
     class="mr-1.5 align-middle"
   />
   <span class="badge">{badge}</span>
-  {#if arg}
+  {#if argPending && !arg}
+    <SlotText
+      width="w-40"
+      streaming
+      class="ml-2 font-mono text-xs text-muted-foreground"
+    />
+  {:else if arg}
     {#if arg.openPath}
       <button
         class="arg link"

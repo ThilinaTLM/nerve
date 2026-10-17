@@ -11,6 +11,7 @@ import {
   SLIDE_OVERSCAN_LINES,
 } from "../views/tool-view-helpers";
 import { krokiConversion } from "../views/kroki-result-view";
+import { askUserDraftQuestions } from "../tool-call/ask-user-state";
 import {
   argumentPresentation,
   type ToolArgumentBody,
@@ -127,6 +128,7 @@ function keyValues(
 function editDiff(
   source: ToolArgumentSource,
   draft: boolean,
+  single = false,
 ): string | undefined {
   let tail: string | undefined;
   const prefix = (value: string | undefined, marker: "+" | "-") => {
@@ -135,7 +137,9 @@ function editDiff(
     const part = lines.map((line) => `${marker}${line}`).join("\n");
     tail = boundedText(tail ? `${tail}\n${part}` : part, draft);
   };
-  for (const edit of source.objectArraySources("edits", Infinity)) {
+  for (const edit of single
+    ? [source]
+    : source.objectArraySources("edits", Infinity)) {
     prefix(edit.string("oldText"), "-");
     prefix(edit.string("newText"), "+");
   }
@@ -180,7 +184,8 @@ function readPresentation(
     });
   } else if (offset !== undefined || limit !== undefined) {
     secondary.push({
-      text: `lines ${offset ?? 1}${limit !== undefined ? ` +${limit}` : ""}`,
+      key: "read-range",
+      text: `lines ${offset ?? 1}${limit !== undefined ? `–${(offset ?? 1) + limit - 1}` : ""}`,
     });
   }
   return argumentPresentation({
@@ -213,8 +218,12 @@ function bashPresentation(
       command ? "inline command" : "Command",
     ),
     secondary: [
-      ...(cwd ? [{ text: `cwd ${cwd}`, mono: true } satisfies MetaItem] : []),
-      ...(timeout !== undefined ? [{ text: `timeout ${timeout}s` }] : []),
+      ...(cwd
+        ? [{ key: "cwd", text: `cwd ${cwd}`, mono: true } satisfies MetaItem]
+        : []),
+      ...(timeout !== undefined
+        ? [{ key: "timeout", text: `timeout ${timeout}s` }]
+        : []),
     ],
     // Stage-independent so the block never appears/disappears mid-lifecycle.
     body: codeBody(command, "bash", {
@@ -239,9 +248,10 @@ function pythonPresentation(
   const envKeys = source.objectKeys("env");
   const secondary: MetaItem[] = [];
   const runCwd = source.string("cwd");
-  if (runCwd) secondary.push({ text: `cwd ${runCwd}`, mono: true });
+  if (runCwd) secondary.push({ key: "cwd", text: `cwd ${runCwd}`, mono: true });
   const timeout = source.number("timeout");
-  if (timeout !== undefined) secondary.push({ text: `timeout ${timeout}s` });
+  if (timeout !== undefined)
+    secondary.push({ key: "timeout", text: `timeout ${timeout}s` });
   if (envKeys.length > 0)
     secondary.push({ text: plural(envKeys.length, "env key") });
   const allowFileWrite =
@@ -253,7 +263,7 @@ function pythonPresentation(
   const body = codeBody(code, "python", {
     force: (code?.length ?? 0) > 500 || codeLines > 1,
     draft: stage === "drafting",
-    label: "Python",
+    label: "Script",
   });
   return argumentPresentation({
     primaryArg: scriptPath
@@ -281,21 +291,22 @@ function writePresentation(
   cwd?: string,
 ) {
   const content = source.string("content");
-  const bytes = source.stringMetrics("content")?.bytes;
+  const lines = source.stringMetrics("content")?.lines;
   return argumentPresentation({
     primaryArg: pathArg(source, cwd),
     secondary: [
-      ...(bytes !== undefined ? [{ text: plural(bytes, "byte") }] : []),
+      ...(lines !== undefined
+        ? [{ key: "write-lines", text: plural(lines, "line") }]
+        : []),
     ],
-    body:
-      stage !== "failed" && content
-        ? {
-            kind: "code",
-            text: boundedText(content, stage === "drafting")!,
-            language: "text",
-            tail: true,
-          }
-        : undefined,
+    body: content
+      ? {
+          kind: "code",
+          text: boundedText(content, stage === "drafting")!,
+          language: "text",
+          tail: true,
+        }
+      : undefined,
     safetyNotes: ["Creates the file or overwrites it if it already exists."],
   });
 }
@@ -306,23 +317,36 @@ function editPresentation(
   cwd?: string,
 ) {
   const stats = editStats(source);
-  const diff = editDiff(source, stage === "drafting");
+  const edits = source.objectArraySources("edits", Infinity);
   const secondary: MetaItem[] = [];
-  if (stats.operations > 0)
-    secondary.push({ text: plural(stats.operations, "operation") });
-  if (stats.additions > 0)
-    secondary.push({ text: `+${stats.additions}`, tone: "success" });
-  if (stats.deletions > 0)
-    secondary.push({ text: `-${stats.deletions}`, tone: "destructive" });
+  if (stats.operations > 0) {
+    secondary.push({
+      key: "add",
+      text: `+${stats.additions}`,
+      tone: "success",
+    });
+    secondary.push({
+      key: "del",
+      text: `−${stats.deletions}`,
+      tone: "destructive",
+    });
+  }
   if (source.boolean("dryRun") === true)
     secondary.push({ text: "dry run", tone: "info" });
   return argumentPresentation({
     primaryArg: pathArg(source, cwd),
     secondary,
-    body:
-      stage !== "failed" && diff
-        ? { kind: "diff", text: diff, tail: true }
-        : undefined,
+    body: edits.length
+      ? {
+          kind: "diff-sections",
+          tail: true,
+          sections: edits.map((edit, index) => ({
+            key: String(index),
+            caption: edits.length > 1 ? `Edit ${index + 1}` : undefined,
+            text: editDiff(edit, stage === "drafting", true),
+          })),
+        }
+      : undefined,
     safetyNotes: [
       source.boolean("dryRun") === true
         ? "Previews the edit without changing the file."
@@ -399,13 +423,13 @@ export const coreToolLifecycleSpecs = {
   }),
   edit: defineToolLifecycleSpec({
     name: "edit",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "edit",
     present: editPresentation,
   }),
   write: defineToolLifecycleSpec({
     name: "write",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "write",
     present: writePresentation,
   }),
@@ -418,10 +442,9 @@ export const coreToolLifecycleSpecs = {
       const paths = source.strings("paths");
       const scope = paths?.length ? paths.join(", ") : source.string("path");
       const secondary: MetaItem[] = [];
-      if (scope) secondary.push({ text: scope, mono: true });
+      if (scope) secondary.push({ key: "scope", text: scope, mono: true });
       if (source.string("glob"))
-        secondary.push({ text: `glob ${source.string("glob")}` });
-      secondary.push({ text: source.boolean("literal") ? "literal" : "regex" });
+        secondary.push({ key: "glob", text: `glob ${source.string("glob")}` });
       if (source.boolean("ignoreCase")) secondary.push({ text: "ignore case" });
       if ((source.number("context") ?? 0) > 0)
         secondary.push({ text: `context ${source.number("context")}` });
@@ -501,29 +524,21 @@ export const coreToolLifecycleSpecs = {
   }),
   ask_user: defineToolLifecycleSpec({
     name: "ask_user",
-    argumentRegion: "until-result",
+    // The question sections are the card's sheet in every state; the ask_user
+    // view renders them (skeletons while streaming, see askUserDraftQuestions),
+    // so there is no separate argument body.
+    argumentRegion: "none",
     completedView: "ask_user",
     present: (source) => {
-      const lines = [
-        source.string("context")
-          ? `Context: ${source.string("context")}`
-          : undefined,
-        source.string("recommendation")
-          ? `Recommendation: ${source.string("recommendation")}`
-          : undefined,
-      ].filter((line): line is string => Boolean(line));
+      const count = askUserDraftQuestions(source).length;
       return argumentPresentation({
-        primaryArg: textArg(source.string("question"), "Question"),
-        body:
-          lines.length > 0
-            ? { kind: "text-summary", text: boundedText(lines.join("\n\n"))! }
-            : undefined,
+        primaryArg: count > 0 ? textArg(plural(count, "question")) : undefined,
       });
     },
   }),
   todos_set: defineToolLifecycleSpec({
     name: "todos_set",
-    argumentRegion: "until-result",
+    argumentRegion: "persistent",
     completedView: "todos",
     present: (source) => {
       const exact = source.recordsArray("todos") ?? [];
@@ -537,19 +552,11 @@ export const coreToolLifecycleSpecs = {
             )
           : partial.map((text) => ({ text, done: false }));
       return argumentPresentation({
-        primaryArg: textArg("todos"),
-        secondary:
-          items.length > 0
-            ? [
-                {
-                  text: plural(
-                    items.filter((item) => item.done).length,
-                    "done",
-                  ),
-                },
-                { text: `${items.length} total` },
-              ]
-            : [],
+        primaryArg: textArg(
+          items.length
+            ? `${items.filter((item) => item.done).length}/${items.length} done`
+            : "todos",
+        ),
         body: items.length > 0 ? { kind: "checklist", items } : undefined,
       });
     },
@@ -565,7 +572,7 @@ export const coreToolLifecycleSpecs = {
     name: "web_search",
     argumentRegion: "none",
     completedView: "web_search",
-    resultPlaceholder: { variant: "list", rows: 3 },
+    resultPlaceholder: { variant: "links", rows: 3 },
     emptyResult: "No results",
     present: (source, stage) =>
       argumentPresentation({
@@ -596,11 +603,14 @@ export const coreToolLifecycleSpecs = {
     name: "generate_image",
     argumentRegion: "none",
     completedView: "generate_image",
-    resultPlaceholder: { variant: "text", rows: 6 },
+    resultPlaceholder: { variant: "image", rows: 6 },
     emptyResult: "No image returned",
     present: (source, stage) =>
       argumentPresentation({
         primaryArg: textArg(source.string("prompt"), "Image prompt"),
+        secondary: source.string("size")
+          ? [{ key: "size", text: source.string("size")!.replace("x", "×") }]
+          : [],
         body:
           stage === "approval"
             ? keyValues([["Prompt", source.string("prompt")]])

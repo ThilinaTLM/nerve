@@ -16,7 +16,10 @@ import type {
   UserQuestionRecord,
 } from "$lib/presentation/view-models/conversation";
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type { ConversationAgentUsage } from "@nervekit/contracts/core";
+import type {
+  ConversationAgentUsage,
+  UserInputAnswer,
+} from "@nervekit/contracts/core";
 import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import type { PermissionRuleSetId } from "@nervekit/contracts/permissions";
@@ -108,7 +111,7 @@ export type WorkbenchConversationAdapterProps = {
   onSubmit?: () => void;
   onAnswerUserQuestion?: (
     toolCallId: string,
-    answer: string,
+    answers: Record<string, UserInputAnswer>,
   ) => void | Promise<void>;
   onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onAbort?: () => void;

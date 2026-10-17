@@ -15,6 +15,7 @@ import {
 } from "@nervekit/tools/policy";
 import {
   buildBashToolDefinition,
+  classifyToolRisk,
   type BashToolSettings,
 } from "@nervekit/tools/catalog";
 import {
@@ -142,6 +143,7 @@ export function createPermissionPort(
         },
       });
       const result = evaluatePermissionRequest({ policy, request });
+      const effectiveRisk = classifyToolRisk(input.toolName, request.args);
       // Defaults and existing autonomous selections can allow reads/execution.
       // An unreadable authorization document must never turn lost restrictions
       // into permission to execute. Preserve denials; require per-call approval
@@ -149,6 +151,7 @@ export function createPermissionPort(
       if (recoveryApproval && result.decision !== "deny") {
         return supervisionSchema.parse({
           decision: "approval",
+          effectiveRisk,
           suggestedRules: [],
           reason:
             "Authorization settings are invalid. Explicit approval is required until harness and permissions settings are reset or reloaded.",
@@ -160,6 +163,7 @@ export function createPermissionPort(
       }
       return supervisionSchema.parse({
         decision: result.decision === "prompt" ? "approval" : result.decision,
+        effectiveRisk,
         reason: result.reason,
         matchedRule: result.winningRule,
         suggestedRules: result.suggestedRules,

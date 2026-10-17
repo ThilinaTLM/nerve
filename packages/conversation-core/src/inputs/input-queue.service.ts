@@ -168,6 +168,7 @@ export class InputQueueService {
                 payload: {
                   text: row.preparedText ?? row.content,
                   originalText: row.content,
+                  acceptedAt: row.acceptedAt,
                   source: row.source,
                   senderConversationId: row.senderConversationId,
                   commandPreparation: row.commandPreparation,
@@ -363,6 +364,12 @@ export class InputQueueService {
   }
 
   private changed(conversationId: string): void {
+    // Parent subscribers need the new ordering key even while a prompt is queued
+    // behind a running tool and no runtime status transition takes place.
+    const summary =
+      this.options.storage.conversations.getSummary(conversationId);
+    if (summary?.parentConversationId)
+      this.options.emit({ kind: "conversation_changed", summary });
     this.options.emit({
       kind: "queue_changed",
       conversationId,

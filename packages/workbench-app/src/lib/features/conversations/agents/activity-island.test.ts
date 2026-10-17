@@ -25,6 +25,7 @@ function agent(id: string, age = 0): AgentRecord {
     mode: "coding",
     createdAt: at(age + 100),
     updatedAt: at(age),
+    lastParentPromptAt: at(age),
     parentAgentId: "lead",
     name: ` ${id} `,
     task: `Full prompt for ${id}\nSecond line`,
@@ -92,7 +93,7 @@ describe("activity island retention and ordering", () => {
     assert.equal(model.running, 1);
     assert.deepEqual(
       model.rows.map((r) => r.agent.id),
-      ["attention", "working", "wait", "error", "unknown", "stop", "old"],
+      ["attention", "error", "unknown", "wait", "working", "stop", "old"],
     );
     const old = model.rows.find((r) => r.agent.id === "old")!;
     assert.equal(old.viewed, true);
@@ -182,6 +183,33 @@ describe("activity island folding", () => {
     assert.equal(result.total, 8);
   });
 
+  it("splits by prompt order even when older agents have newer activity", () => {
+    const agents = Array.from({ length: 10 }, (_, i) => agent(`a${i}`, i));
+    const older = agents[8]!;
+    older.updatedAt = at(-100);
+    const model = islandAgents([...agents].reverse(), {}, "lead");
+    assert.deepEqual(
+      model.rows.map((row) => row.agent.id),
+      agents.slice(0, 6).map((a) => a.id),
+    );
+    assert.deepEqual(
+      model.folded.map((row) => row.agent.id),
+      agents.slice(6).map((a) => a.id),
+    );
+    // Pinning an old active child extends the prefix; it never jumps above
+    // newer prompts, including when the older section is expanded.
+    const active = islandAgents(
+      agents,
+      { a8: activity("a8", "running") },
+      "lead",
+    );
+    assert.deepEqual(
+      [...active.rows, ...active.folded].map((row) => row.agent.id),
+      agents.map((a) => a.id),
+    );
+    assert.ok(active.rows.some((row) => row.agent.id === "a8"));
+  });
+
   it("keeps attention states and the viewed agent visible", () => {
     const ids = ["a", "b", "c", "d", "e", "f", "g", "asks", "viewed"];
     const agents = ids.map((id, i) => agent(id, i));
@@ -192,13 +220,13 @@ describe("activity island folding", () => {
       ]),
     );
     const model = islandAgents(agents, activities, "viewed");
-    assert.equal(model.rows[0]!.agent.id, "asks");
+    assert.equal(model.rows[0]!.agent.id, "a");
     assert.ok(model.rows.some((r) => r.agent.id === "viewed"));
-    assert.equal(model.rows.length, 6);
     assert.deepEqual(
-      model.folded.map((r) => r.agent.id),
-      ["e", "f", "g"],
+      model.rows.map((r) => r.agent.id),
+      ids,
     );
+    assert.deepEqual(model.folded, []);
   });
 });
 

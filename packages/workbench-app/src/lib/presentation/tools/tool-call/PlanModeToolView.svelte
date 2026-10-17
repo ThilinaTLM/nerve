@@ -20,6 +20,7 @@ import {
 import PlanImplementationModelDialog from "./PlanImplementationModelDialog.svelte";
 import { planReviewContent, planReviewPreview } from "./plan-mode-preview";
 import CardFooter from "../../cards/CardFooter.svelte";
+import CardSheet from "../../cards/CardSheet.svelte";
 
 const compactPlanSupported =
   getConversationUiCapabilities().canCompactPlanBeforeImplementation !== false;
@@ -276,17 +277,19 @@ async function rejectPlan() {
 {#if showPlanCard && displayedReview}
   <div class="grid gap-2" aria-label="Plan review">
     {#if preview.trim()}
-      {#if expanded}
-        <div class="min-w-0 rounded-sm border bg-well p-3">
-          <Markdown text={preview} {onOpenFile} />
-        </div>
-      {:else}
-        <div
-          class="whitespace-pre-wrap rounded-sm border bg-well p-2.5 font-mono text-xs leading-relaxed text-foreground [overflow-wrap:anywhere]"
-        >
-          {preview}
-        </div>
-      {/if}
+      <CardSheet>
+        {#if expanded}
+          <div class="min-w-0 p-3">
+            <Markdown text={preview} {onOpenFile} />
+          </div>
+        {:else}
+          <div
+            class="px-2.5 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]"
+          >
+            {preview}
+          </div>
+        {/if}
+      </CardSheet>
     {/if}
 
     <CardFooter

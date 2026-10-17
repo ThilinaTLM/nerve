@@ -3,18 +3,47 @@ import type { ToolDefinition } from "../../contracts.js";
 
 const askUserParameters = Type.Object(
   {
-    question: Type.String({
-      description: "The single focused free-text question to ask the user",
-    }),
-    context: Type.Optional(
-      Type.String({
-        description: "Optional brief background that helps the user answer",
-      }),
-    ),
-    recommendation: Type.Optional(
-      Type.String({
-        description: "Optional current leaning or recommendation and why",
-      }),
+    questions: Type.Array(
+      Type.Object(
+        {
+          id: Type.Optional(
+            Type.String({
+              minLength: 1,
+              maxLength: 40,
+              pattern: "^[a-z0-9_-]+$",
+              description: "Unique question id; defaults to q1, q2, etc.",
+            }),
+          ),
+          question: Type.String({
+            description: "A focused question requiring the user's decision",
+          }),
+          context: Type.Optional(
+            Type.String({ description: "Brief background needed to decide" }),
+          ),
+          recommendation: Type.Optional(
+            Type.String({ description: "Your recommendation and why" }),
+          ),
+          options: Type.Optional(
+            Type.Array(
+              Type.Object(
+                {
+                  label: Type.String({ minLength: 1, maxLength: 80 }),
+                  description: Type.Optional(Type.String()),
+                  recommended: Type.Optional(Type.Boolean()),
+                },
+                { additionalProperties: false },
+              ),
+              {
+                maxItems: 6,
+                description:
+                  "Clear choices with unique labels; mark at most one recommended. Free text is always allowed.",
+              },
+            ),
+          ),
+        },
+        { additionalProperties: false },
+      ),
+      { minItems: 1, maxItems: 5 },
     ),
   },
   { additionalProperties: false },
@@ -48,7 +77,7 @@ export const interactionToolDefinitions = [
     executionKind: "host",
     label: "Ask User",
     description:
-      "Ask one focused free-text question when progress depends on the user's decision or unavailable context.",
+      "Ask focused questions only when progress depends on the user's decision. Batch related decisions in one call (max 5). Offer options for a few clear choices and mark at most one recommended. Users can always answer in free text and attach images, which arrive as file paths readable with read.",
     parameters: askUserParameters,
     executionMode: "sequential",
   },
