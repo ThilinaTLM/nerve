@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { after, describe, it } from "node:test";
+import { after, describe, it, mock } from "node:test";
 import { StorageUsageService } from "../../../src/domains/storage/storage-usage.service.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/index.js";
 
@@ -125,6 +127,124 @@ describe("StorageUsageService", () => {
     assert.equal(categoryBytes(usage, "reports"), undefined);
     assert.equal(targetBytes(usage, "crashReports"), 14);
     assert.equal(targetBytes(usage, "tmp"), 19);
+  });
+
+  it("shares concurrent refreshes, caches results, and bypasses cache on force", async () => {
+    const home = await fixtureHome();
+    let reads = 0;
+    const service = new StorageUsageService({
+      paths: storagePaths(home),
+      getSource: () => ({
+        listConversations: () => {
+          reads += 1;
+          return [];
+        },
+      }),
+    });
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, () => service.computeUsage(true)),
+    );
+    assert.equal(reads, 1);
+    assert.ok(responses.every((value) => value === responses[0]));
+    assert.equal(await service.computeUsage(), responses[0]);
+    assert.notEqual(await service.computeUsage(true), responses[0]);
+    assert.equal(reads, 2);
+    service.invalidate();
+    await service.computeUsage();
+    assert.equal(reads, 3);
+  });
+
+  it(
+    "does not cache an invalidated scan or clear a newer in-flight refresh",
+    { timeout: 5_000 },
+    async () => {
+      const home = await fixtureHome();
+      const paths = storagePaths(home);
+      const service = new StorageUsageService({
+        paths,
+        getSource: () => ({ listConversations: () => [] }),
+      });
+      const original = fs.readdir;
+      const gates = [
+        Promise.withResolvers<void>(),
+        Promise.withResolvers<void>(),
+      ];
+      const entered = [
+        Promise.withResolvers<void>(),
+        Promise.withResolvers<void>(),
+      ];
+      let scans = 0;
+      const reader = mock.method(
+        fs,
+        "readdir",
+        async (...args: Parameters<typeof original>) => {
+          // Pause each scan at its last traversal, after payload totals are known.
+          if (args[0] === home && scans < gates.length) {
+            const index = scans++;
+            entered[index].resolve();
+            await gates[index].promise;
+          }
+          return original(...args);
+        },
+      );
+      syncBuiltinESMExports();
+      try {
+        const stale = service.computeUsage();
+        await entered[0].promise;
+        service.invalidate();
+        await writeFile(join(paths.conversationsPath, "a", "new"), "extra");
+        const fresh = service.computeUsage();
+        await entered[1].promise;
+        gates[0].resolve();
+        const staleValue = await stale;
+        const joined = service.computeUsage();
+        gates[1].resolve();
+        const freshValue = await fresh;
+        assert.equal(await joined, freshValue);
+        assert.equal(await service.computeUsage(), freshValue);
+        assert.equal(categoryBytes(freshValue, "payloads"), 27);
+        assert.equal(categoryBytes(staleValue, "payloads"), 22);
+        assert.equal(scans, 2);
+      } finally {
+        gates.forEach((gate) => gate.resolve());
+        reader.mock.restore();
+        syncBuiltinESMExports();
+      }
+    },
+  );
+
+  it("expires cached usage after fifteen seconds", async () => {
+    const home = await fixtureHome();
+    const service = new StorageUsageService({
+      paths: storagePaths(home),
+      getSource: () => ({ listConversations: () => [] }),
+    });
+    let now = Date.now();
+    const clock = mock.method(Date, "now", () => now);
+    try {
+      const initial = await service.computeUsage();
+      now += 14_999;
+      assert.equal(await service.computeUsage(), initial);
+      now += 1;
+      assert.notEqual(await service.computeUsage(), initial);
+    } finally {
+      clock.mock.restore();
+    }
+  });
+
+  it("retries after a rejected refresh instead of retaining a rejected promise", async () => {
+    const home = await fixtureHome();
+    let fail = true;
+    const service = new StorageUsageService({
+      paths: storagePaths(home),
+      getSource: () => {
+        if (fail) throw new Error("source unavailable");
+        return { listConversations: () => [] };
+      },
+    });
+    await assert.rejects(service.computeUsage(), /source unavailable/);
+    fail = false;
+    assert.equal((await service.computeUsage()).totalBytes, 402);
   });
 
   it("returns a stable empty response for an empty home", async () => {

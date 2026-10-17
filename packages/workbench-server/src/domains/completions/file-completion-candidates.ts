@@ -13,10 +13,7 @@ import {
 import { promisify } from "node:util";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import { fdir } from "fdir";
-import {
-  labelNameOffset,
-  toCompletionItem,
-} from "./file-completion-ranking.js";
+import { labelNameOffset, toCompletionItem } from "./file-completion-items.js";
 
 const execFileAsync = promisify(execFile);
 

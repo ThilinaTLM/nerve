@@ -8,6 +8,7 @@ import {
 import { readFile } from "node:fs/promises";
 import {
   ConversationCore,
+  type ConversationCoreOptions,
   openCoreStorage,
   createDelegationTools,
   createAsyncBashTools,
@@ -42,6 +43,7 @@ export function createConversationCore(
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   /** Lazy: the profile service needs the core's trust registry. */
   subagentProfiles: () => SubagentProfileService,
+  onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
 ) {
   const dataDir = deps.storage.paths.dataPath;
   mkdirSync(dataDir, { recursive: true });
@@ -158,6 +160,7 @@ export function createConversationCore(
   const core: ConversationCore = new ConversationCore({
     storage,
     dataDir,
+    onProjectDeleted,
     models,
     processes,
     permissions: createPermissionPort(

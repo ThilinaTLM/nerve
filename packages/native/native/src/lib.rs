@@ -1,4 +1,5 @@
 mod api;
+mod completion;
 mod git;
 mod monitor;
 mod platform;

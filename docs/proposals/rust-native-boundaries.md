@@ -1,6 +1,6 @@
 # Where additional Rust belongs
 
-> Research and recommendations, not an approved implementation plan. Retain Node/Electron. No runtime or database schema changes are proposed here.
+> Original research and recommendations are preserved below as historical context, not a claim that implementation is still unapproved or absent. See [staged implementation status](#staged-implementation-status-2026-10-18) for the implemented TS improvements and adopted completion pilot. Node/Electron are retained; no database schema changes are proposed.
 
 ## Conclusion
 
@@ -8,9 +8,9 @@ Expand Rust selectively around cohesive, bounded computation and OS primitives. 
 
 The best **CPU-oriented pilot** is file-completion ranking over a retained candidate snapshot, if profiling shows it blocks the event loop. The best **small OS/data-processing pilot** is an aggregate storage-tree scan, after eliminating duplicate walks in TypeScript. Extend existing Git and monitor capabilities only for demonstrated gaps or hot paths.
 
-There are no new performance profiles or native prototypes behind these recommendations. The earlier slot-4 startup experiment did establish that avoiding repeated transcript materialization reduced recorded daemon initialization from 17.6 seconds to 348–399 ms **without** a Rust rewrite. Use that as the standard: first improve the work being done, then evaluate its implementation language.
+At the time of the original research, there were no new performance profiles or native prototypes behind these recommendations. The earlier slot-4 startup experiment did establish that avoiding repeated transcript materialization reduced recorded daemon initialization from 17.6 seconds to 348–399 ms **without** a Rust rewrite. Use that as the standard: first improve the work being done, then evaluate its implementation language.
 
-## Existing boundary
+## Original boundary (at research time)
 
 `packages/native` is one Rust N-API addon with normalized TypeScript façades. Raw binding contracts remain private.
 
@@ -125,4 +125,35 @@ Do not port every Git command: the Git CLI already executes native code, and rep
 4. Require behavioral parity, measurable end-to-end benefit, and a simpler ownership story before replacing the owning TS implementation.
 5. Expand existing Git/monitor domains only when specific profiles or correctness/portability requirements justify it. Do not begin a broad business-logic rewrite.
 
-This research changes documentation only. It does not start a development server, run benchmarks, or claim speedups for any proposed Rust extraction.
+## Staged implementation status (2026-10-18)
+
+The research above describes the original evidence and recommendations; the staged work below now includes TS improvements, isolated synthetic measurements and one adopted completion-index pilot. Node/Electron remain the runtime; no database/schema changes are part of this work.
+
+- **Storage TS:** one conversation traversal now supplies category, cleanup and per-owner totals; log and database observations are reused. Concurrent refreshes share work, with generation-safe invalidation. Cleanup policy and logical-size/path-counting semantics remain in TS. On Linux x64, nine warm synthetic trials reduced 2,000-tiny-file scan p50 from 54.97 to 19.37 ms (p95 63.40 to 28.85 ms). A 16-file/128 MiB tree measured 1.09 to 0.56 ms p50, with no p95 improvement. These are traversal-kernel results, not whole-service or cold-cache measurements. Method, limitations and results: `packages/workbench-server/test/benchmarks/storage-usage.benchmark.md`.
+- **Completion TS:** bounded stable top-eight selection and reused query/path normalization improve measured whole synchronous ranking calls. At 20k synthetic candidates, broad-prefix p50 fell from 27.44 to 5.25 ms; ordered matching still costs 61.95 ms, and a seven-query burst delays a timer by 142.53 ms after optimization. Detailed methodology, parity scope and caveats: `packages/workbench-server/test/benchmarks/file-completion.benchmark.md`.
+- **One native pilot, completion:** the production indexed-completion route now uses a retained asynchronous Rust index as the single matching/ranking owner; TS retains discovery, live directory listing, response adaptation and lifecycle policy. The optimized TS engine remains a test/benchmark oracle, not a production fallback. Snapshot leases, generation-safe replacement, bounded project caches, build/query admission and backpressure, and explicit project/shutdown disposal bound resource ownership. FIFO queries are not automatically superseded by newer typing requests.
+- **Native adoption evidence and tradeoffs:** nine-round isolated-subprocess synthetic comparisons passed parity on Linux x64 / Node 24. Warm whole-service `Composer` typing-prefix p50 improved from optimized TS 59.886 to 15.113 ms at 20k candidates, and 299.827 to 69.170 ms at 100k; warm native service heartbeat maximum lag was about 2 ms instead of synchronous TS blocking. This is not a blanket speedup: whole cold 100k latency (including synthetic discovery/candidate construction) regressed from 555.716 to 926.870 ms, and retained RSS from 288.5 to 405.4 MiB (20k: 158.8 to 150.7 MiB). Native 100k disposal took 41.361 ms with 0.208 ms maximum heartbeat lag, off-thread. Adoption is justified for cached interactive CPU/responsiveness, not cold-start speed or universal memory improvement. These are synthetic local profiles, not production traffic or cross-platform evidence. See the completion benchmark document for detailed methodology and limitations.
+- **Storage Rust remains deferred:** TS single-pass accounting removes the demonstrated redundancy; there is no demonstrated remaining need for a native scan. No second native pilot is started.
+
+Repeat from `packages/workbench-server` (synthetic temporary trees/candidates only; no real user data):
+
+```sh
+NERVE_STORAGE_BENCHMARK=1 pnpm exec tsx test/benchmarks/storage-usage.benchmark.ts
+pnpm exec tsx test/benchmarks/file-completion.benchmark.ts
+# Requires the current local native build.
+pnpm exec tsx test/benchmarks/file-completion-native.benchmark.ts
+pnpm exec tsx --test test/infrastructure/persistence/storage-files.test.ts test/infrastructure/persistence/storage-usage.service.test.ts test/infrastructure/persistence/storage-cleanup.service.test.ts
+```
+
+Focused formatting/checks are serialized by the lead after shared-worktree edits finish; benchmark claims are not full-validation equivalence.
+
+## Follow-up proposals
+
+| Proposal                                                      | Native part                                                                                                         | What stays in TypeScript                                                                     |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| [Concurrent Git operations](git-operations.md)                | Single-walk repository discovery and batched, cancellable multi-repository snapshots                                | Per-repository lanes, CLI mutations (pull/push/fetch), progress parsing, cancellation policy |
+| [Unified completion](unified-completion.md)                   | Generalized search index with typed fields, fuzzy matching and top-k; lower cold-build and memory cost than PR #458 | Providers, permissions, freshness, usage history, protocol                                   |
+| [Activity inbox](activity-inbox.md)                           | None directly; native operations report through it                                                                  | Activity model, retention, UI                                                                |
+| [Native library organization](native-library-organization.md) | Domain-first layout, small shared core, per-domain bindings                                                         | Façade policy                                                                                |
+
+**Text-edit diff kernel (candidate 3 above)** remains conditional: profile large and adversarial edits first, then consider an async `text` domain that computes bounded patches while TypeScript keeps permissions, the write queue and atomic writes.

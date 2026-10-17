@@ -1,5 +1,4 @@
-import { readdir } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 import type {
   LargestConversationUsage,
   StorageCategoryKey,
@@ -14,6 +13,7 @@ import {
 import {
   dirSize,
   fileSize,
+  scanDirectoryUsage,
   pathsSize,
   sqliteFilePaths,
   type SizeTally,
@@ -139,11 +139,14 @@ const DATED_LOG = /^(application|desktop)-(\d{4}-\d{2}-\d{2})\.jsonl$/;
 
 export class StorageUsageService {
   #cache?: { at: number; value: StorageUsageResponse };
+  #generation = 0;
+  #refresh?: { generation: number; promise: Promise<StorageUsageResponse> };
 
   constructor(private readonly deps: StorageUsageServiceDeps) {}
 
   invalidate(): void {
     this.#cache = undefined;
+    this.#generation += 1;
   }
 
   async computeUsage(force = false): Promise<StorageUsageResponse> {
@@ -155,6 +158,28 @@ export class StorageUsageService {
       return this.#cache.value;
     }
 
+    if (this.#refresh?.generation === this.#generation) {
+      return this.#refresh.promise;
+    }
+    const generation = this.#generation;
+    const promise = this.scanUsage().then((value) => {
+      // An invalidated scan may finish for its callers, but must not repopulate
+      // the cache or displace a newer refresh.
+      if (generation === this.#generation) {
+        this.#cache = { at: Date.now(), value };
+      }
+      return value;
+    });
+    const refresh = { generation, promise };
+    this.#refresh = refresh;
+    try {
+      return await promise;
+    } finally {
+      if (this.#refresh === refresh) this.#refresh = undefined;
+    }
+  }
+
+  private async scanUsage(): Promise<StorageUsageResponse> {
     const { paths } = this.deps;
     const totals = new Map<StorageCategoryKey, SizeTally>();
     const add = (key: StorageCategoryKey, tally: SizeTally) => {
@@ -165,16 +190,30 @@ export class StorageUsageService {
       });
     };
 
-    const databaseTally = await pathsSize(sqliteFilePaths(paths.sqlitePath));
-    const conversationRoot = paths.conversationsPath;
-    const conversationPayloadTally = await dirSize(conversationRoot);
+    const databaseSizes = await Promise.all(
+      sqliteFilePaths(paths.sqlitePath).map(fileSize),
+    );
+    const database = {
+      dbBytes: databaseSizes[0] ?? 0,
+      walBytes: databaseSizes[1] ?? 0,
+      shmBytes: databaseSizes[2] ?? 0,
+    };
+    const databaseTally = databaseSizes.reduce<SizeTally>(
+      (total, size) => ({
+        bytes: total.bytes + (size ?? 0),
+        files: total.files + (size === undefined ? 0 : 1),
+      }),
+      { bytes: 0, files: 0 },
+    );
+    const conversationUsage = await scanDirectoryUsage(paths.conversationsPath);
 
     add("database", databaseTally);
-    add("payloads", await dirSize(paths.conversationsPath));
+    add("payloads", conversationUsage);
     add("images", await dirSize(paths.imagesPath));
     add("plans", await dirSize(paths.plansPath));
     add("agentResources", await dirSize(paths.agentPath));
-    add("logs", await dirSize(paths.logsPath));
+    const logUsage = await scanDirectoryUsage(paths.logsPath);
+    add("logs", logUsage);
     add("crashReports", await dirSize(paths.crashesPath));
     add("cache", await dirSize(paths.cachePath));
     add("temporaryFiles", await dirSize(paths.tmpPath));
@@ -230,22 +269,15 @@ export class StorageUsageService {
       0,
     );
 
-    const conversationSizes: Array<{ id: string; bytes: number }> = [];
-    const children = await readdir(conversationRoot, {
-      withFileTypes: true,
-    }).catch(() => []);
-    for (const child of children) {
-      if (!child.isDirectory() || child.isSymbolicLink()) continue;
-      conversationSizes.push({
-        id: managedOwnerId(child.name, "conv_"),
-        bytes: (await dirSize(join(conversationRoot, child.name))).bytes,
-      });
-    }
+    const conversationSizes = [...conversationUsage.directories].map(
+      ([name, tally]) => ({
+        id: managedOwnerId(name, "conv_"),
+        bytes: tally.bytes,
+      }),
+    );
+    const conversations = this.deps.getSource().listConversations();
     const titleById = new Map(
-      this.deps
-        .getSource()
-        .listConversations()
-        .map((item) => [item.id, item.title]),
+      conversations.map((item) => [item.id, item.title]),
     );
     conversationSizes.sort((left, right) => right.bytes - left.bytes);
     const largest: LargestConversationUsage[] = conversationSizes
@@ -256,14 +288,10 @@ export class StorageUsageService {
         bytes: item.bytes,
       }));
 
-    const database = {
-      dbBytes: (await fileSize(paths.sqlitePath)) ?? 0,
-      walBytes: (await fileSize(`${paths.sqlitePath}-wal`)) ?? 0,
-      shmBytes: (await fileSize(`${paths.sqlitePath}-shm`)) ?? 0,
-    };
-    const cleanupTargets = await this.cleanupTargetUsage(
+    const cleanupTargets = this.cleanupTargetUsage(
       totals,
-      conversationPayloadTally,
+      conversations.length,
+      logUsage.rootFiles,
     );
     const value: StorageUsageResponse = {
       homeDir: paths.home,
@@ -274,34 +302,29 @@ export class StorageUsageService {
       database,
       conversations: { total: conversationSizes.length, largest },
     };
-    this.#cache = { at: Date.now(), value };
     return value;
   }
 
-  private async cleanupTargetUsage(
+  private cleanupTargetUsage(
     totals: Map<StorageCategoryKey, SizeTally>,
-    conversationPayloads: SizeTally,
-  ): Promise<StorageCleanupTargetUsage[]> {
-    const logEntries = await readdir(this.deps.paths.logsPath, {
-      withFileTypes: true,
-    }).catch(() => []);
+    conversationCount: number,
+    logFiles: ReadonlyMap<string, number | undefined>,
+  ): StorageCleanupTargetUsage[] {
     let datedBytes = 0;
     let datedItems = 0;
-    for (const entry of logEntries) {
-      if (!entry.isFile() || !DATED_LOG.test(entry.name)) continue;
-      datedBytes +=
-        (await fileSize(join(this.deps.paths.logsPath, entry.name))) ?? 0;
+    for (const [name, size] of logFiles) {
+      if (!DATED_LOG.test(name)) continue;
+      datedBytes += size ?? 0;
       datedItems += 1;
     }
     const category = (key: StorageCategoryKey): SizeTally =>
       totals.get(key) ?? { bytes: 0, files: 0 };
-    const rotatedBytes =
-      (await fileSize(join(this.deps.paths.logsPath, "events.jsonl.1"))) ?? 0;
+    const rotatedBytes = logFiles.get("events.jsonl.1") ?? 0;
     return [
       {
         target: "conversations",
-        bytes: conversationPayloads.bytes,
-        itemCount: this.deps.getSource().listConversations().length,
+        bytes: category("payloads").bytes,
+        itemCount: conversationCount,
         estimate: "upTo",
       },
       {

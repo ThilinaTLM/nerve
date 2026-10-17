@@ -64,6 +64,11 @@ export interface ConversationCoreOptions {
   defaultConfig(
     projectId: string,
   ): DefaultConversationConfig | Promise<DefaultConversationConfig>;
+  /**
+   * Awaited after durable project removal. Rejection does not roll back deletion;
+   * handle recoverable cleanup failures inside the callback.
+   */
+  onProjectDeleted?(projectId: string): void | Promise<void>;
   coreTools?: Iterable<CoreToolHandler>;
   readPlan?: CoreToolHandlerOptions["readPlan"];
   /** Effective auto-compaction settings (user, project, conversation); built-in defaults when absent. */
@@ -235,6 +240,7 @@ export class ConversationCore {
       options.storage,
       (id) => this.delete(id),
       now,
+      options.onProjectDeleted,
     );
     this.trust = new TrustedResourceService(options.storage, now);
     for (const handler of createCoreToolHandlers({

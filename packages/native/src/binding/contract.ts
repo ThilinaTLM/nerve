@@ -55,6 +55,7 @@ export interface NativeChangeMonitorHandle {
 }
 
 export interface NativeBinding {
+  NativeFileCompletionIndex: new () => import("../completion/file-completion-index.js").NativeFileCompletionIndexHandle;
   runtimeCapabilities(): { platform: string; capabilities: string[] };
   initializeManagedProcessHost(options: {
     delegatedScope?: boolean;

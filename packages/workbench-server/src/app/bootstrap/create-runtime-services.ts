@@ -76,7 +76,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     deps,
     { launches, definitions: launchDefinitions },
     () => subagentProfiles,
+    // Lazy: completion project lookup depends on the constructed core.
+    (projectId) => fileCompletions.dispose(projectId),
   );
+  const fileCompletions = new FileCompletionService(getProject);
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -159,6 +162,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     editors: new ProjectEditorService(getProject),
     terminal: new ProjectTerminalService(getProject),
     projectIcons: new ProjectIconService(getProject),
-    fileCompletions: new FileCompletionService(getProject),
+    fileCompletions,
   };
 }

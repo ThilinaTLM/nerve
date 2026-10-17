@@ -48,6 +48,7 @@ export class RuntimeLifecycle {
     return (this.shutdownOperation ??= (async () => {
       await this.services.workspaceMonitor.close();
       await this.services.launches.shutdown();
+      await this.services.fileCompletions.dispose();
       await this.services.conversationCore.close();
     })());
   }
