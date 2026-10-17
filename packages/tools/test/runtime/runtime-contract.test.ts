@@ -144,14 +144,18 @@ describe("shared tool runtime contract", () => {
       },
       request: async (value, request) => {
         assert.equal(value, identity);
-        assert.equal(request.question, "Choose one");
+        assert.equal(request.questions[0]?.question, "Choose one");
         calls.push("interaction.request");
         return { content: "suspended" };
       },
     });
     assert.equal(
-      (await interaction.ask_user?.({ question: " Choose one " }, context))
-        ?.content,
+      (
+        await interaction.ask_user?.(
+          { questions: [{ id: "choice", question: " Choose one " }] },
+          context,
+        )
+      )?.content,
       "suspended",
     );
 

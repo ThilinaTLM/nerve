@@ -127,7 +127,9 @@ test("built-in coding rule sets implement their complete behavior", () => {
     "allow",
   );
   assert.equal(
-    decision("autonomous", "ask_user", { question: "Continue?" }).decision,
+    decision("autonomous", "ask_user", {
+      questions: [{ question: "Continue?" }],
+    }).decision,
     "allow",
   );
 });
