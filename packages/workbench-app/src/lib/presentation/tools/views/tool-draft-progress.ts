@@ -18,6 +18,8 @@ import type { PrimaryArg } from "../../cards/card-presentation";
 export { hasMeaningfulToolDraftBody } from "./tool-draft-body";
 
 export type DraftMetaItem = {
+  /** Stable identity shared with the lifecycle spec chip it previews. */
+  key?: string;
   text: string;
   tone?: StatusTone;
   mono?: boolean;
@@ -141,9 +143,11 @@ function summarizeWriteDraft(
       : undefined;
   const estimated =
     finalContent === undefined && Boolean(draft.progress?.estimated);
+  // Same key and text as the write lifecycle spec, so the chip stays one
+  // element from the first drafted line through completion.
   const meta: DraftMetaItem[] = [];
   if (lines !== undefined && lines > 0) {
-    meta.push({ text: `+${lines}`, tone: "success" });
+    meta.push({ key: "write-lines", text: plural(lines, "line") });
   }
   return {
     kind: "write",
@@ -251,15 +255,14 @@ function summarizeEditDraft(
     !finalStats && !partialStats && draft.progress?.generatedPreview
       ? tailLinePreview(draft.progress.generatedPreview)
       : undefined;
+  // Same keys and text as the edit lifecycle spec (`add`/`del`, appearing
+  // together) so the counters persist and only count up across the handoff.
   const meta: DraftMetaItem[] = [];
-  if (stats.operations > 0)
-    meta.push({ text: plural(stats.operations, "operation") });
   const additions = stats.estimatedAdditions ?? stats.generatedLines;
-  if (additions > 0) {
-    meta.push({ text: `+${additions}`, tone: "success" });
-  }
-  if (stats.estimatedDeletions !== undefined && stats.estimatedDeletions > 0) {
-    meta.push({ text: `-${stats.estimatedDeletions}`, tone: "destructive" });
+  const deletions = stats.estimatedDeletions ?? 0;
+  if (stats.operations > 0 || additions > 0) {
+    meta.push({ key: "add", text: `+${additions}`, tone: "success" });
+    meta.push({ key: "del", text: `−${deletions}`, tone: "destructive" });
   }
   return {
     kind: "edit",
