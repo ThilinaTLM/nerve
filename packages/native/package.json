@@ -1,6 +1,6 @@
 {
   "name": "@nervekit/native",
-  "version": "0.36.0",
+  "version": "0.36.1",
   "private": true,
   "description": "Cross-platform native runtime primitives for Nerve.",
   "author": "ThilinaTLM",
