@@ -4,8 +4,10 @@
  * Everything shown is derived from run state by `deriveRunActivity`; this
  * component only renders it. */
 import Check from "@lucide/svelte/icons/check";
+import RotateCw from "@lucide/svelte/icons/rotate-cw";
 import Square from "@lucide/svelte/icons/square";
 import Terminal from "@lucide/svelte/icons/terminal";
+import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { StatusDot } from "@nervekit/ui-kit/components/composites/status-dot";
 import { cubicOut } from "svelte/easing";
 import { prefersReducedMotion } from "svelte/motion";
@@ -14,10 +16,16 @@ import type { PendingWorkItem, RunActivityView } from "./run-activity";
 let {
   view,
   onOpenPending,
+  onRetryResponse,
+  retrying = false,
 }: {
   view: RunActivityView;
   /** Opens the agents popover; sub-agent chips may navigate to the agent. */
   onOpenPending?: (item: PendingWorkItem) => void;
+  /** Cancels only the stalled provider request and retries it. */
+  onRetryResponse?: () => void;
+  /** A retry request is in flight; blocks duplicate clicks. */
+  retrying?: boolean;
 } = $props();
 
 /** Chips beyond this collapse into a "+N" overflow chip. */
@@ -250,6 +258,17 @@ function roll(_node: Element, { direction }: { direction: 1 | -1 }) {
           elapsedOpacity,
         ]}>{view.elapsedLabel ?? ""}</span
       >
+
+      {#if view.retryEligible && onRetryResponse}
+        <IconAction
+          icon={RotateCw}
+          label="Retry response"
+          busy={retrying}
+          onclick={() => {
+            if (!retrying) onRetryResponse();
+          }}
+        />
+      {/if}
     </div>
   </div>
 </div>

@@ -90,6 +90,7 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onRetryResponse?: () => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
@@ -142,6 +143,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onRetryResponse,
   onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
   onMoveQueuedPromptToComposer,
@@ -193,6 +195,7 @@ const runActivityTracker = createRunActivityTracker(() => ({
   lastRunOutcome: runActivity.lastRunOutcome,
   stopping: runActivity.stopping,
   pending: runActivity.pending,
+  responseRevision: runActivity.responseRevision,
   compactionRunning,
   tail: timelineTail.at(-1) ?? timelinePrefix.at(-1),
 }));
@@ -408,6 +411,8 @@ $effect(() => {
           <RunActivitySlot
             view={runActivityTracker.view}
             onOpenPending={onOpenPendingWork}
+            {onRetryResponse}
+            retrying={runActivity.retryingResponse}
           />
         {/if}
       {/snippet}

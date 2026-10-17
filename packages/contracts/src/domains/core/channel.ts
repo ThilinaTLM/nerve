@@ -357,6 +357,15 @@ export const conversationChannelOperations = [
     "operation.conversation.resume",
   ),
   defineOperation(
+    "conversation.retryResponse",
+    coreOperationSchemas["conversation.retryResponse"].params,
+    coreOperationSchemas["conversation.retryResponse"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversation.retryResponse",
+  ),
+  defineOperation(
     "conversation.stop",
     coreOperationSchemas["conversation.stop"].params,
     coreOperationSchemas["conversation.stop"].result,

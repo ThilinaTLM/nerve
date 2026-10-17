@@ -59,6 +59,8 @@ export type RunActivityView = {
   pending?: readonly PendingWorkItem[];
   /** Spinner playback rate; 0 pauses it. */
   spinnerRate: number;
+  /** The provider request has stalled long enough to offer "Retry response". */
+  retryEligible?: boolean;
 };
 
 export type RunActivityInput = {
@@ -132,10 +134,11 @@ export function tailPhase(tail: TimelineItem | undefined): TailPhase {
 export function runActivitySignature(
   activeRun: ConversationActiveRunSnapshot | undefined,
   tail: TimelineItem | undefined,
+  responseRevision = 0,
 ): string {
   const run = activeRun
-    ? `${activeRun.runId}:${activeRun.status}:${activeRun.turns.length}:${activeRun.retry?.attempt ?? 0}`
-    : "";
+    ? `${responseRevision}:${activeRun.runId}:${activeRun.status}:${activeRun.turns.length}:${activeRun.retry?.attempt ?? 0}`
+    : `${responseRevision}`;
   if (!tail) return run;
   if (tail.kind === "message") {
     return `${run}|${tail.key}:${tail.item.text.length}:${tail.item.done ? 1 : 0}`;
@@ -296,6 +299,7 @@ export function deriveRunActivity(input: RunActivityInput): RunActivityView {
     label,
     tone: "neutral",
     spinnerRate: longWait ? 0.5 : 1,
+    ...(longWait ? { retryEligible: true } : {}),
   };
 }
 

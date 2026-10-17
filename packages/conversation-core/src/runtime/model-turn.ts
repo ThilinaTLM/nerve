@@ -13,6 +13,7 @@ import type {
   TurnResourcesPort,
   TurnPreparationInput,
 } from "../ports.js";
+import { abortable } from "./abortable.js";
 import type { CoreEmitter } from "./core-change.js";
 
 export interface ModelTurnInput {
@@ -23,7 +24,24 @@ export interface ModelTurnInput {
   turnId: string;
   signal: AbortSignal;
 }
+interface ActiveRequest {
+  controller: AbortController;
+  runSignal: AbortSignal;
+  manualRetry: boolean;
+}
+
 export class ModelTurn {
+  private readonly activeRequests = new Map<string, ActiveRequest>();
+
+  retryResponse(conversationId: string): void {
+    const active = this.activeRequests.get(conversationId);
+    if (!active || active.runSignal.aborted)
+      throw new Error("No active provider request to retry");
+    if (active.manualRetry) return;
+    active.manualRetry = true;
+    active.controller.abort(new Error("Provider request manually retried"));
+  }
+
   constructor(
     private readonly models: ModelPort,
     private readonly resources: TurnResourcesPort,
@@ -90,66 +108,91 @@ export class ModelTurn {
   ) {
     input.signal.throwIfAborted();
     const { resolved } = prepared;
-    const stream = streamSimpleWithModel(
-      resolved.model,
-      {
-        systemPrompt: prepared.systemPrompt,
-        messages: buildModelMessages(
-          input.path,
-          this.assets
-            ? await loadProjectionOptions(input.path, this.assets)
-            : {},
-        ),
-        tools: prepared.tools,
-      },
-      {
-        apiKey: resolved.apiKey,
-        headers: resolved.headers,
-        signal: input.signal,
-        reasoning: prepared.reasoning,
-        // Stable per-conversation key: OpenAI Codex uses it as prompt_cache_key and
-        // session routing; without it prompt caching is largely lost.
-        sessionId: input.conversation.id,
-      },
-    );
-    const argumentDrafts = new Map<number, string>();
-    for await (const event of stream) {
-      if (input.signal.aborted) break;
-      if (event.type === "text_delta" || event.type === "thinking_delta")
+    // Capture context once; manual retry never prepares or delivers inputs again.
+    const context = {
+      systemPrompt: prepared.systemPrompt,
+      messages: buildModelMessages(
+        input.path,
+        this.assets ? await loadProjectionOptions(input.path, this.assets) : {},
+      ),
+      tools: prepared.tools,
+    };
+    const id = input.conversation.id;
+    while (true) {
+      input.signal.throwIfAborted();
+      const active: ActiveRequest = {
+        controller: new AbortController(),
+        runSignal: input.signal,
+        manualRetry: false,
+      };
+      const signal = AbortSignal.any([input.signal, active.controller.signal]);
+      this.activeRequests.set(id, active);
+      try {
+        const stream = streamSimpleWithModel(resolved.model, context, {
+          apiKey: resolved.apiKey,
+          headers: resolved.headers,
+          signal,
+          reasoning: prepared.reasoning,
+          sessionId: id,
+        });
+        const consume = async () => {
+          const argumentDrafts = new Map<number, string>();
+          for await (const event of stream) {
+            if (signal.aborted || this.activeRequests.get(id) !== active)
+              return;
+            if (event.type === "text_delta" || event.type === "thinking_delta")
+              this.emit({
+                kind: "live",
+                conversationId: input.conversation.id,
+                delta: {
+                  type:
+                    event.type === "text_delta"
+                      ? "assistant_text"
+                      : "assistant_thinking",
+                  turnId: input.turnId,
+                  contentIndex: event.contentIndex,
+                  delta: event.delta,
+                },
+              });
+            if (event.type === "toolcall_delta") {
+              const draft =
+                (argumentDrafts.get(event.contentIndex) ?? "") + event.delta;
+              argumentDrafts.set(event.contentIndex, draft);
+              const block = event.partial.content[event.contentIndex];
+              if (block?.type === "toolCall")
+                this.emit({
+                  kind: "live",
+                  conversationId: input.conversation.id,
+                  delta: {
+                    type: "tool_call_arguments",
+                    turnId: input.turnId,
+                    contentIndex: event.contentIndex,
+                    providerCallId: block.id,
+                    name: block.name,
+                    partialArgsText: draft,
+                  },
+                });
+            }
+          }
+          signal.throwIfAborted();
+          return stream.result();
+        };
+        const result = await abortable(consume(), signal);
+        input.signal.throwIfAborted();
+        return result!;
+      } catch (error) {
+        // Stop always wins, including a stop racing a manual retry.
+        input.signal.throwIfAborted();
+        if (!active.manualRetry) throw error;
         this.emit({
           kind: "live",
-          conversationId: input.conversation.id,
-          delta: {
-            type:
-              event.type === "text_delta"
-                ? "assistant_text"
-                : "assistant_thinking",
-            turnId: input.turnId,
-            contentIndex: event.contentIndex,
-            delta: event.delta,
-          },
+          conversationId: id,
+          delta: { type: "assistant_reset", turnId: input.turnId },
         });
-      if (event.type === "toolcall_delta") {
-        const draft =
-          (argumentDrafts.get(event.contentIndex) ?? "") + event.delta;
-        argumentDrafts.set(event.contentIndex, draft);
-        const block = event.partial.content[event.contentIndex];
-        if (block?.type === "toolCall")
-          this.emit({
-            kind: "live",
-            conversationId: input.conversation.id,
-            delta: {
-              type: "tool_call_arguments",
-              turnId: input.turnId,
-              contentIndex: event.contentIndex,
-              providerCallId: block.id,
-              name: block.name,
-              partialArgsText: draft,
-            },
-          });
+      } finally {
+        if (this.activeRequests.get(id) === active)
+          this.activeRequests.delete(id);
       }
     }
-    input.signal.throwIfAborted();
-    return stream.result();
   }
 }

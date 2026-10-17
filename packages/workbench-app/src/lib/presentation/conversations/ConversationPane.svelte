@@ -141,6 +141,7 @@ const scroll = createConversationScrollController({
           onAcceptPlanReviewInNewChat={actions.onAcceptPlanReviewInNewChat}
           onRejectPlanReview={actions.onRejectPlanReview}
           onContinueFromFailure={actions.onContinueFromFailure}
+          onRetryResponse={actions.onRetryResponse}
           onForcePushQueuedPrompts={actions.onForcePushQueuedPrompts}
           onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}
           onMoveQueuedPromptToComposer={actions.onMoveQueuedPromptToComposer}
