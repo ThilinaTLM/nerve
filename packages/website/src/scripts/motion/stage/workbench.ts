@@ -1,7 +1,7 @@
 /* Workbench choreography.
  *
  * The component script already makes the hotspots work. This adds what only
- * motion can: a scrubbed 3D product reveal, a floating phone, and the
+ * motion can: a floating phone, a floor reveal, and the
  * panels advance on their own while the section is on screen. Any hover,
  * focus or click hands control to the visitor for good.
  */
@@ -28,10 +28,8 @@ export function workbenchStage(): void {
   const phone = q(".wb-phone", root);
   const floor = q(".wb-floor", root);
 
-  /* Product reveal: on desktop the device starts tipped back in strong
-   * perspective, small and floating, and is scrubbed flat and full size as it
-   * scrolls into view. It lands exactly flat, so the resting state is the
-   * authored one. */
+  /* Keep the text-bearing desktop frame untransformed so it stays sharp.
+   * Only the decorative floor and phone receive scroll choreography. */
   if (stageEl) {
     gsap.matchMedia().add(DESKTOP, () => {
       const scrub = {
@@ -42,23 +40,6 @@ export function workbenchStage(): void {
         end: "top 22%",
         scrub: 0.7,
       };
-      gsap.fromTo(
-        stageEl,
-        {
-          rotateX: 30,
-          scale: 0.8,
-          y: 70,
-          transformPerspective: 1700,
-          transformOrigin: "50% 100%",
-        },
-        {
-          rotateX: 0,
-          scale: 1,
-          y: 0,
-          ease: "none",
-          scrollTrigger: scrub,
-        },
-      );
       if (floor) {
         gsap.fromTo(
           floor,

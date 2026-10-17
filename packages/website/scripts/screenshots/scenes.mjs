@@ -58,11 +58,11 @@ export const DESKTOP_SCENES = [
   },
   {
     id: "conversation",
-    alt: "A Nerve conversation with the activity island expanded to show two retained profile-based sub-agents and a retained background command",
+    alt: "A Nerve conversation with the activity island expanded to show five retained profile-based sub-agents and a retained background command",
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page
-        .getByText("Both profile-based reviews are complete.", { exact: false })
+        .getByText("All profile-based reviews are complete.", { exact: false })
         .scrollIntoViewIfNeeded();
       await page.mouse.move(650, 450);
       await page.mouse.wheel(0, 2000);
@@ -77,7 +77,7 @@ export const DESKTOP_SCENES = [
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await page
-        .getByText("Both profile-based reviews are complete.", { exact: false })
+        .getByText("All profile-based reviews are complete.", { exact: false })
         .scrollIntoViewIfNeeded();
       await page.mouse.move(650, 450);
       await page.mouse.wheel(0, 2000);

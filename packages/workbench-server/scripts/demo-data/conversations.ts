@@ -78,6 +78,27 @@ const rateLimiting: DemoConversation = {
       report:
         "POST /bookings uses the limiter. Existing booking validation remains unchanged.",
     },
+    {
+      name: "Abuse case review",
+      profile: "explore",
+      task: "Review client-key abuse risks during festival booking on-sales.",
+      report:
+        "The limiter counts by client key, not by event or booking. Rotating keys can spread traffic across buckets; verify client-key trust at the proxy boundary before treating this as abuse protection.",
+    },
+    {
+      name: "Test coverage review",
+      profile: "explore",
+      task: "Review rate-limit test results and identify boundary coverage gaps.",
+      report:
+        "The focused run reports 3 passing tests. Add explicit coverage for the 160-request burst boundary, expiry after the 60 second window, and isolation between client keys before relying on those edge cases.",
+    },
+    {
+      name: "Rollout review",
+      profile: "explore",
+      task: "Review operational limits and rollout checks for the booking limiter.",
+      report:
+        "The in-process counters reset on restart and apply independently per replica. Monitor rejected POST /bookings requests during a staged rollout; a fleet-wide cap remains a separate shared-state change.",
+    },
   ],
   steps: [
     {

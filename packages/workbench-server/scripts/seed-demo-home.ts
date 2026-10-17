@@ -42,7 +42,7 @@ import {
  * faux development model. Nothing is ever sent to the provider: the seed only
  * writes records.
  */
-const DEMO_MODEL = { provider: "anthropic", modelId: "claude-sonnet-4-5" };
+const DEMO_MODEL = { provider: "anthropic", modelId: "claude-opus-5-5" };
 
 /**
  * Relative clock: timestamps are anchored to the seed run so the workbench
@@ -76,18 +76,19 @@ interface SeedContext {
   readonly workspace: string;
 }
 
+// A warm prompt cache keeps the demo's context badge free of cache-health warnings.
 const usage = {
-  input: 18400,
+  input: 1200,
   output: 640,
-  cacheRead: 12800,
-  cacheWrite: 2100,
+  cacheRead: 30700,
+  cacheWrite: 1400,
   totalTokens: 33940,
   cost: {
-    input: 0.02,
-    output: 0.01,
-    cacheRead: 0.001,
-    cacheWrite: 0.01,
-    total: 0.041,
+    input: 0.006,
+    output: 0.016,
+    cacheRead: 0.01535,
+    cacheWrite: 0.00875,
+    total: 0.0461,
   },
 };
 
@@ -296,7 +297,7 @@ async function seedConversation(
       conversation.id,
       {
         type: "assistant",
-        text: "Both profile-based reviews are complete. Open an agent in the activity island to inspect its conversation; the background verification command is retained under Commands.",
+        text: "All profile-based reviews are complete. Open an agent in the activity island to inspect its conversation; the background verification command is retained under Commands.",
       },
       head,
       at(demo.ageHours, 700),
