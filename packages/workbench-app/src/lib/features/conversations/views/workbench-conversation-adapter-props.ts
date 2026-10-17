@@ -71,6 +71,8 @@ export type WorkbenchConversationAdapterProps = {
   recoveryIssues?: RecoveryIssue[];
   sending?: boolean;
   stopping?: boolean;
+  responseRevision?: number;
+  retryingResponse?: boolean;
   teamRunning?: boolean;
   composerText?: string;
   models?: ModelInfo[];
@@ -155,6 +157,7 @@ export type WorkbenchConversationAdapterProps = {
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onRetryResponse?: () => void;
   onNavigateToEntry?: (
     entryId: string | undefined,
     summarize?: boolean,

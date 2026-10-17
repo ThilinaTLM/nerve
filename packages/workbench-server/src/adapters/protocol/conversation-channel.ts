@@ -231,6 +231,10 @@ export function createConversationProtocolSession(
       core.resume(conversationId);
       return null;
     },
+    "conversation.retryResponse": ({ conversationId }) => {
+      core.retryResponse(conversationId);
+      return null;
+    },
     "conversation.stop": async ({ conversationId }) => {
       await core.stop(conversationId);
       return null;
@@ -490,6 +494,18 @@ export function createConversationProtocolSession(
         });
         break;
       case "live":
+        if (change.delta.type === "assistant_reset") {
+          const data = {
+            conversationId: change.conversationId,
+            delta: change.delta,
+          };
+          delivery.reset(
+            change.conversationId,
+            () => notifyDirect("conversation.live", data),
+            JSON.stringify(data).length * 2,
+          );
+          break;
+        }
         if (change.delta.type === "tool_call_arguments") {
           delivery.snapshot(change.conversationId, change.delta);
           break;

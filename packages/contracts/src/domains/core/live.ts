@@ -5,6 +5,7 @@ export const toolProgressSchema = z.object({
   stream: z.enum(["stdout", "stderr"]).optional(),
 });
 export const liveDeltaSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("assistant_reset"), turnId: z.string() }),
   z.object({
     type: z.literal("assistant_text"),
     turnId: z.string(),

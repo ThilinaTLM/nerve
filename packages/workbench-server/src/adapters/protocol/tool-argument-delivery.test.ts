@@ -230,3 +230,38 @@ void it("durable completion without a preview still retires that turn", async ()
   await f.tick();
   assert.deepEqual(f.sent, ["durable"]);
 });
+
+void it("manual reset drops old drafts and flushes reset before same-turn previews", async () => {
+  let release = () => {};
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let flushes = 0;
+  const f = fixture(async () => {
+    if (++flushes === 1) await blocked;
+  });
+  f.delivery.snapshot("a", delta("in-flight"));
+  await settle();
+  f.delivery.snapshot("a", delta("old-pending"));
+  f.delivery.reset(
+    "a",
+    async () => {
+      f.sent.push("reset");
+    },
+    1,
+  );
+  f.delivery.snapshot("a", delta("fresh"));
+  await settle();
+  assert.deepEqual(f.sent, ["a:turn1:0:in-flight"]);
+  release();
+  await settle();
+  await f.tick();
+  assert.deepEqual(f.sent, [
+    "a:turn1:0:in-flight",
+    "flush",
+    "reset",
+    "flush",
+    "a:turn1:0:fresh",
+    "flush",
+  ]);
+});

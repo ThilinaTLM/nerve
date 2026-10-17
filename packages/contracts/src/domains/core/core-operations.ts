@@ -150,6 +150,7 @@ export const coreOperationSchemas = {
   "conversation.pause": { params: conversationId, result: done },
   "conversation.resume": { params: conversationId, result: done },
   "conversation.stop": { params: conversationId, result: done },
+  "conversation.retryResponse": { params: conversationId, result: done },
   "conversation.forcePush": { params: conversationId, result: done },
   "conversation.continue": { params: conversationId, result: done },
   "input.submit": { params: submitInputRequestSchema, result: done },

@@ -24,6 +24,7 @@ export interface LiveAssistantBlock {
   toolCall?: { providerCallId: string; name: string; partialArgsText: string };
 }
 
+import { resetLiveTurnBlocks } from "./live-blocks";
 import { LiveTurnGuard } from "./live-turn-guard";
 import {
   fetchCompleteHistory,
@@ -40,6 +41,8 @@ export class ConversationStore {
   liveBlocks = $state<LiveAssistantBlock[]>([]);
   toolOutput = $state<Record<string, string>>({});
   activity = $state<string>();
+  /** Bumps on each provider-request restart so views can reset wait timing. */
+  responseRevision = $state(0);
   loading = $state(false);
   hasOlder = $state(true);
   connected = $state(false);
@@ -264,6 +267,13 @@ export class ConversationStore {
       this.activity = delta.activity;
       return;
     }
+    if (delta.type === "assistant_reset") {
+      // The provider request restarted: drop the turn's ephemeral drafts.
+      // liveTurns is untouched: the same turn keeps accepting new deltas.
+      this.liveBlocks = resetLiveTurnBlocks(this.liveBlocks, delta.turnId);
+      this.responseRevision += 1;
+      return;
+    }
     if (delta.type === "tool_progress") {
       this.toolOutput[delta.toolCallId] =
         (this.toolOutput[delta.toolCallId] ?? "") + delta.update.chunk;
@@ -391,6 +401,12 @@ export class ConversationStore {
     action: "pause" | "resume" | "stop" | "forcePush" | "continue" | "compact",
   ): Promise<null> {
     return requestConversation(`conversation.${action}`, {
+      conversationId: this.conversationId,
+    });
+  }
+  /** Cancels only the provider request and retries the same prepared context. */
+  retryResponse(): Promise<null> {
+    return requestConversation("conversation.retryResponse", {
       conversationId: this.conversationId,
     });
   }

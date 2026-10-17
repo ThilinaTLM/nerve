@@ -151,6 +151,10 @@ export type ConversationRunActivityModel = {
   stopping: boolean;
   /** Sub-agents and background commands still pending after the turn. */
   pending?: PendingWorkItem[];
+  /** Bumps when the provider request restarts, resetting long-wait timing. */
+  responseRevision?: number;
+  /** A manual response retry is in flight. */
+  retryingResponse?: boolean;
 };
 
 export type ConversationPaneModel = {
@@ -229,6 +233,8 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  /** Cancels only the stalled provider request and retries it. */
+  onRetryResponse?: () => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;

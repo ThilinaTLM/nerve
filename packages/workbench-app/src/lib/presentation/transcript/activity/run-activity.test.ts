@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   deriveRunActivity,
+  LONG_WAIT_MS,
+  runActivitySignature,
   type PendingWorkItem,
   type RunActivityInput,
   WAITING_SPINNER_RATE,
@@ -66,5 +68,41 @@ describe("waiting activity", () => {
 
   it("hides when nothing is pending", () => {
     assert.equal(deriveRunActivity(input({ pending: [] })).mounted, false);
+  });
+});
+
+describe("retry response availability", () => {
+  const activeRun = {
+    runId: "r1",
+    status: "running",
+    turns: [],
+    startedAt: new Date(NOW - 60_000).toISOString(),
+  } as unknown as RunActivityInput["activeRun"];
+
+  it("is offered only once the wait softens to Still thinking", () => {
+    const long = deriveRunActivity(
+      input({ sending: true, activeRun, lastChangeAtMs: NOW - LONG_WAIT_MS }),
+    );
+    assert.equal(long.label, "Still thinking…");
+    assert.equal(long.retryEligible, true);
+    const short = deriveRunActivity(
+      input({ sending: true, activeRun, lastChangeAtMs: NOW - 5_000 }),
+    );
+    assert.notEqual(short.retryEligible, true);
+  });
+
+  it("a response revision changes the signature without any output", () => {
+    assert.notEqual(
+      runActivitySignature(activeRun, undefined, 0),
+      runActivitySignature(activeRun, undefined, 1),
+    );
+  });
+
+  it("resetting the wait clock keeps the elapsed timer", () => {
+    const view = deriveRunActivity(
+      input({ sending: true, activeRun, lastChangeAtMs: NOW }),
+    );
+    assert.notEqual(view.retryEligible, true);
+    assert.equal(view.elapsedLabel, "1:00");
   });
 });

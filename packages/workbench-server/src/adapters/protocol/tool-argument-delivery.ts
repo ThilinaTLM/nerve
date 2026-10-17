@@ -74,6 +74,16 @@ export class ToolArgumentDelivery {
     this.#delivery.snapshot(key, { conversationId, delta }, bytes);
   }
 
+  reset(conversationId: string, run: () => Promise<void>, bytes: number): void {
+    if (this.#disposed) return;
+    this.invalidate(conversationId, false);
+    this.enqueue(async () => {
+      await run();
+      // Reset must reach the transport before fresh same-turn previews.
+      await this.options.flush();
+    }, bytes);
+  }
+
   enqueue(run: () => Promise<void>, bytes: number): void {
     this.#delivery.enqueue(run, bytes);
   }

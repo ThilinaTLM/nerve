@@ -120,6 +120,7 @@ const store = $derived(viewedChildId ? childStore : leadStore);
 let tree = $state<EventTreeNode[]>([]);
 let composerText = $state("");
 let stopping = $state(false);
+let retryingResponse = $state(false);
 let compacting = $state(false);
 let editTarget = $state<ConversationEntry>();
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
@@ -169,6 +170,8 @@ const view = $derived(
           tree,
         }),
         stopping,
+        retryingResponse,
+        responseRevision: store.responseRevision,
         transient: compacting
           ? { compaction: { id: "compact", state: "running" as const } }
           : undefined,
@@ -431,6 +434,15 @@ async function abortActiveRun() {
     await store?.control("stop");
   } finally {
     stopping = false;
+  }
+}
+async function retryActiveResponse() {
+  if (retryingResponse) return;
+  retryingResponse = true;
+  try {
+    await store?.retryResponse();
+  } finally {
+    retryingResponse = false;
   }
 }
 async function compactActiveConversation() {
@@ -723,6 +735,8 @@ const teamRunning = $derived(
   sending={activePendingConversation?.sending ?? view?.sending ?? false}
   {teamRunning}
   stopping={view?.stopping ?? false}
+  retryingResponse={view?.retryingResponse ?? false}
+  responseRevision={view?.responseRevision ?? 0}
   composerText={activeComposerText}
   composerSuggestions={viewedChildId ? [] : composerSuggestions}
   onSendSuggestion={sendSuggestion}
@@ -801,6 +815,9 @@ const teamRunning = $derived(
   onAcceptPlanReview={acceptPendingPlanReview}
   onAcceptPlanReviewInNewChat={undefined}
   onRejectPlanReview={rejectPendingPlanReview}
+  onRetryResponse={() => {
+    void runActivePaneAction(retryActiveResponse);
+  }}
   onContinueFromFailure={(runId) => {
     void runActivePaneAction(() => continueFromFailure(runId));
   }}

@@ -383,6 +383,9 @@ export class ConversationCore {
   stop(id: string) {
     return this.scheduler.stop(id);
   }
+  retryResponse(id: string): void {
+    this.modelTurn.retryResponse(id);
+  }
   forcePush(id: string) {
     return this.scheduler.forcePush(id);
   }

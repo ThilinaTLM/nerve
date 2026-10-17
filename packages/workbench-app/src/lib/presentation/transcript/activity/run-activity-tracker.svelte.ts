@@ -18,6 +18,8 @@ export type RunActivitySource = {
   compactionRunning: boolean;
   tail?: TimelineItem;
   pending?: readonly PendingWorkItem[];
+  /** Bumps when the provider request restarts, even with no new output. */
+  responseRevision?: number;
 };
 
 const TICK_MS = 250;
@@ -51,7 +53,11 @@ export function createRunActivityTracker(source: () => RunActivitySource): {
     if (active) runSeenAtMs ??= nowMs;
     else runSeenAtMs = undefined;
 
-    const nextSignature = runActivitySignature(input.activeRun, input.tail);
+    const nextSignature = runActivitySignature(
+      input.activeRun,
+      input.tail,
+      input.responseRevision,
+    );
     if (nextSignature !== signature) {
       signature = nextSignature;
       lastChangeAtMs = nowMs;
