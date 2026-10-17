@@ -20,6 +20,7 @@ export type IdPrefix =
   | "launch"
   | "launchgrp"
   | "launchdef"
+  | "launchfolder"
   | "entry"
   | "tool"
   | "approval"

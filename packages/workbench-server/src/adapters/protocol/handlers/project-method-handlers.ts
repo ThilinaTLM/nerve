@@ -1,3 +1,7 @@
+import {
+  createLaunchDefinitionRequestSchema,
+  updateLaunchDefinitionRequestSchema,
+} from "@nervekit/contracts/launch-definitions";
 import { handleScratchNoteMethod } from "../scratch-note-method-handler.js";
 import {
   defineWorkbenchMethodHandlersFor,
@@ -50,28 +54,56 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
     "project.openTerminal": (state, params) =>
       state.terminal.openProject(params.projectId, params),
     "launchDefinition.list": async (state, params) => ({
-      definitions: await state.launchDefinitions.list(projectId(params)),
+      catalog: await state.launchDefinitions.catalog(params.projectId),
     }),
-    "launchDefinition.create": async (state, params) => ({
-      definition: await state.launchDefinitionOperations.create(
-        projectId(params),
-        params as never,
+    "launchDefinition.create": (state, params) =>
+      state.launchDefinitionOperations.create(
+        params.projectId,
+        createLaunchDefinitionRequestSchema.parse(params),
+        params.expectedRevision,
       ),
-    }),
-    "launchDefinition.update": async (state, params) => ({
-      definition: await state.launchDefinitions.update(
-        projectId(params),
+    "launchDefinition.update": (state, params) =>
+      state.launchDefinitions.update(
+        params.projectId,
         params.definitionId,
-        params as never,
+        updateLaunchDefinitionRequestSchema.parse(params),
+        params.expectedRevision,
       ),
-    }),
-    "launchDefinition.delete": async (state, params) => {
-      await state.launchDefinitions.remove(
-        projectId(params),
+    "launchDefinition.delete": (state, params) =>
+      state.launchDefinitions.remove(
+        params.projectId,
         params.definitionId,
-      );
-      return { ok: true };
-    },
+        params.expectedRevision,
+      ),
+    "launchFolder.create": (state, params) =>
+      state.launchDefinitions.createFolder(
+        params.projectId,
+        {
+          ...params,
+          parentFolderId: params.parentFolderId ?? null,
+          beforeSibling: params.beforeSibling ?? null,
+        },
+        params.expectedRevision,
+      ),
+    "launchFolder.rename": (state, params) =>
+      state.launchDefinitions.renameFolder(
+        params.projectId,
+        params.folderId,
+        params.label,
+        params.expectedRevision,
+      ),
+    "launchFolder.delete": (state, params) =>
+      state.launchDefinitions.deleteFolder(
+        params.projectId,
+        params.folderId,
+        params.expectedRevision,
+      ),
+    "launchCatalog.move": (state, params) =>
+      state.launchDefinitions.move(
+        params.projectId,
+        params,
+        params.expectedRevision,
+      ),
     "scratchNote.list": (state, params) =>
       handleScratchNoteMethod(state, "scratchNote.list", params),
     "scratchNote.create": (state, params) =>
@@ -81,7 +113,3 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
     "scratchNote.delete": (state, params) =>
       handleScratchNoteMethod(state, "scratchNote.delete", params),
   });
-
-function projectId(params: { projectId: string }): string {
-  return params.projectId;
-}
