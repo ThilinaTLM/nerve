@@ -15,7 +15,6 @@ const base = {
   auto: true,
   profile: "balanced" as const,
   customTriggerPercent: 80,
-  customKeepRecentPercent: 15,
 };
 
 describe("compaction", () => {
@@ -27,9 +26,8 @@ describe("compaction", () => {
         ...base,
         profile: "custom",
         customTriggerPercent: 75,
-        customKeepRecentPercent: 20,
       }),
-      "Custom · 75% / 20%",
+      "Custom · 75%",
     );
   });
 
@@ -44,7 +42,7 @@ describe("compaction", () => {
   it("describes what the effective setting does", () => {
     assert.equal(
       compactionDetail(base),
-      "Compact at 80% and retain about 4% recent context",
+      "Compact at 80% and retain about 10,000 recent tokens",
     );
     assert.equal(
       compactionDetail({
@@ -52,7 +50,7 @@ describe("compaction", () => {
         profile: "custom",
         customTriggerPercent: 75,
       }),
-      "Compact at 75% and retain about 15% recent context",
+      "Compact at 75% and retain about 10,000 recent tokens",
     );
     assert.equal(
       compactionDetail({ ...base, auto: false }),
@@ -62,19 +60,9 @@ describe("compaction", () => {
 
   it("validates custom bounds and compares drafts", () => {
     assert.equal(compactionDraftError(base), undefined);
-    for (const customKeepRecentPercent of [1, 4, 40]) {
-      assert.equal(
-        compactionDraftError({ ...base, customKeepRecentPercent }),
-        undefined,
-      );
-    }
     assert.match(
       compactionDraftError({ ...base, customTriggerPercent: 95 }) ?? "",
       /Compact at/,
-    );
-    assert.match(
-      compactionDraftError({ ...base, customKeepRecentPercent: 0 }) ?? "",
-      /Retain recent/,
     );
     assert.equal(compactionsEqual(base, { ...base }), true);
     assert.equal(compactionsEqual(base, { ...base, auto: false }), false);

@@ -367,6 +367,15 @@ export function createConversationProtocolSession(
                 .catch(failed);
             sequence = page[page.length - 1].sequence;
           }
+          // Compaction is ephemeral, so log replay cannot cover changes between
+          // the client's snapshot and subscription activation. Read it only
+          // after the stream is active, including the latest terminal operation.
+          const compaction = core.getSnapshot(id).compaction;
+          if (compaction)
+            void notify("conversation.compaction", {
+              conversationId: id,
+              compaction,
+            });
         }
         activatingStreams.clear();
       },
@@ -462,6 +471,13 @@ export function createConversationProtocolSession(
           });
         break;
       }
+      case "compaction_changed":
+        if (session.isStreamActive(conversationStream(change.conversationId)))
+          void notify("conversation.compaction", {
+            conversationId: change.conversationId,
+            compaction: change.compaction,
+          });
+        break;
       case "head_changed":
         delivery.invalidate(change.conversationId);
         void notify("conversation.head", {

@@ -26,6 +26,7 @@ export interface LiveAssistantBlock {
 
 import { resetLiveTurnBlocks } from "./live-blocks";
 import { LiveTurnGuard } from "./live-turn-guard";
+import { reconcileCompactionNotice } from "./compaction-reconciliation";
 import {
   fetchCompleteHistory,
   type FetchedHistory,
@@ -61,8 +62,9 @@ export class ConversationStore {
       recover: (id) =>
         id && id !== this.conversationId ? Promise.resolve() : this.recover(),
       disconnected: () => {
+        // Disconnection is not settlement. Keep known runtime state until an
+        // authoritative snapshot replaces it, even if recovery fails.
         this.connected = false;
-        this.clearLive();
       },
       event: (event) => {
         if (event.conversationId !== this.conversationId) return;
@@ -114,7 +116,6 @@ export class ConversationStore {
     if (this.refreshing) return this.refreshing;
     this.loading = true;
     this.error = undefined;
-    this.clearLive();
     this.refreshing = this.loadSnapshot()
       .catch((error) => {
         this.error = errorMessage(error);
@@ -141,6 +142,9 @@ export class ConversationStore {
     const history = await this.fetchHistory();
     if (this.disposed) return;
     snapshot.conversation.headEventId = history.headEventId;
+    this.clearLive();
+    // Recovery is authoritative, including a null/absent operation after a
+    // daemon restart. Buffered notices are revision-checked against this state.
     this.snapshot = snapshot;
     this.publishHistory(history);
     this.liveTurns.recover(
@@ -236,6 +240,13 @@ export class ConversationStore {
             this.error = errorMessage(error);
           });
         }
+        break;
+      case "conversation.compaction":
+        if (snapshot)
+          snapshot.compaction = reconcileCompactionNotice(
+            snapshot.compaction,
+            notice.data.compaction,
+          );
         break;
       case "conversation.config":
         if (snapshot) snapshot.config = notice.data.config;

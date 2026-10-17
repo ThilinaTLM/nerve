@@ -50,7 +50,6 @@ let draft = $state<AutoCompactionSettings>({
   auto: true,
   profile: "balanced",
   customTriggerPercent: 80,
-  customKeepRecentPercent: 4,
 });
 let text = $state("");
 let saving = $state(false);
@@ -93,11 +92,8 @@ async function run(action: () => Promise<void>, close: () => void) {
   }
 }
 
-function setPercent(
-  field: "customTriggerPercent" | "customKeepRecentPercent",
-  value: string,
-) {
-  draft[field] = Number(value);
+function setTriggerPercent(value: string) {
+  draft.customTriggerPercent = Number(value);
 }
 </script>
 
@@ -126,7 +122,7 @@ function setPercent(
           (draft.profile = value as AutoCompactionSettings["profile"])}
       />
       {#if draft.profile === "custom"}
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3">
           <div class="grid gap-1.5">
             <Label for="conversation-compaction-trigger">Compact at (%)</Label>
             <Input
@@ -135,23 +131,7 @@ function setPercent(
               min={60}
               max={90}
               value={String(draft.customTriggerPercent)}
-              oninput={(event) =>
-                setPercent("customTriggerPercent", event.currentTarget.value)}
-            />
-          </div>
-          <div class="grid gap-1.5">
-            <Label for="conversation-compaction-keep">Retain recent (%)</Label>
-            <Input
-              id="conversation-compaction-keep"
-              type="number"
-              min={1}
-              max={40}
-              value={String(draft.customKeepRecentPercent)}
-              oninput={(event) =>
-                setPercent(
-                  "customKeepRecentPercent",
-                  event.currentTarget.value,
-                )}
+              oninput={(event) => setTriggerPercent(event.currentTarget.value)}
             />
           </div>
         </div>

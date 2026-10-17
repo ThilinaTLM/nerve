@@ -1,3 +1,4 @@
+import { compactionOperationSchema } from "./compaction-operation.js";
 /**
  * /ws/conversations: coreOperationSchemas plus model.list, permissionRuleSet.list,
  * skill.list, tool.list and completion.slash.list. Capabilities are operation.<name>.
@@ -558,6 +559,10 @@ export const conversationChannelEventSchemas = {
     conversationId: z.string(),
     asyncBash: z.array(asyncBashSchema),
   }),
+  "conversation.compaction": z.object({
+    conversationId: z.string(),
+    compaction: compactionOperationSchema,
+  }),
   "conversation.live": z.object({
     conversationId: z.string(),
     delta: liveDeltaSchema,
@@ -623,6 +628,16 @@ export const conversationChannelEvents = [
   defineContentEvent(
     "conversation.asyncBash",
     conversationChannelEventSchemas["conversation.asyncBash"],
+    {
+      delivery: "ephemeral",
+      scope: ["conversationId"],
+      supersedable: true,
+      coalescing: { strategy: "latest_by_scope" },
+    },
+  ),
+  defineContentEvent(
+    "conversation.compaction",
+    conversationChannelEventSchemas["conversation.compaction"],
     {
       delivery: "ephemeral",
       scope: ["conversationId"],

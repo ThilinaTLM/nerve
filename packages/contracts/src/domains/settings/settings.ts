@@ -319,12 +319,25 @@ const notificationEventSoundSettingsSchema = z.object({
   failed: notificationToneSchema,
 });
 
-export const autoCompactionSettingsSchema = z.object({
-  auto: z.boolean(),
-  profile: compactionProfileSchema,
-  customTriggerPercent: z.number().int().min(60).max(90),
-  customKeepRecentPercent: z.number().int().min(1).max(40),
-});
+const autoCompactionSettingsObjectSchema = z
+  .object({
+    auto: z.boolean(),
+    profile: compactionProfileSchema,
+    customTriggerPercent: z.number().int().min(60).max(90),
+  })
+  .strict();
+
+export const autoCompactionSettingsSchema = z.preprocess(
+  (value: z.input<typeof autoCompactionSettingsObjectSchema>) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      return value;
+    // Older harness files carried configurable retention. Discard only that key.
+    const settings: Record<string, unknown> = { ...value };
+    delete settings.customKeepRecentPercent;
+    return settings;
+  },
+  autoCompactionSettingsObjectSchema,
+);
 export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
 >;
@@ -434,7 +447,6 @@ export const defaultSettings: Settings = {
     auto: true,
     profile: "balanced",
     customTriggerPercent: 80,
-    customKeepRecentPercent: 4,
   },
   logging: {
     level: "info",
@@ -534,7 +546,6 @@ export const updateSettingsRequestSchema = z.object({
       auto: z.boolean().optional(),
       profile: compactionProfileSchema.optional(),
       customTriggerPercent: z.number().int().min(60).max(90).optional(),
-      customKeepRecentPercent: z.number().int().min(1).max(40).optional(),
     })
     .optional(),
   logging: z

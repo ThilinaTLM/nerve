@@ -19,7 +19,6 @@ function input(overrides: Partial<RunActivityInput> = {}): RunActivityInput {
   return {
     sending: false,
     stopping: false,
-    compactionRunning: false,
     nowMs: NOW,
     runSeenAtMs: NOW,
     lastChangeAtMs: NOW,
@@ -104,5 +103,37 @@ describe("retry response availability", () => {
     );
     assert.notEqual(view.retryEligible, true);
     assert.equal(view.elapsedLabel, "1:00");
+  });
+});
+
+describe("compaction activity", () => {
+  it("shows manual compaction without a timer and without a run", () => {
+    const view = deriveRunActivity(
+      input({ compaction: "running", runSeenAtMs: NOW - 60_000 }),
+    );
+    assert.equal(view.mounted, true);
+    assert.equal(view.label, "Compacting context…");
+    assert.equal(view.elapsedLabel, undefined);
+  });
+
+  it("keeps the conversation run clock during automatic compaction", () => {
+    const view = deriveRunActivity(
+      input({
+        sending: true,
+        compaction: "running",
+        activeRun: {
+          status: "running",
+          startedAt: "2026-01-01T00:07:00.000Z",
+          turns: [],
+        } as unknown as RunActivityInput["activeRun"],
+      }),
+    );
+    assert.equal(view.label, "Compacting context…");
+    assert.equal(view.elapsedLabel, "3:00");
+  });
+
+  it("states a pending stop honestly", () => {
+    const view = deriveRunActivity(input({ compaction: "stopping" }));
+    assert.equal(view.label, "Stopping compaction…");
   });
 });

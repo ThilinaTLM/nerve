@@ -45,15 +45,26 @@ export type SubagentProfileThinking = z.infer<
   typeof subagentProfileThinkingSchema
 >;
 
-/** Compaction materialized as the child's conversation override. */
-export const subagentCompactionOverrideSchema = z
+const subagentCompactionOverrideObjectSchema = z
   .object({
     auto: z.boolean().optional(),
     profile: compactionProfileSchema,
     triggerPercent: z.number().int().min(60).max(90).optional(),
-    keepRecentPercent: z.number().int().min(1).max(40).optional(),
   })
   .strict();
+
+/** Compaction materialized as the child's conversation override. */
+export const subagentCompactionOverrideSchema = z.preprocess(
+  (value: z.input<typeof subagentCompactionOverrideObjectSchema>) => {
+    if (typeof value !== "object" || value === null || Array.isArray(value))
+      return value;
+    // Keep old profile documents readable without allowing other unknown keys.
+    const compaction: Record<string, unknown> = { ...value };
+    delete compaction.keepRecentPercent;
+    return compaction;
+  },
+  subagentCompactionOverrideObjectSchema,
+);
 export type SubagentCompactionOverride = z.infer<
   typeof subagentCompactionOverrideSchema
 >;

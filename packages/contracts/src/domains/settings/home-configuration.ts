@@ -22,7 +22,7 @@ import {
 import {
   colorModeSchema,
   colorThemeSchema,
-  compactionProfileSchema,
+  autoCompactionSettingsSchema,
   headerTypeSchema,
   imageGenerationToolSettingsSchema,
   krokiToolSettingsSchema,
@@ -155,14 +155,7 @@ export const harnessConfigSchema = z
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
     lastSelection: agentSelectionConfigSchema,
-    compaction: z
-      .object({
-        auto: z.boolean(),
-        profile: compactionProfileSchema,
-        customTriggerPercent: z.number().int().min(60).max(90),
-        customKeepRecentPercent: z.number().int().min(1).max(40),
-      })
-      .strict(),
+    compaction: autoCompactionSettingsSchema,
     retry: z
       .object({
         enabled: z.boolean(),
@@ -241,7 +234,6 @@ export const defaultHarnessConfig: HarnessConfig = {
     auto: true,
     profile: "balanced",
     customTriggerPercent: 80,
-    customKeepRecentPercent: 4,
   },
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
   execution: {},

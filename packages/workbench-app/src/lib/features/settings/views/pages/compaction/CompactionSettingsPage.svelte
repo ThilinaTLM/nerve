@@ -29,16 +29,14 @@ function onCompactionProfileChange(value: string): void {
   onSettingsChange?.({ compaction: { profile } }, { immediate: true });
 }
 
-function updateCustomCompactionPercent(
-  field: "customTriggerPercent" | "customKeepRecentPercent",
-  value: string,
-): void {
+function updateCustomTriggerPercent(value: string): void {
   const parsed = Number(value);
-  const [minimum, maximum] =
-    field === "customTriggerPercent" ? [60, 90] : [1, 40];
-  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) return;
-  settingsDraft.compaction[field] = parsed;
-  onSettingsChange?.({ compaction: { [field]: parsed } }, { debounceMs: 350 });
+  if (!Number.isInteger(parsed) || parsed < 60 || parsed > 90) return;
+  settingsDraft.compaction.customTriggerPercent = parsed;
+  onSettingsChange?.(
+    { compaction: { customTriggerPercent: parsed } },
+    { debounceMs: 350 },
+  );
 }
 </script>
 
@@ -54,7 +52,7 @@ function updateCustomCompactionPercent(
     {#if settingsDraft.compaction.auto}
       <SettingsRow
         label="Compaction profile"
-        description="Thresholds scale with the selected model's context window."
+        description="The profile sets when compaction starts. Every profile keeps about 10,000 tokens of recent messages, within available context and whole message groups."
         layout="stacked"
       >
         <SettingsChoiceCards
@@ -67,7 +65,7 @@ function updateCustomCompactionPercent(
       </SettingsRow>
 
       {#if settingsDraft.compaction.profile === "custom"}
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3">
           <SettingsFieldRow
             id="compaction-trigger-percent"
             label="Compact at"
@@ -78,21 +76,7 @@ function updateCustomCompactionPercent(
             suffix="%"
             hint="60–90% context used"
             value={String(settingsDraft.compaction.customTriggerPercent)}
-            onValueChange={(value) =>
-              updateCustomCompactionPercent("customTriggerPercent", value)}
-          />
-          <SettingsFieldRow
-            id="compaction-keep-recent-percent"
-            label="Retain recent"
-            type="number"
-            min={1}
-            max={40}
-            step={1}
-            suffix="%"
-            hint="1–40% kept verbatim"
-            value={String(settingsDraft.compaction.customKeepRecentPercent)}
-            onValueChange={(value) =>
-              updateCustomCompactionPercent("customKeepRecentPercent", value)}
+            onValueChange={updateCustomTriggerPercent}
           />
         </div>
       {/if}

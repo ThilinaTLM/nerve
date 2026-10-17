@@ -17,6 +17,8 @@ export type CompactionNotice = {
   id: string;
   state: CompactionNoticeState;
   reason?: "manual" | "threshold" | "overflow";
+  /** Stop was requested; the server has not yet settled the operation. */
+  stopping?: boolean;
   entryId?: string;
   conversationId?: string;
   agentId?: string;

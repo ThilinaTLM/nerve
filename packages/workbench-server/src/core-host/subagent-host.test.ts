@@ -163,7 +163,6 @@ void test("initializeChild writes capabilities and a compaction override unless 
       auto: true,
       profile: "balanced",
       customTriggerPercent: 70,
-      customKeepRecentPercent: 15,
     },
   ]);
 });

@@ -48,6 +48,7 @@ import {
 } from "./runtime/conversation-runner.js";
 import { ModelTurn } from "./runtime/model-turn.js";
 import { recoverCore } from "./runtime/recovery.js";
+import { CompactionOperations } from "./runtime/compaction-operations.js";
 import { ConversationScheduler } from "./runtime/scheduler.js";
 import { openExecutionId, StatusService } from "./runtime/status.js";
 
@@ -91,6 +92,7 @@ export class ConversationCore {
     (result: ExecutionFinished) => void
   >();
   private readonly coreTools = new Map<string, CoreToolHandler>();
+  private readonly compactions: CompactionOperations;
   private readonly scheduler: ConversationScheduler;
   private readonly runner: ConversationRunner;
   private readonly modelTurn: ModelTurn;
@@ -152,6 +154,7 @@ export class ConversationCore {
       if (change.kind === "tool_call_changed" && "removed" in change.toolCall)
         queueMicrotask(() => this.scheduler?.wake(change.conversationId));
     };
+    this.compactions = new CompactionOperations(emit, now);
     this.assets = new AssetStore(options.dataDir, options.storage);
     this.inputs = new InputQueueService({
       storage: options.storage,
@@ -203,6 +206,7 @@ export class ConversationCore {
       emit,
       now,
       compactionSettings: options.compactionSettings,
+      compactions: this.compactions,
     });
     this.scheduler = new ConversationScheduler({
       storage: options.storage,
@@ -210,6 +214,7 @@ export class ConversationCore {
       toolCalls: this.toolCalls,
       asyncBash: this.asyncBash,
       runner: this.runner,
+      compactions: this.compactions,
       status: this.status,
       emit,
     });
@@ -221,6 +226,7 @@ export class ConversationCore {
       emit,
       now,
       defaultConfig: options.defaultConfig,
+      compactions: this.compactions,
       isExecuting: (id) => this.scheduler.isExecuting(id),
       stop: (id) => this.scheduler.stop(id),
       status: this.status,
@@ -397,6 +403,8 @@ export class ConversationCore {
   ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
     const input = submitInputRequestSchema.parse(request);
     this.inputs.assertAcceptsSource(input.conversationId, input.source);
+    if (input.source === "user")
+      this.compactions.assertIdle(input.conversationId);
     const inline =
       input.source === "user"
         ? parseInlineCommandPrompt(input.text)

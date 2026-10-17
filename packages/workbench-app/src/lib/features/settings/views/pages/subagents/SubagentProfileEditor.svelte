@@ -884,7 +884,7 @@ function shown(field: keyof typeof errors): string | undefined {
             />
           </SettingsRow>
           {#if form.compactionProfile === "custom"}
-            <div class="grid gap-3 py-1.5 sm:grid-cols-2">
+            <div class="grid gap-3 py-1.5">
               <SettingsFieldRow
                 id="profile-trigger"
                 label="Compact at"
@@ -899,22 +899,6 @@ function shown(field: keyof typeof errors): string | undefined {
                 onValueChange={(value) => {
                   pin("compaction");
                   form.triggerPercent = Number(value);
-                }}
-              />
-              <SettingsFieldRow
-                id="profile-keep"
-                label="Retain recent"
-                type="number"
-                min={1}
-                max={40}
-                step={1}
-                suffix="%"
-                hint="1–40% kept verbatim"
-                value={String(form.keepRecentPercent)}
-                disabled={saving}
-                onValueChange={(value) => {
-                  pin("compaction");
-                  form.keepRecentPercent = Number(value);
                 }}
               />
             </div>

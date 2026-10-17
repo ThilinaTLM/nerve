@@ -123,7 +123,12 @@ let tree = $state<EventTreeNode[]>([]);
 let composerText = $state("");
 let stopping = $state(false);
 let retryingResponse = $state(false);
-let compacting = $state(false);
+/**
+ * Brief acceptance window for a manual request: scoped to one conversation and
+ * the server revision seen at request time, so it never outlives the server's
+ * own operation record or leaks onto another viewed conversation.
+ */
+let compactRequest = $state<{ conversationId: string; base: number }>();
 let editTarget = $state<ConversationEntry>();
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
 function viewAgent(id: string | undefined) {
@@ -155,28 +160,44 @@ $effect(() => {
     return draft.text;
   });
   editTarget = undefined;
+  compactRequest = undefined;
   if (!id) return;
   const retained = retainConversationStore(id);
   leadStore = retained.store;
   void retained.ready.catch((e) => notify.error(String(e)));
   return retained.release;
 });
-const view = $derived(
+const transcript = $derived(
   store?.snapshot
+    ? conversationTranscript({
+        snapshot: store.snapshot,
+        events: store.events,
+        liveBlocks: store.liveBlocks,
+        toolOutput: store.toolOutput,
+        tree,
+      })
+    : undefined,
+);
+const view = $derived(
+  store?.snapshot && transcript
     ? {
-        ...conversationTranscript({
-          snapshot: store.snapshot,
-          events: store.events,
-          liveBlocks: store.liveBlocks,
-          toolOutput: store.toolOutput,
-          tree,
-        }),
-        stopping,
+        ...transcript,
+        stopping:
+          stopping || Boolean(transcript.transient?.compaction?.stopping),
         retryingResponse,
         responseRevision: store.responseRevision,
-        transient: compacting
-          ? { compaction: { id: "compact", state: "running" as const } }
-          : undefined,
+        transient:
+          compactRequest &&
+          compactRequest.conversationId === store.snapshot.conversation.id &&
+          (store.snapshot.compaction?.revision ?? 0) <= compactRequest.base
+            ? {
+                compaction: {
+                  id: "compaction-request",
+                  state: "running" as const,
+                  reason: "manual" as const,
+                },
+              }
+            : transcript.transient,
       }
     : undefined,
 );
@@ -448,11 +469,17 @@ async function retryActiveResponse() {
   }
 }
 async function compactActiveConversation() {
-  compacting = true;
+  const snapshot = store?.snapshot;
+  if (!store || !snapshot) return;
+  const request = {
+    conversationId: snapshot.conversation.id,
+    base: snapshot.compaction?.revision ?? 0,
+  };
+  compactRequest = request;
   try {
-    await store?.control("compact");
+    await store.control("compact");
   } finally {
-    compacting = false;
+    if (compactRequest === request) compactRequest = undefined;
   }
 }
 let openingSystemPrompt = false;

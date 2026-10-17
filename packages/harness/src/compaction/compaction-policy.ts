@@ -20,7 +20,6 @@ export interface AutoCompactionPolicy {
   profile: CompactionProfile;
   contextWindow: number;
   thresholdPercent: number;
-  keepRecentPercent: number;
   thresholdTokens: number;
   triggerReserveTokens: number;
   keepRecentTokens: number;
