@@ -465,14 +465,14 @@ function handleKeydown(event: KeyboardEvent): void {
   }}
   ondragleave={leaveTree}
 >
-  <div class="flex min-w-0 flex-col gap-1 py-0.5">
+  <div class="flex min-w-0 flex-col py-0.5">
     {#each rows as row (nodeKey(row.node))}
       {@const node = row.node}
       {@const key = nodeKey(node)}
       {@const target = drop?.rowKey === key ? drop.zone : undefined}
       <div
         class={cn(
-          "relative rounded-md transition-colors motion-reduce:transition-none",
+          "relative rounded-sm transition-colors motion-reduce:transition-none",
           dragged && key === nodeKey(dragged) && "opacity-50",
           target === "inside" && "bg-primary/10 ring-1 ring-primary ring-inset",
         )}
@@ -488,9 +488,9 @@ function handleKeydown(event: KeyboardEvent): void {
             aria-hidden="true"
             class={cn(
               "pointer-events-none absolute right-1 z-10 h-0.5 rounded-full bg-primary",
-              target === "before" ? "-top-0.5" : "-bottom-0.5",
+              target === "before" ? "-top-px" : "-bottom-px",
             )}
-            style:left={`calc(var(--spacing) * ${3 + lineDepth(row) * 3})`}
+            style:left={`calc(var(--spacing) * ${2 + lineDepth(row) * 3})`}
           ></div>
         {/if}
         {#if node.kind === "folder"}
@@ -540,7 +540,7 @@ function handleKeydown(event: KeyboardEvent): void {
     <div
       role="none"
       class={cn(
-        "mx-1 min-h-6 rounded-md transition-colors motion-reduce:transition-none",
+        "min-h-6 rounded-sm transition-colors motion-reduce:transition-none",
         drop?.rowKey === "root" &&
           "bg-primary/10 ring-1 ring-primary ring-inset",
       )}

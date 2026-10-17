@@ -11,11 +11,7 @@ import Terminal from "@lucide/svelte/icons/terminal";
 import Trash2 from "@lucide/svelte/icons/trash-2";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { ContextMenuItem } from "@nervekit/ui-kit/components/composites/context-menu-list";
-import {
-  PanelRow,
-  PanelRowCard,
-  PanelToolbarButton,
-} from "$lib/presentation/panels";
+import { PanelRow, PanelToolbarButton } from "$lib/presentation/panels";
 import { launchDefinitionLabel } from "./launch-panel-controller.js";
 import LaunchStatusIcon from "./LaunchStatusIcon.svelte";
 import type {
@@ -177,71 +173,70 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 });
 </script>
 
-<PanelRowCard selected={active} {menuItems}>
-  <PanelRow
-    label={label.text}
-    title={tooltip}
-    mono={label.isCommand}
-    tone={label.isCommand ? "neutral" : undefined}
-    disabled={!latest}
-    indent={depth}
-    role="treeitem"
-    ariaLevel={depth + 1}
-    ariaPosInSet={position}
-    ariaSetSize={setSize}
-    {tabindex}
-    contentTabindex={tabindex === undefined ? undefined : -1}
-    dataId={`definition:${entry.definition.id}`}
-    alwaysShowActions
-    {active}
-    onclick={() => latest && onOpen?.(latest.id)}
-  >
-    {#snippet leading()}
-      <LaunchStatusIcon {status} />
-    {/snippet}
-    {#snippet badges()}
-      {#if entry.activeRuns.length > 1}
-        <Badge variant="accent">{entry.activeRuns.length} running</Badge>
-      {/if}
-      {#if entry.runs.length > 1}
-        <Badge variant="neutral">
-          <History class="mr-1 size-3" />{entry.runs.length}
-        </Badge>
-      {/if}
-    {/snippet}
-    {#snippet actions()}
-      {#if activeRun?.status === "stopping"}
-        <PanelToolbarButton
-          icon={Skull}
-          label="Force kill launch"
-          dense
-          disabled={!capabilities.cancel}
-          onclick={() => onForceKill?.(activeRun.id)}
-        />
-      {:else if activeRun}
-        <PanelToolbarButton
-          icon={RotateCw}
-          label="Restart launch"
-          dense
-          disabled={!capabilities.restart}
-          onclick={() => onRestart?.(activeRun.id)}
-        />
-        <PanelToolbarButton
-          icon={Square}
-          label="Stop launch"
-          dense
-          disabled={!capabilities.cancel}
-          onclick={() => onCancel?.(activeRun.id)}
-        />
-      {:else if canStart}
-        <PanelToolbarButton
-          icon={Play}
-          label={runLabel}
-          dense
-          disabled={!capabilities.start}
-          onclick={() => onRun?.()}
-        />
-      {/if}
-    {/snippet}
-  </PanelRow>
-</PanelRowCard>
+<PanelRow
+  label={label.text}
+  title={tooltip}
+  mono={label.isCommand}
+  tone={label.isCommand ? "neutral" : undefined}
+  selected={active}
+  {menuItems}
+  indent={depth}
+  role="treeitem"
+  ariaLevel={depth + 1}
+  ariaPosInSet={position}
+  ariaSetSize={setSize}
+  {tabindex}
+  contentTabindex={tabindex === undefined ? undefined : -1}
+  dataId={`definition:${entry.definition.id}`}
+  alwaysShowActions
+  {active}
+  onclick={() => latest && onOpen?.(latest.id)}
+>
+  {#snippet leading()}
+    <LaunchStatusIcon {status} />
+  {/snippet}
+  {#snippet badges()}
+    {#if entry.activeRuns.length > 1}
+      <Badge variant="accent">{entry.activeRuns.length} running</Badge>
+    {/if}
+    {#if entry.runs.length > 1}
+      <Badge variant="neutral">
+        <History class="mr-1 size-3" />{entry.runs.length}
+      </Badge>
+    {/if}
+  {/snippet}
+  {#snippet actions()}
+    {#if activeRun?.status === "stopping"}
+      <PanelToolbarButton
+        icon={Skull}
+        label="Force kill launch"
+        dense
+        disabled={!capabilities.cancel}
+        onclick={() => onForceKill?.(activeRun.id)}
+      />
+    {:else if activeRun}
+      <PanelToolbarButton
+        icon={RotateCw}
+        label="Restart launch"
+        dense
+        disabled={!capabilities.restart}
+        onclick={() => onRestart?.(activeRun.id)}
+      />
+      <PanelToolbarButton
+        icon={Square}
+        label="Stop launch"
+        dense
+        disabled={!capabilities.cancel}
+        onclick={() => onCancel?.(activeRun.id)}
+      />
+    {:else if canStart}
+      <PanelToolbarButton
+        icon={Play}
+        label={runLabel}
+        dense
+        disabled={!capabilities.start}
+        onclick={() => onRun?.()}
+      />
+    {/if}
+  {/snippet}
+</PanelRow>

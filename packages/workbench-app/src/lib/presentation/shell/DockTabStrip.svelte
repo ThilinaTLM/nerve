@@ -301,12 +301,7 @@ const tourIdByView: Record<string, string> = {
           ondragend={finishDrag}
           onclick={() => onSelect?.(view.id)}
         >
-          <Icon
-            size={14}
-            strokeWidth={2.1}
-            class={activity ? "-translate-x-1 translate-y-1" : undefined}
-            aria-hidden="true"
-          />
+          <Icon size={14} strokeWidth={2.1} aria-hidden="true" />
           {#if activity}
             <Badge
               variant="accent"
