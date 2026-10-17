@@ -18,7 +18,7 @@ export {
   reorderCenterTab,
   selectCenterTab,
 } from "./center-tabs.svelte";
-export { composerDraft, selection } from "./selection.svelte";
+export { selection } from "./selection.svelte";
 export {
   createConversationForDirectory,
   deleteConversationAndRefresh,

@@ -1,3 +1,4 @@
+import { conversationDraftStore } from "./conversation-draft-store";
 import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { SvelteSet } from "svelte/reactivity";
@@ -193,7 +194,11 @@ export const workspaceSelectors = {
         ),
         projectDir: p.projectDir,
         active: activeTabMatches("pending-conversation", p.id),
-        hasDraft: !!p.composerText,
+        hasDraft: !!conversationDraftStore().getPrompt({
+          kind: "pending-conversation",
+          id: p.id,
+          projectId: p.projectId,
+        }),
         sending: p.sending,
         activity: idleConversationActivity,
         error: p.error,

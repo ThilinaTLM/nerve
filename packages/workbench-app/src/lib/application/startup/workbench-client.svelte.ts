@@ -24,6 +24,7 @@ import {
 } from "$lib/features/releases";
 import { loadWorkspaceState } from "$lib/application/workspace/workspace-actions.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
+import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import { closeCenterTabs } from "$lib/application/workspace/center-tab-actions.svelte";
 import { removeTabsFromAllSessions } from "$lib/application/workspace/workspace-tab-sessions";
 import {
@@ -72,6 +73,7 @@ export async function initializeWorkbench(): Promise<boolean> {
           ];
         } else if (notice.type === "conversation.deleted") {
           const id = notice.data.conversationId;
+          conversationDraftStore().clearPrompt({ kind: "conversation", id });
           workspaceState.conversations = workspaceState.conversations.filter(
             (row) => row.id !== id,
           );

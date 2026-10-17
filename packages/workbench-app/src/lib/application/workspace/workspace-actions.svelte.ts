@@ -1,3 +1,4 @@
+import { conversationDraftStore } from "./conversation-draft-store";
 import {
   pendingConversations,
   type PendingConversationState,
@@ -259,6 +260,10 @@ export async function updateConversationStateAndRefresh(
 export async function deleteConversationAndRefresh(conversationId: string) {
   try {
     await requestConversation("conversation.delete", { conversationId });
+    conversationDraftStore().clearPrompt({
+      kind: "conversation",
+      id: conversationId,
+    });
     removeTabsFromAllSessions(
       (tab) => tab.kind === "conversation" && tab.id === conversationId,
     );
@@ -334,7 +339,11 @@ async function createConversationForProject(
     throw new Error(
       "Choose a model in settings before creating a conversation",
     );
-  const id = crypto.randomUUID();
+  const restoredDraft = conversationDraftStore().restorablePendingPrompt(
+    project.id,
+    pendingConversations.keys(),
+  );
+  const id = restoredDraft?.id ?? crypto.randomUUID();
   const config = {
     model,
     reasoningLevel: defaults.selectedThinkingLevel,
@@ -349,7 +358,6 @@ async function createConversationForProject(
     projectId: project.id,
     projectDir: project.directory,
     title: "New Conversation",
-    composerText: "",
     selectedModelKey: defaults.selectedModelKey,
     thinkingLevel: config.reasoningLevel,
     mode: config.mode,
