@@ -1,4 +1,5 @@
 <script lang="ts">
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { WorkbenchShell } from "$lib/presentation/shell";
 import MobileWorkbenchHost from "$lib/app/shell/mobile/MobileWorkbenchHost.svelte";
 import DesktopShutdownOverlay from "$lib/app/shell/DesktopShutdownOverlay.svelte";
@@ -50,17 +51,23 @@ const descriptors = $derived(
       : descriptor,
   ),
 );
-onDestroy(() => maintenance.dispose());
+onDestroy(() => {
+  maintenance.dispose();
+  activityInbox.dispose();
+});
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   maintenance.start();
+  activityInbox.start();
 });
 $effect(() => {
   if (
     workbenchStartupState.progressiveActive &&
     workspaceState.connection === "connected"
-  )
+  ) {
     maintenance.reconnect();
+    void activityInbox.reconnect();
+  }
 });
 
 // Phones get their own shell; compact tablets keep the dock-and-sheet layout.

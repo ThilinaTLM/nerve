@@ -1,4 +1,6 @@
 <script lang="ts">
+import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
@@ -169,7 +171,19 @@ async function handleDesktopClose() {
   onMinimize={() => void minimizeDesktopWindow()}
   onToggleMaximize={() => void toggleMaximizeDesktopWindow()}
   onClose={() => void handleDesktopClose()}
-/>
+>
+  {#snippet activity()}
+    <ActivityPopover
+      activities={activityInbox.activities}
+      error={activityInbox.error}
+      unseenFailure={activityInbox.unseenFailure}
+      open={activityInbox.open}
+      onOpenChange={activityInbox.setOpen}
+      onAction={(kind, id) => void activityInbox.action(kind, id)}
+      onClear={() => void activityInbox.clear()}
+    />
+  {/snippet}
+</Titlebar>
 
 <AlertDialog
   open={pendingDelete?.kind === "project"}

@@ -1,3 +1,4 @@
+import { activityMethodHandlers } from "./handlers/activity-method-handlers.js";
 import { isWorkbenchOperation } from "@nervekit/contracts/events";
 import { allOperationDefinitions } from "@nervekit/contracts/operations";
 import type { OperationHandlerRegistry } from "@nervekit/protocol/server";
@@ -26,6 +27,12 @@ export function bindWorkbenchOperationHandlers(
   invocation: WorkbenchInvocationContext = {},
 ): Partial<OperationHandlerRegistry> {
   return combineWorkbenchMethodHandlerGroups([
+    bindWorkbenchMethodHandlerGroup(
+      activityMethodHandlers,
+      contexts.activity,
+      diagnostics,
+      invocation,
+    ),
     bindWorkbenchMethodHandlerGroup(
       platformMethodHandlers,
       contexts.platform,

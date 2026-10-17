@@ -1,3 +1,4 @@
+import { activityEventDefinitions } from "../domains/activity/events.js";
 import { promptSuggestionEventDefinitions } from "../domains/prompt-suggestions/events.js";
 import { subagentProfileEventDefinitions } from "../domains/subagents/events.js";
 import { conversationChannelEvents } from "../domains/core/channel.js";
@@ -39,6 +40,7 @@ const definitions: PublicEventDefinition[] = [
   ...authEventDefinitions,
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,
+  ...activityEventDefinitions,
   ...usageEventDefinitions,
 ];
 

@@ -1,3 +1,4 @@
+import { activityOperationDefinitions } from "../domains/activity/activity-operations.js";
 import { promptSuggestionsOperationDefinitions } from "../domains/prompt-suggestions/operations.js";
 import { subagentProfilesOperationDefinitions } from "../domains/subagents/subagent-profile-operations.js";
 import { conversationChannelOperations } from "../domains/core/channel.js";
@@ -29,6 +30,7 @@ const methodDefinitions = [
   ...promptSuggestionsOperationDefinitions,
   ...subagentProfilesOperationDefinitions,
   ...maintenanceOperationDefinitions,
+  ...activityOperationDefinitions,
   ...authOperationDefinitions,
   ...completionsOperationDefinitions,
   ...filesystemOperationDefinitions,

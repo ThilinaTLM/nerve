@@ -1,3 +1,5 @@
+import type { ActivityService } from "../../domains/activity/activity.service.js";
+import { MaintenanceActivityProducer } from "../../domains/activity/maintenance-activity-producer.js";
 import { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import { MaintenanceRepository } from "../../domains/maintenance/maintenance.repository.js";
 import { type MaintenanceExecution } from "../../domains/maintenance/maintenance-execution.js";
@@ -68,6 +70,7 @@ export interface ServerRuntime {
   adapterContexts: ServerAdapterContexts;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
+  activities: ActivityService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
@@ -185,10 +188,17 @@ export function composeServerRuntime(
         pruneConversationsAcrossProjects(services, request, execution),
     }),
   });
+  const activities = services.activities;
+  const maintenanceActivities = new MaintenanceActivityProducer(
+    activities,
+    (id) => maintenance.cancel(id),
+  );
   const maintenance = new MaintenanceService({
     repository: new MaintenanceRepository(),
-    publish: (operation) =>
-      events.publish("maintenance.updated", { operation }),
+    publish: (operation) => {
+      maintenanceActivities.report(operation);
+      return events.publish("maintenance.updated", { operation });
+    },
     getProject: (id) => {
       const project = services.conversationCore.projects.get(id);
       if (!project) throw new Error("Project not found");
@@ -233,6 +243,7 @@ export function composeServerRuntime(
     applicationLogsEnabled: options.applicationLogsEnabled ?? false,
     storageUsage,
     maintenance,
+    activities,
     latestRelease,
     secrets,
     auth,
@@ -259,6 +270,7 @@ export function composeServerRuntime(
     adapterContexts: createServerAdapterContexts(services, infrastructure),
     storageUsage,
     maintenance,
+    activities,
     latestRelease,
     secrets,
     auth,
@@ -331,6 +343,7 @@ export async function shutdownServerRuntime(
   shutdownStates.add(state);
   await state.maintenance.shutdown();
   await state.lifecycle.shutdown();
+  state.activities.dispose();
   await state.agentBrowserSkills.shutdown().catch(() => undefined);
   state.subscriptionUsage.stop();
   await state.logger.flush();

@@ -1,3 +1,4 @@
+import { ActivityService } from "../../domains/activity/activity.service.js";
 import {
   PromptSuggestionService,
   PromptSuggestionTrustRepository,
@@ -50,6 +51,9 @@ export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   const { storage, events, auth, logger } = deps;
+  const activities = new ActivityService((activity, removed) =>
+    events.publish("activity.updated", { activity, removed }),
+  );
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
@@ -145,6 +149,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     },
   });
   return {
+    activities,
     subagentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,

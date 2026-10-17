@@ -1,3 +1,4 @@
+import type { ActivityService } from "../../domains/activity/activity.service.js";
 import type { MaintenanceService } from "../../domains/maintenance/maintenance.service.js";
 import type { ApplicationConfigurationSnapshot } from "@nervekit/contracts/settings";
 import type { NerveSkillCatalog } from "@nervekit/skills";
@@ -30,6 +31,7 @@ interface AdapterInfrastructure {
   applicationLogsEnabled: boolean;
   storageUsage: StorageUsageService;
   maintenance: MaintenanceService;
+  activities: ActivityService;
   latestRelease: LatestReleaseService;
   secrets: SecretProvider;
   auth: AuthManager;
@@ -55,6 +57,7 @@ export function createServerAdapterContexts(
     return project;
   };
   const protocol = {
+    activity: { activities: infrastructure.activities },
     platform: {
       ...infrastructure,
       conversationCore: services.conversationCore,
