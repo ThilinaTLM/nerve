@@ -43,6 +43,7 @@ let {
   capabilities,
   activeItemKey,
   canEditCatalog,
+  projectId,
   catalogRevision,
   onOpen,
   onRun,
@@ -65,6 +66,8 @@ let {
   activeItemKey?: string;
   /** Structural edits need manage capability and a valid catalog revision. */
   canEditCatalog: boolean;
+  /** Copied projects can share IDs and revisions; identity is project-qualified. */
+  projectId?: string;
   /** Revision of the snapshot `nodes` was built from. */
   catalogRevision?: string;
   onOpen: (launchId: string) => void;
@@ -91,6 +94,7 @@ let root = $state<HTMLElement | null>(null);
 let dragged = $state<LaunchCatalogEntryRef>();
 // Revision the drag intent was captured against; submitted with the drop.
 let dragRevision: string | undefined;
+let dragProjectId: string | undefined;
 let drop = $state<{
   rowKey: string | "root";
   zone: LaunchDropZone;
@@ -154,14 +158,17 @@ function submitMove(
   if (plan.destinationFolderId) collapsed.delete(plan.destinationFolderId);
   // Failures are already reported by the action layer; a rejected move
   // simply leaves the tree as the refreshed catalog shows it.
-  void Promise.resolve(
-    onMove({
-      ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      entry: ref,
-      destinationFolderId: plan.destinationFolderId,
-      beforeSibling: plan.beforeSibling,
-    }),
-  ).catch(() => undefined);
+  // Deferring the call also catches a synchronous throw from the handler.
+  void Promise.resolve()
+    .then(() =>
+      onMove({
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+        entry: ref,
+        destinationFolderId: plan.destinationFolderId,
+        beforeSibling: plan.beforeSibling,
+      }),
+    )
+    .catch(() => undefined);
 }
 
 function moveItems(node: LaunchTreeNode): ContextMenuItem[] {
@@ -280,6 +287,7 @@ function startDrag(event: DragEvent, node: LaunchTreeNode): void {
   if (!dragEnabled || !event.dataTransfer) return event.preventDefault();
   dragged = { kind: node.kind, id: node.id };
   dragRevision = catalogRevision;
+  dragProjectId = projectId;
   event.dataTransfer.effectAllowed = "move";
   event.dataTransfer.setData("text/plain", node.id);
 }
@@ -287,7 +295,12 @@ function startDrag(event: DragEvent, node: LaunchTreeNode): void {
 // The catalog changed under an in-flight drag: the previewed placement was
 // computed from an older tree, so cancel it rather than replay it elsewhere.
 $effect(() => {
-  if (dragged && (!canEditCatalog || catalogRevision !== dragRevision))
+  if (
+    dragged &&
+    (!canEditCatalog ||
+      catalogRevision !== dragRevision ||
+      projectId !== dragProjectId)
+  )
     endDrag();
 });
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+import { untrack } from "svelte";
 import ListTodo from "@lucide/svelte/icons/list-todo";
 import FolderPlus from "@lucide/svelte/icons/folder-plus";
 import Plus from "@lucide/svelte/icons/plus";
@@ -100,6 +101,9 @@ type FolderDialogSession =
 let folderDialog = $state<FolderDialogSession | undefined>();
 let deleteFolder = $state<LaunchFolder | undefined>();
 let saving = $state(false);
+// `saving` is shared by every dialog. Each save and each project reset takes a
+// new generation, and only the latest generation may clear the busy flag.
+let saveGeneration = 0;
 let confirmPruneOpen = $state(false);
 let forceKillLaunch = $state<LaunchRecord | undefined>();
 let deleteDefinition = $state<LaunchPanelDefinition | undefined>();
@@ -134,12 +138,32 @@ const capabilities = $derived<LaunchEntryCapabilities>({
   manageDefinitions: canEditCatalog,
 });
 
+// Dialogs and confirmations hold raw folder/definition IDs that a copied
+// project can share, so they never survive a project switch.
+let lastProjectId = untrack(() => model.projectId);
+$effect(() => {
+  const projectId = model.projectId;
+  if (projectId === lastProjectId) return;
+  lastProjectId = projectId;
+  launchDialog = undefined;
+  folderDialog = undefined;
+  deleteFolder = undefined;
+  deleteDefinition = undefined;
+  forceKillLaunch = undefined;
+  cleanupRunIds = [];
+  confirmPruneOpen = false;
+  runsDialogOpen = false;
+  saveGeneration += 1;
+  saving = false;
+});
+
 async function saveDefinition(
   input: UpdateLaunchDefinitionRequest,
   parentFolderId: string | null,
 ): Promise<void> {
   const session = launchDialog;
   if (!session) return;
+  const generation = ++saveGeneration;
   saving = true;
   try {
     if (session.kind === "edit") {
@@ -154,11 +178,12 @@ async function saveDefinition(
           : {}),
       });
     }
-    launchDialog = undefined;
+    // A newer dialog (or project switch) must not be closed by this save.
+    if (launchDialog === session) launchDialog = undefined;
   } catch {
     // The action layer already notified; keep the dialog open to retry.
   } finally {
-    saving = false;
+    if (generation === saveGeneration) saving = false;
   }
 }
 
@@ -198,17 +223,18 @@ async function saveFolder(
 ): Promise<void> {
   const session = folderDialog;
   if (!session) return;
+  const generation = ++saveGeneration;
   saving = true;
   try {
     if (session.kind === "rename")
       await panelActions.renameFolder(session.folder, label);
     else await panelActions.createFolder({ label, parentFolderId });
-    folderDialog = undefined;
+    if (folderDialog === session) folderDialog = undefined;
   } catch {
     // The action layer already notified (e.g. a name conflict); keep the
     // dialog open so the name can be corrected.
   } finally {
-    saving = false;
+    if (generation === saveGeneration) saving = false;
   }
 }
 
@@ -296,32 +322,38 @@ function rerunDefinition(entry: { definition?: LaunchPanelDefinition }): void {
           {/snippet}
         </PanelEmpty>
       {:else}
-        <LaunchDefinitionTree
-          nodes={tree}
-          {capabilities}
-          {activeItemKey}
-          {canEditCatalog}
-          catalogRevision={model.catalogRevision}
-          onOpen={(id) => void panelActions.openLaunchOutput(id)}
-          onRun={(definition) => void panelActions.runDefinition(definition)}
-          onCancel={(id) => void panelActions.cancelLaunch(id)}
-          onForceKill={requestForceKill}
-          onRestart={(id) => void panelActions.restartLaunch(id)}
-          onEdit={(definition) => (launchDialog = { kind: "edit", definition })}
-          onDuplicate={(definition) =>
-            (launchDialog = { kind: "duplicate", definition })}
-          onDelete={(definition) => (deleteDefinition = definition)}
-          onCleanupRuns={(ids) => (cleanupRunIds = ids)}
-          onCopy={(text) => void panelActions.copyText(text)}
-          onMove={(request) => panelActions.moveEntry(request)}
-          onNewLaunch={(parentFolderId) =>
-            (launchDialog = { kind: "create", parentFolderId })}
-          onNewFolder={(parentFolderId) =>
-            (folderDialog = { kind: "create", parentFolderId })}
-          onRenameFolder={(folder) =>
-            (folderDialog = { kind: "rename", folder })}
-          onDeleteFolder={(folder) => (deleteFolder = folder)}
-        />
+        <!-- Re-key per project: copied catalogs share IDs, so open menus,
+             focus, collapse state, and drags must not carry over. -->
+        {#key model.projectId}
+          <LaunchDefinitionTree
+            nodes={tree}
+            {capabilities}
+            {activeItemKey}
+            {canEditCatalog}
+            projectId={model.projectId}
+            catalogRevision={model.catalogRevision}
+            onOpen={(id) => void panelActions.openLaunchOutput(id)}
+            onRun={(definition) => void panelActions.runDefinition(definition)}
+            onCancel={(id) => void panelActions.cancelLaunch(id)}
+            onForceKill={requestForceKill}
+            onRestart={(id) => void panelActions.restartLaunch(id)}
+            onEdit={(definition) =>
+              (launchDialog = { kind: "edit", definition })}
+            onDuplicate={(definition) =>
+              (launchDialog = { kind: "duplicate", definition })}
+            onDelete={(definition) => (deleteDefinition = definition)}
+            onCleanupRuns={(ids) => (cleanupRunIds = ids)}
+            onCopy={(text) => void panelActions.copyText(text)}
+            onMove={(request) => panelActions.moveEntry(request)}
+            onNewLaunch={(parentFolderId) =>
+              (launchDialog = { kind: "create", parentFolderId })}
+            onNewFolder={(parentFolderId) =>
+              (folderDialog = { kind: "create", parentFolderId })}
+            onRenameFolder={(folder) =>
+              (folderDialog = { kind: "rename", folder })}
+            onDeleteFolder={(folder) => (deleteFolder = folder)}
+          />
+        {/key}
       {/if}
     </div>
 

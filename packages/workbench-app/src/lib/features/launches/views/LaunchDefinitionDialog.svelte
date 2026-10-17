@@ -126,7 +126,6 @@ function submit() {
             })),
           ]}
           disabled={saving}
-          triggerClass="h-7 px-2 text-xs"
         />
       </div>
     {/if}
