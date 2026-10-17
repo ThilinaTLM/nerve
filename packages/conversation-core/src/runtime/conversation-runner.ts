@@ -5,6 +5,7 @@ import { createId } from "@nervekit/contracts";
 import {
   assistantMessagePayloadSchema,
   type ConversationEvent,
+  type CompactionOperation,
 } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
@@ -19,6 +20,7 @@ import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { ModelPort } from "../ports.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { ToolCallService } from "../tool-calls/tool-call.service.js";
+import type { CompactionOperations } from "./compaction-operations.js";
 import type { CoreEmitter } from "./core-change.js";
 import type { ModelTurn } from "./model-turn.js";
 import type { StatusService } from "./status.js";
@@ -43,6 +45,7 @@ export class ConversationRunner {
       modelTurn: ModelTurn;
       status: StatusService;
       emit: CoreEmitter;
+      compactions: CompactionOperations;
       now(): string;
       compactionSettings?(
         conversationId: string,
@@ -54,54 +57,101 @@ export class ConversationRunner {
       .pathFromHead(id, { limit: Number.MAX_SAFE_INTEGER })
       .reverse();
   }
-  async compact(id: string, signal: AbortSignal): Promise<ModelSelection> {
-    const storedConfig = this.options.storage.conversations.getConfig(id);
-    if (!storedConfig) throw new Error("Conversation not found");
-    const config = structuredClone(storedConfig);
-    const resolved = structuredClone(
-      await abortable(
-        this.options.models.resolve(structuredClone(config.model)),
+  async compact(
+    id: string,
+    signal: AbortSignal,
+    lifecycle: {
+      reason: CompactionOperation["reason"];
+      executionId?: string;
+      operation?: CompactionOperation;
+    } = { reason: "manual" },
+  ): Promise<ModelSelection> {
+    const operation =
+      lifecycle.operation ??
+      this.options.compactions.start(
+        id,
+        lifecycle.reason,
+        this.options.storage.conversations.get(id)?.headEventId ?? null,
+        lifecycle.executionId,
+      );
+    const stopping = () => this.options.compactions.stopping(id, operation.id);
+    signal.addEventListener("abort", stopping, { once: true });
+    let committed = false;
+    try {
+      signal.throwIfAborted();
+      const storedConfig = this.options.storage.conversations.getConfig(id);
+      if (!storedConfig) throw new Error("Conversation not found");
+      const config = structuredClone(storedConfig);
+      const resolved = structuredClone(
+        await abortable(
+          this.options.models.resolve(structuredClone(config.model)),
+          signal,
+        ),
+      );
+      const autoSettings = structuredClone(
+        await abortable(
+          Promise.resolve(this.options.compactionSettings?.(id)),
+          signal,
+        ),
+      );
+      const path = this.path(id);
+      const projectionOptions = this.options.assets
+        ? await loadProjectionOptions(path, this.options.assets)
+        : {};
+      const payload = await abortable(
+        runCompaction({
+          path,
+          ...projectionOptions,
+          ...resolved,
+          reasoningLevel: config.reasoningLevel,
+          autoSettings,
+          signal,
+          onProgress: (progress) => {
+            if (!signal.aborted)
+              this.options.compactions.progress(id, operation.id, progress);
+          },
+        }),
         signal,
-      ),
-    );
-    const autoSettings = structuredClone(
-      await abortable(
-        Promise.resolve(this.options.compactionSettings?.(id)),
-        signal,
-      ),
-    );
-    const path = this.path(id);
-    const projectionOptions = this.options.assets
-      ? await loadProjectionOptions(path, this.options.assets)
-      : {};
-    const payload = await abortable(
-      runCompaction({
-        path,
-        ...projectionOptions,
-        ...resolved,
-        reasoningLevel: config.reasoningLevel,
-        autoSettings,
-        signal,
-      }),
-      signal,
-    );
-    signal.throwIfAborted();
-    const event = this.options.storage.transaction(() => {
-      const appended = this.options.storage.events.append({
-        id: createId("evt"),
-        conversationId: id,
-        type: "compaction",
-        llmRepresentation: "user",
-        turnId: null,
-        inputId: null,
-        payload,
-        createdAt: this.options.now(),
+      );
+      signal.throwIfAborted();
+      const event = this.options.storage.transaction(() => {
+        const appended = this.options.storage.events.append({
+          id: operation.id,
+          conversationId: id,
+          type: "compaction",
+          llmRepresentation: "user",
+          turnId: null,
+          inputId: null,
+          payload,
+          createdAt: this.options.now(),
+        });
+        this.options.status.refresh(id);
+        return appended;
       });
-      this.options.status.refresh(id);
-      return appended;
-    });
-    this.options.emit({ kind: "event_appended", conversationId: id, event });
-    return config.model;
+      committed = true;
+      this.options.emit({ kind: "event_appended", conversationId: id, event });
+      this.options.compactions.settle(id, operation.id, {
+        status: "completed",
+        summary: payload.summary,
+      });
+      return config.model;
+    } catch (error) {
+      if (!committed)
+        this.options.compactions.settle(
+          id,
+          operation.id,
+          signal.aborted
+            ? { status: "cancelled" }
+            : {
+                status: "failed",
+                errorMessage:
+                  error instanceof Error ? error.message : String(error),
+              },
+        );
+      throw error;
+    } finally {
+      signal.removeEventListener("abort", stopping);
+    }
   }
   async run(
     id: string,
@@ -186,7 +236,10 @@ export class ConversationRunner {
                 autoSettings,
               )
             ) {
-              compactedModel = await this.compact(id, signal);
+              compactedModel = await this.compact(id, signal, {
+                reason: "threshold",
+                executionId,
+              });
               continue;
             }
             compactedModel = undefined;
@@ -199,7 +252,10 @@ export class ConversationRunner {
               !overflowRetried
             ) {
               overflowRetried = true;
-              compactedModel = await this.compact(id, signal);
+              compactedModel = await this.compact(id, signal, {
+                reason: "overflow",
+                executionId,
+              });
               continue;
             }
             if (

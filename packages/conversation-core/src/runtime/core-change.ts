@@ -1,5 +1,6 @@
 import type {
   AsyncBash,
+  CompactionOperation,
   ConversationConfig,
   ConversationEvent,
   ConversationSummary,
@@ -9,6 +10,11 @@ import type {
 } from "@nervekit/contracts/core";
 
 export type CoreChange =
+  | {
+      kind: "compaction_changed";
+      conversationId: string;
+      compaction: CompactionOperation;
+    }
   | { kind: "event_appended"; conversationId: string; event: ConversationEvent }
   | { kind: "head_changed"; conversationId: string; headEventId: string | null }
   | { kind: "conversation_changed"; summary: ConversationSummary }

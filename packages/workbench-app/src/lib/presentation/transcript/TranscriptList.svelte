@@ -180,19 +180,13 @@ const prefixRows = $derived.by<PrefixRows>(() => {
   return { revision: prefixRevision, rows, seenKeys };
 });
 const tailDisplayNodes = $derived(groupConsecutiveThinking(timelineTail));
-const prefixCompactionRunning = $derived(
-  timelinePrefix.some(
-    (item) => item.kind === "compaction" && item.notice.state === "running",
-  ),
-);
-const tailCompactionRunning = $derived(
-  timelineTail.some(
-    (item) => item.kind === "compaction" && item.notice.state === "running",
-  ),
-);
-const compactionRunning = $derived(
-  prefixCompactionRunning || tailCompactionRunning,
-);
+const compactionActivity = $derived.by(() => {
+  for (const item of [...timelineTail, ...timelinePrefix].reverse()) {
+    if (item.kind !== "compaction" || item.notice.state !== "running") continue;
+    return item.notice.stopping ? ("stopping" as const) : ("running" as const);
+  }
+  return undefined;
+});
 const runActivityTracker = createRunActivityTracker(() => ({
   sending,
   activeRun: runActivity.activeRun,
@@ -200,7 +194,7 @@ const runActivityTracker = createRunActivityTracker(() => ({
   stopping: runActivity.stopping,
   pending: runActivity.pending,
   responseRevision: runActivity.responseRevision,
-  compactionRunning,
+  compaction: compactionActivity,
   tail: timelineTail.at(-1) ?? timelinePrefix.at(-1),
 }));
 const activityMounted = $derived(runActivityTracker.view.mounted);

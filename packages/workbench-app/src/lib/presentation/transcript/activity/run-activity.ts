@@ -68,7 +68,8 @@ export type RunActivityInput = {
   activeRun?: ConversationActiveRunSnapshot;
   lastRunOutcome?: ConversationRunOutcome;
   stopping: boolean;
-  compactionRunning: boolean;
+  /** Authoritative checkpoint operation in flight, if any. */
+  compaction?: "running" | "stopping";
   /** Last rendered timeline item (prefix + tail). */
   tail?: TimelineItem;
   nowMs: number;
@@ -203,16 +204,42 @@ function waitingView(
   };
 }
 
+/**
+ * Compaction owns the slot while the server reports it in flight. An
+ * automatic one keeps the conversation's run clock; a manual one has no run,
+ * so it shows no timer at all.
+ */
+function compactionView(input: RunActivityInput): RunActivityView {
+  const run = input.activeRun;
+  const stopping = input.compaction === "stopping";
+  const runStart = parseMs(run?.startedAt) ?? input.runSeenAtMs;
+  const runElapsed = Math.max(0, input.nowMs - runStart);
+  return {
+    mounted: true,
+    open: true,
+    kind: "active",
+    labelKey: stopping ? "compaction-stopping" : "compaction",
+    label: stopping ? "Stopping compaction…" : "Compacting context…",
+    tone: "neutral",
+    spinnerRate: 1,
+    elapsedLabel:
+      run && run.status !== "interrupted" && runElapsed >= TIMER_AFTER_MS
+        ? formatElapsed(runElapsed)
+        : undefined,
+  };
+}
+
 /** Pure projection of run state into the tail activity slot. */
 export function deriveRunActivity(input: RunActivityInput): RunActivityView {
   const run = input.activeRun;
   const active = input.sending || Boolean(run && run.status !== "interrupted");
+  if (input.compaction) return compactionView(input);
   if (!active) {
-    return input.pending?.length && !input.compactionRunning
+    return input.pending?.length
       ? waitingView(input, input.pending)
       : finishedView(input);
   }
-  if (input.compactionRunning || run?.status === "interrupted") return HIDDEN;
+  if (run?.status === "interrupted") return HIDDEN;
 
   const now = input.nowMs;
   const runStart = parseMs(run?.startedAt) ?? input.runSeenAtMs;

@@ -49,9 +49,9 @@ const contextPercent = $derived.by(() => {
  * Trailing lines of the checkpoint: the live draft while summarizing, and the
  * committed summary once done, so the body never jumps at completion.
  */
+const draftText = $derived(notice.summaryPreview?.trimEnd() ?? "");
 const previewText = $derived.by(() => {
-  if (notice.state === "running") return notice.summaryPreview?.trimEnd() ?? "";
-  if (notice.state !== "completed") return "";
+  if (notice.state !== "completed") return draftText;
   const summary = (notice.summary ?? notice.text ?? "").trimEnd();
   if (!summary) return "";
   return splitLogicalLines(summary).slice(-COLLAPSED_LINES).join("\n");
@@ -71,32 +71,6 @@ const summaryDetails = $derived.by(() => {
       }
     : undefined;
 });
-
-let now = $state(Date.now());
-$effect(() => {
-  if (notice.state !== "running") return;
-  const interval = setInterval(() => {
-    now = Date.now();
-  }, 250);
-  return () => clearInterval(interval);
-});
-
-const startedAtMs = $derived(
-  notice.createdAt ? Date.parse(notice.createdAt) : Number.NaN,
-);
-const elapsedSeconds = $derived.by(() => {
-  if (notice.state !== "running" || Number.isNaN(startedAtMs)) return undefined;
-  return Math.max(0, Math.floor((now - startedAtMs) / 1000));
-});
-const elapsedLabel = $derived(
-  elapsedSeconds === undefined
-    ? undefined
-    : `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, "0")}`,
-);
-// Delay appearance so an instant compaction does not flash a "0:00".
-const showElapsed = $derived(
-  elapsedSeconds !== undefined && elapsedSeconds >= 1,
-);
 
 const completedChips = $derived.by<NoticeChip[]>(() => {
   const items: NoticeChip[] = [];
@@ -136,18 +110,18 @@ const runningChips = $derived.by<NoticeChip[]>(() => {
   if (typeof notice.generatedLines === "number" && notice.generatedLines > 0) {
     items.push({ text: `${notice.generatedLines} lines` });
   }
-  if (showElapsed && elapsedLabel) {
-    items.push({ text: elapsedLabel });
-  }
   return items;
 });
 
+const draftChips = $derived.by<NoticeChip[]>(() =>
+  draftText ? [{ text: "uncommitted draft", tone: "warning" }] : [],
+);
 const chips = $derived(
   notice.state === "completed"
     ? completedChips
     : notice.state === "running"
       ? runningChips
-      : [],
+      : draftChips,
 );
 
 const errorMessage = $derived(
@@ -158,9 +132,13 @@ const errorMessage = $derived(
 
 const summary = $derived.by(() => {
   if (notice.state === "running" && !previewText) {
-    return "Summarizing recent work…";
+    return notice.stopping
+      ? "Stopping compaction…"
+      : "Summarizing recent work…";
   }
-  if (notice.state === "cancelled") return "Compaction stopped early.";
+  if (notice.state === "cancelled") {
+    return "Compaction stopped early. Conversation history is unchanged.";
+  }
   if (notice.state === "failed" && notice.code) {
     return (
       notice.errorMessage?.trim() || "Could not compact this conversation."
@@ -212,6 +190,10 @@ const layoutRevision = $derived(
     wrap
     overflow="hidden"
     tail
+    live={notice.state === "running"}
+    caret={notice.state === "running" && !notice.stopping}
+    streamMotion={notice.state === "running"}
+    progressiveHighlight
     fixedRows={COLLAPSED_LINES}
   />
 </NoticeCard>

@@ -1,3 +1,4 @@
+import type { CompactionOperation } from "@nervekit/contracts/core";
 import type { ConversationEntry } from "$lib/presentation/view-models/conversation";
 import { failureCategory } from "$lib/presentation/view-models/failure-category";
 import type {
@@ -114,6 +115,54 @@ function compactionNotice(
     details: entry.details,
     createdAt: entry.createdAt,
     completedAt: entry.createdAt,
+  };
+}
+
+/**
+ * Project the authoritative runtime operation into the transient notice. The
+ * operation id is the committed event id, so the durable card replaces this one
+ * by identity. A failed or cancelled draft belongs to the branch it began on and
+ * is dropped once the selected head moves away.
+ */
+export function compactionOperationNotice(
+  operation: CompactionOperation | null | undefined,
+  context: {
+    conversationId: string;
+    headEventId?: string | null;
+    /** Event ids on the selected path; when given, the start head need only stay on it. */
+    pathEventIds?: ReadonlySet<string>;
+  },
+): CompactionNotice | undefined {
+  if (!operation) return undefined;
+  // Completed operations are represented by its durable event (same id), which
+  // the server publishes first; the runtime record never renders on its own, so
+  // it cannot resurface a checkpoint on a branch that excludes it.
+  if (operation.status === "completed") return undefined;
+  // Failed/cancelled drafts stay on the branch they started from.
+  const head = context.headEventId ?? null;
+  if (operation.status !== "running" && operation.status !== "stopping") {
+    const onPath =
+      head === operation.headEventId ||
+      (context.pathEventIds !== undefined &&
+        (operation.headEventId === null ||
+          context.pathEventIds.has(operation.headEventId)));
+    if (!onPath) return undefined;
+  }
+  const preview = operation.summaryPreview;
+  return {
+    id: operation.id,
+    state: operation.status === "stopping" ? "running" : operation.status,
+    reason: operation.reason,
+    conversationId: context.conversationId,
+    ...(operation.status === "stopping" ? { stopping: true } : {}),
+    ...(operation.eventId ? { entryId: operation.eventId } : {}),
+    ...(operation.errorMessage ? { errorMessage: operation.errorMessage } : {}),
+    summaryPreview: preview,
+    previewSequence: operation.revision,
+    generatedChars: preview.length,
+    generatedLines: preview ? preview.split("\n").length : 0,
+    createdAt: operation.startedAt,
+    ...(operation.endedAt ? { completedAt: operation.endedAt } : {}),
   };
 }
 

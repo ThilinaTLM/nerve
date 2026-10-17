@@ -30,6 +30,36 @@ describe("conversation event content profile", () => {
         assert.deepEqual(parsed.payload.content, content);
     });
   }
+  it("accepts bounded checkpoint progress as content, not metadata", () => {
+    const compaction = {
+      id: "evt_compaction",
+      revision: 2,
+      reason: "manual",
+      status: "running",
+      startedAt: "2026-10-17T14:00:00.000Z",
+      headEventId: "evt_head",
+      attempt: 1,
+      summaryPreview: "x".repeat(65_536),
+    };
+    const data = { conversationId: "conv_test", compaction };
+    assert.deepEqual(
+      conversationChannelEventSchemas["conversation.compaction"].parse(
+        validatePublicEvent(
+          "conversation.compaction",
+          data,
+          "workbench_server",
+        ),
+      ),
+      data,
+    );
+    assert.equal(
+      conversationChannelEventSchemas["conversation.compaction"].safeParse({
+        ...data,
+        compaction: { ...compaction, summaryPreview: "x".repeat(65_537) },
+      }).success,
+      false,
+    );
+  });
   it("still enforces a total byte ceiling for content events", () => {
     assert.throws(
       () =>

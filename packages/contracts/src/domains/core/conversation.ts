@@ -5,6 +5,7 @@ import { subagentInstructionsSchema } from "../subagents/constants.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
+import { compactionOperationSchema } from "./compaction-operation.js";
 
 export const conversationStatusSchema = z.enum([
   "idle",
@@ -65,6 +66,8 @@ export const conversationSnapshotSchema = z.object({
   queue: z.array(queuedInputSchema),
   asyncBash: z.array(asyncBashSchema),
   children: z.array(conversationSummarySchema),
+  /** Runtime projection; absent after daemon restart, never a fabricated checkpoint. */
+  compaction: compactionOperationSchema.nullable().optional(),
 });
 export type ConversationStatus = z.infer<typeof conversationStatusSchema>;
 export type Conversation = z.infer<typeof conversationSchema>;

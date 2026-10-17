@@ -29,7 +29,9 @@ export function compactionNoticeHeader(
         busy: true,
         badge: "compacting",
         arg,
-        statusLabel: "Compacting the conversation context",
+        statusLabel: notice.stopping
+          ? "Stopping compaction"
+          : "Compacting the conversation context",
       };
     case "cancelled":
       return {

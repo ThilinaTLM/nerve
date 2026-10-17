@@ -189,3 +189,8 @@ export type {
   ConversationUsageSummary,
   ConversationAgentUsage,
 } from "./conversation-usage.js";
+
+export {
+  compactionOperationSchema,
+  type CompactionOperation,
+} from "./compaction-operation.js";

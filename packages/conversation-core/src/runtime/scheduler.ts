@@ -2,6 +2,7 @@ import type { CoreStorage } from "../storage/core-storage.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { ToolCallService } from "../tool-calls/tool-call.service.js";
 import type { AsyncBashService } from "../async-bash/async-bash.service.js";
+import type { CompactionOperations } from "./compaction-operations.js";
 import type { CoreEmitter } from "./core-change.js";
 import type { ConversationRunner } from "./conversation-runner.js";
 import { openExecutionId, type StatusService } from "./status.js";
@@ -22,6 +23,7 @@ export class ConversationScheduler {
       toolCalls: ToolCallService;
       asyncBash: AsyncBashService;
       runner: ConversationRunner;
+      compactions: CompactionOperations;
       status: StatusService;
       emit: CoreEmitter;
     },
@@ -90,16 +92,25 @@ export class ConversationScheduler {
   }
   compact(id: string): Promise<void> {
     if (this.isExecuting(id)) throw new Error("Conversation is executing");
+    this.options.compactions.assertIdle(id);
     const controller = new AbortController();
     const done = Promise.resolve()
       .then(async () => {
-        await this.options.runner.compact(id, controller.signal);
+        await this.options.runner.compact(id, controller.signal, {
+          reason: "manual",
+          operation,
+        });
       })
       .finally(() => {
         this.slots.delete(id);
         if (!this.stopping.has(id)) this.wake(id);
       });
     this.slots.set(id, { controller, done });
+    const operation = this.options.compactions.start(
+      id,
+      "manual",
+      this.options.storage.conversations.get(id)?.headEventId ?? null,
+    );
     return done;
   }
   pause(id: string): void {
@@ -130,6 +141,8 @@ export class ConversationScheduler {
     try {
       if (pause) this.setPaused(id, true);
       const slot = this.slots.get(id);
+      const operation = this.options.compactions.get(id);
+      if (operation) this.options.compactions.stopping(id, operation.id);
       slot?.controller.abort();
       await this.options.toolCalls.cancel(id, { reason });
       if (slot)
@@ -179,7 +192,11 @@ export class ConversationScheduler {
   async close(): Promise<void> {
     this.enabled = false;
     const slots = [...this.slots.values()];
-    for (const slot of slots) slot.controller.abort(shutdownReason);
+    for (const [id, slot] of this.slots) {
+      const operation = this.options.compactions.get(id);
+      if (operation) this.options.compactions.stopping(id, operation.id);
+      slot.controller.abort(shutdownReason);
+    }
     // Durable work stays intact for crash-style recovery on the next start.
     await Promise.all([
       this.options.toolCalls.close(),

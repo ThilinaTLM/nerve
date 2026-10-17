@@ -1,4 +1,6 @@
 import { conversationCatalog } from "../state/conversation-catalog.svelte";
+import { compactionOperationNotice } from "$lib/presentation/state/transcript";
+import type { ConversationTransientState } from "$lib/presentation/state/transcript-types";
 import { promptPresentations } from "./prompt-presentation";
 import { permissionRuleSchema } from "@nervekit/contracts/permissions";
 import type {
@@ -287,6 +289,18 @@ function toolRecord(
   };
 }
 
+function compactionTransient(
+  snapshot: ConversationSnapshot,
+  events: readonly TransferredConversationEvent[],
+): ConversationTransientState | undefined {
+  const compaction = compactionOperationNotice(snapshot.compaction, {
+    conversationId: snapshot.conversation.id,
+    headEventId: snapshot.conversation.headEventId,
+    pathEventIds: new Set(events.map((event) => event.id)),
+  });
+  return compaction ? { compaction } : undefined;
+}
+
 export function conversationTranscript(input: {
   snapshot: ConversationSnapshot;
   events: readonly TransferredConversationEvent[];
@@ -555,6 +569,7 @@ export function conversationTranscript(input: {
     pendingUserQuestions,
     pendingPlanReviews,
     sending: running,
+    transient: compactionTransient(snapshot, events),
     optimisticMessages: [],
     recoveryIssues: events.flatMap((event) =>
       event.type === "tool_call_response" &&

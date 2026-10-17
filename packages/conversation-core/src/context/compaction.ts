@@ -117,6 +117,7 @@ export interface RunCompactionInput extends ProjectionOptions {
   settings?: CompactionSettings;
   /** Resolved auto-compaction settings; derive the manual thresholds when `settings` is absent. */
   autoSettings?: AutoCompactionSettings;
+  onProgress?: (progress: { attempt: number; text: string }) => void;
 }
 
 export async function runCompaction(
@@ -139,6 +140,7 @@ export async function runCompaction(
     headers: input.headers,
     thinkingLevel: input.reasoningLevel,
     signal: input.signal,
+    onProgress: input.onProgress,
   });
   if (!summary.ok) throw summary.error;
   return {

@@ -15,7 +15,7 @@ export type RunActivitySource = {
   activeRun?: ConversationActiveRunSnapshot;
   lastRunOutcome?: ConversationRunOutcome;
   stopping: boolean;
-  compactionRunning: boolean;
+  compaction?: "running" | "stopping";
   tail?: TimelineItem;
   pending?: readonly PendingWorkItem[];
   /** Bumps when the provider request restarts, even with no new output. */

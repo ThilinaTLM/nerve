@@ -13,6 +13,7 @@ import type { AsyncBashService } from "../async-bash/async-bash.service.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { CoreEmitter } from "../runtime/core-change.js";
+import type { CompactionOperations } from "../runtime/compaction-operations.js";
 import type { StatusService } from "../runtime/status.js";
 
 export type DefaultConversationConfig = Omit<
@@ -52,6 +53,7 @@ export class ConversationService {
       isExecuting(id: string): boolean;
       stop(id: string): Promise<void>;
       status: StatusService;
+      compactions: CompactionOperations;
     },
   ) {}
   async create(input: CreateConversationInput): Promise<ConversationSnapshot> {
@@ -117,6 +119,7 @@ export class ConversationService {
       throw new Error(`Conversation not found: ${id}`);
     return {
       conversation,
+      compaction: this.options.compactions.get(id),
       lastSequence: storage.events.lastSequence(id),
       config,
       toolCalls: storage.toolCalls.list(id),
@@ -177,6 +180,7 @@ export class ConversationService {
   }
   assertQuiescent(id: string): void {
     this.snapshot(id);
+    this.options.compactions.assertIdle(id);
     if (
       this.options.isExecuting(id) ||
       this.options.storage.toolCalls.list(id).length
@@ -239,8 +243,10 @@ export class ConversationService {
         force: true,
       });
     this.options.storage.conversations.delete(id);
-    for (const conversationId of ids)
+    for (const conversationId of ids) {
+      this.options.compactions.delete(conversationId);
       this.options.emit({ kind: "conversation_deleted", conversationId });
+    }
     if (conversation.parentConversationId)
       this.emitParentSummary(conversation.parentConversationId);
   }
