@@ -24,12 +24,16 @@ type Props = {
   statusLabel?: string;
   badge: string;
   arg?: PrimaryArg;
+  /** While drafting without an argument, show a skeleton in its slot. */
+  argPending?: boolean;
   error?: string;
   meta?: MetaItem[];
   /** Right-aligned footer pills, e.g. "Open task" then "View details". */
   cardActions?: CardAction[];
   /** Recovery-critical action rendered as a primary footer control. */
   primaryAction?: CardAction;
+  /** Transient footer controls (Approve/Deny, Send/Dismiss). */
+  actions?: Snippet;
   footer?: boolean;
   bodyVisible?: boolean;
   layoutRevision?: string;
@@ -47,10 +51,12 @@ let {
   statusLabel: statusLabelOverride,
   badge,
   arg,
+  argPending = false,
   error,
   meta = [],
   cardActions = [],
   primaryAction,
+  actions,
   footer = true,
   bodyVisible = false,
   layoutRevision = "static",
@@ -104,7 +110,10 @@ const toolStatusLabel = $derived.by(() => {
 const statusLabel = $derived(statusLabelOverride ?? toolStatusLabel);
 const footerVisible = $derived(
   footer &&
-    (meta.length > 0 || cardActions.length > 0 || Boolean(primaryAction)),
+    (meta.length > 0 ||
+      cardActions.length > 0 ||
+      Boolean(primaryAction) ||
+      Boolean(actions)),
 );
 const activityVisible = $derived(
   Boolean(error) || bodyVisible || footerVisible,
@@ -121,6 +130,7 @@ const activityVisible = $derived(
       {glyph}
       {badge}
       {arg}
+      argPending={argPending && draftPhase === "drafting"}
       {onOpenFile}
     />
 
@@ -135,7 +145,13 @@ const activityVisible = $derived(
       {/if}
 
       {#if footerVisible}
-        <CardFooter {meta} {cardActions} {primaryAction} {onOpenFile} />
+        <CardFooter
+          {meta}
+          {cardActions}
+          {primaryAction}
+          {actions}
+          {onOpenFile}
+        />
       {/if}
     </div>
   </article>

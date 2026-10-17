@@ -79,160 +79,146 @@ function outcomeTone(destructive = false, warning = false) {
 </script>
 
 {#if toolCall.status === "completed"}
-  <AtlassianResultSurface>
-    {#if view.action === "search_spaces"}
-      {#each view.spaces.slice(0, limit) as space (space.id)}
-        <ConfluenceSpaceRow {space} />
-      {:else}
-        <AtlassianOutcomeRow title="No spaces found." icon="list" />
-      {/each}
-    {:else if view.action === "search_pages"}
-      {#each view.pages.slice(0, limit) as page (page.id)}
-        <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
-      {:else}
-        <AtlassianOutcomeRow title="No pages found." icon="list" />
-      {/each}
-    {:else if view.action === "get_page"}
-      {#if view.page}
-        <ConfluencePageRow page={view.page} {siteUrl} {expanded} {onOpenFile} />
-      {:else}
+  <!-- create/update: the persistent draft sections are the record; the page
+       id arrives as a card chip. -->
+  {#if view.action !== "create_page" && view.action !== "update_page"}
+    <AtlassianResultSurface>
+      {#if view.action === "search_spaces"}
+        {#each view.spaces.slice(0, limit) as space (space.id)}
+          <ConfluenceSpaceRow {space} />
+        {:else}
+          <AtlassianOutcomeRow title="No spaces found." icon="list" />
+        {/each}
+      {:else if view.action === "search_pages"}
+        {#each view.pages.slice(0, limit) as page (page.id)}
+          <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
+        {:else}
+          <AtlassianOutcomeRow title="No pages found." icon="list" />
+        {/each}
+      {:else if view.action === "get_page"}
+        {#if view.page}
+          <ConfluencePageRow
+            page={view.page}
+            {siteUrl}
+            {expanded}
+            {onOpenFile}
+          />
+        {:else}
+          <AtlassianOutcomeRow
+            title={view.pageId ? `Fetched page ${view.pageId}` : "Page fetched"}
+            detail="Open Details for the complete response."
+          />
+        {/if}
+      {:else if view.action === "download_page"}
         <AtlassianOutcomeRow
-          title={view.pageId ? `Fetched page ${view.pageId}` : "Page fetched"}
+          title={`Downloaded ${view.page?.title ?? (view.pageId ? `page ${view.pageId}` : "page")}`}
+          detail={joined(
+            view.bodyFormat,
+            view.includedCounts?.downloadedAttachments !== undefined
+              ? `${view.includedCounts.downloadedAttachments} attachments`
+              : undefined,
+          )}
+          tone="success"
+          icon="download"
+        />
+        {#if expanded}
+          {#each view.pages as page (page.id)}
+            <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
+          {/each}
+        {/if}
+      {:else if view.action === "manage_comment"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            `${past(view.operation)} ${view.commentKind ?? ""} comment${view.commentId ? ` ${view.commentId}` : ""}`.replace(
+              /\s+/g,
+              " ",
+            ),
+          )}
+          detail={view.comment?.bodyPreview ?? view.comment?.resolutionStatus}
+          tone={outcomeTone(view.operation === "delete")}
+          icon="comment"
+        />
+      {:else if view.action === "manage_page"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            view.operation === "trash"
+              ? `Moved page ${view.pageId ?? ""} to trash`.trim()
+              : view.operation === "purge"
+                ? `Permanently purged page ${view.pageId ?? ""}`.trim()
+                : `Restored page ${view.pageId ?? ""}`.trim(),
+          )}
+          detail={view.previousStatus && view.resultingStatus
+            ? `${view.previousStatus} → ${view.resultingStatus}`
+            : undefined}
+          icon="trash"
+          tone={outcomeTone(
+            view.operation === "purge",
+            view.operation === "trash",
+          )}
+        />
+      {:else if view.action === "manage_label"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            `${past(view.operation)} label “${view.label ?? "label"}”`,
+          )}
+          detail={view.labels.length > 0
+            ? view.labels
+                .slice(0, expanded ? view.labels.length : 3)
+                .map((label) => label.name)
+                .join(", ")
+            : undefined}
+          tone={outcomeTone()}
+        />
+      {:else if view.action === "manage_restriction"}
+        <AtlassianOutcomeRow
+          title={outcomeTitle(
+            view.operation === "clear_operation"
+              ? `Cleared ${view.restrictionOperation ?? "page"} restrictions`
+              : `${past(view.operation)} ${view.subjectType ?? "subject"} restriction`,
+          )}
+          detail={joined(view.subjectId, view.restrictionOperation)}
+          tone={outcomeTone(view.operation === "clear_operation")}
+        />
+      {:else if view.action === "manage_attachment"}
+        {#if view.attachment && view.operation !== "delete"}
+          <AtlassianOutcomeRow
+            title={outcomeTitle(
+              `${past(view.operation)} ${view.filename ?? view.attachment.filename ?? "attachment"}`,
+            )}
+            detail={joined(
+              view.attachment.mediaType,
+              formatBytes(view.attachment.fileSize ?? view.bytes),
+              view.attachment.versionNumber !== undefined
+                ? `v${view.attachment.versionNumber}`
+                : undefined,
+            )}
+            tone={outcomeTone()}
+          />
+        {:else}
+          <AtlassianOutcomeRow
+            title={outcomeTitle(
+              `${past(view.operation)} ${view.filename ?? view.attachmentId ?? "attachment"}`,
+            )}
+            detail={view.pageId ? `Page ${view.pageId}` : undefined}
+            tone={outcomeTone(view.operation === "delete")}
+          />
+        {/if}
+      {:else}
+        <AtlassianResourceRow
+          icon="page"
+          id={view.pageId}
+          title={view.title ?? "Confluence result"}
+          href={view.page
+            ? confluencePageUrl(siteUrl, view.page.webui)
+            : undefined}
           detail="Open Details for the complete response."
         />
       {/if}
-    {:else if view.action === "download_page"}
-      <AtlassianOutcomeRow
-        title={`Downloaded ${view.page?.title ?? (view.pageId ? `page ${view.pageId}` : "page")}`}
-        detail={joined(
-          view.bodyFormat,
-          view.includedCounts?.downloadedAttachments !== undefined
-            ? `${view.includedCounts.downloadedAttachments} attachments`
-            : undefined,
-        )}
-        tone="success"
-        icon="download"
-      />
-      {#if expanded}
-        {#each view.pages as page (page.id)}
-          <ConfluencePageRow {page} {siteUrl} {expanded} {onOpenFile} />
-        {/each}
-      {/if}
-    {:else if view.action === "create_page"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `Created page “${view.title ?? view.page?.title ?? "Untitled"}”`,
-        )}
-        detail={joined(
-          view.spaceKey ?? view.page?.spaceKey,
-          view.page?.versionNumber !== undefined
-            ? `v${view.page.versionNumber}`
-            : undefined,
-          view.status ?? view.page?.status,
-        )}
-        tone={outcomeTone()}
-        icon="add"
-      />
-    {:else if view.action === "update_page"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `Updated page “${view.title ?? view.page?.title ?? view.pageId ?? "page"}”${view.page?.versionNumber !== undefined ? ` to v${view.page.versionNumber}` : ""}`,
-        )}
-        detail={joined(view.status ?? view.page?.status, view.page?.spaceKey)}
-        tone={outcomeTone()}
-        icon="edit"
-      />
-    {:else if view.action === "manage_comment"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `${past(view.operation)} ${view.commentKind ?? ""} comment${view.commentId ? ` ${view.commentId}` : ""}`.replace(
-            /\s+/g,
-            " ",
-          ),
-        )}
-        detail={view.comment?.bodyPreview ?? view.comment?.resolutionStatus}
-        tone={outcomeTone(view.operation === "delete")}
-        icon="comment"
-      />
-    {:else if view.action === "manage_page"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.operation === "trash"
-            ? `Moved page ${view.pageId ?? ""} to trash`.trim()
-            : view.operation === "purge"
-              ? `Permanently purged page ${view.pageId ?? ""}`.trim()
-              : `Restored page ${view.pageId ?? ""}`.trim(),
-        )}
-        detail={view.previousStatus && view.resultingStatus
-          ? `${view.previousStatus} → ${view.resultingStatus}`
-          : undefined}
-        icon="trash"
-        tone={outcomeTone(
-          view.operation === "purge",
-          view.operation === "trash",
-        )}
-      />
-    {:else if view.action === "manage_label"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          `${past(view.operation)} label “${view.label ?? "label"}”`,
-        )}
-        detail={view.labels.length > 0
-          ? view.labels
-              .slice(0, expanded ? view.labels.length : 3)
-              .map((label) => label.name)
-              .join(", ")
-          : undefined}
-        tone={outcomeTone()}
-      />
-    {:else if view.action === "manage_restriction"}
-      <AtlassianOutcomeRow
-        title={outcomeTitle(
-          view.operation === "clear_operation"
-            ? `Cleared ${view.restrictionOperation ?? "page"} restrictions`
-            : `${past(view.operation)} ${view.subjectType ?? "subject"} restriction`,
-        )}
-        detail={joined(view.subjectId, view.restrictionOperation)}
-        tone={outcomeTone(view.operation === "clear_operation")}
-      />
-    {:else if view.action === "manage_attachment"}
-      {#if view.attachment && view.operation !== "delete"}
-        <AtlassianOutcomeRow
-          title={outcomeTitle(
-            `${past(view.operation)} ${view.filename ?? view.attachment.filename ?? "attachment"}`,
-          )}
-          detail={joined(
-            view.attachment.mediaType,
-            formatBytes(view.attachment.fileSize ?? view.bytes),
-            view.attachment.versionNumber !== undefined
-              ? `v${view.attachment.versionNumber}`
-              : undefined,
-          )}
-          tone={outcomeTone()}
-        />
-      {:else}
-        <AtlassianOutcomeRow
-          title={outcomeTitle(
-            `${past(view.operation)} ${view.filename ?? view.attachmentId ?? "attachment"}`,
-          )}
-          detail={view.pageId ? `Page ${view.pageId}` : undefined}
-          tone={outcomeTone(view.operation === "delete")}
-        />
-      {/if}
-    {:else}
-      <AtlassianResourceRow
-        icon="page"
-        id={view.pageId}
-        title={view.title ?? "Confluence result"}
-        href={view.page
-          ? confluencePageUrl(siteUrl, view.page.webui)
-          : undefined}
-        detail="Open Details for the complete response."
-      />
-    {/if}
-  </AtlassianResultSurface>
+    </AtlassianResultSurface>
+  {/if}
 {:else if fallbackSummary}
   <ToolArgumentBody
+    section
     body={{ kind: "atlassian-summary", text: fallbackSummary }}
   />
 {/if}

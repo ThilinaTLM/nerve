@@ -12,9 +12,16 @@ export function generateImagePresentation(
       view.paths.length > 0
         ? [
             {
+              key: "images",
               text: `${view.paths.length} image${view.paths.length === 1 ? "" : "s"}`,
               tone: "success",
             },
+            ...view.paths.map((path, index) => ({
+              key: `image-path:${index}`,
+              text: path,
+              mono: true,
+              openPath: path,
+            })),
           ]
         : [],
   };

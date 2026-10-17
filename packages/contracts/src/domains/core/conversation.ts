@@ -50,6 +50,8 @@ export const conversationSummarySchema = conversationSchema
     nextInputSequence: true,
   })
   .extend({
+    /** Latest input from the parent, including prompts still queued for delivery. */
+    lastParentPromptAt: z.string().datetime().nullable().optional(),
     childCount: z.number().int().nonnegative(),
     mode: modeSchema,
     model: modelSelectionSchema,

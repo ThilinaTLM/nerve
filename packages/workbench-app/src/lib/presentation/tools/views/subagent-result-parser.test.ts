@@ -121,7 +121,7 @@ describe("subagent_stop result", () => {
   it("reads one line per name", () => {
     assert.deepEqual(parseStopResult("a: stopped\nb: was not running"), [
       { name: "a", outcome: "stopped" },
-      { name: "b", outcome: "was not running" },
+      { name: "b", outcome: "already_idle" },
     ]);
   });
 });
@@ -248,7 +248,7 @@ describe("texts produced by conversation-core", () => {
   it("parses the stop lines", () => {
     assert.deepEqual(
       parseStopResult(texts.stopResult).map((line) => line.outcome),
-      ["stopped", "nothing to stop (idle)", "not found"],
+      ["stopped", "already_idle", "not_found"],
     );
   });
 

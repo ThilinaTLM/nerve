@@ -1,4 +1,5 @@
 import type { AsyncBash } from "@nervekit/contracts/core";
+import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import type {
   AgentActivitySnapshot,
   AgentRecord,
@@ -22,7 +23,7 @@ export type IslandAgentRow = {
 export const ISLAND_VISIBLE_ROWS = 6;
 
 export type IslandFold<T> = {
-  /** Live items always, then the newest settled items within the budget. */
+  /** Ordered prefix, extended when needed to keep live/viewed items visible. */
   rows: T[];
   /** Overflow of older settled items; empty unless the list is long. */
   folded: T[];
@@ -36,44 +37,23 @@ const SETTLED_AGENT: ReadonlySet<AgentRowState> = new Set([
   "failed",
 ]);
 
-const rank: Record<AgentRowState, number> = {
-  needs_you: 0,
-  working: 1,
-  waiting: 2,
-  failed: 3,
-  idle: 4,
-  stopped: 4,
-};
-
 function timestamp(value: string): number {
   const ms = Date.parse(value);
   return Number.isFinite(ms) ? ms : 0;
 }
 
 /**
- * Split pre-sorted items by count, not age: pinned items (live, needing
- * attention, viewed) never fold, settled items fill the remaining budget, and
- * a single overflow item is shown rather than hidden behind a group of one.
+ * Fold only an ordered suffix. Extend the visible prefix through every pinned
+ * item (live, needing attention, viewed), without promoting it above newer
+ * prompts. Never hide a single overflow item behind a group of one.
  */
 function fold<T>(
   items: readonly T[],
   pinned: (item: T) => boolean,
 ): Pick<IslandFold<T>, "rows" | "folded"> {
-  const budget = Math.max(
-    0,
-    ISLAND_VISIBLE_ROWS - items.filter((item) => pinned(item)).length,
-  );
-  const overflow =
-    items.length - items.filter((item) => pinned(item)).length - budget;
-  if (overflow <= 1) return { rows: [...items], folded: [] };
-  const rows: T[] = [];
-  const folded: T[] = [];
-  let settled = 0;
-  for (const item of items) {
-    if (pinned(item) || settled++ < budget) rows.push(item);
-    else folded.push(item);
-  }
-  return { rows, folded };
+  const budget = Math.max(ISLAND_VISIBLE_ROWS, items.findLastIndex(pinned) + 1);
+  if (items.length - budget <= 1) return { rows: [...items], folded: [] };
+  return { rows: items.slice(0, budget), folded: items.slice(budget) };
 }
 
 /** All retained children; the lead is navigation, not a row. */
@@ -94,12 +74,7 @@ export function islandAgents(
         viewed: agent.id === viewedId,
       };
     })
-    .sort(
-      (a, b) =>
-        rank[a.state] - rank[b.state] ||
-        timestamp(b.agent.updatedAt) - timestamp(a.agent.updatedAt) ||
-        a.agent.id.localeCompare(b.agent.id),
-    );
+    .sort((a, b) => compareSubagents(a.agent, b.agent));
   return {
     leadId: agents.find((agent) => !agent.parentAgentId)?.id,
     ...fold(all, (row) => row.viewed || !SETTLED_AGENT.has(row.state)),

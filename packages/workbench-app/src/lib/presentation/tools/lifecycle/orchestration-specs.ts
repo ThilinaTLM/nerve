@@ -12,42 +12,42 @@ function spec<Name extends OrchestrationToolName>(
 }
 
 /**
- * Assignments are listed by name while the call is drafted or running; the
- * result view then renders one row per assignment, so the argument body goes.
- * Rejected assignments add no useful context below the rejection error.
+ * Persistent entity rows own prompt/stop arguments, keyed by array index from
+ * the first partial frame through settlement. Completed SubagentToolView must
+ * not duplicate these rows: enrich the persistent entities with live agents
+ * (agentName), and append only result context/errors. Never swap row owners.
  */
 const subagentPrompt = spec({
   name: "subagent_prompt",
-  argumentRegion: "until-settled",
+  argumentRegion: "persistent",
   completedView: "subagent",
-  present: (source) => {
-    const assignments = (source.recordsArray("assignments") ?? []).flatMap(
-      (assignment) =>
-        typeof assignment.name === "string"
-          ? [
-              {
-                name: assignment.name,
-                line:
-                  typeof assignment.profile === "string"
-                    ? `${assignment.name} (${assignment.profile})`
-                    : assignment.name,
-              },
-            ]
-          : [],
-    );
+  present: (source, stage) => {
+    const assignments = source.objectArraySources("assignments", Infinity);
     return argumentPresentation({
       primaryArg: textArg(
-        assignments.length === 1
-          ? assignments[0].name
-          : assignments.length > 1
-            ? plural(assignments.length, "sub-agent")
-            : undefined,
+        assignments.length > 0
+          ? plural(assignments.length, "sub-agent")
+          : undefined,
       ),
       body:
         assignments.length > 0
           ? {
-              kind: "text-summary",
-              text: assignments.map((item) => item.line).join("\n"),
+              kind: "entities",
+              items: assignments.map((item, index) => ({
+                key: String(index),
+                title: item.string("name"),
+                detail: item.string("profile"),
+                body: item.string("prompt"),
+                agentName: item.string("name"),
+                status: {
+                  tone: "neutral",
+                  label: stage === "drafting" ? "Drafting" : "Pending",
+                },
+              })),
+              context:
+                source.string("context") !== undefined
+                  ? { label: "Shared context", text: source.string("context") }
+                  : undefined,
             }
           : undefined,
     });
@@ -65,12 +65,24 @@ export const orchestrationToolLifecycleSpecs = {
   }),
   subagent_stop: spec({
     name: "subagent_stop",
-    argumentRegion: "none",
+    argumentRegion: "persistent",
     completedView: "subagent",
     present: (source) => {
       const names = source.strings("names") ?? [];
       return argumentPresentation({
-        primaryArg: textArg(names.length > 0 ? names.join(", ") : undefined),
+        primaryArg: textArg(
+          names.length > 0 ? plural(names.length, "sub-agent") : undefined,
+        ),
+        body: names.length
+          ? {
+              kind: "entities",
+              items: names.map((name, index) => ({
+                key: String(index),
+                title: name,
+                agentName: name,
+              })),
+            }
+          : undefined,
       });
     },
   }),
@@ -100,7 +112,7 @@ export const orchestrationToolLifecycleSpecs = {
         primaryArg: textArg(
           [source.string("action"), name].filter(Boolean).join(" "),
         ),
-        secondary: runId ? [{ text: `Run: ${runId}` }] : [],
+        secondary: runId ? [{ key: "run-id", text: `Run: ${runId}` }] : [],
       });
     },
   }),

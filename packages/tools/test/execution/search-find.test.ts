@@ -20,6 +20,28 @@ function requireExecutableFixtures(t: TestContext): boolean {
 }
 
 describe("find and grep executors", () => {
+  it("reports authoritative totals beyond the producer's visible limit", async () => {
+    const project = await createTempProject();
+    await project.write("a.txt", "needle\nneedle\n");
+    await project.write("b.txt", "needle\n");
+    for (const backend of ["node"] as const) {
+      const result = await executeGrepWithBackend(
+        { pattern: "needle", limit: 1 },
+        { cwd: project.root },
+        backend,
+      );
+      assert.equal(result.matches?.length, 1);
+      assert.equal(result.details?.totalMatches, 3);
+      assert.equal(result.details?.totalFiles, 2);
+    }
+    const result = await executeFindWithBackend(
+      { pattern: "*.txt", limit: 1 },
+      { cwd: project.root },
+      "node",
+    );
+    assert.equal(result.entries?.length, 1);
+    assert.equal(result.details?.totalEntries, 2);
+  });
   it("falls back to Node find implementation and skips dependency/control directories", async () => {
     const project = await createTempProject();
     const bin = join(project.root, "empty-bin");
@@ -59,6 +81,7 @@ describe("find and grep executors", () => {
 const root = process.argv.at(-1);
 const fileOnly = process.argv.includes("--type") && process.argv.includes("file");
 console.log(root + "/src/main.ts");
+console.log(root + "/src/other.ts");
 if (!fileOnly) console.log(root + "/src");
 `,
     );
@@ -68,7 +91,16 @@ if (!fileOnly) console.log(root + "/src");
         { path: ".", pattern: "*.ts", limit: 10 },
         { cwd: project.root },
       );
-      assert.deepEqual(result.entries, [{ path: "src/main.ts", kind: "file" }]);
+      assert.deepEqual(result.entries, [
+        { path: "src/main.ts", kind: "file" },
+        { path: "src/other.ts", kind: "file" },
+      ]);
+      const limited = await executeFind(
+        { path: ".", pattern: "*.ts", limit: 1 },
+        { cwd: project.root },
+      );
+      assert.equal(limited.entries?.length, 1);
+      assert.equal(limited.details?.totalEntries, 2);
     });
   });
 
@@ -134,6 +166,8 @@ emit("match", root + "/other.ts", 4, "another needle");
       assert.deepEqual(result.matches, [
         { path: "src/file.ts", line: 2, text: "needle here" },
       ]);
+      assert.equal(result.details?.totalMatches, 2);
+      assert.equal(result.details?.totalFiles, 2);
       assert.match(result.content ?? "", /src\/file\.ts-1- context before/);
       assert.match(result.content ?? "", /src\/file\.ts-3- context after/);
     });
@@ -164,6 +198,8 @@ for (let line = 1; line <= 100000; line += 1) {
         { cwd: project.root },
       );
       assert.equal(result.matches?.length, 3);
+      assert.equal(result.details?.totalMatches, 100000);
+      assert.equal(result.details?.totalFiles, 1);
       assert.deepEqual(
         result.matches?.map((match) => match.line),
         [1, 2, 3],

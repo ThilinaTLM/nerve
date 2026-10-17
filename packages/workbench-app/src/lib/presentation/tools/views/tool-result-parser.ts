@@ -1,6 +1,8 @@
 import {
-  askUserResultSchema,
   bashResultDetailsSchema,
+  writeResultDetailsSchema,
+  grepResultDetailsSchema,
+  findResultDetailsSchema,
   editOperationResultDetailsSchema,
   explainImageResultDetailsSchema,
   pythonResultDetailsSchema,
@@ -21,6 +23,7 @@ import {
   redactStructuredValue,
   toolArgumentSource,
 } from "../lifecycle/argument-source";
+import { askUserViewFromCall } from "../tool-call/ask-user-state";
 import { parseConfluenceView } from "./confluence-result-view";
 import { parseGenerateImageView } from "./generate-image-result-view";
 import { parseKrokiView } from "./kroki-result-view";
@@ -393,6 +396,29 @@ export function parseToolView(
         path,
         relPath,
         operationCount,
+        operations: Array.isArray(rawDetails.operations)
+          ? rawDetails.operations.flatMap((value, index) => {
+              const op = asRecord(value);
+              const status = op.status;
+              return status === "applied" ||
+                status === "failed" ||
+                status === "not_applied"
+                ? [
+                    {
+                      index:
+                        nonnegativeIntegerField(op.sourceIndex) ??
+                        nonnegativeIntegerField(op.index) ??
+                        index,
+                      status,
+                      error: stringField(op.error),
+                    },
+                  ]
+                : [];
+            })
+          : undefined,
+        appliedCount: details.success
+          ? details.data.appliedCount
+          : nonnegativeIntegerField(rawDetails.appliedCount),
         additions,
         deletions,
         diff,
@@ -410,7 +436,10 @@ export function parseToolView(
       const relPath = relativePath(path, cwd);
       const content = stringField(args.content);
       const byteMatch = result?.content?.match(/Wrote (\d+) bytes/);
-      const bytes = byteMatch ? Number(byteMatch[1]) : undefined;
+      const structured = writeResultDetailsSchema.safeParse(result?.details);
+      const bytes =
+        (structured.success ? structured.data.bytes : undefined) ??
+        (byteMatch ? Number(byteMatch[1]) : undefined);
       const lineCount =
         content === undefined
           ? undefined
@@ -423,6 +452,7 @@ export function parseToolView(
       const charCount = content?.length;
       return {
         kind: "write",
+        outcome: structured.success ? structured.data.outcome : undefined,
         path,
         relPath,
         bytes,
@@ -445,16 +475,17 @@ export function parseToolView(
         }),
       );
       const all = groupMatchesByFile(matches);
+      const structured = grepResultDetailsSchema.safeParse(result?.details);
+      const totals = structured.success ? structured.data : {};
       return {
         kind: "grep",
         pattern,
-        matchCount: actualPreviewCount(
-          matches.length,
-          toolCall,
-          "matches",
-          "head",
-        ),
-        fileCount: all.length,
+        totalMatches: totals.totalMatches,
+        totalFiles: totals.totalFiles,
+        matchCount:
+          totals.totalMatches ??
+          actualPreviewCount(matches.length, toolCall, "matches", "head"),
+        fileCount: totals.totalFiles ?? all.length,
         allMatches: all,
       };
     }
@@ -475,7 +506,12 @@ export function parseToolView(
         pattern,
         paths,
         openPaths,
-        count: actualPreviewCount(paths.length, toolCall, "files", "head"),
+        totalEntries: findResultDetailsSchema.safeParse(result?.details).data
+          ?.totalEntries,
+        count:
+          findResultDetailsSchema.safeParse(result?.details).data
+            ?.totalEntries ??
+          actualPreviewCount(paths.length, toolCall, "files", "head"),
       };
     }
 
@@ -491,22 +527,17 @@ export function parseToolView(
         path,
         relPath,
         entries,
-        total: actualPreviewCount(entries.length, toolCall, "entries", "head"),
+        totalEntries: findResultDetailsSchema.safeParse(result?.details).data
+          ?.totalEntries,
+        total:
+          findResultDetailsSchema.safeParse(result?.details).data
+            ?.totalEntries ??
+          actualPreviewCount(entries.length, toolCall, "entries", "head"),
       };
     }
 
     case "ask_user": {
-      const parsed = askUserResultSchema.safeParse(rawResult);
-      const data = parsed.success ? parsed.data : undefined;
-      return {
-        kind: "ask_user",
-        question: data?.question ?? stringField(args.question),
-        context: data?.context ?? stringField(args.context),
-        recommendation:
-          data?.recommendation ?? stringField(args.recommendation),
-        answer: data?.response,
-        dismissed: Boolean(data?.dismissed),
-      };
+      return { kind: "ask_user", ...askUserViewFromCall(args, rawResult) };
     }
 
     case "todos_set":
@@ -534,6 +565,7 @@ export function parseToolView(
         assignments: subagentAssignments(
           args,
           resultOutputText(result, rawResult),
+          result?.details,
         ),
       };
     }
@@ -545,7 +577,7 @@ export function parseToolView(
         kind: "subagent",
         action: "status",
         name,
-        rows: name ? [] : parseStatusListing(text),
+        rows: parseStatusListing(text, result?.details),
         ...(name ? parseStatusDetail(text) : {}),
       };
     }
@@ -558,7 +590,10 @@ export function parseToolView(
         kind: "subagent",
         action: "stop",
         names,
-        lines: parseStopResult(resultOutputText(result, rawResult)),
+        lines: parseStopResult(
+          resultOutputText(result, rawResult),
+          result?.details,
+        ),
       };
     }
 

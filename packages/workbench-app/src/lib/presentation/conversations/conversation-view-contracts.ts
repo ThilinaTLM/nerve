@@ -4,7 +4,10 @@ import type {
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
-import type { ConversationAgentUsage } from "@nervekit/contracts/core";
+import type {
+  ConversationAgentUsage,
+  UserInputAnswer,
+} from "@nervekit/contracts/core";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
 import type { CapabilitySubagentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
@@ -212,7 +215,10 @@ export type ConversationPaneActions = {
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
   onOpenMermaid?: (block: MermaidMarkdownBlock, sourceKey: string) => void;
-  onAnswerUserQuestion?: (id: string, answer: string) => void | Promise<void>;
+  onAnswerUserQuestion?: (
+    id: string,
+    answers: Record<string, UserInputAnswer>,
+  ) => void | Promise<void>;
   onDismissUserQuestion?: (toolCallId: string) => void | Promise<void>;
   onGrantApproval?: (
     toolCallId: string,

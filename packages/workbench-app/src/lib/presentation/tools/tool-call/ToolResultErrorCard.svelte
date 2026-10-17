@@ -1,6 +1,8 @@
 <script lang="ts">
 import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import StatusGlyph from "../../cards/StatusGlyph.svelte";
+import CardSheet from "../../cards/CardSheet.svelte";
+import CardSheetError from "../../cards/CardSheetError.svelte";
 
 type Props = {
   toolName: string;
@@ -14,45 +16,14 @@ const errorPreview = $derived(
 );
 </script>
 
-<article class="tool-result-error-card">
-  <div class="tool-header">
+<article class="grid w-full gap-1.5 py-2.5">
+  <div class="min-w-0 leading-normal">
     <StatusGlyph tone="destructive" size={14} class="mr-1.5 align-middle" />
-    <span class="badge">{toolName}</span>
+    <span class="font-mono text-sm font-semibold text-foreground"
+      >{toolName}</span
+    >
   </div>
-  <pre class="tool-error">{errorPreview}</pre>
+  <CardSheet>
+    <CardSheetError text={errorPreview} />
+  </CardSheet>
 </article>
-
-<style>
-.tool-result-error-card {
-  display: grid;
-  gap: 0.4rem;
-  width: 100%;
-  padding: 0.6rem 0;
-}
-
-.tool-header {
-  min-width: 0;
-  line-height: 1.5;
-}
-
-.badge {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  color: var(--foreground);
-}
-
-.tool-error {
-  margin: 0;
-  border: 1px solid color-mix(in oklab, var(--destructive) 40%, var(--border));
-  border-radius: var(--radius-sm);
-  background: var(--well);
-  color: var(--destructive);
-  padding: 0.48rem 0.58rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-</style>

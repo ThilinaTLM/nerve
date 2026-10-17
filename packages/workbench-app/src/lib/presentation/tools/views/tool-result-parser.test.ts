@@ -132,3 +132,176 @@ describe("recorded planning tools", () => {
     });
   });
 });
+
+describe("structured lifecycle result details", () => {
+  it("prefers subagent assignment dispositions, including rejections on failed calls", () => {
+    const record = call(
+      "subagent_prompt",
+      { assignments: [{ name: "a", prompt: "Do it" }] },
+      {
+        content: "a (explore): created",
+        details: {
+          assignments: [
+            {
+              name: "a",
+              disposition: "rejected",
+              reason: "No capacity",
+              agentId: "agent-a",
+            },
+          ],
+        },
+      },
+    );
+    record.status = "failed";
+    const view = parseToolView(record);
+    assert.equal(view.kind, "subagent");
+    if (view.kind !== "subagent" || view.action !== "prompt") return;
+    assert.equal(view.assignments[0].disposition, "rejected");
+    assert.equal(view.assignments[0].reason, "No capacity");
+    assert.equal(view.assignments[0].agentId, "agent-a");
+  });
+  it("prefers structured status and stop rows over legacy text", () => {
+    const status = parseToolView(
+      call(
+        "subagent_status",
+        {},
+        {
+          content: "a · explore · idle",
+          details: {
+            agents: [
+              {
+                name: "a",
+                state: "running",
+                agentId: "a-id",
+                contextPercent: 42,
+                lastActivityAt: "2026-10-12T00:00:00Z",
+              },
+            ],
+          },
+        },
+      ),
+    );
+    assert.ok(status.kind === "subagent" && status.action === "status");
+    assert.equal(status.rows[0].state, "running");
+    assert.equal(status.rows[0].contextPercent, 42);
+    const stop = parseToolView(
+      call(
+        "subagent_stop",
+        { names: ["a"] },
+        {
+          content: "a: stopped",
+          details: {
+            results: [
+              {
+                name: "a",
+                outcome: "failed",
+                runMs: 100,
+                reason: "Unavailable",
+              },
+            ],
+          },
+        },
+      ),
+    );
+    assert.ok(stop.kind === "subagent" && stop.action === "stop");
+    assert.deepEqual(stop.lines[0], {
+      name: "a",
+      outcome: "failed",
+      runMs: 100,
+      reason: "Unavailable",
+    });
+  });
+  it("retains edit operation failures and applied count", () => {
+    const view = parseToolView(
+      call(
+        "edit",
+        { edits: [{ oldText: "a", newText: "b" }] },
+        {
+          details: {
+            diff: "-a\n+b",
+            operationCount: 1,
+            appliedCount: 0,
+            operations: [{ status: "failed", error: "No match" }],
+          },
+        },
+      ),
+    );
+    assert.equal(view.kind, "edit");
+    if (view.kind !== "edit") return;
+    assert.equal(view.appliedCount, 0);
+    assert.deepEqual(view.operations, [
+      { index: 0, status: "failed", error: "No match" },
+    ]);
+  });
+  it("prefers write bytes and outcome, falling back to legacy byte text", () => {
+    const structured = parseToolView(
+      call(
+        "write",
+        {},
+        { content: "Wrote 4 bytes", details: { bytes: 9, outcome: "created" } },
+      ),
+    );
+    assert.ok(structured.kind === "write");
+    assert.equal(structured.bytes, 9);
+    assert.equal(structured.outcome, "created");
+    const legacy = parseToolView(
+      call("write", {}, { content: "Wrote 4 bytes" }),
+    );
+    assert.ok(legacy.kind === "write");
+    assert.equal(legacy.bytes, 4);
+  });
+  it("uses authoritative grep totals rather than the bounded visible matches", () => {
+    const structured = parseToolView(
+      call(
+        "grep",
+        {},
+        {
+          matches: [{ path: "a", line: 1, text: "hit" }],
+          details: { totalMatches: 300, totalFiles: 20 },
+        },
+      ),
+    );
+    assert.ok(structured.kind === "grep");
+    assert.equal(structured.matchCount, 300);
+    assert.equal(structured.fileCount, 20);
+    const legacy = parseToolView(
+      call("grep", {}, { matches: [{ path: "a", line: 1, text: "hit" }] }),
+    );
+    assert.ok(legacy.kind === "grep");
+    assert.equal(legacy.matchCount, 1);
+  });
+});
+
+it("renders legacy edit diffs without structured operation status", () => {
+  const view = parseToolView(
+    call(
+      "edit",
+      { edits: [{ oldText: "a", newText: "b" }] },
+      { details: { diff: "-a\n+b" } },
+    ),
+  );
+  assert.ok(view.kind === "edit");
+  assert.equal(view.operationCount, 1);
+  assert.equal(view.diff, "-a\n+b");
+  assert.equal(view.operations, undefined);
+});
+
+it("derives created Jira issue links from the result self URL", () => {
+  const view = parseToolView(
+    call(
+      "jira_create_issue",
+      { project_key: "APP", summary: "Fix" },
+      {
+        details: {
+          issueKey: "APP-42",
+          self: "https://example.atlassian.net/jira/rest/api/3/issue/10042",
+        },
+      },
+    ),
+  );
+  assert.ok(view.kind === "jira");
+  assert.equal(
+    view.issueUrl,
+    "https://example.atlassian.net/jira/browse/APP-42",
+  );
+});

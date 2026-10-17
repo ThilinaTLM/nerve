@@ -21,6 +21,37 @@ async function rejectsWithCode(
 }
 
 describe("edit executor", () => {
+  it("reports atomic failures without claiming earlier edits were applied", async () => {
+    const project = await createTempProject();
+    await project.write("atomic.txt", "alpha beta");
+    const error = await rejectsWithCode(
+      executeEdit(
+        {
+          path: "atomic.txt",
+          edits: [
+            { oldText: "alpha", newText: "ALPHA" },
+            { oldText: "missing", newText: "value" },
+          ],
+        },
+        { cwd: project.root },
+      ),
+      "EDIT_MATCH_NOT_FOUND",
+    );
+    assert.equal(error.details.appliedCount, 0);
+    const operations = error.details.operations as Array<{
+      status: string;
+      error?: string;
+    }>;
+    assert.deepEqual(
+      operations.map((op) => op.status),
+      ["not_applied", "failed"],
+    );
+    assert.match(operations[1]!.error!, /not found/);
+    assert.equal(
+      await readFile(join(project.root, "atomic.txt"), "utf8"),
+      "alpha beta",
+    );
+  });
   it("applies multiple unique exact edits against original content", async () => {
     const project = await createTempProject();
     await project.write("sample.txt", "alpha\nbeta\ngamma\n");
@@ -41,6 +72,13 @@ describe("edit executor", () => {
       "ALPHA\nbeta\nGAMMA\n",
     );
     assert.equal(result.details?.operationCount, 2);
+    assert.equal(result.details?.appliedCount, 2);
+    assert.deepEqual(
+      (result.details?.operations as Array<{ status: string }>).map(
+        (op) => op.status,
+      ),
+      ["applied", "applied"],
+    );
     assert.equal(result.details?.firstChangedLine, 1);
     assert.match(String(result.details?.diff), /-alpha/);
     assert.equal(result.details?.dryRun, undefined);

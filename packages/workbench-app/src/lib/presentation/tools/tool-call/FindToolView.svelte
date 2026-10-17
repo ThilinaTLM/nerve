@@ -2,6 +2,7 @@
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import { COLLAPSED_LINES, type ToolView } from "../views/tool-result-view";
 import { getToolMotion, resultRowEnterDelay } from "./tool-motion-context";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -23,24 +24,28 @@ const visible = $derived(
 </script>
 
 {#if view.count === 0 && toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No files found.</p>
+  <ToolSections>
+    <div class="px-2.5 py-2 text-xs text-muted-foreground">No files found.</div>
+  </ToolSections>
 {:else if view.count > 0}
-  <ul
-    class="m-0 list-none rounded-sm border bg-well px-2.5 py-2 font-mono text-xs leading-snug text-foreground"
-  >
-    {#each visible as item, index (item.path)}
-      <li
-        class:stream-item-enter={toolMotion.enter}
-        style:--stream-item-delay={toolMotion.enter
-          ? resultRowEnterDelay(index)
-          : undefined}
-      >
-        <button
-          type="button"
-          class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
-          onclick={() => onOpenFile?.(item.openPath)}>{item.path}</button
+  <ToolSections>
+    <ul
+      class="m-0 list-none px-2.5 py-2 font-mono text-xs leading-snug text-foreground"
+    >
+      {#each visible as item, index (item.path)}
+        <li
+          class:stream-item-enter={toolMotion.enter}
+          style:--stream-item-delay={toolMotion.enter
+            ? resultRowEnterDelay(index)
+            : undefined}
         >
-      </li>
-    {/each}
-  </ul>
+          <button
+            type="button"
+            class="cursor-pointer border-0 bg-transparent p-0 text-left font-mono text-xs text-primary hover:underline"
+            onclick={() => onOpenFile?.(item.openPath)}>{item.path}</button
+          >
+        </li>
+      {/each}
+    </ul>
+  </ToolSections>
 {/if}

@@ -22,6 +22,7 @@ import {
   shouldMeasureInlineSize,
   visualRowsFromScrollHeight,
 } from "./result-code-block-sizing";
+import { inCardSheet } from "../../cards/sheet-context";
 
 type Props = {
   code: string;
@@ -49,6 +50,8 @@ type Props = {
   enter?: boolean;
   onActivate?: () => void;
   activateLabel?: string;
+  /** Sit flush in a card sheet section: no border, radius or padding. */
+  bare?: boolean;
 };
 
 type DiffLineTone = "add" | "delete" | "hunk" | "file" | "context";
@@ -72,7 +75,11 @@ let {
   enter = false,
   onActivate,
   activateLabel,
+  bare: bareOverride,
 }: Props = $props();
+
+const sheetBare = inCardSheet();
+const bare = $derived(bareOverride ?? sheetBare);
 
 let html = $state<string | undefined>(undefined);
 let htmlSignature = $state<string | undefined>(undefined);
@@ -533,6 +540,7 @@ $effect(() => () => {
   <div
     bind:this={blockEl}
     class="code-block terminal-output"
+    class:code-block--bare={bare}
     class:code-block--interactive={Boolean(onActivate)}
     role={onActivate ? "button" : undefined}
     tabindex={onActivate ? 0 : undefined}
@@ -567,6 +575,7 @@ $effect(() => () => {
   <div
     bind:this={blockEl}
     class="code-block"
+    class:code-block--bare={bare}
     class:code-block--interactive={Boolean(onActivate)}
     role={onActivate ? "button" : undefined}
     tabindex={onActivate ? 0 : undefined}
@@ -607,6 +616,7 @@ $effect(() => () => {
   <div
     bind:this={blockEl}
     class="code-block"
+    class:code-block--bare={bare}
     class:code-block--interactive={Boolean(onActivate)}
     role={onActivate ? "button" : undefined}
     tabindex={onActivate ? 0 : undefined}
@@ -677,6 +687,16 @@ $effect(() => () => {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   line-height: 1.4;
+}
+
+.code-block--bare {
+  --code-block-padding-y: 0px;
+  --code-block-padding-x: 0px;
+  --code-block-border-y: 0px;
+
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .code-block--interactive {

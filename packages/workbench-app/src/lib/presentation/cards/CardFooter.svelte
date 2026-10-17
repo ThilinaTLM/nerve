@@ -1,9 +1,11 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
+import { prefersReducedMotion } from "svelte/motion";
+import { scale } from "svelte/transition";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import { cn } from "@nervekit/ui-kit/utils";
 import type { CardAction, MetaItem } from "./card-presentation";
 import MetaChip from "./MetaChip.svelte";
+import { ChipOrder, chipKey } from "./chip-order";
 
 type Props = {
   meta?: MetaItem[];
@@ -23,28 +25,41 @@ let {
   actions,
 }: Props = $props();
 
+// Chips are append-only: ordered by first appearance, keyed by identity, and
+// only animated on enter (no position animation when others change).
+const chipOrder = new ChipOrder();
+const orderedMeta = $derived(chipOrder.order(meta));
+
 const hasActions = $derived(Boolean(actions));
 const hasPrimaryAction = $derived(Boolean(primaryAction));
+const hasRight = $derived(
+  cardActions.length > 0 || hasPrimaryAction || hasActions,
+);
 const show = $derived(
   meta.length > 0 || cardActions.length > 0 || hasPrimaryAction || hasActions,
 );
 </script>
 
 {#if show}
-  <div class="flex min-w-0 flex-wrap items-start gap-x-2.5 gap-y-1.5">
+  <div class="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1.5">
     {#if meta.length > 0}
       <div class="flex min-w-0 flex-wrap items-center gap-1.5">
-        {#each meta as item, i (i)}
-          <MetaChip {item} {onOpenFile} />
+        {#each orderedMeta as item (chipKey(item))}
+          <span
+            class="inline-flex"
+            in:scale={{
+              duration: prefersReducedMotion.current ? 0 : 200,
+              start: 0.85,
+            }}
+          >
+            <MetaChip {item} {onOpenFile} />
+          </span>
         {/each}
       </div>
     {/if}
-    {#if cardActions.length > 0}
+    {#if hasRight}
       <div
-        class={cn(
-          "flex min-w-0 flex-wrap items-center gap-1.5",
-          hasActions || hasPrimaryAction ? "ml-0" : "ml-auto",
-        )}
+        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5"
       >
         {#each cardActions as action, i (i)}
           <button
@@ -56,12 +71,6 @@ const show = $derived(
             {action.label}
           </button>
         {/each}
-      </div>
-    {/if}
-    {#if primaryAction || actions}
-      <div
-        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
-      >
         {#if primaryAction}
           <Button
             aria-label={primaryAction.ariaLabel}

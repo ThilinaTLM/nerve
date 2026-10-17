@@ -1,3 +1,8 @@
+import {
+  subagentPromptResultDetailsSchema,
+  subagentStatusResultDetailsSchema,
+  subagentStopResultDetailsSchema,
+} from "@nervekit/contracts/tools";
 import type {
   SubagentAssignmentView,
   SubagentStatusRow,
@@ -21,8 +26,10 @@ function lines(text: string | undefined): string[] {
 
 export type PromptResultLine = {
   name: string;
-  profile: string;
-  disposition: "created" | "follow_up";
+  profile?: string;
+  disposition: "created" | "follow_up" | "rejected";
+  agentId?: string;
+  reason?: string;
   /** State in parentheses after "follow-up queued". */
   queuedState?: string;
 };
@@ -30,7 +37,11 @@ export type PromptResultLine = {
 /** `name (profile): created` or `name (profile): follow-up queued (running)`. */
 export function parsePromptResult(
   text: string | undefined,
+  details?: unknown,
 ): PromptResultLine[] {
+  const structured = subagentPromptResultDetailsSchema.safeParse(details);
+  if (structured.success && structured.data.assignments)
+    return structured.data.assignments;
   const parsed: PromptResultLine[] = [];
   for (const line of lines(text)) {
     const match = /^(.+?) \(([^()]+)\): (.+)$/.exec(line);
@@ -53,9 +64,13 @@ export function parsePromptResult(
 export function subagentAssignments(
   args: Record<string, unknown>,
   result: string | undefined,
+  details?: unknown,
 ): SubagentAssignmentView[] {
   const results = new Map(
-    parsePromptResult(result).map((line) => [line.name.toLowerCase(), line]),
+    parsePromptResult(result, details).map((line) => [
+      line.name.toLowerCase(),
+      line,
+    ]),
   );
   const raw = Array.isArray(args.assignments) ? args.assignments : [];
   const assignments: SubagentAssignmentView[] = [];
@@ -72,6 +87,8 @@ export function subagentAssignments(
           : line?.profile,
       prompt: typeof record.prompt === "string" ? record.prompt : "",
       disposition: line?.disposition,
+      ...(line?.reason !== undefined ? { reason: line.reason } : {}),
+      ...(line?.agentId !== undefined ? { agentId: line.agentId } : {}),
       queuedState: line?.queuedState,
     });
   }
@@ -84,7 +101,17 @@ export function subagentAssignments(
  */
 export function parseStatusListing(
   text: string | undefined,
+  details?: unknown,
 ): SubagentStatusRow[] {
+  const structured = subagentStatusResultDetailsSchema.safeParse(details);
+  if (structured.success && structured.data.agents)
+    return structured.data.agents.map((agent) => ({
+      ...agent,
+      context:
+        agent.contextPercent === undefined
+          ? undefined
+          : `${agent.contextPercent}%`,
+    }));
   const rows: SubagentStatusRow[] = [];
   for (const line of lines(text)) {
     const fields = line.split(FIELD_SEPARATOR).map((field) => field.trim());
@@ -119,11 +146,33 @@ export function parseStatusDetail(text: string | undefined): {
 }
 
 /** `name: stopped` style lines, one per stopped sub-agent. */
-export function parseStopResult(text: string | undefined): SubagentStopLine[] {
+export function parseStopResult(
+  text: string | undefined,
+  details?: unknown,
+): SubagentStopLine[] {
+  const structured = subagentStopResultDetailsSchema.safeParse(details);
+  if (structured.success && structured.data.results)
+    return structured.data.results;
   const parsed: SubagentStopLine[] = [];
   for (const line of lines(text)) {
     const match = /^(.+?): (.+)$/.exec(line);
-    if (match) parsed.push({ name: match[1], outcome: match[2] });
+    if (match) {
+      const raw = match[2];
+      const outcome = /^stopped\b/.test(raw)
+        ? "stopped"
+        : /^already[_ ]idle\b/.test(raw) ||
+            raw === "was not running" ||
+            raw.startsWith("nothing to stop")
+          ? "already_idle"
+          : /not[_ ]found/.test(raw)
+            ? "not_found"
+            : "failed";
+      parsed.push({
+        name: match[1],
+        outcome,
+        ...(outcome === "failed" ? { reason: raw } : {}),
+      });
+    }
   }
   return parsed;
 }

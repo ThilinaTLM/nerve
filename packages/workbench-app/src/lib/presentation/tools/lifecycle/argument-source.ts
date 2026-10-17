@@ -338,8 +338,33 @@ export class ToolArgumentSource {
       );
       return strings.length > 0 ? strings : value.length === 0 ? [] : undefined;
     }
-    const partial = this.partialStrings(key).map((entry) => entry.value);
-    return partial.length > 0 ? partial : undefined;
+    const start = new RegExp(`"${escapeRegExp(key)}"\\s*:\\s*\\[`).exec(
+      this.argsText,
+    );
+    if (!start) {
+      const partial = this.partialStrings(key).map((entry) => entry.value);
+      return partial.length ? partial : undefined;
+    }
+    const partial: string[] = [];
+    let cursor = start.index + start[0].length;
+    while (cursor < this.argsText.length) {
+      while (/[\s,]/.test(this.argsText[cursor] ?? "")) cursor += 1;
+      if (this.argsText[cursor] !== '"') break;
+      const begin = ++cursor;
+      let escaped = false;
+      while (cursor < this.argsText.length) {
+        const char = this.argsText[cursor];
+        if (!escaped && char === '"') break;
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        cursor += 1;
+      }
+      partial.push(
+        decodePartialString(this.argsText.slice(begin, cursor)).value,
+      );
+      cursor += 1;
+    }
+    return partial.length ? partial : undefined;
   }
 
   number(key: string): number | undefined {

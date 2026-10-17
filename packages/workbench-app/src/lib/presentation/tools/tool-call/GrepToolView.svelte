@@ -6,6 +6,7 @@ import {
   type GroupedMatches,
   type ToolView,
 } from "../views/tool-result-view";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -30,18 +31,23 @@ const visibleGroups = $derived.by(() => {
 });
 </script>
 
-{#snippet matchGroups(groups: GroupedMatches[])}
-  <div class="matches">
-    {#each groups as group, groupIndex (group.path)}
+{#if view.matchCount === 0 && toolCall.status === "completed"}
+  <ToolSections>
+    <div class="px-2.5 py-2 text-xs text-muted-foreground">No matches.</div>
+  </ToolSections>
+{:else if view.matchCount > 0}
+  <!-- One sheet section per file: its path, then its matching lines. -->
+  <ToolSections>
+    {#each visibleGroups as group, groupIndex (group.path)}
       <div
-        class="file"
+        class="px-2.5 py-2 font-mono text-xs leading-[1.4]"
         class:stream-item-enter={toolMotion.enter}
         style:--stream-item-delay={toolMotion.enter
           ? resultRowEnterDelay(groupIndex)
           : undefined}
       >
         <button
-          class="file-path"
+          class="cursor-pointer border-0 bg-transparent p-0 text-left font-semibold text-primary hover:underline"
           type="button"
           onclick={() => onOpenFile?.(group.openPath ?? group.path)}
           title="Open file pane"
@@ -50,7 +56,7 @@ const visibleGroups = $derived.by(() => {
         </button>
         {#each group.matches as match, index (`${group.path}:${match.line}:${index}:${match.text}`)}
           <button
-            class="match"
+            class="group grid w-full cursor-pointer grid-cols-[3rem_minmax(0,1fr)] gap-2 border-0 bg-transparent p-0 text-left"
             type="button"
             onclick={() =>
               onOpenFile?.(
@@ -59,78 +65,14 @@ const visibleGroups = $derived.by(() => {
               )}
             title={`Open ${group.path}:${match.line}`}
           >
-            <span class="line-no">{match.line}</span><span class="line-text"
+            <span class="text-right text-muted-foreground/75">{match.line}</span
+            ><span
+              class="break-words whitespace-pre-wrap text-foreground group-hover:underline"
               >{match.text}</span
             >
           </button>
         {/each}
       </div>
     {/each}
-  </div>
-{/snippet}
-
-{#if view.matchCount === 0 && toolCall.status === "completed"}
-  <p class="note">No matches.</p>
-{:else if view.matchCount > 0}
-  {@render matchGroups(visibleGroups)}
+  </ToolSections>
 {/if}
-
-<style>
-.matches {
-  display: grid;
-  gap: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--well);
-  color: var(--foreground);
-  padding: 0.5rem 0.6rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  overflow: visible;
-}
-
-.file-path,
-.match {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-  padding: 0;
-  text-align: left;
-}
-
-.file-path {
-  color: var(--primary);
-  font-weight: 600;
-}
-
-.file-path:hover,
-.match:hover .line-text {
-  text-decoration: underline;
-}
-
-.match {
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr);
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.line-no {
-  color: color-mix(in oklab, var(--muted-foreground) 75%, transparent);
-  text-align: right;
-}
-
-.line-text {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.note {
-  margin: 0;
-  font-size: var(--text-xs);
-  color: var(--muted-foreground);
-}
-</style>

@@ -37,3 +37,59 @@ void test("previews retain six useful lines, image references and core async bas
   );
   assert.deepEqual(logs.resultPreview, { content: "4\n5\n6\n7\n8\n9" });
 });
+
+void test("durable previews retain lifecycle details and totals while bounding visible lists", () => {
+  for (const [tool, list, total] of [
+    ["find", "entries", "totalEntries"],
+    ["ls", "entries", "totalEntries"],
+    ["grep", "matches", "totalMatches"],
+  ] as const) {
+    const preview = buildUserProjection(
+      tool,
+      {},
+      {
+        [list]: Array.from({ length: 100 }, (_, index) => ({
+          path: `file-${index}`,
+          line: index,
+          text: "match",
+        })),
+        details: { [total]: 100, totalFiles: 10 },
+      },
+    ).resultPreview as Record<string, unknown>;
+    assert.equal((preview.details as Record<string, unknown>)[total], 100);
+    assert.equal((preview[list] as unknown[]).length, 6);
+  }
+  const edit = buildUserProjection(
+    "edit",
+    {},
+    {
+      content: "done",
+      details: {
+        appliedCount: 0,
+        operationCount: 2,
+        operations: [
+          { index: 0, status: "not_applied" },
+          { index: 1, status: "failed", error: "not found" },
+        ],
+        diff: "diff",
+      },
+    },
+  ).resultPreview as { details: Record<string, unknown> };
+  assert.equal(edit.details.appliedCount, 0);
+  assert.deepEqual(edit.details.operations, [
+    { index: 0, status: "not_applied" },
+    { index: 1, status: "failed", error: "not found" },
+  ]);
+  const image = buildUserProjection(
+    "generate_image",
+    { prompt: "draw" },
+    {
+      details: {
+        images: [{ path: "/tmp/a.png", bytes: 123, width: 2, height: 3 }],
+      },
+    },
+  ).resultPreview as { details: { images: unknown[] } };
+  assert.deepEqual(image.details.images, [
+    { path: "/tmp/a.png", bytes: 123, width: 2, height: 3 },
+  ]);
+});

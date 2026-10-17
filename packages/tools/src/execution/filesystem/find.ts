@@ -1,7 +1,9 @@
-import { execFile } from "node:child_process";
+import type { ChildProcessByStdio } from "node:child_process";
+import type { Readable } from "node:stream";
+import { spawnManagedChildProcess } from "@nervekit/native";
+import { searchProcessPolicy } from "../process/managed-process-policy.js";
 import { stat } from "node:fs/promises";
 import { relative } from "node:path";
-import { promisify } from "node:util";
 import type {
   FilesystemExecutionContext,
   ToolExecutionResult,
@@ -20,7 +22,7 @@ import {
   resolveToolPath,
 } from "./path.js";
 
-const execFileAsync = promisify(execFile);
+type FindRunResult = { paths: string[]; totalEntries: number };
 
 type FindBackendMode = "auto" | "fd" | "node";
 
@@ -53,37 +55,45 @@ export async function executeFindWithBackend(
   });
   if (!info.isDirectory()) throw new Error("find path is not a directory.");
   const limit = Math.min(numberArg(args.limit, 1000), 5000);
-  let paths: string[];
+  let found: FindRunResult;
   if (backendMode === "node") {
-    paths = await fallbackFind(root, args.pattern, limit);
+    found = await fallbackFind(root, args.pattern, limit, context.signal);
   } else if (backendMode === "fd") {
-    paths = await runFd(args.pattern, root, limit);
+    found = await runFd(args.pattern, root, limit, context.signal);
   } else {
-    const fd = await runFd(args.pattern, root, limit).catch(
+    const fd = await runFd(args.pattern, root, limit, context.signal).catch(
       (error: unknown) => {
-        if (isErrnoException(error) && error.code === "ENOENT") {
+        if (
+          isErrnoException(error) &&
+          (error.code === "ENOENT" ||
+            (error.code === "GenericFailure" &&
+              /no such file|not found/i.test(error.message)))
+        ) {
           return undefined;
         }
         throw error;
       },
     );
-    paths = fd ?? (await fallbackFind(root, args.pattern, limit));
+    found =
+      fd ?? (await fallbackFind(root, args.pattern, limit, context.signal));
   }
+  const { paths, totalEntries } = found;
   const entries = paths
     .slice(0, limit)
     .map((path) => ({ path, kind: "file" as const }));
-  const formatted = formatFind(paths, limit);
+  const formatted = formatFind(paths, limit, totalEntries);
   return {
     path: root,
     entries,
     content: formatted.content,
     contentBlocks: [{ type: "text", text: formatted.content }],
     details: {
+      totalEntries,
       ...(formatted.details && typeof formatted.details === "object"
         ? formatted.details
         : {}),
       returnedEntries: entries.length,
-      producerLimitReached: paths.length >= limit,
+      producerLimitReached: totalEntries >= limit,
     },
   };
 }
@@ -92,7 +102,8 @@ async function runFd(
   pattern: string,
   root: string,
   limit: number,
-): Promise<string[]> {
+  signal?: AbortSignal,
+): Promise<FindRunResult> {
   const fdArgs = [
     "--hidden",
     "--glob",
@@ -100,8 +111,6 @@ async function runFd(
     "file",
     "--color=never",
     "--no-require-git",
-    "--max-results",
-    String(limit),
   ];
   let effectivePattern = pattern;
   if (pattern.includes("/")) {
@@ -111,22 +120,92 @@ async function runFd(
     }
   }
   fdArgs.push("--", effectivePattern, root);
-  const { stdout } = await execFileAsync("fd", fdArgs, {
-    timeout: 30_000,
-    maxBuffer: 1024 * 1024,
+  signal?.throwIfAborted();
+  return new Promise<FindRunResult>((resolve, reject) => {
+    const child = spawnManagedChildProcess("fd", fdArgs, {
+      policy: searchProcessPolicy(),
+    }) as ChildProcessByStdio<null, Readable, Readable>;
+    const paths: string[] = [];
+    let totalEntries = 0;
+    let pending = "";
+    let stderr = "";
+    let failure: unknown;
+    let forceKill: NodeJS.Timeout | undefined;
+    const fail = (error: unknown) => {
+      failure ??= error;
+      child.kill("SIGTERM");
+      forceKill ??= setTimeout(() => child.kill("SIGKILL"), 100);
+      forceKill.unref();
+    };
+    const abort = () => fail(signal?.reason ?? new Error("find aborted"));
+    signal?.addEventListener("abort", abort, { once: true });
+    const timeout = setTimeout(
+      () => fail(new Error("find timed out after 30000ms.")),
+      30_000,
+    );
+    timeout.unref();
+    const consume = (line: string) => {
+      const path = line.trim();
+      if (!path) return;
+      totalEntries += 1;
+      if (paths.length < limit)
+        paths.push((relative(root, path) || path).replaceAll("\\", "/"));
+    };
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      pending += chunk;
+      let newline = pending.indexOf("\n");
+      while (newline >= 0) {
+        consume(pending.slice(0, newline));
+        pending = pending.slice(newline + 1);
+        newline = pending.indexOf("\n");
+      }
+      if (pending.length > 1024 * 1024)
+        fail(new Error("fd returned an oversized path."));
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk.slice(0, Math.max(0, 64 * 1024 - stderr.length));
+    });
+    child.once("error", (error) => {
+      failure = error;
+    });
+    child.once("close", (code) => {
+      clearTimeout(timeout);
+      if (forceKill) clearTimeout(forceKill);
+      signal?.removeEventListener("abort", abort);
+      if (failure) {
+        reject(failure);
+        return;
+      }
+      if (code !== 0) {
+        reject(
+          new Error(
+            stderr.trim() || `fd exited with code ${code ?? "unknown"}.`,
+          ),
+        );
+        return;
+      }
+      consume(pending);
+      resolve({ paths, totalEntries });
+    });
   });
-  return stdout
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((path) => (relative(root, path) || path).replaceAll("\\", "/"));
 }
 
 async function fallbackFind(
   root: string,
   pattern: string,
   limit: number,
-): Promise<string[]> {
+  signal?: AbortSignal,
+): Promise<FindRunResult> {
+  const deadline = Date.now() + 30_000;
+  const checkExecution = () => {
+    signal?.throwIfAborted();
+    if (Date.now() >= deadline)
+      throw new Error("find timed out after 30000ms.");
+    return false;
+  };
+  let totalEntries = 0;
   const results: string[] = [];
   const regex = globToRegExp(pattern);
   await walkFiles(
@@ -135,23 +214,27 @@ async function fallbackFind(
     limit,
     async (_absolutePath, relativePath) => {
       const normalizedPath = relativePath.replaceAll("\\", "/");
-      if (regex.test(normalizedPath)) results.push(normalizedPath);
+      if (regex.test(normalizedPath)) {
+        totalEntries += 1;
+        if (results.length < limit) results.push(normalizedPath);
+      }
     },
-    () => results.length >= limit,
+    checkExecution,
   );
-  return results;
+  return { paths: results, totalEntries };
 }
 
 function formatFind(
   paths: string[],
   limit: number,
+  totalEntries: number,
 ): {
   content: string;
   details?: unknown;
 } {
   const lines = paths.slice(0, limit);
   if (lines.length === 0) lines.push("No files found.");
-  if (paths.length >= limit) {
+  if (totalEntries >= limit) {
     lines.push(
       "",
       `[Result limit ${limit} reached. Increase limit or refine the pattern for more results.]`,

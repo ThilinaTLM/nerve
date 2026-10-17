@@ -4,6 +4,7 @@ import type {
   ToolCallDisplayRecord,
   ToolView,
 } from "../views/tool-result-view";
+import ToolSections from "./ToolSections.svelte";
 import ToolOutputBlock from "./ToolOutputBlock.svelte";
 
 type Props = {
@@ -25,16 +26,22 @@ const liveText = $derived.by(() => {
 });
 </script>
 
-{#if expanded && view.explanation}
-  <div class="min-w-0 rounded-sm border bg-well p-3">
-    <Markdown text={view.explanation} {onOpenFile} />
-  </div>
-{:else if view.live && liveText}
-  <div class="grid gap-1.5" aria-label="Live image explanation generation">
-    <ToolOutputBlock text={liveText} direction="tail" />
-  </div>
-{:else if view.explanation}
-  <ToolOutputBlock text={view.explanation} direction="head" />
-{:else if toolCall.status === "completed"}
-  <p class="m-0 text-xs text-muted-foreground">No explanation returned.</p>
-{/if}
+<ToolSections>
+  {#if expanded && view.explanation}
+    <div class="min-w-0 p-3">
+      <Markdown text={view.explanation} {onOpenFile} />
+    </div>
+  {:else if view.live && liveText}
+    <div class="px-2.5 py-2" aria-label="Live image explanation generation">
+      <ToolOutputBlock text={liveText} direction="tail" />
+    </div>
+  {:else if view.explanation}
+    <div class="px-2.5 py-2">
+      <ToolOutputBlock text={view.explanation} direction="head" />
+    </div>
+  {:else if toolCall.status === "completed"}
+    <p class="m-0 px-3 py-2 text-xs text-muted-foreground">
+      No explanation returned.
+    </p>
+  {/if}
+</ToolSections>

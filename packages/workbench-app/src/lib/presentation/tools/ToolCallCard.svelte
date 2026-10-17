@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import type { UserInputAnswer } from "@nervekit/contracts/core";
 import { prefersReducedMotion } from "svelte/motion";
 import type {
   AgentRecord,
@@ -39,6 +40,7 @@ import { isInputValidationFailure } from "./lifecycle/failure-context";
 import {
   deriveToolActivitySections,
   deriveToolLifecycleVisualStage,
+  leadStageFor,
   QUEUED_INDICATOR_DELAY_MS,
   toolLifecycleStageIndicator,
   visibleLifecycleStage,
@@ -53,13 +55,23 @@ import { trimTextPreview } from "@nervekit/ui-kit/display/text-preview";
 import { LatestPresentationScheduler } from "@nervekit/ui-kit/scheduling/latest-presentation-scheduler";
 import { toolCardLayoutRevision } from "./views/tool-card-layout";
 import { VIEW_TOOL_DETAILS_LABEL } from "./views/tool-details-label";
-import { formatElapsed } from "./views/tool-presentation-helpers";
+import { leadChip, riskChip } from "../cards/lead-chip";
 import CardShell from "../cards/CardShell.svelte";
+import CardSheet from "../cards/CardSheet.svelte";
+import CardSheetError from "../cards/CardSheetError.svelte";
 import ToolExecutingSkeleton from "./tool-call/ToolExecutingSkeleton.svelte";
 import ToolArgumentBody from "./tool-call/ToolArgumentBody.svelte";
 import ToolCallDetailsDialog from "./tool-call/ToolCallDetailsDialog.svelte";
 import ApprovalPrompt from "./tool-call/ApprovalPrompt.svelte";
-import { resolveAskUserQuestion } from "./tool-call/ask-user-state";
+import AskUserActions from "./tool-call/AskUserActions.svelte";
+import AskUserDraft from "./tool-call/AskUserDraft.svelte";
+import AskUserToolView from "./tool-call/AskUserToolView.svelte";
+import { AskUserController } from "./tool-call/ask-user-controller.svelte";
+import {
+  askUserDraftQuestions,
+  resolveAskUserQuestion,
+} from "./tool-call/ask-user-state";
+import { toolArgumentSource } from "./lifecycle/argument-source";
 import { resolvePlanReview } from "./tool-call/plan-review-state";
 import { provideToolMotion } from "./tool-call/tool-motion-context";
 import type { ConversationMotionProfile } from "../transcript/conversation-motion-budget";
@@ -85,7 +97,10 @@ type Props = {
   onOpenFile?: (path: string, line?: number) => void;
   /** Opens the background task a promoted call handed its work to. */
   onOpenTask?: (taskId: string) => void;
-  onAnswerUserQuestion?: (toolCallId: string, answer: string) => void;
+  onAnswerUserQuestion?: (
+    toolCallId: string,
+    answers: Record<string, UserInputAnswer>,
+  ) => void | Promise<void>;
   onDismissUserQuestion?: (toolCallId: string) => void;
   onGrantApproval?: (
     toolCallId: string,
@@ -333,6 +348,13 @@ const lifecycleArgumentPresentation = $derived.by(() => {
     cwd,
   );
 });
+// Image placeholders reserve their frame from the `size` argument.
+const sizeArgument = $derived.by(() => {
+  const args = toolCall?.argsPreview;
+  const size =
+    args && typeof args === "object" && "size" in args ? args.size : undefined;
+  return typeof size === "string" ? size : undefined;
+});
 const argumentBody = $derived.by(() => {
   if (!presentedToolCall) return draftSummary?.argumentBody;
   if (isInputValidationFailure(presentedToolCall)) return undefined;
@@ -359,39 +381,80 @@ const hilInteractive = $derived(
 const toolQuestion = $derived(
   resolveAskUserQuestion(toolCall, pendingUserQuestion),
 );
+// ask_user lives inside the sheet in every state; plan review still owns its
+// body and actions.
+const planInteractive = $derived(
+  view?.kind === "plan_mode" && view.action === "present",
+);
+const isAskUser = $derived(
+  (toolCall?.toolName ?? draft?.block.toolName) === "ask_user",
+);
+const askUserView = $derived(view?.kind === "ask_user" ? view : undefined);
+const askUserController = new AskUserController(() => ({
+  toolCall: toolCall!,
+  questions: askUserView?.questions ?? [],
+  dismissed: askUserView?.dismissed ?? false,
+  questionRecord: toolQuestion,
+  voice: capabilities.voice,
+  onAnswer: onAnswerUserQuestion,
+  onDismiss: onDismissUserQuestion,
+}));
+const askUserDraftViewQuestions = $derived(
+  isAskUser && !presentedToolCall && presentedDraftBlock
+    ? askUserDraftQuestions(
+        toolArgumentSource({
+          args: presentedDraftBlock.args,
+          argsText: presentedDraftBlock.argsText,
+        }),
+      )
+    : undefined,
+);
 const toolPlanReview = $derived(resolvePlanReview(toolCall, pendingPlanReview));
 function mergeMetaItems(...groups: Array<readonly MetaItem[]>): MetaItem[] {
-  const seen: string[] = [];
-  return groups.flat().filter((item) => {
-    if (seen.includes(item.text)) return false;
-    seen.push(item.text);
-    return true;
-  });
+  // Local deduplication scratch space, not reactive component state.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
+  const seen = new Set<string>();
+  return groups
+    .flatMap((group) =>
+      group.map((item) => ({
+        ...item,
+        key: item.key ?? `meta:${item.text.replace(/\d+(?:\.\d+)?/g, "#")}`,
+      })),
+    )
+    .filter((item) => {
+      if (seen.has(item.key)) return false;
+      seen.add(item.key);
+      return true;
+    });
 }
-// Wall-clock feedback for work in flight. The chip leads the footer so a long
-// call always says how long it has been waiting, and it is delayed briefly so
-// quick calls do not flash a "0s".
-const runningSinceMs = $derived.by(() => {
-  if (!toolCall || outcomeUnknown) return undefined;
-  // Queued calls have not started; createdAt would count the approval wait.
-  if (toolCall.status !== "running") return undefined;
-  const started = Date.parse(toolCall.createdAt);
-  return Number.isFinite(started) ? started : undefined;
+// Execution clock for the lead chip. An open running call started when it
+// last changed state (`updatedAt`); settled calls carry `startedAt` from the
+// tool_call_response. Queued calls have not started, so the approval wait is
+// never counted.
+function parseMs(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+const startedAtMs = $derived.by(() => {
+  if (!toolCall) return undefined;
+  return parseMs(
+    toolCall.startedAt ??
+      (toolCall.status === "running" ? toolCall.updatedAt : undefined),
+  );
 });
+const settledAtMs = $derived(parseMs(toolCall?.settledAt));
+const clockRunning = $derived(
+  Boolean(toolCall) && toolCall?.status === "running" && !outcomeUnknown,
+);
 let clockMs = $state(Date.now());
 $effect(() => {
-  if (runningSinceMs === undefined) return;
+  if (!clockRunning) return;
   clockMs = Date.now();
   const interval = setInterval(() => {
     clockMs = Date.now();
   }, 1000);
   return () => clearInterval(interval);
-});
-const elapsedMeta = $derived.by<MetaItem[]>(() => {
-  if (runningSinceMs === undefined) return [];
-  const elapsed = clockMs - runningSinceMs;
-  if (elapsed < 2000) return [];
-  return [{ text: formatElapsed(elapsed) }];
 });
 const lifecycleStage = $derived(
   deriveToolLifecycleVisualStage({
@@ -415,18 +478,26 @@ const visualStage = $derived(
   visibleLifecycleStage(lifecycleStage, queuedVisible),
 );
 const stageIndicator = $derived(toolLifecycleStageIndicator(visualStage));
-const stageMeta = $derived<MetaItem[]>(
-  stageIndicator
-    ? [{ text: stageIndicator.label, tone: stageIndicator.tone }]
-    : [],
+// Footer chips are keyed and append-only. The lead chip is always present
+// (from the first draft frame) and morphs in place; the risk chip appears once
+// approval was required and stays through every later state.
+const leadItem = $derived(
+  leadChip({
+    stage: leadStageFor(visualStage, presentedToolCall?.status, {
+      dismissed: askUserView?.dismissed,
+    }),
+    startedAtMs,
+    settledAtMs,
+    nowMs: clockMs,
+  }),
 );
+const riskItem = $derived(riskChip(toolCall?.supervision));
 const activityMeta = $derived.by(() => {
-  if (!presentedToolCall || !toolCall) return draftSummary?.meta ?? [];
-  if (toolCall.status === "completed")
-    return mergeMetaItems(stageMeta, presentation?.meta ?? []);
+  const head = riskItem ? [leadItem, riskItem] : [leadItem];
+  if (!presentedToolCall || !toolCall)
+    return mergeMetaItems(head, draftSummary?.meta ?? []);
   return mergeMetaItems(
-    stageMeta,
-    elapsedMeta,
+    head,
     draftSummary?.meta ?? [],
     lifecycleArgumentPresentation?.secondary ?? [],
     presentation?.meta ?? [],
@@ -454,7 +525,7 @@ const draftArg = $derived.by<PrimaryArg | undefined>(() => {
   if (!draftSummary) return undefined;
   if (draftSummary.primaryArg) return draftSummary.primaryArg;
   if (draftSummary.path) return { text: draftSummary.path };
-  return { text: "Preparing arguments…" };
+  return undefined;
 });
 const badge = $derived(
   presentation?.badge ??
@@ -467,7 +538,7 @@ const badge = $derived(
 // question/plan is not duplicated in the interactive body. Skip the lifecycle
 // fallback in that case; other tools keep the streaming-arg fallback.
 const primaryArg = $derived(
-  hilInteractive
+  planInteractive
     ? presentation?.primaryArg
     : (presentation?.primaryArg ??
         lifecycleArgumentPresentation?.primaryArg ??
@@ -526,6 +597,23 @@ const errorPreview = $derived(
         maxChars: 2_000,
       }).text
     : undefined,
+);
+
+// Interactive tools render outside the sheet until they adopt the sheet
+// sections themselves.
+const hilBodyVisible = $derived(
+  planInteractive && activitySections.resultMode === "output",
+);
+const askUserSheetVisible = $derived(
+  Boolean(askUserDraftViewQuestions?.length) ||
+    (askUserView !== undefined && activitySections.resultMode === "output"),
+);
+const sheetVisible = $derived(
+  !planInteractive &&
+    (askUserSheetVisible ||
+      activitySections.argumentVisible ||
+      activitySections.resultMode !== "none" ||
+      (activitySections.errorVisible && Boolean(errorPreview))),
 );
 
 $effect(() => {
@@ -602,55 +690,8 @@ async function openDetails() {
 }
 </script>
 
-<CardShell
-  status={presentedToolCall?.status}
-  draftPhase={presentedToolCall
-    ? undefined
-    : activitySections.phase === "prepared"
-      ? "prepared"
-      : "drafting"}
-  {dotTone}
-  {dotPulse}
-  {glyph}
-  statusLabel={stageIndicator?.label}
-  {badge}
-  arg={primaryArg}
-  error={activitySections.errorVisible ? errorPreview : undefined}
-  {meta}
-  footer={activitySections.footerVisible}
-  bodyVisible={activitySections.argumentVisible ||
-    activitySections.interactionMode !== "none" ||
-    activitySections.resultMode !== "none"}
-  {layoutRevision}
-  bind:motionProfile
-  {cardActions}
-  {onOpenFile}
->
-  {#if activitySections.argumentVisible && argumentBody}
-    <ToolArgumentBody
-      body={argumentBody}
-      highlight={revealSettled && Boolean(toolCall || draft?.block.done)}
-      streaming={!revealSettled || (!toolCall && !draft?.block.done)}
-    />
-  {/if}
-
-  {#if activitySections.interactionMode === "approval" && toolApproval && approvalPresentation && toolCall}
-    <ApprovalPrompt
-      approval={toolApproval}
-      toolName={toolCall.toolName}
-      presentation={approvalPresentation}
-      includeBody={!activitySections.argumentVisible}
-      {onGrantApproval}
-      {onDenyApproval}
-    />
-  {/if}
-
-  {#if activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
-    <ToolExecutingSkeleton
-      variant={lifecycleSpec.resultPlaceholder.variant}
-      rows={lifecycleSpec.resultPlaceholder.rows}
-    />
-  {:else if activitySections.resultMode === "output" && toolCall && view && ToolView}
+{#snippet toolViewBody()}
+  {#if toolCall && view && ToolView}
     <ToolView
       {toolCall}
       {view}
@@ -667,6 +708,97 @@ async function openDetails() {
       {onAcceptPlanReviewInNewChat}
       {onRejectPlanReview}
     />
+  {/if}
+{/snippet}
+
+{#snippet askUserActions()}
+  <AskUserActions controller={askUserController} />
+{/snippet}
+
+{#snippet approvalActions()}
+  {#if toolApproval && approvalPresentation && toolCall}
+    <ApprovalPrompt
+      embedded
+      approval={toolApproval}
+      toolName={toolCall.toolName}
+      presentation={approvalPresentation}
+      {onGrantApproval}
+      {onDenyApproval}
+    />
+  {/if}
+{/snippet}
+
+<CardShell
+  status={presentedToolCall?.status}
+  draftPhase={presentedToolCall
+    ? undefined
+    : activitySections.phase === "prepared"
+      ? "prepared"
+      : "drafting"}
+  {dotTone}
+  {dotPulse}
+  {glyph}
+  statusLabel={stageIndicator?.label}
+  {badge}
+  arg={primaryArg}
+  argPending={!planInteractive}
+  {meta}
+  footer={activitySections.footerVisible || isAskUser}
+  bodyVisible={sheetVisible || hilBodyVisible}
+  {layoutRevision}
+  bind:motionProfile
+  {cardActions}
+  actions={activitySections.interactionMode === "approval" && toolApproval
+    ? approvalActions
+    : askUserView && toolCall && askUserController.pending
+      ? askUserActions
+      : undefined}
+  {onOpenFile}
+>
+  {#if hilBodyVisible}
+    <!-- Interactive tools (ask_user, plan review) own their body and actions. -->
+    {@render toolViewBody()}
+  {:else if sheetVisible}
+    <CardSheet>
+      {#if askUserDraftViewQuestions?.length}
+        <AskUserDraft questions={askUserDraftViewQuestions} />
+      {:else if askUserView && toolCall && activitySections.resultMode === "output"}
+        <AskUserToolView
+          {toolCall}
+          view={askUserView}
+          questionRecord={toolQuestion}
+          controller={askUserController}
+          {onOpenFile}
+          {onAnswerUserQuestion}
+          {onDismissUserQuestion}
+        />
+      {/if}
+      {#if askUserView || askUserDraftViewQuestions}
+        <!-- Question sections are the whole sheet for ask_user. -->
+      {:else if activitySections.argumentVisible && argumentBody}
+        <ToolArgumentBody
+          section
+          body={argumentBody}
+          toolCall={presentedToolCall ?? toolCall}
+          highlight={revealSettled && Boolean(toolCall || draft?.block.done)}
+          streaming={!revealSettled || (!toolCall && !draft?.block.done)}
+        />
+      {/if}
+
+      {#if activitySections.resultMode === "placeholder" && lifecycleSpec.resultPlaceholder}
+        <ToolExecutingSkeleton
+          variant={lifecycleSpec.resultPlaceholder.variant}
+          rows={lifecycleSpec.resultPlaceholder.rows}
+          ratio={lifecycleSpec.resultPlaceholder.ratio ?? sizeArgument}
+        />
+      {:else if activitySections.resultMode === "output" && !askUserView}
+        {@render toolViewBody()}
+      {/if}
+
+      {#if activitySections.errorVisible && errorPreview}
+        <CardSheetError text={errorPreview} />
+      {/if}
+    </CardSheet>
   {/if}
 </CardShell>
 

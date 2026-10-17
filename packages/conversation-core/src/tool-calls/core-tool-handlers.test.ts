@@ -30,14 +30,101 @@ async function resolveContent(
 test("ask_user answer resolves to the canonical card result", async () => {
   assert.deepEqual(
     await resolveContent({ kind: "user_input", answers: { answer: "Blue" } }),
-    { question: "Which?", context: "ctx", response: "Blue" },
+    {
+      questions: [
+        { id: "answer", question: "Which?", answer: { text: "Blue" } },
+      ],
+    },
   );
 });
 
 test("ask_user dismissal resolves with an explicit dismissed flag", async () => {
   assert.deepEqual(
     await resolveContent({ kind: "user_input", answers: {}, dismissed: true }),
-    { question: "Which?", context: "ctx", dismissed: true },
+    {
+      questions: [{ id: "answer", question: "Which?", skipped: true }],
+      dismissed: true,
+    },
+  );
+});
+
+test("ask_user stores a normalized multi-question request", async () => {
+  const outcome = await handler!.execute(
+    {
+      ...call,
+      arguments: { questions: [{ question: "One?" }, { question: "Two?" }] },
+    },
+    ctx,
+  );
+  assert.deepEqual(outcome, {
+    kind: "awaiting_input",
+    interaction: {
+      kind: "user_input",
+      request: {
+        questions: [
+          { id: "q1", question: "One?" },
+          { id: "q2", question: "Two?" },
+        ],
+      },
+    },
+  });
+});
+
+test("ask_user resolves all answers, trims option and text, and skips missing or empty answers", async () => {
+  const multiCall = {
+    ...call,
+    arguments: {
+      questions: [
+        { id: "one", question: "One?" },
+        { id: "two", question: "Two?" },
+        { id: "three", question: "Three?" },
+        { id: "four", question: "Four?" },
+      ],
+    },
+  };
+  const resolve = async (
+    answers: Record<
+      string,
+      string | string[] | { option?: string; text?: string }
+    >,
+  ) => {
+    const result = await handler!.resolve!(
+      multiCall,
+      { kind: "user_input", answers },
+      ctx,
+    );
+    return askUserResultSchema.parse(JSON.parse(result.content!));
+  };
+  assert.deepEqual(
+    await resolve({
+      one: " A ",
+      two: [" B ", "C"],
+      three: { option: " Yes ", text: " because " },
+      four: "Done",
+    }),
+    {
+      questions: [
+        { id: "one", question: "One?", answer: { text: "A" } },
+        { id: "two", question: "Two?", answer: { text: "B, C" } },
+        {
+          id: "three",
+          question: "Three?",
+          answer: { option: "Yes", text: "because" },
+        },
+        { id: "four", question: "Four?", answer: { text: "Done" } },
+      ],
+    },
+  );
+  assert.deepEqual(
+    await resolve({ one: "A", three: { option: " ", text: " " }, four: [] }),
+    {
+      questions: [
+        { id: "one", question: "One?", answer: { text: "A" } },
+        { id: "two", question: "Two?", skipped: true },
+        { id: "three", question: "Three?", skipped: true },
+        { id: "four", question: "Four?", skipped: true },
+      ],
+    },
   );
 });
 

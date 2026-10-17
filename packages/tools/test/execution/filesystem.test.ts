@@ -9,6 +9,27 @@ import { executeWrite } from "../../src/execution/filesystem/write.js";
 import { createTempProject } from "../support/project-fixtures.js";
 
 describe("filesystem executors", () => {
+  it("reports write outcomes, UTF-8 bytes and complete directory totals", async () => {
+    const project = await createTempProject();
+    const created = await executeWrite(
+      { path: "one.txt", content: "é" },
+      { cwd: project.root },
+    );
+    assert.equal(created.details?.outcome, "created");
+    assert.equal(created.details?.bytes, 2);
+    const overwritten = await executeWrite(
+      { path: "one.txt", content: "ok" },
+      { cwd: project.root },
+    );
+    assert.equal(overwritten.details?.outcome, "overwritten");
+    await project.write("two.txt", "two");
+    const listing = await executeLs(
+      { path: ".", limit: 1 },
+      { cwd: project.root },
+    );
+    assert.equal(listing.entries?.length, 1);
+    assert.equal(listing.details?.totalEntries, 2);
+  });
   it("reads full files and line windows with continuation markers", async () => {
     const project = await createTempProject();
     await project.write("notes.txt", "one\ntwo\nthree\nfour");

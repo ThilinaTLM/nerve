@@ -62,9 +62,15 @@ function editDetailsPreview(
   const dryRun =
     typeof details.dryRun === "boolean" ? details.dryRun : undefined;
   return {
-    ...(diff === undefined ? {} : { diff }),
+    ...(nonnegativeIntegerField(details.appliedCount) === undefined
+      ? {}
+      : { appliedCount: details.appliedCount }),
     ...(operationCount === undefined ? {} : { operationCount }),
     ...(dryRun === undefined ? {} : { dryRun }),
+    ...(Array.isArray(details.operations)
+      ? { operations: firstItems(details.operations).value }
+      : {}),
+    ...(diff === undefined ? {} : { diff }),
   };
 }
 
@@ -498,9 +504,9 @@ export function buildUserProjection(
     case "find": {
       const entries = firstItems(arrayField(resultRecord.entries));
       resultPreview = {
+        details: resultRecord.details,
         path: resultRecord.path,
         entries: entries.value,
-        details: resultRecord.details,
       };
       hidden = entries.hidden;
       noun = "files";
@@ -513,9 +519,9 @@ export function buildUserProjection(
         arrayField<Record<string, unknown>>(resultRecord.matches),
       );
       resultPreview = {
+        details: resultRecord.details,
         path: resultRecord.path,
         matches: matches.value,
-        details: resultRecord.details,
       };
       hidden = matches.hidden;
       noun = "matches";
@@ -527,9 +533,9 @@ export function buildUserProjection(
       const sorted = sortEntries(arrayField(resultRecord.entries) ?? []);
       const entries = firstItems(sorted);
       resultPreview = {
+        details: resultRecord.details,
         path: resultRecord.path,
         entries: entries.value,
-        details: resultRecord.details,
       };
       hidden = entries.hidden;
       noun = "entries";
@@ -587,11 +593,26 @@ export function buildUserProjection(
       const output = lastLines(outputText(resultRecord));
       const textResult = withTextContent(resultRecord, output.value);
       resultPreview = {
-        ...textResult,
         details: editDetailsPreview(resultRecord.details, diff.value),
+        ...Object.fromEntries(
+          Object.entries(textResult).filter(([key]) => key !== "details"),
+        ),
       };
       ({ hidden, noun } = textOverflowStats([diff, output]));
       direction = "tail";
+      break;
+    }
+
+    case "generate_image": {
+      const details = record(resultRecord.details);
+      const { images, ...metadata } = details;
+      resultPreview = {
+        details: { images, ...metadata },
+        ...Object.fromEntries(
+          Object.entries(resultRecord).filter(([key]) => key !== "details"),
+        ),
+      };
+      direction = "head";
       break;
     }
 
@@ -634,7 +655,10 @@ export function buildUserProjection(
     case "subagent_status":
     case "subagent_stop": {
       const output = firstLines(outputText(resultRecord));
-      resultPreview = withTextContent(resultRecord, output.value);
+      resultPreview = {
+        details: resultRecord.details,
+        ...withTextContent(resultRecord, output.value),
+      };
       ({ hidden, noun } = textOverflowStats([output]));
       direction = "head";
       break;
@@ -682,6 +706,9 @@ export function buildUserProjection(
   }
 
   const resultFirst =
+    ["edit", "write", "grep", "find", "ls", "generate_image"].includes(
+      toolName,
+    ) ||
     toolName === "async_bash" ||
     toolName === "launch" ||
     toolName.startsWith("subagent_") ||

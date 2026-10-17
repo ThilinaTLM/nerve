@@ -377,6 +377,7 @@ export class ToolCallService {
         state: "running",
         executionClaim: createId("tool"),
       });
+      this.settlement.recordExecutionStart(call);
       const ctx = this.toolContext(call, controller.signal);
       const handler = this.options.coreTools.get(call.toolName);
       const { config, projectDir } = this.options.context(call.conversationId);
@@ -466,7 +467,12 @@ export class ToolCallService {
       await this.settlement.settle(
         current,
         aborted ? (confirmed ? "cancelled" : "indeterminate") : "failed",
-        { content: error instanceof Error ? error.message : String(error) },
+        {
+          content: error instanceof Error ? error.message : String(error),
+          ...(error !== null && typeof error === "object" && "details" in error
+            ? { details: error.details }
+            : {}),
+        },
         current.executionClaim,
       );
     }

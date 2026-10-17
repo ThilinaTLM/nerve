@@ -4,6 +4,12 @@ import type {
   ConversationSummary,
 } from "@nervekit/contracts/core";
 import { SUBAGENT_BATCH_LIMIT } from "@nervekit/contracts/subagents";
+import type { z } from "zod";
+import type {
+  subagentPromptResultDetailsSchema,
+  subagentStatusResultDetailsSchema,
+  subagentStopResultDetailsSchema,
+} from "@nervekit/contracts/tools";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import type { ConversationCore, ExecutionFinished } from "../core.js";
 import type { CoreToolHandler } from "../tool-calls/core-tool.js";
@@ -203,60 +209,106 @@ export function createDelegationTools(
           }
         plan.push({ assignment, existing });
       }
-      if (errors.length)
-        throw new Error(
-          `subagent_prompt rejected; nothing was created or queued:\n${errors.map((line) => `- ${line}`).join("\n")}`,
-        );
+      if (errors.length) {
+        const message = `subagent_prompt rejected; nothing was created or queued:
+${errors.map((line) => `- ${line}`).join("\n")}`;
+        throw Object.assign(new Error(message), {
+          details: {
+            assignments: assignments.map((assignment) => ({
+              name: text(assignment?.name),
+              ...(assignment?.profile ? { profile: assignment.profile } : {}),
+              disposition: "rejected",
+              reason: errors.join("; "),
+            })),
+          },
+        });
+      }
       const { conversationId, ...parentConfig } =
         core.getSnapshot(parentId).config;
       void conversationId;
       const projectId = core.getSnapshot(parentId).conversation.projectId;
       const lines: string[] = [];
-      for (const { assignment, existing } of plan) {
-        const message = context
-          ? `${context}\n\n${assignment.prompt}`
-          : assignment.prompt;
-        const submit = (childId: string) =>
-          core.submitInput({
-            conversationId: childId,
-            inputId: createId("input"),
-            source: "parent_conversation",
-            senderConversationId: parentId,
-            text: message,
-            wakeWhenIdle: true,
-          });
-        if (existing) {
-          const state = childState(existing, runningBash(existing.id).length);
-          submit(existing.id);
-          if (existing.paused) core.resume(existing.id);
-          lines.push(
-            `${assignment.name} (${profileOf(parentId, existing) ?? "unknown"}): follow-up queued (${existing.paused ? "resumed" : state})`,
+      const details: z.infer<typeof subagentPromptResultDetailsSchema> = {
+        assignments: [],
+      };
+      for (const [index, { assignment, existing }] of plan.entries()) {
+        try {
+          const message = context
+            ? `${context}\n\n${assignment.prompt}`
+            : assignment.prompt;
+          const submit = (childId: string) =>
+            core.submitInput({
+              conversationId: childId,
+              inputId: createId("input"),
+              source: "parent_conversation",
+              senderConversationId: parentId,
+              text: message,
+              wakeWhenIdle: true,
+            });
+          if (existing) {
+            const state = childState(existing, runningBash(existing.id).length);
+            submit(existing.id);
+            if (existing.paused) core.resume(existing.id);
+            details.assignments!.push({
+              name: assignment.name,
+              profile: profileOf(parentId, existing) ?? undefined,
+              disposition: "follow_up",
+              agentId: existing.id,
+            });
+            lines.push(
+              `${assignment.name} (${profileOf(parentId, existing) ?? "unknown"}): follow-up queued (${existing.paused ? "resumed" : state})`,
+            );
+            continue;
+          }
+          const profile = resolved.get(text(assignment.profile))!;
+          const overrides = Object.fromEntries(
+            Object.entries(profile.config).filter(([, v]) => v !== undefined),
           );
-          continue;
+          const child = await core.createConversation({
+            projectId,
+            parentConversationId: parentId,
+            parentToolCallId: call.id,
+            title: assignment.name.trim(),
+            config: {
+              ...parentConfig,
+              systemPrompt: null,
+              instructions: null,
+              ...overrides,
+            },
+          });
+          await profile.initializeChild(child.conversation.id);
+          submit(child.conversation.id);
+          details.assignments!.push({
+            name: assignment.name,
+            profile: profile.name,
+            disposition: "created",
+            agentId: child.conversation.id,
+          });
+          lines.push(`${assignment.name} (${profile.name}): created`);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          details.assignments!.push(
+            ...plan.slice(index).map(({ assignment }, remainingIndex) => ({
+              name: assignment.name,
+              profile: assignment.profile,
+              disposition: "rejected" as const,
+              reason:
+                remainingIndex === 0
+                  ? reason
+                  : "Not queued because an earlier assignment failed.",
+            })),
+          );
+          throw Object.assign(
+            new Error(
+              `${lines.length ? `${lines.join("\n")}\n` : ""}subagent_prompt rejected remaining assignments: ${reason}`,
+            ),
+            { details },
+          );
         }
-        const profile = resolved.get(text(assignment.profile))!;
-        const overrides = Object.fromEntries(
-          Object.entries(profile.config).filter(([, v]) => v !== undefined),
-        );
-        const child = await core.createConversation({
-          projectId,
-          parentConversationId: parentId,
-          parentToolCallId: call.id,
-          title: assignment.name.trim(),
-          config: {
-            ...parentConfig,
-            systemPrompt: null,
-            instructions: null,
-            ...overrides,
-          },
-        });
-        await profile.initializeChild(child.conversation.id);
-        submit(child.conversation.id);
-        lines.push(`${assignment.name} (${profile.name}): created`);
       }
       return {
         kind: "completed",
-        result: { content: lines.join("\n") },
+        result: { content: lines.join("\n"), details },
       };
     },
   };
@@ -314,17 +366,33 @@ export function createDelegationTools(
       const name = text(call.arguments.name).trim();
       const now = Date.now();
       let content: string;
-      if (!name)
-        content = formatStatusList(
-          await Promise.all(
-            children(parentId).map((child) => statusOf(parentId, child)),
-          ),
-          now,
-        );
-      else {
+      const details: z.infer<typeof subagentStatusResultDetailsSchema> = {
+        agents: [],
+      };
+      const collect = async (child: ConversationSummary) => {
+        const info = await statusOf(parentId, child);
+        details.agents!.push({
+          name: info.name,
+          agentId: child.id,
+          profile: info.profile ?? undefined,
+          state: info.state,
+          contextPercent:
+            info.context.percent === null
+              ? undefined
+              : Math.min(100, Math.max(0, info.context.percent)),
+          lastActivityAt: info.lastActivityAt ?? undefined,
+        });
+        return info;
+      };
+      if (!name) {
+        const infos = [];
+        for (const child of children(parentId))
+          infos.push(await collect(child));
+        content = formatStatusList(infos, now);
+      } else {
         const child = findChild(parentId, name);
         if (!child) throw new Error(`Unknown sub-agent: ${name}`);
-        const info = await statusOf(parentId, child);
+        const info = await collect(child);
         const last = lastExecution(child.id);
         const response = last ? finalAssistantText(core, last) : "";
         content = formatNamedStatus(
@@ -345,7 +413,7 @@ export function createDelegationTools(
           now,
         );
       }
-      return { kind: "completed", result: { content } };
+      return { kind: "completed", result: { content, details } };
     },
   };
 
@@ -357,9 +425,13 @@ export function createDelegationTools(
         : [];
       if (!names.length) throw new Error("names is required");
       const lines: string[] = [];
+      const details: z.infer<typeof subagentStopResultDetailsSchema> = {
+        results: [],
+      };
       for (const name of names) {
         const child = findChild(call.conversationId, name);
         if (!child) {
+          details.results!.push({ name, outcome: "not_found" });
           lines.push(`${name}: not found`);
           continue;
         }
@@ -368,18 +440,40 @@ export function createDelegationTools(
           (state === "idle" || state === "stopped") &&
           !runningBash(child.id).length
         ) {
+          details.results!.push({ name, outcome: "already_idle" });
           lines.push(`${child.title}: nothing to stop (${state})`);
           continue;
         }
+        const started =
+          child.status === "running"
+            ? recent(child.id).find(
+                (event) =>
+                  event.type === "system_event" &&
+                  event.payload.subtype === "execution_state" &&
+                  event.payload.transition === "started",
+              )
+            : undefined;
+        const runMs = started
+          ? Math.max(0, Date.now() - Date.parse(started.createdAt))
+          : undefined;
         stoppedByTool.add(child.id);
         try {
           await core.stop(child.id);
+        } catch (error) {
+          const reason = error instanceof Error ? error.message : String(error);
+          details.results!.push({ name, outcome: "failed", runMs, reason });
+          lines.push(`${child.title}: failed to stop: ${reason}`);
+          continue;
         } finally {
           stoppedByTool.delete(child.id);
         }
+        details.results!.push({ name, outcome: "stopped", runMs });
         lines.push(`${child.title}: stopped`);
       }
-      return { kind: "completed", result: { content: lines.join("\n") } };
+      return {
+        kind: "completed",
+        result: { content: lines.join("\n"), details },
+      };
     },
   };
   return [prompt, status, stop];

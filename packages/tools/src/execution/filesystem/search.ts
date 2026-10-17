@@ -36,6 +36,8 @@ type GrepDisplayLine = GrepMatch & { isMatch: boolean };
 type GrepRunResult = {
   matches: GrepMatch[];
   lines: GrepDisplayLine[];
+  totalMatches: number;
+  totalFiles: number;
 };
 
 class RipgrepUnavailableError extends Error {}
@@ -95,6 +97,8 @@ export async function executeGrepWithBackend(
     content: formatted.content,
     contentBlocks: [{ type: "text", text: formatted.content }],
     details: {
+      totalMatches: raw.totalMatches,
+      totalFiles: raw.totalFiles,
       ...(formatted.details && typeof formatted.details === "object"
         ? formatted.details
         : {}),
@@ -146,7 +150,8 @@ async function runRg(
     let stdoutBuffer = "";
     let stderr = "";
     let settled = false;
-    let stoppedForLimit = false;
+    let totalMatches = 0;
+    const matchedFiles = new Set<string>();
     let finalMatchPath: string | undefined;
     let finalContextLine = 0;
     let processError: Error | undefined;
@@ -157,10 +162,6 @@ async function runRg(
       child.kill("SIGTERM");
       forceKillTimer ??= setTimeout(() => child.kill("SIGKILL"), 100);
       forceKillTimer.unref();
-    };
-    const stopAtLimit = () => {
-      stoppedForLimit = true;
-      killChild();
     };
     const failAndKill = (error: Error) => {
       processError ??= error;
@@ -185,7 +186,13 @@ async function runRg(
       settled = true;
       cleanup();
       if (error) reject(error);
-      else resolve({ matches, lines });
+      else
+        resolve({
+          matches,
+          lines,
+          totalMatches,
+          totalFiles: matchedFiles.size,
+        });
     };
 
     const consumeLine = (line: string) => {
@@ -220,6 +227,10 @@ async function runRg(
         isMatch: type === "match",
       };
 
+      if (displayLine.isMatch) {
+        totalMatches += 1;
+        matchedFiles.add(displayLine.path);
+      }
       if (matches.length < limit) {
         lines.push(displayLine);
         if (displayLine.isMatch) {
@@ -227,7 +238,6 @@ async function runRg(
           if (matches.length === limit) {
             finalMatchPath = displayLine.path;
             finalContextLine = displayLine.line + contextLines;
-            if (contextLines === 0) stopAtLimit();
           }
         }
         return;
@@ -238,10 +248,8 @@ async function runRg(
         displayLine.line <= finalContextLine
       ) {
         lines.push({ ...displayLine, isMatch: false });
-        if (displayLine.line >= finalContextLine) stopAtLimit();
         return;
       }
-      stopAtLimit();
     };
 
     child.stdout.setEncoding("utf8");
@@ -255,7 +263,7 @@ async function runRg(
         return;
       }
       let newline = stdoutBuffer.indexOf("\n");
-      while (newline >= 0 && !processError && !stoppedForLimit) {
+      while (newline >= 0 && !processError) {
         const line = stdoutBuffer.slice(0, newline).replace(/\r$/, "");
         stdoutBuffer = stdoutBuffer.slice(newline + 1);
         consumeLine(line);
@@ -272,14 +280,14 @@ async function runRg(
       processError = commandUnavailableError(error);
     });
     child.once("close", (code) => {
-      if (!processError && !stoppedForLimit && stdoutBuffer.trim()) {
+      if (!processError && stdoutBuffer.trim()) {
         consumeLine(stdoutBuffer.replace(/\r$/, ""));
       }
       if (processError) {
         settle(processError);
         return;
       }
-      if (stoppedForLimit || code === 0 || code === 1) {
+      if (code === 0 || code === 1) {
         settle();
         return;
       }
@@ -315,7 +323,8 @@ async function fallbackGrep(
   const glob =
     typeof args.glob === "string" ? globToRegExp(args.glob) : undefined;
   const deadline = Date.now() + GREP_TIMEOUT_MS;
-  let completedAfterLimit = false;
+  let totalMatches = 0;
+  const matchedFiles = new Set<string>();
 
   const checkExecution = () => {
     throwIfSearchAborted(signal);
@@ -358,6 +367,10 @@ async function fallbackGrep(
             const isMatch = regex
               ? regex.test(text)
               : haystack.includes(needle);
+            if (isMatch) {
+              totalMatches += 1;
+              matchedFiles.add(normalizedPath);
+            }
             if (isMatch && matches.length < limit) {
               for (const item of before) {
                 addDisplayLine({
@@ -382,13 +395,7 @@ async function fallbackGrep(
 
             before.push({ line: lineNumber, text });
             if (before.length > contextLines) before.shift();
-            if (matches.length >= limit && lineNumber >= trailingThrough) {
-              completedAfterLimit = true;
-              input.destroy();
-              break;
-            }
           }
-          if (matches.length >= limit) completedAfterLimit = true;
         } catch (error) {
           if (!isTransientFileError(error)) throw error;
         } finally {
@@ -398,12 +405,11 @@ async function fallbackGrep(
       },
       () => {
         checkExecution();
-        return completedAfterLimit;
+        return false;
       },
     );
-    if (completedAfterLimit) break;
   }
-  return { matches, lines };
+  return { matches, lines, totalMatches, totalFiles: matchedFiles.size };
 }
 
 async function isBinaryFile(path: string): Promise<boolean> {
@@ -438,6 +444,8 @@ function boundGrepResult(result: GrepRunResult): {
   );
   return {
     result: {
+      totalMatches: result.totalMatches,
+      totalFiles: result.totalFiles,
       lines: boundedLines,
       matches: result.matches.map((match) => ({
         ...match,

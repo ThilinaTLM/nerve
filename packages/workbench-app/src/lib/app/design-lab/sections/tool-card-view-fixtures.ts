@@ -184,6 +184,140 @@ export const findCompleted = sampleCall({
   },
 });
 
+export const lsCompleted = sampleCall({
+  id: "tool_ls_ok",
+  toolName: "ls",
+  args: { path: "src/lib/presentation/cards" },
+  result: {
+    content: "4 entries",
+    path: `${SAMPLE_CWD}/src/lib/presentation/cards`,
+    entries: [
+      { path: "lifecycle", kind: "directory" },
+      { path: "CardFooter.svelte", kind: "file" },
+      { path: "CardShell.svelte", kind: "file" },
+      { path: "MetaChip.svelte", kind: "file" },
+    ],
+  },
+});
+
+const PYTHON_SCRIPT = `import json, pathlib
+
+root = pathlib.Path("src/lib/presentation/tools")
+views = sorted(p.name for p in root.glob("tool-call/*ToolView.svelte"))
+print(json.dumps({"views": len(views)}))
+for name in views[:4]:
+    print(" ", name)`;
+
+export const pythonCompleted = sampleCall({
+  id: "tool_py_ok",
+  toolName: "python_exec",
+  args: { code: PYTHON_SCRIPT, timeout: 60 },
+  result: {
+    content:
+      '{"views": 31}\n  AskUserToolView.svelte\n  BashToolView.svelte\n  EditToolView.svelte\n  FindToolView.svelte',
+    exitCode: 0,
+  },
+  durationMs: 1_100,
+});
+
+export const pythonRunning = sampleCall({
+  id: "tool_py_run",
+  toolName: "python_exec",
+  status: "running",
+  ageMs: 2_000,
+  args: { code: PYTHON_SCRIPT, timeout: 60 },
+});
+
+export const bashMultiline = sampleCall({
+  id: "tool_bash_multi",
+  toolName: "bash",
+  args: {
+    command:
+      "set -e\ncd packages/workbench-app\npnpm exec tsx --test src/lib/presentation/tools/views/tool-activity-state.test.ts",
+    timeout: 300,
+  },
+  result: { content: "ℹ tests 4\nℹ pass 4\nℹ fail 0", exitCode: 0 },
+  durationMs: 3_900,
+});
+
+export const launchCompleted = sampleCall({
+  id: "tool_launch_ok",
+  toolName: "launch",
+  args: { action: "restart", name: "workbench-ui" },
+  result: {
+    content:
+      "VITE v7.1.4  ready in 612 ms\n\n  Local:   http://localhost:5173/\n  Network: use --host to expose",
+  },
+});
+
+const EDIT_OPS = [
+  {
+    oldText: '  accent: "text-primary",',
+    newText: '  accent: "text-muted-foreground",',
+  },
+  {
+    oldText: '    "inline-flex min-h-5 items-center rounded-sm",',
+    newText:
+      '    "inline-flex min-h-5 items-center rounded-sm",\n    "transition-colors duration-200",',
+  },
+];
+
+export const editMultiOp = sampleCall({
+  id: "tool_edit_multi",
+  toolName: "edit",
+  args: { path: "src/lib/presentation/cards/MetaChip.svelte", edits: EDIT_OPS },
+  result: {
+    content: "Applied 2 edits to src/lib/presentation/cards/MetaChip.svelte",
+    path: `${SAMPLE_CWD}/src/lib/presentation/cards/MetaChip.svelte`,
+    details: {
+      diff: DIFF,
+      lineEnding: "\n",
+      bom: false,
+      operationCount: 2,
+      appliedCount: 2,
+      operations: [
+        {
+          index: 0,
+          type: "replace_text",
+          matchedBy: "unique",
+          matchCount: 1,
+          status: "applied",
+        },
+        {
+          index: 1,
+          type: "replace_text",
+          matchedBy: "unique",
+          matchCount: 1,
+          status: "applied",
+        },
+      ],
+    },
+  },
+});
+
+export const editFailed = sampleCall({
+  id: "tool_edit_failed",
+  toolName: "edit",
+  status: "failed",
+  args: { path: "src/lib/presentation/cards/MetaChip.svelte", edits: EDIT_OPS },
+  error: "Edit 2: oldText was not found in the file. No edits were applied.",
+  result: {
+    content: "Edit 2: oldText was not found in the file.",
+    details: {
+      operationCount: 2,
+      appliedCount: 0,
+      operations: [
+        { index: 0, status: "not_applied" },
+        {
+          index: 1,
+          status: "failed",
+          error: "oldText was not found in the file.",
+        },
+      ],
+    },
+  },
+});
+
 export const webSearchCompleted = sampleCall({
   id: "tool_ws_ok",
   toolName: "web_search",
@@ -267,5 +401,128 @@ export const todosCompleted = sampleCall({
         { todo: "Validate with svelte-check", done: false },
       ],
     },
+  },
+});
+
+export const jiraSearchCompleted = sampleCall({
+  id: "tool_jira_search",
+  toolName: "jira_search_issues",
+  args: { jql: "project = NRV AND status != Done ORDER BY updated DESC" },
+  result: {
+    details: {
+      issues: [
+        {
+          key: "NRV-142",
+          summary: "Unify tool card lifecycle rendering",
+          issueType: "Task",
+          status: "In Progress",
+          statusCategory: "indeterminate",
+          assignee: "Ada Lovelace",
+          priority: "High",
+        },
+        {
+          key: "NRV-138",
+          summary: "Sub-agent rows use static status dots",
+          issueType: "Bug",
+          status: "To Do",
+          statusCategory: "new",
+          priority: "Medium",
+        },
+      ],
+    },
+  },
+});
+
+export const jiraCreateDraft = sampleDraft({
+  toolName: "jira_create_issue",
+  argsText:
+    '{"project_key":"NRV","issue_type":"Task","summary":"Unify tool card lifecycle rendering","priority":"High","description":"Tool cards should keep the same keyed elements from drafting',
+});
+
+export const jiraCreateCompleted = sampleCall({
+  id: "tool_jira_create",
+  toolName: "jira_create_issue",
+  args: {
+    project_key: "NRV",
+    issue_type: "Task",
+    summary: "Unify tool card lifecycle rendering",
+    priority: "High",
+    description:
+      "Tool cards should keep the same keyed elements from drafting to completion. Multi-item tools render one sheet section per item; chips are monotonic.",
+  },
+  result: {
+    details: {
+      issueKey: "NRV-142",
+      summary: "Unify tool card lifecycle rendering",
+    },
+  },
+});
+
+export const confluenceSearchCompleted = sampleCall({
+  id: "tool_conf_search",
+  toolName: "confluence_search_pages",
+  args: { query: "tool card lifecycle" },
+  result: {
+    details: {
+      pages: [
+        {
+          id: "10231",
+          title: "Tool card lifecycle design",
+          spaceKey: "ENG",
+          status: "current",
+          versionNumber: 4,
+          bodyPreview: "Cards keep one sheet from drafting to completion.",
+        },
+        {
+          id: "10377",
+          title: "Transcript motion budget",
+          spaceKey: "ENG",
+          status: "current",
+          versionNumber: 2,
+        },
+      ],
+    },
+  },
+});
+
+export const generateImageRunning = sampleCall({
+  id: "tool_img_run",
+  toolName: "generate_image",
+  status: "running",
+  ageMs: 3_000,
+  args: {
+    prompt: "isometric illustration of stacked translucent cards",
+    size: "1024x576",
+  },
+});
+
+export const generateImageCompleted = sampleCall({
+  id: "tool_img_ok",
+  toolName: "generate_image",
+  args: {
+    prompt: "isometric illustration of stacked translucent cards",
+    size: "1024x576",
+  },
+  result: {
+    details: {
+      images: [
+        {
+          path: `${SAMPLE_CWD}/generated/cards-morph.png`,
+          bytes: 412_000,
+          width: 1024,
+          height: 576,
+        },
+      ],
+    },
+  },
+});
+
+export const explainImageCompleted = sampleCall({
+  id: "tool_explain_ok",
+  toolName: "explain_image",
+  args: { path: "docs/screenshots/transcript.png" },
+  result: {
+    content:
+      "The screenshot shows a transcript column with three tool cards. Each card has a header row, a recessed sheet and a footer of metadata chips.",
   },
 });

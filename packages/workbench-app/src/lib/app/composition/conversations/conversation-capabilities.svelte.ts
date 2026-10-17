@@ -21,13 +21,42 @@ import {
   confluenceSiteUrl,
   jiraSiteUrl,
 } from "$lib/features/conversations/state/atlassian-site-urls.svelte";
-import { uploadClipboardImage } from "$lib/features/filesystem/api/filesystem.api";
+import {
+  getFileContent,
+  uploadClipboardImage,
+} from "$lib/features/filesystem/api/filesystem.api";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 import { completeFiles } from "$lib/application/workspace/workspace-actions.svelte";
+
+// Promise cache only; mutations do not drive rendered state.
+// eslint-disable-next-line svelte/prefer-svelte-reactivity
+const imageSources = new Map<string, Promise<string | undefined>>();
+
+/** `data:` URL of a project image file, cached per project and path. */
+function imageSource(path: string): Promise<string | undefined> {
+  const projectId = selection.projectId;
+  if (!projectId) return Promise.resolve(undefined);
+  const key = `${projectId}\0${path}`;
+  let pending = imageSources.get(key);
+  if (!pending) {
+    pending = getFileContent(projectId, path)
+      .then((file) =>
+        file.type === "image" && !file.truncated && file.dataBase64
+          ? `data:${file.mimeType};base64,${file.dataBase64}`
+          : undefined,
+      )
+      .catch(() => {
+        imageSources.delete(key);
+        return undefined;
+      });
+    imageSources.set(key, pending);
+  }
+  return pending;
+}
 
 /**
  * Build the workbench capability object consumed by the shared conversation
@@ -43,6 +72,7 @@ export function workbenchConversationUiCapabilities(
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),
     subagents,
+    imageSource,
     atlassian: { jiraSiteUrl, confluenceSiteUrl },
     voice: {
       session: voiceInputSession,

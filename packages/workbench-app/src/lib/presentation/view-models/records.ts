@@ -35,6 +35,7 @@ export type AgentRecord = {
   createdAt: string;
   updatedAt: string;
   parentAgentId?: string | undefined;
+  lastParentPromptAt?: string | null | undefined;
   /** Profile a sub-agent was created from; absent for the lead. */
   subagentProfile?: string | undefined;
   name?: string | undefined;

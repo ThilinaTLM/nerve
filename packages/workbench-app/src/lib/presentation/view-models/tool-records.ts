@@ -13,22 +13,24 @@ export type ToolCallStatus =
   | "waiting"
   | "denied";
 
+export type ToolRisk =
+  | "read"
+  | "command"
+  | "network"
+  | "interaction"
+  | "deployment"
+  | "secret"
+  | "destructive"
+  | "agent_spawn"
+  | "workspace_write";
+
 export type ToolCallRecord = {
   id: string;
   agentId: string;
   conversationId: string;
   projectId: string;
   toolName: string;
-  risk?:
-    | "read"
-    | "command"
-    | "network"
-    | "interaction"
-    | "deployment"
-    | "secret"
-    | "destructive"
-    | "agent_spawn"
-    | "workspace_write";
+  risk?: ToolRisk;
   args: unknown;
   cwd: string;
   status:
@@ -61,63 +63,18 @@ export type ToolCallRecord = {
     | "executing"
     | "interrupted"
     | undefined;
+  /** Core supervisor outcome; `effectiveRisk` is the risk it settled on. */
   supervision?:
     | {
-        status: "denied" | "pending" | "approved";
-        decision: {
-          version: 1;
-          decision: "allow" | "prompt" | "deny";
-          effectiveRisk:
-            | "read"
-            | "command"
-            | "network"
-            | "interaction"
-            | "deployment"
-            | "secret"
-            | "destructive"
-            | "agent_spawn"
-            | "workspace_write";
-          reason: string;
-          normalizedArgs: Record<string, unknown>;
-          normalizedTargets: (
-            | {
-                kind: "path";
-                access: "read" | "write";
-                scope: "exact" | "tree";
-                absolutePath: string;
-                projectRelativePath?: string | undefined;
-              }
-            | {
-                kind: "command_segment";
-                normalizedTokens: string[];
-                risk: "read" | "command";
-              }
-            | { kind: "url"; url: string }
-            | { kind: "whole_tool" }
-          )[];
-          matchedRuleIds: string[];
-          policySnapshotHash: string;
-          suggestedRules: {
-            id: string;
-            scope: "project" | "user";
-            effect: "allow" | "deny";
-            toolName: string;
-            matcherKind:
-              | "whole_tool"
-              | "path_glob"
-              | "command_glob"
-              | "url_glob";
-            pattern: string;
-            enabled: boolean;
-            createdAt: string;
-            updatedAt: string;
-            projectId?: string | undefined;
-          }[];
-        };
-        source?: "user" | "automatic" | "policy" | undefined;
-        decidedAt?: string | undefined;
+        decision: "allow" | "approval" | "deny";
+        reason?: string | undefined;
+        effectiveRisk?: ToolRisk | undefined;
       }
     | undefined;
+  /** Open call is still being checked by the supervisor (status stays committed). */
+  supervising?: boolean | undefined;
+  /** When the call entered `running`; absent if it never ran. */
+  startedAt?: string | undefined;
   permissionEvaluation?: ToolPermissionEvaluation;
   execution?:
     | {

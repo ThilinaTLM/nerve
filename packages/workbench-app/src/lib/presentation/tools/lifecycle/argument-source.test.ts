@@ -5,6 +5,7 @@ import {
   isSuspiciousValue,
   redactStructuredValue,
   toolArgumentSource,
+  ToolArgumentSource,
 } from "./argument-source";
 
 describe("ToolArgumentSource", () => {
@@ -173,5 +174,18 @@ describe("structured fallback redaction", () => {
     assert.doesNotMatch(serialized, /secret-token|top-secret|hidden/);
     assert.match(serialized, /\[redacted\]/);
     assert.match(serialized, /fields: password, safe/);
+  });
+});
+
+describe("streaming string arrays", () => {
+  it("retains complete names and the open final name, decoding escapes", () => {
+    const source = new ToolArgumentSource({
+      argsText: '{"names":["first","seco',
+    });
+    assert.deepEqual(source.strings("names"), ["first", "seco"]);
+    const escaped = new ToolArgumentSource({
+      argsText: String.raw`{"names":["a\"b","c\u00e9`,
+    });
+    assert.deepEqual(escaped.strings("names"), ['a"b', "cé"]);
   });
 });

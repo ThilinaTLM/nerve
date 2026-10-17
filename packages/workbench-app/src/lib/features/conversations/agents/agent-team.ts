@@ -1,4 +1,5 @@
 import type { AsyncBash, ConversationSummary } from "@nervekit/contracts/core";
+import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 import type {
   AgentActivitySnapshot,
@@ -67,7 +68,10 @@ function commandLabel(command: string): string {
  * that have not finished and background commands that are still running.
  */
 export function pendingWork(input: {
-  children: readonly Pick<ConversationSummary, "id" | "title" | "status">[];
+  children: readonly Pick<
+    ConversationSummary,
+    "id" | "title" | "status" | "createdAt" | "lastParentPromptAt"
+  >[];
   asyncBash: readonly AsyncBash[];
 }): PendingWorkItem[] {
   return [
@@ -75,6 +79,7 @@ export function pendingWork(input: {
       .filter(
         (child) => child.status === "running" || child.status === "waiting",
       )
+      .sort(compareSubagents)
       .map(
         (child): PendingWorkItem => ({
           kind: "agent",

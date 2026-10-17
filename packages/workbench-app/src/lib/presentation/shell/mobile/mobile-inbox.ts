@@ -83,7 +83,7 @@ export function buildMobileInbox(input: MobileInboxInput): MobileInboxModel {
         interaction.kind === "approval"
           ? interaction.request.reason
           : interaction.kind === "user_input"
-            ? interaction.request.question
+            ? (interaction.request.questions[0]?.question ?? "")
             : interaction.request.path,
       tone: "warning",
       pulse: false,

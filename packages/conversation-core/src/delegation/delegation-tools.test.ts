@@ -204,6 +204,7 @@ async function fixture() {
     return {
       toolCallId: response.toolCallId,
       outcome: response.outcome,
+      preview: response.userProjection?.resultPreview,
       text: response.agentProjection
         .flatMap((block) => (block.type === "text" ? [block.text] : []))
         .join("\n"),
@@ -355,6 +356,29 @@ void test("rejects the whole batch with every reason and creates nothing", async
     assert.match(result.text, /X: duplicate name/);
     assert.match(result.text, /y: profile is required/);
     assert.match(result.text, /z: Unknown profile "nope"/);
+    const assignments = (
+      result.preview as {
+        details: {
+          assignments: Array<{
+            name: string;
+            disposition: string;
+            reason: string;
+          }>;
+        };
+      }
+    ).details.assignments;
+    assert.deepEqual(
+      assignments.map((item) => [item.name, item.disposition]),
+      [
+        ["x", "rejected"],
+        ["X", "rejected"],
+        ["y", "rejected"],
+        ["z", "rejected"],
+      ],
+    );
+    assert.ok(
+      assignments.every((item) => item.reason.includes("Unknown profile")),
+    );
     assert.equal(f.core.getSnapshot(LEAD).children.length, 0);
     assert.equal(f.initialized.length, 0);
   } finally {
@@ -425,6 +449,16 @@ void test("notices follow the stop source: user notifies, lead tool and cascade 
 
     const stopped = await f.lead("subagent_stop", { names: ["c", "ghost"] });
     assert.equal(stopped.text, "c: stopped\nghost: not found");
+    const results = (
+      stopped.preview as {
+        details: {
+          results: Array<{ name: string; outcome: string; runMs?: number }>;
+        };
+      }
+    ).details.results;
+    assert.equal(results[0]!.outcome, "stopped");
+    assert.ok(typeof results[0]!.runMs === "number" && results[0]!.runMs >= 0);
+    assert.deepEqual(results[1], { name: "ghost", outcome: "not_found" });
     await delay(100);
     assert.equal(f.notices().length, 1);
 
@@ -572,6 +606,137 @@ void test("sub-agents reject user input and rule sets outside the allowed pair",
       /may only use/,
     );
   } finally {
+    await f.cleanup();
+  }
+});
+
+void test("delegation details survive durable previews for create, follow-up, status and stop", async () => {
+  const f = await fixture();
+  try {
+    const created = await f.lead("subagent_prompt", explore());
+    const details = (value: unknown) =>
+      (value as { details: Record<string, Array<Record<string, unknown>>> })
+        .details;
+    assert.deepEqual(details(created.preview).assignments, [
+      {
+        name: "a",
+        profile: "explore",
+        disposition: "created",
+        agentId: f.child("a").id,
+      },
+    ]);
+    await waitUntil(f.idle("a"));
+    f.core.contextUsage = async () => ({
+      tokens: 37,
+      window: 100,
+      percent: 37,
+    });
+    const status = await f.lead("subagent_status", {});
+    const agent = details(status.preview).agents![0]!;
+    assert.equal(agent.name, "a");
+    assert.equal(agent.agentId, f.child("a").id);
+    assert.equal(agent.state, "idle");
+    assert.equal(agent.contextPercent, 37);
+    assert.ok(
+      typeof agent.lastActivityAt === "string" &&
+        Number.isFinite(Date.parse(agent.lastActivityAt)),
+    );
+    const followUp = await f.lead("subagent_prompt", {
+      assignments: [{ name: "a", prompt: "again" }],
+    });
+    assert.equal(
+      details(followUp.preview).assignments![0]!.disposition,
+      "follow_up",
+    );
+    await waitUntil(f.idle("a"));
+    const stopped = await f.lead("subagent_stop", { names: ["a", "unknown"] });
+    assert.deepEqual(details(stopped.preview).results, [
+      { name: "a", outcome: "already_idle" },
+      { name: "unknown", outcome: "not_found" },
+    ]);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("rejected batches identify every requested assignment", async () => {
+  const f = await fixture();
+  try {
+    const prompt = createDelegationTools(f.core, f.host).find(
+      (handler) => handler.definition.name === "subagent_prompt",
+    )!;
+    await assert.rejects(
+      prompt.execute(
+        {
+          conversationId: LEAD,
+          arguments: {
+            assignments: [
+              { name: "a", profile: "missing", prompt: "work" },
+              { name: "b", profile: "explore", prompt: "work" },
+            ],
+          },
+        } as never,
+        {} as never,
+      ),
+      (error: unknown) => {
+        const details = (
+          error as Error & {
+            details: {
+              assignments: Array<{
+                name: string;
+                disposition: string;
+                reason: string;
+              }>;
+            };
+          }
+        ).details;
+        assert.deepEqual(
+          details.assignments.map((item) => [item.name, item.disposition]),
+          [
+            ["a", "rejected"],
+            ["b", "rejected"],
+          ],
+        );
+        assert.ok(
+          details.assignments.every((item) =>
+            item.reason.includes("Unknown profile"),
+          ),
+        );
+        return true;
+      },
+    );
+    assert.equal(f.core.getSnapshot(LEAD).children.length, 0);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("failed stop attempts retain a per-name outcome and reason", async () => {
+  const f = await fixture();
+  const stop = f.core.stop.bind(f.core);
+  try {
+    f.queue("child-explore", { type: "waitForAbort" });
+    await f.lead("subagent_prompt", explore());
+    await waitUntil(
+      () =>
+        f.core.getSnapshot(f.child("a").id).conversation.status === "running",
+    );
+    f.core.stop = async () => {
+      throw new Error("cannot stop");
+    };
+    const result = await f.lead("subagent_stop", { names: ["a"] });
+    const stopped = (
+      result.preview as {
+        details: {
+          results: Array<{ outcome: string; reason: string; runMs?: number }>;
+        };
+      }
+    ).details.results[0]!;
+    assert.equal(stopped.outcome, "failed");
+    assert.equal(stopped.reason, "cannot stop");
+    assert.ok(typeof stopped.runMs === "number" && stopped.runMs >= 0);
+  } finally {
+    f.core.stop = stop;
     await f.cleanup();
   }
 });

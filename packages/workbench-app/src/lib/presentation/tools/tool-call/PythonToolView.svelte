@@ -2,6 +2,7 @@
 import type { ToolCallDisplayRecord } from "../views/tool-result-view";
 import type { ToolView } from "../views/tool-result-view";
 import ToolOutputBlock from "./ToolOutputBlock.svelte";
+import ToolSections from "./ToolSections.svelte";
 
 type Props = {
   toolCall: ToolCallDisplayRecord;
@@ -10,31 +11,49 @@ type Props = {
 };
 let { toolCall, view, expanded = false }: Props = $props();
 
-const inlineCodeIsMultiline = $derived(
-  view.inputMode !== "file" && Boolean(view.code?.match(/[\r\n]/)),
+// The inline script is its own `Script` section (the argument body in the
+// card, rendered here when expanded), so the output is captioned.
+const hasScriptSection = $derived(
+  view.inputMode !== "file" &&
+    Boolean(view.code) &&
+    (/[\r\n]/.test(view.code ?? "") || (view.code?.length ?? 0) > 500),
+);
+const showScript = $derived(
+  expanded && hasScriptSection && /[\r\n]/.test(view.code ?? ""),
 );
 </script>
 
-<div class="grid gap-1.5">
-  {#if expanded && view.code && inlineCodeIsMultiline}
-    <section class="grid gap-1" aria-label="Python script">
-      <ToolOutputBlock text={view.code} language="python" {expanded} />
-    </section>
-  {/if}
+{#if showScript || view.output.length > 0 || toolCall.status === "completed"}
+  <ToolSections>
+    {#if showScript}
+      <div class="px-2.5 py-2" aria-label="Python script">
+        <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">Script</p>
+        <ToolOutputBlock text={view.code ?? ""} language="python" {expanded} />
+      </div>
+    {/if}
 
-  {#if view.output.length > 0}
-    <section class="grid gap-1" aria-label="Python output">
-      <ToolOutputBlock
-        text={view.output}
-        direction="tail"
-        {expanded}
-        live={toolCall.status === "running"}
-        terminal
-      />
-    </section>
-  {:else if toolCall.status === "completed"}
-    <section class="grid gap-1" aria-label="Python output">
-      <p class="m-0 text-xs text-muted-foreground">No output.</p>
-    </section>
-  {/if}
-</div>
+    {#if view.output.length > 0}
+      <div class="px-2.5 py-2" aria-label="Python output">
+        {#if hasScriptSection}
+          <p class="m-0 mb-1 text-xs font-medium text-muted-foreground">
+            Output
+          </p>
+        {/if}
+        <ToolOutputBlock
+          text={view.output}
+          direction="tail"
+          {expanded}
+          live={toolCall.status === "running"}
+          terminal
+        />
+      </div>
+    {:else if toolCall.status === "completed"}
+      <div
+        class="px-2.5 py-2 text-xs text-muted-foreground"
+        aria-label="Python output"
+      >
+        No output.
+      </div>
+    {/if}
+  </ToolSections>
+{/if}

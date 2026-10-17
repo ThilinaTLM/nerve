@@ -67,6 +67,7 @@ export function agentView(
     projectId: c.projectId,
     projectDir: config.workingDirectory,
     parentAgentId: child ? snapshot.conversation.id : undefined,
+    lastParentPromptAt: child?.lastParentPromptAt,
     name: child?.title,
     task: child
       ? deriveSubagentTask(child.title, [

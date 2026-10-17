@@ -99,6 +99,8 @@ export const usageSchema = z.object({
 export const userMessagePayloadSchema = z.object({
   text: z.string(),
   originalText: z.string(),
+  /** Original queue acceptance time; absent on events written before this field existed. */
+  acceptedAt: z.string().datetime().optional(),
   source: z.enum(["user", "parent_conversation"]),
   senderConversationId: z.string().nullable(),
   commandPreparation: commandPreparationSchema.nullable(),
@@ -193,6 +195,7 @@ export const toolCallResponsePayloadSchema = z.object({
   assistantEventId: z.string().nullable(),
   contentIndex: z.number().int().nonnegative().nullable(),
   outcome: toolCallOutcomeSchema,
+  startedAt: z.string().datetime().optional(),
   agentProjection: agentProjectionSchema,
   userProjection: toolUserProjectionSchema,
   supervision: supervisionSchema.nullable(),

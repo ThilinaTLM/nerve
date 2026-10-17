@@ -5,6 +5,8 @@ import {
   formatBytes,
   formatDuration,
   lineCount,
+  hasOutputArtifactPath,
+  outputMeta,
   plural,
   statusDot,
 } from "./tool-presentation-helpers";
@@ -44,15 +46,6 @@ export function toolPresentationCached(
   return presentation;
 }
 
-/** Derive the header (badge + primary arg) and footer (meta chips) for a tool. */
-function formatCount(
-  value: number | undefined,
-  noun: string,
-): string | undefined {
-  if (value === undefined || value <= 0) return undefined;
-  return `${value.toLocaleString()} ${noun}${value === 1 ? "" : "s"}`;
-}
-
 /**
  * Footer details action for Atlassian views: the first item list exceeding the
  * collapsed card budget wins; otherwise fall back to hidden content lines.
@@ -74,55 +67,7 @@ function isOneLine(text: string | undefined): boolean {
   );
 }
 
-function hasOutputArtifactPath(
-  view: ToolView,
-  path: string | undefined,
-): boolean {
-  return Boolean(
-    path &&
-    "outputArtifacts" in view &&
-    view.outputArtifacts?.some((artifact) => artifact.path === path),
-  );
-}
-
-function outputMeta(
-  view: ToolView,
-  options: { includeLiveLimit?: boolean } = {},
-): MetaItem[] {
-  const limits = "outputLimits" in view ? view.outputLimits : undefined;
-  const artifacts =
-    "outputArtifacts" in view ? view.outputArtifacts : undefined;
-  const meta: MetaItem[] = [];
-  if (limits?.model?.truncated) {
-    const lines = formatCount(limits.model.omittedLines, "line");
-    const chars = formatCount(limits.model.omittedChars, "char");
-    meta.push({
-      text: ["LLM trimmed", lines ?? chars].filter(Boolean).join(" · "),
-      tone: "warning",
-    });
-  }
-  if (options.includeLiveLimit !== false && limits?.live?.capped) {
-    const chars = formatCount(limits.live.omittedChars, "char");
-    meta.push({
-      text: ["live tail", chars ? `${chars} omitted` : undefined]
-        .filter(Boolean)
-        .join(" · "),
-      tone: "info",
-    });
-  }
-  for (const artifact of artifacts ?? []) {
-    const label =
-      artifact.kind === "raw_result"
-        ? "raw result"
-        : artifact.kind === "fetched_content"
-          ? "fetched content"
-          : "full output";
-    meta.push({ text: label, mono: true, openPath: artifact.path });
-  }
-  return meta;
-}
-
-export function toolPresentation(
+function projectToolPresentation(
   view: ToolView,
   toolCall: ToolCallDisplayRecord,
 ): ToolPresentation {
@@ -163,7 +108,13 @@ export function toolPresentation(
         return { ...base, primaryArg, meta: [{ text: "image" }] };
       }
       const meta: MetaItem[] = [];
-      if (view.lineLabel) meta.push({ text: view.lineLabel });
+      if (
+        view.lineLabel &&
+        !argumentPresentation.secondary.some(
+          (item) => item.key === "read-range",
+        )
+      )
+        meta.push({ key: "read-range", text: view.lineLabel });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
       meta.push(...outputMeta(view));
       return {
@@ -181,6 +132,7 @@ export function toolPresentation(
       const lines = view.outputLineCount;
       if (view.exitCode !== undefined) {
         meta.push({
+          key: "exit",
           text: `exit ${view.exitCode}`,
           tone: view.exitCode === 0 ? "success" : "destructive",
         });
@@ -196,7 +148,6 @@ export function toolPresentation(
         meta.push({ text: view.backgroundTask.status });
       }
       if (lines > 0) meta.push({ text: plural(lines, "line") });
-      if (view.live) meta.push({ text: "streaming", tone: "info" });
       if (view.truncated) meta.push({ text: "truncated", tone: "warning" });
       meta.push(...outputMeta(view, { includeLiveLimit: false }));
       if (view.savedTo && !hasOutputArtifactPath(view, view.savedTo)) {
@@ -240,7 +191,11 @@ export function toolPresentation(
       const meta: MetaItem[] = [];
       const lines = view.outputLineCount;
       if (view.exitCode !== undefined && view.exitCode !== 0) {
-        meta.push({ text: `exit ${view.exitCode}`, tone: "destructive" });
+        meta.push({
+          key: "exit",
+          text: `exit ${view.exitCode}`,
+          tone: "destructive",
+        });
       }
       if (view.signal)
         meta.push({ text: `signal ${view.signal}`, tone: "warning" });
@@ -248,7 +203,6 @@ export function toolPresentation(
       const duration = formatDuration(view.durationMs);
       if (duration) meta.push({ text: duration });
       if (lines > 0) meta.push({ text: plural(lines, "line") });
-      if (view.live) meta.push({ text: "streaming", tone: "info" });
       if (view.artifacts && view.artifacts.length > 0)
         meta.push({
           text: plural(view.artifacts.length, "artifact"),
@@ -288,16 +242,15 @@ export function toolPresentation(
     }
 
     case "edit": {
-      const meta: MetaItem[] = [
-        { text: plural(view.operationCount, "operation") },
-      ];
-      if (view.dryRun) meta.push({ text: "historical preview", tone: "info" });
-      if (view.additions > 0)
-        meta.push({ text: `+${view.additions}`, tone: "success" });
-      if (view.deletions > 0)
-        meta.push({ text: `−${view.deletions}`, tone: "destructive" });
-      if (view.diffLineCount > 0)
-        meta.push({ text: plural(view.diffLineCount, "diff line") });
+      const meta: MetaItem[] = [];
+      if (!argumentPresentation.secondary.some((item) => item.key === "add")) {
+        meta.push({ key: "add", text: `+${view.additions}`, tone: "success" });
+        meta.push({
+          key: "del",
+          text: `−${view.deletions}`,
+          tone: "destructive",
+        });
+      }
       return {
         ...base,
         primaryArg: view.relPath
@@ -311,12 +264,19 @@ export function toolPresentation(
 
     case "write": {
       const meta: MetaItem[] = [];
-      if (view.bytes !== undefined)
-        meta.push({ text: `wrote ${view.bytes} bytes` });
-      if (view.lineCount !== undefined)
-        meta.push({ text: plural(view.lineCount, "line") });
-      if (view.charCount !== undefined)
-        meta.push({ text: plural(view.charCount, "char") });
+      if (view.outcome)
+        meta.push({
+          key: "write-outcome",
+          text: view.outcome,
+          tone: "success",
+        });
+      if (
+        view.lineCount !== undefined &&
+        !argumentPresentation.secondary.some(
+          (item) => item.key === "write-lines",
+        )
+      )
+        meta.push({ key: "write-lines", text: plural(view.lineCount, "line") });
       return {
         ...base,
         primaryArg: view.relPath
@@ -334,8 +294,14 @@ export function toolPresentation(
         ...base,
         primaryArg: view.pattern ? { text: view.pattern } : undefined,
         meta: [
-          { text: plural(view.matchCount, "match", "es") },
-          { text: plural(view.fileCount, "file") },
+          {
+            key: "matches",
+            text: plural(view.totalMatches ?? view.matchCount, "match", "es"),
+          },
+          {
+            key: "files",
+            text: plural(view.totalFiles ?? view.fileCount, "file"),
+          },
         ],
         detailsAction:
           previewDetailsAction ?? detailsActionFor(view.matchCount, "matches"),
@@ -419,6 +385,17 @@ export function toolPresentation(
 
     case "jira": {
       const meta: MetaItem[] = [];
+      if (view.action === "create_issue" && view.issueKey && !view.dryRun) {
+        const href =
+          view.issueUrl ??
+          view.content?.match(/https?:\/\/[^\s)\]]+\/browse\/[^\s)\]]+/)?.[0];
+        meta.push({
+          key: "created",
+          text: view.issueKey,
+          href,
+          tone: "success",
+        });
+      }
       if (view.dryRun) meta.push({ text: "preview", tone: "info" });
       const countChip = (count: number | undefined, noun: string) => {
         if (count !== undefined) meta.push({ text: plural(count, noun) });
@@ -568,6 +545,14 @@ export function toolPresentation(
 
     case "confluence": {
       const meta: MetaItem[] = [];
+      if (view.action === "create_page" && (view.page?.id ?? view.pageId)) {
+        meta.push({
+          key: "created",
+          text: view.page?.id ?? view.pageId!,
+          href: view.page?.webUrl,
+          tone: "success",
+        });
+      }
       if (view.dryRun) meta.push({ text: "preview", tone: "info" });
       const countChip = (count: number | undefined, noun: string) => {
         if (count !== undefined) meta.push({ text: plural(count, noun) });
@@ -702,9 +687,30 @@ export function toolPresentation(
       return subagentPresentation(view, base);
 
     case "ask_user":
-      // The interactive body renders the question prominently, so keep the
-      // header to just the tool badge and avoid showing the question twice.
-      return { ...base, primaryArg: undefined, meta: [] };
+      // The sheet renders every question, so the header only counts them.
+      return {
+        ...base,
+        primaryArg: view.questions.length
+          ? {
+              text: `${view.questions.length} question${view.questions.length === 1 ? "" : "s"}`,
+            }
+          : undefined,
+        meta:
+          view.questions.length > 1 && toolCall.status === "completed"
+            ? [
+                {
+                  key: "answered",
+                  text: `${view.questions.filter((question) => question.answer !== undefined && !question.skipped).length}/${view.questions.length} answered`,
+                  tone: view.questions.every(
+                    (question) =>
+                      question.answer !== undefined && !question.skipped,
+                  )
+                    ? "success"
+                    : "warning",
+                },
+              ]
+            : [],
+      };
 
     case "plan_mode":
       // The presented-plan card renders its own footer (status chip + accept/
@@ -725,4 +731,40 @@ export function toolPresentation(
     default:
       return base;
   }
+}
+
+/** Argument facts retain their identity and order; result facts append. */
+export function toolPresentation(
+  view: ToolView,
+  toolCall: ToolCallDisplayRecord,
+): ToolPresentation {
+  const result = projectToolPresentation(view, toolCall);
+  const payload = toolCall as ToolCallDisplayRecord & {
+    args?: unknown;
+    argsPreview?: unknown;
+  };
+  const argument = presentToolArguments(
+    toolCall.toolName,
+    { args: payload.args, argsPreview: payload.argsPreview },
+    "completed",
+    toolCall.cwd,
+  );
+  const byKey = new Map<string, MetaItem>();
+  for (const item of [...argument.secondary, ...result.meta]) {
+    const key =
+      item.key ?? `result:${item.text.replace(/\d+(?:\.\d+)?/g, "#")}`;
+    byKey.set(key, { ...item, key });
+  }
+  return {
+    ...result,
+    primaryArg: [
+      "jira_create_issue",
+      "jira_update_issue",
+      "confluence_create_page",
+      "confluence_update_page",
+    ].includes(toolCall.toolName)
+      ? (argument.primaryArg ?? result.primaryArg)
+      : result.primaryArg,
+    meta: [...byKey.values()],
+  };
 }

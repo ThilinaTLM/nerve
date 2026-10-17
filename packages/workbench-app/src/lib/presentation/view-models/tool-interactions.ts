@@ -1,4 +1,5 @@
 /** Presentation-owned tool interactions shapes. No runtime schemas. */
+import type { UserInputQuestion } from "@nervekit/contracts/core";
 import type { JsonValue } from "./records";
 
 export type ToolCallInteraction =
@@ -214,11 +215,8 @@ export type ToolCallInteraction =
       updatedAt: string;
       kind: "user_input";
       request: {
-        question: string;
+        questions: UserInputQuestion[];
         required: boolean;
-        context?: string | undefined;
-        recommendation?: string | undefined;
-        placeholder?: string | undefined;
       };
       resolvedAt?: string | undefined;
       cancelledAt?: string | undefined;

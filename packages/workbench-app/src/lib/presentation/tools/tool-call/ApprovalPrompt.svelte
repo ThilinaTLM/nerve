@@ -17,6 +17,11 @@ type Props = {
   presentation: ToolArgumentPresentation;
   includeBody?: boolean;
   detailsAction?: { label: string; onClick: () => void };
+  /**
+   * Render only the Approve/Deny controls so the host card's persistent footer
+   * owns the chips and actions row.
+   */
+  embedded?: boolean;
   onGrantApproval?: (
     toolCallId: string,
     scope?:
@@ -31,6 +36,7 @@ let {
   approval,
   presentation,
   detailsAction,
+  embedded = false,
   onGrantApproval,
   onDenyApproval,
 }: Props = $props();
@@ -126,89 +132,100 @@ const permissionRuleSetLabel = $derived(
 );
 </script>
 
-<div class="grid gap-2" aria-label="Tool approval">
-  {#if permissionRuleSetLabel && hasPersistentChoice}
-    <p class="text-xs text-muted-foreground">
-      Durable grants apply only to the {permissionRuleSetLabel} permission rule set.
-    </p>
-  {/if}
-  <CardFooter {meta} cardActions={detailsAction ? [detailsAction] : []}>
-    {#snippet actions()}
-      {#if hasPersistentChoice}
-        <SplitButton
-          disabled={Boolean(decision)}
-          menuAlign="end"
-          menuClass="w-56"
-          triggerLabel="Approval options"
-          onclick={() => void decide("approve")}
-        >
-          {#if decision === "approve"}
-            <Spinner class="size-3.5" />Approving…
-          {:else}
-            <Check class="size-3.5" strokeWidth={2.4} />Approve
-          {/if}
-          {#snippet menu()}
-            <DropdownMenu.Item
-              disabled={Boolean(decision)}
-              onSelect={() => void decide("approve")}
-            >
-              Approve once
-            </DropdownMenu.Item>
-            {#if canPersistConversation}
-              <DropdownMenu.Item
-                disabled={Boolean(decision)}
-                title={`Allow ${reviewedTarget} in this conversation${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
-                onSelect={() => void decide("always_conversation")}
-              >
-                Allow in this conversation
-              </DropdownMenu.Item>
-            {/if}
-            {#if canPersistProject}
-              <DropdownMenu.Item
-                disabled={Boolean(decision)}
-                title={`Always approve ${reviewedTarget} in this project${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
-                onSelect={() => void decide("always_project")}
-              >
-                Always approve in project
-              </DropdownMenu.Item>
-            {/if}
-            {#if canPersistUser}
-              <DropdownMenu.Item
-                disabled={Boolean(decision)}
-                title={`Always approve ${reviewedTarget} for this user${permissionRuleSetLabel ? ` in ${permissionRuleSetLabel}` : ""}`}
-                onSelect={() => void decide("always_user")}
-              >
-                Always approve for user
-              </DropdownMenu.Item>
-            {/if}
-          {/snippet}
-        </SplitButton>
+{#snippet buttons()}
+  {#if hasPersistentChoice}
+    <SplitButton
+      disabled={Boolean(decision)}
+      menuAlign="end"
+      menuClass="w-56"
+      triggerLabel="Approval options"
+      onclick={() => void decide("approve")}
+    >
+      {#if decision === "approve"}
+        <Spinner class="size-3.5" />Approving…
       {:else}
-        <Button
-          disabled={Boolean(decision)}
-          onclick={() => void decide("approve")}
-        >
-          {#if decision === "approve"}
-            <Spinner class="size-3.5" />Approving…
-          {:else}
-            <Check class="size-3.5" strokeWidth={2.4} />Approve
-          {/if}
-        </Button>
+        <Check class="size-3.5" strokeWidth={2.4} />Approve
       {/if}
-      <Button
-        variant="outline"
-        disabled={Boolean(decision)}
-        onclick={() => void decide("deny")}
-      >
-        {#if decision === "deny"}
-          <Spinner class="size-3.5" />Denying…
-        {:else}
-          <X class="size-3.5" strokeWidth={2.4} />Deny
+      {#snippet menu()}
+        <DropdownMenu.Item
+          disabled={Boolean(decision)}
+          onSelect={() => void decide("approve")}
+        >
+          Approve once
+        </DropdownMenu.Item>
+        {#if canPersistConversation}
+          <DropdownMenu.Item
+            disabled={Boolean(decision)}
+            title={`Allow ${reviewedTarget} in this conversation${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
+            onSelect={() => void decide("always_conversation")}
+          >
+            Allow in this conversation
+          </DropdownMenu.Item>
         {/if}
-      </Button>
-    {/snippet}
-  </CardFooter>
-  {#if actionError}
-    <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+        {#if canPersistProject}
+          <DropdownMenu.Item
+            disabled={Boolean(decision)}
+            title={`Always approve ${reviewedTarget} in this project${permissionRuleSetLabel ? ` for ${permissionRuleSetLabel}` : ""}`}
+            onSelect={() => void decide("always_project")}
+          >
+            Always approve in project
+          </DropdownMenu.Item>
+        {/if}
+        {#if canPersistUser}
+          <DropdownMenu.Item
+            disabled={Boolean(decision)}
+            title={`Always approve ${reviewedTarget} for this user${permissionRuleSetLabel ? ` in ${permissionRuleSetLabel}` : ""}`}
+            onSelect={() => void decide("always_user")}
+          >
+            Always approve for user
+          </DropdownMenu.Item>
+        {/if}
+      {/snippet}
+    </SplitButton>
+  {:else}
+    <Button disabled={Boolean(decision)} onclick={() => void decide("approve")}>
+      {#if decision === "approve"}
+        <Spinner class="size-3.5" />Approving…
+      {:else}
+        <Check class="size-3.5" strokeWidth={2.4} />Approve
+      {/if}
+    </Button>
   {/if}
-</div>
+  <Button
+    variant="outline"
+    disabled={Boolean(decision)}
+    onclick={() => void decide("deny")}
+  >
+    {#if decision === "deny"}
+      <Spinner class="size-3.5" />Denying…
+    {:else}
+      <X class="size-3.5" strokeWidth={2.4} />Deny
+    {/if}
+  </Button>
+{/snippet}
+
+{#if embedded}
+  <div class="flex flex-wrap items-center gap-2" aria-label="Tool approval">
+    {@render buttons()}
+    {#if actionError}
+      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+    {/if}
+  </div>
+{:else}
+  <div class="grid gap-2" aria-label="Tool approval">
+    {#if permissionRuleSetLabel && hasPersistentChoice}
+      <p class="text-xs text-muted-foreground">
+        Durable grants apply only to the {permissionRuleSetLabel} permission rule
+        set.
+      </p>
+    {/if}
+    <CardFooter
+      {meta}
+      cardActions={detailsAction ? [detailsAction] : []}
+      actions={buttons}
+    />
+    {#if actionError}
+      <p class="m-0 text-xs text-destructive" role="alert">{actionError}</p>
+    {/if}
+  </div>
+{/if}

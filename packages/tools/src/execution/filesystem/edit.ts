@@ -4,6 +4,7 @@ import type {
   ToolExecutionResult,
 } from "../execution-context.js";
 import { writeTextFileAtomically } from "./atomic-write.js";
+import { ToolExecutionError } from "../errors/tool-error.js";
 import { argumentError, editError } from "./edit-errors.js";
 import { withFileMutationQueue } from "./file-mutation-queue.js";
 import { resolveToolPath } from "./path.js";
@@ -34,76 +35,107 @@ export async function executeEdit(
   context: FilesystemExecutionContext,
 ): Promise<ToolExecutionResult> {
   const path = resolveToolPath(context.cwd, args.path);
-  const edits = parseEdits(args);
+  try {
+    const edits = parseEdits(args);
 
-  return withFileMutationQueue(path, async () => {
-    const raw = await readFile(path, "utf8");
-    if (raw.includes("\0")) {
-      throw editError(
-        "EDIT_BINARY_FILE",
-        `edit cannot edit ${path} because it appears to be a binary file.`,
-        { path },
+    return await withFileMutationQueue(path, async () => {
+      const raw = await readFile(path, "utf8");
+      if (raw.includes("\0")) {
+        throw editError(
+          "EDIT_BINARY_FILE",
+          `edit cannot edit ${path} because it appears to be a binary file.`,
+          { path },
+        );
+      }
+
+      const bom = raw.startsWith("\uFEFF") ? "\uFEFF" : "";
+      const withoutBom = bom ? raw.slice(1) : raw;
+      const lineEnding = detectLineEnding(withoutBom);
+      const content = normalizeLineEndings(withoutBom);
+      const resolved = edits.map((edit, index) =>
+        resolveExactEdit(content, edit, index, path),
       );
-    }
+      rejectOverlappingEdits(resolved, path);
 
-    const bom = raw.startsWith("\uFEFF") ? "\uFEFF" : "";
-    const withoutBom = bom ? raw.slice(1) : raw;
-    const lineEnding = detectLineEnding(withoutBom);
-    const content = normalizeLineEndings(withoutBom);
-    const resolved = edits.map((edit, index) =>
-      resolveExactEdit(content, edit, index, path),
-    );
-    rejectOverlappingEdits(resolved, path);
+      let updated = content;
+      for (const edit of [...resolved].sort(
+        (left, right) => right.start - left.start,
+      )) {
+        updated = `${updated.slice(0, edit.start)}${edit.newText}${updated.slice(edit.end)}`;
+      }
 
-    let updated = content;
-    for (const edit of [...resolved].sort(
-      (left, right) => right.start - left.start,
-    )) {
-      updated = `${updated.slice(0, edit.start)}${edit.newText}${updated.slice(edit.end)}`;
-    }
+      if (updated === content) {
+        throw editError("EDIT_NO_CHANGE", `edit would not change ${path}.`, {
+          path,
+          operationCount: edits.length,
+        });
+      }
 
-    if (updated === content) {
-      throw editError("EDIT_NO_CHANGE", `edit would not change ${path}.`, {
+      await writeTextFileAtomically(
         path,
-        operationCount: edits.length,
-      });
-    }
+        bom + restoreLineEndings(updated, lineEnding),
+      );
 
-    await writeTextFileAtomically(
-      path,
-      bom + restoreLineEndings(updated, lineEnding),
-    );
-
-    const contentMessage = `Edited file with ${edits.length} replacement${edits.length === 1 ? "" : "s"}.`;
-    return {
-      path,
-      content: contentMessage,
-      contentBlocks: [{ type: "text", text: contentMessage }],
-      details: {
-        diff: generateDiffString(content, updated),
-        firstChangedLine: firstChangedLine(content, updated),
-        lineEnding,
-        bom: Boolean(bom),
-        operationCount: edits.length,
-        operations: resolved.map((edit) => ({
-          index: edit.index,
-          type: "replace_text",
-          source: "edits",
-          sourceIndex: edit.index,
-          matchCount: 1,
-          startLine: edit.startLine,
-          endLine: edit.endLine,
-          matchedBy: "unique",
-        })),
-        mutationSummary: {
-          operation: "edit",
-          outcome: "succeeded",
-          resources: [{ kind: "file", path }],
-          warnings: [],
+      const contentMessage = `Edited file with ${edits.length} replacement${edits.length === 1 ? "" : "s"}.`;
+      return {
+        path,
+        content: contentMessage,
+        contentBlocks: [{ type: "text", text: contentMessage }],
+        details: {
+          diff: generateDiffString(content, updated),
+          firstChangedLine: firstChangedLine(content, updated),
+          lineEnding,
+          bom: Boolean(bom),
+          operationCount: edits.length,
+          appliedCount: edits.length,
+          operations: resolved.map((edit) => ({
+            index: edit.index,
+            status: "applied",
+            type: "replace_text",
+            source: "edits",
+            sourceIndex: edit.index,
+            matchCount: 1,
+            startLine: edit.startLine,
+            endLine: edit.endLine,
+            matchedBy: "unique",
+          })),
+          mutationSummary: {
+            operation: "edit",
+            outcome: "succeeded",
+            resources: [{ kind: "file", path }],
+            warnings: [],
+          },
         },
+      };
+    });
+  } catch (error) {
+    const details = error instanceof ToolExecutionError ? error.details : {};
+    const failedIndex =
+      details.operationIndex ?? details.index ?? details.currentIndex;
+    const operations = (Array.isArray(args.edits) ? args.edits : []).map(
+      (_, index) => ({
+        index,
+        type: "replace_text",
+        source: "edits",
+        sourceIndex: index,
+        status: index === failedIndex ? "failed" : "not_applied",
+        ...(index === failedIndex
+          ? { error: error instanceof Error ? error.message : String(error) }
+          : {}),
+      }),
+    );
+    throw new ToolExecutionError(
+      error instanceof ToolExecutionError ? error.code : "EDIT_FAILED",
+      error instanceof Error ? error.message : String(error),
+      {
+        ...details,
+        appliedCount: 0,
+        operationCount: operations.length,
+        operations,
       },
-    };
-  });
+      error instanceof ToolExecutionError && error.retryable,
+    );
+  }
 }
 
 function parseEdits(args: Record<string, unknown>): ExactEdit[] {
@@ -123,7 +155,7 @@ function parseEdits(args: Record<string, unknown>): ExactEdit[] {
   return args.edits.map((value, index) => {
     const label = `edits[${index}]`;
     if (!value || typeof value !== "object" || Array.isArray(value)) {
-      throw argumentError(`${label} must be an object.`);
+      throw argumentError(`${label} must be an object.`, { index });
     }
     const record = value as Record<string, unknown>;
     const unexpectedFields = Object.keys(record).filter(
