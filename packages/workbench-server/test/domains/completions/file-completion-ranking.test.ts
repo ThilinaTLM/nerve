@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { FILE_COMPLETION_RESULT_LIMIT } from "@nervekit/contracts/completions";
 import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
-import {
-  completeFileCandidates,
-  isUnsafeCompletionQuery,
-} from "../../../src/domains/completions/file-completion-ranking.js";
+import { isUnsafeCompletionQuery } from "../../../src/domains/completions/file-completion-items.js";
+import { completeFileCandidates } from "../../benchmarks/file-completion-optimized.js";
+
+import { completeFileCandidates as baseline } from "../../benchmarks/file-completion-baseline.js";
+import { syntheticCompletionCandidates } from "../../benchmarks/file-completion.benchmark.js";
 
 const files = (paths: string[]) =>
   paths.map((path) => candidateFromPath(path, "file"));
@@ -92,5 +93,106 @@ describe("file completion ranking", () => {
     assert.equal(isUnsafeCompletionQuery("../secret"), true);
     assert.equal(isUnsafeCompletionQuery("C:/secret"), true);
     assert.deepEqual(completeFileCandidates(candidates, "../secret"), []);
+  });
+});
+
+describe("optimized completion parity", () => {
+  it("matches the frozen ranker across query intents and slice limits", () => {
+    const candidates = [
+      ...syntheticCompletionCandidates(250),
+      ...files([
+        "foo/foo/item.ts",
+        "foo/item.ts",
+        "src/😀résumé.ts",
+        "src/İndex.ts",
+        "a/b/c/d/e/f/g.ts",
+      ]),
+      candidateFromPath("packages", "directory"),
+      candidateFromPath("packages/app", "directory"),
+    ];
+    const queries = [
+      "",
+      "@",
+      " @@@packages ",
+      "packages/",
+      "packages/app/",
+      "packages//app",
+      "APP/Composer",
+      "foo foo",
+      "Completion server",
+      "CED",
+      "résumé",
+      "İn",
+      "😀",
+      "index",
+      "a b c d e f g",
+      "a/b/c/d/e/f/g",
+      "no-such-match",
+      "../secret",
+      "@..\\secret",
+      "/absolute",
+      "C:\\secret",
+      "//network/share",
+    ];
+    const limits = [
+      undefined,
+      0,
+      1,
+      3,
+      8,
+      100,
+      -1,
+      -8,
+      -1000,
+      2.9,
+      -2.9,
+      NaN,
+      Infinity,
+      -Infinity,
+    ];
+    for (const query of queries) {
+      for (const limit of limits) {
+        assert.deepEqual(
+          completeFileCandidates(candidates, query, { limit }),
+          baseline(candidates, query, { limit }),
+          `${JSON.stringify(query)}, limit ${limit}`,
+        );
+      }
+    }
+  });
+
+  it("retains input order for duplicate and canonically equivalent Unicode ties", () => {
+    const candidates = Array.from({ length: 24 }, (_, index) => ({
+      ...candidateFromPath(
+        index % 2 ? "e\u0301\u0323.ts" : "e\u0323\u0301.ts",
+        "file",
+      ),
+      parentPath: `input-${index}`,
+    }));
+    assert.equal(
+      candidates[0]!.relativePath.localeCompare(candidates[1]!.relativePath),
+      0,
+    );
+    for (const query of ["", "ts"]) {
+      const results = completeFileCandidates(candidates, query);
+      assert.deepEqual(results, baseline(candidates, query));
+      assert.deepEqual(
+        results.map((item) => item.detail),
+        Array.from({ length: 8 }, (_, index) => `file · input-${index}`),
+      );
+    }
+  });
+
+  it("keeps UTF-16 highlight offsets after supplementary characters", () => {
+    const candidates = files(["😀/résumé.ts", "src/😀ComposerEditor.ts"]);
+    const results = completeFileCandidates(candidates, "résumé");
+    assert.deepEqual(results[0]?.matchRanges, [[4, 10]]);
+    assert.equal(results[0]?.label.slice(4, 10), "résumé");
+    for (const query of ["😀", "résumé", "CED", "İ", "😀/ré"]) {
+      assert.deepEqual(
+        completeFileCandidates(candidates, query),
+        baseline(candidates, query),
+      );
+    }
   });
 });

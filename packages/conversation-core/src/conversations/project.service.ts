@@ -7,6 +7,9 @@ export class ProjectService {
     private readonly storage: CoreStorage,
     private readonly deleteConversation: (id: string) => Promise<void>,
     private readonly now: () => string,
+    private readonly onProjectDeleted?: (
+      projectId: string,
+    ) => void | Promise<void>,
   ) {}
   create(input: { id?: string; name: string; directory: string }): Project {
     const id = input.id ?? createId("proj");
@@ -46,5 +49,6 @@ export class ProjectService {
     }))
       await this.deleteConversation(conversation.id);
     this.storage.projects.delete(id);
+    await this.onProjectDeleted?.(id);
   }
 }

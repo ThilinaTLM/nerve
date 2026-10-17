@@ -1,9 +1,10 @@
+// Frozen optimized TS oracle for native-pilot parity and performance comparisons only.
 import { isAbsolute } from "node:path";
 import {
   FILE_COMPLETION_RESULT_LIMIT,
   type CompletionItem,
 } from "@nervekit/contracts/completions";
-import type { FileCompletionCandidate } from "./file-completion-candidates.js";
+import type { FileCompletionCandidate } from "../../src/domains/completions/file-completion-candidates.js";
 
 export const defaultCompletionLimit = FILE_COMPLETION_RESULT_LIMIT;
 
@@ -38,16 +39,62 @@ export function completeFileCandidates(
   const query = normalizeCompletionQuery(rawQuery);
   if (isUnsafeCompletionQuery(query)) return [];
 
-  const ranked = candidates
-    .map((candidate) => rankCandidate(candidate, query))
-    .filter((candidate): candidate is RankedCandidate => Boolean(candidate))
-    .sort(compareRankedCandidates);
   const limit = Math.min(
     options.limit ?? defaultCompletionLimit,
     FILE_COMPLETION_RESULT_LIMIT,
   );
-
-  return ranked.slice(0, limit).map(toCompletionItem);
+  // Preserve Array.slice semantics for internal callers, including fractional,
+  // NaN and negative limits. Public request limits are positive integers.
+  const size = Number.isNaN(limit) ? 0 : Math.trunc(limit);
+  if (size === 0) return [];
+  const lower = query.toLowerCase();
+  const ordered = query.includes("/");
+  const context: QueryContext = {
+    query,
+    lower,
+    path: lower.replace(/\/+$/, ""),
+    folderIntent: query.endsWith("/"),
+    ordered,
+    terms: query
+      .replace(/\/+$/, "")
+      .split(ordered ? /\/+/ : /\s+/)
+      .map((term) => term.trim())
+      .filter(Boolean)
+      .map((value) => ({ value, lower: value.toLowerCase() })),
+  };
+  const ranked: RankedCandidate[] = [];
+  for (const candidate of candidates) {
+    const match = rankCandidate(candidate, context);
+    if (!match) continue;
+    if (size < 0) {
+      ranked.push(match);
+      continue;
+    }
+    // Eight results at most: a sorted bounded buffer avoids both a full sort
+    // and heap bookkeeping. Insert AFTER equals to retain stable input order.
+    if (
+      ranked.length === size &&
+      compareRankedCandidates(match, ranked[ranked.length - 1]!) >= 0
+    ) {
+      continue;
+    }
+    let index = ranked.length;
+    while (
+      index > 0 &&
+      compareRankedCandidates(match, ranked[index - 1]!) < 0
+    ) {
+      index -= 1;
+    }
+    ranked.splice(index, 0, match);
+    if (ranked.length > size) ranked.pop();
+  }
+  if (size < 0) {
+    return ranked
+      .sort(compareRankedCandidates)
+      .slice(0, size)
+      .map(toCompletionItem);
+  }
+  return ranked.map(toCompletionItem);
 }
 
 export function normalizeCompletionQuery(query: string): string {
@@ -67,16 +114,30 @@ export function isUnsafeCompletionQuery(query: string): boolean {
   return query.split("/").some((segment) => segment === "..");
 }
 
+type QueryTerm = { value: string; lower: string };
+type QueryContext = {
+  query: string;
+  lower: string;
+  path: string;
+  folderIntent: boolean;
+  ordered: boolean;
+  terms: QueryTerm[];
+};
+
 function rankCandidate(
   candidate: FileCompletionCandidate,
-  query: string,
+  context: QueryContext,
 ): RankedCandidate | undefined {
-  const label = labelFor(candidate);
+  const {
+    query,
+    lower: queryLower,
+    path: pathQuery,
+    folderIntent,
+    terms,
+  } = context;
+  const labelLength =
+    1 + candidate.relativePath.length + Number(candidate.kind === "directory");
   if (!query) return rankEmptyCandidate(candidate);
-
-  const queryLower = query.toLowerCase();
-  const pathQuery = queryLower.replace(/\/+$/, "");
-  const folderIntent = query.endsWith("/");
 
   if (folderIntent && candidate.pathLower === pathQuery) return undefined;
 
@@ -84,7 +145,7 @@ function rankCandidate(
     return {
       candidate,
       score: 20_000 + kindBoost(candidate, folderIntent) - candidate.depth,
-      matchRanges: [[1, Math.min(label.length, 1 + pathQuery.length)]],
+      matchRanges: [[1, Math.min(labelLength, 1 + pathQuery.length)]],
     };
   }
 
@@ -117,19 +178,14 @@ function rankCandidate(
         remainingDepth * 120 -
         candidate.depth * 6 -
         candidate.relativePath.length / 20,
-      matchRanges: [[1, Math.min(label.length, 1 + query.length)]],
+      matchRanges: [[1, Math.min(labelLength, 1 + query.length)]],
     };
   }
 
-  const terms = query
-    .replace(/\/+$/, "")
-    .split(query.includes("/") ? /\/+/ : /\s+/)
-    .map((term) => term.trim())
-    .filter(Boolean);
   if (terms.length === 0) return rankEmptyCandidate(candidate);
   if (terms.length > 6) return undefined;
 
-  const matches = query.includes("/")
+  const matches = context.ordered
     ? orderedPathMatches(candidate, terms)
     : unorderedTermMatches(candidate, terms);
   if (!matches) return undefined;
@@ -215,7 +271,7 @@ function kindBoost(
 
 function orderedPathMatches(
   candidate: FileCompletionCandidate,
-  terms: string[],
+  terms: QueryTerm[],
 ): TargetMatch[] | undefined {
   const rows: Array<Array<TargetMatch | undefined>> = terms.map((term) =>
     candidate.segments.map((_, segmentIndex) =>
@@ -276,7 +332,7 @@ function orderedPathMatches(
 
 function unorderedTermMatches(
   candidate: FileCompletionCandidate,
-  terms: string[],
+  terms: QueryTerm[],
 ): TargetMatch[] | undefined {
   const options = terms.map((term) =>
     candidate.segments
@@ -332,20 +388,30 @@ function unorderedTermMatches(
 
 function matchSegment(
   candidate: FileCompletionCandidate,
-  term: string,
+  term: QueryTerm,
   segmentIndex: number,
 ): TargetMatch | undefined {
   const segment = candidate.segments[segmentIndex] ?? "";
   const isLeaf = segmentIndex === candidate.segments.length - 1;
   const offset = 1 + segmentOffset(candidate, segmentIndex);
-  const values = [{ value: segment, weight: isLeaf ? 1_500 : 350 }];
+  const values = [
+    {
+      value: segment,
+      lower: candidate.segmentsLower[segmentIndex] ?? "",
+      weight: isLeaf ? 1_500 : 350,
+    },
+  ];
   if (isLeaf && candidate.kind === "file" && candidate.stem !== segment) {
-    values.push({ value: candidate.stem, weight: 1_900 });
+    values.push({
+      value: candidate.stem,
+      lower: candidate.stemLower,
+      weight: 1_900,
+    });
   }
 
   let best: LocalMatch | undefined;
   for (const target of values) {
-    const match = matchText(term, target.value);
+    const match = matchText(term, target.value, target.lower);
     if (!match) continue;
     const weighted = { ...match, score: match.score + target.weight };
     if (!best || weighted.score > best.score) best = weighted;
@@ -358,10 +424,13 @@ function matchSegment(
   };
 }
 
-function matchText(term: string, value: string): LocalMatch | undefined {
+function matchText(
+  queryTerm: QueryTerm,
+  value: string,
+  haystack: string,
+): LocalMatch | undefined {
+  const { value: term, lower: needle } = queryTerm;
   if (!term || !value) return undefined;
-  const needle = term.toLowerCase();
-  const haystack = value.toLowerCase();
   if (needle === haystack) {
     return {
       score: 3_600 + caseBonus(term, value),
@@ -385,7 +454,7 @@ function matchText(term: string, value: string): LocalMatch | undefined {
       ranges: [[index, index + term.length]],
     };
   }
-  const fuzzy = fuzzySubsequence(term, value);
+  const fuzzy = fuzzySubsequence(term, value, needle, haystack);
   if (!fuzzy || fuzzy.score < 250) return undefined;
   return fuzzy;
 }
@@ -393,11 +462,11 @@ function matchText(term: string, value: string): LocalMatch | undefined {
 function fuzzySubsequence(
   needle: string,
   haystack: string,
+  needleLower: string,
+  haystackLower: string,
 ): LocalMatch | undefined {
   if (needle.length > haystack.length || haystack.length > 512)
     return undefined;
-  const needleLower = needle.toLowerCase();
-  const haystackLower = haystack.toLowerCase();
   let searchFrom = 0;
   for (const character of needleLower) {
     searchFrom = haystackLower.indexOf(character, searchFrom);

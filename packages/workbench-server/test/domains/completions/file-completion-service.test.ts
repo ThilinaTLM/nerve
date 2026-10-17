@@ -3,12 +3,44 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, it } from "node:test";
+import type { FileCompletionIndex } from "@nervekit/native";
 import type { Project } from "@nervekit/contracts/core";
 import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
+import { completeFileCandidates as optimized } from "../../benchmarks/file-completion-optimized.js";
+import type { FileCompletionCandidate } from "../../../src/domains/completions/file-completion-candidates.js";
 import { FileCompletionService } from "../../../src/domains/completions/file-completion-service.js";
 
 const roots: string[] = [];
+const services: FileCompletionService[] = [];
+function fakeIndex(
+  candidates: readonly FileCompletionCandidate[],
+): FileCompletionIndex {
+  return {
+    async query(query, options) {
+      return optimized([...candidates], query, options).map((item) => ({
+        candidateIndex: candidates.findIndex(
+          (candidate) => candidate.relativePath === item.info,
+        ),
+        score: item.sortScore ?? 0,
+        matchRanges: item.matchRanges ?? [],
+      }));
+    },
+    async close() {},
+  };
+}
+function makeService(
+  getProject: (id: string) => Project,
+  options: ConstructorParameters<typeof FileCompletionService>[1] = {},
+) {
+  const service = new FileCompletionService(getProject, {
+    createIndex: async (candidates) => fakeIndex(candidates),
+    ...options,
+  });
+  services.push(service);
+  return service;
+}
 afterEach(async () => {
+  await Promise.all(services.splice(0).map((service) => service.dispose()));
   await Promise.all(
     roots.splice(0).map((root) => rm(root, { recursive: true, force: true })),
   );
@@ -44,7 +76,7 @@ describe("FileCompletionService", () => {
     const project = await projectFixture();
     const discovery = deferred<ReturnType<typeof candidateFromPath>[]>();
     let calls = 0;
-    const service = new FileCompletionService(() => project, {
+    const service = makeService(() => project, {
       discover: async () => {
         calls += 1;
         return discovery.promise;
@@ -66,7 +98,7 @@ describe("FileCompletionService", () => {
     const refresh = deferred<ReturnType<typeof candidateFromPath>[]>();
     let now = 0;
     let calls = 0;
-    const service = new FileCompletionService(() => project, {
+    const service = makeService(() => project, {
       now: () => now,
       discover: async () => {
         calls += 1;
@@ -97,15 +129,15 @@ describe("FileCompletionService", () => {
       "reader.ts",
     );
 
-    service.dispose(project.id);
-    void service.completeFiles(project.id, "read");
+    await service.dispose(project.id);
+    await service.completeFiles(project.id, "read");
     assert.equal(calls, 3);
   });
 
   it("retries after an initial discovery failure", async () => {
     const project = await projectFixture();
     let calls = 0;
-    const service = new FileCompletionService(() => project, {
+    const service = makeService(() => project, {
       discover: async () => {
         calls += 1;
         if (calls === 1) throw new Error("scan failed");
