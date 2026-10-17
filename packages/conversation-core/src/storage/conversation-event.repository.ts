@@ -79,6 +79,16 @@ export class ConversationEventRepository {
     return row ? mapEvent(row) : null;
   }
 
+  latestExecution(conversationId: string): ConversationEvent | undefined {
+    const row = this.db.sqlite
+      .prepare(`SELECT * FROM conversation_event
+        WHERE conversation_id = ? AND event_type = 'system_event'
+          AND json_extract(payload, '$.subtype') = 'execution_state'
+        ORDER BY sequence DESC LIMIT 1`)
+      .get(conversationId);
+    return row ? mapEvent(row) : undefined;
+  }
+
   lastSequence(conversationId: string): number {
     const row = this.db.sqlite
       .prepare(

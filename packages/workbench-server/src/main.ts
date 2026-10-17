@@ -378,6 +378,7 @@ async function main() {
       performance.now() - loggerHydrateStartedAt,
     );
     installCrashGuards(state.logger, storage.paths.home, leaseMonitor);
+    const retentionStartedAt = performance.now();
     await state.logger.pruneRetention();
     await pruneCrashReports(
       storage.paths.home,
@@ -385,6 +386,9 @@ async function main() {
     ).catch(async (error: unknown) => {
       await state.logger.warn("Crash report retention failed", { error });
     });
+    const retentionDurationMs = Math.round(
+      performance.now() - retentionStartedAt,
+    );
     await state.logger.info("Daemon storage initialized", {
       durationMs: storageDurationMs + loggerHydrateDurationMs,
       context: {
@@ -404,13 +408,14 @@ async function main() {
       durationMs: Math.round(performance.now() - agentSkillsStartedAt),
       context: { count: state.nerveSkills.skills.length },
     });
+    const browserSkillsStartedAt = performance.now();
     await state.agentBrowserSkills
       .initialize()
       .then(async () => {
         const count = state.agentBrowserSkills.skills.length;
         if (count > 0) {
           await state.logger.info("Agent Browser skills initialized", {
-            durationMs: Math.round(performance.now() - agentSkillsStartedAt),
+            durationMs: Math.round(performance.now() - browserSkillsStartedAt),
             context: { count },
           });
         }
@@ -421,8 +426,24 @@ async function main() {
     const agentSkillsDurationMs = Math.round(
       performance.now() - agentSkillsStartedAt,
     );
-    await Promise.all([state.lifecycle.hydrate(), state.maintenance.hydrate()]);
+    const browserSkillsDurationMs = Math.round(
+      performance.now() - browserSkillsStartedAt,
+    );
+    const runtimeHydrateStartedAt = performance.now();
+    const [lifecycleHydrationTimings, maintenanceHydrateDurationMs] =
+      await Promise.all([
+        state.lifecycle.hydrate(),
+        (async () => {
+          const startedAt = performance.now();
+          await state.maintenance.hydrate();
+          return Math.round(performance.now() - startedAt);
+        })(),
+      ]);
+    const runtimeHydrateDurationMs = Math.round(
+      performance.now() - runtimeHydrateStartedAt,
+    );
     state.subscriptionUsage.start();
+    const mobileTlsStartedAt = performance.now();
     const mobileTls = mobileHttpsEnabled
       ? await ensureMobileHttpsTlsMaterial(
           storage.paths.home,
@@ -439,6 +460,10 @@ async function main() {
         },
       });
     }
+    const mobileTlsDurationMs = Math.round(
+      performance.now() - mobileTlsStartedAt,
+    );
+    const appMountStartedAt = performance.now();
     const app = createApp(state, controls);
     const webSockets = new WebSocketServer({ noServer: true });
     const sessionSets = [
@@ -485,6 +510,9 @@ async function main() {
         },
       });
     }
+    const appMountDurationMs = Math.round(
+      performance.now() - appMountStartedAt,
+    );
     runtime = { state, webSockets, httpsServer, sessionSets };
     await leaseMonitor?.publish(toDaemonFile(state));
     await state.events.publish("daemon.started", {
@@ -521,7 +549,14 @@ async function main() {
       storageDurationMs,
       ...storage.timings,
       loggerHydrateDurationMs,
+      retentionDurationMs,
       agentSkillsDurationMs,
+      browserSkillsDurationMs,
+      runtimeHydrateDurationMs,
+      lifecycleHydrationTimings,
+      maintenanceHydrateDurationMs,
+      mobileTlsDurationMs,
+      appMountDurationMs,
     });
     performanceMonitor ??= installDaemonPerformanceMonitor({
       enabled: performanceDiagnosticsEnabled,

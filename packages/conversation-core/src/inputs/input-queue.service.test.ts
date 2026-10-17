@@ -79,6 +79,46 @@ test("user input resumes a paused conversation with a complete summary", () => {
     assert.equal(summary.childCount, 0);
     assert.equal(storage.inputs.list("conv_test").length, 1);
     assert.deepEqual(wakes, ["conv_test"]);
+    assert.equal(service.hasDeliverable("conv_test", { kind: "turn" }), true);
+    const delivered = service.deliver("conv_test", { kind: "turn" });
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].inputId, "input_test");
+    assert.equal(storage.inputs.list("conv_test").length, 0);
+  } finally {
+    storage.close();
+  }
+});
+
+test("empty queues skip history decoding at both delivery boundaries", () => {
+  const storage = openCoreStorage(":memory:");
+  try {
+    storage.events.since = () => {
+      throw new Error("Empty queues must not load transcript history");
+    };
+    const unexpectedProcess = async (): Promise<never> => {
+      throw new Error("No process expected");
+    };
+    const service = new InputQueueService({
+      storage,
+      processes: {
+        start: unexpectedProcess,
+        run: unexpectedProcess,
+        reattach: unexpectedProcess,
+      },
+      emit: () => {
+        throw new Error("Empty queues must not emit changes");
+      },
+      requestWake: () => {
+        throw new Error("Empty queues must not wake");
+      },
+    });
+    for (const boundary of [
+      { kind: "turn" },
+      { kind: "execution_start", executionId: "evt_execution" },
+    ] as const) {
+      assert.equal(service.hasDeliverable("conv_empty", boundary), false);
+      assert.deepEqual(service.deliver("conv_empty", boundary), []);
+    }
   } finally {
     storage.close();
   }

@@ -12,20 +12,18 @@ export function latestExecution(
   storage: CoreStorage,
   id: string,
 ): ConversationEvent | undefined {
-  return storage.events
-    .since(id, 0)
-    .filter(
-      (event) =>
-        event.type === "system_event" &&
-        event.payload.subtype === "execution_state",
-    )
-    .at(-1);
+  return storage.events.latestExecution(id);
 }
 export function openExecutionId(
   storage: CoreStorage,
   id: string,
 ): string | null {
-  const event = latestExecution(storage, id);
+  return executionIdFromEvent(latestExecution(storage, id));
+}
+
+function executionIdFromEvent(
+  event: ConversationEvent | undefined,
+): string | null {
   if (
     !event ||
     event.type !== "system_event" ||
@@ -52,7 +50,6 @@ export class StatusService {
   refresh(id: string): void {
     const conversation = this.storage.conversations.get(id);
     if (!conversation) return;
-    const events = this.storage.events.since(id, 0);
     const last = latestExecution(this.storage, id);
     let status: ConversationStatus = "idle";
     const rows = this.storage.toolCalls.list(id);
@@ -63,8 +60,7 @@ export class StatusService {
       )
     )
       status = "waiting";
-    else if (openExecutionId(this.storage, id) || rows.length)
-      status = "running";
+    else if (executionIdFromEvent(last) || rows.length) status = "running";
     else if (
       last?.type === "system_event" &&
       last.payload.subtype === "execution_state" &&
@@ -74,7 +70,7 @@ export class StatusService {
         last.createdAt > conversation.statusClearedAt)
     )
       status = last.payload.transition;
-    const sequence = events.at(-1)?.sequence ?? 0;
+    const sequence = this.storage.events.lastSequence(id);
     if (
       status === conversation.status &&
       sequence === conversation.statusEventSequence
