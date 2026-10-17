@@ -15,6 +15,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { chromium } from "playwright";
+import { installDemoUsage } from "./demo-usage.mjs";
 import {
   DESKTOP_SCALE,
   DESKTOP_SCENES,
@@ -88,6 +89,7 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
       timezoneId: "Europe/London",
       locale: "en-GB",
     });
+    await installDemoUsage(context);
     await context.addInitScript(themeBootstrap(mode));
     const page = await context.newPage();
 
@@ -113,6 +115,16 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
         );
       }
       await settle(page);
+      // Desktop always has a quota chip; mobile detail screens may hide it.
+      if (kind === "desktop") {
+        await page
+          .getByRole("button", {
+            name: "Open subscription usage details",
+            exact: true,
+          })
+          .getByText("46%", { exact: true })
+          .waitFor();
+      }
       await page.mouse.move(-50, -50);
 
       const name = `${kind}/${scene.id}-${mode}`;

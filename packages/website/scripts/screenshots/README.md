@@ -21,7 +21,11 @@ That runs, in order:
 4. **Capture** — `capture.mjs` drives Chromium through each scene in
    `scenes.mjs`, in light and dark, writing PNGs and text snapshots to
    an isolated `.screenshots/refresh-*` directory (gitignored). Only this
-   invocation's output is privacy-checked and optimized.
+   invocation's output is privacy-checked and optimized. The capture context
+   supplies synthetic Anthropic session/weekly subscription quotas via
+   `demo-usage.mjs`, intercepting only `usage.subscription.get` requests; all
+   other protocol traffic reaches the demo daemon unchanged. No real account
+   usage or subscription credentials are needed.
 5. **Privacy check** — `check-captures.mjs` scans the text snapshots for
    credentials, emails, private IPs, real home paths, and unexpected absolute
    paths.

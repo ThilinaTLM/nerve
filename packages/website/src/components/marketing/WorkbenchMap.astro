@@ -125,13 +125,6 @@ const rect = (stop: (typeof stops)[number]) => ({
   "--wb-y": `${stop.y}%`,
   "--wb-w": `${stop.w}%`,
   "--wb-h": `${stop.h}%`,
-  /* Desktop zoom is edge-anchored: the shot grows away from a frame edge, so
-   * one side (and the top) stays aligned and never cuts text. */
-  "--wb-ox": stop.x + stop.w / 2 > 66 ? "100%" : "0%",
-  "--wb-oy": "0%",
-  /* Right-hand regions are not zoomed: the spotlight alone does the work and
-   * the left panes are never cropped. */
-  "--wb-z": stop.x + stop.w / 2 > 66 ? "1" : "1.05",
   "--wb-cx": `${mobile(stop).x + mobile(stop).w / 2}%`,
   "--wb-cy": `${mobile(stop).y + mobile(stop).h / 2}%`,
   /* On phones the spotlit region is scaled to fill the width. */
@@ -148,7 +141,7 @@ const rect = (stop: (typeof stops)[number]) => ({
 >
   <div class="wb-stage">
     <span class="wb-floor" aria-hidden="true"></span>
-    <DeviceFrame label="nerve · workbench" depth={3} tilt>
+    <DeviceFrame label="nerve · workbench" depth={3}>
       <div class="wb-view" data-wb-view>
         <div class="wb-zoom">
           {
@@ -162,8 +155,8 @@ const rect = (stop: (typeof stops)[number]) => ({
                   dark={slides[key].dark}
                   light={slides[key].light}
                   alt={slides[key].alt}
-                  widths={[1200, 1800, 2400]}
-                  sizes="(min-width: 1280px) 1180px, 100vw"
+                  widths={[1280, 1920, 2560, 2880]}
+                  sizes="(max-width: 767px) 300vw, min(calc(100vw - clamp(2rem, 6vw, 5rem)), 78rem)"
                   loading={index === 0 ? "eager" : "lazy"}
                   draggable={false}
                 />
@@ -329,9 +322,7 @@ const rect = (stop: (typeof stops)[number]) => ({
     --wb-y: 0%;
     --wb-w: 100%;
     --wb-h: 100%;
-    --wb-ox: 50%;
-    --wb-oy: 50%;
-    --wb-zoom: var(--wb-z, 1.05);
+    --wb-zoom: 1;
     --wb-phone: clamp(7.5rem, 12vw, 10.5rem);
     --wb-ease: 800ms var(--ease-out-expo);
     display: grid;
@@ -345,54 +336,30 @@ const rect = (stop: (typeof stops)[number]) => ({
   .wb-view {
     position: relative;
     overflow: hidden;
-    perspective: 1500px;
-    perspective-origin: 50% 40%;
-    aspect-ratio: 2419 / 1512;
+    aspect-ratio: 8 / 5;
     background-color: var(--background);
   }
 
   .wb-zoom {
     position: absolute;
     inset: 0;
-    transform: scale(1);
-    transform-origin: var(--wb-ox) var(--wb-oy);
-    transform-style: preserve-3d;
-    transition:
-      transform var(--wb-ease),
-      transform-origin var(--wb-ease);
+    /* Keep desktop UI text on the normal paint path. Mobile still zooms to
+     * the selected region below, with matching responsive image sizes. */
+    transition: transform var(--wb-ease);
   }
 
-  .wb[data-js] .wb-zoom {
-    transform: scale(var(--wb-zoom));
-  }
-
-  /* Panel switch in depth: the outgoing shot recedes and tilts away, the
-   * incoming one comes forward to the glass. */
-  /* Spotlight and pins lift toward the viewer as one layer. The layer is
-   * scaled back by exactly the perspective magnification, about the
-   * projection centre expressed in its own (zoomed) space, so the raised
-   * outline lands on the content with no visible offset. */
+  /* Spotlight and pins share the screenshot's coordinates without promoting
+   * the text-bearing image into a perspective texture. */
   .wb-lift {
-    --wb-lift: 22;
     position: absolute;
     inset: 0;
-    transform-style: preserve-3d;
-    transform-origin:
-      calc(var(--wb-ox) + (50% - var(--wb-ox)) / var(--wb-zoom))
-      calc(var(--wb-oy) + (40% - var(--wb-oy)) / var(--wb-zoom));
-    transform: translateZ(calc(var(--wb-lift) * 1px))
-      scale(calc(1 - var(--wb-lift) * var(--wb-zoom) / 1500));
   }
 
   .wb-slide {
     position: absolute;
     inset: 0;
     opacity: 0;
-    transform: translateZ(-180px) rotateY(-7deg);
-    transform-origin: 50% 50%;
-    transition:
-      opacity 650ms var(--ease-out-expo),
-      transform 1000ms var(--ease-out-expo);
+    transition: opacity 650ms var(--ease-out-expo);
   }
 
   .wb-slide[data-on] {
@@ -639,11 +606,6 @@ const rect = (stop: (typeof stops)[number]) => ({
       top: var(--wb-my);
       width: var(--wb-mw);
       height: var(--wb-mh);
-    }
-
-    /* The mobile zoom is large, so the raised layer is flattened there. */
-    .wb-lift {
-      transform: none;
     }
 
     .wb[data-js] .wb-zoom {
