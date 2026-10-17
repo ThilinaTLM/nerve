@@ -1,4 +1,5 @@
 import type { ToolUserProjection } from "@nervekit/contracts/core";
+import { AGENT_RESULT_PROFILES } from "../profiles.js";
 import {
   buildWebFetchTranscriptPreview,
   buildWebSearchTranscriptPreview,
@@ -303,6 +304,7 @@ const MAX_PUBLIC_PREVIEW_DEPTH = 6;
 const MAX_PUBLIC_PREVIEW_ENTRIES = 128;
 
 type PublicPreviewState = {
+  maxTextBytes: number;
   textBytes: number;
   entries: number;
   hiddenChars: number;
@@ -313,6 +315,7 @@ function finalizePublicPreview(
   argsPreview: unknown,
   resultPreview: unknown,
   resultFirst = false,
+  maxTextBytes = MAX_PREVIEW_CHARS,
 ): {
   argsPreview: unknown;
   resultPreview: unknown;
@@ -321,6 +324,7 @@ function finalizePublicPreview(
   state: PublicPreviewState;
 } {
   const state: PublicPreviewState = {
+    maxTextBytes,
     textBytes: 0,
     entries: 0,
     hiddenChars: 0,
@@ -354,7 +358,7 @@ function projectPublicValue(
       state.hiddenChars += value.length;
       return "[Credential-bearing URL omitted; open details.]";
     }
-    const remaining = Math.max(0, MAX_PREVIEW_CHARS - state.textBytes);
+    const remaining = Math.max(0, state.maxTextBytes - state.textBytes);
     const projected = truncateUtf8(value, remaining);
     state.textBytes += Buffer.byteLength(projected, "utf8");
     state.hiddenChars += value.length - projected.length;
@@ -684,6 +688,16 @@ export function buildUserProjection(
       break;
     }
 
+    case "ask_user": {
+      // Human-authored answers and their question context are not log snippets.
+      // Preserve their lines; the final public projection still bounds bytes,
+      // structure and secrets, using the same text budget as the agent result.
+      argsPreview = args;
+      resultPreview = publicResult;
+      direction = "head";
+      break;
+    }
+
     case "todos_set":
     case "todos_get": {
       const argsBound = previewUnknown(args);
@@ -710,6 +724,7 @@ export function buildUserProjection(
       toolName,
     ) ||
     toolName === "async_bash" ||
+    toolName === "ask_user" ||
     toolName === "launch" ||
     toolName.startsWith("subagent_") ||
     toolName.startsWith("web_") ||
@@ -718,6 +733,9 @@ export function buildUserProjection(
     argsPreview,
     resultPreview,
     resultFirst,
+    toolName === "ask_user"
+      ? AGENT_RESULT_PROFILES.human_response.inline.maxBytes
+      : MAX_PREVIEW_CHARS,
   );
   if (!semanticOverflow) {
     if (finalized.hiddenItems > 0) {

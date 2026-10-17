@@ -41,13 +41,15 @@ let {
   onDismissUserQuestion,
 }: Props = $props();
 
-const voice = getConversationUiCapabilities().voice;
+const capabilities = getConversationUiCapabilities();
+const voice = capabilities.voice;
 const own = new AskUserController(() => ({
   toolCall,
   questions: view.questions,
   dismissed: view.dismissed,
   questionRecord,
   voice,
+  draftStore: capabilities.askUserDrafts,
   onAnswer: onAnswerUserQuestion,
   onDismiss: onDismissUserQuestion,
 }));
@@ -55,7 +57,7 @@ const controller = $derived(shared ?? own);
 </script>
 
 {#snippet sections()}
-  {#each controller.questions as question, index (index)}
+  {#each controller.questions as question, index (`${toolCall.id}:${question.id}`)}
     <AskUserQuestion
       toolCallId={toolCall.id}
       {question}

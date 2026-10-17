@@ -67,9 +67,9 @@ function formatElapsed(ms: number): string {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Sits inline with the composer's `icon-sm` mic/send buttons, so it tracks
-   * the shared control scale instead of carrying its own height. */
-  height: calc(var(--spacing) * 7);
+  /* Sits inline with the `icon` mic button, so it tracks the shared control
+   * height instead of carrying its own. */
+  height: var(--spacing-control);
   border-radius: var(--radius-md);
   max-width: 9rem;
   border: 1px solid

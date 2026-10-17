@@ -1,3 +1,4 @@
+import { SvelteMap } from "svelte/reactivity";
 import {
   normalizeUserInputRequest,
   type UserInputAnswer,
@@ -12,6 +13,35 @@ import type {
   ToolCallTranscriptRecord,
   UserQuestionRecord,
 } from "$lib/presentation/view-models/conversation";
+
+/** Host-owned reactive drafts; presentation does not know about browser storage. */
+export interface AskUserDraftStore {
+  get(toolCallId: string): Record<string, AskUserAnswerDraft>;
+  update(
+    toolCallId: string,
+    questionId: string,
+    patch: Partial<AskUserAnswerDraft>,
+  ): void;
+  clear(toolCallId: string): void;
+}
+
+/** Non-persistent host for isolated previews and tests. */
+export function createInMemoryAskUserDraftStore(): AskUserDraftStore {
+  const drafts = new SvelteMap<string, Record<string, AskUserAnswerDraft>>();
+  return {
+    get: (toolCallId) => drafts.get(toolCallId) ?? {},
+    update(toolCallId, questionId, patch) {
+      const questions = drafts.get(toolCallId) ?? {};
+      drafts.set(toolCallId, {
+        ...questions,
+        [questionId]: { ...questions[questionId], ...patch },
+      });
+    },
+    clear: (toolCallId) => {
+      drafts.delete(toolCallId);
+    },
+  };
+}
 
 type AskUserToolCall = Pick<
   ToolCallTranscriptRecord,

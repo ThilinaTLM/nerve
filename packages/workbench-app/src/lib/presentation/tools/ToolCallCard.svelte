@@ -396,6 +396,7 @@ const askUserController = new AskUserController(() => ({
   dismissed: askUserView?.dismissed ?? false,
   questionRecord: toolQuestion,
   voice: capabilities.voice,
+  draftStore: capabilities.askUserDrafts,
   onAnswer: onAnswerUserQuestion,
   onDismiss: onDismissUserQuestion,
 }));
