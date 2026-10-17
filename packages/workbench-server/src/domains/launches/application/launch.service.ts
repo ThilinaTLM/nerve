@@ -320,6 +320,7 @@ export class LaunchService {
   async launchDefinition(
     request: LaunchStartInput & {
       definitionId: string;
+      projectId: string;
       definitionRunPolicy: "single" | "concurrent";
       definitionPort?: number;
       terminateListeners?: readonly LaunchPortConflictListener[];
@@ -329,13 +330,17 @@ export class LaunchService {
     if (request.definitionRunPolicy === "concurrent" && !guarded) {
       return { launch: await this.start(request), disposition: "started" };
     }
-    const active = (await this.list()).find(
+    const active = (await this.list({ projectId: request.projectId })).find(
       (launch) =>
         launch.definitionId === request.definitionId &&
         ["starting", "running", "ready", "stopping"].includes(launch.status),
     );
     if (active) return { launch: active, disposition: "focused_existing" };
-    const pending = this.definitionLaunches.get(request.definitionId);
+    const definitionKey = JSON.stringify([
+      request.projectId,
+      request.definitionId,
+    ]);
+    const pending = this.definitionLaunches.get(definitionKey);
     if (pending) {
       const outcome = await pending;
       return outcome.disposition === "started"
@@ -355,12 +360,12 @@ export class LaunchService {
           }
         : { launch: await this.start(request), disposition: "started" };
     })();
-    this.definitionLaunches.set(request.definitionId, launch);
+    this.definitionLaunches.set(definitionKey, launch);
     try {
       return await launch;
     } finally {
-      if (this.definitionLaunches.get(request.definitionId) === launch)
-        this.definitionLaunches.delete(request.definitionId);
+      if (this.definitionLaunches.get(definitionKey) === launch)
+        this.definitionLaunches.delete(definitionKey);
     }
   }
 

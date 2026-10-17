@@ -13,6 +13,7 @@ const launchIdSchema = z.string().startsWith("launch_");
 const launchIdParamsSchema = z.object({ launchId: launchIdSchema });
 const launchRestartParamsSchema = launchIdParamsSchema.extend({});
 const launchStartDefinitionParamsSchema = z.object({
+  projectId: z.string().startsWith("proj_"),
   definitionId: z.string().startsWith("launchdef_"),
   terminateListeners: z
     .array(launchPortConflictListenerSchema)
