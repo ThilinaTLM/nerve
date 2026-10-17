@@ -50,7 +50,7 @@ A key in `profiles` is the name passed as `profile`: lowercase letters, digits, 
 - `model`: `lead` copies the lead's current model at creation; otherwise `<provider>/<modelId>`. An unavailable explicit choice blocks creation rather than falling back.
 - `thinking`: `lead` or `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Known incompatibility with the selected model blocks creation rather than silently downgrading.
 - `permission`: `read_only` or `autonomous`. Rule sets that ask a person are not allowed.
-- `compaction`: `inherit`, or `{ profile, auto?, triggerPercent?, keepRecentPercent? }`. `profile` is `aggressive`, `balanced`, `conservative`, or `custom`; percentages apply to `custom`.
+- `compaction`: `inherit`, or `{ profile, auto?, triggerPercent? }`. `profile` is `aggressive`, `balanced`, `conservative`, or `custom`; `triggerPercent` applies to `custom`. All profiles retain about 10,000 recent tokens.
 - `tools`: capability tool names mapped to `true`, `false`, or tool settings. Applied to the lead's effective tools at creation. Core tools such as `read`, `edit`, and `bash` are governed by permission, not profile toggles. Human-in-the-loop and delegation tools cannot be enabled.
 - `skills`: `inherit`, `none`, or a map of skill name to `true`/`false`, applied to the lead's selection.
 - `instructions`: optional JSON string containing Markdown, at most 16 KB. It becomes the child's `<agent_instructions>` section; there is no separate Markdown body.

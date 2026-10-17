@@ -47,61 +47,46 @@ describe("auto-compaction policy", () => {
 
     assert.equal(policy.profile, "balanced");
     assert.equal(policy.thresholdPercent, 80);
-    assert.equal(policy.keepRecentPercent, 4);
     assert.equal(policy.thresholdTokens, 160_000);
     assert.equal(policy.triggerReserveTokens, 40_000);
-    assert.equal(policy.keepRecentTokens, 8_000);
+    assert.equal(policy.keepRecentTokens, 10_000);
     assert.equal(policy.summaryReserveTokens, 16_000);
     assert.equal(policy.safetyHeadroomTokens, 20_000);
   });
 
-  it("uses small recent-context targets without changing profile triggers", () => {
-    for (const [profile, thresholdPercent, keepRecentTokens] of [
-      ["aggressive", 70, 4_000],
-      ["balanced", 80, 8_000],
-      ["conservative", 90, 16_000],
-    ] as const) {
-      const settings = {
-        auto: false,
-        profile,
-        customTriggerPercent: 80,
-        customKeepRecentPercent: 3,
-      };
-      const policy = deriveAutoCompactionPolicy(200_000, settings);
-      assert.equal(policy.thresholdPercent, thresholdPercent);
-      assert.equal(policy.keepRecentTokens, keepRecentTokens);
-      assert.equal(
-        deriveManualCompactionSettings(200_000, settings).keepRecentTokens,
-        keepRecentTokens,
-      );
+  it("keeps a fixed target across profiles, triggers, and model windows", () => {
+    for (const window of [32_000, 200_000, 1_000_000]) {
+      for (const [profile, thresholdPercent] of [
+        ["aggressive", 70],
+        ["balanced", 80],
+        ["conservative", 90],
+        ["custom", 60],
+        ["custom", 75],
+        ["custom", 90],
+      ] as const) {
+        const settings = {
+          auto: false,
+          profile,
+          customTriggerPercent: thresholdPercent,
+        };
+        const policy = deriveAutoCompactionPolicy(window, settings);
+        assert.equal(policy.thresholdPercent, thresholdPercent);
+        assert.equal(policy.keepRecentTokens, 10_000);
+        assert.equal(
+          deriveManualCompactionSettings(window, settings).keepRecentTokens,
+          10_000,
+        );
+      }
     }
-    assert.equal(DEFAULT_COMPACTION_SETTINGS.keepRecentTokens, 5_000);
+    assert.equal(DEFAULT_COMPACTION_SETTINGS.keepRecentTokens, 10_000);
   });
 
-  it("allows one-percent custom retention and preserves explicit higher values", () => {
-    for (const [requested, expected] of [
-      [0, 2_000],
-      [1, 2_000],
-      [15, 30_000],
-      [50, 80_000],
-    ]) {
-      const policy = deriveAutoCompactionPolicy(200_000, {
-        auto: true,
-        profile: "custom",
-        customTriggerPercent: 80,
-        customKeepRecentPercent: requested,
-      });
-      assert.equal(policy.keepRecentTokens, expected);
-    }
-  });
-
-  it("keeps a small-context floor without exceeding available headroom", () => {
-    for (const window of [1, 1_000, 8_000, 32_000]) {
+  it("caps recent context by available small-window headroom", () => {
+    for (const window of [0, 1, 1_000, 8_000, 16_000]) {
       const policy = deriveAutoCompactionPolicy(window, {
         auto: true,
         profile: "aggressive",
         customTriggerPercent: 80,
-        customKeepRecentPercent: 3,
       });
       const available = Math.max(
         0,
@@ -109,10 +94,9 @@ describe("auto-compaction policy", () => {
           policy.summaryReserveTokens -
           policy.safetyHeadroomTokens,
       );
-      assert.ok(policy.keepRecentTokens <= available);
-      assert.ok(policy.keepRecentTokens >= 0);
-      if (window === 32_000) assert.equal(policy.keepRecentTokens, 1_000);
+      assert.equal(policy.keepRecentTokens, Math.min(10_000, available));
     }
+    assert.equal(deriveAutoCompactionPolicy(Number.NaN).keepRecentTokens, 0);
   });
 
   it("does not auto-compact unknown usage, unknown windows, or when disabled", () => {
@@ -121,7 +105,6 @@ describe("auto-compaction policy", () => {
       auto: false,
       profile: "balanced",
       customTriggerPercent: 80,
-      customKeepRecentPercent: 15,
     });
 
     assert.equal(shouldAutoCompact(null, unknown), false);

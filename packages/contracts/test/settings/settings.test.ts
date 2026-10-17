@@ -11,35 +11,58 @@ import {
 } from "../../src/domains/settings/index.js";
 
 describe("settings schema", () => {
-  it("defaults recent compaction retention to 4% and accepts 1–40%", () => {
-    assert.equal(defaultSettings.compaction.customKeepRecentPercent, 4);
-    assert.equal(defaultHarnessConfig.compaction.customKeepRecentPercent, 4);
-    for (const value of [1, 4, 40, 0, 41, 1.5]) {
-      assert.equal(
-        updateSettingsRequestSchema.safeParse({
-          compaction: { customKeepRecentPercent: value },
-        }).success,
-        [1, 4, 40].includes(value),
+  it("strips obsolete retention while preserving compaction settings", () => {
+    const compaction = {
+      auto: false,
+      profile: "custom",
+      customTriggerPercent: 73,
+    };
+    assert.deepEqual(defaultSettings.compaction, {
+      auto: true,
+      profile: "balanced",
+      customTriggerPercent: 80,
+    });
+    assert.deepEqual(
+      defaultHarnessConfig.compaction,
+      defaultSettings.compaction,
+    );
+    for (const obsolete of [15, 0, "unused", null]) {
+      const legacy = { ...compaction, customKeepRecentPercent: obsolete };
+      assert.deepEqual(
+        harnessConfigSchema.parse({
+          ...defaultHarnessConfig,
+          compaction: legacy,
+        }).compaction,
+        compaction,
       );
+      assert.deepEqual(
+        settingsSchema.parse({
+          ...defaultSettings,
+          compaction: legacy,
+        }).compaction,
+        compaction,
+      );
+    }
+    assert.deepEqual(
+      updateSettingsRequestSchema.parse({
+        compaction: { customKeepRecentPercent: 15, customTriggerPercent: 73 },
+      }),
+      { compaction: { customTriggerPercent: 73 } },
+    );
+  });
+
+  it("keeps harness compaction strict apart from the obsolete retention key", () => {
+    for (const extra of [{ unknown: true }, { customTriggerPercent: 59 }]) {
       assert.equal(
         harnessConfigSchema.safeParse({
           ...defaultHarnessConfig,
           compaction: {
             ...defaultHarnessConfig.compaction,
-            customKeepRecentPercent: value,
+            customKeepRecentPercent: 15,
+            ...extra,
           },
         }).success,
-        [1, 4, 40].includes(value),
-      );
-      assert.equal(
-        settingsSchema.safeParse({
-          ...defaultSettings,
-          compaction: {
-            ...defaultSettings.compaction,
-            customKeepRecentPercent: value,
-          },
-        }).success,
-        [1, 4, 40].includes(value),
+        false,
       );
     }
   });

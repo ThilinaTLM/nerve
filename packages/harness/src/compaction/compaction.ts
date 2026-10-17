@@ -131,9 +131,10 @@ export {
   AUTO_COMPACTION_PROFILES,
   DEFAULT_AUTO_COMPACTION_SETTINGS,
   DEFAULT_COMPACTION_SETTINGS,
+  DEFAULT_KEEP_RECENT_TOKENS,
   deriveAutoCompactionPolicy,
   deriveManualCompactionSettings,
-  resolveAutoCompactionPercentages,
+  resolveAutoCompactionThreshold,
   shouldAutoCompact,
   shouldCompact,
 } from "./policy.js";

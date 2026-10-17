@@ -49,7 +49,6 @@ test("profile settings accept the documented forms", () => {
       compaction: {
         profile: "custom",
         triggerPercent: 75,
-        keepRecentPercent: 15,
       },
     }).success,
     true,
@@ -64,6 +63,23 @@ test("profile settings accept the documented forms", () => {
     }).success,
     true,
   );
+});
+
+test("legacy profile retention is stripped without loosening compaction validation", () => {
+  const compaction = { auto: false, profile: "custom", triggerPercent: 73 };
+  const parsed = subagentProfileFieldsSchema.parse({
+    ...valid,
+    compaction: { ...compaction, keepRecentPercent: 15 },
+  });
+  assert.deepEqual(parsed.compaction, compaction);
+  for (const extra of [{ unknown: true }, { triggerPercent: 59 }]) {
+    assert.equal(
+      parse({
+        compaction: { ...compaction, keepRecentPercent: 15, ...extra },
+      }).success,
+      false,
+    );
+  }
 });
 
 test("profile settings reject blocked tools, other rule sets and bad fields", () => {

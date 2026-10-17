@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -13,7 +13,6 @@ const settings = (
   auto,
   profile: "custom",
   customTriggerPercent,
-  customKeepRecentPercent: 15,
 });
 
 async function setup(user = settings(80), project = user) {
@@ -84,4 +83,47 @@ void test("initialize keeps the profile's choice even when it equals the inherit
   assert.equal((await service.get("p", "c")).compaction.source, "conversation");
   assert.ok(await stat(file));
   await cleanup();
+});
+
+void test("legacy conversation retention is stripped on load and omitted on save", async () => {
+  const { service, file, cleanup } = await setup();
+  try {
+    await service.initialize("c", settings(73, false));
+    await writeFile(
+      file,
+      JSON.stringify({
+        compaction: { ...settings(73, false), customKeepRecentPercent: 15 },
+      }),
+    );
+    assert.deepEqual(
+      await service.compactionSettings("c"),
+      settings(73, false),
+    );
+    await service.update(
+      "p",
+      "c",
+      (await service.get("p", "c")).compaction.effective,
+    );
+    assert.deepEqual(JSON.parse(await readFile(file, "utf8")), {
+      compaction: settings(73, false),
+    });
+    await writeFile(
+      file,
+      JSON.stringify({
+        compaction: {
+          ...settings(73),
+          customKeepRecentPercent: 15,
+          unknown: true,
+        },
+      }),
+    );
+    await assert.rejects(service.compactionSettings("c"));
+    await writeFile(
+      file,
+      JSON.stringify({ compaction: settings(73), unknown: true }),
+    );
+    await assert.rejects(service.compactionSettings("c"));
+  } finally {
+    await cleanup();
+  }
 });

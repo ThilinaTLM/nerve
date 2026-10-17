@@ -429,7 +429,6 @@ it("checks advancing cuts, actual reduction, summary ceiling, anchors and pendin
     auto: false,
     profile: "balanced",
     customTriggerPercent: 80,
-    customKeepRecentPercent: 15,
   });
   assert.equal(settings.enabled, true);
   assert.ok(settings.reserveTokens < 8000 && settings.keepRecentTokens < 8000);

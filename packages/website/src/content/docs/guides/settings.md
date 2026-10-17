@@ -19,7 +19,7 @@ Nerve accesses transcription through ChatGPT's subscription endpoint rather than
 
 - **Scoped Models** controls the models shown in conversation pickers. An empty scope keeps all authenticated models available.
 - **Agents → Defaults** sets the default mode, permission, model, thinking level, approval behavior, and whether new agents use the last selections.
-- **Agents → Compaction** controls automatic conversation compaction, profile, trigger threshold, and retained recent context.
+- **Agents → Compaction** controls automatic conversation compaction, profile, and trigger threshold. Every profile retains about 10,000 recent tokens.
 
 Model availability depends on authentication and provider metadata. Changes to defaults affect new agents; changes made during an active run apply to a later provider request where noted by the UI.
 

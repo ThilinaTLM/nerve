@@ -322,7 +322,6 @@ void test("compaction resolves current model, reasoning and settings without ord
       auto: true,
       profile: "custom",
       customTriggerPercent: 80,
-      customKeepRecentPercent: 10,
     };
   };
   const core = new ConversationCore(opts);

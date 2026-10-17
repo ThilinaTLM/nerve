@@ -4,48 +4,38 @@ import type {
   CompactionSettings,
 } from "./compaction-policy.js";
 
+/** Fixed recent-history target, subject to model headroom and safe cut points. */
+export const DEFAULT_KEEP_RECENT_TOKENS = 10_000;
+
 /** Default compaction settings used by the manual harness API. */
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
   enabled: true,
   reserveTokens: 16_384,
-  keepRecentTokens: 5_000,
+  keepRecentTokens: DEFAULT_KEEP_RECENT_TOKENS,
 };
 
 export const DEFAULT_AUTO_COMPACTION_SETTINGS: AutoCompactionSettings = {
   auto: true,
   profile: "balanced",
   customTriggerPercent: 80,
-  customKeepRecentPercent: 4,
 };
 
 export const AUTO_COMPACTION_PROFILES = {
-  aggressive: { thresholdPercent: 70, keepRecentPercent: 2 },
-  balanced: { thresholdPercent: 80, keepRecentPercent: 4 },
-  conservative: { thresholdPercent: 90, keepRecentPercent: 8 },
+  aggressive: { thresholdPercent: 70 },
+  balanced: { thresholdPercent: 80 },
+  conservative: { thresholdPercent: 90 },
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
-export function resolveAutoCompactionPercentages(
+export function resolveAutoCompactionThreshold(
   settings: AutoCompactionSettings,
-): { thresholdPercent: number; keepRecentPercent: number } {
-  if (settings.profile === "custom") {
-    return {
-      thresholdPercent: clamp(
-        Math.floor(settings.customTriggerPercent),
-        60,
-        90,
-      ),
-      keepRecentPercent: clamp(
-        Math.floor(settings.customKeepRecentPercent),
-        1,
-        40,
-      ),
-    };
-  }
-  return AUTO_COMPACTION_PROFILES[settings.profile];
+): number {
+  return settings.profile === "custom"
+    ? clamp(Math.floor(settings.customTriggerPercent), 60, 90)
+    : AUTO_COMPACTION_PROFILES[settings.profile].thresholdPercent;
 }
 
 export function deriveAutoCompactionPolicy(
@@ -55,15 +45,13 @@ export function deriveAutoCompactionPolicy(
   const normalizedWindow = Number.isFinite(contextWindow)
     ? Math.max(0, Math.floor(contextWindow))
     : 0;
-  const { thresholdPercent, keepRecentPercent } =
-    resolveAutoCompactionPercentages(settings);
+  const thresholdPercent = resolveAutoCompactionThreshold(settings);
   if (normalizedWindow <= 0) {
     return {
       enabled: settings.auto,
       profile: settings.profile,
       contextWindow: 0,
       thresholdPercent,
-      keepRecentPercent,
       thresholdTokens: 0,
       triggerReserveTokens: 0,
       keepRecentTokens: 0,
@@ -84,20 +72,12 @@ export function deriveAutoCompactionPolicy(
     Math.max(1_024, Math.floor(normalizedWindow * 0.1)),
     normalizedWindow,
   );
-  const minimumKeepRecentTokens = Math.min(
-    1_000,
-    Math.floor(normalizedWindow * 0.25),
-  );
   const maximumKeepRecentTokens = Math.max(
     0,
     thresholdTokens - summaryReserveTokens - safetyHeadroomTokens,
   );
-  const desiredKeepRecentTokens = Math.floor(
-    normalizedWindow * (keepRecentPercent / 100),
-  );
-  const keepRecentTokens = clamp(
-    desiredKeepRecentTokens,
-    Math.min(minimumKeepRecentTokens, maximumKeepRecentTokens),
+  const keepRecentTokens = Math.min(
+    DEFAULT_KEEP_RECENT_TOKENS,
     maximumKeepRecentTokens,
   );
 
@@ -106,7 +86,6 @@ export function deriveAutoCompactionPolicy(
     profile: settings.profile,
     contextWindow: normalizedWindow,
     thresholdPercent,
-    keepRecentPercent,
     thresholdTokens,
     triggerReserveTokens: Math.max(0, normalizedWindow - thresholdTokens),
     keepRecentTokens,

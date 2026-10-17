@@ -11,7 +11,6 @@ void test("shouldCompact honors resolved settings, including disabled auto-compa
     auto: true,
     profile: "custom",
     customTriggerPercent: 60,
-    customKeepRecentPercent: 15,
   } as const;
   assert.equal(shouldCompact(65_000, model, custom), true);
   assert.equal(

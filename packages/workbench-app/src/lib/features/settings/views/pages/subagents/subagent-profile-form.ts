@@ -37,7 +37,6 @@ export type SubagentProfileForm = {
   compactionAuto: boolean;
   compactionProfile: CompactionProfile;
   triggerPercent: number;
-  keepRecentPercent: number;
   /** Capability tool changes: `false` removes, `true` adds, objects replace settings. */
   tools: Record<string, boolean | Record<string, unknown>>;
   skillsMode: SkillsMode;
@@ -73,7 +72,6 @@ export function blankForm(): SubagentProfileForm {
     compactionAuto: true,
     compactionProfile: "balanced",
     triggerPercent: 80,
-    keepRecentPercent: 4,
     tools: {},
     skillsMode: "inherit",
     skills: {},
@@ -135,8 +133,6 @@ export function formFromProfile(
     form.compactionAuto = compaction.auto ?? true;
     form.compactionProfile = compaction.profile;
     form.triggerPercent = compaction.triggerPercent ?? form.triggerPercent;
-    form.keepRecentPercent =
-      compaction.keepRecentPercent ?? form.keepRecentPercent;
   }
   if (options.duplicate) {
     const taken = new Set(options.takenNames ?? []);
@@ -201,7 +197,6 @@ export function formToDraft(form: SubagentProfileForm): SubagentProfileDraft {
             ...(form.compactionProfile === "custom"
               ? {
                   triggerPercent: form.triggerPercent,
-                  keepRecentPercent: form.keepRecentPercent,
                 }
               : {}),
           },
@@ -375,7 +370,6 @@ export function formWithInheritedField(
       "compactionAuto",
       "compactionProfile",
       "triggerPercent",
-      "keepRecentPercent",
     ],
   };
   return {

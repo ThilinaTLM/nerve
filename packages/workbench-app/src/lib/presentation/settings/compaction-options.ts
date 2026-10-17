@@ -4,21 +4,21 @@ export const compactionProfileItems: SettingsChoice[] = [
   {
     value: "aggressive",
     label: "Aggressive",
-    detail: "Compact at 70% and retain about 2% recent context",
+    detail: "Compact at 70% and retain about 10,000 recent tokens",
   },
   {
     value: "balanced",
     label: "Balanced",
-    detail: "Compact at 80% and retain about 4% recent context",
+    detail: "Compact at 80% and retain about 10,000 recent tokens",
   },
   {
     value: "conservative",
     label: "Conservative",
-    detail: "Compact at 90% and retain about 8% recent context",
+    detail: "Compact at 90% and retain about 10,000 recent tokens",
   },
   {
     value: "custom",
     label: "Custom",
-    detail: "Choose trigger and recent-context percentages",
+    detail: "Choose the trigger; retains about 10,000 recent tokens",
   },
 ];

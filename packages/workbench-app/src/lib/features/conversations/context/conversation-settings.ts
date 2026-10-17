@@ -16,20 +16,20 @@ const PROFILE_LABELS: Record<AutoCompactionSettings["profile"], string> = {
   custom: "Custom",
 };
 
-/** One-line description, e.g. `Balanced` or `Custom · 75% / 20%`. */
+/** One-line description, e.g. `Balanced` or `Custom · 75%`. */
 export function compactionSummary(settings: AutoCompactionSettings): string {
   if (!settings.auto) return "Off";
   const label = PROFILE_LABELS[settings.profile];
   return settings.profile === "custom"
-    ? `${label} · ${settings.customTriggerPercent}% / ${settings.customKeepRecentPercent}%`
+    ? `${label} · ${settings.customTriggerPercent}%`
     : label;
 }
 
-/** What the effective setting does, e.g. `Compact at 80% and retain about 4% recent context`. */
+/** What the effective setting does, e.g. `Compact at 80% and retain about 10,000 recent tokens`. */
 export function compactionDetail(settings: AutoCompactionSettings): string {
   if (!settings.auto) return "Auto-compaction is off";
   if (settings.profile === "custom")
-    return `Compact at ${settings.customTriggerPercent}% and retain about ${settings.customKeepRecentPercent}% recent context`;
+    return `Compact at ${settings.customTriggerPercent}% and retain about 10,000 recent tokens`;
   return (
     compactionProfileItems.find((item) => item.value === settings.profile)
       ?.detail ?? ""
@@ -51,9 +51,7 @@ export function compactionDraftError(
   const field = result.error.issues[0]?.path[0];
   return field === "customTriggerPercent"
     ? "Compact at must be a whole number from 60 to 90."
-    : field === "customKeepRecentPercent"
-      ? "Retain recent must be a whole number from 1 to 40."
-      : "Invalid compaction settings.";
+    : "Invalid compaction settings.";
 }
 
 export function compactionsEqual(
@@ -63,8 +61,7 @@ export function compactionsEqual(
   return (
     a.auto === b.auto &&
     a.profile === b.profile &&
-    a.customTriggerPercent === b.customTriggerPercent &&
-    a.customKeepRecentPercent === b.customKeepRecentPercent
+    a.customTriggerPercent === b.customTriggerPercent
   );
 }
 
