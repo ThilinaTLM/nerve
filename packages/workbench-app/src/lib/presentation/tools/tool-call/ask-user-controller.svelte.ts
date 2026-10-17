@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import type {
   VoiceInputCapability,
@@ -10,6 +11,7 @@ import {
   askUserQuestionPhase,
   projectAskUserAnswers,
   type AskUserAnswerDraft,
+  type AskUserDraftStore,
   type AskUserPhase,
 } from "./ask-user-state";
 
@@ -20,6 +22,7 @@ export type AskUserControllerInput = {
   dismissed: boolean;
   questionRecord?: UserQuestionRecord;
   voice?: VoiceInputCapability;
+  draftStore: AskUserDraftStore;
   onAnswer?: (
     toolCallId: string,
     answers: Record<string, UserInputAnswer>,
@@ -39,22 +42,59 @@ function errorMessage(error: unknown, fallback: string): string {
  * so they stay in sync while living in different parts of the card.
  */
 export class AskUserController {
-  drafts = $state<Record<string, AskUserAnswerDraft>>({});
+  get drafts(): Record<string, AskUserAnswerDraft> {
+    return this.#input().draftStore.get(this.toolCallId);
+  }
   submitting = $state<"answer" | "dismiss" | undefined>();
   transcribingForSend = $state(false);
   error = $state<string | undefined>();
   authDialogOpen = $state(false);
   // The locally submitted resolution bridges the gap between a successful RPC
   // and the authoritative tool result arriving through durable events.
-  resolution = $state<
-    | { kind: "answered"; answers: Record<string, UserInputAnswer> }
-    | { kind: "dismissed" }
+  #resolution = $state<
+    | {
+        toolCallId: string;
+        kind: "answered";
+        answers: Record<string, UserInputAnswer>;
+      }
+    | { toolCallId: string; kind: "dismissed" }
     | undefined
   >();
   readonly #input: () => AskUserControllerInput;
 
   constructor(input: () => AskUserControllerInput) {
     this.#input = input;
+    let previousId: string | undefined;
+    $effect(() => {
+      const id = input().toolCall?.id;
+      if (!id || id === previousId) return;
+      previousId = id;
+      untrack(() => {
+        this.submitting = undefined;
+        this.transcribingForSend = false;
+        this.error = undefined;
+        this.authDialogOpen = false;
+      });
+    });
+    $effect(() => {
+      const { toolCall, draftStore } = input();
+      if (!toolCall) return;
+      const id = toolCall.id;
+      const settled =
+        !["committed", "running", "waiting"].includes(toolCall.status) ||
+        (toolCall.interaction != null &&
+          toolCall.interaction.status !== "pending");
+      if (settled)
+        untrack(() => {
+          draftStore.clear(id);
+        });
+    });
+  }
+
+  get resolution() {
+    return this.#resolution?.toolCallId === this.toolCallId
+      ? this.#resolution
+      : undefined;
   }
 
   get toolCallId(): string {
@@ -150,12 +190,13 @@ export class AskUserController {
   }
 
   update(id: string, patch: Partial<AskUserAnswerDraft>): void {
-    this.drafts[id] = { ...this.drafts[id], ...patch };
+    this.#input().draftStore.update(this.toolCallId, id, patch);
   }
 
   /** Like the prompt composer: Send while recording = stop, transcribe, send. */
   async send(): Promise<void> {
-    const { voice, onAnswer } = this.#input();
+    const { voice, onAnswer, draftStore } = this.#input();
+    const toolCallId = this.toolCallId;
     if (!this.pending || this.submitting || !onAnswer) return;
     this.submitting = "answer";
     this.error = undefined;
@@ -166,30 +207,38 @@ export class AskUserController {
         await voice.session.stop(target);
         this.transcribingForSend = false;
       }
+      if (this.toolCallId !== toolCallId) return;
       const answers = this.answers;
       if (Object.keys(answers).length === 0) return;
-      await onAnswer(this.toolCallId, answers);
-      this.resolution = { kind: "answered", answers };
+      await onAnswer(toolCallId, answers);
+      this.#resolution = { toolCallId, kind: "answered", answers };
+      draftStore.clear(toolCallId);
     } catch (error) {
-      this.error = errorMessage(error, "Could not send the answers.");
+      if (this.toolCallId === toolCallId)
+        this.error = errorMessage(error, "Could not send the answers.");
     } finally {
-      this.transcribingForSend = false;
-      this.submitting = undefined;
+      if (this.toolCallId === toolCallId) {
+        this.transcribingForSend = false;
+        this.submitting = undefined;
+      }
     }
   }
 
   async dismiss(): Promise<void> {
-    const { onDismiss } = this.#input();
+    const { onDismiss, draftStore } = this.#input();
+    const toolCallId = this.toolCallId;
     if (!this.pending || this.submitting || !onDismiss) return;
     this.submitting = "dismiss";
     this.error = undefined;
     try {
-      await onDismiss(this.toolCallId);
-      this.resolution = { kind: "dismissed" };
+      await onDismiss(toolCallId);
+      this.#resolution = { toolCallId, kind: "dismissed" };
+      draftStore.clear(toolCallId);
     } catch (error) {
-      this.error = errorMessage(error, "Could not dismiss the question.");
+      if (this.toolCallId === toolCallId)
+        this.error = errorMessage(error, "Could not dismiss the question.");
     } finally {
-      this.submitting = undefined;
+      if (this.toolCallId === toolCallId) this.submitting = undefined;
     }
   }
 }

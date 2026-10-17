@@ -7,7 +7,6 @@ export type PendingConversationState = {
   projectId: string;
   projectDir: string;
   title: "New Conversation";
-  composerText: string;
   selectedModelKey: string;
   thinkingLevel: ConversationConfig["reasoningLevel"];
   mode: ConversationConfig["mode"];

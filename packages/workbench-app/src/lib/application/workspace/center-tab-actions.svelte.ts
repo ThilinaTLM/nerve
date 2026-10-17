@@ -2,7 +2,6 @@ import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { CenterTabIdentity } from "$lib/application/workspace/workspace-state.svelte";
 import {
-  composerDraft,
   resetSelection,
   selection,
 } from "$lib/application/workspace/selection.svelte";
@@ -42,7 +41,6 @@ function targetSet(tabs: CenterTabIdentity[]): Set<string> {
 function resetConversationSelection() {
   resetSelection();
   workspaceState.error = undefined;
-  composerDraft.text = "";
 }
 
 export function centerTabsToLeftOf(

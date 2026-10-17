@@ -1,8 +1,6 @@
 <script lang="ts">
 import { onDestroy, untrack, type Snippet } from "svelte";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
-import X from "@lucide/svelte/icons/x";
-import Mic from "@lucide/svelte/icons/mic";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import {
   listIntegrationHealth,
@@ -20,7 +18,7 @@ import {
   type VoiceInputTarget,
 } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import { AgentComposer } from "$lib/presentation/conversations";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
+import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import {
   AudioInputAuthRequiredDialog,
   chatGptAudioAuth,
@@ -710,30 +708,18 @@ function handleMicContextMenu(event: MouseEvent) {
       maxRetries={voiceInputSession.maxRetries}
       class="composer-transcription-status"
     />
-    <Button
-      variant={recording ? "destructive" : "outline"}
-      size="icon"
-      class={`${recording ? "inset-ring-1 inset-ring-destructive/28" : ""}`}
-      type="button"
+    <VoiceMicButton
+      {recording}
+      {transcribing}
       disabled={micDisabled}
-      onclick={toggleRecording}
-      oncontextmenu={handleMicContextMenu}
-      aria-label={transcribing
-        ? "Cancel transcription"
-        : recording
-          ? "Stop recording; right-click to cancel"
-          : chatGptAudioConfigured
-            ? "Record voice prompt"
-            : "Connect ChatGPT to use voice input"}
-      aria-keyshortcuts={micShortcutAria}
       title={micTitle}
-    >
-      {#if transcribing}
-        <X size={14} strokeWidth={2.4} />
-      {:else}
-        <Mic size={14} strokeWidth={2.4} />
-      {/if}
-    </Button>
+      idleLabel={chatGptAudioConfigured
+        ? "Record voice prompt"
+        : "Connect ChatGPT to use voice input"}
+      shortcutAria={micShortcutAria}
+      onToggle={toggleRecording}
+      onContextMenu={handleMicContextMenu}
+    />
   {/snippet}
 </AgentComposer>
 

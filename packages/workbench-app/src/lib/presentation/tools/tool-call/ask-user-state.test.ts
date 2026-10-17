@@ -6,8 +6,21 @@ import {
   askUserQuestionPhase,
   askUserQuestionsFromArgs,
   askUserViewFromCall,
+  createInMemoryAskUserDraftStore,
   projectAskUserAnswers,
 } from "./ask-user-state";
+
+test("in-memory draft hosts isolate calls and instances and merge question patches", () => {
+  const store = createInMemoryAskUserDraftStore();
+  store.update("a", "q", { option: "Yes" });
+  store.update("a", "q", { text: "details" });
+  store.update("b", "q", { text: "other call" });
+  assert.deepEqual(store.get("a"), { q: { option: "Yes", text: "details" } });
+  assert.deepEqual(createInMemoryAskUserDraftStore().get("a"), {});
+  store.clear("a");
+  assert.deepEqual(store.get("a"), {});
+  assert.deepEqual(store.get("b"), { q: { text: "other call" } });
+});
 
 test("normalizes the new, id-less, and legacy flat argument shapes", () => {
   const current = askUserQuestionsFromArgs({

@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { ValidatedToolArtifact } from "@nervekit/contracts/tools";
 import type { CandidateContext } from "../../src/result-projection/index.js";
 import { formatWebFetchCandidateText } from "../../src/result-projection/candidates/web.js";
+import { buildUserProjection } from "../../src/result-projection/user-projection/tool-user-projection.js";
 import {
   agentResultPolicyForTool,
   measureBlocks,
@@ -57,6 +58,52 @@ function text(blocks: ReturnType<typeof projectAgentResult>["blocks"]): string {
     .map((block) => block.text)
     .join("");
 }
+
+describe("ask_user transcript projection", () => {
+  it("preserves multiline answers and question context beyond generic preview limits", () => {
+    const answer =
+      Array.from(
+        { length: 25 },
+        (_, i) => `${i}: ${"answer ".repeat(60)}`,
+      ).join("\n") + "\nTHE END";
+    const question = Array.from(
+      { length: 25 },
+      (_, i) => `Question ${i}: ${"context ".repeat(15)}`,
+    ).join("\n");
+    const args = { questions: [{ id: "q", question }] };
+    const result = {
+      questions: [
+        { id: "q", question, answer: { option: "Yes", text: answer } },
+      ],
+    };
+    const projection = buildUserProjection("ask_user", args, {
+      content: JSON.stringify(result),
+    });
+    assert.deepEqual(projection.argsPreview, args);
+    assert.deepEqual(projection.resultPreview, result);
+    assert.equal(projection.previewOverflow, undefined);
+  });
+
+  it("still bounds oversized answers to the human-response text budget", () => {
+    const answer = "A detailed answer\n".repeat(3000);
+    const result = {
+      questions: [{ id: "q", question: "Explain?", answer: { text: answer } }],
+    };
+    const projection = buildUserProjection(
+      "ask_user",
+      { questions: [{ id: "q", question: "Explain?" }] },
+      { content: JSON.stringify(result) },
+    );
+    const projected = projection.resultPreview as typeof result;
+    const text = projected.questions[0].answer.text;
+    assert.ok(Buffer.byteLength(text, "utf8") <= 24_000);
+    assert.ok(text.length > 8 * 1024);
+    assert.ok(text.length < answer.length);
+    assert.ok(answer.startsWith(text));
+    assert.equal(projection.previewOverflow?.noun, "characters");
+    assert.ok((projection.previewOverflow?.hidden ?? 0) > 0);
+  });
+});
 
 describe("adaptive agent tool-result projection", () => {
   it("keeps a fitting read canonical and emits exact continuation for a large read", () => {

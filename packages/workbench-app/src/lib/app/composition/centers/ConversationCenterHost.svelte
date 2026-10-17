@@ -35,6 +35,10 @@ import { workspaceState } from "$lib/application/workspace/workspace-state.svelt
 import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
 import { pendingConversations } from "$lib/application/workspace/pending-conversations.svelte";
 import {
+  conversationDraftStore,
+  type PromptDraftTarget,
+} from "$lib/application/workspace/conversation-draft-store";
+import {
   replaceOpenCenterTabs,
   selectCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
@@ -120,7 +124,20 @@ let activityOpen = $state<"agents" | "commands" | null>(null);
 /** Everything below acts on the conversation being viewed. */
 const store = $derived(viewedChildId ? childStore : leadStore);
 let tree = $state<EventTreeNode[]>([]);
-let composerText = $state("");
+const drafts = conversationDraftStore();
+// The composer belongs to the lead, even while a read-only child is viewed.
+const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
+  activePendingConversation
+    ? {
+        kind: "pending-conversation",
+        id: activePendingConversation.id,
+        projectId: activePendingConversation.projectId,
+      }
+    : conversationId
+      ? { kind: "conversation", id: conversationId }
+      : undefined,
+);
+let editText = $state("");
 let stopping = $state(false);
 let retryingResponse = $state(false);
 /**
@@ -137,6 +154,7 @@ function viewAgent(id: string | undefined) {
   childStore = undefined;
   viewedChildId = undefined;
   activityOpen = null;
+  editTarget = undefined;
   if (!id || id === conversationId) return;
   const retained = retainConversationStore(id);
   releaseChild = retained.release;
@@ -153,12 +171,6 @@ $effect(() => {
   leadStore = undefined;
   untrack(() => viewAgent(undefined));
   tree = [];
-  composerText = untrack(() => {
-    const draft = composerSignals.createdConversationDraft;
-    if (!draft || draft.conversationId !== id) return "";
-    composerSignals.createdConversationDraft = undefined;
-    return draft.text;
-  });
   editTarget = undefined;
   compactRequest = undefined;
   if (!id) return;
@@ -306,7 +318,11 @@ const contextWindow = $derived(
     0,
 );
 const activeComposerText = $derived(
-  activePendingConversation?.composerText ?? composerText,
+  editTarget
+    ? editText
+    : promptDraftTarget
+      ? drafts.getPrompt(promptDraftTarget)
+      : "",
 );
 const builtinSuggestionIcons = {
   "commit-changes": GitCommitHorizontal,
@@ -353,8 +369,8 @@ function sendSuggestion(suggestion: { prompt: string }) {
   );
 }
 function setPaneComposerText(text: string) {
-  if (activePendingConversation) activePendingConversation.composerText = text;
-  else composerText = text;
+  if (editTarget) editText = text;
+  else if (promptDraftTarget) drafts.setPrompt(promptDraftTarget, text);
 }
 async function runActivePaneAction(action: () => unknown | Promise<unknown>) {
   try {
@@ -409,11 +425,15 @@ async function submitPrompt(
             source: "user",
           }),
       });
-      if (options.clearComposer === false)
-        composerSignals.createdConversationDraft = {
-          conversationId: snapshot.conversation.id,
-          text: pending.composerText,
-        };
+      const pendingTarget: PromptDraftTarget = {
+        kind: "pending-conversation",
+        id: pending.id,
+        projectId: pending.projectId,
+      };
+      if (options.clearComposer !== false)
+        drafts.clearPromptIfUnchanged(pendingTarget, text);
+      // Move any remaining draft to the created conversation before the tab is promoted.
+      drafts.promotePendingPrompt(pending.id, snapshot.conversation.id);
       workspaceState.conversations = [
         ...workspaceState.conversations,
         {
@@ -444,12 +464,17 @@ async function submitPrompt(
     }
     return;
   }
-  if (!store) return;
-  if (editTarget) await store.selectHead(editTarget.parentEntryId ?? null);
-  await store.submit(text);
-  if (options.clearComposer !== false && composerText === text)
-    composerText = "";
-  editTarget = undefined;
+  const submittingStore = store;
+  const submittingEdit = editTarget;
+  const submittingTarget = promptDraftTarget;
+  if (!submittingStore) return;
+  if (submittingEdit)
+    await submittingStore.selectHead(submittingEdit.parentEntryId ?? null);
+  await submittingStore.submit(text);
+  if (!submittingEdit && submittingTarget && options.clearComposer !== false)
+    drafts.clearPromptIfUnchanged(submittingTarget, text);
+  if (editTarget === submittingEdit && (!submittingEdit || editText === text))
+    editTarget = undefined;
 }
 async function abortActiveRun() {
   stopping = true;
@@ -636,7 +661,7 @@ const jumpToConversationEntry: (
 };
 async function editConversationEntry(entry: ConversationEntry) {
   editTarget = entry;
-  setPaneComposerText(entry.text);
+  editText = entry.text;
   focusComposer();
 }
 $effect(() => {

@@ -7,13 +7,12 @@ import { fade, slide } from "svelte/transition";
 import Check from "@lucide/svelte/icons/check";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
 import Mic from "@lucide/svelte/icons/mic";
-import X from "@lucide/svelte/icons/x";
 import { notify } from "@nervekit/ui-kit/browser/notifications";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 import ComposerEditor from "$lib/presentation/composer/ComposerEditor.svelte";
+import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import {
   getConversationUiCapabilities,
   type VoiceInputTargetRef as VoiceInputTarget,
@@ -335,29 +334,6 @@ function pick(label: string | undefined) {
     </div>
   {/if}
 
-  {#snippet micButton()}
-    <Button
-      variant={recording ? "destructive" : "ghost"}
-      size="icon-sm"
-      class={recording ? "inset-ring-1 inset-ring-destructive/28" : undefined}
-      type="button"
-      disabled={micDisabled}
-      onclick={toggleVoice}
-      oncontextmenu={cancelVoice}
-      aria-label={transcribing
-        ? "Cancel transcription"
-        : recording
-          ? "Stop recording; right-click to cancel"
-          : chatGptAudioConfigured
-            ? "Record voice answer"
-            : "Connect ChatGPT to use voice input"}
-      aria-keyshortcuts={voice?.micShortcutAria}
-      title={micTitle}
-    >
-      {#if transcribing}<X />{:else}<Mic />{/if}
-    </Button>
-  {/snippet}
-
   {#if interactive && !composerOpen}
     <div class="flex items-center gap-2" out:fade={{ duration: 120 }}>
       <button
@@ -378,7 +354,7 @@ function pick(label: string | undefined) {
     </div>
   {:else if interactive}
     <div
-      class="relative"
+      class="ask-answer relative"
       role="group"
       aria-label="Answer input"
       use:voiceKeys
@@ -399,20 +375,33 @@ function pick(label: string | undefined) {
         onPasteImage={askReply?.pasteImage}
         onDropFiles={askReply?.dropFiles}
       />
-      {#if voice && supportsAudioRecording && TranscriptionActivity}
-        <div class="absolute right-2 bottom-2 flex items-center gap-1">
-          <TranscriptionActivity
+      {#if voice && supportsAudioRecording}
+        <div class="ask-voice-controls">
+          {#if TranscriptionActivity}
+            <TranscriptionActivity
+              {recording}
+              {transcribing}
+              elapsedMs={voice.session.elapsedMs}
+              maxDurationMs={voice.session.maxDurationMs}
+              retryAttempt={voiceTarget &&
+              voice.session.isTargetActive(voiceTarget)
+                ? voice.session.retryAttempt
+                : 0}
+              maxRetries={voice.session.maxRetries}
+            />
+          {/if}
+          <VoiceMicButton
             {recording}
             {transcribing}
-            elapsedMs={voice.session.elapsedMs}
-            maxDurationMs={voice.session.maxDurationMs}
-            retryAttempt={voiceTarget &&
-            voice.session.isTargetActive(voiceTarget)
-              ? voice.session.retryAttempt
-              : 0}
-            maxRetries={voice.session.maxRetries}
+            disabled={micDisabled}
+            title={micTitle}
+            idleLabel={chatGptAudioConfigured
+              ? "Record voice answer"
+              : "Connect ChatGPT to use voice input"}
+            shortcutAria={voice.micShortcutAria}
+            onToggle={toggleVoice}
+            onContextMenu={cancelVoice}
           />
-          {@render micButton()}
         </div>
       {/if}
     </div>
@@ -425,3 +414,22 @@ function pick(label: string | undefined) {
     </div>
   {/if}
 </div>
+
+<style>
+/* Same placement as ComposerShell's `.composer-send`: bottom-right inside the
+ * frame, above the CodeMirror layers. The editor reserves the control row so
+ * typed text never runs underneath it. */
+.ask-voice-controls {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ask-answer :global(.cm-content) {
+  padding-bottom: calc(var(--spacing-control) + 1rem);
+}
+</style>

@@ -1,3 +1,4 @@
+import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
@@ -68,6 +69,7 @@ export function workbenchConversationUiCapabilities(
 ): ConversationUiCapabilities {
   return {
     canCompactPlanBeforeImplementation: false,
+    askUserDrafts: conversationDraftStore(),
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>
       readToolCallResult(toolCallId, byteOffset, byteLimit),

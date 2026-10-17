@@ -1,3 +1,7 @@
+import {
+  createInMemoryAskUserDraftStore,
+  type AskUserDraftStore,
+} from "./tools/tool-call/ask-user-state";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 
 import type { SubagentRef } from "$lib/presentation/tools/views/subagent-live";
@@ -11,8 +15,8 @@ import { getContext, setContext } from "svelte";
 /**
  * Host-provided capabilities that let the shared transcript/tool-call
  * components reach app-specific integrations (full tool-call detail fetching,
- * voice input) without depending on any single app's state. Every capability is
- * optional; components degrade gracefully when a host does not provide one.
+ * voice input) without depending on any single app's state. Integrations are
+ * optional; without a host, answer drafts use an isolated in-memory store.
  */
 
 // The shared ask-user card is the only consumer and always targets an
@@ -105,6 +109,8 @@ export interface ConversationUiCapabilities {
   voice?: VoiceInputCapability;
   /** Composer-grade reply input (paste image, completions, file drop) for the ask-user card. */
   askReply?: AskReplyComposerCapability;
+  /** Reactive answer drafts shared across card lifetimes. */
+  askUserDrafts: AskUserDraftStore;
   /**
    * Resolve a workspace image file (absolute path) to a displayable `data:`
    * URL. Resolves `undefined` when the file is missing, not an image, or too
@@ -124,5 +130,9 @@ export function setConversationUiCapabilities(
 }
 
 export function getConversationUiCapabilities(): ConversationUiCapabilities {
-  return getContext<ConversationUiCapabilities | undefined>(KEY) ?? {};
+  return (
+    getContext<ConversationUiCapabilities | undefined>(KEY) ?? {
+      askUserDrafts: createInMemoryAskUserDraftStore(),
+    }
+  );
 }
