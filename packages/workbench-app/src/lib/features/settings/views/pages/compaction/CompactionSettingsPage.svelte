@@ -35,7 +35,7 @@ function updateCustomCompactionPercent(
 ): void {
   const parsed = Number(value);
   const [minimum, maximum] =
-    field === "customTriggerPercent" ? [60, 90] : [5, 40];
+    field === "customTriggerPercent" ? [60, 90] : [1, 40];
   if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) return;
   settingsDraft.compaction[field] = parsed;
   onSettingsChange?.({ compaction: { [field]: parsed } }, { debounceMs: 350 });
@@ -85,11 +85,11 @@ function updateCustomCompactionPercent(
             id="compaction-keep-recent-percent"
             label="Retain recent"
             type="number"
-            min={5}
+            min={1}
             max={40}
             step={1}
             suffix="%"
-            hint="5–40% kept verbatim"
+            hint="1–40% kept verbatim"
             value={String(settingsDraft.compaction.customKeepRecentPercent)}
             onValueChange={(value) =>
               updateCustomCompactionPercent("customKeepRecentPercent", value)}

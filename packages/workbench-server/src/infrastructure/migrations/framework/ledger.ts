@@ -5,7 +5,7 @@ import {
   NERVE_HOME_MANIFEST,
   type NerveHomeManifest,
 } from "@nervekit/contracts/settings";
-import { pathExists, atomicWriteJson } from "../../storage-bootstrap/json.js";
+import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 import { isFreshNerveHome } from "../../storage-bootstrap/state-layout.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
 import type { RegisteredStep } from "./step.js";
@@ -15,20 +15,22 @@ export const FLOOR_ERROR = "Run Nerve 0.34.1 first";
 export async function readMigrationHome(
   paths: StoragePaths,
 ): Promise<{ fresh: boolean; manifest: NerveHomeManifest }> {
-  if (!(await pathExists(paths.manifestPath))) {
+  let bytes: string;
+  try {
+    bytes = await readFile(paths.manifestPath, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     if (await isFreshNerveHome(paths.home)) {
       return {
         fresh: true,
         manifest: { ...NERVE_HOME_MANIFEST, migrations: [] },
       };
     }
-    throw new Error(FLOOR_ERROR);
+    throw new Error(FLOOR_ERROR, { cause: error });
   }
   let manifest: NerveHomeManifest;
   try {
-    manifest = nerveHomeManifestSchema.parse(
-      JSON.parse(await readFile(paths.manifestPath, "utf8")),
-    );
+    manifest = nerveHomeManifestSchema.parse(JSON.parse(bytes));
   } catch {
     throw new Error(FLOOR_ERROR);
   }

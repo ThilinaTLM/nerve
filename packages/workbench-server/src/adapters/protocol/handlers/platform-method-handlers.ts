@@ -12,6 +12,10 @@ import {
   assertApplicationConfigurationEditable,
   resolveApplicationConfiguration,
 } from "../../../infrastructure/configuration/index.js";
+import {
+  publishSettingsChanged,
+  publishProviderCatalogChanged as notifyProviderCatalogChanged,
+} from "../../../infrastructure/configuration/settings-notifications.js";
 import { writeSettings } from "../../../infrastructure/storage-bootstrap/index.js";
 import {
   defineWorkbenchMethodHandlersFor,
@@ -156,7 +160,7 @@ async function updateSettings(
     );
   }
   const settings = await writeSettings(state.storage, patch);
-  await state.events.publish("settings.updated", { settings });
+  await publishSettingsChanged(state.events, settings);
   return { settings };
 }
 
@@ -176,7 +180,7 @@ async function updateApplicationConfiguration(
     activeSnapshot: state.applicationConfiguration,
   });
   state.applicationConfiguration = resolved.snapshot;
-  await state.events.publish("settings.updated", { settings });
+  await publishSettingsChanged(state.events, settings);
   await state.events.publish("applicationConfiguration.updated", {
     snapshot: resolved.snapshot,
   });
@@ -212,10 +216,9 @@ function normalizeRemoteAccessPatch(
 
 async function publishProviderCatalogChanged(
   state: PlatformMethodContext,
-  provider?: string,
+  provider: string,
 ): Promise<void> {
-  await state.events.publish("providers.catalog_changed", { provider });
-  await state.events.publish("auth.providers_changed", { provider });
+  await notifyProviderCatalogChanged(state.events, provider);
 }
 
 function requireProject(state: PlatformMethodContext, id: string) {

@@ -50,7 +50,7 @@ let draft = $state<AutoCompactionSettings>({
   auto: true,
   profile: "balanced",
   customTriggerPercent: 80,
-  customKeepRecentPercent: 15,
+  customKeepRecentPercent: 4,
 });
 let text = $state("");
 let saving = $state(false);
@@ -144,7 +144,7 @@ function setPercent(
             <Input
               id="conversation-compaction-keep"
               type="number"
-              min={5}
+              min={1}
               max={40}
               value={String(draft.customKeepRecentPercent)}
               oninput={(event) =>

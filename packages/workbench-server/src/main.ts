@@ -31,6 +31,7 @@ import {
 } from "./app/lifecycle/storage-failure.js";
 import { version } from "./app/version.js";
 import type { MigrationProgress } from "./infrastructure/migrations/framework/step.js";
+import { storageRecoveryControls } from "./app/lifecycle/storage-recovery.js";
 import {
   type DaemonLeaseMonitor,
   type DaemonPerformanceMonitor,
@@ -182,7 +183,7 @@ async function main() {
   let boundPort = requestedPort;
   const controls: LifecycleControls = {
     holder,
-    retry: () => sequence.retry(),
+    ...storageRecoveryControls(dataDir, () => sequence),
   };
   const switchable = createAppSwitch(
     createBootApp({

@@ -166,6 +166,7 @@ describe("DesktopRuntime", () => {
       | undefined;
     const startupReady = Promise.withResolvers<void>();
     let cookieInstalls = 0;
+    let appQuits = 0;
     let restartCount = 0;
     const restartDone = Promise.withResolvers<void>();
     let ipcOptions:
@@ -199,7 +200,9 @@ describe("DesktopRuntime", () => {
         onWindowAllClosed: () => () => undefined,
         onChildProcessGone: () => () => undefined,
         onBeforeQuit: () => () => undefined,
-        quit: () => undefined,
+        quit: () => {
+          appQuits += 1;
+        },
         getAppMetrics: () => [],
         platform: "linux",
         architecture: "x64",
@@ -291,6 +294,10 @@ describe("DesktopRuntime", () => {
     statusListener("ready");
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(loadedUrls.at(-1), daemon.url);
+
+    // The renderer can request a normal app quit (daemon stop runs in before-quit).
+    ipcOptions?.quitApp();
+    assert.equal(appQuits, 1);
     await runtime.dispose();
   });
 

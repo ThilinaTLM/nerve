@@ -39,7 +39,11 @@ function harness(storage: () => Promise<string>) {
     }),
     mount: async () => undefined,
   });
-  const controls = { holder, retry: () => sequence.retry() };
+  const controls = {
+    holder,
+    retry: () => sequence.retry(),
+    rollback: () => undefined,
+  };
   const boot = createBootApp({
     ...controls,
     host: "127.0.0.1",
@@ -82,6 +86,83 @@ describe("server startup lifecycle", () => {
       headers: auth,
     });
     assert.equal(again.status, 409);
+  });
+
+  it("discards only reported conversations, then rolls back to a terminal state", async () => {
+    const failure = {
+      code: "MIGRATION_FAILED",
+      message: "1 conversation could not be upgraded",
+      step: "0001-x",
+      retryable: true,
+      discardable: [
+        { kind: "conversation" as const, id: "conv_bad", reason: "corrupt" },
+      ],
+      rollbackAvailable: true,
+    };
+    const holder = createServerLifecycleHolder();
+    holder.failed(failure);
+    const prepared: string[] = [];
+    let restored = 0;
+    const sequence = createStartupSequence({
+      holder,
+      storage: async () => {
+        throw new Error("again");
+      },
+      classify: () => failure,
+      mount: async () => undefined,
+    });
+    const boot = createBootApp({
+      holder,
+      retry: (discard) =>
+        sequence.retry(async () => {
+          prepared.push(...(discard ?? []));
+        }),
+      rollback: () => sequence.rollback(async () => void restored++),
+      host: "127.0.0.1",
+      port: () => 1,
+      localToken: TOKEN,
+    });
+    const post = (path: string, body?: unknown) =>
+      boot.request(path, {
+        method: "POST",
+        headers: { ...auth, "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    const settle = async () => {
+      for (let i = 0; i < 20 && holder.get().state !== "failed"; i++)
+        await new Promise((resolve) => setTimeout(resolve, 5));
+    };
+
+    assert.equal(
+      (
+        await post("/api/lifecycle/retry", {
+          discardIds: ["other"],
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (await post("/api/lifecycle/retry", { discardIds: [] })).status,
+      400,
+    );
+    assert.equal(
+      (
+        await post("/api/lifecycle/retry", {
+          discardIds: ["conv_bad"],
+        })
+      ).status,
+      202,
+    );
+    await settle();
+    assert.deepEqual(prepared, ["conv_bad"]);
+
+    assert.equal((await post("/api/lifecycle/rollback")).status, 202);
+    await settle();
+    assert.equal(restored, 1);
+    assert.equal(holder.get().failure?.code, "MIGRATION_ROLLED_BACK");
+    assert.equal(holder.get().failure?.retryable, false);
+    assert.equal((await post("/api/lifecycle/rollback")).status, 409);
+    assert.equal((await post("/api/lifecycle/retry")).status, 409);
   });
 
   it("refuses retry for non-retryable failures", async () => {

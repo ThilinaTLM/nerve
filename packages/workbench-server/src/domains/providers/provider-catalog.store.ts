@@ -29,7 +29,7 @@ export class ProviderCatalogStore {
   }
 
   get catalog(): ProviderCatalog {
-    return this.#catalog;
+    return toCatalog(this.storage.configuration.providers);
   }
 
   private write(
@@ -58,6 +58,7 @@ export class ProviderCatalogStore {
             authentication,
           },
         },
+        ["providers"],
       );
       this.#catalog = validated;
       return validated;
@@ -151,7 +152,7 @@ export class ProviderCatalogStore {
 
   providerDisplayNames(): Map<string, string> {
     return new Map(
-      this.#catalog.providers.map((provider) => [
+      this.catalog.providers.map((provider) => [
         provider.id,
         provider.displayName,
       ]),
@@ -159,10 +160,11 @@ export class ProviderCatalogStore {
   }
 
   resolvedModels(): AgentCustomModel[] {
+    const catalog = this.catalog;
     const providerById = new Map(
-      this.#catalog.providers.map((provider) => [provider.id, provider]),
+      catalog.providers.map((provider) => [provider.id, provider]),
     );
-    return this.#catalog.models.map((model) => {
+    return catalog.models.map((model) => {
       const provider = providerById.get(model.provider);
       return {
         provider: model.provider,

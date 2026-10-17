@@ -10,6 +10,7 @@ import { createProtocolRoutes } from "./protocol-routes.js";
 import { createSettingsRoutes } from "./settings-routes.js";
 import { createStatusRoutes } from "./status-routes.js";
 import { createLaunchLogRoutes } from "./launch-log-routes.js";
+import { createUpgradeReportRoutes } from "./upgrade-report-routes.js";
 import { createTranscriptionRoutes } from "./transcription-routes.js";
 
 export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
@@ -20,6 +21,7 @@ export function mountApiRoutes(app: Hono, state: ServerRuntime): void {
   );
   app.route("/api", createStatusRoutes(contexts.status));
   app.route("/api", createSettingsRoutes(contexts.settings));
+  app.route("/api", createUpgradeReportRoutes(contexts.upgradeReports));
   app.route("/api", createAuthRoutes(contexts.auth));
   app.route("/api", createProtocolRoutes(contexts.protocol));
   app.route("/api", createTranscriptionRoutes(contexts.transcription));

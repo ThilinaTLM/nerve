@@ -323,7 +323,7 @@ export const autoCompactionSettingsSchema = z.object({
   auto: z.boolean(),
   profile: compactionProfileSchema,
   customTriggerPercent: z.number().int().min(60).max(90),
-  customKeepRecentPercent: z.number().int().min(5).max(40),
+  customKeepRecentPercent: z.number().int().min(1).max(40),
 });
 export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
@@ -434,7 +434,7 @@ export const defaultSettings: Settings = {
     auto: true,
     profile: "balanced",
     customTriggerPercent: 80,
-    customKeepRecentPercent: 15,
+    customKeepRecentPercent: 4,
   },
   logging: {
     level: "info",
@@ -534,7 +534,7 @@ export const updateSettingsRequestSchema = z.object({
       auto: z.boolean().optional(),
       profile: compactionProfileSchema.optional(),
       customTriggerPercent: z.number().int().min(60).max(90).optional(),
-      customKeepRecentPercent: z.number().int().min(5).max(40).optional(),
+      customKeepRecentPercent: z.number().int().min(1).max(40).optional(),
     })
     .optional(),
   logging: z

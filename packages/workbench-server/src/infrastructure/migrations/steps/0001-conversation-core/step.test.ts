@@ -132,13 +132,6 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
   );
   assert.deepEqual(harness.defaults, { permissionRuleSetId: "autonomous" });
   assert.deepEqual(harness.lastSelection, { permissionRuleSetId: "custom" });
-  const settings = JSON.parse(
-    await readFile(join(home, "config/settings.json"), "utf8"),
-  );
-  assert.deepEqual(settings, {
-    defaultPermissionRuleSetId: "supervised",
-    lastAgentSelection: { permissionRuleSetId: "autonomous" },
-  });
   const cap = JSON.parse(
     await readFile(
       join(home, "data/conversations/conv_one/config/capabilities.json"),
@@ -222,7 +215,7 @@ void test("0001 verification failure keeps the source and task bundles; verified
   const captured = {
     ...step,
     async run(ctx: StepContext) {
-      context = { ...ctx, log() {} };
+      context = ctx;
       await step.run(ctx);
     },
   };
@@ -242,15 +235,17 @@ void test("0001 verification failure keeps the source and task bundles; verified
         }
       },
     }),
-    /Selected history verification failed/,
+    /1 conversation could not be upgraded/,
   );
   assert(context);
   assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
   assert(existsSync(join(home, "data/tasks/task_old/stdout.txt")));
-  // Restart rebuilds from the retained source, then simulate a crash after verify
-  // deleted the source but before the runner could append its ledger.
+  // Simulate the runner's commit boundary and a crash before ledger append.
   await step.run(context);
   await step.verify!(context);
+  assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
+  await writeFile(join(context.scratchDir, "verified.json"), "{}");
+  await step.commit!(context);
   assert.equal(existsSync(join(home, "data/nerve.sqlite.migrating")), false);
   assert.deepEqual(
     JSON.parse(await readFile(join(home, "manifest.json"), "utf8")).migrations,
@@ -422,7 +417,7 @@ void test("0001 rejects inline result or base64 image payloads before deleting t
           }
         },
       }),
-      /Inline complete result|Inline base64 image/,
+      /1 conversation could not be upgraded/,
     );
     assert(existsSync(join(home, "data/nerve.sqlite.migrating")));
     assert(

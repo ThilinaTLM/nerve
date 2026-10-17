@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { ComponentProps } from "svelte";
 import * as AlertDialog from "@nervekit/ui-kit/components/ui/alert-dialog";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 
@@ -12,6 +13,7 @@ let {
   destructive = false,
   confirmVariant,
   class: className,
+  portalProps,
   onConfirm,
   onSecondary,
   onCancel,
@@ -27,6 +29,8 @@ let {
   /** Overrides the confirm button variant (e.g. "success"); wins over `destructive`. */
   confirmVariant?: "default" | "destructive" | "success";
   class?: string;
+  /** Forwarded to the content portal, e.g. `to` inside a stacked layer. */
+  portalProps?: ComponentProps<typeof AlertDialog.Content>["portalProps"];
   onConfirm?: () => void;
   onSecondary?: () => void;
   onCancel?: () => void;
@@ -55,7 +59,7 @@ function handleCancel() {
 </script>
 
 <AlertDialog.Root bind:open {onOpenChange}>
-  <AlertDialog.Content class={className}>
+  <AlertDialog.Content class={className} {portalProps}>
     <AlertDialog.Header>
       <AlertDialog.Title>{title}</AlertDialog.Title>
       {#if description}

@@ -22,6 +22,8 @@ import {
 import { join, resolve, parse, relative, isAbsolute, sep } from "node:path";
 import { readJson, writeJson } from "./configuration.js";
 import type { Legacy } from "./legacy.reader.js";
+import { preserveForRollback } from "../../framework/rollback-journal.js";
+import { isUnreadableDocument } from "./config-preflight.js";
 
 // Frozen copies of the built-in profile text at the conversion boundary.
 const builtIns = {
@@ -320,6 +322,7 @@ export function convertProfileScope(
       digest,
       `Profile changed during conversion: ${path}`,
     );
+    preserveForRollback(path);
     rmSync(path);
   }
   return (
@@ -370,7 +373,9 @@ export function convertSubagentSettings(
     delete harness.asyncSubagent;
     changed++;
   }
-  if (changed && existsSync(path)) writeJson(path, harness);
+  // An unreadable harness is left for startup recovery, never overwritten.
+  if (changed && existsSync(path) && !isUnreadableDocument(path))
+    writeJson(path, harness);
   return changed;
 }
 

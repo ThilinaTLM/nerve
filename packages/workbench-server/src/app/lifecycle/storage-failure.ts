@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
 import type { ServerLifecycleFailure } from "@nervekit/contracts/status";
 import { FLOOR_ERROR } from "../../infrastructure/migrations/framework/ledger.js";
+import { readMigrationFailureReport } from "../../infrastructure/migrations/framework/recovery.js";
 import { storagePaths } from "../../infrastructure/storage-bootstrap/paths.js";
 
 /** A storage-phase failure whose classification is already known. */
@@ -26,21 +26,17 @@ export async function classifyStorageFailure(
   if (message.includes(FLOOR_ERROR)) {
     return { code: "HOME_UNSUPPORTED", message, retryable: false };
   }
-  const reportPath = storagePaths(home).migrationFailureReportPath;
-  try {
-    const report = JSON.parse(await readFile(reportPath, "utf8")) as {
-      step?: string | null;
-      phase?: string;
-    };
-    return {
-      code: "MIGRATION_FAILED",
-      message,
-      step: report.step ?? undefined,
-      phase: report.phase,
-      reportPath,
-      retryable: true,
-    };
-  } catch {
-    return { code: "STORAGE_FAILED", message, retryable: true };
-  }
+  const paths = storagePaths(home);
+  const report = await readMigrationFailureReport(paths).catch(() => undefined);
+  if (!report) return { code: "STORAGE_FAILED", message, retryable: true };
+  return {
+    code: "MIGRATION_FAILED",
+    message,
+    step: report.step ?? undefined,
+    phase: report.phase,
+    reportPath: paths.migrationFailureReportPath,
+    retryable: true,
+    ...(report.discardable?.length ? { discardable: report.discardable } : {}),
+    rollbackAvailable: report.rollbackAvailable ?? false,
+  };
 }

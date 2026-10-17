@@ -1,6 +1,7 @@
 import type { ServerLifecycle } from "@nervekit/contracts/status";
 import {
-  dismissStartupSplash,
+  hideStartupSplash,
+  showStartupSplash,
   updateStartupSplash,
 } from "$lib/app/shell/startup-splash";
 import { onServerStarting } from "$lib/platform/http/server-starting-signal";
@@ -18,6 +19,7 @@ import {
   describeLifecycle,
   fetchLifecycle,
   postLifecycleRetry,
+  postLifecycleRollback,
   readyAction,
   type LifecycleView,
 } from "./server-lifecycle";
@@ -29,6 +31,8 @@ export const serverLifecycleState = $state({
   view: describeLifecycle(undefined) as LifecycleView,
   /** A retry was accepted and the server is working through it. */
   retrying: false,
+  /** The boot splash shows the retry's progress instead of the error view. */
+  splashRetry: false,
   retryError: undefined as string | undefined,
   /** Post-load reconnect overlay is visible. */
   reconnecting: false,
@@ -51,10 +55,12 @@ async function settle(onPending?: () => void): Promise<Settled> {
       if (lifecycle?.state === "failed") {
         serverLifecycleState.phase = "failed";
         serverLifecycleState.retrying = false;
-        dismissStartupSplash();
+        serverLifecycleState.splashRetry = false;
+        hideStartupSplash();
         return "failed";
       }
       if (lifecycle?.state === "ready") {
+        // The splash stays up until the workbench reveal fades it out.
         serverLifecycleState.retrying = false;
         if (bootVersion === undefined) {
           bootVersion = lifecycle.version;
@@ -90,15 +96,35 @@ export async function waitForServerReady(): Promise<boolean> {
  * Retries a failed start. Resolves true when the caller should run the
  * initial workbench startup (the app had never loaded).
  */
-export async function retryServerStart(): Promise<boolean> {
+export async function retryServerStart(
+  discardIds?: string[],
+): Promise<boolean> {
+  return runRecovery(
+    () => postLifecycleRetry(discardIds),
+    "Nerve could not start another attempt. Please try again.",
+  );
+}
+
+/** Restores the pre-upgrade data; settles on the terminal rolled-back failure. */
+export async function rollbackServerUpgrade(): Promise<void> {
+  await runRecovery(
+    postLifecycleRollback,
+    "Nerve could not restore your previous data.",
+  );
+}
+
+async function runRecovery(
+  post: () => Promise<ServerLifecycle | undefined>,
+  errorMessage: string,
+): Promise<boolean> {
   serverLifecycleState.retryError = undefined;
-  const accepted = await postLifecycleRetry();
+  const accepted = await post();
   if (!accepted) {
-    serverLifecycleState.retryError =
-      "Nerve could not start another attempt. Please try again.";
+    serverLifecycleState.retryError = errorMessage;
     return false;
   }
   serverLifecycleState.retrying = true;
+  serverLifecycleState.splashRetry = showStartupSplash();
   serverLifecycleState.lifecycle = accepted;
   const wasBooting = bootVersion === undefined;
   const result = await settle();

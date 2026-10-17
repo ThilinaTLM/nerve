@@ -18,11 +18,16 @@ import {
   type BashToolSettings,
 } from "@nervekit/tools/catalog";
 import {
+  emptyOverlayDocument,
   loadPermissionOverlay,
   mutatePermissionOverlay,
   overlayDigest,
   trustProjectPermissions,
 } from "./permission-overlays.js";
+import {
+  assertHomeConfigurationPathWritable,
+  isHomeConfigurationInvalid,
+} from "../infrastructure/configuration/home-configuration.js";
 import { listPermissionRuleSets } from "./permission-rule-sets.js";
 import { requiresBashTimeoutArgument } from "./tool-host.adapter.js";
 import {
@@ -70,7 +75,16 @@ export function createPermissionPort(
           `Unknown or disabled permission rule set: ${input.ruleSetId}`,
         );
       const path = paths(input.conversationId, input.projectDir);
-      const user = await loadPermissionOverlay("user", path.user);
+      let recoveryApproval = isHomeConfigurationInvalid(
+        join(userConfigurationRoot(home), "harness.json"),
+      );
+      const user = await (async () => {
+        assertHomeConfigurationPathWritable(path.user);
+        return loadPermissionOverlay("user", path.user);
+      })().catch(() => {
+        recoveryApproval = true;
+        return emptyOverlayDocument();
+      });
       const conversation = await loadPermissionOverlay(
         "conversation",
         path.conversation,
@@ -128,6 +142,22 @@ export function createPermissionPort(
         },
       });
       const result = evaluatePermissionRequest({ policy, request });
+      // Defaults and existing autonomous selections can allow reads/execution.
+      // An unreadable authorization document must never turn lost restrictions
+      // into permission to execute. Preserve denials; require per-call approval
+      // for everything else until the user explicitly resets or reloads it.
+      if (recoveryApproval && result.decision !== "deny") {
+        return supervisionSchema.parse({
+          decision: "approval",
+          suggestedRules: [],
+          reason:
+            "Authorization settings are invalid. Explicit approval is required until harness and permissions settings are reset or reloaded.",
+          authority: {
+            ruleSetId: selected.id,
+            policySnapshotHash: `${policy.snapshotHash}:settings-recovery`,
+          },
+        });
+      }
       return supervisionSchema.parse({
         decision: result.decision === "prompt" ? "approval" : result.decision,
         reason: result.reason,

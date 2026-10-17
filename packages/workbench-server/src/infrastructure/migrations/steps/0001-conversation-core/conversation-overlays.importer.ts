@@ -21,6 +21,10 @@ import {
 import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
 import type { CoreStorage } from "./storage.js";
 import type { ImportReport, Legacy } from "./legacy.reader.js";
+import {
+  consumeCheckedText,
+  isUnreadableDocument,
+} from "./config-preflight.js";
 
 export interface ImportedConversationOverlays {
   capabilitiesWritten: number;
@@ -46,10 +50,10 @@ export class ConversationOverlaysImporter {
   private userSelection(): CapabilitySelection {
     if (this.user) return this.user;
     const read = (name: string): Legacy => {
+      const path = join(this.home, "config", `${name}.json`);
+      if (isUnreadableDocument(path)) return {};
       try {
-        return JSON.parse(
-          readFileSync(join(this.home, "config", `${name}.json`), "utf8"),
-        );
+        return JSON.parse(readFileSync(path, "utf8"));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         return {};
@@ -78,7 +82,7 @@ export class ConversationOverlaysImporter {
     );
     let document;
     try {
-      const content = readFileSync(path, "utf8");
+      const content = consumeCheckedText(path) ?? readFileSync(path, "utf8");
       const parsed = capabilityOverridesDocumentSchema.parse(
         JSON.parse(content),
       );
@@ -107,7 +111,7 @@ export class ConversationOverlaysImporter {
       if (!lstatSync(path).isFile())
         throw new Error("Legacy overlay must be a regular file");
       this.assertContained(path);
-      return readFileSync(path, "utf8");
+      return consumeCheckedText(path) ?? readFileSync(path, "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;

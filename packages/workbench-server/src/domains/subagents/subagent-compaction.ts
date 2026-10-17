@@ -2,7 +2,7 @@ import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import type { SubagentProfileCompaction } from "@nervekit/contracts/subagents";
 
 const DEFAULT_TRIGGER_PERCENT = 80;
-const DEFAULT_KEEP_RECENT_PERCENT = 15;
+const DEFAULT_KEEP_RECENT_PERCENT = 4;
 
 /**
  * Maps a profile's compaction shorthand to the child's conversation override.

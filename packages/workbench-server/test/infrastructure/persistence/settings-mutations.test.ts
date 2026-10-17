@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import fs, { mkdtemp, rm } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
@@ -83,16 +84,36 @@ test("validation rejection leaves authoritative state unchanged and queue usable
   await assertReload(storage);
 });
 
-test("persistence rejection leaves runtime state unchanged and later saves recover", async () => {
+test("persistence rejection leaves runtime state unchanged and later saves recover", async (t) => {
   const storage = await createStorage();
   const before = storage.configuration;
-  const daemonPath = storage.paths.daemonConfigPath;
-  storage.paths.daemonConfigPath = storage.paths.configPath;
-  await assert.rejects(
-    writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } }),
+  const settingsBefore = storage.settings;
+  const failure = Object.assign(
+    new Error("Injected configuration write failure"),
+    {
+      code: "EIO",
+    },
   );
-  assert.equal(storage.configuration, before);
-  storage.paths.daemonConfigPath = daemonPath;
+  const rename = fs.rename;
+  // Fail the actual harness replacement, after validation and health preflight.
+  // A skills patch does not write daemon.json; breaking that path cannot test this.
+  const mockedRename = t.mock.method(fs, "rename", async (source, target) => {
+    if (target === storage.paths.harnessConfigPath) throw failure;
+    return rename(source, target);
+  });
+  syncBuiltinESMExports();
+  try {
+    await assert.rejects(
+      writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } }),
+      (error) => error === failure,
+    );
+    assert.equal(storage.configuration, before);
+    assert.equal(storage.settings, settingsBefore);
+    await assertReload(storage);
+  } finally {
+    mockedRename.mock.restore();
+    syncBuiltinESMExports();
+  }
   await writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } });
   await assertReload(storage);
 });

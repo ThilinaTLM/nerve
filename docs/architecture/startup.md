@@ -31,18 +31,19 @@ Boot order in `workbench-server/src/main.ts`:
 
 Migrations run in a worker thread (`migrations/framework/worker.ts`), so heavy synchronous SQLite work never blocks HTTP, health checks or lifecycle polling. The main thread keeps the startup lock; the worker reports progress back as messages. If migrated settings change the host or port, the bound listener is kept and the change applies on the next restart.
 
-A storage failure keeps the process alive in `failed` with `{ code, message, step, phase, reportPath, retryable }`. Migration failures (`MIGRATION_FAILED`, with details from `migrations/last-failure.json`) and other storage errors are retryable, because the migration ledger makes steps resumable. An unsupported home, a missing token and errors while building the runtime are not; runtime errors still exit the process.
+A storage failure keeps the process alive in `failed` with `{ code, message, step, phase, reportPath, retryable }` and optional `discardable` units and `rollbackAvailable`. Migration failures (`MIGRATION_FAILED`, with details from `migrations/last-failure.json`) and other storage errors are retryable. Invalid home settings use in-memory defaults and a non-blocking settings-health notice, with explicit reset/reload; they do not block readiness. Retry may include `{ discardIds }`; rollback restores the failed step when available and enters terminal, non-retryable `MIGRATION_ROLLED_BACK`. The daemon stays alive to prevent supervisor-driven re-upgrade. See [storage migrations](migrations.md#recovery-and-progress) for the recovery contract. An unsupported home, a missing token and errors while building the runtime are not retryable; runtime errors still exit the process.
 
 ### HTTP while not ready
 
-| Route                       | Auth      | Response                                      |
-| --------------------------- | --------- | --------------------------------------------- |
-| Static UI assets            | as before | Served, including the loopback cookie         |
-| `GET /health`               | public    | `ServerHealth { status, version, lifecycle }` |
-| `GET /api/health`           | token     | `ServerHealth`                                |
-| `GET /api/lifecycle`        | token     | `ServerLifecycle`                             |
-| `POST /api/lifecycle/retry` | token     | 202 with the new lifecycle, otherwise 409     |
-| Other `/api/*` and `/ws/*`  | token     | 503 `{ error: "starting", lifecycle }`        |
+| Route                          | Auth      | Response                                      |
+| ------------------------------ | --------- | --------------------------------------------- |
+| Static UI assets               | as before | Served, including the loopback cookie         |
+| `GET /health`                  | public    | `ServerHealth { status, version, lifecycle }` |
+| `GET /api/health`              | token     | `ServerHealth`                                |
+| `GET /api/lifecycle`           | token     | `ServerLifecycle`                             |
+| `POST /api/lifecycle/retry`    | token     | 202 with the new lifecycle, otherwise 409     |
+| `POST /api/lifecycle/rollback` | token     | 202 when restoration starts, otherwise 409    |
+| Other `/api/*` and `/ws/*`     | token     | 503 `{ error: "starting", lifecycle }`        |
 
 The lifecycle routes stay available after `ready`. A home without a usable token answers lifecycle routes to loopback clients only.
 

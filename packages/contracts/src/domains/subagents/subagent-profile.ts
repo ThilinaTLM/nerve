@@ -51,7 +51,7 @@ export const subagentCompactionOverrideSchema = z
     auto: z.boolean().optional(),
     profile: compactionProfileSchema,
     triggerPercent: z.number().int().min(60).max(90).optional(),
-    keepRecentPercent: z.number().int().min(5).max(40).optional(),
+    keepRecentPercent: z.number().int().min(1).max(40).optional(),
   })
   .strict();
 export type SubagentCompactionOverride = z.infer<

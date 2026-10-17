@@ -50,6 +50,7 @@ const ipcChannels = [
   "desktop.clipboard.writeText",
   "desktop.startup.retry",
   "desktop.startup.rendererCoreReady",
+  "desktop.app.quit",
 ] as const;
 
 export function createDesktopRuntime(

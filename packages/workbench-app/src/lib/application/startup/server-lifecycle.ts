@@ -1,6 +1,7 @@
-import type {
-  ServerLifecycle,
-  ServerLifecycleFailure,
+import {
+  MIGRATION_ROLLED_BACK,
+  type ServerLifecycle,
+  type ServerLifecycleFailure,
 } from "@nervekit/contracts/status";
 
 export const LIFECYCLE_POLL_INTERVAL_MS = 500;
@@ -65,6 +66,60 @@ export function readyAction(
     : "resume";
 }
 
+export type FailureKind = "rolled-back" | "discardable" | "generic";
+
+/** Which recovery screen a startup failure calls for. */
+export function failureKind(
+  failure: ServerLifecycleFailure | undefined,
+): FailureKind {
+  if (failure?.code === MIGRATION_ROLLED_BACK) return "rolled-back";
+  return failure?.discardable?.length ? "discardable" : "generic";
+}
+
+type Discardable = NonNullable<ServerLifecycleFailure["discardable"]>[number];
+
+export interface DiscardPlan {
+  conversations: Discardable[];
+  files: Discardable[];
+  heading: string;
+  /** Primary action label. */
+  action: string;
+  /** Confirmation dialog body. */
+  confirmation: string;
+}
+
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/** Copy and grouping for failures that can continue after discarding items. */
+export function discardPlan(items: readonly Discardable[]): DiscardPlan {
+  const conversations = items.filter((item) => item.kind === "conversation");
+  const files = items.filter((item) => item.kind === "configuration");
+  const fileCount = plural(files.length, "file", "files");
+  const conversationCount = plural(
+    conversations.length,
+    "conversation",
+    "conversations",
+  );
+  const confirmation =
+    "These items will be set aside in quarantine. Their original data is kept until you delete it.";
+  return {
+    conversations,
+    files,
+    heading:
+      conversations.length && files.length
+        ? "Some data couldn't be read or upgraded"
+        : files.length
+          ? "Some settings files couldn't be upgraded"
+          : "Some conversations couldn't be upgraded",
+    action:
+      conversations.length && files.length
+        ? "Set aside and continue"
+        : `Set aside ${files.length ? fileCount : conversationCount} and continue`,
+    confirmation,
+  };
+}
+
 export function diagnosticsText(
   failure: ServerLifecycleFailure,
   lifecycle?: ServerLifecycle,
@@ -98,18 +153,42 @@ export async function fetchLifecycle(): Promise<ServerLifecycle | undefined> {
   }
 }
 
-/** Asks the server to retry a failed start; `undefined` if not accepted. */
-export async function postLifecycleRetry(): Promise<
-  ServerLifecycle | undefined
-> {
+async function postLifecycleAction(
+  path: string,
+  body?: unknown,
+): Promise<ServerLifecycle | undefined> {
   try {
-    const response = await fetch("/api/lifecycle/retry", {
+    const response = await fetch(path, {
       method: "POST",
       credentials: "same-origin",
+      ...(body === undefined
+        ? {}
+        : {
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          }),
     });
     if (response.status !== 202) return undefined;
     return parseLifecycle(await response.json());
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Asks the server to retry a failed start; `undefined` if not accepted.
+ * `discardIds` sets aside those failed units in quarantine.
+ */
+export function postLifecycleRetry(
+  discardIds?: string[],
+): Promise<ServerLifecycle | undefined> {
+  return postLifecycleAction(
+    "/api/lifecycle/retry",
+    discardIds?.length ? { discardIds } : undefined,
+  );
+}
+
+/** Asks the server to restore the pre-upgrade data; `undefined` if refused. */
+export function postLifecycleRollback(): Promise<ServerLifecycle | undefined> {
+  return postLifecycleAction("/api/lifecycle/rollback");
 }

@@ -3,7 +3,12 @@ import { ipcMain } from "../platform/electron/electron-api.js";
 export function registerStartupIpc(options: {
   retryStartup: () => boolean;
   reportRendererCoreReady: () => void;
+  quitApp: () => void;
 }): void {
+  ipcMain.handle("desktop.app.quit", () => {
+    options.quitApp();
+    return { ok: true };
+  });
   ipcMain.handle("desktop.startup.retry", () => ({
     accepted: options.retryStartup(),
   }));

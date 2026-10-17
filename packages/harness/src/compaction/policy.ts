@@ -8,20 +8,20 @@ import type {
 export const DEFAULT_COMPACTION_SETTINGS: CompactionSettings = {
   enabled: true,
   reserveTokens: 16_384,
-  keepRecentTokens: 20_000,
+  keepRecentTokens: 5_000,
 };
 
 export const DEFAULT_AUTO_COMPACTION_SETTINGS: AutoCompactionSettings = {
   auto: true,
   profile: "balanced",
   customTriggerPercent: 80,
-  customKeepRecentPercent: 15,
+  customKeepRecentPercent: 4,
 };
 
 export const AUTO_COMPACTION_PROFILES = {
-  aggressive: { thresholdPercent: 70, keepRecentPercent: 10 },
-  balanced: { thresholdPercent: 80, keepRecentPercent: 15 },
-  conservative: { thresholdPercent: 90, keepRecentPercent: 25 },
+  aggressive: { thresholdPercent: 70, keepRecentPercent: 2 },
+  balanced: { thresholdPercent: 80, keepRecentPercent: 4 },
+  conservative: { thresholdPercent: 90, keepRecentPercent: 8 },
 } as const;
 
 function clamp(value: number, min: number, max: number): number {
@@ -40,7 +40,7 @@ export function resolveAutoCompactionPercentages(
       ),
       keepRecentPercent: clamp(
         Math.floor(settings.customKeepRecentPercent),
-        5,
+        1,
         40,
       ),
     };
@@ -85,7 +85,7 @@ export function deriveAutoCompactionPolicy(
     normalizedWindow,
   );
   const minimumKeepRecentTokens = Math.min(
-    2_000,
+    1_000,
     Math.floor(normalizedWindow * 0.25),
   );
   const maximumKeepRecentTokens = Math.max(

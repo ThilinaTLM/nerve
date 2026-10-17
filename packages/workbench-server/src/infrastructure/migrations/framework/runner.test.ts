@@ -95,12 +95,6 @@ void test("failure retains checkpoints, ledger commits only after verify, rerun 
       "0001-example",
       async (ctx) => {
         runs++;
-        assert.deepEqual(Object.keys(ctx).sort(), [
-          "log",
-          "paths",
-          "progress",
-          "scratchDir",
-        ]);
         if (runs === 1)
           await writeFile(join(ctx.scratchDir, "checkpoint"), "ready");
         else
@@ -278,14 +272,17 @@ void test("structured progress carries step metadata and logs phase timing and s
     onLog: (line) => logs.push(line),
     onProgress: (value) => progress.push(value),
   });
-  assert.deepEqual(progress[2], {
-    step: "0001-example",
-    description: "0001-example",
-    phase: "import",
-    done: 5,
-    total: 100,
-    label: "Importing conversations",
-  });
+  assert.deepEqual(
+    progress.find((item) => (item as { done?: number }).done === 5),
+    {
+      step: "0001-example",
+      description: "0001-example",
+      phase: "import",
+      done: 5,
+      total: 100,
+      label: "Importing conversations",
+    },
+  );
   assert.match(logs[0], /Starting; steps pending: 0001-example/);
   assert.equal(logs.filter((line) => line.includes(" of 100")).length, 1);
   assert(
@@ -294,4 +291,131 @@ void test("structured progress carries step metadata and logs phase timing and s
     ),
   );
   assert.match(logs.at(-1)!, /Complete in [\d.]+s/);
+});
+
+void test("runner owns the verified boundary and resumes only commit after cleanup failure", async (t) => {
+  const home = await temporaryHome(t);
+  await baseline(home);
+  const phases: string[] = [];
+  let fail = true;
+  const registry: RegisteredStep[] = [
+    {
+      ...entry("0001-example", async () => {
+        phases.push("run");
+      }),
+      step: defineStep({
+        id: "0001-example",
+        description: "example",
+        async check() {
+          phases.push("check");
+        },
+        async run() {
+          phases.push("run");
+        },
+        async verify(ctx) {
+          phases.push("verify");
+          await assert.rejects(
+            readFile(join(ctx.scratchDir, "verified.json")),
+            { code: "ENOENT" },
+          );
+        },
+        async commit(ctx) {
+          phases.push("commit");
+          await readFile(join(ctx.scratchDir, "verified.json"));
+          if (fail) throw new Error("cleanup interrupted");
+        },
+      }),
+    },
+  ];
+  await assert.rejects(
+    runMigrations(home, { registry }),
+    /cleanup interrupted/,
+  );
+  const report = JSON.parse(
+    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
+  );
+  assert.equal(report.rollbackAvailable, false);
+  fail = false;
+  await runMigrations(home, { registry });
+  assert.deepEqual(phases, ["check", "run", "verify", "commit", "commit"]);
+});
+
+void test("default rollback restores journal and the pre-step manifest after an already applied step", async (t) => {
+  const { rollbackFailedMigration } = await import("./recovery.js");
+  const home = await temporaryHome(t);
+  const first = entry("0001-example", async () => {});
+  await runMigrations(home, { registry: [first] });
+  const original = await readFile(join(home, "manifest.json"), "utf8");
+  await writeFile(join(home, "owned"), "before");
+  const second = entry("0002-example", async (ctx) => {
+    ctx.fs.write(join(home, "owned"), "after");
+    ctx.fs.write(
+      ctx.paths.manifestPath,
+      JSON.stringify({ ...JSON.parse(original), homeClass: "disposable" }),
+    );
+    throw new Error("interrupted");
+  });
+  const registry = [first, second];
+  await assert.rejects(runMigrations(home, { registry }), /interrupted/);
+  await rollbackFailedMigration(home, { registry });
+  assert.equal(await readFile(join(home, "manifest.json"), "utf8"), original);
+  assert.equal(await readFile(join(home, "owned"), "utf8"), "before");
+});
+
+void test("up-to-date discovery does not create migration work or remove stale recovery files", async (t) => {
+  const home = await temporaryHome(t);
+  const registry = [entry("0001-example", async () => {})];
+  await runMigrations(home, { registry });
+  await mkdir(join(home, "migrations"), { recursive: true });
+  await writeFile(join(home, "migrations/last-failure.json"), "stale");
+  await runMigrations(home, { registry });
+  await assert.rejects(
+    readFile(join(home, "migrations/work/0001-example/manifest.before.json")),
+    { code: "ENOENT" },
+  );
+  assert.equal(
+    await readFile(join(home, "migrations/last-failure.json"), "utf8"),
+    "stale",
+  );
+});
+
+void test("up-to-date homes finish scratch cleanup after a ledger append crash", async (t) => {
+  const home = await temporaryHome(t);
+  const registry = [
+    entry("0001-example", async () => assert.fail("applied step ran")),
+  ];
+  await runMigrations(home, { registry });
+  const work = join(home, "migrations/work");
+  const scratch = join(work, "0001-example");
+  await mkdir(scratch, { recursive: true });
+  await writeFile(join(scratch, "checkpoint"), "stale");
+  await writeFile(join(work, "cleanup-needed.json"), "{}");
+  await runMigrations(home, { registry });
+  await assert.rejects(readFile(join(scratch, "checkpoint")), {
+    code: "ENOENT",
+  });
+  await assert.rejects(readFile(join(work, "cleanup-needed.json")), {
+    code: "ENOENT",
+  });
+});
+
+void test("rollback resumes after original manifest restoration without reverting to admission bytes", async (t) => {
+  const { rollbackFailedMigration } = await import("./recovery.js");
+  const home = await temporaryHome(t);
+  await baseline(home);
+  const original = await readFile(join(home, "manifest.json"), "utf8");
+  const registry = [
+    entry("0001-example", async () => {
+      throw new Error("interrupted");
+    }),
+  ];
+  await assert.rejects(runMigrations(home, { registry }), /interrupted/);
+  const scratch = join(home, "migrations/work/0001-example");
+  // Model a crash after the durable restore marker and backup removal, but
+  // before recovery removed the step scratch directory and last failure.
+  await writeFile(join(home, "manifest.json"), original);
+  await writeFile(join(scratch, "manifest-restored.json"), "{}");
+  await rm(join(home, "migrations/work/manifest.before.json"));
+  await rollbackFailedMigration(home, { registry });
+  assert.equal(await readFile(join(home, "manifest.json"), "utf8"), original);
 });

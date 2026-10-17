@@ -7,6 +7,7 @@ import {
   type PermissionOverlayDocument,
   type PermissionOverlayOrigin,
 } from "@nervekit/contracts/permissions";
+import { assertHomeConfigurationPathWritable } from "../infrastructure/configuration/home-configuration.js";
 import { atomicWriteJson } from "../infrastructure/storage-bootstrap/index.js";
 
 export function emptyOverlayDocument(): PermissionOverlayDocument {
@@ -44,6 +45,19 @@ export async function mutatePermissionOverlay(
   const write = (writes.get(path) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
+      if (origin === "user") {
+        assertHomeConfigurationPathWritable(path);
+        try {
+          permissionOverlayDocumentForOriginSchema(origin).parse(
+            JSON.parse(await readFile(path, "utf8")),
+          );
+        } catch (cause) {
+          throw new Error(
+            "Cannot save invalid permissions settings. Reset to defaults or fix the file and Reload first.",
+            { cause },
+          );
+        }
+      }
       const document = await loadPermissionOverlay(origin, path);
       mutate(document);
       const parsed =

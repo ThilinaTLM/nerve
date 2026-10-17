@@ -41,6 +41,8 @@ export interface NerveDesktopBridge {
   };
   app: {
     reportRendererCoreReady: () => Promise<{ ok: true }>;
+    /** Normal app quit; stops an owned daemon. */
+    quit: () => Promise<{ ok: true }>;
     onQuitStarted: (listener: () => void) => () => void;
   };
   notifications: {
@@ -127,6 +129,10 @@ export function initializeDesktopRuntime(): () => void {
     unsubscribeWindowState();
     unsubscribeQuitStarted();
   };
+}
+
+export async function quitDesktopApp(): Promise<void> {
+  await getDesktopBridge()?.app.quit();
 }
 
 export async function minimizeDesktopWindow(): Promise<void> {

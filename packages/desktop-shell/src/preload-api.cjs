@@ -42,6 +42,7 @@ function createDesktopPreloadApi({
     },
     app: {
       retryStartup: () => ipcRenderer.invoke("desktop.startup.retry"),
+      quit: () => ipcRenderer.invoke("desktop.app.quit"),
       reportRendererCoreReady: () =>
         ipcRenderer.invoke("desktop.startup.rendererCoreReady"),
       onQuitStarted: (listener) =>
