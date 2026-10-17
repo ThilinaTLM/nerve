@@ -34,6 +34,8 @@ export function isWorkbenchOperation(method: string): boolean {
     "promptSuggestion.",
     "subagentProfiles.",
     "launch.",
+    "launchDefinition.",
+    "launchFolder.",
     "launchCatalog.",
     "settings.",
     "applicationConfiguration.",
