@@ -88,14 +88,20 @@ export function defineStep(step: MigrationStep): MigrationStep {
   return Object.freeze(step);
 }
 
-export interface RegisteredStep {
-  step: MigrationStep;
+export interface MigrationRegistryEntry {
+  step: Pick<MigrationStep, "id" | "requiresFreeBytes">;
   checksum: string;
   stage: "draft" | "released";
   releasedIn?: string;
 }
 
-export function validateRegistry(registry: readonly RegisteredStep[]): void {
+export interface RegisteredStep extends MigrationRegistryEntry {
+  step: MigrationStep;
+}
+
+export function validateRegistry(
+  registry: readonly MigrationRegistryEntry[],
+): void {
   for (const [index, entry] of registry.entries()) {
     if (
       !entry.step.id.startsWith(`${String(index + 1).padStart(4, "0")}-`) ||

@@ -1,5 +1,9 @@
 import { Worker } from "node:worker_threads";
-import type { MigrationProgress } from "./step.js";
+import { type MigrationProgress, validateRegistry } from "./step.js";
+import { MIGRATION_METADATA } from "./registry-metadata.js";
+import { planMigrations, readMigrationManifest } from "./ledger.js";
+import { recoverCompletedMigrationCleanup } from "./cleanup.js";
+import { storagePaths } from "../../storage-bootstrap/paths.js";
 
 export interface MigrationWorkerInput {
   home: string;
@@ -20,13 +24,26 @@ export interface MigrationWorkerOptions extends MigrationWorkerInput {
 }
 
 /**
- * Run `runMigrations` in a worker thread. The caller keeps ownership of the
+ * Skip the worker only for a fully validated, current ledger. Otherwise run
+ * `runMigrations` in a worker thread. The caller keeps ownership of the
  * startup lock for the whole call. `[storage migration]` lines reach stderr
  * through the worker's forwarded console.
  */
-export function runMigrationsInWorker(
+export async function runMigrationsInWorker(
   options: MigrationWorkerOptions,
 ): Promise<{ fresh: boolean; pending: string[] }> {
+  validateRegistry(MIGRATION_METADATA);
+  const paths = storagePaths(options.home);
+  const manifest = await readMigrationManifest(paths);
+  if (
+    manifest?.migrations &&
+    !planMigrations(manifest, MIGRATION_METADATA).length
+  ) {
+    await recoverCompletedMigrationCleanup(paths, manifest);
+    return { fresh: false, pending: [] };
+  }
+  // Missing/legacy manifests and pending work retain worker-side admission,
+  // fresh-home initialization, and migration execution under the caller's lock.
   return new Promise((resolve, reject) => {
     const input: MigrationWorkerInput = {
       home: options.home,

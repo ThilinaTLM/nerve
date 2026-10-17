@@ -270,6 +270,8 @@ export class InputQueueService {
     conversationId: string,
     boundary: InputBoundary,
   ): QueuedInput[] {
+    const queued = this.list(conversationId);
+    if (!queued.length) return [];
     const history = this.options.storage.events.since(conversationId, 0);
     let executionId: string | undefined;
     const finished = new Set<string>();
@@ -291,7 +293,7 @@ export class InputQueueService {
     }
     executionId = boundary.executionId ?? executionId;
     const rows: QueuedInput[] = [];
-    for (const row of this.list(conversationId)) {
+    for (const row of queued) {
       const eligible =
         row.deliveryTarget === "next_turn" ||
         (row.deliveryTarget === "specific_execution" &&

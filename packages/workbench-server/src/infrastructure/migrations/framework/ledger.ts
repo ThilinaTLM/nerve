@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { readFile } from "node:fs/promises";
 import {
   nerveHomeManifestSchema,
@@ -8,30 +8,39 @@ import {
 import { atomicWriteJson } from "../../storage-bootstrap/json.js";
 import { isFreshNerveHome } from "../../storage-bootstrap/state-layout.js";
 import type { StoragePaths } from "../../storage-bootstrap/paths.js";
-import type { RegisteredStep } from "./step.js";
+import type { MigrationRegistryEntry, RegisteredStep } from "./step.js";
 
 export const FLOOR_ERROR = "Run Nerve 0.34.1 first";
 
-export async function readMigrationHome(
+/** Read only the manifest; legacy baseline admission belongs in the worker. */
+export async function readMigrationManifest(
   paths: StoragePaths,
-): Promise<{ fresh: boolean; manifest: NerveHomeManifest }> {
+): Promise<NerveHomeManifest | undefined> {
   let bytes: string;
   try {
     bytes = await readFile(paths.manifestPath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    return undefined;
+  }
+  try {
+    return nerveHomeManifestSchema.parse(JSON.parse(bytes));
+  } catch {
+    throw new Error(FLOOR_ERROR);
+  }
+}
+
+export async function readMigrationHome(
+  paths: StoragePaths,
+): Promise<{ fresh: boolean; manifest: NerveHomeManifest }> {
+  const manifest = await readMigrationManifest(paths);
+  if (!manifest) {
     if (await isFreshNerveHome(paths.home)) {
       return {
         fresh: true,
         manifest: { ...NERVE_HOME_MANIFEST, migrations: [] },
       };
     }
-    throw new Error(FLOOR_ERROR, { cause: error });
-  }
-  let manifest: NerveHomeManifest;
-  try {
-    manifest = nerveHomeManifestSchema.parse(JSON.parse(bytes));
-  } catch {
     throw new Error(FLOOR_ERROR);
   }
   if (!manifest.migrations) {
@@ -39,6 +48,7 @@ export async function readMigrationHome(
     const source = paths.sqlitePath;
     let database: DatabaseSync | undefined;
     try {
+      const { DatabaseSync } = await import("node:sqlite");
       database = new DatabaseSync(source, { readOnly: true });
       const rows = database
         .prepare("SELECT id FROM storage_migrations ORDER BY ordinal")
@@ -72,10 +82,10 @@ export async function readMigrationHome(
   return { fresh: false, manifest };
 }
 
-export function planMigrations(
+export function planMigrations<T extends MigrationRegistryEntry>(
   manifest: NerveHomeManifest,
-  registry: readonly RegisteredStep[],
-): RegisteredStep[] {
+  registry: readonly T[],
+): T[] {
   const ledger = manifest.migrations ?? [];
   for (const [index, applied] of ledger.entries()) {
     const entry = registry[index];

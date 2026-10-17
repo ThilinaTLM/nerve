@@ -29,7 +29,11 @@ import {
   type RegisteredStep,
   type StepContext,
 } from "./step.js";
-import { manifestBackupPath, type MigrationFailureReport } from "./recovery.js";
+import type { MigrationFailureReport } from "./recovery.js";
+import {
+  manifestBackupPath,
+  recoverCompletedMigrationCleanup,
+} from "./cleanup.js";
 import { pathExists } from "../../storage-bootstrap/json.js";
 
 export interface MigrationOptions {
@@ -119,17 +123,7 @@ export async function runMigrations(
     }
     const cleanupMarker = join(paths.migrationWorkPath, "cleanup-needed.json");
     if (!fresh && !pending.length) {
-      // The common path pays one cheap check, never a directory/data scan.
-      if (await pathExists(cleanupMarker)) {
-        for (const applied of manifest.migrations ?? [])
-          await rm(join(paths.migrationWorkPath, applied.id), {
-            recursive: true,
-            force: true,
-          });
-        await rm(manifestBackupPath(paths), { force: true });
-        await rm(paths.migrationFailureReportPath, { force: true });
-        await rm(cleanupMarker, { force: true });
-      }
+      await recoverCompletedMigrationCleanup(paths, manifest);
       return result;
     }
     // Admit the baseline before a step can replace/delete its old DB. The
