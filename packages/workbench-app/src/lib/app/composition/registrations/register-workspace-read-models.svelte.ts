@@ -150,8 +150,8 @@ export function registerWorkspaceReadModels(): () => void {
   });
 
   const unregisterLaunchSelectors = registerLaunchSelectorWorkspaceReadModel({
-    get activeProjectDir() {
-      return workspaceSelectors.activeProject?.directory;
+    get activeProjectId() {
+      return workspaceSelectors.activeProject?.id;
     },
     get activeCenterTab() {
       return workspaceState.activeCenterTab;

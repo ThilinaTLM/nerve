@@ -29,6 +29,8 @@ export type PanelViewDescriptor = {
   /** Tab label. */
   title: string;
   icon: PanelViewIcon;
+  /** Optional live activity, independent of the panel's mounting or visibility. */
+  activity?: { readonly count: number; readonly description: string };
   defaultDock: DockId;
   /** Ordering within the default dock. */
   defaultOrder: number;

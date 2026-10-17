@@ -1,3 +1,4 @@
+import { restoredLaunchEntryExists } from "$lib/domain/workspace/launch-entry-identity";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import type { GitDiffArea } from "@nervekit/contracts/git";
 import type { MermaidBlockLocator } from "@nervekit/ui-kit/renderers/mermaid/mermaid-blocks";
@@ -418,12 +419,6 @@ export function hydrateWorkspaceTabSessions(
   if (hydrated) return;
   hydrated = true;
   const projectKeys = new Set(input.projects.map(projectKey));
-  const launchIds = new Set(
-    input.launches.map(
-      (launch) =>
-        launch.definitionId ?? launch.restartRootLaunchId ?? launch.id,
-    ),
-  );
   const stored = readPayload();
   const rawSessions = stored?.sessions ?? {};
   const sessions: Record<string, ProjectTabSession> = {};
@@ -454,7 +449,12 @@ export function hydrateWorkspaceTabSessions(
           workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
         );
       if (tab.kind === "conversation") return true;
-      if (tab.kind === "launch") return launchIds.has(tab.id);
+      if (tab.kind === "launch") {
+        const project = input.projects.find(
+          (candidate) => projectKey(candidate) === key,
+        );
+        return restoredLaunchEntryExists(tab.id, project?.id, input.launches);
+      }
       return true;
     });
     sessions[key] = normalizeSession(parsed);

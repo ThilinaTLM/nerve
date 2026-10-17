@@ -1,3 +1,4 @@
+import { launchEntryIdentity } from "$lib/domain/workspace/launch-entry-identity";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { refreshLaunchLogWindow } from "./launch-logs.svelte";
 import {
@@ -56,8 +57,7 @@ function handleLaunchLogEvent(event: { data?: Record<string, unknown> }): void {
   const launch = launchState.launches.find(
     (candidate) => candidate.id === launchId,
   );
-  const entryId =
-    launch?.definitionId ?? launch?.restartRootLaunchId ?? launchId;
+  const entryId = launch ? launchEntryIdentity(launch) : launchId;
   const viewingLaunch =
     workspaceState.activeCenterTab?.kind === "launch" &&
     workspaceState.activeCenterTab.id === entryId;

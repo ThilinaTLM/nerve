@@ -92,7 +92,13 @@ const panel = createWorkbenchLaunchPanelAdapter(
 );
 const model = $derived(panel.model);
 const launchActions = panel.actions;
-const view = $derived(projectLaunchPanel(model.definitions, projectLaunches));
+const view = $derived(
+  projectLaunchPanel(
+    model.definitions,
+    projectLaunches,
+    Boolean(model.catalogRevision),
+  ),
+);
 const runs = $derived(splitRunEntries(view.runs));
 const canManage = $derived(model.capabilities.manageDefinitions.enabled);
 const canStart = $derived(model.capabilities.start.enabled);
@@ -124,7 +130,11 @@ function openCreate() {
     title: "New launch",
     submitLabel: "Create launch",
     submit: async (request) => {
-      await launchActions.createDefinition(request);
+      await launchActions.createDefinition({
+        ...request,
+        parentFolderId: null,
+        beforeSibling: null,
+      });
     },
   };
 }
@@ -156,6 +166,8 @@ function openSaveRun(entry: LaunchRunEntry) {
       await launchActions.createDefinition({
         ...request,
         sourceLaunchId: run.id,
+        parentFolderId: null,
+        beforeSibling: null,
       });
     },
   };
@@ -257,7 +269,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
     {@const signal = launchRunSignal(entry.run.status)}
     <MobileListRow
       title={launchTitle(entry.run)}
-      detail={launchStatusLabel(entry.run)}
+      detail={`${launchStatusLabel(entry.run)}${entry.definitionUnavailable ? " · Definition unavailable" : ""}`}
       meta={relativeTimeLabel(entry.run.startedAt)}
       tone={signal.tone}
       pulse={signal.pulse}
@@ -294,6 +306,12 @@ const screenMenu = $derived<ContextMenuItem[]>([
     </Button>
   {/snippet}
 
+  {#if model.catalogError}
+    <p class="px-4 py-2 text-xs text-destructive" role="alert">
+      Launch definitions unavailable: {model.catalogError}. Run controls remain
+      available.
+    </p>
+  {/if}
   {#if view.definitions.length}
     <MobileSection title="Saved launches" meta={`${view.definitions.length}`}>
       {#each view.definitions as entry (entry.key)}
@@ -337,7 +355,7 @@ const screenMenu = $derived<ContextMenuItem[]>([
       {@render runRows(runs.recent)}
     </MobileSection>
   {/if}
-  {#if !view.definitions.length && !view.runs.length && !model.definitionsLoading}
+  {#if !view.definitions.length && !view.runs.length && !model.definitionsLoading && !model.catalogError}
     <Empty.Root class="px-6 py-10">
       <Empty.Header>
         <Empty.Media class="text-muted-foreground">

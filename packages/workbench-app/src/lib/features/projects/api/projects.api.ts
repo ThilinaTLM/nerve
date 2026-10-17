@@ -2,12 +2,6 @@ import { protocolRequest as workbenchRequest } from "$lib/application/startup/wo
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { createId } from "@nervekit/contracts";
 import type { Project } from "@nervekit/contracts/core";
-import {
-  launchDefinitionSchema,
-  type LaunchDefinition,
-  type CreateLaunchDefinitionRequest,
-  type UpdateLaunchDefinitionRequest,
-} from "@nervekit/contracts/launch-definitions";
 import type { ProjectEditor } from "@nervekit/contracts/projects";
 export async function createProject(directory: string): Promise<Project> {
   return requestConversation("project.create", {
@@ -40,49 +34,4 @@ export async function openProjectInEditor(
 export async function openProjectInTerminal(projectId: string, path?: string) {
   return (await workbenchRequest("project.openTerminal", { projectId, path }))
     .result;
-}
-export async function getLaunchDefinitions(
-  projectId: string,
-): Promise<LaunchDefinition[]> {
-  const definitions = (
-    await workbenchRequest("launchDefinition.list", { projectId })
-  ).result.definitions;
-  return definitions.map((definition) =>
-    launchDefinitionSchema.parse(definition),
-  );
-}
-
-export async function createLaunchDefinition(
-  projectId: string,
-  body: CreateLaunchDefinitionRequest,
-): Promise<LaunchDefinition> {
-  const definition = (
-    await workbenchRequest("launchDefinition.create", { projectId, ...body })
-  ).result.definition;
-  return launchDefinitionSchema.parse(definition);
-}
-
-export async function updateLaunchDefinition(
-  projectId: string,
-  definitionId: string,
-  body: UpdateLaunchDefinitionRequest,
-): Promise<LaunchDefinition> {
-  const definition = (
-    await workbenchRequest("launchDefinition.update", {
-      projectId,
-      definitionId,
-      ...body,
-    })
-  ).result.definition;
-  return launchDefinitionSchema.parse(definition);
-}
-
-export async function deleteLaunchDefinition(
-  projectId: string,
-  definitionId: string,
-): Promise<void> {
-  await workbenchRequest("launchDefinition.delete", {
-    projectId,
-    definitionId,
-  });
 }

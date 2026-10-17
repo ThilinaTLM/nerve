@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import { summaryActivity } from "$lib/presentation/conversations/conversation-activity";
-import { buildMobileActivity } from "./mobile-activity.js";
+import type { LaunchRecord } from "@nervekit/contracts/launches";
+import {
+  launchProject,
+  launchesInProject,
+  buildMobileActivity,
+} from "./mobile-activity.js";
 
 function conversation(
   id: string,
@@ -65,5 +70,24 @@ test("mobile activity puts human attention and failures before unfinished work",
       ["info", true],
       ["info", false],
     ],
+  );
+});
+
+test("launch ownership follows project IDs, never working-directory containment", () => {
+  const projects = [
+    { id: "proj_a", name: "A", directory: "/a" },
+    { id: "proj_b", name: "B", directory: "/b" },
+  ];
+  const run = {
+    id: "run",
+    projectId: "proj_a",
+    cwd: "/b/external",
+  } as LaunchRecord;
+  assert.equal(launchProject(run, projects)?.id, "proj_a");
+  assert.equal(launchesInProject([run], projects, "proj_a").length, 1);
+  assert.equal(launchesInProject([run], projects, "proj_b").length, 0);
+  assert.equal(
+    launchProject({ ...run, projectId: undefined }, projects),
+    undefined,
   );
 });

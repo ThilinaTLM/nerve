@@ -2,22 +2,17 @@ import type { Project } from "@nervekit/contracts/core";
 import { untrack } from "svelte";
 import type {
   StartLaunchRequest,
-  LaunchDefinition,
   LaunchRecord,
-} from "$lib/api";
+} from "@nervekit/contracts/launches";
 import type { CancelLaunchRequest } from "@nervekit/contracts/launches";
 import type {
+  LaunchDefinition,
   CreateLaunchDefinitionRequest,
   UpdateLaunchDefinitionRequest,
 } from "@nervekit/contracts/launch-definitions";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
-import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
-import {
-  getLaunchLogs,
-  startLaunchDefinition,
-} from "$lib/features/launches/api/launches.api";
 import { launchState } from "$lib/features/launches/state/launch-state.svelte";
 import {
   setLaunchEntryRun,
@@ -25,15 +20,22 @@ import {
 } from "$lib/features/launches/state/launch-tabs.svelte";
 import { refreshWorkbenchLaunches } from "./launch-events";
 import {
+  getLaunchLogs,
+  startLaunchDefinition,
+  createLaunchFolder,
+  renameLaunchFolder,
+  deleteLaunchFolder,
+  moveLaunchCatalogEntry,
   createLaunchDefinition,
   deleteLaunchDefinition,
   updateLaunchDefinition,
-} from "$lib/api";
+} from "$lib/features/launches/api/launches.api";
 import {
   cachedLaunchDefinitions,
   loadLaunchDefinitions,
-  removeCachedLaunchDefinition,
-  upsertCachedLaunchDefinition,
+  cachedLaunchCatalog,
+  launchCatalogError,
+  invalidateLaunchCatalog,
 } from "$lib/features/launches/state/launch-definitions.svelte";
 import { createLaunchDefinitionRevalidationGate } from "$lib/features/launches/state/launch-definition-revalidation";
 import {
@@ -76,7 +78,10 @@ export function createWorkbenchLaunchPanelAdapter(
   hostActions: WorkbenchLaunchPanelHostActions,
 ): { readonly model: LaunchPanelModel; readonly actions: LaunchPanelActions } {
   let loadingDefinitions = $state(false);
-  let runningDefinitionId = $state<string | undefined>(undefined);
+  let startGeneration = 0;
+  let runningDefinition = $state<
+    { projectId: string; id: string; generation: number } | undefined
+  >(undefined);
   let portConflict = $state<LaunchPanelModel["portConflict"]>(undefined);
   const definitionRevalidation = createLaunchDefinitionRevalidationGate();
   const definitions = $derived(
@@ -87,14 +92,18 @@ export function createWorkbenchLaunchPanelAdapter(
   const adapter = {
     get model(): LaunchPanelModel {
       const project = activeProject();
-      const noProject = unavailable("Select a project to manage launches.");
       const noRunner = unavailable(
         "Launch execution is unavailable in this host.",
       );
       const noAction = unavailable(
         "This launch operation is unavailable in this host.",
       );
-      const action = project ? enabledCapability : noProject;
+      const catalog = cachedLaunchCatalog(project?.id);
+      const catalogError = launchCatalogError(project?.id);
+      const action =
+        project && catalog && !catalogError
+          ? enabledCapability
+          : unavailable(catalogError ?? "Wait for a valid launch catalog.");
       return {
         availability: project
           ? { available: true }
@@ -106,11 +115,21 @@ export function createWorkbenchLaunchPanelAdapter(
         selectedLaunch: selectedLaunch(),
         selectedLogs: launchState.launchLogs,
         logsLoading: false,
+        projectId: project?.id,
+        folders: catalog?.folders ?? [],
+        catalogRevision: catalogError ? undefined : catalog?.revision,
+        catalogError,
         definitions: definitions.map(normalizeLaunchDefinition),
         defaultCwd: project?.directory ?? "",
         definitionsLoading: loadingDefinitions,
-        runningDefinitionId,
-        portConflict,
+        runningDefinitionId:
+          runningDefinition?.projectId === project?.id
+            ? runningDefinition?.id
+            : undefined,
+        portConflict:
+          portConflict?.definition.scope.projectId === project?.id
+            ? portConflict
+            : undefined,
         capabilities: {
           start:
             project && hostActions.runCommand ? enabledCapability : noRunner,
@@ -137,18 +156,27 @@ export function createWorkbenchLaunchPanelAdapter(
   function original(
     definition: LaunchPanelDefinition,
   ): LaunchDefinition | undefined {
-    return definitions.find((item) => item.id === definition.id);
+    return definitions.find(
+      (item) =>
+        item.id === definition.id &&
+        item.scope.projectId === definition.scope.projectId,
+    );
   }
 
   async function launchDefinition(
     definition: LaunchPanelDefinition,
     terminateListeners?: import("@nervekit/contracts/launches").LaunchPortConflictListener[],
   ): Promise<void> {
-    const project = activeProject();
-    if (!project) return;
-    runningDefinitionId = definition.id;
+    const projectId = definition.scope.projectId;
+    const pending = {
+      projectId,
+      id: definition.id,
+      generation: ++startGeneration,
+    };
+    runningDefinition = pending;
     try {
       const result = await startLaunchDefinition(
+        projectId,
         definition.id,
         terminateListeners,
       );
@@ -167,11 +195,51 @@ export function createWorkbenchLaunchPanelAdapter(
     } catch (error) {
       showCriticalError("Could not run launch", errorMessage(error));
     } finally {
-      runningDefinitionId = undefined;
+      if (runningDefinition?.generation === pending.generation)
+        runningDefinition = undefined;
     }
   }
 
+  function revision(projectId: string) {
+    const value = cachedLaunchCatalog(projectId)?.revision;
+    if (!value || launchCatalogError(projectId))
+      throw new Error("Refresh the launch catalog before editing.");
+    return value;
+  }
+  async function mutate(
+    operation: (
+      projectId: string,
+      expectedRevision: string,
+    ) => Promise<unknown>,
+    intentRevision?: string,
+  ) {
+    const projectId = activeProject()?.id;
+    if (!projectId) return;
+    try {
+      const currentRevision = revision(projectId);
+      const expectedRevision = intentRevision ?? currentRevision;
+      await operation(projectId, expectedRevision);
+    } catch (error) {
+      notify.error(
+        `Could not update launch organization: ${errorMessage(error)}`,
+      );
+      throw error;
+    } finally {
+      await invalidateLaunchCatalog(projectId).catch(() => {});
+    }
+  }
   const host: LaunchPanelActions = {
+    createFolder: (input) =>
+      mutate((id, rev) => createLaunchFolder(id, input, rev)),
+    renameFolder: (folder, label) =>
+      mutate((id, rev) => renameLaunchFolder(id, folder.id, label, rev)),
+    deleteFolder: (folder) =>
+      mutate((id, rev) => deleteLaunchFolder(id, folder.id, rev)),
+    moveEntry: ({ expectedRevision, ...input }) =>
+      mutate(
+        (id, rev) => moveLaunchCatalogEntry(id, input, rev),
+        expectedRevision,
+      ),
     selectLaunch: async (launchId) => {
       launchState.selectedLaunchId = launchId;
       if (!launchId) {
@@ -223,15 +291,20 @@ export function createWorkbenchLaunchPanelAdapter(
       const project = activeProject();
       if (!project) return;
       try {
-        const created = await createLaunchDefinition(project.id, {
-          ...input,
-          runPolicy: input.runPolicy ?? "single",
-        });
-        upsertCachedLaunchDefinition(project.id, created);
+        await createLaunchDefinition(
+          project.id,
+          {
+            ...input,
+            runPolicy: input.runPolicy ?? "single",
+          },
+          revision(project.id),
+        );
         notify.success("Launch saved");
       } catch (error) {
         notify.error(`Could not save launch: ${errorMessage(error)}`);
         throw error;
+      } finally {
+        await invalidateLaunchCatalog(project.id).catch(() => {});
       }
     },
     updateDefinition: async (
@@ -242,15 +315,21 @@ export function createWorkbenchLaunchPanelAdapter(
       const item = original(definition);
       if (!project || !item) return;
       try {
-        const updated = await updateLaunchDefinition(project.id, item.id, {
-          ...input,
-          runPolicy: input.runPolicy ?? item.runPolicy,
-        });
-        upsertCachedLaunchDefinition(project.id, updated);
+        await updateLaunchDefinition(
+          project.id,
+          item.id,
+          {
+            ...input,
+            runPolicy: input.runPolicy ?? item.runPolicy,
+          },
+          revision(project.id),
+        );
         notify.success("Launch updated");
       } catch (error) {
         notify.error(`Could not update launch: ${errorMessage(error)}`);
         throw error;
+      } finally {
+        await invalidateLaunchCatalog(project.id).catch(() => {});
       }
     },
     deleteDefinition: async (definition) => {
@@ -258,12 +337,13 @@ export function createWorkbenchLaunchPanelAdapter(
       const item = original(definition);
       if (!project || !item) return;
       try {
-        await deleteLaunchDefinition(project.id, item.id);
-        removeCachedLaunchDefinition(item.id);
+        await deleteLaunchDefinition(project.id, item.id, revision(project.id));
         notify.success("Saved launch deleted");
       } catch (error) {
         notify.error(`Could not remove saved launch: ${errorMessage(error)}`);
         throw error;
+      } finally {
+        await invalidateLaunchCatalog(project.id).catch(() => {});
       }
     },
     loadLogs: async (launchId, query) => {
@@ -271,24 +351,6 @@ export function createWorkbenchLaunchPanelAdapter(
     },
   };
   adapter.actions = createLaunchPanelActions(() => adapter.model, host);
-
-  $effect(() => {
-    const cacheDefinition = (event: { data?: Record<string, unknown> }) => {
-      const definition = event.data?.definition as LaunchDefinition | undefined;
-      if (definition?.scope.kind !== "project") return;
-      upsertCachedLaunchDefinition(definition.scope.projectId, definition);
-    };
-    const disposeCreated = onEvent("launchDefinition.created", cacheDefinition);
-    const disposeUpdated = onEvent("launchDefinition.updated", cacheDefinition);
-    const disposeDeleted = onEvent("launchDefinition.deleted", (event) => {
-      removeCachedLaunchDefinition(String(event.data?.definitionId ?? ""));
-    });
-    return () => {
-      disposeCreated();
-      disposeUpdated();
-      disposeDeleted();
-    };
-  });
 
   // Revalidate on mount and project switches. Cached definitions render
   // immediately, so the loading state only shows on a cold cache.

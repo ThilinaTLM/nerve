@@ -1,3 +1,4 @@
+import { launchEntryIdentity } from "$lib/domain/workspace/launch-entry-identity";
 import { conversationDraftStore } from "./conversation-draft-store";
 import { pendingConversations } from "./pending-conversations.svelte";
 import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
@@ -212,10 +213,7 @@ export const workspaceSelectors = {
         workspaceFeaturePorts().launches.read.selectedRunByEntry[launchId];
       const candidates = workspaceFeaturePorts()
         .launches.read.launches.filter(
-          (candidate) =>
-            (candidate.definitionId ??
-              candidate.restartRootLaunchId ??
-              candidate.id) === launchId,
+          (candidate) => launchEntryIdentity(candidate) === launchId,
         )
         .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
       const launch =
