@@ -141,3 +141,36 @@ separate, owning-proposal evidence—not Git RPC performance measurements. Actua
 Windows/macOS filesystem/process behavior remains unvalidated. External Git processes
 remain outside service coordination, and the cancellation/noninterruptible-section
 limits above still apply.
+
+### Slot-4 stale-banner follow-up (2026-10-18)
+
+The visibility effect now excludes mutable refresh bookkeeping from its dependencies;
+native read-only access events no longer fabricate filesystem changes. Writes,
+uncertain events and rescan/errors remain conservative. Cached stale reads publish
+truthful staleness, then permit at most one demanded soft revalidation; a still-stale
+or failed follow-up cannot manufacture freshness or start an idle retry loop.
+
+Actual slot-4 agent-browser retesting improved the real-project baseline from **22
+manual refreshes and 11 overview reads in 35.123 seconds** to **zero manual refreshes
+and zero overview reads** in an accepted settled 36.022-second real-project window.
+A separate 36.015-second post-mutation fixture window was also quiet. Each accepted
+window had 146/146 visible, fresh samples, no stale banner, and zero monitor-sync or
+discovery RPCs; backend freshness probes agreed. Initial-loading samples and explicit
+probe/action traffic are excluded from these idle counts.
+
+Keyboard stage/unstage and diff rendering passed on a temporary synthetic repository;
+**one Fetch** against an approved local bare remote produced exactly one successful
+Fetch Activity, advanced the remote-tracking ref, and preserved fixture HEAD/working
+files. No real-repository or real-remote mutations occurred. No new browser errors
+occurred in accepted windows. Desktop/touch pointer targeting remains **unverified**:
+headless media stayed `pointer:none` / `hover:none`. The owned browser/daemon/UI server
+were stopped before source validation.
+
+Local bugfix validation against HEAD `f80e34e45` passed
+`pnpm fix:focused --base HEAD && pnpm check:focused --base HEAD`, **36 owning tests
+(33 JS/TS + 3 scoped Rust)**, and `git diff --check`, with zero Svelte errors/warnings.
+The native owner's frozen addon hash remained unchanged; validation did not rebuild it.
+Runtime evidence: `/tmp/nerve-slot4-git-repro/FINAL-handoff.md` and
+`final-validation-summary.json`; exact validation commands/logs:
+`/tmp/nerve-git-banner-validation/`. This is a local Linux bugfix checkpoint, not an
+integration suite, cross-platform or live GitHub/remote-mutation claim.

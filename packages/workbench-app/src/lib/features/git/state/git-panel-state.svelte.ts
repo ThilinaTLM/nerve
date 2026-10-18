@@ -105,6 +105,7 @@ export type GitPanelProjectState = {
     loadsDetails: boolean;
     refreshQueued: boolean;
     queuedLoadsDetails: boolean;
+    queuedUncertain?: boolean;
     sequence: number;
   };
   projectId: string;

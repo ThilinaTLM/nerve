@@ -1,3 +1,4 @@
+import { untrack } from "svelte";
 import { createGitPanelActions } from "../views/git-panel-controller";
 import {
   requestGitRepositoryRefresh,
@@ -425,25 +426,36 @@ export function createWorkbenchGitPanelAdapter(
     const repository = projectState?.selectedRepo;
     if (!active || !project || !projectState?.repos.length || !repository)
       return;
-    setGitOverviewRefreshVisible(project.id, repository, true);
-    const refreshIfStale = () => {
-      void requestGitRepositoryRefresh(project.id, repository).catch(
-        () => undefined,
-      );
-      autoRefreshGitOverview(project.id, repository);
-      if (pullRequestsEnabled()) autoRefreshPrsIfStale(project.id, repository);
-    };
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") refreshIfStale();
-    };
-    refreshIfStale();
-    window.addEventListener("focus", refreshIfStale);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      setGitOverviewRefreshVisible(project.id, repository, false);
-      window.removeEventListener("focus", refreshIfStale);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
+    // Registration depends on scope/visibility, not on the freshness state read
+    // by these commands. Otherwise each completed read sends another hard scan.
+    return untrack(() => {
+      setGitOverviewRefreshVisible(project.id, repository, true);
+      const refreshIfStale = () => {
+        void requestGitRepositoryRefresh(project.id, repository).catch(
+          () => undefined,
+        );
+        autoRefreshGitOverview(project.id, repository);
+        if (projectState.readsStale)
+          void refreshGitProject(project, {
+            uncertain: true,
+            silent: true,
+            loadDetails: false,
+          });
+        if (pullRequestsEnabled())
+          autoRefreshPrsIfStale(project.id, repository);
+      };
+      const refreshWhenVisible = () => {
+        if (document.visibilityState === "visible") refreshIfStale();
+      };
+      refreshIfStale();
+      window.addEventListener("focus", refreshIfStale);
+      document.addEventListener("visibilitychange", refreshWhenVisible);
+      return () => {
+        setGitOverviewRefreshVisible(project.id, repository, false);
+        window.removeEventListener("focus", refreshIfStale);
+        document.removeEventListener("visibilitychange", refreshWhenVisible);
+      };
+    });
   });
 
   $effect(() => {

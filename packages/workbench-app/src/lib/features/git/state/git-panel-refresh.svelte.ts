@@ -15,6 +15,8 @@ import {
   gitRepoStateKey,
 } from "$lib/domain/navigation/view-keys";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { selection } from "$lib/application/workspace/selection.svelte";
+import { refreshGitRead } from "./git-read-refresh";
 import { hasPendingPrChecks } from "$lib/features/git/checks";
 import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
@@ -24,8 +26,12 @@ import {
 } from "./git-auto-refresh-scheduler";
 import {
   joinGitProjectRefresh,
-  joinGitOverviewRefresh,
+  joinGitReadRefresh,
   gitAutomaticOverviewOptions,
+  gitOverviewReadInvalidation,
+  createGitOverviewReadGuard,
+  consumeGitReadSoftDemand,
+  takeGitReadQueuedRefresh,
   type GitPanelRefreshOptions,
 } from "./git-panel-refresh-policy";
 import {
@@ -67,6 +73,20 @@ function automaticRefreshKey(projectId: string, repo: string): string {
 }
 
 const visibleOverviewDemand = new SvelteSet<string>();
+
+function hasGitReadDemand(
+  projectId: string,
+  silent: boolean | undefined,
+  repo?: string,
+): boolean {
+  if (selection.projectId !== projectId) return false;
+  if (!silent) return true;
+  return repo !== undefined
+    ? visibleOverviewDemand.has(automaticRefreshKey(projectId, repo))
+    : [...visibleOverviewDemand].some(
+        (key) => (JSON.parse(key) as [string, string])[0] === projectId,
+      );
+}
 
 const automaticRefreshScheduler = new GitAutoRefreshScheduler(
   {
@@ -165,64 +185,86 @@ export async function refreshGitProject(
 ): Promise<void> {
   const state = ensureGitProjectState(project);
   const loadDetails = options.loadDetails !== false;
-  if (joinGitProjectRefresh(state, loadDetails)) {
-    if (options.force) {
-      state.discoveryRequest.refreshQueued = true;
+  if (joinGitProjectRefresh(state, loadDetails, options)) {
+    if (state.discoveryRequest.refreshQueued)
       state.discoveryRequest.queuedLoadsDetails ||= loadDetails;
-    }
     return;
   }
   const requestSeq = state.discoveryRequest.sequence + 1;
   state.discoveryRequest.sequence = requestSeq;
+  const isCurrent = () =>
+    state.discoveryRequest.sequence === requestSeq &&
+    gitPanelState.projects[gitProjectStateKey(project.id)] === state;
   state.discoveryRequest.inFlight = true;
   state.discoveryRequest.loadsDetails = loadDetails;
   state.discoverError = undefined;
   const showFullLoading = !state.loaded && !options.silent;
   state.loadingRepos = showFullLoading;
   state.refreshingRepos = !showFullLoading && !options.silent;
+  let followedUp = false;
   try {
-    if (options.force)
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.git.repos(project.id),
-      });
-    const result = await queryClient.fetchQuery({
+    const result = await refreshGitRead({
+      client: queryClient,
       queryKey: queryKeys.git.repos(project.id),
-      queryFn: () => discoverGitRepos(project.id, options.force),
       staleTime: GIT_STALE_MS,
+      invalidate: options.force
+        ? "hard"
+        : options.uncertain
+          ? "soft"
+          : undefined,
+      read: (followup) =>
+        discoverGitRepos(project.id, followup ? false : options.force),
+      isCurrent,
+      hasDemand: () =>
+        selection.projectId === project.id &&
+        (state.discoveryRequest.loadsDetails ||
+          hasGitReadDemand(project.id, options.silent)),
+      canFollowup: () => consumeGitReadSoftDemand(state.discoveryRequest),
+      onFollowup: () => {
+        followedUp = true;
+      },
+      publish: (result) => {
+        if (state.projectIsRepo !== result.projectIsRepo) {
+          state.projectIsRepo = result.projectIsRepo;
+        }
+        state.readErrors = result.errors ?? [];
+        state.readsStale = result.stale ?? false;
+        setProjectRepos(state, result.repos);
+        for (const repo of result.repos)
+          ensureGitRepoState(project.id, repo.relativePath);
+
+        const stored = storedRepo(project.id);
+        const currentExists = result.repos.some(
+          (repo) => repo.relativePath === state.selectedRepo,
+        );
+        const fallback = result.repos[0]?.relativePath ?? ".";
+        let nextSelectedRepo = state.selectedRepo;
+        if (
+          stored &&
+          result.repos.some((repo) => repo.relativePath === stored)
+        ) {
+          nextSelectedRepo = stored;
+        } else if (!currentExists) {
+          nextSelectedRepo = fallback;
+        }
+        if (state.selectedRepo !== nextSelectedRepo) {
+          state.selectedRepo = nextSelectedRepo;
+        }
+
+        if (!state.loaded) {
+          state.loaded = true;
+        }
+        state.loadedAt = result.stale ? undefined : Date.now();
+        applyGitContextFromProject(project.id);
+      },
     });
-    if (state.discoveryRequest.sequence !== requestSeq) return;
+    if (!result) return;
 
-    if (state.projectIsRepo !== result.projectIsRepo) {
-      state.projectIsRepo = result.projectIsRepo;
-    }
-    state.readErrors = result.errors ?? [];
-    state.readsStale = result.stale ?? false;
-    setProjectRepos(state, result.repos);
-    for (const repo of result.repos)
-      ensureGitRepoState(project.id, repo.relativePath);
-
-    const stored = storedRepo(project.id);
-    const currentExists = result.repos.some(
-      (repo) => repo.relativePath === state.selectedRepo,
-    );
-    const fallback = result.repos[0]?.relativePath ?? ".";
-    let nextSelectedRepo = state.selectedRepo;
-    if (stored && result.repos.some((repo) => repo.relativePath === stored)) {
-      nextSelectedRepo = stored;
-    } else if (!currentExists) {
-      nextSelectedRepo = fallback;
-    }
-    if (state.selectedRepo !== nextSelectedRepo) {
-      state.selectedRepo = nextSelectedRepo;
-    }
-
-    if (!state.loaded) {
-      state.loaded = true;
-    }
-    state.loadedAt = result.stale ? undefined : Date.now();
-    applyGitContextFromProject(project.id);
-
-    if (result.repos.length > 0 && state.discoveryRequest.loadsDetails) {
+    if (
+      result.repos.length > 0 &&
+      state.discoveryRequest.loadsDetails &&
+      selection.projectId === project.id
+    ) {
       const repoState = ensureGitRepoState(project.id, state.selectedRepo);
       const refreshOptions = repoState.loaded
         ? { silent: true, onlyIfChanged: true }
@@ -249,31 +291,28 @@ export async function refreshGitProject(
       ]);
     }
   } catch (error) {
-    if (state.discoveryRequest.sequence !== requestSeq) return;
+    if (!isCurrent()) return;
     state.discoverError = errorMessage(error);
     if (options.criticalErrorTitle)
       showCriticalError(options.criticalErrorTitle, state.discoverError);
     if (!state.loaded) setProjectRepos(state, []);
   } finally {
-    if (state.discoveryRequest.sequence === requestSeq) {
+    if (isCurrent()) {
       state.loadingRepos = false;
       state.refreshingRepos = false;
       state.discoveryRequest.inFlight = false;
       state.discoveryRequest.loadsDetails = false;
-      if (state.discoveryRequest.refreshQueued) {
-        const loadDetails = state.discoveryRequest.queuedLoadsDetails;
-        state.discoveryRequest.refreshQueued = false;
-        state.discoveryRequest.queuedLoadsDetails = false;
+      const loadDetails = state.discoveryRequest.queuedLoadsDetails;
+      state.discoveryRequest.queuedLoadsDetails = false;
+      const queued = takeGitReadQueuedRefresh(
+        state.discoveryRequest,
+        followedUp,
+        hasGitReadDemand(project.id, options.silent),
+      );
+      if (queued)
         queueMicrotask(
-          () =>
-            void refreshGitProject(project, {
-              force: false,
-              silent: true,
-              onlyIfChanged: true,
-              loadDetails,
-            }),
+          () => void refreshGitProject(project, { ...queued, loadDetails }),
         );
-      }
     }
   }
 }
@@ -284,7 +323,7 @@ export async function refreshGitOverview(
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  if (joinGitOverviewRefresh(state.overviewRequest, options)) return;
+  if (joinGitReadRefresh(state.overviewRequest, options)) return;
   automaticRefreshScheduler.noteDirectStart(
     automaticRefreshKey(projectId, repo),
     { overview: true },
@@ -293,53 +332,63 @@ export async function refreshGitOverview(
   state.overviewRequest.sequence = requestSeq;
   state.overviewRequest.inFlight = true;
   if (!options.silent) state.loadingOverview = true;
-  const invalidation = state.overviewRequest.invalidation ?? 0;
+  const freshness = createGitOverviewReadGuard(
+    state.overviewRequest,
+    state.overviewInvalidated,
+  );
+  let followedUp = false;
+  const isCurrent = () =>
+    state.overviewRequest.sequence === requestSeq &&
+    gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+      gitRepoStateKey(repo)
+    ] === state;
   try {
-    if (options.force || options.uncertain)
-      await queryClient.invalidateQueries(
-        {
-          queryKey: queryKeys.git.overview(projectId, repo),
-          refetchType: "none",
-        },
-        { cancelRefetch: !options.uncertain },
-      );
-    const next = await queryClient.fetchQuery({
+    await refreshGitRead({
+      client: queryClient,
       queryKey: queryKeys.git.overview(projectId, repo),
-      queryFn: () => getGitOverview(projectId, repo),
       staleTime: GIT_STALE_MS,
+      invalidate: gitOverviewReadInvalidation(
+        options,
+        state.overviewInvalidated,
+      ),
+      read: () => {
+        freshness.begin();
+        return getGitOverview(projectId, repo);
+      },
+      isCurrent,
+      hasDemand: () => hasGitReadDemand(projectId, options.silent, repo),
+      isStale: () => state.overviewInvalidated,
+      canFollowup: () => consumeGitReadSoftDemand(state.overviewRequest),
+      onFollowup: () => {
+        followedUp = true;
+        freshness.expectRead();
+      },
+      publish: (next) => {
+        mergeRepoSummary(projectId, next.repo);
+        patchGitOverviewState(state, next);
+        state.overviewInvalidated = freshness.isStale(next);
+        if (state.overviewInvalidated) state.loadedAt = undefined;
+        else state.overviewRequest.uncertainInvalidation = undefined;
+      },
     });
-    if (state.overviewRequest.sequence !== requestSeq) return;
-    mergeRepoSummary(projectId, next.repo);
-    patchGitOverviewState(state, next);
-    state.overviewInvalidated =
-      Boolean(next.stale) ||
-      (state.overviewRequest.invalidation ?? 0) !== invalidation;
-    if (state.overviewInvalidated) state.loadedAt = undefined;
-    else state.overviewRequest.uncertainInvalidation = undefined;
   } catch (error) {
+    if (!isCurrent()) return;
     state.overviewInvalidated = true;
     const details = errorMessage(error);
     if (options.criticalErrorTitle)
       showCriticalError(options.criticalErrorTitle, details);
     else if (!options.silent) notify.error(`Git overview failed: ${details}`);
   } finally {
-    if (state.overviewRequest.sequence === requestSeq) {
+    if (isCurrent()) {
       if (!options.silent) state.loadingOverview = false;
       state.overviewRequest.inFlight = false;
-      if (state.overviewRequest.refreshQueued) {
-        const uncertain = state.overviewRequest.queuedUncertain ?? false;
-        state.overviewRequest.refreshQueued = false;
-        state.overviewRequest.queuedUncertain = undefined;
-        queueMicrotask(
-          () =>
-            void refreshGitOverview(projectId, repo, {
-              silent: true,
-              force: !uncertain,
-              uncertain,
-              onlyIfChanged: true,
-            }),
-        );
-      }
+      const queued = takeGitReadQueuedRefresh(
+        state.overviewRequest,
+        followedUp,
+        hasGitReadDemand(projectId, options.silent, repo),
+      );
+      if (queued)
+        queueMicrotask(() => void refreshGitOverview(projectId, repo, queued));
     }
   }
 }

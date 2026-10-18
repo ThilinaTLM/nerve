@@ -29,7 +29,7 @@ let { model }: { model: GitPanelModel } = $props();
   </PanelBanner>
 {:else if model.stale}
   <PanelBanner tone="warning" icon={TriangleAlert}>
-    Git data may be stale. Revalidation is pending.
+    Git data may be stale. Refresh to revalidate.
   </PanelBanner>
 {:else if model.initialLoading}
   <PanelBanner tone="neutral">Loading Git repositories…</PanelBanner>
