@@ -2,11 +2,11 @@ import type {
   GitBranchListResponse,
   GitBranchSummary,
 } from "@nervekit/contracts/git";
-import type { GitReadSnapshot } from "./read/types.js";
+import type { GitReadSnapshot, GitReadMetadataSnapshot } from "./read/types.js";
 
 export interface GitBranchServicePort {
   resolveRepoDir(projectId: string, relativePath: string): string;
-  readSnapshot(repoDir: string): Promise<GitReadSnapshot>;
+  readMetadataSnapshot(repoDir: string): Promise<GitReadMetadataSnapshot>;
   comparisonBaseRef(repoDir: string, baseBranch: string): Promise<string>;
   mergedToBaseRef(
     repoDir: string,
@@ -33,7 +33,7 @@ export async function listBranches(
   relativePath: string,
 ): Promise<GitBranchListResponse> {
   const repoDir = service.resolveRepoDir(projectId, relativePath);
-  const snapshot = await service.readSnapshot(repoDir);
+  const snapshot = await service.readMetadataSnapshot(repoDir);
   const branches = snapshot.refs
     .map((ref): GitBranchSummary | null => {
       const localPrefix = "refs/heads/";
@@ -64,7 +64,9 @@ export async function listBranches(
   return { branches };
 }
 
-export function refSnapshotFromRead(snapshot: GitReadSnapshot): GitRefSnapshot {
+export function refSnapshotFromRead(
+  snapshot: Pick<GitReadSnapshot, "refs" | "branch">,
+): GitRefSnapshot {
   const refs = new Set<string>();
   let originHead: string | undefined;
   for (const ref of snapshot.refs) {
@@ -87,8 +89,14 @@ export async function readRefSnapshot(
   repoDir: string,
 ): Promise<GitRefSnapshot> {
   try {
-    return refSnapshotFromRead(await service.readSnapshot(repoDir));
-  } catch {
+    return refSnapshotFromRead(await service.readMetadataSnapshot(repoDir));
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" ||
+        ("category" in error && error.category === "cancelled"))
+    )
+      throw error;
     return { refs: new Set() };
   }
 }

@@ -1,10 +1,6 @@
 <script lang="ts">
 import type { GithubPrMergeMethod } from "@nervekit/contracts/git";
-import {
-  checkoutGithubPr,
-  mergeGithubPr,
-  switchBaseAndPullGit,
-} from "$lib/api";
+import { startGitOperation, mergeGithubPr } from "$lib/api";
 import { GitHubPrPane, type PrMergeFollowUp } from "$lib/features/git/views";
 import { invalidateGit } from "$lib/features/git/state/git-context.svelte";
 import {
@@ -32,6 +28,9 @@ import {
   showCriticalError,
 } from "$lib/application/notifications/critical-errors.svelte";
 import { notify } from "$lib/application/notifications/notify.svelte";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { observeGitOperationStart } from "$lib/features/git/state/git-operation-tracking";
+import { queueMergedPrFollowUp } from "$lib/features/git/state/pr-merge-follow-up";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
 const activeFileDiff = $derived(selectedPrFileDiffResource(activeCenterPrView));
@@ -57,9 +56,15 @@ async function checkoutActivePr() {
   const view = activeCenterPrView;
   if (!view) return;
   try {
-    await checkoutGithubPr(view.projectId, view.repo, view.number);
-    invalidateGit(view.projectId);
-    void refreshPrPane(view.id);
+    const input = {
+      projectId: view.projectId,
+      repo: view.repo,
+      kind: "checkout" as const,
+      number: view.number,
+    };
+    const { operationId } = await startGitOperation(input);
+    observeGitOperationStart(activityInbox, input, operationId);
+    // Repository events refresh state after actual success; Activity owns progress/cancel.
   } catch (caught) {
     showCriticalError("Could not check out pull request", errorDetails(caught));
   }
@@ -100,24 +105,33 @@ async function mergeActivePr(
       );
     }
 
-    let updatedLocalBranch = false;
+    let localUpdateQueued = false;
     if (followUp === "switch-base-and-pull") {
       try {
-        await switchBaseAndPullGit(view.projectId, view.repo, core.baseRefName);
-        updatedLocalBranch = true;
+        await queueMergedPrFollowUp(
+          {
+            projectId: view.projectId,
+            repo: view.repo,
+            number: view.number,
+            baseBranch: core.baseRefName,
+          },
+          {
+            start: startGitOperation,
+            activities: activityInbox,
+            notify: (message) => notify.success(message),
+          },
+        );
+        localUpdateQueued = true;
       } catch (caught) {
         showCriticalError(
-          "Pull request merged, but the local branch could not update",
+          "Pull request merged, but the local branch update could not start",
           errorDetails(caught),
         );
       }
     }
 
-    notify.success(
-      updatedLocalBranch
-        ? `Merged pull request #${view.number} and updated ${core.baseRefName}`
-        : `Merged pull request #${view.number}`,
-    );
+    if (!localUpdateQueued)
+      notify.success(`Merged pull request #${view.number}`);
     invalidateGit(view.projectId);
     try {
       await Promise.all([

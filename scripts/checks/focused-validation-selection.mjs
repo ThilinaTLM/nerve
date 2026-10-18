@@ -27,6 +27,12 @@ const lintExtensions = new Set(
 );
 const typescriptCheck =
   /^tsc -b(?: --pretty false)?(?: && pnpm check:native)?$/;
+const nativeTypescriptCheck =
+  /^(?:pnpm check:boundaries && )?tsc -b(?: --pretty false)?(?: && pnpm check:native)?$/;
+const hasTypescriptCheck = (name, scripts) =>
+  (name === "@nervekit/native" ? nativeTypescriptCheck : typescriptCheck).test(
+    scripts.check ?? "",
+  );
 const sorted = (values) => [...new Set(values)].sort();
 const step = (stage, args, reason) => ({
   stage,
@@ -118,7 +124,7 @@ function emittedProjects(root, names, workspace) {
   const projects = [];
   for (const name of sorted(names)) {
     const pkg = workspace.get(name);
-    if (typescriptCheck.test(pkg.scripts.check ?? "")) {
+    if (hasTypescriptCheck(name, pkg.scripts)) {
       const config = ts.readConfigFile(
         resolve(root, pkg.directory, "tsconfig.json"),
         ts.sys.readFile,
@@ -382,6 +388,31 @@ export function selectFocusedValidation(
         step("migrations", ["migrations:check"], "global migration integrity"),
       );
     }
+    // The native package check is split into declaration preparation, a source
+    // boundary policy, and Rust validation. Selecting one must not imply Cargo.
+    if (
+      packages.includes("@nervekit/native") ||
+      stages.native.scope !== "none"
+    ) {
+      const scripts =
+        workspace?.get("@nervekit/native")?.scripts ??
+        JSON.parse(
+          readFileSync(resolve(root, "packages/native/package.json"), "utf8"),
+        ).scripts;
+      if (
+        scripts.check?.startsWith("pnpm check:boundaries && ") &&
+        typeof scripts["check:boundaries"] !== "string"
+      )
+        throw new Error("No native check:boundaries script available");
+      if (typeof scripts["check:boundaries"] === "string")
+        commands.push(
+          step(
+            "policies",
+            ["--filter", "@nervekit/native", "run", "check:boundaries"],
+            "check native internal source dependencies independently of Rust",
+          ),
+        );
+    }
     for (const name of packages) {
       if (typeof workspace.get(name).scripts.check !== "string")
         throw new Error(`No package check available for ${name}`);
@@ -405,7 +436,10 @@ export function selectFocusedValidation(
       );
     if (
       packages.includes("@nervekit/native") &&
-      !typescriptCheck.test(workspace.get("@nervekit/native").scripts.check)
+      !hasTypescriptCheck(
+        "@nervekit/native",
+        workspace.get("@nervekit/native").scripts,
+      )
     )
       throw new Error(
         "Unsupported native package check; cannot separate TypeScript from Rust",

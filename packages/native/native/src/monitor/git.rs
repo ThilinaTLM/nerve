@@ -1,14 +1,20 @@
-use std::collections::hash_map::DefaultHasher;
 use std::fs;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-use crate::git::{SnapshotOptions, read_repository_info, read_snapshot};
+/// Read-only Git operations supplied by the package composition boundary.
+/// Function pointers keep the port stateless, matching the existing free functions.
+#[derive(Clone, Copy)]
+pub struct GitReadPort {
+    pub directory: fn(&Path) -> Result<PathBuf, String>,
+    pub fingerprint: fn(&Path) -> Result<u64, String>,
+}
 
-pub(crate) fn watch_paths(repository: &Path, maximum: usize) -> Result<Vec<PathBuf>, String> {
-    let repository_text = repository.to_string_lossy();
-    let info = read_repository_info(&repository_text).map_err(|error| error.to_string())?;
-    let git_dir = PathBuf::from(info.git_dir);
+pub(crate) fn watch_paths(
+    repository: &Path,
+    maximum: usize,
+    reads: GitReadPort,
+) -> Result<Vec<PathBuf>, String> {
+    let git_dir = (reads.directory)(repository)?;
     let common_dir = common_git_dir(&git_dir).unwrap_or_else(|| git_dir.clone());
     let candidates = [
         repository.to_path_buf(),
@@ -35,20 +41,6 @@ pub(crate) fn watch_paths(repository: &Path, maximum: usize) -> Result<Vec<PathB
     Ok(result)
 }
 
-pub(crate) fn fingerprint(repository: &Path) -> Result<u64, String> {
-    let snapshot = read_snapshot(
-        &repository.to_string_lossy(),
-        SnapshotOptions {
-            include_ignored: false,
-            ..SnapshotOptions::default()
-        },
-    )
-    .map_err(|error| error.to_string())?;
-    let mut hasher = DefaultHasher::new();
-    format!("{snapshot:?}").hash(&mut hasher);
-    Ok(hasher.finish())
-}
-
 fn common_git_dir(git_dir: &Path) -> Option<PathBuf> {
     let value = fs::read_to_string(git_dir.join("commondir")).ok()?;
     let path = PathBuf::from(value.trim());
@@ -64,9 +56,47 @@ fn common_git_dir(git_dir: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn watch_plan_never_names_objects() {
-        let paths = [".git", ".git/refs", ".git/logs"];
-        assert!(paths.iter().all(|path| !path.contains("objects")));
+    fn watch_plan_uses_injected_directory_and_preserves_errors() {
+        let reads = GitReadPort {
+            directory: |_| Err("synthetic read error".into()),
+            fingerprint: |_| Ok(42),
+        };
+        assert_eq!(
+            watch_paths(Path::new("synthetic"), 16, reads),
+            Err("synthetic read error".into())
+        );
+    }
+
+    #[test]
+    fn watch_plan_bounds_paths_and_omits_objects_with_injected_reads() {
+        let root = std::env::temp_dir().join(format!(
+            "nerve-monitor-port-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(root.join(".git/refs/heads")).unwrap();
+        fs::create_dir_all(root.join(".git/objects")).unwrap();
+        let reads = GitReadPort {
+            directory: |repository| Ok(repository.join(".git")),
+            fingerprint: |_| Ok(42),
+        };
+        let paths = watch_paths(&root, 16, reads).unwrap();
+        assert_eq!(
+            paths,
+            vec![
+                root.clone(),
+                root.join(".git"),
+                root.join(".git/refs"),
+                root.join(".git/refs/heads")
+            ]
+        );
+        assert_eq!(watch_paths(&root, 2, reads).unwrap(), paths[..2]);
+        fs::remove_dir_all(root).unwrap();
     }
 }

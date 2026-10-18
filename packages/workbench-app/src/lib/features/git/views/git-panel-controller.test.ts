@@ -8,6 +8,7 @@ import type {
 } from "@nervekit/contracts/git";
 import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
 import {
+  createGitPanelActions,
   canDeleteBranch,
   gitChangeTreeFolderKey,
   gitRepoChipSplit,
@@ -18,6 +19,58 @@ import {
   isPlausibleBranchName,
   shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
+
+import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
+
+void test("bulk and cancellation actions preserve capabilities and tracked-ID policy", () => {
+  let enabled = false;
+  let basePullEnabled = false;
+  const calls: string[] = [];
+  const model = {
+    availability: { available: true },
+    capabilities: {
+      remote: {
+        "switch-base-and-pull": {
+          get enabled() {
+            return basePullEnabled;
+          },
+        },
+        fetch: {
+          get enabled() {
+            return enabled;
+          },
+        },
+      },
+    },
+    activeOperations: [
+      { id: "running", actions: { cancel: true } },
+      { id: "finished", actions: { cancel: false } },
+    ],
+  } as unknown as GitPanelModel;
+  const host = {
+    runBulkRemoteOperation: (kind: string) => {
+      calls.push(kind);
+    },
+    cancelOperation: (id: string) => {
+      calls.push(id);
+    },
+  } as unknown as GitPanelActions;
+  const actions = createGitPanelActions(() => model, host);
+  void actions.runBulkRemoteOperation?.("fetch");
+  assert.deepEqual(calls, []);
+  enabled = true;
+  void actions.runBulkRemoteOperation?.("fetch");
+  void actions.cancelOperation?.("missing");
+  void actions.cancelOperation?.("finished");
+  void actions.cancelOperation?.("running");
+  assert.deepEqual(calls, ["fetch", "running"]);
+  // Bulk base switching follows its own mutation capability, not fetch/pull.
+  void actions.runBulkRemoteOperation?.("switch-base-and-pull");
+  assert.deepEqual(calls, ["fetch", "running"]);
+  basePullEnabled = true;
+  void actions.runBulkRemoteOperation?.("switch-base-and-pull");
+  assert.deepEqual(calls, ["fetch", "running", "switch-base-and-pull"]);
+});
 
 function change(
   path: string,
@@ -310,4 +363,30 @@ test("allows deleting only local branches that are not current or the base", () 
   assert.equal(canDeleteBranch({ ...branch, remote: true }, "main"), false);
   assert.equal(canDeleteBranch({ ...branch, current: true }, "main"), false);
   assert.equal(canDeleteBranch({ ...branch, name: "main" }, "main"), false);
+});
+
+void test("stash reads require an available project and stash capability", async () => {
+  let available = true;
+  let enabled = false;
+  const calls: string[] = [];
+  const model = () =>
+    ({
+      availability: { available },
+      capabilities: { stashes: { enabled } },
+    }) as unknown as GitPanelModel;
+  const host = {
+    loadStashes: async (repository: string) => {
+      calls.push(repository);
+      return [];
+    },
+  } as unknown as GitPanelActions;
+  const actions = createGitPanelActions(model, host);
+  assert.equal(await actions.loadStashes("other"), undefined);
+  assert.deepEqual(calls, []);
+  enabled = true;
+  assert.deepEqual(await actions.loadStashes("other"), []);
+  assert.deepEqual(calls, ["other"]);
+  available = false;
+  assert.equal(await actions.loadStashes("other"), undefined);
+  assert.deepEqual(calls, ["other"]);
 });

@@ -2,9 +2,32 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   listBranches,
+  readRefSnapshot,
   type GitBranchServicePort,
 } from "../../src/git/git-branches.js";
+import { NativeOperationError } from "@nervekit/native";
 import type { GitReadSnapshot } from "../../src/git/read/types.js";
+
+void test("cancelled metadata never becomes an apparently empty reference snapshot", async () => {
+  for (const failure of [
+    new DOMException("cancelled", "AbortError"),
+    new NativeOperationError({
+      category: "cancelled",
+      retryable: false,
+      message: "cancelled",
+    }),
+  ]) {
+    const service = {
+      readMetadataSnapshot: async () => {
+        throw failure;
+      },
+    } as unknown as GitBranchServicePort;
+    await assert.rejects(
+      readRefSnapshot(service, "/repo"),
+      (error: unknown) => error === failure,
+    );
+  }
+});
 
 function snapshot(): GitReadSnapshot {
   return {
@@ -40,7 +63,7 @@ function snapshot(): GitReadSnapshot {
 test("lists local and remote branches with nullable tip activity", async () => {
   const service = {
     resolveRepoDir: () => "/repo",
-    readSnapshot: async () => snapshot(),
+    readMetadataSnapshot: async () => snapshot(),
   } as unknown as GitBranchServicePort;
 
   const result = await listBranches(service, "proj_test", ".");

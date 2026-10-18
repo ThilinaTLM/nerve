@@ -1,5 +1,10 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
+import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
+import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import Circle from "@lucide/svelte/icons/circle";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Settings2 from "@lucide/svelte/icons/settings-2";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
@@ -13,7 +18,11 @@ import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { SvelteSet } from "svelte/reactivity";
 import GitBranchDialog from "./GitBranchDialog.svelte";
 import GitBranchPopover from "./GitBranchPopover.svelte";
-import { repoButtonLabel, repoPathLabel } from "./git-change-format";
+import {
+  repoButtonLabel,
+  repoButtonLabels,
+  repoPathLabel,
+} from "./git-change-format";
 import {
   gitRepoChipSplit,
   groupBranchesForDialog,
@@ -22,13 +31,24 @@ import {
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 
 type Props = {
+  rowActions?: Snippet<[GitRepoSummary]>;
+  contextItems?: Snippet<[GitRepoSummary]>;
   model: GitPanelModel;
   actions: GitPanelActions;
+  /** Git Changes uses a stable vertical list; other callers retain chips. */
+  layout?: "chips" | "list";
   /** Per-repository badge shown on each chip, e.g. change or PR counts. */
   chipCount?: (repo: GitRepoSummary) => number | undefined;
 };
 
-let { model, actions, chipCount }: Props = $props();
+let {
+  model,
+  actions,
+  chipCount,
+  rowActions,
+  contextItems,
+  layout = "chips",
+}: Props = $props();
 
 /* Chips stay on at most a couple of rows: beyond this many repositories the
  * rest move into an overflow popover so the switcher height stays constant. */
@@ -45,6 +65,7 @@ let newBranchName = $state("");
 const branchesRequested = new SvelteSet<string>();
 
 const repos = $derived([...model.repositories]);
+const listLabels = $derived(repoButtonLabels(repos, { maxLength: 14 }));
 const selectedRepo = $derived(model.selectedRepository);
 const repoSummary = $derived(model.repositorySummary);
 const selectEnabled = $derived(
@@ -152,7 +173,71 @@ async function createBranch(repository: string): Promise<void> {
 <!-- The panel shell owns horizontal padding, so chips line up with the
      toolbar buttons below them. -->
 <div class="flex shrink-0 flex-col gap-1 pt-1.5">
-  {#if repos.length > 1}
+  {#if layout === "list"}
+    <div class="flex flex-col gap-0.5" role="group" aria-label="Repositories">
+      {#each repos as repo (repo.relativePath)}
+        {@const selected = repo.relativePath === selectedRepo}
+        {@const count = chipCount?.(repo)}
+        <ContextMenu.Root>
+          <ContextMenu.Trigger disabled={!contextItems} class="block min-w-0">
+            <div
+              class={selected
+                ? "flex min-w-0 items-center gap-1 rounded-md bg-selected"
+                : "flex min-w-0 items-center gap-1 rounded-md"}
+            >
+              <Tooltip.Root>
+                <Tooltip.Trigger>
+                  {#snippet child({ props })}
+                    <Button
+                      {...props}
+                      variant="ghost"
+                      size="sm"
+                      aria-pressed={selected}
+                      aria-label={`Select repository ${repo.name}`}
+                      disabled={!model.capabilities.selectRepository.enabled}
+                      class="min-w-0 flex-1 justify-start gap-1 font-normal hover:bg-transparent"
+                      onkeydown={(event) => {
+                        if (event.key === "Enter" || event.key === " ")
+                          event.stopPropagation();
+                        if (typeof props.onkeydown === "function")
+                          props.onkeydown(event);
+                      }}
+                      onclick={() => selectRepository(repo.relativePath)}
+                    >
+                      {#if selected}<CircleCheck
+                          class="size-3.5 shrink-0"
+                          aria-hidden="true"
+                        />{:else}<Circle
+                          class="size-3.5 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />{/if}
+                      <span class="whitespace-nowrap"
+                        >{listLabels.get(repo.relativePath)}</span
+                      >
+                    </Button>
+                  {/snippet}
+                </Tooltip.Trigger>
+                <Tooltip.Content>
+                  <div class="min-w-0 space-y-1">
+                    <p class="break-all font-medium">{repo.name}</p>
+                    <p class="break-all font-mono text-xs">{repo.absDir}</p>
+                  </div>
+                </Tooltip.Content>
+              </Tooltip.Root>
+              {#if rowActions}{@render rowActions(repo)}{/if}
+              {#if count !== undefined}<span
+                  class="flex w-control-sm shrink-0 items-center justify-center text-xs text-muted-foreground tabular-nums"
+                  >{count}</span
+                >{/if}
+            </div>
+          </ContextMenu.Trigger>
+          {#if contextItems}<ContextMenu.Content
+              >{@render contextItems(repo)}</ContextMenu.Content
+            >{/if}
+        </ContextMenu.Root>
+      {/each}
+    </div>
+  {:else if repos.length > 1}
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       <ToggleGroup.Root
         type="single"

@@ -6,6 +6,11 @@ import type {
 import type {
   NativeGitDocumentSource,
   NativeGitFileDiff,
+  NativeGitDiscovery,
+  NativeGitProjectRepository,
+  NativeGitProjectRepositoryResult,
+  NativeGitStatusCounts,
+  NativeGitMetadataSnapshotOptions,
 } from "@nervekit/native";
 
 export interface GitReadRef {
@@ -38,8 +43,36 @@ export interface GitReadSnapshot {
   stashes: GitStashEntry[];
 }
 
+export type GitReadMetadataSnapshot = Omit<GitReadSnapshot, "files">;
+export type GitReadMetadataOptions = NativeGitMetadataSnapshotOptions;
+
+export type GitReadProjectRepository = NativeGitProjectRepository;
+export type GitReadDiscovery = NativeGitDiscovery;
+export type GitReadProjectSnapshot = Pick<
+  GitReadSnapshot,
+  "headOid" | "branch" | "files"
+> & { counts: NativeGitStatusCounts; inProgress: string[] };
+export type GitReadProjectResult = Omit<
+  NativeGitProjectRepositoryResult,
+  "snapshot"
+> & { snapshot?: GitReadProjectSnapshot };
+
 export interface GitReadBackend {
+  close(): Promise<void>;
+  discoverProject(
+    root: string,
+    signal?: AbortSignal,
+  ): Promise<GitReadDiscovery>;
+  projectSnapshots(
+    repositories: GitReadProjectRepository[],
+    includeIgnored?: boolean,
+    signal?: AbortSignal,
+  ): Promise<GitReadProjectResult[]>;
   isRepository(repoDir: string): Promise<boolean>;
+  metadata(
+    repoDir: string,
+    options?: GitReadMetadataOptions,
+  ): Promise<GitReadMetadataSnapshot>;
   snapshot(repoDir: string, includeIgnored?: boolean): Promise<GitReadSnapshot>;
   isAncestor(
     repoDir: string,

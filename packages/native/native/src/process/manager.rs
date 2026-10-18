@@ -7,12 +7,12 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 
-use crate::platform::process::{self as sys_process, ContainmentGuard};
+use crate::core::runtime;
+use crate::process::platform::{self as sys_process, ContainmentGuard};
 use crate::process::{
     ActivePermit, EnforcementEntry, ExitReason, IngestResult, ManagedTarget, OutputDrain,
     OutputQueue, OutputStream, ResourcePolicy, TerminationMethod, TerminationResult,
 };
-use crate::runtime;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SpawnOptions {

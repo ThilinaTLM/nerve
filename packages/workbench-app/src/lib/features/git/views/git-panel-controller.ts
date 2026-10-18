@@ -252,6 +252,18 @@ export function createGitPanelActions(
     available() && model().capabilities.remote[operation].enabled;
 
   return {
+    runBulkRemoteOperation: (kind) => {
+      if (enabled(kind)) return host.runBulkRemoteOperation?.(kind);
+    },
+    cancelOperation: (operationId) => {
+      if (
+        available() &&
+        model().activeOperations?.some(
+          (activity) => activity.id === operationId && activity.actions.cancel,
+        )
+      )
+        return host.cancelOperation?.(operationId);
+    },
     refreshAll: () => {
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshAll();
@@ -259,6 +271,11 @@ export function createGitPanelActions(
     refreshRepository: (repository) => {
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshRepository(repository);
+    },
+    loadStashes: (repository) => {
+      if (available() && model().capabilities.stashes.enabled)
+        return host.loadStashes(repository);
+      return Promise.resolve(undefined);
     },
     refreshBranches: (repository) => {
       if (available() && model().capabilities.refresh.enabled)

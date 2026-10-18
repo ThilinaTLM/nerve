@@ -1,3 +1,4 @@
+import type { Activity } from "@nervekit/contracts/activity";
 import type { GitPrFilterConfig } from "../pr-filters";
 import type {
   GitBranchSummary,
@@ -7,6 +8,7 @@ import type {
   GithubPrHeadsResponse,
   GithubStatusResponse,
   GitRepoSummary,
+  GitProjectReadError,
   GitStashArea,
   GitStashEntry,
 } from "@nervekit/contracts/git";
@@ -86,6 +88,7 @@ export interface GitRepoBranchState {
 }
 
 export interface GitPanelModel {
+  readonly activeOperations?: readonly Activity[];
   readonly availability:
     | { readonly available: true }
     | { readonly available: false; readonly message: string };
@@ -104,6 +107,8 @@ export interface GitPanelModel {
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
   readonly cachedError?: string;
+  readonly readErrors?: readonly GitProjectReadError[];
+  readonly stale?: boolean;
   readonly refreshing: boolean;
   readonly loadingOverview: boolean;
   readonly loadingBranches: boolean;
@@ -117,8 +122,15 @@ export interface GitPanelModel {
 }
 
 export interface GitPanelActions {
+  readonly runBulkRemoteOperation?: (
+    kind: "fetch" | "pull" | "switch-base-and-pull",
+  ) => void | Promise<void>;
+  readonly cancelOperation?: (operationId: string) => void | Promise<void>;
   readonly refreshAll: () => void | Promise<void>;
   readonly refreshRepository: (repository: string) => void | Promise<void>;
+  readonly loadStashes: (
+    repository: string,
+  ) => Promise<readonly GitStashEntry[] | undefined>;
   readonly refreshBranches: (repository: string) => void | Promise<void>;
   readonly refreshPrHeads: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;

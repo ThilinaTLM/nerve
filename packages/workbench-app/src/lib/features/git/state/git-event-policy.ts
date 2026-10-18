@@ -10,12 +10,15 @@ const PR_RELEVANT_REASONS = new Set([
   "remote.pulled",
   "remote.pushed",
   "github.pr.checked_out",
+  "github.pr.merged",
+  "repository.cloned",
 ]);
 
 export type GitEventRefreshRequest = {
   projectId: string;
   repo: string;
   demand: GitAutoRefreshDemand;
+  refreshDiscovery?: boolean;
 };
 
 export function gitEventRefreshRequest(
@@ -26,13 +29,23 @@ export function gitEventRefreshRequest(
   if (!projectId?.startsWith("proj_") || !repo) return undefined;
 
   if (event.type === "git.repository.invalidated") {
-    return { projectId, repo, demand: { overview: true } };
+    return {
+      projectId,
+      repo,
+      demand: {
+        overview: true,
+        ...(event.data?.refreshCause === "uncertain_poll"
+          ? { uncertain: true }
+          : {}),
+      },
+    };
   }
   if (event.type !== "git.repository.changed") return undefined;
   const reason = stringValue(event.data?.reason);
   return {
     projectId,
     repo,
+    ...(reason === "repository.cloned" ? { refreshDiscovery: true } : {}),
     demand: {
       overview: true,
       ...(reason && PR_RELEVANT_REASONS.has(reason) ? { prs: true } : {}),

@@ -169,6 +169,7 @@ function submit(): void {
         disabled={editorDisabled}
         {placeholder}
         slashCompletions={model.slashCompletions}
+        completionSource={model.completionSource}
         fileCompletions={model.fileCompletions}
         referenceCompletions={model.referenceCompletions}
         focusToken={model.focusToken ?? 0}

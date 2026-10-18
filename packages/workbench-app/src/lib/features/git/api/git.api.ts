@@ -3,7 +3,6 @@ import type {
   GitDiffArea,
   GitDiscoveryResponse,
   GitFileDiffResponse,
-  GithubPrCheckoutResponse,
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
   GithubPrConversation,
@@ -20,6 +19,8 @@ import type {
   GithubPrOverview,
   GithubStatusResponse,
   GitMutationResponse,
+  GitOperationStartRequest,
+  GitOperationBulkStartRequest,
   GitOverviewResponse,
   GitProjectFileStatusResponse,
   GitStashArea,
@@ -27,12 +28,34 @@ import type {
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { workspaceMonitorDemand } from "$lib/application/monitoring/workspace-monitor-demand";
 
+export async function startGitOperation(input: GitOperationStartRequest) {
+  return requestWorkbench("git.operation.start", input);
+}
+export async function startBulkGitOperation(
+  input: GitOperationBulkStartRequest,
+) {
+  return requestWorkbench("git.operation.bulk.start", input);
+}
+export async function cancelGitOperation(operationId: string) {
+  return requestWorkbench("git.operation.cancel", { operationId });
+}
+
+// This bounds client waiting, not server work. Server read coalescing prevents
+// timeout retries from accumulating duplicate native/status/diff workflows.
+const GIT_READ_REQUEST_TIMEOUT_MS = 120_000;
+
 export async function discoverGitRepos(
   projectId: string,
+  refresh = false,
 ): Promise<GitDiscoveryResponse> {
-  return await requestWorkbench("git.repos.discover", {
-    projectId,
-  });
+  return await requestWorkbench(
+    "git.repos.discover",
+    {
+      projectId,
+      refresh,
+    },
+    { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
+  );
 }
 
 export function syncGitRepositoryMonitor(
@@ -62,16 +85,28 @@ export async function getGitOverview(
   projectId: string,
   repo: string,
 ): Promise<GitOverviewResponse> {
-  return await requestWorkbench("git.overview.get", {
-    projectId,
-    repo,
-  });
+  return await requestWorkbench(
+    "git.overview.get",
+    {
+      projectId,
+      repo,
+    },
+    { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
+  );
 }
 
 export async function getProjectGitFileStatus(
   projectId: string,
+  refresh = false,
 ): Promise<GitProjectFileStatusResponse> {
-  return await requestWorkbench("git.project.files.status.get", { projectId });
+  return await requestWorkbench(
+    "git.project.files.status.get",
+    {
+      projectId,
+      refresh,
+    },
+    { timeoutMs: GIT_READ_REQUEST_TIMEOUT_MS },
+  );
 }
 
 export async function listGitBranches(
@@ -117,46 +152,6 @@ export async function deleteGitBranch(
     projectId,
     repo,
     name,
-  });
-}
-
-export async function syncGitBranch(
-  projectId: string,
-  repo: string,
-): Promise<GitMutationResponse> {
-  return await requestWorkbench("git.sync", { projectId, repo });
-}
-
-export async function pushGit(
-  projectId: string,
-  repo: string,
-): Promise<GitMutationResponse> {
-  return await requestWorkbench("git.push", { projectId, repo });
-}
-
-export async function pullGit(
-  projectId: string,
-  repo: string,
-): Promise<GitMutationResponse> {
-  return await requestWorkbench("git.pull", { projectId, repo });
-}
-
-export async function fetchGit(
-  projectId: string,
-  repo: string,
-): Promise<GitMutationResponse> {
-  return await requestWorkbench("git.fetch", { projectId, repo });
-}
-
-export async function switchBaseAndPullGit(
-  projectId: string,
-  repo: string,
-  baseBranch?: string,
-): Promise<GitMutationResponse> {
-  return await requestWorkbench("git.switchBaseAndPull", {
-    projectId,
-    repo,
-    baseBranch,
   });
 }
 
@@ -396,17 +391,5 @@ export async function mergeGithubPr(
     number,
     method,
     expectedHeadOid,
-  });
-}
-
-export async function checkoutGithubPr(
-  projectId: string,
-  repo: string,
-  number: number,
-): Promise<GithubPrCheckoutResponse> {
-  return await requestWorkbench("github.pr.checkout", {
-    projectId,
-    repo,
-    number,
   });
 }

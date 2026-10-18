@@ -27,23 +27,16 @@ pub(crate) fn configure(max_active: usize) -> Result<(), String> {
     Ok(())
 }
 
-pub(crate) struct ActivePermit;
+pub(crate) struct ActivePermit {
+    _permit: crate::core::admission::ActivePermit<'static>,
+}
 
 impl ActivePermit {
     pub(crate) fn acquire() -> Result<Self, String> {
         STARTED.store(true, Ordering::Release);
         let maximum = MAX_ACTIVE.load(Ordering::Acquire);
-        let result = ACTIVE.fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-            (active < maximum).then_some(active + 1)
-        });
-        result
-            .map(|_| Self)
-            .map_err(|_| format!("Managed process capacity reached ({maximum} active processes)"))
-    }
-}
-
-impl Drop for ActivePermit {
-    fn drop(&mut self) {
-        ACTIVE.fetch_sub(1, Ordering::AcqRel);
+        crate::core::admission::ActivePermit::acquire(&ACTIVE, maximum)
+            .map(|permit| Self { _permit: permit })
+            .ok_or_else(|| format!("Managed process capacity reached ({maximum} active processes)"))
     }
 }

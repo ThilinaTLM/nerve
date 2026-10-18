@@ -32,6 +32,24 @@ export interface NativeChangeMonitorPort {
   close(): Promise<void>;
 }
 
+export interface WorkspaceRefreshOptions {
+  refreshCause?: "uncertain_poll";
+}
+
+/** A Git poll means a proven fingerprint change; directory polling does not. */
+export function workspaceRefreshCause(
+  kind: "git" | "directory",
+  causes: ChangeNotice["causes"],
+): WorkspaceRefreshOptions["refreshCause"] {
+  return causes.length > 0 &&
+    causes.every(
+      (cause) =>
+        cause === "poll_error" || (kind === "directory" && cause === "poll"),
+    )
+    ? "uncertain_poll"
+    : undefined;
+}
+
 type ProjectDemand = {
   projectId: string;
   projectDir: string;
@@ -69,8 +87,14 @@ export class WorkspaceMonitor {
     readonly publisher: WorkspaceMonitorPublisher,
     options: {
       monitor?: NativeChangeMonitorPort;
+      createMonitor?: (
+        onNotice: (notice: ChangeNotice) => void,
+      ) => NativeChangeMonitorPort;
       onWarning?: (message: string, error: unknown) => void;
-      onRepositoryChanged?: (repoDir: string) => void;
+      onRepositoryChanged?: (
+        repoDir: string,
+        options?: WorkspaceRefreshOptions,
+      ) => void;
     } = {},
   ) {
     this.options = options;
@@ -79,8 +103,14 @@ export class WorkspaceMonitor {
 
   readonly options: {
     monitor?: NativeChangeMonitorPort;
+    createMonitor?: (
+      onNotice: (notice: ChangeNotice) => void,
+    ) => NativeChangeMonitorPort;
     onWarning?: (message: string, error: unknown) => void;
-    onRepositoryChanged?: (repoDir: string) => void;
+    onRepositoryChanged?: (
+      repoDir: string,
+      options?: WorkspaceRefreshOptions,
+    ) => void;
   };
 
   syncProject(
@@ -334,7 +364,9 @@ export class WorkspaceMonitor {
 
   #native(): NativeChangeMonitorPort {
     this.#assertOpen();
-    this.#monitor ??= new ChangeMonitor((notice) => this.#onNotice(notice));
+    this.#monitor ??=
+      this.options.createMonitor?.((notice) => this.#onNotice(notice)) ??
+      new ChangeMonitor((notice) => this.#onNotice(notice));
     return this.#monitor;
   }
 
@@ -343,6 +375,7 @@ export class WorkspaceMonitor {
       (resource) => projectScopeId(resource.projectId) === notice.scopeId,
     );
     if (project) {
+      const refreshCause = workspaceRefreshCause("directory", notice.causes);
       const directories = notice.fullRefreshRequired
         ? []
         : changedDirectories(project.projectDir, notice.paths);
@@ -353,6 +386,7 @@ export class WorkspaceMonitor {
           generation: notice.generation,
           directories,
           fullRefreshRequired: notice.fullRefreshRequired,
+          ...(refreshCause ? { refreshCause } : {}),
         },
         "workspace monitor",
       );
@@ -364,7 +398,11 @@ export class WorkspaceMonitor {
     );
     if (!repository) return;
     try {
-      this.options.onRepositoryChanged?.(repository.repoDir);
+      const refreshCause = workspaceRefreshCause("git", notice.causes);
+      this.options.onRepositoryChanged?.(
+        repository.repoDir,
+        refreshCause ? { refreshCause } : undefined,
+      );
       this.publisher.publishBestEffort(
         "git.repository.invalidated",
         {
@@ -372,6 +410,7 @@ export class WorkspaceMonitor {
           repo: repository.repo,
           generation: notice.generation,
           fullRefreshRequired: notice.fullRefreshRequired,
+          ...(refreshCause ? { refreshCause } : {}),
         },
         "workspace monitor",
       );

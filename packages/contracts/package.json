@@ -137,6 +137,10 @@
     "./usage": {
       "types": "./dist/domains/usage/index.d.ts",
       "import": "./dist/domains/usage/index.js"
+    },
+    "./activity": {
+      "types": "./dist/domains/activity/index.d.ts",
+      "import": "./dist/domains/activity/index.js"
     }
   },
   "scripts": {

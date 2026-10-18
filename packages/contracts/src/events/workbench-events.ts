@@ -13,6 +13,8 @@ export function isWorkbenchEvent(type: string): boolean {
     "secrets.",
     "daemon.",
     "maintenance.",
+    "activity.",
+    "completion.",
     "usage.",
     "scratchNote.",
     "prompt_suggestions.",
@@ -24,6 +26,8 @@ export function isWorkbenchEvent(type: string): boolean {
 
 /** Operations owned by the IDE surface rather than conversation execution. */
 export function isWorkbenchOperation(method: string): boolean {
+  if (method === "completion.search" || method === "completion.select")
+    return true;
   if (method === "project.openEditor" || method === "project.openTerminal")
     return true;
   return [
@@ -43,6 +47,7 @@ export function isWorkbenchOperation(method: string): boolean {
     "providerCatalog.",
     "storage.",
     "maintenance.",
+    "activity.",
     "status.",
     "usage.",
     "applicationLog.",

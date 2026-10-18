@@ -4,6 +4,7 @@ import type {
   CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ComposerReferenceSource } from "../composer/composer-editor-completions.js";
 import type {
   ConversationAgentUsage,
   UserInputAnswer,
@@ -126,6 +127,7 @@ export type ConversationComposerModel = {
   modelEmptyMessage?: string;
   todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
+  completionSource?: ComposerReferenceSource;
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
     kind: "launch" | "pull_request",

@@ -10,6 +10,7 @@ import { cn } from "@nervekit/ui-kit/utils";
 let {
   icon: Icon,
   label,
+  ariaLabel,
   title,
   href,
   download,
@@ -27,6 +28,8 @@ let {
   icon: Component;
   /** Accessible name; also the tooltip when `title` is omitted. */
   label: string;
+  /** Override the accessible action name while keeping the visible label stable. */
+  ariaLabel?: string;
   title?: string;
   /** Renders the control as a link (used for download actions). */
   href?: string;
@@ -54,7 +57,7 @@ let {
   {download}
   size={showLabel ? "sm" : "icon-sm"}
   class={cn("shrink-0", dense && !showLabel && "size-5 rounded-sm", className)}
-  ariaLabel={label}
+  ariaLabel={ariaLabel ?? label}
   title={title ?? label}
   {active}
   {disabled}

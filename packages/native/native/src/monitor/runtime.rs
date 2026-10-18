@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use super::git;
+use super::git::{self, GitReadPort};
 use super::model::{
     ChangeNotice, MonitorDiagnostics, MonitorLimits, PendingChange, ScopeKind, ScopeSpec,
     ScopeState,
@@ -36,7 +36,11 @@ pub struct Monitor {
 }
 
 impl Monitor {
-    pub fn new(limits: MonitorLimits, callback: NoticeCallback) -> Result<Self, String> {
+    pub fn new(
+        limits: MonitorLimits,
+        callback: NoticeCallback,
+        git_reads: GitReadPort,
+    ) -> Result<Self, String> {
         let (commands, receiver) = mpsc::sync_channel(COMMAND_CAPACITY);
         let watch_commands = commands.clone();
         let worker_commands = commands.clone();
@@ -57,6 +61,7 @@ impl Monitor {
                             limits,
                             callback,
                             worker_overflowed,
+                            git_reads,
                         )
                         .run();
                     }
@@ -146,6 +151,7 @@ struct Worker {
     registrations: HashMap<PathBuf, HashSet<String>>,
     diagnostics: MonitorDiagnostics,
     queue_overflowed: Arc<AtomicBool>,
+    git_reads: GitReadPort,
 }
 
 impl Worker {
@@ -156,6 +162,7 @@ impl Worker {
         limits: MonitorLimits,
         callback: NoticeCallback,
         queue_overflowed: Arc<AtomicBool>,
+        git_reads: GitReadPort,
     ) -> Self {
         Self {
             receiver,
@@ -167,6 +174,7 @@ impl Worker {
             registrations: HashMap::new(),
             diagnostics: MonitorDiagnostics::default(),
             queue_overflowed,
+            git_reads,
         }
     }
 
@@ -221,7 +229,7 @@ impl Worker {
         };
         let paths = match &spec.kind {
             ScopeKind::Directories => spec.paths.clone(),
-            ScopeKind::Git { repository } => git::watch_paths(repository, maximum)?,
+            ScopeKind::Git { repository } => git::watch_paths(repository, maximum, self.git_reads)?,
         };
         let mut canonical = Vec::new();
         for path in paths {
@@ -303,7 +311,7 @@ impl Worker {
             .get(&spec.id)
             .map_or(0, |scope| scope.generation);
         let fingerprint = match &spec.kind {
-            ScopeKind::Git { repository } => git::fingerprint(repository).ok(),
+            ScopeKind::Git { repository } => (self.git_reads.fingerprint)(repository).ok(),
             ScopeKind::Directories => None,
         };
         let watched_paths = selected.len();
@@ -400,10 +408,11 @@ impl Worker {
                     let repository = repository.clone();
                     let commands = self.commands.clone();
                     let queue_overflowed = Arc::clone(&self.queue_overflowed);
-                    match crate::runtime::handle() {
+                    let fingerprint = self.git_reads.fingerprint;
+                    match crate::core::runtime::handle() {
                         Ok(handle) => {
                             handle.spawn_blocking(move || {
-                                let result = git::fingerprint(&repository);
+                                let result = fingerprint(&repository);
                                 if commands.try_send(Command::Fingerprint(id, result)).is_err() {
                                     queue_overflowed.store(true, Ordering::Release);
                                 }

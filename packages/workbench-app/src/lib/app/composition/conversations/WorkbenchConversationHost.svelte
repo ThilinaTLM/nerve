@@ -81,6 +81,7 @@ let {
   permissionRuleSetsLoading = false,
   permissionRuleSetsError,
   slashCompletions = [],
+  completionSource,
   fileCompletions,
   referenceCompletions,
   composerSuggestions = [],
@@ -387,6 +388,7 @@ function menuForTranscript(
       {permissionRuleSetsLoading}
       {permissionRuleSetsError}
       {slashCompletions}
+      {completionSource}
       {fileCompletions}
       {referenceCompletions}
       {composerSuggestions}

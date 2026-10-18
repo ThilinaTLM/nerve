@@ -1,20 +1,37 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { GitOverviewObservation } from "../../src/git/git-observability.js";
 import { GitService } from "../../src/git/git-service.js";
 
 describe("GitService overview snapshots", () => {
-  it("reuses one porcelain status command and caches stable metadata", async () => {
+  it("coalesces whole overview demand and derives metadata without an extra status snapshot", async (context) => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-overview-coalescing-"));
+    await mkdir(join(root, ".git"));
     const calls: string[][] = [];
     let now = 1_000;
     let snapshotCalls = 0;
     const overviewObservations: GitOverviewObservation[] = [];
-    const service = new GitService(() => ({ dir: "/repo", name: "repo" }), {
+    const service = new GitService(() => ({ dir: root, name: "repo" }), {
       now: () => now,
       stableMetadataTtlMs: 30_000,
       onOverviewCompleted: (observation) =>
         overviewObservations.push(observation),
       readBackend: {
+        async close() {},
+        discoverProject: async (root) => ({
+          root,
+          projectIsRepo: true,
+          repositories: [],
+        }),
+        projectSnapshots: async () => [],
+        isRepository: async () => true,
+        fileDiff: async () => {
+          throw new Error("not used");
+        },
+        metadata: (repoDir) => service.readSnapshot(repoDir),
         snapshot: async () => {
           snapshotCalls += 1;
           return {
@@ -65,6 +82,12 @@ describe("GitService overview snapshots", () => {
         validateBranchName: async () => true,
       },
     });
+    // This test isolates snapshot reuse; filesystem containment has its own fixtures.
+    service.resolveRepoDir = () => root;
+    context.after(async () => {
+      await service.closeRemoteCaches();
+      await rm(root, { recursive: true, force: true });
+    });
     service.runGit = async (_cwd, args) => {
       calls.push(args);
       const command = args.join(" ");
@@ -80,9 +103,19 @@ describe("GitService overview snapshots", () => {
       throw new Error(`Unexpected git command: ${command}`);
     };
 
-    const overview = await service.overview("proj_test", ".");
-    await service.overview("proj_test", ".");
-    assert.equal(snapshotCalls, 3);
+    const first = service.overview("proj_test", ".");
+    const joined = service.overview("proj_test", ".");
+    assert.equal(
+      first,
+      joined,
+      "concurrent or retried client demand joins the whole detailed RPC, including CLI diffs",
+    );
+    service.invalidateProjectReads("proj_test", { uncertain: true });
+    const overview = await first;
+    assert.equal(overview.stale, true);
+    const fresh = await service.overview("proj_test", ".");
+    assert.equal(fresh.stale, undefined);
+    assert.equal(snapshotCalls, 2);
     assert.equal(calls.filter((args) => args[0] === "diff").length, 4);
     assert.equal(overview.repo.currentBranch, "feature");
     assert.equal(overview.repo.baseBranch, "main");
@@ -93,12 +126,12 @@ describe("GitService overview snapshots", () => {
 
     now += 30_001;
     await service.overview("proj_test", ".");
-    assert.equal(snapshotCalls, 5);
+    assert.equal(snapshotCalls, 3);
     service.invalidateStableRepoMetadata(
       service.resolveRepoDir("proj_test", "."),
     );
     await service.overview("proj_test", ".");
-    assert.equal(snapshotCalls, 7);
+    assert.equal(snapshotCalls, 4);
     assert.equal(overviewObservations.length, 4);
     assert.equal(
       overviewObservations.every(

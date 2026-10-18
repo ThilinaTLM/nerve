@@ -1,7 +1,7 @@
 use napi::bindgen_prelude::Result;
 use napi_derive::napi;
 
-use crate::platform::process;
+use crate::process::platform as process;
 
 #[napi(object)]
 pub struct NativeRuntimeCapabilities {

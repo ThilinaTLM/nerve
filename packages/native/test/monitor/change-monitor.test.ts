@@ -126,3 +126,108 @@ async function inotifyRegistrations(): Promise<number> {
   }
   return total;
 }
+
+test(
+  "read-only HEAD and Git diff access stays quiet while genuine writes still invalidate public monitor scopes",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-monitor-read-only-"));
+    const repository = join(root, "repository");
+    const hooks = join(root, "hooks");
+    const template = join(root, "template");
+    const config = join(root, "empty-config");
+    await Promise.all([
+      mkdir(repository),
+      mkdir(hooks),
+      mkdir(template),
+      writeFile(config, ""),
+    ]);
+    const env = { ...process.env };
+    for (const key of Object.keys(env))
+      if (key.startsWith("GIT_")) delete env[key];
+    Object.assign(env, {
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: config,
+      GIT_TEMPLATE_DIR: template,
+      GIT_TERMINAL_PROMPT: "0",
+      GIT_AUTHOR_NAME: "Nerve Test",
+      GIT_AUTHOR_EMAIL: "nerve@example.com",
+      GIT_COMMITTER_NAME: "Nerve Test",
+      GIT_COMMITTER_EMAIL: "nerve@example.com",
+    });
+    const git = (...args: string[]) =>
+      exec(
+        "git",
+        [
+          "-c",
+          `core.hooksPath=${hooks}`,
+          "-c",
+          "commit.gpgSign=false",
+          ...args,
+        ],
+        { cwd: repository, env },
+      );
+    const notices: ChangeNotice[] = [];
+    const monitor = new ChangeMonitor((notice) => notices.push(notice));
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 600));
+    try {
+      await git("init", "--initial-branch=main");
+      await writeFile(join(repository, "tracked.txt"), "initial\n");
+      await git("add", "tracked.txt");
+      await git("commit", "-m", "synthetic fixture");
+      // Warm any legitimate index/stat refresh before watching. No optional-lock
+      // flags suppress writes during the observed commands below.
+      await git("diff", "--shortstat");
+      await git("diff", "--staged", "--shortstat");
+      await monitor.syncDirectories({
+        id: "project:read-only",
+        paths: [repository, join(repository, ".git")],
+        pollIntervalMs: 60_000,
+      });
+      await monitor.syncGit({
+        id: "git:read-only",
+        repository,
+        pollIntervalMs: 60_000,
+      });
+      await settle();
+      notices.length = 0;
+      const head = await readFile(join(repository, ".git", "HEAD"));
+      await settle();
+      assert.deepEqual(
+        notices,
+        [],
+        "reading HEAD must not produce filesystem invalidation",
+      );
+      await git("diff", "--shortstat");
+      await settle();
+      assert.deepEqual(notices, [], "unstaged diff reads must not invalidate");
+      await git("diff", "--staged", "--shortstat");
+      await settle();
+      assert.deepEqual(notices, [], "staged diff reads must not invalidate");
+      // Even a same-content write is a genuine write and must remain visible.
+      await writeFile(join(repository, ".git", "HEAD"), head);
+      const deadline = Date.now() + 4_000;
+      const changed = (scope: string) =>
+        notices.some(
+          (notice) =>
+            notice.scopeId === scope && notice.causes.includes("filesystem"),
+        );
+      while (
+        (!changed("project:read-only") || !changed("git:read-only")) &&
+        Date.now() < deadline
+      )
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      assert.ok(
+        changed("project:read-only"),
+        "directory scope must retain actual writes",
+      );
+      assert.ok(
+        changed("git:read-only"),
+        "Git scope must retain actual writes",
+      );
+    } finally {
+      await monitor.close();
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+);

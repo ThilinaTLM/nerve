@@ -1,9 +1,11 @@
 export type GitAutoRefreshDemand = {
   overview?: boolean;
   prs?: boolean;
+  /** Unproven poll notice: do not supersede kept server work. */
+  uncertain?: boolean;
 };
 
-export type GitAutoRefreshTarget = keyof GitAutoRefreshDemand;
+export type GitAutoRefreshTarget = "overview" | "prs";
 
 type Clock = {
   now(): number;
@@ -16,7 +18,7 @@ type Clock = {
 
 type Entry = {
   key: string;
-  pending: Required<GitAutoRefreshDemand>;
+  pending: { overview: boolean; prs: boolean; uncertain?: boolean };
   lastStartedAt: Record<GitAutoRefreshTarget, number | undefined>;
   timer?: ReturnType<typeof setTimeout>;
 };
@@ -38,6 +40,10 @@ export class GitAutoRefreshScheduler {
 
   schedule(key: string, demand: GitAutoRefreshDemand): void {
     const entry = this.#entry(key);
+    if (demand.overview)
+      entry.pending.uncertain = entry.pending.overview
+        ? Boolean(entry.pending.uncertain && demand.uncertain)
+        : Boolean(demand.uncertain);
     entry.pending.overview ||= Boolean(demand.overview);
     entry.pending.prs ||= Boolean(demand.prs);
     this.#dispatchDue(entry);
@@ -75,6 +81,8 @@ export class GitAutoRefreshScheduler {
         now - lastStartedAt >= this.cooldownMs[target]
       ) {
         due[target] = true;
+        if (target === "overview" && entry.pending.uncertain)
+          due.uncertain = true;
         entry.pending[target] = false;
         entry.lastStartedAt[target] = now;
       }
@@ -107,7 +115,7 @@ export class GitAutoRefreshScheduler {
 }
 
 function targets(demand: GitAutoRefreshDemand): GitAutoRefreshTarget[] {
-  return (Object.keys(demand) as GitAutoRefreshTarget[]).filter((target) =>
+  return (["overview", "prs"] as const).filter((target) =>
     Boolean(demand[target]),
   );
 }

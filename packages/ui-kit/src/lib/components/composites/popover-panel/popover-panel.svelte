@@ -5,6 +5,8 @@ import { cn } from "@nervekit/ui-kit/utils";
 
 type Props = {
   trigger?: Snippet;
+  /** Compose a canonical control while preserving the primitive's trigger behavior. */
+  triggerChild?: PopoverPrimitive.TriggerProps["child"];
   children?: Snippet;
   open?: boolean;
   ariaLabel?: string;
@@ -25,6 +27,7 @@ type Props = {
 
 let {
   trigger,
+  triggerChild,
   children,
   open = $bindable(false),
   ariaLabel,
@@ -49,10 +52,11 @@ function handleOpenChange(next: boolean) {
 
 <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <PopoverPrimitive.Trigger
-    class={cn("popover-trigger", triggerClass)}
+    class={triggerChild ? triggerClass : cn("popover-trigger", triggerClass)}
     aria-label={ariaLabel}
     title={triggerTitle}
     aria-keyshortcuts={triggerAriaKeyShortcuts}
+    child={triggerChild}
   >
     {@render trigger?.()}
   </PopoverPrimitive.Trigger>

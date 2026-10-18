@@ -26,6 +26,8 @@ export const gitEventDefinitions = [
       repo: z.string().min(1).max(1_024),
       generation: z.number().int().nonnegative(),
       fullRefreshRequired: z.boolean(),
+      /** Poll uncertainty, not evidence of a filesystem change. Absent means hard invalidation. */
+      refreshCause: z.literal("uncertain_poll").optional(),
     }),
     {
       delivery: "ephemeral",

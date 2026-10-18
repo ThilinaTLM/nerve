@@ -1,5 +1,18 @@
+import { untrack } from "svelte";
 import { createGitPanelActions } from "../views/git-panel-controller";
-import { requestGitRepositoryRefresh } from "../api/git.api";
+import {
+  requestGitRepositoryRefresh,
+  getGitOverview,
+  startBulkGitOperation,
+  cancelGitOperation,
+} from "../api/git.api";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import {
+  gitRemoteBusy,
+  gitRunningOperations,
+  observeBulkGitOperationStart,
+} from "./git-operation-tracking";
 import {
   disabledCapability,
   enabledCapability,
@@ -12,6 +25,7 @@ import {
   normalizeGitPrFilterConfig,
 } from "../pr-filters";
 import type { Project } from "@nervekit/contracts/core";
+import type { GitOperationBulkStartRequest } from "@nervekit/contracts/git";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
@@ -135,6 +149,10 @@ export function createWorkbenchGitPanelAdapter(
             repositories.length === 0,
           ),
         cachedError: projectState?.discoverError,
+        readErrors: projectState?.readErrors,
+        stale: Boolean(
+          projectState?.readsStale || current?.overviewInvalidated,
+        ),
         refreshing:
           Boolean(projectState?.refreshingRepos) ||
           Boolean(
@@ -146,13 +164,16 @@ export function createWorkbenchGitPanelAdapter(
         loadingPullRequests: current?.loadingPrs ?? false,
         loadingPrHeads: current?.loadingPrHeads ?? false,
         pullRequestError: current?.prsError,
-        operations: current?.operations ?? {
-          fetching: false,
-          pulling: false,
-          pushing: false,
-          syncing: false,
-          switchingBaseAndPulling: false,
-          creatingBranch: false,
+        activeOperations: project
+          ? gitRunningOperations(activityInbox.activities, project.id)
+          : [],
+        operations: {
+          ...(current?.operations ?? { creatingBranch: false }),
+          ...gitRemoteBusy(
+            activityInbox.activities,
+            project?.id ?? "",
+            selectedRepository,
+          ),
         },
         capabilities,
         repoBranchState: (repository: string) => {
@@ -174,6 +195,34 @@ export function createWorkbenchGitPanelAdapter(
   };
 
   const host: GitPanelActions = {
+    runBulkRemoteOperation: async (kind) => {
+      const project = activeProject();
+      if (!project) return;
+      const repos = adapter.model.repositories
+        .filter((repo) => repo.hasRemote)
+        .map((repo) => repo.relativePath);
+      if (!repos.length) return;
+      try {
+        const input = {
+          projectId: project.id,
+          repos,
+          kind: kind === "switch-base-and-pull" ? "switchBaseAndPull" : kind,
+        } satisfies GitOperationBulkStartRequest;
+        const result = await startBulkGitOperation(input);
+        observeBulkGitOperationStart(activityInbox, input, result);
+      } catch {
+        notify.error("Could not start bulk Git operation");
+      }
+    },
+    cancelOperation: async (operationId) => {
+      try {
+        const result = await cancelGitOperation(operationId);
+        if (!result.accepted)
+          notify.error(result.reason ?? "Operation is no longer cancellable");
+      } catch {
+        notify.error("Could not cancel Git operation");
+      }
+    },
     refreshAll: () => {
       const project = activeProject();
       if (project)
@@ -198,6 +247,18 @@ export function createWorkbenchGitPanelAdapter(
           "Could not refresh repository",
         ),
       ]);
+    },
+    loadStashes: async (repository) => {
+      const project = activeProject();
+      if (!project) return;
+      try {
+        const overview = await getGitOverview(project.id, repository);
+        if (activeProject()?.id !== project.id) return;
+        return overview.stashes;
+      } catch {
+        if (activeProject()?.id === project.id)
+          notify.error("Could not load stashes");
+      }
     },
     refreshBranches: (repository) => {
       const project = activeProject();
@@ -379,25 +440,36 @@ export function createWorkbenchGitPanelAdapter(
     const repository = projectState?.selectedRepo;
     if (!active || !project || !projectState?.repos.length || !repository)
       return;
-    setGitOverviewRefreshVisible(project.id, repository, true);
-    const refreshIfStale = () => {
-      void requestGitRepositoryRefresh(project.id, repository).catch(
-        () => undefined,
-      );
-      autoRefreshGitOverview(project.id, repository);
-      if (pullRequestsEnabled()) autoRefreshPrsIfStale(project.id, repository);
-    };
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") refreshIfStale();
-    };
-    refreshIfStale();
-    window.addEventListener("focus", refreshIfStale);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      setGitOverviewRefreshVisible(project.id, repository, false);
-      window.removeEventListener("focus", refreshIfStale);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
+    // Registration depends on scope/visibility, not on the freshness state read
+    // by these commands. Otherwise each completed read sends another hard scan.
+    return untrack(() => {
+      setGitOverviewRefreshVisible(project.id, repository, true);
+      const refreshIfStale = () => {
+        void requestGitRepositoryRefresh(project.id, repository).catch(
+          () => undefined,
+        );
+        autoRefreshGitOverview(project.id, repository);
+        if (projectState.readsStale)
+          void refreshGitProject(project, {
+            uncertain: true,
+            silent: true,
+            loadDetails: false,
+          });
+        if (pullRequestsEnabled())
+          autoRefreshPrsIfStale(project.id, repository);
+      };
+      const refreshWhenVisible = () => {
+        if (document.visibilityState === "visible") refreshIfStale();
+      };
+      refreshIfStale();
+      window.addEventListener("focus", refreshIfStale);
+      document.addEventListener("visibilitychange", refreshWhenVisible);
+      return () => {
+        setGitOverviewRefreshVisible(project.id, repository, false);
+        window.removeEventListener("focus", refreshIfStale);
+        document.removeEventListener("visibilitychange", refreshWhenVisible);
+      };
+    });
   });
 
   $effect(() => {

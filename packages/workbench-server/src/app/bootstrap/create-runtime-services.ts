@@ -1,3 +1,9 @@
+import { allToolDescriptors } from "@nervekit/tools/catalog";
+import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
+import { createCompletionDependencies } from "./create-completion-dependencies.js";
+import { createWorkspaceMonitorPublisher } from "./workspace-monitor-publisher.js";
+import { ActivityService } from "../../domains/activity/activity.service.js";
 import {
   PromptSuggestionService,
   PromptSuggestionTrustRepository,
@@ -29,7 +35,7 @@ import { ProjectEditorService } from "../../domains/projects/project-editor.serv
 import { ProjectTerminalService } from "../../domains/projects/project-terminal.service.js";
 import { ProjectIconService } from "../../domains/projects/project-icon.service.js";
 import { FileCompletionService } from "../../domains/completions/index.js";
-import { GitService } from "@nervekit/tools/git";
+import { GitService, GitOperationService } from "@nervekit/tools/git";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
 
@@ -50,6 +56,9 @@ export type RuntimeServices = ReturnType<typeof createRuntimeServices>;
 
 export function createRuntimeServices(deps: RuntimeDeps) {
   const { storage, events, auth, logger } = deps;
+  const activities = new ActivityService((activity, removed) =>
+    events.publish("activity.updated", { activity, removed }),
+  );
   const getProject = (id: string) => {
     const project = conversationCore.projects.get(id);
     if (!project) throw new Error(`Project not found: ${id}`);
@@ -77,7 +86,13 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     { launches, definitions: launchDefinitions },
     () => subagentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
-    (projectId) => fileCompletions.dispose(projectId),
+    async (projectId) => {
+      await Promise.all([
+        fileCompletions.dispose(projectId),
+        completions.dispose(projectId),
+      ]);
+      git.invalidateProjectReads(projectId);
+    },
   );
   const fileCompletions = new FileCompletionService(getProject);
   const launchDefinitionOperations = new LaunchDefinitionOperations(
@@ -102,13 +117,21 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     const project = getProject(id);
     return { id: project.id, name: project.name, dir: project.directory };
   });
-  const workspaceMonitor = new WorkspaceMonitor(events, {
-    onRepositoryChanged: (repoDir) =>
-      gitService.invalidateStableRepoMetadata(repoDir),
-    onWarning: (message, error) => {
-      void logger.warn(message, { error });
+  // The decorator is the sole success-event publisher for both tracked and direct mutations.
+  const git = withGitMutationEvents(gitService, events, activities);
+  const gitOperations = new GitOperationService(git, activities);
+  const workspaceMonitor = new WorkspaceMonitor(
+    createWorkspaceMonitorPublisher(events, git),
+    {
+      onRepositoryChanged: (repoDir, options) => {
+        if (options?.refreshCause !== "uncertain_poll")
+          gitService.invalidateStableRepoMetadata(repoDir);
+      },
+      onWarning: (message, error) => {
+        void logger.warn(message, { error });
+      },
     },
-  });
+  );
   const promptSuggestionEnablement = new PromptSuggestionEnablementService(
     storage.paths.configPath,
   );
@@ -144,7 +167,56 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       return { id: project.id, directory: project.directory };
     },
   });
+  const completionMetadata = (id: string) => {
+    const conversation = coreStorage.conversations.get(id);
+    if (!conversation) throw new Error("Conversation not found");
+    return {
+      projectId: conversation.projectId,
+      lastSequence: coreStorage.events.lastSequence(id),
+    };
+  };
+  const completions: UnifiedCompletionService = new UnifiedCompletionService(
+    createCompletionDependencies({
+      home: storage.paths.home,
+      git,
+      events,
+      core: conversationCore,
+      context: {
+        metadata: completionMetadata,
+        history: (id, page) =>
+          conversationCore.getHistory(id, {
+            limit: Math.min(64, Math.max(1, page.limit)),
+          }),
+        project: getProject,
+      },
+      sources: {
+        project: getProject,
+        capabilities,
+        profiles: subagentProfiles,
+        tools: allToolDescriptors,
+        skills: async (scope) =>
+          (
+            await listAvailableSkills(getProject(scope.projectId).directory, {
+              storageHome: storage.paths.home,
+              nerveSkills: deps.nerveSkills.skills,
+              agentBrowserSkills: deps.agentBrowserSkills.skills,
+            })
+          ).skills,
+        launches: () => launches.list(),
+        definitions: (projectId) => launchDefinitions.catalog(projectId),
+        children: (scope) =>
+          scope.conversationId
+            ? coreStorage.conversations.list({
+                projectId: scope.projectId,
+                parentConversationId: scope.conversationId,
+              })
+            : [],
+      },
+    }),
+  );
   return {
+    completions,
+    activities,
     subagentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,
@@ -158,7 +230,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     scratchNotes,
     integrationHealth,
     workspaceMonitor,
-    git: withGitMutationEvents(gitService, events),
+    git,
+    gitOperations,
     editors: new ProjectEditorService(getProject),
     terminal: new ProjectTerminalService(getProject),
     projectIcons: new ProjectIconService(getProject),

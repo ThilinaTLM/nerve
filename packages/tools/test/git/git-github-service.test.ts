@@ -464,6 +464,7 @@ describe("GitHub PR checkout", () => {
           }),
         }),
         readSnapshot: async () => snapshot,
+        readMetadataSnapshot: async () => snapshot,
         runGit: async (_repoDir: string, args: string[]) => {
           commands.push(args);
           return { stdout: "", stderr: "" };
@@ -522,6 +523,7 @@ describe("GitHub PR checkout", () => {
           }),
         }),
         readSnapshot: async () => forkSnapshot,
+        readMetadataSnapshot: async () => forkSnapshot,
         runGit: async (_repoDir: string, args: string[]) => {
           commands.push(args);
           return { stdout: "", stderr: "" };
@@ -565,7 +567,8 @@ describe("GitHub PR checkout", () => {
               },
             }),
           }),
-          readSnapshot: async () => ({
+          readSnapshot: async () => snapshot,
+          readMetadataSnapshot: async () => ({
             ...snapshot,
             refs: [{ name: "refs/heads/feature", target: "local-head" }],
           }),

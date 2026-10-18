@@ -93,8 +93,12 @@ const skippedFileExtensions = new Set([
 
 export type FileCandidateKind = "file" | "directory";
 
-export type FileCompletionCandidate = {
+export type FileCompletionEntry = {
   relativePath: string;
+  kind: FileCandidateKind;
+};
+
+export type FileCompletionCandidate = FileCompletionEntry & {
   pathLower: string;
   name: string;
   nameLower: string;
@@ -104,15 +108,33 @@ export type FileCompletionCandidate = {
   segments: string[];
   segmentsLower: string[];
   depth: number;
-  kind: FileCandidateKind;
 };
 
 export async function discoverCandidates(
   root: string,
 ): Promise<FileCompletionCandidate[]> {
+  return legacyCandidatesFromEntries(await discoverEntries(root));
+}
+
+/** Shared bounded enumeration/filter/directory-synthesis policy. No normalized
+ * lexical graph or locale sort: typed native owns that work. */
+export async function discoverEntries(
+  root: string,
+): Promise<FileCompletionEntry[]> {
   const gitPaths = await gitFilePaths(root);
-  if (gitPaths !== undefined) return candidatesFromFilePaths(gitPaths);
-  return walkCandidates(root);
+  return gitPaths !== undefined
+    ? entriesFromFilePaths(gitPaths)
+    : walkEntries(root);
+}
+
+export function legacyCandidatesFromEntries(
+  entries: readonly FileCompletionEntry[],
+): FileCompletionCandidate[] {
+  return sortCandidates(
+    entries.map(({ relativePath, kind }) =>
+      candidateFromPath(relativePath, kind),
+    ),
+  );
 }
 
 export function shouldUseDirectoryListing(query: string): boolean {
@@ -214,10 +236,8 @@ async function gitFilePaths(root: string): Promise<string[] | undefined> {
   }
 }
 
-function candidatesFromFilePaths(
-  paths: readonly string[],
-): FileCompletionCandidate[] {
-  const candidates = new Map<string, FileCompletionCandidate>();
+function entriesFromFilePaths(paths: readonly string[]): FileCompletionEntry[] {
+  const entries = new Map<string, FileCompletionEntry>();
 
   for (const path of paths) {
     const relativePath = normalizeRelativePath(path);
@@ -226,17 +246,15 @@ function candidatesFromFilePaths(
     if (segments.length === 0) continue;
 
     for (let index = 1; index < segments.length; index += 1) {
-      addCandidate(candidates, segments.slice(0, index).join("/"), "directory");
+      addEntry(entries, segments.slice(0, index).join("/"), "directory");
     }
-    addCandidate(candidates, relativePath, "file");
+    addEntry(entries, relativePath, "file");
   }
 
-  return sortCandidates([...candidates.values()]);
+  return [...entries.values()];
 }
 
-async function walkCandidates(
-  root: string,
-): Promise<FileCompletionCandidate[]> {
+async function walkEntries(root: string): Promise<FileCompletionEntry[]> {
   const paths = await new fdir({ excludeSymlinks: true })
     .withDirs()
     .withRelativePaths()
@@ -247,7 +265,7 @@ async function walkCandidates(
     .crawl(root)
     .withPromise();
 
-  const candidates = new Map<string, FileCompletionCandidate>();
+  const entries = new Map<string, FileCompletionEntry>();
   for (const rawPath of paths.slice(0, maxWalkEntries)) {
     if (rawPath === ".") continue;
     const isDirectory = rawPath.endsWith("/");
@@ -255,13 +273,13 @@ async function walkCandidates(
     if (!relativePath || isExcludedRelativePath(relativePath, isDirectory)) {
       continue;
     }
-    addCandidate(candidates, relativePath, isDirectory ? "directory" : "file");
+    addEntry(entries, relativePath, isDirectory ? "directory" : "file");
   }
-  return sortCandidates([...candidates.values()]);
+  return [...entries.values()];
 }
 
-function addCandidate(
-  candidates: Map<string, FileCompletionCandidate>,
+function addEntry(
+  entries: Map<string, FileCompletionEntry>,
   relativePath: string,
   kind: FileCandidateKind,
 ): void {
@@ -270,8 +288,8 @@ function addCandidate(
     return;
   }
   const key = `${kind}:${normalized}`;
-  if (candidates.has(key)) return;
-  candidates.set(key, candidateFromPath(normalized, kind));
+  if (entries.has(key)) return;
+  entries.set(key, { relativePath: normalized, kind });
 }
 
 export function candidateFromPath(

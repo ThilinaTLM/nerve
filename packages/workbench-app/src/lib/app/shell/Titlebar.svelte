@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
 import Logs from "@lucide/svelte/icons/logs";
 import Compass from "@lucide/svelte/icons/compass";
 import Settings from "@lucide/svelte/icons/settings";
@@ -18,6 +19,7 @@ import type { ResolvedHeaderType } from "$lib/app/shell/header-type";
 import type { DiscoverBadge } from "$lib/app/discover";
 
 type Props = {
+  activity?: Snippet;
   projects?: ProjectSwitcherItem[];
   projectOptions?: ProjectSwitcherItem[];
   activeProjectKey?: string;
@@ -48,6 +50,7 @@ type Props = {
 };
 
 let {
+  activity,
   projects = [],
   projectOptions = [],
   activeProjectKey,
@@ -124,6 +127,7 @@ let {
       {:else if currentVersion}
         <VersionIndicator {currentVersion} {latestRelease} />
       {/if}
+      {@render activity?.()}
       <Button
         variant="ghost"
         size="icon"

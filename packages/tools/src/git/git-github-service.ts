@@ -28,7 +28,7 @@ import {
   summarizeStatusCheckRollup,
 } from "./git-github-parsers.js";
 import type { GithubRepositoryRef } from "./git-github-parsers.js";
-import type { GitReadSnapshot } from "./read/types.js";
+import type { GitReadSnapshot, GitReadMetadataSnapshot } from "./read/types.js";
 
 type ExecResult = { stdout: string; stderr: string };
 type RemoteState = {
@@ -44,6 +44,7 @@ export type GithubServiceContext = {
   runGit(repoDir: string, args: string[]): Promise<ExecResult>;
   mapGit<T>(fn: () => Promise<T>): Promise<T>;
   readSnapshot(repoDir: string): Promise<GitReadSnapshot>;
+  readMetadataSnapshot(repoDir: string): Promise<GitReadMetadataSnapshot>;
   isAncestor(
     repoDir: string,
     ancestor: string,
@@ -1041,7 +1042,7 @@ export async function mergePr(
 }
 
 function selectRepositoryRemote(
-  snapshot: GitReadSnapshot,
+  snapshot: Pick<GitReadSnapshot, "remotes">,
   repository: Pick<GithubRepositoryRef, "owner" | "repo">,
 ): string | null {
   const matches = snapshot.remotes.filter((remote) => {
@@ -1115,7 +1116,7 @@ export async function checkoutPr(
       "The pull request head changed while it was being fetched. Try again.",
     );
 
-  const refreshed = await context.readSnapshot(repoDir);
+  const refreshed = await context.readMetadataSnapshot(repoDir);
   const localRef = `refs/heads/${raw.headRefName}`;
   const localOid = refreshed.refs.find((ref) => ref.name === localRef)?.target;
   const [headOwner, headRepo] =

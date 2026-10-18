@@ -4,7 +4,13 @@ import {
   type NativeGitFileDiff,
 } from "@nervekit/native";
 import type { GitReadObservation } from "../git-observability.js";
-import type { GitReadBackend, GitReadSnapshot } from "./types.js";
+import type {
+  GitReadBackend,
+  GitReadSnapshot,
+  GitReadMetadataSnapshot,
+  GitReadMetadataOptions,
+  GitReadProjectRepository,
+} from "./types.js";
 
 export class ObservedGitReadBackend implements GitReadBackend {
   constructor(
@@ -12,6 +18,25 @@ export class ObservedGitReadBackend implements GitReadBackend {
     private readonly observe?: (observation: GitReadObservation) => void,
   ) {}
 
+  close(): Promise<void> {
+    return this.backend.close();
+  }
+  discoverProject(root: string, signal?: AbortSignal) {
+    return this.run(
+      "project-discovery",
+      () => this.backend.discoverProject(root, signal),
+      root,
+    );
+  }
+  projectSnapshots(
+    repositories: GitReadProjectRepository[],
+    includeIgnored?: boolean,
+    signal?: AbortSignal,
+  ) {
+    return this.run("project-snapshots", () =>
+      this.backend.projectSnapshots(repositories, includeIgnored, signal),
+    );
+  }
   async isRepository(repoDir: string): Promise<boolean> {
     try {
       return await this.run(
@@ -27,6 +52,16 @@ export class ObservedGitReadBackend implements GitReadBackend {
         return false;
       throw error;
     }
+  }
+  metadata(
+    repoDir: string,
+    options?: GitReadMetadataOptions,
+  ): Promise<GitReadMetadataSnapshot> {
+    return this.run(
+      "metadata",
+      () => this.backend.metadata(repoDir, options),
+      repoDir,
+    );
   }
   snapshot(
     repoDir: string,

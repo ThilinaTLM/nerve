@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { inGitLane } from "../../src/git/git-operation-context.js";
 import { describe, it } from "node:test";
 import { GithubApiClient } from "../../src/git/git-github-api-client.js";
 import type { GithubRequestObservation } from "../../src/git/git-observability.js";
@@ -142,4 +146,103 @@ describe("GithubApiClient", () => {
       false,
     );
   });
+});
+
+void it("cancels one token waiter promptly without cancelling another repository's shared authentication", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-github-cancel-"));
+  let release!: (value: string) => void;
+  const token = new Promise<string>((resolve) => {
+    release = resolve;
+  });
+  let firstReady!: () => void;
+  const firstStarted = new Promise<void>((resolve) => {
+    firstReady = resolve;
+  });
+  let secondReady!: () => void;
+  const secondStarted = new Promise<void>((resolve) => {
+    secondReady = resolve;
+  });
+  let tokenCalls = 0;
+  let fetchCalls = 0;
+  try {
+    for (const dir of ["a", "b"])
+      await mkdir(join(root, dir, ".git"), { recursive: true });
+    const client = new GithubApiClient({
+      tokenProvider: () => {
+        tokenCalls++;
+        firstReady();
+        return token;
+      },
+      fetch: async () => {
+        fetchCalls++;
+        return Response.json({ ok: true });
+      },
+    });
+    const controller = new AbortController();
+    const first = inGitLane(
+      join(root, "a"),
+      true,
+      () => client.rest(repository, "/user", { operation: "cancelled" }),
+      { signal: controller.signal },
+    );
+    await firstStarted;
+    const second = inGitLane(join(root, "b"), true, async () => {
+      secondReady();
+      return client.rest(repository, "/user", { operation: "continued" });
+    });
+    await secondStarted;
+    controller.abort();
+    await assert.rejects(
+      first,
+      (error: unknown) => error instanceof Error && error.name === "AbortError",
+    );
+    release("synthetic-token");
+    assert.deepEqual(await second, { ok: true });
+    assert.equal(tokenCalls, 1);
+    assert.equal(fetchCalls, 1);
+  } finally {
+    release("synthetic-token");
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+void it("shutdown aborts callers but awaits the actual shared credential process lifetime", async () => {
+  let ready!: () => void;
+  const started = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  let finish!: () => void;
+  let providerSignal!: AbortSignal;
+  const client = new GithubApiClient({
+    tokenProvider: (_host, signal) => {
+      providerSignal = signal!;
+      ready();
+      return new Promise<string>((_resolve, reject) => {
+        finish = () => reject(new DOMException("closed", "AbortError"));
+      });
+    },
+    fetch: async () => {
+      assert.fail("cancelled authentication reached network");
+    },
+  });
+  const request = client.rest(repository, "/user", { operation: "shutdown" });
+  await started;
+  const rejected = assert.rejects(
+    request,
+    (error: unknown) => error instanceof Error && error.name === "AbortError",
+  );
+  let closed = false;
+  const closing = client.close().then(() => {
+    closed = true;
+  });
+  await rejected;
+  assert.equal(providerSignal.aborted, true);
+  assert.equal(closed, false);
+  finish();
+  await closing;
+  assert.equal(closed, true);
+  await assert.rejects(
+    client.token("github.com"),
+    (error: unknown) => error instanceof Error && error.name === "AbortError",
+  );
 });

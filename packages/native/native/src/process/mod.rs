@@ -1,6 +1,8 @@
 mod manager;
 mod model;
+pub(crate) mod napi;
 mod output;
+pub(crate) mod platform;
 mod policy;
 mod registry;
 

@@ -1,9 +1,12 @@
 mod api;
-mod completion;
+mod core;
 mod git;
 mod monitor;
-mod platform;
 mod process;
-mod runtime;
+mod search;
 
 pub use api::*;
+pub use git::napi::*;
+pub use monitor::napi::*;
+pub use process::napi::*;
+pub use search::napi::*;

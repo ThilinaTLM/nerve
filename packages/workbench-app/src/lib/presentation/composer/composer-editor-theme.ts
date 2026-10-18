@@ -104,11 +104,17 @@ export const composerEditorTheme = EditorView.theme({
     { color: "var(--info)" },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-main": {
     display: "flex",
-    alignItems: "baseline",
-    gap: "0.3rem",
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: "calc(var(--spacing) * 0.5)",
     flex: "1",
     minWidth: "0",
   },
+  ".cm-tooltip-autocomplete.nerve-composer-completions :is(.nerve-completion-file, .nerve-completion-directory) .cm-nerve-row-main":
+    {
+      flexDirection: "row",
+      alignItems: "baseline",
+    },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-dir": {
     flexShrink: "1",
     minWidth: "0",
@@ -116,19 +122,28 @@ export const composerEditorTheme = EditorView.theme({
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     direction: "rtl",
+    // RTL controls left ellipsis; the renderer's inline bdi isolates LTR text.
     textAlign: "left",
     fontFamily: "var(--font-mono)",
     fontSize: "var(--text-xs)",
     color: "var(--muted-foreground)",
   },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-name": {
-    flexShrink: "0",
+    flexShrink: "1",
+    minWidth: "0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontFamily: "var(--font-mono)",
+    fontFamily: "var(--font-sans)",
     fontSize: "var(--text-xs)",
     fontWeight: "500",
     color: "var(--popover-foreground)",
   },
+  ".cm-tooltip-autocomplete.nerve-composer-completions :is(.nerve-completion-file, .nerve-completion-directory) .cm-nerve-row-name":
+    {
+      flexShrink: "0",
+      fontFamily: "var(--font-mono)",
+    },
   ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-detail": {
     minWidth: "0",
     overflow: "hidden",
