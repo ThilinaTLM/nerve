@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -32,12 +32,18 @@ function reporter() {
       terminals: number;
       error?: string;
       cancel?: () => void;
+      finished: Promise<void>;
     }
   >();
   const port: GitActivityPort = {
     start(input, actions) {
       const id = input.id ?? `test-${entries.size}`;
+      let finishEntry!: () => void;
+      const finished = new Promise<void>((resolve) => {
+        finishEntry = resolve;
+      });
       const entry = {
+        finished,
         parentId: input.parentId,
         status: input.status ?? "running",
         terminals: 0,
@@ -48,6 +54,7 @@ function reporter() {
       const finish = (status: string) => {
         entry.terminals++;
         entry.status = status;
+        finishEntry();
       };
       const handle: GitActivityHandle = {
         id,
@@ -320,18 +327,43 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
   const hold = new Promise<void>((resolve) => {
     release = resolve;
   });
+  // Bound event waits without relying on a fixed number of short timer spins.
+  async function waitFor<T>(event: Promise<T>, label: string): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        event,
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Timed out: ${label}`)),
+            10_000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  let reachedFetch!: () => void;
+  const fetching = new Promise<void>((resolve) => {
+    reachedFetch = resolve;
+  });
   const steps: string[] = [];
   const f = await fixture(async (repo) => {
     const cwd = f.service.git.resolveRepoDir("p", repo);
+    // Discovered read descriptors use real filesystem identities, not raw paths
+    // (Windows temp paths can differ in casing or canonical representation).
+    const commonDir = await realpath(join(cwd, ".git"));
     return inGitLane(cwd, true, async () => {
-      await inGitReadLane(join(cwd, ".git"), async () => {
+      await inGitReadLane(commonDir, async () => {
         steps.push("dirty-guard");
       });
       await inGitLane(cwd, true, async () => {
         steps.push("fetch");
+        reachedFetch();
       });
       await hold;
-      await inGitReadLane(join(cwd, ".git"), async () => {
+      await inGitReadLane(commonDir, async () => {
         steps.push("ref-refresh");
       });
       await inGitLane(cwd, false, async () => {
@@ -348,7 +380,18 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
       kind: "checkout",
       number: 42,
     });
-    await until(() => steps.includes("fetch"));
+    const entry = f.entries.get(operationId)!;
+    await waitFor(
+      Promise.race([
+        fetching,
+        entry.finished.then(() => {
+          assert.fail(
+            `Checkout ended before fetch: ${entry.status}: ${entry.error ?? ""}`,
+          );
+        }),
+      ]),
+      "checkout reaches fetch",
+    );
     competing = inGitLane(
       f.service.git.resolveRepoDir("p", "a"),
       false,
@@ -362,7 +405,8 @@ void test("tracked PR checkout reenters workflow and status lanes without admitt
     assert.deepEqual(steps, ["dirty-guard", "fetch", "unrelated-fetch"]);
     release();
     await competing;
-    await until(() => f.entries.get(operationId)?.status === "succeeded");
+    await waitFor(entry.finished, "checkout completes");
+    assert.equal(entry.status, "succeeded", entry.error);
     assert.deepEqual(steps, [
       "dirty-guard",
       "fetch",

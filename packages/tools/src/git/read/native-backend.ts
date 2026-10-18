@@ -1,4 +1,5 @@
 import { realpath } from "node:fs/promises";
+import { toNamespacedPath } from "node:path";
 import type { GitFileChange } from "@nervekit/contracts/git";
 import {
   checkGitAncestry,
@@ -302,7 +303,15 @@ export class NativeGitReadBackend implements GitReadBackend {
       });
     return {
       metadata,
-      repository: { relativePath: ".", workDir, ...identity },
+      // Node realpath omits the Windows namespace prefix returned by Rust's
+      // canonicalize. Match native discovery's descriptor spelling without
+      // relaxing the native identity checks or resolving any additional aliases.
+      repository: {
+        relativePath: ".",
+        workDir: toNamespacedPath(workDir),
+        gitDir: toNamespacedPath(identity.gitDir),
+        commonDir: toNamespacedPath(identity.commonDir),
+      },
     };
   }
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, toNamespacedPath } from "node:path";
 import { test } from "node:test";
 import type {
   NativeGitMetadataSnapshot,
@@ -87,9 +87,9 @@ void test("full reads compose status-free metadata and selected-filter helper un
         assert.deepEqual(repositories, [
           {
             relativePath: ".",
-            workDir: f.a,
-            gitDir: join(f.a, ".git"),
-            commonDir: join(f.a, ".git"),
+            workDir: toNamespacedPath(f.a),
+            gitDir: toNamespacedPath(join(f.a, ".git")),
+            commonDir: toNamespacedPath(join(f.a, ".git")),
           },
         ]);
         steps.push("guarded-status");
