@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +8,7 @@ import { afterEach, describe, it } from "node:test";
 import {
   directDirectoryCompletionItems,
   discoverCandidates,
+  discoverEntries,
 } from "../../../src/domains/completions/file-completion-candidates.js";
 
 const roots: string[] = [];
@@ -42,6 +45,63 @@ async function fixture(): Promise<string> {
 }
 
 describe("file completion candidate discovery", () => {
+  it("raw entries preserve legacy paths/kinds and filters for fallback and Git without normalized graphs", async () => {
+    const root = await fixture();
+    const compare = async () => {
+      const raw = await discoverEntries(root);
+      const legacy = await discoverCandidates(root);
+      const entries = raw
+        .map((entry) => `${entry.kind}:${entry.relativePath}`)
+        .sort();
+      assert.deepEqual(
+        entries,
+        legacy.map((entry) => `${entry.kind}:${entry.relativePath}`).sort(),
+      );
+      assert.ok(
+        raw.every(
+          (entry) =>
+            Object.keys(entry).sort().join(",") === "kind,relativePath",
+        ),
+        "raw discovery cannot retain legacy lowercase/name/stem/segment graphs",
+      );
+      assert.ok(
+        legacy.every(
+          (entry, i) =>
+            i === 0 ||
+            legacy[i - 1]!.relativePath.localeCompare(entry.relativePath) <= 0,
+        ),
+      );
+      return raw;
+    };
+    assert.ok(
+      (await compare()).some(
+        (entry) => entry.relativePath === "empty" && entry.kind === "directory",
+      ),
+    );
+    await promisify(execFile)(
+      "git",
+      ["init", "--quiet", "--initial-branch=completion-fixture"],
+      { cwd: root },
+    );
+    await writeFile(join(root, ".gitignore"), "src/ignored.ts\n");
+    await writeFile(join(root, "src", "ignored.ts"), "ignored");
+    const git = await compare();
+    assert.ok(
+      git.some(
+        (entry) =>
+          entry.relativePath === "src/nested" && entry.kind === "directory",
+      ),
+      "Git file paths synthesize their parent directories once",
+    );
+    assert.equal(
+      git.some(
+        (entry) =>
+          entry.relativePath === "empty" ||
+          entry.relativePath === "src/ignored.ts",
+      ),
+      false,
+    );
+  });
   it("uses the bounded fallback while pruning generated trees and binaries", async () => {
     const root = await fixture();
     const candidates = await discoverCandidates(root);

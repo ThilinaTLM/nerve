@@ -14,6 +14,7 @@ import type {
   UserQuestionRecord,
 } from "$lib/presentation/view-models/conversation";
 import type { CompletionItem } from "@nervekit/contracts/completions";
+import type { ComposerReferenceSource } from "$lib/presentation/composer/composer-editor-completions";
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
 import type { ContextUsage, ModelInfo } from "@nervekit/contracts/models";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
@@ -62,6 +63,7 @@ export type PromptComposerProps = {
   permissionRuleSetsLoading?: boolean;
   permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
+  completionSource?: ComposerReferenceSource;
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
     kind: "launch" | "pull_request",

@@ -91,10 +91,7 @@ import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-
 import type { AsyncBash } from "@nervekit/contracts/core";
 import { openFilePane } from "$lib/features/filesystem/state/file-tabs.svelte";
 import { openLaunchTab } from "$lib/features/launches";
-import {
-  fileCompletions,
-  referenceCompletions,
-} from "$lib/app/composition/conversations/composer-reference-completions";
+import { composerReferenceSource } from "$lib/app/composition/conversations/composer-reference-completions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
 import {
@@ -676,9 +673,14 @@ $effect(() => {
     void editConversationEntry(entry);
   }
 });
-const completeFiles = (q: string) => fileCompletions(activeProject?.id, q);
-const completeReferences = (kind: "launch" | "pull_request", q: string) =>
-  referenceCompletions(activeProject?.id, kind, q);
+const completionProjectId = $derived(activeProject?.id);
+const completionConversationId = $derived(viewedChildId ?? conversationId);
+// Construction is inert; only an active editor query acquires server data.
+const completionSource = $derived(
+  active && completionProjectId
+    ? composerReferenceSource(completionProjectId, completionConversationId)
+    : undefined,
+);
 /** The lead's context drives the agents tree in both lead and sub-agent views. */
 const leadContext = $derived(
   !viewedChildId
@@ -825,8 +827,7 @@ const teamRunning = $derived(
   composerFocusToken={composerSignals.focusToken}
   composerEscapeToken={composerSignals.escapeToken}
   micShortcutToken={composerSignals.micToken}
-  fileCompletions={active ? completeFiles : undefined}
-  referenceCompletions={active ? completeReferences : undefined}
+  {completionSource}
   onComposerChange={setPaneComposerText}
   onSubmit={() => {
     void runActivePaneAction(submitPrompt);

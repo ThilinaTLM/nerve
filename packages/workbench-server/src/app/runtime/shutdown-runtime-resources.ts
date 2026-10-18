@@ -1,5 +1,6 @@
 export interface RuntimeShutdownResources {
   gitOperations: { close(): Promise<void> };
+  completions: { dispose(): Promise<void> };
   workspaceMonitor: { close(): Promise<void> };
   launches: { shutdown(): Promise<void> };
   fileCompletions: { dispose(): Promise<void> };
@@ -13,6 +14,11 @@ export async function shutdownRuntimeResources(
   const failures: unknown[] = [];
   try {
     await resources.gitOperations.close();
+  } catch (error) {
+    failures.push(error);
+  }
+  try {
+    await resources.completions.dispose();
   } catch (error) {
     failures.push(error);
   }

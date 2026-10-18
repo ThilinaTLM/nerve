@@ -44,9 +44,13 @@ import {
 } from "$lib/presentation/dnd/project-entry-drag";
 import { executableCommandBlockHighlighter } from "./composer-command-blocks";
 import {
-  bestFileCompletionSelector,
+  bestReferenceCompletionSelector,
   composerCompletionExtensions,
+  composerReferenceActionPending,
+  refreshComposerReferenceCompletions,
+  invalidateComposerCompletionRequests,
   type ComposerCompletionOptions,
+  type ComposerReferenceSource,
 } from "./composer-editor-completions";
 import { composerEditorTheme } from "./composer-editor-theme";
 type Props = {
@@ -56,6 +60,7 @@ type Props = {
   disabled?: boolean;
   focusToken?: number;
   slashCompletions?: readonly CompletionItem[];
+  completionSource?: ComposerReferenceSource;
   fileCompletions?: (query: string) => Promise<CompletionItem[]>;
   referenceCompletions?: (
     kind: "launch" | "pull_request",
@@ -77,6 +82,7 @@ let {
   disabled = false,
   focusToken = 0,
   slashCompletions = [],
+  completionSource,
   fileCompletions,
   referenceCompletions,
   onChange,
@@ -95,11 +101,16 @@ let lastFocusToken = 0;
 let fileDragDepth = 0;
 let fileDragActive = $state(false);
 let contextVersion = $state(0);
+let completionNotice = $state("");
 const editableCompartment = new Compartment();
 const completionCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
 
 const completionOptions: ComposerCompletionOptions = {
+  referenceSource: () => completionSource,
+  notice: (message) => {
+    completionNotice = message;
+  },
   slashCompletions: () => slashCompletions,
   fileCompletions: () => fileCompletions,
   referenceCompletions: () => referenceCompletions,
@@ -366,7 +377,7 @@ onMount(() => {
           composerCompletionExtensions(completionOptions),
         ),
         executableCommandBlockHighlighter,
-        bestFileCompletionSelector,
+        bestReferenceCompletionSelector,
         Prec.highest(
           keymap.of([
             { key: "Enter", run: submitOnEnter },
@@ -383,6 +394,8 @@ onMount(() => {
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged || update.selectionSet) contextVersion += 1;
           if (!update.docChanged) return;
+          invalidateComposerCompletionRequests(completionOptions);
+          completionNotice = "";
           editorValue = update.state.doc.toString();
           onChange?.(editorValue);
         }),
@@ -408,6 +421,10 @@ $effect(() => {
   void slashCompletions;
   void fileCompletions;
   void referenceCompletions;
+  void completionSource;
+  invalidateComposerCompletionRequests(completionOptions);
+  completionNotice = "";
+  closeCompletion(view);
   view.dispatch({
     effects: completionCompartment.reconfigure(
       composerCompletionExtensions(completionOptions),
@@ -438,7 +455,38 @@ $effect(() => {
   editorValue = value;
 });
 
-onDestroy(() => view?.destroy());
+$effect(() => {
+  const source = completionSource;
+  completionNotice = "";
+  if (!source) return;
+  let disposed = false;
+  let queued = false;
+  const unsubscribe = source.subscribe(() => {
+    if (queued || disposed) return;
+    queued = true;
+    queueMicrotask(() => {
+      queued = false;
+      if (
+        disposed ||
+        !view ||
+        disabled ||
+        !completionStatus(view.state) ||
+        composerReferenceActionPending(completionOptions)
+      )
+        return;
+      refreshComposerReferenceCompletions(view, completionOptions);
+    });
+  });
+  return () => {
+    disposed = true;
+    unsubscribe();
+  };
+});
+
+onDestroy(() => {
+  invalidateComposerCompletionRequests(completionOptions);
+  view?.destroy();
+});
 </script>
 
 <div
@@ -459,6 +507,15 @@ onDestroy(() => view?.destroy());
       oncontextmenu={captureContext}
     ></div>
   </ContextMenuList>
+  {#if completionNotice}
+    <div
+      role="status"
+      aria-live="polite"
+      class="px-2 py-1 text-xs text-muted-foreground"
+    >
+      {completionNotice}
+    </div>
+  {/if}
   {#if fileDragActive}
     <div
       class="pointer-events-none absolute inset-0 z-10 flex items-center justify-center gap-2 rounded-md border border-primary bg-background/95 px-4 text-sm font-medium text-foreground shadow-sm"

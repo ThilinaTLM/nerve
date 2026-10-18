@@ -1,3 +1,4 @@
+import { completionEventDefinitions } from "../domains/completions/events.js";
 import { activityEventDefinitions } from "../domains/activity/events.js";
 import { promptSuggestionEventDefinitions } from "../domains/prompt-suggestions/events.js";
 import { subagentProfileEventDefinitions } from "../domains/subagents/events.js";
@@ -41,6 +42,7 @@ const definitions: PublicEventDefinition[] = [
   ...daemonEventDefinitions,
   ...maintenanceEventDefinitions,
   ...activityEventDefinitions,
+  ...completionEventDefinitions,
   ...usageEventDefinitions,
 ];
 

@@ -19,6 +19,16 @@ import {
   toCompletionItem,
 } from "./file-completion-items.js";
 
+import {
+  completionUsageId,
+  rankCompletionCandidates,
+} from "./completion-ranking-policy.js";
+import type { CompletionUsageStore } from "./completion-usage-store.js";
+
+// Separate retrieval budget from the visible result cap. Requires native's
+// generalized/widened query API; never silently fall back to a top-eight pool.
+const policyCandidateLimit = 64;
+
 const cacheTtlMs = 120_000;
 const maxCachedProjects = 8;
 // Includes the active query and callers awaiting discovery/build. Reject excess
@@ -55,6 +65,7 @@ type FileCompletionServiceOptions = {
   ) => Promise<FileCompletionIndex>;
   now?: () => number;
   maxCachedProjects?: number;
+  usageStore?: CompletionUsageStore;
 };
 
 export class FileCompletionService {
@@ -73,11 +84,13 @@ export class FileCompletionService {
   private readonly now: () => number;
   private readonly capacity: number;
   private closed = false;
+  private readonly usageStore?: CompletionUsageStore;
 
   constructor(
     private readonly getProject: (projectId: string) => Project,
     options: FileCompletionServiceOptions = {},
   ) {
+    this.usageStore = options.usageStore;
     this.discover = options.discover ?? discoverCandidates;
     // Lazy import also keeps injected lifecycle unit tests independent of the
     // native binary. There is no production TS matching fallback.
@@ -112,7 +125,17 @@ export class FileCompletionService {
     const entry = this.entry(project.id, root);
     if (shouldUseDirectoryListing(normalizedQuery)) {
       this.prewarm(entry);
-      return directDirectoryCompletionItems(root, normalizedQuery, limit);
+      const items = await directDirectoryCompletionItems(
+        root,
+        normalizedQuery,
+        options.context || this.usageStore ? policyCandidateLimit : limit,
+      );
+      if (!options.context && !this.usageStore) return items;
+      return rankCompletionCandidates(
+        items,
+        options.context,
+        await this.usageStore?.scores(project.id),
+      ).slice(0, limit);
     }
     if (entry.active >= maxPendingQueries) {
       throw new Error(
@@ -126,8 +149,11 @@ export class FileCompletionService {
       const current = snapshot;
       // Native owns the bounded FIFO; this service only bounds accepted callers
       // (including discovery/build waiters) and holds their snapshot leases.
-      const matches = await current.index.query(normalizedQuery, { limit });
-      return matches.map((match) => {
+      const ranked = !!options.context || !!this.usageStore;
+      const matches = await current.index.query(normalizedQuery, {
+        limit: ranked ? policyCandidateLimit : limit,
+      });
+      const items = matches.map((match) => {
         const item = current.items[match.candidateIndex];
         if (!item)
           throw new Error(
@@ -139,6 +165,12 @@ export class FileCompletionService {
           matchRanges: match.matchRanges,
         });
       });
+      if (!ranked) return items;
+      return rankCompletionCandidates(
+        items,
+        options.context,
+        await this.usageStore?.scores(project.id),
+      ).slice(0, limit);
     } finally {
       if (snapshot) {
         snapshot.users -= 1;
@@ -147,6 +179,20 @@ export class FileCompletionService {
       entry.active -= 1;
       this.finishRetirement(entry);
     }
+  }
+
+  async recordSelection(
+    projectId: string,
+    kind: string,
+    sourceId: string,
+  ): Promise<void> {
+    // Resolve the project using the same authorized owner as querying. Caller
+    // integration must additionally validate the selected document identity.
+    const project = this.getProject(projectId);
+    await this.usageStore?.record(
+      project.id,
+      completionUsageId(kind, sourceId),
+    );
   }
 
   async dispose(projectId?: string): Promise<void> {

@@ -1,0 +1,446 @@
+{
+  "results": [
+    {
+      "variant": "baseline",
+      "count": 20000,
+      "synthetic": true,
+      "platform": "linux/x64",
+      "node": "v24.21.0",
+      "baselineFacade": "/tmp/nerve-search-a-facade.ts",
+      "acquisition": "generated inside discover callback; candidate generation is included in cold wall time; no workspace filesystem or transport; unified uses empty temporary usage storage; historical baseline has no usage policy",
+      "retrieval": {
+        "main": 8,
+        "supplementalMax": 0
+      },
+      "generatedMetadata": "raw entries + legacy normalized candidate graph and locale sort",
+      "capabilityDifference": "PR458 baseline: original file-only retrieval8/display8, no context/usage policy. Unified: typed sources, main64 plus bounded filtered seeds, context/usage/state and display8. Not equal-capability latency; quality is reported by separate deterministic tests.",
+      "display": 8,
+      "discovery": {
+        "calls": 1,
+        "candidates": 20000,
+        "ms": 33.97118900000001
+      },
+      "native": {
+        "indexes": 1,
+        "fileUpserts": 20000,
+        "nonFileUpserts": 0,
+        "removals": 0,
+        "queries": 93,
+        "returned": 744
+      },
+      "cold": {
+        "value": 8,
+        "wallMs": 113.42950799999997,
+        "eventLoop": {
+          "samples": 7,
+          "p99Ms": 12.075007,
+          "maxMs": 12.075007,
+          "timerLagMs": 29.68698500000002
+        }
+      },
+      "warm": {
+        "wallMs": 470.96233099999995,
+        "eventLoop": {
+          "samples": 46,
+          "p99Ms": 11.083775,
+          "maxMs": 11.083775,
+          "timerLagMs": 0.9913680000000795
+        },
+        "perQueryMs": {
+          "samples": 90,
+          "p50": 4.772019,
+          "p95": 9.57382199999995,
+          "max": 10.188136999999983
+        }
+      },
+      "switches": {
+        "wallMs": 9.385130000000004,
+        "eventLoop": {
+          "samples": 0,
+          "p99Ms": 0.000511,
+          "maxMs": 0,
+          "timerLagMs": 0.6149179999999888
+        }
+      },
+      "disposal": {
+        "wallMs": 6.325594000000024,
+        "eventLoop": {
+          "samples": 0,
+          "p99Ms": 0.000511,
+          "maxMs": 0,
+          "timerLagMs": 0.38899000000003525
+        }
+      },
+      "memoryBytes": {
+        "initial": {
+          "rss": 156602368,
+          "heapTotal": 115646464,
+          "heapUsed": 41755064,
+          "external": 4892713,
+          "arrayBuffers": 2241031,
+          "maxRssKiB": 152932,
+          "forcedGc": true
+        },
+        "afterCold": {
+          "rss": 197210112,
+          "heapTotal": 116858880,
+          "heapUsed": 44076888,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 192588,
+          "forcedGc": true
+        },
+        "afterWarmAndSwitch": {
+          "rss": 197210112,
+          "heapTotal": 116858880,
+          "heapUsed": 44140368,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 192588,
+          "forcedGc": true
+        },
+        "afterDispose": {
+          "rss": 193011712,
+          "heapTotal": 115646464,
+          "heapUsed": 41958360,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 192588,
+          "forcedGc": true
+        }
+      },
+      "limits": "One cold sample per isolated process/variant/size, synthetic fixture only; not real-user quality, cross-platform evidence, or an automated performance acceptance threshold. RSS includes process/native allocations; maxRssKiB is process lifetime high-water mark. GC is outside wall timings."
+    },
+    {
+      "variant": "unified",
+      "count": 20000,
+      "synthetic": true,
+      "platform": "linux/x64",
+      "node": "v24.21.0",
+      "acquisition": "generated inside discover callback; candidate generation is included in cold wall time; no workspace filesystem or transport; unified uses empty temporary usage storage; historical baseline has no usage policy",
+      "retrieval": {
+        "main": 64,
+        "supplementalMax": 256
+      },
+      "generatedMetadata": "raw entries only, typed native preparation inside service",
+      "capabilityDifference": "PR458 baseline: original file-only retrieval8/display8, no context/usage policy. Unified: typed sources, main64 plus bounded filtered seeds, context/usage/state and display8. Not equal-capability latency; quality is reported by separate deterministic tests.",
+      "display": 8,
+      "discovery": {
+        "calls": 1,
+        "candidates": 20000,
+        "ms": 1.6733340000000112
+      },
+      "native": {
+        "indexes": 1,
+        "fileUpserts": 20000,
+        "nonFileUpserts": 10,
+        "removals": 1,
+        "queries": 186,
+        "returned": 5983
+      },
+      "cold": {
+        "value": 8,
+        "wallMs": 108.30688699999996,
+        "eventLoop": {
+          "samples": 6,
+          "p99Ms": 14.548991,
+          "maxMs": 14.548991,
+          "timerLagMs": 30.085796000000016
+        }
+      },
+      "warm": {
+        "wallMs": 475.08529999999996,
+        "eventLoop": {
+          "samples": 46,
+          "p99Ms": 11.010047,
+          "maxMs": 11.010047,
+          "timerLagMs": 0.9806689999999207
+        },
+        "perQueryMs": {
+          "samples": 90,
+          "p50": 4.898031000000003,
+          "p95": 9.54235099999994,
+          "max": 9.70552900000007
+        }
+      },
+      "switches": {
+        "wallMs": 11.231223,
+        "eventLoop": {
+          "samples": 0,
+          "p99Ms": 0.000511,
+          "maxMs": 0,
+          "timerLagMs": 0.2708589999999731
+        }
+      },
+      "disposal": {
+        "wallMs": 5.194132999999965,
+        "eventLoop": {
+          "samples": 0,
+          "p99Ms": 0.000511,
+          "maxMs": 0,
+          "timerLagMs": 0
+        }
+      },
+      "memoryBytes": {
+        "initial": {
+          "rss": 161202176,
+          "heapTotal": 115122176,
+          "heapUsed": 42175256,
+          "external": 4892713,
+          "arrayBuffers": 2241031,
+          "maxRssKiB": 157424,
+          "forcedGc": true
+        },
+        "afterCold": {
+          "rss": 204021760,
+          "heapTotal": 118276096,
+          "heapUsed": 48041272,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 202048,
+          "forcedGc": true
+        },
+        "afterWarmAndSwitch": {
+          "rss": 204152832,
+          "heapTotal": 118538240,
+          "heapUsed": 48190568,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 202048,
+          "forcedGc": true
+        },
+        "afterDispose": {
+          "rss": 200069120,
+          "heapTotal": 115384320,
+          "heapUsed": 42699904,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 202048,
+          "forcedGc": true
+        }
+      },
+      "limits": "One cold sample per isolated process/variant/size, synthetic fixture only; not real-user quality, cross-platform evidence, or an automated performance acceptance threshold. RSS includes process/native allocations; maxRssKiB is process lifetime high-water mark. GC is outside wall timings."
+    },
+    {
+      "variant": "baseline",
+      "count": 100000,
+      "synthetic": true,
+      "platform": "linux/x64",
+      "node": "v24.21.0",
+      "baselineFacade": "/tmp/nerve-search-a-facade.ts",
+      "acquisition": "generated inside discover callback; candidate generation is included in cold wall time; no workspace filesystem or transport; unified uses empty temporary usage storage; historical baseline has no usage policy",
+      "retrieval": {
+        "main": 8,
+        "supplementalMax": 0
+      },
+      "generatedMetadata": "raw entries + legacy normalized candidate graph and locale sort",
+      "capabilityDifference": "PR458 baseline: original file-only retrieval8/display8, no context/usage policy. Unified: typed sources, main64 plus bounded filtered seeds, context/usage/state and display8. Not equal-capability latency; quality is reported by separate deterministic tests.",
+      "display": 8,
+      "discovery": {
+        "calls": 1,
+        "candidates": 100000,
+        "ms": 179.26127200000002
+      },
+      "native": {
+        "indexes": 1,
+        "fileUpserts": 100000,
+        "nonFileUpserts": 0,
+        "removals": 0,
+        "queries": 93,
+        "returned": 744
+      },
+      "cold": {
+        "value": 8,
+        "wallMs": 556.20067,
+        "eventLoop": {
+          "samples": 34,
+          "p99Ms": 16.138239,
+          "maxMs": 16.138239,
+          "timerLagMs": 175.02996499999998
+        }
+      },
+      "warm": {
+        "wallMs": 2255.293967,
+        "eventLoop": {
+          "samples": 222,
+          "p99Ms": 10.887167,
+          "maxMs": 10.969087,
+          "timerLagMs": 0.8535569999999097
+        },
+        "perQueryMs": {
+          "samples": 90,
+          "p50": 22.690325999999914,
+          "p95": 48.34746100000007,
+          "max": 49.3452400000001
+        }
+      },
+      "switches": {
+        "wallMs": 49.542123000000174,
+        "eventLoop": {
+          "samples": 4,
+          "p99Ms": 10.862591,
+          "maxMs": 10.862591,
+          "timerLagMs": 0.829417999999805
+        }
+      },
+      "disposal": {
+        "wallMs": 25.08062599999994,
+        "eventLoop": {
+          "samples": 1,
+          "p99Ms": 10.412031,
+          "maxMs": 10.412031,
+          "timerLagMs": 0.4525789999997869
+        }
+      },
+      "memoryBytes": {
+        "initial": {
+          "rss": 159277056,
+          "heapTotal": 114860032,
+          "heapUsed": 41754504,
+          "external": 4892713,
+          "arrayBuffers": 2241031,
+          "maxRssKiB": 155544,
+          "forcedGc": true
+        },
+        "afterCold": {
+          "rss": 429858816,
+          "heapTotal": 191684608,
+          "heapUsed": 53831136,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 422860,
+          "forcedGc": true
+        },
+        "afterWarmAndSwitch": {
+          "rss": 429858816,
+          "heapTotal": 59826176,
+          "heapUsed": 53919656,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 422860,
+          "forcedGc": true
+        },
+        "afterDispose": {
+          "rss": 405045248,
+          "heapTotal": 50110464,
+          "heapUsed": 42009352,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 422860,
+          "forcedGc": true
+        }
+      },
+      "limits": "One cold sample per isolated process/variant/size, synthetic fixture only; not real-user quality, cross-platform evidence, or an automated performance acceptance threshold. RSS includes process/native allocations; maxRssKiB is process lifetime high-water mark. GC is outside wall timings."
+    },
+    {
+      "variant": "unified",
+      "count": 100000,
+      "synthetic": true,
+      "platform": "linux/x64",
+      "node": "v24.21.0",
+      "acquisition": "generated inside discover callback; candidate generation is included in cold wall time; no workspace filesystem or transport; unified uses empty temporary usage storage; historical baseline has no usage policy",
+      "retrieval": {
+        "main": 64,
+        "supplementalMax": 256
+      },
+      "generatedMetadata": "raw entries only, typed native preparation inside service",
+      "capabilityDifference": "PR458 baseline: original file-only retrieval8/display8, no context/usage policy. Unified: typed sources, main64 plus bounded filtered seeds, context/usage/state and display8. Not equal-capability latency; quality is reported by separate deterministic tests.",
+      "display": 8,
+      "discovery": {
+        "calls": 1,
+        "candidates": 100000,
+        "ms": 7.678415000000001
+      },
+      "native": {
+        "indexes": 1,
+        "fileUpserts": 100000,
+        "nonFileUpserts": 10,
+        "removals": 1,
+        "queries": 186,
+        "returned": 5983
+      },
+      "cold": {
+        "value": 8,
+        "wallMs": 463.262607,
+        "eventLoop": {
+          "samples": 28,
+          "p99Ms": 29.163519,
+          "maxMs": 29.163519,
+          "timerLagMs": 138.31062000000003
+        }
+      },
+      "warm": {
+        "wallMs": 2360.295067,
+        "eventLoop": {
+          "samples": 233,
+          "p99Ms": 11.001855,
+          "maxMs": 11.091967,
+          "timerLagMs": 0.9967750000000706
+        },
+        "perQueryMs": {
+          "samples": 90,
+          "p50": 24.037076999999954,
+          "p95": 48.64010899999994,
+          "max": 49.315965000000006
+        }
+      },
+      "switches": {
+        "wallMs": 49.919132999999874,
+        "eventLoop": {
+          "samples": 4,
+          "p99Ms": 10.461183,
+          "maxMs": 10.461183,
+          "timerLagMs": 0.3719290000003639
+        }
+      },
+      "disposal": {
+        "wallMs": 24.4096770000001,
+        "eventLoop": {
+          "samples": 1,
+          "p99Ms": 10.313727,
+          "maxMs": 10.313727,
+          "timerLagMs": 0.16294299999981376
+        }
+      },
+      "memoryBytes": {
+        "initial": {
+          "rss": 161280000,
+          "heapTotal": 115908608,
+          "heapUsed": 42176648,
+          "external": 4892713,
+          "arrayBuffers": 2241031,
+          "maxRssKiB": 157500,
+          "forcedGc": true
+        },
+        "afterCold": {
+          "rss": 399888384,
+          "heapTotal": 205307904,
+          "heapUsed": 68288584,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 409828,
+          "forcedGc": true
+        },
+        "afterWarmAndSwitch": {
+          "rss": 399888384,
+          "heapTotal": 205570048,
+          "heapUsed": 68470776,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 409828,
+          "forcedGc": true
+        },
+        "afterDispose": {
+          "rss": 381263872,
+          "heapTotal": 183803904,
+          "heapUsed": 42742168,
+          "external": 4958297,
+          "arrayBuffers": 2241039,
+          "maxRssKiB": 409828,
+          "forcedGc": true
+        }
+      },
+      "limits": "One cold sample per isolated process/variant/size, synthetic fixture only; not real-user quality, cross-platform evidence, or an automated performance acceptance threshold. RSS includes process/native allocations; maxRssKiB is process lifetime high-water mark. GC is outside wall timings."
+    }
+  ]
+}

@@ -1,3 +1,7 @@
+import { allToolDescriptors } from "@nervekit/tools/catalog";
+import { listAvailableSkills } from "../../core-host/resource-loader.js";
+import { UnifiedCompletionService } from "../../domains/completions/unified-completion-service.js";
+import { createCompletionDependencies } from "./create-completion-dependencies.js";
 import { createWorkspaceMonitorPublisher } from "./workspace-monitor-publisher.js";
 import { ActivityService } from "../../domains/activity/activity.service.js";
 import {
@@ -83,7 +87,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     () => subagentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
-      await Promise.all([fileCompletions.dispose(projectId)]);
+      await Promise.all([
+        fileCompletions.dispose(projectId),
+        completions.dispose(projectId),
+      ]);
       git.invalidateProjectReads(projectId);
     },
   );
@@ -160,8 +167,55 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       return { id: project.id, directory: project.directory };
     },
   });
-
+  const completionMetadata = (id: string) => {
+    const conversation = coreStorage.conversations.get(id);
+    if (!conversation) throw new Error("Conversation not found");
+    return {
+      projectId: conversation.projectId,
+      lastSequence: coreStorage.events.lastSequence(id),
+    };
+  };
+  const completions: UnifiedCompletionService = new UnifiedCompletionService(
+    createCompletionDependencies({
+      home: storage.paths.home,
+      git,
+      events,
+      core: conversationCore,
+      context: {
+        metadata: completionMetadata,
+        history: (id, page) =>
+          conversationCore.getHistory(id, {
+            limit: Math.min(64, Math.max(1, page.limit)),
+          }),
+        project: getProject,
+      },
+      sources: {
+        project: getProject,
+        capabilities,
+        profiles: subagentProfiles,
+        tools: allToolDescriptors,
+        skills: async (scope) =>
+          (
+            await listAvailableSkills(getProject(scope.projectId).directory, {
+              storageHome: storage.paths.home,
+              nerveSkills: deps.nerveSkills.skills,
+              agentBrowserSkills: deps.agentBrowserSkills.skills,
+            })
+          ).skills,
+        launches: () => launches.list(),
+        definitions: (projectId) => launchDefinitions.catalog(projectId),
+        children: (scope) =>
+          scope.conversationId
+            ? coreStorage.conversations.list({
+                projectId: scope.projectId,
+                parentConversationId: scope.conversationId,
+              })
+            : [],
+      },
+    }),
+  );
   return {
+    completions,
     activities,
     subagentProfiles,
     promptSuggestionEnablement,
