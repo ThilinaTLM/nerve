@@ -1,3 +1,4 @@
+import { shutdownRuntimeResources } from "./shutdown-runtime-resources.js";
 import {
   createRuntimeServices,
   type RuntimeDeps,
@@ -45,11 +46,6 @@ export class RuntimeLifecycle {
   }
 
   shutdown(): Promise<void> {
-    return (this.shutdownOperation ??= (async () => {
-      await this.services.workspaceMonitor.close();
-      await this.services.launches.shutdown();
-      await this.services.fileCompletions.dispose();
-      await this.services.conversationCore.close();
-    })());
+    return (this.shutdownOperation ??= shutdownRuntimeResources(this.services));
   }
 }

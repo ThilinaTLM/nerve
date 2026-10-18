@@ -79,7 +79,11 @@ export function createServerAdapterContexts(
       launchDefinitionOperations: services.launchDefinitionOperations,
       launches: services.launches,
     },
-    git: { git: services.git, workspaceMonitor: services.workspaceMonitor },
+    git: {
+      git: services.git,
+      gitOperations: services.gitOperations,
+      workspaceMonitor: services.workspaceMonitor,
+    },
   };
   const protocolAdapter = {
     daemonId: infrastructure.daemonId,

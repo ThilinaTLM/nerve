@@ -1,23 +1,22 @@
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { observeGitOperationStart } from "./git-operation-tracking";
 import type {
+  GitOperationStartRequest,
   GitBranchSummary,
   GitFileChange,
   GitStashArea,
   GitStashEntry,
 } from "@nervekit/contracts/git";
 import {
+  startGitOperation,
   applyGitStash,
   createGitBranch,
   createGitStash,
   deleteGitBranch,
   discardGitFile,
   dropGitStash,
-  fetchGit,
-  pullGit,
-  pushGit,
   stageGitFile,
-  switchBaseAndPullGit,
   switchGitBranch,
-  syncGitBranch,
   unstageGitFile,
 } from "../api/git.api";
 import {
@@ -48,95 +47,34 @@ function notifyGitFailure(title: string, error: unknown): void {
   showCriticalError(title, errorDetails(error));
 }
 
-export async function fetchGitRepo(
-  projectId: string,
-  repo: string,
+async function submitGitOperation(
+  input: GitOperationStartRequest,
 ): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  state.operations.fetching = true;
   try {
-    const result = await fetchGit(projectId, repo);
-    mergeRepoSummary(projectId, result.repo);
-    notify.success("Fetched from remote");
-    refreshAfterRemoteMutation(projectId, repo);
+    const { operationId } = await startGitOperation(input);
+    // The canonical Activity controller owns acknowledgements and terminal state.
+    observeGitOperationStart(activityInbox, input, operationId);
   } catch (error) {
-    notifyGitFailure("Fetch failed", error);
-  } finally {
-    state.operations.fetching = false;
+    notifyGitFailure("Could not start Git operation", error);
   }
 }
-
-export async function pullGitRepo(
-  projectId: string,
-  repo: string,
-): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  state.operations.pulling = true;
-  try {
-    const result = await pullGit(projectId, repo);
-    mergeRepoSummary(projectId, result.repo);
-    notify.success("Pulled from upstream");
-    refreshAfterRemoteMutation(projectId, repo);
-  } catch (error) {
-    notifyGitFailure("Pull failed", error);
-  } finally {
-    state.operations.pulling = false;
-  }
+export function fetchGitRepo(projectId: string, repo: string): Promise<void> {
+  return submitGitOperation({ projectId, repo, kind: "fetch" });
 }
-
-export async function pushGitRepo(
-  projectId: string,
-  repo: string,
-): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  state.operations.pushing = true;
-  try {
-    const result = await pushGit(projectId, repo);
-    mergeRepoSummary(projectId, result.repo);
-    notify.success("Pushed to upstream");
-    refreshAfterRemoteMutation(projectId, repo);
-  } catch (error) {
-    notifyGitFailure("Push failed", error);
-  } finally {
-    state.operations.pushing = false;
-  }
+export function pullGitRepo(projectId: string, repo: string): Promise<void> {
+  return submitGitOperation({ projectId, repo, kind: "pull" });
 }
-
-export async function syncGitRepo(
-  projectId: string,
-  repo: string,
-): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  state.operations.syncing = true;
-  try {
-    const result = await syncGitBranch(projectId, repo);
-    mergeRepoSummary(projectId, result.repo);
-    notify.success("Branch synced");
-    refreshAfterRemoteMutation(projectId, repo);
-  } catch (error) {
-    notifyGitFailure("Sync failed", error);
-  } finally {
-    state.operations.syncing = false;
-  }
+export function pushGitRepo(projectId: string, repo: string): Promise<void> {
+  return submitGitOperation({ projectId, repo, kind: "push" });
 }
-
-export async function switchBaseAndPullGitRepo(
+export function syncGitRepo(projectId: string, repo: string): Promise<void> {
+  return submitGitOperation({ projectId, repo, kind: "sync" });
+}
+export function switchBaseAndPullGitRepo(
   projectId: string,
   repo: string,
 ): Promise<void> {
-  const state = ensureGitRepoState(projectId, repo);
-  state.operations.switchingBaseAndPulling = true;
-  try {
-    const result = await switchBaseAndPullGit(projectId, repo);
-    mergeRepoSummary(projectId, result.repo);
-    setBranchesIfChanged(state, []);
-    notify.success(`Switched to ${result.repo.baseBranch} and pulled`);
-    refreshAfterRemoteMutation(projectId, repo);
-  } catch (error) {
-    notifyGitFailure("Switch and pull failed", error);
-  } finally {
-    state.operations.switchingBaseAndPulling = false;
-  }
+  return submitGitOperation({ projectId, repo, kind: "switchBaseAndPull" });
 }
 
 export async function switchGitRepoBranch(

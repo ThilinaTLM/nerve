@@ -13,6 +13,7 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import GitChangesArea from "./GitChangesArea.svelte";
+import GitOperationProgress from "./GitOperationProgress.svelte";
 import GitPanelBanner from "./GitPanelBanner.svelte";
 import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
@@ -83,6 +84,30 @@ const remoteBusy = $derived(
     </PanelHeader>
 
     <GitRepoSwitcher {model} {actions} chipCount={(repo) => repo.changeCount} />
+    {#if model.repositories.length > 1 && actions.runBulkRemoteOperation}
+      <PanelToolbar>
+        <PanelToolbarButton
+          icon={CloudDownload}
+          label="Fetch all"
+          showLabel
+          disabled={!model.capabilities.remote.fetch.enabled ||
+            !model.repositories.some((repo) => repo.hasRemote)}
+          onclick={() => void actions.runBulkRemoteOperation?.("fetch")}
+        />
+        <PanelToolbarButton
+          icon={ArrowDown}
+          label="Pull all"
+          showLabel
+          disabled={!model.capabilities.remote.pull.enabled ||
+            !model.repositories.some((repo) => repo.hasRemote)}
+          onclick={() => void actions.runBulkRemoteOperation?.("pull")}
+        />
+      </PanelToolbar>
+    {/if}
+    <GitOperationProgress
+      activities={model.activeOperations ?? []}
+      onCancel={actions.cancelOperation}
+    />
 
     {#if model.repositorySummary}
       {@const repo = model.repositorySummary}

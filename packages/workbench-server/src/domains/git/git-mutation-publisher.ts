@@ -1,5 +1,10 @@
 import type { GitMutationResponse } from "@nervekit/contracts/git";
-import { GitService } from "@nervekit/tools/git";
+import {
+  GitService,
+  currentGitCommandOptions,
+  safeGitFailure,
+  type GitActivityPort,
+} from "@nervekit/tools/git";
 
 const mutationReasons = {
   createBranch: "branch.created",
@@ -17,6 +22,8 @@ const mutationReasons = {
   applyStash: "stash.applied",
   dropStash: "stash.dropped",
   checkoutPr: "github.pr.checked_out",
+  clone: "repository.cloned",
+  mergePr: "github.pr.merged",
 } as const;
 
 type GitMutationMethod = keyof typeof mutationReasons;
@@ -43,33 +50,64 @@ export interface GitMutationEventPublisher {
 export function withGitMutationEvents(
   service: GitService,
   events: GitMutationEventPublisher,
+  activities?: GitActivityPort,
 ): GitService {
   return new Proxy(service, {
     get(target, property, receiver) {
       const value = Reflect.get(target, property, receiver) as unknown;
       if (
         typeof property !== "string" ||
-        !(property in mutationReasons) ||
+        !Object.hasOwn(mutationReasons, property) ||
         typeof value !== "function"
       ) {
         return typeof value === "function" ? value.bind(target) : value;
       }
       return async (...args: unknown[]) => {
-        const result = (await value.apply(target, args)) as GitMutationResponse;
+        let result: GitMutationResponse;
+        try {
+          result = (await value.apply(target, args)) as GitMutationResponse;
+        } catch (error) {
+          if (!currentGitCommandOptions().activityId) {
+            try {
+              activities
+                ?.start({
+                  kind: `git.${property}`,
+                  title: `Git ${property} failed`,
+                  scope: {
+                    projectId:
+                      typeof args[0] === "string" ? args[0] : undefined,
+                    repositoryPath:
+                      typeof args[1] === "string" ? args[1] : undefined,
+                  },
+                })
+                .fail(safeGitFailure(error));
+            } catch {
+              /* Reporting must preserve the original mutation error. */
+            }
+          }
+          throw error;
+        }
         const projectId = typeof args[0] === "string" ? args[0] : undefined;
         const repo =
           typeof args[1] === "string"
             ? args[1]
-            : result.repo.relativePath || ".";
-        await events.publish("git.repository.changed", {
-          projectId:
-            projectId && projectId.startsWith("proj_") ? projectId : undefined,
-          repo,
-          reason: mutationReasons[property as GitMutationMethod],
-          head: result.repo.currentBranch
-            ? { branch: result.repo.currentBranch }
-            : undefined,
-        });
+            : result.repo?.relativePath || ".";
+        if (projectId) target.invalidateProjectReads(projectId);
+        try {
+          await events.publish("git.repository.changed", {
+            projectId:
+              projectId && projectId.startsWith("proj_")
+                ? projectId
+                : undefined,
+            repo,
+            reason: mutationReasons[property as GitMutationMethod],
+            head: result.repo?.currentBranch
+              ? { branch: result.repo.currentBranch }
+              : undefined,
+          });
+        } catch {
+          /* A publication failure cannot turn a successful mutation into a failure. */
+        }
         return result;
       };
     },

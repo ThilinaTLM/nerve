@@ -8,6 +8,7 @@ import type {
 } from "@nervekit/contracts/git";
 import { buildPanelTree } from "$lib/presentation/panels/panel-tree";
 import {
+  createGitPanelActions,
   canDeleteBranch,
   gitChangeTreeFolderKey,
   gitRepoChipSplit,
@@ -18,6 +19,46 @@ import {
   isPlausibleBranchName,
   shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
+
+import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
+
+void test("bulk and cancellation actions preserve capabilities and tracked-ID policy", () => {
+  let enabled = false;
+  const calls: string[] = [];
+  const model = {
+    availability: { available: true },
+    capabilities: {
+      remote: {
+        fetch: {
+          get enabled() {
+            return enabled;
+          },
+        },
+      },
+    },
+    activeOperations: [
+      { id: "running", actions: { cancel: true } },
+      { id: "finished", actions: { cancel: false } },
+    ],
+  } as unknown as GitPanelModel;
+  const host = {
+    runBulkRemoteOperation: (kind: string) => {
+      calls.push(kind);
+    },
+    cancelOperation: (id: string) => {
+      calls.push(id);
+    },
+  } as unknown as GitPanelActions;
+  const actions = createGitPanelActions(() => model, host);
+  void actions.runBulkRemoteOperation?.("fetch");
+  assert.deepEqual(calls, []);
+  enabled = true;
+  void actions.runBulkRemoteOperation?.("fetch");
+  void actions.cancelOperation?.("missing");
+  void actions.cancelOperation?.("finished");
+  void actions.cancelOperation?.("running");
+  assert.deepEqual(calls, ["fetch", "running"]);
+});
 
 function change(
   path: string,

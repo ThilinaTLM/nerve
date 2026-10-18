@@ -5,6 +5,8 @@ import {
 } from "$lib/application/events/workbench-event-bus";
 import type { GitAutoRefreshDemand } from "./git-auto-refresh-scheduler";
 import { gitEventRefreshRequest } from "./git-event-policy";
+import { refreshGitContext } from "./git-context.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   invalidateGitOverviewFromFilesystem,
   scheduleAutomaticGitRefresh,
@@ -25,9 +27,15 @@ export function registerGitEventHandlers(
       const request = gitEventRefreshRequest(event);
       if (!request) return;
       if (event.type === "git.repository.invalidated") {
-        invalidateGitOverviewFromFilesystem(request.projectId, request.repo);
+        invalidateGitOverviewFromFilesystem(
+          request.projectId,
+          request.repo,
+          request.demand.uncertain,
+        );
         return;
       }
+      if (request.refreshDiscovery && workbenchStartupState.progressiveActive)
+        void refreshGitContext(request.projectId, { force: true });
       schedule(request.projectId, request.repo, request.demand);
     } catch {
       // Event reducers must not prevent workspace cursor advancement.

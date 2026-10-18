@@ -22,7 +22,12 @@ import {
   GitAutoRefreshScheduler,
   type GitAutoRefreshDemand,
 } from "./git-auto-refresh-scheduler";
-import { joinGitProjectRefresh } from "./git-panel-refresh-policy";
+import {
+  joinGitProjectRefresh,
+  joinGitOverviewRefresh,
+  gitAutomaticOverviewOptions,
+  type GitPanelRefreshOptions,
+} from "./git-panel-refresh-policy";
 import {
   applyGitContextFromProject,
   clearGithubState,
@@ -31,7 +36,6 @@ import {
   errorMessage,
   filterMergedOpenPrs,
   type GitPanelProjectState,
-  type GitPanelRefreshOptions,
   type GitPanelRepoState,
   gitPanelState,
   mergeRepoSummary,
@@ -79,11 +83,11 @@ const automaticRefreshScheduler = new GitAutoRefreshScheduler(
     void Promise.all([
       ...(demand.overview
         ? [
-            refreshGitOverview(projectId, repo, {
-              force: true,
-              silent: true,
-              onlyIfChanged: true,
-            }),
+            refreshGitOverview(
+              projectId,
+              repo,
+              gitAutomaticOverviewOptions(demand),
+            ),
           ]
         : []),
       ...(demand.prs && state.github?.authenticated
@@ -109,18 +113,29 @@ export function setGitOverviewRefreshVisible(
 export function invalidateGitOverviewFromFilesystem(
   projectId: string,
   repo: string,
+  uncertain = false,
 ): void {
   const state =
     gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
       gitRepoStateKey(repo)
     ];
   if (!state) return;
+  state.overviewRequest.uncertainInvalidation = state.overviewInvalidated
+    ? Boolean(state.overviewRequest.uncertainInvalidation && uncertain)
+    : uncertain;
   state.overviewInvalidated = true;
+  state.overviewRequest.invalidation =
+    (state.overviewRequest.invalidation ?? 0) + 1;
   if (
     visibleOverviewDemand.has(automaticRefreshKey(projectId, repo)) &&
     (typeof document === "undefined" || document.visibilityState === "visible")
   )
-    scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
+    scheduleAutomaticGitRefresh(projectId, repo, {
+      overview: true,
+      ...(state.overviewRequest.uncertainInvalidation
+        ? { uncertain: true }
+        : {}),
+    });
 }
 
 export function scheduleAutomaticGitRefresh(
@@ -172,7 +187,7 @@ export async function refreshGitProject(
       });
     const result = await queryClient.fetchQuery({
       queryKey: queryKeys.git.repos(project.id),
-      queryFn: () => discoverGitRepos(project.id),
+      queryFn: () => discoverGitRepos(project.id, options.force),
       staleTime: GIT_STALE_MS,
     });
     if (state.discoveryRequest.sequence !== requestSeq) return;
@@ -180,6 +195,8 @@ export async function refreshGitProject(
     if (state.projectIsRepo !== result.projectIsRepo) {
       state.projectIsRepo = result.projectIsRepo;
     }
+    state.readErrors = result.errors ?? [];
+    state.readsStale = result.stale ?? false;
     setProjectRepos(state, result.repos);
     for (const repo of result.repos)
       ensureGitRepoState(project.id, repo.relativePath);
@@ -202,7 +219,7 @@ export async function refreshGitProject(
     if (!state.loaded) {
       state.loaded = true;
     }
-    state.loadedAt = Date.now();
+    state.loadedAt = result.stale ? undefined : Date.now();
     applyGitContextFromProject(project.id);
 
     if (result.repos.length > 0 && state.discoveryRequest.loadsDetails) {
@@ -267,10 +284,7 @@ export async function refreshGitOverview(
   options: GitPanelRefreshOptions = {},
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  if (state.overviewRequest.inFlight) {
-    if (options.force) state.overviewRequest.refreshQueued = true;
-    return;
-  }
+  if (joinGitOverviewRefresh(state.overviewRequest, options)) return;
   automaticRefreshScheduler.noteDirectStart(
     automaticRefreshKey(projectId, repo),
     { overview: true },
@@ -279,12 +293,16 @@ export async function refreshGitOverview(
   state.overviewRequest.sequence = requestSeq;
   state.overviewRequest.inFlight = true;
   if (!options.silent) state.loadingOverview = true;
-  state.overviewInvalidated = false;
+  const invalidation = state.overviewRequest.invalidation ?? 0;
   try {
-    if (options.force)
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.git.overview(projectId, repo),
-      });
+    if (options.force || options.uncertain)
+      await queryClient.invalidateQueries(
+        {
+          queryKey: queryKeys.git.overview(projectId, repo),
+          refetchType: "none",
+        },
+        { cancelRefetch: !options.uncertain },
+      );
     const next = await queryClient.fetchQuery({
       queryKey: queryKeys.git.overview(projectId, repo),
       queryFn: () => getGitOverview(projectId, repo),
@@ -293,6 +311,11 @@ export async function refreshGitOverview(
     if (state.overviewRequest.sequence !== requestSeq) return;
     mergeRepoSummary(projectId, next.repo);
     patchGitOverviewState(state, next);
+    state.overviewInvalidated =
+      Boolean(next.stale) ||
+      (state.overviewRequest.invalidation ?? 0) !== invalidation;
+    if (state.overviewInvalidated) state.loadedAt = undefined;
+    else state.overviewRequest.uncertainInvalidation = undefined;
   } catch (error) {
     state.overviewInvalidated = true;
     const details = errorMessage(error);
@@ -304,12 +327,15 @@ export async function refreshGitOverview(
       if (!options.silent) state.loadingOverview = false;
       state.overviewRequest.inFlight = false;
       if (state.overviewRequest.refreshQueued) {
+        const uncertain = state.overviewRequest.queuedUncertain ?? false;
         state.overviewRequest.refreshQueued = false;
+        state.overviewRequest.queuedUncertain = undefined;
         queueMicrotask(
           () =>
             void refreshGitOverview(projectId, repo, {
               silent: true,
-              force: true,
+              force: !uncertain,
+              uncertain,
               onlyIfChanged: true,
             }),
         );
@@ -557,7 +583,12 @@ export function autoRefreshGitOverview(projectId: string, repo: string): void {
       gitRepoStateKey(repo)
     ];
   if (state?.overviewInvalidated) {
-    scheduleAutomaticGitRefresh(projectId, repo, { overview: true });
+    scheduleAutomaticGitRefresh(projectId, repo, {
+      overview: true,
+      ...(state.overviewRequest.uncertainInvalidation
+        ? { uncertain: true }
+        : {}),
+    });
     return;
   }
   if (!state || isFresh(state.loadedAt, Date.now(), GIT_STALE_MS)) return;

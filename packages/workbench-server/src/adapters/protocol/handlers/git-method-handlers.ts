@@ -1,4 +1,7 @@
-import type { GithubPrListFilters } from "@nervekit/contracts/git";
+import {
+  gitOperationStartRequestSchema,
+  type GithubPrListFilters,
+} from "@nervekit/contracts/git";
 import {
   defineWorkbenchMethodHandlersFor,
   type WorkbenchMethodHandlerMapFor,
@@ -11,8 +14,18 @@ const defineGitMethodHandlers =
 
 export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
   defineGitMethodHandlers({
+    "git.operation.cancel": (state, params) =>
+      state.gitOperations.cancel(params.operationId),
+    "git.operation.start": (state, params) =>
+      state.gitOperations.start(gitOperationStartRequestSchema.parse(params)),
+    "git.operation.bulk.start": (state, params) =>
+      state.gitOperations.startBulk(params),
+    "github.issue.list": (state, params) =>
+      state.git.listIssues(params.projectId, repo(params), params.refresh),
+    "github.pr.cached.list": (state, params) =>
+      state.git.cachedOpenPrs(params.projectId, repo(params), params.refresh),
     "git.repos.discover": (state, params) =>
-      state.git.discoverRepos(params.projectId),
+      state.git.discoverRepos(params.projectId, params.refresh),
     "git.overview.get": (state, params) =>
       state.git.overview(params.projectId, repo(params)),
     "git.repository.monitor.sync": async (state, params, invocation) => {
@@ -41,13 +54,15 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       );
       return { active: false, degraded: false };
     },
-    "git.repository.refresh": (state, params) =>
-      state.workspaceMonitor.requestRepositoryRefresh(
+    "git.repository.refresh": (state, params) => {
+      state.git.invalidateProjectReads(params.projectId);
+      return state.workspaceMonitor.requestRepositoryRefresh(
         params.projectId,
         repo(params),
-      ),
+      );
+    },
     "git.project.files.status.get": (state, params) =>
-      state.git.projectFileStatus(params.projectId),
+      state.git.projectFileStatus(params.projectId, params.refresh),
     "git.branches.list": (state, params) =>
       state.git.listBranches(params.projectId, repo(params)),
     "git.branch.create": (state, params) =>
@@ -69,20 +84,6 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
       state.git.unstageFile(params.projectId, repo(params), params.path),
     "git.file.discard": (state, params) =>
       state.git.discardFile(params.projectId, repo(params), params.path),
-    "git.sync": (state, params) =>
-      state.git.syncBranch(params.projectId, repo(params)),
-    "git.push": (state, params) =>
-      state.git.push(params.projectId, repo(params)),
-    "git.pull": (state, params) =>
-      state.git.pull(params.projectId, repo(params)),
-    "git.fetch": (state, params) =>
-      state.git.fetch(params.projectId, repo(params)),
-    "git.switchBaseAndPull": (state, params) =>
-      state.git.switchBaseAndPull(
-        params.projectId,
-        repo(params),
-        params.baseBranch,
-      ),
     "git.stash.create": (state, params) =>
       state.git.createStash(
         params.projectId,
@@ -139,8 +140,6 @@ export const gitMethodHandlers: WorkbenchMethodHandlerMapFor<GitMethodContext> =
           ? { expectedHeadRepository: params.expectedHeadRepository }
           : {}),
       }),
-    "github.pr.checkout": (state, params) =>
-      state.git.checkoutPr(params.projectId, repo(params), params.number),
     "github.pr.merge": (state, params) =>
       state.git.mergePr(
         params.projectId,

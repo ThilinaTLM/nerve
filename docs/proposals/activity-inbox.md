@@ -1,6 +1,6 @@
 # Activity inbox
 
-> Approved in-memory first version; the activity foundation is implemented, with shared Git/completion integration still in progress. See [implementation status](#implementation-status-2026-10-18) for delivered behavior and visual verification. **No database schema change or persistence**. Pairs with [concurrent Git operations](git-operations.md).
+> Approved in-memory first version; the activity foundation and shared Git/completion integration are implemented and the final combined code checkpoint is green. See [implementation status](#implementation-status-2026-10-18) for delivered behavior, validation and synthetic visual verification. **No database schema change or persistence**. Pairs with [concurrent Git operations](git-operations.md).
 
 ## Goal
 
@@ -120,7 +120,8 @@ Producers keep their own lifecycle and policy. Activity is a reporting surface, 
 - The right-side titlebar Activity/Bell button sits immediately left of Discover. Its popover uses the shared project-picker popover primitives, Running/Recent sections, scope labels, errors and keyboard-accessible action buttons. Running count and unseen failure indicator remain separate from Discover. Accepted live failures provide a toast action opening Activity unless the popover is already open; maintenance retains its existing notification to avoid duplicate toasts. Failures expose keyboard-accessible expandable error details while summary/status/actions remain visible. New failures arriving while open are marked seen; stale/duplicate/tombstoned events cannot announce failures.
 - Subscription and first snapshot wait for progressive startup. Reconnect snapshots buffer concurrent events and compare revisions; previously observed running work absent from the new snapshot becomes a client-local interrupted record with no fabricated retry capability. The daemon cannot reconstruct lost history.
 - Session history survives UI reload only while retained by the same daemon; locally inferred interruptions do not survive another UI reload. Producer error messages must be sanitized before reporting (no credentials, environment values or raw command output).
-- Unit coverage exercises retention, lifecycle, real cancellation outcomes, retry/error/concurrency races, stale handles, snapshot/event ordering, removal and disposal. Global validation is serialized by the lead.
+- Returned Git start IDs enter the canonical Activity controller immediately as queued observations; authoritative events/snapshots supersede them without resurrecting dismissed records or overwriting newer terminal states. Bulk parent/child IDs and project/repository scope are retained. Shared shutdown drains Git/completion producers before Activity disposal, including failure paths.
+- Unit coverage exercises retention, lifecycle, real cancellation outcomes, retry/error/concurrency races, stale handles, start acknowledgements, snapshot/event ordering, removal and disposal. The final combined code checkpoint passed root focused fix/check, **528 distinct owning tests (475 JS/TS + 53 scoped Rust)** and `git diff --check`; both Svelte checks reported zero errors/warnings. Exact local logs: `/tmp/nerve-final-validation/HANDOFF.md`. No suites, integration, cross-platform or live GitHub validation is claimed.
 
 ### Visual verification
 

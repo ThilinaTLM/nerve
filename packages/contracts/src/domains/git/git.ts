@@ -79,9 +79,19 @@ export const gitRepositoryRefreshResponseSchema = z.object({
   generation: z.number().int().nonnegative(),
 });
 
+export const gitProjectReadErrorSchema = z.object({
+  repo: z.string(),
+  category: z.string(),
+  message: z.string(),
+  retryable: z.boolean(),
+});
+export type GitProjectReadError = z.infer<typeof gitProjectReadErrorSchema>;
 export const gitDiscoveryResponseSchema = z.object({
+  /** Read completed across an uncertain poll; a deferred revalidation may still be needed. */
+  stale: z.boolean().optional(),
   projectIsRepo: z.boolean(),
   repos: z.array(gitRepoSummarySchema),
+  errors: z.array(gitProjectReadErrorSchema).optional(),
 });
 export type GitDiscoveryResponse = z.infer<typeof gitDiscoveryResponseSchema>;
 
@@ -106,7 +116,9 @@ export const gitProjectFileStatusSchema = gitFileChangeSchema.extend({
 export type GitProjectFileStatus = z.infer<typeof gitProjectFileStatusSchema>;
 
 export const gitProjectFileStatusResponseSchema = z.object({
+  stale: z.boolean().optional(),
   files: z.array(gitProjectFileStatusSchema),
+  errors: z.array(gitProjectReadErrorSchema).optional(),
 });
 export type GitProjectFileStatusResponse = z.infer<
   typeof gitProjectFileStatusResponseSchema
@@ -129,6 +141,7 @@ export const gitStashEntrySchema = z.object({
 export type GitStashEntry = z.infer<typeof gitStashEntrySchema>;
 
 export const gitOverviewResponseSchema = z.object({
+  stale: z.boolean().optional(),
   repo: gitRepoSummarySchema,
   baseBranch: z.string(),
   onBaseBranch: z.boolean(),
@@ -179,19 +192,11 @@ export const deleteBranchRequestSchema = z.object({
 });
 export type DeleteBranchRequest = z.infer<typeof deleteBranchRequestSchema>;
 
-/** Generic remote operation (push / pull / fetch) on the current branch. */
+/** Repository scope reused by GitHub request schemas; not a synchronous mutation RPC. */
 export const gitRemoteOpRequestSchema = z.object({
   repo: z.string().default("."),
 });
 export type GitRemoteOpRequest = z.infer<typeof gitRemoteOpRequestSchema>;
-
-export const switchBaseAndPullRequestSchema = gitRemoteOpRequestSchema.extend({
-  /** Explicit target for PR workflows; otherwise the detected default base. */
-  baseBranch: z.string().min(1).optional(),
-});
-export type SwitchBaseAndPullRequest = z.infer<
-  typeof switchBaseAndPullRequestSchema
->;
 
 export const gitFileActionRequestSchema = z.object({
   repo: z.string().default("."),

@@ -1,4 +1,6 @@
 import { SvelteSet } from "svelte/reactivity";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { gitRemoteBusy } from "./git-operation-tracking";
 import type { Project } from "@nervekit/contracts/core";
 import type {
   GitBranchSummary,
@@ -8,6 +10,7 @@ import type {
   GithubPrHeadsResponse,
   GithubStatusResponse,
   GitOverviewResponse,
+  GitProjectReadError,
   GitRecentCommit,
   GitRepoSummary,
   GitStashEntry,
@@ -17,10 +20,7 @@ import {
   gitRepoStateKey,
 } from "$lib/domain/navigation/view-keys";
 import type { GitContext } from "$lib/features/git/state/git-state.svelte";
-import {
-  type ScopedFileMutation,
-  type StashMutation,
-} from "../views/git-panel-types";
+import type { GitPanelOperationState } from "../views/git-panel-types";
 import {
   defaultGitPrFilterConfig,
   normalizeGitPrFilterConfig,
@@ -47,23 +47,8 @@ import {
   reposFingerprint,
 } from "./git-panel-slices";
 
-export type FileMutation = {
-  path: string;
-  action: "stage" | "unstage" | "discard";
-};
-
 export type GitPanelOperationsState = {
-  fetching: boolean;
-  pulling: boolean;
-  pushing: boolean;
-  syncing: boolean;
-  switchingBaseAndPulling: boolean;
-  switchingBranch?: string;
-  deletingBranch?: string;
-  creatingBranch: boolean;
-  fileMutation?: FileMutation;
-  bulkMutation?: ScopedFileMutation;
-  stashMutation?: StashMutation;
+  -readonly [Key in keyof GitPanelOperationState]: GitPanelOperationState[Key];
 };
 
 export type GitPanelLoadStatus = "idle" | "loading" | "refreshing" | "error";
@@ -72,6 +57,9 @@ export type GitPanelRepoState = {
   overviewRequest: {
     inFlight: boolean;
     refreshQueued: boolean;
+    queuedUncertain?: boolean;
+    invalidation?: number;
+    uncertainInvalidation?: boolean;
     sequence: number;
   };
   prsRequest: {
@@ -126,6 +114,8 @@ export type GitPanelProjectState = {
   selectedRepo: string;
   repoStates: Record<string, GitPanelRepoState>;
   discoverError?: string;
+  readErrors?: GitProjectReadError[];
+  readsStale?: boolean;
   loadingRepos: boolean;
   refreshingRepos: boolean;
 
@@ -170,21 +160,28 @@ export function filterMergedOpenPrs(
   );
 }
 
-export type GitPanelRefreshOptions = {
-  silent?: boolean;
-  force?: boolean;
-  onlyIfChanged?: boolean;
-  loadDetails?: boolean;
-  criticalErrorTitle?: string;
-};
-
-function createOperationsState(): GitPanelOperationsState {
+function createOperationsState(
+  projectId?: string,
+  repo?: string,
+): GitPanelOperationsState {
+  const remote = () =>
+    gitRemoteBusy(activityInbox.activities, projectId ?? "", repo ?? ".");
   return {
-    fetching: false,
-    pulling: false,
-    pushing: false,
-    syncing: false,
-    switchingBaseAndPulling: false,
+    get fetching() {
+      return remote().fetching;
+    },
+    get pulling() {
+      return remote().pulling;
+    },
+    get pushing() {
+      return remote().pushing;
+    },
+    get syncing() {
+      return remote().syncing;
+    },
+    get switchingBaseAndPulling() {
+      return remote().switchingBaseAndPulling;
+    },
     switchingBranch: undefined,
     deletingBranch: undefined,
     creatingBranch: false,
@@ -218,7 +215,7 @@ function createRepoState(projectId?: string, repo?: string): GitPanelRepoState {
     collapsedChangeTreeFolders: new SvelteSet(
       projectId && repo ? loadCollapsedGitFolders(projectId, repo) : [],
     ),
-    operations: createOperationsState(),
+    operations: createOperationsState(projectId, repo),
     loadingOverview: false,
     loadingPrs: false,
     loadingPrHeads: false,

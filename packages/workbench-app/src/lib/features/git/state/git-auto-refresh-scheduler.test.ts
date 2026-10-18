@@ -79,6 +79,23 @@ describe("GitAutoRefreshScheduler", () => {
     assert.equal(dispatches.length, 2);
   });
 
+  it("coalesces uncertain polls without losing a queued hard invalidation", () => {
+    const { clock, dispatches, scheduler } = setup();
+    scheduler.schedule("repo", { overview: true, uncertain: true });
+    clock.advanceTo(1_000);
+    scheduler.schedule("repo", { overview: true, uncertain: true });
+    clock.advanceTo(2_000);
+    scheduler.schedule("repo", { overview: true });
+    scheduler.schedule("repo", { overview: true, uncertain: true });
+    clock.advanceTo(3_000);
+    assert.deepEqual(dispatches, [
+      { at: 0, demand: { overview: true, uncertain: true } },
+      { at: 3_000, demand: { overview: true } },
+    ]);
+    clock.advanceTo(30_000);
+    assert.equal(dispatches.length, 2, "no idle periodic dispatch loop");
+  });
+
   it("retains independent overview and PR cooldown boundaries", () => {
     const { clock, dispatches, scheduler } = setup();
     scheduler.schedule("repo", { overview: true, prs: true });

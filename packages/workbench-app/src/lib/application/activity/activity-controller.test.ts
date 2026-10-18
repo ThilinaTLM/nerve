@@ -22,12 +22,15 @@ function setup() {
   let handler!: (update: { activity: Activity; removed?: boolean }) => void;
   let resolve!: (entries: Activity[]) => void;
   let entries: Activity[] = [];
+  let listCalls = 0;
   const failures: Activity[] = [];
   const controller = new ActivityController({
-    list: () =>
-      new Promise<Activity[]>((done) => {
+    list: () => {
+      listCalls++;
+      return new Promise<Activity[]>((done) => {
         resolve = done;
-      }),
+      });
+    },
     subscribe: (next) => {
       handler = next;
       return () => undefined;
@@ -46,6 +49,9 @@ function setup() {
     resolve: (next: Activity[]) => resolve(next),
     get entries() {
       return entries;
+    },
+    get listCalls() {
+      return listCalls;
     },
   };
 }
@@ -168,4 +174,199 @@ test("local dismissal suppresses delayed failure before tombstone delivery and a
   ctx.emit(entry("dismissed", "failed", 4));
   assert.deepEqual(ctx.entries, []);
   assert.deepEqual(ctx.failures, []);
+});
+
+const started = (id: string) => ({
+  id,
+  kind: "git.fetch",
+  title: `Fetch ${id}`,
+  scope: { projectId: "proj_A", repositoryPath: id },
+});
+
+test("start acknowledgment creates a safe parent-aware placeholder that authoritative events supersede", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  const input = { ...started("child"), parentId: "bulk" };
+  ctx.controller.observeStarted(input);
+  const placeholder = ctx.entries[0];
+  assert.equal(placeholder.id, "child");
+  assert.equal(placeholder.parentId, "bulk");
+  assert.equal(placeholder.status, "queued");
+  assert.equal(placeholder.revision, 0);
+  assert.deepEqual(placeholder.actions, { cancel: false, retry: false });
+  assert.ok(Number.isFinite(Date.parse(placeholder.startedAt)));
+  input.scope.projectId = "mutated";
+  assert.equal(placeholder.scope?.projectId, "proj_A");
+  ctx.emit({
+    ...entry("child", "running", 1),
+    actions: { cancel: true, retry: false },
+  });
+  assert.equal(ctx.entries[0].status, "running");
+  assert.equal(ctx.entries[0].actions.cancel, true);
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+  ctx.resolve([entry("child", "running", 1)]);
+  await tick();
+});
+
+test("terminal events and removal tombstones arriving before acknowledgment are never overwritten or resurrected", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  ctx.emit(entry("finished", "succeeded", 2));
+  ctx.controller.observeStarted(started("finished"));
+  assert.equal(ctx.entries[0].status, "succeeded");
+  assert.equal(ctx.entries[0].revision, 2);
+  ctx.emit(entry("removed", "failed", 3), true);
+  ctx.controller.observeStarted(started("removed"));
+  assert.equal(
+    ctx.entries.some((item) => item.id === "removed"),
+    false,
+  );
+  await tick();
+  assert.equal(ctx.listCalls, 1);
+});
+
+test("ack during an older snapshot is buffered, with one fresh follow-up that can infer interruption", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.controller.observeStarted(started("new"));
+  ctx.controller.observeStarted(started("new"));
+  ctx.resolve([]);
+  await tick();
+  assert.equal(ctx.entries[0].status, "queued");
+  assert.equal(ctx.listCalls, 2);
+  ctx.resolve([]);
+  await tick();
+  assert.equal(ctx.entries[0].status, "interrupted");
+  // Inferred interruption is not authoritative: revision 1 must still win.
+  ctx.emit(entry("new", "running", 1));
+  assert.equal(ctx.entries[0].status, "running");
+});
+
+test("event/ack races during refresh keep terminal truth and tombstones through the follow-up", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.controller.observeStarted(started("completed"));
+  ctx.controller.observeStarted(started("removed"));
+  ctx.emit(entry("completed", "succeeded", 2));
+  ctx.emit(entry("removed", "failed", 2), true);
+  ctx.controller.observeStarted(started("removed"));
+  ctx.resolve([]);
+  await tick();
+  assert.deepEqual(
+    ctx.entries.map((item) => [item.id, item.status]),
+    [["completed", "succeeded"]],
+  );
+  assert.equal(ctx.listCalls, 2);
+  ctx.resolve([entry("completed", "succeeded", 2)]);
+  await tick();
+  assert.equal(ctx.entries[0].status, "succeeded");
+  assert.equal(
+    ctx.entries.some((item) => item.id === "removed"),
+    false,
+  );
+});
+
+test("bulk acknowledgments coalesce snapshot reads and preserve all queued children", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  ctx.controller.observeStarted({ ...started("bulk"), kind: "git.fetch.all" });
+  for (let index = 0; index < 250; index++)
+    ctx.controller.observeStarted({
+      ...started(`child-${index}`),
+      parentId: "bulk",
+    });
+  assert.equal(ctx.entries.length, 251);
+  assert.equal(ctx.listCalls, 1);
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+  ctx.resolve(ctx.entries);
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+  assert.equal(
+    ctx.entries.filter((item) => item.parentId === "bulk").length,
+    250,
+  );
+});
+
+test("fresh reconnect missing an acknowledged operation infers interruption; disposal cancels queued reads", async () => {
+  const ctx = setup();
+  ctx.controller.observeStarted(started("before-start"));
+  await tick();
+  assert.equal(ctx.listCalls, 0);
+  ctx.controller.start();
+  ctx.resolve([entry("before-start", "running", 1)]);
+  await tick();
+  const reconnect = ctx.controller.refresh();
+  ctx.resolve([]);
+  await reconnect;
+  assert.equal(ctx.entries[0].status, "interrupted");
+  ctx.controller.observeStarted(started("dispose"));
+  ctx.controller.dispose();
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+});
+
+test("explicit fresh read covers queued acknowledgment refresh without scheduling a duplicate", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  ctx.controller.observeStarted(started("new"));
+  const refresh = ctx.controller.refresh();
+  ctx.resolve([entry("new", "running", 1)]);
+  await refresh;
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+  assert.equal(ctx.entries[0].status, "running");
+});
+
+test("acknowledged running work stays unbounded while finished retention remains 200", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  for (let index = 0; index < 205; index++) {
+    const id = `finished-${index}`;
+    ctx.controller.observeStarted(started(id));
+    ctx.emit(entry(id, "succeeded", 1));
+  }
+  for (let index = 0; index < 3; index++)
+    ctx.controller.observeStarted(started(`running-${index}`));
+  assert.equal(
+    ctx.entries.filter((item) => item.status === "succeeded").length,
+    200,
+  );
+  assert.equal(
+    ctx.entries.filter((item) => item.status === "queued").length,
+    3,
+  );
+  await tick();
+  assert.equal(ctx.listCalls, 2);
+  ctx.resolve(ctx.entries);
+  await tick();
+  assert.equal(ctx.entries.length, 203);
+});
+
+test("inferred interruption yields to authoritative same revision but never older events", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([entry("running", "running", 5)]);
+  await tick();
+  const refresh = ctx.controller.refresh();
+  ctx.resolve([]);
+  await refresh;
+  assert.equal(ctx.entries[0].status, "interrupted");
+  ctx.emit(entry("running", "failed", 4));
+  assert.equal(ctx.entries[0].status, "interrupted");
+  assert.deepEqual(ctx.failures, []);
+  ctx.emit(entry("running", "running", 5));
+  assert.equal(ctx.entries[0].status, "running");
+  assert.equal(ctx.entries[0].revision, 5);
 });

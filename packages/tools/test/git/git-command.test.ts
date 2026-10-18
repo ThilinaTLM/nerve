@@ -35,6 +35,118 @@ describe("Rust-hosted Git command execution", () => {
     }
   });
 
+  it(
+    "cancels a managed process and waits for close",
+    { skip: process.platform === "win32" },
+    async () => {
+      const controller = new AbortController();
+      const running = runGitCommand(
+        "git",
+        process.cwd(),
+        [
+          "-c",
+          "alias.nerve-wait=!printf 'Receiving objects: 20%%\\r' >&2; exec sleep 10",
+          "nerve-wait",
+        ],
+        {
+          network: true,
+          signal: controller.signal,
+          onProgress: () => controller.abort(),
+          terminationGraceMs: 20,
+        },
+      );
+      await assert.rejects(
+        running,
+        (error: unknown) =>
+          error instanceof Error && error.name === "AbortError",
+      );
+    },
+  );
+
+  it(
+    "escalates cancellation when a POSIX command ignores TERM",
+    { skip: process.platform === "win32", timeout: 3000 },
+    async () => {
+      const controller = new AbortController();
+      let abortedAt: number | undefined;
+      await assert.rejects(
+        runGitCommand(
+          "git",
+          process.cwd(),
+          [
+            "-c",
+            "alias.nerve-ignore-term=!trap '' TERM; printf 'Receiving objects: 20%%\\r' >&2; exec sleep 10",
+            "nerve-ignore-term",
+          ],
+          {
+            network: true,
+            signal: controller.signal,
+            terminationGraceMs: 20,
+            onProgress: () => {
+              if (abortedAt !== undefined) return;
+              abortedAt = performance.now();
+              controller.abort();
+            },
+            timeoutMs: 2000,
+          },
+        ),
+        (error: unknown) =>
+          error instanceof Error && error.name === "AbortError",
+      );
+      assert.notEqual(abortedAt, undefined);
+      assert.ok(
+        performance.now() - abortedAt! >= 15,
+        "cancellation must await managed close through TERM grace/KILL, not only process result or abort",
+      );
+    },
+  );
+
+  it(
+    "enforces inactivity and total deadlines",
+    { skip: process.platform === "win32" },
+    async () => {
+      for (const options of [
+        { network: true, inactivityMs: 30, timeoutMs: 2000 },
+        { network: true, inactivityMs: 2000, timeoutMs: 30 },
+      ]) {
+        await assert.rejects(
+          runGitCommand(
+            "git",
+            process.cwd(),
+            ["-c", "alias.nerve-wait=!exec sleep 10", "nerve-wait"],
+            { ...options, terminationGraceMs: 20 },
+          ),
+          /timed out/,
+        );
+      }
+    },
+  );
+
+  it(
+    "bounds retained output and reports overflow",
+    { skip: process.platform === "win32" },
+    async () => {
+      await assert.rejects(
+        runGitCommand(
+          "git",
+          process.cwd(),
+          [
+            "-c",
+            "alias.nerve-overflow=!head -c 16777217 /dev/zero",
+            "nerve-overflow",
+          ],
+          { terminationGraceMs: 20 },
+        ),
+        (error: unknown) => {
+          assert.ok(error instanceof GitCommandError);
+          assert.match(error.message, /output exceeded/);
+          assert.ok(Buffer.byteLength(error.stdout) <= 16 * 1024 * 1024);
+          return true;
+        },
+      );
+    },
+  );
+
   it("maps startup failures to a stable command error", async () => {
     await assert.rejects(
       runGitCommand("git", join(process.cwd(), "does-not-exist"), ["status"]),

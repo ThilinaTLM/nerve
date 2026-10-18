@@ -9,14 +9,12 @@ import {
   gitMutationResponseSchema,
   gitOverviewResponseSchema,
   gitProjectFileStatusResponseSchema,
-  gitRemoteOpRequestSchema,
   gitRepositoryMonitorClearRequestSchema,
   gitRepositoryMonitorStateSchema,
   gitRepositoryMonitorSyncRequestSchema,
   gitRepositoryRefreshResponseSchema,
   gitStashCreateRequestSchema,
   gitStashTargetRequestSchema,
-  githubPrCheckoutResponseSchema,
   githubPrChecksResponseSchema,
   githubPrCommitsResponseSchema,
   githubPrConversationSchema,
@@ -32,14 +30,28 @@ import {
   githubPrMergeRequestSchema,
   githubPrMergeResponseSchema,
   githubStatusResponseSchema,
-  switchBaseAndPullRequestSchema,
   switchBranchRequestSchema,
 } from "./git.js";
 import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
+import {
+  gitOperationCancelRequestSchema,
+  gitOperationCancelResponseSchema,
+  gitOperationStartRequestSchema,
+  gitOperationStartResponseSchema,
+  gitOperationBulkStartRequestSchema,
+  gitOperationBulkStartResponseSchema,
+  githubCachedListRequestSchema,
+  githubIssueListResponseSchema,
+  githubPrCachedListResponseSchema,
+} from "./git-background.js";
+
 const projectIdSchema = z.string().startsWith("proj_");
 const projectIdParamsSchema = z.object({ projectId: projectIdSchema });
+const projectReadParamsSchema = projectIdParamsSchema.extend({
+  refresh: z.boolean().default(false),
+});
 const gitRepoParamsSchema = projectIdParamsSchema.extend({
   repo: z.string().min(1).default("."),
 });
@@ -57,12 +69,6 @@ const gitFileActionParamsSchema = projectIdParamsSchema.merge(
 );
 const gitFileDiffParamsSchema = projectIdParamsSchema.merge(
   gitFileDiffRequestSchema,
-);
-const gitRemoteOpParamsSchema = projectIdParamsSchema.merge(
-  gitRemoteOpRequestSchema,
-);
-const gitSwitchBaseAndPullParamsSchema = projectIdParamsSchema.merge(
-  switchBaseAndPullRequestSchema,
 );
 const gitStashCreateParamsSchema = projectIdParamsSchema.merge(
   gitStashCreateRequestSchema,
@@ -85,8 +91,53 @@ const githubPrFileDiffParamsSchema = projectIdParamsSchema
 
 export const gitOperationDefinitions = [
   defineOperation(
+    "git.operation.cancel",
+    gitOperationCancelRequestSchema,
+    gitOperationCancelResponseSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.operation.cancel",
+  ),
+  defineOperation(
+    "git.operation.start",
+    gitOperationStartRequestSchema,
+    gitOperationStartResponseSchema,
+    "accepted_async",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.operation.start",
+  ),
+  defineOperation(
+    "git.operation.bulk.start",
+    gitOperationBulkStartRequestSchema,
+    gitOperationBulkStartResponseSchema,
+    "accepted_async",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.git.operation.bulk.start",
+  ),
+  defineOperation(
+    "github.issue.list",
+    githubCachedListRequestSchema,
+    githubIssueListResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.issue.list",
+  ),
+  defineOperation(
+    "github.pr.cached.list",
+    githubCachedListRequestSchema,
+    githubPrCachedListResponseSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.github.pr.cached.list",
+  ),
+  defineOperation(
     "git.repos.discover",
-    projectIdParamsSchema,
+    projectReadParamsSchema,
     gitDiscoveryResponseSchema,
     "read",
     "none",
@@ -133,7 +184,7 @@ export const gitOperationDefinitions = [
   ),
   defineOperation(
     "git.project.files.status.get",
-    projectIdParamsSchema,
+    projectReadParamsSchema,
     gitProjectFileStatusResponseSchema,
     "read",
     "none",
@@ -211,51 +262,6 @@ export const gitOperationDefinitions = [
     "recommended",
     ["workbench_server"] as const,
     "operation.git.file.discard",
-  ),
-  defineOperation(
-    "git.sync",
-    gitRemoteOpParamsSchema,
-    gitMutationResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.git.sync",
-  ),
-  defineOperation(
-    "git.push",
-    gitRemoteOpParamsSchema,
-    gitMutationResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.git.push",
-  ),
-  defineOperation(
-    "git.pull",
-    gitRemoteOpParamsSchema,
-    gitMutationResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.git.pull",
-  ),
-  defineOperation(
-    "git.fetch",
-    gitRemoteOpParamsSchema,
-    gitMutationResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.git.fetch",
-  ),
-  defineOperation(
-    "git.switchBaseAndPull",
-    gitSwitchBaseAndPullParamsSchema,
-    gitMutationResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.git.switchBaseAndPull",
   ),
   defineOperation(
     "git.stash.create",
@@ -382,15 +388,6 @@ export const gitOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.github.pr.file.diff.get",
-  ),
-  defineOperation(
-    "github.pr.checkout",
-    githubPrParamsSchema,
-    githubPrCheckoutResponseSchema,
-    "mutation",
-    "recommended",
-    ["workbench_server"] as const,
-    "operation.github.pr.checkout",
   ),
   defineOperation(
     "github.pr.merge",

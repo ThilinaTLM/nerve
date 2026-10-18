@@ -1,4 +1,8 @@
 import { GitWorkflowError } from "./git-errors.js";
+import {
+  currentGitCommandOptions,
+  withGitNetworkPermit,
+} from "./git-operation-context.js";
 import type { GithubRepositoryRef } from "./git-github-parsers.js";
 import type { GithubRequestObservation } from "./git-observability.js";
 
@@ -8,7 +12,10 @@ const DEFAULT_TOKEN_TTL_MS = 5 * 60_000;
 type TokenEntry = { readonly token: string; readonly expiresAt: number };
 
 type GithubApiClientOptions = {
-  readonly tokenProvider: (hostname: string) => Promise<string>;
+  readonly tokenProvider: (
+    hostname: string,
+    signal?: AbortSignal,
+  ) => Promise<string>;
   readonly fetch?: typeof fetch;
   readonly now?: () => number;
   readonly tokenTtlMs?: number;
@@ -34,6 +41,7 @@ export class GithubApiClient {
   readonly #timeoutMs: number;
   readonly #tokens = new Map<string, TokenEntry>();
   readonly #tokenRequests = new Map<string, Promise<string>>();
+  readonly #controller = new AbortController();
 
   constructor(readonly options: GithubApiClientOptions) {
     this.#fetch = options.fetch ?? fetch;
@@ -94,6 +102,7 @@ export class GithubApiClient {
   }
 
   async token(hostname: string): Promise<string> {
+    this.#controller.signal.throwIfAborted();
     const cached = this.#tokens.get(hostname);
     if (cached && cached.expiresAt > this.#now()) return cached.token;
     const existing = this.#tokenRequests.get(hostname);
@@ -101,7 +110,9 @@ export class GithubApiClient {
 
     const request = (async () => {
       try {
-        const token = (await this.options.tokenProvider(hostname)).trim();
+        const token = (
+          await this.options.tokenProvider(hostname, this.#controller.signal)
+        ).trim();
         if (!token) throw new Error("GitHub CLI returned an empty token.");
         this.#tokens.set(hostname, {
           token,
@@ -139,51 +150,85 @@ export class GithubApiClient {
     options: RestOptions,
   ): Promise<T> {
     const method = options.method ?? "GET";
-    let lastStatus: number | undefined;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const startedAt = performance.now();
-      try {
-        const token = await this.token(repository.hostname);
-        const response = await this.#fetch(url, {
-          method,
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
-          body:
-            options.body === undefined
-              ? undefined
-              : JSON.stringify(options.body),
-          signal: AbortSignal.timeout(this.#timeoutMs),
-        });
-        lastStatus = response.status;
-        if (response.status === 401 && attempt === 0) {
-          this.#tokens.delete(repository.hostname);
+    const operationSignal = currentGitCommandOptions().signal;
+    const signal = AbortSignal.any([
+      this.#controller.signal,
+      ...(operationSignal ? [operationSignal] : []),
+    ]);
+    return withGitNetworkPermit(async () => {
+      let lastStatus: number | undefined;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const startedAt = performance.now();
+        try {
+          signal?.throwIfAborted();
+          const token = await tokenForRequest(
+            this.token(repository.hostname),
+            signal,
+          );
+          const response = await this.#fetch(url, {
+            method,
+            headers: {
+              Accept: "application/vnd.github+json",
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+              "X-GitHub-Api-Version": "2022-11-28",
+            },
+            body:
+              options.body === undefined
+                ? undefined
+                : JSON.stringify(options.body),
+            signal: AbortSignal.any([
+              AbortSignal.timeout(this.#timeoutMs),
+              ...(signal ? [signal] : []),
+            ]),
+          });
+          lastStatus = response.status;
+          if (response.status === 401 && attempt === 0) {
+            this.#tokens.delete(repository.hostname);
+            this.#observe(
+              repository,
+              options.operation,
+              method,
+              startedAt,
+              false,
+              response.status,
+            );
+            continue;
+          }
+          if (!response.ok) throw apiError(response.status, response.headers);
+          const value = (await response.json()) as T;
           this.#observe(
             repository,
             options.operation,
             method,
             startedAt,
-            false,
+            true,
             response.status,
           );
-          continue;
-        }
-        if (!response.ok) throw apiError(response.status, response.headers);
-        const value = (await response.json()) as T;
-        this.#observe(
-          repository,
-          options.operation,
-          method,
-          startedAt,
-          true,
-          response.status,
-        );
-        return value;
-      } catch (error) {
-        if (error instanceof GitWorkflowError) {
+          return value;
+        } catch (error) {
+          if (signal?.aborted) {
+            this.#observe(
+              repository,
+              options.operation,
+              method,
+              startedAt,
+              false,
+              lastStatus,
+            );
+            throw signal.reason;
+          }
+          if (error instanceof GitWorkflowError) {
+            this.#observe(
+              repository,
+              options.operation,
+              method,
+              startedAt,
+              false,
+              lastStatus,
+            );
+            throw error;
+          }
           this.#observe(
             repository,
             options.operation,
@@ -192,30 +237,27 @@ export class GithubApiClient {
             false,
             lastStatus,
           );
-          throw error;
+          throw new GitWorkflowError(
+            503,
+            "GH_API_UNAVAILABLE",
+            error instanceof Error && error.name === "TimeoutError"
+              ? "GitHub API request timed out."
+              : "Could not reach the GitHub API.",
+          );
         }
-        this.#observe(
-          repository,
-          options.operation,
-          method,
-          startedAt,
-          false,
-          lastStatus,
-        );
-        throw new GitWorkflowError(
-          503,
-          "GH_API_UNAVAILABLE",
-          error instanceof Error && error.name === "TimeoutError"
-            ? "GitHub API request timed out."
-            : "Could not reach the GitHub API.",
-        );
       }
-    }
-    throw new GitWorkflowError(
-      401,
-      "GH_AUTH_REQUIRED",
-      "GitHub authentication expired. Run `gh auth refresh` or `gh auth login`.",
-    );
+      throw new GitWorkflowError(
+        401,
+        "GH_AUTH_REQUIRED",
+        "GitHub authentication expired. Run `gh auth refresh` or `gh auth login`.",
+      );
+    }, signal);
+  }
+
+  async close(): Promise<void> {
+    this.#controller.abort();
+    await Promise.allSettled([...this.#tokenRequests.values()]);
+    this.#tokens.clear();
   }
 
   #observe(
@@ -286,4 +328,23 @@ function apiError(status: number, headers: Headers): GitWorkflowError {
       ? "GitHub API is temporarily unavailable."
       : "GitHub rejected the request.",
   );
+}
+
+/** Cancel a waiter without cancelling the shared, bounded gh credential acquisition. */
+function tokenForRequest(
+  token: Promise<string>,
+  signal?: AbortSignal,
+): Promise<string> {
+  if (!signal) return token;
+  return new Promise<string>((resolve, reject) => {
+    const abort = () => {
+      signal.removeEventListener("abort", abort);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", abort, { once: true });
+    void token
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener("abort", abort));
+    if (signal.aborted) abort();
+  });
 }

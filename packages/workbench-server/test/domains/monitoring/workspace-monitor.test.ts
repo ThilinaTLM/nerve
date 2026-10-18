@@ -3,9 +3,15 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { MonitorDiagnostics, MonitorScopeState } from "@nervekit/native";
+import type {
+  ChangeNotice,
+  MonitorDiagnostics,
+  MonitorScopeState,
+} from "@nervekit/native";
 import {
   WorkspaceMonitor,
+  workspaceRefreshCause,
+  type WorkspaceRefreshOptions,
   type NativeChangeMonitorPort,
 } from "../../../src/domains/monitoring/workspace-monitor.js";
 
@@ -197,6 +203,111 @@ test("refreshing an unmonitored project reports inactive without a native refres
     await monitor.releaseOwner("one");
     assert.deepEqual(await monitor.requestProjectRefresh("proj_one"), inactive);
     assert.equal(native.refreshRequests, 1);
+  } finally {
+    await monitor.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+void test("scope-specific poll classification keeps every proven or mixed change hard", () => {
+  const uncertain: ChangeNotice["causes"][] = [
+    ["poll"],
+    ["poll_error"],
+    ["poll", "poll_error"],
+  ];
+  for (const causes of uncertain)
+    assert.equal(workspaceRefreshCause("directory", causes), "uncertain_poll");
+  assert.equal(workspaceRefreshCause("git", ["poll_error"]), "uncertain_poll");
+  for (const kind of ["git", "directory"] as const) {
+    for (const causes of [
+      [],
+      ["filesystem"],
+      ["manual"],
+      ["overflow"],
+      ["poll_error", "filesystem"],
+      ["poll_error", "manual"],
+      ["poll_error", "overflow"],
+    ] as ChangeNotice["causes"][]) {
+      assert.equal(workspaceRefreshCause(kind, causes), undefined);
+    }
+  }
+  assert.equal(workspaceRefreshCause("git", ["poll"]), undefined);
+  assert.equal(workspaceRefreshCause("git", ["poll_error", "poll"]), undefined);
+});
+
+void test("native notices publish cause hints and callback options without changing generation/full-refresh", async () => {
+  const root = await mkdtemp(join(tmpdir(), "nerve-monitor-causes-"));
+  const native = new FakeMonitor();
+  let emit!: (notice: ChangeNotice) => void;
+  const published: { type: string; data: Record<string, unknown> }[] = [];
+  const callbacks: { repo: string; options?: WorkspaceRefreshOptions }[] = [];
+  const monitor = new WorkspaceMonitor(
+    {
+      publishBestEffort: (type, data) => {
+        published.push({ type, data });
+      },
+    },
+    {
+      createMonitor: (listener) => {
+        emit = listener;
+        return native;
+      },
+      onRepositoryChanged: (repo, options) => {
+        callbacks.push({ repo, options });
+      },
+    },
+  );
+  try {
+    await monitor.syncProject("owner", "proj_one", root, []);
+    await monitor.syncRepository("owner", "proj_one", ".", root, true);
+    emit({
+      scopeId: "project:proj_one",
+      generation: 11,
+      causes: ["poll"],
+      paths: [],
+      fullRefreshRequired: true,
+    });
+    assert.deepEqual(published[0], {
+      type: "filesystem.project.changed",
+      data: {
+        projectId: "proj_one",
+        generation: 11,
+        directories: [],
+        fullRefreshRequired: true,
+        refreshCause: "uncertain_poll",
+      },
+    });
+    emit({
+      scopeId: 'git:["proj_one","."]',
+      generation: 12,
+      causes: ["poll_error"],
+      paths: [],
+      fullRefreshRequired: true,
+    });
+    assert.equal(published[1]?.data.refreshCause, "uncertain_poll");
+    assert.equal(published[1]?.data.generation, 12);
+    assert.equal(published[1]?.data.fullRefreshRequired, true);
+    assert.deepEqual(callbacks[0], {
+      repo: root,
+      options: { refreshCause: "uncertain_poll" },
+    });
+    emit({
+      scopeId: 'git:["proj_one","."]',
+      generation: 13,
+      causes: ["poll"],
+      paths: [],
+      fullRefreshRequired: true,
+    });
+    assert.equal(published[2]?.data.refreshCause, undefined);
+    assert.deepEqual(callbacks[1], { repo: root, options: undefined });
+    emit({
+      scopeId: "project:proj_one",
+      generation: 14,
+      causes: ["poll_error", "filesystem"],
+      paths: [],
+      fullRefreshRequired: true,
+    });
+    assert.equal(published[3]?.data.refreshCause, undefined);
   } finally {
     await monitor.close();
     await rm(root, { recursive: true, force: true });

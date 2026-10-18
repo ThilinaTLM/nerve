@@ -1,5 +1,16 @@
 import { createGitPanelActions } from "../views/git-panel-controller";
-import { requestGitRepositoryRefresh } from "../api/git.api";
+import {
+  requestGitRepositoryRefresh,
+  startBulkGitOperation,
+  cancelGitOperation,
+} from "../api/git.api";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import {
+  gitRemoteBusy,
+  gitRunningOperations,
+  observeBulkGitOperationStart,
+} from "./git-operation-tracking";
 import {
   disabledCapability,
   enabledCapability,
@@ -135,6 +146,10 @@ export function createWorkbenchGitPanelAdapter(
             repositories.length === 0,
           ),
         cachedError: projectState?.discoverError,
+        readErrors: projectState?.readErrors,
+        stale: Boolean(
+          projectState?.readsStale || current?.overviewInvalidated,
+        ),
         refreshing:
           Boolean(projectState?.refreshingRepos) ||
           Boolean(
@@ -146,13 +161,20 @@ export function createWorkbenchGitPanelAdapter(
         loadingPullRequests: current?.loadingPrs ?? false,
         loadingPrHeads: current?.loadingPrHeads ?? false,
         pullRequestError: current?.prsError,
-        operations: current?.operations ?? {
-          fetching: false,
-          pulling: false,
-          pushing: false,
-          syncing: false,
-          switchingBaseAndPulling: false,
-          creatingBranch: false,
+        activeOperations: project
+          ? gitRunningOperations(
+              activityInbox.activities,
+              project.id,
+              selectedRepository,
+            )
+          : [],
+        operations: {
+          ...(current?.operations ?? { creatingBranch: false }),
+          ...gitRemoteBusy(
+            activityInbox.activities,
+            project?.id ?? "",
+            selectedRepository,
+          ),
         },
         capabilities,
         repoBranchState: (repository: string) => {
@@ -174,6 +196,30 @@ export function createWorkbenchGitPanelAdapter(
   };
 
   const host: GitPanelActions = {
+    runBulkRemoteOperation: async (kind) => {
+      const project = activeProject();
+      if (!project) return;
+      const repos = adapter.model.repositories
+        .filter((repo) => repo.hasRemote)
+        .map((repo) => repo.relativePath);
+      if (!repos.length) return;
+      try {
+        const input = { projectId: project.id, repos, kind };
+        const result = await startBulkGitOperation(input);
+        observeBulkGitOperationStart(activityInbox, input, result);
+      } catch {
+        notify.error("Could not start bulk Git operation");
+      }
+    },
+    cancelOperation: async (operationId) => {
+      try {
+        const result = await cancelGitOperation(operationId);
+        if (!result.accepted)
+          notify.error(result.reason ?? "Operation is no longer cancellable");
+      } catch {
+        notify.error("Could not cancel Git operation");
+      }
+    },
     refreshAll: () => {
       const project = activeProject();
       if (project)

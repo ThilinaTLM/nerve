@@ -6,6 +6,7 @@ import type {
 import type { GitService } from "./git-service.js";
 import type { GitReadSnapshot } from "./read/types.js";
 import { parsePorcelainV2, parseShortstat } from "./git-status.js";
+import { stableMetadataFromRead } from "./git-repository-metadata.js";
 
 export async function summarizeRepo(
   service: GitService,
@@ -13,16 +14,20 @@ export async function summarizeRepo(
   relativePath: string,
   name: string,
   statusOutput?: string,
-  readSnapshot?: GitReadSnapshot,
+  readSnapshot?: Pick<GitReadSnapshot, "branch" | "files"> &
+    Partial<Pick<GitReadSnapshot, "refs" | "remotes">>,
 ): Promise<GitRepoSummary> {
-  const [read, stable] = await Promise.all([
-    readSnapshot
-      ? Promise.resolve(readSnapshot)
-      : statusOutput === undefined
-        ? service.readSnapshot(repoDir)
-        : Promise.resolve(null),
-    service.stableRepoMetadata(repoDir),
-  ]);
+  const read =
+    readSnapshot ??
+    (statusOutput === undefined ? await service.readSnapshot(repoDir) : null);
+  const stable =
+    read?.refs && read.remotes
+      ? stableMetadataFromRead({
+          branch: read.branch,
+          refs: read.refs,
+          remotes: read.remotes,
+        })
+      : await service.stableRepoMetadata(repoDir);
   const { branch, files } = read ?? parsePorcelainV2(statusOutput ?? "");
   const onBaseBranch = branch.head === stable.baseBranch;
   return {
@@ -59,22 +64,22 @@ export async function overview(
   relativePath: string,
 ): Promise<GitOverviewResponse> {
   const repoDir = service.resolveRepoDir(projectId, relativePath);
-  const snapshotPromise = service.readSnapshot(repoDir);
-  const repoPromise = snapshotPromise.then((snapshot) =>
-    summarizeRepo(
-      service,
-      repoDir,
-      relativePath,
-      service.repoName(projectId, relativePath),
-      undefined,
-      snapshot,
-    ),
+  // The overview owns one repository lane. Sequence its conservative reads so
+  // failure/cancellation cannot release that lane before another read closes.
+  const snapshot = await service.readSnapshot(repoDir);
+  const repo = await summarizeRepo(
+    service,
+    repoDir,
+    relativePath,
+    service.repoName(projectId, relativePath),
+    undefined,
+    snapshot,
   );
-  const [repo, snapshot, unstagedResult, stagedResult] = await Promise.all([
-    repoPromise,
-    snapshotPromise,
-    service.runGit(repoDir, ["diff", "--shortstat"]),
-    service.runGit(repoDir, ["diff", "--staged", "--shortstat"]),
+  const unstagedResult = await service.runGit(repoDir, ["diff", "--shortstat"]);
+  const stagedResult = await service.runGit(repoDir, [
+    "diff",
+    "--staged",
+    "--shortstat",
   ]);
   const { files } = snapshot;
   const stagedCount = files.filter((file) => file.staged).length;
@@ -105,8 +110,16 @@ export async function recentCommits(
   repoDir: string,
 ): Promise<GitRecentCommit[]> {
   try {
-    return (await service.readSnapshot(repoDir)).recentCommits;
-  } catch {
+    return (
+      await service.readMetadataSnapshot(repoDir, { recentCommitLimit: 10 })
+    ).recentCommits;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.name === "AbortError" ||
+        ("category" in error && error.category === "cancelled"))
+    )
+      throw error;
     return [];
   }
 }

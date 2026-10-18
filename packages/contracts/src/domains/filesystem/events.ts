@@ -9,6 +9,7 @@ export const filesystemEventDefinitions = [
       generation: z.number().int().nonnegative(),
       directories: z.array(z.string().max(4_096)).max(256),
       fullRefreshRequired: z.boolean(),
+      refreshCause: z.literal("uncertain_poll").optional(),
     }),
     {
       delivery: "ephemeral",

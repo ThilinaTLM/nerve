@@ -4,7 +4,14 @@ import {
 } from "@nervekit/contracts/activity";
 import { protocolRequest } from "$lib/application/startup/workbench-connection";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import { ActivityController } from "./activity-controller";
+import {
+  ActivityController,
+  type ActivityStartedInput,
+} from "./activity-controller";
+export type {
+  ActivityStartedInput,
+  ActivityStartedObserver,
+} from "./activity-controller";
 import { toast } from "svelte-sonner";
 import { ActivityAttention } from "./activity-attention";
 const attention = new ActivityAttention();
@@ -75,6 +82,8 @@ export const activityInbox = {
   get unseenFailure() {
     return state.unseenFailure;
   },
+  observeStarted: (input: ActivityStartedInput) =>
+    controller.observeStarted(input),
   start: () => controller.start(),
   reconnect: () => controller.refresh(),
   dispose: () => controller.dispose(),

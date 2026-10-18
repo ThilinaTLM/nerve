@@ -1,5 +1,14 @@
 import { isActivityRunning, type Activity } from "@nervekit/contracts/activity";
 
+export type ActivityStartedInput = Pick<
+  Activity,
+  "id" | "kind" | "title" | "scope"
+> &
+  Pick<Partial<Activity>, "parentId">;
+export interface ActivityStartedObserver {
+  observeStarted(input: ActivityStartedInput): void;
+}
+
 type Update = { activity: Activity; removed?: boolean };
 interface ActivityControllerDeps {
   list(): Promise<Activity[]>;
@@ -10,12 +19,15 @@ interface ActivityControllerDeps {
   failed?(activity: Activity): void;
 }
 /** Subscribe before snapshot; buffer events so an older snapshot cannot overwrite them. */
-export class ActivityController {
+export class ActivityController implements ActivityStartedObserver {
   #entries = new Map<string, Activity>();
   #tombstones = new Map<string, number>();
   #unsubscribe?: () => void;
   #generation = 0;
   #buffer?: Update[];
+  #refreshQueued?: object;
+  #refreshAfterCurrent = false;
+  #localInterruptions = new Map<string, number>();
   constructor(private readonly deps: ActivityControllerDeps) {}
   start(): void {
     if (this.#unsubscribe) return;
@@ -34,8 +46,42 @@ export class ActivityController {
     });
     void this.refresh();
   }
+  observeStarted(input: ActivityStartedInput): void {
+    if (this.#entries.has(input.id) || this.#tombstones.has(input.id)) return;
+    const now = new Date().toISOString();
+    const activity: Activity = {
+      ...structuredClone(input),
+      revision: 0,
+      status: "queued",
+      startedAt: now,
+      updatedAt: now,
+      actions: { cancel: false, retry: false },
+    };
+    this.#entries.set(activity.id, activity);
+    // A snapshot requested before this acknowledgment cannot establish its absence.
+    this.#buffer?.push({ activity });
+    this.changed();
+    this.scheduleRefresh();
+  }
+  private scheduleRefresh(): void {
+    if (!this.#unsubscribe) return;
+    if (this.#buffer) {
+      this.#refreshAfterCurrent = true;
+      return;
+    }
+    if (this.#refreshQueued) return;
+    const token = (this.#refreshQueued = {});
+    queueMicrotask(() => {
+      if (this.#refreshQueued !== token) return;
+      this.#refreshQueued = undefined;
+      if (this.#unsubscribe) void this.refresh();
+    });
+  }
   async refresh(): Promise<void> {
     if (!this.#unsubscribe) return;
+    this.#refreshQueued = undefined;
+    // This read starts after all acknowledgments already observed, covering queued refresh demand.
+    this.#refreshAfterCurrent = false;
     const generation = ++this.#generation;
     this.#buffer = [];
     try {
@@ -49,6 +95,8 @@ export class ActivityController {
           )
           .map((entry) => [entry.id, entry]),
       );
+      for (const id of this.#entries.keys())
+        this.#localInterruptions.delete(id);
       for (const update of this.#buffer ?? []) this.apply(update);
       const removed = new Set(
         (this.#buffer ?? [])
@@ -58,6 +106,7 @@ export class ActivityController {
       for (const entry of previous.values()) {
         if (this.#entries.has(entry.id) || removed.has(entry.id)) continue;
         if (isActivityRunning(entry)) {
+          this.#localInterruptions.set(entry.id, entry.revision);
           const now = new Date().toISOString();
           this.#entries.set(entry.id, {
             ...entry,
@@ -76,7 +125,13 @@ export class ActivityController {
     } catch (error) {
       if (generation === this.#generation) this.deps.error(error);
     } finally {
-      if (generation === this.#generation) this.#buffer = undefined;
+      if (generation === this.#generation) {
+        this.#buffer = undefined;
+        if (this.#refreshAfterCurrent) {
+          this.#refreshAfterCurrent = false;
+          this.scheduleRefresh();
+        }
+      }
     }
   }
   dismissLocal(id: string): void {
@@ -102,17 +157,27 @@ export class ActivityController {
     this.#unsubscribe = undefined;
     ++this.#generation;
     this.#buffer = undefined;
+    this.#refreshQueued = undefined;
+    this.#refreshAfterCurrent = false;
   }
   private apply(update: Update): boolean {
     const current = this.#entries.get(update.activity.id);
+    const interruptedRevision = this.#localInterruptions.get(
+      update.activity.id,
+    );
     if (update.removed) {
       if (
         (this.#tombstones.get(update.activity.id) ?? -1) >=
         update.activity.revision
       )
         return false;
-      if (current && current.revision > update.activity.revision) return false;
+      if (
+        current &&
+        (interruptedRevision ?? current.revision) > update.activity.revision
+      )
+        return false;
       this.#entries.delete(update.activity.id);
+      this.#localInterruptions.delete(update.activity.id);
       this.#tombstones.set(update.activity.id, update.activity.revision);
       if (this.#tombstones.size > 400)
         this.#tombstones.delete(this.#tombstones.keys().next().value!);
@@ -123,7 +188,14 @@ export class ActivityController {
       update.activity.revision
     )
       return false;
-    if (current && update.activity.revision <= current.revision) return false;
+    if (
+      current &&
+      (interruptedRevision === undefined
+        ? update.activity.revision <= current.revision
+        : update.activity.revision < interruptedRevision)
+    )
+      return false;
+    this.#localInterruptions.delete(update.activity.id);
     this.#entries.set(update.activity.id, update.activity);
     return true;
   }
@@ -135,6 +207,8 @@ export class ActivityController {
     for (const entry of entries)
       if (!isActivityRunning(entry) && ++finished > 200)
         this.#entries.delete(entry.id);
+    for (const id of this.#localInterruptions.keys())
+      if (!this.#entries.has(id)) this.#localInterruptions.delete(id);
     this.deps.changed(entries.filter((entry) => this.#entries.has(entry.id)));
   }
 }

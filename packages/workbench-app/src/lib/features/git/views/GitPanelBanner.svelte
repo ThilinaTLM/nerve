@@ -8,6 +8,17 @@ let { model }: { model: GitPanelModel } = $props();
 
 {#if !model.availability.available}
   <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
+{:else if model.readErrors?.length}
+  <PanelBanner tone="warning" icon={TriangleAlert}>
+    <details>
+      <summary
+        >{model.readErrors.length} repositories could not be read. Refresh to retry.</summary
+      >
+      {#each model.readErrors as error (error.repo)}
+        <p>{error.repo}: {error.message}</p>
+      {/each}
+    </details>
+  </PanelBanner>
 {:else if model.cachedError && model.repositories.length === 0}
   <PanelBanner tone="destructive" icon={TriangleAlert}>
     {model.cachedError}
@@ -15,6 +26,10 @@ let { model }: { model: GitPanelModel } = $props();
 {:else if model.cachedError}
   <PanelBanner tone="warning" icon={TriangleAlert}>
     Using cached Git data. Refresh failed: {model.cachedError}
+  </PanelBanner>
+{:else if model.stale}
+  <PanelBanner tone="warning" icon={TriangleAlert}>
+    Git data may be stale. Revalidation is pending.
   </PanelBanner>
 {:else if model.initialLoading}
   <PanelBanner tone="neutral">Loading Git repositories…</PanelBanner>
