@@ -7,6 +7,8 @@ import {
   basePullDisabled,
   pullDisabled,
   remoteActionDisabled,
+  visibleRemoteActions,
+  repositoryRemoteBusy,
 } from "./git-remote-actions.js";
 
 function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
@@ -104,5 +106,56 @@ test("a noncancellable running operation is retained instead of incorrectly stop
   assert.equal(
     activeRemoteOperation([basePull], ".", "switch-base-and-pull"),
     basePull,
+  );
+});
+
+test("row visibility keeps Fetch and Sync anchored and only shows useful conditional actions", () => {
+  assert.deepEqual(visibleRemoteActions(repo({ ahead: 2 }), []), [
+    "switch-base-and-pull",
+    "pull",
+    "push",
+    "fetch",
+    "sync",
+  ]);
+  assert.deepEqual(
+    visibleRemoteActions(repo({ onBaseBranch: true, behind: 0 }), []),
+    ["fetch", "sync"],
+  );
+  assert.deepEqual(visibleRemoteActions(repo({ hasRemote: false }), []), [
+    "fetch",
+    "sync",
+  ]);
+});
+
+test("queued and running controls survive changed metadata only on their own repository", () => {
+  const metadata = repo({
+    hasRemote: false,
+    hasUpstream: false,
+    detached: true,
+    onBaseBranch: true,
+    ahead: 0,
+    behind: 0,
+  });
+  const activities = [
+    activity("base", "git.switchBaseAndPull", "queued"),
+    activity("pull", "git.pull", "running"),
+    activity("push", "git.push", "queued"),
+  ];
+  assert.deepEqual(visibleRemoteActions(metadata, activities), [
+    "switch-base-and-pull",
+    "pull",
+    "push",
+    "fetch",
+    "sync",
+  ]);
+  assert.deepEqual(
+    visibleRemoteActions({ ...metadata, relativePath: "other" }, activities),
+    ["fetch", "sync"],
+  );
+  assert.equal(repositoryRemoteBusy(activities, "."), true);
+  assert.equal(repositoryRemoteBusy(activities, "other"), false);
+  assert.equal(
+    repositoryRemoteBusy([activity("done", "git.fetch", "succeeded")], "."),
+    false,
   );
 });

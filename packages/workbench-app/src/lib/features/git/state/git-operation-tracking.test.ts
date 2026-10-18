@@ -122,6 +122,11 @@ void test("busy state follows queued/running IDs, not start-RPC completion or an
     activity("other", "git.push", "running", "proj_b", "a"),
     activity("finished", "git.sync", "succeeded", "proj_a", "a"),
   ];
+  // The repository list needs every active row, not only the selected one.
+  assert.deepEqual(
+    gitRunningOperations(entries, "proj_a").map((entry) => entry.id),
+    ["fetch-a", "pull-b"],
+  );
   const busy = gitRemoteBusy(entries, "proj_a", "a");
   assert.deepEqual(busy.operationIds, ["fetch-a"]);
   assert.equal(busy.fetching, true);

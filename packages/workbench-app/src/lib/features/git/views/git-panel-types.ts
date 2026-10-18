@@ -128,6 +128,9 @@ export interface GitPanelActions {
   readonly cancelOperation?: (operationId: string) => void | Promise<void>;
   readonly refreshAll: () => void | Promise<void>;
   readonly refreshRepository: (repository: string) => void | Promise<void>;
+  readonly loadStashes: (
+    repository: string,
+  ) => Promise<readonly GitStashEntry[] | undefined>;
   readonly refreshBranches: (repository: string) => void | Promise<void>;
   readonly refreshPrHeads: (repository: string) => void | Promise<void>;
   readonly refreshPullRequests: (repository: string) => void | Promise<void>;

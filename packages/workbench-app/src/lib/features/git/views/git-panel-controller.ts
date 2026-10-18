@@ -272,6 +272,11 @@ export function createGitPanelActions(
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshRepository(repository);
     },
+    loadStashes: (repository) => {
+      if (available() && model().capabilities.stashes.enabled)
+        return host.loadStashes(repository);
+      return Promise.resolve(undefined);
+    },
     refreshBranches: (repository) => {
       if (available() && model().capabilities.refresh.enabled)
         return host.refreshBranches(repository);

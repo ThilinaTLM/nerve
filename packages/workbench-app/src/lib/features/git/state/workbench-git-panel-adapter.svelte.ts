@@ -2,6 +2,7 @@ import { untrack } from "svelte";
 import { createGitPanelActions } from "../views/git-panel-controller";
 import {
   requestGitRepositoryRefresh,
+  getGitOverview,
   startBulkGitOperation,
   cancelGitOperation,
 } from "../api/git.api";
@@ -164,11 +165,7 @@ export function createWorkbenchGitPanelAdapter(
         loadingPrHeads: current?.loadingPrHeads ?? false,
         pullRequestError: current?.prsError,
         activeOperations: project
-          ? gitRunningOperations(
-              activityInbox.activities,
-              project.id,
-              selectedRepository,
-            )
+          ? gitRunningOperations(activityInbox.activities, project.id)
           : [],
         operations: {
           ...(current?.operations ?? { creatingBranch: false }),
@@ -250,6 +247,18 @@ export function createWorkbenchGitPanelAdapter(
           "Could not refresh repository",
         ),
       ]);
+    },
+    loadStashes: async (repository) => {
+      const project = activeProject();
+      if (!project) return;
+      try {
+        const overview = await getGitOverview(project.id, repository);
+        if (activeProject()?.id !== project.id) return;
+        return overview.stashes;
+      } catch {
+        if (activeProject()?.id === project.id)
+          notify.error("Could not load stashes");
+      }
     },
     refreshBranches: (repository) => {
       const project = activeProject();

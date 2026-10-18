@@ -364,3 +364,29 @@ test("allows deleting only local branches that are not current or the base", () 
   assert.equal(canDeleteBranch({ ...branch, current: true }, "main"), false);
   assert.equal(canDeleteBranch({ ...branch, name: "main" }, "main"), false);
 });
+
+void test("stash reads require an available project and stash capability", async () => {
+  let available = true;
+  let enabled = false;
+  const calls: string[] = [];
+  const model = () =>
+    ({
+      availability: { available },
+      capabilities: { stashes: { enabled } },
+    }) as unknown as GitPanelModel;
+  const host = {
+    loadStashes: async (repository: string) => {
+      calls.push(repository);
+      return [];
+    },
+  } as unknown as GitPanelActions;
+  const actions = createGitPanelActions(model, host);
+  assert.equal(await actions.loadStashes("other"), undefined);
+  assert.deepEqual(calls, []);
+  enabled = true;
+  assert.deepEqual(await actions.loadStashes("other"), []);
+  assert.deepEqual(calls, ["other"]);
+  available = false;
+  assert.equal(await actions.loadStashes("other"), undefined);
+  assert.deepEqual(calls, ["other"]);
+});
