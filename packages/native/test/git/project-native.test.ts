@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, toNamespacedPath } from "node:path";
 import { promisify } from "node:util";
 import { test } from "node:test";
 import { binding } from "../../src/binding/loader.js";
@@ -110,11 +110,16 @@ test("new addon returns canonical identities and complete status parity", async 
     await writeFile(join(path, "x.ignored"), "ignored\n");
     await writeFile(join(path, ".git", "MERGE_HEAD"), "synthetic marker\n");
     const discovery = await discoverGitRepositories(root);
-    assert.equal(discovery.root, await realpath(root));
+    // Rust's filesystem canonicalization retains Windows' namespaced spelling.
+    // Use Node's path API, not prefix stripping (UNC/volume roots must survive).
+    assert.equal(discovery.root, toNamespacedPath(await realpath(root)));
     assert.equal(discovery.repositories.length, 1);
     const descriptor = discovery.repositories[0]!;
-    assert.equal(descriptor.workDir, await realpath(path));
-    assert.equal(descriptor.gitDir, await realpath(join(path, ".git")));
+    assert.equal(descriptor.workDir, toNamespacedPath(await realpath(path)));
+    assert.equal(
+      descriptor.gitDir,
+      toNamespacedPath(await realpath(join(path, ".git"))),
+    );
     assert.equal(descriptor.commonDir, descriptor.gitDir);
     const results = await readGitProjectSnapshots(discovery.repositories, {
       includeIgnored: true,

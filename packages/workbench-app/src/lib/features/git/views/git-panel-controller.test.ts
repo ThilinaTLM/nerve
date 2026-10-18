@@ -24,11 +24,17 @@ import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 
 void test("bulk and cancellation actions preserve capabilities and tracked-ID policy", () => {
   let enabled = false;
+  let basePullEnabled = false;
   const calls: string[] = [];
   const model = {
     availability: { available: true },
     capabilities: {
       remote: {
+        "switch-base-and-pull": {
+          get enabled() {
+            return basePullEnabled;
+          },
+        },
         fetch: {
           get enabled() {
             return enabled;
@@ -58,6 +64,12 @@ void test("bulk and cancellation actions preserve capabilities and tracked-ID po
   void actions.cancelOperation?.("finished");
   void actions.cancelOperation?.("running");
   assert.deepEqual(calls, ["fetch", "running"]);
+  // Bulk base switching follows its own mutation capability, not fetch/pull.
+  void actions.runBulkRemoteOperation?.("switch-base-and-pull");
+  assert.deepEqual(calls, ["fetch", "running"]);
+  basePullEnabled = true;
+  void actions.runBulkRemoteOperation?.("switch-base-and-pull");
+  assert.deepEqual(calls, ["fetch", "running", "switch-base-and-pull"]);
 });
 
 function change(

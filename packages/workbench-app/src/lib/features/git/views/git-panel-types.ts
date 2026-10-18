@@ -123,7 +123,7 @@ export interface GitPanelModel {
 
 export interface GitPanelActions {
   readonly runBulkRemoteOperation?: (
-    kind: "fetch" | "pull",
+    kind: "fetch" | "pull" | "switch-base-and-pull",
   ) => void | Promise<void>;
   readonly cancelOperation?: (operationId: string) => void | Promise<void>;
   readonly refreshAll: () => void | Promise<void>;

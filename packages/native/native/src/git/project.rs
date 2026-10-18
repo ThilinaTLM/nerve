@@ -75,7 +75,10 @@ pub struct Discovery {
 }
 #[cfg(test)]
 fn identity(root: &Path, path: &Path) -> Result<Repository, GitReadError> {
-    identity_with_path_limit(root, path, MAX_PATH)
+    // Match discover(): compare canonical worktrees with a canonical root, even
+    // when the fixture's temporary directory has a symlinked ancestor (macOS).
+    let root = root.canonicalize().map_err(io)?;
+    identity_with_path_limit(&root, path, MAX_PATH)
 }
 fn identity_with_path_limit(
     root: &Path,
@@ -874,6 +877,34 @@ mod tests {
                 .unwrap()
                 .repositories
                 .is_empty()
+        );
+    }
+    #[cfg(unix)]
+    #[test]
+    fn symlinked_project_root_uses_canonical_identity_without_relaxing_containment() {
+        let fixture = Fixture::new();
+        let repository = fixture.repo("real/repo");
+        let outside = fixture.repo("real-sibling");
+        let alias = fixture.0.join("alias");
+        std::os::unix::fs::symlink(fixture.0.join("real"), &alias).unwrap();
+        assert_ne!(alias, alias.canonicalize().unwrap());
+
+        let descriptor = identity(&alias, &alias.join("repo")).unwrap();
+        assert_eq!(descriptor.relative_path, "repo");
+        assert_eq!(
+            Path::new(&descriptor.work_dir),
+            repository.canonicalize().unwrap()
+        );
+        let found = discover(alias.to_str().unwrap(), &CancellationToken::default()).unwrap();
+        assert_eq!(Path::new(&found.root), alias.canonicalize().unwrap());
+        assert_eq!(found.repositories.len(), 1);
+        assert_eq!(found.repositories[0].work_dir, descriptor.work_dir);
+        assert_eq!(found.repositories[0].git_dir, descriptor.git_dir);
+        assert_eq!(found.repositories[0].common_dir, descriptor.common_dir);
+        // A sibling sharing the textual prefix is still outside the project.
+        assert_eq!(
+            identity(&alias, &outside).unwrap_err().kind,
+            ErrorKind::InvalidInput
         );
     }
     #[test]

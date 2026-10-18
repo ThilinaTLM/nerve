@@ -5,15 +5,16 @@ import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
 import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import {
   PanelHeader,
-  PanelToolbar,
   PanelToolbarButton,
   PanelView,
 } from "$lib/presentation/panels";
 import GitChangesArea from "./GitChangesArea.svelte";
-import GitOperationProgress from "./GitOperationProgress.svelte";
 import GitPanelBanner from "./GitPanelBanner.svelte";
 import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
@@ -25,7 +26,6 @@ import {
   pushDisabled,
   remoteActionDisabled,
   showPull,
-  showPush,
   syncDisabled,
 } from "./git-remote-actions";
 
@@ -38,6 +38,16 @@ let {
 } = $props();
 
 let stashDialogOpen = $state(false);
+let bulkMainOpen = $state(false);
+const bulkRepositories = $derived(
+  model.repositories.filter((repo) => repo.hasRemote),
+);
+const bulkBaseLabel = $derived(
+  bulkRepositories.length > 0 &&
+    bulkRepositories.every((repo) => repo.baseBranch === "main")
+    ? "main + pull all"
+    : "Base + pull all",
+);
 let discardCandidate = $state<
   | {
       kind: "file";
@@ -67,149 +77,186 @@ const remoteBusy = $derived(
 </script>
 
 <PanelView>
-  {#snippet banner()}<GitPanelBanner {model} />{/snippet}
+  {#snippet banner()}
+    <GitPanelBanner {model} />
+    {#if model.availability.available && model.repositories.length > 0}
+      <PanelHeader title="Git changes" count={changeCount}>
+        {#snippet trailing()}
+          {#if model.repositories.length > 1 && actions.runBulkRemoteOperation}
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger>
+                {#snippet child({ props })}
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Project actions"
+                    title="Project actions"
+                  >
+                    <MoreHorizontal aria-hidden="true" />
+                  </Button>
+                {/snippet}
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="end">
+                <DropdownMenu.Item
+                  disabled={!model.capabilities.remote.fetch.enabled ||
+                    bulkRepositories.length === 0}
+                  onclick={() => void actions.runBulkRemoteOperation?.("fetch")}
+                  >Fetch all</DropdownMenu.Item
+                >
+                <DropdownMenu.Item
+                  disabled={!model.capabilities.remote.pull.enabled ||
+                    bulkRepositories.length === 0}
+                  onclick={() => void actions.runBulkRemoteOperation?.("pull")}
+                  >Pull all</DropdownMenu.Item
+                >
+                <DropdownMenu.Item
+                  disabled={!model.capabilities.remote["switch-base-and-pull"]
+                    .enabled || bulkRepositories.length === 0}
+                  onclick={() => (bulkMainOpen = true)}
+                  >{bulkBaseLabel}</DropdownMenu.Item
+                >
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          {/if}
+          <PanelToolbarButton
+            icon={RefreshCw}
+            label="Refresh Git changes"
+            loading={model.refreshing}
+            disabled={!model.capabilities.refresh.enabled || model.refreshing}
+            onclick={() =>
+              void actions.refreshRepository(model.selectedRepository)}
+          />
+        {/snippet}
+      </PanelHeader>
+
+      <GitRepoSwitcher
+        {model}
+        {actions}
+        layout="list"
+        chipCount={(repo) => repo.changeCount}
+      />
+      {#if model.repositorySummary}
+        {@const repo = model.repositorySummary}
+        <div class="@container">
+          <div
+            class="grid grid-cols-2 gap-1 py-1.5 @xs:grid-cols-4"
+            role="group"
+            aria-label="Remote actions"
+          >
+            <PanelToolbarButton
+              icon={CloudDownload}
+              label="Fetch"
+              variant="outline"
+              showLabel
+              title={repo.hasRemote
+                ? "Fetch from remote and prune deleted refs"
+                : "Add a remote before fetching"}
+              loading={model.operations.fetching}
+              disabled={!model.capabilities.remote.fetch.enabled ||
+                remoteActionDisabled(repo, remoteBusy)}
+              onclick={() =>
+                void actions.runRemoteOperation(
+                  model.selectedRepository,
+                  "fetch",
+                )}
+            />
+            <PanelToolbarButton
+              icon={ArrowDown}
+              label={`Pull${(repo.behind ?? 0) > 0 ? ` (${repo.behind})` : ""}`}
+              variant="outline"
+              showLabel
+              title={repo.dirty
+                ? "Pull with local changes; Git stops if files would be overwritten"
+                : "Pull current branch with fast-forward only"}
+              loading={model.operations.pulling}
+              disabled={!model.capabilities.remote.pull.enabled ||
+                pullDisabled(repo, remoteBusy) ||
+                !showPull(repo)}
+              onclick={() =>
+                void actions.runRemoteOperation(
+                  model.selectedRepository,
+                  "pull",
+                )}
+            />
+            <PanelToolbarButton
+              icon={ArrowUp}
+              label={`Push${(repo.ahead ?? 0) > 0 ? ` (${repo.ahead})` : ""}`}
+              variant="outline"
+              showLabel
+              title="Push current branch"
+              loading={model.operations.pushing}
+              disabled={!model.capabilities.remote.push.enabled ||
+                pushDisabled(repo, remoteBusy)}
+              onclick={() =>
+                void actions.runRemoteOperation(
+                  model.selectedRepository,
+                  "push",
+                )}
+            />
+            <PanelToolbarButton
+              icon={RefreshCw}
+              label="Sync"
+              variant="outline"
+              showLabel
+              title={!repo.hasRemote
+                ? "Add a remote before syncing"
+                : repo.detached
+                  ? "Check out a branch before syncing"
+                  : repo.dirty
+                    ? "Sync with local changes; Git stops if files would be overwritten"
+                    : "Fetch, then pull and push the current branch when needed"}
+              loading={model.operations.syncing}
+              disabled={!model.capabilities.remote.sync.enabled ||
+                syncDisabled(repo, remoteBusy)}
+              onclick={() =>
+                void actions.runRemoteOperation(
+                  model.selectedRepository,
+                  "sync",
+                )}
+            />
+          </div>
+          <div
+            class="grid grid-cols-2 gap-1 border-b pb-2"
+            role="group"
+            aria-label="Repository actions"
+          >
+            <PanelToolbarButton
+              icon={ArchiveRestore}
+              label={`Stashes (${model.stashes.length})`}
+              variant="outline"
+              showLabel
+              title="Manage stashes"
+              disabled={!model.capabilities.stashes.enabled}
+              onclick={() => (stashDialogOpen = true)}
+            />
+            <PanelToolbarButton
+              icon={GitCompareArrows}
+              label={`${repo.baseBranch} + pull`}
+              variant="outline"
+              showLabel
+              title={repo.dirty
+                ? `Switch to ${repo.baseBranch} and pull with local changes; Git stops if files would be overwritten`
+                : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
+              loading={model.operations.switchingBaseAndPulling}
+              disabled={!model.capabilities.remote["switch-base-and-pull"]
+                .enabled ||
+                repo.detached ||
+                repo.onBaseBranch ||
+                basePullDisabled(repo, remoteBusy)}
+              onclick={() =>
+                void actions.runRemoteOperation(
+                  model.selectedRepository,
+                  "switch-base-and-pull",
+                )}
+            />
+          </div>
+        </div>
+      {/if}
+    {/if}
+  {/snippet}
 
   {#if model.availability.available && model.repositories.length > 0}
-    <PanelHeader title="Git changes" count={changeCount}>
-      {#snippet trailing()}
-        <PanelToolbarButton
-          icon={RefreshCw}
-          label="Refresh Git changes"
-          loading={model.refreshing}
-          disabled={!model.capabilities.refresh.enabled || model.refreshing}
-          onclick={() =>
-            void actions.refreshRepository(model.selectedRepository)}
-        />
-      {/snippet}
-    </PanelHeader>
-
-    <GitRepoSwitcher {model} {actions} chipCount={(repo) => repo.changeCount} />
-    {#if model.repositories.length > 1 && actions.runBulkRemoteOperation}
-      <PanelToolbar>
-        <PanelToolbarButton
-          icon={CloudDownload}
-          label="Fetch all"
-          showLabel
-          disabled={!model.capabilities.remote.fetch.enabled ||
-            !model.repositories.some((repo) => repo.hasRemote)}
-          onclick={() => void actions.runBulkRemoteOperation?.("fetch")}
-        />
-        <PanelToolbarButton
-          icon={ArrowDown}
-          label="Pull all"
-          showLabel
-          disabled={!model.capabilities.remote.pull.enabled ||
-            !model.repositories.some((repo) => repo.hasRemote)}
-          onclick={() => void actions.runBulkRemoteOperation?.("pull")}
-        />
-      </PanelToolbar>
-    {/if}
-    <GitOperationProgress
-      activities={model.activeOperations ?? []}
-      onCancel={actions.cancelOperation}
-    />
-
-    {#if model.repositorySummary}
-      {@const repo = model.repositorySummary}
-      <PanelToolbar
-        dense
-        class="h-auto flex-wrap border-b-0 bg-transparent py-1.5"
-      >
-        {#if model.stashes.length > 0}
-          <PanelToolbarButton
-            icon={ArchiveRestore}
-            label={`Stashes (${model.stashes.length})`}
-            variant="outline"
-            showLabel
-            title="Manage stashes"
-            disabled={!model.capabilities.stashes.enabled}
-            onclick={() => (stashDialogOpen = true)}
-          />
-        {/if}
-        <PanelToolbarButton
-          icon={CloudDownload}
-          label="Fetch"
-          variant="outline"
-          showLabel
-          title={repo.hasRemote
-            ? "Fetch from remote and prune deleted refs"
-            : "Add a remote before fetching"}
-          loading={model.operations.fetching}
-          disabled={!model.capabilities.remote.fetch.enabled ||
-            remoteActionDisabled(repo, remoteBusy)}
-          onclick={() =>
-            void actions.runRemoteOperation(model.selectedRepository, "fetch")}
-        />
-        {#if showPull(repo)}
-          <PanelToolbarButton
-            icon={ArrowDown}
-            label={`Pull${(repo.behind ?? 0) > 0 ? ` (${repo.behind})` : ""}`}
-            variant="outline"
-            showLabel
-            title={repo.dirty
-              ? "Pull with local changes; Git stops if files would be overwritten"
-              : "Pull current branch with fast-forward only"}
-            loading={model.operations.pulling}
-            disabled={!model.capabilities.remote.pull.enabled ||
-              pullDisabled(repo, remoteBusy)}
-            onclick={() =>
-              void actions.runRemoteOperation(model.selectedRepository, "pull")}
-          />
-        {/if}
-        {#if showPush(repo)}
-          <PanelToolbarButton
-            icon={ArrowUp}
-            label={`Push${(repo.ahead ?? 0) > 0 ? ` (${repo.ahead})` : ""}`}
-            variant="outline"
-            showLabel
-            title="Push current branch"
-            loading={model.operations.pushing}
-            disabled={!model.capabilities.remote.push.enabled ||
-              pushDisabled(repo, remoteBusy)}
-            onclick={() =>
-              void actions.runRemoteOperation(model.selectedRepository, "push")}
-          />
-        {/if}
-        <PanelToolbarButton
-          icon={RefreshCw}
-          label="Sync"
-          variant="outline"
-          showLabel
-          title={!repo.hasRemote
-            ? "Add a remote before syncing"
-            : repo.detached
-              ? "Check out a branch before syncing"
-              : repo.dirty
-                ? "Sync with local changes; Git stops if files would be overwritten"
-                : "Fetch, then pull and push the current branch when needed"}
-          loading={model.operations.syncing}
-          disabled={!model.capabilities.remote.sync.enabled ||
-            syncDisabled(repo, remoteBusy)}
-          onclick={() =>
-            void actions.runRemoteOperation(model.selectedRepository, "sync")}
-        />
-        {#if !repo.detached && !repo.onBaseBranch}
-          <PanelToolbarButton
-            icon={GitCompareArrows}
-            label={`${repo.baseBranch} + pull`}
-            variant="outline"
-            showLabel
-            title={repo.dirty
-              ? `Switch to ${repo.baseBranch} and pull with local changes; Git stops if files would be overwritten`
-              : `Switch to ${repo.baseBranch} and pull with fast-forward only`}
-            loading={model.operations.switchingBaseAndPulling}
-            disabled={!model.capabilities.remote["switch-base-and-pull"]
-              .enabled || basePullDisabled(repo, remoteBusy)}
-            onclick={() =>
-              void actions.runRemoteOperation(
-                model.selectedRepository,
-                "switch-base-and-pull",
-              )}
-          />
-        {/if}
-      </PanelToolbar>
-    {/if}
-
     <GitChangesArea
       changes={model.changes}
       stagedFiles={fileGroups.staged}
@@ -287,4 +334,13 @@ const remoteBusy = $derived(
   onOpenChange={(open) => {
     if (!open) discardCandidate = undefined;
   }}
+/>
+
+<ConfirmDialog
+  bind:open={bulkMainOpen}
+  title="Switch base branches and pull all?"
+  description={`Switch each repository to its base branch and pull with fast-forward only: ${bulkRepositories.map((repo) => `${repo.name} (${repo.baseBranch})`).join(", ")}. Local changes are kept; Git stops if files would be overwritten. Each repository reports its result independently in Activity.`}
+  confirmLabel="Switch and pull all"
+  onConfirm={() =>
+    void actions.runBulkRemoteOperation?.("switch-base-and-pull")}
 />

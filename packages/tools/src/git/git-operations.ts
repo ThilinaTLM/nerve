@@ -8,6 +8,7 @@ import {
   gitOperationTitle,
   gitBulkOperationTitle,
   type GitOperationStartRequest,
+  type GitOperationBulkStartRequest,
 } from "@nervekit/contracts/git";
 
 export interface GitActivityHandle {
@@ -216,11 +217,10 @@ export class GitOperationService {
     return { operationId };
   }
 
-  startBulk(input: {
-    projectId: string;
-    repos: string[];
-    kind: "fetch" | "pull";
-  }): { operationId: string; childOperationIds: string[] } {
+  startBulk(input: GitOperationBulkStartRequest): {
+    operationId: string;
+    childOperationIds: string[];
+  } {
     if (this.#closing) throw new Error("Git operations are shutting down");
     input = structuredClone(input);
     const repos = [...new Set(input.repos)];

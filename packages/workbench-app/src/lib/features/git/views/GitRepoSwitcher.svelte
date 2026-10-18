@@ -1,5 +1,7 @@
 <script lang="ts">
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
+import Circle from "@lucide/svelte/icons/circle";
+import CircleCheck from "@lucide/svelte/icons/circle-check";
 import GitBranch from "@lucide/svelte/icons/git-branch";
 import Settings2 from "@lucide/svelte/icons/settings-2";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
@@ -24,11 +26,13 @@ import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 type Props = {
   model: GitPanelModel;
   actions: GitPanelActions;
+  /** Git Changes uses a stable vertical list; other callers retain chips. */
+  layout?: "chips" | "list";
   /** Per-repository badge shown on each chip, e.g. change or PR counts. */
   chipCount?: (repo: GitRepoSummary) => number | undefined;
 };
 
-let { model, actions, chipCount }: Props = $props();
+let { model, actions, chipCount, layout = "chips" }: Props = $props();
 
 /* Chips stay on at most a couple of rows: beyond this many repositories the
  * rest move into an overflow popover so the switcher height stays constant. */
@@ -152,7 +156,41 @@ async function createBranch(repository: string): Promise<void> {
 <!-- The panel shell owns horizontal padding, so chips line up with the
      toolbar buttons below them. -->
 <div class="flex shrink-0 flex-col gap-1 pt-1.5">
-  {#if repos.length > 1}
+  {#if layout === "list"}
+    <div class="flex flex-col gap-0.5" role="group" aria-label="Repositories">
+      {#each repos as repo (repo.relativePath)}
+        {@const selected = repo.relativePath === selectedRepo}
+        {@const count = chipCount?.(repo)}
+        <Button
+          variant="ghost"
+          aria-pressed={selected}
+          disabled={!model.capabilities.selectRepository.enabled}
+          title={repoPathLabel(repo)}
+          class={selected
+            ? "w-full justify-start gap-2 bg-selected font-normal hover:bg-selected"
+            : "w-full justify-start gap-2 font-normal"}
+          onclick={() => selectRepository(repo.relativePath)}
+        >
+          {#if selected}
+            <CircleCheck class="size-3.5 shrink-0" aria-hidden="true" />
+          {:else}
+            <Circle
+              class="size-3.5 shrink-0 text-muted-foreground"
+              aria-hidden="true"
+            />
+          {/if}
+          <span class="min-w-0 flex-1 truncate text-left"
+            >{repoButtonLabel(repo, repos)}</span
+          >
+          {#if count !== undefined}
+            <span class="shrink-0 text-muted-foreground tabular-nums"
+              >{count}</span
+            >
+          {/if}
+        </Button>
+      {/each}
+    </div>
+  {:else if repos.length > 1}
     <div class="flex min-w-0 flex-wrap items-center gap-1">
       <ToggleGroup.Root
         type="single"

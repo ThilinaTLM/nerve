@@ -109,76 +109,130 @@ async function fixture(
   };
 }
 
-test("background IDs precede completion; bulk children report partial failure independently", async () => {
-  const f = await fixture(async (repo) => {
-    if (repo === "b") throw new Error("https://token:secret@remote.invalid");
-    return {} as never;
-  });
-  try {
-    const result = f.service.startBulk({
-      projectId: "p",
-      repos: ["a", "b"],
-      kind: "fetch",
+for (const kind of ["fetch", "pull", "switchBaseAndPull"] as const) {
+  test(`${kind}: background IDs precede completion; bulk children report partial failure independently`, async () => {
+    const f = await fixture(async (repo) => {
+      if (repo === "b") throw new Error("https://token:secret@remote.invalid");
+      return {} as never;
     });
-    assert.equal(result.childOperationIds.length, 2);
-    assert.equal(f.entries.get(result.operationId)?.status, "running");
-    await until(() => f.entries.get(result.operationId)?.status === "failed");
-    assert.deepEqual(
-      result.childOperationIds.map((id) => f.entries.get(id)?.status),
-      ["succeeded", "failed"],
-    );
-    assert.equal(f.changed, 1);
-    assert.equal(f.service.cancel(result.operationId).accepted, false);
-    assert.equal(f.service.cancel("missing").accepted, false);
-    for (const entry of f.entries.values()) {
-      assert.equal(entry.terminals, 1);
-      assert.doesNotMatch(entry.error ?? "", /secret|token|remote.invalid/);
+    try {
+      const result = f.service.startBulk({
+        projectId: "p",
+        repos: ["a", "b"],
+        kind,
+      });
+      assert.equal(result.childOperationIds.length, 2);
+      assert.equal(f.entries.get(result.operationId)?.status, "running");
+      await until(() => f.entries.get(result.operationId)?.status === "failed");
+      assert.deepEqual(
+        result.childOperationIds.map((id) => f.entries.get(id)?.status),
+        ["succeeded", "failed"],
+      );
+      assert.equal(f.changed, 1);
+      for (const id of result.childOperationIds)
+        assert.equal(f.entries.get(id)?.parentId, result.operationId);
+      assert.equal(f.service.cancel(result.operationId).accepted, false);
+      assert.equal(f.service.cancel("missing").accepted, false);
+      for (const entry of f.entries.values()) {
+        assert.equal(entry.terminals, 1);
+        assert.doesNotMatch(entry.error ?? "", /secret|token|remote.invalid/);
+      }
+    } finally {
+      await f.cleanup();
     }
-  } finally {
-    await f.cleanup();
-  }
-});
+  });
 
-test("bulk cancellation affects only children and parent waits until children close", async () => {
-  const releases: (() => void)[] = [];
-  const f = await fixture(
-    () =>
-      new Promise<never>((_resolve, reject) => {
-        const signal = currentGitCommandOptions().signal!;
-        signal.addEventListener(
-          "abort",
-          () => {
-            releases.push(() =>
-              reject(new DOMException("cancel", "AbortError")),
-            );
-          },
-          { once: true },
-        );
-      }),
-  );
+  test(`${kind}: bulk cancellation affects only children and parent waits until children close`, async () => {
+    const releases: (() => void)[] = [];
+    const f = await fixture(
+      () =>
+        new Promise<never>((_resolve, reject) => {
+          const signal = currentGitCommandOptions().signal!;
+          signal.addEventListener(
+            "abort",
+            () => {
+              releases.push(() =>
+                reject(new DOMException("cancel", "AbortError")),
+              );
+            },
+            { once: true },
+          );
+        }),
+    );
+    try {
+      const bulk = f.service.startBulk({
+        projectId: "p",
+        repos: ["a"],
+        kind,
+      });
+      const other = f.service.start({
+        projectId: "p",
+        repo: "b",
+        kind: "fetch",
+      });
+      await until(
+        () =>
+          bulk.childOperationIds.every(
+            (id) => f.entries.get(id)?.status === "running",
+          ) && f.entries.get(other.operationId)?.status === "running",
+      );
+      assert.equal(f.service.cancel(bulk.operationId).accepted, true);
+      await tick();
+      assert.equal(releases.length, 1);
+      assert.equal(f.entries.get(bulk.operationId)?.status, "running");
+      releases[0]!();
+      await until(
+        () => f.entries.get(bulk.operationId)?.status === "cancelled",
+      );
+      assert.equal(f.entries.get(other.operationId)?.status, "running");
+      f.entries.get(other.operationId)?.cancel?.();
+      releases[1]!();
+      await until(
+        () => f.entries.get(other.operationId)?.status === "cancelled",
+      );
+      for (const entry of f.entries.values()) assert.equal(entry.terminals, 1);
+    } finally {
+      await f.cleanup();
+    }
+  });
+}
+
+void test("bulk switch-base dispatches each repository's default-base workflow once with the child's lane and cancellation context", async () => {
+  const f = await fixture(async () => {
+    assert.fail("bulk switch-base must not dispatch fetch or pull directly");
+  });
+  const calls: { repo: string; baseBranch?: string; activityId?: string }[] =
+    [];
+  f.service.git.switchBaseAndPull = async (projectId, repo, baseBranch) => {
+    const options = currentGitCommandOptions();
+    assert.ok(options.signal);
+    assert.ok(options.deadlineAt);
+    return inGitLane(
+      f.service.git.resolveRepoDir(projectId, repo),
+      true,
+      async () => {
+        assert.equal(currentGitCommandOptions().signal, options.signal);
+        assert.equal(currentGitCommandOptions().activityId, options.activityId);
+        calls.push({ repo, baseBranch, activityId: options.activityId });
+        return {} as never;
+      },
+    );
+  };
   try {
     const bulk = f.service.startBulk({
       projectId: "p",
-      repos: ["a"],
-      kind: "pull",
+      repos: ["a", "b", "a"],
+      kind: "switchBaseAndPull",
     });
-    const other = f.service.start({ projectId: "p", repo: "b", kind: "fetch" });
-    await until(
-      () =>
-        bulk.childOperationIds.every(
-          (id) => f.entries.get(id)?.status === "running",
-        ) && f.entries.get(other.operationId)?.status === "running",
+    await until(() => f.entries.get(bulk.operationId)?.status === "succeeded");
+    assert.equal(bulk.childOperationIds.length, 2);
+    assert.deepEqual(calls.map(({ repo }) => repo).sort(), ["a", "b"]);
+    assert.ok(calls.every(({ baseBranch }) => baseBranch === undefined));
+    assert.deepEqual(
+      calls.map(({ activityId }) => activityId).sort(),
+      [...bulk.childOperationIds].sort(),
     );
-    assert.equal(f.service.cancel(bulk.operationId).accepted, true);
-    await tick();
-    assert.equal(releases.length, 1);
-    assert.equal(f.entries.get(bulk.operationId)?.status, "running");
-    releases[0]!();
-    await until(() => f.entries.get(bulk.operationId)?.status === "cancelled");
-    assert.equal(f.entries.get(other.operationId)?.status, "running");
-    f.entries.get(other.operationId)?.cancel?.();
-    releases[1]!();
-    await until(() => f.entries.get(other.operationId)?.status === "cancelled");
+    assert.equal(f.changed, 2);
     for (const entry of f.entries.values()) assert.equal(entry.terminals, 1);
   } finally {
     await f.cleanup();

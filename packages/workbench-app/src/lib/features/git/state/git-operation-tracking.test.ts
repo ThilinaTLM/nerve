@@ -153,3 +153,61 @@ void test("bulk parent remains visible without falsely marking unrelated reposit
   assert.equal(gitRemoteBusy([parent, child], "proj_a", "b").pulling, false);
   assert.equal(gitRemoteBusy([parent, child], "proj_a", "a").pulling, true);
 });
+
+void test("bulk base-pull acknowledgements project child scope and busy state without blocking other repositories", () => {
+  const observed: ActivityStartedInput[] = [];
+  observeBulkGitOperationStart(
+    {
+      observeStarted: (input) => {
+        observed.push(input);
+      },
+    },
+    { projectId: "proj_a", kind: "switchBaseAndPull", repos: ["a", "c"] },
+    { operationId: "base-parent", childOperationIds: ["base-a", "base-c"] },
+  );
+  assert.deepEqual(
+    observed.map(({ id, kind, parentId, scope }) => ({
+      id,
+      kind,
+      parentId,
+      scope,
+    })),
+    [
+      {
+        id: "base-parent",
+        kind: "git.switchBaseAndPull.all",
+        parentId: undefined,
+        scope: { projectId: "proj_a" },
+      },
+      {
+        id: "base-a",
+        kind: "git.switchBaseAndPull",
+        parentId: "base-parent",
+        scope: { projectId: "proj_a", repositoryPath: "a" },
+      },
+      {
+        id: "base-c",
+        kind: "git.switchBaseAndPull",
+        parentId: "base-parent",
+        scope: { projectId: "proj_a", repositoryPath: "c" },
+      },
+    ],
+  );
+  const entries = observed.map((input) =>
+    activity(
+      input.id,
+      input.kind,
+      "queued",
+      input.scope?.projectId,
+      input.scope?.repositoryPath,
+    ),
+  );
+  assert.equal(
+    gitRemoteBusy(entries, "proj_a", "a").switchingBaseAndPulling,
+    true,
+  );
+  assert.equal(
+    gitRemoteBusy(entries, "proj_a", "b").switchingBaseAndPulling,
+    false,
+  );
+});

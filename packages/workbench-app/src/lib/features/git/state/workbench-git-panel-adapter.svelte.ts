@@ -24,6 +24,7 @@ import {
   normalizeGitPrFilterConfig,
 } from "../pr-filters";
 import type { Project } from "@nervekit/contracts/core";
+import type { GitOperationBulkStartRequest } from "@nervekit/contracts/git";
 import { openDiffPane } from "$lib/features/git/state/diff-tabs.svelte";
 import { openPrPane } from "$lib/features/git/state/pr-tabs.svelte";
 import { gitSelectors } from "$lib/features/git/state/git-selectors.svelte";
@@ -205,7 +206,11 @@ export function createWorkbenchGitPanelAdapter(
         .map((repo) => repo.relativePath);
       if (!repos.length) return;
       try {
-        const input = { projectId: project.id, repos, kind };
+        const input = {
+          projectId: project.id,
+          repos,
+          kind: kind === "switch-base-and-pull" ? "switchBaseAndPull" : kind,
+        } satisfies GitOperationBulkStartRequest;
         const result = await startBulkGitOperation(input);
         observeBulkGitOperationStart(activityInbox, input, result);
       } catch {

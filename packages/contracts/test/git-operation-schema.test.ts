@@ -107,7 +107,7 @@ void test("background starts enforce kind-specific inputs without rewriting clon
   );
 });
 
-void test("bulk operations accept only bounded nonempty fetch/pull repositories", () => {
+void test("bulk operations accept bounded nonempty fetch/pull/switch-base repositories", () => {
   const input = { projectId: "proj_test", kind: "fetch", repos: ["."] };
   for (const repos of [
     [],
@@ -120,11 +120,24 @@ void test("bulk operations accept only bounded nonempty fetch/pull repositories"
       false,
     );
   }
-  assert.equal(
-    gitOperationBulkStartRequestSchema.safeParse({ ...input, kind: "push" })
-      .success,
-    false,
-  );
+  for (const kind of ["fetch", "pull", "switchBaseAndPull"]) {
+    assert.deepEqual(
+      gitOperationBulkStartRequestSchema.parse({ ...input, kind }),
+      { ...input, kind },
+    );
+  }
+  for (const kind of [
+    "push",
+    "sync",
+    "switch-base-and-pull",
+    "checkout",
+    "clone",
+  ]) {
+    assert.equal(
+      gitOperationBulkStartRequestSchema.safeParse({ ...input, kind }).success,
+      false,
+    );
+  }
   assert.equal(
     gitOperationBulkStartRequestSchema.safeParse({
       ...input,

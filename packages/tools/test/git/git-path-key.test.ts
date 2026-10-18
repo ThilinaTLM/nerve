@@ -12,6 +12,15 @@ void test("Windows drive and UNC extended-prefix/case/separator spellings share 
   ];
   for (const [node, native] of pairs)
     assert.equal(gitPathKey(node!, "win32"), gitPathKey(native!, "win32"));
+  for (const [path, expected] of [
+    ["C:\\", "c:/"],
+    ["C:////", "c:/"],
+    ["\\\\?\\C:\\", "c:/"],
+    ["\\\\Server\\Share\\", "//server/share"],
+    ["\\\\?\\UNC\\Server\\Share\\", "//server/share"],
+  ] as const) {
+    assert.equal(gitPathKey(path, "win32"), expected);
+  }
   assert.notEqual(
     gitPathKey("C:\\repo\\.git", "win32"),
     gitPathKey("D:\\repo\\.git", "win32"),
@@ -40,4 +49,32 @@ void test("POSIX identity preserves case, Unicode spelling and backslash filenam
 void test("repository-path normalization cannot be used for synthetic admission IDs", () => {
   assert.throws(() => gitPathKey("git-network:1", "win32"), /absolute/);
   assert.throws(() => gitPathKey("native-git-read:1", "linux"), /absolute/);
+});
+
+void test("separator-heavy adversarial paths retain complete keys with no path-length cap", () => {
+  const separators = "/".repeat(128 * 1024);
+  const component = "MixedCase".repeat(16 * 1024);
+  // A non-separator after a long separator run is the suffix-regex near miss;
+  // also exercise large trailing runs and legitimate long key components.
+  assert.equal(
+    gitPathKey(`/${component}${separators}Tail${separators}`, "linux"),
+    `/${component}/Tail`,
+  );
+  assert.equal(gitPathKey(separators, "linux"), "/");
+  assert.equal(
+    gitPathKey(
+      `C:${separators}${component}${separators}Tail${separators}`,
+      "win32",
+    ),
+    `c:/${component.toLowerCase()}/tail`,
+  );
+  assert.equal(gitPathKey(`C:${separators}`, "win32"), "c:/");
+  const backslashes = "\\".repeat(128 * 1024);
+  assert.equal(
+    gitPathKey(
+      `\\\\?\\UNC\\Server\\Share${backslashes}${component}${backslashes}Tail${backslashes}`,
+      "win32",
+    ),
+    `//server/share/${component.toLowerCase()}/tail`,
+  );
 });

@@ -69,7 +69,7 @@ export const gitOperationCancelResponseSchema = z.object({
 export const gitOperationBulkStartRequestSchema = z.object({
   projectId: z.string().startsWith("proj_"),
   repos: z.array(z.string().min(1).max(1024)).min(1).max(100),
-  kind: z.enum(["fetch", "pull"]),
+  kind: z.enum(["fetch", "pull", "switchBaseAndPull"]),
 });
 export type GitOperationBulkStartRequest = z.infer<
   typeof gitOperationBulkStartRequestSchema
