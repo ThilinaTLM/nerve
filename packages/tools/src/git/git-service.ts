@@ -1573,7 +1573,9 @@ export class GitService {
       return await fn();
     } catch (error) {
       if (error instanceof GitCommandError) {
-        throw new GitWorkflowError(409, "GIT_COMMAND_FAILED", error.message);
+        throw new GitWorkflowError(409, "GIT_COMMAND_FAILED", error.message, {
+          cause: error,
+        });
       }
       throw error;
     }

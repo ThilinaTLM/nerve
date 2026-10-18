@@ -28,6 +28,26 @@ const mutationReasons = {
 
 type GitMutationMethod = keyof typeof mutationReasons;
 
+const mutationLabels: Record<GitMutationMethod, string> = {
+  createBranch: "Create branch",
+  switchBranch: "Switch branch",
+  deleteBranch: "Delete branch",
+  stageFile: "Stage file",
+  unstageFile: "Unstage file",
+  discardFile: "Discard changes",
+  syncBranch: "Sync branch",
+  switchBaseAndPull: "Switch to base and pull",
+  push: "Push",
+  pull: "Pull",
+  fetch: "Fetch",
+  createStash: "Create stash",
+  applyStash: "Apply stash",
+  dropStash: "Drop stash",
+  checkoutPr: "Check out pull request",
+  clone: "Clone repository",
+  mergePr: "Merge pull request",
+};
+
 export interface GitRepositoryChangedData {
   readonly projectId?: string;
   readonly repo: string;
@@ -72,7 +92,7 @@ export function withGitMutationEvents(
               activities
                 ?.start({
                   kind: `git.${property}`,
-                  title: `Git ${property} failed`,
+                  title: `${mutationLabels[property as GitMutationMethod]} failed`,
                   scope: {
                     projectId:
                       typeof args[0] === "string" ? args[0] : undefined,

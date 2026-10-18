@@ -1,5 +1,4 @@
 <script lang="ts">
-import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import { PanelBanner } from "$lib/presentation/panels";
 import type { GitPanelModel } from "./git-panel-types";
 
@@ -8,29 +7,6 @@ let { model }: { model: GitPanelModel } = $props();
 
 {#if !model.availability.available}
   <PanelBanner tone="neutral">{model.availability.message}</PanelBanner>
-{:else if model.readErrors?.length}
-  <PanelBanner tone="warning" icon={TriangleAlert}>
-    <details>
-      <summary
-        >{model.readErrors.length} repositories could not be read. Refresh to retry.</summary
-      >
-      {#each model.readErrors as error (error.repo)}
-        <p>{error.repo}: {error.message}</p>
-      {/each}
-    </details>
-  </PanelBanner>
-{:else if model.cachedError && model.repositories.length === 0}
-  <PanelBanner tone="destructive" icon={TriangleAlert}>
-    {model.cachedError}
-  </PanelBanner>
-{:else if model.cachedError}
-  <PanelBanner tone="warning" icon={TriangleAlert}>
-    Using cached Git data. Refresh failed: {model.cachedError}
-  </PanelBanner>
-{:else if model.stale}
-  <PanelBanner tone="warning" icon={TriangleAlert}>
-    Git data may be stale. Refresh to revalidate.
-  </PanelBanner>
 {:else if model.initialLoading}
   <PanelBanner tone="neutral">Loading Git repositories…</PanelBanner>
 {:else if model.repositories.length === 0}

@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GitRepoSummary } from "@nervekit/contracts/git";
+import type { Activity } from "@nervekit/contracts/activity";
 import {
+  activeRemoteOperation,
   basePullDisabled,
   pullDisabled,
   remoteActionDisabled,
@@ -43,4 +45,64 @@ test("keeps actual remote-operation prerequisites disabled", () => {
   assert.equal(pullDisabled(repo(), true), true);
   assert.equal(basePullDisabled(repo({ hasRemote: false }), false), true);
   assert.equal(basePullDisabled(repo(), true), true);
+});
+
+function activity(
+  id: string,
+  kind: string,
+  status: Activity["status"],
+  repositoryPath = ".",
+  cancel = true,
+): Activity {
+  return {
+    id,
+    kind,
+    status,
+    title: id,
+    revision: 1,
+    startedAt: "2026-10-18T00:00:00Z",
+    updatedAt: "2026-10-18T00:00:00Z",
+    scope: { projectId: "proj_test", repositoryPath },
+    actions: { cancel, retry: false },
+  };
+}
+
+test("stop targets the running operation, not queued work, bulk parents, another repository or terminal history", () => {
+  const queued = activity("queued", "git.sync", "queued");
+  const running = activity("running", "git.sync", "running");
+  const activities = [
+    activity("parent", "git.sync.all", "running"),
+    activity("other", "git.sync", "running", "other"),
+    activity("finished", "git.sync", "failed"),
+    queued,
+    running,
+  ];
+  assert.equal(activeRemoteOperation(activities, ".", "sync"), running);
+  assert.equal(activeRemoteOperation([queued], ".", "sync"), queued);
+  assert.equal(activeRemoteOperation(activities, ".", "push"), undefined);
+  assert.equal(
+    activeRemoteOperation(
+      [activity("done", "git.fetch", "cancelled")],
+      ".",
+      "fetch",
+    ),
+    undefined,
+  );
+});
+
+test("a noncancellable running operation is retained instead of incorrectly stopping a queued sibling", () => {
+  const running = activity("closing", "git.pull", "running", ".", false);
+  assert.equal(
+    activeRemoteOperation(
+      [activity("queued", "git.pull", "queued"), running],
+      ".",
+      "pull",
+    ),
+    running,
+  );
+  const basePull = activity("base", "git.switchBaseAndPull", "running");
+  assert.equal(
+    activeRemoteOperation([basePull], ".", "switch-base-and-pull"),
+    basePull,
+  );
 });

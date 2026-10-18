@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { GitWorkflowError } from "../../src/git/git-errors.js";
+import { GitCommandError, GitWorkflowError } from "../../src/git/git-errors.js";
+import { safeGitFailure } from "../../src/git/git-progress.js";
 import { GitService } from "../../src/git/git-service.js";
 
 type RepositoryFixture = {
@@ -272,6 +273,44 @@ describe("GitService dirty-worktree workflows", () => {
         (error: unknown) =>
           error instanceof GitWorkflowError &&
           error.code === "GIT_COMMAND_FAILED",
+      );
+    });
+  });
+
+  it("classifies an actual branch-switch overwrite failure without exposing paths", async () => {
+    await withFixture(async (fixture) => {
+      await command(fixture.service, fixture.work, "switch", "-c", "target");
+      await writeFile(join(fixture.work, "shared.txt"), "target version\n");
+      await command(fixture.service, fixture.work, "add", "shared.txt");
+      await command(
+        fixture.service,
+        fixture.work,
+        "commit",
+        "-m",
+        "target change",
+      );
+      await command(fixture.service, fixture.work, "switch", "main");
+      await writeFile(join(fixture.work, "shared.txt"), "local version\n");
+
+      await assert.rejects(
+        fixture.service.switchBranch("project", ".", "target"),
+        (error: unknown) => {
+          assert.ok(error instanceof GitWorkflowError);
+          assert.ok(error.cause instanceof GitCommandError);
+          assert.equal(error.code, "GIT_COMMAND_FAILED");
+          const failure = safeGitFailure(error);
+          assert.equal(failure.category, "local-changes");
+          assert.match(failure.message, /Commit or stash/);
+          assert.doesNotMatch(
+            JSON.stringify(failure),
+            /shared\.txt|target|local version/,
+          );
+          return true;
+        },
+      );
+      assert.equal(
+        await readFile(join(fixture.work, "shared.txt"), "utf8"),
+        "local version\n",
       );
     });
   });

@@ -40,3 +40,72 @@ test("activity failures never expose raw credential/URL/hook output", () => {
     "cancelled",
   );
 });
+
+test("typed command failures survive workflow mapping without exposing diagnostics", async () => {
+  const { GitService } = await import("../../src/git/git-service.js");
+  const { GitCommandError, GitWorkflowError } =
+    await import("../../src/git/git-errors.js");
+  const service = new GitService(() => ({ dir: "/unused", name: "test" }));
+  const cases = [
+    [
+      "error: Your local changes to the following files would be overwritten by checkout:",
+      "local-changes",
+    ],
+    [
+      "error: Your local changes to the following files would be overwritten by merge:",
+      "local-changes",
+    ],
+    [
+      "error: The following untracked working tree files would be overwritten by checkout:",
+      "untracked-files",
+    ],
+    ["error: you need to resolve your current index first", "unmerged-files"],
+    ["fatal: Not possible to fast-forward, aborting.", "non-fast-forward"],
+    ["error: branch 'secret-branch' is not fully merged.", "branch-not-merged"],
+  ] as const;
+  for (const [diagnostic, category] of cases) {
+    const original = new GitCommandError(
+      "git switch token=secret",
+      1,
+      `${diagnostic}\n\t/private/secret-path\nhttps://user:password@remote.invalid`,
+      "token=secret",
+    );
+    await assert.rejects(
+      service.mapGit(async () => {
+        throw original;
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof GitWorkflowError);
+        assert.equal(error.cause, original);
+        const failure = safeGitFailure(error);
+        assert.equal(failure.category, category);
+        assert.doesNotMatch(
+          JSON.stringify(failure),
+          /secret|private|password|remote.invalid|git switch/,
+        );
+        assert.ok(failure.message.length < 200);
+        return true;
+      },
+    );
+    // A random Error that looks like Git output is not a classified command failure.
+    assert.equal(safeGitFailure(new Error(diagnostic)).category, "git");
+  }
+  const { GitCommandError: CommandError } =
+    await import("../../src/git/git-command.js");
+  assert.equal(
+    safeGitFailure(new CommandError("git", null, "private", "", "timeout"))
+      .category,
+    "timeout",
+  );
+  assert.equal(
+    safeGitFailure(new Error("Git command timed out token=secret")).category,
+    "git",
+  );
+  assert.deepEqual(
+    safeGitFailure(new GitWorkflowError(409, "GIT_NO_UPSTREAM", "secret-path")),
+    {
+      category: "GIT_NO_UPSTREAM",
+      message: "Configure an upstream tracking branch before retrying.",
+    },
+  );
+});

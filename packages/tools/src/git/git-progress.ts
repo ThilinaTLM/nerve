@@ -1,4 +1,33 @@
 import { StringDecoder } from "node:string_decoder";
+import { GitCommandError, GitWorkflowError } from "./git-errors.js";
+
+const commandFailureMessages = {
+  "local-changes":
+    "Commit or stash your local changes before retrying; Git would overwrite them.",
+  "untracked-files":
+    "Move or stash untracked files before retrying; Git would overwrite them.",
+  "unmerged-files": "Resolve the existing merge conflicts before retrying.",
+  "non-fast-forward":
+    "The branches have diverged. Merge or rebase the changes before retrying.",
+  "branch-not-merged":
+    "This branch has unmerged changes. Merge or preserve them before deleting it.",
+  timeout: "Git operation timed out. Check connectivity and retry.",
+} as const;
+
+const workflowFailureMessages: Readonly<Record<string, string>> = {
+  GIT_INVALID_BRANCH_NAME: "Choose a valid Git branch name and retry.",
+  GIT_BRANCH_NOT_FOUND:
+    "The branch no longer exists. Refresh the branch list and retry.",
+  GIT_REMOTE_BRANCH_DELETE_UNSUPPORTED:
+    "Only local branches can be deleted here.",
+  GIT_CURRENT_BRANCH_DELETE:
+    "Switch to another branch before deleting the current branch.",
+  GIT_BASE_BRANCH_DELETE:
+    "The repository's base branch cannot be deleted here.",
+  GIT_DETACHED_HEAD: "Switch to a branch before retrying this operation.",
+  GIT_NO_REMOTE: "Configure a remote for this repository before retrying.",
+  GIT_NO_UPSTREAM: "Configure an upstream tracking branch before retrying.",
+};
 
 export interface GitProgress {
   phase: string;
@@ -77,13 +106,19 @@ export function safeGitFailure(error: unknown): {
       message:
         "Git operation cancelled. Remote updates may already have completed.",
     };
-  if (
-    error instanceof Error &&
-    error.message.startsWith("Git command timed out")
-  )
+  if (error instanceof GitWorkflowError) {
+    if (error.cause instanceof GitCommandError)
+      return safeGitFailure(error.cause);
+    if (Object.hasOwn(workflowFailureMessages, error.code))
+      return {
+        category: error.code,
+        message: workflowFailureMessages[error.code],
+      };
+  }
+  if (error instanceof GitCommandError && error.failureCategory)
     return {
-      category: "timeout",
-      message: "Git operation timed out. Check connectivity and retry.",
+      category: error.failureCategory,
+      message: commandFailureMessages[error.failureCategory],
     };
   return {
     category: "git",

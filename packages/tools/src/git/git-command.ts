@@ -1,4 +1,5 @@
 import { spawnManagedProcess } from "@nervekit/native";
+import { GitCommandError } from "./git-errors.js";
 import { gitProcessPolicy } from "../execution/process/managed-process-policy.js";
 import { gitProgressParser, type GitProgress } from "./git-progress.js";
 
@@ -28,17 +29,7 @@ export interface GitCommandOptions {
   terminationGraceMs?: number;
 }
 
-export class GitCommandError extends Error {
-  constructor(
-    readonly command: string,
-    readonly code: number | null,
-    readonly stderr: string,
-    readonly stdout = "",
-  ) {
-    super(stderr.trim() || `${command} failed`);
-    this.name = "GitCommandError";
-  }
-}
+export { GitCommandError } from "./git-errors.js";
 
 export interface ExecResult {
   stdout: string;
@@ -68,6 +59,8 @@ export async function runGitCommand(
       command,
       null,
       "Git command timed out at the operation deadline.",
+      "",
+      "timeout",
     );
   let child;
   try {
@@ -164,6 +157,7 @@ export async function runGitCommand(
       null,
       `Git command timed out (deadline ${timeoutMs}ms; network inactivity ${options.inactivityMs ?? GIT_NETWORK_INACTIVITY_MS}ms).`,
       stdoutText,
+      "timeout",
     );
   }
   if (failure === "overflow") {
