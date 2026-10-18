@@ -30,7 +30,9 @@ function fixture(t) {
     const scripts =
       name === "native"
         ? {
-            check: "tsc -b --pretty false && pnpm check:native",
+            check:
+              "pnpm check:boundaries && tsc -b --pretty false && pnpm check:native",
+            "check:boundaries": "node scripts/check-internal-dependencies.mjs",
             "check:native": "cargo fmt --check && cargo clippy",
             "fix:native": "cargo fmt",
           }
@@ -223,6 +225,7 @@ test("Rust runs crate formatting/checks while native TS avoids Rust and still ch
       .args.includes("packages/native/tsconfig.json"),
   );
   assert.equal(hasCommand(ts, "check:native"), false);
+  assert.equal(hasCommand(ts, "check:boundaries"), true);
   assert.equal(
     hasCommand(f.select("fix", ["packages/native/src/index.ts"]), "fix:native"),
     false,
@@ -236,8 +239,108 @@ test("Rust runs crate formatting/checks while native TS avoids Rust and still ch
     f.write(path, "");
     assert.ok(hasCommand(f.select("fix", [path]), "fix:native"));
     assert.ok(hasCommand(f.select("check", [path]), "check:native"));
+    assert.ok(hasCommand(f.select("check", [path]), "check:boundaries"));
+    assert.equal(
+      hasCommand(f.select("fix", [path]), "check:boundaries"),
+      false,
+    );
     assert.equal(f.select("check", [path]).stages.lint.targets.length, 0);
   }
+});
+
+test("native boundary policy covers source/checker changes without selecting Rust", (t) => {
+  const f = fixture(t);
+  f.pkg("native");
+  f.pkg("unrelated");
+  for (const path of [
+    "packages/native/src/search/query.ts",
+    "packages/native/src/deleted.ts",
+    "packages/native/scripts/check-internal-dependencies.mjs",
+    "packages/native/test/boundaries/internal-dependencies.test.ts",
+    "packages/native/package.json",
+  ]) {
+    if (!path.endsWith("package.json") && !path.endsWith("deleted.ts"))
+      f.write(path);
+    const plan = f.select("check", [path]);
+    const boundary = plan.commands.filter((command) =>
+      command.args.includes("check:boundaries"),
+    );
+    assert.equal(boundary.length, 1, path);
+    assert.equal(boundary[0].stage, "policies");
+    assert.deepEqual(boundary[0].args, [
+      "--filter",
+      "@nervekit/native",
+      "run",
+      "check:boundaries",
+    ]);
+    assert.equal(plan.stages.native.scope, "none", path);
+    assert.equal(hasCommand(plan, "check:native"), false, path);
+    assert.equal(
+      hasCommand(f.select("fix", [path]), "check:boundaries"),
+      false,
+      path,
+    );
+  }
+  const unrelated = f.select("check", ["packages/unrelated/src/index.ts"]);
+  assert.equal(hasCommand(unrelated, "check:boundaries"), false);
+  assert.equal(
+    hasCommand(
+      f.select("check", ["packages/native/README.md"]),
+      "check:boundaries",
+    ),
+    false,
+  );
+});
+
+test("native dependencies prepare declarations without selecting native policy or Cargo", (t) => {
+  const f = fixture(t);
+  f.pkg("native");
+  f.pkg("consumer", ["native"]);
+  const plan = f.select("check", ["packages/consumer/src/index.ts"]);
+  assert.ok(plan.commands[0].args.includes("packages/native/tsconfig.json"));
+  assert.equal(hasCommand(plan, "check:boundaries"), false);
+  assert.equal(hasCommand(plan, "check:native"), false);
+});
+
+test("root Rust inputs select boundary policy without widening npm checks", (t) => {
+  const f = fixture(t);
+  f.pkg("native");
+  f.pkg("unrelated");
+  f.write("Cargo.lock", "");
+  const plan = f.select("check", ["Cargo.lock"]);
+  assert.deepEqual(plan.stages.packages.targets, []);
+  assert.equal(plan.stages.prepare.scope, "none");
+  assert.ok(hasCommand(plan, "check:boundaries"));
+  assert.ok(hasCommand(plan, "check:native"));
+  assert.equal(
+    hasCommand(f.select("fix", ["Cargo.lock"]), "check:boundaries"),
+    false,
+  );
+});
+
+test("native check shape must remain separable and declare its boundary script", (t) => {
+  const f = fixture(t);
+  for (const scripts of [
+    {
+      check:
+        "pnpm check:boundaries && tsc -b --pretty false && pnpm check:native",
+    },
+    { check: "tsc -b --pretty false && node extra-check.mjs" },
+  ]) {
+    f.pkg("native", [], { scripts });
+    assert.throws(
+      () => f.select("check", ["packages/native/src/index.ts"]),
+      /No native check:boundaries script|Unsupported/,
+    );
+  }
+  // A checkout predating the boundary guard still has a safely separable check.
+  f.pkg("native", [], {
+    scripts: { check: "tsc -b --pretty false && pnpm check:native" },
+  });
+  const legacy = f.select("check", ["packages/native/src/index.ts"]);
+  assert.ok(hasCommand(legacy, "tsc"));
+  assert.equal(hasCommand(legacy, "check:boundaries"), false);
+  assert.equal(hasCommand(legacy, "check:native"), false);
 });
 
 test("deletions, package configuration, fixtures, and runtime Markdown retain package scope", (t) => {

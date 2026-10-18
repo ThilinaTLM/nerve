@@ -1,5 +1,5 @@
 import { binding } from "../binding/loader.js";
-import type { NativeChangeMonitorHandle } from "../binding/contract.js";
+import type { NativeChangeMonitorHandle } from "./binding.js";
 import type {
   ChangeMonitorOptions,
   ChangeNotice,

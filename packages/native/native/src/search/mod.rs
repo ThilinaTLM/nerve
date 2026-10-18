@@ -1,8 +1,12 @@
 //! Retained completion ranking. All text is JavaScript UTF-16, cased/collated by the caller.
+mod document;
+mod index;
+pub(crate) mod napi;
+mod text;
 use std::cmp::Ordering;
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
-pub type Text = Vec<u16>;
+pub use text::Text;
 #[derive(Clone, Debug)]
 pub struct Candidate {
     pub path: Text,
@@ -19,11 +23,13 @@ pub struct Candidate {
 }
 #[derive(Clone, Debug)]
 pub struct Term {
+    pub aligned: Option<Text>,
     pub value: Text,
     pub lower: Text,
 }
 #[derive(Clone, Debug)]
 pub struct Query {
+    pub aligned: Option<Text>,
     pub value: Text,
     pub lower: Text,
     pub path: Text,
@@ -37,8 +43,16 @@ pub struct Match {
     pub score: f64,
     pub ranges: Vec<[u32; 2]>,
 }
+#[derive(Clone, Copy, Debug)]
+enum TextMatchKind {
+    Exact,
+    Prefix,
+    Substring,
+    Fuzzy,
+}
 #[derive(Clone, Debug)]
 struct Local {
+    kind: TextMatchKind,
     score: f64,
     ranges: Vec<[u32; 2]>,
     segment: usize,
@@ -88,19 +102,23 @@ fn boundary(v: &[u16], i: usize) -> bool {
         || (((97..=122).contains(&p) || (48..=57).contains(&p)) && (65..=90).contains(&c))
         || ((65..=90).contains(&p) || (97..=122).contains(&p)) && (48..=57).contains(&c)
 }
-fn merge(mut ranges: Vec<[u32; 2]>) -> Vec<[u32; 2]> {
-    ranges.sort();
-    let mut out: Vec<[u32; 2]> = vec![];
-    for r in ranges {
-        if let Some(last) = out.last_mut()
-            && r[0] <= last[1]
-        {
-            last[1] = last[1].max(r[1]);
-            continue;
+fn merge_in_place(ranges: &mut Vec<[u32; 2]>) {
+    ranges.sort_unstable();
+    let mut written = 0;
+    for read in 0..ranges.len() {
+        let range = ranges[read];
+        if written > 0 && range[0] <= ranges[written - 1][1] {
+            ranges[written - 1][1] = ranges[written - 1][1].max(range[1]);
+        } else {
+            ranges[written] = range;
+            written += 1;
         }
-        out.push(r);
     }
-    out
+    ranges.truncate(written);
+}
+fn merge(mut ranges: Vec<[u32; 2]>) -> Vec<[u32; 2]> {
+    merge_in_place(&mut ranges);
+    ranges
 }
 fn fuzzy(
     t: &Term,
@@ -191,6 +209,7 @@ fn fuzzy(
         column = previous[row][column];
     }
     Ok(Some(Local {
+        kind: TextMatchKind::Fuzzy,
         score: best,
         ranges: merge(ranges),
         segment: 0,
@@ -205,8 +224,13 @@ fn text(
     if t.value.is_empty() || v.is_empty() {
         return Ok(None);
     }
-    let (score, start, end) = if t.lower == h {
-        (3600. + if t.value == v { 80. } else { 0. }, 0, v.len())
+    let (score, start, end, kind) = if t.lower == h {
+        (
+            3600. + if t.value == v { 80. } else { 0. },
+            0,
+            v.len(),
+            TextMatchKind::Exact,
+        )
     } else if h.starts_with(&t.lower) {
         (
             3000.
@@ -217,6 +241,7 @@ fn text(
                 },
             0,
             t.value.len(),
+            TextMatchKind::Prefix,
         )
     } else if let Some(i) = find(h, &t.lower) {
         let slice = &v[i.min(v.len())..(i + t.value.len()).min(v.len())];
@@ -225,11 +250,13 @@ fn text(
                 + if t.value == slice { 80. } else { 0. },
             i,
             i + t.value.len(),
+            TextMatchKind::Substring,
         )
     } else {
         return fuzzy(t, v, h, closed);
     };
     Ok(Some(Local {
+        kind,
         score,
         ranges: vec![[start as u32, end as u32]],
         segment: 0,
@@ -488,7 +515,7 @@ pub fn query(
     closed: &AtomicBool,
 ) -> Result<Vec<Match>, &'static str> {
     cancelled(closed)?;
-    let limit = limit.min(8);
+    let limit = limit.min(256);
     let mut out = vec![];
     if limit == 0 {
         return Ok(out);
@@ -520,6 +547,7 @@ mod tests {
     }
     fn term(s: &str) -> Term {
         Term {
+            aligned: None,
             value: u(s),
             lower: u(&s.to_lowercase()),
         }
@@ -543,6 +571,7 @@ mod tests {
     }
     fn q(s: &str) -> Query {
         Query {
+            aligned: None,
             value: u(s),
             lower: u(&s.to_lowercase()),
             path: u(s.trim_end_matches('/')),
@@ -628,8 +657,9 @@ mod tests {
             .is_err()
         );
         let t = Term {
-            value: vec![0xd800],
-            lower: vec![0xd800],
+            aligned: None,
+            value: vec![0xd800].into(),
+            lower: vec![0xd800].into(),
         };
         assert_eq!(
             text(&t, &[0xd800], &[0xd800], &closed)

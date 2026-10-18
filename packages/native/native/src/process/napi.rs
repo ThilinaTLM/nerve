@@ -5,8 +5,8 @@ use napi::bindgen_prelude::{Buffer, Result};
 use napi::threadsafe_function::{ThreadsafeFunction, ThreadsafeFunctionCallMode};
 use napi_derive::napi;
 
-use crate::platform::process as sys_process;
-use crate::platform::process::TcpListenerInfo;
+use crate::process::platform as sys_process;
+use crate::process::platform::TcpListenerInfo;
 use crate::process::{
     self, Containment, EnforcementEntry, InspectionResult, ManagedProcess, ManagedProcessEvents,
     ManagedTarget, OutputDrain, OutputStats, RequestedOutputPolicy, RequestedPolicy,

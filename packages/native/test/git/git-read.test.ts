@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -17,7 +17,43 @@ import {
 const exec = promisify(execFile);
 
 async function git(cwd: string, args: string[]): Promise<void> {
-  await exec("git", args, { cwd });
+  const isolation = await mkdtemp(join(tmpdir(), "nerve-git-fixture-config-"));
+  try {
+    const empty = join(isolation, "empty");
+    await mkdir(empty);
+    const config = join(isolation, "config");
+    await writeFile(config, "");
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !key.startsWith("GIT_")),
+    );
+    Object.assign(env, {
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_CONFIG_GLOBAL: config,
+      GIT_CONFIG_SYSTEM: config,
+      GIT_TEMPLATE_DIR: empty,
+      GIT_ATTR_NOSYSTEM: "1",
+      GIT_TERMINAL_PROMPT: "0",
+    });
+    await exec(
+      "git",
+      [
+        "-c",
+        `core.hooksPath=${empty}`,
+        "-c",
+        `core.attributesFile=${config}`,
+        "-c",
+        "commit.gpgSign=false",
+        "-c",
+        "tag.gpgSign=false",
+        "-c",
+        "credential.helper=",
+        ...args,
+      ],
+      { cwd, env },
+    );
+  } finally {
+    await rm(isolation, { recursive: true, force: true });
+  }
 }
 
 async function withRepo(fn: (repo: string) => Promise<void>): Promise<void> {

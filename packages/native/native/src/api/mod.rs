@@ -1,11 +1,5 @@
 mod capabilities;
-mod completion;
-mod git;
-mod monitor;
-mod process;
 
 pub use capabilities::*;
-pub use completion::*;
-pub use git::*;
+mod monitor;
 pub use monitor::*;
-pub use process::*;

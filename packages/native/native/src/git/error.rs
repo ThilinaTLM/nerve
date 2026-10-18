@@ -1,31 +1,6 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ErrorKind {
-    NotRepository,
-    NotFound,
-    Unsupported,
-    InvalidInput,
-    Io,
-    Corrupt,
-    LimitExceeded,
-    Internal,
-}
-
-impl ErrorKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::NotRepository => "not_repository",
-            Self::NotFound => "not_found",
-            Self::Unsupported => "unsupported",
-            Self::InvalidInput => "invalid_input",
-            Self::Io => "io",
-            Self::Corrupt => "corrupt",
-            Self::LimitExceeded => "limit_exceeded",
-            Self::Internal => "internal",
-        }
-    }
-}
+pub use crate::core::error::ErrorKind;
 
 #[derive(Debug)]
 pub struct GitReadError {

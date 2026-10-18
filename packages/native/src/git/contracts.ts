@@ -78,6 +78,7 @@ export interface NativeGitSnapshot {
   upstream?: string;
   ahead?: number;
   behind?: number;
+  inProgress: string[];
   refs: NativeGitReference[];
   remotes: NativeGitRemote[];
   files: NativeGitFileStatus[];
@@ -126,4 +127,16 @@ export interface NativeGitFileDiffResult {
 export interface NativeGitRevisionResult {
   oid?: string;
   error?: NativeGitErrorDetail;
+}
+
+/** Full metadata without status, index traversal, filters or worktree scanning. */
+export type NativeGitMetadataSnapshot = Omit<NativeGitSnapshot, "files">;
+export interface NativeGitMetadataSnapshotOptions {
+  /** Default 100,000. Overflow fails; zero does not mean omit refs. */
+  refLimit?: number;
+  /** Default 0: skip history traversal entirely. */
+  recentCommitLimit?: number;
+  /** Default 0: skip stash reflog traversal entirely. */
+  stashLimit?: number;
+  signal?: AbortSignal;
 }

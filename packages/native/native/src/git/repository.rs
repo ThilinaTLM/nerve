@@ -7,6 +7,9 @@ use super::error::{ErrorKind, GitReadError};
 use super::model::{
     FileStatus, RecentCommit, Reference, Remote, RepositoryInfo, Snapshot, SnapshotOptions, Stash,
 };
+use super::model::{MetadataOptions, MetadataSnapshot};
+use super::read_context::ReadContext;
+use crate::core::cancellation::CancellationToken;
 
 pub fn read_info(path: &str) -> Result<RepositoryInfo, GitReadError> {
     let repo = gix::open(Path::new(path))
@@ -21,45 +24,22 @@ pub fn read_info(path: &str) -> Result<RepositoryInfo, GitReadError> {
 }
 
 pub fn read_snapshot(path: &str, options: SnapshotOptions) -> Result<Snapshot, GitReadError> {
-    let mut repo = gix::open(Path::new(path))
-        .map_err(|error| GitReadError::from_gix("open repository", error))?;
-    if repo.workdir().is_none() {
-        return Err(GitReadError::new(
-            ErrorKind::Unsupported,
-            "bare repositories do not have a worktree snapshot",
-        ));
-    }
-    repo.object_cache_size_if_unset(4 * 1024 * 1024);
+    let repo = open_snapshot_repository(path)?;
+    let context = ReadContext::legacy();
+    let HeadMetadata {
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+    } = read_head(&repo, &context)?;
 
-    let head = repo
-        .head()
-        .map_err(|error| GitReadError::from_gix("read HEAD", error))?;
-    let head_oid = head.id().map(|id| id.to_string());
-    let head_branch = head
-        .referent_name()
-        .map(|name| name.shorten().to_str_lossy().into_owned());
-    let detached = head_branch.is_none() && head_oid.is_some();
-    let upstream = match repo
-        .head_ref()
-        .map_err(|error| GitReadError::from_gix("read HEAD reference", error))?
-        .and_then(|reference| reference.remote_tracking_ref_name(gix::remote::Direction::Fetch))
-    {
-        Some(Ok(name)) => Some(name.shorten().to_str_lossy().into_owned()),
-        Some(Err(error)) => {
-            return Err(GitReadError::from_gix("read HEAD upstream", error));
-        }
-        None => None,
-    };
-    let (ahead, behind) = match (head_oid.as_deref(), upstream.as_deref()) {
-        (Some(head), Some(upstream)) => ahead_behind(&repo, head, upstream)?,
-        _ => (None, None),
-    };
-
-    let refs = read_refs(&repo, options.ref_limit)?;
-    let remotes = read_remotes(&repo)?;
+    let refs = read_refs(&repo, options.ref_limit, &context)?;
+    let remotes = read_remotes(&repo, &context)?;
     let files = read_status(&repo, options.include_ignored, options.status_limit)?;
-    let recent_commits = read_recent_commits(&repo, options.recent_commit_limit)?;
-    let stashes = read_stashes(&repo, options.stash_limit)?;
+    let recent_commits = read_recent_commits(&repo, options.recent_commit_limit, &context)?;
+    let stashes = read_stashes(&repo, options.stash_limit, &context)?;
 
     Ok(Snapshot {
         git_dir: repo.git_dir().to_string_lossy().into_owned(),
@@ -72,6 +52,10 @@ pub fn read_snapshot(path: &str, options: SnapshotOptions) -> Result<Snapshot, G
         upstream,
         ahead,
         behind,
+        in_progress: super::project::read_in_progress(
+            &repo,
+            &crate::core::cancellation::CancellationToken::default(),
+        )?,
         refs,
         remotes,
         files,
@@ -80,7 +64,11 @@ pub fn read_snapshot(path: &str, options: SnapshotOptions) -> Result<Snapshot, G
     })
 }
 
-fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, GitReadError> {
+fn read_refs(
+    repo: &gix::Repository,
+    limit: usize,
+    context: &ReadContext<'_>,
+) -> Result<Vec<Reference>, GitReadError> {
     let platform = repo
         .references()
         .map_err(|error| GitReadError::from_gix("open references", error))?;
@@ -89,6 +77,7 @@ fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, Git
         .map_err(|error| GitReadError::from_gix("iterate references", error))?;
     let mut refs = Vec::new();
     for item in iterator {
+        context.check()?;
         if refs.len() >= limit {
             return Err(GitReadError::new(
                 ErrorKind::LimitExceeded,
@@ -119,6 +108,12 @@ fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, Git
                 (None, Some(name.as_bstr().to_str_lossy().into_owned()), None)
             }
         };
+        context.account(
+            128 + name.len()
+                + target.as_ref().map_or(0, String::len)
+                + symbolic_target.as_ref().map_or(0, String::len)
+                + upstream.as_ref().map_or(0, String::len),
+        )?;
         refs.push(Reference {
             name,
             target,
@@ -131,14 +126,18 @@ fn read_refs(repo: &gix::Repository, limit: usize) -> Result<Vec<Reference>, Git
     Ok(refs)
 }
 
-fn read_remotes(repo: &gix::Repository) -> Result<Vec<Remote>, GitReadError> {
+fn read_remotes(
+    repo: &gix::Repository,
+    context: &ReadContext<'_>,
+) -> Result<Vec<Remote>, GitReadError> {
     let mut remotes = Vec::new();
     for name in repo.remote_names() {
+        context.check()?;
         let name_text = name.to_str_lossy().into_owned();
         let remote = repo
             .find_remote(name.as_bstr())
             .map_err(|error| GitReadError::from_gix("read remote", error))?;
-        remotes.push(Remote {
+        let entry = Remote {
             name: name_text,
             fetch_url: remote
                 .url(gix::remote::Direction::Fetch)
@@ -146,7 +145,13 @@ fn read_remotes(repo: &gix::Repository) -> Result<Vec<Remote>, GitReadError> {
             push_url: remote
                 .url(gix::remote::Direction::Push)
                 .map(|url| url.to_bstring().to_str_lossy().into_owned()),
-        });
+        };
+        context.account(
+            128 + entry.name.len()
+                + entry.fetch_url.as_ref().map_or(0, String::len)
+                + entry.push_url.as_ref().map_or(0, String::len),
+        )?;
+        remotes.push(entry);
     }
     remotes.sort_by(|left, right| left.name.cmp(&right.name));
     Ok(remotes)
@@ -251,6 +256,7 @@ fn read_status(
 fn read_recent_commits(
     repo: &gix::Repository,
     limit: usize,
+    context: &ReadContext<'_>,
 ) -> Result<Vec<RecentCommit>, GitReadError> {
     let Some(head) = repo
         .head()
@@ -268,6 +274,7 @@ fn read_recent_commits(
         .map_err(|error| GitReadError::from_gix("start commit walk", error))?;
     let mut commits = Vec::new();
     for info in walk.take(limit) {
+        context.walk_step()?;
         let info = info.map_err(|error| GitReadError::from_gix("walk commits", error))?;
         let object = info
             .object()
@@ -275,16 +282,22 @@ fn read_recent_commits(
         let message = object
             .message()
             .map_err(|error| GitReadError::from_gix("decode commit message", error))?;
+        let subject = message.summary().to_str_lossy().into_owned();
+        context.account(128 + subject.len())?;
         commits.push(RecentCommit {
             oid: info.id.to_string(),
-            subject: message.summary().to_str_lossy().into_owned(),
+            subject,
             timestamp_seconds: info.commit_time(),
         });
     }
     Ok(commits)
 }
 
-fn read_stashes(repo: &gix::Repository, limit: usize) -> Result<Vec<Stash>, GitReadError> {
+fn read_stashes(
+    repo: &gix::Repository,
+    limit: usize,
+    context: &ReadContext<'_>,
+) -> Result<Vec<Stash>, GitReadError> {
     let Some(reference) = repo
         .try_find_reference("refs/stash")
         .map_err(|error| GitReadError::from_gix("read stash reference", error))?
@@ -300,7 +313,9 @@ fn read_stashes(repo: &gix::Repository, limit: usize) -> Result<Vec<Stash>, GitR
     };
     let mut stashes = Vec::new();
     for (index, line) in iterator.take(limit).enumerate() {
+        context.check()?;
         let line = line.map_err(|error| GitReadError::from_gix("read stash reflog", error))?;
+        context.account(128 + line.message.len())?;
         stashes.push(Stash {
             index: index as u32,
             oid: line.new_oid.to_string(),
@@ -315,6 +330,7 @@ fn ahead_behind(
     repo: &gix::Repository,
     head: &str,
     upstream: &str,
+    context: &ReadContext<'_>,
 ) -> Result<(Option<u32>, Option<u32>), GitReadError> {
     let head = repo
         .rev_parse_single(head)
@@ -328,6 +344,7 @@ fn ahead_behind(
             .all()
             .map_err(|error| GitReadError::from_gix("walk ahead commits", error))?,
         "walk ahead commits",
+        context,
     )?;
     let behind = count_walk(
         repo.rev_walk([upstream])
@@ -335,14 +352,20 @@ fn ahead_behind(
             .all()
             .map_err(|error| GitReadError::from_gix("walk behind commits", error))?,
         "walk behind commits",
+        context,
     )?;
     Ok((Some(to_u32(ahead)?), Some(to_u32(behind)?)))
 }
 
-fn count_walk(walk: gix::revision::Walk<'_>, context: &str) -> Result<usize, GitReadError> {
+fn count_walk(
+    walk: gix::revision::Walk<'_>,
+    description: &str,
+    context: &ReadContext<'_>,
+) -> Result<usize, GitReadError> {
     let mut count = 0usize;
     for item in walk {
-        item.map_err(|error| GitReadError::from_gix(context, error))?;
+        context.walk_step()?;
+        item.map_err(|error| GitReadError::from_gix(description, error))?;
         count = count.checked_add(1).ok_or_else(|| {
             GitReadError::new(ErrorKind::LimitExceeded, "commit count exceeds usize")
         })?;
@@ -363,3 +386,204 @@ fn path_text(path: &BStr) -> Result<String, GitReadError> {
         )
     })
 }
+
+struct HeadMetadata {
+    head_oid: Option<String>,
+    head_branch: Option<String>,
+    detached: bool,
+    upstream: Option<String>,
+    ahead: Option<u32>,
+    behind: Option<u32>,
+}
+fn open_snapshot_repository(path: &str) -> Result<gix::Repository, GitReadError> {
+    let mut repo = gix::open(Path::new(path))
+        .map_err(|error| GitReadError::from_gix("open repository", error))?;
+    if repo.workdir().is_none() {
+        return Err(GitReadError::new(
+            ErrorKind::Unsupported,
+            "bare repositories do not have a worktree snapshot",
+        ));
+    }
+    repo.object_cache_size_if_unset(4 * 1024 * 1024);
+
+    Ok(repo)
+}
+fn read_head(
+    repo: &gix::Repository,
+    context: &ReadContext<'_>,
+) -> Result<HeadMetadata, GitReadError> {
+    context.check()?;
+    let head = repo
+        .head()
+        .map_err(|error| GitReadError::from_gix("read HEAD", error))?;
+    let head_oid = head.id().map(|id| id.to_string());
+    let head_branch = head
+        .referent_name()
+        .map(|name| name.shorten().to_str_lossy().into_owned());
+    let detached = head_branch.is_none() && head_oid.is_some();
+    let upstream = match repo
+        .head_ref()
+        .map_err(|error| GitReadError::from_gix("read HEAD reference", error))?
+        .and_then(|reference| reference.remote_tracking_ref_name(gix::remote::Direction::Fetch))
+    {
+        Some(Ok(name)) => Some(name.shorten().to_str_lossy().into_owned()),
+        Some(Err(error)) => {
+            return Err(GitReadError::from_gix("read HEAD upstream", error));
+        }
+        None => None,
+    };
+    let (ahead, behind) = match (head_oid.as_deref(), upstream.as_deref()) {
+        (Some(head), Some(upstream)) => ahead_behind(repo, head, upstream, context)?,
+        _ => (None, None),
+    };
+
+    context.account(
+        128 + head_oid.as_ref().map_or(0, String::len)
+            + head_branch.as_ref().map_or(0, String::len)
+            + upstream.as_ref().map_or(0, String::len),
+    )?;
+    Ok(HeadMetadata {
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+    })
+}
+/// Metadata only: no status/index/worktree/filter kernel is reachable here.
+/// Opening, individual filesystem/object reads and iterator advancement are
+/// noninterruptible; cancellation is checked between records and walk steps.
+pub(crate) fn read_metadata(
+    path: &str,
+    options: MetadataOptions,
+    token: &CancellationToken,
+) -> Result<MetadataSnapshot, GitReadError> {
+    let context = ReadContext::bounded(token);
+    context.check()?;
+    if path.is_empty() || path.len() > 4096 || path.contains('\0') {
+        return Err(GitReadError::new(
+            ErrorKind::InvalidInput,
+            "Invalid Git metadata path",
+        ));
+    }
+    let repo = open_snapshot_repository(path)?;
+    context.check()?;
+    metadata_from_repository(&repo, options, token, &context)
+}
+fn metadata_from_repository(
+    repo: &gix::Repository,
+    options: MetadataOptions,
+    token: &CancellationToken,
+    context: &ReadContext<'_>,
+) -> Result<MetadataSnapshot, GitReadError> {
+    let HeadMetadata {
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+    } = read_head(repo, context)?;
+    let refs = read_refs(repo, options.ref_limit, context)?;
+    let remotes = read_remotes(repo, context)?;
+    // Unlike legacy zero status limits, explicit metadata zero limits skip work.
+    let recent_commits = if options.recent_commit_limit == 0 {
+        Vec::new()
+    } else {
+        read_recent_commits(repo, options.recent_commit_limit, context)?
+    };
+    let stashes = if options.stash_limit == 0 {
+        Vec::new()
+    } else {
+        read_stashes(repo, options.stash_limit, context)?
+    };
+    let git_dir = repo.git_dir().to_string_lossy().into_owned();
+    let work_dir = repo.workdir().map(|p| p.to_string_lossy().into_owned());
+    let in_progress = super::project::read_in_progress(repo, token)?;
+    context.account(
+        128 + git_dir.len()
+            + work_dir.as_ref().map_or(0, String::len)
+            + in_progress.iter().map(String::len).sum::<usize>(),
+    )?;
+    context.check()?;
+    Ok(MetadataSnapshot {
+        git_dir,
+        work_dir,
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        in_progress,
+        refs,
+        remotes,
+        recent_commits,
+        stashes,
+    })
+}
+
+/// Owning monitor composition: preserve the full snapshot fingerprint schema,
+/// but never execute external filters in the parent. Admission spans metadata
+/// and joined status completion, including subordinate module reads.
+pub(crate) fn read_monitor_snapshot(path: &str) -> Result<Snapshot, GitReadError> {
+    let _permit = super::project::admit().map_err(|e| GitReadError::new(e.category, e.message))?;
+    let token = CancellationToken::default();
+    let mut repo = open_snapshot_repository(path)?;
+    let defaults = SnapshotOptions::default();
+    let metadata = metadata_from_repository(
+        &repo,
+        MetadataOptions {
+            ref_limit: defaults.ref_limit,
+            recent_commit_limit: defaults.recent_commit_limit,
+            stash_limit: defaults.stash_limit,
+        },
+        &token,
+        &ReadContext::bounded(&token),
+    )?;
+    let files = super::project::status(
+        &mut repo,
+        false,
+        &token,
+        &std::sync::atomic::AtomicUsize::new(0),
+        &std::sync::atomic::AtomicUsize::new(0),
+        0,
+        false,
+    )?
+    .files;
+    let MetadataSnapshot {
+        git_dir,
+        work_dir,
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        in_progress,
+        refs,
+        remotes,
+        recent_commits,
+        stashes,
+    } = metadata;
+    Ok(Snapshot {
+        git_dir,
+        work_dir,
+        head_oid,
+        head_branch,
+        detached,
+        upstream,
+        ahead,
+        behind,
+        in_progress,
+        refs,
+        remotes,
+        recent_commits,
+        stashes,
+        files,
+    })
+}
+
+#[cfg(test)]
+mod tests;

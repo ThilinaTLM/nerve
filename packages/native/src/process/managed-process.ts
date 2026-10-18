@@ -1,9 +1,6 @@
 import { PassThrough } from "node:stream";
 import { binding } from "../binding/loader.js";
-import type {
-  NativeOutputEvent,
-  NativeProcessHandle,
-} from "../binding/contract.js";
+import type { NativeOutputEvent, NativeProcessHandle } from "./binding.js";
 import type {
   InspectionResult,
   ManagedProcess,

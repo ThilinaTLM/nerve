@@ -1,135 +1,20 @@
-import type {
-  NativeGitAncestryResult,
-  NativeGitDocumentSource,
-  NativeGitFileDiffResult,
-  NativeGitRepositoryInfoResult,
-  NativeGitRevisionResult,
-  NativeGitSnapshotOptions,
-  NativeGitSnapshotResult,
-} from "../git/contracts.js";
-import type {
-  ChangeMonitorOptions,
-  ChangeNotice,
-  DirectoryMonitorScope,
-  GitMonitorScope,
-  MonitorDiagnostics,
-  MonitorScopeState,
-} from "../monitor/contracts.js";
-import type {
-  InspectionResult,
-  ManagedProcessEnforcement,
-  ManagedProcessOutputStats,
-  ManagedProcessResourcePolicy,
-  ManagedTarget,
-  NativeContainment,
-  TerminationResult,
-  TcpListenerProcess,
-} from "../process/contracts.js";
+import type { NativeGitBinding } from "../git/binding.js";
+import type { NativeMonitorBinding } from "../monitor/binding.js";
+import type { NativeProcessBinding } from "../process/binding.js";
+import type { NativeSearchBinding } from "../search/binding.js";
 
-export interface NativeOutputEvent {
-  stream: "stdout" | "stderr";
-  data: Buffer;
-}
+export type {
+  NativeOutputEvent,
+  NativeOutputDrain,
+  NativeProcessHandle,
+} from "../process/binding.js";
+export type { NativeChangeMonitorHandle } from "../monitor/binding.js";
 
-export interface NativeOutputDrain {
-  events: NativeOutputEvent[];
-  hasMore: boolean;
-  pipesClosed: boolean;
-  stats: ManagedProcessOutputStats;
-}
-
-export interface NativeProcessHandle {
-  readonly pid: number;
-  readonly identity: string;
-  readonly containment: NativeContainment;
-  readonly processGroupId?: number;
-  readonly target: ManagedTarget;
-  readonly batchBytes: number;
-  readonly enforcement: ManagedProcessEnforcement[];
-  drainOutput(maximumBytes?: number): NativeOutputDrain;
-  terminate(signal?: string): TerminationResult;
-}
-
-export interface NativeChangeMonitorHandle {
-  id: number;
-}
-
-export interface NativeBinding {
-  NativeFileCompletionIndex: new () => import("../completion/file-completion-index.js").NativeFileCompletionIndexHandle;
+export interface NativeBinding
+  extends
+    NativeGitBinding,
+    NativeMonitorBinding,
+    NativeProcessBinding,
+    NativeSearchBinding {
   runtimeCapabilities(): { platform: string; capabilities: string[] };
-  initializeManagedProcessHost(options: {
-    delegatedScope?: boolean;
-    allowUncontained?: boolean;
-  }): {
-    backend: "cgroup_v2" | "windows_job" | "process_group";
-    hardLimitsAvailable: boolean;
-    enforcement: "required" | "best_effort";
-    detail?: string;
-  };
-  readGitRepositoryInfo(path: string): Promise<NativeGitRepositoryInfoResult>;
-  readGitSnapshot(
-    path: string,
-    options?: NativeGitSnapshotOptions,
-  ): Promise<NativeGitSnapshotResult>;
-  checkGitAncestry(
-    path: string,
-    ancestor: string,
-    descendant: string,
-  ): Promise<NativeGitAncestryResult>;
-  resolveGitRevision(
-    path: string,
-    revision: string,
-  ): Promise<NativeGitRevisionResult>;
-  readGitFileDiff(
-    path: string,
-    original: NativeGitDocumentSource,
-    modified: NativeGitDocumentSource,
-  ): Promise<NativeGitFileDiffResult>;
-  validateGitBranchName(name: string): boolean;
-  inspectTcpListeners(port?: number): TcpListenerProcess[];
-  terminateTcpListener(
-    listener: TcpListenerProcess,
-    signal?: string,
-  ): TerminationResult;
-  inspectManagedTarget(target: ManagedTarget): InspectionResult;
-  terminateManagedTarget(
-    target: ManagedTarget,
-    signal?: string,
-  ): TerminationResult;
-  createChangeMonitor(
-    options: ChangeMonitorOptions | undefined,
-    notice: (error: Error | null, notice: ChangeNotice) => void,
-  ): NativeChangeMonitorHandle;
-  syncChangeMonitorDirectories(
-    handle: NativeChangeMonitorHandle,
-    scope: DirectoryMonitorScope,
-  ): Promise<MonitorScopeState>;
-  syncChangeMonitorGit(
-    handle: NativeChangeMonitorHandle,
-    scope: GitMonitorScope,
-  ): Promise<MonitorScopeState>;
-  requestChangeMonitorRefresh(
-    handle: NativeChangeMonitorHandle,
-    scopeId: string,
-  ): Promise<number>;
-  removeChangeMonitorScope(
-    handle: NativeChangeMonitorHandle,
-    scopeId: string,
-  ): Promise<void>;
-  changeMonitorDiagnostics(
-    handle: NativeChangeMonitorHandle,
-  ): MonitorDiagnostics;
-  closeChangeMonitor(handle: NativeChangeMonitorHandle): Promise<void>;
-  configureManagedProcessRuntime(options: { maxActiveProcesses: number }): void;
-  spawnManagedProcess(
-    command: string,
-    args: string[],
-    options: {
-      cwd?: string;
-      env?: Record<string, string>;
-      policy?: ManagedProcessResourcePolicy;
-    },
-    outputReady: (error: Error | null) => void,
-    exit: (error: Error | null, result: [number, string, string]) => void,
-  ): NativeProcessHandle;
 }

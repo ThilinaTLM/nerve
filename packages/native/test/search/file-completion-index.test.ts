@@ -63,7 +63,7 @@ test("bounded limits, explicit close and no unbounded concurrent tasks", async (
   const index = await createFileCompletionIndex(
     Array.from({ length: 10000 }, (_, i) => candidate(`src/item-${i}.ts`)),
   );
-  for (const limit of [-1, 9, 0.5, NaN, Infinity])
+  for (const limit of [-1, 257, 0.5, NaN, Infinity])
     await assert.rejects(index.query("", { limit }), /limit/);
   assert.deepEqual(await index.query("", { limit: 0 }), []);
   assert.equal((await index.query("")).length, 8);
@@ -189,6 +189,19 @@ test("FIFO queue serializes concurrent calls without dropping ordinary requests"
       ["src", "file", "ts", ""].map((q) => index.query(q)),
     );
     assert.ok(results.every((r) => r.length === 1));
+  } finally {
+    await index.close();
+  }
+});
+
+test("file facade exposes a 64-candidate policy pool without changing default visible eight", async () => {
+  const index = await createFileCompletionIndex(
+    Array.from({ length: 100 }, (_, i) => candidate(`src/item-${i}.ts`)),
+  );
+  try {
+    assert.equal((await index.query("item")).length, 8);
+    assert.equal((await index.query("item", { limit: 64 })).length, 64);
+    assert.equal((await index.query("item", { limit: 256 })).length, 100);
   } finally {
     await index.close();
   }

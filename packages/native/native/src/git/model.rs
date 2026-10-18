@@ -36,9 +36,27 @@ pub struct Snapshot {
     pub upstream: Option<String>,
     pub ahead: Option<u32>,
     pub behind: Option<u32>,
+    pub in_progress: Vec<String>,
     pub refs: Vec<Reference>,
     pub remotes: Vec<Remote>,
     pub files: Vec<FileStatus>,
+    pub recent_commits: Vec<RecentCommit>,
+    pub stashes: Vec<Stash>,
+}
+
+#[derive(Clone, Debug)]
+pub struct MetadataSnapshot {
+    pub git_dir: String,
+    pub work_dir: Option<String>,
+    pub head_oid: Option<String>,
+    pub head_branch: Option<String>,
+    pub detached: bool,
+    pub upstream: Option<String>,
+    pub ahead: Option<u32>,
+    pub behind: Option<u32>,
+    pub in_progress: Vec<String>,
+    pub refs: Vec<Reference>,
+    pub remotes: Vec<Remote>,
     pub recent_commits: Vec<RecentCommit>,
     pub stashes: Vec<Stash>,
 }
@@ -116,4 +134,20 @@ pub struct Ancestry {
     pub ancestor_oid: String,
     pub descendant_oid: String,
     pub is_ancestor: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct MetadataOptions {
+    pub ref_limit: usize,
+    pub recent_commit_limit: usize,
+    pub stash_limit: usize,
+}
+impl Default for MetadataOptions {
+    fn default() -> Self {
+        Self {
+            ref_limit: 100_000,
+            recent_commit_limit: 0,
+            stash_limit: 0,
+        }
+    }
 }

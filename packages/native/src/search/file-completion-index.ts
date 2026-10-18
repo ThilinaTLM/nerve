@@ -1,5 +1,12 @@
-import { isAbsolute } from "node:path";
+import { acquireBuildSlot } from "./admission.js";
+import { prepareFileQuery } from "./query.js";
+import { compactCandidate } from "./normalize.js";
+import { createLane } from "./lane.js";
 import { setImmediate } from "node:timers/promises";
+import type {
+  NativeCompletionCandidate,
+  NativeFileCompletionIndexHandle,
+} from "./binding.js";
 import { binding } from "../binding/loader.js";
 
 export interface FileCompletionCandidateInput {
@@ -22,96 +29,8 @@ export interface FileCompletionIndex {
   ): Promise<FileCompletionMatch[]>;
   close(): Promise<void>;
 }
-// Private addon DTOs: napi Utf16String preserves even unpaired JS surrogates.
-export interface NativeCompletionCandidate {
-  path: string;
-  name: string;
-  stem: string;
-  pathLower: string;
-  nameLower: string;
-  stemLower: string;
-  segments: string[];
-  segmentsLower: string[];
-  depth: number;
-  directory: boolean;
-  localeRank: number;
-}
-export interface NativeCompletionQuery {
-  value: string;
-  lower: string;
-  path: string;
-  folder: boolean;
-  ordered: boolean;
-  terms: { value: string; lower: string }[];
-}
-export interface NativeFileCompletionIndexHandle {
-  build(candidates: NativeCompletionCandidate[]): Promise<void>;
-  query(
-    query: NativeCompletionQuery,
-    limit: number,
-  ): Promise<FileCompletionMatch[]>;
-  close(): Promise<void>;
-}
-// Admission covers cold JS preparation, append tasks, and failure disposal.
-let activeBuilds = 0;
-const waitingBuilds: { enter(): void }[] = [];
-async function acquireBuildSlot(signal?: AbortSignal): Promise<() => void> {
-  signal?.throwIfAborted();
-  if (activeBuilds >= 2 && waitingBuilds.length >= 16)
-    throw new Error("Completion build queue is full");
-  return new Promise((resolve, reject) => {
-    const abort = () => {
-      const index = waitingBuilds.indexOf(request);
-      if (index >= 0) waitingBuilds.splice(index, 1);
-      reject(signal?.reason ?? new Error("Completion build aborted"));
-    };
-    const request = {
-      enter() {
-        signal?.removeEventListener("abort", abort);
-        activeBuilds++;
-        let released = false;
-        resolve(() => {
-          if (released) return;
-          released = true;
-          activeBuilds--;
-          waitingBuilds.shift()?.enter();
-        });
-      },
-    };
-    if (activeBuilds < 2) request.enter();
-    else {
-      waitingBuilds.push(request);
-      signal?.addEventListener("abort", abort, { once: true });
-    }
-  });
-}
 const MAX_CANDIDATES = 1_000_000;
 const MAX_SOURCE_UNITS = 64 * 1024 * 1024;
-function prepare(raw: string): NativeCompletionQuery | undefined {
-  const value = raw.trim().replace(/^@+/, "").replaceAll("\\", "/");
-  if (
-    isAbsolute(value) ||
-    value.startsWith("/") ||
-    /^[A-Za-z]:\//.test(value) ||
-    value.split("/").includes("..")
-  )
-    return undefined;
-  const ordered = value.includes("/");
-  const lower = value.toLowerCase();
-  return {
-    value: value,
-    lower: lower,
-    path: lower.replace(/\/+$/, ""),
-    folder: value.endsWith("/"),
-    ordered,
-    terms: value
-      .replace(/\/+$/, "")
-      .split(ordered ? /\/+/ : /\s+/)
-      .map((t) => t.trim())
-      .filter(Boolean)
-      .map((t) => ({ value: t, lower: t.toLowerCase() })),
-  };
-}
 // Yield between bounded JS chunks: locale/casing remain owned by the host, but
 // neither sorting nor N-API receives the entire large candidate graph at once.
 async function localeRanks(
@@ -229,19 +148,7 @@ async function buildFileCompletionIndex(
         signal?.throwIfAborted();
       }
       const c = candidates[i]!;
-      batch.push({
-        path: c.relativePath,
-        name: c.name,
-        stem: c.stem,
-        pathLower: c.relativePath.toLowerCase(),
-        nameLower: c.name.toLowerCase(),
-        stemLower: c.stem.toLowerCase(),
-        segments: [...c.segments],
-        segmentsLower: c.segments.map((s) => s.toLowerCase()),
-        depth: c.depth,
-        directory: c.kind === "directory",
-        localeRank: ranks[i]!,
-      });
+      batch.push(compactCandidate(c, ranks[i]!));
       if (batch.length === 1024) {
         await handle.build(batch);
         batch.length = 0;
@@ -262,55 +169,21 @@ async function buildFileCompletionIndex(
 function wrapIndex(
   handle: NativeFileCompletionIndexHandle,
 ): FileCompletionIndex {
-  let closed = false;
-  let closing: Promise<void> | undefined;
-  type Request = {
-    query: NativeCompletionQuery;
-    limit: number;
-    resolve: (matches: FileCompletionMatch[]) => void;
-    reject: (error: unknown) => void;
-  };
-  const queue: Request[] = [];
-  let active: Promise<void> | undefined;
-  function pump(): void {
-    if (closed || active || !queue.length) return;
-    const request = queue.shift()!;
-    active = (async () => {
-      try {
-        request.resolve(await handle.query(request.query, request.limit));
-      } catch (error) {
-        request.reject(error);
-      }
-    })().finally(() => {
-      active = undefined;
-      pump();
-    });
-  }
+  const lane = createLane(handle);
   return {
-    async query(raw, queryOptions = {}) {
-      if (closed) throw new Error("Completion index is closed");
+    async query(raw, options = {}) {
+      lane.check();
       if (raw.length > 4096)
         throw new RangeError("Completion query exceeds 4096 UTF-16 units");
-      const limit = queryOptions.limit ?? 8;
-      if (!Number.isInteger(limit) || limit < 0 || limit > 8)
-        throw new RangeError("Completion limit must be an integer from 0 to 8");
-      if (queue.length >= 32) throw new Error("Completion index queue is full");
-      const query = prepare(raw);
+      const limit = options.limit ?? 8;
+      if (!Number.isInteger(limit) || limit < 0 || limit > 256)
+        throw new RangeError(
+          "Completion limit must be an integer from 0 to 256",
+        );
+      const query = prepareFileQuery(raw);
       if (!query || limit === 0) return [];
-      return new Promise<FileCompletionMatch[]>((resolve, reject) => {
-        queue.push({ query, limit, resolve, reject });
-        pump();
-      });
+      return lane.run(() => handle.query(query, limit));
     },
-    async close() {
-      if (!closing) {
-        closed = true;
-        const disposal = handle.close();
-        for (const request of queue.splice(0))
-          request.reject(new Error("Completion index is closed"));
-        closing = Promise.all([disposal, active]).then(() => undefined);
-      }
-      await closing;
-    },
+    close: () => lane.close(),
   };
 }
