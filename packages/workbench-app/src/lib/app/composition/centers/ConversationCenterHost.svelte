@@ -137,12 +137,6 @@ const promptDraftTarget = $derived<PromptDraftTarget | undefined>(
 let editText = $state("");
 let stopping = $state(false);
 let retryingResponse = $state(false);
-/**
- * Brief acceptance window for a manual request: scoped to one conversation and
- * the server revision seen at request time, so it never outlives the server's
- * own operation record or leaks onto another viewed conversation.
- */
-let compactRequest = $state<{ conversationId: string; base: number }>();
 let editTarget = $state<ConversationEntry>();
 /** Shows a sub-agent in the main view; the lead id (or none) returns. */
 function viewAgent(id: string | undefined) {
@@ -169,7 +163,6 @@ $effect(() => {
   untrack(() => viewAgent(undefined));
   tree = [];
   editTarget = undefined;
-  compactRequest = undefined;
   if (!id) return;
   const retained = retainConversationStore(id);
   leadStore = retained.store;
@@ -195,18 +188,7 @@ const view = $derived(
           stopping || Boolean(transcript.transient?.compaction?.stopping),
         retryingResponse,
         responseRevision: store.responseRevision,
-        transient:
-          compactRequest &&
-          compactRequest.conversationId === store.snapshot.conversation.id &&
-          (store.snapshot.compaction?.revision ?? 0) <= compactRequest.base
-            ? {
-                compaction: {
-                  id: "compaction-request",
-                  state: "running" as const,
-                  reason: "manual" as const,
-                },
-              }
-            : transcript.transient,
+        transient: transcript.transient,
       }
     : undefined,
 );
@@ -491,18 +473,10 @@ async function retryActiveResponse() {
   }
 }
 async function compactActiveConversation() {
-  const snapshot = store?.snapshot;
-  if (!store || !snapshot) return;
-  const request = {
-    conversationId: snapshot.conversation.id,
-    base: snapshot.compaction?.revision ?? 0,
-  };
-  compactRequest = request;
-  try {
-    await store.control("compact");
-  } finally {
-    if (compactRequest === request) compactRequest = undefined;
-  }
+  await store?.control("compact");
+}
+async function cancelPendingCompaction() {
+  await store?.cancelCompaction();
 }
 let openingSystemPrompt = false;
 async function openSystemPrompt() {
@@ -877,6 +851,9 @@ const teamRunning = $derived(
   onRejectPlanReview={rejectPendingPlanReview}
   onRetryResponse={() => {
     void runActivePaneAction(retryActiveResponse);
+  }}
+  onCancelCompaction={() => {
+    void runActivePaneAction(cancelPendingCompaction);
   }}
   onContinueFromFailure={(runId) => {
     void runActivePaneAction(() => continueFromFailure(runId));

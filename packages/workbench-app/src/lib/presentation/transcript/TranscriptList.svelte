@@ -94,6 +94,7 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelCompaction?: () => void;
   onRetryResponse?: () => void;
   onForcePushQueuedPrompts?: (
     prompt: QueuedPromptRecord,
@@ -147,6 +148,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onCancelCompaction,
   onRetryResponse,
   onForcePushQueuedPrompts,
   onDiscardQueuedPrompt,
@@ -399,6 +401,7 @@ $effect(() => {
             {onAcceptPlanReviewInNewChat}
             {onRejectPlanReview}
             {onContinueFromFailure}
+            {onCancelCompaction}
             {transcriptMenu}
             queuedPrompt={item.queuedPrompt}
             {onForcePushQueuedPrompts}

@@ -124,6 +124,7 @@ test("refresh reuses one execution lookup without decoding history and preserves
       },
       () => now,
       () => {},
+      () => false,
     );
     const refresh = (expected: string) => {
       lookups = 0;
@@ -209,6 +210,39 @@ test("refresh reuses one execution lookup without decoding history and preserves
     storage.toolCalls.list = () =>
       [{ state: "running" }] as ReturnType<typeof storage.toolCalls.list>;
     refresh("running");
+  } finally {
+    storage.close();
+  }
+});
+
+test("a held scheduler slot stays running until release, then reveals idle or failed", () => {
+  const { storage, append } = fixture();
+  let processing = true;
+  const service = new StatusService(
+    storage,
+    () => {},
+    () => now,
+    () => {},
+    () => processing,
+  );
+  try {
+    service.refresh("conv_test");
+    assert.equal(storage.conversations.get("conv_test")?.status, "running");
+    processing = false;
+    service.refresh("conv_test");
+    assert.equal(storage.conversations.get("conv_test")?.status, "idle");
+    processing = true;
+    append({
+      subtype: "execution_state",
+      transition: "failed",
+      executionId: "execution",
+      failure: { message: "failed" },
+    });
+    service.refresh("conv_test");
+    assert.equal(storage.conversations.get("conv_test")?.status, "running");
+    processing = false;
+    service.refresh("conv_test");
+    assert.equal(storage.conversations.get("conv_test")?.status, "failed");
   } finally {
     storage.close();
   }

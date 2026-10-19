@@ -257,6 +257,7 @@ export type ConversationPaneActions = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelCompaction?: () => void;
   /** Cancels only the stalled provider request and retries it. */
   onRetryResponse?: () => void;
   onForcePushQueuedPrompts?: (

@@ -80,9 +80,42 @@ test("user input resumes a paused conversation with a complete summary", () => {
     assert.equal(storage.inputs.list("conv_test").length, 1);
     assert.deepEqual(wakes, ["conv_test"]);
     assert.equal(service.hasDeliverable("conv_test", { kind: "turn" }), true);
-    const delivered = service.deliver("conv_test", { kind: "turn" });
+    const position = storage.conversations.get("conv_test")!.nextInputSequence;
+    service.submit({
+      conversationId: "conv_test",
+      inputId: "input_later",
+      text: "Later",
+      source: "user",
+    });
+    // An unfinished earlier preparation still blocks delivery even with a cutoff.
+    storage.inputs.update("input_test", {
+      preparedText: null,
+      commandPreparation: { blocks: [] },
+    });
+    assert.deepEqual(
+      service.deliver(
+        "conv_test",
+        { kind: "turn" },
+        { beforeSequence: position },
+      ),
+      [],
+    );
+    storage.inputs.update("input_test", { commandPreparation: null });
+    const delivered = service.deliver(
+      "conv_test",
+      { kind: "turn" },
+      { beforeSequence: position },
+    );
     assert.equal(delivered.length, 1);
     assert.equal(delivered[0].inputId, "input_test");
+    assert.deepEqual(
+      storage.inputs.list("conv_test").map((row) => row.inputId),
+      ["input_later"],
+    );
+    assert.equal(
+      service.deliver("conv_test", { kind: "turn" })[0]?.inputId,
+      "input_later",
+    );
     assert.equal(storage.inputs.list("conv_test").length, 0);
   } finally {
     storage.close();

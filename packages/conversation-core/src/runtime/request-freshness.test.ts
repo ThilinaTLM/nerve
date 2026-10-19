@@ -338,6 +338,7 @@ void test("compaction resolves current model, reasoning and settings without ord
     },
   );
   try {
+    await core.start();
     await createConversation(core, "conv_compaction");
     for (let index = 0; index < 10; index++) {
       opts.storage.events.append({
@@ -361,7 +362,11 @@ void test("compaction resolves current model, reasoning and settings without ord
       model: { provider: model.provider, modelId: model.id },
       reasoningLevel: "high",
     });
-    await core.compact("conv_compaction");
+    core.compact("conv_compaction");
+    await waitUntil(
+      () =>
+        core.getSnapshot("conv_compaction").compaction?.status === "completed",
+    );
     assert.equal(resolvedProvider, model.provider);
     assert.equal(reasoning, "high");
     assert.equal(settingsReads, 1);

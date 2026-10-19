@@ -22,6 +22,15 @@ export function compactionNoticeHeader(
 ): CompactionNoticeHeader {
   const arg = reasonLabel(notice);
   switch (notice.state) {
+    case "queued":
+      return {
+        tone: "neutral",
+        glyph: "compaction",
+        busy: false,
+        badge: "compact_pending",
+        arg,
+        statusLabel: "Compaction pending",
+      };
     case "running":
       return {
         tone: "info",

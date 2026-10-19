@@ -178,6 +178,7 @@ function goToQuestion(): void {
           onAcceptPlanReviewInNewChat={actions.onAcceptPlanReviewInNewChat}
           onRejectPlanReview={actions.onRejectPlanReview}
           onContinueFromFailure={actions.onContinueFromFailure}
+          onCancelCompaction={actions.onCancelCompaction}
           onRetryResponse={actions.onRetryResponse}
           onForcePushQueuedPrompts={actions.onForcePushQueuedPrompts}
           onDiscardQueuedPrompt={actions.onDiscardQueuedPrompt}

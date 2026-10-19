@@ -161,6 +161,7 @@ export type WorkbenchConversationAdapterProps = {
     prompt: QueuedPromptRecord,
   ) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelCompaction?: () => void;
   onRetryResponse?: () => void;
   onNavigateToEntry?: (
     entryId: string | undefined,

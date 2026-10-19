@@ -331,6 +331,15 @@ export const conversationChannelOperations = [
     "operation.conversation.compact",
   ),
   defineOperation(
+    "conversation.cancelCompaction",
+    coreOperationSchemas["conversation.cancelCompaction"].params,
+    coreOperationSchemas["conversation.cancelCompaction"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversation.cancelCompaction",
+  ),
+  defineOperation(
     "conversation.delete",
     coreOperationSchemas["conversation.delete"].params,
     coreOperationSchemas["conversation.delete"].result,

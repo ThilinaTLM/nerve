@@ -145,7 +145,10 @@ export const coreOperationSchemas = {
     params: conversationId.extend({ eventId: z.string().nullable() }),
     result: done,
   },
+  /** Accepts a manual compaction request; completion is observed through compaction notifications. */
   "conversation.compact": { params: conversationId, result: done },
+  /** Cancels a queued, not yet running, manual compaction request. */
+  "conversation.cancelCompaction": { params: conversationId, result: done },
   "conversation.delete": { params: conversationId, result: done },
   "conversation.pause": { params: conversationId, result: done },
   "conversation.resume": { params: conversationId, result: done },

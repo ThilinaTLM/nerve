@@ -105,6 +105,18 @@ describe("compaction operation notice", () => {
     assert.equal(notice?.summaryPreview, "## Goal\nline");
   });
 
+  it("maps a queued operation to a queued notice regardless of head", () => {
+    const queued = operation({ status: "queued", summaryPreview: "" });
+    for (const headEventId of ["head_1", "other"]) {
+      const notice = compactionOperationNotice(queued, {
+        ...context,
+        headEventId,
+      });
+      assert.equal(notice?.state, "queued");
+      assert.equal(notice?.stopping, undefined);
+    }
+  });
+
   it("keeps a failed draft only on the branch it started from", () => {
     const failed = operation({ status: "failed", errorMessage: "boom" });
     const notice = compactionOperationNotice(failed, context);
