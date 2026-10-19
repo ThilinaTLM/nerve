@@ -10,6 +10,7 @@ import {
 import {
   resolveBashShellConfig,
   resolveProjectShellInvocation,
+  contextualizeShellSpawnError,
 } from "@nervekit/tools/execution";
 
 export function resolveProcessShell(
@@ -19,6 +20,7 @@ export function resolveProcessShell(
     env?: Record<string, string>;
     shellPath?: string;
     login?: boolean;
+    projectEnvironment?: boolean;
   },
   resolution: Omit<
     NonNullable<Parameters<typeof resolveBashShellConfig>[0]>,
@@ -44,6 +46,7 @@ export function resolveProcessShell(
       ? { ...shellConfig, args: ["-lc"] }
       : shellConfig,
     platform: resolution.platform,
+    projectEnvironment: options.projectEnvironment,
   });
 }
 
@@ -54,19 +57,25 @@ export function spawnShellProcess(
     env?: Record<string, string>;
     shellPath?: string;
     login?: boolean;
+    projectEnvironment?: boolean;
     policy: ManagedProcessResourcePolicy;
   },
 ) {
   const shell = resolveProcessShell(command, options);
-  const child = spawnManagedChildProcess(shell.shell, shell.args, {
-    cwd: options.cwd,
-    env: shell.env,
-    policy: options.policy,
-  });
+  let child: ChildProcess;
+  try {
+    child = spawnManagedChildProcess(shell.shell, shell.args, {
+      cwd: options.cwd,
+      env: shell.env,
+      policy: options.policy,
+    });
+  } catch (error) {
+    throw contextualizeShellSpawnError(error, shell.launch);
+  }
   const managed = managedProcessForChild(child);
   if (!managed)
     throw new Error("Native managed process metadata was not registered");
-  return { child, managed };
+  return { child, managed, launch: shell.launch };
 }
 
 /** The caller owns stop intent and terminal settlement; the host owns escalation. */

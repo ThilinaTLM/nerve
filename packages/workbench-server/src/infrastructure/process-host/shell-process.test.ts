@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveProcessShell } from "./shell-process.js";
+import { resolveProcessShell, spawnShellProcess } from "./shell-process.js";
 
 void test("login shells retain project environment activation", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "nerve-login-env-"));
@@ -90,4 +90,31 @@ void test("Windows login shells resolve PATH and explicit settings without a POS
       ),
     /No bash shell found.*Git for Windows/s,
   );
+});
+
+void test("native synchronous spawn failures retain their cause and launch context without command disclosure", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "nerve-launch-error-"));
+  try {
+    const cwd = join(dir, "missing-directory");
+    assert.throws(
+      () =>
+        spawnShellProcess("PRIVATE_SUBMITTED_COMMAND", {
+          cwd,
+          shellPath: process.execPath,
+          policy: {},
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.ok(error.cause instanceof Error);
+        assert.match(error.message, /Shell process spawn failed/);
+        assert.ok(error.message.includes(cwd));
+        assert.doesNotMatch(error.message, /PRIVATE_SUBMITTED_COMMAND/);
+        if ("code" in error.cause)
+          assert.equal((error as NodeJS.ErrnoException).code, error.cause.code);
+        return true;
+      },
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

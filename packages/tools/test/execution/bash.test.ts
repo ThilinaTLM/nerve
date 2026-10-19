@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { chmod, readFile } from "node:fs/promises";
 import { delimiter, dirname, join } from "node:path";
 import { describe, it } from "node:test";
+import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
 import { executeBash } from "../../src/execution/shell/bash.js";
+import { formatProjectShellFailure } from "../../src/execution/shell/launch-diagnostics.js";
 import {
   createTempProject,
   withPath,
@@ -17,6 +19,18 @@ describe("bash executor", () => {
       executeBash({ command: "   " }, { cwd: process.cwd() }),
       /command.*non-empty string/,
     );
+  });
+
+  it("rejects supplied non-boolean projectEnvironment values", async () => {
+    for (const projectEnvironment of [null, "false", 0, 1, {}]) {
+      await assert.rejects(
+        executeBash(
+          { command: "echo PROBE", projectEnvironment },
+          { cwd: process.cwd() },
+        ),
+        /projectEnvironment.*boolean/,
+      );
+    }
   });
 
   async function waitForFile(path: string): Promise<string> {
@@ -131,6 +145,11 @@ describe("bash executor", () => {
 
       assert.equal(result.exitCode, 0);
       assert.equal(result.stdout, fixture.manager);
+      assert.equal(result.stderr, "");
+      const launch = (result.details as { launch: ProjectShellLaunchContext })
+        .launch;
+      assert.equal(launch.manager, fixture.manager);
+      assert.equal(launch.configFile, join(project.root, fixture.config));
     }
   });
 
@@ -179,14 +198,142 @@ describe("bash executor", () => {
       `process.stderr.write('environment is not allowed'); process.exit(1);`,
     );
 
+    const updates: string[] = [];
     const result = await withPath(
       `${project.root}${delimiter}${process.env.PATH ?? ""}`,
-      () => executeBash({ command: "echo command-ran" }, { cwd: project.root }),
+      () =>
+        executeBash(
+          { command: "echo PROBE" },
+          {
+            cwd: project.root,
+            onUpdate: (update) => {
+              updates.push(update.chunk);
+            },
+          },
+        ),
     );
 
     assert.equal(result.exitCode, 1);
     assert.equal(result.stdout, "");
-    assert.match(result.stderr ?? "", /not allowed/);
+    const launch = (result.details as { launch: ProjectShellLaunchContext })
+      .launch;
+    const diagnostic = formatProjectShellFailure(launch);
+    assert.equal(
+      result.stderr,
+      `environment is not allowed${diagnostic}`.trimEnd(),
+    );
+    assert.equal(updates.join(""), `environment is not allowed${diagnostic}`);
+    assert.match(result.content ?? "", /direnv/);
+    assert.doesNotMatch(result.stdout ?? "", /PROBE/);
+  });
+
+  it("adds context for silent manager failures and bypasses only when requested", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
+    const project = await createTempProject("nerve-manager-silent-");
+    await project.write(".envrc", "");
+    await writeExecutable(project.root, "direnv", "process.exit(9)");
+    await withPath(
+      `${project.root}${delimiter}${process.env.PATH ?? ""}`,
+      async () => {
+        for (const projectEnvironment of [undefined, true]) {
+          const result = await executeBash(
+            { command: "echo PROBE", projectEnvironment },
+            { cwd: project.root },
+          );
+          assert.equal(result.exitCode, 9);
+          assert.equal(result.stdout, "");
+          const launch = (
+            result.details as { launch: ProjectShellLaunchContext }
+          ).launch;
+          assert.equal(launch.manager, "direnv");
+          assert.equal(
+            result.stderr,
+            formatProjectShellFailure(launch).trimEnd(),
+          );
+          assert.match(result.stderr ?? "", /direnv/);
+          assert.match(result.stderr ?? "", /\.envrc/);
+        }
+        const bypass = await executeBash(
+          { command: "echo PROBE", projectEnvironment: false },
+          { cwd: project.root },
+        );
+        assert.equal(bypass.exitCode, 0);
+        assert.equal(bypass.stdout, "PROBE");
+        assert.equal(bypass.stderr, "");
+        assert.equal(
+          (bypass.details as { launch: ProjectShellLaunchContext }).launch
+            .manager,
+          undefined,
+        );
+      },
+    );
+  });
+
+  it("keeps failing wrapped child output and uses stage-neutral diagnostics", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
+    const project = await createTempProject("nerve-manager-child-");
+    await project.write(".envrc", "");
+    await writeExecutable(
+      project.root,
+      "direnv",
+      `
+      const { spawnSync } = require('node:child_process');
+      const result = spawnSync(process.argv[4], process.argv.slice(5), { stdio: 'inherit' });
+      process.exit(result.status ?? 1);
+    `,
+    );
+    const result = await withPath(
+      `${project.root}${delimiter}${process.env.PATH ?? ""}`,
+      () =>
+        executeBash(
+          { command: "printf PROBE; printf child-error >&2; exit 7" },
+          { cwd: project.root },
+        ),
+    );
+    assert.equal(result.exitCode, 7);
+    assert.equal(result.stdout, "PROBE");
+    const launch = (result.details as { launch: ProjectShellLaunchContext })
+      .launch;
+    assert.equal(
+      result.stderr,
+      `child-error${formatProjectShellFailure(launch)}`.trimEnd(),
+    );
+    assert.doesNotMatch(
+      result.stderr ?? "",
+      /(?:command|bash|shell) (?:did not|never) start/i,
+    );
+  });
+
+  it("contextualizes shell spawn errors and retains their cause and code", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
+    const project = await createTempProject();
+    const shellPath = await project.write(
+      "broken-shell",
+      `#!${join(project.root, "missing-interpreter")}\n`,
+    );
+    await chmod(shellPath, 0o755);
+    await assert.rejects(
+      executeBash({ command: "echo PROBE" }, { cwd: project.root, shellPath }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /broken-shell/);
+        assert.ok(error.cause instanceof Error);
+        assert.equal(
+          (error as NodeJS.ErrnoException).code,
+          (error.cause as NodeJS.ErrnoException).code,
+        );
+        return true;
+      },
+    );
   });
 
   it("returns stdout, stderr, and exitCode for successful commands", async () => {
@@ -264,6 +411,46 @@ describe("bash executor", () => {
     assert.match(result.content ?? "", /timed out/);
     const details = result.details as { timedOut?: boolean };
     assert.equal(details.timedOut, true);
+  });
+
+  it("suppresses manager failure diagnostics after a timeout", async (t) => {
+    if (process.platform === "win32") {
+      t.skip("Executable fixture scripts use POSIX shebangs.");
+      return;
+    }
+    const project = await createTempProject("nerve-manager-timeout-");
+    await project.write(".envrc", "");
+    await writeExecutable(
+      project.root,
+      "direnv",
+      `
+      process.stderr.write('manager waiting');
+      process.on('SIGTERM', () => process.exit(9));
+      setInterval(() => {}, 1000);
+    `,
+    );
+    const updates: string[] = [];
+    const result = await withPath(
+      `${project.root}${delimiter}${process.env.PATH ?? ""}`,
+      () =>
+        executeBash(
+          { command: "echo PROBE", timeout: 1 },
+          {
+            cwd: project.root,
+            onUpdate: (update) => {
+              updates.push(update.chunk);
+            },
+          },
+        ),
+    );
+    assert.equal(result.exitCode, 124);
+    assert.equal(result.stdout, "");
+    assert.equal(result.stderr, "manager waiting");
+    assert.equal(updates.join(""), "manager waiting");
+    assert.equal(
+      (result.details as { launch: ProjectShellLaunchContext }).launch.manager,
+      "direnv",
+    );
   });
 
   it("force-kills the process tree when execution is aborted", async (t) => {

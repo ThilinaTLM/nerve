@@ -131,6 +131,8 @@ export function createToolHostPort(
         (args.cwd !== undefined && typeof args.cwd !== "string") ||
         (args.background !== undefined &&
           typeof args.background !== "boolean") ||
+        (args.projectEnvironment !== undefined &&
+          typeof args.projectEnvironment !== "boolean") ||
         (args.ready !== undefined && typeof args.ready !== "string") ||
         (requiresBashTimeoutArgument(settings, input.origin) &&
           (!Number.isInteger(args.timeout) ||
@@ -162,6 +164,7 @@ export function createToolHostPort(
       if (args.background === true) {
         const started = await processes.start({
           command: String(args.command),
+          projectEnvironment: args.projectEnvironment,
           cwd,
           artifactDir: input.artifactDir,
           signal: input.signal,
@@ -188,6 +191,7 @@ export function createToolHostPort(
           result: {
             content,
             details: {
+              launch: started.process.launch,
               backgroundStart: true,
               processStatusIncluded: true,
               cwd,
@@ -198,6 +202,7 @@ export function createToolHostPort(
       let reportProgress = true;
       const process = await processes.spawn({
         command: String(args.command),
+        projectEnvironment: args.projectEnvironment,
         cwd,
         artifactDir: input.artifactDir,
         timeoutMs: !settings.autoPromotion.enabled
@@ -242,6 +247,7 @@ export function createToolHostPort(
               }),
               details: {
                 cwd,
+                launch: process.launch,
                 processStatusIncluded: true,
                 outputFiles: process.outputFiles,
               },
@@ -263,6 +269,7 @@ export function createToolHostPort(
               exitCode: outcome.exitCode,
             }),
             details: {
+              launch: process.launch,
               exitCode: outcome.exitCode,
               status: outcome.status,
               processStatusIncluded: true,

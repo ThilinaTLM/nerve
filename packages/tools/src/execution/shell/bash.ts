@@ -1,3 +1,4 @@
+import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
 import {
   spawnManagedChildProcess,
   terminateManagedChildProcess,
@@ -14,6 +15,10 @@ import { bashProcessPolicy } from "../process/managed-process-policy.js";
 import { forceKillProcessTree } from "../process/process-tree.js";
 import { buildProcessResult } from "../process/process-result.js";
 import { resolveProjectShellInvocation } from "./project-environment.js";
+import {
+  contextualizeShellSpawnError,
+  formatProjectShellFailure,
+} from "./launch-diagnostics.js";
 import { resolveBashShellConfig } from "./shell-config.js";
 
 const FORCE_KILL_AFTER_MS = 2000;
@@ -36,6 +41,13 @@ export async function executeBash(
     throw new Error("Tool argument 'command' must be a non-empty string.");
   }
 
+  if (
+    args.projectEnvironment !== undefined &&
+    typeof args.projectEnvironment !== "boolean"
+  ) {
+    throw new Error("Tool argument 'projectEnvironment' must be a boolean.");
+  }
+
   const cwd = await resolveCommandCwd(context.cwd, args.cwd);
   const timeoutSeconds =
     typeof args.timeout === "number"
@@ -54,19 +66,26 @@ export async function executeBash(
     const invocation = resolveProjectShellInvocation(args.command as string, {
       cwd,
       env,
+      projectEnvironment: args.projectEnvironment as boolean | undefined,
       shellConfig: resolveBashShellConfig({
         shellPath: context.shellPath,
       }),
     });
-    const child = spawnManagedChildProcess(invocation.shell, invocation.args, {
-      cwd,
-      env: invocation.env,
-      policy: bashProcessPolicy(
-        timeoutSeconds && timeoutSeconds > 0
-          ? timeoutSeconds * 1000
-          : undefined,
-      ),
-    });
+    let child: ReturnType<typeof spawnManagedChildProcess>;
+    try {
+      child = spawnManagedChildProcess(invocation.shell, invocation.args, {
+        cwd,
+        env: invocation.env,
+        policy: bashProcessPolicy(
+          timeoutSeconds && timeoutSeconds > 0
+            ? timeoutSeconds * 1000
+            : undefined,
+        ),
+      });
+    } catch (error) {
+      reject(contextualizeShellSpawnError(error, invocation.launch));
+      return;
+    }
 
     const liveOutput = new LiveOutputDelivery(context.onUpdate);
     let settled = false;
@@ -142,16 +161,29 @@ export async function executeBash(
       if (settled) return;
       settled = true;
       cleanup();
-      reject(error);
+      reject(contextualizeShellSpawnError(error, invocation.launch));
     });
     child.on("close", (code, signal) => {
       if (settled) return;
       settled = true;
       cleanup();
+      if (
+        !timedOut &&
+        invocation.launch.manager &&
+        code !== null &&
+        code !== 0
+      ) {
+        const diagnostic = Buffer.from(
+          formatProjectShellFailure(invocation.launch),
+        );
+        output.push("stderr", diagnostic);
+        liveOutput.write("stderr", diagnostic);
+      }
       void liveOutput
         .end()
         .then(() =>
           buildResult(output.snapshot(), code, signal, context.artifactDir, {
+            launch: invocation.launch,
             durationMs: Math.round(performance.now() - startedAt),
             timedOut,
             timeoutKilled,
@@ -173,6 +205,7 @@ async function buildResult(
   signal: NodeJS.Signals | null,
   artifactDir: string | undefined,
   options: {
+    launch?: ProjectShellLaunchContext;
     durationMs?: number;
     timedOut?: boolean;
     timeoutKilled?: boolean;
@@ -194,6 +227,7 @@ async function buildResult(
     timeoutKilled: options.timeoutKilled,
     timeoutMessage: options.timeoutMessage,
     details: {
+      launch: options.launch,
       outputRetention: {
         totalBytes: output.totalBytes,
         retainedBytes: output.retainedBytes,

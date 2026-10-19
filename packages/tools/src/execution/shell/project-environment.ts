@@ -1,20 +1,26 @@
 import { accessSync, constants, existsSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
+import type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
+export type { ProjectShellLaunchContext } from "@nervekit/contracts/tools";
 import type { ShellConfig } from "./shell-config.js";
 
-export type ProjectEnvironmentManager = "direnv" | "mise" | "fnm" | "nvm";
+export type ProjectEnvironmentManager = NonNullable<
+  ProjectShellLaunchContext["manager"]
+>;
 
 export interface ProjectShellInvocation {
   shell: string;
   args: string[];
   env: NodeJS.ProcessEnv;
   manager?: ProjectEnvironmentManager;
+  launch: ProjectShellLaunchContext;
 }
 
 export interface ResolveProjectShellInvocationOptions {
   cwd: string;
   env: NodeJS.ProcessEnv;
   shellConfig: ShellConfig;
+  projectEnvironment?: boolean;
   platform?: NodeJS.Platform;
   pathExists?: (path: string) => boolean;
   pathIsExecutable?: (path: string) => boolean;
@@ -117,13 +123,31 @@ function wrappedInvocation(
   executable: string,
   args: string[],
   context: ResolutionContext,
+  configFile: string,
   env: NodeJS.ProcessEnv = context.env,
 ): ProjectShellInvocation {
-  return { shell: executable, args, env, manager };
+  return {
+    shell: executable,
+    args,
+    env,
+    manager,
+    launch: {
+      cwd: context.cwd,
+      executable,
+      shell: context.shellConfig.shell,
+      manager,
+      configFile,
+    },
+  };
 }
 
 const resolveDirenv: Adapter = (command, context) => {
-  if (!findAncestorFile(context.cwd, [".envrc"], context.pathExists)) {
+  const configFile = findAncestorFile(
+    context.cwd,
+    [".envrc"],
+    context.pathExists,
+  );
+  if (!configFile) {
     return undefined;
   }
   const executable = findExecutable("direnv", context);
@@ -139,6 +163,7 @@ const resolveDirenv: Adapter = (command, context) => {
       command,
     ],
     context,
+    configFile,
   );
 };
 
@@ -151,7 +176,8 @@ const resolveMise: Adapter = (command, context) => {
   const toolVersions = context.env.MISE_SHELL
     ? findAncestorFile(context.cwd, [".tool-versions"], context.pathExists)
     : undefined;
-  if (!config && !toolVersions) return undefined;
+  const configFile = config ?? toolVersions;
+  if (!configFile) return undefined;
   const executable = findExecutable("mise", context);
   if (!executable) return undefined;
   return wrappedInvocation(
@@ -165,6 +191,7 @@ const resolveMise: Adapter = (command, context) => {
       command,
     ],
     context,
+    configFile,
     {
       ...context.env,
       MISE_AUTO_INSTALL: "false",
@@ -203,19 +230,21 @@ function fnmInvocation(
     [
       "exec",
       `--using=${versionFile}`,
-      "--log-level=quiet",
+      "--log-level=error",
       "--",
       context.shellConfig.shell,
       ...context.shellConfig.args,
       command,
     ],
     context,
+    versionFile,
   );
 }
 
 function nvmInvocation(
   command: string,
   nvmScript: string,
+  versionFile: string,
   context: ResolutionContext,
 ): ProjectShellInvocation {
   const nvmDir = dirname(nvmScript);
@@ -225,6 +254,7 @@ function nvmInvocation(
     context.shellConfig.shell,
     [...context.shellConfig.args, activation],
     context,
+    versionFile,
     { ...context.env, NVM_DIR: nvmDir },
   );
 }
@@ -246,10 +276,10 @@ const resolveNodeManager: Adapter = (command, context) => {
     return fnmInvocation(command, versionFile, fnm, context);
   }
   if (context.env.NVM_DIR && nvm) {
-    return nvmInvocation(command, nvm, context);
+    return nvmInvocation(command, nvm, versionFile, context);
   }
   if (fnm) return fnmInvocation(command, versionFile, fnm, context);
-  if (nvm) return nvmInvocation(command, nvm, context);
+  if (nvm) return nvmInvocation(command, nvm, versionFile, context);
   return undefined;
 };
 
@@ -263,6 +293,18 @@ export function resolveProjectShellInvocation(
   command: string,
   options: ResolveProjectShellInvocationOptions,
 ): ProjectShellInvocation {
+  const plainInvocation: ProjectShellInvocation = {
+    shell: options.shellConfig.shell,
+    args: [...options.shellConfig.args, command],
+    env: options.env,
+    launch: {
+      cwd: options.cwd,
+      executable: options.shellConfig.shell,
+      shell: options.shellConfig.shell,
+    },
+  };
+  if (options.projectEnvironment === false) return plainInvocation;
+
   const platform = options.platform ?? process.platform;
   const context: ResolutionContext = {
     cwd: options.cwd,
@@ -278,9 +320,5 @@ export function resolveProjectShellInvocation(
     const invocation = adapter(command, context);
     if (invocation) return invocation;
   }
-  return {
-    shell: context.shellConfig.shell,
-    args: [...context.shellConfig.args, command],
-    env: context.env,
-  };
+  return plainInvocation;
 }
