@@ -65,6 +65,50 @@ describe("tool lifecycle registry", () => {
     }
   });
 
+  it("keeps grep paths out of metadata while retaining approval scope and search options", () => {
+    for (const scopeArgs of [
+      { path: "src/example.ts" },
+      { paths: ["src/example.ts", "src/other.ts"] },
+    ]) {
+      for (const stage of [
+        "drafting",
+        "approval",
+        "executing",
+        "failed",
+        "completed",
+      ] as const) {
+        const presentation = presentToolArguments(
+          "grep",
+          {
+            args: {
+              ...scopeArgs,
+              pattern: "example",
+              glob: "*.ts",
+              ignoreCase: true,
+              context: 2,
+              limit: 35,
+            },
+          },
+          stage,
+        );
+        assert.deepEqual(
+          presentation.secondary.map((item) => item.text),
+          ["glob *.ts", "ignore case", "context 2", "max 35"],
+        );
+        if (stage === "approval") {
+          assert.equal(presentation.body.kind, "key-values");
+          if (presentation.body.kind === "key-values") {
+            assert.equal(
+              presentation.body.items.find((item) => item.label === "Scope")
+                ?.value,
+              scopeArgs.paths?.join(", ") ?? scopeArgs.path,
+            );
+          }
+        }
+      }
+    }
+  });
+
   it("lists sub-agent assignments by name until output or rejection takes over", () => {
     assert.equal(
       toolLifecycleRegistry.subagent_prompt.argumentRegion,
