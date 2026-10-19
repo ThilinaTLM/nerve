@@ -28,14 +28,20 @@ type Props = {
   branchActions?: Snippet<[GitRepoSummary]>;
   model: GitPanelModel;
   actions: GitPanelActions;
-  /** Trailing count of each row, e.g. change or PR counts; blank when 0. */
+  /** Trailing count of each row; blank only while undefined (unknown). */
   chipCount?: (repo: GitRepoSummary) => number | undefined;
+  /** Shown instead of the number `0`, e.g. a check mark for a clean repo. */
+  emptyCount?: Snippet;
+  /** Tooltip of the trailing count. */
+  countTitle?: (repo: GitRepoSummary, count: number) => string | undefined;
 };
 
 let {
   model,
   actions,
   chipCount,
+  emptyCount,
+  countTitle,
   rowActions,
   contextItems,
   branchActions,
@@ -143,6 +149,8 @@ async function createBranch(repository: string): Promise<void> {
 {#snippet listRow(repo: GitRepoSummary)}
   {@const selected = repo.relativePath === selectedRepo}
   {@const count = chipCount?.(repo)}
+  {@const countHint =
+    count === undefined ? undefined : countTitle?.(repo, count)}
   {@const canSelect = model.capabilities.selectRepository.enabled}
   <ContextMenu.Root>
     <ContextMenu.Trigger disabled={!contextItems} class="block min-w-0">
@@ -220,10 +228,24 @@ async function createBranch(repository: string): Promise<void> {
             onclick={(event) => event.stopPropagation()}
           >
             {@render rowActions?.(repo)}
-            <span
-              class="w-control-sm shrink-0 text-center text-xs text-muted-foreground tabular-nums"
-              aria-label={count ? `${count}` : undefined}>{count || ""}</span
-            >
+            <Tooltip.Root disabled={!countHint}>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <span
+                    {...props}
+                    class="flex w-control-sm shrink-0 items-center justify-center text-xs text-muted-foreground tabular-nums"
+                    aria-label={countHint ?? (count ? `${count}` : undefined)}
+                  >
+                    {#if count === 0 && emptyCount}
+                      {@render emptyCount()}
+                    {:else if count !== undefined}
+                      {count}
+                    {/if}
+                  </span>
+                {/snippet}
+              </Tooltip.Trigger>
+              <Tooltip.Content>{countHint}</Tooltip.Content>
+            </Tooltip.Root>
           </span>
         </div>
 

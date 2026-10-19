@@ -75,6 +75,8 @@ export type GitPanelRepoState = {
   github?: GithubStatusResponse;
   prs: GithubPr[];
   prHeads?: GithubPrHeadsResponse;
+  prHeadsLoadedAt?: number;
+  currentBranchPr?: GithubPr;
   prFilters: GitPrFilterConfig;
   branches: GitBranchSummary[];
   collapsedChangeTreeFolders: SvelteSet<string>;
@@ -613,7 +615,6 @@ export function applyPrChecks(
     ),
   );
 }
-
 export function removeOpenPr(
   projectId: string,
   repo: string,
@@ -624,11 +625,17 @@ export function removeOpenPr(
     gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
       gitRepoStateKey(repo)
     ];
-  if (state)
+  if (state) {
     setPrsIfChanged(
       state,
       state.prs.filter((pr) => pr.number !== number),
     );
+    if (state.prHeads)
+      setPrHeadsIfChanged(state, {
+        ...state.prHeads,
+        prs: state.prHeads.prs.filter((pr) => pr.number !== number),
+      });
+  }
 }
 
 export function mergeRepoSummary(

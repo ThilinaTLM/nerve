@@ -103,6 +103,7 @@ export interface GitPanelModel {
   readonly github?: GithubStatusResponse;
   readonly pullRequests: readonly GithubPr[];
   readonly prHeads?: GithubPrHeadsResponse;
+  readonly currentBranchPr?: GithubPr;
   readonly pullRequestFilters: GitPrFilterConfig;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;

@@ -16,6 +16,7 @@ import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
 import { mergeProps } from "bits-ui";
+import Check from "@lucide/svelte/icons/check";
 import CircleAlert from "@lucide/svelte/icons/circle-alert";
 import { Separator } from "@nervekit/ui-kit/components/ui/separator";
 import Popover, {
@@ -32,6 +33,7 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import GitChangesArea from "./GitChangesArea.svelte";
+import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
 import { gitFileGroups, gitFilesInScope } from "./git-panel-controller.js";
@@ -150,6 +152,7 @@ const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
 const totalChangeCount = $derived(
   model.repositories.reduce((sum, repo) => sum + repo.changeCount, 0),
 );
+let expandedPr = $state<number>();
 let switcher = $state<ReturnType<typeof GitRepoSwitcher>>();
 
 const icons = {
@@ -457,12 +460,38 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
           {rowActions}
           contextItems={repositoryContextItems}
           chipCount={(repo) => repo.changeCount}
-        />
+          countTitle={(_, count) =>
+            count === 0
+              ? "No changes"
+              : `${count} ${count === 1 ? "change" : "changes"}`}
+        >
+          {#snippet emptyCount()}
+            <Check class="size-3.5" aria-hidden="true" />
+          {/snippet}
+        </GitRepoSwitcher>
         <Separator class="my-1.5" />
       {/if}
     {/snippet}
 
     {#if model.availability.available && model.repositories.length > 0}
+      {#if model.currentBranchPr}
+        {@const pr = model.currentBranchPr}
+        <div class="shrink-0 pb-1.5">
+          <GitPullRequestRow
+            {pr}
+            expanded={expandedPr === pr.number}
+            checkedOut
+            disabled={!model.capabilities.openPullRequest.enabled}
+            disabledReason={model.capabilities.openPullRequest.enabled
+              ? undefined
+              : model.capabilities.openPullRequest.reason}
+            onOpen={() =>
+              void actions.openPullRequest(model.selectedRepository, pr.number)}
+            onToggleChecks={() =>
+              (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+          />
+        </div>
+      {/if}
       <GitChangesArea
         changes={model.changes}
         stagedFiles={fileGroups.staged}

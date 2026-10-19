@@ -1,4 +1,9 @@
 import { SvelteMap, SvelteSet } from "svelte/reactivity";
+import {
+  branchPrFilters,
+  projectGithubAuthenticated,
+} from "./git-current-branch-pr.svelte";
+export { refreshCurrentBranchPr } from "./git-current-branch-pr.svelte";
 import type { Project } from "@nervekit/contracts/core";
 import type { GithubPrListFilters } from "@nervekit/contracts/git";
 import {
@@ -110,6 +115,7 @@ const automaticRefreshScheduler = new GitAutoRefreshScheduler(
             ),
           ]
         : []),
+      ...(demand.prs ? [refreshPrHeads(projectId, repo, true)] : []),
       ...(demand.prs && state.github?.authenticated
         ? [refreshPrs(projectId, repo, true, true)]
         : []),
@@ -423,25 +429,42 @@ export async function refreshPrHeads(
   projectId: string,
   repo: string,
   force = false,
+  isCurrent: () => boolean = () => selection.projectId === projectId,
 ): Promise<void> {
   const state = ensureGitRepoState(projectId, repo);
-  if (!repoHasGithubRemote(projectId, repo) || !state.github?.authenticated) {
+  if (
+    !repoHasGithubRemote(projectId, repo) ||
+    !projectGithubAuthenticated(projectId)
+  ) {
     setPrHeadsIfChanged(state, undefined);
     return;
   }
   state.loadingPrHeads = true;
   try {
     const queryKey = queryKeys.git.prHeads(projectId, repo);
-    if (force) await queryClient.invalidateQueries({ queryKey });
+    if (force) {
+      await queryClient.invalidateQueries({ queryKey });
+      const branch = state.repoSummary?.currentBranch;
+      if (branch)
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.git.prs(
+            projectId,
+            repo,
+            githubPrFiltersFingerprint(branchPrFilters(branch)),
+          ),
+        });
+    }
     const result = await queryClient.fetchQuery({
       queryKey,
       queryFn: () => listGithubPrHeads(projectId, repo),
       staleTime: GIT_STALE_MS,
+      retry: false,
     });
+    if (!isCurrent()) return;
     setPrHeadsIfChanged(state, result);
+    state.prHeadsLoadedAt = Date.now();
   } catch {
-    // Pull request badges are optional enrichment and must not block branches.
-    setPrHeadsIfChanged(state, undefined);
+    // Preserve known counts on transient failures; never surface panel errors.
   } finally {
     state.loadingPrHeads = false;
   }
