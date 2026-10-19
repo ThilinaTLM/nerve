@@ -9,6 +9,27 @@ import type {
   CompletionSourceState,
 } from "@nervekit/contracts/completions";
 
+export type ComposerReferenceSource = {
+  search(
+    query: string,
+    options?: { limit?: number },
+  ): Promise<ComposerSearchResponse>;
+  select(
+    item: CompletionItem,
+    action: "select" | "disable",
+  ): Promise<CompletionItem>;
+  subscribe(listener: () => void): () => void;
+};
+
+/** A fix-it the popup offers (status bar button); the host decides what it does. */
+export type ComposerCompletionAction =
+  | {
+      type: "source";
+      source: ComposerSourceState;
+      actionId: "open_pull_requests" | "open_settings";
+    }
+  | { type: "item"; item: CompletionItem };
+
 /** Categories a mention can be narrowed to (`@pr:` etc.). */
 export const COMPLETION_SCOPES = [
   { id: "file", prefix: "file:", label: "Files" },

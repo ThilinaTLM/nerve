@@ -196,6 +196,8 @@ function startDictationFromApi(): ComposerDictationHandle {
   if (!view) throw new Error("Prompt editor is not ready");
   const inner = startDictation(view);
   if (dictation?.inner === inner) return dictation.handle;
+  // Callback registry only; membership never drives rendered state.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity
   const listeners = new Set<() => void>();
   const handle: ComposerDictationHandle = {
     update: (state, elapsedMs) => inner.update(state, elapsedMs),
@@ -566,7 +568,7 @@ $effect(() => {
 $effect(() => {
   void slashContext?.mode;
   void slashContext?.running;
-  if (view) refreshComposerReferenceCompletions(view, completionOptions);
+  if (view) refreshComposerReferenceCompletions(view);
 });
 
 $effect(() => {
@@ -580,7 +582,7 @@ $effect(() => {
     queueMicrotask(() => {
       queued = false;
       if (disposed || !view || disabled || !popupModel) return;
-      refreshComposerReferenceCompletions(view, completionOptions);
+      refreshComposerReferenceCompletions(view);
     });
   });
   return () => {

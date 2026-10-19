@@ -212,9 +212,12 @@ test("transcripts and errors use the chip when live, else fall back", () => {
   const chip = chipHarness();
   const errors: string[] = [];
   const target = { kind: "conversation", id: "one" } as const;
-  const handlers = new Map<string, any>();
+  type TargetHandlers = Parameters<
+    Parameters<typeof bindComposerVoiceInput>[0]["registerTargetHandlers"]
+  >[1];
+  const handlers = new Map<string, TargetHandlers>();
   const session = {
-    registerTargetHandlers: (t: VoiceInputTarget, h: unknown) => {
+    registerTargetHandlers: (t: VoiceInputTarget, h: TargetHandlers) => {
       handlers.set(voiceInputTargetKey(t), h);
       return () => {};
     },
@@ -227,6 +230,8 @@ test("transcripts and errors use the chip when live, else fall back", () => {
     { chip: chip.bridge, notifyError: (m) => errors.push(m) },
   );
   const h = handlers.get(voiceInputTargetKey(target));
+  assert.ok(h);
+  assert.ok(h.onError);
   h.onError("boom");
   assert.deepEqual(errors, ["boom"]);
   h.appendTranscript("fallback");

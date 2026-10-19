@@ -28,7 +28,8 @@ import {
   unavailableFooter,
   type CompletionScopeId,
   type ComposerSearchResponse,
-  type ComposerSourceState,
+  type ComposerReferenceSource,
+  type ComposerCompletionAction,
   type PopupFooter,
   type PopupGroup,
   type PopupModel,
@@ -41,33 +42,14 @@ import {
 } from "./composer-mention-chips";
 
 export type {
+  ComposerReferenceSource,
+  ComposerCompletionAction,
   PopupFooter,
   PopupGroup,
   PopupModel,
   PopupRow,
   SlashContext as ComposerSlashContext,
 } from "./composer-completion-model";
-
-export type ComposerReferenceSource = {
-  search(
-    query: string,
-    options?: { limit?: number },
-  ): Promise<ComposerSearchResponse>;
-  select(
-    item: CompletionItem,
-    action: "select" | "disable",
-  ): Promise<CompletionItem>;
-  subscribe(listener: () => void): () => void;
-};
-
-/** A fix-it the popup offers (status bar button); the host decides what it does. */
-export type ComposerCompletionAction =
-  | {
-      type: "source";
-      source: ComposerSourceState;
-      actionId: "open_pull_requests" | "open_settings";
-    }
-  | { type: "item"; item: CompletionItem };
 
 export type ComposerCompletionOptions = {
   referenceSource?: () => ComposerReferenceSource | undefined;
@@ -249,10 +231,10 @@ export class ComposerCompletionController {
     const typed = update.docChanged && isTyping(update);
     if (!this.active && !typed) return;
     if (!update.docChanged && !update.selectionSet) return;
-    this.sync(update.state, typed);
+    this.sync(update.state);
   }
 
-  private sync(state: EditorState, _typed: boolean): void {
+  private sync(state: EditorState): void {
     const token = completionTokenAt(state, this.slashEnabled());
     if (!token) {
       this.dismissedFrom = undefined;
@@ -768,10 +750,7 @@ export function closeCompletion(view: EditorView): void {
 }
 
 /** Re-run the open search after the source reported a change. */
-export function refreshComposerReferenceCompletions(
-  view: EditorView,
-  _options?: ComposerCompletionOptions,
-): void {
+export function refreshComposerReferenceCompletions(view: EditorView): void {
   controllers.get(view)?.refresh();
 }
 
