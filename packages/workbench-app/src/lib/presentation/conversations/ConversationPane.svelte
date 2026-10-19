@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { Snippet } from "svelte";
+import { onDestroy, type Snippet } from "svelte";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import ConversationPaneLayout from "./ConversationPaneLayout.svelte";
@@ -66,6 +66,43 @@ const scroll = createConversationScrollController({
   conversationId: () => model.conversationId,
   contentReady: () => transcriptHasContent,
 });
+
+let focusTimer: ReturnType<typeof setTimeout> | undefined;
+function cancelFocusRetry(): void {
+  if (focusTimer !== undefined) clearTimeout(focusTimer);
+  focusTimer = undefined;
+}
+onDestroy(cancelFocusRetry);
+$effect(() => {
+  if (pendingQuestionIds.length === 0) cancelFocusRetry();
+});
+
+/**
+ * Jumps to the live end, then focuses the reply input of a pending question
+ * rendered in THIS pane. The transcript is virtualised, so the card may mount
+ * after the scroll settles; retry briefly, stopping if the pane is destroyed
+ * or no question is pending any more.
+ */
+function goToQuestion(): void {
+  cancelFocusRetry();
+  scroll.jumpToBottom();
+  let attempts = 0;
+  const focusReply = () => {
+    focusTimer = undefined;
+    const ids = pendingQuestionIds;
+    const root = scroll.composerWrapEl?.parentElement;
+    if (ids.length === 0 || !root) return;
+    const cards = [
+      ...root.querySelectorAll<HTMLElement>("[data-tool-call-id]"),
+    ].filter((card) => ids.includes(card.dataset.toolCallId ?? ""));
+    const target = cards
+      .at(-1)
+      ?.querySelector<HTMLElement>(".cm-content, textarea, input, button");
+    if (target) target.focus();
+    else if (++attempts < 8) focusTimer = setTimeout(focusReply, 80);
+  };
+  focusTimer = setTimeout(focusReply, 80);
+}
 </script>
 
 {#snippet activityContent()}
@@ -156,7 +193,13 @@ const scroll = createConversationScrollController({
     {#if composerExtension}
       {@render composerExtension(activityContent)}
     {:else}
-      <AgentComposer model={model.composer} {actions}>
+      <AgentComposer
+        model={model.composer}
+        actions={{
+          ...actions,
+          onGoToQuestion: actions.onGoToQuestion ?? goToQuestion,
+        }}
+      >
         {#snippet header()}
           <div class="flex min-w-0 items-start justify-between gap-2">
             <div class="min-w-0 flex-1">

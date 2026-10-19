@@ -1,6 +1,8 @@
-/* Shared composer toolbar chip buttons. Four components pass `.composer-tab`
- * through `triggerClass`, so it is a genuine cross-component contract. Layered
- * under `components` so a consumer's own utilities always win. */
+/* Shared composer toolbar trigger buttons. Four components pass `.composer-tab`
+ * through `triggerClass`, so it is a genuine cross-component contract. They sit
+ * in the composer's single bottom toolbar as borderless ghost buttons at the
+ * default control height (raised on coarse pointers by the token itself).
+ * Layered under `components` so a consumer's own utilities always win. */
 
 @layer components {
   .composer-tab {
@@ -8,29 +10,35 @@
     align-items: center;
     justify-content: center;
     gap: 0.25rem;
-    height: 1.55rem;
+    height: var(--spacing-control);
+    flex: none;
     min-width: 0;
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
-    background: var(--card);
+    background: transparent;
     color: var(--muted-foreground);
-    padding: 0 0.6rem;
-    font-family: var(--font-mono);
+    padding: 0 0.5rem;
+    font-family: var(--font-sans);
     font-size: var(--text-xs);
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1;
     white-space: nowrap;
     cursor: pointer;
-    box-shadow: var(--shadow-sm);
     transition:
       color 120ms ease,
-      border-color 120ms ease,
       background 120ms ease;
   }
 
-  .composer-tab:hover:not(:disabled) {
-    border-color: color-mix(in oklab, var(--primary) 40%, var(--border));
-    background: var(--accent);
+  /* Same default icon size as Button `default` / `icon`. */
+  .composer-tab svg:not([class*="size-"]) {
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+  }
+
+  .composer-tab:hover:not(:disabled),
+  .composer-tab[data-state="open"] {
+    background: var(--muted);
     color: var(--foreground);
   }
 
@@ -39,17 +47,11 @@
     cursor: default;
   }
 
-  .composer-tab[data-state="open"] {
-    border-color: var(--primary);
-    background: var(--accent);
-    color: var(--foreground);
-  }
-
-  @media (max-width: 639px) {
+  /* Narrow composers (split panes, phones): tighter chip padding. Sizes follow
+   * the composer's own width, not the viewport. */
+  @container composer-toolbar (max-width: 440px) {
     .composer-tab {
-      gap: 0.2rem;
-      height: 1.9rem;
-      padding: 0 0.5rem;
+      padding: 0 0.375rem;
     }
   }
 }

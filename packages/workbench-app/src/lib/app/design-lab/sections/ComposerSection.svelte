@@ -25,6 +25,7 @@ import type {
 } from "$lib/presentation/conversations/conversation-view-contracts";
 import ComposerCapabilitiesPopover from "$lib/presentation/composer/ComposerCapabilitiesPopover.svelte";
 import ComposerModelPicker from "$lib/presentation/composer/ComposerModelPicker.svelte";
+import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import ComposerShell from "$lib/presentation/composer/ComposerShell.svelte";
 import ComposerToolbar from "$lib/presentation/composer/ComposerToolbar.svelte";
 import ContextProgressBadge from "$lib/presentation/composer/ContextProgressBadge.svelte";
@@ -323,6 +324,14 @@ const composerVariants = $derived<
     },
   },
   {
+    title: "Shell command (!)",
+    model: { ...composerBase, text: "!git status" },
+  },
+  {
+    title: "Pending question (answered in the transcript card)",
+    model: { ...composerBase, pendingQuestion: true },
+  },
+  {
     title: "Pending approval",
     model: {
       ...composerBase,
@@ -340,7 +349,21 @@ const actions: ConversationPaneActions = {
   onSubmit: () => (draftText = ""),
   onAbort: noop,
   onCompact: noop,
+  onGoToQuestion: noop,
+  // Mock-only: resolves a fake path so the attach button is documented.
+  onAttachFile: async (file) => `/tmp/attachments/${file.name || "file"}`,
 };
+
+// Mock-only mic: click cycles idle -> recording -> transcribing -> idle.
+let micState = $state<"idle" | "recording" | "transcribing">("idle");
+function cycleMic() {
+  micState =
+    micState === "idle"
+      ? "recording"
+      : micState === "recording"
+        ? "transcribing"
+        : "idle";
+}
 </script>
 
 {#snippet guarded(error: unknown)}
@@ -355,6 +378,21 @@ const actions: ConversationPaneActions = {
   <PromptSuggestionChips {suggestions} onSend={noop} onDraft={noop} />
 {/snippet}
 
+{#snippet mockMic()}
+  <VoiceMicButton
+    toolbar
+    recording={micState === "recording"}
+    transcribing={micState === "transcribing"}
+    idleLabel="Record voice prompt"
+    title="Mock mic: click to cycle idle, recording, transcribing"
+    onToggle={cycleMic}
+    onContextMenu={(event) => {
+      event.preventDefault();
+      micState = "idle";
+    }}
+  />
+{/snippet}
+
 <div class="flex flex-col gap-10">
   <GalleryGroup
     title="In context: docked composer"
@@ -362,7 +400,7 @@ const actions: ConversationPaneActions = {
   >
     <GallerySpecimen
       title="AgentComposer — idle"
-      description="Mode, permission, context, todos and model chips straddle the top edge; mic and send sit bottom right."
+      description="One card: text on top, a single bottom toolbar. Left: mode, model, permissions, capabilities; right: todos, context, then mic and send."
       source="presentation/conversations/AgentComposer"
       usage="2 files · conversation, shell"
       layout="bare"
@@ -375,6 +413,7 @@ const actions: ConversationPaneActions = {
             model={composerBase}
             {actions}
             header={suggestionHeader}
+            sendLeading={mockMic}
           />
         </svelte:boundary>
       </div>
@@ -387,7 +426,7 @@ const actions: ConversationPaneActions = {
   >
     <GallerySpecimen
       title="AgentComposer"
-      description="Typing, planning (accent border), running with queued send, pending approval."
+      description="Typing, planning (info border), running with queued send, shell command (warning border), pending question, pending approval."
       source="presentation/conversations/AgentComposer"
       usage="2 files · conversation, shell"
       layout="bare"
@@ -398,7 +437,11 @@ const actions: ConversationPaneActions = {
             <span class="text-xs text-muted-foreground">{variant.title}</span>
             <div class="rounded-md border bg-background pt-2">
               <svelte:boundary failed={guarded}>
-                <AgentComposer model={variant.model} {actions} />
+                <AgentComposer
+                  model={variant.model}
+                  {actions}
+                  sendLeading={mockMic}
+                />
               </svelte:boundary>
             </div>
           </div>
@@ -408,7 +451,7 @@ const actions: ConversationPaneActions = {
 
     <GallerySpecimen
       title="ComposerShell"
-      description="Surface with slots: send enabled, send disabled, stop (running)."
+      description="One card with editor and toolbar slots; the shell appends the divider and the stop / send cluster to the toolbar row."
       source="presentation/composer/ComposerShell"
       usage="1 file · conversation"
       layout="bare"
@@ -443,17 +486,17 @@ const actions: ConversationPaneActions = {
 
   <GalleryGroup
     title="Toolbar chips"
-    description="The tab row on the composer's top edge, and each chip on its own."
+    description="The composer's bottom toolbar and each ghost chip on its own. Permissions show a label only when not the default rule set."
   >
     <GallerySpecimen
       title="ComposerToolbar"
-      description="Coding and Planning. Absolutely positioned, so it is shown inside a ComposerShell."
+      description="Coding, Planning, and a non-default (Autonomous) rule set. Renders into a ComposerShell toolbar row."
       source="presentation/composer/ComposerToolbar"
       usage="1 file · conversation"
       layout="bare"
     >
       <div class="grid gap-x-6 gap-y-8 lg:grid-cols-2">
-        {#each [{ t: "Coding", planning: false }, { t: "Planning", planning: true }] as variant (variant.t)}
+        {#each [{ t: "Coding", planning: false, permission: "default" }, { t: "Planning", planning: true, permission: "default" }, { t: "Autonomous", planning: false, permission: "autonomous" }] as const as variant (variant.t)}
           <div class="flex flex-col gap-1">
             <span class="text-xs text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
@@ -472,7 +515,7 @@ const actions: ConversationPaneActions = {
                     modeLabel={variant.planning ? "Planning" : "Coding"}
                     modePlanning={variant.planning}
                     onToggleMode={noop}
-                    permissionRuleSetId="default"
+                    permissionRuleSetId={variant.permission}
                     {permissionRuleSets}
                     contextUsage={{
                       tokens: 70_000,
@@ -494,7 +537,7 @@ const actions: ConversationPaneActions = {
                   />
                 {/snippet}
                 {#snippet editor()}<div
-                    class="min-h-16 px-3 pt-4 text-sm text-muted-foreground"
+                    class="min-h-16 px-3 py-2 text-sm text-muted-foreground"
                   >
                     Editor slot
                   </div>{/snippet}
@@ -626,6 +669,27 @@ const actions: ConversationPaneActions = {
         skills={[]}
         error="Could not load capabilities."
       />
+    </GallerySpecimen>
+
+    <GallerySpecimen
+      title="VoiceMicButton"
+      description="Toolbar mic is an outline icon button (pairs with the filled Send) and shows state only: mic (idle), destructive stop (recording), X (transcribing). Progress lives in the editor's dictation chip, never next to the button."
+      source="presentation/composer/VoiceMicButton"
+      usage="2 files · composer, ask-user"
+    >
+      {#each [{ t: "Idle", r: false, x: false }, { t: "Recording", r: true, x: false }, { t: "Transcribing", r: false, x: true }] as state (state.t)}
+        <div class="flex items-center gap-2">
+          <VoiceMicButton
+            toolbar
+            recording={state.r}
+            transcribing={state.x}
+            idleLabel="Record voice prompt"
+            onToggle={noop}
+            onContextMenu={noop}
+          />
+          <span class="text-xs text-muted-foreground">{state.t}</span>
+        </div>
+      {/each}
     </GallerySpecimen>
 
     <GallerySpecimen

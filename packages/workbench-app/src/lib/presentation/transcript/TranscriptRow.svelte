@@ -223,7 +223,9 @@ $effect(() => {
     profile={readMotionProfile}
   >
     {#if node.kind === "tool"}
-      <div class="relative min-w-0 px-3">
+      <div
+        class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+      >
         <!-- Keep one stable trigger across the whole tool lifecycle; it is inert
          (not removed) while only a draft exists, so the handoff to the real
          tool menu causes no layout shift. -->
@@ -287,7 +289,9 @@ $effect(() => {
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
-        <div class="relative min-w-0 px-3">
+        <div
+          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+        >
           <ToolResultErrorCard toolName={node.toolName} error={node.error} />
         </div>
       </TranscriptContextMenu>
@@ -297,7 +301,9 @@ $effect(() => {
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
-        <div class="relative min-w-0 px-3">
+        <div
+          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+        >
           <RunStatusNoticeCard
             notice={node.notice}
             isLast={node.key === lastTimelineKey}
@@ -312,7 +318,9 @@ $effect(() => {
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
-        <div class="relative min-w-0 px-3">
+        <div
+          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+        >
           <CompactionNoticeCard notice={node.notice} />
         </div>
       </TranscriptContextMenu>
@@ -322,7 +330,9 @@ $effect(() => {
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
-        <div class="relative min-w-0 px-3">
+        <div
+          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+        >
           <TaskNoticeCard notice={node.notice} {onOpenTask} />
         </div>
       </TranscriptContextMenu>
@@ -332,7 +342,9 @@ $effect(() => {
         menu={transcriptMenu}
         triggerClass="block select-text"
       >
-        <div class="relative min-w-0 px-3">
+        <div
+          class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
+        >
           <SystemEventNoticeCard notice={node.notice} {onOpenFile} />
         </div>
       </TranscriptContextMenu>

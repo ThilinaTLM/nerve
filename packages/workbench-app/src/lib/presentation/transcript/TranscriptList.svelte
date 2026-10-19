@@ -368,7 +368,7 @@ $effect(() => {
       gap={2}
       viewportTabIndex={0}
       viewportAriaLabel={transcriptLabel}
-      viewportClass="@container h-full px-3"
+      viewportClass="@container h-full px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
     >
       {#snippet row({ item, visible })}
         {#if item.kind === "timeline"}

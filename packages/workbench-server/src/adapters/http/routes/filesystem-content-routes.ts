@@ -1,10 +1,12 @@
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { ATTACHMENT_MAX_BYTES } from "@nervekit/contracts/filesystem";
 import type { ServerAdapterContexts } from "../../../app/bootstrap/create-server-adapter-contexts.js";
 type FilesystemContentRoutesContext =
   ServerAdapterContexts["http"]["filesystem"];
 import {
   fileContent,
-  saveClipboardImage,
+  saveAttachment,
   saveFileContent,
 } from "../../../domains/filesystem/filesystem.service.js";
 import { routeHandler } from "../responses.js";
@@ -40,10 +42,23 @@ export function createFilesystemContentRoutes(
     ),
   );
   app.post(
-    "/filesystem/clipboard-image",
+    "/filesystem/attachment",
+    bodyLimit({
+      maxSize: Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4 + 8192,
+      onError: (c) =>
+        c.json(
+          {
+            error: {
+              code: "ATTACHMENT_TOO_LARGE",
+              message: "Attachments must be 20 MiB or smaller.",
+            },
+          },
+          413,
+        ),
+    }),
     routeHandler(async (c) =>
       c.json(
-        await saveClipboardImage(await c.req.json(), state.storage.paths.home),
+        await saveAttachment(await c.req.json(), state.storage.paths.home),
       ),
     ),
   );

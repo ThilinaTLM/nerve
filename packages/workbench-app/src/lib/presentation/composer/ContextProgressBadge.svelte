@@ -140,6 +140,8 @@ const ringTone = $derived<StatusTone>(
 const percentLabel = $derived(
   percent == null ? "?%" : `${Math.round(percent)}%`,
 );
+// Unknown usage shows the bare ring; the popover explains why.
+const showPercentText = $derived(percent != null);
 // Judged on this agent's all-time recorded usage, which is what drives cost.
 const cacheCritical = $derived(!!agentUsage && isCacheRateCritical(ownMetrics));
 const cacheWarning = $derived(
@@ -241,10 +243,10 @@ function requestCompact(): void {
         {:else}
           <ProgressRing percent={ringPercent} tone={ringTone} />
         {/if}
-        <span class="ctx-percent">{percentLabel}</span>
-        <span class="ctx-window font-medium text-muted-foreground"
-          >/{windowLabel}</span
-        >
+        {#if showPercentText}<span
+            class="ctx-percent @max-[380px]/composer-toolbar:hidden"
+            >{percentLabel}</span
+          >{/if}
       </span>
     {/snippet}
 
@@ -451,11 +453,5 @@ function requestCompact(): void {
 
 .context-usage-tab-inner[data-tone="error"] .ctx-percent {
   color: var(--destructive);
-}
-
-@media (max-width: 639px) {
-  .ctx-window {
-    display: none;
-  }
 }
 </style>

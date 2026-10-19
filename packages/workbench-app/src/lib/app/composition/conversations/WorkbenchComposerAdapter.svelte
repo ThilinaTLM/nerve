@@ -2,15 +2,19 @@
 import { onDestroy, untrack, type Snippet } from "svelte";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import {
-  listIntegrationHealth,
-  listTools,
-  uploadClipboardImage,
-} from "$lib/api";
+import { listIntegrationHealth, listTools, uploadAttachment } from "$lib/api";
 import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { newConversationInProject } from "$lib/application/workspace/workspace-actions.svelte";
+import {
+  activatePanelView,
+  revealPanelView,
+} from "$lib/app/shell/shell-layout.svelte";
+import { responsive } from "$lib/app/shell/responsive.svelte";
+import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
+import type { ComposerCompletionAction } from "$lib/presentation/composer/composer-editor-completions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import {
@@ -30,7 +34,7 @@ import {
 } from "$lib/application/commands/command-registry";
 import type { PromptComposerProps } from "$lib/features/conversations/views/prompt-composer-props";
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
-import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   getCapabilityConfiguration,
@@ -50,7 +54,11 @@ import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.sve
 import ConversationProfilesHost from "./ConversationProfilesHost.svelte";
 import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
 import { conversationProfileScope } from "./conversation-profile-controller";
-import { bindComposerVoiceInput } from "./composer-voice-input";
+import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
+import {
+  bindComposerVoiceInput,
+  ComposerDictationBridge,
+} from "./composer-voice-input";
 
 let {
   activity,
@@ -300,16 +308,32 @@ const voiceTarget = $derived.by<VoiceInputTarget | undefined>(() => {
     return { kind: "pending-conversation", id: activePendingConversation.id };
   return undefined;
 });
+let editorApi = $state<ComposerEditorApi>();
+const dictation = new ComposerDictationBridge(
+  () => editorApi,
+  () => {
+    if (voiceTarget) void voiceInputSession.cancel(voiceTarget);
+  },
+);
 $effect(() => {
   const target = voiceTarget;
   if (!target) return;
-  return bindComposerVoiceInput(voiceInputSession, target, {
-    read: () => text,
-    update: (next) => onChange?.(next),
-    focus: () => {
-      editorFocusToken += 1;
+  return bindComposerVoiceInput(
+    voiceInputSession,
+    target,
+    {
+      read: () => text,
+      update: (next) => onChange?.(next),
+      focus: () => {
+        editorFocusToken += 1;
+      },
     },
-  });
+    {
+      chip: dictation,
+      notifyError: (message) =>
+        notify.error("Voice input failed", { description: message }),
+    },
+  );
 });
 
 const recording = $derived(
@@ -329,6 +353,16 @@ const transcribing = $derived(
 const voiceBusyElsewhere = $derived(
   Boolean(voiceTarget && voiceInputSession.isBusyForOtherTarget(voiceTarget)),
 );
+
+$effect(() => {
+  const state = {
+    recording,
+    transcribing,
+    elapsedMs: recording || transcribing ? voiceInputSession.elapsedMs : 0,
+  };
+  untrack(() => dictation.sync(state));
+});
+onDestroy(() => dictation.discard());
 
 const pendingApproval = $derived(approvals.length > 0);
 const pendingQuestion = $derived(pendingUserQuestions.length > 0);
@@ -437,25 +471,84 @@ async function submitComposer() {
   onSubmit?.();
 }
 
+function runSlashCommand(name: string): void {
+  switch (name) {
+    case "plan":
+      onModeChange?.("planning");
+      break;
+    case "code":
+      onModeChange?.("coding");
+      break;
+    case "compact":
+      onCompact?.();
+      break;
+    case "abort":
+      onAbort?.();
+      break;
+    case "new":
+      if (activeProject) newConversationInProject(activeProject.dir, mode);
+      break;
+  }
+}
+
+function handleCompletionAction(action: ComposerCompletionAction): void {
+  if (action.type === "source") {
+    if (action.actionId === "open_pull_requests") {
+      // The Pull requests panel shows the gh CLI install / sign-in guidance.
+      revealPanelView("pull-requests", responsive.isCompact);
+      activatePanelView("pull-requests");
+    } else {
+      void openSettingsPane();
+    }
+    return;
+  }
+  switch (action.item.kind) {
+    case "skill":
+      onOpenCapabilitySettings?.("skills");
+      break;
+    case "tool":
+      onOpenCapabilitySettings?.("tools");
+      break;
+    default:
+      onOpenCapabilitySettings?.("subagents");
+  }
+}
+
 async function pasteImage(file: File): Promise<string> {
-  return uploadClipboardImage(file);
+  return uploadAttachment(file);
 }
 
 async function dropFiles(files: readonly File[]): Promise<readonly string[]> {
   try {
     const bridge = getDesktopBridge();
-    if (!bridge?.files || !activeProject) {
-      throw new Error("Native file paths are unavailable in this window.");
-    }
-    return resolveDroppedPaths(
-      files,
-      activeProject.dir,
-      bridge.files.getPathForFile,
-    );
+    return await resolveDroppedFiles(files, {
+      getPathForFile: bridge?.files?.getPathForFile,
+      projectDir: activeProject?.dir,
+      upload: uploadAttachment,
+      notifyError: (title, description) => notify.error(title, { description }),
+      notifyInfo: (message) => notify.message(message),
+    });
   } catch (caught) {
     const description =
       caught instanceof Error ? caught.message : String(caught);
     notify.error("Could not add dropped paths", { description });
+    throw caught;
+  }
+}
+
+/** Attach button: images upload; other files use the native path when the
+ * desktop bridge offers one, otherwise the generic attachment upload. */
+async function attachFile(file: File): Promise<string> {
+  try {
+    if (!file.type.startsWith("image/") && fileDropSupported) {
+      const [path] = await dropFiles([file]);
+      if (path) return path;
+    }
+    return await uploadAttachment(file);
+  } catch (caught) {
+    const description =
+      caught instanceof Error ? caught.message : String(caught);
+    notify.error(`Could not attach ${file.name || "file"}`, { description });
     throw caught;
   }
 }
@@ -491,6 +584,10 @@ function toggleRecording() {
 }
 
 function cancelRecordingShortcut() {
+  if (dictation.failed) {
+    dictation.discard();
+    return true;
+  }
   if ((!recording && !transcribing) || !voiceTarget) return false;
   void voiceInputSession.cancel(voiceTarget);
   return true;
@@ -636,7 +733,7 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilities: {
       voice: true,
       imagePaste: true,
-      fileDrop: fileDropSupported,
+      fileDrop: true,
       completions: true,
       suggestions: true,
       shortcuts: true,
@@ -667,7 +764,11 @@ function handleMicContextMenu(event: MouseEvent) {
     onResetCapabilities: () => void resetCapabilities(),
     onRefreshCapabilities: () => void capabilityController.refresh(),
     onPasteImage: pasteImage,
-    onDropFiles: fileDropSupported ? dropFiles : undefined,
+    onDropFiles: dropFiles,
+    onAttachFile: attachFile,
+    onSlashCommand: runSlashCommand,
+    onCompletionAction: handleCompletionAction,
+    onEditorReady: (api) => (editorApi = api),
     onReadClipboardText: readClipboardText,
     onWriteClipboardText: writeClipboardText,
     onClipboardError: (action: "copy" | "cut" | "paste") =>
@@ -677,7 +778,7 @@ function handleMicContextMenu(event: MouseEvent) {
   {#snippet header()}
     <div
       bind:this={headerEl}
-      class="@container/conversation-activity mx-px flex min-w-0 items-start justify-between gap-2 px-2.5"
+      class="@container/conversation-activity flex min-w-0 items-start justify-between gap-2"
       style:--conversation-activity-width={`${activityWidth}px`}
     >
       <div class="min-w-0 flex-1 overflow-hidden">
@@ -699,17 +800,20 @@ function handleMicContextMenu(event: MouseEvent) {
   {/snippet}
 
   {#snippet sendLeading()}
-    <TranscriptionActivity
-      {recording}
-      {transcribing}
-      elapsedMs={voiceInputSession.elapsedMs}
-      maxDurationMs={voiceInputSession.maxDurationMs}
-      retryAttempt={voiceTarget && voiceInputSession.isTargetActive(voiceTarget)
-        ? voiceInputSession.retryAttempt
-        : 0}
-      maxRetries={voiceInputSession.maxRetries}
-      class="composer-transcription-status"
-    />
+    {#if !editorApi}
+      <TranscriptionActivity
+        {recording}
+        {transcribing}
+        elapsedMs={voiceInputSession.elapsedMs}
+        maxDurationMs={voiceInputSession.maxDurationMs}
+        retryAttempt={voiceTarget &&
+        voiceInputSession.isTargetActive(voiceTarget)
+          ? voiceInputSession.retryAttempt
+          : 0}
+        maxRetries={voiceInputSession.maxRetries}
+        class="composer-transcription-status"
+      />
+    {/if}
     <VoiceMicButton
       {recording}
       {transcribing}
@@ -719,6 +823,7 @@ function handleMicContextMenu(event: MouseEvent) {
         ? "Record voice prompt"
         : "Connect ChatGPT to use voice input"}
       shortcutAria={micShortcutAria}
+      toolbar
       onToggle={toggleRecording}
       onContextMenu={handleMicContextMenu}
     />

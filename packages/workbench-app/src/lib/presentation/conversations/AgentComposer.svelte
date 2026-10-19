@@ -6,6 +6,8 @@ import {
 } from "@nervekit/contracts/completions";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ComposerEditorApi } from "../composer/composer-editor-api.js";
+import { pathMentionReference } from "../composer/composer-path-references.js";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
 import ComposerShell from "../composer/ComposerShell.svelte";
 import ComposerToolbar from "../composer/ComposerToolbar.svelte";
@@ -64,6 +66,30 @@ const sendTitle = $derived(
         : "Send prompt"),
 );
 
+let editorApi = $state<ComposerEditorApi>();
+
+function handleEditorReady(api: ComposerEditorApi): void {
+  editorApi = api;
+  actions.onEditorReady?.(api);
+}
+
+async function attachFiles(files: File[]): Promise<void> {
+  const attach = actions.onAttachFile;
+  if (!attach || !editorApi) return;
+  const settled = await Promise.allSettled(files.map((file) => attach(file)));
+  const references = settled.flatMap((result, index) =>
+    result.status === "fulfilled"
+      ? [
+          pathMentionReference(
+            result.value,
+            files[index]!.type.startsWith("image/") ? "image" : undefined,
+          ),
+        ]
+      : [],
+  );
+  if (references.length > 0) editorApi.insertReferences(references);
+}
+
 function submit(): void {
   if (!submitDisabled) actions.onSubmit?.();
 }
@@ -88,6 +114,7 @@ function submit(): void {
   {sendTitle}
   onAbort={actions.onAbort}
   onSubmit={submit}
+  onGoToQuestion={actions.onGoToQuestion}
 >
   {#snippet header()}
     {#if headerContent}
@@ -159,6 +186,10 @@ function submit(): void {
       onConfigureCapabilityTool={actions.onConfigureCapabilityTool}
       onResetCapabilities={actions.onResetCapabilities}
       onRefreshCapabilities={actions.onRefreshCapabilities}
+      onAttachFiles={actions.onAttachFile && editorApi
+        ? (files) => void attachFiles(files)
+        : undefined}
+      attachDisabled={editorDisabled}
     />
   {/snippet}
 
@@ -175,6 +206,13 @@ function submit(): void {
         focusToken={model.focusToken ?? 0}
         onChange={actions.onComposerChange}
         onSubmit={submit}
+        onReady={handleEditorReady}
+        slashContext={{
+          mode: modePlanning ? "planning" : "coding",
+          running: Boolean(model.showStop ?? model.sending),
+        }}
+        onSlashCommand={actions.onSlashCommand}
+        onCompletionAction={actions.onCompletionAction}
         onPasteImage={actions.onPasteImage}
         onDropFiles={actions.onDropFiles}
         onReadClipboardText={actions.onReadClipboardText}

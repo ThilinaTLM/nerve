@@ -1,3 +1,5 @@
+import { CompletionVersionMismatchError } from "./completion-selection-error.js";
+import { completionSourceState } from "./completion-source-state.js";
 import {
   parseCompletionIntent,
   completionSearchRequestSchema,
@@ -12,6 +14,7 @@ import {
   completionScopeMatches as scopeMatches,
   completionDocumentScopeMatches as validScope,
   invalidateCompletionProvider,
+  failCompletionProvider,
   settledCompletionProvider,
 } from "./completion-provider-state.js";
 import type { z } from "zod";
@@ -25,7 +28,7 @@ import {
 import { CompletionUsageStore } from "./completion-usage-store.js";
 import {
   completionUsageId,
-  rankCompletionCandidates,
+  rankCompletionGroups,
 } from "./completion-ranking-policy.js";
 import { isUnsafeCompletionQuery } from "./file-completion-items.js";
 import type {
@@ -70,8 +73,7 @@ const hasDemand = (project: ProjectIndex, cache: DocumentCache) =>
   (cache === project.global ? project.active : cache.active) > 0;
 const contextKey = (scope: CompletionScope) => scope.conversationId ?? "";
 
-/** Exactly one native index/FIFO per project. Only small conversation overlays
- * swap; global corpora never get copied or compared on a context switch. */
+/** One index/FIFO per project; only bounded conversation overlays swap. */
 export class UnifiedCompletionService {
   private readonly projects = new Map<string, ProjectIndex>();
   private readonly usage: CompletionUsageStore;
@@ -165,10 +167,13 @@ export class UnifiedCompletionService {
           seedIds,
           project.revision,
         );
-        const candidates = this.items(project, context, result);
-        const items = rankCompletionCandidates(candidates, signals, usage, {
-          emptyQuery: intent.text.trim().length === 0,
-        }).slice(0, request.limit);
+        const { items, groups } = rankCompletionGroups(
+          this.items(project, context, result),
+          signals,
+          usage,
+          intent,
+          request.limit,
+        );
         for (const item of items) {
           const document =
             context.documents.get(item.documentId) ??
@@ -184,15 +189,11 @@ export class UnifiedCompletionService {
         return {
           revision: result.revision,
           items,
+          groups,
           sources: [
             ...project.global.sources.values(),
             ...context.sources.values(),
-          ].map(({ source, status, updatedAt, refreshing }) => ({
-            source,
-            status,
-            refreshing: refreshing ?? false,
-            ...(updatedAt !== undefined ? { updatedAt } : {}),
-          })),
+          ].map(completionSourceState),
         };
       });
     } finally {
@@ -207,11 +208,10 @@ export class UnifiedCompletionService {
     await this.deps.authorize(request);
     const { project, context } = this.acquire(request);
     try {
-      // Issued results are scoped and bounded, independent of whichever small
-      // overlay another concurrent conversation most recently activated.
+      // Issued results stay scoped regardless of the active conversation overlay.
       const issued = context.issued.get(request.documentId);
       if (!issued || issued.document.version !== request.expectedVersion)
-        throw new Error("Completion expired or changed; search again");
+        throw new CompletionVersionMismatchError();
       const { provider, document: known } = issued;
       const loaded =
         provider.accessSensitive || known.setEnabled
@@ -226,7 +226,7 @@ export class UnifiedCompletionService {
         current.kind !== current.item.kind ||
         current.version !== request.expectedVersion
       )
-        throw new Error("Completion changed; search again");
+        throw new CompletionVersionMismatchError();
       if (
         current.item.available === false &&
         !(request.action === "disable" && current.item.canDisable)
@@ -537,12 +537,10 @@ export class UnifiedCompletionService {
     wait: boolean,
   ): Promise<void> {
     const state = cache.sources.get(provider.id)!;
-    const hasCached = () => state.count > 0;
     if (!wait && state.expiresAt > this.now()) return Promise.resolve();
     if (!state.pending) {
       if (this.activeLoads >= 32) {
-        state.status = hasCached() ? "stale" : "unavailable";
-        state.refreshing = false;
+        failCompletionProvider(state);
         return Promise.resolve();
       }
       this.activeLoads++;
@@ -638,6 +636,8 @@ export class UnifiedCompletionService {
             state.status = uncertainAgain
               ? "stale"
               : (snapshot?.status ?? "fresh");
+            state.reason = snapshot?.reason;
+            state.action = snapshot?.action;
             state.refreshing = snapshot?.refreshing ?? false;
             state.updatedAt = snapshot
               ? snapshot.updatedAt
@@ -660,8 +660,7 @@ export class UnifiedCompletionService {
             state.generation !== generation
           )
             return;
-          state.status = hasCached() ? "stale" : "unavailable";
-          state.refreshing = false;
+          failCompletionProvider(state);
           state.expiresAt =
             (state.uncertainty ?? 0) !== uncertainty
               ? 0

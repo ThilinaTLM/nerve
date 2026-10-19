@@ -1,4 +1,8 @@
-import type { CompletionItem } from "@nervekit/contracts/completions";
+import {
+  completionGroupKinds,
+  type CompletionGroup,
+  type CompletionItem,
+} from "@nervekit/contracts/completions";
 
 export type CompletionContext = {
   /** Project-relative paths only; supplied by the authorized current conversation. */
@@ -75,9 +79,57 @@ export function rankCompletionCandidates<T extends CompletionRankCandidate>(
               }
             : {}),
         },
+        usageCount,
         index,
       };
     })
-    .sort((a, b) => b.item.sortScore - a.item.sortScore || a.index - b.index)
+    .sort(
+      (a, b) =>
+        Number(a.item.available === false) -
+          Number(b.item.available === false) ||
+        (options.emptyQuery ? b.usageCount - a.usageCount : 0) ||
+        b.item.sortScore - a.item.sortScore ||
+        a.index - b.index,
+    )
     .map(({ item }) => item);
+}
+
+/** Preserve ranked order while preventing any one category crowding out another. */
+export function rankCompletionGroups<T extends CompletionRankCandidate>(
+  candidates: readonly T[],
+  context: CompletionContext,
+  usage: ReadonlyMap<string, number>,
+  intent: { text: string; kinds?: readonly string[] },
+  limit: number,
+): { items: T[]; groups: { group: CompletionGroup; more: number }[] } {
+  const ranked = rankCompletionCandidates(candidates, context, usage, {
+    emptyQuery: !intent.text.trim(),
+  });
+  const scoped = !!intent.kinds;
+  const groupOf = (item: T) =>
+    (
+      Object.entries(completionGroupKinds) as [
+        CompletionGroup,
+        readonly string[],
+      ][]
+    ).find(([, kinds]) => kinds.includes(item.kind))?.[0];
+  const cap = scoped ? 12 : 3;
+  const shown = new Map<CompletionGroup, number>();
+  const totals = new Map<CompletionGroup, number>();
+  const items: T[] = [];
+  for (const item of ranked) {
+    const group = groupOf(item);
+    if (!group) continue;
+    totals.set(group, (totals.get(group) ?? 0) + 1);
+    if ((shown.get(group) ?? 0) >= cap || items.length >= limit) continue;
+    shown.set(group, (shown.get(group) ?? 0) + 1);
+    items.push(item);
+  }
+  return {
+    items,
+    groups: [...totals].map(([group, total]) => ({
+      group,
+      more: total - (shown.get(group) ?? 0),
+    })),
+  };
 }

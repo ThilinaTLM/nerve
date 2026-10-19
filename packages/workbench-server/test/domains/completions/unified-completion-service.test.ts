@@ -27,11 +27,12 @@ void test("public search accepts schema input, normalizes omitted fields once an
     const normalized = completionSearchRequestSchema.parse({ projectId: "p" });
     const result = await f.service.search({ projectId: "p" });
     assert.equal(f.native.queries[0]?.text, normalized.q);
-    assert.equal(result.items.length, normalized.limit);
+    assert.equal(result.items.length, 3);
+    assert.deepEqual(result.groups, [{ group: "files", more: 7 }]);
     await assert.rejects(f.service.search({ projectId: "p", limit: 64 }));
     assert.equal(
       f.native.queries.length,
-      1,
+      7,
       "invalid input cannot reach native acquisition/query",
     );
   } finally {
@@ -300,7 +301,7 @@ void test("native retrieval uses 64 before display cap; context rescues lexical 
   try {
     const result = await f.service.search(request);
     assert.equal(f.native.queriedLimit, 64);
-    assert.equal(result.items.length, 8);
+    assert.equal(result.items.length, 3);
     assert.equal(result.items[0]?.documentId, "session-11");
     assert.deepEqual(result.items[0]?.matchRanges, [[1, 2]]);
     assert.equal(result.items[0]?.scoreFactors?.context, 1280);

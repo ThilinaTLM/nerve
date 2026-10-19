@@ -73,3 +73,11 @@ export function completionDocumentScopeMatches(
       document.conversationId === scope.conversationId)
   );
 }
+
+/** A thrown owner read has no reliable diagnosis; discard an earlier failure's hint. */
+export function failCompletionProvider(state: ProviderState): void {
+  state.status = state.count > 0 ? "stale" : "unavailable";
+  state.refreshing = false;
+  state.reason = undefined;
+  state.action = undefined;
+}

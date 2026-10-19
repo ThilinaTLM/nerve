@@ -256,6 +256,7 @@ function pick(label: string | undefined) {
     statusLabel && "opacity-70",
   )}
   data-question-id={question.id}
+  data-tool-call-id={toolCallId}
 >
   <div class="flex min-w-0 items-baseline gap-2">
     {#if total > 1}

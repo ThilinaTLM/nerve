@@ -27,6 +27,8 @@ export type CompletionProviderSnapshot = {
   documents: readonly CompletionDocument[];
   status: CompletionSourceState["status"];
   refreshing?: boolean;
+  reason?: string;
+  action?: CompletionSourceState["action"];
   updatedAt?: number;
 };
 export type CompletionInvalidation = { refreshCause?: "uncertain_poll" };

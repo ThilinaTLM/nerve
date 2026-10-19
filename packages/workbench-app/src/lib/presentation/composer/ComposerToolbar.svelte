@@ -4,6 +4,7 @@ import ClipboardList from "@lucide/svelte/icons/clipboard-list";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
@@ -98,6 +99,10 @@ type Props = {
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
   onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  /** Picked via the attach button; omit to hide the button. */
+  onAttachFiles?: (files: File[]) => void;
+  attachDisabled?: boolean;
+  attachShortcut?: string;
 };
 
 let {
@@ -156,6 +161,9 @@ let {
   onResetCapabilities,
   onRefreshCapabilities,
   onOpenCapabilitySettings,
+  onAttachFiles,
+  attachDisabled = false,
+  attachShortcut,
 }: Props = $props();
 
 const activePermission = $derived(
@@ -168,6 +176,9 @@ const activePermission = $derived(
     available: false,
   },
 );
+
+const showPermissionLabel = $derived(permissionRuleSetId !== "default");
+let fileInput = $state<HTMLInputElement | null>(null);
 
 let permissionOpen = $state(false);
 let refreshedForCurrentOpen = false;
@@ -201,170 +212,197 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 }
 </script>
 
-<div
-  class="pointer-events-none absolute inset-x-2.5 top-0 z-4 flex -translate-y-1/2 items-center gap-1 [&>*]:pointer-events-auto"
-  data-tour-id="composer-controls"
->
-  {#if !modeHidden}
-    <button
-      type="button"
-      class="composer-tab mode-tab max-sm:w-7.5 max-sm:p-0"
-      disabled={modeDisabled}
-      title={modeShortcut
-        ? `Mode: ${modeLabel} (${modeShortcut})`
-        : `Mode: ${modeLabel} (click to switch)`}
-      aria-keyshortcuts={modeShortcutAria}
-      data-tour-id="composer-mode"
-      onclick={() => onToggleMode?.()}
-    >
-      <span
-        class="hidden items-center justify-center max-sm:inline-flex"
-        aria-hidden="true"
-      >
-        {#if modePlanning}
-          <ClipboardList size={13} strokeWidth={2.2} />
-        {:else}
-          <Code2 size={13} strokeWidth={2.2} />
-        {/if}
-      </span>
-      <span class="max-sm:hidden">{modeLabel}</span>
-    </button>
-  {/if}
-
-  <Popover
-    bind:open={permissionOpen}
-    size="sm"
-    triggerClass="composer-tab w-7 p-0 max-sm:w-7.5"
-    ariaLabel="Permission rule set"
-    triggerTitle={permissionShortcut
-      ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
-      : `Permission rule set: ${activePermission.name}`}
-    triggerAriaKeyShortcuts={permissionShortcutAria}
-    side="top"
-    align="start"
+{#if onAttachFiles}
+  <input
+    bind:this={fileInput}
+    type="file"
+    multiple
+    class="hidden"
+    tabindex="-1"
+    aria-hidden="true"
+    onchange={(event) => {
+      const files = [...(event.currentTarget.files ?? [])];
+      if (files.length) onAttachFiles(files);
+      event.currentTarget.value = "";
+    }}
+  />
+  <Button
+    variant="ghost"
+    size="icon"
+    type="button"
+    disabled={attachDisabled}
+    ariaLabel="Attach images or files"
+    title={attachShortcut
+      ? `Attach images or files (${attachShortcut}) — or paste / drop them`
+      : "Attach images or files — or paste / drop them"}
+    data-tour-id="composer-attach"
+    onclick={() => fileInput?.click()}
   >
-    {#snippet trigger()}
-      <span
-        class={`inline-flex items-center justify-center ${controlsDisabled ? "opacity-60" : ""}`}
-        data-tour-id="composer-permission"
+    <Paperclip />
+  </Button>
+  <span
+    class="mx-0.5 h-4 w-px flex-none bg-border @max-[440px]/composer-toolbar:hidden"
+    aria-hidden="true"
+  ></span>
+{/if}
+
+{#if !modeHidden}
+  <button
+    type="button"
+    class={`composer-tab mode-tab ${modePlanning ? "text-info" : ""}`}
+    disabled={modeDisabled}
+    title={modeShortcut
+      ? `Mode: ${modeLabel} (${modeShortcut})`
+      : `Mode: ${modeLabel} (click to switch)`}
+    aria-keyshortcuts={modeShortcutAria}
+    data-tour-id="composer-mode"
+    onclick={() => onToggleMode?.()}
+  >
+    {#if modePlanning}
+      <ClipboardList aria-hidden="true" />
+    {:else}
+      <Code2 aria-hidden="true" />
+    {/if}
+    <span class="@max-[500px]/composer-toolbar:hidden">{modeLabel}</span>
+  </button>
+{/if}
+
+<ComposerModelPicker
+  {models}
+  {selectedModelKey}
+  {thinkingLevel}
+  disabled={modelDisabled}
+  {onModelChange}
+  {onThinkingLevelChange}
+  {runtimeChangeHint}
+  emptyMessage={modelEmptyMessage}
+  {modelShortcut}
+  {thinkingShortcut}
+/>
+
+<Popover
+  bind:open={permissionOpen}
+  size="sm"
+  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
+  ariaLabel="Permission rule set"
+  triggerTitle={permissionShortcut
+    ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
+    : `Permission rule set: ${activePermission.name}`}
+  triggerAriaKeyShortcuts={permissionShortcutAria}
+  side="top"
+  align="start"
+>
+  {#snippet trigger()}
+    <span
+      class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
+      data-tour-id="composer-permission"
+    >
+      {#if activePermission.id === "read_only"}
+        <Lock />
+      {:else if activePermission.id === "autonomous"}
+        <Zap />
+      {:else}
+        <Shield />
+      {/if}
+      {#if showPermissionLabel}<span
+          class="@max-[440px]/composer-toolbar:hidden"
+          >{activePermission.name}</span
+        >{/if}
+    </span>
+  {/snippet}
+  <PopoverHeader title="Permissions">
+    {#snippet actions()}
+      <Button
+        size="icon"
+        variant="ghost"
+        disabled={permissionRuleSetsLoading}
+        ariaLabel="Refresh permission rule sets"
+        title="Refresh permission rule sets"
+        onclick={() => onRefreshPermissionRuleSets?.()}
       >
-        {#if activePermission.id === "read_only"}
-          <Lock size={13} strokeWidth={2.2} />
-        {:else if activePermission.id === "autonomous"}
-          <Zap size={13} strokeWidth={2.2} />
-        {:else}
-          <Shield size={13} strokeWidth={2.2} />
-        {/if}
-      </span>
+        <RefreshCw
+          class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
+          aria-hidden="true"
+        />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        ariaLabel="Open permission settings"
+        title="Open permission settings"
+        onclick={openPermissionSettings}
+      >
+        <Settings class="size-3.5" aria-hidden="true" />
+      </Button>
     {/snippet}
-    <PopoverHeader title="Permissions">
-      {#snippet actions()}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          disabled={permissionRuleSetsLoading}
-          ariaLabel="Refresh permission rule sets"
-          title="Refresh permission rule sets"
-          onclick={() => onRefreshPermissionRuleSets?.()}
-        >
-          <RefreshCw
-            class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
-            aria-hidden="true"
-          />
-        </Button>
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          ariaLabel="Open permission settings"
-          title="Open permission settings"
-          onclick={openPermissionSettings}
-        >
-          <Settings class="size-3.5" aria-hidden="true" />
-        </Button>
-      {/snippet}
-    </PopoverHeader>
-    <PopoverBody>
-      {#if permissionRuleSetsError}
-        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-      {/if}
-      {#if !activePermission.available}
-        <PopoverRow
-          label={activePermission.name}
-          title={activePermission.description}
-          selected
-          disabled
-        >
-          {#snippet trailing()}
-            <span class="flex-none text-muted-foreground">Unavailable</span>
-          {/snippet}
-        </PopoverRow>
-      {/if}
-      {#each permissionRuleSets as option (option.id)}
-        <PopoverRow
-          label={option.name}
-          title={permissionTitle(option)}
-          selected={option.id === permissionRuleSetId}
-          disabled={controlsDisabled || modePlanning}
-          onclick={() => selectPermission(option.id)}
-        >
-          {#snippet trailing()}
-            {#if option.source !== "builtin"}
-              <span class="flex-none text-muted-foreground">Custom</span>
-            {/if}
-          {/snippet}
-        </PopoverRow>
-      {/each}
-    </PopoverBody>
-  </Popover>
+  </PopoverHeader>
+  <PopoverBody>
+    {#if permissionRuleSetsError}
+      <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+    {/if}
+    {#if !activePermission.available}
+      <PopoverRow
+        label={activePermission.name}
+        title={activePermission.description}
+        selected
+        disabled
+      >
+        {#snippet trailing()}
+          <span class="flex-none text-muted-foreground">Unavailable</span>
+        {/snippet}
+      </PopoverRow>
+    {/if}
+    {#each permissionRuleSets as option (option.id)}
+      <PopoverRow
+        label={option.name}
+        title={permissionTitle(option)}
+        selected={option.id === permissionRuleSetId}
+        disabled={controlsDisabled || modePlanning}
+        onclick={() => selectPermission(option.id)}
+      >
+        {#snippet trailing()}
+          {#if option.source !== "builtin"}
+            <span class="flex-none text-muted-foreground">Custom</span>
+          {/if}
+        {/snippet}
+      </PopoverRow>
+    {/each}
+  </PopoverBody>
+</Popover>
 
-  <div class="ml-auto flex items-center gap-1">
-    <TodoProgressChip {todos} />
+{#key capabilityScopeKey}
+  <ComposerCapabilitiesPopover
+    configuration={capabilityConfiguration}
+    subagentProfiles={capabilityProfiles}
+    {subagentControlsEnabled}
+    skills={capabilitySkills}
+    loading={capabilityLoading}
+    error={capabilityError}
+    disabled={capabilityDisabled}
+    onPatch={onCapabilityPatch}
+    onConfigureTool={onConfigureCapabilityTool}
+    onReset={onResetCapabilities}
+    onRefresh={onRefreshCapabilities}
+    onOpenSettings={onOpenCapabilitySettings}
+  />
+{/key}
 
-    <ContextProgressBadge
-      {session}
-      {contextActions}
-      {contextUsage}
-      {conversationUsage}
-      {agentUsage}
-      {agentUsageLoading}
-      {agentUsageError}
-      {onUsageOpenChange}
-      {onUsageRetry}
-      {contextWindow}
-      {compacting}
-      {compactDisabled}
-      {onCompact}
-      {onOpenSystemPrompt}
-    />
+<span class="ml-auto"></span>
+<TodoProgressChip {todos} />
 
-    {#key capabilityScopeKey}
-      <ComposerCapabilitiesPopover
-        configuration={capabilityConfiguration}
-        subagentProfiles={capabilityProfiles}
-        {subagentControlsEnabled}
-        skills={capabilitySkills}
-        loading={capabilityLoading}
-        error={capabilityError}
-        disabled={capabilityDisabled}
-        onPatch={onCapabilityPatch}
-        onConfigureTool={onConfigureCapabilityTool}
-        onReset={onResetCapabilities}
-        onRefresh={onRefreshCapabilities}
-        onOpenSettings={onOpenCapabilitySettings}
-      />
-    {/key}
-
-    <ComposerModelPicker
-      {models}
-      {selectedModelKey}
-      {thinkingLevel}
-      disabled={modelDisabled}
-      {onModelChange}
-      {onThinkingLevelChange}
-      {runtimeChangeHint}
-      emptyMessage={modelEmptyMessage}
-      {modelShortcut}
-      {thinkingShortcut}
-    />
-  </div>
-</div>
+<ContextProgressBadge
+  {session}
+  {contextActions}
+  {contextUsage}
+  {conversationUsage}
+  {agentUsage}
+  {agentUsageLoading}
+  {agentUsageError}
+  {onUsageOpenChange}
+  {onUsageRetry}
+  {contextWindow}
+  {compacting}
+  {compactDisabled}
+  {onCompact}
+  {onOpenSystemPrompt}
+/>

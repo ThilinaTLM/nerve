@@ -1340,6 +1340,7 @@ export class GitService {
       status: snapshot.status,
       refreshing: snapshot.refreshing,
       updatedAt: snapshot.updatedAt,
+      ...(snapshot.failureCode ? { failureCode: snapshot.failureCode } : {}),
     };
   }
 
@@ -1371,6 +1372,7 @@ export class GitService {
       status: snapshot.status,
       refreshing: snapshot.refreshing,
       updatedAt: snapshot.updatedAt,
+      ...(snapshot.failureCode ? { failureCode: snapshot.failureCode } : {}),
     };
   }
 

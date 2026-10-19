@@ -1,15 +1,65 @@
 import type { GithubCacheStatus } from "@nervekit/contracts/git";
+import { GitWorkflowError, GitCommandError } from "./git-errors.js";
+
+const failureCodes = new Set([
+  "GH_CLI_UNAVAILABLE",
+  "GH_AUTH_REQUIRED",
+  "GH_NO_REMOTE",
+  "GH_NO_GITHUB_REMOTE",
+  "GH_RATE_LIMITED",
+  "GH_API_UNAVAILABLE",
+  "GH_FORBIDDEN",
+  "GH_NOT_FOUND",
+  "GH_API_FAILED",
+  "GH_GRAPHQL_FAILED",
+]);
+/** Issue reads use gh directly, while PR reads already carry workflow codes.
+ * Recognize diagnostics locally; retain only a fixed code, never their contents. */
+function githubFailureCode(error: unknown): string | undefined {
+  if (error instanceof GitWorkflowError)
+    return failureCodes.has(error.code) ? error.code : undefined;
+  if (!(error instanceof GitCommandError) || !error.command.startsWith("gh "))
+    return undefined;
+  const text = error.stderr;
+  if (
+    error.code === null &&
+    /ENOENT|not recognized|executable.*not found/i.test(text)
+  )
+    return "GH_CLI_UNAVAILABLE";
+  if (/gh auth login|not logged into|not authenticated|HTTP 401/i.test(text))
+    return "GH_AUTH_REQUIRED";
+  if (/API rate limit exceeded|rate limit.*exceeded|HTTP 429/i.test(text))
+    return "GH_RATE_LIMITED";
+  if (/no git remotes/i.test(text)) return "GH_NO_REMOTE";
+  if (/none of the git remotes.*github|no GitHub remotes/i.test(text))
+    return "GH_NO_GITHUB_REMOTE";
+  if (/HTTP 403/i.test(text)) return "GH_FORBIDDEN";
+  if (/HTTP 404|Could not resolve to a Repository/i.test(text))
+    return "GH_NOT_FOUND";
+  if (
+    error.failureCategory === "timeout" ||
+    /error connecting to|could not resolve host|dial tcp|network is unreachable|connection (?:refused|reset)|TLS handshake timeout|HTTP 50[0-9]/i.test(
+      text,
+    )
+  )
+    return "GH_API_UNAVAILABLE";
+  return undefined;
+}
+
 export interface RemoteSnapshot<T> {
   status: GithubCacheStatus;
   value: T | null;
   refreshing: boolean;
   updatedAt: string | null;
+  /** In-memory diagnostic only; never retain command output or error messages. */
+  failureCode?: string;
 }
 interface Entry<T> {
   value: T | null;
   updatedAt: number | null;
   retryAt: number;
   failed: boolean;
+  failureCode?: string;
   pending?: Promise<void>;
   controller?: AbortController;
 }
@@ -62,11 +112,13 @@ export class GitRemoteCache<T> {
           if (controller.signal.aborted) return;
           current.value = value;
           current.failed = false;
+          current.failureCode = undefined;
           current.updatedAt = this.now();
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           // Preserve both the previous value and its original observation time.
           current.failed = true;
+          current.failureCode = githubFailureCode(error);
         })
         .finally(() => {
           current.retryAt =
@@ -103,6 +155,7 @@ export class GitRemoteCache<T> {
             ? "stale"
             : "fresh",
       value: entry.value,
+      ...(entry.failureCode ? { failureCode: entry.failureCode } : {}),
       refreshing: !!entry.pending,
       updatedAt:
         entry.updatedAt === null

@@ -1,3 +1,4 @@
+import { completionGroupKinds } from "@nervekit/contracts/completions";
 import type { SearchQuery, SearchResult } from "@nervekit/native";
 import type {
   CompletionDocument,
@@ -90,7 +91,21 @@ export async function retrieveCompletionCandidates(
   seedIds: string[],
   revision: number,
 ): Promise<SearchResult> {
-  const result = await index.query({ ...input, limit: 64 });
+  // Query each category independently so a large file corpus cannot exhaust top-k.
+  const pools = input.kinds
+    ? [input.kinds]
+    : Object.values(completionGroupKinds);
+  const results = await Promise.all(
+    pools.map((kinds) =>
+      index.query({ ...input, kinds: [...kinds], limit: 64 }),
+    ),
+  );
+  if (results.some((result) => result.revision !== revision))
+    throw new Error("Completion index revision mismatch");
+  const result: SearchResult = {
+    revision,
+    items: results.flatMap((result) => result.items),
+  };
   if (result.revision !== revision)
     throw new Error("Completion index revision mismatch");
   if (!seedIds.length) return result;

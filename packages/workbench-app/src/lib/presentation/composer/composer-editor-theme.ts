@@ -8,10 +8,12 @@ export const composerEditorTheme = EditorView.theme({
   },
   ".cm-content": {
     caretColor: "var(--primary)",
-    fontFamily: "var(--font-mono)",
+    // Prompt text is prose: sans by default. Shell-command mode (`!`) is the
+    // only monospace state; ComposerEditor.svelte flips it via `.shell-mode`.
+    fontFamily: "var(--font-sans)",
     fontSize: "var(--text-sm)",
     lineHeight: "1.5",
-    padding: "18px 46px 14px 11px",
+    padding: "10px 12px 6px",
   },
   ".cm-line": { padding: "0 2px" },
   ".cm-cursor": { borderLeftColor: "var(--primary)" },
@@ -31,143 +33,82 @@ export const composerEditorTheme = EditorView.theme({
     maxHeight: "min(40vh, 320px)",
     overflow: "auto",
   },
-  // Same surface contract as `.floating-surface` in ui-kit's popover.css:
-  // CodeMirror renders these tooltips itself, so the recipe is restated here
-  // rather than shared through a class.
-  ".cm-tooltip": {
-    border: "1px solid var(--border)",
-    borderRadius: "var(--radius-lg)",
-    background: "var(--popover)",
-    color: "var(--popover-foreground)",
-    boxShadow: "var(--shadow-overlay), inset 0 1px 0 var(--overlay-highlight)",
-    overflow: "hidden",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions": {
-    minWidth: "min(24rem, calc(100vw - 2rem))",
-    maxWidth: "min(34rem, calc(100vw - 2rem))",
-    padding: "0.15rem",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions > ul": {
-    maxHeight: "none",
-    overflow: "hidden",
-    padding: "0.1rem",
-    fontFamily: "var(--font-mono)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions > ul > completion-section":
-    {
-      borderBottom: "0",
-      color: "var(--muted-foreground)",
-      fontFamily: "var(--font-sans)",
-      fontSize: "var(--text-xs)",
-      fontWeight: "400",
-      padding: "0.3rem 0.375rem 0.15rem",
-    },
-  ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li": {
-    display: "flex",
-    alignItems: "center",
-    minHeight: "1.75rem",
-    borderRadius: "var(--radius-md)",
-    padding: "0.25rem 0.375rem",
-    color: "var(--popover-foreground)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions > ul > li[aria-selected]":
-    {
-      background: "var(--accent)",
-      color: "var(--accent-foreground)",
-    },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-completionLabel": {
-    display: "none",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-completionDetail": {
-    display: "none",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row": {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    minWidth: "0",
-    width: "100%",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-icon": {
-    display: "inline-flex",
-    flexShrink: "0",
-    alignItems: "center",
-    color: "var(--muted-foreground)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-directory .cm-nerve-row-icon":
-    { color: "var(--info)" },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-file .cm-nerve-row-icon":
-    { color: "var(--success)" },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-launch .cm-nerve-row-icon":
-    { color: "var(--warning)" },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .nerve-completion-pull_request .cm-nerve-row-icon":
-    { color: "var(--info)" },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-main": {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "stretch",
-    gap: "calc(var(--spacing) * 0.5)",
-    flex: "1",
-    minWidth: "0",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions :is(.nerve-completion-file, .nerve-completion-directory) .cm-nerve-row-main":
-    {
-      flexDirection: "row",
-      alignItems: "baseline",
-    },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-dir": {
-    flexShrink: "1",
-    minWidth: "0",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    direction: "rtl",
-    // RTL controls left ellipsis; the renderer's inline bdi isolates LTR text.
-    textAlign: "left",
-    fontFamily: "var(--font-mono)",
-    fontSize: "var(--text-xs)",
-    color: "var(--muted-foreground)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-name": {
-    flexShrink: "1",
-    minWidth: "0",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontFamily: "var(--font-sans)",
-    fontSize: "var(--text-xs)",
-    fontWeight: "500",
-    color: "var(--popover-foreground)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions :is(.nerve-completion-file, .nerve-completion-directory) .cm-nerve-row-name":
-    {
-      flexShrink: "0",
-      fontFamily: "var(--font-mono)",
-    },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-row-detail": {
-    minWidth: "0",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    fontFamily: "var(--font-sans)",
-    fontSize: "var(--text-xs)",
-    color: "var(--muted-foreground)",
-  },
-  ".cm-tooltip-autocomplete.nerve-composer-completions .cm-nerve-match": {
-    color: "var(--primary)",
-    fontWeight: "600",
-  },
-  ".cm-tooltip.cm-completionInfo": {
-    maxWidth: "min(30rem, calc(100vw - 2rem))",
-    padding: "0.55rem 0.7rem",
-    color: "var(--popover-foreground)",
-    fontFamily: "var(--font-mono)",
-    fontSize: "var(--text-xs)",
-  },
   "&.cm-focused": { outline: "none" },
   "&.cm-focused .cm-cursor": { borderLeftColor: "var(--primary)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection":
     {
       backgroundColor: "color-mix(in oklab, var(--primary) 22%, transparent)",
     },
+  /* chips stream: mention chips + dictation placeholder */
+  ".cm-mention-chip": {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    height: "1.25rem",
+    margin: "0 1px",
+    padding: "0 0.375rem",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--radius-md)",
+    background: "var(--muted)",
+    color: "var(--foreground)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "var(--text-xs)",
+    fontWeight: "500",
+    lineHeight: "1",
+    verticalAlign: "middle",
+    userSelect: "none",
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
+  },
+  ".cm-mention-chip-icon": {
+    width: "0.75rem",
+    height: "0.75rem",
+    flexShrink: "0",
+    color: "var(--muted-foreground)",
+  },
+  ".cm-mention-chip-file .cm-mention-chip-icon": { color: "var(--success)" },
+  ".cm-mention-chip-info .cm-mention-chip-icon": { color: "var(--info)" },
+  ".cm-mention-chip-label": {
+    minWidth: "0",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  // Width fits the longest state ("Transcribing 0:00") so neither the timer
+  // nor a state change reflows the surrounding text.
+  ".cm-dictation-chip": {
+    width: "8.75rem",
+    justifyContent: "flex-start",
+    fontVariantNumeric: "tabular-nums",
+  },
+  "&.cm-nerve-dictating .cm-placeholder": { display: "none" },
+  ".cm-dictation-label": { flex: "1" },
+  ".cm-dictation-time": { color: "var(--muted-foreground)" },
+  ".cm-dictation-icon": {
+    width: "0.625rem",
+    height: "0.625rem",
+    flex: "none",
+    borderRadius: "9999px",
+  },
+  ".cm-dictation-chip[data-dictation='recording']": {
+    borderColor: "color-mix(in oklab, var(--destructive) 45%, transparent)",
+  },
+  ".cm-dictation-chip[data-dictation='recording'] .cm-dictation-icon": {
+    background: "var(--destructive)",
+    animation: "cm-nerve-dictation-pulse 1.2s ease-in-out infinite",
+  },
+  ".cm-dictation-chip[data-dictation='transcribing'] .cm-dictation-icon": {
+    border: "1.5px solid var(--muted-foreground)",
+    borderTopColor: "transparent",
+    animation: "cm-nerve-dictation-spin 0.8s linear infinite",
+  },
+  ".cm-dictation-chip[data-dictation='failed']": {
+    borderColor: "color-mix(in oklab, var(--destructive) 45%, transparent)",
+    color: "var(--destructive)",
+  },
+  ".cm-dictation-chip[data-dictation='failed'] .cm-dictation-icon": {
+    background: "var(--destructive)",
+    borderRadius: "2px",
+  },
+  "@keyframes cm-nerve-dictation-pulse": { "50%": { opacity: "0.35" } },
+  "@keyframes cm-nerve-dictation-spin": { to: { transform: "rotate(360deg)" } },
 });

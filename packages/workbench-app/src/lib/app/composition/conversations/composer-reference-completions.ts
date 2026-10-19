@@ -1,5 +1,5 @@
 import {
-  FILE_COMPLETION_RESULT_LIMIT,
+  COMPLETION_RESULT_LIMIT,
   completionChangedSchema,
   type CompletionItem,
 } from "@nervekit/contracts/completions";
@@ -17,11 +17,14 @@ export function composerReferenceSource(
 ): ComposerReferenceSource {
   const scope = { projectId, ...(conversationId ? { conversationId } : {}) };
   return {
-    search: (q) =>
+    search: (q, options) =>
       requestWorkbench("completion.search", {
         ...scope,
         q,
-        limit: FILE_COMPLETION_RESULT_LIMIT,
+        limit: Math.min(
+          options?.limit ?? COMPLETION_RESULT_LIMIT,
+          COMPLETION_RESULT_LIMIT,
+        ),
       }),
     async select(item, action) {
       if (!item.documentId || !item.version)

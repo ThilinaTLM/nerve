@@ -21,6 +21,28 @@ void test("actual typed native index retains lexical judgments and supports cont
       2,
     ),
   );
+  const diagnostic = result.lexical.sessionDiagnostics!;
+  const visibleFiles = diagnostic.visible.filter(
+    (item) => item.kind === "file" || item.kind === "directory",
+  );
+  assert.equal(
+    visibleFiles.length,
+    3,
+    "unscoped lexical results retain the best three paths, not a flat top eight",
+  );
+  assert.deepEqual(
+    visibleFiles.map((item) => item.id),
+    diagnostic.finalTop10
+      .filter((item) => item.kind === "file" || item.kind === "directory")
+      .slice(0, 3)
+      .map((item) => item.id),
+    "category truncation preserves lexical/policy order",
+  );
+  assert.equal(
+    diagnostic.groups?.find((group) => group.group === "files")?.more,
+    diagnostic.matchedFileCount - 3,
+    "more counts additional retrieved paths",
+  );
   assert.equal(result.lexical.original.count, 56);
   assert.equal(result.lexical.adversarial.count, 19);
   assert.equal(result.actualNativePolicy.metrics.count, 8);
