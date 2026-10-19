@@ -7,3 +7,4 @@ export * from "./records.js";
 export * from "./subagent-tools.js";
 
 export * from "./tool-output.js";
+export type { ProjectShellLaunchContext } from "./project-shell.js";

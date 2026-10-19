@@ -4,6 +4,13 @@ import { executeBash } from "../../../execution/shell/bash.js";
 import { assessShellCommand } from "../../../policy/shell/assessment.js";
 import type { LocalToolDefinition, ToolDefinition } from "../../contracts.js";
 
+const projectEnvironmentParameter = Type.Optional(
+  Type.Boolean({
+    description:
+      "Automatic project environment activation defaults on; false uses the inherited environment.",
+  }),
+);
+
 export type BashToolSettings = {
   autoPromotion: { enabled: boolean; afterMs: number };
   maxTimeoutMs: number;
@@ -24,6 +31,7 @@ export function buildBashToolDefinition(
               "Project-relative or absolute; must resolve inside the project.",
           }),
         ),
+        projectEnvironment: projectEnvironmentParameter,
         background: Type.Optional(Type.Boolean()),
         ready: Type.Optional(Type.String()),
         ...(!settings.autoPromotion.enabled
@@ -44,6 +52,7 @@ const bashParameters = Type.Object(
           "Project-relative or absolute; must resolve inside the project.",
       }),
     ),
+    projectEnvironment: projectEnvironmentParameter,
     background: Type.Optional(Type.Boolean()),
     ready: Type.Optional(Type.String()),
   },

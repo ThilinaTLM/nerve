@@ -22,6 +22,13 @@ void test("bash host validates turn settings, project cwd and untimed background
     let exitCode: number | null = 0;
     const process: BackgroundProcess = {
       ref: "process",
+      launch: {
+        cwd: project,
+        executable: "direnv",
+        shell: "/bin/bash",
+        manager: "direnv",
+        configFile: join(project, ".envrc"),
+      },
       outputFiles: { stdout, stderr, combined },
       wait: async () => ({
         exitCode,
@@ -77,6 +84,12 @@ void test("bash host validates turn settings, project cwd and untimed background
       execute({ command: "echo" }),
       /Invalid bash arguments/,
     );
+    for (const projectEnvironment of [null, "false", 0]) {
+      await assert.rejects(
+        execute({ command: "echo", timeout: 1, projectEnvironment }),
+        /Invalid bash arguments/,
+      );
+    }
     settings.maxTimeoutMs = 2001;
     await execute({ command: "echo" }, "user");
     assert.equal(spawned?.timeoutMs, 2001);
@@ -101,6 +114,10 @@ void test("bash host validates turn settings, project cwd and untimed background
     assert.equal(spawned?.timeoutMs, 1000);
     assert.equal(result.kind, "completed");
     if (result.kind === "completed") {
+      assert.deepEqual(
+        (result.result.details as { launch: unknown }).launch,
+        process.launch,
+      );
       assert.equal(result.result.stdout, "hello");
       assert.equal(result.result.stderr, "");
       assert.equal(result.result.exitCode, 0);
@@ -135,12 +152,16 @@ void test("bash host validates turn settings, project cwd and untimed background
       }
     }
     exitCode = 0;
-    await execute({
+    const backgrounded = await execute({
       command: "echo",
       timeout: 2,
       background: true,
       ready: "READY",
     });
+    assert.deepEqual(
+      (backgrounded.result.details as { launch: unknown }).launch,
+      process.launch,
+    );
     assert.equal(started?.timeoutMs, undefined);
     assert.deepEqual(started?.ready, {
       kind: "pattern",
@@ -154,6 +175,14 @@ void test("bash host validates turn settings, project cwd and untimed background
     );
     await execute({ command: "echo" });
     assert.equal(spawned?.timeoutMs, undefined);
+    settings.autoPromotion.afterMs = 1;
+    process.wait = () => new Promise(() => {});
+    const promoted = await execute({ command: "echo" });
+    assert.equal(promoted.kind, "backgrounded");
+    assert.deepEqual(
+      (promoted.result.details as { launch: unknown }).launch,
+      process.launch,
+    );
   } finally {
     await Promise.all([
       rm(project, { recursive: true, force: true }),

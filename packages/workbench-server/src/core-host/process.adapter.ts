@@ -1,5 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
+import { formatProjectShellFailure } from "@nervekit/tools/execution";
 import {
   spawnShellProcess,
   stopProcessTree,
@@ -38,6 +39,7 @@ export class CoreProcessHost implements ProcessPort {
     artifactDir: string;
     timeoutMs?: number;
     env?: Record<string, string>;
+    projectEnvironment?: boolean;
     onProgress?(update: { chunk: string; stream: "stdout" | "stderr" }): void;
   }): Promise<BackgroundProcess> {
     await mkdir(input.artifactDir, { recursive: true });
@@ -46,11 +48,12 @@ export class CoreProcessHost implements ProcessPort {
       stderr: join(input.artifactDir, "stderr.txt"),
       combined: join(input.artifactDir, "output.txt"),
     };
-    const { managed: process } = spawnShellProcess(input.command, {
+    const { managed: process, launch } = spawnShellProcess(input.command, {
       shellPath: await this.resolveShellPath(input.cwd),
       login: true,
       cwd: input.cwd,
       env: input.env,
+      projectEnvironment: input.projectEnvironment,
       policy: {
         wallTimeMs: input.timeoutMs,
         output: {
@@ -64,7 +67,23 @@ export class CoreProcessHost implements ProcessPort {
     void process.exited.then(() => {
       exited = true;
     });
-    const drains = captureProcessOutput(process, outputFiles, input.onProgress);
+    const drains = captureProcessOutput(
+      process,
+      outputFiles,
+      input.onProgress,
+      launch.manager
+        ? async () => {
+            const exit = await process.closed;
+            return !cancelled &&
+              exit.reason !== "timeout" &&
+              exit.reason !== "internal" &&
+              exit.exitCode !== null &&
+              exit.exitCode !== 0
+              ? formatProjectShellFailure(launch)
+              : undefined;
+          }
+        : undefined,
+    );
     const ref = process.identity;
     const terminal = (async () => {
       const [exit] = await Promise.all([process.closed, drains]);
@@ -81,6 +100,7 @@ export class CoreProcessHost implements ProcessPort {
     })();
     const background: BackgroundProcess = {
       ref,
+      launch,
       outputFiles,
       wait: () => terminal,
       cancel: async () => {

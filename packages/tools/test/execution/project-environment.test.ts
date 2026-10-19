@@ -40,6 +40,7 @@ describe("project shell environment resolver", () => {
       shell,
       args: ["-c", "node --version"],
       env,
+      launch: { cwd: app, executable: shell, shell },
     });
   });
 
@@ -56,6 +57,13 @@ describe("project shell environment resolver", () => {
 
     assert.equal(result.manager, "direnv");
     assert.equal(result.shell, tool("direnv"));
+    assert.deepEqual(result.launch, {
+      cwd: app,
+      executable: tool("direnv"),
+      shell,
+      manager: "direnv",
+      configFile: join(workspace, ".envrc"),
+    });
     assert.deepEqual(result.args, ["exec", app, shell, "-c", "node --version"]);
   });
 
@@ -68,6 +76,7 @@ describe("project shell environment resolver", () => {
 
     assert.equal(result.manager, "mise");
     assert.equal(result.shell, tool("mise"));
+    assert.equal(result.launch.configFile, join(workspace, ".mise.toml"));
     assert.deepEqual(result.args, [
       "exec",
       "--",
@@ -87,11 +96,13 @@ describe("project shell environment resolver", () => {
       resolve(files, { PATH: tools }, { executables }).manager,
       undefined,
     );
-    assert.equal(
-      resolve(files, { PATH: tools, MISE_SHELL: "bash" }, { executables })
-        .manager,
-      "mise",
+    const active = resolve(
+      files,
+      { PATH: tools, MISE_SHELL: "bash" },
+      { executables },
     );
+    assert.equal(active.manager, "mise");
+    assert.equal(active.launch.configFile, join(workspace, ".tool-versions"));
   });
 
   it("passes the nearest Node version file to fnm without install flags", () => {
@@ -103,10 +114,17 @@ describe("project shell environment resolver", () => {
     );
 
     assert.equal(result.manager, "fnm");
+    assert.deepEqual(result.launch, {
+      cwd: app,
+      executable: tool("fnm"),
+      shell,
+      manager: "fnm",
+      configFile: versionFile,
+    });
     assert.deepEqual(result.args, [
       "exec",
       `--using=${versionFile}`,
-      "--log-level=quiet",
+      "--log-level=error",
       "--",
       shell,
       "-c",
@@ -125,6 +143,13 @@ describe("project shell environment resolver", () => {
     assert.equal(result.manager, "nvm");
     assert.equal(result.shell, shell);
     assert.equal(result.env.NVM_DIR, nvmDir);
+    assert.deepEqual(result.launch, {
+      cwd: app,
+      executable: shell,
+      shell,
+      manager: "nvm",
+      configFile: join(workspace, ".nvmrc"),
+    });
     assert.deepEqual(result.args, [
       "-c",
       '. "$NVM_DIR/nvm.sh" && nvm use --silent &&\nnode --version',
@@ -179,6 +204,58 @@ describe("project shell environment resolver", () => {
 
     assert.equal(result.manager, "nvm");
     assert.equal(result.env.NVM_DIR, xdgNvm);
+  });
+
+  it("bypasses activation before any config or executable probes", () => {
+    const env = { PATH: tools, FNM_DIR: tools, MISE_SHELL: "bash" };
+    const unexpectedProbe = () => {
+      assert.fail("disabled project activation must not probe");
+    };
+    const result = resolveProjectShellInvocation("node --version", {
+      cwd: app,
+      env,
+      shellConfig,
+      projectEnvironment: false,
+      pathExists: unexpectedProbe,
+      pathIsExecutable: unexpectedProbe,
+    });
+    assert.deepEqual(result, {
+      shell,
+      args: ["-c", "node --version"],
+      env,
+      launch: { cwd: app, executable: shell, shell },
+    });
+    assert.equal(result.env, env);
+  });
+
+  it("discovers Windows fnm with Path and uppercase executable extensions", () => {
+    const versionFile = join(app, ".nvmrc");
+    const executable = tool("fnm.EXE");
+    const result = resolve(
+      [versionFile],
+      { Path: `${join(root, "missing")};${tools}`, PATHEXT: ".COM;.EXE" },
+      { platform: "win32", executables: [executable] },
+    );
+    assert.deepEqual(result.launch, {
+      cwd: app,
+      executable,
+      shell,
+      manager: "fnm",
+      configFile: versionFile,
+    });
+    assert.equal(result.shell, executable);
+    assert.ok(result.args.includes("--log-level=error"));
+  });
+
+  it("keeps mise precedence over Node managers and selects its nearest config", () => {
+    const configFile = join(app, "mise.toml");
+    const result = resolve(
+      [join(workspace, ".mise.toml"), configFile, join(app, ".node-version")],
+      { PATH: tools, FNM_DIR: tools },
+      { executables: [tool("mise"), tool("fnm")] },
+    );
+    assert.equal(result.manager, "mise");
+    assert.equal(result.launch.configFile, configFile);
   });
 
   it("does not use sourced nvm on Windows", () => {

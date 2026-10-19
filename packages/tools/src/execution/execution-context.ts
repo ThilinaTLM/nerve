@@ -122,6 +122,7 @@ export type BashToolArgs = {
   command?: unknown;
   cwd?: unknown;
   timeout?: unknown;
+  projectEnvironment?: unknown;
 };
 
 export type PythonToolArgs = {

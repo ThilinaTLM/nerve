@@ -9,7 +9,10 @@ import type {
   ToolCallOrigin,
   ToolProgress,
 } from "@nervekit/contracts/core";
-import type { ToolExecutionResultPayload } from "@nervekit/contracts/tools";
+import type {
+  ProjectShellLaunchContext,
+  ToolExecutionResultPayload,
+} from "@nervekit/contracts/tools";
 import type { getRegisteredModel } from "@nervekit/harness/models";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 
@@ -98,6 +101,7 @@ export interface ProcessPort {
     signal: AbortSignal;
     artifactDir: string;
     env?: Record<string, string>;
+    projectEnvironment?: boolean;
     ready?: ProcessReadiness;
     timeoutMs?: number;
   }): Promise<{
@@ -113,6 +117,7 @@ export interface ProcessPort {
 }
 
 export interface BackgroundProcess {
+  launch?: ProjectShellLaunchContext;
   ref: string;
   wait(): Promise<{
     exitCode: number | null;
