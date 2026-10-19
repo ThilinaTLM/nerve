@@ -1,5 +1,5 @@
 <script lang="ts">
-import { onDestroy } from "svelte";
+import { onDestroy, untrack } from "svelte";
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
@@ -100,10 +100,17 @@ function repoUrlOf(repo: GitRepoSummary): string | undefined {
   const prUrl = repo.relativePath === selectedRepoKey ? prs[0]?.url : undefined;
   return prUrl?.match(/^(https:\/\/[^/]+\/[^/]+\/[^/]+)\/pull\//)?.[1];
 }
+// Load PR heads once per selected repository. Track only the repository key
+// and sign-in state: refreshPrHeads reads and writes reactive loading state,
+// so calling it tracked would re-run this effect in an endless refresh loop.
+const prHeadsTarget = $derived(
+  selectedRepoSummary?.hasGithubRemote && github?.authenticated
+    ? selectedRepoSummary.relativePath
+    : undefined,
+);
 $effect(() => {
-  const repo = selectedRepoSummary;
-  if (repo?.hasGithubRemote && github?.authenticated)
-    void actions.refreshPrHeads(repo.relativePath);
+  const repository = prHeadsTarget;
+  if (repository) untrack(() => void actions.refreshPrHeads(repository));
 });
 
 /** Open PR number for a repo's current branch (filter-independent via heads). */
