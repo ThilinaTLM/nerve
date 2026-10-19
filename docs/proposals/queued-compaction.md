@@ -20,17 +20,17 @@ Manual compaction alone must not trigger an ordinary agent response. A queued pr
 
 ### Code owners
 
-| Concern | Current owner |
-| --- | --- |
-| Public compaction and input admission | `packages/conversation-core/src/core.ts` |
-| Exclusive scheduler ownership and wake/stop | `packages/conversation-core/src/runtime/scheduler.ts` |
-| Execution and compaction processing | `packages/conversation-core/src/runtime/conversation-runner.ts` |
-| Queue admission, eligibility, and delivery | `packages/conversation-core/src/inputs/input-queue.service.ts` |
-| Durable queue representation | `packages/conversation-core/src/storage/input-queue.repository.ts`, `storage/schema.ts` |
-| Conversation status | `packages/conversation-core/src/runtime/status.ts` |
-| Compaction operation progress | `packages/conversation-core/src/runtime/compaction-operations.ts` |
-| Activity presentation | `packages/workbench-app/src/lib/presentation/conversations/conversation-activity.ts` |
-| Existing lifecycle coverage | `packages/conversation-core/src/runtime/compaction-lifecycle.test.ts` |
+| Concern                                     | Current owner                                                                           |
+| ------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Public compaction and input admission       | `packages/conversation-core/src/core.ts`                                                |
+| Exclusive scheduler ownership and wake/stop | `packages/conversation-core/src/runtime/scheduler.ts`                                   |
+| Execution and compaction processing         | `packages/conversation-core/src/runtime/conversation-runner.ts`                         |
+| Queue admission, eligibility, and delivery  | `packages/conversation-core/src/inputs/input-queue.service.ts`                          |
+| Durable queue representation                | `packages/conversation-core/src/storage/input-queue.repository.ts`, `storage/schema.ts` |
+| Conversation status                         | `packages/conversation-core/src/runtime/status.ts`                                      |
+| Compaction operation progress               | `packages/conversation-core/src/runtime/compaction-operations.ts`                       |
+| Activity presentation                       | `packages/workbench-app/src/lib/presentation/conversations/conversation-activity.ts`    |
+| Existing lifecycle coverage                 | `packages/conversation-core/src/runtime/compaction-lifecycle.test.ts`                   |
 
 ## Agreed behavior
 
@@ -115,13 +115,13 @@ Use the same activity meaning across sidebar, tabs, transcript, and controls, in
 
 After a successful standalone compaction:
 
-| Remaining work | Outcome |
-| --- | --- |
-| None | Return to idle; no ordinary agent response |
-| Eligible user prompt | Deliver and start ordinary execution without an idle gap |
-| Eligible wake-enabled system notice | Resume processing under the existing notice wake policy |
-| Only non-waking or currently ineligible input | Retain it; do not invent a response or override delivery targets |
-| Explicitly paused conversation | Retain queued input until existing resume/new-prompt policy permits processing |
+| Remaining work                                | Outcome                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------ |
+| None                                          | Return to idle; no ordinary agent response                                     |
+| Eligible user prompt                          | Deliver and start ordinary execution without an idle gap                       |
+| Eligible wake-enabled system notice           | Resume processing under the existing notice wake policy                        |
+| Only non-waking or currently ineligible input | Retain it; do not invent a response or override delivery targets               |
+| Explicitly paused conversation                | Retain queued input until existing resume/new-prompt policy permits processing |
 
 A compaction request encountered between turns of an existing execution must not by itself terminate that execution or manufacture an extra response. After compaction, continue according to the execution's existing continuation rules.
 

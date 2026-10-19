@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { compileModule } from "svelte/compiler";
+import { compileModule, parse } from "svelte/compiler";
 import ts from "typescript";
 
 void test("draft model replacements do not reset completion; changed sources still do", async () => {
@@ -12,8 +12,11 @@ void test("draft model replacements do not reset completion; changed sources sti
     ),
     "utf8",
   );
-  const script = component.match(/<script[^>]*>([\s\S]*?)<\/script>/)?.[1];
-  assert.ok(script);
+  const instance = parse(component, { modern: true }).instance?.content as
+    | { start: number; end: number }
+    | undefined;
+  assert.ok(instance);
+  const script = component.slice(instance.start, instance.end);
   const source = ts.createSourceFile(
     "ComposerEditor.ts",
     script,
