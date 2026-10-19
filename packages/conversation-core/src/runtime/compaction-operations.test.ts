@@ -122,3 +122,64 @@ void test("bounded draft tails and failed terminals remain until replacement or 
   assert.ok(replacement.revision > failed.revision);
   operations.delete("conversation");
 });
+
+void test("requests coalesce across queued, running and stopping; begin preserves identity and resets request time", () => {
+  let time = "request";
+  const operations = new CompactionOperations(
+    () => {},
+    () => time,
+  );
+  operations.request("c", 4, "old-head");
+  const pending = operations.pending("c")!;
+  assert.equal(pending.afterInputSequence, 4);
+  assert.equal(pending.operation.status, "queued");
+  operations.assertIdle("c");
+  operations.request("c", 9, "ignored");
+  assert.deepEqual(operations.pending("c"), pending);
+  time = "begin";
+  const running = operations.begin("c", pending.operation.id, {
+    executionId: "execution",
+    headEventId: "new-head",
+  })!;
+  assert.equal(running.id, pending.operation.id);
+  assert.equal(running.startedAt, "begin");
+  assert.equal(running.headEventId, "new-head");
+  assert.equal(running.executionId, "execution");
+  assert.equal(operations.pending("c"), null);
+  operations.request("c", 10, null);
+  assert.deepEqual(operations.get("c"), running);
+  operations.cancelQueued("c");
+  assert.deepEqual(operations.get("c"), running);
+  operations.stopping("c", running.id);
+  const stopping = operations.get("c");
+  operations.request("c", 11, null);
+  assert.deepEqual(operations.get("c"), stopping);
+  operations.settle("c", running.id, { status: "cancelled" });
+  assert.equal(operations.pending("c"), null);
+});
+
+void test("queued cancellation and automatic takeover clear positions; delete permits a fresh request", () => {
+  const { operations } = setup();
+  operations.request("c", 4, "head");
+  operations.cancelQueued("c");
+  assert.equal(operations.get("c")?.status, "cancelled");
+  assert.ok(operations.get("c")?.endedAt);
+  assert.equal(operations.pending("c"), null);
+  operations.request("c", 8, "head");
+  const queued = operations.get("c")!;
+  const automatic = operations.start("c", "threshold", "new", "execution");
+  assert.equal(automatic.id, queued.id);
+  assert.equal(automatic.reason, "threshold");
+  assert.equal(automatic.status, "running");
+  assert.equal(operations.pending("c"), null);
+  operations.settle("c", automatic.id, {
+    status: "failed",
+    errorMessage: "failure",
+  });
+  assert.equal(operations.pending("c"), null);
+  operations.request("c", 12, null);
+  operations.delete("c");
+  assert.equal(operations.pending("c"), null);
+  operations.request("c", 16, null);
+  assert.equal(operations.pending("c")?.afterInputSequence, 16);
+});

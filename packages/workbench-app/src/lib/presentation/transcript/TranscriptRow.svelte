@@ -80,6 +80,7 @@ type Props = {
   ) => void | Promise<void>;
   onRejectPlanReview?: (toolCallId: string) => void | Promise<void>;
   onContinueFromFailure?: (runId: string) => void;
+  onCancelCompaction?: () => void;
   transcriptMenu: ConversationMenuBuilders["transcriptMenu"];
 };
 
@@ -114,6 +115,7 @@ let {
   onAcceptPlanReviewInNewChat,
   onRejectPlanReview,
   onContinueFromFailure,
+  onCancelCompaction,
   transcriptMenu,
 }: Props = $props();
 
@@ -321,7 +323,7 @@ $effect(() => {
         <div
           class="relative min-w-0 px-[calc(var(--conversation-content-inset,1.5rem)/2)]"
         >
-          <CompactionNoticeCard notice={node.notice} />
+          <CompactionNoticeCard notice={node.notice} {onCancelCompaction} />
         </div>
       </TranscriptContextMenu>
     {:else if node.kind === "task_event"}

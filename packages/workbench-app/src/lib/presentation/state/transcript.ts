@@ -140,7 +140,11 @@ export function compactionOperationNotice(
   if (operation.status === "completed") return undefined;
   // Failed/cancelled drafts stay on the branch they started from.
   const head = context.headEventId ?? null;
-  if (operation.status !== "running" && operation.status !== "stopping") {
+  if (
+    operation.status !== "queued" &&
+    operation.status !== "running" &&
+    operation.status !== "stopping"
+  ) {
     const onPath =
       head === operation.headEventId ||
       (context.pathEventIds !== undefined &&

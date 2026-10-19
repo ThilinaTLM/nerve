@@ -46,6 +46,7 @@ export class StatusService {
     private readonly emit: CoreEmitter,
     private readonly now: () => string,
     private readonly finished: (result: ExecutionFinished) => void,
+    private readonly processing: (id: string) => boolean,
   ) {}
   refresh(id: string): void {
     const conversation = this.storage.conversations.get(id);
@@ -60,7 +61,8 @@ export class StatusService {
       )
     )
       status = "waiting";
-    else if (executionIdFromEvent(last) || rows.length) status = "running";
+    else if (executionIdFromEvent(last) || rows.length || this.processing(id))
+      status = "running";
     else if (
       last?.type === "system_event" &&
       last.payload.subtype === "execution_state" &&

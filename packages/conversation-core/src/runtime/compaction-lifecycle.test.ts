@@ -146,9 +146,13 @@ void test("manual compaction snapshots real streaming and repair replacement, co
   ]);
   try {
     const compact = f.core.compact("conversation");
-    void compact.catch(() => {});
+    await compact;
     const started = f.core.getSnapshot("conversation").compaction!;
     assert.equal(started.status, "running");
+    assert.equal(
+      f.core.getSnapshot("conversation").conversation.status,
+      "running",
+    );
     assert.equal(started.reason, "manual");
     assert.equal(started.executionId, undefined);
     assert.equal(started.headEventId, "history_9");
@@ -162,24 +166,15 @@ void test("manual compaction snapshots real streaming and repair replacement, co
       () =>
         f.core.submitInput({
           conversationId: "conversation",
-          inputId: "blocked",
-          text: "Hello",
-          source: "user",
-        }),
-      /compacting/,
-    );
-    assert.throws(
-      () =>
-        f.core.submitInput({
-          conversationId: "conversation",
           inputId: "inline",
-          text: "/bash echo unsafe",
+          text: "!echo unsafe",
           source: "user",
         }),
       /compacting/,
     );
     assert.throws(() => f.core.selectHead("conversation", null), /compacting/);
-    await assert.rejects(f.core.compact("conversation"), /compacting/);
+    f.core.compact("conversation");
+    assert.equal(f.core.getSnapshot("conversation").compaction?.id, started.id);
     f.core.configure("conversation", { instructions: "Next request" });
     f.core.inputs.enqueueNotice({
       conversationId: "conversation",
@@ -205,7 +200,10 @@ void test("manual compaction snapshots real streaming and repair replacement, co
     assert.ok(repaired.revision > first.revision);
     assert.ok(!repaired.summaryPreview.includes("Invalid"));
     f.gates[1]!.resolve();
-    await compact;
+    await waitUntil(
+      () =>
+        f.core.getSnapshot("conversation").compaction?.status === "completed",
+    );
     const completed = f.core.getSnapshot("conversation").compaction!;
     assert.equal(completed.status, "completed");
     assert.equal(completed.eventId, started.id);
@@ -237,6 +235,9 @@ void test("manual compaction snapshots real streaming and repair replacement, co
         change.compaction.status === "completed",
     );
     assert.ok(eventIndex >= 0 && terminalIndex > eventIndex);
+    await waitUntil(
+      () => f.core.getSnapshot("conversation").conversation.status === "idle",
+    );
     await f.core.delete("conversation");
     await createConversation(f.core, "conversation");
     assert.equal(f.core.getSnapshot("conversation").compaction, null);
@@ -256,7 +257,7 @@ for (const outcome of ["failed", "cancelled"] as const) {
     );
     try {
       const compact = f.core.compact("conversation");
-      const rejected = assert.rejects(compact);
+      await compact;
       await waitUntil(
         () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
       );
@@ -272,7 +273,7 @@ for (const outcome of ["failed", "cancelled"] as const) {
             f.core.submitInput({
               conversationId: "conversation",
               inputId: "blocked",
-              text: "Hello",
+              text: "!echo unsafe",
               source: "user",
             }),
           /compacting/,
@@ -288,7 +289,9 @@ for (const outcome of ["failed", "cancelled"] as const) {
         assert.match(draft, /Repair/);
         f.gates[1]!.resolve();
       }
-      await rejected;
+      await waitUntil(
+        () => f.core.getSnapshot("conversation").compaction?.status === outcome,
+      );
       const terminal = f.core.getSnapshot("conversation").compaction!;
       assert.equal(terminal.status, outcome);
       assert.equal(terminal.summaryPreview, draft);
@@ -324,9 +327,9 @@ void test("stop immediately after acceptance settles a reserved manual operation
   const f = await fixture([{ type: "assistantText", text: summary }]);
   try {
     const compact = f.core.compact("conversation");
-    const rejected = assert.rejects(compact);
+    await compact;
     await f.core.stop("conversation");
-    await rejected;
+
     assert.equal(
       f.core.getSnapshot("conversation").compaction?.status,
       "cancelled",
@@ -414,18 +417,374 @@ void test("a Stop racing committed-event publication cannot turn completion into
   });
   try {
     const compact = f.core.compact("conversation");
-    void compact.catch(() => {});
+    await compact;
     await waitUntil(
       () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
     );
     f.gates[0]!.resolve();
-    await compact;
+    await waitUntil(
+      () =>
+        f.core.getSnapshot("conversation").compaction?.status === "completed",
+    );
     await stop;
     assert.equal(
       f.core.getSnapshot("conversation").compaction?.status,
       "completed",
     );
     assert.equal(f.core.getSnapshot("conversation").conversation.paused, true);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("prompts and wake notices accepted during compaction follow the checkpoint without idle", async () => {
+  const f = await fixture([
+    { type: "assistantText", text: summary },
+    { type: "assistantText", text: "Done" },
+  ]);
+  try {
+    assert.equal(f.core.compact("conversation"), undefined);
+    await waitUntil(
+      () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
+    );
+    f.core.submitInput({
+      conversationId: "conversation",
+      inputId: "during",
+      text: "Next",
+      source: "user",
+    });
+    f.core.inputs.enqueueNotice({
+      conversationId: "conversation",
+      inputId: "notice",
+      subtype: "sub_conversation_event",
+      producer: "child",
+      text: "Notice",
+      details: {
+        childConversationId: "child",
+        assignmentId: "assignment",
+        status: "completed",
+        assetIds: [],
+      },
+      wakeWhenIdle: true,
+    });
+    assert.equal(f.core.getSnapshot("conversation").queue.length, 2);
+    f.gates[0]!.resolve();
+    await waitUntil(() => f.gates.length === 2);
+    assert.ok(
+      f.changes
+        .filter((c) => c.kind === "conversation_changed")
+        .every((c) => c.summary.status === "running"),
+    );
+    f.gates[1]!.resolve();
+    await waitUntil(
+      () => f.core.getSnapshot("conversation").conversation.status === "idle",
+    );
+    const events = f.core.getEventsSince("conversation", 0);
+    const checkpoint = events.findIndex((e) => e.type === "compaction");
+    for (const input of ["during", "notice"]) {
+      assert.equal(events.filter((e) => e.inputId === input).length, 1);
+      assert.ok(events.findIndex((e) => e.inputId === input) > checkpoint);
+    }
+    assert.equal(f.gates.length, 2);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("paused compaction runs alone and preserves pause and held inputs", async () => {
+  const f = await fixture([{ type: "assistantText", text: summary }]);
+  try {
+    f.core.submitInput({
+      conversationId: "conversation",
+      inputId: "held",
+      text: "Held",
+      source: "user",
+      wakeWhenIdle: false,
+    });
+    f.core.pause("conversation");
+    f.core.compact("conversation");
+    await waitUntil(
+      () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
+    );
+    f.gates[0]!.resolve();
+    await waitUntil(
+      () => f.core.getSnapshot("conversation").conversation.status === "idle",
+    );
+    assert.equal(f.core.getSnapshot("conversation").conversation.paused, true);
+    assert.equal(f.core.getSnapshot("conversation").queue.length, 1);
+    assert.equal(f.gates.length, 1);
+    assert.equal(
+      f.core
+        .getEventsSince("conversation", 0)
+        .filter(
+          (e) =>
+            e.type === "system_event" &&
+            e.payload.subtype === "execution_state",
+        ).length,
+      0,
+    );
+  } finally {
+    await f.cleanup();
+  }
+});
+
+for (const cancel of ["stop", "forcePush", "cancelCompaction"] as const) {
+  void test(`${cancel} cancels a queued request during a model turn`, async () => {
+    const f = await fixture([
+      { type: "assistantText", text: "Final response" },
+    ]);
+    try {
+      f.core.continue("conversation");
+      await waitUntil(() => f.gates.length === 1);
+      f.core.compact("conversation");
+      const queued = f.core.getSnapshot("conversation").compaction!;
+      assert.equal(queued.status, "queued");
+      f.core.compact("conversation");
+      assert.equal(
+        f.core.getSnapshot("conversation").compaction?.id,
+        queued.id,
+      );
+      await f.core[cancel]("conversation");
+      assert.equal(
+        f.core.getSnapshot("conversation").compaction?.status,
+        "cancelled",
+      );
+      f.gates[0]!.resolve();
+      await waitUntil(
+        () => f.core.getSnapshot("conversation").conversation.status === "idle",
+      );
+      assert.equal(f.gates.length, 1);
+      assert.equal(
+        f.core
+          .getEventsSince("conversation", 0)
+          .filter((e) => e.type === "compaction").length,
+        0,
+      );
+    } finally {
+      await f.cleanup();
+    }
+  });
+}
+
+void test("final-turn request runs standalone after completion without another model turn", async () => {
+  const f = await fixture([
+    { type: "assistantText", text: "Final response" },
+    { type: "assistantText", text: summary },
+  ]);
+  try {
+    f.core.continue("conversation");
+    await waitUntil(() => f.gates.length === 1);
+    f.core.compact("conversation");
+    f.gates[0]!.resolve();
+    await waitUntil(
+      () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
+    );
+    assert.equal(
+      f.core.getSnapshot("conversation").compaction?.executionId,
+      undefined,
+    );
+    assert.ok(
+      f.changes
+        .filter((c) => c.kind === "conversation_changed")
+        .every((c) => c.summary.status === "running"),
+    );
+    f.gates[1]!.resolve();
+    await waitUntil(
+      () => f.core.getSnapshot("conversation").conversation.status === "idle",
+    );
+    const events = f.core.getEventsSince("conversation", 0);
+    const completed = events.findIndex(
+      (e) =>
+        e.type === "system_event" &&
+        e.payload.subtype === "execution_state" &&
+        e.payload.transition === "completed",
+    );
+    assert.ok(completed >= 0);
+    assert.ok(events.findIndex((e) => e.type === "compaction") > completed);
+    assert.equal(f.gates.length, 2);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+for (const fail of [false, true]) {
+  void test(`turn-boundary compaction ${fail ? "failure continues execution" : "orders A, checkpoint, B"}`, async () => {
+    const f = await fixture(
+      [
+        {
+          type: "toolCalls",
+          calls: [{ id: "tool", name: "bash", args: { command: "wait" } }],
+        },
+        { type: "assistantText", text: summary },
+        { type: "assistantText", text: "Done" },
+      ],
+      fail ? 1 : undefined,
+    );
+    const tool = deferred();
+    let executing = false;
+    f.opts.toolHost.execute = async () => {
+      executing = true;
+      await tool.promise;
+      return { kind: "completed", result: { content: "Done" } };
+    };
+    try {
+      f.core.continue("conversation");
+      await waitUntil(() => executing);
+      f.core.submitInput({
+        conversationId: "conversation",
+        inputId: "A",
+        text: "Before",
+        source: "user",
+      });
+      f.core.compact("conversation");
+      f.core.submitInput({
+        conversationId: "conversation",
+        inputId: "B",
+        text: "After",
+        source: "user",
+      });
+      tool.resolve();
+      await waitUntil(
+        () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
+      );
+      assert.ok(f.core.getSnapshot("conversation").compaction?.executionId);
+      f.gates[1]!.resolve();
+      await waitUntil(() => f.gates.length === 3);
+      f.gates[2]!.resolve();
+      await waitUntil(
+        () => f.core.getSnapshot("conversation").conversation.status === "idle",
+      );
+      const events = f.core.getEventsSince("conversation", 0);
+      assert.equal(
+        f.core.getSnapshot("conversation").compaction?.status,
+        fail ? "failed" : "completed",
+      );
+      const a = events.findIndex((e) => e.inputId === "A");
+      const b = events.findIndex((e) => e.inputId === "B");
+      assert.ok(a >= 0 && b > a);
+      if (!fail) {
+        const checkpoint = events.findIndex((e) => e.type === "compaction");
+        assert.ok(a < checkpoint && checkpoint < b);
+      }
+      assert.equal(
+        events.filter((e) => e.type === "assistant_message").length,
+        2,
+      );
+      assert.equal(f.gates.length, 3);
+    } finally {
+      tool.resolve();
+      await f.cleanup();
+    }
+  });
+}
+
+void test("standalone child compaction emits no execution or assignment-completed events", async () => {
+  const f = await fixture([{ type: "assistantText", text: summary }]);
+  try {
+    const config = f.core.getSnapshot("conversation").config;
+    await f.core.createConversation({
+      id: "child",
+      projectId: "proj_test",
+      parentConversationId: "conversation",
+      config: { ...config, permissionRuleSetId: "autonomous" },
+    });
+    for (const event of f.opts.storage.events.since("conversation", 0)) {
+      if (event.type !== "user_message") continue;
+      f.opts.storage.events.append({
+        id: `child_${event.id}`,
+        conversationId: "child",
+        type: "user_message",
+        llmRepresentation: "user",
+        turnId: null,
+        inputId: null,
+        payload: event.payload,
+        createdAt: event.createdAt,
+      });
+    }
+    let finished = 0;
+    f.core.onExecutionFinished(() => {
+      finished++;
+    });
+    const parentQueue = f.core.getSnapshot("conversation").queue;
+    f.core.compact("child");
+    await waitUntil(
+      () => !!f.core.getSnapshot("child").compaction?.summaryPreview,
+    );
+    f.gates[0]!.resolve();
+    await waitUntil(
+      () => f.core.getSnapshot("child").conversation.status === "idle",
+    );
+    assert.equal(finished, 0);
+    assert.equal(f.core.getSnapshot("child").compaction?.status, "completed");
+    assert.equal(
+      f.core
+        .getEventsSince("child", 0)
+        .filter(
+          (e) =>
+            e.type === "system_event" &&
+            e.payload.subtype === "execution_state",
+        ).length,
+      0,
+    );
+    assert.deepEqual(f.core.getSnapshot("conversation").queue, parentQueue);
+    assert.equal(f.gates.length, 1);
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("pending compaction bypasses pause with a waiting execution without resuming it", async () => {
+  const f = await fixture([{ type: "assistantText", text: summary }]);
+  try {
+    f.core.pause("conversation");
+    for (const [id, payload] of [
+      ["execution", { subtype: "execution_state", transition: "started" }],
+      [
+        "waiting",
+        {
+          subtype: "execution_state",
+          transition: "waiting",
+          executionId: "execution",
+        },
+      ],
+    ] as const) {
+      f.opts.storage.events.append({
+        id,
+        conversationId: "conversation",
+        type: "system_event",
+        llmRepresentation: "none",
+        turnId: null,
+        inputId: null,
+        payload,
+        createdAt: new Date().toISOString(),
+      });
+    }
+    f.core.compact("conversation");
+    await waitUntil(
+      () => !!f.core.getSnapshot("conversation").compaction?.summaryPreview,
+    );
+    f.gates[0]!.resolve();
+    await waitUntil(
+      () =>
+        f.core.getSnapshot("conversation").compaction?.status === "completed",
+    );
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(f.core.getSnapshot("conversation").conversation.paused, true);
+    assert.equal(
+      f.core.getSnapshot("conversation").compaction?.executionId,
+      undefined,
+    );
+    assert.equal(
+      f.core
+        .getEventsSince("conversation", 0)
+        .filter(
+          (e) =>
+            e.type === "system_event" &&
+            e.payload.subtype === "execution_state",
+        ).length,
+      2,
+    );
+    assert.equal(f.gates.length, 1);
   } finally {
     await f.cleanup();
   }

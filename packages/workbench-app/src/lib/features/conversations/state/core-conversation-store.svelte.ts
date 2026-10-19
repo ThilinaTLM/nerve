@@ -415,6 +415,12 @@ export class ConversationStore {
       conversationId: this.conversationId,
     });
   }
+  /** Cancels a queued (not yet running) compaction request. */
+  cancelCompaction(): Promise<null> {
+    return requestConversation("conversation.cancelCompaction", {
+      conversationId: this.conversationId,
+    });
+  }
   /** Cancels only the provider request and retries the same prepared context. */
   retryResponse(): Promise<null> {
     return requestConversation("conversation.retryResponse", {

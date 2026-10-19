@@ -7,7 +7,16 @@ export const compactionOperationSchema = z.object({
   /** Increases across operations in this conversation during the daemon lifetime. */
   revision: z.number().int().positive(),
   reason: z.enum(["manual", "threshold", "overflow"]),
-  status: z.enum(["running", "stopping", "completed", "failed", "cancelled"]),
+  /** `queued` is a pending manual request that runs at the next input boundary. */
+  status: z.enum([
+    "queued",
+    "running",
+    "stopping",
+    "completed",
+    "failed",
+    "cancelled",
+  ]),
+  /** Request time while queued; reset when the operation starts running. */
   startedAt: z.string().datetime(),
   endedAt: z.string().datetime().optional(),
   /** Existing execution for automatic compaction; manual compaction has none. */

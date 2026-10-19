@@ -117,15 +117,21 @@ export class ConversationCore {
         }
       }
     };
-    this.status = new StatusService(options.storage, publish, now, (result) => {
-      for (const listener of this.finishedListeners) {
-        try {
-          listener(result);
-        } catch {
-          /* Observers own their error reporting. */
+    this.status = new StatusService(
+      options.storage,
+      publish,
+      now,
+      (result) => {
+        for (const listener of this.finishedListeners) {
+          try {
+            listener(result);
+          } catch {
+            /* Observers own their error reporting. */
+          }
         }
-      }
-    });
+      },
+      (id) => this.scheduler?.isProcessing(id) ?? false,
+    );
     const emit = (change: CoreChange) => {
       if (
         change.kind === "event_appended" ||
@@ -379,9 +385,13 @@ export class ConversationCore {
   selectHead(id: string, eventId: string | null) {
     this.conversations.selectHead(id, eventId);
   }
-  async compact(id: string): Promise<void> {
-    this.conversations.assertQuiescent(id);
-    await this.scheduler.compact(id);
+  compact(id: string): void {
+    if (!this.options.storage.conversations.get(id))
+      throw new Error("Conversation not found");
+    this.scheduler.requestCompaction(id);
+  }
+  cancelCompaction(id: string): void {
+    this.scheduler.cancelCompaction(id);
   }
   delete(id: string) {
     return this.conversations.delete(id);
@@ -409,19 +419,19 @@ export class ConversationCore {
   ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
     const input = submitInputRequestSchema.parse(request);
     this.inputs.assertAcceptsSource(input.conversationId, input.source);
-    if (input.source === "user")
-      this.compactions.assertIdle(input.conversationId);
     const inline =
       input.source === "user"
         ? parseInlineCommandPrompt(input.text)
         : undefined;
-    if (inline)
+    if (inline) {
+      this.compactions.assertIdle(input.conversationId);
       return this.toolCalls.runUserCommand(
         input.conversationId,
         inline.command,
         true,
         { inputId: input.inputId, originalText: input.text },
       );
+    }
     if (
       this.options.storage.toolCalls
         .listAll()

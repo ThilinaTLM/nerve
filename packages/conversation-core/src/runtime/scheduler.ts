@@ -34,6 +34,9 @@ export class ConversationScheduler {
   isExecuting(id: string): boolean {
     return this.slots.has(id) || this.stopping.has(id);
   }
+  isProcessing(id: string): boolean {
+    return this.slots.has(id);
+  }
   wake(id: string): void {
     this.launch(id, false);
   }
@@ -50,7 +53,8 @@ export class ConversationScheduler {
     }
     if (this.options.toolCalls.openRows(id).length) return;
     const existing = openExecutionId(this.options.storage, id);
-    if (conversation.paused) {
+    const pending = this.options.compactions.pending(id);
+    if (!pending && conversation.paused) {
       // Restored reviews have no live runner. Complete them only after all sibling
       // tools settle; their later wakes must not leave a rejected execution open.
       const started = existing && this.options.storage.events.get(existing);
@@ -67,6 +71,7 @@ export class ConversationScheduler {
       return;
     }
     if (
+      !pending &&
       !explicit &&
       !existing &&
       (!this.options.inputs.list(id).some((input) => input.wakeWhenIdle) ||
@@ -80,38 +85,36 @@ export class ConversationScheduler {
     // Reserve synchronously, before the runner appends events or delivery emits a wake.
     const done = Promise.resolve()
       .then(() =>
-        this.options.runner.run(id, controller.signal, existing ?? undefined),
+        pending
+          ? this.options.runner.compactStandalone(id, controller.signal)
+          : this.options.runner.run(
+              id,
+              controller.signal,
+              existing ?? undefined,
+            ),
       )
       .finally(() => {
         this.slots.delete(id);
         if (!this.stopping.has(id)) this.wake(id);
+        if (!this.slots.has(id)) this.options.status.refresh(id);
       });
     this.slots.set(id, { controller, done });
+    this.options.status.refresh(id);
     // Provider failures are durable runner transitions, not unhandled promises.
     void done.catch(() => {});
   }
-  compact(id: string): Promise<void> {
-    if (this.isExecuting(id)) throw new Error("Conversation is executing");
-    this.options.compactions.assertIdle(id);
-    const controller = new AbortController();
-    const done = Promise.resolve()
-      .then(async () => {
-        await this.options.runner.compact(id, controller.signal, {
-          reason: "manual",
-          operation,
-        });
-      })
-      .finally(() => {
-        this.slots.delete(id);
-        if (!this.stopping.has(id)) this.wake(id);
-      });
-    this.slots.set(id, { controller, done });
-    const operation = this.options.compactions.start(
+  requestCompaction(id: string): void {
+    const conversation = this.options.storage.conversations.get(id);
+    if (!conversation) throw new Error("Conversation not found");
+    this.options.compactions.request(
       id,
-      "manual",
-      this.options.storage.conversations.get(id)?.headEventId ?? null,
+      conversation.nextInputSequence,
+      conversation.headEventId,
     );
-    return done;
+    this.wake(id);
+  }
+  cancelCompaction(id: string): void {
+    this.options.compactions.cancelQueued(id);
   }
   pause(id: string): void {
     this.setPaused(id, true);
@@ -140,6 +143,7 @@ export class ConversationScheduler {
     this.stopping.add(id);
     try {
       if (pause) this.setPaused(id, true);
+      this.options.compactions.cancelQueued(id);
       const slot = this.slots.get(id);
       const operation = this.options.compactions.get(id);
       if (operation) this.options.compactions.stopping(id, operation.id);
@@ -158,6 +162,7 @@ export class ConversationScheduler {
         });
     } finally {
       this.stopping.delete(id);
+      this.options.status.refresh(id);
     }
   }
   async stop(id: string): Promise<void> {

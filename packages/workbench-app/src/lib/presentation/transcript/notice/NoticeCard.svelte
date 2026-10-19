@@ -16,6 +16,8 @@ type Props = {
   bodyVisible?: boolean;
   /** Full content behind the collapsed body, opened from "View details". */
   details?: NoticeDetails;
+  /** Transient footer controls, e.g. cancelling a pending request. */
+  actions?: Snippet;
   children?: Snippet;
 };
 
@@ -24,6 +26,7 @@ let {
   layoutRevision = "static",
   bodyVisible = false,
   details,
+  actions,
   children,
 }: Props = $props();
 
@@ -57,6 +60,7 @@ const showBody = $derived(bodyVisible || summaryVisible);
   meta={notice.chips ?? []}
   {cardActions}
   primaryAction={notice.primaryAction}
+  {actions}
   bodyVisible={showBody}
   {layoutRevision}
 >

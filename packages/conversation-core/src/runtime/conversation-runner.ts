@@ -16,6 +16,7 @@ import {
   runCompaction,
   shouldCompact,
 } from "../context/index.js";
+import type { InputBoundary } from "../inputs/input-queue.service.js";
 import type { InputQueueService } from "../inputs/input-queue.service.js";
 import type { ModelPort } from "../ports.js";
 import type { CoreStorage } from "../storage/core-storage.js";
@@ -153,6 +154,63 @@ export class ConversationRunner {
       signal.removeEventListener("abort", stopping);
     }
   }
+  async compactPending(
+    id: string,
+    signal: AbortSignal,
+    executionId?: string,
+  ): Promise<ModelSelection | undefined> {
+    const pending = this.options.compactions.pending(id);
+    if (!pending) return;
+    const operation = this.options.compactions.begin(id, pending.operation.id, {
+      executionId,
+      headEventId:
+        this.options.storage.conversations.get(id)?.headEventId ?? null,
+    });
+    if (!operation) return;
+    return this.compact(id, signal, {
+      reason: "manual",
+      executionId,
+      operation,
+    });
+  }
+
+  async compactStandalone(id: string, signal: AbortSignal): Promise<void> {
+    try {
+      await this.compactPending(id, signal);
+    } catch (error) {
+      if (signal.aborted) throw error;
+    }
+  }
+
+  private async deliverAtBoundary(
+    id: string,
+    signal: AbortSignal,
+    boundary: InputBoundary,
+    executionId: string,
+  ): Promise<ModelSelection | undefined> {
+    const { inputs, status, storage } = this.options;
+    const pending = this.options.compactions.pending(id);
+    let model: ModelSelection | undefined;
+    if (pending) {
+      storage.transaction(() => {
+        inputs.deliver(id, boundary, {
+          beforeSequence: pending.afterInputSequence,
+        });
+        status.refresh(id);
+      });
+      try {
+        model = await this.compactPending(id, signal, executionId);
+      } catch (error) {
+        if (signal.aborted) throw error;
+      }
+    }
+    storage.transaction(() => {
+      inputs.deliver(id, boundary);
+      status.refresh(id);
+    });
+    return model;
+  }
+
   async run(
     id: string,
     signal: AbortSignal,
@@ -170,11 +228,14 @@ export class ConversationRunner {
     let transition: ExecutionFinished["transition"] = "completed";
     let failure: { message: string } | undefined;
     try {
-      if (!existingExecutionId)
-        storage.transaction(() => {
-          inputs.deliver(id, { kind: "execution_start", executionId });
-          status.refresh(id);
-        });
+      let boundaryModel = !existingExecutionId
+        ? await this.deliverAtBoundary(
+            id,
+            signal,
+            { kind: "execution_start", executionId },
+            executionId,
+          )
+        : undefined;
       while (true) {
         signal.throwIfAborted();
         // Pause blocks subsequent automatic turns, without discarding the current response.
@@ -186,15 +247,19 @@ export class ConversationRunner {
           });
           return;
         }
-        storage.transaction(() => {
-          inputs.deliver(id, { kind: "turn", executionId });
-          status.refresh(id);
-        });
+        const compactedAtTurn = await this.deliverAtBoundary(
+          id,
+          signal,
+          { kind: "turn", executionId },
+          executionId,
+        );
         const turnId = createId("turn");
         let overflowRetried = false;
         // Avoid repeated compaction without a provider attempt, but reconsider
         // capacity if preparation selects a different model after compaction.
-        let compactedModel: ModelSelection | undefined;
+        let compactedModel: ModelSelection | undefined =
+          compactedAtTurn ?? boundaryModel;
+        boundaryModel = undefined;
         let attempt = 1;
         const maxAttempts = 3;
         let message;

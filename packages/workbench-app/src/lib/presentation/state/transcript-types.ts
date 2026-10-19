@@ -8,6 +8,7 @@ import type { RunFailureCategory } from "$lib/presentation/view-models/conversat
 export type TranscriptDisplayKind = "message" | "thinking";
 
 export type CompactionNoticeState =
+  | "queued"
   | "running"
   | "completed"
   | "cancelled"

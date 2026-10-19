@@ -5,6 +5,7 @@ import type { CoreEmitter } from "./core-change.js";
 /** Runtime-only authority. Drafts and terminal failures intentionally do not survive restart. */
 export class CompactionOperations {
   private readonly operations = new Map<string, CompactionOperation>();
+  private readonly positions = new Map<string, number>();
   private readonly revisions = new Map<string, number>();
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -24,6 +25,61 @@ export class CompactionOperations {
       throw new Error("Conversation is compacting context");
   }
 
+  request(
+    conversationId: string,
+    afterInputSequence: number,
+    headEventId: string | null,
+  ): void {
+    const status = this.operations.get(conversationId)?.status;
+    if (status === "queued" || status === "running" || status === "stopping")
+      return;
+    this.operations.set(conversationId, {
+      id: createId("evt"),
+      revision: this.nextRevision(conversationId),
+      reason: "manual",
+      status: "queued",
+      startedAt: this.now(),
+      headEventId,
+      attempt: 1,
+      summaryPreview: "",
+    });
+    this.positions.set(conversationId, afterInputSequence);
+    this.publish(conversationId);
+  }
+
+  pending(
+    conversationId: string,
+  ): { operation: CompactionOperation; afterInputSequence: number } | null {
+    const operation = this.get(conversationId);
+    return operation?.status === "queued"
+      ? { operation, afterInputSequence: this.positions.get(conversationId)! }
+      : null;
+  }
+
+  begin(
+    conversationId: string,
+    id: string,
+    context: { executionId?: string; headEventId: string | null },
+  ): CompactionOperation | undefined {
+    const operation = this.operations.get(conversationId);
+    if (operation?.id !== id || operation.status !== "queued") return;
+    this.positions.delete(conversationId);
+    this.update(conversationId, {
+      ...context,
+      status: "running",
+      startedAt: this.now(),
+    });
+    this.publish(conversationId);
+    return this.get(conversationId)!;
+  }
+
+  cancelQueued(conversationId: string): void {
+    if (!this.pending(conversationId)) return;
+    this.positions.delete(conversationId);
+    this.update(conversationId, { status: "cancelled", endedAt: this.now() });
+    this.publish(conversationId);
+  }
+
   start(
     conversationId: string,
     reason: CompactionOperation["reason"],
@@ -32,7 +88,7 @@ export class CompactionOperations {
   ): CompactionOperation {
     this.assertIdle(conversationId);
     const operation: CompactionOperation = {
-      id: createId("evt"),
+      id: this.pending(conversationId)?.operation.id ?? createId("evt"),
       revision: this.nextRevision(conversationId),
       reason,
       status: "running",
@@ -42,6 +98,7 @@ export class CompactionOperations {
       summaryPreview: "",
       ...(executionId ? { executionId } : {}),
     };
+    this.positions.delete(conversationId);
     this.operations.set(conversationId, operation);
     this.publish(conversationId);
     return structuredClone(operation);
@@ -92,6 +149,7 @@ export class CompactionOperations {
       (operation.status !== "running" && operation.status !== "stopping")
     )
       return;
+    this.positions.delete(conversationId);
     this.update(conversationId, {
       status: result.status,
       endedAt: this.now(),
@@ -107,6 +165,7 @@ export class CompactionOperations {
   delete(conversationId: string): void {
     this.clearTimer(conversationId);
     this.operations.delete(conversationId);
+    this.positions.delete(conversationId);
     // Keep the counter: a caller may recreate the same conversation ID.
   }
 

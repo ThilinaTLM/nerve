@@ -216,7 +216,11 @@ export function createConversationProtocolSession(
       return null;
     },
     "conversation.compact": async ({ conversationId }) => {
-      await core.compact(conversationId);
+      core.compact(conversationId);
+      return null;
+    },
+    "conversation.cancelCompaction": async ({ conversationId }) => {
+      core.cancelCompaction(conversationId);
       return null;
     },
     "conversation.delete": async ({ conversationId }) => {

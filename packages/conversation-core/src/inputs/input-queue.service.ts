@@ -146,12 +146,13 @@ export class InputQueueService {
   deliver(
     conversationId: string,
     boundary: InputBoundary,
+    limit?: { beforeSequence?: number },
   ): ConversationEvent[] {
     const storage = this.options.storage;
     const events = storage.transaction(() => {
       if (storage.toolCalls.list(conversationId).length) return [];
       const delivered: ConversationEvent[] = [];
-      for (const row of this.eligible(conversationId, boundary)) {
+      for (const row of this.eligible(conversationId, boundary, limit)) {
         const common = {
           id: createId("evt"),
           conversationId,
@@ -269,6 +270,7 @@ export class InputQueueService {
   private eligible(
     conversationId: string,
     boundary: InputBoundary,
+    limit?: { beforeSequence?: number },
   ): QueuedInput[] {
     const queued = this.list(conversationId);
     if (!queued.length) return [];
@@ -294,6 +296,11 @@ export class InputQueueService {
     executionId = boundary.executionId ?? executionId;
     const rows: QueuedInput[] = [];
     for (const row of queued) {
+      if (
+        limit?.beforeSequence !== undefined &&
+        row.acceptanceSequence >= limit.beforeSequence
+      )
+        continue;
       const eligible =
         row.deliveryTarget === "next_turn" ||
         (row.deliveryTarget === "specific_execution" &&

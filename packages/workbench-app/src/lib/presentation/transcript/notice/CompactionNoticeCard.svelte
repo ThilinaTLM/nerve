@@ -1,5 +1,7 @@
 <script lang="ts">
 import { compactionAccountingSchema } from "@nervekit/contracts/core";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import X from "@lucide/svelte/icons/x";
 import type { CompactionNotice } from "../../state/transcript-types";
 import { formatTokens } from "@nervekit/ui-kit/display/usage";
 import ResultCodeBlock from "../../tools/tool-call/ResultCodeBlock.svelte";
@@ -17,9 +19,15 @@ import type { NoticeChip } from "./notice-presentation";
 
 type Props = {
   notice: CompactionNotice;
+  /** Cancels a pending (queued) request; running compaction uses Stop. */
+  onCancelCompaction?: () => void;
 };
 
-let { notice }: Props = $props();
+let { notice, onCancelCompaction }: Props = $props();
+
+const cancelable = $derived(
+  notice.state === "queued" && Boolean(onCancelCompaction),
+);
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object"
@@ -131,6 +139,9 @@ const errorMessage = $derived(
 );
 
 const summary = $derived.by(() => {
+  if (notice.state === "queued") {
+    return "Compaction pending. It runs at the next safe point.";
+  }
   if (notice.state === "running" && !previewText) {
     return notice.stopping
       ? "Stopping compaction…"
@@ -172,16 +183,29 @@ const layoutRevision = $derived(
       previewVisible: previewText.length > 0,
     }),
     errorVisible: Boolean(errorMessage),
-    footerItemCount: chips.length + (summaryDetails ? 1 : 0),
+    footerItemCount:
+      chips.length + (summaryDetails ? 1 : 0) + (cancelable ? 1 : 0),
   }),
 );
 </script>
+
+{#snippet cancelAction()}
+  <Button
+    variant="ghost"
+    size="icon-sm"
+    ariaLabel="Cancel compaction"
+    onclick={() => onCancelCompaction?.()}
+  >
+    <X aria-hidden="true" />
+  </Button>
+{/snippet}
 
 <NoticeCard
   notice={model}
   {layoutRevision}
   {bodyVisible}
   details={summaryDetails}
+  actions={cancelable ? cancelAction : undefined}
 >
   <ResultCodeBlock
     code={previewText}
