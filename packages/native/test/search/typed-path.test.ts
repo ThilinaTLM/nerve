@@ -1,94 +1,114 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  createFileCompletionIndex,
-  createSearchIndex,
-  type FileCompletionCandidateInput,
-} from "../../src/index.js";
+import { createSearchIndex } from "../../src/index.js";
 
-function candidate(
-  path: string,
-  kind: "file" | "directory" = "file",
-): FileCompletionCandidateInput {
-  const segments = path.split("/"),
-    name = segments.at(-1)!;
-  return {
-    relativePath: path,
-    segments,
-    name,
-    stem:
-      kind === "file" && name.includes(".")
-        ? name.slice(0, name.lastIndexOf("."))
-        : name,
-    kind,
-    depth: segments.length,
-  };
-}
-test("ordinary typed file/directory/Unicode paths share legacy scores and matching", async () => {
-  for (const [path, kind, queries] of [
-    ["src/fooBar.ts", "file", ["fooBar", "foo", "sr/fb", "fb sr", "src/f"]],
-    ["src/folder", "directory", ["folder", "src/f", "src/", "src/folder/"]],
-    ["😀/hello.ts", "file", ["hello", "😀/he", "ts"]],
-    ["ΟΣ.txt", "file", ["ος", "ΟΣ", "txt"]],
-    ["x/\ud800.ts", "file", ["\ud800", "ts"]],
+test("typed paths preserve ranking and source UTF16 ranges", async () => {
+  for (const [path, queries] of [
+    [
+      "src/fooBar.ts",
+      [
+        ["fooBar", 18178, [[4, 10]]],
+        ["foo", 12126.375, [[4, 7]]],
+        [
+          "sr/fb",
+          13309.375,
+          [
+            [0, 2],
+            [4, 5],
+            [7, 8],
+          ],
+        ],
+        [
+          "fb sr",
+          13309.375,
+          [
+            [0, 2],
+            [4, 5],
+            [7, 8],
+          ],
+        ],
+        ["src/f", 16047.35, [[0, 5]]],
+      ],
+    ],
+    [
+      "src/folder/",
+      [
+        ["folder", 18038, [[4, 10]]],
+        ["src/f", 15907.5, [[0, 5]]],
+        ["src/", 16367.5, [[0, 4]]],
+        ["src/folder/", null, []],
+      ],
+    ],
+    [
+      "😀/hello.ts",
+      [
+        ["hello", 18178, [[3, 8]]],
+        ["😀/he", 16047.45, [[0, 5]]],
+        ["ts", 11316.625, [[9, 11]]],
+      ],
+    ],
+    [
+      "ΟΣ.txt",
+      [
+        ["ος", 18179, [[0, 2]]],
+        ["ΟΣ", 18179, [[0, 2]]],
+        ["txt", 11363.25, [[3, 6]]],
+      ],
+    ],
+    [
+      "x/\ud800.ts",
+      [
+        ["\ud800", 18178, [[2, 3]]],
+        ["ts", 11357.25, [[4, 6]]],
+      ],
+    ],
   ] as const) {
-    const file = await createFileCompletionIndex([candidate(path, kind)]),
-      typed = await createSearchIndex();
+    const index = await createSearchIndex();
     try {
-      await typed.update({
+      await index.update({
         upsert: [
           {
-            id: "file:opaque",
+            id: "opaque",
             kind: "opaque",
-            fields: [
-              { key: "path", text: path + (kind === "directory" ? "/" : "") },
-            ],
+            fields: [{ key: "path", text: path }],
           },
         ],
         remove: [],
       });
-      for (const text of queries) {
-        const legacy = await file.query(text),
-          result = (await typed.query({ text })).items;
-        assert.equal(result.length, legacy.length, `${path} / ${text}`);
-        if (!legacy.length) continue;
-        assert.equal(
-          result[0]!.lexicalScore,
-          legacy[0]!.score,
-          `${path} / ${text}`,
-        );
+      for (const [text, score, ranges] of queries) {
+        const result = (await index.query({ text })).items;
         assert.deepEqual(
-          result[0]!.matches[0]!.ranges,
-          legacy[0]!.matchRanges.map(([start, end]) => [start - 1, end - 1]),
+          result,
+          score === null
+            ? []
+            : [
+                {
+                  id: "opaque",
+                  lexicalScore: score,
+                  matches: [{ fieldIndex: 0, score, ranges }],
+                },
+              ],
           `${path} / ${text}`,
         );
       }
     } finally {
-      await file.close();
-      await typed.close();
+      await index.close();
     }
   }
 });
 test("typed path highlights map JS casing expansion to original UTF16, including expanded queries", async () => {
-  const file = await createFileCompletionIndex([candidate("src/İ.ts")]),
-    typed = await createSearchIndex();
+  const typed = await createSearchIndex();
   try {
     await typed.update({
       upsert: [
         {
-          id: "file:opaque",
+          id: "opaque",
           kind: "opaque",
           fields: [{ key: "path", text: "src/İ.ts" }],
         },
       ],
       remove: [],
     });
-    const legacy = (await file.query("ts"))[0]!;
-    assert.deepEqual(
-      legacy.matchRanges,
-      [[8, 10]],
-      "legacy coordinate quirk intentionally stays unchanged",
-    );
     for (const [text, ranges] of [
       ["ts", [[6, 8]]],
       ["İ", [[4, 5]]],
@@ -96,83 +116,44 @@ test("typed path highlights map JS casing expansion to original UTF16, including
       ["İ.ts", [[4, 8]]],
       ["src/İ.t", [[0, 7]]],
       ["src/İ.ts", [[0, 8]]],
-    ] as const) {
-      const result = (await typed.query({ text })).items[0]!;
-      assert.deepEqual(result.matches[0]!.ranges, ranges, text);
-      assert.equal(
-        result.lexicalScore,
-        (await file.query(text))[0]!.score,
+    ] as const)
+      assert.deepEqual(
+        (await typed.query({ text })).items[0]!.matches[0]!.ranges,
+        ranges,
         text,
       );
-    }
   } finally {
-    await file.close();
     await typed.close();
   }
 });
-test("typed ties use opaque UTF16 IDs rather than legacy host-locale/input ordering", async () => {
-  const candidates = [candidate("src/aa.ts"), candidate("src/AA.ts")];
-  const file = await createFileCompletionIndex(candidates),
-    typed = await createSearchIndex();
+test("typed ties use opaque UTF16 IDs and empty queries have neutral scores", async () => {
+  const typed = await createSearchIndex();
   try {
-    const legacy = await file.query("ts");
-    assert.equal(legacy[0]!.score, legacy[1]!.score);
     await typed.update({
-      upsert: candidates.map((c, i) => ({
-        id: i === legacy[0]!.candidateIndex ? "z" : "a",
+      upsert: ["src/aa.ts", "src/AA.ts"].map((text, i) => ({
+        id: i === 0 ? "z" : "a",
         kind: "opaque",
-        fields: [{ key: "path" as const, text: c.relativePath }],
+        fields: [{ key: "path" as const, text }],
       })),
       remove: [],
     });
-    assert.deepEqual(
-      (await typed.query({ text: "ts" })).items.map((item) => item.id),
-      ["a", "z"],
-    );
-    const empty = await typed.query({ text: "" });
-    assert.deepEqual(
-      empty.items.map((item) => item.id),
-      ["a", "z"],
-    );
-    assert.ok(
-      empty.items.every((item) => item.lexicalScore === 0),
-      "typed empty query is neutral, not file listing policy",
-    );
+    for (const text of ["ts", ""]) {
+      const result = await typed.query({ text });
+      assert.deepEqual(
+        result.items.map((item) => item.id),
+        ["a", "z"],
+      );
+      assert.equal(
+        result.items[0]!.lexicalScore,
+        result.items[1]!.lexicalScore,
+      );
+      if (!text)
+        assert.ok(result.items.every((item) => item.lexicalScore === 0));
+    }
   } finally {
-    await file.close();
     await typed.close();
   }
 });
-test("noncanonical name/stem/depth metadata belongs only to the legacy adapter", async () => {
-  const source = {
-    ...candidate("real/file.ts"),
-    name: "Custom.ts",
-    stem: "Different",
-    depth: 8,
-  };
-  const file = await createFileCompletionIndex([source]),
-    typed = await createSearchIndex();
-  try {
-    const field = {
-      key: "path" as const,
-      text: source.relativePath,
-      stem: source.stem,
-      name: source.name,
-      depth: source.depth,
-    };
-    await typed.update({
-      upsert: [{ id: "file:opaque", kind: "opaque", fields: [field] }],
-      remove: [],
-    });
-    assert.equal((await file.query("Different")).length, 1);
-    assert.deepEqual((await typed.query({ text: "Different" })).items, []);
-    assert.equal((await typed.query({ text: "file" })).items.length, 1);
-  } finally {
-    await file.close();
-    await typed.close();
-  }
-});
-
 test("length-expanding query maps correctly even when the stored path itself does not expand", async () => {
   const typed = await createSearchIndex();
   try {
@@ -201,21 +182,19 @@ test("length-expanding query maps correctly even when the stored path itself doe
   }
 });
 
-test("typed exact-basename ties prefer path brevity before opaque IDs without changing scores or legacy order", async () => {
-  const candidates = [
-    candidate("long-directory/Composer.ts"),
-    candidate("q/Composer.ts"),
-    candidate("p/Composer.ts"),
+test("typed exact-basename ties prefer path brevity before opaque IDs", async () => {
+  const paths = [
+    "long-directory/Composer.ts",
+    "q/Composer.ts",
+    "p/Composer.ts",
   ];
-  const file = await createFileCompletionIndex(candidates),
-    typed = await createSearchIndex();
+  const typed = await createSearchIndex();
   try {
-    const before = await file.query("Composer.ts");
     await typed.update({
-      upsert: candidates.map((c, i) => ({
+      upsert: paths.map((text, i) => ({
         id: ["a:long", "z:short", "b:short"][i]!,
         kind: "file",
-        fields: [{ key: "path", text: c.relativePath }],
+        fields: [{ key: "path" as const, text }],
       })),
       remove: [],
     });
@@ -224,20 +203,14 @@ test("typed exact-basename ties prefer path brevity before opaque IDs without ch
       result.items.map((item) => item.id),
       ["b:short", "z:short", "a:long"],
     );
-    assert.ok(
-      result.items.every((item) => item.lexicalScore === before[0]!.score),
-    );
-    assert.deepEqual(await file.query("Composer.ts"), before);
+    assert.ok(result.items.every((item) => item.lexicalScore === 18178));
     for (const item of result.items) {
-      const source =
-        candidates[["a:long", "z:short", "b:short"].indexOf(item.id)]!
-          .relativePath;
+      const source = paths[["a:long", "z:short", "b:short"].indexOf(item.id)]!;
       assert.deepEqual(item.matches[0]!.ranges, [
         [source.lastIndexOf("/") + 1, source.length],
       ]);
     }
   } finally {
-    await file.close();
     await typed.close();
   }
 });

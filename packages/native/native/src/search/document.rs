@@ -4,7 +4,6 @@ use std::sync::atomic::AtomicBool;
 
 type Result<T> = std::result::Result<T, &'static str>;
 pub const MAX_SOURCE_UNITS: usize = 64 * 1024 * 1024;
-pub const MAX_DOCUMENTS: usize = 1_000_000; // Unchanged legacy file candidate cap.
 pub const MAX_TYPED_DOCUMENTS: usize = 200_000;
 pub const MAX_CHANGES: usize = 400_000;
 pub const MAX_FIELDS: usize = 400_000;
@@ -13,44 +12,35 @@ pub const MAX_DOCUMENT_TEXT: usize = 65536;
 
 #[derive(Default)]
 pub struct PathInput {
-    pub name: Option<Text>,
-    pub stem: Option<Text>,
     pub lower: Option<Text>,
     pub name_lower: Option<Text>,
     pub stem_lower: Option<Text>,
-    pub segments: Option<Vec<Text>>,
     pub segments_lower: Option<Vec<Text>>,
 }
 
 impl Candidate {
-    pub fn compact(
-        path: Text,
-        directory: bool,
-        locale_rank: u32,
-        depth: Option<u32>,
-        input: PathInput,
-    ) -> Result<Self> {
+    pub fn compact(path: Text, directory: bool, input: PathInput) -> Result<Self> {
         let path_lower = input
             .lower
             .filter(|lower| *lower != path)
             .unwrap_or_else(|| path.ascii_lower());
-        let segments = input.segments.unwrap_or_else(|| path.split_path());
+        let segments = path.split_path();
         let segments_lower = input
             .segments_lower
             .unwrap_or_else(|| path_lower.split_path());
-        let name = input.name.unwrap_or_else(|| {
+        let name = {
             segments
                 .last()
                 .cloned()
                 .unwrap_or_else(|| Vec::new().into())
-        });
+        };
         let name_lower = input.name_lower.unwrap_or_else(|| {
             segments_lower
                 .last()
                 .cloned()
                 .unwrap_or_else(|| Vec::new().into())
         });
-        let stem = input.stem.unwrap_or_else(|| derive_stem(&name, directory));
+        let stem = derive_stem(&name, directory);
         let stem_lower = input
             .stem_lower
             .unwrap_or_else(|| derive_stem(&name_lower, directory));
@@ -64,18 +54,11 @@ impl Candidate {
             name_lower,
             stem,
             stem_lower,
-            depth: depth.unwrap_or(segments.len() as u32),
+            depth: segments.len() as u32,
             segments,
             segments_lower,
             directory,
-            locale_rank,
         })
-    }
-    pub fn source_units(&self) -> usize {
-        self.path.len()
-            + self.name.len()
-            + self.stem.len()
-            + self.segments.iter().map(|s| s.len()).sum::<usize>()
     }
 }
 fn derive_stem(name: &Text, directory: bool) -> Text {
@@ -249,14 +232,11 @@ fn aligned_candidate(candidate: &Candidate, alignment: &Alignment) -> Result<Can
     Candidate::compact(
         alignment.value.clone(),
         candidate.directory,
-        0,
-        Some(candidate.depth),
         PathInput {
             lower: Some(candidate.path_lower.clone()),
             name_lower: Some(candidate.name_lower.clone()),
             stem_lower: Some(candidate.stem_lower.clone()),
             segments_lower: Some(candidate.segments_lower.clone()),
-            ..PathInput::default()
         },
     )
 }
@@ -311,21 +291,17 @@ impl Field {
             }))
     }
     fn remap_ranges(&self, ranges: &mut Vec<[u32; 2]>) {
-        let (alignment, length, path) = match self {
+        let (alignment, length) = match self {
             Self::Path {
                 alignment,
                 source_length,
                 ..
-            } => (alignment, *source_length, true),
+            } => (alignment, *source_length),
             Self::Text {
                 alignment, value, ..
-            } => (alignment, value.len(), false),
+            } => (alignment, value.len()),
         };
         ranges.retain_mut(|range| {
-            if path {
-                range[0] = range[0].saturating_sub(1);
-                range[1] = range[1].saturating_sub(1);
-            }
             if let Some(alignment) = alignment {
                 alignment.map_range(range);
             }
@@ -532,7 +508,6 @@ pub struct QueryResult {
 
 #[derive(Default)]
 pub struct Engine {
-    pub files: Vec<Candidate>,
     documents: Vec<Document>,
     positions: HashMap<Vec<u16>, usize>,
     staged: Vec<Document>,
@@ -573,17 +548,6 @@ impl Engine {
         }
     }
 
-    pub fn append_files(&mut self, files: Vec<Candidate>) -> Result<()> {
-        let units = files.iter().map(Candidate::source_units).sum::<usize>();
-        if self.files.len() + files.len() > MAX_DOCUMENTS
-            || self.source_units + units > MAX_SOURCE_UNITS
-        {
-            return Err("Completion index source bound exceeded");
-        }
-        self.files.extend(files);
-        self.source_units += units;
-        Ok(())
-    }
     pub fn stage(
         &mut self,
         documents: Vec<Document>,
@@ -946,14 +910,8 @@ mod tests {
     fn typed_ties_use_shortest_path_then_id_with_a_nonpath_sentinel() {
         let flag = AtomicBool::new(false);
         let path = |value: &str| Field::Path {
-            candidate: Candidate::compact(
-                units(value).into(),
-                false,
-                0,
-                None,
-                PathInput::default(),
-            )
-            .unwrap(),
+            candidate: Candidate::compact(units(value).into(), false, PathInput::default())
+                .unwrap(),
             alignment: None,
             source_length: value.len(),
         };
@@ -1282,12 +1240,10 @@ mod boundary_tests {
         }
     }
     #[test]
-    fn typed_path_maps_expanding_case_offsets_without_changing_legacy_scores() {
+    fn typed_path_maps_expanding_case_offsets_and_preserves_scores() {
         let candidate = Candidate::compact(
             u("src/İ.ts"),
             false,
-            0,
-            None,
             PathInput {
                 lower: Some(u("src/i\u{307}.ts")),
                 ..PathInput::default()
@@ -1349,14 +1305,8 @@ mod boundary_tests {
         );
         assert_eq!(field.records(), 6); // Field + two original/lower segment views + one sparse span.
         let literal = Field::Path {
-            candidate: Candidate::compact(
-                u("src/i\u{307}.ts"),
-                false,
-                0,
-                None,
-                PathInput::default(),
-            )
-            .unwrap(),
+            candidate: Candidate::compact(u("src/i\u{307}.ts"), false, PathInput::default())
+                .unwrap(),
             alignment: None,
             source_length: 9,
         };
@@ -1407,8 +1357,6 @@ mod optimization_tests {
             candidate: Candidate::compact(
                 u("src/İ.ts"),
                 false,
-                0,
-                None,
                 PathInput {
                     lower: Some(u("src/i\u{307}.ts")),
                     ..PathInput::default()
@@ -1502,7 +1450,7 @@ mod optimization_tests {
             let mut expected: Vec<[u32; 2]> = ranges
                 .iter()
                 .filter_map(|r| {
-                    let mut mapped = [r[0].saturating_sub(1), r[1].saturating_sub(1)];
+                    let mut mapped = *r;
                     if let Field::Path {
                         alignment: Some(alignment),
                         ..

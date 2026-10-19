@@ -32,7 +32,6 @@ const document = (i: number, changed = false) => ({
 async function trial(
   count: number,
   label: string,
-  mode: string,
   modulePath: string,
   limits: number[],
   trialNumber: number,
@@ -60,27 +59,18 @@ async function trial(
   };
   globalThis.gc?.();
   const startRss = process.memoryUsage().rss;
-  let file: Native.FileCompletionIndex | undefined,
-    typed: Native.SearchIndex | undefined;
+  let typed: Native.SearchIndex;
   const build = await measure(async () => {
-    if (mode === "typed") {
-      typed = await native.createSearchIndex();
-      await typed.update({
-        upsert: Array.from({ length: count }, (_, i) => document(i)),
-        remove: [],
-      });
-    } else
-      file = await native.createFileCompletionIndex(
-        Array.from({ length: count }, (_, i) => candidate(i)),
-      );
+    typed = await native.createSearchIndex();
+    await typed.update({
+      upsert: Array.from({ length: count }, (_, i) => document(i)),
+      remove: [],
+    });
   });
   globalThis.gc?.();
   const retainedRss = process.memoryUsage().rss;
-  const query = (
-    text: string,
-    limit: number,
-  ): Promise<Native.SearchResult | Native.FileCompletionMatch[]> =>
-    typed ? typed.query({ text, limit }) : file!.query(text, { limit });
+  const query = (text: string, limit: number): Promise<Native.SearchResult> =>
+    typed.query({ text, limit });
   // Untimed warmup for each budget. Limit order rotates across isolated trials.
   const orderedLimits = limits.map(
     (_, i) => limits[(i + trialNumber) % limits.length]!,
@@ -98,9 +88,7 @@ async function trial(
         const digest = createHash("sha256")
           .update(JSON.stringify(measured.value))
           .digest("hex");
-        const returned = Array.isArray(measured.value)
-          ? measured.value.length
-          : measured.value.items.length;
+        const returned = measured.value.items.length;
         queries.push({
           text,
           limit,
@@ -118,27 +106,19 @@ async function trial(
     }
   }
   const update = await measure(async () => {
-    if (typed)
-      await typed.update({
-        upsert: Array.from({ length: 100 }, (_, i) => document(i, true)),
-        remove: [],
-      });
-    else {
-      const next = await native.createFileCompletionIndex(
-        Array.from({ length: count }, (_, i) => candidate(i, i < 100)),
-      );
-      await file!.close();
-      file = next;
-    }
+    await typed.update({
+      upsert: Array.from({ length: 100 }, (_, i) => document(i, true)),
+      remove: [],
+    });
   });
   globalThis.gc?.();
   const updatedRss = process.memoryUsage().rss;
-  const dispose = await measure(() => (typed ? typed.close() : file!.close()));
+  const dispose = await measure(() => typed.close());
   globalThis.gc?.();
   clearInterval(heartbeat);
   return {
     label,
-    mode,
+    mode: "typed",
     platform: `${process.platform}-${process.arch}`,
     node: process.version,
     count,
@@ -166,20 +146,18 @@ if (process.argv[2] === "--child") {
         Number(process.argv[3]),
         process.argv[4]!,
         process.argv[5]!,
-        process.argv[6]!,
-        process.argv[7]!.split(",").map(Number),
+        process.argv[6]!.split(",").map(Number),
+        Number(process.argv[7]),
         Number(process.argv[8]),
-        Number(process.argv[9]),
       ),
     ),
   );
 } else {
   const label = process.argv[2] ?? "unlabelled",
     output = process.argv[3] ?? `/tmp/nerve-search-query-${label}.jsonl`,
-    mode = process.argv[4] ?? "typed",
-    modulePath = process.argv[5] ?? "src/search/index.ts",
-    limits = process.argv[6] ?? "8,64,256";
-  const pilot = process.argv[7] === "--pilot";
+    modulePath = process.argv[4] ?? "src/search/index.ts",
+    limits = process.argv[5] ?? "8,64,256";
+  const pilot = process.argv[6] === "--pilot";
   const rows = [];
   for (const count of pilot ? [100000] : [20000, 100000]) {
     for (let i = 0; i < (pilot ? 1 : 9); i++) {
@@ -193,7 +171,6 @@ if (process.argv[2] === "--child") {
           "--child",
           String(count),
           label,
-          mode,
           modulePath,
           limits,
           String(i),

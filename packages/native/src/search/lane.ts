@@ -1,9 +1,7 @@
-import type { NativeFileCompletionIndexHandle } from "./binding.js";
+import type { NativeSearchIndexHandle } from "./binding.js";
 
 /** One bounded lane across reads and updates; revisions cannot interleave mid-update. */
-export function createLane(
-  handle: Pick<NativeFileCompletionIndexHandle, "close">,
-) {
+export function createLane(handle: Pick<NativeSearchIndexHandle, "close">) {
   const cancellation = new AbortController();
   let closed = false;
   let closing: Promise<void> | undefined;

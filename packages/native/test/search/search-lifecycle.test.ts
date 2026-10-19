@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { getEventListeners } from "node:events";
 import test from "node:test";
 import type {
-  NativeFileCompletionIndexHandle,
+  NativeSearchIndexHandle,
   NativeSearchDocument,
 } from "../../src/search/binding.js";
 import { wrapSearchIndex } from "../../src/search/search-index.js";
@@ -33,8 +33,7 @@ function fake() {
   const check = () => {
     if (state.closed) throw new Error("closed");
   };
-  const handle: NativeFileCompletionIndexHandle = {
-    build: async () => 0,
+  const handle: NativeSearchIndexHandle = {
     async stage(documents, remove) {
       check();
       state.stages++;
@@ -63,7 +62,6 @@ function fake() {
       state.remove = [];
       return ++state.revision;
     },
-    query: async () => [],
     search: async () => {
       check();
       return { revision: state.revision, items: [] };
