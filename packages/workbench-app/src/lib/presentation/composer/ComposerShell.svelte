@@ -117,7 +117,7 @@ let {
     </div>
 
     <div
-      class="flex items-center gap-0.5 px-1.5 pb-1.5"
+      class="@container/composer-toolbar flex items-center gap-0.5 px-1.5 pb-1.5"
       data-tour-id="composer-controls"
     >
       {@render toolbar()}

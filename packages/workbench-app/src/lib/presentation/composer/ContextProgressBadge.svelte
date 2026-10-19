@@ -243,7 +243,9 @@ function requestCompact(): void {
         {:else}
           <ProgressRing percent={ringPercent} tone={ringTone} />
         {/if}
-        {#if showPercentText}<span class="ctx-percent">{percentLabel}</span
+        {#if showPercentText}<span
+            class="ctx-percent @max-[380px]/composer-toolbar:hidden"
+            >{percentLabel}</span
           >{/if}
       </span>
     {/snippet}

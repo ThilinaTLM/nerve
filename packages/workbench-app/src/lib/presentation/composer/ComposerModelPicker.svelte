@@ -155,7 +155,7 @@ $effect(() => {
   {open}
   onOpenChange={handleOpenChange}
   size="md"
-  triggerClass="composer-tab model-tab"
+  triggerClass="composer-tab flex-initial overflow-hidden"
   ariaLabel="Model and thinking level"
   {triggerTitle}
   side="top"
@@ -169,7 +169,8 @@ $effect(() => {
       data-tour-id="composer-model"
     >
       <span class="model-tab-label">{triggerLabel}</span>
-      {#if triggerShortSuffix}<span class="model-tab-suffix max-sm:hidden"
+      {#if triggerShortSuffix}<span
+          class="model-tab-suffix @max-[560px]/composer-toolbar:hidden"
           >({triggerShortSuffix})</span
         >{/if}
     </span>
@@ -268,7 +269,8 @@ $effect(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  max-width: clamp(7rem, 22vw, 16rem);
+  min-width: 0;
+  max-width: 100%;
   color: inherit;
 }
 
@@ -277,6 +279,7 @@ $effect(() => {
 }
 
 .model-tab-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -285,12 +288,5 @@ $effect(() => {
 .model-tab-suffix {
   flex: none;
   color: var(--muted-foreground);
-}
-
-@media (max-width: 639px) {
-  .model-tab-inner {
-    max-width: clamp(5.75rem, 34vw, 9rem);
-    gap: 0.22rem;
-  }
 }
 </style>

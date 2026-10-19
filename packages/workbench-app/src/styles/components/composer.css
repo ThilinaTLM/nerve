@@ -11,6 +11,7 @@
     justify-content: center;
     gap: 0.25rem;
     height: var(--spacing-control);
+    flex: none;
     min-width: 0;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
@@ -46,8 +47,9 @@
     cursor: default;
   }
 
-  /* Phones: tighter chip padding keeps the model name readable. */
-  @media (max-width: 639px) {
+  /* Narrow composers (split panes, phones): tighter chip padding. Sizes follow
+   * the composer's own width, not the viewport. */
+  @container composer-toolbar (max-width: 440px) {
     .composer-tab {
       padding: 0 0.375rem;
     }

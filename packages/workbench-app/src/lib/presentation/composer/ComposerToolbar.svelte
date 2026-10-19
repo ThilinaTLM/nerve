@@ -241,7 +241,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     <Paperclip />
   </Button>
   <span
-    class="mx-0.5 h-4 w-px flex-none bg-border max-sm:hidden"
+    class="mx-0.5 h-4 w-px flex-none bg-border @max-[440px]/composer-toolbar:hidden"
     aria-hidden="true"
   ></span>
 {/if}
@@ -263,7 +263,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     {:else}
       <Code2 aria-hidden="true" />
     {/if}
-    <span class="max-sm:hidden">{modeLabel}</span>
+    <span class="@max-[500px]/composer-toolbar:hidden">{modeLabel}</span>
   </button>
 {/if}
 
@@ -304,7 +304,8 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       {:else}
         <Shield />
       {/if}
-      {#if showPermissionLabel}<span class="max-sm:hidden"
+      {#if showPermissionLabel}<span
+          class="@max-[440px]/composer-toolbar:hidden"
           >{activePermission.name}</span
         >{/if}
     </span>
