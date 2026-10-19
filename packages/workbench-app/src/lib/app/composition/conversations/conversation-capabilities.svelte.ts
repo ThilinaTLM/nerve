@@ -26,7 +26,8 @@ import {
   getFileContent,
   uploadAttachment,
 } from "$lib/features/filesystem/api/filesystem.api";
-import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { notify } from "$lib/application/notifications/notify.svelte";
+import { resolveDroppedFiles } from "./dropped-files";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
@@ -88,19 +89,19 @@ export function workbenchConversationUiCapabilities(
     },
     askReply: {
       pasteImage: uploadAttachment,
-      dropFiles: async (files) => {
+      dropFiles: (files) => {
         const bridge = getDesktopBridge();
         const project = workspaceState.projects.find(
           (item) => item.id === selection.projectId,
         );
-        if (!bridge?.files || !project) {
-          throw new Error("Native file paths are unavailable in this window.");
-        }
-        return resolveDroppedPaths(
-          files,
-          project.directory,
-          bridge.files.getPathForFile,
-        );
+        return resolveDroppedFiles(files, {
+          getPathForFile: bridge?.files?.getPathForFile,
+          projectDir: project?.directory,
+          upload: uploadAttachment,
+          notifyError: (title, description) =>
+            notify.error(title, { description }),
+          notifyInfo: (message) => notify.message(message),
+        });
       },
       slashCompletions: () => conversationCatalog.slashCompletions,
       fileCompletions: completeFiles,

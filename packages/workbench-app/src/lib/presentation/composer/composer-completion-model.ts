@@ -144,6 +144,8 @@ export type PopupRow = {
   /** Skills/tools/agent profiles can be turned on/off in place. */
   toggleable: boolean;
   reason?: string;
+  /** Hover text: the server's `info` (source label, full path/URL…). */
+  title?: string;
   /** Exact text written into the prompt on accept. */
   insert: string;
   /** Chip label after insertion. */
@@ -277,6 +279,7 @@ export function toPopupRow(item: CompletionItem): PopupRow {
     badge,
     toggleable: isToggleable(item),
     reason: item.unavailableReason,
+    title: item.info,
     insert,
     chipLabel: isPath ? name : name,
     mono: isPath,
@@ -379,6 +382,7 @@ export function buildSlashGroups(
       groupId: label,
       name: command,
       meta: item.detail,
+      title: item.info,
       state: "ready",
       toggleable: false,
       insert: item.label,

@@ -7,6 +7,7 @@ import {
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import type { ComposerEditorApi } from "../composer/composer-editor-api.js";
+import { pathMentionReference } from "../composer/composer-path-references.js";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
 import ComposerShell from "../composer/ComposerShell.svelte";
 import ComposerToolbar from "../composer/ComposerToolbar.svelte";
@@ -72,33 +73,20 @@ function handleEditorReady(api: ComposerEditorApi): void {
   actions.onEditorReady?.(api);
 }
 
-function basename(path: string): string {
-  const trimmed = path.replace(/^"|"$/g, "").replace(/[\\/]+$/, "");
-  return (
-    trimmed.slice(
-      Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\")) + 1,
-    ) || trimmed
-  );
-}
-
 async function attachFiles(files: File[]): Promise<void> {
   const attach = actions.onAttachFile;
   if (!attach || !editorApi) return;
   const settled = await Promise.allSettled(files.map((file) => attach(file)));
-  const references = settled.flatMap((result, index) => {
-    if (result.status !== "fulfilled") return [];
-    const file = files[index]!;
-    return [
-      {
-        insert: result.value,
-        label: file.name || basename(result.value),
-        kind: file.type.startsWith("image/")
-          ? ("image" as const)
-          : ("file" as const),
-        title: result.value,
-      },
-    ];
-  });
+  const references = settled.flatMap((result, index) =>
+    result.status === "fulfilled"
+      ? [
+          pathMentionReference(
+            result.value,
+            files[index]!.type.startsWith("image/") ? "image" : undefined,
+          ),
+        ]
+      : [],
+  );
   if (references.length > 0) editorApi.insertReferences(references);
 }
 

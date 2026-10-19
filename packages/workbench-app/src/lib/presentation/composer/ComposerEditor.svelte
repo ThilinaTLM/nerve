@@ -66,6 +66,7 @@ import {
   composerMentionChips,
   insertMentionsTransaction,
 } from "./composer-mention-chips";
+import { pathMentionReference } from "./composer-path-references";
 import { composerEditorTheme } from "./composer-editor-theme";
 type Props = {
   value: string;
@@ -257,19 +258,26 @@ function insertAtRange(text: string, from?: number, to?: number) {
   view.focus();
 }
 
-function insertDroppedPaths(
+/** Insert path mentions as chips (`@path`), replacing `selection` when given. */
+function insertPathMentions(
   paths: readonly string[],
-  selection: { from: number; to: number },
+  selection?: { from: number; to: number },
+  hint?: "image",
 ): void {
   if (!view || paths.length === 0) return;
-  const doc = view.state.doc;
-  const from = Math.min(selection.from, doc.length);
-  const to = Math.min(selection.to, doc.length);
-  const before = from > 0 ? doc.sliceString(from - 1, from) : "";
-  const after = to < doc.length ? doc.sliceString(to, to + 1) : "";
-  const leadingSpace = before && !/\s/.test(before) ? " " : "";
-  const trailingSpace = after && !/\s/.test(after) ? " " : "";
-  insertAtRange(`${leadingSpace}${paths.join(" ")}${trailingSpace}`, from, to);
+  const length = view.state.doc.length;
+  const range = selection && {
+    from: Math.min(selection.from, length),
+    to: Math.min(selection.to, length),
+  };
+  view.dispatch(
+    insertMentionsTransaction(
+      view.state,
+      paths.map((path) => pathMentionReference(path, hint)),
+      range,
+    ),
+  );
+  view.focus();
 }
 
 function hasNativeFileItems(dataTransfer: DataTransfer | null): boolean {
@@ -329,7 +337,7 @@ function handleFileDrop(event: DragEvent): void {
   if (internalPayload) {
     const entries = parseProjectEntryDrag(internalPayload);
     if (entries) {
-      insertDroppedPaths(formatProjectEntryReferences(entries), { from, to });
+      insertPathMentions(formatProjectEntryReferences(entries), { from, to });
     }
     return;
   }
@@ -338,7 +346,7 @@ function handleFileDrop(event: DragEvent): void {
   const files = Array.from(event.dataTransfer?.files ?? []);
   if (files.length === 0) return;
   void onDropFiles(files)
-    .then((paths) => insertDroppedPaths(paths, { from, to }))
+    .then((paths) => insertPathMentions(paths, { from, to }))
     .catch((error: unknown) => {
       console.error("Failed to resolve dropped file paths", error);
     });
@@ -352,7 +360,7 @@ function handlePaste(event: ClipboardEvent) {
   if (!files.length) return false;
   event.preventDefault();
   void Promise.all(files.map((file) => onPasteImage(file)))
-    .then((paths) => insertAtRange(paths.join("\n")))
+    .then((paths) => insertPathMentions(paths, undefined, "image"))
     .catch((error: unknown) => {
       console.error("Failed to paste clipboard image", error);
     });

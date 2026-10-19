@@ -3,6 +3,7 @@ import {
   type Extension,
   type Range,
   type TransactionSpec,
+  Transaction,
   StateEffect,
   StateField,
 } from "@codemirror/state";
@@ -12,6 +13,7 @@ import {
   EditorView,
   WidgetType,
 } from "@codemirror/view";
+import { invertedEffects } from "@codemirror/commands";
 import type { ComposerReference } from "./composer-editor-api";
 
 /** One accepted mention: `[from, to)` in the document is the serialized text. */
@@ -34,7 +36,89 @@ type MentionChipState = {
  * the document *after* the transaction carrying the effect. Overlapping
  * existing chips are replaced.
  */
-export const addMentionEffect = StateEffect.define<MentionChip>();
+export const addMentionEffect = StateEffect.define<MentionChip>({
+  map(chip, mapping) {
+    const from = mapping.mapPos(chip.from, 1);
+    const to = mapping.mapPos(chip.to, -1);
+    return to > from ? { ...chip, from, to } : undefined;
+  },
+});
+
+export type RecognizedMention = MentionChip;
+
+const IMAGE_EXTENSION = /\.(png|jpe?g|gif|webp|svg|bmp|avif|heic)$/i;
+const FILE_EXTENSION = /\.[A-Za-z][A-Za-z0-9]{0,7}$/;
+const GITHUB_URL =
+  /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(pull|issues)\/(\d+)\/?$/;
+const NAMED = /^(skill|tool|agent|launch):([\w][\w.:/-]*)$/;
+const NUMBERED = /^(pr|issue):(\d+)$/;
+const PATH_BODY = /^[\w.~+/-]+$/;
+
+function recognizeBody(
+  body: string,
+): Pick<MentionChip, "kind" | "label"> | undefined {
+  const named = NAMED.exec(body);
+  if (named) {
+    const kind = {
+      skill: "skill",
+      tool: "tool",
+      agent: "subagent_profile",
+      launch: "launch_definition",
+    }[named[1] as "skill" | "tool" | "agent" | "launch"] as MentionChip["kind"];
+    return { kind, label: named[2]! };
+  }
+  const numbered = NUMBERED.exec(body);
+  if (numbered) {
+    return {
+      kind: numbered[1] === "pr" ? "pull_request" : "issue",
+      label: `#${numbered[2]}`,
+    };
+  }
+  const url = GITHUB_URL.exec(body);
+  if (url) {
+    return {
+      kind: url[1] === "pull" ? "pull_request" : "issue",
+      label: `#${url[2]}`,
+    };
+  }
+  if (!PATH_BODY.test(body) || body.includes("//")) return undefined;
+  const isDirectory = body.endsWith("/");
+  const segments = body.split("/").filter(Boolean);
+  const base = segments.at(-1);
+  if (!base || base === "." || base === "..") return undefined;
+  if (isDirectory) return { kind: "directory", label: base };
+  if (!body.includes("/") && !FILE_EXTENSION.test(base)) return undefined;
+  if (!/[A-Za-z0-9]/.test(base)) return undefined;
+  return {
+    kind: IMAGE_EXTENSION.test(base) ? "image" : "file",
+    label: base,
+  };
+}
+
+/**
+ * Pure recognizer for mention tokens in `text` (offsets relative to `text`).
+ * A token starts at text start or after whitespace with `@`, and ends at
+ * whitespace/end (trailing sentence punctuation is left outside the chip).
+ * Conservative: bare `@word`, emails and mid-word `@` never match.
+ */
+export function recognizeMentions(text: string): RecognizedMention[] {
+  const found: RecognizedMention[] = [];
+  const token = /(?<![^\s])@(\S+)/g;
+  for (let match = token.exec(text); match; match = token.exec(text)) {
+    const body = match[1]!.replace(/[.,;:!?)\]}'"]+$/, "");
+    if (!body) continue;
+    const recognized = recognizeBody(body);
+    if (!recognized) continue;
+    const from = match.index;
+    found.push({
+      from,
+      to: from + 1 + body.length,
+      ...recognized,
+      title: body,
+    });
+  }
+  return found;
+}
 
 // Same Lucide path data as the suggestion popup (composer-editor-completions).
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -171,32 +255,102 @@ function withChips(chips: readonly MentionChip[]): MentionChipState {
   return { chips, decorations: buildDecorations(chips) };
 }
 
+type Edit = {
+  fromA: number;
+  toA: number;
+  fromB: number;
+  toB: number;
+};
+
+function editsOf(tr: Transaction): Edit[] {
+  const edits: Edit[] = [];
+  tr.changes.iterChangedRanges((fromA, toA, fromB, toB) =>
+    edits.push({ fromA, toA, fromB, toB }),
+  );
+  return edits;
+}
+
+/**
+ * A chip survives edits outside its text, and edits at its edges that keep the
+ * token boundary intact (whitespace/newline next to it). Anything that deletes,
+ * replaces, lands inside it, or glues non-whitespace onto it invalidates it.
+ */
+function survives(chip: MentionChip, edits: readonly Edit[], tr: Transaction) {
+  return !edits.some(({ fromA, toA, fromB, toB }) => {
+    if (fromA < chip.to && toA > chip.from) return true;
+    if (fromA === toA && fromA > chip.from && fromA < chip.to) return true;
+    const inserted = tr.newDoc.sliceString(fromB, toB);
+    if (!inserted) return false;
+    if (fromA === chip.to && !/^\s/.test(inserted)) return true;
+    if (toA === chip.from && !/\s$/.test(inserted)) return true;
+    return false;
+  });
+}
+
+const isWhitespace = (char: string) => /\s/.test(char);
+
+/**
+ * Mentions in text that arrived without going through completion: pastes,
+ * drops, and programmatic replacement (draft restore, prompt clear/replace).
+ * Typing is excluded so a half-typed `@src/a.t` never turns into a chip.
+ */
+function recognizeInserted(tr: Transaction, edits: readonly Edit[]) {
+  const recognizable =
+    tr.isUserEvent("input.paste") ||
+    tr.isUserEvent("input.drop") ||
+    tr.annotation(Transaction.userEvent) === undefined;
+  if (!recognizable) return [];
+  const doc = tr.newDoc;
+  const found: MentionChip[] = [];
+  for (const edit of edits) {
+    if (edit.toB <= edit.fromB) continue;
+    let from = edit.fromB;
+    while (from > 0 && !isWhitespace(doc.sliceString(from - 1, from))) from--;
+    let to = edit.toB;
+    while (to < doc.length && !isWhitespace(doc.sliceString(to, to + 1))) to++;
+    for (const mention of recognizeMentions(doc.sliceString(from, to))) {
+      found.push({
+        ...mention,
+        from: mention.from + from,
+        to: mention.to + from,
+      });
+    }
+  }
+  return found;
+}
+
+function addChip(chips: readonly MentionChip[], added: MentionChip) {
+  return [
+    ...chips.filter((chip) => chip.to <= added.from || chip.from >= added.to),
+    added,
+  ].sort((left, right) => left.from - right.from);
+}
+
 const mentionChipField = StateField.define<MentionChipState>({
-  create: () => withChips([]),
+  // Initial documents (reload, draft restore) never pass through a
+  // transaction, so recognize their mentions here.
+  create: (state) => withChips(recognizeMentions(state.doc.toString())),
   update(value, tr) {
     let chips = value.chips;
     let changed = false;
-    if (tr.docChanged && chips.length > 0) {
-      const edits: Array<[number, number]> = [];
-      tr.changes.iterChangedRanges((fromA, toA) => edits.push([fromA, toA]));
-      const next: MentionChip[] = [];
-      for (const chip of chips) {
-        // Any edit that deletes, replaces, or lands strictly inside the
-        // mention text invalidates the chip; edits at its edges do not.
-        const touched = edits.some(([fromA, toA]) =>
-          fromA === toA
-            ? fromA > chip.from && fromA < chip.to
-            : fromA < chip.to && toA > chip.from,
-        );
-        if (touched) continue;
-        next.push({
-          ...chip,
-          from: tr.changes.mapPos(chip.from, 1),
-          to: tr.changes.mapPos(chip.to, -1),
-        });
+    if (tr.docChanged) {
+      const edits = editsOf(tr);
+      if (chips.length > 0) {
+        chips = chips
+          .filter((chip) => survives(chip, edits, tr))
+          .map((chip) => ({
+            ...chip,
+            from: tr.changes.mapPos(chip.from, 1),
+            to: tr.changes.mapPos(chip.to, -1),
+          }));
+        changed = true;
       }
-      chips = next;
-      changed = true;
+      if (!tr.effects.some((effect) => effect.is(addMentionEffect))) {
+        for (const mention of recognizeInserted(tr, edits)) {
+          chips = addChip(chips, mention);
+          changed = true;
+        }
+      }
     }
     for (const effect of tr.effects) {
       if (!effect.is(addMentionEffect)) continue;
@@ -208,17 +362,22 @@ const mentionChipField = StateField.define<MentionChipState>({
       ) {
         continue;
       }
-      chips = [
-        ...chips.filter(
-          (chip) => chip.to <= added.from || chip.from >= added.to,
-        ),
-        added,
-      ].sort((left, right) => left.from - right.from);
+      chips = addChip(chips, added);
       changed = true;
     }
     return changed ? withChips(chips) : value;
   },
   provide: (field) => [
+    // Undo/redo: chips lost by a transaction come back when it is reverted.
+    invertedEffects.of((tr) => {
+      if (!tr.docChanged) return [];
+      const before = tr.startState.field(field, false)?.chips ?? [];
+      if (before.length === 0) return [];
+      const edits = editsOf(tr);
+      return before
+        .filter((chip) => !survives(chip, edits, tr))
+        .map((chip) => addMentionEffect.of(chip));
+    }),
     EditorView.decorations.from(field, (value) => value.decorations),
     EditorView.atomicRanges.of((view) => view.state.field(field).decorations),
   ],

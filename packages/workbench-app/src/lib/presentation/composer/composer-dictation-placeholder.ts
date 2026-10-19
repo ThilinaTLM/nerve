@@ -9,6 +9,7 @@ import {
   Decoration,
   type DecorationSet,
   EditorView,
+  ViewPlugin,
   WidgetType,
   keymap,
 } from "@codemirror/view";
@@ -105,6 +106,10 @@ const placeholderField = StateField.define<Placeholder | null>({
       let crossed = false;
       tr.changes.iterChangedRanges((fromA, toA) => {
         if (fromA < next!.pos && toA > next!.pos) crossed = true;
+        // Replacing or clearing the whole document (prompt sent, draft
+        // swapped) removes the chip even when it sits at either edge.
+        const oldLength = tr.startState.doc.length;
+        if (oldLength > 0 && fromA === 0 && toA === oldLength) crossed = true;
       });
       // Typing at the chip's position goes after it, so the caret stays put.
       next = crossed ? null : { ...next, pos: tr.changes.mapPos(next.pos, -1) };
@@ -175,6 +180,15 @@ const removalListener = EditorView.updateListener.of((update) => {
   if (!requested) for (const listener of listeners) listener();
 });
 
+/** A destroyed view can no longer be dispatched to: deactivate its handle. */
+const destroyListener = ViewPlugin.define((view) => ({
+  destroy() {
+    const handle = handles.get(view);
+    handles.delete(view);
+    handle?.listeners.clear();
+  },
+}));
+
 const removeOnBackspace = Prec.high(
   keymap.of([
     {
@@ -196,6 +210,18 @@ const removeOnBackspace = Prec.high(
   ]),
 );
 
+/**
+ * While a placeholder exists the document may be empty, so the editor's own
+ * "Ask…" placeholder would render next to the chip; the theme hides it under
+ * this class.
+ */
+export const DICTATING_CLASS = "cm-nerve-dictating";
+
+const dictatingAttributes = EditorView.editorAttributes.from(
+  placeholderField,
+  (value): Record<string, string> => (value ? { class: DICTATING_CLASS } : {}),
+);
+
 /** Installs the placeholder widget field, Backspace removal, and tracking. */
 export function composerDictationPlaceholder(): Extension {
   return [
@@ -203,6 +229,8 @@ export function composerDictationPlaceholder(): Extension {
     caretPlacedField,
     removalListener,
     removeOnBackspace,
+    destroyListener,
+    dictatingAttributes,
   ];
 }
 
@@ -242,9 +270,15 @@ function createHandle(view: EditorView): InternalHandle {
       const lead = before && !/\s/.test(before) ? " " : "";
       const tail = after && !/\s/.test(after) ? " " : "";
       const insert = `${lead}${trimmed}${tail}`;
+      // Only move the caret when it was at the chip; if the user moved on,
+      // CodeMirror maps their selection through the insertion.
+      const sel = view.state.selection.main;
+      const caretAtChip = sel.empty && sel.head === pos;
       view.dispatch({
         changes: { from: pos, insert },
-        selection: { anchor: pos + lead.length + trimmed.length + tail.length },
+        selection: caretAtChip
+          ? { anchor: pos + lead.length + trimmed.length + tail.length }
+          : undefined,
         effects: clearPlaceholder.of(null),
         userEvent: "input.dictation",
         scrollIntoView: true,

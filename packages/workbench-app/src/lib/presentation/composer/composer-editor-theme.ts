@@ -80,6 +80,7 @@ export const composerEditorTheme = EditorView.theme({
     justifyContent: "flex-start",
     fontVariantNumeric: "tabular-nums",
   },
+  "&.cm-nerve-dictating .cm-placeholder": { display: "none" },
   ".cm-dictation-label": { flex: "1" },
   ".cm-dictation-time": { color: "var(--muted-foreground)" },
   ".cm-dictation-icon": {

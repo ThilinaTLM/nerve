@@ -34,7 +34,7 @@ import {
 } from "$lib/application/commands/command-registry";
 import type { PromptComposerProps } from "$lib/features/conversations/views/prompt-composer-props";
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
-import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
+import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   getCapabilityConfiguration,
@@ -521,14 +521,13 @@ async function pasteImage(file: File): Promise<string> {
 async function dropFiles(files: readonly File[]): Promise<readonly string[]> {
   try {
     const bridge = getDesktopBridge();
-    if (!bridge?.files || !activeProject) {
-      throw new Error("Native file paths are unavailable in this window.");
-    }
-    return resolveDroppedPaths(
-      files,
-      activeProject.dir,
-      bridge.files.getPathForFile,
-    );
+    return await resolveDroppedFiles(files, {
+      getPathForFile: bridge?.files?.getPathForFile,
+      projectDir: activeProject?.dir,
+      upload: uploadAttachment,
+      notifyError: (title, description) => notify.error(title, { description }),
+      notifyInfo: (message) => notify.message(message),
+    });
   } catch (caught) {
     const description =
       caught instanceof Error ? caught.message : String(caught);
@@ -734,7 +733,7 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilities: {
       voice: true,
       imagePaste: true,
-      fileDrop: fileDropSupported,
+      fileDrop: true,
       completions: true,
       suggestions: true,
       shortcuts: true,
@@ -765,7 +764,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onResetCapabilities: () => void resetCapabilities(),
     onRefreshCapabilities: () => void capabilityController.refresh(),
     onPasteImage: pasteImage,
-    onDropFiles: fileDropSupported ? dropFiles : undefined,
+    onDropFiles: dropFiles,
     onAttachFile: attachFile,
     onSlashCommand: runSlashCommand,
     onCompletionAction: handleCompletionAction,
@@ -779,7 +778,7 @@ function handleMicContextMenu(event: MouseEvent) {
   {#snippet header()}
     <div
       bind:this={headerEl}
-      class="@container/conversation-activity mx-px flex min-w-0 items-start justify-between gap-2 px-2.5"
+      class="@container/conversation-activity flex min-w-0 items-start justify-between gap-2"
       style:--conversation-activity-width={`${activityWidth}px`}
     >
       <div class="min-w-0 flex-1 overflow-hidden">

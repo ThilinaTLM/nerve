@@ -93,6 +93,9 @@ export class ComposerDictationBridge implements ComposerDictation {
 
   sync(state: DictationSessionState): void {
     if (state.recording || state.transcribing) {
+      // A failed chip only restarts with a new recording (mic retry); late
+      // transcribing updates from the failing operation must not revive it.
+      if (this.#failed && !state.recording) return;
       // A late transcript already consumed the chip; never start a new one.
       if (!state.recording && !this.#handle?.active) return;
       const handle = this.#ensureHandle();

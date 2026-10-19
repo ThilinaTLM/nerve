@@ -673,7 +673,7 @@ function cycleMic() {
 
     <GallerySpecimen
       title="VoiceMicButton"
-      description="Toolbar mic shows state only: mic (idle), destructive stop (recording), X (transcribing). Progress lives in the editor's dictation chip, never next to the button."
+      description="Toolbar mic is an outline icon button (pairs with the filled Send) and shows state only: mic (idle), destructive stop (recording), X (transcribing). Progress lives in the editor's dictation chip, never next to the button."
       source="presentation/composer/VoiceMicButton"
       usage="2 files · composer, ask-user"
     >

@@ -7,6 +7,7 @@ import {
 } from "@codemirror/state";
 import { EditorView, type ViewUpdate } from "@codemirror/view";
 import {
+  DICTATING_CLASS,
   composerDictationPlaceholder,
   dictationPlaceholderPosition,
   startDictation,
@@ -112,5 +113,61 @@ describe("composer dictation placeholder", () => {
     assert.equal(handle.active, false);
     assert.equal(removed, 0);
     assert.equal(view.state.doc.toString(), "abc");
+  });
+
+  it("flags the editor while a placeholder exists (hides the empty-prompt hint)", () => {
+    const attrs = (view: EditorView) =>
+      view.state
+        .facet(EditorView.editorAttributes)
+        .map((value) => (typeof value === "function" ? value(view) : value))
+        .map((value) => value?.class)
+        .filter(Boolean);
+    const view = fakeView("");
+    assert.deepEqual(attrs(view), []);
+    const handle = startDictation(view);
+    assert.deepEqual(attrs(view), [DICTATING_CLASS]);
+    handle.update("transcribing", 1000);
+    assert.deepEqual(attrs(view), [DICTATING_CLASS]);
+    handle.update("failed", 1000);
+    assert.deepEqual(attrs(view), [DICTATING_CLASS]);
+    handle.cancel();
+    assert.deepEqual(attrs(view), []);
+    startDictation(view).resolve("hi");
+    assert.deepEqual(attrs(view), []);
+  });
+
+  it("resolve keeps the caret where the user moved it", () => {
+    const view = fakeView("abc def");
+    placeCaret(view, 3);
+    const handle = startDictation(view);
+    // User moves on and types at the end.
+    view.dispatch({ selection: { anchor: 7 }, userEvent: "select" });
+    view.dispatch({
+      changes: { from: 7, insert: "!" },
+      selection: { anchor: 8 },
+    });
+    handle.resolve("x");
+    assert.equal(view.state.doc.toString(), "abc x def!");
+    assert.equal(view.state.selection.main.head, 10);
+  });
+
+  it("resolve moves the caret after the text when it was at the chip", () => {
+    const view = fakeView("abc");
+    const handle = startDictation(view);
+    handle.resolve("x");
+    assert.equal(view.state.doc.toString(), "abc x");
+    assert.equal(view.state.selection.main.head, 5);
+  });
+
+  it("replacing or clearing the whole document removes the chip", () => {
+    for (const insert of ["", "new text"]) {
+      const view = fakeView("abc");
+      const handle = startDictation(view); // at the end, pos === length
+      let removed = 0;
+      handle.onRemoved(() => removed++);
+      view.dispatch({ changes: { from: 0, to: 3, insert } });
+      assert.equal(handle.active, false);
+      assert.equal(removed, 1);
+    }
   });
 });

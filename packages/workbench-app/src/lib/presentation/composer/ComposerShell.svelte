@@ -133,7 +133,7 @@ let {
         {#if showStop}
           <Button
             variant="destructive"
-            size="icon-sm"
+            size="icon"
             type="button"
             disabled={stopDisabled || stopping}
             onclick={onAbort}
@@ -149,7 +149,7 @@ let {
           </Button>
         {/if}
         <Button
-          size="icon-sm"
+          size="icon"
           type="submit"
           disabled={submitDisabled}
           aria-label={sendAriaLabel}
@@ -167,7 +167,15 @@ let {
   display: grid;
   gap: 0.55rem;
   background: transparent;
-  padding: 0.65rem;
+  /* Card, suggestion chips and activity island share the transcript content
+   * column: its inset (viewport + row padding) and scrollbar lane come from
+   * ConversationPaneLayout; standalone uses fall back to a plain inset. */
+  padding-block: 0.65rem;
+  padding-inline-start: var(--conversation-content-inset, 0.65rem);
+  padding-inline-end: calc(
+    var(--conversation-content-inset, 0.65rem) +
+      var(--conversation-scrollbar-lane, 0px)
+  );
 }
 
 /* One card: notice, text, then the single bottom toolbar. Nothing floats on

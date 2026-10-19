@@ -228,7 +228,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   />
   <Button
     variant="ghost"
-    size="icon-sm"
+    size="icon"
     type="button"
     disabled={attachDisabled}
     ariaLabel="Attach images or files"
@@ -240,7 +240,10 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   >
     <Paperclip />
   </Button>
-  <span class="mx-0.5 h-4 w-px flex-none bg-border" aria-hidden="true"></span>
+  <span
+    class="mx-0.5 h-4 w-px flex-none bg-border max-sm:hidden"
+    aria-hidden="true"
+  ></span>
 {/if}
 
 {#if !modeHidden}
@@ -256,9 +259,9 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     onclick={() => onToggleMode?.()}
   >
     {#if modePlanning}
-      <ClipboardList size={13} strokeWidth={2.2} aria-hidden="true" />
+      <ClipboardList aria-hidden="true" />
     {:else}
-      <Code2 size={13} strokeWidth={2.2} aria-hidden="true" />
+      <Code2 aria-hidden="true" />
     {/if}
     <span class="max-sm:hidden">{modeLabel}</span>
   </button>
@@ -280,7 +283,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 <Popover
   bind:open={permissionOpen}
   size="sm"
-  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-7 p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
+  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
   ariaLabel="Permission rule set"
   triggerTitle={permissionShortcut
     ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
@@ -295,11 +298,11 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       data-tour-id="composer-permission"
     >
       {#if activePermission.id === "read_only"}
-        <Lock size={13} strokeWidth={2.2} />
+        <Lock />
       {:else if activePermission.id === "autonomous"}
-        <Zap size={13} strokeWidth={2.2} />
+        <Zap />
       {:else}
-        <Shield size={13} strokeWidth={2.2} />
+        <Shield />
       {/if}
       {#if showPermissionLabel}<span class="max-sm:hidden"
           >{activePermission.name}</span
@@ -309,7 +312,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   <PopoverHeader title="Permissions">
     {#snippet actions()}
       <Button
-        size="icon-sm"
+        size="icon"
         variant="ghost"
         disabled={permissionRuleSetsLoading}
         ariaLabel="Refresh permission rule sets"
@@ -322,7 +325,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
         />
       </Button>
       <Button
-        size="icon-sm"
+        size="icon"
         variant="ghost"
         ariaLabel="Open permission settings"
         title="Open permission settings"

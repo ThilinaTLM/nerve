@@ -14,7 +14,7 @@ type Props = {
   /** Accessible label for the idle state; recording/transcribing are fixed. */
   idleLabel: string;
   shortcutAria?: string;
-  /** Toolbar placement: quiet ghost button at the small control height. */
+  /** Toolbar placement: outline button at the small control height. */
   toolbar?: boolean;
   onToggle: () => void;
   /** Right-click while recording or transcribing. */
@@ -35,8 +35,8 @@ let {
 </script>
 
 <Button
-  variant={recording ? "destructive" : toolbar ? "ghost" : "outline"}
-  size={toolbar ? "icon-sm" : "icon"}
+  variant={recording ? "destructive" : "outline"}
+  size="icon"
   class={recording && !toolbar
     ? "inset-ring-1 inset-ring-destructive/28"
     : undefined}
@@ -53,10 +53,10 @@ let {
   {title}
 >
   {#if transcribing}
-    <X size={14} strokeWidth={2.4} />
+    <X />
   {:else if recording}
-    <Square size={13} strokeWidth={2.4} />
+    <Square />
   {:else}
-    <Mic size={14} strokeWidth={2.4} />
+    <Mic />
   {/if}
 </Button>

@@ -57,9 +57,17 @@ function measure() {
       "[data-composer-popup-anchor], [data-tour-id='composer']",
     ) ?? anchor;
   const rect = frame.getBoundingClientRect();
-  const width = Math.min(448, window.innerWidth - 16);
+  // Horizontal position follows the content box (the card edge), not the
+  // padded border box; vertical anchoring stays on the whole frame.
+  const style = getComputedStyle(frame);
+  const inlineStart = rect.left + (parseFloat(style.paddingLeft) || 0);
+  const inlineEnd = rect.right - (parseFloat(style.paddingRight) || 0);
+  const width = Math.max(
+    0,
+    Math.min(448, inlineEnd - inlineStart, window.innerWidth - 16),
+  );
   place = {
-    left: Math.max(8, Math.min(rect.left + 8, window.innerWidth - width - 8)),
+    left: Math.max(8, Math.min(inlineStart, window.innerWidth - width - 8)),
     edge: above ? window.innerHeight - rect.top + 6 : rect.bottom + 6,
     width,
   };
@@ -183,7 +191,7 @@ const listboxId = "composer-suggestions";
     id={listboxId}
     role="listbox"
     aria-label="Suggestions"
-    class="flex max-h-[18rem] flex-col overflow-y-auto p-1"
+    class="flex max-h-[18rem] scroll-pt-7 scroll-pb-1 flex-col overflow-y-auto px-1 pb-1"
   >
     <!-- Bottom-align short lists with a spacer: `justify-end` would make
          overflowing content unreachable above the scroll origin. -->
@@ -197,90 +205,91 @@ const listboxId = "composer-suggestions";
       </div>
     {/if}
     {#each ordered as group (group.id)}
-      <div
-        class="flex h-6 shrink-0 items-center justify-between px-2 text-xs text-muted-foreground"
-      >
-        <span>{group.label}</span>
-        {#if group.loading}
-          <span class="inline-flex items-center gap-1"
-            ><Spinner class="size-3" /> Updating</span
-          >
-        {:else if group.more && group.scope && !model.scope}
-          <button
-            type="button"
+      <!-- Per-group wrapper bounds the sticky header to its own rows. -->
+      <div class="flex flex-col">
+        <div
+          class="sticky top-0 z-10 flex h-6 shrink-0 items-center justify-between bg-popover px-2 text-xs text-muted-foreground"
+        >
+          <span>{group.label}</span>
+          {#if group.loading}
+            <span class="inline-flex items-center gap-1"
+              ><Spinner class="size-3" /> Updating</span
+            >
+          {:else if group.more && group.scope && !model.scope}
+            <button
+              type="button"
+              tabindex="-1"
+              class="rounded-sm px-1 hover:text-foreground"
+              onmousedown={(event) => {
+                event.preventDefault();
+                onscope(group.scope!);
+              }}>+{group.more} more</button
+            >
+          {/if}
+        </div>
+        {#each group.rows as row (row.id)}
+          {@const Icon = popupRowIcon(row)}
+          {@const isSelected = row.id === selectedRowId}
+          <div
+            role="option"
             tabindex="-1"
-            class="rounded-sm px-1 hover:text-foreground"
+            aria-selected={isSelected}
+            aria-disabled={row.state === "unavailable"}
+            title={row.title}
+            class="flex h-7 w-full min-w-0 shrink-0 cursor-default items-center gap-2 rounded-md px-2 text-left text-xs {isSelected
+              ? 'bg-accent text-accent-foreground'
+              : 'hover:bg-muted'} {row.state === 'unavailable'
+              ? 'opacity-60'
+              : ''}"
+            onmousemove={() => onhover(row.id)}
             onmousedown={(event) => {
               event.preventDefault();
-              onscope(group.scope!);
-            }}>+{group.more} more</button
+              onpick(row.id);
+            }}
           >
-        {/if}
+            <Icon class="size-3.5 shrink-0 {popupRowIconClass(row)}" />
+            {#if row.mono}
+              <span class="shrink-0 font-mono font-medium">{row.name}</span>
+              {#if row.dir}
+                <span
+                  class="min-w-0 truncate text-left font-mono text-muted-foreground [direction:rtl]"
+                  ><bdi dir="ltr">{row.dir}</bdi></span
+                >
+              {/if}
+            {:else}
+              <span class="max-w-[60%] shrink-0 truncate font-medium"
+                >{row.name}</span
+              >
+              {#if row.meta}<span class="min-w-0 truncate text-muted-foreground"
+                  >{row.meta}</span
+                >{/if}
+            {/if}
+            <span class="ml-auto flex shrink-0 items-center gap-1 pl-2">
+              {#if model.pendingId === row.id}
+                <Spinner class="size-3.5" />
+              {:else if row.current}
+                <Check class="size-3.5 text-muted-foreground" /><span
+                  class="text-muted-foreground">Current</span
+                >
+              {:else if row.badge}
+                <Badge variant={row.badge.variant}>{row.badge.text}</Badge>
+              {/if}
+              {#if isSelected && model.toggleLabel && model.pendingId !== row.id}
+                <button
+                  type="button"
+                  tabindex="-1"
+                  class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onmousedown={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    ontoggle(row.id);
+                  }}>{model.toggleLabel}<Kbd class="ml-1">⌥↵</Kbd></button
+                >
+              {/if}
+            </span>
+          </div>
+        {/each}
       </div>
-      {#each group.rows as row, rowIndex (row.id)}
-        {@const Icon = popupRowIcon(row)}
-        {@const isSelected = row.id === selectedRowId}
-        <div
-          role="option"
-          tabindex="-1"
-          aria-selected={isSelected}
-          aria-disabled={row.state === "unavailable"}
-          class="flex h-7 w-full min-w-0 shrink-0 scroll-mb-1 cursor-default items-center gap-2 rounded-md px-2 text-left text-xs {rowIndex ===
-          0
-            ? 'scroll-mt-7'
-            : 'scroll-mt-1'} {isSelected
-            ? 'bg-accent text-accent-foreground'
-            : 'hover:bg-muted'} {row.state === 'unavailable'
-            ? 'opacity-60'
-            : ''}"
-          onmousemove={() => onhover(row.id)}
-          onmousedown={(event) => {
-            event.preventDefault();
-            onpick(row.id);
-          }}
-        >
-          <Icon class="size-3.5 shrink-0 {popupRowIconClass(row)}" />
-          {#if row.mono}
-            <span class="shrink-0 font-mono font-medium">{row.name}</span>
-            {#if row.dir}
-              <span
-                class="min-w-0 truncate text-left font-mono text-muted-foreground [direction:rtl]"
-                ><bdi dir="ltr">{row.dir}</bdi></span
-              >
-            {/if}
-          {:else}
-            <span class="max-w-[60%] shrink-0 truncate font-medium"
-              >{row.name}</span
-            >
-            {#if row.meta}<span class="min-w-0 truncate text-muted-foreground"
-                >{row.meta}</span
-              >{/if}
-          {/if}
-          <span class="ml-auto flex shrink-0 items-center gap-1 pl-2">
-            {#if model.pendingId === row.id}
-              <Spinner class="size-3.5" />
-            {:else if row.current}
-              <Check class="size-3.5 text-muted-foreground" /><span
-                class="text-muted-foreground">Current</span
-              >
-            {:else if row.badge}
-              <Badge variant={row.badge.variant}>{row.badge.text}</Badge>
-            {/if}
-            {#if isSelected && model.toggleLabel && model.pendingId !== row.id}
-              <button
-                type="button"
-                tabindex="-1"
-                class="inline-flex h-5 items-center rounded-sm px-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                onmousedown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  ontoggle(row.id);
-                }}>{model.toggleLabel}<Kbd class="ml-1">⌥↵</Kbd></button
-              >
-            {/if}
-          </span>
-        </div>
-      {/each}
     {/each}
   </div>
 

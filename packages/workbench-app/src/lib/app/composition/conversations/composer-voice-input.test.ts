@@ -241,3 +241,21 @@ test("transcripts and errors use the chip when live, else fall back", () => {
   assert.equal(text, "Draft\n\nfallback ");
   assert.equal(chip.log.at(-1), "resolve:in chip");
 });
+
+test("a failed chip survives transcribing updates until a new recording starts", () => {
+  const chip = chipHarness();
+  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 1200 });
+  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
+  // The core reports the error while `transcribing` is still true.
+  assert.equal(chip.bridge.fail(), true);
+  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
+  chip.bridge.sync({ recording: false, transcribing: false, elapsedMs: 0 });
+  assert.equal(chip.bridge.failed, true);
+  assert.equal(chip.log.at(-1), "failed:1200");
+  assert.equal(chip.started, 1);
+  // Mic retry: a new recording reuses the chip and clears the failure.
+  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 300 });
+  assert.equal(chip.bridge.failed, false);
+  assert.equal(chip.log.at(-1), "recording:300");
+  assert.equal(chip.started, 1);
+});

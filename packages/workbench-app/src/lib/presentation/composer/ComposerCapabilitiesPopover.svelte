@@ -393,7 +393,7 @@ const subagentSlot: CapabilitySubagentSlot = {
   {open}
   onOpenChange={handleOpenChange}
   size="md"
-  triggerClass="composer-tab w-7 p-0"
+  triggerClass="composer-tab w-control p-0"
   ariaLabel="Capabilities"
   {triggerTitle}
   side="top"
@@ -404,7 +404,7 @@ const subagentSlot: CapabilitySubagentSlot = {
       class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
       data-tour-id="composer-capabilities"
     >
-      <Blocks size={13} strokeWidth={2.2} aria-hidden="true" />
+      <Blocks aria-hidden="true" />
       {#if overrideCount > 0}
         <span
           class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"

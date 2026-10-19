@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   access,
@@ -181,12 +181,25 @@ export async function saveAttachment(input: unknown, storageHome: string) {
     (/^[a-z0-9]{1,16}$/.test(suppliedExtension) ? suppliedExtension : "bin");
   const dir = storagePaths(storageHome).imagesPath;
   await mkdir(dir, { recursive: true, mode: 0o700 });
-  const filePath = join(
-    dir,
-    `${slugifyName(request.name)}-${timestampSlug()}-${randomUUID()}.${ext}`,
+  const stem = `${slugifyName(request.name)}-${timestampSlug()}`;
+  for (let attempt = 1; attempt <= 100; attempt++) {
+    const suffix = attempt === 1 ? "" : `-${attempt}`;
+    const filePath = join(dir, `${stem}${suffix}.${ext}`);
+    try {
+      await writeFile(filePath, data, { flag: "wx", mode: 0o600 });
+      return { path: filePath };
+    } catch (error) {
+      if (
+        !(error instanceof Error && "code" in error && error.code === "EEXIST")
+      )
+        throw error;
+    }
+  }
+  throw new ApplicationError(
+    409,
+    "ATTACHMENT_NAME_COLLISION",
+    "Could not store the attachment because too many files share its name. Try again.",
   );
-  await writeFile(filePath, data, { flag: "wx", mode: 0o600 });
-  return { path: filePath };
 }
 
 export async function directoryListing(

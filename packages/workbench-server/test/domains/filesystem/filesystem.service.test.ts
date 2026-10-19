@@ -9,7 +9,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { describe, it } from "node:test";
 import { ApplicationError } from "../../../src/core/application-error.js";
 import {
@@ -423,7 +423,7 @@ describe("filesystem application service", () => {
 });
 
 describe("attachment uploads", () => {
-  it("stores arbitrary bytes, images and empty files safely with collision-free private names", async () => {
+  it("stores arbitrary bytes, images and empty files with short private names", async () => {
     const root = await mkdtemp(join(tmpdir(), "nerve-attachments-"));
     try {
       const bytes = Buffer.from([0, 255, 1, 2]);
@@ -432,12 +432,8 @@ describe("attachment uploads", () => {
         type: "application/pdf",
         dataBase64: bytes.toString("base64"),
       };
-      const [a, b] = await Promise.all([
-        saveAttachment(request, root),
-        saveAttachment(request, root),
-      ]);
-      assert.notEqual(a.path, b.path);
-      assert.match(a.path, /report-.*\.pdf$/);
+      const a = await saveAttachment(request, root);
+      assert.match(basename(a.path), /^report-\d{8}T\d{6}Z\.pdf$/);
       assert.ok(a.path.startsWith(root + "/"));
       assert.deepEqual(await readFile(a.path), bytes);
       if (process.platform !== "win32")
@@ -450,12 +446,83 @@ describe("attachment uploads", () => {
         },
         root,
       );
-      assert.match(image.path, /\.png$/);
+      assert.match(basename(image.path), /^pasted-\d{8}T\d{6}Z\.png$/);
       const empty = await saveAttachment(
         { name: "empty.txt", type: "", dataBase64: "" },
         root,
       );
       assert.equal((await stat(empty.path)).size, 0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("retries same-second name collisions with numeric suffixes without overwriting", async (t) => {
+    t.mock.timers.enable({
+      apis: ["Date"],
+      now: new Date("2026-10-19T13:56:51Z"),
+    });
+    const root = await mkdtemp(join(tmpdir(), "nerve-attachments-"));
+    try {
+      const request = {
+        name: "image.png",
+        type: "image/png",
+        dataBase64: Buffer.from("original").toString("base64"),
+      };
+      const first = await saveAttachment(request, root);
+      assert.equal(basename(first.path), "image-20261019T135651Z.png");
+      const contents = ["second", "third"];
+      const next = await Promise.all(
+        contents.map((content) =>
+          saveAttachment(
+            { ...request, dataBase64: Buffer.from(content).toString("base64") },
+            root,
+          ),
+        ),
+      );
+      assert.deepEqual(next.map((file) => basename(file.path)).sort(), [
+        "image-20261019T135651Z-2.png",
+        "image-20261019T135651Z-3.png",
+      ]);
+      assert.equal(await readFile(first.path, "utf8"), "original");
+      for (const [index, file] of next.entries()) {
+        assert.equal(await readFile(file.path, "utf8"), contents[index]);
+        if (process.platform !== "win32")
+          assert.equal((await stat(file.path)).mode & 0o777, 0o600);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("bounds collision retries and reports a clear error without overwriting", async (t) => {
+    t.mock.timers.enable({
+      apis: ["Date"],
+      now: new Date("2026-10-19T13:56:51Z"),
+    });
+    const root = await mkdtemp(join(tmpdir(), "nerve-attachments-"));
+    try {
+      const request = {
+        name: "file.txt",
+        type: "text/plain",
+        dataBase64: Buffer.from("original").toString("base64"),
+      };
+      const first = await saveAttachment(request, root);
+      const stem = first.path.slice(0, -4);
+      await Promise.all(
+        Array.from({ length: 99 }, (_, i) =>
+          writeFile(`${stem}-${i + 2}.txt`, "existing", { flag: "wx" }),
+        ),
+      );
+      await assert.rejects(
+        saveAttachment(request, root),
+        (error: unknown) =>
+          error instanceof ApplicationError &&
+          error.code === "ATTACHMENT_NAME_COLLISION" &&
+          /Try again/.test(error.message),
+      );
+      assert.equal(await readFile(first.path, "utf8"), "original");
+      assert.equal(await readFile(`${stem}-100.txt`, "utf8"), "existing");
     } finally {
       await rm(root, { recursive: true, force: true });
     }

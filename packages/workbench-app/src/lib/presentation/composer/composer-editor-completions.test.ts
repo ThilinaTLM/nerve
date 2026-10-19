@@ -20,12 +20,14 @@ import {
 } from "./composer-editor-completions";
 import { composerMentionChips, mentionChipsOf } from "./composer-mention-chips";
 
+/** Simulates typing `doc` (typed text is never turned into chips). */
 function stateAt(doc: string, head = doc.length): EditorState {
-  return EditorState.create({
-    doc,
+  const empty = EditorState.create({ extensions: [composerMentionChips()] });
+  return empty.update({
+    changes: { from: 0, insert: doc },
     selection: { anchor: head },
-    extensions: [composerMentionChips()],
-  });
+    userEvent: "input.type",
+  }).state;
 }
 
 const file = (path: string): CompletionItem => ({
@@ -48,6 +50,16 @@ describe("completion tokens", () => {
     );
     assert.equal(completionTokenAt(stateAt("see @src/a.ts "), true), undefined);
     assert.equal(completionTokenAt(stateAt("mail me@host"), true), undefined);
+  });
+
+  it("treats a restored complete mention as a chip, not a live token", () => {
+    const restored = EditorState.create({
+      doc: "see @src/a.ts",
+      selection: { anchor: 13 },
+      extensions: [composerMentionChips()],
+    });
+    assert.equal(mentionChipsOf(restored).length, 1);
+    assert.equal(completionTokenAt(restored, true), undefined);
   });
 
   it("parses scopes and aliases", () => {
@@ -149,6 +161,12 @@ describe("popup groups", () => {
     assert.equal(row.name, "a.ts");
     assert.equal(row.dir, "pkg/src/");
     assert.equal(row.mono, true);
+    assert.equal(row.title, "pkg/src/a.ts");
+    assert.equal(
+      toPopupRow({ kind: "skill", label: "@skill:q", info: "project skill" })
+        .title,
+      "project skill",
+    );
     const skill = toPopupRow({
       kind: "skill",
       label: "@skill:qa",
