@@ -1,6 +1,6 @@
 # Native library organization
 
-> Workstream A mechanical organization and the generalized search follow-up are implemented; other follow-up status belongs to its owning proposal. Applies to `packages/native` as it grows with [unified completion](unified-completion.md), [Git batched reads](git-operations.md) and possible text-diff work ([Rust native boundaries](rust-native-boundaries.md)).
+> Workstream A mechanical organization and the generalized search follow-up are implemented; other follow-up status belongs to its owning proposal. Applies to `packages/native` as it grows with [unified completion](unified-completion.md), implemented Git batched reads and possible text-diff work ([Rust native boundaries](rust-native-boundaries.md)).
 
 ## Goal
 
