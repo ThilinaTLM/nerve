@@ -24,7 +24,7 @@ let { suggestions = [], disabled = false, onSend, onDraft }: Props = $props();
       <Button
         type="button"
         variant="outline"
-        class="text-muted-foreground hover:border-primary/40 hover:text-foreground"
+        class="text-muted-foreground hover:text-foreground"
         {disabled}
         title={`Click to send. Right-click to insert into composer.\n\n${suggestion.prompt}`}
         aria-label={`${suggestion.label}. Click to send. Right-click to insert into composer.`}

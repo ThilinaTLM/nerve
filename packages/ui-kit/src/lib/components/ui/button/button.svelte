@@ -12,7 +12,7 @@ export const buttonVariants = tv({
     variant: {
       default: "bg-primary text-primary-foreground hover:bg-primary/80",
       outline:
-        "border-border bg-background hover:bg-muted hover:text-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 aria-expanded:bg-muted aria-expanded:text-foreground shadow-xs",
+        "bg-input/30 hover:bg-input/50 hover:text-foreground aria-expanded:bg-input/50 aria-expanded:text-foreground",
       success:
         "bg-success text-success-foreground hover:bg-success/80 focus-visible:ring-success/30 focus-visible:border-success/40",
       ghost:
