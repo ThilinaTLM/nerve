@@ -8,12 +8,7 @@ import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { newConversationInProject } from "$lib/application/workspace/workspace-actions.svelte";
-import {
-  activatePanelView,
-  revealPanelView,
-} from "$lib/app/shell/shell-layout.svelte";
-import { responsive } from "$lib/app/shell/responsive.svelte";
-import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
+import { handleComposerCompletionAction } from "./composer-completion-actions";
 import type { ComposerCompletionAction } from "$lib/presentation/composer/composer-editor-completions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
@@ -99,8 +94,6 @@ let {
   permissionRuleSetsError,
   slashCompletions = [],
   completionSource,
-  fileCompletions,
-  referenceCompletions,
   composerSuggestions = [],
   onSendSuggestion,
   onDraftSuggestion,
@@ -492,26 +485,9 @@ function runSlashCommand(name: string): void {
 }
 
 function handleCompletionAction(action: ComposerCompletionAction): void {
-  if (action.type === "source") {
-    if (action.actionId === "open_pull_requests") {
-      // The Pull requests panel shows the gh CLI install / sign-in guidance.
-      revealPanelView("pull-requests", responsive.isCompact);
-      activatePanelView("pull-requests");
-    } else {
-      void openSettingsPane();
-    }
-    return;
-  }
-  switch (action.item.kind) {
-    case "skill":
-      onOpenCapabilitySettings?.("skills");
-      break;
-    case "tool":
-      onOpenCapabilitySettings?.("tools");
-      break;
-    default:
-      onOpenCapabilitySettings?.("subagents");
-  }
+  handleComposerCompletionAction(action, (page) =>
+    onOpenCapabilitySettings?.(page),
+  );
 }
 
 async function pasteImage(file: File): Promise<string> {
@@ -716,8 +692,6 @@ function handleMicContextMenu(event: MouseEvent) {
     todos,
     slashCompletions,
     completionSource,
-    fileCompletions,
-    referenceCompletions,
     capabilityConfiguration,
     capabilitySkills,
     capabilityLoading,

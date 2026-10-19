@@ -2,19 +2,11 @@ import { isAbsolute } from "node:path";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { FileCompletionCandidate } from "./file-completion-candidates.js";
 
-export type CompletionOptions = {
-  limit?: number;
-  context?: import("./completion-ranking-policy.js").CompletionContext;
-};
 export type CompletionItemInput = {
   candidate: FileCompletionCandidate;
   score: number;
   matchRanges: Array<[number, number]>;
 };
-
-export function normalizeCompletionQuery(query: string): string {
-  return query.trim().replace(/^@+/, "").replaceAll("\\", "/");
-}
 
 export function isUnsafeCompletionQuery(query: string): boolean {
   if (!query) return false;

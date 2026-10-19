@@ -29,10 +29,13 @@ import {
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { resolveDroppedFiles } from "./dropped-files";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
-import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
+import { readClipboardText } from "$lib/platform/clipboard/read-text";
+import { writeClipboardText } from "$lib/platform/clipboard/write-text";
+import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
+import { composerReferenceSource } from "./composer-reference-completions";
+import { handleComposerCompletionAction } from "./composer-completion-actions";
 import { selection } from "$lib/application/workspace/selection.svelte";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
-import { completeFiles } from "$lib/application/workspace/workspace-actions.svelte";
 
 // Promise cache only; mutations do not drive rendered state.
 // eslint-disable-next-line svelte/prefer-svelte-reactivity
@@ -103,8 +106,17 @@ export function workbenchConversationUiCapabilities(
           notifyInfo: (message) => notify.message(message),
         });
       },
-      slashCompletions: () => conversationCatalog.slashCompletions,
-      fileCompletions: completeFiles,
+      completionSource: ({ projectId, conversationId }) =>
+        composerReferenceSource(projectId, conversationId),
+      onCompletionAction: (action) =>
+        handleComposerCompletionAction(
+          action,
+          (page) => void openSettingsPane(page),
+        ),
+      readClipboardText,
+      writeClipboardText,
+      onClipboardError: (action) =>
+        notify.error(`Could not ${action} using the clipboard`),
     },
   };
 }

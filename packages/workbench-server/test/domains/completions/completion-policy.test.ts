@@ -13,8 +13,6 @@ import {
   policyJudgments,
 } from "../../benchmarks/completion-adversarial-judgments.js";
 import { CompletionUsageStore } from "../../../src/domains/completions/completion-usage-store.js";
-import { FileCompletionService } from "../../../src/domains/completions/file-completion-service.js";
-import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
 import {
   completionJudgments,
   rankingMetrics,
@@ -259,47 +257,6 @@ test("opaque traversal-looking usage IDs never choose a filesystem path", async 
     );
   } finally {
     await rm(root, { recursive: true, force: true });
-  }
-});
-
-test("service rescues a contextual candidate outside lexical top eight before display truncation", async () => {
-  let nativeLimit = 0;
-  const service = new FileCompletionService(
-    () => ({
-      id: "p",
-      name: "p",
-      directory: "/synthetic",
-      createdAt: "",
-      updatedAt: "",
-    }),
-    {
-      discover: async () =>
-        Array.from({ length: 16 }, (_, i) =>
-          candidateFromPath(`duplicate-${i}/session.ts`, "file"),
-        ),
-      createIndex: async () => ({
-        async query(_query, options) {
-          nativeLimit = options?.limit ?? 0;
-          return Array.from({ length: Math.min(nativeLimit, 16) }, (_, i) => ({
-            candidateIndex: i,
-            score: 1000 - i * 10,
-            matchRanges: [],
-          }));
-        },
-        async close() {},
-      }),
-    },
-  );
-  try {
-    const result = await service.completeFiles("p", "ts", {
-      limit: 1,
-      context: { editedPaths: ["duplicate-11/session.ts"] },
-    });
-    assert.equal(nativeLimit, 64);
-    assert.equal(result.length, 1);
-    assert.equal(result[0]?.label, "@duplicate-11/session.ts");
-  } finally {
-    await service.dispose();
   }
 });
 

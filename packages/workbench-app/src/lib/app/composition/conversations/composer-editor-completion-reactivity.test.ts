@@ -47,17 +47,12 @@ void test("draft model replacements do not reset completion; changed sources sti
   // those broad dependencies here rather than pre-deduplicating the test props.
   const production = [...derived, effect]
     .join("\n")
-    .replace(
-      /\b(slashCompletions|fileCompletions|referenceCompletions|completionSource)\b/g,
-      "props.$1",
-    );
+    .replace(/\b(slashCompletions|completionSource)\b/g, "props.$1");
   const compiled = compileModule(
     `
 let model = $state.raw({ text: '', slashCompletions: [], completionSource: {} });
 const props = {
   get slashCompletions() { return model.slashCompletions; },
-  get fileCompletions() { return model.fileCompletions; },
-  get referenceCompletions() { return model.referenceCompletions; },
   get completionSource() { return model.completionSource; }
 };
 let resets = 0;

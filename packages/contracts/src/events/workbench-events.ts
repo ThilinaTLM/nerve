@@ -51,6 +51,5 @@ export function isWorkbenchOperation(method: string): boolean {
     "status.",
     "usage.",
     "applicationLog.",
-    "completion.files.",
   ].some((prefix) => method.startsWith(prefix));
 }

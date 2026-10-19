@@ -3,7 +3,6 @@ import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { ModelInfo } from "@nervekit/contracts/models";
 import type { StatusResponse } from "@nervekit/contracts/status";
 import { apiGet } from "$lib/platform/http/api-client";
-import { protocolRequest } from "$lib/application/startup/workbench-connection";
 
 export type ClientConfig = {
   url: string;
@@ -25,14 +24,4 @@ export async function getModels(): Promise<ModelInfo[]> {
 
 export async function getSlashCompletions(): Promise<CompletionItem[]> {
   return (await conversationRequest("completion.slash.list", {})).result.items;
-}
-
-export async function getFileCompletions(
-  projectId: string | undefined,
-  query: string,
-): Promise<CompletionItem[]> {
-  if (!projectId) return [];
-  return (
-    await protocolRequest("completion.files.list", { projectId, q: query })
-  ).result.items;
 }

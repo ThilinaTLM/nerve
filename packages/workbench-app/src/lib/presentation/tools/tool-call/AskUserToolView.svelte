@@ -60,6 +60,8 @@ const controller = $derived(shared ?? own);
   {#each controller.questions as question, index (`${toolCall.id}:${question.id}`)}
     <AskUserQuestion
       toolCallId={toolCall.id}
+      projectId={toolCall.projectId}
+      conversationId={toolCall.conversationId}
       {question}
       {index}
       total={controller.questions.length}

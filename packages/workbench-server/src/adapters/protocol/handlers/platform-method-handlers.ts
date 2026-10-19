@@ -103,13 +103,6 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
     "usage.subscription.get": async (state) => ({
       usage: await state.subscriptionUsage.getSnapshots({ refresh: true }),
     }),
-    "completion.files.list": async (state, params) => ({
-      items: await state.fileCompletions.completeFiles(
-        params?.projectId,
-        params?.q ?? "",
-        { limit: params?.limit as number | undefined },
-      ),
-    }),
     "filesystem.directories.list": (_state, params) =>
       directoryListing(params?.path, params?.showHidden as boolean | undefined),
     "filesystem.project.entries.list": (state, params) =>

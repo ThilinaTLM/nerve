@@ -76,11 +76,6 @@ type Props = {
   focusToken?: number;
   slashCompletions?: readonly CompletionItem[];
   completionSource?: ComposerReferenceSource;
-  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  referenceCompletions?: (
-    kind: "launch" | "pull_request",
-    query: string,
-  ) => Promise<CompletionItem[]>;
   /** Mode and run state for the slash list (`abort` only while running). */
   slashContext?: ComposerSlashContext;
   /** Runs a slash command immediately. Without it slash suggestions are off. */
@@ -105,8 +100,6 @@ let {
   focusToken = 0,
   slashCompletions = [],
   completionSource,
-  fileCompletions,
-  referenceCompletions,
   slashContext,
   onSlashCommand,
   onCompletionAction,
@@ -146,8 +139,6 @@ const placeholderCompartment = new Compartment();
 // Deduplicate completion inputs before effects read them, so typing does not
 // close/reconfigure autocomplete before its activation timer can run.
 const completionSlashItems = $derived(slashCompletions);
-const completionFileSource = $derived(fileCompletions);
-const completionLegacyReferenceSource = $derived(referenceCompletions);
 const completionReferenceSource = $derived(completionSource);
 
 const completionOptions: ComposerCompletionOptions = {
@@ -159,8 +150,6 @@ const completionOptions: ComposerCompletionOptions = {
   slashCommand: () => onSlashCommand,
   action: () => onCompletionAction,
   slashCompletions: () => completionSlashItems,
-  fileCompletions: () => completionFileSource,
-  referenceCompletions: () => completionLegacyReferenceSource,
 };
 
 function editableExtensions(isDisabled: boolean) {
@@ -536,8 +525,6 @@ $effect(() => {
 $effect(() => {
   if (!view) return;
   void completionSlashItems;
-  void completionFileSource;
-  void completionLegacyReferenceSource;
   void completionReferenceSource;
   invalidateComposerCompletionRequests(completionOptions);
   closeCompletion(view);

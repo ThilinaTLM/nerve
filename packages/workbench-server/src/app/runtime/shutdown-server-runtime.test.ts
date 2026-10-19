@@ -61,11 +61,6 @@ void test("actual server shutdown finalizes Activity and every outer resource af
               order.push("launches");
             },
           },
-          fileCompletions: {
-            dispose: async () => {
-              order.push("files");
-            },
-          },
           conversationCore: {
             close: async () => {
               order.push("core");
@@ -127,7 +122,6 @@ void test("actual server shutdown finalizes Activity and every outer resource af
     "completion",
     "monitor",
     "launches",
-    "files",
     "core",
     "activity",
     "skills",

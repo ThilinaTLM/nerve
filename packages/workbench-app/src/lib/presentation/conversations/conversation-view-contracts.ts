@@ -130,11 +130,6 @@ export type ConversationComposerModel = {
   todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
   completionSource?: ComposerReferenceSource;
-  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  referenceCompletions?: (
-    kind: "launch" | "pull_request",
-    query: string,
-  ) => Promise<CompletionItem[]>;
   capabilities?: ConversationComposerCapabilities;
   capabilityConfiguration?: CapabilityConfiguration;
   capabilitySkills?: CapabilitySkillRow[];

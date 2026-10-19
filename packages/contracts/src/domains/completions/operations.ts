@@ -1,8 +1,3 @@
-import {
-  completionItemSchema,
-  fileCompletionQuerySchema,
-} from "./completion.js";
-import { z } from "zod";
 import { defineOperation } from "../../operations/definition.js";
 
 import {
@@ -30,14 +25,5 @@ export const completionsOperationDefinitions = [
     "none",
     ["workbench_server"] as const,
     "operation.completion.select",
-  ),
-  defineOperation(
-    "completion.files.list",
-    fileCompletionQuerySchema,
-    z.object({ items: z.array(completionItemSchema) }),
-    "read",
-    "none",
-    ["workbench_server"] as const,
-    "operation.completion.files.list",
   ),
 ] as const;

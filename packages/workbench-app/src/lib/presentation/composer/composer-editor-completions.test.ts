@@ -237,8 +237,6 @@ function harness(raw: Partial<ComposerCompletionOptions> = {}) {
   };
   const options: ComposerCompletionOptions = {
     slashCompletions: () => [],
-    fileCompletions: () => undefined,
-    referenceCompletions: () => undefined,
     searchDelayMs: 0,
     onModel: (model) => models.push(model),
     ...overrides,
