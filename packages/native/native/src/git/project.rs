@@ -564,10 +564,21 @@ pub(super) fn status(
     let tree = repo
         .head_tree_id_or_empty()
         .map_err(|e| GitReadError::from_gix("read HEAD tree", e))?;
+    // The implicit tree/index pathspec matches only the process cwd prefix.
+    // Project snapshots always cover the entire repository, like worktree status.
+    let mut pathspec = repo
+        .pathspec(
+            false,
+            None::<&str>,
+            false,
+            &index,
+            gix::worktree::stack::state::attributes::Source::IdMapping,
+        )
+        .map_err(|e| GitReadError::from_gix("prepare repository-wide status pathspec", e))?;
     repo.tree_index_status(
         &tree,
         &index,
-        None,
+        Some(&mut pathspec),
         gix::status::tree_index::TrackRenames::AsConfigured,
         |change, _, _| {
             collector.add(gix::status::Item::TreeIndex(change.into_owned()));
@@ -976,6 +987,110 @@ mod tests {
         )
         .unwrap();
         assert_eq!(snapshot.in_progress, vec!["merge"]);
+    }
+    #[test]
+    fn staged_status_includes_paths_outside_process_cwd() {
+        const CHILD_REPO: &str = "NERVE_GIT_STAGED_CWD_TEST_REPO";
+        if let Some(path) = std::env::var_os(CHILD_REPO) {
+            let path = PathBuf::from(path);
+            let descriptor = identity(&path, &path).unwrap();
+            let index_before = std::fs::read(path.join(".git/index")).unwrap();
+            let observed = snapshot(
+                &descriptor,
+                false,
+                &CancellationToken::default(),
+                &AtomicUsize::new(0),
+            )
+            .unwrap();
+            assert_eq!(observed.counts.staged, 3);
+            assert_eq!(observed.counts.unstaged, 0);
+            assert_eq!(
+                observed
+                    .files
+                    .iter()
+                    .map(|file| (
+                        file.path.as_str(),
+                        file.index.as_str(),
+                        file.worktree.as_str()
+                    ))
+                    .collect::<Vec<_>>(),
+                vec![
+                    ("nested/inside.txt", "A", " "),
+                    ("sibling.txt", "A", " "),
+                    ("tracked.txt", "M", " "),
+                ]
+            );
+            let legacy = super::super::read_snapshot(
+                path.to_str().unwrap(),
+                super::super::SnapshotOptions::default(),
+            )
+            .unwrap();
+            let digest = |files: &[FileStatus]| {
+                files
+                    .iter()
+                    .map(|file| (file.path.clone(), file.index.clone(), file.worktree.clone()))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(digest(&legacy.files), digest(&observed.files));
+            assert_eq!(
+                std::fs::read(path.join(".git/index")).unwrap(),
+                index_before
+            );
+
+            // A staged file can become mixed and then staged-only again without
+            // losing the repository-wide index changes between snapshots.
+            let tracked = path.join("tracked.txt");
+            let mut contents = std::fs::read_to_string(&tracked).unwrap();
+            contents.push_str("changed again\n");
+            std::fs::write(tracked, contents).unwrap();
+            let read = || {
+                snapshot(
+                    &descriptor,
+                    false,
+                    &CancellationToken::default(),
+                    &AtomicUsize::new(0),
+                )
+                .unwrap()
+            };
+            let mixed = read();
+            assert_eq!((mixed.counts.staged, mixed.counts.unstaged), (3, 1));
+            git(&path, &["add", "tracked.txt"]);
+            let staged = read();
+            assert_eq!((staged.counts.staged, staged.counts.unstaged), (3, 0));
+            return;
+        }
+        let fixture = Fixture::new();
+        let path = fixture.repo("repo");
+        let nested = path.join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        std::fs::write(path.join("tracked.txt"), "changed\n").unwrap();
+        std::fs::write(path.join("sibling.txt"), "added\n").unwrap();
+        std::fs::write(nested.join("inside.txt"), "added\n").unwrap();
+        git(&path, &["add", "."]);
+        // Isolate process cwd in a child so parallel unit tests are unaffected.
+        for cwd in [&nested, &fixture.0, &path] {
+            let output = Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "git::project::tests::staged_status_includes_paths_outside_process_cwd",
+                    "--nocapture",
+                ])
+                .current_dir(cwd)
+                .env(CHILD_REPO, &path)
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "cwd: {}\nstdout: {}\nstderr: {}",
+                cwd.display(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains("1 passed; 0 failed"),
+                "child must execute the exact regression test, not match zero tests"
+            );
+        }
     }
     #[test]
     fn repository_errors_are_independent_and_inputs_are_bounded() {
