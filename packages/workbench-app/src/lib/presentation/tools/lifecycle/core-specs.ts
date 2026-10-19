@@ -442,7 +442,6 @@ export const coreToolLifecycleSpecs = {
       const paths = source.strings("paths");
       const scope = paths?.length ? paths.join(", ") : source.string("path");
       const secondary: MetaItem[] = [];
-      if (scope) secondary.push({ key: "scope", text: scope, mono: true });
       if (source.string("glob"))
         secondary.push({ key: "glob", text: `glob ${source.string("glob")}` });
       if (source.boolean("ignoreCase")) secondary.push({ text: "ignore case" });
