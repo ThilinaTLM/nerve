@@ -27,8 +27,18 @@ const askUserParameters = Type.Object(
             Type.Array(
               Type.Object(
                 {
-                  label: Type.String({ minLength: 1, maxLength: 80 }),
-                  description: Type.Optional(Type.String()),
+                  label: Type.String({
+                    minLength: 1,
+                    maxLength: 200,
+                    description:
+                      "Short option title, 1–200 characters. Keep concise and put supporting detail in description.",
+                  }),
+                  description: Type.Optional(
+                    Type.String({
+                      description:
+                        "Optional supporting detail shown alongside this option's label.",
+                    }),
+                  ),
                   recommended: Type.Optional(Type.Boolean()),
                 },
                 { additionalProperties: false },

@@ -46,7 +46,7 @@ export const approvalRequestSchema = z.object({
   suggestedRules: z.array(z.json()),
 });
 export const userInputOptionSchema = z.object({
-  label: z.string().min(1).max(80),
+  label: z.string().min(1).max(200),
   description: z.string().optional(),
   recommended: z.boolean().optional(),
 });
