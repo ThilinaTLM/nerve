@@ -154,7 +154,7 @@ const childLabel = {
       >
     {/snippet}
   </PopoverHeader>
-  <PopoverBody class="gap-0 px-1" ariaLabel="Notifications">
+  <PopoverBody class="gap-0" ariaLabel="Notifications">
     {#if error}<p role="alert" class="px-2 py-2 text-xs text-destructive">
         {error}
       </p>{/if}
@@ -170,7 +170,7 @@ const childLabel = {
       {@const finished = notificationRank(item) === 2}
       {@const clickable = item.conversationId !== undefined}
       <div
-        class="group relative grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-2.5 pr-2 {clickable
+        class="group relative grid grid-cols-[1rem_minmax(0,1fr)] items-start gap-x-2 rounded-md py-2 pl-0.5 pr-1 {clickable
           ? 'hover:bg-muted/60'
           : ''} {item.kind === 'succeeded' ? 'text-muted-foreground' : ''}"
       >
