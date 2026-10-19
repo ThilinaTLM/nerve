@@ -100,12 +100,12 @@ function changeTab(value: string) {
   >
 {/snippet}
 
-{#snippet sectionError(error: string, section: PrSection)}
+<!-- Failure details live in header Activity; this is a neutral retry state. -->
+{#snippet sectionUnavailable(label: string, section: PrSection)}
   <div
-    class="flex flex-col items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 text-xs"
-    role="alert"
+    class="flex flex-col items-start gap-2 rounded-md border bg-card px-3 py-3 text-xs"
   >
-    <span class="text-destructive">{error}</span>
+    <span class="text-muted-foreground">{label} unavailable</span>
     <Button
       size="sm"
       variant="outline"
@@ -136,14 +136,17 @@ function changeTab(value: string) {
   {:else if view.core.error && !core}
     <Empty.Root class="h-full min-h-0 gap-2 py-6">
       <Empty.Media variant="icon" class="size-8 rounded-md">
-        <TriangleAlert class="size-4 text-destructive" aria-hidden="true" />
+        <TriangleAlert
+          class="size-4 text-muted-foreground"
+          aria-hidden="true"
+        />
       </Empty.Media>
       <Empty.Header class="gap-1">
         <Empty.Title class="text-sm font-medium"
-          >Could not open pull request</Empty.Title
+          >Pull request unavailable</Empty.Title
         >
-        <Empty.Description class="text-xs text-destructive">
-          {view.core.error}
+        <Empty.Description class="text-xs">
+          Details are in Activity. Retry to load it again.
         </Empty.Description>
       </Empty.Header>
       <Button
@@ -167,20 +170,6 @@ function changeTab(value: string) {
       {onCopyLink}
       {onOpenExternal}
     />
-
-    {#if view.refreshError}
-      <div
-        class="flex items-center gap-2 border-b border-destructive/30 bg-destructive/5 px-4 py-1.5 text-xs text-destructive"
-        role="alert"
-      >
-        <span class="min-w-0 flex-1 truncate"
-          >Could not fully refresh: {view.refreshError}</span
-        >
-        <Button size="sm" variant="ghost" onclick={() => onRefresh?.()}>
-          <RotateCcw class="size-3" /> Retry
-        </Button>
-      </div>
-    {/if}
 
     <Tabs.Root
       value={view.activeTab}
@@ -220,7 +209,7 @@ function changeTab(value: string) {
             {#if conversation}
               <GitHubPrConversation {core} {conversation} />
             {:else if view.conversation.error}
-              {@render sectionError(view.conversation.error, "conversation")}
+              {@render sectionUnavailable("Conversation", "conversation")}
             {:else}
               <GitHubPrSectionSkeleton
                 variant="conversation"
@@ -234,11 +223,14 @@ function changeTab(value: string) {
                   detail={{ ...core, ...overview, checks }}
                   selectedMethod={view.selectedMergeMethod}
                   merging={view.merging}
-                  error={view.mergeError}
                   {checkedOut}
                   onMethodChange={onMergeMethodChange}
                   {onMerge}
                 />
+              {:else if view.overview.error && !overview}
+                {@render sectionUnavailable("Merge status", "overview")}
+              {:else if view.checks.error && !checks}
+                {@render sectionUnavailable("Merge status", "checks")}
               {:else}
                 <GitHubPrSectionSkeleton
                   variant="merge"
@@ -248,7 +240,7 @@ function changeTab(value: string) {
               {#if overview}
                 <GitHubPrOverview {overview} open={core.state === "OPEN"} />
               {:else if view.overview.error}
-                {@render sectionError(view.overview.error, "overview")}
+                {@render sectionUnavailable("Overview", "overview")}
               {:else}
                 <GitHubPrSectionSkeleton
                   variant="overview"
@@ -268,7 +260,7 @@ function changeTab(value: string) {
           {#if commits}
             <GitHubPrCommits response={commits} />
           {:else if view.commits.error}
-            {@render sectionError(view.commits.error, "commits")}
+            {@render sectionUnavailable("Commits", "commits")}
           {:else}
             <GitHubPrSectionSkeleton
               variant="commits"
@@ -287,7 +279,7 @@ function changeTab(value: string) {
           {#if checks}
             <GitHubPrChecks {checks} />
           {:else if view.checks.error}
-            {@render sectionError(view.checks.error, "checks")}
+            {@render sectionUnavailable("Checks", "checks")}
           {:else}
             <GitHubPrSectionSkeleton
               variant="checks"
@@ -303,7 +295,7 @@ function changeTab(value: string) {
           detail={core}
           {files}
           loading={view.files.loading}
-          error={view.files.error}
+          failed={Boolean(view.files.error)}
           selectedPath={view.selectedFilePath}
           {fileDiff}
           onRetry={() => onSectionRetry?.("files")}

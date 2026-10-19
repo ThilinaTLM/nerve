@@ -6,7 +6,10 @@ import {
   inGitLane,
   type GitActivityPort,
 } from "@nervekit/tools/git";
-import { withGitMutationEvents } from "./git-mutation-publisher.js";
+import {
+  gitMutationFailureActivityId,
+  withGitMutationEvents,
+} from "./git-mutation-publisher.js";
 
 void test("quick failures produce bounded sanitized activity errors and never repository success events", async () => {
   const failures: string[] = [];
@@ -139,6 +142,7 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
   );
   assert.equal(published, 0);
   assert.equal(invalidated, 0);
+  assert.equal(gitMutationFailureActivityId(original), "failed");
 
   // A tracked operation already owns terminal Activity reporting.
   await inGitLane(
@@ -152,6 +156,7 @@ void test("switch failure reports a useful safe Activity in repository scope, pr
     },
     { activityId: "tracked-operation" },
   );
+  assert.equal(gitMutationFailureActivityId(original), undefined);
   assert.equal(starts.length, 1);
   assert.equal(failures.length, 1);
   assert.equal(published, 0);
@@ -177,4 +182,66 @@ void test("Activity reporting failures do not replace the mutation error", async
     decorated.switchBranch("proj_test", ".", "main"),
     (error: unknown) => error === original,
   );
+});
+
+void test("reused errors lose prior metadata when reporting fails or is unavailable", async () => {
+  const original = Object.freeze(new Error("mutation failed"));
+  const git = {
+    switchBranch: async () => {
+      throw original;
+    },
+  } as unknown as GitService;
+  let failure: "start" | "fail" | undefined;
+  const activities: GitActivityPort = {
+    start() {
+      if (failure === "start") throw new Error("start failed");
+      return {
+        id: "reported",
+        progress() {},
+        succeed() {},
+        cancelled() {},
+        interrupt() {},
+        fail() {
+          if (failure === "fail") throw new Error("fail failed");
+        },
+      };
+    },
+  };
+  const decorated = withGitMutationEvents(git, { publish() {} }, activities);
+  const reject = (service: GitService) =>
+    assert.rejects(
+      service.switchBranch("proj_test", ".", "main"),
+      (error: unknown) => error === original,
+    );
+  for (const next of ["start", "fail", "unavailable"] as const) {
+    failure = undefined;
+    await reject(decorated);
+    assert.equal(gitMutationFailureActivityId(original), "reported");
+    failure = next === "unavailable" ? undefined : next;
+    await reject(
+      next === "unavailable"
+        ? withGitMutationEvents(git, { publish() {} })
+        : decorated,
+    );
+    assert.equal(gitMutationFailureActivityId(original), undefined);
+  }
+});
+
+void test("primitive thrown values remain unchanged and have no metadata", async () => {
+  for (const original of [null, undefined, "failure", 42]) {
+    const git = {
+      switchBranch: async () => {
+        throw original;
+      },
+    } as unknown as GitService;
+    await assert.rejects(
+      withGitMutationEvents(git, { publish() {} }).switchBranch(
+        "proj_test",
+        ".",
+        "main",
+      ),
+      (error: unknown) => error === original,
+    );
+    assert.equal(gitMutationFailureActivityId(original), undefined);
+  }
 });

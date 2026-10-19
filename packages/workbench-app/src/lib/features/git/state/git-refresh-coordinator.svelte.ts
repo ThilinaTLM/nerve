@@ -1,5 +1,9 @@
 import type { PrResourceState } from "./pr-resource-loader";
-import { PrResourceLoader, type PrLoadOptions } from "./pr-resource-loader";
+import {
+  PrResourceLoader,
+  type PrFeedback,
+  type PrLoadOptions,
+} from "./pr-resource-loader";
 import type {
   GithubPrChecksResponse,
   GithubPrCommitsResponse,
@@ -22,7 +26,7 @@ import {
   getGithubPrOverview,
 } from "../api/git.api";
 import { queryClient, queryKeys } from "$lib/platform/query/client";
-import { showCriticalError } from "$lib/application/notifications/critical-errors.svelte";
+import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { prViewKey } from "$lib/domain/navigation/view-keys";
 import { gitState, type PrViewState } from "./git-state.svelte";
 import {
@@ -40,13 +44,55 @@ const IMMUTABLE_HEAD_STALE_MS = Number.POSITIVE_INFINITY;
 const prResources = new PrResourceLoader({
   queryClient,
   now: Date.now,
-  reportError: showCriticalError,
+  reportError: ({ key, title, message, scope }) =>
+    activityInbox.notify({
+      key,
+      title,
+      status: "failed",
+      message,
+      ...(scope ? { scope } : {}),
+    }),
 });
+
+/** Activity notice identity with PR context; `operation` groups repeats. */
+export function prFeedback(
+  view: Pick<PrViewState, "projectId" | "repo" | "number">,
+  operation: string,
+  action: string,
+): PrFeedback {
+  return {
+    key: `git.pr:${view.projectId}:${view.repo}:${view.number}:${operation}`,
+    title: `${action} · ${view.repo === "." ? "" : `${view.repo} `}#${view.number}`,
+    scope: { projectId: view.projectId, repositoryPath: view.repo },
+  };
+}
+
+/** Failures report to Activity by default; `report: false` opts out (aggregates). */
+function withFeedback(
+  view: Pick<PrViewState, "projectId" | "repo" | "number">,
+  operation: string,
+  action: string,
+  options: PrLoadOptions,
+): PrLoadOptions {
+  return {
+    ...options,
+    report:
+      options.report === false
+        ? undefined
+        : (options.report ?? prFeedback(view, operation, action)),
+  };
+}
 
 export function loadPrInitial(
   view: PrViewState,
-  options: PrLoadOptions = {},
+  rawOptions: PrLoadOptions = {},
 ): Promise<GithubPrInitial | undefined> {
+  const options = withFeedback(
+    view,
+    "open",
+    "Could not open pull request",
+    rawOptions,
+  );
   const sectionKey = (section: "core" | "conversation" | "overview") =>
     queryKeys.git.prSection(view.projectId, view.repo, view.number, section);
   return prResources.loadInitial({
@@ -89,8 +135,14 @@ export function selectedPrFileDiffResource(
 export async function loadPrFileDiff(
   view: PrViewState,
   path: string,
-  options?: PrLoadOptions,
+  rawOptions: PrLoadOptions = {},
 ): Promise<GithubPrFileDiffResponse | undefined> {
+  const options = withFeedback(
+    view,
+    `file:${path}`,
+    "Could not load pull request file",
+    rawOptions,
+  );
   const core = view.core.data;
   const file = view.files.data?.files.find(
     (candidate) => candidate.path === path,
@@ -158,8 +210,14 @@ function selectAllowedMergeMethod(
 
 export async function loadPrCore(
   view: PrViewState,
-  options: PrLoadOptions = {},
+  rawOptions: PrLoadOptions = {},
 ): Promise<GithubPrCore | undefined> {
+  const options = withFeedback(
+    view,
+    "load",
+    "Could not load pull request",
+    rawOptions,
+  );
   return prResources.load({
     key: queryKeys.git.prSection(
       view.projectId,
@@ -178,8 +236,14 @@ export async function loadPrCore(
 export async function loadPrSection(
   view: PrViewState,
   section: Section,
-  options: PrLoadOptions = {},
+  rawOptions: PrLoadOptions = {},
 ): Promise<unknown> {
+  const options = withFeedback(
+    view,
+    `section:${section}`,
+    "Could not load pull request section",
+    rawOptions,
+  );
   if (section === "conversation") {
     return prResources.load<GithubPrConversation>({
       key: queryKeys.git.prSection(
@@ -290,13 +354,12 @@ export function demandPrTab(view: PrViewState): void {
 export async function refreshCurrentPr(view: PrViewState): Promise<void> {
   if (view.refreshing) return;
   view.refreshing = true;
-  view.refreshError = undefined;
   const previousBaseOid = view.core.data?.baseRefOid;
   const previousHeadOid = view.core.data?.headRefOid;
   try {
     await loadPrCore(view, {
       force: true,
-      criticalErrorTitle: "Could not refresh pull request",
+      report: false,
     });
     const refsChanged =
       Boolean(previousBaseOid && previousHeadOid) &&
@@ -319,13 +382,20 @@ export async function refreshCurrentPr(view: PrViewState): Promise<void> {
       sections.map((section) =>
         loadPrSection(view, section, {
           force: true,
-          criticalErrorTitle: "Could not refresh pull request",
+          report: false,
         }),
       ),
     );
-    view.refreshError =
+    // One aggregate notice instead of one per failed resource.
+    const message =
       view.core.error ??
       sections.map((section) => view[section].error).find(Boolean);
+    if (message)
+      activityInbox.notify({
+        ...prFeedback(view, "refresh", "Could not refresh pull request"),
+        status: "failed",
+        message,
+      });
   } finally {
     view.refreshing = false;
   }

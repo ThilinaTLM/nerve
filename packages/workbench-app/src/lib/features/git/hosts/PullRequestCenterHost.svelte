@@ -23,13 +23,9 @@ import {
   selectPrMergeMethod,
   selectPrTab,
 } from "$lib/features/git/state/pr-tabs.svelte";
-import {
-  errorDetails,
-  showCriticalError,
-} from "$lib/application/notifications/critical-errors.svelte";
-import { notify } from "$lib/application/notifications/notify.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
 import { observeGitOperationStart } from "$lib/features/git/state/git-operation-tracking";
+import { needsClientFailureNotice } from "$lib/features/git/state/pr-mutation-feedback";
 import { queueMergedPrFollowUp } from "$lib/features/git/state/pr-merge-follow-up";
 
 const activeCenterPrView = $derived(gitSelectors.activeCenterPrView);
@@ -40,15 +36,43 @@ const currentBranch = $derived(
     : undefined,
 );
 
+function prNoticeKey(
+  view: { projectId: string; repo: string; number: number },
+  operation: string,
+): string {
+  return `git.pr:${view.projectId}:${view.repo}:${view.number}:${operation}`;
+}
+
+function prNoticeScope(view: { projectId: string; repo: string }) {
+  return { projectId: view.projectId, repositoryPath: view.repo };
+}
+
+function failureMessage(caught: unknown): string {
+  return caught instanceof Error ? caught.message : String(caught);
+}
+
 async function copyActivePrLink() {
-  const url =
-    activeCenterPrView?.core.data?.url ?? activeCenterPrView?.summary?.url;
-  if (!url) return;
+  const view = activeCenterPrView;
+  const url = view?.core.data?.url ?? view?.summary?.url;
+  if (!view || !url) return;
+  const base = {
+    key: prNoticeKey(view, "copy-link"),
+    scope: prNoticeScope(view),
+  };
   try {
     await writeClipboardText(url);
-    notify.success(`Copied link to PR #${activeCenterPrView?.number}`);
-  } catch {
-    notify.error("Could not copy to clipboard");
+    activityInbox.notify({
+      ...base,
+      title: `Copied link to PR #${view.number}`,
+      status: "succeeded",
+    });
+  } catch (caught) {
+    activityInbox.notify({
+      ...base,
+      title: `Could not copy link to PR #${view.number}`,
+      status: "failed",
+      message: failureMessage(caught),
+    });
   }
 }
 
@@ -66,7 +90,13 @@ async function checkoutActivePr() {
     observeGitOperationStart(activityInbox, input, operationId);
     // Repository events refresh state after actual success; Activity owns progress/cancel.
   } catch (caught) {
-    showCriticalError("Could not check out pull request", errorDetails(caught));
+    activityInbox.notify({
+      key: prNoticeKey(view, "checkout"),
+      title: `Could not start checkout of PR #${view.number}`,
+      status: "failed",
+      message: failureMessage(caught),
+      scope: prNoticeScope(view),
+    });
   }
 }
 
@@ -78,7 +108,16 @@ async function mergeActivePr(
   const core = view?.core.data;
   if (!view || !core || view.merging) return;
   view.merging = true;
-  view.mergeError = undefined;
+  const scope = prNoticeScope(view);
+  const mergeKey = prNoticeKey(view, "merge");
+  const postMergeFailure = (title: string, caught: unknown) =>
+    activityInbox.notify({
+      key: prNoticeKey(view, "merge-follow-up"),
+      title,
+      status: "failed",
+      message: failureMessage(caught),
+      scope,
+    });
 
   try {
     try {
@@ -90,18 +129,24 @@ async function mergeActivePr(
         core.headRefOid,
       );
     } catch (caught) {
-      const message = errorDetails(caught);
-      view.mergeError = message;
-      showCriticalError("Could not merge pull request", message);
+      // The server publishes its own failed Activity for rejected merges.
+      if (needsClientFailureNotice(caught))
+        activityInbox.notify({
+          key: mergeKey,
+          title: `Could not merge PR #${view.number}`,
+          status: "failed",
+          message: failureMessage(caught),
+          scope,
+        });
       return;
     }
 
     try {
       await applyMergedPr(view);
     } catch (caught) {
-      showCriticalError(
-        "Pull request merged, but its status could not refresh",
-        errorDetails(caught),
+      postMergeFailure(
+        `PR #${view.number} merged, but its status could not refresh`,
+        caught,
       );
     }
 
@@ -118,30 +163,42 @@ async function mergeActivePr(
           {
             start: startGitOperation,
             activities: activityInbox,
-            notify: (message) => notify.success(message),
+            notify: (title) =>
+              activityInbox.notify({
+                key: mergeKey,
+                title,
+                status: "succeeded",
+                scope,
+              }),
           },
         );
         localUpdateQueued = true;
       } catch (caught) {
-        showCriticalError(
-          "Pull request merged, but the local branch update could not start",
-          errorDetails(caught),
+        postMergeFailure(
+          `PR #${view.number} merged, but the local branch update could not start`,
+          caught,
         );
       }
     }
 
     if (!localUpdateQueued)
-      notify.success(`Merged pull request #${view.number}`);
+      activityInbox.notify({
+        key: mergeKey,
+        title: `Merged pull request #${view.number}`,
+        status: "succeeded",
+        scope,
+      });
     invalidateGit(view.projectId);
     try {
+      // Both refreshes are silent/self-reporting; they must not toast.
       await Promise.all([
         refreshPrPane(view.id),
         refreshPrs(view.projectId, view.repo, true, true),
       ]);
     } catch (caught) {
-      showCriticalError(
-        "Pull request merged, but Git state could not refresh",
-        errorDetails(caught),
+      postMergeFailure(
+        `PR #${view.number} merged, but Git state could not refresh`,
+        caught,
       );
     }
   } finally {
@@ -160,16 +217,8 @@ function retrySection(
 ): void {
   const view = activeCenterPrView;
   if (!view) return;
-  if (section === "core")
-    void loadPrCore(view, {
-      force: true,
-      criticalErrorTitle: "Could not load pull request",
-    });
-  else
-    void loadPrSection(view, section, {
-      force: true,
-      criticalErrorTitle: "Could not load pull request section",
-    });
+  if (section === "core") void loadPrCore(view, { force: true });
+  else void loadPrSection(view, section, { force: true });
 }
 
 $effect(() => {

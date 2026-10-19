@@ -27,6 +27,19 @@ test("opening marks failures seen and arrivals while open stay seen after closin
   );
 });
 
+test("client replacements coexist with seen daemon failures and clearing releases attention", () => {
+  const attention = new ActivityAttention();
+  const daemon = failure("daemon");
+  const local = { ...failure("local-1"), kind: "client.notice" };
+  assert.equal(attention.update([daemon], true), false);
+  assert.equal(attention.update([daemon, local], false), true);
+  assert.equal(attention.update([daemon, local], true), false);
+  const replacement = { ...local, id: "local-2", revision: 2 };
+  assert.equal(attention.update([daemon, replacement], false), true);
+  assert.equal(attention.update([daemon], false), false);
+  assert.equal(attention.update([], false), false);
+});
+
 test("dismissed failures release seen state and interrupted records need attention", () => {
   const attention = new ActivityAttention();
   const entry = failure("same");

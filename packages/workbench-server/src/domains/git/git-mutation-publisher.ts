@@ -6,6 +6,16 @@ import {
   type GitActivityPort,
 } from "@nervekit/tools/git";
 
+const reportedFailureActivities = new WeakMap<object, string>();
+
+export function gitMutationFailureActivityId(
+  error: unknown,
+): string | undefined {
+  return error !== null && typeof error === "object"
+    ? reportedFailureActivities.get(error)
+    : undefined;
+}
+
 const mutationReasons = {
   createBranch: "branch.created",
   switchBranch: "branch.switched",
@@ -87,20 +97,27 @@ export function withGitMutationEvents(
         try {
           result = (await value.apply(target, args)) as GitMutationResponse;
         } catch (error) {
+          const errorObject =
+            error !== null && typeof error === "object" ? error : undefined;
+          // Errors may be reused; only this attempt's successful report counts.
+          if (errorObject) reportedFailureActivities.delete(errorObject);
           if (!currentGitCommandOptions().activityId) {
             try {
-              activities
-                ?.start({
-                  kind: `git.${property}`,
-                  title: `${mutationLabels[property as GitMutationMethod]} failed`,
-                  scope: {
-                    projectId:
-                      typeof args[0] === "string" ? args[0] : undefined,
-                    repositoryPath:
-                      typeof args[1] === "string" ? args[1] : undefined,
-                  },
-                })
-                .fail(safeGitFailure(error));
+              const activity = activities?.start({
+                kind: `git.${property}`,
+                title: `${mutationLabels[property as GitMutationMethod]} failed`,
+                scope: {
+                  projectId: typeof args[0] === "string" ? args[0] : undefined,
+                  repositoryPath:
+                    typeof args[1] === "string" ? args[1] : undefined,
+                },
+              });
+              if (activity) {
+                activity.fail(safeGitFailure(error));
+                if (errorObject) {
+                  reportedFailureActivities.set(errorObject, activity.id);
+                }
+              }
             } catch {
               /* Reporting must preserve the original mutation error. */
             }

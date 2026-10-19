@@ -26,7 +26,7 @@ function setup(t: TestContext) {
   const loader = new PrResourceLoader({
     queryClient,
     now: Date.now,
-    reportError: (title, details) => errors.push(`${title}: ${details}`),
+    reportError: ({ key, message }) => errors.push(`${key}: ${message}`),
   });
   return { queryClient, loader, errors };
 }
@@ -190,7 +190,7 @@ for (const cached of [false, true]) {
       resource: state,
       staleTime: 0,
       query: () => pending.promise,
-      options: { silent: true, criticalErrorTitle: "Load failed" },
+      options: { silent: true, report: { key: "k", title: "Load failed" } },
     };
     const request = loader.load(input);
     pending.reject(new Error("offline"));
@@ -198,12 +198,24 @@ for (const cached of [false, true]) {
     assert.equal(state.error, cached ? undefined : "offline");
     assert.equal(state.loading, false);
     assert.equal(state.refreshing, false);
-    assert.deepEqual(errors, ["Load failed: offline"]);
+    assert.deepEqual(errors, cached ? [] : ["k: offline"]);
     await loader.load({ ...input, query: async () => "recovered" });
     assert.equal(state.data, "recovered");
     assert.equal(state.error, undefined);
   });
 }
+
+test("initial failure reports once, not per section", async (t) => {
+  const { loader, errors } = setup(t);
+  const input = initialInput(async () => {
+    throw new Error("offline");
+  });
+  await loader.loadInitial({
+    ...input,
+    options: { report: { key: "pr:open", title: "Could not open" } },
+  });
+  assert.deepEqual(errors, ["pr:open: offline"]);
+});
 
 test("initial request failures clear section flags and do not block retries", async (t) => {
   const { loader } = setup(t);

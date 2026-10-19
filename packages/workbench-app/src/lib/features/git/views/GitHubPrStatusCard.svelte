@@ -28,7 +28,6 @@ type Props = {
   detail: GithubPrCore & GithubPrOverview & { checks: GithubChecksSummary };
   selectedMethod?: GithubPrMergeMethod;
   merging: boolean;
-  error?: string;
   checkedOut?: boolean;
   onMethodChange?: (method: GithubPrMergeMethod) => void;
   onMerge?: (method: GithubPrMergeMethod, followUp: PrMergeFollowUp) => void;
@@ -38,7 +37,6 @@ let {
   detail,
   selectedMethod,
   merging,
-  error,
   checkedOut = false,
   onMethodChange,
   onMerge,
@@ -216,10 +214,6 @@ function confirmMerge(followUp: PrMergeFollowUp) {
         {/snippet}
       </SplitButton>
     </div>
-  {/if}
-
-  {#if error}
-    <p class="mt-2 text-xs text-destructive" role="alert">{error}</p>
   {/if}
 </GitHubPrSection>
 
