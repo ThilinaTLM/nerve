@@ -71,6 +71,10 @@ export async function executeEdit(
         });
       }
 
+      // Derive details before writing so a failure here cannot misreport a
+      // changed file as unapplied.
+      const diff = generateDiffString(content, updated);
+      const changedLine = firstChangedLine(content, updated);
       await writeTextFileAtomically(
         path,
         bom + restoreLineEndings(updated, lineEnding),
@@ -82,8 +86,8 @@ export async function executeEdit(
         content: contentMessage,
         contentBlocks: [{ type: "text", text: contentMessage }],
         details: {
-          diff: generateDiffString(content, updated),
-          firstChangedLine: firstChangedLine(content, updated),
+          diff,
+          firstChangedLine: changedLine,
           lineEnding,
           bom: Boolean(bom),
           operationCount: edits.length,
