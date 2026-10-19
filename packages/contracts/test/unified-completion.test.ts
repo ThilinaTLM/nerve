@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  COMPLETION_RESULT_LIMIT,
   completionSearchRequestSchema,
   completionSelectionRequestSchema,
   parseCompletionIntent,
@@ -29,7 +30,7 @@ void test("typed intent parsing narrows all supported sources without lexical ma
 void test("search accepts scope, not client authorization/context overrides; selection needs version/action", () => {
   assert.equal(
     completionSearchRequestSchema.parse({ projectId: "p" }).limit,
-    8,
+    COMPLETION_RESULT_LIMIT,
   );
   assert.equal(
     completionSearchRequestSchema.safeParse({ projectId: "p", limit: 64 })
