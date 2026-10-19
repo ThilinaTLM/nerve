@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Activity } from "@nervekit/contracts/activity";
 import { ActivityController } from "./activity-controller.js";
+import { ActivityAttention } from "./activity-attention.js";
 function entry(
   id: string,
   status: Activity["status"] = "running",
@@ -24,6 +25,7 @@ function setup() {
   let entries: Activity[] = [];
   let listCalls = 0;
   const failures: Activity[] = [];
+  const baselines: Activity[][] = [];
   const controller = new ActivityController({
     list: () => {
       listCalls++;
@@ -39,11 +41,13 @@ function setup() {
       entries = next;
     },
     error: () => undefined,
+    baseline: (activities) => baselines.push(activities),
     failed: (activity) => failures.push(activity),
   });
   return {
     controller,
     failures,
+    baselines,
     emit: (activity: Activity, removed = false) =>
       handler({ activity, removed }),
     resolve: (next: Activity[]) => resolve(next),
@@ -56,6 +60,57 @@ function setup() {
   };
 }
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+test("empty initial snapshot establishes baseline despite earlier client notices, not future daemon events", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.controller.notify({
+    key: "pr:read",
+    title: "Read failed",
+    status: "failed",
+  });
+  assert.deepEqual(ctx.baselines, []);
+  ctx.resolve([]);
+  await tick();
+  assert.deepEqual(ctx.baselines, [[]]);
+  ctx.emit(entry("future", "failed"));
+  assert.deepEqual(ctx.baselines, [[]]);
+  const reconnect = ctx.controller.refresh();
+  ctx.resolve([entry("future", "failed"), entry("other", "succeeded")]);
+  await reconnect;
+  assert.deepEqual(ctx.baselines, [[]]);
+  assert.deepEqual(
+    ctx.failures.map((activity) => activity.id),
+    ["future"],
+  );
+});
+
+test("initial baseline includes pre-existing snapshot entries but excludes concurrent live feedback", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.emit(entry("live", "failed", 2));
+  ctx.resolve([entry("existing", "succeeded"), entry("live", "failed", 2)]);
+  await tick();
+  assert.deepEqual(
+    ctx.baselines.map((activities) =>
+      activities.map((activity) => activity.id),
+    ),
+    [["existing"]],
+  );
+});
+
+test("disposed snapshot cannot establish baseline before the next successful snapshot", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.controller.dispose();
+  ctx.resolve([entry("stale", "succeeded")]);
+  await tick();
+  assert.deepEqual(ctx.baselines, []);
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  assert.deepEqual(ctx.baselines, [[]]);
+});
 
 test("subscription starts before snapshot and newer events win snapshot race", async () => {
   const ctx = setup();
@@ -369,4 +424,174 @@ test("inferred interruption yields to authoritative same revision but never olde
   ctx.emit(entry("running", "running", 5));
   assert.equal(ctx.entries[0].status, "running");
   assert.equal(ctx.entries[0].revision, 5);
+});
+
+test("client notices are completed, grouped, cloned and inbox-only without starting RPC work", () => {
+  const ctx = setup();
+  const scope = { projectId: "project" };
+  ctx.controller.notify({
+    key: "pr:refresh",
+    title: "Refresh failed",
+    status: "failed",
+    message: "Network down",
+    scope,
+  });
+  const first = ctx.entries[0];
+  scope.projectId = "mutated";
+  assert.equal(first.scope?.projectId, "project");
+  assert.equal(first.status, "failed");
+  assert.equal(first.kind, "client.notice");
+  assert.deepEqual(first.error, { message: "Network down" });
+  assert.equal(first.finishedAt, first.updatedAt);
+  assert.deepEqual(first.actions, { cancel: false, retry: false });
+  assert.equal(ctx.controller.isClientNotice(first.id), true);
+  ctx.controller.notify({
+    key: "pr:refresh",
+    title: "Refreshed",
+    status: "succeeded",
+  });
+  const replacement = ctx.entries[0];
+  assert.equal(ctx.entries.length, 1);
+  assert.notEqual(replacement.id, first.id);
+  assert.equal(replacement.revision, first.revision + 1);
+  assert.equal(replacement.status, "succeeded");
+  assert.equal(replacement.error, undefined);
+  assert.equal(replacement.message, undefined);
+  assert.equal(replacement.scope, undefined);
+  assert.equal(ctx.controller.isClientNotice(first.id), false);
+  assert.equal(ctx.listCalls, 0);
+  assert.deepEqual(ctx.failures, []);
+});
+
+test("client notices coexist with events and reconnect snapshots, including notifications during reads", async () => {
+  const ctx = setup();
+  ctx.controller.notify({
+    key: "clipboard",
+    title: "Copied",
+    status: "succeeded",
+  });
+  const localId = ctx.entries[0].id;
+  ctx.controller.start();
+  ctx.emit(entry("daemon", "running"));
+  ctx.controller.notify({
+    key: "read",
+    title: "Read failed",
+    status: "failed",
+    message: "Offline",
+  });
+  ctx.resolve([]);
+  await tick();
+  assert.equal(ctx.entries.length, 3);
+  const reconnect = ctx.controller.refresh();
+  ctx.resolve([entry("daemon", "succeeded", 2)]);
+  await reconnect;
+  assert.equal(ctx.entries.length, 3);
+  assert.equal(
+    ctx.entries.find((item) => item.id === localId)?.status,
+    "succeeded",
+  );
+  assert.equal(
+    ctx.entries.find((item) => item.id === "daemon")?.status,
+    "succeeded",
+  );
+  assert.deepEqual(ctx.failures, []);
+  ctx.controller.dispose();
+  ctx.controller.start();
+  ctx.resolve([]);
+  await tick();
+  assert.equal(ctx.entries.length, 2);
+});
+
+test("client dismiss and clear survive reconnect without tombstoning subsequent grouped notices", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([entry("running"), entry("done", "succeeded")]);
+  await tick();
+  ctx.controller.notify({
+    key: "read",
+    title: "Read failed",
+    status: "failed",
+  });
+  const dismissed = ctx.entries.find((item) => item.kind === "client.notice")!;
+  ctx.controller.dismissLocal(dismissed.id);
+  assert.equal(ctx.controller.isClientNotice(dismissed.id), false);
+  const reconnect = ctx.controller.refresh();
+  ctx.resolve([entry("running"), entry("done", "succeeded")]);
+  await reconnect;
+  assert.equal(ctx.entries.length, 2);
+  ctx.controller.notify({
+    key: "read",
+    title: "Failed again",
+    status: "failed",
+  });
+  ctx.controller.dismissLocal(dismissed.id);
+  assert.equal(ctx.entries.length, 3);
+  ctx.controller.clearClientNotices();
+  assert.deepEqual(ctx.entries.map((item) => item.id).sort(), [
+    "done",
+    "running",
+  ]);
+  ctx.controller.notify({
+    key: "read",
+    title: "Read succeeded",
+    status: "succeeded",
+  });
+  ctx.controller.clearLocal();
+  assert.deepEqual(
+    ctx.entries.map((item) => item.id),
+    ["running"],
+  );
+  ctx.controller.notify({
+    key: "read",
+    title: "New feedback",
+    status: "failed",
+  });
+  assert.equal(ctx.entries.length, 2);
+});
+
+test("client notices share the 200 finished bound with daemon entries and keep newest feedback", async () => {
+  const ctx = setup();
+  ctx.controller.start();
+  ctx.resolve([entry("running"), entry("old", "succeeded")]);
+  await tick();
+  for (let index = 0; index < 205; index++)
+    ctx.controller.notify({
+      key: `notice-${index}`,
+      title: `Notice ${index}`,
+      status: "succeeded",
+    });
+  assert.equal(ctx.entries.length, 201);
+  assert.equal(
+    ctx.entries.filter((item) => item.kind === "client.notice").length,
+    200,
+  );
+  assert.equal(
+    ctx.entries.some((item) => item.title === "Notice 204"),
+    true,
+  );
+  assert.equal(
+    ctx.entries.some((item) => item.title === "Notice 0"),
+    false,
+  );
+  assert.equal(
+    ctx.entries.some((item) => item.id === "running"),
+    true,
+  );
+});
+
+test("grouped replacement resets id-based read and attention without daemon failure toasts", () => {
+  const ctx = setup();
+  const attention = new ActivityAttention();
+  ctx.controller.notify({ key: "pr", title: "Failed", status: "failed" });
+  const readIds = new Set([ctx.entries[0].id]);
+  assert.equal(attention.update(ctx.entries, true), false);
+  ctx.controller.notify({ key: "pr", title: "Failed again", status: "failed" });
+  assert.equal(readIds.has(ctx.entries[0].id), false);
+  assert.equal(attention.update(ctx.entries, false), true);
+  assert.equal(attention.update(ctx.entries, true), false);
+  ctx.controller.notify({ key: "pr", title: "Recovered", status: "succeeded" });
+  assert.equal(attention.update(ctx.entries, false), false);
+  ctx.controller.clearClientNotices();
+  assert.equal(attention.update(ctx.entries, false), false);
+  assert.deepEqual(ctx.failures, []);
 });

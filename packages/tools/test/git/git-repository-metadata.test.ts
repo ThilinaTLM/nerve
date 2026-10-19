@@ -176,12 +176,20 @@ void test("metadata TTL starts at completion and hard generation invalidation/sh
   assert.equal(cache.get(root), first);
   now = 35_101;
   const old = cache.get(root);
-  const rejected = assert.rejects(old, { name: "AbortError" });
   cache.invalidateWithin(root);
   assert.equal(signals[1]!.aborted, true);
   const fresh = cache.get(root);
   releases[2]!();
-  assert.equal((await fresh).baseBranch, "main");
+  const freshValue = await fresh;
+  releases[1]!();
+  assert.equal(
+    await old,
+    freshValue,
+    "superseded readers join the fresh result",
+  );
+  cache.invalidate(root);
+  const pending = cache.get(root);
+  const rejected = assert.rejects(pending, { name: "AbortError" });
   let closed = false;
   const closing = cache.close().then(() => {
     closed = true;
@@ -192,7 +200,7 @@ void test("metadata TTL starts at completion and hard generation invalidation/sh
     false,
     "native ignoring cancellation must still be awaited",
   );
-  releases[1]!();
+  releases[3]!();
   await rejected;
   await closing;
   assert.equal(closed, true);
@@ -237,4 +245,145 @@ void test("project invalidation clears only that canonical root and its descenda
   now = 101;
   await cache.get(sibling);
   assert.equal(calls.get(sibling), 2);
+});
+
+function controlledMetadataCache(limit = 128) {
+  const reads: {
+    signal: AbortSignal;
+    resolve: (value: GitReadMetadataSnapshot) => void;
+    reject: (error: unknown) => void;
+  }[] = [];
+  const cache = new GitRepositoryMetadataCache(
+    {
+      readMetadataSnapshot: (_path, options) =>
+        new Promise<GitReadMetadataSnapshot>((resolve, reject) => {
+          // Deliberately ignore cancellation to control obsolete completions.
+          reads.push({ signal: options!.signal!, resolve, reject });
+        }),
+    },
+    100,
+    () => 0,
+    limit,
+  );
+  return { cache, reads };
+}
+
+void test("shared readers follow repeated invalidation without publishing obsolete results", async () => {
+  const root = resolve(tmpdir(), "nerve-metadata-repeated");
+  const { cache, reads } = controlledMetadataCache();
+  const first = cache.get(root);
+  assert.equal(cache.get(root), first);
+  let settled = false;
+  void first.then(() => {
+    settled = true;
+  });
+  for (let i = 0; i < 25; i++) {
+    cache.invalidate(root);
+    assert.equal(reads[i]!.signal.aborted, true);
+    reads[i]!.resolve(metadata());
+    await tick();
+    assert.equal(settled, false, "obsolete metadata must never reach readers");
+    assert.equal(
+      reads.length,
+      i + 2,
+      "recovery starts exactly one replacement",
+    );
+  }
+  const concurrent = cache.get(root);
+  assert.equal(cache.get(root), concurrent);
+  assert.equal(reads.length, 26);
+  const fresh = metadata();
+  fresh.branch.head = "fresh";
+  reads[25]!.resolve(fresh);
+  const [a, b] = await Promise.all([first, concurrent]);
+  assert.equal(a, b);
+  assert.equal(a.baseBranch, "fresh");
+  await cache.close();
+});
+
+void test("backend errors, including AbortErrors during invalidation, are not recovered", async () => {
+  const root = resolve(tmpdir(), "nerve-metadata-errors");
+  for (const failure of [
+    new Error("backend failed"),
+    new DOMException("Git metadata superseded", "AbortError"),
+  ]) {
+    const { cache, reads } = controlledMetadataCache();
+    const pending = cache.get(root);
+    const rejected = assert.rejects(pending, (error) => error === failure);
+    cache.invalidate(root);
+    reads[0]!.reject(failure);
+    await rejected;
+    assert.equal(reads.length, 1, "a real failure must not start recovery");
+    const retry = cache.get(root);
+    reads[1]!.resolve(metadata());
+    await retry;
+    await cache.close();
+  }
+});
+
+void test("a genuine replacement failure reaches all readers and remains retryable", async () => {
+  const root = resolve(tmpdir(), "nerve-metadata-replacement-error");
+  const { cache, reads } = controlledMetadataCache();
+  const old = cache.get(root);
+  cache.invalidate(root);
+  const fresh = cache.get(root);
+  reads[0]!.resolve(metadata());
+  await tick();
+  const failure = new Error("replacement failed");
+  const rejected = [old, fresh].map((read) =>
+    assert.rejects(read, (error) => error === failure),
+  );
+  reads[1]!.reject(failure);
+  await Promise.all(rejected);
+  assert.equal(reads.length, 2);
+  const retry = cache.get(root);
+  reads[2]!.resolve(metadata());
+  await retry;
+  await cache.close();
+});
+
+void test("close during recovery rejects shared readers and awaits the replacement load", async () => {
+  const root = resolve(tmpdir(), "nerve-metadata-recovery-close");
+  const { cache, reads } = controlledMetadataCache();
+  const pending = cache.get(root);
+  const rejected = assert.rejects(pending, { name: "AbortError" });
+  cache.invalidate(root);
+  reads[0]!.resolve(metadata());
+  await tick();
+  assert.equal(reads.length, 2);
+  let closed = false;
+  const closing = cache.close().then(() => {
+    closed = true;
+  });
+  await tick();
+  assert.equal(closed, false);
+  assert.equal(reads[1]!.signal.aborted, true);
+  reads[1]!.resolve(metadata());
+  await rejected;
+  await closing;
+  assert.equal(reads.length, 2, "shutdown must not resurrect a generation");
+  await assert.rejects(cache.get(root), /closed/);
+});
+
+void test("capacity eviction recovers pending readers while retaining shared-load deduplication", async () => {
+  const root = resolve(tmpdir(), "nerve-metadata-capacity");
+  const { cache, reads } = controlledMetadataCache(1);
+  const evicted = cache.get(root);
+  const retained = cache.get(`${root}-other`);
+  assert.equal(reads[0]!.signal.aborted, true);
+  assert.equal(cache.get(`${root}-other`), retained);
+  reads[1]!.resolve(metadata());
+  await retained;
+  reads[0]!.resolve(metadata());
+  await tick();
+  assert.equal(reads.length, 3);
+  const joined = cache.get(root);
+  assert.equal(cache.get(root), joined);
+  const fresh = metadata();
+  fresh.branch.head = "fresh";
+  reads[2]!.resolve(fresh);
+  const [a, b] = await Promise.all([evicted, joined]);
+  assert.equal(a, b);
+  assert.equal(a.baseBranch, "fresh");
+  await cache.close();
 });

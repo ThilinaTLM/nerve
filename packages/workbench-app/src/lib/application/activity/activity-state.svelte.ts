@@ -8,13 +8,16 @@ import { onEvent } from "$lib/application/events/workbench-event-bus";
 import {
   ActivityController,
   type ActivityStartedInput,
+  type ActivityNoticeInput,
 } from "./activity-controller";
 export type {
   ActivityStartedInput,
   ActivityStartedObserver,
+  ActivityNoticeInput,
 } from "./activity-controller";
 import { toast } from "svelte-sonner";
 import { ActivityAttention } from "./activity-attention";
+import { updateActivityReadIds } from "./activity-read-state";
 const attention = new ActivityAttention();
 const state = $state<{
   activities: Activity[];
@@ -23,7 +26,6 @@ const state = $state<{
   open: boolean;
   readIds: Set<string>;
 }>({ activities: [], unseenFailure: false, open: false, readIds: new Set() });
-let baselined = false;
 const controller = new ActivityController({
   list: async () =>
     (await protocolRequest("activity.list", {})).result.activities,
@@ -34,17 +36,18 @@ const controller = new ActivityController({
     }),
   changed: (activities) => {
     state.activities = activities;
-    if (!baselined) {
-      // Activities already finished when the app connected are not news.
-      baselined = true;
-      markRead(
-        activities
-          .filter((entry) => !isActivityRunning(entry))
-          .map((entry) => entry.id),
-      );
-    }
+    state.readIds = updateActivityReadIds(state.readIds, activities);
     state.unseenFailure = attention.update(activities, state.open);
     state.error = undefined;
+  },
+  baseline: (activities) => {
+    // Only the first successful daemon snapshot establishes pre-existing work.
+    // An empty snapshot counts too; client notices never establish a baseline.
+    markRead(
+      activities
+        .filter((entry) => !isActivityRunning(entry))
+        .map((entry) => entry.id),
+    );
   },
   error: (error) => {
     state.error =
@@ -63,13 +66,21 @@ const controller = new ActivityController({
   },
 });
 function markRead(ids: readonly string[]): void {
-  if (ids.every((id) => state.readIds.has(id))) return;
-  state.readIds = new Set([...state.readIds, ...ids]);
+  state.readIds = updateActivityReadIds(state.readIds, state.activities, ids);
 }
 async function action(
   kind: "cancel" | "retry" | "dismiss",
   activityId: string,
 ): Promise<void> {
+  if (controller.isClientNotice(activityId)) {
+    if (kind === "dismiss") {
+      controller.dismissLocal(activityId);
+      state.error = undefined;
+    } else state.error = "Action unavailable.";
+    return;
+  }
+  // A delayed action for an already replaced/dismissed local notice is local too.
+  if (activityId.startsWith("client-notice:")) return;
   try {
     const response = await protocolRequest(`activity.${kind}`, { activityId });
     if ("accepted" in response.result && !response.result.accepted)
@@ -102,6 +113,7 @@ export const activityInbox = {
   get unseenFailure() {
     return state.unseenFailure;
   },
+  notify: (input: ActivityNoticeInput): void => controller.notify(input),
   observeStarted: (input: ActivityStartedInput) =>
     controller.observeStarted(input),
   start: () => controller.start(),
@@ -113,6 +125,12 @@ export const activityInbox = {
   },
   action,
   clear: async () => {
+    // Client feedback can always be cleared, even if the daemon is unavailable.
+    controller.clearClientNotices();
+    if (!state.activities.some((entry) => !isActivityRunning(entry))) {
+      state.error = undefined;
+      return;
+    }
     try {
       await protocolRequest("activity.clear", {});
       controller.clearLocal();

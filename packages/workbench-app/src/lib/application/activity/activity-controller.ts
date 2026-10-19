@@ -9,11 +9,21 @@ export interface ActivityStartedObserver {
   observeStarted(input: ActivityStartedInput): void;
 }
 
+export interface ActivityNoticeInput {
+  key: string;
+  title: string;
+  status: "succeeded" | "failed";
+  message?: string;
+  scope?: Activity["scope"];
+}
+
 type Update = { activity: Activity; removed?: boolean };
 interface ActivityControllerDeps {
   list(): Promise<Activity[]>;
   subscribe(handler: (update: Update) => void): () => void;
   changed(activities: Activity[]): void;
+  /** First successful snapshot, excluding entries observed live during its read. */
+  baseline?(activities: Activity[]): void;
   error(error: unknown): void;
   /** Only accepted live transitions, never snapshots or stale/tombstoned events. */
   failed?(activity: Activity): void;
@@ -21,9 +31,12 @@ interface ActivityControllerDeps {
 /** Subscribe before snapshot; buffer events so an older snapshot cannot overwrite them. */
 export class ActivityController implements ActivityStartedObserver {
   #entries = new Map<string, Activity>();
+  // Completed client notices never participate in daemon reconciliation or RPC.
+  #notices = new Map<string, Activity>();
   #tombstones = new Map<string, number>();
   #unsubscribe?: () => void;
   #generation = 0;
+  #baselined = false;
   #buffer?: Update[];
   #refreshQueued?: object;
   #refreshAfterCurrent = false;
@@ -62,6 +75,37 @@ export class ActivityController implements ActivityStartedObserver {
     this.#buffer?.push({ activity });
     this.changed();
     this.scheduleRefresh();
+  }
+  notify(input: ActivityNoticeInput): void {
+    const previous = this.#notices.get(input.key);
+    const now = new Date().toISOString();
+    this.#notices.delete(input.key);
+    this.#notices.set(input.key, {
+      // A replacement is new feedback: id-based read/attention state must reset.
+      id: `client-notice:${crypto.randomUUID()}`,
+      kind: "client.notice",
+      title: input.title,
+      status: input.status,
+      message: input.message,
+      scope: input.scope ? structuredClone(input.scope) : undefined,
+      error:
+        input.status === "failed" && input.message !== undefined
+          ? { message: input.message }
+          : undefined,
+      revision: (previous?.revision ?? 0) + 1,
+      startedAt: now,
+      updatedAt: now,
+      finishedAt: now,
+      actions: { cancel: false, retry: false },
+    });
+    this.changed();
+  }
+  isClientNotice(id: string): boolean {
+    return [...this.#notices.values()].some((entry) => entry.id === id);
+  }
+  clearClientNotices(): void {
+    this.#notices.clear();
+    this.changed();
   }
   private scheduleRefresh(): void {
     if (!this.#unsubscribe) return;
@@ -121,6 +165,17 @@ export class ActivityController implements ActivityStartedObserver {
         } else if (entry.status === "interrupted")
           this.#entries.set(entry.id, entry);
       }
+      if (!this.#baselined) {
+        this.#baselined = true;
+        const liveIds = new Set(
+          (this.#buffer ?? []).map((update) => update.activity.id),
+        );
+        this.deps.baseline?.(
+          snapshot.filter(
+            (entry) => this.#entries.has(entry.id) && !liveIds.has(entry.id),
+          ),
+        );
+      }
       this.changed();
     } catch (error) {
       if (generation === this.#generation) this.deps.error(error);
@@ -135,6 +190,8 @@ export class ActivityController implements ActivityStartedObserver {
     }
   }
   dismissLocal(id: string): void {
+    for (const [key, notice] of this.#notices)
+      if (notice.id === id) this.#notices.delete(key);
     const entry = this.#entries.get(id);
     if (entry && !isActivityRunning(entry))
       this.apply({
@@ -144,6 +201,7 @@ export class ActivityController implements ActivityStartedObserver {
     this.changed();
   }
   clearLocal(): void {
+    this.#notices.clear();
     for (const entry of this.#entries.values())
       if (!isActivityRunning(entry))
         this.apply({
@@ -200,15 +258,21 @@ export class ActivityController implements ActivityStartedObserver {
     return true;
   }
   private changed(): void {
-    const entries = [...this.#entries.values()].sort((a, b) =>
-      b.updatedAt.localeCompare(a.updatedAt),
-    );
+    const entries = [
+      ...this.#entries.values(),
+      ...[...this.#notices.values()].reverse(),
+    ].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    // Local terminal entries share the same 200-finished display budget.
     let finished = 0;
+    const keptIds = new Set<string>();
     for (const entry of entries)
-      if (!isActivityRunning(entry) && ++finished > 200)
-        this.#entries.delete(entry.id);
+      if (isActivityRunning(entry) || ++finished <= 200) keptIds.add(entry.id);
+    for (const id of this.#entries.keys())
+      if (!keptIds.has(id)) this.#entries.delete(id);
+    for (const [key, notice] of this.#notices)
+      if (!keptIds.has(notice.id)) this.#notices.delete(key);
     for (const id of this.#localInterruptions.keys())
       if (!this.#entries.has(id)) this.#localInterruptions.delete(id);
-    this.deps.changed(entries.filter((entry) => this.#entries.has(entry.id)));
+    this.deps.changed(entries.filter((entry) => keptIds.has(entry.id)));
   }
 }

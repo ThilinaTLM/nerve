@@ -23,7 +23,8 @@ type Props = {
   detail: GithubPrCore;
   files?: GithubPrFilesResponse;
   loading: boolean;
-  error?: string;
+  /** Whether the file list failed; details are reported to Activity. */
+  failed?: boolean;
   selectedPath?: string;
   fileDiff?: PrSectionState<GithubPrFileDiffResponse>;
   onRetry?: () => void;
@@ -35,7 +36,7 @@ let {
   detail,
   files,
   loading,
-  error,
+  failed,
   selectedPath,
   fileDiff,
   onRetry,
@@ -90,17 +91,17 @@ function unavailableMessage(
     </div>
     <span class="sr-only">Loading changed files</span>
   </div>
-{:else if error && !files}
+{:else if failed && !files}
   <Empty.Root class="h-full min-h-0 gap-2 py-6">
     <Empty.Media variant="icon" class="size-8 rounded-md">
-      <TriangleAlert class="size-4 text-destructive" aria-hidden="true" />
+      <TriangleAlert class="size-4 text-muted-foreground" aria-hidden="true" />
     </Empty.Media>
     <Empty.Header class="gap-1">
       <Empty.Title class="text-sm font-medium"
-        >Could not load changed files</Empty.Title
+        >Changed files unavailable</Empty.Title
       >
-      <Empty.Description class="text-xs text-destructive"
-        >{error}</Empty.Description
+      <Empty.Description class="text-xs"
+        >Details are in Activity.</Empty.Description
       >
     </Empty.Header>
     <Empty.Content class="gap-1">
@@ -205,16 +206,16 @@ function unavailableMessage(
             <Empty.Root class="h-full min-h-0 gap-2 py-6">
               <Empty.Media variant="icon" class="size-8 rounded-md">
                 <TriangleAlert
-                  class="size-4 text-destructive"
+                  class="size-4 text-muted-foreground"
                   aria-hidden="true"
                 />
               </Empty.Media>
               <Empty.Header class="gap-1">
                 <Empty.Title class="text-sm font-medium"
-                  >Could not load file diff</Empty.Title
+                  >File diff unavailable</Empty.Title
                 >
-                <Empty.Description class="text-xs text-destructive"
-                  >{fileDiff.error}</Empty.Description
+                <Empty.Description class="text-xs"
+                  >Details are in Activity.</Empty.Description
                 >
               </Empty.Header>
               <Empty.Content>

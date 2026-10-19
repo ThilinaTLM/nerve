@@ -31,7 +31,8 @@ export type StableRepoMetadata = {
 type CacheEntry = {
   expiresAt: number;
   controller: AbortController;
-  value: Promise<StableRepoMetadata>;
+  work: Promise<StableRepoMetadata>;
+  value?: Promise<StableRepoMetadata>;
 };
 
 export class GitRepositoryMetadataCache {
@@ -52,9 +53,13 @@ export class GitRepositoryMetadataCache {
     // A workflow owns its lane/cancellation. Never join an unrelated cache job
     // queued behind that lane, or lend this caller's ALS scope to other readers.
     if (hasGitRepositoryLane()) return this.load(repoDir, workflow.signal);
+    const entry = this.sharedEntry(repoDir);
+    return (entry.value ??= this.follow(repoDir, entry));
+  }
+  private sharedEntry(repoDir: string): CacheEntry {
     const key = gitPathKey(repoDir);
     const cached = this.#entries.get(key);
-    if (cached && cached.expiresAt > this.now()) return cached.value;
+    if (cached && cached.expiresAt > this.now()) return cached;
     this.invalidate(repoDir);
     if (this.#entries.size >= this.limit)
       this.remove(this.#entries.keys().next().value!);
@@ -68,12 +73,14 @@ export class GitRepositoryMetadataCache {
         this.#loads.delete(work);
       })
       .catch(() => {});
-    const entry: CacheEntry = { controller, expiresAt: Infinity, value: work };
-    entry.value = work
+    const entry: CacheEntry = {
+      controller,
+      expiresAt: Infinity,
+      work,
+    };
+    entry.work = work
       .then((value) => {
         controller.signal.throwIfAborted();
-        if (this.#entries.get(key) !== entry)
-          throw new DOMException("Git metadata superseded", "AbortError");
         entry.expiresAt = this.now() + this.ttlMs;
         return value;
       })
@@ -82,7 +89,28 @@ export class GitRepositoryMetadataCache {
         throw error;
       });
     this.#entries.set(key, entry);
-    return entry.value;
+    return entry;
+  }
+  private async follow(
+    repoDir: string,
+    entry: CacheEntry,
+  ): Promise<StableRepoMetadata> {
+    // Follow raw generations, not their public recovery promises: repeated
+    // invalidations must not build an ever-growing promise/retry chain.
+    for (;;) {
+      try {
+        const value = await entry.work;
+        entry.controller.signal.throwIfAborted();
+        return value;
+      } catch (error: unknown) {
+        const { signal } = entry.controller;
+        // Only this cache can abort this controller. Backend AbortErrors and
+        // other genuine failures are not supersession, even during invalidation.
+        if (this.#closed || !signal.aborted || error !== signal.reason)
+          throw error;
+        entry = this.sharedEntry(repoDir);
+      }
+    }
   }
   private remove(key: string): void {
     const previous = this.#entries.get(key);

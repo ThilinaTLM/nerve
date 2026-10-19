@@ -9,10 +9,18 @@ export type PrResourceState<T> = {
 };
 
 const PR_DETAIL_CACHE_MS = 5 * 60_000;
+/** Activity notice identity for one PR operation; same key replaces. */
+export type PrFeedback = {
+  key: string;
+  title: string;
+  scope?: { projectId: string; repositoryPath: string };
+};
+export type PrFeedbackReport = PrFeedback & { message: string };
 export type PrLoadOptions = {
   force?: boolean;
   silent?: boolean;
-  criticalErrorTitle?: string;
+  /** Report a genuine failure once to Activity. Omit when a caller aggregates. */
+  report?: PrFeedback | false;
 };
 
 type InitialSection<K extends keyof GithubPrInitial> = {
@@ -45,7 +53,7 @@ export class PrResourceLoader {
     private readonly dependencies: {
       queryClient: QueryClient;
       now: () => number;
-      reportError: (title: string, details: string) => void;
+      reportError: (report: PrFeedbackReport) => void;
     },
   ) {}
   private claimResource(key: readonly unknown[]): number {
@@ -126,11 +134,11 @@ export class PrResourceLoader {
           (!input.options?.silent || !hadData)
         )
           input.resource.error = details;
-        if (input.options?.criticalErrorTitle)
-          this.dependencies.reportError(
-            input.options.criticalErrorTitle,
-            details,
-          );
+        if (input.options?.report && !(input.options.silent && hadData))
+          this.dependencies.reportError({
+            ...input.options.report,
+            message: details,
+          });
         return undefined;
       } finally {
         if (this.ownsResource(input.key, version)) {
@@ -239,6 +247,9 @@ export class PrResourceLoader {
       input.conversation.resource,
       input.overview.resource,
     ] as const;
+    const retainedData = resources.some(
+      (resource) => resource.data !== undefined,
+    );
     for (const resource of resources) {
       const hadData = resource.data !== undefined;
       resource.loading = !hadData;
@@ -262,11 +273,11 @@ export class PrResourceLoader {
         return data;
       } catch (error) {
         const errorMessage = message(error);
-        if (options.criticalErrorTitle)
-          this.dependencies.reportError(
-            options.criticalErrorTitle,
-            errorMessage,
-          );
+        if (options.report && !(options.silent && retainedData))
+          this.dependencies.reportError({
+            ...options.report,
+            message: errorMessage,
+          });
         for (const [resource, key, version] of [
           [input.core.resource, coreKey, versions.core],
           [input.conversation.resource, conversationKey, versions.conversation],

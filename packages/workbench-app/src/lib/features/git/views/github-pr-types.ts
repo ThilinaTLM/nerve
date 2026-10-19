@@ -36,9 +36,7 @@ export type GithubPrViewState = {
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
   refreshing: boolean;
-  refreshError?: string;
   merging: boolean;
-  mergeError?: string;
 };
 
 export type PrViewState = GithubPrViewState;

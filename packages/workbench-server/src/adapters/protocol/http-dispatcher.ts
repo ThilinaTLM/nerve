@@ -17,6 +17,7 @@ import type { ServerAdapterContexts } from "../../app/bootstrap/create-server-ad
 
 export type ProtocolAdapterContext = ServerAdapterContexts["protocolAdapter"];
 import { ApplicationError } from "../../core/application-error.js";
+import { gitMutationFailureActivityId } from "../../domains/git/git-mutation-publisher.js";
 import {
   protocolCodeForHttpError,
   translateApplicationError,
@@ -206,7 +207,15 @@ export function workbenchWebSocketRpcDispatcher(
   });
 }
 
-function translateError(error: unknown): ProtocolErrorData {
+export function translateError(error: unknown): ProtocolErrorData {
+  const translated = translateErrorData(error);
+  const activityId = gitMutationFailureActivityId(error);
+  return activityId
+    ? { ...translated, details: { ...translated.details, activityId } }
+    : translated;
+}
+
+function translateErrorData(error: unknown): ProtocolErrorData {
   if (error instanceof ApplicationError) {
     return translateApplicationError(error);
   }

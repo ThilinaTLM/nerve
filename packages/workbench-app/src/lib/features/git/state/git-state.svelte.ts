@@ -34,9 +34,7 @@ export type PrViewState = {
   selectedFilePath?: string;
   selectedMergeMethod?: GithubPrMergeMethod;
   refreshing: boolean;
-  refreshError?: string;
   merging: boolean;
-  mergeError?: string;
 };
 
 export type DiffViewState = {
