@@ -38,15 +38,25 @@ export function createCompletionDependencies(
   const { sources, git, events, core } = bindings;
   const repositoryPaths = async (projectId: string) => {
     const discovery = await git.discoverRepos(projectId);
-    // A status-read failure must not silently omit a discovered repository.
+    // Ignore known non-GitHub repos, but retain uncertain discovery/error paths.
+    const paths = [
+      ...new Set([
+        ...discovery.repos
+          .filter((repo) => repo.hasGithubRemote !== false)
+          .map((repo) => repo.relativePath),
+        ...(discovery.errors ?? []).map((error) => error.repo),
+      ]),
+    ];
     return {
-      paths: [
-        ...new Set([
-          ...discovery.repos.map((repo) => repo.relativePath),
-          ...(discovery.errors ?? []).map((error) => error.repo),
-        ]),
-      ],
+      paths,
       stale: discovery.stale === true,
+      failureCode:
+        !discovery.stale && !paths.length
+          ? discovery.repos.length &&
+            !discovery.repos.some((repo) => repo.hasRemote)
+            ? "GH_NO_REMOTE"
+            : "GH_NO_GITHUB_REMOTE"
+          : undefined,
     };
   };
   const providers = createCompletionProviders({
@@ -57,7 +67,15 @@ export function createCompletionDependencies(
           invalidate({ projectId: change.projectId });
       }),
     prs: async (projectId) => {
-      const { paths, stale } = await repositoryPaths(projectId);
+      const { paths, stale, failureCode } = await repositoryPaths(projectId);
+      if (failureCode)
+        return {
+          items: [],
+          failed: true,
+          refreshing: false,
+          updatedAt: null,
+          failureCode,
+        };
       const merged = mergeCompletionRemoteSnapshots(
         paths.map((repo) => {
           try {
@@ -68,7 +86,9 @@ export function createCompletionDependencies(
                 repository: repo,
               })),
               stale: snapshot.status !== "fresh",
-              failed: snapshot.status === "unavailable",
+              failed:
+                snapshot.status === "unavailable" || !!snapshot.failureCode,
+              failureCode: snapshot.failureCode,
               refreshing: snapshot.refreshing,
               updatedAt: snapshot.updatedAt,
             };
@@ -86,7 +106,15 @@ export function createCompletionDependencies(
       return { ...merged, stale: stale || merged.stale === true };
     },
     issues: async (projectId) => {
-      const { paths, stale } = await repositoryPaths(projectId);
+      const { paths, stale, failureCode } = await repositoryPaths(projectId);
+      if (failureCode)
+        return {
+          items: [],
+          failed: true,
+          refreshing: false,
+          updatedAt: null,
+          failureCode,
+        };
       const merged = mergeCompletionRemoteSnapshots(
         paths.map((repo) => {
           try {
@@ -97,7 +125,9 @@ export function createCompletionDependencies(
                 repository: repo,
               })),
               stale: snapshot.status !== "fresh",
-              failed: snapshot.status === "unavailable",
+              failed:
+                snapshot.status === "unavailable" || !!snapshot.failureCode,
+              failureCode: snapshot.failureCode,
               refreshing: snapshot.refreshing,
               updatedAt: snapshot.updatedAt,
             };

@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createSearchIndex } from "@nervekit/native";
+import {
+  completionGroupKinds,
+  parseCompletionIntent,
+} from "@nervekit/contracts/completions";
 import { emptyCompletionEvidence } from "../../benchmarks/completion-unified-judgments.js";
 
-void test("actual empty @ blends bounded native-filtered context/usage/state seeds beyond main64 without static file prior", async (t) => {
+void test("actual empty @ preserves category diversity and usage/context/state ranking with bounded per-category retrieval", async (t) => {
   const evidence = await emptyCompletionEvidence(createSearchIndex);
   const initial = evidence.withinPool.results.find(
     (result) => result.query === "@",
@@ -35,10 +39,43 @@ void test("actual empty @ blends bounded native-filtered context/usage/state see
     );
     for (const result of collection.results) {
       assert.ok(result.allLexicalZero, result.query);
+      const intent = parseCompletionIntent(result.query);
+      const cap = intent.kinds ? 12 : 3;
       assert.ok(
-        result.visible.length > 0 && result.visible.length <= 8,
+        result.visible.length > 0 &&
+          result.visible.length <= (intent.kinds ? 12 : 21),
         result.query,
       );
+      const expectedGroups = Object.entries(completionGroupKinds).filter(
+        ([, kinds]) =>
+          kinds.some((kind) => (result.matchedCounts[kind] ?? 0) > 0),
+      );
+      assert.equal(result.groups?.length, expectedGroups.length, result.query);
+      for (const [group, kinds] of expectedGroups) {
+        const visible = result.visible.filter((item) =>
+          (kinds as readonly string[]).includes(item.kind),
+        );
+        const nativeCount = kinds.reduce(
+          (count, kind) => count + (result.matchedCounts[kind] ?? 0),
+          0,
+        );
+        const rescuedFile =
+          group === "files" &&
+          !result.nativeFileIds.includes(collection.wantedId)
+            ? 1
+            : 0;
+        const matchedCount = nativeCount + rescuedFile;
+        assert.equal(
+          visible.length,
+          Math.min(cap, matchedCount),
+          `${result.query}: ${group} cap/diversity`,
+        );
+        assert.equal(
+          result.groups?.find((entry) => entry.group === group)?.more,
+          matchedCount - visible.length,
+          `${result.query}: ${group} additional matches`,
+        );
+      }
     }
     const tools = collection.results.find(
       (result) => result.query === "@tool:",
@@ -77,10 +114,21 @@ void test("actual empty @ blends bounded native-filtered context/usage/state see
       const crowded = collection.results.find(
         (result) => result.query === query,
       )!;
-      assert.equal(crowded.nativeCount, 64);
-      assert.deepEqual(crowded.nativeKinds, kinds);
+      assert.equal(crowded.nativeFileIds.length, 64);
       assert.equal(
-        crowded.nativeIds.includes(collection.wantedId),
+        crowded.nativeCount,
+        query === "@file:"
+          ? 64
+          : 64 + collection.documentCount - collection.fileDocumentCount,
+      );
+      assert.deepEqual(
+        crowded.nativeKinds.filter(
+          (kind) => kind === "file" || kind === "directory",
+        ),
+        kinds,
+      );
+      assert.equal(
+        crowded.nativeFileIds.includes(collection.wantedId),
         wantedInMain,
       );
       assert.equal(crowded.visible[0]?.id, collection.wantedId);
@@ -101,12 +149,18 @@ void test("actual empty @ blends bounded native-filtered context/usage/state see
             (item) => item.kind === "subagent" && item.factors?.state === 80,
           ),
         );
-      } else
+      } else {
+        assert.equal(
+          crowded.visible.length,
+          12,
+          "scoped file search expands beyond the old eight-item cap",
+        );
         assert.ok(
           crowded.visible.every(
             (item) => item.kind === "file" || item.kind === "directory",
           ),
         );
+      }
     }
   t.diagnostic(
     JSON.stringify({
@@ -127,7 +181,7 @@ void test("actual empty @ blends bounded native-filtered context/usage/state see
           (result) => result.query === "@",
         )?.nativeKinds,
         wantedInMainPoolByStructuralTie: true,
-        usedToolAndRunningStateRetrievedByNativeFilteredSupplement: true,
+        usedToolAndRunningStateRetainedByCategoryRetrieval: true,
       },
       beyondMain: {
         documents: evidence.beyondMain.documentCount,
@@ -135,7 +189,7 @@ void test("actual empty @ blends bounded native-filtered context/usage/state see
         wantedRetrievedByNativeFilteredSupplement: true,
       },
       limit:
-        "Empty native lexical scores are zero. Main64 plus at most256 known context/usage/state IDs, filtered by the same native query and kinds; policy only ranks native matches. Remaining recall outside both bounded sets is not guaranteed. No legacy empty-score parity or arbitrary recall claim.",
+        "Empty native lexical scores are zero. Up to64 per category plus at most256 known context/usage/state IDs, filtered by the same native query and kinds; policy only ranks native matches. Remaining recall outside both bounded sets is not guaranteed. No legacy empty-score parity or arbitrary recall claim.",
     }),
   );
 });

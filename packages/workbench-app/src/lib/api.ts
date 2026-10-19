@@ -40,7 +40,7 @@ export type {
   AvailableSkillsResponse,
 } from "@nervekit/contracts/skills";
 export type {
-  ClipboardImageUploadResponse,
+  AttachmentUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
   FilesystemSignal,

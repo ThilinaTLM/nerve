@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   completionItemSchema,
   completionKindSchema,
-  FILE_COMPLETION_RESULT_LIMIT,
   FILE_COMPLETION_QUERY_MAX_LENGTH,
 } from "./completion.js";
 
@@ -13,20 +12,46 @@ export const completionScopeSchema = z
   })
   .strict();
 export type CompletionScope = z.infer<typeof completionScopeSchema>;
+export const COMPLETION_RESULT_LIMIT = 21;
+export const COMPLETION_SCOPED_RESULT_LIMIT = 12;
+export const completionGroupSchema = z.enum([
+  "files",
+  "pull_requests",
+  "issues",
+  "skills",
+  "tools",
+  "agents",
+  "launches",
+]);
+export type CompletionGroup = z.infer<typeof completionGroupSchema>;
+export const completionGroupKinds = {
+  files: ["file", "directory"],
+  pull_requests: ["pull_request"],
+  issues: ["issue"],
+  skills: ["skill"],
+  tools: ["tool"],
+  agents: ["subagent_profile", "subagent"],
+  launches: ["launch", "launch_definition"],
+} as const;
+
 export const completionSearchRequestSchema = completionScopeSchema.extend({
   q: z.string().max(FILE_COMPLETION_QUERY_MAX_LENGTH).default(""),
   limit: z
     .number()
     .int()
     .min(1)
-    .max(FILE_COMPLETION_RESULT_LIMIT)
-    .default(FILE_COMPLETION_RESULT_LIMIT),
+    .max(COMPLETION_RESULT_LIMIT)
+    .default(COMPLETION_RESULT_LIMIT),
 });
 export type CompletionSearchRequest = z.infer<
   typeof completionSearchRequestSchema
 >;
 export const completionSourceStateSchema = z.object({
   source: z.string().min(1),
+  groups: z.array(completionGroupSchema).optional(),
+  label: z.string().min(1).optional(),
+  reason: z.string().optional(),
+  action: z.enum(["open_pull_requests", "open_settings"]).optional(),
   status: z.enum(["loading", "fresh", "stale", "unavailable"]),
   refreshing: z.boolean().optional(),
   updatedAt: z.number().nonnegative().optional(),
@@ -36,6 +61,15 @@ export const completionSearchResponseSchema = z.object({
   revision: z.number().int().nonnegative(),
   items: z.array(completionItemSchema),
   sources: z.array(completionSourceStateSchema),
+  groups: z
+    .array(
+      z.object({
+        group: completionGroupSchema,
+        /** Additional matches in the bounded native candidate pool, not a corpus count. */
+        more: z.number().int().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 export type CompletionSearchResponse = z.infer<
   typeof completionSearchResponseSchema

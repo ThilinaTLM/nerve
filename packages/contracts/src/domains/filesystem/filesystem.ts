@@ -161,20 +161,27 @@ export type FilesystemFileSaveRequest = z.infer<
   typeof filesystemFileSaveRequestSchema
 >;
 
-export const clipboardImageUploadRequestSchema = z.object({
-  name: z.string().optional(),
-  type: z.string().min(1),
-  dataBase64: z.string().min(1),
+export const ATTACHMENT_MAX_BYTES = 20 * 1024 * 1024;
+
+export const attachmentUploadRequestSchema = z.object({
+  name: z.string().max(1024).optional(),
+  type: z.string().max(256).default("application/octet-stream"),
+  dataBase64: z
+    .string()
+    .max(
+      Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4,
+      "Attachments must be 20 MiB or smaller.",
+    ),
 });
-export type ClipboardImageUploadRequest = z.infer<
-  typeof clipboardImageUploadRequestSchema
+export type AttachmentUploadRequest = z.infer<
+  typeof attachmentUploadRequestSchema
 >;
 
-export const clipboardImageUploadResponseSchema = z.object({
+export const attachmentUploadResponseSchema = z.object({
   path: z.string().min(1),
 });
-export type ClipboardImageUploadResponse = z.infer<
-  typeof clipboardImageUploadResponseSchema
+export type AttachmentUploadResponse = z.infer<
+  typeof attachmentUploadResponseSchema
 >;
 
 export const htmlPreviewResourceCategorySchema = z.enum([

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { completionRemoteFailure } from "./completion-source-failure.js";
 import type {
   CompletionScope,
   CompletionItem,
@@ -35,6 +36,7 @@ export type CompletionRemoteSnapshot<T> = {
   refreshing: boolean;
   updatedAt?: string | null;
   failed?: boolean;
+  failureCode?: string;
   stale?: boolean;
 };
 export function mergeCompletionRemoteSnapshots<T>(
@@ -59,6 +61,12 @@ export function mergeCompletionRemoteSnapshots<T>(
     items: snapshots.flatMap((snapshot) => snapshot.items),
     refreshing: snapshots.some((snapshot) => snapshot.refreshing),
     failed,
+    ...(snapshots.find((snapshot) => snapshot.failureCode)?.failureCode
+      ? {
+          failureCode: snapshots.find((snapshot) => snapshot.failureCode)!
+            .failureCode,
+        }
+      : {}),
     stale,
     updatedAt: validTimes.length
       ? new Date(Math.min(...validTimes)).toISOString()
@@ -96,7 +104,7 @@ export type CompletionSourcePorts = {
         | "headRefName"
         | "updatedAt"
         | "author"
-      > & { repository?: string }
+      > & { repository?: string; isDraft?: boolean }
     >
   >;
   issues(
@@ -193,6 +201,11 @@ function remoteSnapshot<T>(
           : "fresh"
         : "unavailable",
     refreshing: snapshot.refreshing,
+    ...(snapshot.failureCode ||
+    snapshot.failed ||
+    (!cached && !snapshot.refreshing)
+      ? completionRemoteFailure(snapshot.failureCode, cached)
+      : {}),
     ...(updatedAt === undefined ? {} : { updatedAt }),
   };
 }
@@ -240,7 +253,8 @@ export function createCompletionProviders(
             {
               label: pr.url,
               displayLabel: `#${pr.number} ${pr.title}`,
-              detail: `${pr.state} · ${pr.headRefName}${pr.author ? ` · ${pr.author}` : ""}${pr.repository ? ` · ${pr.repository}` : ""}`,
+              status: pr.isDraft ? "draft" : pr.state.toLowerCase(),
+              detail: `${pr.headRefName}${pr.author ? ` · ${pr.author}` : ""}${pr.repository ? ` · ${pr.repository}` : ""}`,
               info: pr.url,
             },
             fields([
@@ -258,15 +272,15 @@ export function createCompletionProviders(
                 { index: 1, offset: 1 },
               ],
               detailFields: [
-                { index: 2, offset: `${pr.state} · `.length },
+                { index: 2, offset: 0 },
                 {
                   index: 3,
-                  offset: `${pr.state} · ${pr.headRefName} · `.length,
+                  offset: `${pr.headRefName} · `.length,
                 },
                 {
                   index: 4,
                   offset:
-                    `${pr.state} · ${pr.headRefName}${pr.author ? ` · ${pr.author}` : ""} · `
+                    `${pr.headRefName}${pr.author ? ` · ${pr.author}` : ""} · `
                       .length,
                 },
               ],
@@ -296,7 +310,10 @@ export function createCompletionProviders(
             {
               label: issue.url,
               displayLabel: `#${issue.number} ${issue.title}`,
-              detail: `${issue.state} · issue${issue.author ? ` · ${issue.author}` : ""}${issue.repository ? ` · ${issue.repository}` : ""}`,
+              status: issue.state.toLowerCase(),
+              detail: [issue.author, issue.repository]
+                .filter(Boolean)
+                .join(" · "),
               info: issue.url,
             },
             fields([
@@ -313,12 +330,10 @@ export function createCompletionProviders(
                 { index: 1, offset: 1 },
               ],
               detailFields: [
-                { index: 2, offset: `${issue.state} · issue · `.length },
+                { index: 2, offset: 0 },
                 {
                   index: 3,
-                  offset:
-                    `${issue.state} · issue${issue.author ? ` · ${issue.author}` : ""} · `
-                      .length,
+                  offset: issue.author ? `${issue.author} · `.length : 0,
                 },
               ],
             },
@@ -350,7 +365,8 @@ export function createCompletionProviders(
               {
                 label: launch.id,
                 displayLabel: name,
-                detail: `${launch.status} · ${launch.id}`,
+                status: launch.status.toLowerCase(),
+                detail: launch.id,
               },
               fields([
                 ["name", name],
@@ -359,9 +375,7 @@ export function createCompletionProviders(
               launch.updatedAt,
               {
                 stateBoost: 80,
-                detailFields: [
-                  { index: 1, offset: `${launch.status} · `.length },
-                ],
+                detailFields: [{ index: 1, offset: 0 }],
               },
             );
           });
@@ -387,7 +401,7 @@ export function createCompletionProviders(
               {
                 label: `@launch:${definition.id}`,
                 displayLabel: name,
-                detail: `launch definition · ${definition.command}`,
+                detail: definition.command,
                 info: definition.command,
               },
               fields([
@@ -397,9 +411,7 @@ export function createCompletionProviders(
               ]),
               catalog.revision,
               {
-                detailFields: [
-                  { index: 2, offset: "launch definition · ".length },
-                ],
+                detailFields: [{ index: 2, offset: 0 }],
               },
             );
           });
@@ -465,7 +477,8 @@ export function createCompletionProviders(
             {
               label: `@skill:${skill.name}`,
               displayLabel: skill.name,
-              detail: `${skill.source} skill · ${skill.description}`,
+              detail: skill.description,
+              info: skill.source,
               enabled,
               available: !shadowed && (enabled || writeAllowed),
               canDisable: writeAllowed,
@@ -487,9 +500,7 @@ export function createCompletionProviders(
             ]),
             [digest, config.effective],
             {
-              detailFields: [
-                { index: 1, offset: `${skill.source} skill · `.length },
-              ],
+              detailFields: [{ index: 1, offset: 0 }],
               setEnabled: writeAllowed
                 ? async (value) => {
                     await ports.capabilities.update({
@@ -555,7 +566,7 @@ export function createCompletionProviders(
               {
                 label: `@tool:${tool.name}`,
                 displayLabel: tool.name,
-                detail: `tool · ${tool.description}`,
+                detail: tool.description,
                 enabled,
                 available,
                 canDisable: !!name && writeAllowed,
@@ -573,7 +584,7 @@ export function createCompletionProviders(
               ]),
               [digest, config.effective, config.toolProfileOptions],
               {
-                detailFields: [{ index: 1, offset: "tool · ".length }],
+                detailFields: [{ index: 1, offset: 0 }],
                 ...(name && writeAllowed
                   ? {
                       setEnabled: async (value: boolean) => {
@@ -627,7 +638,7 @@ export function createCompletionProviders(
             {
               label: `@agent:${profile.name}`,
               displayLabel: effective?.label ?? profile.name,
-              detail: `subagent profile · ${profile.name} · ${effective?.description ?? "Unavailable configuration"}`,
+              detail: effective?.description,
               enabled: effective?.enabled ?? false,
               available: !blocked,
               canDisable: !blocked,
@@ -639,7 +650,10 @@ export function createCompletionProviders(
                           (diagnostic) => diagnostic.severity === "blocking",
                         )
                         .map((diagnostic) => diagnostic.message)
-                        .join("; ") || "Profile is invalid or untrusted",
+                        .join("; ") ||
+                      (profile.trust !== "trusted"
+                        ? "Review project profile trust in agent settings before using this profile."
+                        : "This agent profile has an invalid configuration. Review agent settings."),
                   }
                 : {}),
             },
@@ -650,13 +664,7 @@ export function createCompletionProviders(
             ]),
             [config.digest, profile],
             {
-              detailFields: [
-                { index: 1, offset: "subagent profile · ".length },
-                {
-                  index: 2,
-                  offset: `subagent profile · ${profile.name} · `.length,
-                },
-              ],
+              detailFields: [{ index: 2, offset: 0 }],
               ...(!blocked
                 ? {
                     setEnabled: async (enabled: boolean) => {
@@ -699,7 +707,8 @@ export function createCompletionProviders(
               {
                 label: `@agent:${child.id}`,
                 displayLabel: child.title,
-                detail: `running subagent · ${child.status} · ${child.id}`,
+                status: child.status.toLowerCase(),
+                detail: child.id,
               },
               fields([
                 ["name", child.title],
@@ -712,7 +721,7 @@ export function createCompletionProviders(
                 detailFields: [
                   {
                     index: 1,
-                    offset: `running subagent · ${child.status} · `.length,
+                    offset: 0,
                   },
                 ],
               },

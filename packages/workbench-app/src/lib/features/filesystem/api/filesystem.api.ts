@@ -1,7 +1,8 @@
+import { ATTACHMENT_MAX_BYTES } from "@nervekit/contracts/filesystem";
 import type {
   HtmlPreviewCreateRequest,
   HtmlPreviewCreateResponse,
-  ClipboardImageUploadResponse,
+  AttachmentUploadResponse,
   FilesystemDirectoryResponse,
   FilesystemFileResponse,
   FilesystemFileSaveRequest,
@@ -35,9 +36,11 @@ export function revokeHtmlPreview(id: string): Promise<void> {
   );
 }
 
-export async function uploadClipboardImage(file: File): Promise<string> {
-  const response = await apiPost<ClipboardImageUploadResponse>(
-    "/api/filesystem/clipboard-image",
+export async function uploadAttachment(file: File): Promise<string> {
+  if (file.size > ATTACHMENT_MAX_BYTES)
+    throw new Error("Attachments must be 20 MiB or smaller.");
+  const response = await apiPost<AttachmentUploadResponse>(
+    "/api/filesystem/attachment",
     {
       name: file.name,
       type: file.type,

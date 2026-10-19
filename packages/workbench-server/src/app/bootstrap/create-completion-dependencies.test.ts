@@ -448,3 +448,114 @@ void test("deferred stale discovery cannot be upgraded by fresh PR/issue sibling
     assert.equal(snapshot.refreshing, false);
   }
 });
+
+void test("PR and issue sources receive sanitized cache failures for actionable cold errors and stale results", async () => {
+  for (const source of ["pull_requests", "issues"]) {
+    for (const [code, expectedReason] of [
+      ["GH_CLI_UNAVAILABLE", /isn’t installed/],
+      ["GH_AUTH_REQUIRED", /isn’t signed in/],
+      ["GH_RATE_LIMITED", /rate limit/],
+      ["GH_API_UNAVAILABLE", /unreachable/],
+    ] as const) {
+      const ctx = fixture();
+      let cached = false;
+      ctx.bindings.git.cachedOpenPrs = () => ({
+        result: null,
+        status: cached ? "stale" : "unavailable",
+        refreshing: false,
+        updatedAt: cached ? new Date().toISOString() : null,
+        failureCode: code,
+      });
+      ctx.bindings.git.listIssues = () => ({
+        issues: [],
+        status: cached ? "stale" : "unavailable",
+        refreshing: false,
+        updatedAt: cached ? new Date().toISOString() : null,
+        failureCode: code,
+      });
+      const provider = createCompletionDependencies(
+        ctx.bindings,
+      ).providers.find((provider) => provider.id === source)!;
+      const cold = await provider.load({ projectId: "proj_A" });
+      assert.ok("documents" in cold);
+      assert.equal(cold.status, "unavailable");
+      assert.match(cold.reason!, expectedReason);
+      assert.equal(
+        cold.action,
+        code === "GH_AUTH_REQUIRED" || code === "GH_CLI_UNAVAILABLE"
+          ? "open_pull_requests"
+          : undefined,
+      );
+      cached = true;
+      const stale = await provider.load({ projectId: "proj_A" });
+      assert.ok("documents" in stale);
+      assert.equal(stale.status, "stale");
+      assert.match(stale.reason!, /showing cached results/);
+    }
+  }
+});
+
+void test("authoritative repository facts diagnose missing GitHub remotes without starting doomed fetches", async () => {
+  for (const source of ["pull_requests", "issues"]) {
+    for (const hasRemote of [false, true]) {
+      const ctx = fixture();
+      const discovery = await ctx.bindings.git.discoverRepos("proj_A");
+      ctx.bindings.git.discoverRepos = async () => ({
+        ...discovery,
+        repos: discovery.repos.map((repo) => ({
+          ...repo,
+          hasRemote,
+          hasGithubRemote: false,
+        })),
+      });
+      const provider = createCompletionDependencies(
+        ctx.bindings,
+      ).providers.find((provider) => provider.id === source)!;
+      const snapshot = await provider.load({ projectId: "proj_A" });
+      assert.ok("documents" in snapshot);
+      assert.equal(snapshot.status, "unavailable");
+      assert.equal(
+        snapshot.reason,
+        hasRemote
+          ? "This project has no GitHub remote."
+          : "This project has no Git remote.",
+      );
+      assert.equal(snapshot.action, undefined);
+      assert.deepEqual(ctx.visited, []);
+    }
+    const ctx = fixture();
+    ctx.bindings.git.discoverRepos = async () => ({
+      projectIsRepo: false,
+      repos: [],
+    });
+    const snapshot = await createCompletionDependencies(ctx.bindings)
+      .providers.find((provider) => provider.id === source)!
+      .load({ projectId: "proj_A" });
+    assert.ok("documents" in snapshot);
+    assert.equal(snapshot.status, "unavailable");
+    assert.equal(snapshot.reason, "This project has no GitHub remote.");
+  }
+});
+
+void test("non-GitHub siblings do not make a healthy GitHub source unavailable or misleadingly stale", async () => {
+  const ctx = fixture();
+  const discovery = await ctx.bindings.git.discoverRepos("proj_A");
+  ctx.bindings.git.discoverRepos = async () => ({
+    ...discovery,
+    repos: discovery.repos.map((repo) => ({
+      ...repo,
+      hasRemote: true,
+      hasGithubRemote: repo.relativePath === "api",
+    })),
+  });
+  for (const source of ["pull_requests", "issues"]) {
+    const snapshot = await createCompletionDependencies(ctx.bindings)
+      .providers.find((provider) => provider.id === source)!
+      .load({ projectId: "proj_A" });
+    assert.ok("documents" in snapshot);
+    assert.equal(snapshot.status, "fresh");
+    assert.equal(snapshot.reason, undefined);
+    assert.equal(snapshot.documents.length, 1);
+  }
+  assert.deepEqual(ctx.visited, ["pr:api", "issue:api"]);
+});

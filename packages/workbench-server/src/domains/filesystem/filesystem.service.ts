@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   access,
@@ -23,7 +23,8 @@ import {
 import { createInterface } from "node:readline";
 import { isPathInside, resolveNativePath } from "@nervekit/tools/execution";
 import {
-  clipboardImageUploadRequestSchema,
+  attachmentUploadRequestSchema,
+  ATTACHMENT_MAX_BYTES,
   type FilesystemProjectEntry,
   type FilesystemSignal,
   filesystemFileQuerySchema,
@@ -111,13 +112,13 @@ const imageExtensionByMime = new Map([
 function slugifyName(name: string | undefined): string {
   const base = name?.trim()
     ? name.trim().replace(extname(name.trim()), "")
-    : "clipboard-image";
+    : "attachment";
   return (
     base
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-+|-+$/g, "")
-      .slice(0, 64) || "clipboard-image"
+      .slice(0, 64) || "attachment"
   );
 }
 
@@ -128,22 +129,63 @@ function timestampSlug(date = new Date()): string {
     .replace(/\.\d{3}Z$/, "Z");
 }
 
-export async function saveClipboardImage(input: unknown, storageHome: string) {
-  const request = clipboardImageUploadRequestSchema.parse(input);
-  const type = request.type.toLowerCase();
-  const ext = imageExtensionByMime.get(type);
-  if (!ext)
-    throw new Error(`Unsupported clipboard image type: ${request.type}`);
-
+export async function saveAttachment(input: unknown, storageHome: string) {
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    "dataBase64" in input &&
+    typeof input.dataBase64 === "string" &&
+    input.dataBase64.length > Math.ceil(ATTACHMENT_MAX_BYTES / 3) * 4
+  )
+    throw new ApplicationError(
+      413,
+      "ATTACHMENT_TOO_LARGE",
+      "Attachments must be 20 MiB or smaller.",
+    );
+  const parsed = attachmentUploadRequestSchema.safeParse(input);
+  if (!parsed.success)
+    throw new ApplicationError(
+      422,
+      "INVALID_ATTACHMENT",
+      "Invalid attachment request.",
+    );
+  const request = parsed.data;
+  const encoded = request.dataBase64;
+  const decodedLength =
+    (encoded.length / 4) * 3 -
+    (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0);
+  if (decodedLength > ATTACHMENT_MAX_BYTES)
+    throw new ApplicationError(
+      413,
+      "ATTACHMENT_TOO_LARGE",
+      "Attachments must be 20 MiB or smaller.",
+    );
+  if (encoded.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded))
+    throw new ApplicationError(
+      422,
+      "INVALID_ATTACHMENT",
+      "Invalid attachment encoding.",
+    );
+  const data = Buffer.from(encoded, "base64");
+  if (data.toString("base64") !== encoded)
+    throw new ApplicationError(
+      422,
+      "INVALID_ATTACHMENT",
+      "Invalid attachment encoding.",
+    );
+  const suppliedExtension = extname(request.name ?? "")
+    .slice(1)
+    .toLowerCase();
+  const ext =
+    imageExtensionByMime.get(request.type.toLowerCase()) ??
+    (/^[a-z0-9]{1,16}$/.test(suppliedExtension) ? suppliedExtension : "bin");
   const dir = storagePaths(storageHome).imagesPath;
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const filePath = join(
     dir,
-    `${slugifyName(request.name)}-${timestampSlug()}.${ext}`,
+    `${slugifyName(request.name)}-${timestampSlug()}-${randomUUID()}.${ext}`,
   );
-  await writeFile(filePath, Buffer.from(request.dataBase64, "base64"), {
-    flag: "wx",
-  });
+  await writeFile(filePath, data, { flag: "wx", mode: 0o600 });
   return { path: filePath };
 }
 

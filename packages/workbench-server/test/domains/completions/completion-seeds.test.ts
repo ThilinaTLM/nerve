@@ -167,20 +167,20 @@ void test("same-query filtered supplemental retrieval rescues a matching file be
       65,
       "64 main candidates + one matching supplemental file, no full-corpus or unrelated item projection",
     );
-    assert.equal(native.queries.length, 2);
+    assert.equal(native.queries.length, 8);
     assert.deepEqual(
-      native.queries[1]?.documentIds,
+      native.queries[7]?.documentIds,
       files.slice(-2).map((file) => file.id),
     );
-    assert.equal(native.queries[1]?.text, native.queries[0]?.text);
-    assert.equal(native.queries[1]?.limit, 2);
+    assert.equal(native.queries[7]?.text, native.queries[0]?.text);
+    assert.equal(native.queries[7]?.limit, 2);
     await f.service.search({ ...request, q: "tool:needle" });
     assert.equal(
       native.queries.length,
-      3,
+      9,
       "file seeds cannot bypass a tool prefix",
     );
-    assert.deepEqual(native.queries[2]?.kinds, ["tool"]);
+    assert.deepEqual(native.queries[8]?.kinds, ["tool"]);
   } finally {
     await f.close();
   }

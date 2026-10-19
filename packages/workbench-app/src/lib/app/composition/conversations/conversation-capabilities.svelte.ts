@@ -24,7 +24,7 @@ import {
 } from "$lib/features/conversations/state/atlassian-site-urls.svelte";
 import {
   getFileContent,
-  uploadClipboardImage,
+  uploadAttachment,
 } from "$lib/features/filesystem/api/filesystem.api";
 import { resolveDroppedPaths } from "$lib/features/conversations/adapters/dropped-paths";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
@@ -87,7 +87,7 @@ export function workbenchConversationUiCapabilities(
       AudioAuthDialog: AudioInputAuthRequiredDialog,
     },
     askReply: {
-      pasteImage: uploadClipboardImage,
+      pasteImage: uploadAttachment,
       dropFiles: async (files) => {
         const bridge = getDesktopBridge();
         const project = workspaceState.projects.find(

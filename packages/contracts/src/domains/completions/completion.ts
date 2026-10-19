@@ -34,6 +34,8 @@ export const completionItemSchema = z.object({
   /** Whether the owning API permits explicit disable, independently of configured state. */
   canDisable: z.boolean().optional(),
   unavailableReason: z.string().optional(),
+  /** Lowercased referenced-entity state, separate from context detail. */
+  status: z.string().optional(),
   scoreFactors: z
     .object({
       lexical: z.number(),

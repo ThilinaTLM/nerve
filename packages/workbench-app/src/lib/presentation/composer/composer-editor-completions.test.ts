@@ -1,601 +1,503 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-  CompletionContext,
-  autocompletion,
-  completionStatus,
-  startCompletion,
-} from "@codemirror/autocomplete";
 import { EditorState, type TransactionSpec } from "@codemirror/state";
-import type { EditorView } from "@codemirror/view";
+import type { CompletionItem } from "@nervekit/contracts/completions";
 import {
-  FILE_COMPLETION_RESULT_LIMIT,
-  type CompletionItem,
-} from "@nervekit/contracts/completions";
+  buildMentionGroups,
+  buildSlashGroups,
+  loadingState,
+  parseMentionScope,
+  toPopupRow,
+} from "./composer-completion-model";
 import {
-  composerCompletionBoost,
-  createComposerCompletionSource,
-  toComposerCompletion,
-  type ComposerReferenceSource,
+  ComposerCompletionController,
+  completionTokenAt,
+  emptyMentionText,
+  isCompletionConflict,
   type ComposerCompletionOptions,
-  runComposerReferenceAction,
-  invalidateComposerCompletionRequests,
+  type ComposerReferenceSource,
+  type PopupModel,
 } from "./composer-editor-completions";
+import { composerMentionChips, mentionChipsOf } from "./composer-mention-chips";
 
-function context(doc: string, explicit = false): CompletionContext {
-  const state = EditorState.create({ doc });
-  return new CompletionContext(state, doc.length, explicit);
+function stateAt(doc: string, head = doc.length): EditorState {
+  return EditorState.create({
+    doc,
+    selection: { anchor: head },
+    extensions: [composerMentionChips()],
+  });
 }
 
-describe("composer editor completions", () => {
-  it("maps scores, sections, kinds, and match ranges", () => {
-    assert.equal(composerCompletionBoost(undefined), undefined);
-    assert.equal(composerCompletionBoost(160), 1);
-    assert.equal(composerCompletionBoost(100_000), 99);
-    assert.equal(composerCompletionBoost(-100_000), -99);
+const file = (path: string): CompletionItem => ({
+  kind: "file",
+  label: `@${path}`,
+  info: path,
+});
+const pr = (n: number): CompletionItem => ({
+  kind: "pull_request",
+  label: `@pr:${n}`,
+  displayLabel: `#${n} Title`,
+  detail: "feat · tlm",
+});
 
-    const command = toComposerCompletion({ label: "/compact", kind: "slash" });
-    const file = toComposerCompletion({
-      label: "@src/App.svelte",
-      kind: "file",
-      matchRanges: [[1, 4]],
-    });
-
-    assert.equal(command.type, "keyword");
+describe("completion tokens", () => {
+  it("ends a mention at whitespace", () => {
     assert.equal(
-      typeof command.section === "object" ? command.section.name : undefined,
-      "Commands",
+      completionTokenAt(stateAt("see @src/a.ts"), true)?.raw,
+      "@src/a.ts",
     );
-    assert.equal(file.type, "file");
+    assert.equal(completionTokenAt(stateAt("see @src/a.ts "), true), undefined);
+    assert.equal(completionTokenAt(stateAt("mail me@host"), true), undefined);
+  });
+
+  it("parses scopes and aliases", () => {
+    assert.deepEqual(parseMentionScope("pr:42"), { scope: "pr", query: "42" });
+    assert.deepEqual(parseMentionScope("profile:x"), {
+      scope: "agent",
+      query: "x",
+    });
+    assert.deepEqual(parseMentionScope("foo:bar"), { query: "foo:bar" });
+    const token = completionTokenAt(stateAt("@skill:br"), true)!;
+    assert.equal(token.scope, "skill");
+    assert.equal(token.query, "br");
+    assert.equal(token.scopeLength, 6);
+  });
+
+  it("only offers slash commands at the very start of the prompt", () => {
+    assert.equal(completionTokenAt(stateAt("/pla"), true)?.kind, "slash");
+    assert.equal(completionTokenAt(stateAt("/pla"), false), undefined);
+    assert.equal(completionTokenAt(stateAt("hi /pla"), true), undefined);
+    assert.equal(completionTokenAt(stateAt("hi\n/pla"), true), undefined);
+  });
+});
+
+describe("popup groups", () => {
+  it("caps unscoped groups at three, adds server more counts, sorts unavailable last", () => {
+    const items: CompletionItem[] = [
+      { ...pr(1), available: false },
+      pr(2),
+      pr(3),
+      file("a.ts"),
+    ];
+    const groups = buildMentionGroups({
+      items,
+      recent: false,
+      totals: [{ group: "pull_requests", more: 2 }],
+    });
+    assert.deepEqual(
+      groups.map((g) => g.label),
+      ["Pull requests", "Files"],
+    );
+    assert.equal(groups[0]!.rows.length, 3);
+    assert.equal(groups[0]!.rows[2]!.state, "unavailable");
+    assert.equal(groups[0]!.more, 2);
+    assert.equal(groups[0]!.scope, "pr");
+    assert.equal(groups[1]!.more, undefined);
+  });
+
+  it("scoped search shows up to 12 rows; bare @ is one Recent group", () => {
+    const many = Array.from({ length: 15 }, (_, i) => pr(i + 1));
+    const scoped = buildMentionGroups({
+      items: many,
+      scope: "pr",
+      recent: false,
+    });
+    assert.equal(scoped[0]!.rows.length, 12);
+    const recent = buildMentionGroups({
+      items: [file("a"), pr(1)],
+      recent: true,
+    });
+    assert.deepEqual(
+      recent.map((g) => g.label),
+      ["Recent"],
+    );
+  });
+
+  it("badges from raw status and shows Updating only for declared groups", () => {
+    const merged = toPopupRow({ ...pr(1), status: "merged" });
+    assert.deepEqual(merged.badge, { text: "Merged", variant: "info" });
     assert.equal(
-      typeof file.section === "object" ? file.section.name : undefined,
-      "Project references",
+      toPopupRow({ kind: "launch", label: "l", status: "failed" }).badge
+        ?.variant,
+      "destructive",
     );
-    assert.deepEqual(file.matchRanges, [1, 4]);
-  });
-
-  it("filters slash completions against the current token", async () => {
-    const items: CompletionItem[] = [
-      { label: "/compact", kind: "slash" },
-      { label: "/clear", kind: "slash" },
-      { label: "/mode", kind: "slash" },
-    ];
-    const source = createComposerCompletionSource({
-      slashCompletions: () => items,
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-    });
-
-    const result = await source(context("run /co"));
-    assert.deepEqual(
-      result?.options.map((option) => option.label),
-      ["/compact"],
-    );
-    assert.equal(result?.from, 4);
-  });
-
-  it("limits and preserves server file order while using live getters", async () => {
-    let query = "";
-    let completions = Array.from(
-      { length: FILE_COMPLETION_RESULT_LIMIT + 3 },
-      (_, index): CompletionItem => ({
-        label: `@src/file-${index}.ts`,
-        kind: "file",
-      }),
-    );
-    const source = createComposerCompletionSource({
-      slashCompletions: () => [],
-      fileCompletions: () => async (value) => {
-        query = value;
-        return completions;
-      },
-      referenceCompletions: () => undefined,
-    });
-
-    const result = await source(context("@src"));
-    assert.equal(query, "src");
-    assert.equal(result?.options.length, FILE_COMPLETION_RESULT_LIMIT);
-    assert.equal(result?.options[0]?.label, "@src/file-0.ts");
-
-    await source(context("@file:src"));
-    assert.equal(query, "src");
-
-    completions = [{ label: "@other.ts", kind: "file" }];
-    const next = await source(context("@other"));
-    assert.deepEqual(
-      next?.options.map((option) => option.label),
-      ["@other.ts"],
-    );
-  });
-
-  it("discovers and routes typed launch and pull-request references", async () => {
-    const requests: Array<[string, string]> = [];
-    const source = createComposerCompletionSource({
-      slashCompletions: () => [],
-      fileCompletions: () => async () => [
-        { label: "@README.md", kind: "file" },
-      ],
-      referenceCompletions: () => async (kind, query) => {
-        requests.push([kind, query]);
-        return kind === "launch"
-          ? [
-              {
-                label: "launch_123",
-                displayLabel: "Dev server",
-                kind: "launch",
-              },
-            ]
-          : [
-              {
-                label: "https://github.com/acme/app/pull/42",
-                displayLabel: "#42 Improve composer",
-                kind: "pull_request",
-              },
-            ];
-      },
-    });
-
-    const bare = await source(context("@"));
-    assert.deepEqual(
-      bare?.options.map((option) => option.label),
-      ["@README.md", "@launch:", "@pr:"],
-    );
-
-    const launch = await source(context("please @launch:dev"));
-    assert.deepEqual(requests.at(-1), ["launch", "dev"]);
-    assert.equal(launch?.from, 7);
-    assert.equal(launch?.options[0]?.apply, "launch_123");
-
-    const pr = await source(context("@pr:42"));
-    assert.deepEqual(requests.at(-1), ["pull_request", "42"]);
-    assert.equal(pr?.options[0]?.apply, "https://github.com/acme/app/pull/42");
-  });
-
-  it("preserves blended native order, routes all prefixes unchanged, and rejects stale scope responses", async () => {
-    const queries: string[] = [];
-    const items: CompletionItem[] = [
-      {
-        label: "@skill:session",
-        kind: "skill",
-        documentId: "skill",
-        version: "v1",
-        enabled: false,
-        available: true,
-        canDisable: true,
-      },
-      { label: "@src/session.ts", kind: "file" },
-      { label: "https://example.invalid/pr/1", kind: "pull_request" },
-    ];
-    const references: ComposerReferenceSource = {
-      async search(query) {
-        queries.push(query);
-        return {
-          revision: 1,
-          items,
-          sources: [{ source: "remote", status: "loading" }],
-        };
-      },
-      async select(item) {
-        return item;
-      },
-      subscribe: () => () => {},
-    };
-    let current: ComposerReferenceSource | undefined = references;
-    let notice = "";
-    const source = createComposerCompletionSource({
-      slashCompletions: () => [],
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-      referenceSource: () => current,
-      notice: (message) => {
-        notice = message;
-      },
-    });
-    for (const prefix of [
-      "",
-      "file:",
-      "pr:",
-      "issue:",
-      "skill:",
-      "tool:",
-      "agent:",
-      "profile:",
-      "launch:",
-    ]) {
-      for (const suffix of ["", "session"]) {
-        const result = await source(context(`@${prefix}${suffix}`));
-        assert.deepEqual(
-          result?.options.map((item) => item.label),
-          items.map((item) => item.label),
-        );
-        assert.equal(queries.at(-1), `${prefix}${suffix}`);
-        assert.equal(notice, "Refreshing completions");
-        assert.match(result?.options[0]?.detail ?? "", /Disabled/);
-      }
-    }
-    await source(context("please @file:auth sess"));
-    assert.equal(queries.at(-1), "file:auth sess");
-    let finish!: (
-      value: Awaited<ReturnType<ComposerReferenceSource["search"]>>,
-    ) => void;
-    references.search = () =>
-      new Promise((resolve) => {
-        finish = resolve;
-      });
-    const pending = source(context("@session"));
-    current = undefined;
-    finish({ revision: 1, items, sources: [] });
-    assert.equal(await pending, null);
-  });
-
-  it("coalesces repeated accepts, waits for enable, inserts once and does not overwrite a changed document", async () => {
-    const item: CompletionItem = {
-      documentId: "skill",
-      version: "v1",
-      label: "@skill:session",
+    const off = toPopupRow({
       kind: "skill",
+      label: "s",
+      enabled: false,
+      status: "open",
+    });
+    assert.equal(off.badge?.text, "Off", "Off/Unavailable outrank status");
+    const declared = loadingState([
+      {
+        source: "github",
+        status: "fresh",
+        refreshing: true,
+        groups: ["pull_requests"],
+      },
+      { source: "other", status: "loading" },
+    ]);
+    assert.deepEqual([...declared], ["pr"]);
+  });
+
+  it("derives row presentation and off/toggle state", () => {
+    const row = toPopupRow({
+      kind: "file",
+      label: "@pkg/src/a.ts",
+      info: "pkg/src/a.ts",
+    });
+    assert.equal(row.name, "a.ts");
+    assert.equal(row.dir, "pkg/src/");
+    assert.equal(row.mono, true);
+    const skill = toPopupRow({
+      kind: "skill",
+      label: "@skill:qa",
+      documentId: "d",
+      version: "1",
       enabled: false,
       available: true,
-      canDisable: true,
-    };
-    let finish!: (value: CompletionItem) => void;
-    const actions: string[] = [];
-    const references: ComposerReferenceSource = {
-      async search() {
-        return { revision: 1, items: [item], sources: [] };
-      },
-      select(_item, action) {
-        actions.push(action);
-        return new Promise((resolve) => {
-          finish = resolve;
-        });
-      },
-      subscribe: () => () => {},
-    };
-    const source = createComposerCompletionSource({
-      slashCompletions: () => [],
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-      referenceSource: () => references,
     });
-    const result = await source(context("@sess"));
-    const option = result!.options[0]!;
-    assert.equal(typeof option.apply, "function");
-    let state = EditorState.create({ doc: "@sess" });
-    let insertions = 0;
-    const view = {
-      get state() {
-        return state;
-      },
-      dispatch(spec: TransactionSpec) {
-        if (spec.changes) insertions++;
-        state = state.update(spec).state;
-      },
-    } as EditorView;
-    if (typeof option.apply !== "function")
-      throw new Error("Expected selection action");
-    option.apply(view, option, 0, 5);
-    option.apply(view, option, 0, 5);
-    option.apply(view, option, 0, 5);
+    assert.equal(skill.state, "off");
+    assert.equal(skill.badge?.text, "Off");
+    assert.equal(skill.toggleable, true);
+  });
+
+  it("builds slash groups: labels without slash, current mode, abort only while running", () => {
+    const items: CompletionItem[] = [
+      "plan",
+      "code",
+      "compact",
+      "abort",
+      "new",
+    ].map((name) => ({ kind: "slash", label: `/${name}`, detail: name }));
+    const idle = buildSlashGroups(items, "/", {
+      mode: "coding",
+      running: false,
+    });
     assert.deepEqual(
-      actions,
-      ["select"],
-      "repeated keyboard/pointer acceptance must not start duplicate owner writes",
+      idle.map((g) => g.label),
+      ["Mode", "Conversation"],
     );
-    assert.equal(state.doc.toString(), "@sess");
-    finish({ ...item, enabled: true });
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(state.doc.toString(), "@skill:session");
-    assert.equal(insertions, 1);
-    state = EditorState.create({ doc: "@sess" });
-    option.apply(view, option, 0, 5);
-    state = state.update({
-      changes: { from: 0, to: 5, insert: "different draft" },
-    }).state;
-    finish({ ...item, enabled: true });
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(state.doc.toString(), "different draft");
-    assert.deepEqual(actions, ["select", "select"]);
+    assert.equal(idle[0]!.rows.find((r) => r.name === "code")?.current, true);
+    assert.equal(idle[0]!.rows.find((r) => r.name === "plan")?.current, false);
+    const running = buildSlashGroups(items, "/ab", {
+      mode: "planning",
+      running: true,
+    });
+    assert.deepEqual(
+      running.map((g) => g.label),
+      ["Run"],
+    );
+  });
+});
+
+function harness(raw: Partial<ComposerCompletionOptions> = {}) {
+  const overrides = { ...raw };
+  if (raw.referenceSource) {
+    const stable = raw.referenceSource();
+    overrides.referenceSource = () => stable;
+  }
+  let state = stateAt("");
+  const models: Array<PopupModel | null> = [];
+  const dispatched: TransactionSpec[] = [];
+  const view = {
+    get state() {
+      return state;
+    },
+    dispatch(spec: TransactionSpec) {
+      dispatched.push(spec);
+      const tr = state.update(spec);
+      state = tr.state;
+      controller.onUpdate({
+        docChanged: tr.docChanged,
+        selectionSet: true,
+        state,
+        changes: tr.changes,
+        transactions: [tr],
+      });
+    },
+  };
+  const options: ComposerCompletionOptions = {
+    slashCompletions: () => [],
+    fileCompletions: () => undefined,
+    referenceCompletions: () => undefined,
+    searchDelayMs: 0,
+    onModel: (model) => models.push(model),
+    ...overrides,
+  };
+  const controller = new ComposerCompletionController(view as never, options);
+  const type = (text: string) =>
+    view.dispatch({
+      changes: { from: state.doc.length, insert: text },
+      selection: { anchor: state.doc.length + text.length },
+      userEvent: "input.type",
+    });
+  const last = () => models.at(-1) ?? null;
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+  return {
+    controller,
+    view,
+    type,
+    last,
+    settle,
+    dispatched,
+    get state() {
+      return state;
+    },
+  };
+}
+
+function source(
+  items: CompletionItem[],
+  extra: Partial<ComposerReferenceSource> = {},
+): ComposerReferenceSource {
+  return {
+    async search() {
+      return { items, sources: [] };
+    },
+    async select(item) {
+      return item;
+    },
+    subscribe: () => () => {},
+    ...extra,
+  };
+}
+
+describe("composer completion controller", () => {
+  it("opens for a mention, groups it, and inserts a chip on Enter", async () => {
+    const h = harness({
+      referenceSource: () => source([file("src/App.svelte"), pr(7)]),
+    });
+    h.type("look at @app");
+    await h.settle();
+    assert.equal(h.last()?.mode, "mention");
+    assert.equal(h.last()?.placement, "above");
+    assert.equal(h.last()?.groups.length, 2);
+    assert.equal(h.controller.accept(), true);
+    await h.settle();
+    assert.equal(h.state.doc.toString(), "look at @src/App.svelte ");
+    const chips = mentionChipsOf(h.state);
+    assert.equal(chips.length, 1);
+    assert.equal(chips[0]!.label, "App.svelte");
+    assert.equal(h.last(), null);
   });
 
-  for (const changed of ["document", "source"] as const)
-    it(`old pending action cannot block or clear a new ${changed} generation`, async () => {
-      const item: CompletionItem = {
-        kind: "tool",
-        label: "@tool:session",
-        available: true,
-        enabled: false,
-      };
-      const resolvers: ((item: CompletionItem) => void)[] = [];
-      let writes = 0;
-      const reference: ComposerReferenceSource = {
-        async search() {
-          return { revision: 1, items: [item], sources: [] };
-        },
-        select() {
-          writes++;
-          return new Promise((resolve) => {
-            resolvers.push(resolve);
-          });
-        },
-        subscribe: () => () => {},
-      };
-      let current = reference;
-      let state = EditorState.create({ doc: "@session" });
-      const view = {
-        get state() {
-          return state;
-        },
-        dispatch() {},
-      } as unknown as EditorView;
-      const options: ComposerCompletionOptions = {
-        slashCompletions: () => [],
-        fileCompletions: () => undefined,
-        referenceCompletions: () => undefined,
-        referenceSource: () => current,
-      };
-      const applied: string[] = [];
-      runComposerReferenceAction(view, options, current, item, "select", () => {
-        applied.push("old");
-      });
-      if (changed === "document")
-        state = state.update({
-          changes: { from: 0, to: state.doc.length, insert: "@new" },
-        }).state;
-      else current = { ...reference };
-      runComposerReferenceAction(view, options, current, item, "select", () => {
-        applied.push("new");
-      });
-      assert.equal(writes, 2);
-      resolvers[0]!({ ...item, enabled: true });
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      runComposerReferenceAction(view, options, current, item, "select");
-      assert.equal(
-        writes,
-        2,
-        "stale finally cannot unlock the newer in-flight action",
-      );
-      assert.deepEqual(applied, []);
-      resolvers[1]!({ ...item, enabled: true });
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      assert.deepEqual(applied, ["new"]);
-    });
-
-  it("unavailable trust state dominates configured-enabled label and prevents selection", async () => {
-    const blocked: CompletionItem = {
-      kind: "subagent_profile",
-      label: "@agent:blocked",
-      enabled: true,
-      available: false,
-      canDisable: false,
-      unavailableReason: "Profile is untrusted",
-    };
-    let selections = 0;
-    const reference: ComposerReferenceSource = {
-      async search() {
-        return { revision: 1, items: [blocked], sources: [] };
-      },
-      async select() {
-        selections++;
-        return blocked;
-      },
-      subscribe: () => () => {},
-    };
-    let notice = "";
-    const source = createComposerCompletionSource({
-      slashCompletions: () => [],
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-      referenceSource: () => reference,
-      notice: (message) => {
-        notice = message;
-      },
-    });
-    const result = await source(context("@profile:"));
-    const option = result!.options[0]!;
-    assert.match(option.detail ?? "", /Profile is untrusted/);
-    assert.doesNotMatch(option.detail ?? "", /Enabled ·|Alt\+Shift\+D/);
-    const view = {
-      state: EditorState.create({ doc: "@profile:" }),
-      dispatch() {
-        throw new Error("Blocked reference cannot insert text");
-      },
-    } as unknown as EditorView;
-    assert.equal(typeof option.apply, "function");
-    if (typeof option.apply === "function")
-      option.apply(view, option, 0, view.state.doc.length);
-    assert.equal(selections, 0);
-    assert.equal(notice, "Profile is untrusted");
+  it("shows No matches, closes on space, and Esc sticks for the same token", async () => {
+    const h = harness({ referenceSource: () => source([]) });
+    h.type("@zzz");
+    await h.settle();
+    assert.equal(h.last()?.empty, "No matches for “zzz”");
+    assert.equal(h.controller.accept(), false, "Enter falls through to send");
+    h.controller.dismiss();
+    assert.equal(h.last(), null);
+    h.type("z");
+    await h.settle();
+    assert.equal(h.last(), null, "same token stays dismissed");
+    h.type(" @n");
+    await h.settle();
+    assert.equal(h.last()?.mode, "mention", "a new token reopens");
+    h.type(" ");
+    assert.equal(h.last(), null);
   });
 
-  it("closes successful selection before its own insertion invalidates the request generation", async () => {
+  it("moves selection bottom-up when above and top-down when below", async () => {
+    const items = [file("a.ts"), file("b.ts"), file("c.ts")];
+    const h = harness({ referenceSource: () => source(items) });
+    h.type("@x");
+    await h.settle();
+    const ids = h.last()!.groups[0]!.rows.map((r) => r.id);
+    assert.equal(h.last()!.selectedId, ids[0]);
+    h.controller.move("up");
+    assert.equal(h.last()!.selectedId, ids[1], "up = next best when above");
+    h.controller.move("down");
+    assert.equal(h.last()!.selectedId, ids[0]);
+  });
+
+  it("widens a scoped search with Backspace on an empty query", async () => {
+    const h = harness({ referenceSource: () => source([pr(1)]) });
+    h.type("@pr:");
+    await h.settle();
+    assert.equal(h.last()?.scope?.label, "Pull requests");
+    assert.equal(h.controller.backspace(), true);
+    assert.equal(h.state.doc.toString(), "@");
+    await h.settle();
+    assert.equal(h.last()?.scope, undefined);
+    assert.equal(h.last()?.showScopeHint, true);
+  });
+
+  it("words empty states per category, quoting only a real query", async () => {
+    assert.equal(
+      emptyMentionText({ scope: "pr", query: "" }),
+      "No pull requests to show",
+    );
+    assert.equal(
+      emptyMentionText({ scope: "skill", query: "" }),
+      "No skills to show",
+    );
+    assert.equal(
+      emptyMentionText({ scope: "file", query: "" }),
+      "No files to show",
+    );
+    assert.equal(
+      emptyMentionText({ scope: "pr", query: "x" }),
+      "No matches for “x”",
+    );
+    assert.equal(emptyMentionText({ query: "" }), "Nothing to suggest yet");
+    const h = harness({ referenceSource: () => source([]) });
+    h.type("@pr:");
+    await h.settle();
+    assert.equal(h.last()?.empty, "No pull requests to show");
+    h.type("zz");
+    await h.settle();
+    assert.equal(h.last()?.empty, "No matches for “zz”");
+  });
+
+  it("narrows to a category from +N more", async () => {
+    const h = harness({ referenceSource: () => source([pr(1)]) });
+    h.type("@auth");
+    await h.settle();
+    h.controller.setScope("pr");
+    assert.equal(h.state.doc.toString(), "@pr:auth");
+  });
+
+  it("toggles skills in place, keeping the popup open", async () => {
     const item: CompletionItem = {
-      kind: "tool",
-      label: "@tool:session",
-      documentId: "tool",
-      version: "v1",
+      kind: "skill",
+      label: "@skill:qa",
+      documentId: "d1",
+      version: "1",
+      enabled: false,
       available: true,
-      enabled: true,
     };
-    const reference: ComposerReferenceSource = {
-      async search() {
-        return { revision: 1, items: [], sources: [] };
-      },
-      async select() {
-        return item;
-      },
-      subscribe: () => () => {},
-    };
-    let notice = "";
-    const options: ComposerCompletionOptions = {
-      slashCompletions: () => [],
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-      referenceSource: () => reference,
-      notice: (message) => {
-        notice = message;
-      },
-    };
-    let state = EditorState.create({
-      doc: "@session",
-      extensions: [autocompletion({ override: [() => null] })],
+    const actions: string[] = [];
+    const h = harness({
+      referenceSource: () =>
+        source([item], {
+          async select(selected, action) {
+            actions.push(action);
+            return { ...selected, enabled: true, canDisable: true };
+          },
+        }),
     });
-    const view = {
-      get state() {
-        return state;
-      },
-      dispatch(transaction: TransactionSpec) {
-        state = state.update(transaction).state;
-      },
-    } as unknown as EditorView;
-    startCompletion(view);
-    assert.equal(completionStatus(state), "pending");
-    runComposerReferenceAction(
-      view,
-      options,
-      reference,
-      item,
-      "select",
-      (selected) => {
-        assert.equal(
-          completionStatus(state),
-          null,
-          "own selection must close before the doc listener invalidates its generation",
-        );
-        state = state.update({
-          changes: { from: 0, to: state.doc.length, insert: selected.label },
-        }).state;
-        invalidateComposerCompletionRequests(options);
-      },
+    h.type("@qa");
+    await h.settle();
+    assert.equal(h.last()?.primary, "Enable & insert");
+    assert.equal(h.last()?.toggleLabel, "Turn on");
+    assert.equal(h.last()?.footer?.text, "Also turns it on for this project");
+    h.controller.toggle();
+    await h.settle();
+    assert.deepEqual(actions, ["select"]);
+    assert.equal(h.state.doc.toString(), "@qa");
+    assert.ok(h.last());
+  });
+
+  it("explains unavailable rows instead of inserting", async () => {
+    const h = harness({
+      referenceSource: () =>
+        source([
+          {
+            kind: "tool",
+            label: "@tool:pg",
+            available: false,
+            unavailableReason: "Pick a profile.",
+          },
+        ]),
+    });
+    h.type("@pg");
+    await h.settle();
+    h.controller.accept();
+    assert.equal(h.state.doc.toString(), "@pg");
+    assert.equal(h.last()?.footer?.text, "Pick a profile.");
+  });
+
+  it("re-searches on CONFLICT, keeps the selection, and retries on Enter", async () => {
+    const items: CompletionItem[] = [
+      { kind: "skill", label: "@skill:a", documentId: "a", version: "1" },
+      { kind: "skill", label: "@skill:b", documentId: "b", version: "1" },
+    ];
+    let searches = 0;
+    let fail = true;
+    const h = harness({
+      referenceSource: () =>
+        source(items, {
+          async search() {
+            searches++;
+            return { items, sources: [] };
+          },
+          async select(item) {
+            if (fail) throw Object.assign(new Error("x"), { code: "CONFLICT" });
+            return item;
+          },
+        }),
+    });
+    h.type("@s");
+    await h.settle();
+    h.controller.move("up");
+    const selected = h.last()!.selectedId;
+    h.controller.accept();
+    await h.settle();
+    assert.equal(searches, 2);
+    assert.equal(h.last()?.selectedId, selected);
+    assert.match(
+      h.last()?.footer?.text ?? "",
+      /changed while you were choosing/,
     );
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    assert.equal(state.doc.toString(), item.label);
-    assert.equal(notice, "");
-    assert.equal(completionStatus(state), null);
+    fail = false;
+    h.controller.accept();
+    await h.settle();
+    assert.equal(h.state.doc.toString(), "@skill:b ");
+    assert.equal(isCompletionConflict({ data: { code: "CONFLICT" } }), true);
   });
 
-  it("ignores stale search failures after source change or a newer request completes", async () => {
-    let rejectFirst!: (error: Error) => void;
-    let calls = 0;
-    const reference: ComposerReferenceSource = {
-      search() {
-        if (++calls === 1)
-          return new Promise((_resolve, reject) => {
-            rejectFirst = reject;
-          });
-        return Promise.resolve({
-          revision: 1,
-          items: [],
-          sources: [{ source: "remote", status: "stale", refreshing: false }],
-        });
-      },
-      async select(item) {
-        return item;
-      },
-      subscribe: () => () => {},
-    };
-    let current: ComposerReferenceSource = reference;
-    let notice = "";
-    const options: ComposerCompletionOptions = {
-      slashCompletions: () => [],
-      fileCompletions: () => undefined,
-      referenceCompletions: () => undefined,
-      referenceSource: () => current,
-      notice: (message) => {
-        notice = message;
-      },
-    };
-    const source = createComposerCompletionSource(options);
-    const old = source(context("@old"));
-    await source(context("@new"));
-    assert.equal(notice, "Some completion results are stale");
-    rejectFirst(new Error("Old request failed"));
-    assert.equal(await old, null);
-    assert.equal(notice, "Some completion results are stale");
-    calls = 0;
-    const oldProject = source(context("@old-project"));
-    current = { ...reference };
-    notice = "Current project notice";
-    rejectFirst(new Error("Old project failed"));
-    assert.equal(await oldProject, null);
-    assert.equal(notice, "Current project notice");
-  });
-
-  for (const action of ["select", "disable"] as const) {
-    it(`ignores stale ${action} failures after source/doc changes and later requests`, async () => {
-      let rejectAction!: (error: Error) => void;
-      const reference: ComposerReferenceSource = {
+  it("names unavailable sources with one action", async () => {
+    const h = harness({
+      referenceSource: () => ({
+        ...source([]),
         async search() {
           return {
-            revision: 1,
             items: [],
-            sources: [{ source: "remote", status: "stale", refreshing: false }],
+            sources: [
+              {
+                source: "github",
+                groups: ["pull_requests" as const],
+                label: "GitHub",
+                status: "unavailable" as const,
+                action: "open_pull_requests" as const,
+                reason: "GitHub isn’t connected for this project.",
+              },
+            ],
           };
         },
-        select() {
-          return new Promise((_resolve, reject) => {
-            rejectAction = reject;
-          });
-        },
-        subscribe: () => () => {},
-      };
-      let current: ComposerReferenceSource = reference;
-      let notice: string;
-      let state = EditorState.create({ doc: "@session" });
-      let sideEffects = 0;
-      const view = {
-        get state() {
-          return state;
-        },
-        dispatch() {
-          sideEffects++;
-        },
-      } as unknown as EditorView;
-      const item: CompletionItem = {
-        kind: "tool",
-        label: "@tool:session",
-        documentId: "tool",
-        version: "v1",
-        enabled: true,
-        available: true,
-        canDisable: true,
-      };
-      const options: ComposerCompletionOptions = {
-        slashCompletions: () => [],
-        fileCompletions: () => undefined,
-        referenceCompletions: () => undefined,
-        referenceSource: () => current,
-        notice: (message) => {
-          notice = message;
-        },
-      };
-      const source = createComposerCompletionSource(options);
-      runComposerReferenceAction(view, options, reference, item, action);
-      current = { ...reference };
-      notice = "New project notice";
-      rejectAction(new Error("Old source action failed"));
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      assert.equal(notice, "New project notice");
-      current = reference;
-      runComposerReferenceAction(view, options, reference, item, action);
-      await source(context("@later"));
-      assert.equal(notice, "Some completion results are stale");
-      rejectAction(new Error("Older action failed after later request"));
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      assert.equal(notice, "Some completion results are stale");
-      runComposerReferenceAction(view, options, reference, item, action);
-      state = state.update({
-        changes: { from: 0, to: state.doc.length, insert: "changed draft" },
-      }).state;
-      notice = "New draft notice";
-      rejectAction(new Error("Old draft action failed"));
-      await new Promise<void>((resolve) => setImmediate(resolve));
-      assert.equal(notice, "New draft notice");
-      assert.equal(
-        sideEffects,
-        0,
-        "stale operations cannot close/rewrite the current editor",
-      );
+      }),
+      action: () => () => {},
     });
-  }
+    h.type("@pr:");
+    await h.settle();
+    assert.equal(
+      h.last()?.footer?.text,
+      "GitHub isn’t connected for this project.",
+    );
+    assert.equal(h.last()?.footer?.action?.label, "Open pull requests");
+  });
+
+  it("runs a slash command immediately and clears the prompt", async () => {
+    const ran: string[] = [];
+    const h = harness({
+      slashCompletions: () => [
+        { kind: "slash", label: "/plan", detail: "Planning" },
+        { kind: "slash", label: "/code", detail: "Coding" },
+      ],
+      slashContext: () => ({ mode: "coding", running: false }),
+      slashCommand: () => (name) => ran.push(name),
+    });
+    h.type("/pl");
+    assert.equal(h.last()?.mode, "slash");
+    assert.equal(
+      h.last()?.footer?.text,
+      "Runs now — nothing is sent to the agent",
+    );
+    h.controller.accept();
+    assert.deepEqual(ran, ["plan"]);
+    assert.equal(h.state.doc.toString(), "");
+  });
 });

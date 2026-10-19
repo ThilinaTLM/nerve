@@ -393,19 +393,18 @@ const subagentSlot: CapabilitySubagentSlot = {
   {open}
   onOpenChange={handleOpenChange}
   size="md"
-  triggerClass="composer-tab gap-1 px-1.5 max-sm:px-1"
+  triggerClass="composer-tab w-7 p-0"
   ariaLabel="Capabilities"
   {triggerTitle}
   side="top"
-  align="end"
+  align="start"
 >
   {#snippet trigger()}
     <span
-      class={`relative inline-flex items-center gap-1 ${disabled ? "opacity-60" : ""}`}
+      class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
       data-tour-id="composer-capabilities"
     >
       <Blocks size={13} strokeWidth={2.2} aria-hidden="true" />
-      <span>{enabledTools}/{enabledSkills}</span>
       {#if overrideCount > 0}
         <span
           class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"

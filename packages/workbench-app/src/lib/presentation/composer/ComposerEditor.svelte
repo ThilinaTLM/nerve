@@ -7,11 +7,6 @@ import Redo2 from "@lucide/svelte/icons/redo-2";
 import Scissors from "@lucide/svelte/icons/scissors";
 import TextSelect from "@lucide/svelte/icons/text-select";
 import Undo2 from "@lucide/svelte/icons/undo-2";
-import {
-  acceptCompletion,
-  closeCompletion,
-  completionStatus,
-} from "@codemirror/autocomplete";
 import { markdown } from "@codemirror/lang-markdown";
 import {
   defaultKeymap,
@@ -30,7 +25,10 @@ import {
   placeholder as placeholderExtension,
   type ViewUpdate,
 } from "@codemirror/view";
-import type { CompletionItem } from "@nervekit/contracts/completions";
+import {
+  isInlineCommandPrompt,
+  type CompletionItem,
+} from "@nervekit/contracts/completions";
 import ContextMenuList, {
   type ContextMenuItem,
 } from "@nervekit/ui-kit/components/composites/context-menu-list";
@@ -42,16 +40,32 @@ import {
   parseProjectEntryDrag,
   PROJECT_ENTRY_DRAG_MIME,
 } from "$lib/presentation/dnd/project-entry-drag";
+import ComposerCompletionPopup from "./ComposerCompletionPopup.svelte";
 import { executableCommandBlockHighlighter } from "./composer-command-blocks";
 import {
-  bestReferenceCompletionSelector,
+  closeCompletion,
+  composerCompletionController,
   composerCompletionExtensions,
-  composerReferenceActionPending,
   refreshComposerReferenceCompletions,
   invalidateComposerCompletionRequests,
+  type ComposerCompletionAction,
   type ComposerCompletionOptions,
   type ComposerReferenceSource,
+  type ComposerSlashContext,
+  type PopupModel,
 } from "./composer-editor-completions";
+import {
+  composerDictationPlaceholder,
+  startDictation,
+} from "./composer-dictation-placeholder";
+import type {
+  ComposerDictationHandle,
+  ComposerEditorApi,
+} from "./composer-editor-api";
+import {
+  composerMentionChips,
+  insertMentionsTransaction,
+} from "./composer-mention-chips";
 import { composerEditorTheme } from "./composer-editor-theme";
 type Props = {
   value: string;
@@ -66,6 +80,13 @@ type Props = {
     kind: "launch" | "pull_request",
     query: string,
   ) => Promise<CompletionItem[]>;
+  /** Mode and run state for the slash list (`abort` only while running). */
+  slashContext?: ComposerSlashContext;
+  /** Runs a slash command immediately. Without it slash suggestions are off. */
+  onSlashCommand?: (name: string) => void;
+  /** Status-bar fix actions (connect a source, open settings…). */
+  onCompletionAction?: (action: ComposerCompletionAction) => void;
+  onReady?: (api: ComposerEditorApi) => void;
   onChange?: (value: string) => void;
   onSubmit?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
@@ -85,6 +106,10 @@ let {
   completionSource,
   fileCompletions,
   referenceCompletions,
+  slashContext,
+  onSlashCommand,
+  onCompletionAction,
+  onReady,
   onChange,
   onSubmit,
   onPasteImage,
@@ -101,19 +126,40 @@ let lastFocusToken = 0;
 let fileDragDepth = 0;
 let fileDragActive = $state(false);
 let contextVersion = $state(0);
-let completionNotice = $state("");
+let popupModel = $state.raw<PopupModel | null>(null);
+let shellMode = $state(false);
+let root: HTMLDivElement | undefined = $state();
+let caretPlaced = false;
+let dictation:
+  | {
+      inner: ComposerDictationHandle;
+      handle: ComposerDictationHandle;
+      listeners: Set<() => void>;
+    }
+  | undefined;
 const editableCompartment = new Compartment();
 const completionCompartment = new Compartment();
 const placeholderCompartment = new Compartment();
 
+// Parent props may be getters into a composer model replaced on every edit.
+// Deduplicate completion inputs before effects read them, so typing does not
+// close/reconfigure autocomplete before its activation timer can run.
+const completionSlashItems = $derived(slashCompletions);
+const completionFileSource = $derived(fileCompletions);
+const completionLegacyReferenceSource = $derived(referenceCompletions);
+const completionReferenceSource = $derived(completionSource);
+
 const completionOptions: ComposerCompletionOptions = {
-  referenceSource: () => completionSource,
-  notice: (message) => {
-    completionNotice = message;
+  referenceSource: () => completionReferenceSource,
+  onModel: (model) => {
+    popupModel = model;
   },
-  slashCompletions: () => slashCompletions,
-  fileCompletions: () => fileCompletions,
-  referenceCompletions: () => referenceCompletions,
+  slashContext: () => slashContext,
+  slashCommand: () => onSlashCommand,
+  action: () => onCompletionAction,
+  slashCompletions: () => completionSlashItems,
+  fileCompletions: () => completionFileSource,
+  referenceCompletions: () => completionLegacyReferenceSource,
 };
 
 function editableExtensions(isDisabled: boolean) {
@@ -129,15 +175,70 @@ function submit() {
   return true;
 }
 
-function submitOnEnter(target: EditorView) {
-  // Let the autocomplete keymap handle Enter when a completion popup is open.
-  if (completionStatus(target.state) === "active") return false;
+// The suggestion keymap runs first, so Enter only reaches here when no
+// suggestion was accepted.
+function submitOnEnter() {
   return submit();
 }
 
-function acceptCompletionOnTab(target: EditorView): boolean {
-  if (completionStatus(target.state) !== "active") return false;
-  return acceptCompletion(target);
+// Esc with no popup open cancels a pending dictation placeholder; the host
+// learns through the same `onRemoved` path as a user deleting the chip.
+function cancelDictationOnEscape(): boolean {
+  if (!dictation?.inner.active) return false;
+  const { inner, listeners } = dictation;
+  inner.cancel();
+  for (const listener of [...listeners]) listener();
+  listeners.clear();
+  return true;
+}
+
+function startDictationFromApi(): ComposerDictationHandle {
+  if (!view) throw new Error("Prompt editor is not ready");
+  const inner = startDictation(view);
+  if (dictation?.inner === inner) return dictation.handle;
+  const listeners = new Set<() => void>();
+  const handle: ComposerDictationHandle = {
+    update: (state, elapsedMs) => inner.update(state, elapsedMs),
+    resolve: (text) => inner.resolve(text),
+    cancel: () => inner.cancel(),
+    get active() {
+      return inner.active;
+    },
+    onRemoved(listener) {
+      listeners.add(listener);
+      const off = inner.onRemoved(listener);
+      return () => {
+        listeners.delete(listener);
+        off();
+      };
+    },
+  };
+  dictation = { inner, handle, listeners };
+  return handle;
+}
+
+const editorApi: ComposerEditorApi = {
+  insertReferences(references) {
+    if (!view || disabled || references.length === 0) return;
+    // Before a caret was ever placed the selection is the default position 0.
+    const end = view.state.doc.length;
+    view.dispatch({
+      ...insertMentionsTransaction(
+        view.state,
+        references,
+        caretPlaced ? undefined : { from: end, to: end },
+      ),
+      scrollIntoView: true,
+    });
+    view.focus();
+  },
+  startDictation: startDictationFromApi,
+};
+
+function pickSuggestion(id: string) {
+  if (!view) return;
+  composerCompletionController(view)?.accept(id);
+  view.focus();
 }
 
 function insertAtRange(text: string, from?: number, to?: number) {
@@ -364,6 +465,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 
 onMount(() => {
   editorValue = value;
+  shellMode = isInlineCommandPrompt(value);
   view = new EditorView({
     parent: host,
     state: EditorState.create({
@@ -376,13 +478,13 @@ onMount(() => {
         completionCompartment.of(
           composerCompletionExtensions(completionOptions),
         ),
+        composerMentionChips(),
+        composerDictationPlaceholder(),
         executableCommandBlockHighlighter,
-        bestReferenceCompletionSelector,
         Prec.highest(
           keymap.of([
             { key: "Enter", run: submitOnEnter },
-            { key: "Tab", run: acceptCompletionOnTab },
-            { key: "Escape", run: closeCompletion },
+            { key: "Escape", run: cancelDictationOnEscape },
             { key: "Mod-Enter", run: submit },
             { key: "Ctrl-Enter", run: submit },
             indentWithTab,
@@ -393,16 +495,21 @@ onMount(() => {
         EditorView.domEventHandlers({ paste: handlePaste }),
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged || update.selectionSet) contextVersion += 1;
+          if (
+            update.selectionSet ||
+            (update.focusChanged && update.view.hasFocus)
+          )
+            caretPlaced = true;
           if (!update.docChanged) return;
-          invalidateComposerCompletionRequests(completionOptions);
-          completionNotice = "";
           editorValue = update.state.doc.toString();
+          shellMode = isInlineCommandPrompt(editorValue);
           onChange?.(editorValue);
         }),
         composerEditorTheme,
       ],
     }),
   });
+  onReady?.(editorApi);
 });
 
 $effect(() => {
@@ -418,12 +525,11 @@ $effect(() => {
 
 $effect(() => {
   if (!view) return;
-  void slashCompletions;
-  void fileCompletions;
-  void referenceCompletions;
-  void completionSource;
+  void completionSlashItems;
+  void completionFileSource;
+  void completionLegacyReferenceSource;
+  void completionReferenceSource;
   invalidateComposerCompletionRequests(completionOptions);
-  completionNotice = "";
   closeCompletion(view);
   view.dispatch({
     effects: completionCompartment.reconfigure(
@@ -453,11 +559,18 @@ $effect(() => {
     changes: { from: 0, to: view.state.doc.length, insert: value },
   });
   editorValue = value;
+  shellMode = isInlineCommandPrompt(value);
+});
+
+// Mode/running changes re-filter an open slash list without closing it.
+$effect(() => {
+  void slashContext?.mode;
+  void slashContext?.running;
+  if (view) refreshComposerReferenceCompletions(view, completionOptions);
 });
 
 $effect(() => {
-  const source = completionSource;
-  completionNotice = "";
+  const source = completionReferenceSource;
   if (!source) return;
   let disposed = false;
   let queued = false;
@@ -466,14 +579,7 @@ $effect(() => {
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (
-        disposed ||
-        !view ||
-        disabled ||
-        !completionStatus(view.state) ||
-        composerReferenceActionPending(completionOptions)
-      )
-        return;
+      if (disposed || !view || disabled || !popupModel) return;
       refreshComposerReferenceCompletions(view, completionOptions);
     });
   });
@@ -490,9 +596,11 @@ onDestroy(() => {
 </script>
 
 <div
+  bind:this={root}
   class="composer-editor relative"
   data-prompt-composer-editor
   class:disabled
+  class:shell-mode={shellMode}
   role="group"
   aria-label={ariaLabel}
   ondragentercapture={handleFileDragEnter}
@@ -507,14 +615,30 @@ onDestroy(() => {
       oncontextmenu={captureContext}
     ></div>
   </ContextMenuList>
-  {#if completionNotice}
-    <div
-      role="status"
-      aria-live="polite"
-      class="px-2 py-1 text-xs text-muted-foreground"
-    >
-      {completionNotice}
-    </div>
+  {#if popupModel && !disabled}
+    <ComposerCompletionPopup
+      model={popupModel}
+      anchor={root}
+      onpick={pickSuggestion}
+      onhover={(id) => view && composerCompletionController(view)?.select(id)}
+      ontoggle={(id) => {
+        if (!view) return;
+        composerCompletionController(view)?.toggle(id);
+        view.focus();
+      }}
+      onscope={(scope) => {
+        if (!view) return;
+        composerCompletionController(view)?.setScope(scope);
+        view.focus();
+      }}
+      onclearscope={() => {
+        if (!view) return;
+        composerCompletionController(view)?.clearScope();
+        view.focus();
+      }}
+      onfooteraction={() =>
+        view && composerCompletionController(view)?.runFooterAction()}
+    />
   {/if}
   {#if fileDragActive}
     <div
@@ -546,6 +670,10 @@ onDestroy(() => {
 
 .composer-editor.disabled {
   opacity: 0.58;
+}
+
+.composer-editor.shell-mode :global(.cm-content) {
+  font-family: var(--font-mono);
 }
 
 /* Phone: composer text must be >= 16px so iOS does not zoom on focus.

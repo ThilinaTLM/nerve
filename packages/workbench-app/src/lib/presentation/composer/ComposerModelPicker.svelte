@@ -159,7 +159,7 @@ $effect(() => {
   ariaLabel="Model and thinking level"
   {triggerTitle}
   side="top"
-  align="end"
+  align="start"
 >
   {#snippet trigger()}
     <span
@@ -169,9 +169,7 @@ $effect(() => {
       data-tour-id="composer-model"
     >
       <span class="model-tab-label">{triggerLabel}</span>
-      {#if triggerSuffix}<span class="model-tab-suffix">({triggerSuffix})</span
-        >{/if}
-      {#if triggerShortSuffix}<span class="model-tab-short-suffix"
+      {#if triggerShortSuffix}<span class="model-tab-suffix max-sm:hidden"
           >({triggerShortSuffix})</span
         >{/if}
     </span>
@@ -284,28 +282,15 @@ $effect(() => {
   white-space: nowrap;
 }
 
-.model-tab-suffix,
-.model-tab-short-suffix {
+.model-tab-suffix {
   flex: none;
   color: var(--muted-foreground);
-}
-
-.model-tab-short-suffix {
-  display: none;
 }
 
 @media (max-width: 639px) {
   .model-tab-inner {
     max-width: clamp(5.75rem, 34vw, 9rem);
     gap: 0.22rem;
-  }
-
-  .model-tab-suffix {
-    display: none;
-  }
-
-  .model-tab-short-suffix {
-    display: inline;
   }
 }
 </style>

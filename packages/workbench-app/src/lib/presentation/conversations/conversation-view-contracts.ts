@@ -5,6 +5,8 @@ import type {
 } from "@nervekit/contracts/capabilities";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { ComposerReferenceSource } from "../composer/composer-editor-completions.js";
+import type { ComposerCompletionAction } from "../composer/composer-editor-completions.js";
+import type { ComposerEditorApi } from "../composer/composer-editor-api.js";
 import type {
   ConversationAgentUsage,
   UserInputAnswer,
@@ -211,6 +213,20 @@ export type ConversationPaneActions = {
   onRefreshCapabilities?: () => void;
   onPasteImage?: (file: File) => Promise<string>;
   onDropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
+  /**
+   * Attach button: resolves one picked file to the path inserted into the
+   * prompt (image upload, native path, or generic attachment upload). Omit to
+   * hide the button. Failures are reported by the owner and rejected.
+   */
+  onAttachFile?: (file: File) => Promise<string>;
+  /** Receives the prompt editor's imperative API (attachments, dictation). */
+  onEditorReady?: (api: ComposerEditorApi) => void;
+  /** Runs a slash command immediately on the client (nothing is sent). */
+  onSlashCommand?: (name: string) => void;
+  /** A fix-it offered by the suggestion popup (connect, settings, item). */
+  onCompletionAction?: (action: ComposerCompletionAction) => void;
+  /** Brings the pending ask-user question card into view. */
+  onGoToQuestion?: () => void;
   onReadClipboardText?: () => Promise<string>;
   onWriteClipboardText?: (text: string) => Promise<void>;
   onClipboardError?: (action: "copy" | "cut" | "paste") => void;

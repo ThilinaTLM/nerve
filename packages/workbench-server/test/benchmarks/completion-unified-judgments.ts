@@ -6,11 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { SearchResult } from "@nervekit/native";
+import { parseCompletionIntent } from "@nervekit/contracts/completions";
 import { UnifiedCompletionService } from "../../src/domains/completions/unified-completion-service.js";
 import { CompletionUsageStore } from "../../src/domains/completions/completion-usage-store.js";
 import {
   completionUsageId,
   rankCompletionCandidates,
+  rankCompletionGroups,
   type CompletionContext,
 } from "../../src/domains/completions/completion-ranking-policy.js";
 import type {
@@ -80,7 +82,7 @@ async function scenario<T>(
   const documents = await fixture.documents();
   const home = await mkdtemp(join(tmpdir(), "completion-judged-native-"));
   let service: UnifiedCompletionService | undefined;
-  let latest: SearchResult | undefined;
+  let mainPools: SearchResult[] = [];
   const nativeTimes: number[] = [];
   let measure = false;
   try {
@@ -114,22 +116,27 @@ async function scenario<T>(
             const begin = performance.now();
             const result = await index.query(input);
             if (measure) nativeTimes.push(performance.now() - begin);
-            // Keep lexical rank diagnostics on the main64 pool, not the filtered supplement.
-            if (!input.documentIds) latest = result;
+            // Capture all category pools, excluding the identity-filtered seed supplement.
+            if (!input.documentIds) mainPools.push(result);
             return result;
           },
         };
       },
     });
+    const search = service.search.bind(service);
+    service.search = async (input) => {
+      mainPools = [];
+      return search(input);
+    };
     // Drain asynchronous synthetic cache snapshots, not remote network work.
-    let ready = await service.search({ ...syntheticScope, q: "", limit: 8 });
+    let ready = await service.search({ ...syntheticScope, q: "" });
     for (
       let i = 0;
       i < 4 && ready.sources.some((source) => source.status === "loading");
       i++
     ) {
       await turn();
-      ready = await service.search({ ...syntheticScope, q: "", limit: 8 });
+      ready = await service.search({ ...syntheticScope, q: "" });
     }
     if (ready.sources.some((source) => source.status !== "fresh"))
       throw new Error(
@@ -140,7 +147,15 @@ async function scenario<T>(
       service,
       documents,
       coldServiceMs,
-      nativeResult: () => latest,
+      nativeResult: () =>
+        mainPools.length
+          ? {
+              revision: mainPools[0]!.revision,
+              items: mainPools
+                .flatMap((pool) => pool.items)
+                .sort((a, b) => b.lexicalScore - a.lexicalScore),
+            }
+          : undefined,
       nativeTimes,
       measureNative: (enabled) => {
         measure = enabled;
@@ -181,7 +196,6 @@ export async function measureUnifiedJudgments(
         const response = await service.search({
           ...syntheticScope,
           q: judgment.query,
-          limit: 8,
         });
         if (judgment.query === "session.ts") {
           const native = nativeResult()!;
@@ -201,12 +215,20 @@ export async function measureUnifiedJudgments(
           });
           const final = rankCompletionCandidates(candidates, {}, new Map());
           if (
-            JSON.stringify(final.slice(0, 8).map((item) => item.documentId)) !==
-            JSON.stringify(response.items.map((item) => item.documentId))
+            JSON.stringify(
+              rankCompletionGroups(
+                candidates,
+                {},
+                new Map(),
+                parseCompletionIntent(judgment.query),
+                21,
+              ).items.map((item) => item.documentId),
+            ) !== JSON.stringify(response.items.map((item) => item.documentId))
           )
             throw new Error("Diagnostic ranking diverged from service");
           const describe = (item: (typeof final)[number]) => ({
             id: item.documentId,
+            kind: item.kind,
             path: item.info,
             lexicalScore: item.scoreFactors?.lexical,
             finalScore: item.sortScore,
@@ -216,6 +238,14 @@ export async function measureUnifiedJudgments(
             query: judgment.query,
             intendedId: expected.id,
             candidateCount: native.items.length,
+            matchedFileCount: candidates.filter(
+              (item) => item.kind === "file" || item.kind === "directory",
+            ).length,
+            visible: response.items.map((item) => ({
+              id: item.documentId,
+              kind: item.kind,
+            })),
+            groups: response.groups,
             nativeTop10: native.items.slice(0, 10).map((match) => ({
               ...describe(final.find((item) => item.documentId === match.id)!),
               fieldMatches: match.matches,
@@ -275,7 +305,6 @@ export async function measureUnifiedJudgments(
         const response = await service.search({
           ...syntheticScope,
           q: judgment.query,
-          limit: 8,
         });
         const selected = response.items.find(
           (item) => item.documentId === expected.id,
@@ -299,7 +328,6 @@ export async function measureUnifiedJudgments(
           await service.search({
             ...syntheticScope,
             q: judgment.query,
-            limit: 8,
           });
           times.push(performance.now() - begin);
         }
@@ -411,7 +439,6 @@ export async function measureUnifiedJudgments(
           const response = await service.search({
             ...syntheticScope,
             q: judgment.query ?? "session",
-            limit: 8,
           });
           const native = nativeResult()!;
           return {
@@ -481,7 +508,6 @@ export async function emptyCompletionEvidence(
           const response = await service.search({
             ...syntheticScope,
             q: query,
-            limit: 8,
           });
           const native = nativeResult()!;
           results.push({
@@ -491,6 +517,27 @@ export async function emptyCompletionEvidence(
               native.items.every((item) => item.lexicalScore === 0) &&
               response.items.every((item) => item.scoreFactors?.lexical === 0),
             nativeIds: native.items.map((item) => item.id),
+            nativeFileIds: native.items
+              .filter((item) => {
+                const kind = documents.find(
+                  (document) => document.id === item.id,
+                )!.kind;
+                return kind === "file" || kind === "directory";
+              })
+              .map((item) => item.id),
+            groups: response.groups,
+            matchedCounts: Object.fromEntries(
+              [...new Set(documents.map((document) => document.kind))].map(
+                (kind) => [
+                  kind,
+                  native.items.filter(
+                    (item) =>
+                      documents.find((document) => document.id === item.id)!
+                        .kind === kind,
+                  ).length,
+                ],
+              ),
+            ),
             nativeKinds: [
               ...new Set(
                 native.items.map(
@@ -509,7 +556,15 @@ export async function emptyCompletionEvidence(
             })),
           });
         }
-        return { documentCount: documents.length, wantedId, results };
+        return {
+          documentCount: documents.length,
+          fileDocumentCount: documents.filter(
+            (document) =>
+              document.kind === "file" || document.kind === "directory",
+          ).length,
+          wantedId,
+          results,
+        };
       },
     );
   const crowdedPaths = [

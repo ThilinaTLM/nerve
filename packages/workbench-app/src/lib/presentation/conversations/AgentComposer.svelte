@@ -6,6 +6,7 @@ import {
 } from "@nervekit/contracts/completions";
 import ArrowLeft from "@lucide/svelte/icons/arrow-left";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { ComposerEditorApi } from "../composer/composer-editor-api.js";
 import ComposerEditor from "../composer/ComposerEditor.svelte";
 import ComposerShell from "../composer/ComposerShell.svelte";
 import ComposerToolbar from "../composer/ComposerToolbar.svelte";
@@ -64,6 +65,43 @@ const sendTitle = $derived(
         : "Send prompt"),
 );
 
+let editorApi = $state<ComposerEditorApi>();
+
+function handleEditorReady(api: ComposerEditorApi): void {
+  editorApi = api;
+  actions.onEditorReady?.(api);
+}
+
+function basename(path: string): string {
+  const trimmed = path.replace(/^"|"$/g, "").replace(/[\\/]+$/, "");
+  return (
+    trimmed.slice(
+      Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\")) + 1,
+    ) || trimmed
+  );
+}
+
+async function attachFiles(files: File[]): Promise<void> {
+  const attach = actions.onAttachFile;
+  if (!attach || !editorApi) return;
+  const settled = await Promise.allSettled(files.map((file) => attach(file)));
+  const references = settled.flatMap((result, index) => {
+    if (result.status !== "fulfilled") return [];
+    const file = files[index]!;
+    return [
+      {
+        insert: result.value,
+        label: file.name || basename(result.value),
+        kind: file.type.startsWith("image/")
+          ? ("image" as const)
+          : ("file" as const),
+        title: result.value,
+      },
+    ];
+  });
+  if (references.length > 0) editorApi.insertReferences(references);
+}
+
 function submit(): void {
   if (!submitDisabled) actions.onSubmit?.();
 }
@@ -88,6 +126,7 @@ function submit(): void {
   {sendTitle}
   onAbort={actions.onAbort}
   onSubmit={submit}
+  onGoToQuestion={actions.onGoToQuestion}
 >
   {#snippet header()}
     {#if headerContent}
@@ -159,6 +198,10 @@ function submit(): void {
       onConfigureCapabilityTool={actions.onConfigureCapabilityTool}
       onResetCapabilities={actions.onResetCapabilities}
       onRefreshCapabilities={actions.onRefreshCapabilities}
+      onAttachFiles={actions.onAttachFile && editorApi
+        ? (files) => void attachFiles(files)
+        : undefined}
+      attachDisabled={editorDisabled}
     />
   {/snippet}
 
@@ -175,6 +218,13 @@ function submit(): void {
         focusToken={model.focusToken ?? 0}
         onChange={actions.onComposerChange}
         onSubmit={submit}
+        onReady={handleEditorReady}
+        slashContext={{
+          mode: modePlanning ? "planning" : "coding",
+          running: Boolean(model.showStop ?? model.sending),
+        }}
+        onSlashCommand={actions.onSlashCommand}
+        onCompletionAction={actions.onCompletionAction}
         onPasteImage={actions.onPasteImage}
         onDropFiles={actions.onDropFiles}
         onReadClipboardText={actions.onReadClipboardText}

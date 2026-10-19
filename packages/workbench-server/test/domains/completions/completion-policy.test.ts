@@ -302,3 +302,26 @@ test("service rescues a contextual candidate outside lexical top eight before di
     await service.dispose();
   }
 });
+
+test("unavailable items sort last even when frequently used and empty queries sort by usage across kinds", () => {
+  const items = [
+    { kind: "file" as const, label: "file", sortScore: 90000 },
+    { kind: "tool" as const, label: "tool", sortScore: 0 },
+    {
+      kind: "skill" as const,
+      label: "blocked",
+      available: false,
+      sortScore: 100000,
+    },
+  ];
+  const usage = new Map([
+    [completionUsageId("tool", "tool"), 2],
+    [completionUsageId("skill", "blocked"), 100],
+  ]);
+  assert.deepEqual(
+    rankCompletionCandidates(items, {}, usage, { emptyQuery: true }).map(
+      (item) => item.label,
+    ),
+    ["tool", "file", "blocked"],
+  );
+});

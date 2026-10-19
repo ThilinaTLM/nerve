@@ -312,6 +312,10 @@ void test("same-name skill buckets remain distinct and report enabled-source sha
   const initial = await f.load("skills");
   assert.equal(initial.length, 2);
   assert.notEqual(initial[0]?.id, initial[1]?.id);
+  assert.equal(initial[0]?.item.detail, "File");
+  assert.equal(initial[0]?.item.info, "project");
+  assert.equal(initial[1]?.item.detail, "Builtin");
+  assert.equal(initial[1]?.item.info, "nerve");
   assert.equal(initial[0]?.item.enabled, false);
   assert.equal(initial[1]?.item.enabled, true);
   assert.equal(initial[1]?.item.available, true);
@@ -479,4 +483,142 @@ void test("running subagents are current conversation/project only; files preser
   const files = await f.load("files");
   assert.deepEqual(files[0]?.fields, [{ key: "path", text: "src/session.ts" }]);
   assert.equal(files[0]?.displayField?.offset, 1);
+});
+
+void test("entity states are lowercase badges, not duplicated context, and context highlights remain aligned", async () => {
+  const f = setup();
+  f.ports.prs = async () => ({
+    refreshing: false,
+    updatedAt: new Date().toISOString(),
+    items: ["OPEN", "MERGED", "CLOSED", "OPEN"].map((state, index) => ({
+      number: index + 1,
+      title: `PR ${index}`,
+      url: `https://synthetic.invalid/pr/${index}`,
+      state,
+      isDraft: index === 3,
+      headRefName: "feature/context",
+      author: "alice",
+      repository: "nested",
+      updatedAt: "now",
+    })),
+  });
+  f.ports.issues = async () => ({
+    refreshing: false,
+    updatedAt: new Date().toISOString(),
+    items: (["OPEN", "CLOSED"] as const).map((state, index) => ({
+      number: index + 1,
+      title: `Issue ${index}`,
+      url: `https://synthetic.invalid/issue/${index}`,
+      state,
+      author: index ? null : "alice",
+      repository: "nested",
+      updatedAt: "now",
+    })),
+  });
+  const prs = await f.load("pull_requests");
+  assert.deepEqual(
+    prs.map((doc) => doc.item.status),
+    ["open", "merged", "closed", "draft"],
+  );
+  assert.ok(
+    prs.every((doc) => doc.item.detail === "feature/context · alice · nested"),
+  );
+  const issues = await f.load("issues");
+  assert.deepEqual(
+    issues.map((doc) => doc.item.status),
+    ["open", "closed"],
+  );
+  assert.deepEqual(
+    issues.map((doc) => doc.item.detail),
+    ["alice · nested", "nested"],
+  );
+  for (const doc of [...prs, ...issues]) {
+    for (const field of doc.detailFields ?? []) {
+      const text = doc.fields[field.index]!.text;
+      assert.equal(
+        doc.item.detail?.slice(field.offset, field.offset + text.length),
+        text,
+        `${doc.kind} context field ${field.index}`,
+      );
+    }
+  }
+});
+
+void test("active launch and subagent states are separate from their context IDs", async () => {
+  const f = setup();
+  f.ports.launches = () =>
+    (["starting", "running", "ready", "stopping"] as const).map(
+      (status, index) => ({
+        id: `launch-${index}`,
+        projectId: "p",
+        name: "Preview",
+        status,
+        updatedAt: "now",
+      }),
+    );
+  f.ports.children = () =>
+    (["running", "queued", "waiting", "stopping"] as const).map(
+      (status, index) => ({
+        id: `child-${index}`,
+        projectId: "p",
+        parentConversationId: "c",
+        title: "Review",
+        status,
+        updatedAt: "now",
+      }),
+    );
+  const launches = await f.load("launches");
+  assert.deepEqual(
+    launches.map((doc) => doc.item.status),
+    ["starting", "running", "ready", "stopping"],
+  );
+  const children = await f.load("subagents");
+  assert.deepEqual(
+    children.map((doc) => doc.item.status),
+    ["running", "queued", "waiting", "stopping"],
+  );
+  for (const doc of [...launches, ...children]) {
+    assert.equal(doc.item.detail, doc.fields[1]!.text);
+    assert.equal(doc.detailFields?.[0]?.offset, 0);
+  }
+});
+
+void test("remote failures survive repository merging and appear on stale as well as unavailable sources", async () => {
+  const f = setup();
+  const snapshot = mergeCompletionRemoteSnapshots([
+    {
+      items: [],
+      refreshing: false,
+      failed: true,
+      failureCode: "GH_AUTH_REQUIRED",
+      updatedAt: null,
+    },
+  ]);
+  for (const id of ["pull_requests", "issues"] as const) {
+    f.ports.prs = async () => snapshot;
+    f.ports.issues = async () => snapshot;
+    const provider = createCompletionProviders(f.ports).find(
+      (provider) => provider.id === id,
+    )!;
+    const unavailable = await provider.load({ projectId: "p" });
+    assert.ok("documents" in unavailable);
+    assert.equal(unavailable.status, "unavailable");
+    assert.equal(unavailable.reason, "GitHub CLI isn’t signed in.");
+    assert.equal(unavailable.action, "open_pull_requests");
+    const cached = {
+      ...snapshot,
+      failureCode: "GH_API_UNAVAILABLE",
+      updatedAt: new Date().toISOString(),
+    };
+    f.ports.prs = async () => cached;
+    f.ports.issues = async () => cached;
+    const stale = await provider.load({ projectId: "p" });
+    assert.ok("documents" in stale);
+    assert.equal(stale.status, "stale");
+    assert.equal(
+      stale.reason,
+      "GitHub is unreachable — showing cached results.",
+    );
+    assert.equal(stale.action, undefined);
+  }
 });

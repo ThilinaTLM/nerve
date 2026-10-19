@@ -20,6 +20,7 @@ import {
   normalizeIncomingFilePath,
   projectDirectoryEntries,
   saveFileContent,
+  saveAttachment,
 } from "../../../src/domains/filesystem/filesystem.service.js";
 
 describe("filesystem application service", () => {
@@ -417,6 +418,70 @@ describe("filesystem application service", () => {
         rm(root, { recursive: true, force: true }),
         rm(outside, { recursive: true, force: true }),
       ]);
+    }
+  });
+});
+
+describe("attachment uploads", () => {
+  it("stores arbitrary bytes, images and empty files safely with collision-free private names", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-attachments-"));
+    try {
+      const bytes = Buffer.from([0, 255, 1, 2]);
+      const request = {
+        name: "../../Report.PDF",
+        type: "application/pdf",
+        dataBase64: bytes.toString("base64"),
+      };
+      const [a, b] = await Promise.all([
+        saveAttachment(request, root),
+        saveAttachment(request, root),
+      ]);
+      assert.notEqual(a.path, b.path);
+      assert.match(a.path, /report-.*\.pdf$/);
+      assert.ok(a.path.startsWith(root + "/"));
+      assert.deepEqual(await readFile(a.path), bytes);
+      if (process.platform !== "win32")
+        assert.equal((await stat(a.path)).mode & 0o777, 0o600);
+      const image = await saveAttachment(
+        {
+          name: "pasted",
+          type: "image/png",
+          dataBase64: bytes.toString("base64"),
+        },
+        root,
+      );
+      assert.match(image.path, /\.png$/);
+      const empty = await saveAttachment(
+        { name: "empty.txt", type: "", dataBase64: "" },
+        root,
+      );
+      assert.equal((await stat(empty.path)).size, 0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects malformed and oversized uploads before writing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "nerve-attachments-"));
+    try {
+      for (const dataBase64 of ["not base64!", "a===", "AAAA\n"]) {
+        await assert.rejects(
+          saveAttachment({ dataBase64 }, root),
+          (error: unknown) =>
+            error instanceof ApplicationError &&
+            error.code === "INVALID_ATTACHMENT",
+        );
+      }
+      const oversized = Buffer.alloc(20 * 1024 * 1024 + 1).toString("base64");
+      await assert.rejects(
+        saveAttachment({ dataBase64: oversized }, root),
+        (error: unknown) =>
+          error instanceof ApplicationError &&
+          error.status === 413 &&
+          /20 MiB/.test(error.message),
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
     }
   });
 });

@@ -1,5 +1,7 @@
 <script lang="ts">
-import Send from "@lucide/svelte/icons/send";
+import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import MessageCircleQuestion from "@lucide/svelte/icons/message-circle-question-mark";
+import SquareTerminal from "@lucide/svelte/icons/square-terminal";
 import Square from "@lucide/svelte/icons/square";
 import type { Snippet } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
@@ -30,6 +32,8 @@ type Props = {
   editor: Snippet;
   /** Optional controls left of the stop/send cluster (e.g. mic button). */
   sendLeading?: Snippet;
+  /** Scrolls the transcript to the pending ask-user question card. */
+  onGoToQuestion?: () => void;
 };
 
 let {
@@ -54,12 +58,14 @@ let {
   toolbar,
   editor,
   sendLeading,
+  onGoToQuestion,
 }: Props = $props();
 </script>
 
 <form
   class="composer"
   data-tour-id="composer"
+  data-composer-popup-anchor
   data-pending-approval={pendingApproval ? "true" : undefined}
   data-pending-question={pendingQuestion ? "true" : undefined}
   data-pending-plan={pendingPlan ? "true" : undefined}
@@ -78,18 +84,56 @@ let {
     data-command-mode={commandMode ? "true" : undefined}
     data-executable-blocks={executableBlocks ? "true" : undefined}
   >
-    <div class="editor-shell">
-      {@render toolbar()}
-      {@render editor()}
+    {#if pendingQuestion}
+      <div
+        class="flex items-center gap-2 px-3 pt-2 text-xs text-info"
+        role="status"
+      >
+        <MessageCircleQuestion class="size-3.5 flex-none" aria-hidden="true" />
+        <span class="min-w-0 truncate"
+          >The agent is waiting for your answer</span
+        >
+        {#if onGoToQuestion}
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            class="ml-auto"
+            onclick={onGoToQuestion}>Go to question</Button
+          >
+        {/if}
+      </div>
+    {:else if commandMode}
+      <div class="flex items-center gap-1.5 px-3 pt-2 text-xs text-warning">
+        <SquareTerminal class="size-3.5 flex-none" aria-hidden="true" />
+        <span class="min-w-0 truncate"
+          >Shell command — runs locally, not sent to the agent</span
+        >
+      </div>
+    {/if}
 
-      <div class="composer-send" data-tour-id="composer-send-actions">
+    <div class="editor-shell">
+      {@render editor()}
+    </div>
+
+    <div
+      class="flex items-center gap-0.5 px-1.5 pb-1.5"
+      data-tour-id="composer-controls"
+    >
+      {@render toolbar()}
+      <span class="mx-0.5 h-4 w-px flex-none bg-border" aria-hidden="true"
+      ></span>
+      <div
+        class="flex flex-none items-center gap-0.5"
+        data-tour-id="composer-send-actions"
+      >
         {#if sendLeading}
           {@render sendLeading()}
         {/if}
         {#if showStop}
           <Button
             variant="destructive"
-            size="icon"
+            size="icon-sm"
             type="button"
             disabled={stopDisabled || stopping}
             onclick={onAbort}
@@ -98,21 +142,20 @@ let {
             title={stopping ? "Stopping generation" : stopTitle}
           >
             {#if stopping}
-              <Spinner class="size-3.5" />
+              <Spinner />
             {:else}
-              <Square size={13} strokeWidth={2.5} />
+              <Square />
             {/if}
           </Button>
         {/if}
         <Button
-          size="icon"
-          class="inset-ring-1 inset-ring-primary-foreground/18"
+          size="icon-sm"
           type="submit"
           disabled={submitDisabled}
           aria-label={sendAriaLabel}
           title={sendTitle}
         >
-          <Send size={14} strokeWidth={2.4} />
+          {#if commandMode}<SquareTerminal />{:else}<ArrowUp />{/if}
         </Button>
       </div>
     </div>
@@ -127,55 +170,41 @@ let {
   padding: 0.65rem;
 }
 
+/* One card: notice, text, then the single bottom toolbar. Nothing floats on
+ * the border, so the suggestion popup has a clean edge to sit on. */
 .composer-surface {
   position: relative;
-  margin-top: 0.55rem;
   overflow: visible;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-md);
-  background: var(--background);
-  box-shadow:
-    0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent) inset,
-    var(--shadow-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
   transition:
     border-color 120ms ease,
     box-shadow 120ms ease;
 }
 
 .composer-surface:focus-within {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--ring) 35%, transparent);
+  border-color: var(--ring);
 }
 
-.composer-surface[data-mode="planning"] {
-  border-color: var(--success);
-}
-
+.composer-surface[data-mode="planning"],
 .composer-surface[data-mode="planning"]:focus-within {
-  border-color: var(--success);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--success) 35%, transparent);
-}
-
-.composer-surface[data-command-mode="true"] {
   border-color: var(--info);
 }
 
+.composer-surface[data-command-mode="true"],
 .composer-surface[data-command-mode="true"]:focus-within {
+  border-color: var(--warning);
+}
+
+.composer[data-pending-question="true"] .composer-surface {
   border-color: var(--info);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--info) 40%, transparent);
 }
 
 .composer[data-pending-approval="true"] .composer-surface,
-.composer[data-pending-question="true"] .composer-surface,
 .composer[data-pending-plan="true"] .composer-surface {
   border-color: var(--warning);
-}
-
-.composer[data-pending-approval="true"] .composer-surface:focus-within,
-.composer[data-pending-question="true"] .composer-surface:focus-within,
-.composer[data-pending-plan="true"] .composer-surface:focus-within {
-  border-color: var(--warning);
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--warning) 45%, transparent);
 }
 
 .editor-shell {
@@ -183,23 +212,11 @@ let {
   min-width: 0;
 }
 
-.editor-shell :global(.composer-editor) {
+.editor-shell :global(.composer-editor),
+.editor-shell :global(.composer-editor:focus-within) {
   border: 0;
   border-radius: 0;
   background: transparent;
-}
-
-.editor-shell :global(.composer-editor:focus-within) {
   box-shadow: none;
-}
-
-.composer-send {
-  position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
 }
 </style>
