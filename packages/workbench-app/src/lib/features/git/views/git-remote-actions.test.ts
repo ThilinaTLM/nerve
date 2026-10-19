@@ -4,11 +4,10 @@ import type { GitRepoSummary } from "@nervekit/contracts/git";
 import type { Activity } from "@nervekit/contracts/activity";
 import {
   activeRemoteOperation,
-  basePullDisabled,
-  pullDisabled,
-  remoteActionDisabled,
-  visibleRemoteActions,
+  lastRemoteFailure,
   repositoryRemoteBusy,
+  runningRemoteActivity,
+  syncSummary,
 } from "./git-remote-actions.js";
 
 function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
@@ -32,22 +31,6 @@ function repo(overrides: Partial<GitRepoSummary> = {}): GitRepoSummary {
     ...overrides,
   };
 }
-
-test("allows pull and base switching with compatible local changes", () => {
-  const dirtyRepo = repo({ dirty: true, changeCount: 1 });
-
-  assert.equal(pullDisabled(dirtyRepo, false), false);
-  assert.equal(basePullDisabled(dirtyRepo, false), false);
-});
-
-test("keeps actual remote-operation prerequisites disabled", () => {
-  assert.equal(remoteActionDisabled(repo({ hasRemote: false }), false), true);
-  assert.equal(pullDisabled(repo({ hasUpstream: false }), false), true);
-  assert.equal(pullDisabled(repo({ detached: true }), false), true);
-  assert.equal(pullDisabled(repo(), true), true);
-  assert.equal(basePullDisabled(repo({ hasRemote: false }), false), true);
-  assert.equal(basePullDisabled(repo(), true), true);
-});
 
 function activity(
   id: string,
@@ -109,53 +92,65 @@ test("a noncancellable running operation is retained instead of incorrectly stop
   );
 });
 
-test("row visibility keeps Fetch and Sync anchored and only shows useful conditional actions", () => {
-  assert.deepEqual(visibleRemoteActions(repo({ ahead: 2 }), []), [
-    "switch-base-and-pull",
-    "pull",
-    "push",
-    "fetch",
-    "sync",
-  ]);
-  assert.deepEqual(
-    visibleRemoteActions(repo({ onBaseBranch: true, behind: 0 }), []),
-    ["fetch", "sync"],
-  );
-  assert.deepEqual(visibleRemoteActions(repo({ hasRemote: false }), []), [
-    "fetch",
-    "sync",
-  ]);
+test("sync summary lists only the diverged directions", () => {
+  assert.deepEqual(syncSummary(repo({ behind: 1, ahead: 2 })), {
+    parts: ["↓1", "↑2"],
+    help: "Sync: pull 1 commit, push 2 commits",
+  });
+  assert.deepEqual(syncSummary(repo({ behind: 0, ahead: 3 })).parts, ["↑3"]);
+  assert.deepEqual(syncSummary(repo({ behind: 0, ahead: 0 })), {
+    parts: [],
+    help: "Up to date · Sync fetches remote changes",
+  });
 });
 
-test("queued and running controls survive changed metadata only on their own repository", () => {
-  const metadata = repo({
-    hasRemote: false,
-    hasUpstream: false,
-    detached: true,
-    onBaseBranch: true,
-    ahead: 0,
-    behind: 0,
-  });
+test("queued and running work is found only on its own repository", () => {
+  const pull = activity("pull", "git.pull", "running");
   const activities = [
     activity("base", "git.switchBaseAndPull", "queued"),
-    activity("pull", "git.pull", "running"),
-    activity("push", "git.push", "queued"),
+    pull,
+    activity("parent", "git.sync.all", "running"),
   ];
-  assert.deepEqual(visibleRemoteActions(metadata, activities), [
-    "switch-base-and-pull",
-    "pull",
-    "push",
-    "fetch",
-    "sync",
-  ]);
-  assert.deepEqual(
-    visibleRemoteActions({ ...metadata, relativePath: "other" }, activities),
-    ["fetch", "sync"],
-  );
+  assert.equal(runningRemoteActivity([pull], "."), pull);
+  assert.equal(runningRemoteActivity(activities, "other"), undefined);
   assert.equal(repositoryRemoteBusy(activities, "."), true);
   assert.equal(repositoryRemoteBusy(activities, "other"), false);
   assert.equal(
     repositoryRemoteBusy([activity("done", "git.fetch", "succeeded")], "."),
     false,
+  );
+});
+
+test("a failure shows only while it is the repository's latest remote operation", () => {
+  const at = (
+    id: string,
+    status: Activity["status"],
+    time: string,
+    path = ".",
+  ) => ({
+    ...activity(id, "git.pull", status, path),
+    finishedAt: time,
+    updatedAt: time,
+  });
+  const failed = at("failed", "failed", "2026-10-18T10:00:00Z");
+  assert.equal(lastRemoteFailure([failed], "."), failed);
+  assert.equal(lastRemoteFailure([failed], "other"), undefined);
+  assert.equal(
+    lastRemoteFailure(
+      [failed, at("ok", "succeeded", "2026-10-18T11:00:00Z")],
+      ".",
+    ),
+    undefined,
+  );
+  assert.equal(
+    lastRemoteFailure(
+      [at("ok", "succeeded", "2026-10-18T09:00:00Z"), failed],
+      ".",
+    ),
+    failed,
+  );
+  assert.equal(
+    lastRemoteFailure([failed, activity("retry", "git.pull", "running")], "."),
+    undefined,
   );
 });

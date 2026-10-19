@@ -1,5 +1,5 @@
 <script lang="ts">
-import { mergeProps } from "bits-ui";
+import type { Activity } from "@nervekit/contracts/activity";
 import type { GitRepoSummary, GitStashEntry } from "@nervekit/contracts/git";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
@@ -8,11 +8,21 @@ import { SvelteSet } from "svelte/reactivity";
 import Square from "@lucide/svelte/icons/square";
 import ArrowDown from "@lucide/svelte/icons/arrow-down";
 import ArrowUp from "@lucide/svelte/icons/arrow-up";
+import ArrowDownUp from "@lucide/svelte/icons/arrow-down-up";
+import GitBranch from "@lucide/svelte/icons/git-branch";
 import ArchiveRestore from "@lucide/svelte/icons/archive-restore";
 import CloudDownload from "@lucide/svelte/icons/cloud-download";
 import GitCompareArrows from "@lucide/svelte/icons/git-compare-arrows";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import MoreHorizontal from "@lucide/svelte/icons/more-horizontal";
+import { mergeProps } from "bits-ui";
+import Check from "@lucide/svelte/icons/check";
+import CircleAlert from "@lucide/svelte/icons/circle-alert";
+import { Separator } from "@nervekit/ui-kit/components/ui/separator";
+import Popover, {
+  PopoverBody,
+  PopoverHeader,
+} from "@nervekit/ui-kit/components/composites/popover-panel";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
@@ -23,6 +33,7 @@ import {
   PanelView,
 } from "$lib/presentation/panels";
 import GitChangesArea from "./GitChangesArea.svelte";
+import GitPullRequestRow from "./GitPullRequestRow.svelte";
 import GitRepoSwitcher from "./GitRepoSwitcher.svelte";
 import GitStashDialog from "./GitStashDialog.svelte";
 import { gitFileGroups, gitFilesInScope } from "./git-panel-controller.js";
@@ -34,8 +45,10 @@ import type {
 } from "./git-panel-types.js";
 import {
   activeRemoteOperation,
-  visibleRemoteActions,
+  remoteOperationOf,
   repositoryRemoteBusy,
+  runningRemoteActivity,
+  syncSummary,
 } from "./git-remote-actions";
 
 let {
@@ -119,12 +132,6 @@ async function requestCancellation(id: string): Promise<void> {
 const bulkRepositories = $derived(
   model.repositories.filter((repo) => repo.hasRemote),
 );
-const bulkBaseLabel = $derived(
-  bulkRepositories.length > 0 &&
-    bulkRepositories.every((repo) => repo.baseBranch === "main")
-    ? "main + pull all"
-    : "Base + pull all",
-);
 let discardCandidate = $state<
   | {
       kind: "file";
@@ -142,28 +149,25 @@ let discardCandidate = $state<
 >(undefined);
 
 const fileGroups = $derived(gitFileGroups(model.changes?.files ?? []));
-const changeCount = $derived(model.changes?.files.length ?? 0);
+const totalChangeCount = $derived(
+  model.repositories.reduce((sum, repo) => sum + repo.changeCount, 0),
+);
+let expandedPr = $state<number>();
+let switcher = $state<ReturnType<typeof GitRepoSwitcher>>();
 
-const menuActions = [
-  "fetch",
-  "sync",
-  "pull",
-  "push",
-  "stash",
-  "switch-base-and-pull",
-] as const;
 const icons = {
   fetch: CloudDownload,
   pull: ArrowDown,
   push: ArrowUp,
-  sync: RefreshCw,
+  sync: ArrowDownUp,
   "switch-base-and-pull": GitCompareArrows,
 };
 function actionLabel(
   repo: GitRepoSummary,
   operation: GitRemoteOperation,
 ): string {
-  if (operation === "switch-base-and-pull") return `${repo.baseBranch} + pull`;
+  if (operation === "switch-base-and-pull")
+    return `Switch to ${repo.baseBranch} and pull`;
   if (operation === "pull")
     return `Pull${repo.behind ? ` (${repo.behind})` : ""}`;
   if (operation === "push")
@@ -235,99 +239,155 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
   </div>
   {@const Item = context ? ContextMenu.Item : DropdownMenu.Item}
   {@const Separator = context ? ContextMenu.Separator : DropdownMenu.Separator}
-  {#each menuActions as operation (operation)}
-    {#if operation === "pull" || operation === "stash"}<Separator />{/if}
-    {#if operation === "stash"}
-      <Item
-        disabled={!model.capabilities.stashes.enabled ||
-          repositoryRemoteBusy(model.activeOperations ?? [], repo.relativePath)}
-        onclick={() => void openStashes(repo)}
-        ><span class="grid w-4 shrink-0 place-items-center"
-          ><ArchiveRestore class="size-3.5" aria-hidden="true" /></span
-        ><span>Stashes</span></Item
-      >
-    {:else}
-      {@const state = rowState(repo, operation)}
-      {@const Icon = state.canStop ? Square : icons[operation]}
-      <Item disabled={state.disabled} onclick={() => activate(repo, operation)}
-        ><span class="grid w-4 shrink-0 place-items-center"
-          ><Icon class="size-3.5" aria-hidden="true" /></span
-        ><span>{state.label}</span></Item
-      >
-    {/if}
-  {/each}
+  {#snippet operationItem(operation: GitRemoteOperation)}
+    {@const state = rowState(repo, operation)}
+    {@const Icon = state.canStop ? Square : icons[operation]}
+    <Item disabled={state.disabled} onclick={() => activate(repo, operation)}
+      ><Icon aria-hidden="true" /><span>{state.label}</span></Item
+    >
+  {/snippet}
+  {@render operationItem("sync")}
+  {@render operationItem("fetch")}
+  {@render operationItem("pull")}
+  {@render operationItem("push")}
+  <Separator />
+  {@render operationItem("switch-base-and-pull")}
+  <Item
+    disabled={!model.capabilities.branches.enabled}
+    onclick={() => void switcher?.openBranchDialog(repo.relativePath)}
+    ><GitBranch aria-hidden="true" /><span>Switch branch</span></Item
+  >
+  <Separator />
+  <Item
+    disabled={!model.capabilities.stashes.enabled ||
+      repositoryRemoteBusy(model.activeOperations ?? [], repo.relativePath)}
+    onclick={() => void openStashes(repo)}
+    ><ArchiveRestore aria-hidden="true" /><span>Stashes</span></Item
+  >
+{/snippet}
+
+<!-- One Sync button per repository (fetch, pull, push). Any running remote
+     operation of the repository shows here as a spinner that becomes Stop on
+     hover or focus. Without a remote there is nothing to sync. -->
+{#snippet failureAlert(repo: GitRepoSummary, failure: Activity)}
+  {@const operation = remoteOperationOf(failure) ?? "sync"}
+  {@const title = `${operation === "switch-base-and-pull" ? "Switch to base and pull" : actionLabel({ ...repo, ahead: 0, behind: 0 }, operation)} failed`}
+  {@const message =
+    failure.error?.message ?? failure.message ?? "Unknown error."}
+  <Tooltip.Root>
+    <Tooltip.Trigger>
+      {#snippet child({ props: tip })}
+        <Popover size="sm" align="end" ariaLabel={title}>
+          {#snippet triggerChild({ props })}
+            <Button
+              {...mergeProps(tip, props)}
+              variant="ghost"
+              size="icon-sm"
+              class="text-destructive hover:text-destructive aria-expanded:text-destructive"
+              aria-label={`${title} in ${repo.name}`}
+              ><CircleAlert aria-hidden="true" /></Button
+            >
+          {/snippet}
+          <PopoverHeader {title} />
+          <PopoverBody>
+            <p class="text-destructive break-words">{message}</p>
+            <div class="flex gap-1">
+              <Button
+                size="sm"
+                onclick={() =>
+                  failure.actions.retry && actions.retryOperation
+                    ? void actions.retryOperation(failure.id)
+                    : void actions.runRemoteOperation(
+                        repo.relativePath,
+                        operation,
+                      )}>Retry</Button
+              >
+              {#if actions.dismissOperation}
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onclick={() => void actions.dismissOperation?.(failure.id)}
+                  >Dismiss</Button
+                >
+              {/if}
+            </div>
+          </PopoverBody>
+        </Popover>
+      {/snippet}
+    </Tooltip.Trigger>
+    <Tooltip.Content>{title}: {message}</Tooltip.Content>
+  </Tooltip.Root>
 {/snippet}
 
 {#snippet rowActions(repo: GitRepoSummary)}
-  <div
-    class="flex shrink-0 items-center"
-    role="group"
-    aria-label={`Actions for ${repo.name}`}
-  >
-    {#each visibleRemoteActions(repo, model.activeOperations ?? []) as operation (operation)}
-      {@const state = rowState(repo, operation)}
-      {@const Icon = state.canStop ? Square : icons[operation]}
-      <Tooltip.Root>
-        <Tooltip.Trigger>
-          {#snippet child({ props })}
-            <Button
-              {...props}
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`${state.label} for ${repo.name}`}
-              aria-disabled={state.disabled}
-              class={state.disabled
-                ? "cursor-default text-muted-foreground opacity-40"
-                : "text-muted-foreground hover:text-foreground"}
-              onkeydown={(event) => {
-                if (event.key === "Enter" || event.key === " ")
-                  event.stopPropagation();
-                if (typeof props.onkeydown === "function")
-                  props.onkeydown(event);
-              }}
-              onclick={() => activate(repo, operation)}
-            >
-              {#if state.pending || (state.activity && !state.canStop)}<Spinner
-                />{:else}<Icon aria-hidden="true" />{/if}
-            </Button>
-          {/snippet}
-        </Tooltip.Trigger>
-        <Tooltip.Content>
-          <div class="min-w-0 space-y-1">
-            <p class="font-medium">{state.label}</p>
-            <p>{state.help}</p>
-          </div>
-        </Tooltip.Content>
-      </Tooltip.Root>
-    {/each}
+  {@const failure = model.lastRemoteFailure?.(repo.relativePath)}
+  {#if failure}{@render failureAlert(repo, failure)}{/if}
+  {#if repo.hasRemote}
+    {@const running = runningRemoteActivity(
+      model.activeOperations ?? [],
+      repo.relativePath,
+    )}
+    {@const stopping = Boolean(running && cancellingIds.has(running.id))}
+    {@const canStop = Boolean(
+      running?.actions.cancel && actions.cancelOperation && !stopping,
+    )}
+    {@const sync = syncSummary(repo)}
+    {@const syncState = rowState(repo, "sync")}
+    {@const disabled = running ? !canStop : syncState.disabled}
+    {@const help = stopping
+      ? "Stopping. Waiting for the process to close."
+      : running
+        ? canStop
+          ? "Stop this operation. Completed steps are not undone; remote updates may already have completed."
+          : "Another operation is running in this repository."
+        : sync.help}
     <Tooltip.Root>
-      <DropdownMenu.Root>
-        <Tooltip.Trigger>
-          {#snippet child({ props: tooltipProps })}
-            <DropdownMenu.Trigger>
-              {#snippet child({ props })}
-                <Button
-                  {...mergeProps(tooltipProps, props)}
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`More actions for ${repo.name}`}
-                  onkeydown={(event) => {
-                    event.stopPropagation();
-                    if (typeof props.onkeydown === "function")
-                      props.onkeydown(event);
-                  }}><MoreHorizontal aria-hidden="true" /></Button
-                >
-              {/snippet}
-            </DropdownMenu.Trigger>
-          {/snippet}
-        </Tooltip.Trigger>
-        <DropdownMenu.Content align="end"
-          >{@render menuItems(repo)}</DropdownMenu.Content
-        >
-      </DropdownMenu.Root>
-      <Tooltip.Content>More repository actions</Tooltip.Content>
+      <Tooltip.Trigger>
+        {#snippet child({ props })}
+          <Button
+            {...props}
+            variant="ghost"
+            size={sync.parts.length && !running ? "sm" : "icon-sm"}
+            aria-label={`${running ? "Stop" : "Sync"} ${repo.name}`}
+            aria-disabled={disabled}
+            class={disabled
+              ? "cursor-default text-muted-foreground opacity-40"
+              : "text-muted-foreground hover:text-foreground"}
+            onclick={() => {
+              if (disabled) return;
+              if (running) void requestCancellation(running.id).catch(() => {});
+              else void actions.runRemoteOperation(repo.relativePath, "sync");
+            }}
+          >
+            {#if running}
+              {#if canStop}
+                <Spinner
+                  class="group-focus-visible/button:hidden group-hover/button:hidden"
+                />
+                <Square
+                  class="hidden fill-current group-focus-visible/button:block group-hover/button:block"
+                  aria-hidden="true"
+                />
+              {:else}
+                <Spinner />
+              {/if}
+            {:else}
+              <ArrowDownUp aria-hidden="true" />
+              {#if sync.parts.length}
+                <span class="tabular-nums">{sync.parts.join(" ")}</span>
+              {/if}
+            {/if}
+          </Button>
+        {/snippet}
+      </Tooltip.Trigger>
+      <Tooltip.Content>
+        <p>{help}</p>
+        {#if !running && syncState.disabled}
+          <p class="text-muted-foreground">{syncState.help}</p>
+        {/if}
+      </Tooltip.Content>
     </Tooltip.Root>
-  </div>
+  {/if}
 {/snippet}
 
 {#snippet repositoryContextItems(repo: GitRepoSummary)}{@render menuItems(
@@ -338,7 +398,7 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
 <Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
   <PanelView>
     {#snippet banner()}
-      <PanelHeader title="Git changes" count={changeCount}>
+      <PanelHeader title="Git changes" count={totalChangeCount}>
         {#snippet trailing()}
           {#if model.repositories.length > 1 && actions.runBulkRemoteOperation}
             <DropdownMenu.Root>
@@ -348,31 +408,35 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
                     {...props}
                     variant="ghost"
                     size="icon-sm"
-                    aria-label="Project actions"
-                    title="Project actions"
+                    aria-label="All repositories"
+                    title="All repositories"
                   >
                     <MoreHorizontal aria-hidden="true" />
                   </Button>
                 {/snippet}
               </DropdownMenu.Trigger>
               <DropdownMenu.Content align="end">
+                <div class="px-2 py-1 text-xs text-muted-foreground">
+                  All repositories
+                </div>
                 <DropdownMenu.Item
                   disabled={!model.capabilities.remote.fetch.enabled ||
                     bulkRepositories.length === 0}
                   onclick={() => void actions.runBulkRemoteOperation?.("fetch")}
-                  >Fetch all</DropdownMenu.Item
+                  ><CloudDownload aria-hidden="true" />Fetch all</DropdownMenu.Item
                 >
                 <DropdownMenu.Item
                   disabled={!model.capabilities.remote.pull.enabled ||
                     bulkRepositories.length === 0}
                   onclick={() => void actions.runBulkRemoteOperation?.("pull")}
-                  >Pull all</DropdownMenu.Item
+                  ><ArrowDown aria-hidden="true" />Pull all</DropdownMenu.Item
                 >
                 <DropdownMenu.Item
                   disabled={!model.capabilities.remote["switch-base-and-pull"]
                     .enabled || bulkRepositories.length === 0}
                   onclick={() => (bulkMainOpen = true)}
-                  >{bulkBaseLabel}</DropdownMenu.Item
+                  ><GitCompareArrows aria-hidden="true" />Switch all to base and
+                  pull</DropdownMenu.Item
                 >
               </DropdownMenu.Content>
             </DropdownMenu.Root>
@@ -390,17 +454,44 @@ function activate(repo: GitRepoSummary, operation: GitRemoteOperation): void {
 
       {#if model.availability.available && model.repositories.length > 0}
         <GitRepoSwitcher
+          bind:this={switcher}
           {model}
           {actions}
-          layout="list"
           {rowActions}
           contextItems={repositoryContextItems}
           chipCount={(repo) => repo.changeCount}
-        />
+          countTitle={(_, count) =>
+            count === 0
+              ? "No changes"
+              : `${count} ${count === 1 ? "change" : "changes"}`}
+        >
+          {#snippet emptyCount()}
+            <Check class="size-3.5" aria-hidden="true" />
+          {/snippet}
+        </GitRepoSwitcher>
+        <Separator class="my-1.5" />
       {/if}
     {/snippet}
 
     {#if model.availability.available && model.repositories.length > 0}
+      {#if model.currentBranchPr}
+        {@const pr = model.currentBranchPr}
+        <div class="shrink-0 pb-1.5">
+          <GitPullRequestRow
+            {pr}
+            expanded={expandedPr === pr.number}
+            checkedOut
+            disabled={!model.capabilities.openPullRequest.enabled}
+            disabledReason={model.capabilities.openPullRequest.enabled
+              ? undefined
+              : model.capabilities.openPullRequest.reason}
+            onOpen={() =>
+              void actions.openPullRequest(model.selectedRepository, pr.number)}
+            onToggleChecks={() =>
+              (expandedPr = expandedPr === pr.number ? undefined : pr.number)}
+          />
+        </div>
+      {/if}
       <GitChangesArea
         changes={model.changes}
         stagedFiles={fileGroups.staged}

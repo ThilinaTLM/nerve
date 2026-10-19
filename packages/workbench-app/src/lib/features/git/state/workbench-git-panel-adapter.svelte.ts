@@ -1,4 +1,12 @@
 import { untrack } from "svelte";
+import { queryClient, queryKeys } from "$lib/platform/query/client";
+import { GitPrPrefetchScheduler } from "./git-pr-prefetch";
+import { currentBranchPrHead } from "./git-current-branch-pr";
+import {
+  projectGithubAuthenticated,
+  refreshPrHeadsAuthentication,
+} from "./git-current-branch-pr.svelte";
+import { lastRemoteFailure } from "../views/git-remote-actions";
 import { createGitPanelActions } from "../views/git-panel-controller";
 import {
   requestGitRepositoryRefresh,
@@ -33,7 +41,11 @@ import {
   gitProjectStateKey,
   gitRepoStateKey,
 } from "$lib/domain/navigation/view-keys";
-import { pendingPollTargets, PR_PENDING_POLL_MS } from "./git-refresh-policy";
+import {
+  GIT_STALE_MS,
+  pendingPollTargets,
+  PR_PENDING_POLL_MS,
+} from "./git-refresh-policy";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import { shouldActivateGitPanel } from "./git-startup-policy";
 import {
@@ -56,6 +68,7 @@ import {
   refreshGitOverview,
   refreshGitProject,
   refreshPrHeads,
+  refreshCurrentBranchPr,
   refreshPrs,
   selectGitProject,
   setGitChangeTreeFolderExpanded,
@@ -139,6 +152,15 @@ export function createWorkbenchGitPanelAdapter(
         github: current?.github,
         pullRequests: current?.prs ?? [],
         prHeads: current?.prHeads,
+        currentBranchPr:
+          current?.github?.authenticated &&
+          current.currentBranchPr?.number ===
+            currentBranchPrHead(
+              current.repoSummary?.currentBranch ?? undefined,
+              current.prHeads?.prs ?? [],
+            )?.number
+            ? current.currentBranchPr
+            : undefined,
         pullRequestFilters: current?.prFilters ?? defaultGitPrFilterConfig,
         initialLoading:
           Boolean(project && !projectState) ||
@@ -176,6 +198,13 @@ export function createWorkbenchGitPanelAdapter(
           ),
         },
         capabilities,
+        lastRemoteFailure: (repository: string) =>
+          lastRemoteFailure(
+            activityInbox.activities.filter(
+              (activity) => activity.scope?.projectId === project?.id,
+            ),
+            repository,
+          ),
         repoBranchState: (repository: string) => {
           const state = projectState?.repoStates[gitRepoStateKey(repository)];
           return {
@@ -183,7 +212,12 @@ export function createWorkbenchGitPanelAdapter(
               state?.repoSummary ??
               repositories.find((repo) => repo.relativePath === repository),
             branches: state?.branches ?? [],
-            prHeads: state?.prHeads,
+            prHeads:
+              Boolean(project && projectGithubAuthenticated(project.id)) &&
+              repositories.find((repo) => repo.relativePath === repository)
+                ?.hasGithubRemote
+                ? state?.prHeads
+                : undefined,
             loadingBranches: state?.loadingBranches ?? false,
             loadingPrHeads: state?.loadingPrHeads ?? false,
             switchingBranch: state?.operations?.switchingBranch,
@@ -214,6 +248,9 @@ export function createWorkbenchGitPanelAdapter(
         notify.error("Could not start bulk Git operation");
       }
     },
+    retryOperation: (operationId) => activityInbox.action("retry", operationId),
+    dismissOperation: (operationId) =>
+      activityInbox.action("dismiss", operationId),
     cancelOperation: async (operationId) => {
       try {
         const result = await cancelGitOperation(operationId);
@@ -409,6 +446,91 @@ export function createWorkbenchGitPanelAdapter(
     },
   };
   adapter.actions = createGitPanelActions(() => adapter.model, host);
+
+  const prPrefetch = new GitPrPrefetchScheduler({
+    isFresh: (projectId, repo) => {
+      const state =
+        gitPanelState.projects[gitProjectStateKey(projectId)]?.repoStates[
+          gitRepoStateKey(repo)
+        ];
+      const cached = queryClient.getQueryState(
+        queryKeys.git.prHeads(projectId, repo),
+      );
+      return Boolean(
+        state?.prHeads &&
+        cached &&
+        !cached.isInvalidated &&
+        Date.now() - cached.dataUpdatedAt < GIT_STALE_MS,
+      );
+    },
+    load: (projectId, repo, isCurrent) =>
+      refreshPrHeads(projectId, repo, false, isCurrent),
+  });
+
+  $effect(() => {
+    const active = workbenchStartupState.progressiveActive && enabled();
+    const project = activeProject();
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const selected = projectState?.selectedRepo;
+    const authenticated = project
+      ? projectGithubAuthenticated(project.id)
+      : false;
+    const repos =
+      projectState?.repos
+        .filter((repo) => repo.hasGithubRemote)
+        .map((repo) => repo.relativePath) ?? [];
+    const authRepo = repos.includes(selected ?? "") ? selected : repos[0];
+    if (!active || !project || !selected || !authRepo) return;
+    return untrack(() => {
+      let current = true;
+      const refresh = () => {
+        if (document.visibilityState !== "visible") return;
+        if (authenticated) prPrefetch.schedule(project.id, selected, repos);
+        else
+          void refreshPrHeadsAuthentication(
+            project.id,
+            authRepo,
+            () => current,
+          ).then((authenticated) => {
+            if (authenticated && current)
+              prPrefetch.schedule(project.id, selected, repos);
+          });
+      };
+      refresh();
+      window.addEventListener("focus", refresh);
+      document.addEventListener("visibilitychange", refresh);
+      return () => {
+        current = false;
+        prPrefetch.cancel();
+        window.removeEventListener("focus", refresh);
+        document.removeEventListener("visibilitychange", refresh);
+      };
+    });
+  });
+
+  $effect(() => {
+    const active = workbenchStartupState.progressiveActive && enabled();
+    const project = activeProject();
+    const projectState = project
+      ? gitPanelState.projects[gitProjectStateKey(project.id)]
+      : undefined;
+    const repo = projectState?.selectedRepo;
+    const state = repo
+      ? projectState?.repoStates[gitRepoStateKey(repo)]
+      : undefined;
+    // Depend on resource publications, but never track the command's writes.
+    void state?.repoSummary?.currentBranch;
+    void state?.prHeads;
+    void state?.prHeadsLoadedAt;
+    void state?.prs;
+    void state?.github?.authenticated;
+    if (active && project && repo)
+      untrack(() => {
+        void refreshCurrentBranchPr(project.id, repo);
+      });
+  });
 
   let lastProjectId: string | undefined;
   $effect(() => {

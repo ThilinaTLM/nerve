@@ -1,6 +1,8 @@
 <script lang="ts">
 import ActivityPopover from "$lib/presentation/activity/ActivityPopover.svelte";
 import { activityInbox } from "$lib/application/activity/activity-state.svelte";
+import { deriveNeedsYou } from "$lib/application/activity/needs-you";
+import { buildNotifications } from "$lib/presentation/activity/notifications";
 import Titlebar from "$lib/app/shell/Titlebar.svelte";
 import AlertDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { getShortcutLabel } from "$lib/application/commands/command-registry";
@@ -40,6 +42,7 @@ import {
   workspaceSelectors,
   workspaceState,
 } from "$lib/application/workspace";
+import { openConversation } from "$lib/application/workspace/workspace-actions.svelte";
 import {
   sidebarConversations,
   pruneProjectConversationsAndRefresh,
@@ -52,6 +55,23 @@ const projectItems = $derived(workspaceSelectors.projectSwitcherItems);
 const status = $derived(workspaceSelectors.status);
 const conversations = $derived(
   sidebarConversations(workspaceSelectors.conversations),
+);
+const notifications = $derived(
+  buildNotifications({
+    activities: activityInbox.activities,
+    needsYou: deriveNeedsYou({
+      conversations: workspaceSelectors.conversations,
+      activityById: workspaceSelectors.conversationActivityById,
+      projectNameById: Object.fromEntries(
+        workspaceSelectors.projects.map((project) => [
+          project.id,
+          project.name,
+        ]),
+      ),
+    }),
+    activeProjectId: workspaceSelectors.activeProject?.id,
+    readIds: activityInbox.readIds,
+  }),
 );
 const newConversationShortcut = getShortcutLabel("conversation.new");
 
@@ -174,13 +194,27 @@ async function handleDesktopClose() {
 >
   {#snippet activity()}
     <ActivityPopover
-      activities={activityInbox.activities}
+      items={notifications}
       error={activityInbox.error}
       unseenFailure={activityInbox.unseenFailure}
       open={activityInbox.open}
       onOpenChange={activityInbox.setOpen}
-      onAction={(kind, id) => void activityInbox.action(kind, id)}
-      onClear={() => void activityInbox.clear()}
+      onOpenItem={(item) => {
+        if (!item.conversationId) return;
+        activityInbox.setOpen(false);
+        void openConversation(item.conversationId);
+      }}
+      onAction={(intent, item) => {
+        if (intent === "open") {
+          if (item.conversationId) {
+            activityInbox.setOpen(false);
+            void openConversation(item.conversationId);
+          }
+        } else void activityInbox.action(intent, item.id);
+      }}
+      onDismiss={(id) => void activityInbox.action("dismiss", id)}
+      onClearFinished={() => void activityInbox.clear()}
+      onViewed={activityInbox.markRead}
     />
   {/snippet}
 </Titlebar>

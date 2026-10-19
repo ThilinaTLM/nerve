@@ -324,6 +324,8 @@ export const githubPrListFiltersSchema = z
   .object({
     author: z.enum(["any", "me", "username"]).default("any"),
     username: z.string().trim().min(1).max(100).optional(),
+    /** Only PRs where the signed-in user is a requested reviewer. */
+    reviewRequested: z.boolean().default(false),
     drafts: z.enum(["include", "exclude", "only"]).default("include"),
     title: z.string().trim().max(256).default(""),
     head: z.string().trim().min(1).max(255).optional(),
@@ -348,6 +350,7 @@ export type GithubPrListFilters = z.infer<typeof githubPrListFiltersSchema>;
 export const githubPrListRequestSchema = gitRemoteOpRequestSchema.extend({
   filters: githubPrListFiltersSchema.default({
     author: "any",
+    reviewRequested: false,
     drafts: "include",
     title: "",
     labels: [],

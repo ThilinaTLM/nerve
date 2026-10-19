@@ -1354,6 +1354,7 @@ export class GitService {
           () =>
             this.listOpenPrs(projectId, relativePath, {
               author: "any",
+              reviewRequested: false,
               drafts: "include",
               title: "",
               labels: [],

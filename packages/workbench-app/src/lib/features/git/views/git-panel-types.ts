@@ -103,6 +103,7 @@ export interface GitPanelModel {
   readonly github?: GithubStatusResponse;
   readonly pullRequests: readonly GithubPr[];
   readonly prHeads?: GithubPrHeadsResponse;
+  readonly currentBranchPr?: GithubPr;
   readonly pullRequestFilters: GitPrFilterConfig;
   readonly selectedPullRequestNumber?: number;
   readonly initialLoading: boolean;
@@ -117,6 +118,8 @@ export interface GitPanelModel {
   readonly pullRequestError?: string;
   readonly operations: GitPanelOperationState;
   readonly capabilities: GitPanelCapabilities;
+  /** The failed remote operation to surface for a repository, if it is still the latest. */
+  readonly lastRemoteFailure?: (repository: string) => Activity | undefined;
   /** Per-repository branch state so every repo can show and switch branches. */
   readonly repoBranchState: (repository: string) => GitRepoBranchState;
 }
@@ -125,6 +128,9 @@ export interface GitPanelActions {
   readonly runBulkRemoteOperation?: (
     kind: "fetch" | "pull" | "switch-base-and-pull",
   ) => void | Promise<void>;
+  /** Retry or dismiss an Activity entry (the failed-operation alert). */
+  readonly retryOperation?: (operationId: string) => void | Promise<void>;
+  readonly dismissOperation?: (operationId: string) => void | Promise<void>;
   readonly cancelOperation?: (operationId: string) => void | Promise<void>;
   readonly refreshAll: () => void | Promise<void>;
   readonly refreshRepository: (repository: string) => void | Promise<void>;

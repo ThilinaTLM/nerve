@@ -13,6 +13,7 @@ export function githubPrFiltersFingerprint(
   return JSON.stringify({
     author: filters.author,
     username: filters.username ?? "",
+    reviewRequested: filters.reviewRequested,
     drafts: filters.drafts,
     title: filters.title,
     head: filters.head ?? "",

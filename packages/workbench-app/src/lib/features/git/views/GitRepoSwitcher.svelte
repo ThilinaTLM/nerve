@@ -3,60 +3,55 @@ import type { Snippet } from "svelte";
 import * as ContextMenu from "@nervekit/ui-kit/components/ui/context-menu";
 import * as Tooltip from "@nervekit/ui-kit/components/ui/tooltip";
 import ChevronDown from "@lucide/svelte/icons/chevron-down";
-import Circle from "@lucide/svelte/icons/circle";
-import CircleCheck from "@lucide/svelte/icons/circle-check";
+import Cloud from "@lucide/svelte/icons/cloud";
+import CloudOff from "@lucide/svelte/icons/cloud-off";
 import GitBranch from "@lucide/svelte/icons/git-branch";
-import Settings2 from "@lucide/svelte/icons/settings-2";
 import type { GitBranchSummary, GitRepoSummary } from "@nervekit/contracts/git";
-import { Button } from "@nervekit/ui-kit/components/ui/button";
-import PopoverPanel, {
-  PopoverBody,
-  PopoverHeader,
-  PopoverRow,
-} from "@nervekit/ui-kit/components/composites/popover-panel";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
+import { GithubMark } from "@nervekit/ui-kit/components/composites/github-mark";
+import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
 import { SvelteSet } from "svelte/reactivity";
 import GitBranchDialog from "./GitBranchDialog.svelte";
 import GitBranchPopover from "./GitBranchPopover.svelte";
+import { repoButtonLabels, repoPathLabel } from "./git-change-format";
 import {
-  repoButtonLabel,
-  repoButtonLabels,
-  repoPathLabel,
-} from "./git-change-format";
-import {
-  gitRepoChipSplit,
   groupBranchesForDialog,
   shouldLoadRepoBranches,
 } from "./git-panel-controller.js";
 import type { GitPanelActions, GitPanelModel } from "./git-panel-types.js";
 
 type Props = {
+  /** Buttons between the name and the count of every row. */
   rowActions?: Snippet<[GitRepoSummary]>;
+  /** Right-click / Shift+F10 menu items of a row. */
   contextItems?: Snippet<[GitRepoSummary]>;
+  /** Right side of the selected row's branch line. */
+  branchActions?: Snippet<[GitRepoSummary]>;
   model: GitPanelModel;
   actions: GitPanelActions;
-  /** Git Changes uses a stable vertical list; other callers retain chips. */
-  layout?: "chips" | "list";
-  /** Per-repository badge shown on each chip, e.g. change or PR counts. */
+  /** Trailing count of each row; blank only while undefined (unknown). */
   chipCount?: (repo: GitRepoSummary) => number | undefined;
+  /** Shown instead of the number `0`, e.g. a check mark for a clean repo. */
+  emptyCount?: Snippet;
+  /** Tooltip of the trailing count. */
+  countTitle?: (repo: GitRepoSummary, count: number) => string | undefined;
 };
 
 let {
   model,
   actions,
   chipCount,
+  emptyCount,
+  countTitle,
   rowActions,
   contextItems,
-  layout = "chips",
+  branchActions,
 }: Props = $props();
 
-/* Chips stay on at most a couple of rows: beyond this many repositories the
- * rest move into an overflow popover so the switcher height stays constant. */
-const MAX_VISIBLE_CHIPS = 8;
+/** The list shows this many repositories before it scrolls. */
+const MAX_LIST_ROWS = 6;
 
 let branchesOpen = $state(false);
 let branchFilter = $state("");
-let overflowOpen = $state(false);
 let branchDialogOpen = $state(false);
 let branchDialogView = $state<"switch" | "create">("switch");
 let dialogFilter = $state("");
@@ -68,16 +63,6 @@ const repos = $derived([...model.repositories]);
 const listLabels = $derived(repoButtonLabels(repos, { maxLength: 14 }));
 const selectedRepo = $derived(model.selectedRepository);
 const repoSummary = $derived(model.repositorySummary);
-const selectEnabled = $derived(
-  repos.length > 1 && model.capabilities.selectRepository.enabled,
-);
-
-const chipSplit = $derived(
-  gitRepoChipSplit(repos, selectedRepo, MAX_VISIBLE_CHIPS),
-);
-const visibleRepos = $derived(chipSplit.visible);
-const overflowRepos = $derived(chipSplit.overflow);
-
 const branchRows = $derived(
   groupBranchesForDialog(
     model.repoBranchState(selectedRepo).branches,
@@ -125,6 +110,12 @@ function refreshBranchDialog(repository = selectedRepo): void {
   ]);
 }
 
+/** Select a repository and open the branch dialog for it (context menu action). */
+export async function openBranchDialog(repository: string): Promise<void> {
+  if (repository !== selectedRepo) await actions.selectRepository(repository);
+  openBranchManager("switch");
+}
+
 function openBranchManager(view: "switch" | "create"): void {
   branchDialogView = view;
   dialogFilter = "";
@@ -155,198 +146,166 @@ async function createBranch(repository: string): Promise<void> {
 }
 </script>
 
-{#snippet chip(repo: GitRepoSummary)}
+{#snippet listRow(repo: GitRepoSummary)}
+  {@const selected = repo.relativePath === selectedRepo}
   {@const count = chipCount?.(repo)}
-  <ToggleGroup.Item
-    value={repo.relativePath}
-    disabled={!selectEnabled}
-    title={`Switch to ${repoPathLabel(repo)}`}
-    class="max-w-full gap-1.5 px-2 font-mono text-xs"
-  >
-    <span class="min-w-0 truncate">{repoButtonLabel(repo, repos)}</span>
-    {#if count}
-      <span data-slot="toggle-count">{count}</span>
-    {/if}
-  </ToggleGroup.Item>
-{/snippet}
-
-<!-- The panel shell owns horizontal padding, so chips line up with the
-     toolbar buttons below them. -->
-<div class="flex shrink-0 flex-col gap-1 pt-1.5">
-  {#if layout === "list"}
-    <div class="flex flex-col gap-0.5" role="group" aria-label="Repositories">
-      {#each repos as repo (repo.relativePath)}
-        {@const selected = repo.relativePath === selectedRepo}
-        {@const count = chipCount?.(repo)}
-        <ContextMenu.Root>
-          <ContextMenu.Trigger disabled={!contextItems} class="block min-w-0">
-            <div
-              class={selected
-                ? "flex min-w-0 items-center gap-1 rounded-md bg-selected"
-                : "flex min-w-0 items-center gap-1 rounded-md"}
-            >
-              <Tooltip.Root>
-                <Tooltip.Trigger>
-                  {#snippet child({ props })}
-                    <Button
-                      {...props}
-                      variant="ghost"
-                      size="sm"
-                      aria-pressed={selected}
-                      aria-label={`Select repository ${repo.name}`}
-                      disabled={!model.capabilities.selectRepository.enabled}
-                      class="min-w-0 flex-1 justify-start gap-1 font-normal hover:bg-transparent"
-                      onkeydown={(event) => {
-                        if (event.key === "Enter" || event.key === " ")
-                          event.stopPropagation();
-                        if (typeof props.onkeydown === "function")
-                          props.onkeydown(event);
-                      }}
-                      onclick={() => selectRepository(repo.relativePath)}
-                    >
-                      {#if selected}<CircleCheck
-                          class="size-3.5 shrink-0"
-                          aria-hidden="true"
-                        />{:else}<Circle
-                          class="size-3.5 shrink-0 text-muted-foreground"
-                          aria-hidden="true"
-                        />{/if}
-                      <span class="whitespace-nowrap"
-                        >{listLabels.get(repo.relativePath)}</span
-                      >
-                    </Button>
-                  {/snippet}
-                </Tooltip.Trigger>
-                <Tooltip.Content>
-                  <div class="min-w-0 space-y-1">
-                    <p class="break-all font-medium">{repo.name}</p>
-                    <p class="break-all font-mono text-xs">{repo.absDir}</p>
-                  </div>
-                </Tooltip.Content>
-              </Tooltip.Root>
-              {#if rowActions}{@render rowActions(repo)}{/if}
-              {#if count !== undefined}<span
-                  class="flex w-control-sm shrink-0 items-center justify-center text-xs text-muted-foreground tabular-nums"
-                  >{count}</span
-                >{/if}
-            </div>
-          </ContextMenu.Trigger>
-          {#if contextItems}<ContextMenu.Content
-              >{@render contextItems(repo)}</ContextMenu.Content
-            >{/if}
-        </ContextMenu.Root>
-      {/each}
-    </div>
-  {:else if repos.length > 1}
-    <div class="flex min-w-0 flex-wrap items-center gap-1">
-      <ToggleGroup.Root
-        type="single"
-        size="sm"
-        variant="chip"
-        spacing={1}
-        value={selectedRepo}
-        aria-label="Repository"
-        class="min-w-0 flex-wrap"
-        onValueChange={(value) => {
-          if (value) selectRepository(value);
+  {@const countHint =
+    count === undefined ? undefined : countTitle?.(repo, count)}
+  {@const canSelect = model.capabilities.selectRepository.enabled}
+  <ContextMenu.Root>
+    <ContextMenu.Trigger disabled={!contextItems} class="block min-w-0">
+      <!-- Clicking anywhere on the row selects it; the name button is the keyboard target. -->
+      <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+      <div
+        class={[
+          "flex min-w-0 flex-col rounded-md",
+          selected
+            ? "bg-selected"
+            : canSelect && "cursor-pointer hover:bg-muted/60",
+        ]}
+        onclick={() => {
+          if (canSelect) selectRepository(repo.relativePath);
         }}
       >
-        {#each visibleRepos as repo (repo.relativePath)}
-          {@render chip(repo)}
-        {/each}
-      </ToggleGroup.Root>
-
-      {#if overflowRepos.length > 0}
-        <PopoverPanel
-          bind:open={overflowOpen}
-          size="sm"
-          align="start"
-          triggerClass="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground shadow-xs hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-          triggerTitle={`${overflowRepos.length} more repositories`}
-          ariaLabel="More repositories"
+        <div
+          class="flex h-control-sm min-w-0 items-center gap-1.5 pl-2 text-sm"
         >
-          {#snippet trigger()}
-            +{overflowRepos.length}
-            <ChevronDown class="size-3" aria-hidden="true" />
-          {/snippet}
-          <PopoverHeader title="Repositories" meta={`${repos.length}`} />
-          <PopoverBody role="listbox" ariaLabel="More repositories">
-            {#each overflowRepos as repo (repo.relativePath)}
-              {@const count = chipCount?.(repo)}
-              <PopoverRow
-                selected={repo.relativePath === selectedRepo}
-                disabled={!selectEnabled}
-                onclick={() => {
-                  overflowOpen = false;
-                  selectRepository(repo.relativePath);
-                }}
-              >
-                {#snippet label()}
-                  <span class="min-w-0 truncate font-mono">
-                    {repoPathLabel(repo)}
+          <!-- Where the repository lives: GitHub, another remote, or local only. -->
+          {#if !repo.hasRemote}
+            <CloudOff
+              class="size-3.5 shrink-0 text-muted-foreground/60"
+              aria-label="No remote"
+            />
+          {:else if repo.hasGithubRemote}
+            <GithubMark class="size-3.5 shrink-0 text-muted-foreground" />
+          {:else}
+            <Cloud
+              class="size-3.5 shrink-0 text-muted-foreground"
+              aria-label="Remote (not GitHub)"
+            />
+          {/if}
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <button
+                  {...props}
+                  type="button"
+                  aria-pressed={selected}
+                  aria-label={`Select repository ${repo.name}`}
+                  disabled={!canSelect}
+                  class="min-w-0 cursor-pointer rounded-sm text-left whitespace-nowrap outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
+                  >{listLabels.get(repo.relativePath)}</button
+                >
+              {/snippet}
+            </Tooltip.Trigger>
+            <Tooltip.Content>
+              <div class="min-w-0 space-y-1">
+                <p class="font-medium break-all">{repo.name}</p>
+                <p class="font-mono text-xs break-all">{repo.absDir}</p>
+                <p class="text-xs">
+                  {!repo.hasRemote
+                    ? "Local only · no remote"
+                    : repo.hasGithubRemote
+                      ? "GitHub repository"
+                      : "Remote is not on GitHub"}
+                </p>
+                {#if contextItems}
+                  <p class="text-xs">Right-click for more actions</p>
+                {/if}
+              </div>
+            </Tooltip.Content>
+          </Tooltip.Root>
+          <span class="min-w-0 flex-1"></span>
+
+          <!-- Same cluster geometry as the PanelHeader trailing buttons, so row
+               icons sit under the header actions and the count under Refresh.
+               Actions target their own repository, so they never select it. -->
+          <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions -->
+          <span
+            class="flex shrink-0 items-center gap-0.5"
+            role="group"
+            aria-label={`Actions for ${repo.name}`}
+            onclick={(event) => event.stopPropagation()}
+          >
+            {@render rowActions?.(repo)}
+            <Tooltip.Root disabled={!countHint}>
+              <Tooltip.Trigger>
+                {#snippet child({ props })}
+                  <span
+                    {...props}
+                    class="flex w-control-sm shrink-0 items-center justify-center text-xs text-muted-foreground tabular-nums"
+                    aria-label={countHint ?? (count ? `${count}` : undefined)}
+                  >
+                    {#if count === 0 && emptyCount}
+                      {@render emptyCount()}
+                    {:else if count !== undefined}
+                      {count}
+                    {/if}
                   </span>
                 {/snippet}
-                {#snippet trailing()}
-                  {#if count}
-                    <span class="shrink-0 text-muted-foreground tabular-nums">
-                      {count}
-                    </span>
-                  {/if}
-                {/snippet}
-              </PopoverRow>
-            {/each}
-          </PopoverBody>
-        </PopoverPanel>
-      {/if}
-    </div>
-  {/if}
+              </Tooltip.Trigger>
+              <Tooltip.Content>{countHint}</Tooltip.Content>
+            </Tooltip.Root>
+          </span>
+        </div>
 
-  {#if repoSummary}
-    <div class="flex min-w-0 items-center gap-1">
-      <GitBranchPopover
-        repo={repoSummary}
-        rows={branchRows}
-        bind:open={branchesOpen}
-        bind:filter={branchFilter}
-        loading={model.repoBranchState(selectedRepo).loadingBranches}
-        enabled={model.capabilities.branches.enabled}
-        switchingBranch={model.repoBranchState(selectedRepo).switchingBranch}
-        triggerClass={`flex h-6 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-md bg-transparent px-2 text-xs transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 ${
-          repoSummary.detached ? "text-muted-foreground" : "text-foreground"
-        }`}
-        triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
-        onOpen={() => loadBranches(selectedRepo)}
-        onSwitch={(branch) => void switchBranch(selectedRepo, branch)}
-        onManage={() => openBranchManager("switch")}
-        onCreate={() => openBranchManager("create")}
-      >
-        {#snippet triggerContent()}
-          <GitBranch class="size-3.5 shrink-0" aria-hidden="true" />
-          <span class="min-w-0 flex-1 truncate text-left font-mono"
-            >{branchLabel}</span
-          >
-          <ChevronDown
-            class="size-3 shrink-0 text-muted-foreground"
-            aria-hidden="true"
-          />
-        {/snippet}
-      </GitBranchPopover>
+        {#if selected && repoSummary}
+          <!-- The branch belongs to the selected repository, so it lives inside its tint. -->
+          <div class="flex h-control-sm min-w-0 items-center gap-1 pl-1.5">
+            <GitBranchPopover
+              repo={repoSummary}
+              rows={branchRows}
+              bind:open={branchesOpen}
+              bind:filter={branchFilter}
+              loading={model.repoBranchState(selectedRepo).loadingBranches}
+              enabled={model.capabilities.branches.enabled}
+              switchingBranch={model.repoBranchState(selectedRepo)
+                .switchingBranch}
+              triggerClass="flex min-w-0 cursor-pointer items-center gap-1.5 rounded-sm px-0.5 text-xs text-muted-foreground hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+              triggerTitle={`Switch branch in ${repoPathLabel(repoSummary)}`}
+              onOpen={() => loadBranches(selectedRepo)}
+              onSwitch={(branch) => void switchBranch(selectedRepo, branch)}
+              onManage={() => openBranchManager("switch")}
+              onCreate={() => openBranchManager("create")}
+            >
+              {#snippet triggerContent()}
+                <GitBranch class="size-3.5 shrink-0" aria-hidden="true" />
+                <span class="min-w-0 truncate font-mono">{branchLabel}</span>
+                <ChevronDown class="size-3 shrink-0" aria-hidden="true" />
+              {/snippet}
+            </GitBranchPopover>
+            <span class="min-w-0 flex-1"></span>
+            {@render branchActions?.(repo)}
+          </div>
+        {/if}
+      </div>
+    </ContextMenu.Trigger>
+    {#if contextItems}<ContextMenu.Content
+        >{@render contextItems(repo)}</ContextMenu.Content
+      >{/if}
+  </ContextMenu.Root>
+{/snippet}
 
-      <!-- Ahead/behind counts live on the Pull and Push buttons below; the
-           branch control only picks a branch. -->
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        title="Manage branches"
-        aria-label={`Manage branches in ${repoPathLabel(repoSummary)}`}
-        disabled={!model.capabilities.branches.enabled}
-        onclick={() => openBranchManager("switch")}
+<!-- The panel shell owns horizontal padding, so rows line up with the
+     header buttons above them. -->
+<Tooltip.Provider delayDuration={600} skipDelayDuration={0}>
+  <div class="flex shrink-0 flex-col pt-1.5">
+    {#if repos.length > MAX_LIST_ROWS}
+      <!-- About six rows (the selected one is taller); the rest scrolls. -->
+      <ScrollRegion
+        ariaLabel="Repositories"
+        height="calc(7 * var(--spacing-control-sm) + 5 * 0.125rem + 1rem)"
+        contentClass="flex flex-col gap-0.5"
       >
-        <Settings2 aria-hidden="true" />
-      </Button>
-    </div>
-  {/if}
-</div>
+        {#each repos as repo (repo.relativePath)}{@render listRow(repo)}{/each}
+      </ScrollRegion>
+    {:else}
+      <div class="flex flex-col gap-0.5" role="group" aria-label="Repositories">
+        {#each repos as repo (repo.relativePath)}{@render listRow(repo)}{/each}
+      </div>
+    {/if}
+  </div>
+</Tooltip.Provider>
 
 {#if repoSummary}
   <GitBranchDialog
