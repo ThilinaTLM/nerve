@@ -39,7 +39,13 @@ async function alive(pid: number): Promise<boolean> {
     process.kill(pid, 0);
     if (process.platform === "linux") {
       const stat = await readFile(`/proc/${pid}/stat`, "utf8");
-      if (stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z")) return false;
+      // Pipe closure can precede the end of kernel exit cleanup. A killed
+      // descendant may still be R with PF_EXITING set, or X (dead), before
+      // becoming Z (zombie) or disappearing. None can run user code again.
+      const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+      const [state] = fields;
+      const flags = Number(fields[6]); // /proc stat field 9; PF_EXITING = 0x4.
+      if (state === "Z" || state === "X" || (flags & 0x4) !== 0) return false;
     }
     return true;
   } catch {
