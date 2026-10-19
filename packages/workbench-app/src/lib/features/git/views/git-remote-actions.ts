@@ -1,6 +1,9 @@
 import type { GitRepoSummary } from "@nervekit/contracts/git";
-import type { Activity } from "@nervekit/contracts/activity";
+import { isActivityRunning, type Activity } from "@nervekit/contracts/activity";
 import type { GitRemoteOperation } from "./git-panel-types.js";
+
+const activityKind = (operation: GitRemoteOperation) =>
+  `git.${operation === "switch-base-and-pull" ? "switchBaseAndPull" : operation}`;
 
 /** Stop the running command first, never a bulk parent or another repository's work. */
 export function activeRemoteOperation(
@@ -8,7 +11,7 @@ export function activeRemoteOperation(
   repository: string,
   operation: GitRemoteOperation,
 ): Activity | undefined {
-  const kind = `git.${operation === "switch-base-and-pull" ? "switchBaseAndPull" : operation}`;
+  const kind = activityKind(operation);
   const matches = (activity: Activity) =>
     activity.kind === kind && activity.scope?.repositoryPath === repository;
   return (
@@ -21,82 +24,86 @@ export function activeRemoteOperation(
   );
 }
 
-export function remoteActionDisabled(
-  repo: GitRepoSummary,
-  remoteActionInProgress: boolean,
-): boolean {
-  return remoteActionInProgress || !repo.hasRemote;
-}
+const REMOTE_OPERATIONS = [
+  "fetch",
+  "pull",
+  "push",
+  "sync",
+  "switch-base-and-pull",
+] as const satisfies readonly GitRemoteOperation[];
 
-export function pullDisabled(
-  repo: GitRepoSummary,
-  remoteActionInProgress: boolean,
-): boolean {
-  return (
-    remoteActionDisabled(repo, remoteActionInProgress) ||
-    repo.detached ||
-    !repo.hasUpstream
-  );
-}
-
-export function pushDisabled(
-  repo: GitRepoSummary,
-  remoteActionInProgress: boolean,
-): boolean {
-  return (
-    remoteActionDisabled(repo, remoteActionInProgress) ||
-    repo.detached ||
-    (repo.ahead ?? 0) <= 0
-  );
-}
-
-export function syncDisabled(
-  repo: GitRepoSummary,
-  remoteActionInProgress: boolean,
-): boolean {
-  return remoteActionDisabled(repo, remoteActionInProgress) || repo.detached;
-}
-
-export function basePullDisabled(
-  repo: GitRepoSummary,
-  remoteActionInProgress: boolean,
-): boolean {
-  return remoteActionDisabled(repo, remoteActionInProgress);
-}
-
-export function showPull(repo: GitRepoSummary): boolean {
-  return repo.hasUpstream && !repo.detached && (repo.behind ?? 0) > 0;
-}
-
-export function showPush(repo: GitRepoSummary): boolean {
-  return !repo.detached && (repo.ahead ?? 0) > 0;
-}
-
-/** Conditional controls grow leftward; Fetch and Sync remain anchored. */
-export function visibleRemoteActions(
-  repo: GitRepoSummary,
+/** The one remote operation currently running (or queued) in a repository. */
+export function runningRemoteActivity(
   activities: readonly Activity[],
-): GitRemoteOperation[] {
-  const active = (operation: GitRemoteOperation) =>
-    Boolean(activeRemoteOperation(activities, repo.relativePath, operation));
-  const result: GitRemoteOperation[] = [];
-  if (
-    active("switch-base-and-pull") ||
-    (repo.hasRemote && !repo.detached && !repo.onBaseBranch)
-  )
-    result.push("switch-base-and-pull");
-  if (active("pull") || (repo.hasRemote && showPull(repo))) result.push("pull");
-  if (active("push") || (repo.hasRemote && showPush(repo))) result.push("push");
-  return [...result, "fetch", "sync"];
+  repository: string,
+): Activity | undefined {
+  for (const operation of REMOTE_OPERATIONS) {
+    const found = activeRemoteOperation(activities, repository, operation);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 export function repositoryRemoteBusy(
   activities: readonly Activity[],
   repository: string,
 ): boolean {
-  return (
-    ["fetch", "pull", "push", "sync", "switch-base-and-pull"] as const
-  ).some((operation) =>
-    Boolean(activeRemoteOperation(activities, repository, operation)),
+  return Boolean(runningRemoteActivity(activities, repository));
+}
+
+const plural = (count: number) =>
+  `${count} ${count === 1 ? "commit" : "commits"}`;
+
+/** What Sync will do: the diverged counts for the button and its tooltip. */
+export function syncSummary(repo: GitRepoSummary): {
+  parts: string[];
+  help: string;
+} {
+  const behind = repo.behind ?? 0;
+  const ahead = repo.ahead ?? 0;
+  const parts = [behind > 0 ? `↓${behind}` : "", ahead > 0 ? `↑${ahead}` : ""];
+  const steps = [
+    behind > 0 ? `pull ${plural(behind)}` : "",
+    ahead > 0 ? `push ${plural(ahead)}` : "",
+  ].filter(Boolean);
+  return {
+    parts: parts.filter(Boolean),
+    help: steps.length
+      ? `Sync: ${steps.join(", ")}`
+      : "Up to date · Sync fetches remote changes",
+  };
+}
+
+/** The remote operation an activity belongs to, if it is a per-repository one. */
+export function remoteOperationOf(
+  activity: Activity,
+): GitRemoteOperation | undefined {
+  return REMOTE_OPERATIONS.find(
+    (operation) => activityKind(operation) === activity.kind,
   );
+}
+
+/**
+ * The failed remote operation to surface for a repository: only when the most
+ * recent one failed. A later success or cancel, running work, or dismissing the
+ * Activity entry (which removes it) clears it.
+ */
+export function lastRemoteFailure(
+  activities: readonly Activity[],
+  repository: string,
+): Activity | undefined {
+  const own = activities.filter(
+    (activity) =>
+      activity.scope?.repositoryPath === repository &&
+      remoteOperationOf(activity),
+  );
+  if (own.some((activity) => isActivityRunning(activity))) return undefined;
+  const time = (activity: Activity) =>
+    Date.parse(activity.finishedAt ?? activity.updatedAt);
+  const latest = own.reduce<Activity | undefined>(
+    (best, activity) =>
+      !best || time(activity) >= time(best) ? activity : best,
+    undefined,
+  );
+  return latest?.status === "failed" ? latest : undefined;
 }

@@ -3,126 +3,178 @@ type Label = { label: string; reason: string };
 
 export type RepositoryLabelOptions = { maxLength?: number };
 
-const semantic = new Set([
+/** Words that say what a repository is; never removed or abbreviated. */
+const ROLE_WORDS = new Set([
   "api",
   "ui",
-  "web",
-  "app",
-  "user",
   "admin",
+  "app",
+  "web",
+  "fe",
+  "be",
+  "frontend",
+  "backend",
+  "bff",
+  "iac",
+  "infra",
   "cli",
   "sdk",
   "db",
+  "mobile",
   "ios",
   "android",
+  "server",
+  "client",
+  "worker",
+  "docs",
+  "e2e",
 ]);
-const abbreviations: Record<string, string> = {
-  application: "app",
-  configuration: "config",
-  development: "dev",
-  infrastructure: "infra",
-  management: "mgmt",
-  platform: "plat",
-  repository: "repo",
-  service: "svc",
+const COMPOUNDS: Record<string, string> = {
+  "front end": "frontend",
+  "back end": "backend",
 };
 
-const key = (value: string) => value.normalize("NFC").toLowerCase();
-const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+const lower = (value: string) => value.normalize("NFC").toLowerCase();
 const length = (value: string) => Array.from(value).length;
+const isRole = (word: string) => ROLE_WORDS.has(word);
+/** Role words and very short words (no, v2, my) carry meaning and are never stripped. */
+const isKept = (word: string) => isRole(word) || length(word) <= 2;
 
-/** Split whole Unicode words, camelCase, and acronym boundaries (UserAPI → User/API). */
-function tokens(value: string): string[] {
-  return (
+/** Split kebab, snake, camel and acronym boundaries (UserAPI → user/api). */
+function words(value: string): string[] {
+  const parts = (
     value
       .normalize("NFC")
       .replace(/(\p{Lu})(\p{Lu}\p{Ll})/gu, "$1 $2")
       .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, "$1 $2")
       .match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*/gu) ?? []
-  );
+  ).map(lower);
+  const result: string[] = [];
+  for (const part of parts) {
+    const compound = COMPOUNDS[`${result.at(-1)} ${part}`];
+    if (compound) result[result.length - 1] = compound;
+    else result.push(part);
+  }
+  return result;
 }
 
-function display(token: string): string {
-  return key(token);
-}
-
-function phrase(parts: string[]): string {
-  return parts.map(display).join("-");
-}
-
-/** Abbreviate from the left, never discard the semantic tail. */
-function compress(parts: string[], budget: number): string {
-  const result = parts.map(display);
-  if (
-    parts.length === 1 &&
-    length(result[0]) > budget &&
-    !semantic.has(key(parts[0]))
-  ) {
-    const letters = Array.from(result[0]);
-    // An opaque lowercase word has no safe semantic split. Keep its outer
-    // letters and consonant skeleton rather than clipping an arbitrary tail.
-    // Acronyms and scripts without Latin vowels remain intact.
-    if (!/^\p{Lu}[\p{Lu}\p{N}]+$/u.test(parts[0])) {
-      return letters
-        .filter(
-          (letter, index) =>
-            index === 0 ||
-            index === letters.length - 1 ||
-            !/^[aeiou]$/i.test(letter.normalize("NFD").replace(/\p{M}/gu, "")),
-        )
-        .join("");
-    }
-  }
-  for (
-    let i = 0;
-    i < parts.length - 1 && length(result.join("-")) > budget;
-    i++
-  ) {
-    const token = parts[i];
-    if (semantic.has(key(token)) || /^\p{Lu}[\p{Lu}\p{N}]+$/u.test(token))
-      continue;
-    const shorter = abbreviations[key(token)] ?? key(Array.from(token)[0]);
-    if (length(shorter) < length(result[i])) result[i] = shorter;
-  }
-  for (
-    let i = 0;
-    i < parts.length - 1 && length(result.join("-")) > budget;
-    i++
-  ) {
-    if (semantic.has(key(parts[i])) || /^\p{Lu}[\p{Lu}\p{N}]+$/u.test(parts[i]))
-      continue;
-    result[i] = key(Array.from(parts[i])[0]);
-  }
-  return result.join("-");
-}
-
-function collisionGroups<T extends { label: string }>(entries: T[]): T[][] {
-  const groups = new Map<string, T[]>();
-  for (const entry of entries) {
-    const group = groups.get(key(entry.label)) ?? [];
-    group.push(entry);
-    groups.set(key(entry.label), group);
-  }
-  return [...groups.values()].filter((group) => group.length > 1);
-}
-
-function shortId(value: string): string {
-  // Stable, non-security identifier; checked for collisions below.
-  let hash = 2166136261;
-  for (const char of value) {
-    hash ^= char.codePointAt(0)!;
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0).toString(36);
+/** Shared leading/trailing words, never role words, keeping one word per name. */
+function sharedEnds(names: string[][]): { prefix: number; suffix: number } {
+  if (names.length < 2) return { prefix: 0, suffix: 0 };
+  const shortest = Math.min(...names.map((parts) => parts.length));
+  const same = (at: (parts: string[]) => string | undefined) => {
+    const word = at(names[0]);
+    return (
+      word !== undefined &&
+      !isKept(word) &&
+      names.every((parts) => at(parts) === word)
+    );
+  };
+  let prefix = 0;
+  while (prefix < shortest - 1 && same((parts) => parts[prefix])) prefix++;
+  let suffix = 0;
+  while (
+    prefix + suffix < shortest - 1 &&
+    same((parts) => parts[parts.length - 1 - suffix])
+  )
+    suffix++;
+  return { prefix, suffix };
 }
 
 /**
- * Group-aware lowercase kebab-case aliases, bounded to maxLength Unicode code
- * points (default 14, minimum 9; not a pixel-fit guarantee). Shared whole-token
- * prefixes are removed, but semantic tails are retained. When readable aliases
- * cannot fit, use a stable compact identity rather than ellipsizing a name.
- * Callers must expose the original name/path separately, e.g. in a tooltip.
- * IDs must be unique. Results and Map iteration order are input-order independent.
+ * Leading words a name shares with at least one other repository, so families
+ * such as acme-platform-user-api / acme-platform-web-app shorten to their
+ * distinct tails even when other repositories have unrelated names.
+ */
+function familyPrefix(
+  names: string[][],
+  index: number,
+  suffix: number,
+): number {
+  const own = names[index];
+  let best = 0;
+  names.forEach((other, otherIndex) => {
+    if (otherIndex === index) return;
+    const limit = Math.min(own.length, other.length) - suffix - 1;
+    let shared = 0;
+    while (
+      shared < limit &&
+      own[shared] === other[shared] &&
+      !isKept(own[shared])
+    )
+      shared++;
+    best = Math.max(best, shared);
+  });
+  return best;
+}
+
+/** Neighbouring abbreviations run together: cu + on + api → cuon-api. */
+function render(parts: string[], short: boolean[], letters: number): string {
+  const groups: string[] = [];
+  let run = "";
+  parts.forEach((word, index) => {
+    if (short[index]) {
+      run += Array.from(word).slice(0, letters).join("");
+      return;
+    }
+    if (run) groups.push(run);
+    run = "";
+    groups.push(word);
+  });
+  if (run) groups.push(run);
+  return groups.join("-");
+}
+
+/** A single long word keeps its first letter, last letter and consonants. */
+function contract(word: string, budget: number): string {
+  const letters = Array.from(word);
+  const skeleton = letters
+    .filter(
+      (letter, index) =>
+        index === 0 ||
+        index === letters.length - 1 ||
+        !/^[aeiou]$/.test(letter.normalize("NFD").replace(/\p{M}/gu, "")),
+    )
+    .join("");
+  return Array.from(skeleton).slice(0, budget).join("");
+}
+
+/**
+ * Shorten words from the left to their first `letters` letters until the label
+ * fits; role words and numbers stay whole: customer-user-api → cu-user-api.
+ */
+function shorten(parts: string[], budget: number, letters = 2): string {
+  const full = parts.join("-") || "repo";
+  if (length(full) <= budget) return full;
+  if (parts.length === 1) return contract(parts[0], budget);
+  const short = parts.map(() => false);
+  let label = full;
+  for (let index = 0; index < parts.length && length(label) > budget; index++) {
+    if (isRole(parts[index]) || /^\p{N}+$/u.test(parts[index])) continue;
+    short[index] = true;
+    label = render(parts, short, letters);
+  }
+  return label;
+}
+
+function duplicates<T extends { label: string }>(entries: T[]): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const entry of entries)
+    groups.set(entry.label, [...(groups.get(entry.label) ?? []), entry]);
+  return [...groups.values()].filter((group) => group.length > 1);
+}
+
+/**
+ * Short, readable repository labels (lowercase kebab-case):
+ * 1. remove words every repository shares at the end, and leading words a
+ *    repository shares with another one (never role words such as api, ui,
+ *    admin, frontend, iac);
+ * 2. if still longer than maxLength (default 14), shorten other words to their
+ *    first two letters and keep role words whole;
+ * 3. resolve duplicates by restoring removed leading words, more letters,
+ *    then the parent folder.
+ * Callers show the full name and path separately, e.g. in a tooltip.
+ * Results are independent of input order.
  */
 export function repositoryLabels(
   repos: readonly Repository[],
@@ -130,155 +182,88 @@ export function repositoryLabels(
 ): Map<string, Label> {
   const requested = options.maxLength ?? 14;
   const budget = Number.isFinite(requested)
-    ? Math.max(9, Math.floor(requested))
+    ? Math.max(6, Math.floor(requested))
     : 14;
-  const sorted = [...repos].sort((a, b) => compare(a.id, b.id));
-  const names = sorted.map((repo) => tokens(repo.name));
-  let prefix = 0;
-  if (names.length > 1) {
-    // Leave at least one token in every name, even when one name prefixes another.
-    const limit = Math.min(...names.map((parts) => parts.length)) - 1;
-    while (
-      prefix < limit &&
-      names.every((parts) => key(parts[prefix]) === key(names[0][prefix]))
-    ) {
-      prefix++;
-    }
-  }
+  const sorted = [...repos].sort((a, b) =>
+    a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+  );
+  const names = sorted.map((repo) => words(repo.name));
+  const { prefix, suffix } = sharedEnds(names);
 
   const entries = sorted.map((repo, index) => {
-    const parts = names[index].slice(prefix);
-    const readable = phrase(parts) || "repo";
-    const base = readable;
-    const label =
-      length(base) > budget ? compress(parts, budget) || base : base;
-    const reasons = [
-      prefix
-        ? `Removed ${prefix} shared prefix token(s)`
-        : "Kept repository tokens",
-      "Normalized label to lowercase kebab-case",
-    ];
-    if (label !== base)
-      reasons.push(
-        parts.length === 1
-          ? "Contracted internal vowels; retained first and last letters"
-          : "Abbreviated earlier words; retained semantic tail",
-      );
+    const end = names[index].length - suffix;
+    const family = Math.max(prefix, familyPrefix(names, index, suffix));
+    const parts = names[index].slice(family, end);
+    const label = shorten(parts, budget);
+    const reasons: string[] = [];
+    if (family || suffix) reasons.push("Removed shared words");
+    if (label !== parts.join("-")) reasons.push("Shortened long words");
+    const parent = repo.path.replace(/\\/g, "/").split("/").filter(Boolean);
     return {
       ...repo,
+      parts,
       label,
-      readable,
       reasons,
-      parents: repo.path
-        .replace(/\\/g, "/")
-        .split("/")
-        .filter(Boolean)
-        .slice(0, -1)
-        .map((parent) => phrase(tokens(parent)))
-        .filter(Boolean),
+      restored: names[index].slice(prefix, end),
+      parents: parent.slice(0, -1),
     };
   });
 
-  // Expand compressed collisions first, before adding any path context.
-  for (const group of collisionGroups(entries)) {
+  // Two families can end the same way (acme-user-api / beta-user-api):
+  // bring their leading words back, shortened.
+  for (const group of duplicates(entries))
     for (const entry of group) {
-      entry.label = entry.readable;
-      entry.reasons.push("Expanded words to distinguish repositories");
+      entry.parts = entry.restored;
+      entry.label = shorten(entry.parts, budget);
     }
-  }
-  // Tokenization itself can collapse spellings (foo-bar / foo_bar).
-  for (const group of collisionGroups(entries)) {
-    for (const entry of group) {
-      entry.label = phrase(tokens(entry.name)) || "repo";
-      entry.reasons.push(
-        "Restored full normalized name to distinguish repositories",
-      );
-    }
-  }
 
-  // Add the shortest distinguishing parent-path suffix, retaining full words.
-  for (const group of collisionGroups(entries)) {
-    const bases = new Map(group.map((entry) => [entry.id, entry.label]));
-    const maxDepth = Math.max(...group.map((entry) => entry.parents.length));
-    for (let depth = 1; depth <= maxDepth; depth++) {
-      for (const entry of group) {
-        const context = entry.parents.slice(-depth).join("-");
-        entry.label = context
-          ? `${bases.get(entry.id)}-${context}`
-          : bases.get(entry.id)!;
-      }
-      if (collisionGroups(group).length === 0) break;
+  // Abbreviations that collide get a third letter, then full words if they fit.
+  for (const group of duplicates(entries))
+    for (const entry of group) entry.label = shorten(entry.parts, budget, 3);
+  for (const group of duplicates(entries))
+    for (const entry of group) {
+      const full = entry.parts.join("-") || "repo";
+      if (length(full) <= budget) entry.label = full;
+    }
+
+  // Same names in different folders: lead with the nearest parent folders,
+  // adding levels only while a label still collides with any other label.
+  const collides = (entry: (typeof entries)[number]) =>
+    entries.some((other) => other !== entry && other.label === entry.label);
+  for (const group of duplicates(entries)) {
+    const base = group[0].label;
+    const depth = Math.max(...group.map((entry) => entry.parents.length));
+    let pending = group;
+    for (let level = 1; level <= depth && pending.length; level++) {
+      for (const entry of pending)
+        entry.label = shorten(
+          [...entry.parents.slice(-level).flatMap(words), ...entry.parts],
+          budget,
+        );
+      pending = pending.filter(collides);
     }
     for (const entry of group)
-      entry.reasons.push("Added shortest distinguishing parent context");
+      if (pending.includes(entry)) entry.label = base;
+      else entry.reasons.push("Added parent folder");
   }
 
-  // Also check collisions with labels outside the original group. Allocate in
-  // stable ID order and check every reserved label, including hash collisions.
-  const collisions = new Set(collisionGroups(entries).flat());
-  const reserved = new Set(
-    entries
-      .filter((entry) => !collisions.has(entry))
-      .map((entry) => key(entry.label)),
-  );
-  for (const entry of entries) {
-    if (!collisions.has(entry)) continue;
-    const base = `${entry.label}-${shortId(entry.id)}`;
-    let candidate = base;
-    let counter = 2;
-    while (reserved.has(key(candidate))) candidate = `${base}-${counter++}`;
-    entry.label = candidate;
-    reserved.add(key(candidate));
-    entry.reasons.push(
-      "Added stable identifier because readable context was not unique",
-    );
-  }
-
-  {
-    const oversized = entries.filter((entry) => length(entry.label) > budget);
-    const occupied = new Set(
-      entries
-        .filter((entry) => length(entry.label) <= budget)
-        .map((entry) => key(entry.label)),
-    );
-    // Four base-36 identity characters leave room for repo at the minimum
-    // budget. Probe the finite namespace, never clip names or append overflow.
-    const capacity = 36 ** 4;
-    for (const entry of oversized) {
-      const parts = tokens(entry.name);
-      const suffix: string[] = [];
-      for (let index = parts.length - 1; index >= 0; index--) {
-        if (!semantic.has(key(parts[index]))) break;
-        const next = [display(parts[index]), ...suffix];
-        if (length(next.join("-")) > budget - 5) break;
-        suffix.unshift(display(parts[index]));
-      }
-      const stem = suffix.join("-") || "repo";
-      const seed = parseInt(shortId(entry.id), 36);
-      let allocated = false;
-      for (let attempt = 0; attempt < capacity; attempt++) {
-        const identifier = ((seed + attempt) % capacity)
-          .toString(36)
-          .padStart(4, "0");
-        const candidate = `${stem}-${identifier}`;
-        if (occupied.has(key(candidate))) continue;
-        entry.label = candidate;
-        occupied.add(key(candidate));
-        allocated = true;
-        break;
-      }
-      if (!allocated)
-        throw new RangeError("Compact repository identity namespace exhausted");
-      entry.reasons.push(
-        "Identity fallback due to insufficient semantic width; full name/path available from repository",
-      );
+  // Names that only differ by punctuation: number them in stable ID order.
+  const taken = new Set(entries.map((entry) => entry.label));
+  for (const group of duplicates(entries))
+    for (const entry of group.slice(1)) {
+      let counter = 2;
+      while (taken.has(`${entry.label}-${counter}`)) counter++;
+      entry.label = `${entry.label}-${counter}`;
+      taken.add(entry.label);
     }
-  }
 
   return new Map(
     entries.map((entry) => [
       entry.id,
-      { label: entry.label, reason: entry.reasons.join("; ") },
+      {
+        label: entry.label,
+        reason: entry.reasons.join("; ") || "Kept repository name",
+      },
     ]),
   );
 }

@@ -40,6 +40,7 @@ describe("git refresh policy", () => {
   it("normalizes label order in PR filter cache keys", () => {
     const base = {
       author: "any" as const,
+      reviewRequested: false,
       drafts: "include" as const,
       title: "",
       labels: ["bug", "ui"],

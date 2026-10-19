@@ -22,6 +22,7 @@ const repository = {
 };
 const defaults: GithubPrListFilters = {
   author: "any",
+  reviewRequested: false,
   drafts: "include",
   title: "",
   labels: [],
@@ -66,13 +67,14 @@ describe("GitHub PR listing", () => {
     assert.equal(
       githubPrSearch({
         author: "me",
+        reviewRequested: true,
         drafts: "exclude",
         title: 'fix "Windows" \\ paths',
         head: "feature/git-panel",
         labels: ["bug", "needs review"],
         sort: "updated-asc",
       }),
-      'is:pr is:open author:@me head:"feature/git-panel" label:"bug" label:"needs review" in:title "fix \\"Windows\\" \\\\ paths" draft:false sort:updated-asc',
+      'is:pr is:open author:@me review-requested:@me head:"feature/git-panel" label:"bug" label:"needs review" in:title "fix \\"Windows\\" \\\\ paths" draft:false sort:updated-asc',
     );
   });
 

@@ -318,6 +318,7 @@ export function githubPrSearch(filters: GithubPrListFilters): string {
   if (filters.author === "me") search.push("author:@me");
   if (filters.author === "username" && filters.username)
     search.push(`author:${quoteSearchValue(filters.username)}`);
+  if (filters.reviewRequested) search.push("review-requested:@me");
   if (filters.head) search.push(`head:${quoteSearchValue(filters.head)}`);
   for (const label of filters.labels)
     search.push(`label:${quoteSearchValue(label)}`);

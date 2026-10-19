@@ -510,6 +510,7 @@ function currentPrFilters(state: GitPanelRepoState): GithubPrListFilters {
     ...(state.prFilters.author === "username"
       ? { username: state.prFilters.username }
       : {}),
+    reviewRequested: state.prFilters.reviewRequested,
     drafts: state.prFilters.drafts,
     title: state.prFilters.title,
     ...(state.prFilters.currentBranchOnly && state.repoSummary?.currentBranch

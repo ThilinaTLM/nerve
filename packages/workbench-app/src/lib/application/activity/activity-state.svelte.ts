@@ -1,5 +1,6 @@
 import {
   activityUpdatedEventSchema,
+  isActivityRunning,
   type Activity,
 } from "@nervekit/contracts/activity";
 import { protocolRequest } from "$lib/application/startup/workbench-connection";
@@ -20,7 +21,9 @@ const state = $state<{
   error?: string;
   unseenFailure: boolean;
   open: boolean;
-}>({ activities: [], unseenFailure: false, open: false });
+  readIds: Set<string>;
+}>({ activities: [], unseenFailure: false, open: false, readIds: new Set() });
+let baselined = false;
 const controller = new ActivityController({
   list: async () =>
     (await protocolRequest("activity.list", {})).result.activities,
@@ -31,6 +34,15 @@ const controller = new ActivityController({
     }),
   changed: (activities) => {
     state.activities = activities;
+    if (!baselined) {
+      // Activities already finished when the app connected are not news.
+      baselined = true;
+      markRead(
+        activities
+          .filter((entry) => !isActivityRunning(entry))
+          .map((entry) => entry.id),
+      );
+    }
     state.unseenFailure = attention.update(activities, state.open);
     state.error = undefined;
   },
@@ -50,6 +62,10 @@ const controller = new ActivityController({
     });
   },
 });
+function markRead(ids: readonly string[]): void {
+  if (ids.every((id) => state.readIds.has(id))) return;
+  state.readIds = new Set([...state.readIds, ...ids]);
+}
 async function action(
   kind: "cancel" | "retry" | "dismiss",
   activityId: string,
@@ -79,6 +95,10 @@ export const activityInbox = {
   get error() {
     return state.error;
   },
+  get readIds(): ReadonlySet<string> {
+    return state.readIds;
+  },
+  markRead,
   get unseenFailure() {
     return state.unseenFailure;
   },

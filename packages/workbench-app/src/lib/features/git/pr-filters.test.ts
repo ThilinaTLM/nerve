@@ -3,11 +3,14 @@ import { test } from "node:test";
 import {
   activeGitPrFilterCount,
   applyGitPrFilterDraft,
+  applyQuickGitPrFilter,
   createGitPrFilterDraft,
   defaultGitPrFilterConfig,
   gitPrFilterConfigsEqual,
   hasActiveGitPrFilters,
   normalizeGitPrFilterConfig,
+  pinCurrentBranchPr,
+  quickGitPrFilter,
 } from "./pr-filters.js";
 
 test("normalizes filter text and bounds unique nonempty labels", () => {
@@ -66,5 +69,55 @@ test("equality and active filter counts use normalized values", () => {
     sort: "updated-asc" as const,
   };
   assert.equal(activeGitPrFilterCount(filters), 6);
+  assert.equal(
+    activeGitPrFilterCount({ ...filters, reviewRequested: true }),
+    7,
+  );
   assert.equal(hasActiveGitPrFilters(filters), true);
+});
+
+test("quick filter rewrites only author and review requested", () => {
+  const base = {
+    ...defaultGitPrFilterConfig,
+    title: "fix",
+    drafts: "only" as const,
+  };
+  const mine = applyQuickGitPrFilter(base, "mine");
+  assert.equal(mine.author, "me");
+  assert.equal(mine.reviewRequested, false);
+  assert.equal(mine.title, "fix");
+  assert.equal(mine.drafts, "only");
+  const review = applyQuickGitPrFilter(mine, "review");
+  assert.equal(review.author, "any");
+  assert.equal(review.reviewRequested, true);
+  assert.equal(applyQuickGitPrFilter(review, "all").reviewRequested, false);
+});
+
+test("quick filter is unselected for states outside its presets", () => {
+  const c = defaultGitPrFilterConfig;
+  assert.equal(quickGitPrFilter(c), "all");
+  assert.equal(quickGitPrFilter({ ...c, author: "me" }), "mine");
+  assert.equal(quickGitPrFilter({ ...c, reviewRequested: true }), "review");
+  assert.equal(
+    quickGitPrFilter({ ...c, author: "me", reviewRequested: true }),
+    undefined,
+  );
+  assert.equal(
+    quickGitPrFilter({ ...c, author: "username", username: "octocat" }),
+    undefined,
+  );
+});
+
+test("pins the current branch PR first without dropping others", () => {
+  const prs = [
+    { number: 1, headRefName: "a" },
+    { number: 2, headRefName: "b" },
+    { number: 3, headRefName: "c" },
+  ];
+  assert.deepEqual(
+    pinCurrentBranchPr(prs, "c").ordered.map((pr) => pr.number),
+    [3, 1, 2],
+  );
+  assert.equal(pinCurrentBranchPr(prs, "x").pinned, undefined);
+  assert.deepEqual(pinCurrentBranchPr(prs, null).ordered, prs);
 });

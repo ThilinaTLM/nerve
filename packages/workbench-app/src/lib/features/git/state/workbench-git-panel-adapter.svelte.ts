@@ -1,4 +1,5 @@
 import { untrack } from "svelte";
+import { lastRemoteFailure } from "../views/git-remote-actions";
 import { createGitPanelActions } from "../views/git-panel-controller";
 import {
   requestGitRepositoryRefresh,
@@ -176,6 +177,13 @@ export function createWorkbenchGitPanelAdapter(
           ),
         },
         capabilities,
+        lastRemoteFailure: (repository: string) =>
+          lastRemoteFailure(
+            activityInbox.activities.filter(
+              (activity) => activity.scope?.projectId === project?.id,
+            ),
+            repository,
+          ),
         repoBranchState: (repository: string) => {
           const state = projectState?.repoStates[gitRepoStateKey(repository)];
           return {
@@ -214,6 +222,9 @@ export function createWorkbenchGitPanelAdapter(
         notify.error("Could not start bulk Git operation");
       }
     },
+    retryOperation: (operationId) => activityInbox.action("retry", operationId),
+    dismissOperation: (operationId) =>
+      activityInbox.action("dismiss", operationId),
     cancelOperation: async (operationId) => {
       try {
         const result = await cancelGitOperation(operationId);

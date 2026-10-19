@@ -2,242 +2,201 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { repositoryLabels as createRepositoryLabels } from "./repository-labels";
 
-function repositoryLabels(...args: Parameters<typeof createRepositoryLabels>) {
-  const result = createRepositoryLabels(...args);
-  for (const { label } of result.values()) {
+type Input = Parameters<typeof createRepositoryLabels>[0];
+
+/** Every result is unique, lowercase kebab-case, never ellipsized and order independent. */
+function labels(input: Input, maxLength?: number): string[] {
+  const options = maxLength ? { maxLength } : {};
+  const result = createRepositoryLabels(input, options);
+  const values = input.map((repo) => result.get(repo.id)!.label);
+  for (const label of values) {
     assert.equal(label, label.toLowerCase());
     assert.match(
       label,
       /^[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:-[\p{L}\p{N}][\p{L}\p{M}\p{N}]*)*$/u,
     );
-    assert.doesNotMatch(label, /[\s·/\\_…]|\.\.\.|--|^-|-$/u);
+    assert.doesNotMatch(label, /…|\.\.\./u);
   }
-  assert.equal(
-    new Set([...result.values()].map(({ label }) => label)).size,
-    result.size,
+  assert.equal(new Set(values).size, values.length);
+  assert.deepEqual(
+    createRepositoryLabels(input.slice().reverse(), options),
+    result,
   );
-  return result;
+  return values;
 }
 
-function repos(names: string[]) {
+function repos(names: string[]): Input {
   return names.map((name, index) => ({
     id: String(index),
     name,
-    path: `/repos/${name}`,
+    path: `/work/${name}`,
   }));
 }
 
-for (const { names, expected } of [
-  {
-    names: ["acme-platform-user-api", "acme-platform-admin-api"],
-    expected: ["user-api", "admin-api"],
-  },
-  {
-    names: ["acmePlatformUserAPI", "acme_platform_admin_API"],
-    expected: ["user-api", "admin-api"],
-  },
-  {
-    names: ["acme-platform-web-app", "acme-platform-user-ui"],
-    expected: ["web-app", "user-ui"],
-  },
-  {
-    names: ["équipeProjetUserAPI", "équipe_projet_admin_UI"],
-    expected: ["user-api", "admin-ui"],
-  },
-  { names: ["internationalization"], expected: ["intrntnlztn"] },
-]) {
-  test(`semantic labels: ${names.join(", ")}`, () => {
-    assert.deepEqual(
-      [...repositoryLabels(repos(names)).values()].map(({ label }) => label),
-      expected,
-    );
-  });
-}
-
-test("short names, camel, snake, acronyms and punctuation normalize to kebab case", () => {
+test("removes words every repository shares at the start or end", () => {
   assert.deepEqual(
-    [...repositoryLabels(repos(["my-repo", "UI", "工具"])).values()].map(
-      ({ label }) => label,
+    labels(
+      repos([
+        "acme-platform-user-api",
+        "acme-platform-admin-api",
+        "acme-platform-web-app",
+      ]),
     ),
-    ["my-repo", "ui", "工具"],
+    ["user-api", "admin-api", "web-app"],
   );
-  for (const name of ["myRepo", "my_repo", "My Repo", "--my...repo--"]) {
-    assert.equal(repositoryLabels(repos([name])).get("0")!.label, "my-repo");
-  }
-  assert.equal(
-    repositoryLabels(repos(["apiUser"])).get("0")!.label,
+  assert.deepEqual(
+    labels(repos(["acme-user-service", "acme-billing-service"])),
+    ["user", "billing"],
+  );
+});
+
+test("families drop the leading words they share, even beside unrelated repositories", () => {
+  assert.deepEqual(
+    labels(
+      repos([
+        "acme-customer-platform-user-api",
+        "acme-customer-platform-web-app",
+        "nerve",
+      ]),
+    ),
+    ["user-api", "web-app", "nerve"],
+  );
+  // Families that end the same way keep their leading words.
+  assert.deepEqual(
+    labels(
+      repos([
+        "acme-user-api",
+        "acme-web-app",
+        "beta-user-api",
+        "beta-admin-ui",
+      ]),
+    ),
+    ["acme-user-api", "web-app", "beta-user-api", "admin-ui"],
+  );
+});
+
+test("parent folders are added only where a label still collides", () => {
+  assert.deepEqual(
+    labels([
+      { id: "a", name: "acme-platform-user-api", path: "/w/a" },
+      { id: "b", name: "acme-platform-web-app", path: "/w/b" },
+      { id: "c", name: "api", path: "/w/user/api" },
+      { id: "d", name: "api", path: "/w/admin/api" },
+    ]),
+    ["user-api", "web-app", "w-user-api", "admin-api"],
+  );
+});
+
+test("splits camel, snake and kebab case the same way", () => {
+  assert.deepEqual(
+    labels(
+      repos([
+        "acmePlatformUserAPI",
+        "acme_platform_admin_ui",
+        "acme-platform-web-app",
+      ]),
+    ),
+    ["user-api", "admin-ui", "web-app"],
+  );
+  assert.deepEqual(labels(repos(["acme-front-end", "acme-back-end"])), [
+    "frontend",
+    "backend",
+  ]);
+});
+
+test("never removes role words, even when every repository shares them", () => {
+  assert.deepEqual(labels(repos(["acme-user-api", "acme-admin-api"])), [
+    "user-api",
+    "admin-api",
+  ]);
+  assert.deepEqual(labels(repos(["api-user", "api-admin"])), [
     "api-user",
+    "api-admin",
+  ]);
+});
+
+test("never strips short leading words such as no", () => {
+  assert.deepEqual(labels(repos(["no-remote", "no-upstream"])), [
+    "no-remote",
+    "no-upstream",
+  ]);
+  assert.deepEqual(
+    labels(repos(["no-remote-api", "no-upstream-api", "other"]), 16),
+    ["no-remote-api", "no-upstream-api", "other"],
   );
 });
 
-test("never strips partial words or an entire shorter name", () => {
+test("keeps at least one word per repository", () => {
+  assert.deepEqual(labels(repos(["acme", "acme-api"])), ["acme", "acme-api"]);
+});
+
+test("long names shorten words from the left to two letters and keep role words whole", () => {
+  assert.deepEqual(labels(repos(["customer-user-api", "billing-service"])), [
+    "cu-user-api",
+    "bi-service",
+  ]);
   assert.deepEqual(
-    [
-      ...repositoryLabels(repos(["planet-user-api", "platform-admin-api"]), {
-        maxLength: 64,
-      }).values(),
-    ].map(({ label }) => label),
-    ["planet-user-api", "platform-admin-api"],
-  );
-  assert.deepEqual(
-    [...repositoryLabels(repos(["acme", "acme-api"])).values()].map(
-      ({ label }) => label,
+    labels(
+      repos([
+        "customer-onboarding-platform-api",
+        "payments-reconciliation-worker",
+        "marketing-site-frontend",
+        "shared-infrastructure-iac",
+      ]),
     ),
-    ["acme", "acme-api"],
+    ["cuonpl-api", "pare-worker", "masi-frontend", "shin-iac"],
   );
 });
 
-test("abbreviates earlier words without losing semantic tails", () => {
-  const result = repositoryLabels(
-    repos(["configuration-management-user-api", "development-web-app"]),
-  );
-  assert.match(result.get("0")!.label, /user-api$/);
-  assert.match(result.get("1")!.label, /web-app$/);
-  assert.match(result.get("0")!.reason, /Abbreviated/);
-  assert.equal(
-    repositoryLabels(repos(["configuration-user-api"]), { maxLength: 10 }).get(
-      "0",
-    )!.label,
-    "c-user-api",
-  );
-});
-
-test("expands compressed collisions before adding context or identities", () => {
-  // Both abbreviate to a-m-user-api; full words fit a larger budget only.
-  const input = repos([
-    "alpha-marketing-user-api",
-    "amber-monitoring-user-api",
+test("short names stay as they are", () => {
+  assert.deepEqual(labels(repos(["nerve", "api", "ui-kit"])), [
+    "nerve",
+    "api",
+    "ui-kit",
   ]);
-  const result = repositoryLabels(input);
-  for (const { label, reason } of result.values()) {
-    assert.match(reason, /Expanded/);
-    assert.match(label, /^user-api-[a-z0-9]{4}$/);
-  }
 });
 
-test("duplicate basenames get shortest distinguishing parent context", () => {
-  const result = repositoryLabels([
-    { id: "a", name: "app", path: "/home/east/work/app" },
-    { id: "b", name: "app", path: "/home/west/work/app" },
-  ]);
-  assert.equal(result.get("a")!.label, "app-east-work");
-  assert.equal(result.get("b")!.label, "app-west-work");
-  const windows = repositoryLabels([
-    { id: "a", name: "app", path: "C:\\east\\app" },
-    { id: "b", name: "app", path: "C:\\west\\app" },
-  ]);
-  assert.equal(windows.get("a")!.label, "app-east");
-  assert.equal(windows.get("b")!.label, "app-west");
-});
-
-test("normalization collisions and identical paths use stable identities regardless of input order", () => {
-  const input = [
-    { id: "z", name: "foo_bar", path: "/Same Parent/foo_bar" },
-    { id: "b", name: "foo-bar", path: "/same_parent/foo-bar" },
-    { id: "a", name: "Foo Bar", path: "/same-parent/Foo Bar" },
-  ];
-  for (const maxLength of [14, 64]) {
-    const result = repositoryLabels(input, { maxLength });
-    assert.deepEqual(
-      repositoryLabels(input.slice().reverse(), { maxLength }),
-      result,
-    );
-    for (const { reason } of result.values())
-      assert.match(reason, /stable identifier/);
-  }
-});
-
-test("parent-context aliases cannot collide with another repository's ordinary name", () => {
-  const input = [
-    { id: "a", name: "app", path: "/east/app" },
-    { id: "b", name: "app", path: "/west/app" },
-    { id: "c", name: "app-east", path: "/elsewhere/app-east" },
-  ];
-  const result = repositoryLabels(input);
-  assert.equal(result.get("b")!.label, "app-west");
-  assert.notEqual(result.get("a")!.label, result.get("c")!.label);
-  assert.deepEqual(repositoryLabels(input.slice().reverse()), result);
-});
-
-test("compact fallback bounds opaque words, acronyms and long duplicate parents", () => {
-  const input = [
-    { id: "a", name: "strengthsstrengthsstrengths", path: "/words/long" },
-    {
-      id: "b",
-      name: "configuration-management-user-api",
-      path: "/extraordinarily-long-east-parent/api",
-    },
-    {
-      id: "c",
-      name: "configuration-management-user-api",
-      path: "/extraordinarily-long-west-parent/api",
-    },
-    { id: "d", name: "EXTRAORDINARYACRONYM", path: "/acronym" },
-  ];
-  for (const maxLength of [9, 10, 12, 14, 16, 22]) {
-    const result = repositoryLabels(input, { maxLength });
-    assert.deepEqual(
-      repositoryLabels(input.slice().reverse(), { maxLength }),
-      result,
-    );
-    for (const { label } of result.values())
-      assert.ok(Array.from(label).length <= maxLength);
-  }
-  const result = repositoryLabels(input);
-  assert.match(result.get("a")!.label, /^repo-[a-z0-9]{4}$/);
-  assert.match(result.get("b")!.label, /^user-api-[a-z0-9]{4}$/);
-});
-
-test("compact identifiers avoid reserved readable labels deterministically", () => {
-  const long = {
-    id: "long",
-    name: "strengthsstrengthsstrengths",
-    path: "/words/long",
-  };
-  const initial = repositoryLabels([long]).get("long")!.label;
-  const input = [long, { id: "ordinary", name: initial, path: "/ordinary" }];
-  const result = repositoryLabels(input);
-  assert.equal(result.get("ordinary")!.label, initial);
-  assert.notEqual(result.get("long")!.label, initial);
-  assert.deepEqual(repositoryLabels(input.slice().reverse()), result);
-});
-
-test("budgets default to 14, clamp to nine and count Unicode code points", () => {
-  for (const maxLength of [2, -1, 9.9]) {
-    assert.equal(
-      repositoryLabels(repos(["strengthsstrengthsstrengths"]), {
-        maxLength,
-      }).get("0")!.label.length,
-      9,
-    );
-  }
-  const input = repos(["strengthsstrengthsstrengths"]);
-  for (const maxLength of [Number.NaN, Infinity, -Infinity]) {
-    assert.deepEqual(
-      repositoryLabels(input, { maxLength }),
-      repositoryLabels(input),
-    );
-  }
-  assert.equal(
-    repositoryLabels(repos(["𐐨𐐩𐐪𐐫𐐬𐐭𐐮𐐯𐐰𐐱"])).get("0")!.label,
-    "𐐨𐐩𐐪𐐫𐐬𐐭𐐮𐐯𐐰𐐱",
+test("colliding abbreviations use more letters before full words", () => {
+  assert.deepEqual(
+    labels(repos(["marketing-user-api", "maintenance-user-api", "other"]), 12),
+    ["mar-user-api", "mai-user-api", "other"],
   );
 });
 
-test("empty names and Unicode canonical/case collisions are safe without mutating input", () => {
-  assert.equal(repositoryLabels([]).size, 0);
+test("duplicate names lead with the nearest distinguishing parent folder", () => {
+  assert.deepEqual(
+    labels([
+      { id: "a", name: "api", path: "/work/user/api" },
+      { id: "b", name: "api", path: "C:\\work\\admin\\api" },
+      { id: "c", name: "ui", path: "/work/ui" },
+    ]),
+    ["user-api", "admin-api", "ui"],
+  );
+});
+
+test("names that differ only by punctuation are numbered without colliding", () => {
+  assert.deepEqual(
+    labels([
+      { id: "a", name: "foo-bar", path: "/same/foo-bar" },
+      { id: "b", name: "foo_bar", path: "/same/foo_bar" },
+      { id: "c", name: "foo-bar-2", path: "/same/foo-bar-2" },
+    ]),
+    // "foo" is shared by all three, so it is removed first.
+    ["bar", "bar-3", "bar-2"],
+  );
+});
+
+test("a single long word keeps its outline instead of being cut", () => {
+  assert.deepEqual(labels(repos(["internationalization"])), ["intrntnlztn"]);
+});
+
+test("empty names and Unicode are safe without mutating input", () => {
   const input = [
-    ...repos(["", "", "API", "api"]),
-    { id: "a", name: "ÉquipeUserAPI", path: "/MÊME_PARENT/a" },
-    { id: "b", name: "e\u0301quipe_user_api", path: "/même parent/b" },
-    { id: "c", name: "工具 Web UI", path: "/工具/c" },
-    { id: "d", name: "İstanbul_UI", path: "/İstanbul/d" },
+    ...repos(["", "工具 Web UI"]),
+    { id: "x", name: "équipe_user_api", path: "/x" },
   ];
   const snapshot = structuredClone(input);
-  const result = repositoryLabels(input);
-  assert.equal(result.size, input.length);
-  assert.equal(result.get("c")!.label, "工具-web-ui");
-  assert.equal(result.get("d")!.label, "i\u0307stanbul-ui");
-  assert.deepEqual(repositoryLabels(input.slice().reverse()), result);
+  assert.deepEqual(labels(input), ["repo", "工具-web-ui", "éq-user-api"]);
   assert.deepEqual(input, snapshot);
+  assert.equal(createRepositoryLabels([]).size, 0);
 });

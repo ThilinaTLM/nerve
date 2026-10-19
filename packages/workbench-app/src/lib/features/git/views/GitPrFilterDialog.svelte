@@ -86,6 +86,14 @@ function apply(): void {
       </div>
     {/if}
 
+    <div class="flex items-start gap-2">
+      <Checkbox
+        id="pr-filter-review-requested"
+        bind:checked={draft.reviewRequested}
+      />
+      <Label for="pr-filter-review-requested">Review requested from me</Label>
+    </div>
+
     <div class="grid gap-1.5">
       <Label for="pr-filter-drafts">Drafts</Label>
       <SelectField
