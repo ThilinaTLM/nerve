@@ -13,10 +13,8 @@ import { workspaceFeaturePorts } from "./workspace-feature-ports.svelte";
 import { projectKey } from "$lib/domain/projects/project-tree";
 import {
   createProject,
-  getFileCompletions,
   openProjectInEditor,
   openProjectInTerminal,
-  type CompletionItem,
   type ProjectEditor,
 } from "$lib/api";
 import { settingsReadModel } from "$lib/application/preferences/settings-read-model.svelte";
@@ -139,9 +137,6 @@ export async function loadWorkspaceState(): Promise<void> {
     }
   }
   if (desiredTab) await selectCenterTab(desiredTab);
-}
-export async function completeFiles(query: string): Promise<CompletionItem[]> {
-  return getFileCompletions(selection.projectId, query);
 }
 export async function selectProject(
   projectId: string,

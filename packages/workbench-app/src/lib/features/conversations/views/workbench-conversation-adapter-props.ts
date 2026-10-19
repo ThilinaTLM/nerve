@@ -100,11 +100,6 @@ export type WorkbenchConversationAdapterProps = {
   permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
   completionSource?: import("$lib/presentation/composer/composer-editor-completions").ComposerReferenceSource;
-  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  referenceCompletions?: (
-    kind: "launch" | "pull_request",
-    query: string,
-  ) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
   onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
   onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;

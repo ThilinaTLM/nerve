@@ -208,19 +208,21 @@ async function child(name: string, mode: string) {
       rss: process.memoryUsage().rss,
     });
   }
-  // Inspect post-write failure semantics with the real catch/result mapper.
+  // A diff failure happens before the write, so appliedCount=0 is truthful.
   harness.state.raw = f.raw;
   harness.state.failDiff = true;
+  let writes = harness.state.writes;
   await assert.rejects(harness.run(f.edits), (error: unknown) => {
     assert.ok(error instanceof errors.ToolExecutionError);
     assert.equal(error.code, "EDIT_FAILED");
     assert.equal(error.details.appliedCount, 0);
-    assert.equal(harness.state.raw, f.expectedRaw);
+    assert.equal(harness.state.raw, f.raw);
     return true;
   });
+  assert.equal(harness.state.writes, writes);
   harness.state.failDiff = false;
   harness.state.raw = f.raw;
-  const writes = harness.state.writes;
+  writes = harness.state.writes;
   await assert.rejects(
     harness.run([{ oldText: "absent synthetic needle", newText: "x" }]),
     (error: unknown) =>
@@ -265,8 +267,7 @@ async function child(name: string, mode: string) {
       rssMaxMiB: round(Math.max(...samples.map((s) => s.rss)) / 1024 / 1024),
       maxRssMiB: round(process.resourceUsage().maxRSS / 1024),
       parity: "passed",
-      failureSemantics:
-        "post-write diff failure reports appliedCount=0; missing match does not write",
+      failureSemantics: "diff and missing-match failures do not write",
     }),
   );
 }

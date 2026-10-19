@@ -2,7 +2,10 @@ import {
   createInMemoryAskUserDraftStore,
   type AskUserDraftStore,
 } from "./tools/tool-call/ask-user-state";
-import type { CompletionItem } from "@nervekit/contracts/completions";
+import type {
+  ComposerCompletionAction,
+  ComposerReferenceSource,
+} from "$lib/presentation/composer/composer-editor-completions";
 
 import type { SubagentRef } from "$lib/presentation/tools/views/subagent-live";
 import type {
@@ -78,8 +81,8 @@ export interface SubagentsCapability {
 
 /**
  * Composer-grade reply surface for the ask-user card: clipboard image paste,
- * dropped-file path resolution, and the same slash/file auto-completions the
- * prompt composer offers. Every member is optional; the reply input degrades
+ * dropped-file path resolution, and the same unified completion system the
+ * prompt composer uses. Every member is optional; the reply input degrades
  * to a plain editor (plus voice) when a host does not provide them.
  */
 export interface AskReplyComposerCapability {
@@ -87,10 +90,16 @@ export interface AskReplyComposerCapability {
   pasteImage?: (file: File) => Promise<string>;
   /** Resolve dropped native files to project-relative path mentions. */
   dropFiles?: (files: readonly File[]) => Promise<readonly string[]>;
-  /** Reactive getter for slash-command completion items. */
-  slashCompletions?: () => readonly CompletionItem[];
-  /** Project file reference completions for "@" mentions. */
-  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
+  /** Unified completion source scoped to the conversation that owns the card. */
+  completionSource?: (scope: {
+    projectId: string;
+    conversationId: string;
+  }) => ComposerReferenceSource;
+  /** Runs a completion row/source action (open settings, panels, …). */
+  onCompletionAction?: (action: ComposerCompletionAction) => void;
+  readClipboardText?: () => Promise<string>;
+  writeClipboardText?: (text: string) => Promise<void>;
+  onClipboardError?: (action: "copy" | "cut" | "paste") => void;
 }
 
 export interface ConversationUiCapabilities {

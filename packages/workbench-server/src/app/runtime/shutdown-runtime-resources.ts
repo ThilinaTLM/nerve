@@ -3,7 +3,6 @@ export interface RuntimeShutdownResources {
   completions: { dispose(): Promise<void> };
   workspaceMonitor: { close(): Promise<void> };
   launches: { shutdown(): Promise<void> };
-  fileCompletions: { dispose(): Promise<void> };
   conversationCore: { close(): Promise<void> };
 }
 
@@ -29,11 +28,6 @@ export async function shutdownRuntimeResources(
   }
   try {
     await resources.launches.shutdown();
-  } catch (error) {
-    failures.push(error);
-  }
-  try {
-    await resources.fileCompletions.dispose();
   } catch (error) {
     failures.push(error);
   }

@@ -23,6 +23,9 @@ import type { AskUserAnswerDraft, AskUserPhase } from "./ask-user-state";
 
 type Props = {
   toolCallId: string;
+  /** Owning project and conversation (a sub-agent's own, not the viewed one). */
+  projectId?: string;
+  conversationId?: string;
   question: AskUserViewQuestion;
   index: number;
   total: number;
@@ -44,6 +47,8 @@ type Props = {
 };
 let {
   toolCallId,
+  projectId,
+  conversationId,
   question,
   index,
   total,
@@ -64,7 +69,12 @@ const capabilities = getConversationUiCapabilities();
 const voice = capabilities.voice;
 const TranscriptionActivity = voice?.TranscriptionActivity;
 const askReply = capabilities.askReply;
-const slashCompletions = $derived(askReply?.slashCompletions?.() ?? []);
+// Construction is inert; only an active editor query acquires server data.
+const completionSource = $derived(
+  projectId && conversationId
+    ? askReply?.completionSource?.({ projectId, conversationId })
+    : undefined,
+);
 
 const interactive = $derived(phase === "waiting");
 const settled = $derived(phase !== "waiting");
@@ -369,8 +379,11 @@ function pick(label: string | undefined) {
           : "Answer in your own words, or speak"}
         ariaLabel={`Answer: ${question.question ?? "question"}`}
         focusToken={detailRequested || autoFocus ? 1 : 0}
-        {slashCompletions}
-        fileCompletions={askReply?.fileCompletions}
+        {completionSource}
+        onCompletionAction={askReply?.onCompletionAction}
+        onReadClipboardText={askReply?.readClipboardText}
+        onWriteClipboardText={askReply?.writeClipboardText}
+        onClipboardError={askReply?.onClipboardError}
         onChange={(value) => onText?.(value)}
         onSubmit={() => onSubmit?.()}
         onPasteImage={askReply?.pasteImage}

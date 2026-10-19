@@ -4,7 +4,7 @@ import { acquireBuildSlot } from "./admission.js";
 import type {
   NativeCompletionQuery,
   NativeSearchDocument,
-  NativeFileCompletionIndexHandle,
+  NativeSearchIndexHandle,
 } from "./binding.js";
 import type { SearchIndex, SearchQuery } from "./contracts.js";
 import { createLane } from "./lane.js";
@@ -48,12 +48,12 @@ export async function createSearchIndex(
   options: { signal?: AbortSignal } = {},
 ): Promise<SearchIndex> {
   options.signal?.throwIfAborted();
-  return wrapSearchIndex(new binding.NativeFileCompletionIndex(), options);
+  return wrapSearchIndex(new binding.NativeSearchIndex(), options);
 }
 
 /** Internal facade seam for owning lifecycle/failure tests; not a package-root export. */
 export function wrapSearchIndex(
-  handle: NativeFileCompletionIndexHandle,
+  handle: NativeSearchIndexHandle,
   options: { signal?: AbortSignal } = {},
 ): SearchIndex {
   options.signal?.throwIfAborted();

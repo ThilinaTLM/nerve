@@ -15,8 +15,6 @@ export const queryKeys = {
   workspace: ["workspace"] as const,
   latestRelease: ["status", "latest-release"] as const,
   slashCompletions: ["completions", "slash"] as const,
-  fileCompletions: (projectId: string | undefined, query: string) =>
-    ["completions", "files", projectId ?? "none", query] as const,
   git: {
     project: (projectId: string) => ["git", projectId] as const,
     repos: (projectId: string) => ["git", projectId, "repos"] as const,

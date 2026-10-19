@@ -10,20 +10,6 @@ use napi_derive::napi;
 use std::sync::Arc;
 
 #[napi(object)]
-pub struct NativeCompletionCandidate {
-    pub path: Utf16String,
-    pub name: Option<Utf16String>,
-    pub stem: Option<Utf16String>,
-    pub path_lower: Option<Utf16String>,
-    pub name_lower: Option<Utf16String>,
-    pub stem_lower: Option<Utf16String>,
-    pub segments: Option<Vec<Utf16String>>,
-    pub segments_lower: Option<Vec<Utf16String>>,
-    pub depth: Option<u32>,
-    pub directory: bool,
-    pub locale_rank: u32,
-}
-#[napi(object)]
 pub struct NativeCompletionTerm {
     pub value: Utf16String,
     pub lower: Utf16String,
@@ -38,12 +24,6 @@ pub struct NativeCompletionQuery {
     pub folder: bool,
     pub ordered: bool,
     pub terms: Vec<NativeCompletionTerm>,
-}
-#[napi(object)]
-pub struct NativeCompletionMatch {
-    pub candidate_index: u32,
-    pub score: f64,
-    pub match_ranges: Vec<Vec<u32>>,
 }
 #[napi(object)]
 pub struct NativeSearchField {
@@ -88,25 +68,6 @@ fn optional(value: Option<Utf16String>) -> Option<Text> {
 }
 fn texts(values: Option<Vec<Utf16String>>) -> Option<Vec<Text>> {
     values.map(|vs| vs.into_iter().map(text).collect())
-}
-impl NativeCompletionCandidate {
-    fn convert(self) -> std::result::Result<Candidate, &'static str> {
-        Candidate::compact(
-            text(self.path),
-            self.directory,
-            self.locale_rank,
-            self.depth,
-            PathInput {
-                name: optional(self.name),
-                stem: optional(self.stem),
-                lower: optional(self.path_lower),
-                name_lower: optional(self.name_lower),
-                stem_lower: optional(self.stem_lower),
-                segments: texts(self.segments),
-                segments_lower: texts(self.segments_lower),
-            },
-        )
-    }
 }
 impl NativeSearchField {
     fn convert(self) -> std::result::Result<Field, &'static str> {
@@ -165,14 +126,11 @@ impl NativeSearchField {
                 candidate: Candidate::compact(
                     trim(value),
                     directory,
-                    0,
-                    None,
                     PathInput {
                         lower: Some(trim(lower)),
                         name_lower: optional(self.name_lower),
                         stem_lower: optional(self.stem_lower),
                         segments_lower: texts(self.segments_lower),
-                        ..PathInput::default()
                     },
                 )?,
                 alignment,
@@ -210,12 +168,12 @@ impl NativeCompletionQuery {
     }
 }
 
-/// One retained engine; the historical raw class name also serves typed documents.
+/// One retained typed search engine.
 #[napi]
-pub struct NativeFileCompletionIndex {
+pub struct NativeSearchIndex {
     state: Arc<State>,
 }
-impl Drop for NativeFileCompletionIndex {
+impl Drop for NativeSearchIndex {
     fn drop(&mut self) {
         if self.state.is_closed() {
             return;
@@ -232,22 +190,12 @@ impl Drop for NativeFileCompletionIndex {
     }
 }
 #[napi]
-impl NativeFileCompletionIndex {
+impl NativeSearchIndex {
     #[napi(constructor)]
     pub fn new() -> Self {
         Self {
             state: Arc::new(State::default()),
         }
-    }
-    #[napi]
-    pub fn build(
-        &self,
-        candidates: Vec<NativeCompletionCandidate>,
-    ) -> Result<AsyncTask<SearchMutationTask>> {
-        if candidates.len() > 1024 {
-            return Err(Error::from_reason("Completion build batch exceeds 1024"));
-        }
-        self.mutation(Mutation::Files(candidates))
     }
     #[napi]
     pub fn stage(
@@ -267,21 +215,6 @@ impl NativeFileCompletionIndex {
     #[napi]
     pub fn discard(&self) -> Result<AsyncTask<SearchMutationTask>> {
         self.mutation(Mutation::Discard)
-    }
-    #[napi]
-    pub fn query(
-        &self,
-        query: NativeCompletionQuery,
-        limit: u32,
-    ) -> Result<AsyncTask<CompletionQueryTask>> {
-        if limit > 256 {
-            return Err(Error::from_reason("Completion limit must be at most 256"));
-        }
-        Ok(AsyncTask::new(CompletionQueryTask {
-            lease: self.state.acquire().map_err(Error::from_reason)?,
-            query: query.convert(),
-            limit: limit as usize,
-        }))
     }
     #[napi]
     pub fn search(
@@ -317,7 +250,7 @@ impl NativeFileCompletionIndex {
         })
     }
 }
-impl NativeFileCompletionIndex {
+impl NativeSearchIndex {
     fn mutation(&self, mutation: Mutation) -> Result<AsyncTask<SearchMutationTask>> {
         Ok(AsyncTask::new(SearchMutationTask {
             lease: self.state.acquire().map_err(Error::from_reason)?,
@@ -325,14 +258,13 @@ impl NativeFileCompletionIndex {
         }))
     }
 }
-impl Default for NativeFileCompletionIndex {
+impl Default for NativeSearchIndex {
     fn default() -> Self {
         Self::new()
     }
 }
 
 enum Mutation {
-    Files(Vec<NativeCompletionCandidate>),
     Stage(Vec<NativeSearchDocument>, Vec<Utf16String>),
     Commit,
     Discard,
@@ -346,14 +278,6 @@ impl Task for SearchMutationTask {
     type JsValue = u32;
     fn compute(&mut self) -> Result<u32> {
         match self.mutation.take().unwrap() {
-            Mutation::Files(files) => {
-                let mut candidates = Vec::with_capacity(files.len());
-                for file in files {
-                    self.lease.check().map_err(Error::from_reason)?;
-                    candidates.push(file.convert().map_err(Error::from_reason)?);
-                }
-                self.lease.append(candidates).map_err(Error::from_reason)?;
-            }
             Mutation::Stage(documents, remove) => {
                 let mut records = documents.len() + remove.len();
                 let mut field_count = 0;
@@ -424,31 +348,6 @@ impl Task for CompletionCloseTask {
     }
     fn resolve(&mut self, _env: Env, _: ()) -> Result<()> {
         Ok(())
-    }
-}
-pub struct CompletionQueryTask {
-    lease: Lease,
-    query: Query,
-    limit: usize,
-}
-impl Task for CompletionQueryTask {
-    type Output = Vec<super::Match>;
-    type JsValue = Vec<NativeCompletionMatch>;
-    fn compute(&mut self) -> Result<Self::Output> {
-        self.lease
-            .query_files(&self.query, self.limit)
-            .map_err(Error::from_reason)
-    }
-    fn resolve(&mut self, _env: Env, output: Self::Output) -> Result<Self::JsValue> {
-        self.lease.check().map_err(Error::from_reason)?;
-        Ok(output
-            .into_iter()
-            .map(|m| NativeCompletionMatch {
-                candidate_index: m.candidate_index as u32,
-                score: m.score,
-                match_ranges: m.ranges.into_iter().map(Vec::from).collect(),
-            })
-            .collect())
     }
 }
 pub struct SearchQueryTask {

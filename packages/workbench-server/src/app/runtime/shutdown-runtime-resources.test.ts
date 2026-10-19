@@ -37,11 +37,6 @@ void test("shutdown awaits Git and completion users before closing dependencies"
         order.push("launches");
       },
     },
-    fileCompletions: {
-      dispose: async () => {
-        order.push("files");
-      },
-    },
     conversationCore: {
       close: async () => {
         order.push("core");
@@ -61,21 +56,15 @@ void test("shutdown awaits Git and completion users before closing dependencies"
     "completion drained",
     "monitor",
     "launches",
-    "files",
     "core",
   ]);
 });
 
 void test("rejected producer drains fully settle in order and every later cleanup is attempted", async () => {
   const order: string[] = [];
-  const failures = [
-    "git",
-    "completion",
-    "monitor",
-    "launches",
-    "files",
-    "core",
-  ].map((name) => new Error(name));
+  const failures = ["git", "completion", "monitor", "launches", "core"].map(
+    (name) => new Error(name),
+  );
   let rejectGit!: (error: Error) => void;
   let rejectCompletion!: (error: Error) => void;
   const git = new Promise<void>((_resolve, reject) => {
@@ -109,16 +98,10 @@ void test("rejected producer drains fully settle in order and every later cleanu
         throw failures[3];
       },
     },
-    fileCompletions: {
-      dispose: async () => {
-        order.push("files");
-        throw failures[4];
-      },
-    },
     conversationCore: {
       close: async () => {
         order.push("core");
-        throw failures[5];
+        throw failures[4];
       },
     },
   }).catch((error: unknown) => error);
@@ -130,12 +113,5 @@ void test("rejected producer drains fully settle in order and every later cleanu
   const error = await outcome;
   assert.ok(error instanceof AggregateError);
   assert.deepEqual(error.errors, failures);
-  assert.deepEqual(order, [
-    "git",
-    "completion",
-    "monitor",
-    "launches",
-    "files",
-    "core",
-  ]);
+  assert.deepEqual(order, ["git", "completion", "monitor", "launches", "core"]);
 });

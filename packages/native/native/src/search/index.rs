@@ -1,5 +1,5 @@
+use super::Query;
 use super::document::{Document, Engine, QueryResult};
-use super::{Candidate, Match, Query, query};
 use crate::core::cancellation::CancellationToken;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -63,9 +63,6 @@ impl Lease {
             self.state.closed.flag(),
         )
     }
-    pub(super) fn append(&self, candidates: Vec<Candidate>) -> Result<()> {
-        self.with_engine(|engine, _| engine.append_files(candidates))
-    }
     pub(super) fn stage(&self, documents: Vec<Document>, remove: Vec<Vec<u16>>) -> Result<()> {
         self.with_engine(|engine, flag| engine.stage(documents, remove, flag))
     }
@@ -77,9 +74,6 @@ impl Lease {
             engine.discard();
             Ok(())
         })
-    }
-    pub(super) fn query_files(&self, q: &Query, limit: usize) -> Result<Vec<Match>> {
-        self.with_engine(|engine, flag| query(&engine.files, q, limit, flag))
     }
     pub(super) fn query_documents(
         &self,
@@ -106,10 +100,13 @@ mod tests {
         assert!(matches!(state.acquire(), Err("Completion index is busy")));
         drop(lease);
         let lease = state.acquire().unwrap();
-        lease.append(vec![]).unwrap();
+        lease.stage(vec![], vec![]).unwrap();
         state.close();
         assert_eq!(lease.check(), Err("Completion index is closed"));
-        assert_eq!(lease.append(vec![]), Err("Completion index is closed"));
+        assert_eq!(
+            lease.stage(vec![], vec![]),
+            Err("Completion index is closed")
+        );
         assert!(matches!(state.acquire(), Err("Completion index is closed")));
         state.dispose();
         state.dispose();

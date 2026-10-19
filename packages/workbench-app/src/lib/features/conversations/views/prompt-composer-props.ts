@@ -64,11 +64,6 @@ export type PromptComposerProps = {
   permissionRuleSetsError?: string;
   slashCompletions?: CompletionItem[];
   completionSource?: ComposerReferenceSource;
-  fileCompletions?: (query: string) => Promise<CompletionItem[]>;
-  referenceCompletions?: (
-    kind: "launch" | "pull_request",
-    query: string,
-  ) => Promise<CompletionItem[]>;
   composerSuggestions?: ComposerSuggestion[];
   onSendSuggestion?: (suggestion: ComposerSuggestion) => void;
   onDraftSuggestion?: (suggestion: ComposerSuggestion) => void;

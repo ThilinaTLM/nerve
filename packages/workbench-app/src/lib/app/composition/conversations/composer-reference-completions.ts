@@ -1,7 +1,6 @@
 import {
   COMPLETION_RESULT_LIMIT,
   completionChangedSchema,
-  type CompletionItem,
 } from "@nervekit/contracts/completions";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import {
@@ -55,26 +54,4 @@ export function composerReferenceSource(
       };
     },
   };
-}
-
-// Existing project-only consumers route to the same native unified service.
-// These are transport adapters, not a second lexical/filtering implementation.
-export async function fileCompletions(
-  projectId: string | undefined,
-  query: string,
-): Promise<CompletionItem[]> {
-  if (!projectId) return [];
-  return (await composerReferenceSource(projectId).search(query)).items;
-}
-export async function referenceCompletions(
-  projectId: string | undefined,
-  kind: "launch" | "pull_request",
-  query: string,
-): Promise<CompletionItem[]> {
-  if (!projectId) return [];
-  return (
-    await composerReferenceSource(projectId).search(
-      `${kind === "launch" ? "launch" : "pr"}:${query}`,
-    )
-  ).items;
 }

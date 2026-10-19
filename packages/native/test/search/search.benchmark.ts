@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { setTimeout as pause } from "node:timers/promises";
-import type { FileCompletionIndex, SearchIndex } from "../../src/index.js";
+import type { SearchIndex } from "../../src/index.js";
 import type * as Current from "../../src/index.js";
 
 const candidate = (i: number, changed = false) => {
@@ -27,12 +27,7 @@ const document = (i: number, changed = false) => ({
   fields: [{ key: "path" as const, text: candidate(i, changed).relativePath }],
 });
 
-async function trial(
-  count: number,
-  label: string,
-  mode: string,
-  modulePath?: string,
-) {
+async function trial(count: number, label: string, modulePath?: string) {
   const native: typeof Current = await import(
     modulePath
       ? pathToFileURL(resolve(modulePath)).href
@@ -57,19 +52,13 @@ async function trial(
   };
   globalThis.gc?.();
   const startRss = process.memoryUsage().rss;
-  let fileIndex: FileCompletionIndex | undefined,
-    searchIndex: SearchIndex | undefined;
+  let searchIndex: SearchIndex;
   const build = await measure(async () => {
-    if (mode === "typed") {
-      searchIndex = await native.createSearchIndex();
-      await searchIndex.update({
-        upsert: Array.from({ length: count }, (_, i) => document(i)),
-        remove: [],
-      });
-    } else
-      fileIndex = await native.createFileCompletionIndex(
-        Array.from({ length: count }, (_, i) => candidate(i)),
-      );
+    searchIndex = await native.createSearchIndex();
+    await searchIndex.update({
+      upsert: Array.from({ length: count }, (_, i) => document(i)),
+      remove: [],
+    });
   });
   globalThis.gc?.();
   const retainedRss = process.memoryUsage().rss;
@@ -83,41 +72,27 @@ async function trial(
         "project-3/Composer",
         "İst",
       ]) {
-        if (searchIndex) await searchIndex.query({ text, limit: 8 });
-        else await fileIndex!.query(text);
+        await searchIndex.query({ text, limit: 8 });
       }
     });
     queries.push({ ms: query.ms, lag: query.lag });
   }
   let updatePeakRss = retainedRss;
   const update = await measure(async () => {
-    if (searchIndex)
-      await searchIndex.update({
-        upsert: Array.from({ length: 100 }, (_, i) => document(i, true)),
-        remove: [],
-      });
-    else {
-      // A/PR458 exposes no incremental update. Equivalent changed-corpus workflow:
-      // build replacement while retaining old snapshot, then atomically swap owner.
-      const replacement = await native.createFileCompletionIndex(
-        Array.from({ length: count }, (_, i) => candidate(i, i < 100)),
-      );
-      updatePeakRss = Math.max(updatePeakRss, process.memoryUsage().rss);
-      await fileIndex!.close();
-      fileIndex = replacement;
-    }
+    await searchIndex.update({
+      upsert: Array.from({ length: 100 }, (_, i) => document(i, true)),
+      remove: [],
+    });
     updatePeakRss = Math.max(updatePeakRss, process.memoryUsage().rss);
   });
   globalThis.gc?.();
   const updatedRss = process.memoryUsage().rss;
-  const dispose = await measure(() =>
-    searchIndex ? searchIndex.close() : fileIndex!.close(),
-  );
+  const dispose = await measure(() => searchIndex.close());
   globalThis.gc?.();
   clearInterval(heartbeat);
   return {
     label,
-    mode,
+    mode: "typed",
     platform: `${process.platform}-${process.arch}`,
     node: process.version,
     count,
@@ -139,19 +114,13 @@ async function trial(
 if (process.argv[2] === "--child") {
   console.log(
     JSON.stringify(
-      await trial(
-        Number(process.argv[3]),
-        process.argv[4]!,
-        process.argv[5]!,
-        process.argv[6],
-      ),
+      await trial(Number(process.argv[3]), process.argv[4]!, process.argv[5]),
     ),
   );
 } else {
   const label = process.argv[2] ?? "unlabelled";
   const output = process.argv[3] ?? `/tmp/nerve-search-${label}.jsonl`;
-  const mode = process.argv[4] ?? "legacy";
-  const modulePath = process.argv[5];
+  const modulePath = process.argv[4];
   const rows = [];
   for (const count of [20_000, 100_000]) {
     for (let round = 0; round < 9; round++) {
@@ -165,7 +134,6 @@ if (process.argv[2] === "--child") {
           "--child",
           String(count),
           label,
-          mode,
           ...(modulePath ? [modulePath] : []),
         ],
         { encoding: "utf8" },

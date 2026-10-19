@@ -145,10 +145,7 @@ export * from "$lib/platform/http/api-client";
 export * from "./features/audio/api/transcription.api";
 export * from "./features/auth/api/auth.api";
 export * from "./features/auth/api/provider-catalog.api";
-export {
-  getClientConfig,
-  getFileCompletions,
-} from "./features/config/api/config.api";
+export { getClientConfig } from "./features/config/api/config.api";
 export type {
   ClientConfig,
   ModelOption,

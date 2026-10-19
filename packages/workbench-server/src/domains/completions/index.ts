@@ -2,7 +2,6 @@ export {
   discoverCandidates,
   type FileCompletionCandidate,
 } from "./file-completion-candidates.js";
-export { FileCompletionService } from "./file-completion-service.js";
 export { UnifiedCompletionService } from "./unified-completion-service.js";
 export {
   createCompletionProviders,

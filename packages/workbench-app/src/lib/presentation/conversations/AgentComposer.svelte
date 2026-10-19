@@ -201,8 +201,6 @@ function submit(): void {
         {placeholder}
         slashCompletions={model.slashCompletions}
         completionSource={model.completionSource}
-        fileCompletions={model.fileCompletions}
-        referenceCompletions={model.referenceCompletions}
         focusToken={model.focusToken ?? 0}
         onChange={actions.onComposerChange}
         onSubmit={submit}

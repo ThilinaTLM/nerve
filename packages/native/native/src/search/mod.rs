@@ -3,7 +3,6 @@ mod document;
 mod index;
 pub(crate) mod napi;
 mod text;
-use std::cmp::Ordering;
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 
 pub use text::Text;
@@ -19,7 +18,6 @@ pub struct Candidate {
     pub segments_lower: Vec<Text>,
     pub depth: u32,
     pub directory: bool,
-    pub locale_rank: u32,
 }
 #[derive(Clone, Debug)]
 pub struct Term {
@@ -36,12 +34,6 @@ pub struct Query {
     pub folder: bool,
     pub ordered: bool,
     pub terms: Vec<Term>,
-}
-#[derive(Clone, Debug, PartialEq)]
-pub struct Match {
-    pub candidate_index: usize,
-    pub score: f64,
-    pub ranges: Vec<[u32; 2]>,
 }
 #[derive(Clone, Copy, Debug)]
 enum TextMatchKind {
@@ -283,7 +275,7 @@ fn segment(
             best = Some(m);
         }
     }
-    let offset = 1 + c.segments[..i].iter().map(|s| s.len() + 1).sum::<usize>();
+    let offset = c.segments[..i].iter().map(|s| s.len() + 1).sum::<usize>();
     if let Some(m) = &mut best {
         m.segment = i;
         for r in &mut m.ranges {
@@ -397,13 +389,13 @@ fn rank(c: &Candidate, q: &Query, closed: &AtomicBool) -> Result<Ranked, &'stati
         return Ok(Some((
             20000. + b - depth,
             vec![[
-                1,
-                (1 + q.path.len()).min(1 + c.path.len() + usize::from(c.directory)) as u32,
+                0,
+                q.path.len().min(c.path.len() + usize::from(c.directory)) as u32,
             ]],
         )));
     }
     if c.name_lower == q.lower || c.stem_lower == q.lower {
-        let start = 1 + c.path.len() - c.name.len();
+        let start = c.path.len() - c.name.len();
         let len = if c.stem_lower == q.lower {
             c.stem.len()
         } else {
@@ -428,8 +420,8 @@ fn rank(c: &Candidate, q: &Query, closed: &AtomicBool) -> Result<Ranked, &'stati
         return Ok(Some((
             16000. + b - remaining as f64 * 120. - depth * 6. - c.path.len() as f64 / 20.,
             vec![[
-                1,
-                (1 + q.value.len()).min(1 + c.path.len() + usize::from(c.directory)) as u32,
+                0,
+                q.value.len().min(c.path.len() + usize::from(c.directory)) as u32,
             ]],
         )));
     }
@@ -497,48 +489,6 @@ fn rank(c: &Candidate, q: &Query, closed: &AtomicBool) -> Result<Ranked, &'stati
         )
     }))
 }
-fn compare(a: &Match, b: &Match, cs: &[Candidate]) -> Ordering {
-    let ac = &cs[a.candidate_index];
-    let bc = &cs[b.candidate_index];
-    b.score
-        .total_cmp(&a.score)
-        .then(ac.depth.cmp(&bc.depth))
-        .then(ac.path.len().cmp(&bc.path.len()))
-        .then(bc.directory.cmp(&ac.directory))
-        .then(ac.locale_rank.cmp(&bc.locale_rank))
-        .then(a.candidate_index.cmp(&b.candidate_index))
-}
-pub fn query(
-    cs: &[Candidate],
-    q: &Query,
-    limit: usize,
-    closed: &AtomicBool,
-) -> Result<Vec<Match>, &'static str> {
-    cancelled(closed)?;
-    let limit = limit.min(256);
-    let mut out = vec![];
-    if limit == 0 {
-        return Ok(out);
-    }
-    for (i, c) in cs.iter().enumerate() {
-        cancelled(closed)?;
-        if let Some((score, ranges)) = rank(c, q, closed)? {
-            let m = Match {
-                candidate_index: i,
-                score,
-                ranges,
-            };
-            let at = out.partition_point(|x| compare(x, &m, cs) != Ordering::Greater);
-            if at < limit {
-                out.insert(at, m);
-                out.truncate(limit);
-            }
-        }
-    }
-    cancelled(closed)?;
-    Ok(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -552,7 +502,7 @@ mod tests {
             lower: u(&s.to_lowercase()),
         }
     }
-    fn candidate(path: &str, rank: u32) -> Candidate {
+    fn candidate(path: &str) -> Candidate {
         let segments: Vec<Text> = path.split('/').map(u).collect();
         let name = segments.last().unwrap().clone();
         Candidate {
@@ -566,7 +516,6 @@ mod tests {
             depth: segments.len() as u32,
             segments,
             directory: false,
-            locale_rank: rank,
         }
     }
     fn q(s: &str) -> Query {
@@ -587,58 +536,42 @@ mod tests {
     }
     #[test]
     fn scores_and_utf16_offsets() {
-        let cs = vec![candidate("😀/hello", 0)];
-        let m = query(&cs, &q("hello"), 8, &AtomicBool::new(false)).unwrap();
-        assert_eq!(m[0].score, 18178.);
-        assert_eq!(m[0].ranges, vec![[4, 9]]);
-        let m = query(&cs, &q("😀/he"), 8, &AtomicBool::new(false)).unwrap();
-        assert_eq!(m[0].score, 16047.6);
-        assert_eq!(m[0].ranges, vec![[1, 6]]);
+        let c = candidate("😀/hello");
+        let closed = AtomicBool::new(false);
+        assert_eq!(
+            rank(&c, &q("hello"), &closed).unwrap().unwrap(),
+            (18178., vec![[3, 8]])
+        );
+        assert_eq!(
+            rank(&c, &q("😀/he"), &closed).unwrap().unwrap(),
+            (16047.6, vec![[0, 5]])
+        );
     }
     #[test]
     fn ordered_and_distinct_unordered_terms() {
-        let cs = vec![candidate("src/file", 0), candidate("file/src", 1)];
-        let ordered = query(&cs, &q("sr/fi"), 8, &AtomicBool::new(false)).unwrap();
-        assert_eq!(ordered.len(), 1);
-        assert_eq!(ordered[0].candidate_index, 0);
-        let unordered = query(&cs, &q("sr fi"), 8, &AtomicBool::new(false)).unwrap();
-        assert_eq!(unordered.len(), 2);
+        let closed = AtomicBool::new(false);
         assert!(
-            query(
-                &[candidate("src", 0)],
-                &q("s s"),
-                8,
-                &AtomicBool::new(false)
-            )
-            .unwrap()
-            .is_empty()
-        );
-    }
-    #[test]
-    fn stable_locale_ranks_and_limit() {
-        let cs = vec![candidate("bb", 1), candidate("aa", 0), candidate("AA", 0)];
-        let m = query(&cs, &q(""), 2, &AtomicBool::new(false)).unwrap();
-        assert_eq!(
-            m.iter().map(|m| m.candidate_index).collect::<Vec<_>>(),
-            vec![1, 2]
-        );
-        assert!(
-            query(&cs, &q(""), 0, &AtomicBool::new(false))
+            rank(&candidate("src/file"), &q("sr/fi"), &closed)
                 .unwrap()
-                .is_empty()
+                .is_some()
         );
-        assert!(query(&cs, &q(""), 8, &AtomicBool::new(true)).is_err());
-    }
-    #[test]
-    fn javascript_expansion_is_supplied_not_recased() {
-        let mut c = candidate("İx", 0);
-        c.path_lower = u("i\u{307}x");
-        c.name_lower = c.path_lower.clone();
-        c.stem_lower = c.path_lower.clone();
-        c.segments_lower = vec![c.path_lower.clone()];
-        let m = query(&[c], &q("i"), 8, &AtomicBool::new(false)).unwrap();
-        assert_eq!(m[0].ranges, vec![[1, 2]]);
-        assert_eq!(m[0].score, 16053.9);
+        assert!(
+            rank(&candidate("file/src"), &q("sr/fi"), &closed)
+                .unwrap()
+                .is_none()
+        );
+        for path in ["src/file", "file/src"] {
+            assert!(
+                rank(&candidate(path), &q("sr fi"), &closed)
+                    .unwrap()
+                    .is_some()
+            );
+        }
+        assert!(
+            rank(&candidate("src"), &q("s s"), &closed)
+                .unwrap()
+                .is_none()
+        );
     }
     #[test]
     fn fuzzy_cancellation_and_code_units() {

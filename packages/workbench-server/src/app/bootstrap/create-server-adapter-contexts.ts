@@ -63,7 +63,6 @@ export function createServerAdapterContexts(
       ...infrastructure,
       conversationCore: services.conversationCore,
       capabilities: services.capabilities,
-      fileCompletions: services.fileCompletions,
       workspaceMonitor: services.workspaceMonitor,
       integrationHealth: services.integrationHealth,
     },

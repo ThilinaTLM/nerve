@@ -34,7 +34,6 @@ import { LaunchDefinitionOperations } from "../../domains/launch-definitions/lau
 import { ProjectEditorService } from "../../domains/projects/project-editor.service.js";
 import { ProjectTerminalService } from "../../domains/projects/project-terminal.service.js";
 import { ProjectIconService } from "../../domains/projects/project-icon.service.js";
-import { FileCompletionService } from "../../domains/completions/index.js";
 import { GitService, GitOperationService } from "@nervekit/tools/git";
 import { withGitMutationEvents } from "../../domains/git/git-mutation-publisher.js";
 import { WorkspaceMonitor } from "../../domains/monitoring/workspace-monitor.js";
@@ -87,14 +86,10 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     () => subagentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
-      await Promise.all([
-        fileCompletions.dispose(projectId),
-        completions.dispose(projectId),
-      ]);
+      await completions.dispose(projectId);
       git.invalidateProjectReads(projectId);
     },
   );
-  const fileCompletions = new FileCompletionService(getProject);
   const launchDefinitionOperations = new LaunchDefinitionOperations(
     launchDefinitions,
     launches,
@@ -235,6 +230,5 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     editors: new ProjectEditorService(getProject),
     terminal: new ProjectTerminalService(getProject),
     projectIcons: new ProjectIconService(getProject),
-    fileCompletions,
   };
 }

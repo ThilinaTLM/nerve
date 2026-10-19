@@ -54,15 +54,6 @@ export type {
 export type ComposerCompletionOptions = {
   referenceSource?: () => ComposerReferenceSource | undefined;
   slashCompletions: () => readonly CompletionItem[];
-  fileCompletions: () =>
-    | ((query: string) => Promise<CompletionItem[]>)
-    | undefined;
-  referenceCompletions: () =>
-    | ((
-        kind: "launch" | "pull_request",
-        query: string,
-      ) => Promise<CompletionItem[]>)
-    | undefined;
   /** Mode/running state for the slash list. */
   slashContext?: () => SlashContext | undefined;
   /** Runs a slash command now. Without it, slash suggestions are off. */
@@ -309,16 +300,8 @@ export class ComposerCompletionController {
       : token.query === ""
         ? RECENT_REQUEST_LIMIT
         : COMPLETION_RESULT_LIMIT;
-    if (source) return await source.search(token.raw.slice(1), { limit });
-    const references = this.options.referenceCompletions();
-    let items: CompletionItem[] = [];
-    if (token.scope === "launch")
-      items = (await references?.("launch", token.query)) ?? [];
-    else if (token.scope === "pr")
-      items = (await references?.("pull_request", token.query)) ?? [];
-    else if (!token.scope || token.scope === "file")
-      items = (await this.options.fileCompletions()?.(token.query)) ?? [];
-    return { items, sources: [] };
+    if (!source) return { items: [], sources: [] };
+    return await source.search(token.raw.slice(1), { limit });
   }
 
   private async search(
@@ -759,12 +742,7 @@ export { COMPLETION_SCOPES, sourceLabel };
 export function composerCompletionExtensions(
   options: ComposerCompletionOptions,
 ): Extension {
-  if (
-    options.slashCompletions().length === 0 &&
-    !options.fileCompletions() &&
-    !options.referenceCompletions() &&
-    !options.referenceSource?.()
-  ) {
+  if (options.slashCompletions().length === 0 && !options.referenceSource?.()) {
     return [];
   }
   const run =

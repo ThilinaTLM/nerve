@@ -1,4 +1,4 @@
-// Admission covers cold JS preparation, append tasks, and failure disposal.
+// Admission covers typed update preparation, staging tasks, and failure disposal.
 let activeBuilds = 0;
 const waitingBuilds: { enter(): void }[] = [];
 export async function acquireBuildSlot(
