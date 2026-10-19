@@ -184,16 +184,6 @@ function toggleChecks(pr: GithubPr) {
       onclick={() => showPinned(number)}
       ><GitPullRequest aria-hidden="true" />#{number}</Button
     >
-  {:else if repo.hasGithubRemote && github?.authenticated && repo.currentBranch && !repo.onBaseBranch}
-    {@const url = compareUrl(repo)}
-    <Button
-      variant="outline"
-      size="sm"
-      title={`Create a pull request for ${repo.currentBranch} on GitHub`}
-      disabled={!url}
-      onclick={() => openExternal(url)}
-      ><GitPullRequestCreate aria-hidden="true" />Create PR</Button
-    >
   {/if}
 {/snippet}
 
@@ -312,7 +302,11 @@ function toggleChecks(pr: GithubPr) {
       >
         <ToggleGroup.Item value="all">All</ToggleGroup.Item>
         <ToggleGroup.Item value="mine">Mine</ToggleGroup.Item>
-        <ToggleGroup.Item value="review">Review requested</ToggleGroup.Item>
+        <ToggleGroup.Item
+          value="review"
+          title="Pull requests where your review is requested"
+          >To review</ToggleGroup.Item
+        >
       </ToggleGroup.Root>
     </div>
   {/if}
