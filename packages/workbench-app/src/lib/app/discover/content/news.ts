@@ -7,6 +7,29 @@ import type { DiscoverNewsEntry } from "./entries.js";
  */
 export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
+    id: "connected-workbench",
+    version: 1,
+    releasedIn: "next",
+    featured: true,
+    artwork: "workbench",
+    title: "From prompt to pull request, without losing your place",
+    summary:
+      "Refreshed Git and PR panels, header Activity, clearer questions, and steadier tool updates.",
+    details: [
+      "Git and Pull requests share a repository list with branch and status context. Sync from a repository row, see the current branch's PR beside your changes, and filter PRs by All, Mine, or To review.",
+      "Open the bell in the header for Activity: items needing you come first, followed by running and finished work. Background Git operations report progress and failures there while you keep working.",
+      "The prompt composer brings attachments, mode, model, permissions, capabilities, context, and voice into one toolbar. Grouped suggestions insert references as chips, and dictation appears at the caret.",
+      "Agent questions (ask_user) can collect several answers in one card. Choose an option or add detail with completions, images, and voice; drafts survive reloads and submitted answers stay visible.",
+      "Tool cards keep stable sections and progress chips from streaming arguments through completion. Reserved result slots and in-place updates reduce layout jumps as output arrives.",
+      "Under the hood, Rust-native completion indexing joins native Git reads, file watching, and managed processes. Startup and storage accounting have also been streamlined; Git mutations still use the Git CLI.",
+    ],
+    action: {
+      kind: "guide",
+      guideId: "workbench",
+      label: "Tour the Workbench",
+    },
+  },
+  {
     id: "unified-async-work",
     version: 1,
     releasedIn: "0.35.0",
@@ -41,22 +64,6 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
       guideId: "workbench",
       label: "Tour the Workbench",
     },
-  },
-  {
-    id: "background-bash",
-    version: 1,
-    releasedIn: "0.35.0",
-    title: "Let shell work continue in the background",
-    summary:
-      "Run bash in the background immediately, or use configurable auto-backgrounding (120s by default).",
-  },
-  {
-    id: "transcript-activity-island",
-    version: 1,
-    releasedIn: "0.35.0",
-    title: "One place for conversation activity",
-    summary:
-      "Open Agents or Commands beside the composer to inspect teammates and background command output.",
   },
   {
     id: "async-subagents",
@@ -118,15 +125,6 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     ],
   },
   {
-    id: "discover-home",
-    version: 1,
-    releasedIn: "0.29.0",
-    artwork: "discover",
-    title: "Discover collects setup, news, and tips",
-    summary:
-      "One place for what is new, what still needs configuring, and how to work faster.",
-  },
-  {
     id: "workbench-tour",
     version: 1,
     releasedIn: "0.29.0",
@@ -135,13 +133,5 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     summary:
       "A short walkthrough of conversations, composer controls, panels, Git, and launches.",
     action: { kind: "guide", guideId: "workbench", label: "Start tour" },
-  },
-  {
-    id: "github-pull-requests",
-    version: 1,
-    releasedIn: "0.29.0",
-    title: "Pull requests moved into the Git panel",
-    summary:
-      "Review pull request status for the repositories in your project without leaving Nerve.",
   },
 ];

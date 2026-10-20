@@ -36,7 +36,7 @@ Use the microphone control or its keyboard shortcut. Recording can target the ma
 - Client transcription retries: up to 3.
 - Right-click an active recording to cancel it.
 
-The transcript is appended to the current draft; it is not sent automatically.
+Recording and transcription appear as an inline chip at the editor's insertion point, including in user-question replies. The transcribed text replaces that chip (or is appended if the marker is no longer available); it is not sent automatically. The microphone has a distinct active-recording state, and Escape or right-click cancels recording.
 
 Voice requires OpenAI Codex/ChatGPT OAuth and uploads audio to ChatGPT's audio transcription endpoint using `gpt-4o-transcribe`. An OpenAI API key alone is not sufficient. Common WebM, MP4/M4A, WAV, MPEG/MP3, OGG, and FLAC recordings are accepted.
 

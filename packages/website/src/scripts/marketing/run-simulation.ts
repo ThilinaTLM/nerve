@@ -413,7 +413,7 @@ function findRefs(root: HTMLElement): PanelRefs | null {
 
 function syncChips(refs: PanelRefs, config: SimConfig): void {
   if (refs.chips.model) {
-    refs.chips.model.textContent = `${MODEL_LABEL[config.model]} · ${config.thinking}`;
+    refs.chips.model.textContent = `${MODEL_LABEL[config.model]} (${config.thinking[0]?.toUpperCase()}${config.thinking.slice(1)})`;
   }
   if (refs.chips.mode) {
     refs.chips.mode.textContent =

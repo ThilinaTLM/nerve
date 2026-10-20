@@ -22,10 +22,11 @@ That runs, in order:
    `scenes.mjs`, in light and dark, writing PNGs and text snapshots to
    an isolated `.screenshots/refresh-*` directory (gitignored). Only this
    invocation's output is privacy-checked and optimized. The capture context
-   supplies synthetic Anthropic session/weekly subscription quotas via
-   `demo-usage.mjs`, intercepting only `usage.subscription.get` requests; all
-   other protocol traffic reaches the demo daemon unchanged. No real account
-   usage or subscription credentials are needed.
+   supplies synthetic Anthropic subscription quotas and GitHub read responses
+   via `demo-usage.mjs` and `demo-github.mjs`. The browser advertises a fictional
+   GitHub remote for aurora-api; no remote is added on disk. All other requests
+   reach the demo daemon unchanged. No account credentials or live GitHub data
+   are needed.
 5. **Privacy check** — `check-captures.mjs` scans the text snapshots for
    credentials, emails, private IPs, real home paths, and unexpected absolute
    paths.
@@ -56,8 +57,8 @@ node scripts/screenshots/run.mjs --kind=desktop --scenes=conversation,async-bash
 # One scene in both themes, reusing an existing seed and build
 node scripts/screenshots/run.mjs --kind=desktop --scenes=git --skip-seed --skip-build
 
-# Include the pull-request scene (needs network and GitHub auth, see below)
-node scripts/screenshots/run.mjs --github
+# Capture the synthetic PR, header Notifications, and pending decision scenes
+node scripts/screenshots/run.mjs --kind=desktop --scenes=pull-request,activity,ask-user
 ```
 
 `--kind` selects `desktop`, `mobile`, or `both` (default). `--scenes` accepts
@@ -69,8 +70,14 @@ conversation available in the adjacent tab. Optimization requires both
 light and dark captures, so omit `--theme` when running the full pipeline.
 The runner prints the isolated raw-output directory for inspection.
 
-Historical `tasks` assets remain unchanged for existing landing-page consumers;
-the current Launches scene writes a separate `launches` pair.
+The `activity` scene opens the header Notifications popover with a pending
+rollout decision. `ask-user` shows that decision's recommended choices and
+answer field above the composer. Both use a schema-valid retained `ask_user`
+interaction seeded through the current event/tool repositories, without a
+provider call. Voice input remains disconnected in this synthetic environment.
+
+The unused historical `tasks` assets have been removed; `launches` captures the
+current launch workflow.
 
 ## Sizes
 
@@ -84,11 +91,11 @@ aspect ratio.
 
 ## The pull-request scene
 
-Pull-request data cannot be synthesized — it needs a real remote. That scene is
-captured against the project's own **public** repository and is skipped unless
-`--github` is passed and the capture environment is authenticated. Everything
-shown there is public GitHub data; still check the frame for personal details
-before publishing.
+The pull-request scene always runs against invented Aurora PRs. A browser-only
+WebSocket proxy answers GitHub status/list/detail reads and annotates the demo
+repository summary; it never intercepts mutations. Fixtures are checked against
+the current contracts in `demo-github.test.mjs`. No clone, network access, GitHub
+authentication, or real author/comment data is required.
 
 ## Adding a scene
 

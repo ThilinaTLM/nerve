@@ -1,4 +1,6 @@
 ---
+import activityDark from "../../assets/screenshots/desktop/activity-dark.webp";
+import activityLight from "../../assets/screenshots/desktop/activity-light.webp";
 import conversationDark from "../../assets/screenshots/desktop/conversation-dark.webp";
 import conversationLight from "../../assets/screenshots/desktop/conversation-light.webp";
 import editorDark from "../../assets/screenshots/desktop/editor-dark.webp";
@@ -15,7 +17,7 @@ import DeviceFrame from "./DeviceFrame.astro";
 import PhoneFrame from "./PhoneFrame.astro";
 import ThemeScreenshot from "./ThemeScreenshot.astro";
 
-/* One large product shot, five regions. Each stop names the screenshot that
+/* One large product shot, six regions. Each stop names the screenshot that
  * shows its panel and a rectangle on it (percent of the shot): `x y w h` is the
  * spotlight; the pin sits on its top-right corner. The editor stop shows the
  * file tree and a file open in the built-in editor (facts:
@@ -35,17 +37,22 @@ const slides = {
   git: {
     dark: gitDark,
     light: gitLight,
-    alt: "Nerve workbench showing edit diffs in the transcript beside the Git changes panel with staged and unstaged files",
+    alt: "Nerve workbench showing edit diffs beside the Git changes panel with repository state and staged and unstaged files",
   },
   pr: {
     dark: pullRequestDark,
     light: pullRequestLight,
-    alt: "Nerve pull request view with summary, mergeability and checks beside the pull requests panel",
+    alt: "Nerve pull request review with summary, mergeability, and checks beside the repository-aware pull requests panel",
   },
   launches: {
     dark: launchesDark,
     light: launchesLight,
     alt: "Nerve launches panel listing launch configurations beside the retained output of a test run",
+  },
+  activity: {
+    dark: activityDark,
+    light: activityLight,
+    alt: "Nerve header Activity popover showing a conversation that needs your attention and an Open action",
   },
 } as const;
 
@@ -55,7 +62,7 @@ const stops = [
     chip: "Transcript",
     slide: "conversation",
     title: "Transcript",
-    line: "Every command, edit and sub-agent is a typed event you can open.",
+    line: "Follow tool cards from draft to result; open commands, edits and sub-agents.",
     x: 19.2,
     y: 8.8,
     w: 57,
@@ -78,7 +85,7 @@ const stops = [
     chip: "Git",
     slide: "git",
     title: "Git",
-    line: "Stage, commit, push, pull and sync per repository.",
+    line: "Review changes and the branch's PR; stage, commit and sync per repository.",
     x: 76.3,
     y: 8.8,
     w: 23.4,
@@ -89,7 +96,7 @@ const stops = [
     chip: "Pull requests",
     slide: "pr",
     title: "Pull requests",
-    line: "Summary, mergeability and checks beside the work. Needs gh.",
+    line: "Filter All, Mine or To review; inspect changes and checks. Needs authenticated gh.",
     x: 19.8,
     y: 9,
     w: 55.4,
@@ -100,12 +107,23 @@ const stops = [
     chip: "Background tasks",
     slide: "launches",
     title: "Background tasks",
-    line: "Supervised runs with retained logs, one click to restart.",
+    line: "Reusable launch commands with retained logs and start, stop or restart controls.",
     x: 0.4,
     y: 8.8,
     w: 75.6,
     h: 31,
     m: { x: 0.4, y: 9, w: 46, h: 31 },
+  },
+  {
+    key: "activity",
+    chip: "Activity",
+    slide: "activity",
+    title: "Activity",
+    line: "See what needs your attention and open the conversation from the header.",
+    x: 67.5,
+    y: 0.8,
+    w: 27,
+    h: 15.5,
   },
 ] as const;
 

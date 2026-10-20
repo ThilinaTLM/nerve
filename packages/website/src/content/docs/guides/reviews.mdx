@@ -5,6 +5,10 @@ sidebar:
   order: 5
 ---
 
+import DocsScreenshot from "../../../components/docs/DocsScreenshot.astro";
+import askUserDark from "../../../assets/screenshots/desktop/ask-user-dark.webp";
+import askUserLight from "../../../assets/screenshots/desktop/ask-user-light.webp";
+
 Nerve places review gates beside the work that caused them. While one is pending, the normal composer is disabled so a new prompt cannot bypass the decision.
 
 ## Tool approvals
@@ -15,7 +19,20 @@ Supervised mode automatically allows safe reads. When Nerve can describe a bound
 
 ## User questions
 
-The question card accepts a free-text reply and provides common quick replies. It can also use the shared voice-input session. Dismiss when the question is no longer relevant.
+An `ask_user` card can contain one or several questions, each with its own context, recommendation, options, and free-text answer. For a single question, choosing an option with no typed detail submits it immediately. For several questions, select answers and add detail before sending the set.
+
+Use **Add detail** to expand an option question's editor, or answer in your own words. The reply editor shares the composer's reference completion, image paste, and desktop path drops. **Speak** or the microphone starts dictation; an inline recording/transcription chip marks where the text will arrive. Only one recording session can be active across question replies and the main composer.
+
+Draft answers survive switching conversations. Once resolved, the question and options remain visible with the chosen answer marked, rather than disappearing into a generic tool result. Dismiss when the question is no longer relevant.
+
+<DocsScreenshot
+  light={askUserLight}
+  dark={askUserDark}
+  alt="A pending ask_user rollout question with three options, a recommended choice, a reply editor with a microphone, and the main composer disabled"
+  caption="What to notice: answer where the question was asked: compare the rollout options, add your own detail, or use the microphone. The main composer stays disabled while the agent waits for this decision."
+  widths={[480, 768, 1024, 1440]}
+  sizes="(min-width: 72rem) 48rem, calc(100vw - 3rem)"
+/>
 
 ## Plan review
 

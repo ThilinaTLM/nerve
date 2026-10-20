@@ -19,7 +19,6 @@ const { values } = parseArgs({
     scenes: { type: "string" },
     kind: { type: "string", default: "both" },
     theme: { type: "string", default: "both" },
-    github: { type: "boolean", default: false },
     "skip-seed": { type: "boolean", default: false },
     "skip-build": { type: "boolean", default: false },
   },
@@ -75,7 +74,7 @@ if (!values["skip-seed"]) {
         ...process.env,
         NERVE_HOME: home,
         NERVE_DEMO_WORKSPACE: workspace,
-        NERVE_DEMO_GITHUB: values.github ? "1" : "0",
+        NERVE_DEMO_GITHUB: "0",
       },
     },
   );
@@ -118,7 +117,6 @@ try {
     `--out=${output}`,
   ];
   if (values.scenes) captureArgs.push(`--scenes=${values.scenes}`);
-  if (values.github) captureArgs.push("--github");
   await run("node", captureArgs, { cwd: website });
   await run("node", ["scripts/screenshots/check-captures.mjs", output], {
     cwd: website,

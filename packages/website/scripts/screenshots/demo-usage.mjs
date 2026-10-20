@@ -1,3 +1,8 @@
+import {
+  demoGithubResponse,
+  demoGithubRepositoryHints,
+} from "./demo-github.mjs";
+
 /** Screenshot-only subscription quotas; never reads real provider accounts. */
 export function demoUsageResponse(request) {
   if (
@@ -58,9 +63,21 @@ export async function installDemoUsage(context) {
         server.send(message);
         return;
       }
-      const response = demoUsageResponse(request);
+      const response =
+        demoUsageResponse(request) ?? demoGithubResponse(request);
       if (response) socket.send(JSON.stringify(response));
       else server.send(message);
+    });
+    server.onMessage((message) => {
+      try {
+        socket.send(
+          JSON.stringify(
+            demoGithubRepositoryHints(JSON.parse(String(message))),
+          ),
+        );
+      } catch {
+        socket.send(message);
+      }
     });
   });
 }

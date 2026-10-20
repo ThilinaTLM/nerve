@@ -52,6 +52,15 @@ export interface DemoConversation {
     readonly report: string;
   }[];
   readonly asyncCommand?: string;
+  /** Pending choice rendered by the real ask_user card, without a model call. */
+  readonly question?: {
+    readonly question: string;
+    readonly options: readonly {
+      readonly label: string;
+      readonly description: string;
+      readonly recommended?: boolean;
+    }[];
+  };
   readonly steps: readonly DemoStep[];
   readonly branches?: readonly DemoBranch[];
 }
@@ -741,6 +750,42 @@ export const DEMO_PROJECT_CONVERSATIONS: Readonly<
 > = {
   aurora: [
     rateLimiting,
+    {
+      title: "Choose the booking limiter rollout",
+      mode: "coding",
+      permissionRuleSetId: "supervised",
+      ageHours: 1,
+      steps: [
+        {
+          type: "user",
+          text: "Help me choose a safe rollout for the new booking limiter.",
+        },
+        {
+          type: "assistant",
+          text: "The focused tests pass. Before changing deployment settings, choose how broadly to enable the limiter.",
+        },
+      ],
+      question: {
+        question: "How should we roll out the booking limiter?",
+        options: [
+          {
+            label: "Staging first",
+            description:
+              "Verify rejected requests and burst capacity before production.",
+            recommended: true,
+          },
+          {
+            label: "One production replica",
+            description: "Start with a small canary and watch booking errors.",
+          },
+          {
+            label: "Prepare a rollout plan",
+            description:
+              "Review monitoring and rollback steps before deploying.",
+          },
+        ],
+      },
+    },
     flakyDeploy,
     planning,
     designTokens,

@@ -1,59 +1,32 @@
 ---
-/* The finale. One heartbeat line runs the width of the section: flat, then it
- * fires. The three steps are nodes on an axon beneath it, the install command
- * and buttons sit under that, and the trust facts close the page as a single
- * monospace ribbon followed by a slow ticker of small polish details.
+/* The finale, kept calm. One short heartbeat accent sits above the headline,
+ * the copyable install command is the hero, and a compact three-step row and
+ * a single line of trust chips quietly close the page.
  *
- * The authored markup is the finished state (a beating line, charged nodes, a
- * wrapped static ticker). `closingStage` only replays the flatline-to-beat
- * entrance. The ticker is CSS-only and runs just when motion is allowed. */
+ * The authored markup is the finished state. `closingStage` only replays the
+ * flatline-to-beat entrance of the accent and settles the steps in. */
 import InstallCommand from "./InstallCommand.astro";
 import Reveal from "./Reveal.astro";
 
-const steps = [
-  { step: "01", label: "Install", meta: "Node.js 24+" },
-  { step: "02", label: "Connect a provider", meta: "Subscription or API key" },
-  { step: "03", label: "Open a project", meta: "Any local repository" },
-];
+const steps = ["Install", "Connect a provider", "Open a project"];
 
 const trust = [
-  "local loopback daemon",
-  "state in ~/.nerve",
-  "no Nerve account, no product analytics",
+  "Local loopback daemon",
+  "State in ~/.nerve",
+  "No account or analytics",
   "Apache-2.0",
   "Linux · macOS · Windows 11",
 ];
 
-const details = [
-  "Automatic retries",
-  "Context compaction",
-  "Continue from failure",
-  "Spend stays visible",
-  "Voice prompts",
-  "Prompt suggestions",
-  "Light, dark & system themes",
-];
-
-/* Flat, then three beats, then flat again. */
-const spike = (x: number): string =>
-  `L ${x} 50 L ${x + 14} 8 L ${x + 30} 92 L ${x + 44} 50`;
-const trace = [
-  "M 0 50",
-  "L 560 50",
-  spike(580),
-  "L 680 50",
-  spike(700),
-  "L 800 50",
-  spike(820),
-  "L 1200 50",
-].join(" ");
+/* Flat, then a single beat, then flat again. */
+const trace = "M 0 50 L 170 50 L 190 50 L 204 8 L 220 92 L 234 50 L 400 50";
 ---
 
 <section class="closing-section" aria-labelledby="closing-title">
   <div class="container-page">
     <Reveal class="closing">
       <div class="closing-pulse" aria-hidden="true">
-        <svg viewBox="0 0 1200 100" preserveAspectRatio="none">
+        <svg viewBox="0 0 400 100" preserveAspectRatio="none">
           <path class="pulse-base" d={trace} pathLength="1"></path>
           <path class="pulse-live" d={trace} pathLength="1"></path>
           <path class="pulse-run" d={trace} pathLength="1"></path>
@@ -61,24 +34,14 @@ const trace = [
       </div>
 
       <div class="closing-lead">
-        <p class="eyebrow">Ready when you are</p>
         <h2 id="closing-title" class="closing-title">
           Run it on your own machine.
         </h2>
+        <p class="closing-lede">
+          One command starts a local daemon. Connect a provider and open a
+          project.
+        </p>
       </div>
-
-      <ol class="closing-steps">
-        {
-          steps.map((item) => (
-            <li>
-              <span class="synapse-node" data-charged="true" aria-hidden="true" />
-              <span class="step-index">{item.step}</span>
-              <strong>{item.label}</strong>
-              <span class="meta-text">{item.meta}</span>
-            </li>
-          ))
-        }
-      </ol>
 
       <div class="closing-cta">
         <InstallCommand class="closing-install" />
@@ -87,65 +50,56 @@ const trace = [
             Install Nerve <span aria-hidden="true">→</span>
           </a>
           <a class="btn btn-ghost" href="/start/">Read the docs</a>
-          <a class="btn btn-ghost" href="https://github.com/ThilinaTLM/nerve">
-            Star on GitHub
-          </a>
         </div>
+        <a class="closing-github" href="https://github.com/ThilinaTLM/nerve">
+          Star on GitHub
+        </a>
       </div>
 
-      <ul class="closing-ribbon" aria-label="Trust facts">
+      <ol class="closing-steps" aria-label="Getting started">
         {
-          trust.map((fact) => (
+          steps.map((label, index) => (
             <li>
-              <span class="ribbon-dot" aria-hidden="true"></span>
-              {fact}
+              <span class="step-index" aria-hidden="true">
+                {index + 1}
+              </span>
+              {label}
             </li>
           ))
         }
-      </ul>
+      </ol>
 
-      <div class="closing-ticker" aria-label="Small details that are built in">
-        <ul class="ticker-track">
-          {details.map((item) => <li>{item}</li>)}
-        </ul>
-        <ul class="ticker-track ticker-copy" aria-hidden="true">
-          {details.map((item) => <li>{item}</li>)}
-        </ul>
-      </div>
+      <ul class="closing-trust" aria-label="Trust facts">
+        {trust.map((fact) => <li>{fact}</li>)}
+      </ul>
     </Reveal>
   </div>
 </section>
 
 <style>
   .closing-section {
-    padding-block: clamp(2.5rem, 4vw, 4rem) clamp(2rem, 3vw, 3rem);
+    padding-block: clamp(3rem, 6vw, 6rem) clamp(2.5rem, 4vw, 4rem);
   }
 
   .closing {
     display: grid;
     min-width: 0;
-    gap: clamp(1.5rem, 2.6vw, 2.25rem);
+    gap: clamp(1.75rem, 3vw, 2.5rem);
     justify-items: center;
     text-align: center;
   }
 
-  /* The heartbeat ---------------------------------------------------------- */
+  /* One quiet heartbeat accent ---------------------------------------------- */
 
   .closing-pulse {
-    width: 100%;
-    height: clamp(3.5rem, 6vw, 5rem);
-    mask-image: linear-gradient(
-      90deg,
-      transparent,
-      black 10%,
-      black 90%,
-      transparent
-    );
+    width: min(18rem, 70%);
+    height: 2.5rem;
+    mask-image: linear-gradient(90deg, transparent, black 25%, black 75%, transparent);
     -webkit-mask-image: linear-gradient(
       90deg,
       transparent,
-      black 10%,
-      black 90%,
+      black 25%,
+      black 75%,
       transparent
     );
   }
@@ -175,14 +129,14 @@ const trace = [
     stroke: var(--primary);
     stroke-width: 1.5;
     filter: drop-shadow(
-      0 0 0.45rem color-mix(in oklab, var(--primary) 45%, transparent)
+      0 0 0.4rem color-mix(in oklab, var(--primary) 40%, transparent)
     );
   }
 
   /* Only the stage turns the travelling pulse on. */
   .pulse-run {
     stroke: var(--signal);
-    stroke-width: 2.5;
+    stroke-width: 2;
     opacity: 0;
     filter: drop-shadow(0 0 0.4rem var(--signal-soft));
   }
@@ -191,68 +145,27 @@ const trace = [
 
   .closing-lead {
     display: grid;
-    gap: 0.9rem;
+    gap: 1rem;
     justify-items: center;
   }
 
   .closing-title {
     margin: 0;
     font-family: var(--font-display);
-    font-size: clamp(2.5rem, 1.2rem + 4vw, 4.25rem);
+    font-size: clamp(2.25rem, 1.2rem + 3.4vw, 3.75rem);
     font-weight: 600;
-    line-height: 1;
+    line-height: 1.02;
     letter-spacing: -0.04em;
     text-wrap: balance;
   }
 
-  /* Steps: three nodes on one axon ---------------------------------------- */
-
-  .closing-steps {
-    position: relative;
-    display: grid;
-    width: 100%;
-    max-width: 44rem;
+  .closing-lede {
+    max-width: 32rem;
     margin: 0;
-    padding: 0;
-    list-style: none;
-    text-align: left;
-  }
-
-  .closing-steps li {
-    position: relative;
-    display: grid;
-    grid-template-columns: auto 1fr;
-    column-gap: 0.8rem;
-    row-gap: 0.1rem;
-    align-items: center;
-    padding-block: 0.7rem;
-  }
-
-  .closing-steps li :global(.synapse-node) {
-    grid-row: 1 / span 2;
-    position: relative;
-    z-index: 1;
-  }
-
-  /* Mobile: a vertical axon through the nodes, masked by each node. */
-  .closing-steps li:not(:last-child)::before {
-    content: "";
-    position: absolute;
-    top: 50%;
-    left: calc(0.35rem - 0.5px);
-    width: 1px;
-    height: 100%;
-    background-color: var(--myelin);
-  }
-
-  .step-index {
-    display: none;
-  }
-
-  .closing-steps strong {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    color: var(--muted-foreground);
+    font-size: var(--text-lede);
+    line-height: 1.5;
+    text-wrap: balance;
   }
 
   /* Install + actions -------------------------------------------------------- */
@@ -261,11 +174,12 @@ const trace = [
     display: grid;
     width: 100%;
     justify-items: center;
-    gap: 1rem;
+    gap: 1.25rem;
   }
 
   .closing-cta :global(.closing-install) {
-    max-width: 26rem;
+    width: 100%;
+    max-width: 30rem;
     text-align: left;
   }
 
@@ -276,6 +190,21 @@ const trace = [
     gap: 0.75rem;
   }
 
+  .closing-github {
+    color: var(--muted-foreground);
+    font-size: var(--text-meta);
+    text-decoration: underline;
+    text-decoration-color: var(--hairline);
+    text-underline-offset: 0.3em;
+    transition: color 0.2s;
+  }
+
+  .closing-github:hover,
+  .closing-github:focus-visible {
+    color: var(--foreground);
+    text-decoration-color: currentColor;
+  }
+
   @media (max-width: 479px) {
     .closing-actions,
     .closing-actions .btn {
@@ -283,163 +212,57 @@ const trace = [
     }
   }
 
-  /* Trust ribbon ------------------------------------------------------------ */
+  /* Steps: a compact numbered row ------------------------------------------- */
 
-  .closing-ribbon {
+  .closing-steps {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.4rem 1.4rem;
-    width: 100%;
+    gap: 0.5rem 1.5rem;
     margin: 0;
-    padding: 0.85rem 0;
-    border-block: 1px solid var(--hairline);
+    padding: 0;
     list-style: none;
     color: var(--muted-foreground);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    letter-spacing: -0.005em;
+    font-size: var(--text-meta);
   }
 
-  .closing-ribbon li {
+  .closing-steps li {
     display: inline-flex;
     align-items: center;
     gap: 0.5rem;
   }
 
-  .ribbon-dot {
-    width: 0.3rem;
-    height: 0.3rem;
+  .step-index {
+    display: inline-grid;
+    place-items: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid var(--myelin);
     border-radius: var(--radius-pill);
-    background-color: var(--signal);
-    box-shadow: var(--glow-signal);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--foreground);
   }
 
-  /* Ticker ------------------------------------------------------------------ */
+  /* Trust chips --------------------------------------------------------------- */
 
-  .closing-ticker {
+  .closing-trust {
     display: flex;
-    width: 100%;
-    overflow: hidden;
-    color: var(--muted-foreground);
-    font-size: var(--text-meta);
-    mask-image: linear-gradient(
-      90deg,
-      transparent,
-      black 8%,
-      black 92%,
-      transparent
-    );
-    -webkit-mask-image: linear-gradient(
-      90deg,
-      transparent,
-      black 8%,
-      black 92%,
-      transparent
-    );
-  }
-
-  .ticker-track {
-    display: flex;
-    flex: none;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.35rem 0;
-    min-width: 100%;
+    gap: 0.4rem;
+    max-width: 40rem;
     margin: 0;
     padding: 0;
     list-style: none;
   }
 
-  .ticker-track li {
-    display: inline-flex;
-    align-items: center;
+  .closing-trust li {
+    padding: 0.2rem 0.65rem;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-pill);
+    color: var(--muted-foreground);
+    font-size: 0.72rem;
     white-space: nowrap;
-  }
-
-  .ticker-track li + li::before {
-    content: "";
-    width: 1.5rem;
-    height: 1px;
-    margin-inline: 0.75rem;
-    background-image: repeating-linear-gradient(
-      90deg,
-      var(--myelin) 0 3px,
-      transparent 3px 6px
-    );
-  }
-
-  /* Static (wrapped, single copy) unless motion is welcome. */
-  .ticker-copy {
-    display: none;
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .closing-ticker {
-      justify-content: flex-start;
-    }
-
-    .ticker-track {
-      flex-wrap: nowrap;
-      justify-content: flex-start;
-      min-width: auto;
-      animation: closing-ticker 48s linear infinite;
-    }
-
-    .ticker-copy {
-      display: flex;
-    }
-
-    /* Spacing between the end of one copy and the start of the next. */
-    .ticker-track::after {
-      content: "";
-      width: 3.75rem;
-      flex: none;
-    }
-
-    .closing-ticker:hover .ticker-track,
-    .closing-ticker:focus-within .ticker-track {
-      animation-play-state: paused;
-    }
-  }
-
-  @keyframes closing-ticker {
-    to {
-      transform: translateX(-100%);
-    }
-  }
-
-  /* Desktop: the steps become one row of nodes on a horizontal axon. */
-  @media (min-width: 700px) {
-    .closing-steps {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 1.5rem;
-    }
-
-    .closing-steps li {
-      grid-template-columns: 1fr;
-      justify-items: start;
-      row-gap: 0.15rem;
-      padding-block: 0;
-    }
-
-    .closing-steps li :global(.synapse-node) {
-      grid-row: auto;
-      margin-bottom: 0.5rem;
-    }
-
-    .closing-steps li:not(:last-child)::before {
-      top: calc(0.35rem - 0.5px);
-      left: 0.7rem;
-      right: -1.5rem;
-      width: auto;
-      height: 1px;
-      background-color: transparent;
-      background-image: repeating-linear-gradient(
-        90deg,
-        var(--myelin) 0 4px,
-        transparent 4px 8px
-      );
-    }
   }
 </style>
