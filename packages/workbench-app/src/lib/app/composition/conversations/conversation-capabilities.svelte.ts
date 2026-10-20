@@ -1,6 +1,5 @@
 import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
-import TranscriptionActivity from "$lib/features/conversations/audio/TranscriptionActivity.svelte";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
 import {
   appendTranscriptText,
@@ -87,7 +86,6 @@ export function workbenchConversationUiCapabilities(
       chatGptConfigured: () => chatGptAudioAuth.configured,
       micShortcutLabel: getShortcutLabel("composer.toggleMic"),
       micShortcutAria: getShortcutAriaLabel("composer.toggleMic"),
-      TranscriptionActivity,
       AudioAuthDialog: AudioInputAuthRequiredDialog,
     },
     askReply: {

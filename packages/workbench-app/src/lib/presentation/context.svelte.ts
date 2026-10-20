@@ -60,8 +60,6 @@ export interface VoiceInputCapability {
   micShortcutLabel?: string;
   micShortcutAria?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Host-provided Svelte component.
-  TranscriptionActivity: Component<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Host-provided Svelte component.
   AudioAuthDialog: Component<any>;
 }
 

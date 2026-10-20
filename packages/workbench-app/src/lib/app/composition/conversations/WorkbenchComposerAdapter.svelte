@@ -50,10 +50,8 @@ import ConversationProfilesHost from "./ConversationProfilesHost.svelte";
 import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
 import { conversationProfileScope } from "./conversation-profile-controller";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
-import {
-  bindComposerVoiceInput,
-  ComposerDictationBridge,
-} from "./composer-voice-input";
+import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
+import { bindComposerVoiceInput } from "./composer-voice-input";
 
 let {
   activity,
@@ -797,7 +795,6 @@ function handleMicContextMenu(event: MouseEvent) {
         ? "Record voice prompt"
         : "Connect ChatGPT to use voice input"}
       shortcutAria={micShortcutAria}
-      toolbar
       onToggle={toggleRecording}
       onContextMenu={handleMicContextMenu}
     />
