@@ -1,14 +1,7 @@
 /* Cross-component contracts of the workbench panel primitives.
- * Everything here spans two or more components: the hover tint is shared by
- * PanelRow and PanelRowCard. */
+ * Everything here spans two or more components: the hover tint is used by
+ * PanelRow (standalone rows); PanelRowCard paints its own via ItemSurface. */
 
 .panel-row-hoverable:hover {
   background: color-mix(in oklab, var(--accent) 55%, transparent);
-}
-
-/* ItemSurface paints the selected tint on the card, so the row inside must not
- * repaint it with the accent hover. Parent/child rule across PanelRowCard and
- * PanelRow, which Svelte scoping cannot express. */
-.panel-row-card-selected .panel-row-hoverable:hover {
-  background: color-mix(in oklab, var(--primary) 8%, transparent);
 }

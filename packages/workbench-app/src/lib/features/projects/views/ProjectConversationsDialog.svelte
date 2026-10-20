@@ -15,6 +15,7 @@ import {
   type ConversationRow,
   type ConversationSection,
 } from "$lib/domain/projects/project-tree";
+import type { ProjectAgentTreeProps } from "./project-agent-tree-props";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 
 type Props = {
@@ -29,6 +30,7 @@ type Props = {
   conversationActivityById?: Record<string, ConversationActivity>;
   hideCompleted?: boolean;
   onOpenConversation?: (conversationId: string) => void;
+  onUpdateConversationState?: ProjectAgentTreeProps["onUpdateConversationState"];
   buildMenu?: (conversation: ConversationRecord) => ContextMenuItem[];
   onOpenChange?: (open: boolean) => void;
 };
@@ -44,6 +46,7 @@ let {
   conversationActivityById = {},
   hideCompleted = false,
   onOpenConversation,
+  onUpdateConversationState,
   buildMenu,
   onOpenChange,
 }: Props = $props();
@@ -159,6 +162,7 @@ function openAndClose(conversationId: string) {
                     ]}
                     menuItems={buildMenu?.(item.row.conversation) ?? []}
                     onOpenConversation={openAndClose}
+                    {onUpdateConversationState}
                   />
                 </div>
               {/if}

@@ -253,6 +253,7 @@ const launches: LaunchItem[] = [
                       <PanelRow
                         label={item.title}
                         labelLines={2}
+                        hoverable={false}
                         class="px-2"
                         active={selectedConversation === item.id}
                       >
@@ -654,10 +655,15 @@ const launches: LaunchItem[] = [
     >
       <div class="grid w-70 max-w-full gap-1.5">
         <PanelRowCard>
-          <PanelRow label="Default card" description="Wraps rows" />
+          <PanelRow
+            hoverable={false}
+            label="Default card"
+            description="Wraps rows"
+          />
         </PanelRowCard>
         <PanelRowCard selected {menuItems}>
           <PanelRow
+            hoverable={false}
             label="Selected card"
             description="aria-current list item"
           />

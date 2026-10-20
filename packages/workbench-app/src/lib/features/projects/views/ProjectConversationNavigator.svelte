@@ -1,5 +1,6 @@
 <script lang="ts">
 import ScrollRegion from "@nervekit/ui-kit/components/composites/scroll-region";
+import Bell from "@lucide/svelte/icons/bell";
 import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import Plus from "@lucide/svelte/icons/plus";
 import Settings from "@lucide/svelte/icons/settings";
@@ -19,6 +20,7 @@ import {
   buildConversationSections,
   limitConversationSections,
 } from "$lib/domain/projects/project-tree";
+import { conversationNeedsAttention } from "$lib/presentation/conversations/conversation-row-state";
 import ProjectAgentTreeNode from "./ProjectAgentTreeNode.svelte";
 import ProjectConversationsDialog from "./ProjectConversationsDialog.svelte";
 import ConversationListSettingsDialog from "./ConversationListSettingsDialog.svelte";
@@ -89,6 +91,31 @@ const rowCount = $derived(
 const displayedSections = $derived(
   limitConversationSections(sections, MAX_LISTED_CONVERSATIONS),
 );
+// Listed rows that need the user (waiting or failed), in list order.
+const attentionIds = $derived(
+  displayedSections
+    .flatMap((section) => section.rows)
+    .map((row) => row.conversation.id)
+    .filter((id) => conversationNeedsAttention(conversationActivityById[id])),
+);
+
+/**
+ * Opens the next attention row after the current selection (wrapping), so
+ * repeated clicks walk the queue; opening also scrolls it into view.
+ */
+function openNextAttention() {
+  if (attentionIds.length === 0) return;
+  const at = selectedConversationId
+    ? attentionIds.indexOf(selectedConversationId)
+    : -1;
+  const nextId = attentionIds[(at + 1) % attentionIds.length];
+  if (!nextId) return;
+  onOpenConversation?.(nextId);
+  document
+    .querySelector(`[data-panel-row-id="${CSS.escape(nextId)}"]`)
+    ?.scrollIntoView({ block: "nearest" });
+}
+
 const hasProjectConversations = $derived(
   conversations.some((conversation) =>
     projectIds.includes(conversation.projectId),
@@ -136,6 +163,18 @@ const menuContext = $derived<ProjectTreeMenuContext>({
   <PanelView>
     <PanelHeader title="Conversations" count={rowCount}>
       {#snippet trailing()}
+        {#if attentionIds.length > 0}
+          <Button
+            variant="ghost"
+            size="sm"
+            class="text-warning"
+            title="Open the next conversation that needs you"
+            onclick={openNextAttention}
+          >
+            <Bell />
+            {attentionIds.length} need you
+          </Button>
+        {/if}
         <PanelToolbarButton
           icon={Settings}
           label="Conversation settings"
@@ -213,6 +252,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
                   menuContext,
                 )}
                 {onOpenConversation}
+                {onUpdateConversationState}
               />
             {/each}
           </PanelList>
@@ -297,6 +337,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     {conversationActivityById}
     hideCompleted={conversationListPreferences.hideCompleted}
     {onOpenConversation}
+    {onUpdateConversationState}
     buildMenu={(conversation) =>
       buildConversationMenu(
         projects.find((project) => project.id === conversation.projectId) ??
