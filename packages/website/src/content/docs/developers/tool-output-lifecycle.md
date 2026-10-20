@@ -37,6 +37,12 @@ Async Bash captures `stdout.txt`, `stderr.txt` and interleaved `output.txt` as c
 
 A promoted Bash call settles with its async run identity; later completion arrives as a queued `async_bash_event`, not another settlement of the original tool call. Sub-agent final responses have a separate notice cap, spilling the full text to the child's report file.
 
+## Transcript presentation
+
+Tool cards share one lifecycle presentation from streamed arguments through execution and settlement. Tool-specific argument regions, result placeholders, bounded previews, and on-demand details keep the requesting work and its outcome together. User-question cards retain their questions, options, and recorded answers after resolution.
+
+Motion is budgeted per conversation rather than applied to every update: bursts of calls can fall back to plain rendering. List-like results such as `read`, `grep`, `find`, and `ls` animate their live arrival only when the motion budget permits; reduced-motion preferences suppress those effects. Animation is presentation only and never establishes completion or recovery state.
+
 ## Durable versus ephemeral delivery
 
 `conversation.event` replays directly from SQLite event sequences on `/ws/conversations`. Tool-call state, queue changes and `conversation.live` are ephemeral notifications; snapshots restore current state after reconnect. The `/ws/workbench` channel carries launch and other workbench invalidations without durable replay. There is no separate run-event publisher or notification journal.

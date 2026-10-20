@@ -32,7 +32,6 @@ const { values } = parseArgs({
     scenes: { type: "string" },
     kind: { type: "string", default: "both" },
     theme: { type: "string", default: "both" },
-    github: { type: "boolean", default: false },
   },
 });
 
@@ -95,10 +94,6 @@ async function captureGroup({ browser, scenes, viewport, scale, kind }) {
 
     for (const scene of scenes) {
       if (wanted && !wanted.has(scene.id)) continue;
-      if (scene.requiresGitHub && !values.github) {
-        console.log(`skip  ${kind}/${scene.id} (needs --github)`);
-        continue;
-      }
       await openWorkbench(page);
       try {
         await scene.drive(page);

@@ -346,6 +346,62 @@ async function seedConversation(
       });
     }
   }
+  if (demo.question) {
+    const toolCallId = createId("tool");
+    const turnId = createId("turn");
+    const createdAt = at(demo.ageHours, demo.steps.length * 45);
+    const args = {
+      questions: [
+        {
+          id: "rollout",
+          ...demo.question,
+          options: [...demo.question.options],
+        },
+      ],
+    };
+    const event = coreStorage.events.append({
+      id: createId("evt"),
+      conversationId: conversation.id,
+      previousEventId: head,
+      turnId,
+      inputId: null,
+      createdAt,
+      type: "assistant_message",
+      llmRepresentation: "assistant",
+      payload: {
+        content: [
+          {
+            type: "toolCall",
+            id: toolCallId,
+            name: "ask_user",
+            arguments: args,
+          },
+        ],
+        usage,
+        stopReason: "toolUse",
+        api: "anthropic-messages",
+        provider: DEMO_MODEL.provider,
+        model: DEMO_MODEL.modelId,
+      },
+    });
+    head = event.id;
+    coreStorage.toolCalls.insert({
+      id: toolCallId,
+      conversationId: conversation.id,
+      turnId,
+      providerCallId: toolCallId,
+      assistantEventId: event.id,
+      contentIndex: 0,
+      origin: "model",
+      toolName: "ask_user",
+      arguments: args,
+      state: "awaiting_input",
+      supervision: null,
+      interaction: { kind: "user_input", request: args },
+      executionClaim: null,
+      updatedAt: createdAt,
+    });
+  }
   coreStorage.conversations.update(conversation.id, {
     headEventId: head ?? mainHead,
     pinnedAt: demo.pinned ? at(demo.ageHours) : null,

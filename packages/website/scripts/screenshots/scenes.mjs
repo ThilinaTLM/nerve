@@ -47,6 +47,30 @@ async function openRightPanel(page, name) {
 
 export const DESKTOP_SCENES = [
   {
+    id: "ask-user",
+    alt: "A booking rollout decision with recommended options, an answer field, and the conversation composer",
+    async drive(page) {
+      await openConversation(page, "Choose the booking limiter rollout");
+      await page
+        .getByText("How should we roll out the booking limiter?", {
+          exact: true,
+        })
+        .waitFor();
+      await page.getByText("waiting for you", { exact: true }).waitFor();
+    },
+  },
+  {
+    id: "activity",
+    alt: "The header Notifications popover showing a conversation that needs a rollout decision",
+    async drive(page) {
+      await openConversation(page, RATE_LIMIT_CONVERSATION);
+      await page.getByRole("button", { name: /^Notifications/ }).click();
+      await page
+        .getByRole("button", { name: "Clear finished", exact: true })
+        .waitFor();
+    },
+  },
+  {
     id: "projects",
     alt: "The Nerve project switcher showing three active local projects and their workspace paths",
     async drive(page) {
@@ -94,11 +118,12 @@ export const DESKTOP_SCENES = [
     async drive(page) {
       await openConversation(page, RATE_LIMIT_CONVERSATION);
       await openRightPanel(page, "Git");
-      const repo = page.getByRole("group", { name: "Repository" });
-      if (await repo.isVisible().catch(() => false)) {
-        await repo.getByText("aurora-api").first().click();
-        await page.waitForTimeout(400);
-      }
+      await page
+        .getByRole("button", {
+          name: "Select repository aurora-api",
+          exact: true,
+        })
+        .click();
     },
   },
   {
@@ -171,15 +196,21 @@ export const DESKTOP_SCENES = [
         .click();
       await page.waitForTimeout(600);
       const row = page
-        .getByRole("listitem")
+        .getByRole("treeitem")
         .filter({ hasText: "aurora-api tests" });
       const output = row.getByRole("button", { name: /aurora-api tests/ });
       // Start once in the throwaway workspace; reuse that exact run in dark mode.
-      if (await output.isDisabled()) {
+      if (
+        await row
+          .getByRole("img", { name: "Not run yet", exact: true })
+          .isVisible()
+      ) {
         await row
           .getByRole("button", { name: "Run launch", exact: true })
           .click();
-        await page.waitForTimeout(1500);
+        await row
+          .getByRole("img", { name: "Completed", exact: true })
+          .waitFor();
       }
       await output.click();
       await page.waitForTimeout(6000);
@@ -187,20 +218,16 @@ export const DESKTOP_SCENES = [
   },
   {
     id: "pull-request",
-    /* Pull-request data cannot be synthesized: it needs a real remote. This
-     * scene is captured against the project's own public repository and is
-     * skipped unless the capture environment is authenticated with GitHub. */
-    requiresGitHub: true,
+    /* GitHub reads are synthetic browser fixtures; no auth or remote needed. */
     alt: "A Nerve pull request view with the summary, mergeability, checks, and changed files beside the list of open pull requests",
     async drive(page) {
       await selectProject(page);
       await openRightPanel(page, "Pull requests");
-      /* The PR scene uses the cloned public repository, not the synthetic
-       * ones, which have no remote. */
       await page
-        .locator('section[data-dock="right"]')
-        .getByRole("group", { name: "Repository" })
-        .getByText("nerve", { exact: true })
+        .getByRole("button", {
+          name: "Select repository aurora-api",
+          exact: true,
+        })
         .click();
       await page.waitForTimeout(6_000);
       /* The title button opens the detail tab; the sibling icon buttons copy
@@ -233,7 +260,10 @@ async function openMobileRoot(page) {
 
 async function openMobileConversation(page, title = RATE_LIMIT_CONVERSATION) {
   await openMobileRoot(page);
-  await page.getByRole("button", { name: "Inbox", exact: true }).click();
+  await page
+    .getByRole("navigation", { name: "Primary" })
+    .getByRole("button", { name: /^Inbox(?:,|$)/ })
+    .click();
   await page.waitForTimeout(400);
   await page.getByRole("button", { name: new RegExp(`^${title}`) }).click();
   await page.waitForTimeout(1200);

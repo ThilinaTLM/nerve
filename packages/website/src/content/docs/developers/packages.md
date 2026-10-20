@@ -13,7 +13,7 @@ sidebar:
 - `packages/skills` — built-in skills and harness resource integration.
 - `packages/conversation-core` — portable SQLite-backed conversation runtime, history/context, inputs, tool lifecycle, delegation and async Bash. Depends on contracts, native, harness, skills and tools; never protocol or the workbench hosts.
 - `packages/tools` — canonical tool definitions, local executors, output bounds, artifacts, and Git/GitHub utility service. Depends on contracts and native.
-- `packages/native` — normalized TypeScript façades over the Rust N-API Git, managed-process, platform, and runtime primitives. Its raw bindings and prebuild paths remain private.
+- `packages/native` — TypeScript façades over the Rust N-API Git-read, managed-process, change-monitoring, and lexical-search domains. TypeScript callers retain policy, discovery, and contextual ranking; raw bindings and prebuild paths remain private.
 - `packages/ui-kit` — contract-free shadcn-svelte primitives, theme, generic Markdown/code/terminal rendering, and utilities.
 
 ## Product hosts

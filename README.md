@@ -9,13 +9,13 @@
 
 Run it on a supported AI subscription you already pay for, or your own API key. Delegate research and implementation to asynchronous subagents while you keep working. The harness loads applicable tools and guidance, bounds tool output, and automatically compacts long conversations.
 
-Conversations, context, permissions, Git, pull requests, launch configurations, and background command logs share one workbench. Conversation history and work artifacts persist locally, with agent and command activity visible while work runs.
+Conversations, context, permissions, Git, pull requests, launch configurations, and background command logs share one workbench. Review changes and PR checks, answer agent questions inline, and follow background operations from the header’s Activity popover. Conversation history and work artifacts persist locally.
 
 [Website](https://nerve.tlmtech.dev/) · [Documentation](https://nerve.tlmtech.dev/start/) · [Install guide](https://nerve.tlmtech.dev/start/install/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="packages/website/src/assets/screenshots/desktop/conversation-dark.webp">
-  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench showing a completed Bash result, profile-based subagent assignments, and the expanded Agents activity island">
+  <img src="packages/website/src/assets/screenshots/desktop/conversation-light.webp" alt="The Nerve desktop workbench with a tool-call transcript, subagent assignments, prompt composer, and Git changes panel">
 </picture>
 
 > [!NOTE]
@@ -39,9 +39,12 @@ The first launch may download Electron's platform binary. Nerve starts a local l
 - **Use the AI access you already have.** Sign in to a supported provider subscription over OAuth, or paste an API key. Credentials are stored encrypted on your machine and available models are exposed through the runtime catalog.
 - **Steerable, branchable conversations.** Change the model, thinking level, agent mode, or permission rule set mid-conversation — it applies from the next provider request — and fork from any earlier entry without losing the original lineage.
 - **Permissions enforced in policy, not prompts.** Read-only, supervised, and autonomous levels, planning mode, rule sets, and per-project or per-conversation overlays, evaluated before a tool runs.
-- **Multiple projects and repositories.** Repositories are discovered beneath a workspace root, each with its own branch and working-tree state, Git operations, and GitHub pull requests.
+- **Git and PR review in context.** See repository and branch state, staged and unstaged changes, and the current branch’s pull request together. Stage, commit, and sync; filter GitHub PRs by All, Mine, or To review, then inspect changes and checks before merging. GitHub features require `gh` and authentication.
+- **A composer built for the conversation.** Reference files, paste images, insert path mentions, discover grouped suggestions, and keep model and permission controls in one toolbar. Multi-question agent requests support per-question answers, the same completion experience, and voice input; drafts survive reloads.
 - **Profile-based async subagents.** Use the built-in Explore profile for read-only research or Developer for implementation in the shared worktree. Named teammates retain context for follow-ups, report completion without polling, and can be configured through layered profiles.
-- **Background work you can inspect.** Bash commands can run asynchronously with completion notices and dedicated log tabs. The conversation activity island brings agent and command status together; project launch configurations give recurring servers and watchers reusable start, stop, restart, and log controls.
+- **Background work you can inspect.** Bash commands can run asynchronously with completion notices and dedicated log tabs. The header’s Activity popover brings attention requests, running work, results, and Git-operation feedback together; the conversation activity island follows agents and commands. Project launch configurations give servers and watchers reusable start, stop, restart, and log controls.
+- **A steadier live transcript.** Tool cards fill in place from drafting through approval and completion, with stable result sections and throttled live argument updates.
+- **Less waiting around the work.** Rust-backed lexical search matches and ranks completion suggestions, including project paths. Single-pass storage accounting and leaner startup recovery reduce housekeeping around your next session.
 
 A shared conversation core owns conversation execution and durable state for lead agents and subagents; the workbench server connects it to providers, tools, and the UI. See the [architecture guide](https://nerve.tlmtech.dev/developers/architecture/) for package and persistence boundaries.
 

@@ -48,7 +48,7 @@ Shared foundations stay transport- and framework-neutral:
 - `@nervekit/conversation-core` owns durable conversation history, inputs, tool lifecycle, delegation, async Bash and execution scheduling through host ports.
 - `@nervekit/skills` owns built-in skills and harness resource integration.
 - `@nervekit/tools` owns the canonical tool catalog, executors, output bounds, artifacts, and Git/GitHub utilities.
-- `@nervekit/native` provides normalized TypeScript façades over the Rust N-API Git, process, platform, and runtime primitives used by the server.
+- `@nervekit/native` provides TypeScript façades over a Rust N-API addon for Git reads, managed processes, filesystem/Git monitoring, and lexical search indexes.
 - `@nervekit/ui-kit` provides contract-free presentation primitives and renderers.
 
 Conversation core does not depend on protocol, workbench-server or UI: the server implements its environment ports. Contracts own domain shapes; protocol owns session and delivery mechanics.
@@ -65,6 +65,14 @@ The product hosts compose those foundations:
 </figure>
 
 See [package responsibilities](/developers/packages/) for the complete ownership map and [contributing](/developers/contributing/) for repository boundary rules.
+
+## Native computation and responsiveness
+
+Native code owns bounded computation and platform mechanisms, not the agent loop or UI. The server uses `createSearchIndex` to create a Rust lexical index of typed completion documents, not a file-only completion API. Native code matches terms and returns lexical scores and match ranges; TypeScript providers still own project discovery, permissions, freshness, contextual ranking, and selection effects. Git reads use the native Git domain, while mutations remain Git CLI operations. Managed processes and change monitoring have separate native domains and lifetimes.
+
+Not every performance improvement is a Rust migration. Storage usage accounting scans conversation and log directories once each and reuses their tallies; startup work avoids full-history reads for status and skips creating a migration worker when the migration ledger is validated and current. These are targeted implementation changes, not a claim that the daemon is entirely native or a guarantee of a particular speedup.
+
+The workbench presents background Git operations through header Activity, independently of conversation execution. Tool cards retain a shared lifecycle from streamed arguments through live output and settled results, using bounded previews and on-demand details. See [tool output lifecycle](/developers/tool-output-lifecycle/) for presentation and recovery boundaries.
 
 ## State and external boundaries
 
