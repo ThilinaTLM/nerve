@@ -4,14 +4,7 @@ import {
   type VoiceInputTarget,
   voiceInputTargetKey,
 } from "../../../features/conversations/audio/voice-input-target";
-import type {
-  ComposerDictationHandle,
-  ComposerDictationState,
-} from "$lib/presentation/composer/composer-editor-api";
-import {
-  bindComposerVoiceInput,
-  ComposerDictationBridge,
-} from "./composer-voice-input";
+import { bindComposerVoiceInput } from "./composer-voice-input";
 
 function harness(initial = "") {
   const handlers = new Map<
@@ -112,104 +105,17 @@ test("target changes and cleanup prevent delivery into the wrong draft", () => {
   assert.equal(composer.focusCount, 1);
 });
 
-function chipHarness() {
-  const log: string[] = [];
-  let removed: (() => void) | undefined;
-  let active = true;
-  const handle: ComposerDictationHandle = {
-    update: (state: ComposerDictationState, ms: number) =>
-      log.push(`${state}:${ms}`),
-    resolve: (text) => {
-      active = false;
-      log.push(`resolve:${text}`);
-    },
-    cancel: () => {
-      active = false;
-      log.push("cancel");
-    },
-    get active() {
-      return active;
-    },
-    onRemoved: (listener) => {
-      removed = listener;
-      return () => {
-        removed = undefined;
-      };
-    },
-  };
-  let started = 0;
-  let cancelled = 0;
-  const bridge = new ComposerDictationBridge(
-    () => ({
-      insertReferences: () => {},
-      startDictation: () => {
-        started += 1;
-        active = true;
-        return handle;
-      },
-    }),
-    () => {
-      cancelled += 1;
-    },
-  );
-  return {
-    bridge,
-    log,
-    remove: () => {
-      active = false;
-      removed?.();
-    },
-    get started() {
-      return started;
-    },
-    get cancelled() {
-      return cancelled;
-    },
-  };
-}
-
-test("dictation chip follows recording, freezes time while transcribing, then resolves", () => {
-  const chip = chipHarness();
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 2000 });
-  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
-  assert.equal(chip.bridge.resolve("  hello "), true);
-  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
-  chip.bridge.sync({ recording: false, transcribing: false, elapsedMs: 0 });
-  assert.deepEqual(chip.log, [
-    "recording:2000",
-    "transcribing:2000",
-    "resolve:hello",
-  ]);
-  assert.equal(chip.started, 1);
-});
-
-test("cancelled sessions remove the chip; failures keep it for retry", () => {
-  const chip = chipHarness();
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 500 });
-  chip.bridge.sync({ recording: false, transcribing: false, elapsedMs: 0 });
-  assert.equal(chip.log.at(-1), "cancel");
-
-  const failing = chipHarness();
-  failing.bridge.sync({ recording: true, transcribing: false, elapsedMs: 900 });
-  failing.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
-  assert.equal(failing.bridge.fail(), true);
-  failing.bridge.sync({ recording: false, transcribing: false, elapsedMs: 0 });
-  assert.equal(failing.bridge.failed, true);
-  assert.equal(failing.log.at(-1), "failed:900");
-  failing.bridge.discard();
-  assert.equal(failing.log.at(-1), "cancel");
-});
-
-test("deleting the chip cancels the voice session", () => {
-  const chip = chipHarness();
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 100 });
-  chip.remove();
-  assert.equal(chip.cancelled, 1);
-  assert.equal(chip.bridge.active, false);
-});
-
 test("transcripts and errors use the chip when live, else fall back", () => {
-  const chip = chipHarness();
+  let live = false;
+  const resolved: string[] = [];
+  const chip = {
+    resolve: (text: string) => {
+      if (!live) return false;
+      resolved.push(text);
+      return true;
+    },
+    fail: () => live,
+  };
   const errors: string[] = [];
   const target = { kind: "conversation", id: "one" } as const;
   type TargetHandlers = Parameters<
@@ -227,7 +133,7 @@ test("transcripts and errors use the chip when live, else fall back", () => {
     session,
     target,
     { read: () => text, update: (n) => (text = n), focus: () => {} },
-    { chip: chip.bridge, notifyError: (m) => errors.push(m) },
+    { chip, notifyError: (m) => errors.push(m) },
   );
   const h = handlers.get(voiceInputTargetKey(target));
   assert.ok(h);
@@ -236,26 +142,8 @@ test("transcripts and errors use the chip when live, else fall back", () => {
   assert.deepEqual(errors, ["boom"]);
   h.appendTranscript("fallback");
   assert.equal(text, "Draft\n\nfallback ");
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 1 });
+  live = true;
   h.appendTranscript("in chip");
   assert.equal(text, "Draft\n\nfallback ");
-  assert.equal(chip.log.at(-1), "resolve:in chip");
-});
-
-test("a failed chip survives transcribing updates until a new recording starts", () => {
-  const chip = chipHarness();
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 1200 });
-  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
-  // The core reports the error while `transcribing` is still true.
-  assert.equal(chip.bridge.fail(), true);
-  chip.bridge.sync({ recording: false, transcribing: true, elapsedMs: 0 });
-  chip.bridge.sync({ recording: false, transcribing: false, elapsedMs: 0 });
-  assert.equal(chip.bridge.failed, true);
-  assert.equal(chip.log.at(-1), "failed:1200");
-  assert.equal(chip.started, 1);
-  // Mic retry: a new recording reuses the chip and clears the failure.
-  chip.bridge.sync({ recording: true, transcribing: false, elapsedMs: 300 });
-  assert.equal(chip.bridge.failed, false);
-  assert.equal(chip.log.at(-1), "recording:300");
-  assert.equal(chip.started, 1);
+  assert.deepEqual(resolved, ["in chip"]);
 });

@@ -2,7 +2,7 @@
 // One ask_user question as a sheet section. The same element carries the
 // question from the first streamed byte to the recorded answer: options stay
 // and the choice is marked, the composer is the only transient control.
-import { onDestroy } from "svelte";
+import { onDestroy, untrack } from "svelte";
 import { fade, slide } from "svelte/transition";
 import Check from "@lucide/svelte/icons/check";
 import Lightbulb from "@lucide/svelte/icons/lightbulb";
@@ -13,6 +13,8 @@ import Markdown from "@nervekit/ui-kit/renderers/markdown/Markdown.svelte";
 import { cn } from "@nervekit/ui-kit/utils";
 import ComposerEditor from "$lib/presentation/composer/ComposerEditor.svelte";
 import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
+import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
+import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
 import {
   getConversationUiCapabilities,
   type VoiceInputTargetRef as VoiceInputTarget,
@@ -67,7 +69,6 @@ let {
 
 const capabilities = getConversationUiCapabilities();
 const voice = capabilities.voice;
-const TranscriptionActivity = voice?.TranscriptionActivity;
 const askReply = capabilities.askReply;
 // Construction is inert; only an active editor query acquires server data.
 const completionSource = $derived(
@@ -154,6 +155,24 @@ const micTitle = $derived(
               : "Record voice answer",
 );
 
+// Dictation progress lives in an editor chip at the caret, like the prompt
+// composer; the transcript replaces the chip, or is appended without one.
+let editorApi = $state<ComposerEditorApi>();
+const dictation = new ComposerDictationBridge(
+  () => editorApi,
+  () => {
+    if (voiceTarget) void voice?.session.cancel(voiceTarget);
+  },
+);
+$effect(() => {
+  const state = {
+    recording,
+    transcribing,
+    elapsedMs: recording || transcribing ? (voice?.session.elapsedMs ?? 0) : 0,
+  };
+  untrack(() => dictation.sync(state));
+});
+
 let registeredTargetKey: string | undefined;
 let registeredTarget: VoiceInputTarget | undefined;
 let unregisterVoiceTarget: (() => void) | undefined;
@@ -180,14 +199,21 @@ $effect(() => {
   registeredTarget = target;
   registeredTargetKey = targetKey;
   unregisterVoiceTarget = voice.session.registerTargetHandlers(target, {
-    appendTranscript: (transcript) =>
-      onText?.(voice.appendTranscriptText(draftText, transcript)),
-    onError: (message) =>
-      notify.error("Voice input failed", { description: message }),
+    appendTranscript: (transcript) => {
+      if (dictation.resolve(transcript) || !transcript.trim()) return;
+      onText?.(voice.appendTranscriptText(draftText, transcript));
+    },
+    onError: (message) => {
+      if (!dictation.fail())
+        notify.error("Voice input failed", { description: message });
+    },
   });
 });
 
-onDestroy(() => clearRegisteredVoiceTarget(true));
+onDestroy(() => {
+  clearRegisteredVoiceTarget(true);
+  dictation.discard();
+});
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -221,6 +247,12 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.defaultPrevented || event.isComposing) return;
   const plain =
     !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+  if (event.key === "Escape" && plain && dictation.failed) {
+    event.stopPropagation();
+    event.preventDefault();
+    dictation.discard();
+    return;
+  }
   if (event.key === "Escape" && plain && (recording || transcribing)) {
     event.stopPropagation();
     cancelVoice(event);
@@ -388,22 +420,10 @@ function pick(label: string | undefined) {
         onSubmit={() => onSubmit?.()}
         onPasteImage={askReply?.pasteImage}
         onDropFiles={askReply?.dropFiles}
+        onReady={(api) => (editorApi = api)}
       />
       {#if voice && supportsAudioRecording}
         <div class="ask-voice-controls">
-          {#if TranscriptionActivity}
-            <TranscriptionActivity
-              {recording}
-              {transcribing}
-              elapsedMs={voice.session.elapsedMs}
-              maxDurationMs={voice.session.maxDurationMs}
-              retryAttempt={voiceTarget &&
-              voice.session.isTargetActive(voiceTarget)
-                ? voice.session.retryAttempt
-                : 0}
-              maxRetries={voice.session.maxRetries}
-            />
-          {/if}
           <VoiceMicButton
             {recording}
             {transcribing}

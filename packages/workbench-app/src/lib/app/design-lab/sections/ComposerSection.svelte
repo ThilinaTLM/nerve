@@ -380,7 +380,6 @@ function cycleMic() {
 
 {#snippet mockMic()}
   <VoiceMicButton
-    toolbar
     recording={micState === "recording"}
     transcribing={micState === "transcribing"}
     idleLabel="Record voice prompt"
@@ -673,14 +672,13 @@ function cycleMic() {
 
     <GallerySpecimen
       title="VoiceMicButton"
-      description="Toolbar mic is an outline icon button (pairs with the filled Send) and shows state only: mic (idle), destructive stop (recording), X (transcribing). Progress lives in the editor's dictation chip, never next to the button."
+      description="Toolbar mic is an outline icon button (pairs with the filled Send) and shows state only: mic (idle), red mic with a pulsing dot (recording; never the square run-stop), X (transcribing). Progress lives in the editor's dictation chip, never next to the button."
       source="presentation/composer/VoiceMicButton"
       usage="2 files · composer, ask-user"
     >
       {#each [{ t: "Idle", r: false, x: false }, { t: "Recording", r: true, x: false }, { t: "Transcribing", r: false, x: true }] as state (state.t)}
         <div class="flex items-center gap-2">
           <VoiceMicButton
-            toolbar
             recording={state.r}
             transcribing={state.x}
             idleLabel="Record voice prompt"
