@@ -9,7 +9,7 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
   {
     id: "connected-workbench",
     version: 1,
-    releasedIn: "next",
+    releasedIn: "0.37.0",
     featured: true,
     artwork: "workbench",
     title: "From prompt to pull request, without losing your place",
