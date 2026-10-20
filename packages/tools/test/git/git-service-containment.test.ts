@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -10,7 +10,7 @@ import {
 } from "../../src/git/git-operation-context.js";
 
 test("containment rejects symlink escapes including not-yet-created clone destinations", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-contain-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "nerve-contain-")));
   try {
     const project = join(root, "project");
     const outside = join(root, "outside");
@@ -33,7 +33,9 @@ test("containment rejects symlink escapes including not-yet-created clone destin
 });
 
 test("clone reservation uses real parent and blocks normal reads after .git appears", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-clone-lane-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "nerve-clone-lane-")),
+  );
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
@@ -71,7 +73,9 @@ test("clone reservation uses real parent and blocks normal reads after .git appe
 });
 
 void test("clone keeps a remote beginning with '-' behind -- and validates control bytes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-clone-args-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "nerve-clone-args-")),
+  );
   try {
     const service = GitService.forWorkspace(root);
     const calls: string[][] = [];

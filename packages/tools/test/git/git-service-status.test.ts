@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { describe, it } from "node:test";
@@ -87,7 +87,9 @@ function statusBackend(
 
 describe("GitService project file status", () => {
   it("returns project-relative paths for a root repository", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-git-status-"));
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "nerve-git-status-")),
+    );
     try {
       const service = new GitService(() => ({ dir: root, name: "repo" }), {
         readBackend: statusBackend(async (repoDir) => {
@@ -115,7 +117,9 @@ describe("GitService project file status", () => {
   });
 
   it("prefixes paths from nested repositories", async () => {
-    const root = await mkdtemp(join(tmpdir(), "nerve-git-status-"));
+    const root = await realpath(
+      await mkdtemp(join(tmpdir(), "nerve-git-status-")),
+    );
     try {
       await mkdir(join(root, "packages", "app", ".git"), { recursive: true });
       const service = new GitService(() => ({ dir: root, name: "project" }), {
@@ -138,7 +142,9 @@ describe("GitService project file status", () => {
 });
 
 void it("shares discovery/batch results between listing and status and exposes per-repo failures", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-shared-git-read-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "nerve-shared-git-read-")),
+  );
   try {
     let discoveries = 0;
     let batches = 0;
@@ -201,7 +207,9 @@ void it("shares discovery/batch results between listing and status and exposes p
 });
 
 void it("uncertain invalidation during metadata summarization returns explicitly stale listing without aborting it", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-uncertain-git-read-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "nerve-uncertain-git-read-")),
+  );
   let release!: () => void;
   const hold = new Promise<void>((resolve) => {
     release = resolve;
@@ -237,7 +245,9 @@ void it("uncertain invalidation during metadata summarization returns explicitly
 });
 
 void it("rejects an older listing even when invalidation arrives during metadata summarization", async () => {
-  const root = await mkdtemp(join(tmpdir(), "nerve-stale-git-read-"));
+  const root = await realpath(
+    await mkdtemp(join(tmpdir(), "nerve-stale-git-read-")),
+  );
   let release!: () => void;
   const gate = new Promise<void>((resolve) => {
     release = resolve;
