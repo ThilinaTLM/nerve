@@ -149,6 +149,7 @@ const menuItems = $derived.by<ContextMenuItem[]>(() => {
 
 <PanelRowCard selected={active} {menuItems}>
   <PanelRow
+    hoverable={false}
     label={nested ? startedAt : label.text}
     description={nested ? (unavailable ? description : undefined) : description}
     title={tooltip}

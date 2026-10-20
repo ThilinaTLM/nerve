@@ -10,6 +10,8 @@ let {
   label,
   labelLines = 1,
   description,
+  detail,
+  detailTone = "neutral",
   title,
   mono = false,
   tone = "neutral",
@@ -36,6 +38,7 @@ let {
   onfocus,
   leading,
   badges,
+  trailing,
   actions,
   menuItems,
   class: className,
@@ -45,6 +48,9 @@ let {
   /** Maximum visible lines for the primary label. */
   labelLines?: 1 | 2;
   description?: string;
+  /** Second line under a two-line label, coloured by `detailTone`. */
+  detail?: string;
+  detailTone?: StatusTone;
   title?: string;
   mono?: boolean;
   tone?: StatusTone;
@@ -82,6 +88,12 @@ let {
   /** Compact content rendered before the primary label. */
   leading?: Snippet;
   badges?: Snippet;
+  /**
+   * Two-line rows only: facts aligned with the first label line. On
+   * hover-capable pointers they give way to `actions` while the row is hovered
+   * or keyboard-focused.
+   */
+  trailing?: Snippet;
   actions?: Snippet;
   menuItems?: ContextMenuItem[];
   class?: string;
@@ -99,12 +111,12 @@ const rowStyle = $derived(
 
 const labelLayoutClass = $derived(
   labelLines === 2
-    ? "line-clamp-2 break-words whitespace-normal leading-snug"
+    ? "line-clamp-2 min-w-0 break-words whitespace-normal leading-4"
     : "truncate",
 );
 
-const toneClass = $derived(
-  tone === "destructive"
+function toneTextClass(tone: StatusTone): string {
+  return tone === "destructive"
     ? "text-destructive"
     : tone === "success"
       ? "text-success"
@@ -114,8 +126,11 @@ const toneClass = $derived(
           ? "text-info"
           : tone === "neutral"
             ? "text-muted-foreground"
-            : "text-foreground",
-);
+            : "text-foreground";
+}
+
+const toneClass = $derived(toneTextClass(tone));
+const twoLine = $derived(labelLines === 2);
 </script>
 
 {#snippet body()}
@@ -127,9 +142,9 @@ const toneClass = $derived(
       // zeroes the inset via `--panel-row-inset`.
       "pl-[calc(var(--panel-row-inset,0.5rem)+var(--panel-indent,0)*0.75rem)]",
       hoverable && "panel-row-hoverable",
-      actions && overlayActions && "relative",
-      labelLines === 2
-        ? "h-9 gap-2 py-0.5 pr-3 text-xs"
+      actions && overlayActions && !twoLine && "relative",
+      twoLine
+        ? "items-start gap-1.5 py-1 pr-0 text-xs"
         : dense
           ? "h-5 gap-1 pr-1 text-xs"
           : "h-7 gap-1.5 pr-1.5 text-xs",
@@ -160,27 +175,45 @@ const toneClass = $derived(
       title={title ?? description ?? label}
       class={cn(
         "flex min-w-0 flex-1 cursor-pointer items-center rounded-sm text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-default disabled:opacity-50",
-        labelLines === 2 ? "gap-2" : dense ? "gap-1" : "gap-1.5",
+        twoLine ? "items-start gap-1" : dense ? "gap-1" : "gap-1.5",
       )}
       {onclick}
     >
       {#if leading}
-        <span class="flex shrink-0 items-center text-muted-foreground">
+        <span
+          class={cn(
+            "flex shrink-0 items-center text-muted-foreground",
+            twoLine && "h-4",
+          )}
+        >
           {@render leading()}
         </span>
       {/if}
-      <span
-        class={cn(
-          labelLayoutClass,
-          toneClass,
-          mono && "font-mono",
-          active && "font-medium",
-        )}>{label}</span
-      >
-      {#if description}
-        <span class="min-w-0 flex-1 truncate text-muted-foreground"
-          >{description}</span
+      {#if twoLine}
+        <span class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span class={cn(labelLayoutClass, toneClass, active && "font-medium")}
+            >{label}</span
+          >
+          {#if detail}
+            <span class={cn("truncate leading-4", toneTextClass(detailTone))}
+              >{detail}</span
+            >
+          {/if}
+        </span>
+      {:else}
+        <span
+          class={cn(
+            labelLayoutClass,
+            toneClass,
+            mono && "font-mono",
+            active && "font-medium",
+          )}>{label}</span
         >
+        {#if description}
+          <span class="min-w-0 flex-1 truncate text-muted-foreground"
+            >{description}</span
+          >
+        {/if}
       {/if}
     </button>
     {#if badges}
@@ -188,11 +221,35 @@ const toneClass = $derived(
         {@render badges()}
       </div>
     {/if}
-    {#if actions}
+    {#if twoLine && (trailing || actions)}
+      <!-- Facts and actions stack in one grid cell, so the column is as wide as
+           the wider of the two and the label never reflows or gets covered. -->
+      <div class="grid shrink-0 items-center justify-items-end">
+        {#if trailing}
+          <span
+            class={cn(
+              "col-start-1 row-start-1 flex h-4 items-center gap-1.5 text-muted-foreground tabular-nums",
+              actions &&
+                "pointer-fine:group-hover/panel-row:invisible pointer-fine:group-has-[:focus-visible]/panel-row:invisible",
+            )}
+          >
+            {@render trailing()}
+          </span>
+        {/if}
+        {#if actions}
+          <div
+            class="invisible col-start-1 row-start-1 flex items-center gap-0.5 group-hover/panel-row:visible group-has-[:focus-visible]/panel-row:visible pointer-coarse:hidden"
+          >
+            {@render actions()}
+          </div>
+        {/if}
+      </div>
+    {:else if actions}
       <div
         class={cn(
           "flex shrink-0 items-center gap-0.5",
           !alwaysShowActions &&
+            !alwaysShowActions &&
             "opacity-0 transition-opacity duration-120 ease-[ease] group-focus-within/panel-row:opacity-100 group-hover/panel-row:opacity-100 pointer-coarse:opacity-100",
           !alwaysShowActions &&
             overlayActions &&

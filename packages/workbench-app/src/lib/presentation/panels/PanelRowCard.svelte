@@ -14,6 +14,7 @@ let {
 }: {
   /** Outer semantics; rows inside already carry `listitem` where needed. */
   role?: "listitem" | "none";
+  /** The card paints hover and selection; put `hoverable={false}` on inner rows. */
   /** Marks this card as the list's current item. */
   selected?: boolean;
   menuItems?: ContextMenuItem[];
@@ -27,10 +28,11 @@ let {
 <ItemSurface
   {role}
   tone="row"
+  hover="row"
   {selected}
   {menuItems}
   {menuDisabled}
-  class={`${selected ? "panel-row-card-selected " : ""}flex-col px-1 py-0.5 ${className ?? ""}`}
+  class={`flex-col px-1 py-0.5 ${className ?? ""}`}
   {onclick}
 >
   {@render children()}

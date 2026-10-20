@@ -5,7 +5,7 @@ import ContextMenuList from "@nervekit/ui-kit/components/composites/context-menu
 import { cn } from "@nervekit/ui-kit/utils";
 
 type SurfaceElement = "div" | "section";
-type SurfaceHover = "none" | "soft" | "default";
+type SurfaceHover = "none" | "soft" | "default" | "row";
 /** `card` keeps the recessed content slab; `row` stays flat so selection reads. */
 type SurfaceTone = "card" | "row";
 
@@ -59,7 +59,10 @@ const surfaceClass = $derived(
     "flex min-w-0 rounded-md transition-colors",
     tone === "card" && "bg-accent/60 dark:bg-accent/35",
     hover === "soft" && "hover:bg-accent/80 dark:hover:bg-accent/40",
+    hover === "row" && "hover:bg-accent/55",
     hover === "default" && "hover:bg-accent/90 dark:hover:bg-accent/60",
+    // A clickable surface is clickable across its padding too.
+    onclick && "cursor-pointer",
     focusWithin && "focus-within:bg-accent/90 dark:focus-within:bg-accent/60",
     // Selection wins over both tones and any hover step.
     selected && "bg-selected font-medium text-foreground hover:bg-selected",
