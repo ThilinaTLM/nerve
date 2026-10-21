@@ -1,9 +1,10 @@
 import type { RegisteredStep } from "../framework/step.js";
 import { MIGRATION_METADATA } from "../framework/registry-metadata.js";
 import conversationCore from "./0001-conversation-core/step.js";
+import agentProfiles from "./0002-agent-profiles/step.js";
 
 /** Append implementations in metadata order; the migration checker verifies both. */
-const implementations = [conversationCore];
+const implementations = [conversationCore, agentProfiles];
 if (implementations.length !== MIGRATION_METADATA.length)
   throw new Error("Migration metadata and implementations must match.");
 

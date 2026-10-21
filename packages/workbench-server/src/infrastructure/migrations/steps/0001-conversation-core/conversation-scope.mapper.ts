@@ -111,13 +111,7 @@ export function importConversationScopes(
               agent.permissionLevel ??
               conversation.permissionLevel ??
               "supervised"),
-        agentProfile: parent
-          ? (agent.profile ??
-            (agent.executionKind === "explore" ||
-            agent.orchestrationPolicy?.preset === "explore"
-              ? "explore"
-              : "developer"))
-          : (agent.mode ?? conversation.mode ?? "coding"),
+        mode: agent.mode ?? conversation.mode ?? "coding",
         workingDirectory: agent.projectDir ?? project.directory,
       }),
     );

@@ -15,8 +15,7 @@ import { permissionOverlayDocumentForOriginSchema } from "./shapes.js";
 import {
   enabledPreferences,
   profilesDocument,
-  convertProfilesDocument,
-} from "./agent-profile-format.js";
+} from "./subagent-profile-format.js";
 
 /**
  * The six home documents the runtime owns. Their defaults are runtime
@@ -59,12 +58,9 @@ const validators: Record<string, Validate> = {
         typeof document.enabled === "object",
       "Expected version 1 with an enabled map",
     ),
-  "agent-profiles.json": (document) => {
-    profilesDocument.parse(document);
-  },
   "subagents.json": (document) => {
     if (Object.hasOwn(document, "schemaVersion"))
-      convertProfilesDocument(document);
+      profilesDocument.parse(document);
     else enabledPreferences.parse(document);
   },
 };

@@ -30,7 +30,6 @@ const removedToolSettings = ["explore", "subagents"];
 const profiled = ["jira", "confluence", "web_search"];
 export const toolNames = new Set([
   ...configurable,
-  "plan_present",
   "subagents",
   ...profiled,
   "web_fetch",
@@ -58,10 +57,6 @@ export const capabilityOverridesDocumentSchema = {
           old.length === groups.length && old.every((name) => tools[name]);
         for (const name of old) delete tools[name];
       }
-    }
-    if (Object.hasOwn(tools, "plan_mode_present")) {
-      tools.plan_present ??= tools.plan_mode_present;
-      delete tools.plan_mode_present;
     }
     for (const [name, value] of Object.entries(tools)) {
       if (removedTools.includes(name)) continue;
@@ -108,11 +103,7 @@ export function userCapabilitySelection(
 ): CapabilitySelection {
   const raw = harness.tools?.disabled ?? defaults.disabledTools;
   const disabled = new Set<string>(
-    raw
-      .filter((name: string) => !groups.includes(name))
-      .map((name: string) =>
-        name === "plan_mode_present" ? "plan_present" : name,
-      ),
+    raw.filter((name: string) => !groups.includes(name)),
   );
   if (raw.some((name: string) => groups.includes(name)))
     disabled.add("subagents");

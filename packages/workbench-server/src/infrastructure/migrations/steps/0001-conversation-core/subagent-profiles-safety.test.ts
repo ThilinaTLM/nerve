@@ -14,10 +14,10 @@ import { test, type TestContext } from "node:test";
 import {
   captureLegacyProfileEnablement,
   convertProfileScope,
-  convertAgentProfileSettings,
+  convertSubagentSettings,
   profileReceiptPath,
-} from "./agent-profiles.js";
-import { parseProfileMarkdown } from "./agent-profile-format.js";
+} from "./subagent-profiles.js";
+import { parseProfileMarkdown } from "./subagent-profile-format.js";
 import { runMigrations } from "../../framework/runner.js";
 import { fixture as stepFixture, registry } from "./step-fixture.js";
 
@@ -64,17 +64,14 @@ void test("registered project conversion retains captured global false across an
     /profile checkpoint interruption/,
   );
   assert.equal(
-    JSON.parse(readFileSync(join(home, "config/agent-profiles.json"), "utf8"))
+    JSON.parse(readFileSync(join(home, "config/subagents.json"), "utf8"))
       .schemaVersion,
     1,
   );
   assert(existsSync(join(source, "explore.md")));
   await runMigrations(home, { registry });
   const profiles = JSON.parse(
-    readFileSync(
-      join(home, "project/.nerve/config/agent-profiles.json"),
-      "utf8",
-    ),
+    readFileSync(join(home, "project/.nerve/config/subagents.json"), "utf8"),
   ).profiles;
   assert.equal(profiles.developer.enabled, false);
   assert.equal(profiles.explore.enabled, false);
@@ -93,9 +90,9 @@ void test("harness Explore disable is captured before rewrite and overrides Mark
   );
   const enabled = captureLegacyProfileEnablement(home, scratch);
   assert.equal(enabled.explore, false);
-  convertAgentProfileSettings(home, scratch);
+  convertSubagentSettings(home, scratch);
   assert.equal(
-    JSON.parse(readFileSync(join(home, "config/agent-profiles.json"), "utf8"))
+    JSON.parse(readFileSync(join(home, "config/subagents.json"), "utf8"))
       .profiles.explore.enabled,
     false,
   );
@@ -105,7 +102,7 @@ void test("harness Explore disable is captured before rewrite and overrides Mark
     legacyEnabled: enabled,
   });
   assert.equal(
-    JSON.parse(readFileSync(join(root, "config/agent-profiles.json"), "utf8"))
+    JSON.parse(readFileSync(join(root, "config/subagents.json"), "utf8"))
       .profiles.explore.enabled,
     false,
   );
@@ -119,9 +116,9 @@ void test("constructor is a valid own profile name, including preferences and pr
     '{"enabled":{"constructor":false}}',
   );
   const enabled = captureLegacyProfileEnablement(home, scratch);
-  convertAgentProfileSettings(home, scratch);
+  convertSubagentSettings(home, scratch);
   const profiles = JSON.parse(
-    readFileSync(join(home, "config/agent-profiles.json"), "utf8"),
+    readFileSync(join(home, "config/subagents.json"), "utf8"),
   ).profiles;
   assert(Object.hasOwn(profiles, "constructor"));
   assert.equal(profiles.constructor.enabled, false);
@@ -133,7 +130,7 @@ void test("constructor is a valid own profile name, including preferences and pr
     legacyEnabled: enabled,
   });
   assert.equal(
-    JSON.parse(readFileSync(join(root, "config/agent-profiles.json"), "utf8"))
+    JSON.parse(readFileSync(join(root, "config/subagents.json"), "utf8"))
       .profiles.constructor.enabled,
     false,
   );
@@ -142,7 +139,7 @@ void test("constructor is a valid own profile name, including preferences and pr
 void test("different enabled targets fail; only receipt-proven resume retains canonical choices", (t) => {
   const { home, root, scratch } = fixture(t);
   const source = join(root, "subagents/review.md");
-  const target = join(root, "config/agent-profiles.json");
+  const target = join(root, "config/subagents.json");
   const raw = markdown("enabled: true");
   mkdirSync(join(root, "config"));
   writeFileSync(source, raw);
@@ -250,14 +247,14 @@ void test("skill modes replace safely, and canonical sparse entries are not rewr
       inheritedProfiles: { review: { skills: { extra: true } } },
     });
     assert.equal(
-      JSON.parse(readFileSync(join(root, "config/agent-profiles.json"), "utf8"))
+      JSON.parse(readFileSync(join(root, "config/subagents.json"), "utf8"))
         .profiles.review.skills,
       mode,
     );
   }
   const { root } = fixture(t);
   mkdirSync(join(root, "config"));
-  const target = join(root, "config/agent-profiles.json");
+  const target = join(root, "config/subagents.json");
   const original =
     '{"schemaVersion":1,"profiles":{"review":{"enabled":true,"tools":{}}}}';
   writeFileSync(target, original);

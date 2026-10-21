@@ -14,7 +14,6 @@ export const HOME_CONFIGURATION_FILES = [
   "integrations.json",
   "prompt-suggestions.json",
   "subagents.json",
-  "agent-profiles.json",
 ] as const;
 export const PROJECT_CONFIGURATION_FILES = [
   "harness.json",
@@ -24,5 +23,4 @@ export const PROJECT_CONFIGURATION_FILES = [
   "permissions.json",
   "capabilities.json",
   "subagents.json",
-  "agent-profiles.json",
 ] as const;

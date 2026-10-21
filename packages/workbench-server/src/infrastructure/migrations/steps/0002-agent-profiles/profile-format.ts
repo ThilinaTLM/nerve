@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { parse } from "yaml";
 import { z } from "zod";
 
 // Frozen storage-boundary shapes. Never import the evolving runtime contracts/parser.
@@ -138,41 +137,5 @@ export function convertProfilesDocument(raw: unknown) {
         convertProfileEntry(entry),
       ]),
     ),
-  });
-}
-
-/** Frozen Markdown parser and defaults from the pre-JSON profile loader. */
-export function parseProfileMarkdown(name: string, raw: string): ProfileEntry {
-  profileName.parse(name);
-  assert(Buffer.byteLength(raw) <= 48 * 1024, "Profile file is too large");
-  const normalized = raw.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  const end = normalized.startsWith("---")
-    ? normalized.indexOf("\n---", 3)
-    : -1;
-  const frontmatter = end === -1 ? {} : (parse(normalized.slice(4, end)) ?? {});
-  const body = end === -1 ? normalized : normalized.slice(end + 4);
-  // Old Markdown profiles were complete definitions, not sparse overrides.
-  const fields = profileEntry
-    .omit({ instructions: true })
-    .required({
-      description: true,
-      model: true,
-      thinking: true,
-      permission: true,
-      compaction: true,
-      skills: true,
-    })
-    .parse(convertProfileEntry(frontmatter));
-  return convertProfileEntry({
-    ...fields,
-    label:
-      fields.label ??
-      name
-        .split("-")
-        .map((part) => part[0].toUpperCase() + part.slice(1))
-        .join(" "),
-    enabled: fields.enabled ?? true,
-    tools: fields.tools ?? {},
-    instructions: body.trim(),
   });
 }

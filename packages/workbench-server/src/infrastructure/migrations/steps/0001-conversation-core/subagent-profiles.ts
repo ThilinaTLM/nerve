@@ -13,13 +13,12 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import {
   profilesDocument,
-  convertProfileEntry,
-  convertProfilesDocument,
   profileConversionReceipt,
   enabledPreferences,
+  profileEntry,
   parseProfileMarkdown,
   type ProfileEntry,
-} from "./agent-profile-format.js";
+} from "./subagent-profile-format.js";
 import { join, resolve, parse, relative, isAbsolute, sep } from "node:path";
 import { readJson, writeJson } from "./configuration.js";
 import type { Legacy } from "./legacy.reader.js";
@@ -69,12 +68,7 @@ function profileFile(
   thinking: string,
   compaction: unknown,
 ): ProfileEntry {
-  return convertProfileEntry({
-    ...builtIns[name],
-    model,
-    thinking,
-    compaction,
-  });
+  return profileEntry.parse({ ...builtIns[name], model, thinking, compaction });
 }
 
 const modelId = (selection: Legacy | undefined): string | null =>
@@ -174,9 +168,9 @@ export function captureLegacyProfileEnablement(
     existing && !Object.hasOwn(existing, "schemaVersion")
       ? enabledPreferences.parse(existing).enabled
       : {};
-  if (existsSync(target) && !existing) convertProfilesDocument(existing);
+  if (existsSync(target) && !existing) profilesDocument.parse(existing);
   if (existing && Object.hasOwn(existing, "schemaVersion"))
-    convertProfilesDocument(existing);
+    profilesDocument.parse(existing);
   const disabled = readJson(harnessPath).tools?.disabled;
   if (Array.isArray(disabled) && disabled.includes("explore"))
     preferences.explore = false;
@@ -189,7 +183,7 @@ export function captureLegacyProfileEnablement(
 }
 
 export function profileReceiptPath(scratch: string, root: string): string {
-  return join(scratch, `agent-profiles-${hash(resolve(root))}.json`);
+  return join(scratch, `subagent-profiles-${hash(resolve(root))}.json`);
 }
 
 type ScopeOptions = {
@@ -210,10 +204,7 @@ export function convertProfileScope(
   disabledExplore = false,
   options: ScopeOptions = {},
 ): number {
-  const target = join(root, "config", "agent-profiles.json");
-  const legacyTarget = join(root, "config", "subagents.json");
-  verifyAncestors(legacyTarget);
-  const hasLegacy = existsSync(legacyTarget);
+  const target = join(root, "config", "subagents.json");
   const sourceRelative = relative(resolve(root), resolve(markdownDirectory));
   assert(
     sourceRelative &&
@@ -225,29 +216,16 @@ export function convertProfileScope(
   verifyAncestors(markdownDirectory);
   if (options.receiptPath) verifyAncestors(options.receiptPath);
   const hasTarget = existsSync(target);
-  const existing = hasLegacy
-    ? readJson(legacyTarget)
-    : hasTarget
-      ? readJson(target)
-      : undefined;
-  if (hasLegacy && hasTarget)
-    assert.deepEqual(
-      convertProfilesDocument(existing),
-      profilesDocument.parse(readJson(target)),
-      `Agent profile document collision: ${target}`,
-    );
+  const existing = hasTarget ? readJson(target) : undefined;
   const oldPreferences =
     existing && !Object.hasOwn(existing, "schemaVersion")
       ? enabledPreferences.parse(existing)
       : undefined;
-  const rawDocument =
-    oldPreferences || (!hasTarget && !hasLegacy)
+  const document = profilesDocument.parse(
+    oldPreferences || !hasTarget
       ? { schemaVersion: 1, profiles: {} }
-      : existing;
-  const document =
-    hasLegacy && !oldPreferences
-      ? convertProfilesDocument(rawDocument)
-      : profilesDocument.parse(rawDocument);
+      : existing,
+  );
   const canonicalExploreEnabled = oldPreferences
     ? undefined
     : own(document.profiles, "explore")?.enabled;
@@ -299,7 +277,7 @@ export function convertProfileScope(
         verifiedResume && own(receipt.sources, path) === hash(raw);
       assert(
         !current || isDeepStrictEqual(current, entry) || resumedSource,
-        `Agent profile collision: ${name} at ${target}`,
+        `Subagent profile collision: ${name} at ${target}`,
       );
       if (!current) document.profiles[name] = entry;
       sources[path] = hash(raw);
@@ -309,22 +287,16 @@ export function convertProfileScope(
     if (!Object.hasOwn(document.profiles, name))
       document.profiles[name] = entry;
   for (const [name, enabled] of Object.entries(oldPreferences?.enabled ?? {}))
-    document.profiles[name] = {
-      usableBy: "subagent",
-      ...own(document.profiles, name),
-      enabled,
-    };
+    document.profiles[name] = { ...own(document.profiles, name), enabled };
   if (
     disabledExplore &&
     (oldPreferences || canonicalExploreEnabled === undefined)
   )
     document.profiles.explore = {
-      usableBy: "subagent",
       ...own(document.profiles, "explore"),
       enabled: false,
     };
   if (
-    !hasLegacy &&
     !Object.keys(sources).length &&
     !customizations.length &&
     !oldPreferences &&
@@ -341,12 +313,8 @@ export function convertProfileScope(
   assert.deepEqual(
     profilesDocument.parse(readJson(target)),
     document,
-    `Agent profile JSON verification failed: ${target}`,
+    `Subagent JSON verification failed: ${target}`,
   );
-  if (hasLegacy) {
-    preserveForRollback(legacyTarget);
-    rmSync(legacyTarget);
-  }
   for (const [path, digest] of Object.entries(sources)) {
     verifyAncestors(path);
     assert.equal(
@@ -358,12 +326,14 @@ export function convertProfileScope(
     rmSync(path);
   }
   return (
-    Object.keys(sources).length + customizations.length + (hasLegacy ? 1 : 0)
+    Object.keys(sources).length +
+    customizations.length +
+    (oldPreferences ? 1 : 0)
   );
 }
 
 /** Harness conversion is committed only after the consolidated user JSON is verified. */
-export function convertAgentProfileSettings(
+export function convertSubagentSettings(
   home: string,
   scratch?: string,
 ): number {

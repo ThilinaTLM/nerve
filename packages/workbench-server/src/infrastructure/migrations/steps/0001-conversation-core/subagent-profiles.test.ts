@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { convertAgentProfileSettings } from "./agent-profiles.js";
+import { convertSubagentSettings } from "./subagent-profiles.js";
 
 function fixture(t: TestContext) {
   const home = mkdtempSync(join(tmpdir(), "nerve-profile-conversion-"));
@@ -45,9 +45,9 @@ void test("converts Markdown without harness and merges explicit enabled prefere
       enabled: { review: false, explore: true, missing: false },
     }),
   );
-  convertAgentProfileSettings(home, scratch);
+  convertSubagentSettings(home, scratch);
   const document = JSON.parse(
-    readFileSync(join(home, "config/agent-profiles.json"), "utf8"),
+    readFileSync(join(home, "config/subagents.json"), "utf8"),
   );
   const profile = document.profiles.review;
   assert.equal(document.schemaVersion, 1);
@@ -68,17 +68,15 @@ void test("converts Markdown without harness and merges explicit enabled prefere
     auto: false,
     profile: "custom",
     triggerPercent: 75,
+    keepRecentPercent: 20,
   });
-  assert.deepEqual(document.profiles.missing, {
-    enabled: false,
-    usableBy: "subagent",
-  });
+  assert.deepEqual(document.profiles.missing, { enabled: false });
   assert.equal(document.profiles.explore.enabled, true);
   assert(!existsSync(join(home, "agent/subagents/review.md")));
-  assert.equal(convertAgentProfileSettings(home, scratch), 0);
+  assert.equal(convertSubagentSettings(home, scratch), 0);
   // An interrupted conversion can leave source Markdown after verified JSON.
   writeFileSync(join(home, "agent/subagents/review.md"), markdown);
-  convertAgentProfileSettings(home, scratch);
+  convertSubagentSettings(home, scratch);
   assert(!existsSync(join(home, "agent/subagents/review.md")));
 });
 
@@ -97,7 +95,7 @@ void test("malformed targets and conflicting entries never overwrite JSON or rem
     '{"enabled":{"review":"false"}}',
   ]) {
     writeFileSync(target, raw);
-    assert.throws(() => convertAgentProfileSettings(home));
+    assert.throws(() => convertSubagentSettings(home));
     assert.equal(readFileSync(target, "utf8"), raw);
     assert.equal(readFileSync(source, "utf8"), markdown);
   }
@@ -117,15 +115,10 @@ void test("existing JSON entries take precedence over harness customizations", (
       tools: { disabled: ["explore"] },
     }),
   );
-  convertAgentProfileSettings(home);
+  convertSubagentSettings(home);
   assert.deepEqual(
-    JSON.parse(readFileSync(join(home, "config/agent-profiles.json"), "utf8")),
-    {
-      schemaVersion: 1,
-      profiles: {
-        explore: { model: "inherit", enabled: true, usableBy: "subagent" },
-      },
-    },
+    JSON.parse(readFileSync(join(home, "config/subagents.json"), "utf8")),
+    document,
   );
   assert.equal(
     JSON.parse(readFileSync(join(home, "config/harness.json"), "utf8"))
@@ -134,32 +127,13 @@ void test("existing JSON entries take precedence over harness customizations", (
   );
 });
 
-void test("renaming an existing JSON document refuses a different current target", (t) => {
-  const home = fixture(t);
-  const legacy = join(home, "config/subagents.json");
-  const target = join(home, "config/agent-profiles.json");
-  const original = JSON.stringify({
-    schemaVersion: 1,
-    profiles: { review: { model: "lead" } },
-  });
-  const current = JSON.stringify({
-    schemaVersion: 1,
-    profiles: { review: { model: "other/model", usableBy: "subagent" } },
-  });
-  writeFileSync(legacy, original);
-  writeFileSync(target, current);
-  assert.throws(() => convertAgentProfileSettings(home), /collision/);
-  assert.equal(readFileSync(legacy, "utf8"), original);
-  assert.equal(readFileSync(target, "utf8"), current);
-});
-
 void test("invalid Markdown fails without removing any source", (t) => {
   const home = fixture(t);
   writeFileSync(
     join(home, "agent/subagents/review.md"),
     markdown.replace("thinking: high", "thinking: impossible"),
   );
-  assert.throws(() => convertAgentProfileSettings(home));
+  assert.throws(() => convertSubagentSettings(home));
   assert(existsSync(join(home, "agent/subagents/review.md")));
   assert(!existsSync(join(home, "config/subagents.json")));
 });
