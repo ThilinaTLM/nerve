@@ -1,3 +1,4 @@
+import { slashCommandItemsForProfiles } from "@nervekit/contracts/completions";
 // Pure view-model for the composer suggestion popup: grouping, ordering,
 // row state and the status bar. No CodeMirror or Svelte imports so it can be
 // unit-tested directly and rendered by any host.
@@ -89,7 +90,7 @@ export function scopeOfKind(
     case "tool":
       return "tool";
     case "subagent":
-    case "subagent_profile":
+    case "agent_profile":
       return "agent";
     case "launch":
     case "launch_definition":
@@ -139,7 +140,7 @@ export type PopupRow = {
   meta?: string;
   state: "ready" | "off" | "unavailable";
   badge?: { text: string; variant: BadgeTone };
-  /** Slash: this is the active mode. */
+  /** Slash: this is the active profile. */
   current?: boolean;
   /** Skills/tools/agent profiles can be turned on/off in place. */
   toggleable: boolean;
@@ -192,13 +193,12 @@ export type PopupModel = {
 };
 
 const SLASH_GROUPS: Readonly<Record<string, string>> = {
-  plan: "Mode",
-  code: "Mode",
+  plan: "Profile",
   compact: "Conversation",
   new: "Conversation",
   abort: "Run",
 };
-const SLASH_GROUP_ORDER = ["Mode", "Conversation", "Run", "Commands"];
+const SLASH_GROUP_ORDER = ["Profile", "Conversation", "Run", "Commands"];
 
 export function stripMentionPrefix(label: string): string {
   return label.replace(/^@/, "").replace(/^[a-z]+:/i, "");
@@ -207,7 +207,7 @@ export function stripMentionPrefix(label: string): string {
 const TOGGLEABLE_KINDS: ReadonlySet<CompletionKind> = new Set([
   "skill",
   "tool",
-  "subagent_profile",
+  "agent_profile",
 ]);
 
 /** Raw lowercase `status` from the server → badge tone (text is title-cased). */
@@ -358,7 +358,13 @@ export function buildMentionGroups(input: MentionGroupInput): PopupGroup[] {
   });
 }
 
-export type SlashContext = { mode: "coding" | "planning"; running: boolean };
+export type SlashContext = {
+  /** Active agent profile name. */
+  profile: string;
+  /** Profiles `/profile <name>` can switch to. */
+  profiles: readonly { name: string; label: string; description?: string }[];
+  running: boolean;
+};
 
 export function buildSlashGroups(
   items: readonly CompletionItem[],
@@ -367,14 +373,19 @@ export function buildSlashGroups(
 ): PopupGroup[] {
   const needle = rawToken.replace(/^\//, "").toLowerCase();
   const byGroup = new Map<string, PopupRow[]>();
-  for (const item of items) {
+  for (const item of slashCommandItemsForProfiles(
+    items,
+    context?.profiles ?? [],
+  )) {
     const command = item.label.replace(/^\//, "");
     if (command === "abort" && !context?.running) continue;
     if (needle && !command.toLowerCase().includes(needle)) continue;
-    const label = SLASH_GROUPS[command] ?? "Commands";
-    const current =
-      (command === "code" && context?.mode === "coding") ||
-      (command === "plan" && context?.mode === "planning");
+    const label = command.startsWith("profile ")
+      ? "Profile"
+      : (SLASH_GROUPS[command] ?? "Commands");
+    const current = command.startsWith("profile ")
+      ? command === `profile ${context?.profile}`
+      : command === "plan" && context?.profile === "planning";
     const row: PopupRow = {
       id: `slash:${command}`,
       item,

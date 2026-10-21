@@ -6,9 +6,9 @@ import {
 } from "@nervekit/contracts/capabilities";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import {
-  subagentProfileSchema,
-  type SubagentProfilesConfiguration,
-} from "@nervekit/contracts/subagents";
+  agentProfileSchema,
+  type AgentProfilesConfiguration,
+} from "@nervekit/contracts/agent-profiles";
 import { launchDefinitionSchema } from "@nervekit/contracts/launch-definitions";
 import { userCapabilitySelection } from "../../src/core-host/user-capability-selection.js";
 import {
@@ -49,22 +49,23 @@ export function syntheticProviders(options: SyntheticProviderOptions) {
     availableTools: ["web_search"],
     toolProfileOptions: { jira: [], confluence: [], web_search: [] },
   });
-  const profile = subagentProfileSchema.parse({
+  const profile = agentProfileSchema.parse({
     name: "cobalt",
     label: "cobalt",
     description: "Invented review profile",
     enabled: false,
+    usableBy: "subagent",
     source: "conversation",
     trust: "trusted",
-    model: "lead",
-    thinking: "lead",
+    model: "inherit",
+    thinking: "inherit",
     permission: "autonomous",
     compaction: "inherit",
     tools: {},
     skills: "inherit",
     instructions: "Review the invented fixture only.",
   });
-  const profiles: SubagentProfilesConfiguration = {
+  const profiles: AgentProfilesConfiguration = {
     scope: "conversation",
     digest: "synthetic-profiles",
     document: null,

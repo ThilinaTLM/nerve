@@ -2,7 +2,11 @@ import { fileURLToPath } from "node:url";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { loadSkills, type Skill } from "@nervekit/harness/resources";
 
-export const expectedNerveSkillNames = ["skill-creator", "team-lead"] as const;
+export const expectedNerveSkillNames = [
+  "planning",
+  "skill-creator",
+  "team-lead",
+] as const;
 
 let catalogPromise: Promise<readonly Skill[]> | undefined;
 

@@ -42,7 +42,6 @@ const submitDisabled = $derived(
 const controlsDisabled = $derived(
   model.controlsDisabled ?? (blocked || Boolean(model.sending)),
 );
-const modePlanning = $derived(model.mode === "planning");
 const runtimeChangeHint = $derived(
   model.runtimeChangeHint ??
     (model.sending ? "Changes apply to the next model request" : undefined),
@@ -96,7 +95,7 @@ function submit(): void {
 </script>
 
 <ComposerShell
-  mode={model.mode}
+  agentProfile={model.agentProfile}
   {commandMode}
   {executableBlocks}
   pendingApproval={model.pendingApproval}
@@ -129,24 +128,23 @@ function submit(): void {
   {#snippet toolbar()}
     <ComposerToolbar
       {controlsDisabled}
-      modeDisabled={model.modeDisabled ?? blocked}
+      profileDisabled={model.profileDisabled ?? blocked}
+      agentProfile={model.agentProfile}
+      agentProfiles={model.agentProfiles}
+      lockedFields={model.lockedFields}
       modelDisabled={model.modelDisabled ??
         (blocked || model.models.length === 0)}
-      modeHidden={model.modeHidden}
       session={model.session}
       contextActions={model.contextActions}
-      modeLabel={modePlanning ? "Planning" : "Coding"}
-      {modePlanning}
-      onToggleMode={() =>
-        actions.onModeChange?.(modePlanning ? "coding" : "planning")}
+      onAgentProfileChange={actions.onAgentProfileChange}
       permissionRuleSetId={model.permissionRuleSetId}
       permissionRuleSets={model.permissionRuleSets}
       permissionRuleSetsLoading={model.permissionRuleSetsLoading}
       permissionRuleSetsError={model.permissionRuleSetsError}
       permissionShortcut={model.permissionShortcut}
       permissionShortcutAria={model.permissionShortcutAria}
-      modeShortcut={model.modeShortcut}
-      modeShortcutAria={model.modeShortcutAria}
+      profileShortcut={model.profileShortcut}
+      profileShortcutAria={model.profileShortcutAria}
       modelShortcut={model.modelShortcut}
       thinkingShortcut={model.thinkingShortcut}
       contextUsage={model.contextUsage}
@@ -206,7 +204,8 @@ function submit(): void {
         onSubmit={submit}
         onReady={handleEditorReady}
         slashContext={{
-          mode: modePlanning ? "planning" : "coding",
+          profile: model.agentProfile,
+          profiles: model.agentProfiles,
           running: Boolean(model.showStop ?? model.sending),
         }}
         onSlashCommand={actions.onSlashCommand}

@@ -4,7 +4,7 @@ export type TourStepId =
   | "tab-new-conversation"
   | "composer"
   | "permission"
-  | "mode"
+  | "profile"
   | "context"
   | "capabilities"
   | "activity"
@@ -74,12 +74,12 @@ export const tourSteps: readonly TourStep[] = [
     targetId: "composer-permission",
   },
   {
-    id: "mode",
+    id: "profile",
     introducedIn: 2,
-    title: "Switch between coding and planning",
+    title: "Choose an agent profile",
     description:
-      "You choose Coding or Planning here, or with Shift+Tab; the agent cannot switch modes. Coding implements changes. Planning inspects the project and presents a written plan for your review.",
-    targetId: "composer-mode",
+      "You choose the profile here, or with Shift+Tab or /profile; the agent cannot switch profiles. Coding implements changes. Planning inspects the project and presents a written plan for your review, then approval returns to the default profile.",
+    targetId: "composer-profile",
   },
   {
     id: "context",

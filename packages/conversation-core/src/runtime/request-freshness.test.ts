@@ -70,7 +70,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       },
     );
     opts.turnResources.prepare = async ({ config }) => {
-      const prompt = `${config.model.provider}:${config.reasoningLevel}:${config.mode}:${config.instructions}`;
+      const prompt = `${config.model.provider}:${config.reasoningLevel}:${config.agentProfile}:${config.instructions}`;
       preparations.push(prompt);
       return { systemPrompt: prompt, tools: [] };
     };
@@ -88,7 +88,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       core.configure("conv_fresh", {
         model: { provider: newModel.provider, modelId: newModel.id },
         reasoningLevel: "high",
-        mode: "planning",
+        agentProfile: "planning",
         instructions: "new",
       });
     // Compaction scheduling is the runner's responsibility; summary generation
@@ -107,7 +107,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         if (compactions === 1)
           core.configure("conv_fresh", {
             reasoningLevel: "low",
-            mode: "coding",
+            agentProfile: "coding",
             instructions: "after compaction",
             ...(boundary === "overflow"
               ? { model: { provider: newModel.provider, modelId: "smaller" } }
@@ -132,7 +132,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           if (boundary !== "overflow")
             core.configure("conv_fresh", {
               reasoningLevel: "low",
-              mode: "coding",
+              agentProfile: "coding",
               instructions: "in flight",
             });
           assert.equal(
@@ -145,7 +145,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           // A queued input continues this execution after the in-flight reply.
           core.configure("conv_fresh", {
             reasoningLevel: "off",
-            mode: "coding",
+            agentProfile: "coding",
             instructions: "continuation",
           });
           core.submitInput({
@@ -224,7 +224,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       if (boundary !== "retry") {
         core.configure("conv_fresh", {
           reasoningLevel: "off",
-          mode: "coding",
+          agentProfile: "coding",
           instructions: "continuation",
         });
         core.submitInput({

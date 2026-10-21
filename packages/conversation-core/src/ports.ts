@@ -1,5 +1,6 @@
+import type { AgentProfileCompactionOverride } from "@nervekit/contracts/agent-profiles";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import type { SubagentProfilesDocument } from "@nervekit/contracts/subagents";
+import type { AgentProfilesDocument } from "@nervekit/contracts/agent-profiles";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
   CommandResult,
@@ -34,7 +35,7 @@ export interface TurnPreparationInput {
   config: Omit<ConversationConfig, "conversationId">;
   projectDir: string;
   capabilityOverrides?: CapabilityOverridesDocument;
-  subagentProfileOverrides?: SubagentProfilesDocument;
+  agentProfileOverrides?: AgentProfilesDocument;
 }
 
 export interface TurnResourcesPort {
@@ -131,3 +132,29 @@ export interface ClockPort {
   now(): string;
 }
 export type { CommandResult, ToolProgress } from "@nervekit/contracts/core";
+
+/** Locks are effective overrides only: do not persist them into conversation config. */
+export type AgentProfileLockedScalars = Partial<
+  Pick<ConversationConfig, "model" | "reasoningLevel" | "permissionRuleSetId">
+> & { compaction?: AgentProfileCompactionOverride };
+
+/** Host resolves defaults and returns the changes core must persist on a switch. */
+export interface AgentProfileConfigPatch {
+  config: Partial<Omit<ConversationConfig, "conversationId">> & {
+    agentProfile: string;
+  };
+  /** Null removes the stored conversation compaction override. */
+  compaction?: AgentProfileCompactionOverride | null;
+  capabilityOverrides?: CapabilityOverridesDocument;
+}
+
+/** Profile policy belongs to the host; core owns persistence and turn lifecycle. */
+export interface AgentProfilePort {
+  resolveLockedScalars(
+    input: TurnPreparationInput,
+  ): Promise<AgentProfileLockedScalars>;
+  /** Omit profile to select the settings default lead profile (e.g. after plan approval). */
+  switchProfile(
+    input: TurnPreparationInput & { profile?: string },
+  ): Promise<AgentProfileConfigPatch>;
+}

@@ -325,16 +325,15 @@ export const setupGuideSteps: Record<
       },
     },
     {
-      id: "agent-subagent-profiles",
-      title: "Review sub-agent profiles",
+      id: "agent-profiles",
+      title: "Review agent profiles",
       description:
-        "Choose the model, permissions and instructions the Explore and Developer sub-agent profiles use.",
-      targetId: "setup-agent-subagent-profiles",
-      fallback:
-        "Open Settings → Sub-agents and edit the Explore or Developer profile.",
+        "Choose the model, permissions and instructions the Coding, Planning, Explore and Developer profiles use.",
+      targetId: "setup-agent-profiles",
+      fallback: "Open Settings → Agent profiles and edit a built-in profile.",
       preparation: {
         kind: "settings",
-        pageId: "subagents",
+        pageId: "agent-profiles",
         sectionId: "profiles",
       },
     },

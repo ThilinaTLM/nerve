@@ -146,18 +146,24 @@ export function createCompletionDependencies(
     },
   }).map((provider): CompletionProvider => {
     const notices: Record<string, string[]> = {
-      files: ["filesystem.project.changed"],
+      files: ["filesystem.project.changed", "projectSettings.changed"],
       launches: ["launch."],
       launch_definitions: ["launchCatalog."],
-      skills: ["settings.updated", "filesystem.project.changed"],
+      skills: [
+        "settings.updated",
+        "projectSettings.changed",
+        "filesystem.project.changed",
+      ],
       tools: [
         "settings.updated",
+        "projectSettings.changed",
         "providers.",
         "auth.providers_changed",
         "filesystem.project.changed",
       ],
       profiles: [
         "settings.updated",
+        "projectSettings.changed",
         "providers.",
         "auth.providers_changed",
         "filesystem.project.changed",

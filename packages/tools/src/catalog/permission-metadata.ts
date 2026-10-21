@@ -330,7 +330,7 @@ const metadata = {
     ["whole_tool"],
     true,
   ),
-  plan_mode_present: m(
+  plan_present: m(
     "orchestration",
     "planMode",
     "interaction",

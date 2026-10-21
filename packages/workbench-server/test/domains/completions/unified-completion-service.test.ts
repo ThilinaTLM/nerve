@@ -652,9 +652,9 @@ void test("blocked profiles cannot be selected or implicitly trusted", async () 
       ttlMs: 1000,
       load: async () => [
         doc("blocked", {
-          kind: "subagent_profile",
+          kind: "agent_profile",
           item: {
-            kind: "subagent_profile",
+            kind: "agent_profile",
             label: "blocked",
             available: false,
             unavailableReason: "Untrusted profile",
@@ -694,10 +694,10 @@ void test("access revocation fails closed even when native removal and owner rel
         if (revoked) throw new Error("Configuration unavailable");
         return [
           doc("profile", {
-            kind: "subagent_profile",
+            kind: "agent_profile",
             item: {
               label: "profile",
-              kind: "subagent_profile",
+              kind: "agent_profile",
               enabled: true,
               available: true,
             },

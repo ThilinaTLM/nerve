@@ -11,7 +11,7 @@ import GenerateImageToolView from "../tool-call/GenerateImageToolView.svelte";
 import JiraToolView from "../tool-call/JiraToolView.svelte";
 import KrokiToolView from "../tool-call/KrokiToolView.svelte";
 import LsToolView from "../tool-call/LsToolView.svelte";
-import PlanModeToolView from "../tool-call/PlanModeToolView.svelte";
+import PlanPresentToolView from "../tool-call/PlanPresentToolView.svelte";
 import PythonToolView from "../tool-call/PythonToolView.svelte";
 import ReadToolView from "../tool-call/ReadToolView.svelte";
 import SubagentToolView from "../tool-call/SubagentToolView.svelte";
@@ -36,7 +36,7 @@ const viewByKind: Record<ToolView["kind"], ToolViewComponent> = {
   ask_user: AskUserToolView,
   todos: TodoToolView,
   subagent: SubagentToolView,
-  plan_mode: PlanModeToolView,
+  plan_present: PlanPresentToolView,
   jira: JiraToolView,
   confluence: ConfluenceToolView,
   web_search: WebSearchToolView,

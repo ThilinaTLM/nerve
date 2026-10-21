@@ -19,7 +19,6 @@ export {
 export type NewAgentComposerSelection = {
   selectedModelKey: string;
   selectedThinkingLevel: ConversationConfig["reasoningLevel"];
-  selectedMode: ConversationConfig["mode"];
   selectedPermissionRuleSetId: NonNullable<
     ConversationConfig["permissionRuleSetId"]
   >;
@@ -29,7 +28,6 @@ export function effectiveNewAgentDefaults(settings: Settings) {
   return settings.rememberLastAgentSelection
     ? settings.lastAgentSelection
     : {
-        mode: "coding" as const,
         permissionRuleSetId: settings.defaultPermissionRuleSetId,
         model: settings.defaultModel,
         thinkingLevel: settings.defaultThinkingLevel,
@@ -59,7 +57,6 @@ export function resolveNewAgentComposerSelection(
       defaults.thinkingLevel,
       fallbackModel,
     ),
-    selectedMode: defaults.mode,
     selectedPermissionRuleSetId: defaults.permissionRuleSetId,
   };
 }

@@ -155,3 +155,13 @@ test("provider catalog and settings mutations share serialization without lost u
   assert.equal(storage.settings.runtime.shellPath, "/new/shell");
   await assertReload(storage);
 });
+
+test("default agent profile can be cleared and stays absent after reload", async () => {
+  const storage = await createStorage();
+  await writeSettings(storage, { defaultAgentProfile: "planning" });
+  assert.equal(storage.configuration.harness.defaultAgentProfile, "planning");
+  await writeSettings(storage, { defaultAgentProfile: null });
+  assert.equal(storage.settings.defaultAgentProfile, undefined);
+  assert.equal(storage.configuration.harness.defaultAgentProfile, undefined);
+  await assertReload(storage);
+});

@@ -10,7 +10,7 @@ export type ToolCategory = "core" | "third-party";
 export type ToolGroupId =
   | "file-inspection"
   | "file-editing"
-  | "plan-mode"
+  | "plan-present"
   | "todos"
   | "web"
   | "vision"
@@ -32,6 +32,7 @@ export type ToolGroupDef = {
 
 export const configurableToolOrder: ConfigurableToolName[] = [
   ...subagentToolNames,
+  "plan_present",
   "web_search",
   "web_fetch",
   "explain_image",
@@ -150,16 +151,17 @@ export const toolGroups: ToolGroupDef[] = [
     ],
   },
   {
-    id: "plan-mode",
+    id: "plan-present",
     category: "core",
-    label: "Plan mode",
+    label: "Plan review",
     description:
-      "Research, draft, and present implementation plans before workspace changes.",
-    configurableTools: [],
+      "Let the agent submit a plan for your review. Enabled by the Planning profile.",
+    configurableTools: ["plan_present"],
     tools: [
       {
-        name: "plan_mode_present",
-        description: "Present a completed plan for user approval.",
+        name: "plan_present",
+        description:
+          "Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the default profile for implementation.",
       },
     ],
   },

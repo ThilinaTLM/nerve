@@ -7,22 +7,28 @@ test("composer configuration persists on the conversation across reload", async 
   const f = await conversationFixture(page);
   try {
     const conversationId = f.snapshot.conversation.id;
-    await page.getByTitle(/Mode: Coding/).click();
+    await page
+      .getByRole("button", { name: "Agent profile", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Planning", exact: true }).click();
     await expect
       .poll(
         async () =>
           (await coreRpc(page, "conversation.getSnapshot", { conversationId }))
-            .config.mode,
+            .config.agentProfile,
       )
       .toBe("planning");
     await page.reload();
-    await expect(page.getByTitle(/Mode: Planning/)).toBeVisible();
-    await page.getByTitle(/Mode: Planning/).click();
+    await expect(page.getByTitle(/Agent profile: Planning/)).toBeVisible();
+    await page
+      .getByRole("button", { name: "Agent profile", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Coding", exact: true }).click();
     await expect
       .poll(
         async () =>
           (await coreRpc(page, "conversation.getSnapshot", { conversationId }))
-            .config.mode,
+            .config.agentProfile,
       )
       .toBe("coding");
   } finally {
@@ -36,22 +42,29 @@ test("configuration notices update the open composer without replacing its draft
   const f = await conversationFixture(page);
   try {
     const composer = page.getByRole("textbox").first();
+    const conversationId = f.snapshot.conversation.id;
     await composer.fill("Keep this unsent draft");
     await coreRpc(page, "conversation.configure", {
-      conversationId: f.snapshot.conversation.id,
-      patch: { mode: "planning", permissionRuleSetId: "autonomous" },
+      conversationId,
+      patch: { permissionRuleSetId: "autonomous" },
     });
-    await expect(page.getByTitle(/Mode: Planning/)).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Permission rule set", exact: true }),
-    ).toHaveAttribute("title", /Planning/);
-    await coreRpc(page, "conversation.configure", {
-      conversationId: f.snapshot.conversation.id,
-      patch: { mode: "coding" },
+    await coreRpc(page, "conversation.setAgentProfile", {
+      conversationId,
+      profile: "planning",
     });
-    await expect(
-      page.getByRole("button", { name: "Permission rule set", exact: true }),
-    ).toHaveAttribute("title", /Autonomous/);
+    await expect(page.getByTitle(/Agent profile: Planning/)).toBeVisible();
+    const permission = page.getByRole("button", {
+      name: "Permission rule set",
+      exact: true,
+    });
+    await expect(permission).toHaveAttribute("title", /Planning/);
+    await coreRpc(page, "conversation.setAgentProfile", {
+      conversationId,
+      profile: "coding",
+    });
+    await expect(page.getByTitle(/Agent profile: Coding/)).toBeVisible();
+    // Coding applies the built-in settings default, not the previous profile's Lock.
+    await expect(permission).toHaveAttribute("title", /Autonomous/);
     await expect(composer).toHaveText("Keep this unsent draft");
   } finally {
     await f.close();

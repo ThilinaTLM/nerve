@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { Buffer } from "node:buffer";
 import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
@@ -169,7 +170,7 @@ export async function jiraDownload(
   if (declared > maximum) {
     throw new ToolExecutionError(
       "JIRA_ATTACHMENT_TOO_LARGE",
-      "Jira attachment exceeds the 25 MiB download limit.",
+      guideErrorMessage("Jira attachment exceeds the 25 MiB download limit."),
       { bytes: declared, maximum },
     );
   }
@@ -177,7 +178,7 @@ export async function jiraDownload(
   if (bytes.byteLength > maximum) {
     throw new ToolExecutionError(
       "JIRA_ATTACHMENT_TOO_LARGE",
-      "Jira attachment exceeds the 25 MiB download limit.",
+      guideErrorMessage("Jira attachment exceeds the 25 MiB download limit."),
       { bytes: bytes.byteLength, maximum },
     );
   }
@@ -218,7 +219,9 @@ async function throwJiraError(
     statusText: response.statusText,
     body,
   });
-  throw new ToolExecutionError(code, error.message, error.details, retryable);
+  const message =
+    response.status === 400 ? guideErrorMessage(error.message) : error.message;
+  throw new ToolExecutionError(code, message, error.details, retryable);
 }
 
 function jiraErrorCode(status: number): string {

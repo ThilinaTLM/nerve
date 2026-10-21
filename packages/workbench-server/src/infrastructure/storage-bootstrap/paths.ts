@@ -26,7 +26,7 @@ export interface StoragePaths {
   plansPath: string;
   agentPath: string;
   suggestionsPath: string;
-  subagentsConfigPath: string;
+  agentProfilesConfigPath: string;
   tlsPath: string;
   tmpPath: string;
   cachePath: string;
@@ -78,7 +78,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     plansPath: join(dataPath, "plans"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
-    subagentsConfigPath: join(configPath, "subagents.json"),
+    agentProfilesConfigPath: join(configPath, "agent-profiles.json"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),
     cachePath,

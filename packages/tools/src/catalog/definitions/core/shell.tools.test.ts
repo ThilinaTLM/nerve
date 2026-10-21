@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Value } from "typebox/value";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   buildBashToolDefinition,
   shellToolDefinitions,
@@ -28,7 +29,11 @@ void test("promotion settings define bash schema and exact description per turn"
   assert.ok(!Value.Check(enabled.parameters, { command: "echo", timeout: 1 }));
   assert.equal(
     enabled.description,
-    "Run a shell command. Moves to background after 2.5s if still running; background:true returns at once. Background runs notify you on exit; don't poll. Large output is summarized with file paths for read/grep. Use launch for the user's dev servers.",
+    "Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after 2.5s (`background: true` returns at once); background runs notify you on exit, so don't poll. Large output is saved to files for read/grep.",
+  );
+  assert.equal(
+    shellToolDefinitions[0].description,
+    buildBashToolDefinition(defaultSettings.tools.bash).description,
   );
   const disabled = buildBashToolDefinition({
     autoPromotion: { enabled: false, afterMs: 120000 },
@@ -58,6 +63,6 @@ void test("promotion settings define bash schema and exact description per turn"
     assert.ok(!Value.Check(disabled.parameters, { command: "echo", timeout }));
   assert.match(
     disabled.description,
-    /Requires timeout \(max 900s\); the process is killed when it expires\. background:true returns at once\./,
+    /Requires timeout \(max 900s\); the process is killed when it expires\. `background: true` returns at once;/,
   );
 });

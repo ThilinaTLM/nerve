@@ -81,7 +81,7 @@ export type ToolCallInteraction =
             | "subagent_prompt"
             | "subagent_status"
             | "subagent_stop"
-            | "plan_mode_present";
+            | "plan_present";
           effect: "allow" | "deny";
           rule: string;
         }[];

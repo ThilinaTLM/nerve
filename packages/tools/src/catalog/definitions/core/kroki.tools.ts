@@ -12,7 +12,7 @@ export const krokiToolDefinitions = [
     executor: executeKrokiExport,
     label: "Export Diagram",
     description:
-      "Render a diagram to SVG/PNG via the Kroki server configured in Settings (source is sent to it). Prefer source_path so fixes can be targeted edits. Returns the output path.",
+      "Render a diagram to SVG/PNG through the configured Kroki server (the source is sent to it). Prefer `source_path` so fixes can be targeted edits. Returns the output path.",
     parameters: Type.Object(
       {
         diagram_type: Type.String({

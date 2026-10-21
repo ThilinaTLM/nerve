@@ -9,6 +9,7 @@ import type {
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 import { buildModelMessages } from "../context/index.js";
 import type {
+  AgentProfilePort,
   ModelPort,
   TurnResourcesPort,
   TurnPreparationInput,
@@ -48,15 +49,30 @@ export class ModelTurn {
     private readonly coreDefinitions: () => ToolDefinition[],
     private readonly emit: CoreEmitter,
     private readonly assets?: AssetStore,
+    private readonly agentProfiles?: AgentProfilePort,
   ) {}
   async prepare(input: TurnPreparationInput) {
+    return this.prepareResources(input, true);
+  }
+  private async prepareResources(
+    input: TurnPreparationInput,
+    resolveLocks: boolean,
+  ) {
     const snapshot: TurnPreparationInput = {
       conversation: structuredClone(input.conversation),
       config: structuredClone(input.config),
       projectDir: input.projectDir,
       capabilityOverrides: structuredClone(input.capabilityOverrides),
-      subagentProfileOverrides: structuredClone(input.subagentProfileOverrides),
+      agentProfileOverrides: structuredClone(input.agentProfileOverrides),
     };
+    const locked = resolveLocks
+      ? await this.agentProfiles?.resolveLockedScalars(snapshot)
+      : undefined;
+    if (locked) {
+      const config = { ...locked };
+      delete config.compaction;
+      Object.assign(snapshot.config, config);
+    }
     const customPrompt = snapshot.config.systemPrompt;
     const resources = await this.resources.prepare({
       conversation: snapshot.conversation,
@@ -65,8 +81,8 @@ export class ModelTurn {
       ...(snapshot.capabilityOverrides
         ? { capabilityOverrides: snapshot.capabilityOverrides }
         : {}),
-      ...(snapshot.subagentProfileOverrides
-        ? { subagentProfileOverrides: snapshot.subagentProfileOverrides }
+      ...(snapshot.agentProfileOverrides
+        ? { agentProfileOverrides: snapshot.agentProfileOverrides }
         : {}),
       coreTools: this.coreDefinitions(),
     });
@@ -79,16 +95,26 @@ export class ModelTurn {
     // Own the inputs before awaiting host preparation; later saves must not alter
     // an already prepared provider attempt.
     const config = structuredClone(input.config);
+    const locked = await this.agentProfiles?.resolveLockedScalars({
+      ...input,
+      config,
+    });
+    if (locked) {
+      const scalars = { ...locked };
+      delete scalars.compaction;
+      Object.assign(config, scalars);
+    }
     const resolved = structuredClone(
       await this.models.resolve(structuredClone(config.model)),
     );
-    const resources = await this.prepare({ ...input, config });
+    const resources = await this.prepareResources({ ...input, config }, false);
     const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
     return {
       resolved,
+      model: structuredClone(config.model),
       reasoning:
         config.reasoningLevel === "off" ? undefined : config.reasoningLevel,
-      mode: config.mode,
+      agentProfile: config.agentProfile,
       systemPrompt: resources.systemPrompt,
       tools: structuredClone(
         [...tools.values()].map(({ name, description, parameters }) => ({

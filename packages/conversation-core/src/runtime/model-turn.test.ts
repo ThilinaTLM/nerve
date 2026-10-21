@@ -76,7 +76,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
         systemPrompt: override,
         instructions: "Current conversation instructions",
         workingDirectory: join(directory, "working"),
-        mode: "planning",
+        agentProfile: "planning",
       });
       const definition = toolDefinitionByName("bash");
       assert.ok(definition);
@@ -207,7 +207,7 @@ void test("unsent preview uses draft values without creating a conversation and 
             .sort(([a], [b]) => a.localeCompare(b)),
         ),
         capabilities: input.capabilityOverrides ?? savedCapabilities,
-        profiles: input.subagentProfileOverrides ?? savedProfiles,
+        profiles: input.agentProfileOverrides ?? savedProfiles,
       }),
       tools: [],
     }),
@@ -218,7 +218,7 @@ void test("unsent preview uses draft values without creating a conversation and 
     const config = {
       model: { provider: "draft", modelId: "selected" },
       reasoningLevel: "high" as const,
-      mode: "planning" as const,
+      agentProfile: "planning" as const,
       systemPrompt: null,
       instructions: "Unsent instructions",
       permissionRuleSetId: "baseline",
@@ -230,7 +230,7 @@ void test("unsent preview uses draft values without creating a conversation and 
       toolSettings: {},
       skills: { nerve: {}, agentBrowser: {}, file: {} },
     };
-    const subagentProfileOverrides = {
+    const agentProfileOverrides = {
       schemaVersion: 1 as const,
       profiles: {},
     };
@@ -238,7 +238,7 @@ void test("unsent preview uses draft values without creating a conversation and 
       projectId: "proj_test",
       config,
       capabilityOverrides,
-      subagentProfileOverrides,
+      agentProfileOverrides,
     };
     const preview = await core.previewSystemPrompt(draft);
     assert.equal(opts.storage.conversations.get("conv_pending"), null);
@@ -249,7 +249,7 @@ void test("unsent preview uses draft values without creating a conversation and 
     });
     core.configure("conv_pending", config);
     savedCapabilities = capabilityOverrides;
-    savedProfiles = subagentProfileOverrides;
+    savedProfiles = agentProfileOverrides;
     assert.equal(
       await core.previewSystemPrompt({ conversationId: "conv_pending" }),
       preview,

@@ -1,3 +1,4 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
   disabledToolListSchema,
   subagentToolNames,
@@ -27,7 +28,6 @@ import {
   imageGenerationToolSettingsSchema,
   krokiToolSettingsSchema,
   defaultKrokiToolSettings,
-  modeSchema,
   notificationToneSchema,
   transcriptionModelSchema,
 } from "./settings.js";
@@ -85,8 +85,6 @@ export const NERVE_HOME_MANIFEST: NerveHomeManifestV2 = {
 
 const agentSelectionConfigSchema = z
   .object({
-    mode: modeSchema,
-
     permissionRuleSetId: permissionRuleSetIdSchema,
     model: modelSelectionSchema.optional(),
     thinkingLevel: thinkingLevelSchema,
@@ -151,6 +149,7 @@ export const defaultDaemonConfig: DaemonConfig = {
 
 export const harnessConfigSchema = z
   .object({
+    defaultAgentProfile: agentProfileNameSchema.optional(),
     version: z.literal(3),
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
@@ -218,15 +217,11 @@ export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 export const defaultHarnessConfig: HarnessConfig = {
   version: 3,
   defaults: {
-    mode: "coding",
-
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
   rememberLastSelection: false,
   lastSelection: {
-    mode: "coding",
-
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
@@ -239,6 +234,7 @@ export const defaultHarnessConfig: HarnessConfig = {
   execution: {},
   tools: {
     disabled: [
+      "plan_present",
       "explain_image",
       "generate_image",
       "kroki_export",

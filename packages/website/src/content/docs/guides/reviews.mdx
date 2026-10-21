@@ -36,7 +36,7 @@ Draft answers survive switching conversations. Once resolved, the question and o
 
 ## Plan review
 
-A planning run writes a reviewed plan in Nerve plan storage and presents it in the transcript. Acceptance options can:
+The Planning profile writes a complete plan in Nerve plan storage and submits it with `plan_present`, ending the turn for review. Approval switches to the default lead profile (`defaultAgentProfile`); rejection keeps Planning and ends the run until your next prompt. Acceptance options can:
 
 - implement in the same conversation;
 - compact context, then implement;

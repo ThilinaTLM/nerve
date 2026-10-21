@@ -47,9 +47,9 @@ import {
   captureLegacyProfileEnablement,
   convertProfileScope,
   profileReceiptPath,
-  convertSubagentSettings,
-} from "./subagent-profiles.js";
-import { profilesDocument } from "./subagent-profile-format.js";
+  convertAgentProfileSettings,
+} from "./agent-profiles.js";
+import { profilesDocument } from "./agent-profile-format.js";
 import { LegacyReader, type Legacy } from "./legacy.reader.js";
 import { CoreStorage } from "./storage.js";
 import { coreSchemaV1 } from "./schema.js";
@@ -508,19 +508,23 @@ async function convert(
     ctx.paths.home,
     ctx.scratchDir,
   );
-  const profileTarget = join(ctx.paths.home, "config", "subagents.json");
+  const profileTarget = join(ctx.paths.home, "config", "agent-profiles.json");
   const conversions = {
     ...(await convertConfiguration(ctx.paths.home, ctx.scratchDir, ctx)),
     subagentSettings: await ctx.unit(
       {
         kind: "configuration",
         id: profileTarget,
-        title: "User sub-agent profiles",
+        title: "User agent profiles",
       },
-      () => convertSubagentSettings(ctx.paths.home, ctx.scratchDir),
+      () => convertAgentProfileSettings(ctx.paths.home, ctx.scratchDir),
       {
         quarantine: {
-          files: [profileTarget, join(ctx.paths.home, "agent", "subagents")],
+          files: [
+            profileTarget,
+            join(ctx.paths.home, "config", "subagents.json"),
+            join(ctx.paths.home, "agent", "subagents"),
+          ],
         },
       },
     ),
@@ -553,7 +557,7 @@ async function convert(
       ctx.progress("import", ++done, total, "Importing conversations"),
   });
   const userProfiles = profilesDocument.parse(
-    readJson(join(ctx.paths.home, "config", "subagents.json"), {
+    readJson(join(ctx.paths.home, "config", "agent-profiles.json"), {
       schemaVersion: 1,
       profiles: {},
     }),
@@ -564,12 +568,12 @@ async function convert(
       .prepare("SELECT directory FROM project")
       .all()) {
       const root = join(String(row.directory), ".nerve");
-      const target = join(root, "config", "subagents.json");
+      const target = join(root, "config", "agent-profiles.json");
       await ctx.unit(
         {
           kind: "configuration",
           id: target,
-          title: "Project sub-agent profiles",
+          title: "Project agent profiles",
         },
         () =>
           convertProfileScope(root, join(root, "subagents"), [], false, {
@@ -579,7 +583,11 @@ async function convert(
           }),
         {
           quarantine: {
-            files: [target, join(root, "subagents")],
+            files: [
+              target,
+              join(root, "config", "subagents.json"),
+              join(root, "subagents"),
+            ],
             root: String(row.directory),
           },
         },

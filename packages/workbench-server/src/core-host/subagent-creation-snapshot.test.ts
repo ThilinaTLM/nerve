@@ -3,14 +3,14 @@ import { test } from "node:test";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SubagentProfileService } from "../domains/subagents/subagent-profile.service.js";
+import { AgentProfileService } from "../domains/agent-profiles/agent-profile.service.js";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import {
-  builtInSubagentProfiles,
-  type SubagentProfile,
-} from "@nervekit/contracts/subagents";
+  builtInAgentProfiles,
+  type AgentProfile,
+} from "@nervekit/contracts/agent-profiles";
 import type { AgentModelInfo } from "@nervekit/harness/models";
-import { createProfileAvailability } from "./subagent-profile-availability.js";
+import { createProfileAvailability } from "./agent-profile-availability.js";
 import { createSubagentHost } from "./subagent-host.js";
 
 void test("parent changes during model availability cannot change the validated creation snapshot", async () => {
@@ -18,11 +18,11 @@ void test("parent changes during model availability cannot change the validated 
     model: { provider: "provider", modelId: "reasoning" },
     reasoningLevel: "high",
   } as ConversationConfig;
-  const profile: SubagentProfile = {
-    ...builtInSubagentProfiles[0],
+  const profile: AgentProfile = {
+    ...builtInAgentProfiles[2],
     source: "builtin",
-    model: "lead",
-    thinking: "lead",
+    model: "inherit",
+    thinking: "inherit",
     tools: {},
     skills: "inherit",
   };
@@ -108,8 +108,8 @@ void test("real profile service validates the same captured parent tuple as chil
         } as AgentModelInfo;
       },
     });
-    const profiles = new SubagentProfileService({
-      userPath: join(dir, "config", "subagents.json"),
+    const profiles = new AgentProfileService({
+      userPath: join(dir, "config", "agent-profiles.json"),
       conversationsPath: join(dir, "conversations"),
       getProject: (id) => ({ id, directory: projectDir }),
       getConversation: () => ({ projectId: "p" }),

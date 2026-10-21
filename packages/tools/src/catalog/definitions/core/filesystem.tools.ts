@@ -10,28 +10,20 @@ import type { ToolDefinition } from "../../contracts.js";
 const readParameters = Type.Object(
   {
     path: Type.String({
-      description: "Path to the file to read (relative or absolute)",
+      description: "Relative or absolute.",
     }),
     offset: Type.Optional(
       Type.Number({
-        description: "Line number to start reading from (1-indexed)",
+        description: "1-indexed line.",
       }),
     ),
-    limit: Type.Optional(
-      Type.Number({ description: "Maximum number of lines to read" }),
-    ),
+    limit: Type.Optional(Type.Number()),
     byteOffset: Type.Optional(
       Type.Number({
-        description:
-          "Byte offset to start reading from (0-indexed). Use for overlong lines or minified files; cannot be combined with offset/limit.",
+        description: "0-indexed; not with offset/limit.",
       }),
     ),
-    byteLimit: Type.Optional(
-      Type.Number({
-        description:
-          "Maximum number of bytes to read when byteOffset/byteLimit mode is used",
-      }),
-    ),
+    byteLimit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
@@ -40,19 +32,17 @@ const editItemParameters = Type.Object(
   {
     oldText: Type.String({
       minLength: 1,
-      description: "Exact unique text to replace",
     }),
-    newText: Type.String({ description: "Replacement text" }),
+    newText: Type.String(),
   },
   { additionalProperties: false },
 );
 
 const editParameters = Type.Object(
   {
-    path: Type.String({ description: "Existing file path" }),
+    path: Type.String(),
     edits: Type.Array(editItemParameters, {
       minItems: 1,
-      description: "Exact replacements resolved against the original file",
     }),
   },
   { additionalProperties: false },
@@ -60,55 +50,34 @@ const editParameters = Type.Object(
 
 const writeParameters = Type.Object(
   {
-    path: Type.String({ description: "Path to write (relative or absolute)" }),
-    content: Type.String({ description: "File content to write" }),
+    path: Type.String(),
+    content: Type.String(),
   },
   { additionalProperties: false },
 );
 
 const grepParameters = Type.Object(
   {
-    pattern: Type.String({
-      description: "Search pattern (regex or literal string)",
-    }),
-    path: Type.Optional(
-      Type.String({
-        description:
-          "Single directory or file to search (default: current directory)",
-      }),
-    ),
+    pattern: Type.String(),
+    path: Type.Optional(Type.String()),
     paths: Type.Optional(
-      Type.Array(Type.String({ description: "Directory or file to search" }), {
-        description:
-          "Multiple directories/files to search. Use this instead of a space-separated path string.",
+      Type.Array(Type.String(), {
+        description: "Several targets instead of path.",
       }),
     ),
     glob: Type.Optional(
       Type.String({
-        description:
-          "Filter files by glob pattern, e.g. '*.ts' or '**/*.spec.ts'",
+        description: "E.g. **/*.ts.",
       }),
     ),
-    ignoreCase: Type.Optional(
-      Type.Boolean({ description: "Case-insensitive search (default: false)" }),
-    ),
-    literal: Type.Optional(
-      Type.Boolean({
-        description:
-          "Treat pattern as literal string instead of regex (default: false)",
-      }),
-    ),
+    ignoreCase: Type.Optional(Type.Boolean()),
+    literal: Type.Optional(Type.Boolean()),
     context: Type.Optional(
       Type.Number({
-        description:
-          "Number of lines to show before and after each match (default: 0)",
+        description: "Lines around each match.",
       }),
     ),
-    limit: Type.Optional(
-      Type.Number({
-        description: "Maximum number of matches to return (default: 100)",
-      }),
-    ),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
@@ -116,33 +85,18 @@ const grepParameters = Type.Object(
 const findParameters = Type.Object(
   {
     pattern: Type.String({
-      description:
-        "Glob pattern to match files, e.g. '*.ts', '**/*.json', or 'src/**/*.spec.ts'",
+      description: "E.g. src/**/*.test.ts.",
     }),
-    path: Type.Optional(
-      Type.String({
-        description: "Directory to search in (default: current directory)",
-      }),
-    ),
-    limit: Type.Optional(
-      Type.Number({ description: "Maximum number of results (default: 1000)" }),
-    ),
+    path: Type.Optional(Type.String()),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
 
 const lsParameters = Type.Object(
   {
-    path: Type.Optional(
-      Type.String({
-        description: "Directory to list (default: current directory)",
-      }),
-    ),
-    limit: Type.Optional(
-      Type.Number({
-        description: "Maximum number of entries to return (default: 500)",
-      }),
-    ),
+    path: Type.Optional(Type.String()),
+    limit: Type.Optional(Type.Number()),
   },
   { additionalProperties: false },
 );
@@ -167,7 +121,7 @@ export const filesystemToolDefinitions = [
     executor: executeRead,
     label: "read",
     description:
-      "Read text files or images. Supports line/byte windows; text output is bounded.",
+      "Read a text file or image. Text output is bounded; page with offset/limit, or byteOffset/byteLimit for long lines.",
     parameters: readParameters,
     executionMode: "parallel",
   },
@@ -191,7 +145,7 @@ export const filesystemToolDefinitions = [
     executor: executeEdit,
     label: "edit",
     description:
-      "Replace exact unique text in one existing file; all edits resolve against the original content.",
+      "Replace exact, unique text in an existing file; all edits resolve against the original content.",
     parameters: editParameters,
     executionMode: "sequential",
   },
@@ -214,8 +168,7 @@ export const filesystemToolDefinitions = [
     executionKind: "local",
     executor: executeWrite,
     label: "write",
-    description:
-      "Create or overwrite a file, creating parent directories as needed.",
+    description: "Create or overwrite a file, creating parent directories.",
     parameters: writeParameters,
     executionMode: "sequential",
   },
@@ -240,7 +193,7 @@ export const filesystemToolDefinitions = [
     executor: executeGrep,
     label: "grep",
     description:
-      "Search file contents with regex or literal patterns; results are bounded.",
+      "Search file contents by regex or literal string; results are bounded.",
     parameters: grepParameters,
     executionMode: "parallel",
   },
@@ -265,7 +218,7 @@ export const filesystemToolDefinitions = [
     executor: executeFind,
     label: "find",
     description:
-      "Find files by glob pattern; results respect .gitignore and are bounded.",
+      "Find files by glob; respects .gitignore; results are bounded.",
     parameters: findParameters,
     executionMode: "parallel",
   },
@@ -289,8 +242,7 @@ export const filesystemToolDefinitions = [
     executionKind: "local",
     executor: executeLs,
     label: "ls",
-    description:
-      "List directory entries sorted alphabetically, including dotfiles.",
+    description: "List a directory, including dotfiles.",
     parameters: lsParameters,
     executionMode: "parallel",
   },

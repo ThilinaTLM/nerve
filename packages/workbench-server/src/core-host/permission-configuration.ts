@@ -148,9 +148,6 @@ export function createPermissionConfigurationService(options: {
         ...(ruleSet.description ? { description: ruleSet.description } : {}),
         source: ruleSet.source,
         enabled: ruleSet.enabled,
-        ...(ruleSet.compatibleModes
-          ? { compatibleModes: ruleSet.compatibleModes }
-          : {}),
         available: true,
       })),
       userOverlays,

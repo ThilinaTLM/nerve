@@ -12,6 +12,7 @@ import ConversationProfilesView from "$lib/features/conversations/context/Conver
 import { conversationProfileCounts } from "$lib/features/conversations/context/conversation-profile-diagnostics";
 import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
 import { authenticatedRealModelOptions } from "$lib/presentation/utils/model";
+import type { AgentProfileModel } from "@nervekit/contracts/agent-profiles";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import {
   ConversationProfileController,
@@ -38,13 +39,13 @@ const conversationId = $derived(
 let state = $state<ConversationProfileState>({ loading: false, saving: false });
 const controller = new ConversationProfileController({
   read: (scope) =>
-    requestWorkbench("subagentProfiles.configuration", {
+    requestWorkbench("agentProfiles.configuration", {
       scope: "conversation",
       projectId: scope.projectId,
       conversationId: scope.conversationId,
     }),
   update: (scope, name, patch, expectedDigest) =>
-    requestWorkbench("subagentProfiles.update", {
+    requestWorkbench("agentProfiles.update", {
       scope: "conversation",
       projectId: scope.projectId,
       conversationId: scope.conversationId,
@@ -52,7 +53,7 @@ const controller = new ConversationProfileController({
       patch,
       expectedDigest,
     }),
-  preview: (input) => requestWorkbench("subagentProfiles.preview", input),
+  preview: (input) => requestWorkbench("agentProfiles.preview", input),
   changed: (next) => {
     state = next;
   },
@@ -79,7 +80,7 @@ $effect(() => {
 onDestroy(() => controller.follow(undefined));
 $effect(() => {
   if (!projectId) return;
-  const dispose = onEvent("subagentProfiles.changed", (event) => {
+  const dispose = onEvent("agentProfiles.changed", (event) => {
     if (
       (!event.data.projectId || event.data.projectId === projectId) &&
       (!event.data.conversationId ||
@@ -100,6 +101,11 @@ $effect(() => {
     "settings.updated",
     "applicationConfiguration.updated",
   ].map((type) => onEvent(type, refresh));
+  availability.push(
+    onEvent("projectSettings.changed", (event) => {
+      if (event.data.projectId === projectId) refresh();
+    }),
+  );
   const capabilities = onEvent("project.capabilities.changed", (event) => {
     if (event.data.projectId === projectId) refresh();
   });
@@ -128,8 +134,11 @@ $effect(() => {
     reconnect();
   };
 });
-function selection(value: string | undefined): ModelSelection | undefined {
-  if (!value || value === "lead") return;
+function selection(
+  setting: AgentProfileModel | undefined,
+): ModelSelection | undefined {
+  const value = typeof setting === "object" ? setting.lock : setting;
+  if (!value || value === "inherit" || value === "default") return;
   const slash = value.indexOf("/");
   return { provider: value.slice(0, slash), modelId: value.slice(slash + 1) };
 }
@@ -164,14 +173,16 @@ function selection(value: string | undefined): ModelSelection | undefined {
       value={selection(profile.effective?.model ?? profile.local?.model)}
       thinkingLevel={undefined}
       showReasoning={false}
-      {disabled}
-      inherit={(profile.effective?.model ?? profile.local?.model) === "lead"}
+      disabled={disabled ||
+        typeof (profile.effective?.model ?? profile.local?.model) === "object"}
+      inherit={(profile.effective?.model ?? profile.local?.model) === "inherit"}
       inheritOption={{
-        label: "Same as lead",
-        description: "Use the lead's model when the sub-agent is created.",
+        label: "Inherit",
+        description:
+          "Use the parent conversation's model when the sub-agent is created.",
       }}
       onInherit={() => {
-        void controller.mutate(profile.name, { model: "lead" });
+        void controller.mutate(profile.name, { model: "inherit" });
       }}
       onChange={(next) => {
         // The picker derives a reasoning default; profile thinking is independently pinned.

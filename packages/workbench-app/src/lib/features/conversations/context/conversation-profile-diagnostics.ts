@@ -1,14 +1,14 @@
 import type {
-  SubagentProfileConfiguration,
-  SubagentProfileDiagnostic,
-  SubagentProfilesConfiguration,
-} from "@nervekit/contracts/subagents";
+  AgentProfileConfiguration,
+  AgentProfileDiagnostic,
+  AgentProfilesConfiguration,
+} from "@nervekit/contracts/agent-profiles";
 
 /** Document errors copied to every profile are already displayed above the list. */
 export function conversationProfileRowDiagnostics(
-  diagnostics: readonly SubagentProfileDiagnostic[],
-  shared: readonly SubagentProfileDiagnostic[],
-): SubagentProfileDiagnostic[] {
+  diagnostics: readonly AgentProfileDiagnostic[],
+  shared: readonly AgentProfileDiagnostic[],
+): AgentProfileDiagnostic[] {
   return diagnostics.filter((diagnostic) => {
     // Field/reference context makes an error row-local, even when its code matches.
     if (
@@ -43,7 +43,7 @@ const shortMessages: Record<string, string> = {
 
 /** A one-line, plain-language label for a diagnostic. */
 export function conversationProfileDiagnosticLabel(
-  diagnostic: SubagentProfileDiagnostic,
+  diagnostic: AgentProfileDiagnostic,
 ): string {
   return (
     shortMessages[diagnostic.code] ??
@@ -63,8 +63,8 @@ export interface ConversationProfileProblem {
 
 /** The most important problem of a profile row, if any. */
 export function conversationProfileProblem(
-  profile: SubagentProfileConfiguration,
-  shared: readonly SubagentProfileDiagnostic[],
+  profile: AgentProfileConfiguration,
+  shared: readonly AgentProfileDiagnostic[],
 ): ConversationProfileProblem | undefined {
   const rows = conversationProfileRowDiagnostics(profile.diagnostics, shared);
   const detail = rows.map((diagnostic) => diagnostic.message).join("\n");
@@ -97,7 +97,7 @@ export function conversationProfileProblem(
 
 /** Tab count: profiles that are on and usable, out of all listed profiles. */
 export function conversationProfileCounts(
-  configuration: SubagentProfilesConfiguration,
+  configuration: AgentProfilesConfiguration,
 ): { enabled: number; total: number } {
   return {
     enabled: configuration.profiles.filter(

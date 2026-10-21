@@ -203,7 +203,7 @@ export async function conversationFixture(page: Page) {
           reasoningLevel: "off",
           systemPrompt: null,
           permissionRuleSetId: "read_only",
-          mode: "coding",
+          agentProfile: "coding",
           workingDirectory: directory,
         },
       });

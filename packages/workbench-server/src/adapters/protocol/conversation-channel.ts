@@ -1,3 +1,4 @@
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
@@ -176,10 +177,18 @@ export function createConversationProtocolSession(
         ...input,
         config: {
           ...input.config,
+          agentProfile: input.config.agentProfile ?? DEFAULT_AGENT_PROFILE,
           instructions: input.config.instructions ?? null,
         },
       });
       owners.set(input.id, input.projectId);
+      if (snapshot.conversation.parentConversationId === null) {
+        await core.setAgentProfile(
+          snapshot.conversation.id,
+          input.config.agentProfile,
+        );
+        return core.getSnapshot(snapshot.conversation.id);
+      }
       return snapshot;
     },
     "conversation.list": (input) => {
@@ -203,6 +212,8 @@ export function createConversationProtocolSession(
       core.getTree(conversationId),
     "conversation.getEventsSince": ({ conversationId, sequence }) =>
       core.getEventsSince(conversationId, sequence),
+    "conversation.setAgentProfile": ({ conversationId, profile }) =>
+      core.setAgentProfile(conversationId, profile),
     "conversation.configure": ({ conversationId, patch }) => {
       core.configure(conversationId, patch);
       return null;

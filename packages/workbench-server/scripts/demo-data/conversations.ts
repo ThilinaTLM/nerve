@@ -38,7 +38,7 @@ export interface DemoBranch {
 
 export interface DemoConversation {
   readonly title: string;
-  readonly mode: "coding" | "planning";
+  readonly agentProfile: "coding" | "planning";
   readonly permissionRuleSetId: "read_only" | "supervised" | "autonomous";
   /** Hours before the seed clock that this conversation started. */
   readonly ageHours: number;
@@ -67,7 +67,7 @@ export interface DemoConversation {
 
 const rateLimiting: DemoConversation = {
   title: "Add rate limiting to the booking API",
-  mode: "coding",
+  agentProfile: "coding",
   permissionRuleSetId: "supervised",
   ageHours: 2,
   pinned: true,
@@ -224,7 +224,7 @@ const rateLimiting: DemoConversation = {
 
 const flakyDeploy: DemoConversation = {
   title: "Investigate flaky staging deploys",
-  mode: "coding",
+  agentProfile: "coding",
   permissionRuleSetId: "supervised",
   ageHours: 26,
   children: [
@@ -411,7 +411,7 @@ const flakyDeploy: DemoConversation = {
 
 const designTokens: DemoConversation = {
   title: "Move the venue card onto design tokens",
-  mode: "coding",
+  agentProfile: "coding",
   permissionRuleSetId: "supervised",
   ageHours: 50,
   steps: [
@@ -464,7 +464,7 @@ const designTokens: DemoConversation = {
 
 const planning: DemoConversation = {
   title: "Plan the fleet-wide rate limiter",
-  mode: "planning",
+  agentProfile: "planning",
   permissionRuleSetId: "supervised",
   ageHours: 5,
   steps: [
@@ -474,7 +474,7 @@ const planning: DemoConversation = {
     },
     {
       type: "assistant",
-      text: "In planning mode I can research and write the plan, but not edit the service. The shape is: shared counter store, a per-key sliding window in that store, and a fallback to the in-process limiter when the store is unreachable.",
+      text: "With the Planning profile I can research and write the plan, but not edit the service. The shape is: shared counter store, a per-key sliding window in that store, and a fallback to the in-process limiter when the store is unreachable.",
     },
   ],
 };
@@ -482,7 +482,7 @@ const planning: DemoConversation = {
 const shortConversations: readonly DemoConversation[] = [
   {
     title: "Why is the availability endpoint slow?",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "read_only",
     ageHours: 8,
     steps: [
@@ -498,7 +498,7 @@ const shortConversations: readonly DemoConversation[] = [
   },
   {
     title: "Tidy the compose build contexts",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 30,
     completed: true,
@@ -515,7 +515,7 @@ const shortConversations: readonly DemoConversation[] = [
   },
   {
     title: "Empty state copy for the mobile booking list",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 74,
     completed: true,
@@ -532,7 +532,7 @@ const shortConversations: readonly DemoConversation[] = [
   },
   {
     title: "Review the booking cancellation endpoint",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "read_only",
     ageHours: 96,
     steps: [
@@ -548,7 +548,7 @@ const shortConversations: readonly DemoConversation[] = [
   },
   {
     title: "Add a staging smoke launch",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 120,
     steps: [
@@ -564,7 +564,7 @@ const shortConversations: readonly DemoConversation[] = [
   },
   {
     title: "Timezone handling in booking windows",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 150,
     steps: [
@@ -583,7 +583,7 @@ const shortConversations: readonly DemoConversation[] = [
 const northstarConversations: readonly DemoConversation[] = [
   {
     title: "Finish the seasonal crop summary",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 14,
     pinned: true,
@@ -643,7 +643,7 @@ const northstarConversations: readonly DemoConversation[] = [
   },
   {
     title: "Review offline journal recovery",
-    mode: "planning",
+    agentProfile: "planning",
     permissionRuleSetId: "read_only",
     ageHours: 70,
     steps: [
@@ -662,7 +662,7 @@ const northstarConversations: readonly DemoConversation[] = [
 const relayboardConversations: readonly DemoConversation[] = [
   {
     title: "Add machine-readable handoff export",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "supervised",
     ageHours: 9,
     pinned: true,
@@ -728,7 +728,7 @@ const relayboardConversations: readonly DemoConversation[] = [
   },
   {
     title: "Make empty handoffs explicit",
-    mode: "coding",
+    agentProfile: "coding",
     permissionRuleSetId: "read_only",
     ageHours: 81,
     completed: true,
@@ -752,7 +752,7 @@ export const DEMO_PROJECT_CONVERSATIONS: Readonly<
     rateLimiting,
     {
       title: "Choose the booking limiter rollout",
-      mode: "coding",
+      agentProfile: "coding",
       permissionRuleSetId: "supervised",
       ageHours: 1,
       steps: [

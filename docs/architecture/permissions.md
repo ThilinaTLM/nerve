@@ -2,7 +2,7 @@
 
 > **Status:** Implemented. Contracts, the evaluator and its tests are authoritative; the public [Tools and approval policy](https://nerve.tlmtech.dev/developers/tools-policy/) page describes user-facing behavior.
 
-Every tool call is checked by one generic evaluator before it runs. The result is `allow`, `prompt` (ask the user) or `deny`. Product modes such as Read only, Supervised, Autonomous and Planning are rule sets the evaluator reads, not special cases inside it.
+Every tool call is checked by one generic evaluator before it runs. The result is `allow`, `prompt` (ask the user) or `deny`. Permission policies such as Read only, Supervised, Autonomous and Planning are rule sets the evaluator reads, not special cases inside it.
 
 ## Ownership
 
@@ -25,7 +25,7 @@ The tool catalog owns tool names, groups, risk and how targets are extracted fro
 
 ## Selection
 
-A conversation's configuration holds one permission rule set. In planning mode the core evaluates with the built-in Planning set instead, and the configured set applies again when the conversation returns to coding.
+A conversation stores one permission rule-set selection. Active profile Locks override it at turn time without overwriting it. Planning locks the built-in Planning set; switching to Coding applies the settings default, because Coding sets permission to `default`. Every enabled rule set is selectable when permission is unlocked.
 
 ## Evaluation
 
@@ -40,7 +40,7 @@ The decision, matched rule, reason, suggested rules and the authority it was mad
 
 ## Changes during execution
 
-The selected rule set and overlays are read when a tool call enters supervision, independently of the system prompt sent to the model. Changing configuration does not automatically reauthorize an already-approved call or cancel an executing tool. Planning mode affects the selected policy at subsequent evaluations. See [scoped configuration](configuration.md#request-preparation-and-effective-time) for per-LLM-request freshness and the separate authorization boundary.
+The selected rule set and overlays are read when a tool call enters supervision, independently of the system prompt sent to the model. Changing configuration does not automatically reauthorize an already-approved call or cancel an executing tool. The Planning profile affects the selected policy at subsequent evaluations. See [scoped configuration](configuration.md#request-preparation-and-effective-time) for per-LLM-request freshness and the separate authorization boundary.
 
 ## Overlay files
 

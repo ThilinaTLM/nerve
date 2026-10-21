@@ -74,11 +74,11 @@ export const settingsPages: SettingsPageDef[] = [
     ],
   },
   {
-    id: "subagents",
-    label: "Sub-agents",
+    id: "agent-profiles",
+    label: "Agent profiles",
     icon: Users,
     description:
-      "Profiles the lead can assign work to. Changes apply to new sub-agents; running ones keep their settings.",
+      "Profiles shape the main agent and the sub-agents it delegates to. Changes apply to new sessions and sub-agents; running ones keep their settings.",
     sections: [{ id: "profiles", label: "Profiles" }],
   },
   {

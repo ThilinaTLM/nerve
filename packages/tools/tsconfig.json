@@ -5,6 +5,10 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "references": [{ "path": "../contracts" }, { "path": "../native" }],
+  "references": [
+    { "path": "../contracts" },
+    { "path": "../native" },
+    { "path": "../skills" }
+  ],
   "include": ["src/**/*.ts", "src/**/*.json"]
 }

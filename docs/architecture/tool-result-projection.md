@@ -42,7 +42,7 @@ Sub-agent final responses are not tool results. Core caps them itself when it bu
 | `network_prose`            | `web_fetch` without a saved page                            | 120 lines, 16 KB                     | 12 lines, 3 KB                         |
 | `primary_file_result`      | `web_fetch` with a saved page, `kroki_export`, downloads    | 80 lines, 8 KB                       | 12 lines, 3 KB                         |
 | `resource_detail`          | Jira issue/project/board, Confluence page                   | 160 lines, 16 KB                     | same                                   |
-| `mutation_acknowledgement` | `edit`, `write`, plan mode, Jira/Confluence changes         | 40 lines, 4 KB                       | same                                   |
+| `mutation_acknowledgement` | `edit`, `write`, plan presentation, Jira/Confluence changes | 40 lines, 4 KB                       | same                                   |
 | `lifecycle_state`          | async bash, sub-agent tools, todos                          | 80 lines, 8 KB                       | same                                   |
 | `vision_explanation`       | `explain_image`, `generate_image`                           | 100 lines, 12 KB                     | same                                   |
 | `terminal_outcome`         | any failed, denied, cancelled or interrupted call           | 40 lines, 4 KB                       | same                                   |

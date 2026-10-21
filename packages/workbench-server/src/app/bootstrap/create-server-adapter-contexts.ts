@@ -61,6 +61,7 @@ export function createServerAdapterContexts(
     completions: { completions: services.completions },
     platform: {
       ...infrastructure,
+      git: services.git,
       conversationCore: services.conversationCore,
       capabilities: services.capabilities,
       workspaceMonitor: services.workspaceMonitor,
@@ -71,7 +72,7 @@ export function createServerAdapterContexts(
       terminal: services.terminal,
       scratchNotes: services.scratchNotes,
       promptSuggestions: services.promptSuggestions,
-      subagentProfiles: services.subagentProfiles,
+      agentProfiles: services.agentProfiles,
       launchDefinitionOperations: services.launchDefinitionOperations,
       launchDefinitions: services.launchDefinitions,
     },

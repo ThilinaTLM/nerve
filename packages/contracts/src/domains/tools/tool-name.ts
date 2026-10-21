@@ -49,6 +49,7 @@ export const coreToolNameSchema = z.enum([
 export type CoreToolName = z.infer<typeof coreToolNameSchema>;
 
 export const userConfigurableToolNameSchema = z.enum([
+  "plan_present",
   "subagent_prompt",
   "subagent_status",
   "subagent_stop",
@@ -69,7 +70,7 @@ export const orchestrationToolNameSchema = z.enum([
   "subagent_stop",
   "async_bash",
   "launch",
-  "plan_mode_present",
+  "plan_present",
 ]);
 export type OrchestrationToolName = z.infer<typeof orchestrationToolNameSchema>;
 

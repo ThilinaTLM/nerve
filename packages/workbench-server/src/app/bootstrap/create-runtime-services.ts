@@ -9,7 +9,7 @@ import {
   PromptSuggestionTrustRepository,
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
-import { SubagentProfileService } from "../../domains/subagents/index.js";
+import { AgentProfileService } from "../../domains/agent-profiles/index.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -83,7 +83,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   } = createConversationCore(
     deps,
     { launches, definitions: launchDefinitions },
-    () => subagentProfiles,
+    () => agentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
       await completions.dispose(projectId);
@@ -150,8 +150,8 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       })),
     getConversation: (id) => conversationCore.getSnapshot(id),
   });
-  const subagentProfiles = new SubagentProfileService({
-    userPath: storage.paths.subagentsConfigPath,
+  const agentProfiles = new AgentProfileService({
+    userPath: storage.paths.agentProfilesConfigPath,
     conversationsPath: storage.paths.conversationsPath,
     getConversation: (id) => conversationCore.getSnapshot(id).conversation,
     availability: profileAvailability,
@@ -187,7 +187,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       sources: {
         project: getProject,
         capabilities,
-        profiles: subagentProfiles,
+        profiles: agentProfiles,
         tools: allToolDescriptors,
         skills: async (scope) =>
           (
@@ -212,7 +212,7 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   return {
     completions,
     activities,
-    subagentProfiles,
+    agentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,
     conversationCore,

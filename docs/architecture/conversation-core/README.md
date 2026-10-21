@@ -55,7 +55,7 @@ The legacy storage had 62 SQLite tables (about 30 populated), 26 document namesp
 | Last user message  | Updated only by delivered `user_message` events, human or parent submitted. Never by compaction, tool results or notices.                                                                                                                                                                                                    |
 | Status dismissal   | `status_cleared_at` keeps a dismissed failed or interrupted badge hidden across status rebuilds.                                                                                                                                                                                                                             |
 | Child policy       | None stored. Deliberately stopping a parent stops its children. Rules every child obeys (allowed rule sets, no user prompts, no nested delegation or human-in-the-loop tools) are enforced by the host and core; see [delegation](delegation.md). No budgets, depth or concurrency limits, grants or orchestration policies. |
-| Configuration      | Model, reasoning level, system prompt, instructions, permission rule set, mode, working directory. Tools and skills are host-resolved file capabilities; compaction overrides are a conversation `harness.json`. No permission level, workspace roots, read-only flag or revisions.                                          |
+| Configuration      | Model, reasoning level, system prompt, instructions, permission rule set, active profile, working directory. Tools and skills are host-resolved file capabilities; compaction overrides are a conversation `harness.json`. No permission level, workspace roots, read-only flag or revisions.                                |
 | Permissions        | Baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level.                                                                                                                                                                                                           |
 | Approval grants    | "Always allow" writes a rule into the matching overlay file. No table.                                                                                                                                                                                                                                                       |
 | Event types        | `user_message`, `assistant_message`, `system_event`, `tool_call_response`, `compaction`. No tool-request, branch-summary or delegation-report events.                                                                                                                                                                        |
@@ -83,7 +83,7 @@ The portable core, host ports, conversation channel, workbench channel and app c
 
 Existing 0.34.1 homes are converted automatically at startup by migration step 0001; see [storage migrations](../migrations.md) and [migration](migration.md).
 
-Prompt suggestions are kept and evaluate against the conversation (title, mode, rule set, reasoning level, status) and git state; they are served on the workbench channel.
+Prompt suggestions are kept and evaluate against the conversation (title, rule set, reasoning level, status) and git state; they are served on the workbench channel.
 
 ## Non-goals
 

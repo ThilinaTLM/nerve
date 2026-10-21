@@ -7,7 +7,7 @@ import { createCoreToolHandlers } from "./core-tool-handlers.js";
 
 const handler = createCoreToolHandlers({
   assets: {} as AssetStore,
-  configure() {},
+  async setAgentProfile() {},
   onPlanRejected() {},
 }).get("ask_user");
 const call = {
@@ -128,15 +128,15 @@ test("ask_user resolves all answers, trims option and text, and skips missing or
   );
 });
 
-test("agents have no planning-mode entry or force-exit handlers", () => {
+test("agents have no profile entry or force-exit handlers", () => {
   const handlers = createCoreToolHandlers({
     assets: {} as AssetStore,
-    configure() {},
+    async setAgentProfile() {},
     onPlanRejected() {},
   });
   assert.equal(handlers.has("plan_mode_enter"), false);
   assert.equal(handlers.has("plan_mode_force_exit"), false);
-  assert.ok(handlers.has("plan_mode_present"));
+  assert.ok(handlers.has("plan_present"));
 });
 
 function planReview() {
@@ -145,7 +145,7 @@ function planReview() {
   const planCall = {
     id: "tc_plan",
     conversationId: "conv_1",
-    toolName: "plan_mode_present",
+    toolName: "plan_present",
     arguments: { file_path: "/plans/implementation.md" },
   } as unknown as ToolCall;
   const planHandler = createCoreToolHandlers({
@@ -166,14 +166,14 @@ function planReview() {
     onPlanRejected(conversationId) {
       rejections.push(conversationId);
     },
-    configure(conversationId, patch) {
-      changes.push({ conversationId, patch });
+    async setAgentProfile(conversationId) {
+      changes.push({ conversationId });
     },
-  }).get("plan_mode_present")!;
+  }).get("plan_present")!;
   return { changes, rejections, planCall, planHandler };
 }
 
-test("presenting a plan requests review without changing mode", async () => {
+test("presenting a plan requests review without changing agentProfile", async () => {
   const { changes, rejections, planCall, planHandler } = planReview();
   const outcome = await planHandler.execute(planCall, ctx);
   assert.equal(outcome.kind, "awaiting_input");
@@ -183,21 +183,19 @@ test("presenting a plan requests review without changing mode", async () => {
   assert.deepEqual(changes, []);
 });
 
-test("user approval of a plan switches the conversation to coding", async () => {
+test("user approval of a plan switches the conversation to the default profile", async () => {
   const { changes, rejections, planCall, planHandler } = planReview();
   const result = await planHandler.resolve!(
     planCall,
     { kind: "plan_review", decision: "approve" },
     ctx,
   );
-  assert.deepEqual(changes, [
-    { conversationId: "conv_1", patch: { mode: "coding" } },
-  ]);
+  assert.deepEqual(changes, [{ conversationId: "conv_1" }]);
   assert.match(result.content ?? "", /Plan approved/);
   assert.deepEqual(rejections, []);
 });
 
-test("user rejection gates automatic work, leaves mode unchanged and returns feedback", async () => {
+test("user rejection gates automatic work, leaves agentProfile unchanged and returns feedback", async () => {
   const { changes, rejections, planCall, planHandler } = planReview();
   const result = await planHandler.resolve!(
     planCall,

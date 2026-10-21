@@ -5,7 +5,7 @@ sidebar:
   order: 2
 ---
 
-The composer keeps the prompt and a single bottom toolbar in one card. Use the toolbar for model, thinking, mode, permissions, capabilities, context, voice, and send/stop controls. Suggestions sit above the editor; delegated agents and background commands stay in the separate activity island.
+The composer keeps the prompt and a single bottom toolbar in one card. Use the toolbar for model, thinking, profile, permissions, capabilities, context, voice, and send/stop controls. Suggestions sit above the editor; delegated agents and background commands stay in the separate activity island.
 
 ## Send and stop
 
@@ -41,7 +41,7 @@ In a lead conversation, **Sub-agents** has a **Delegation** switch and one row p
 
 Tools with settings show a configure button that opens the same dialog as **Settings → Tools**, scoped to the conversation: the Jira, Confluence, or Tavily profile; the Image explanation model; Image generation model and output defaults; and the Kroki server for diagram export. A conversation's tool settings replace that tool's inherited settings as a whole, and saving values equal to the inherited ones removes the override.
 
-The selection order is User defaults → trusted Project overrides → Conversation overrides. This includes the opt-in state of Built-in Nerve skills. Permissions, planning-mode limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Capability changes made during a run are resolved for the next provider request, not the request already streaming. Disabling a skill cannot remove instructions already present in conversation history.
+The selection order is User defaults → trusted Project overrides → Conversation overrides. This includes the opt-in state of Built-in Nerve skills. Permissions, Planning permission limits, credentials, provider support, and local runtime availability are applied afterward, so selecting a capability does not grant authority or guarantee availability. Capability changes made during a run are resolved for the next provider request, not the request already streaming. Disabling a skill cannot remove instructions already present in conversation history.
 
 ## Context, agents, and to-dos
 

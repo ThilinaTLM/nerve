@@ -13,7 +13,6 @@ import type {
 } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
 import { defaultSettings } from "@nervekit/contracts/settings";
-import type { Mode } from "@nervekit/contracts/settings";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import GitCommitIcon from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
@@ -287,14 +286,19 @@ let draftText = $state(
 );
 let thinkingLevel = $state<ThinkingLevel>("medium");
 let selectedModel = $state(modelKey(models[0]));
-let mode = $state<Mode>("coding");
+let agentProfile = $state("coding");
+const agentProfiles = [
+  { name: "coding", label: "Coding" },
+  { name: "planning", label: "Planning" },
+];
 
 const composerBase = $derived<ConversationComposerModel>({
   text: "",
   models,
   selectedModelKey: selectedModel,
   thinkingLevel,
-  mode,
+  agentProfile,
+  agentProfiles,
   permissionRuleSetId: "default",
   permissionRuleSets,
   contextUsage: { tokens: 70_000, contextWindow: 200_000, percent: 35 },
@@ -311,8 +315,8 @@ const composerVariants = $derived<
 >([
   { title: "Typing", model: { ...composerBase, text: draftText } },
   {
-    title: "Planning mode",
-    model: { ...composerBase, mode: "planning" },
+    title: "Planning profile",
+    model: { ...composerBase, agentProfile: "planning" },
   },
   {
     title: "Running (stop shown; sends are queued)",
@@ -345,7 +349,7 @@ const actions: ConversationPaneActions = {
   onComposerChange: (text) => (draftText = text),
   onModelChange: (value) => (selectedModel = value),
   onThinkingLevelChange: (value) => (thinkingLevel = value),
-  onModeChange: (value) => (mode = value),
+  onAgentProfileChange: (value) => (agentProfile = value),
   onSubmit: () => (draftText = ""),
   onAbort: noop,
   onCompact: noop,
@@ -461,7 +465,7 @@ function cycleMic() {
             <span class="text-xs text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
-                mode="coding"
+                agentProfile="coding"
                 showStop={variant.stop}
                 submitDisabled={variant.disabled}
                 sendAriaLabel="Send prompt"
@@ -500,7 +504,7 @@ function cycleMic() {
             <span class="text-xs text-muted-foreground">{variant.t}</span>
             <div class="rounded-md border bg-background">
               <ComposerShell
-                {mode}
+                agentProfile={variant.planning ? "planning" : "coding"}
                 submitDisabled={false}
                 sendAriaLabel="Send"
                 sendTitle="Send"
@@ -509,11 +513,11 @@ function cycleMic() {
                 {#snippet toolbar()}
                   <ComposerToolbar
                     controlsDisabled={false}
-                    modeDisabled={false}
+                    profileDisabled={false}
                     modelDisabled={false}
-                    modeLabel={variant.planning ? "Planning" : "Coding"}
-                    modePlanning={variant.planning}
-                    onToggleMode={noop}
+                    {agentProfiles}
+                    agentProfile={variant.planning ? "planning" : "coding"}
+                    onAgentProfileChange={noop}
                     permissionRuleSetId={variant.permission}
                     {permissionRuleSets}
                     contextUsage={{

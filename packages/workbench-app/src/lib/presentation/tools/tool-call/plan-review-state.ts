@@ -14,7 +14,7 @@ type PlanReviewToolCall = Pick<
 >;
 
 /**
- * Resolves the pending review owned by a plan_mode_present card.
+ * Resolves the pending review owned by a plan_present card.
  *
  * Transcript tool calls and workspace interaction projections update through
  * separate stores. Deriving from the durable interaction keeps the card usable
@@ -24,10 +24,7 @@ export function resolvePlanReview(
   toolCall: PlanReviewToolCall | undefined,
   projected: PlanReviewRecord | undefined,
 ): PlanReviewRecord | undefined {
-  if (
-    toolCall?.toolName !== "plan_mode_present" ||
-    toolCall.status !== "waiting"
-  ) {
+  if (toolCall?.toolName !== "plan_present" || toolCall.status !== "waiting") {
     return undefined;
   }
   const interaction = toolCall.interaction;

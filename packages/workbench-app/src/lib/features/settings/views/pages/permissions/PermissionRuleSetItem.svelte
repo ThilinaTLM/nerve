@@ -18,7 +18,6 @@ import {
   overlaySummary,
   overridesFor,
   ruleMetadata,
-  ruleSetRole,
   ruleTitle,
   type OverrideScope,
 } from "./permission-rule-sets-view";
@@ -54,9 +53,7 @@ const scopes = $derived<OverrideScope[]>(
 const roleNote = $derived(
   ruleSet.id === "baseline"
     ? "Always applied underneath the selected rule set."
-    : ruleSet.id === "planning"
-      ? "Selected automatically while planning."
-      : "Available for new coding conversations.",
+    : "Selectable for conversations and agent profiles.",
 );
 </script>
 
@@ -78,7 +75,7 @@ const roleNote = $derived(
         {#if ruleSet.description}
           <p class="text-sm text-foreground">{ruleSet.description}</p>
         {/if}
-        <p>{ruleSetRole(ruleSet)} · {roleNote}</p>
+        <p>{roleNote}</p>
       </div>
       {#each scopes as scope (scope)}
         {@const rules = overridesFor(configuration, scope, ruleSet.id)}

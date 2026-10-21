@@ -14,10 +14,10 @@ import type { CoreToolHandler } from "./core-tool.js";
 
 export interface CoreToolHandlerOptions {
   assets: AssetStore;
-  configure(
+  setAgentProfile(
     conversationId: string,
-    patch: Partial<Omit<ConversationConfig, "conversationId">>,
-  ): void | Promise<void>;
+    overrides?: Partial<Pick<ConversationConfig, "model" | "reasoningLevel">>,
+  ): Promise<unknown>;
   onPlanRejected(conversationId: string): void;
   // The host decides which plan files can be read; the core owns the reviewed copy.
   readPlan?(input: {
@@ -94,7 +94,7 @@ export function createCoreToolHandlers(
       return { content: JSON.stringify(result) };
     },
   });
-  register("plan_mode_present", {
+  register("plan_present", {
     async execute(call, ctx) {
       const path = call.arguments.file_path;
       if (typeof path !== "string" || !path)
@@ -137,12 +137,19 @@ export function createCoreToolHandlers(
       if (resolution.kind !== "plan_review")
         throw new Error("Expected plan-review decision");
       if (resolution.decision === "approve")
-        await options.configure(call.conversationId, { mode: "coding" });
+        await options.setAgentProfile(call.conversationId, {
+          ...(resolution.implementationModel
+            ? { model: resolution.implementationModel }
+            : {}),
+          ...(resolution.implementationThinkingLevel
+            ? { reasoningLevel: resolution.implementationThinkingLevel }
+            : {}),
+        });
       else options.onPlanRejected(call.conversationId);
       return {
         content:
           resolution.decision === "approve"
-            ? "Plan approved. Entered coding mode."
+            ? "Plan approved. Switched to the default profile."
             : `Plan rejected.${resolution.feedback ? ` ${resolution.feedback}` : ""}`,
         details: {
           decision: resolution.decision,

@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { it } from "node:test";
 import { subagentToolDefinitions } from "../../src/catalog/definitions/orchestration/subagent.tools.js";
-import { promptGuidelinesForTools } from "../../src/catalog/prompt-guidelines.js";
 
 // Baseline: the six pre-profiles tools (`explore` + five `subagent_*`) plus the
 // old `subagents` guideline. Measured once from git HEAD before this change as the
@@ -10,7 +9,7 @@ import { promptGuidelinesForTools } from "../../src/catalog/prompt-guidelines.js
 const OLD_DEFINITIONS_BYTES = 3766;
 const OLD_GUIDELINE_BYTES = 735;
 
-it("sub-agent definitions and guideline stay below the pre-profiles baseline", () => {
+it("sub-agent definitions stay below the pre-profiles definitions and guideline baseline", () => {
   const definitions = Buffer.byteLength(
     subagentToolDefinitions
       .map((tool) =>
@@ -22,13 +21,10 @@ it("sub-agent definitions and guideline stay below the pre-profiles baseline", (
       )
       .join("\n"),
   );
-  const guideline = Buffer.byteLength(
-    promptGuidelinesForTools(["subagent_prompt"]).join("\n"),
-  );
-  assert.ok(definitions > 0 && guideline > 0);
+  assert.ok(definitions > 0);
   assert.ok(
-    definitions + guideline < OLD_DEFINITIONS_BYTES + OLD_GUIDELINE_BYTES,
-    `${definitions} + ${guideline} bytes must be below ${OLD_DEFINITIONS_BYTES} + ${OLD_GUIDELINE_BYTES}`,
+    definitions < OLD_DEFINITIONS_BYTES + OLD_GUIDELINE_BYTES,
+    `${definitions} bytes must be below ${OLD_DEFINITIONS_BYTES} + ${OLD_GUIDELINE_BYTES}`,
   );
-  console.log(`sub-agent budget: ${definitions} + ${guideline} bytes`);
+  console.log(`sub-agent budget: ${definitions} bytes (no separate guideline)`);
 });

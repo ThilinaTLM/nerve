@@ -29,7 +29,7 @@ Context usage is an estimate, not a guarantee of an exact provider request-token
 
 `subagent_prompt` submits a validated batch of named assignments and returns without waiting for child completion. New names create ordinary child conversations from resolved profiles; existing names receive follow-ups using their current child configuration. `subagent_status` inspects them and `subagent_stop` stops their work without deleting them. Completion notices wake the lead, so polling is unnecessary.
 
-Profiles resolve through built-in → user → project → conversation `subagents.json` documents. Project content requires exact-document trust. Profiles are creation-time templates: changing a profile affects future children, not existing ones. Built-in `explore` and `developer` inherit the lead's model and thinking at creation. Children cannot delegate again, ask the user or use plan-mode tools; their permission selection is restricted to `read_only` or `autonomous`.
+Profiles resolve through built-in → user → project → conversation `agent-profiles.json` documents. Project content requires exact-document trust. Lead profiles resolve instructions, capability deltas and Locks each turn; Set values apply on switching. Sub-agent profiles are creation-time templates: changes affect future children, not existing ones. Built-in `explore` and `developer` inherit the lead's model and thinking at creation. Children cannot delegate again, ask the user or use `plan_present`; their permission selection is restricted to `read_only` or `autonomous`.
 
 ## Background commands and launches
 
@@ -45,5 +45,5 @@ On restart, unfinished inputs and tool rows drive recovery. Suspended interactio
 
 - [Tools and policy](/developers/tools-policy/)
 - [Tool output lifecycle](/developers/tool-output-lifecycle/)
-- [Sub-agent profiles](/reference/subagent-profiles/)
+- [Agent profiles](/reference/agent-profiles/)
 - [Protocol](/developers/protocol/)

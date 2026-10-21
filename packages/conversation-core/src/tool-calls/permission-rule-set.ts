@@ -1,7 +1,9 @@
 import type { ConversationConfig } from "@nervekit/contracts/core";
+import type { AgentProfileLockedScalars } from "../ports.js";
 
 export function effectivePermissionRuleSetId(
-  config: Pick<ConversationConfig, "mode" | "permissionRuleSetId">,
+  config: Pick<ConversationConfig, "permissionRuleSetId">,
+  locked?: AgentProfileLockedScalars,
 ): string {
-  return config.mode === "planning" ? "planning" : config.permissionRuleSetId;
+  return locked?.permissionRuleSetId ?? config.permissionRuleSetId;
 }

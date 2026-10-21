@@ -21,7 +21,7 @@ function call(decision: "approve" | "reject") {
     assistantEventId: "event_1",
     contentIndex: 0,
     origin: "model",
-    toolName: "plan_mode_present",
+    toolName: "plan_present",
     arguments: { file_path: "/plans/original.md" },
     state: "awaiting_input",
     supervision: null,
@@ -51,7 +51,7 @@ for (const decision of ["approve", "reject"] as const) {
     const result = {
       content:
         decision === "approve"
-          ? "Plan approved. Entered coding mode."
+          ? "Plan approved. Switched to the default profile."
           : "Plan rejected.",
       details: { decision },
     };
@@ -157,7 +157,7 @@ test("settlement persists display metadata without adding the plan to agent cont
       call("approve"),
       "completed",
       {
-        content: "Plan approved. Entered coding mode.",
+        content: "Plan approved. Switched to the default profile.",
         details: { decision: "approve" },
       },
     );

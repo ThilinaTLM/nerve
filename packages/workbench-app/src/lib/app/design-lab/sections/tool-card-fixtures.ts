@@ -629,7 +629,7 @@ const PLAN_CONTENT = `## Plan: UI gallery
 
 export const planPending = sampleCall({
   id: "tool_plan_wait",
-  toolName: "plan_mode_present",
+  toolName: "plan_present",
   status: "waiting",
   args: { file_path: ".nerve/plans/ui-gallery.md" },
   interaction: {
@@ -664,7 +664,7 @@ export const planReview: PlanReviewRecord = {
 
 export const planAccepted = sampleCall({
   id: "tool_plan_ok",
-  toolName: "plan_mode_present",
+  toolName: "plan_present",
   args: { file_path: ".nerve/plans/ui-gallery.md" },
   result: {
     outcome: "accepted",

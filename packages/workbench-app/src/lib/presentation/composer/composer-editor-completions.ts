@@ -54,7 +54,7 @@ export type {
 export type ComposerCompletionOptions = {
   referenceSource?: () => ComposerReferenceSource | undefined;
   slashCompletions: () => readonly CompletionItem[];
-  /** Mode/running state for the slash list. */
+  /** Profile/running state for the slash list. */
   slashContext?: () => SlashContext | undefined;
   /** Runs a slash command now. Without it, slash suggestions are off. */
   slashCommand?: () => ((name: string) => void) | undefined;

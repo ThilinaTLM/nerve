@@ -212,7 +212,7 @@ const interactionCases: LabeledCard[] = [
     props: { toolCall: fx.askUserLegacy, cwd },
   },
   {
-    label: "plan_mode_present — awaiting review",
+    label: "plan_present — awaiting review",
     props: {
       toolCall: fx.planPending,
       pendingPlanReview: fx.planReview,
@@ -223,7 +223,7 @@ const interactionCases: LabeledCard[] = [
     },
   },
   {
-    label: "plan_mode_present — accepted",
+    label: "plan_present — accepted",
     props: { toolCall: fx.planAccepted, cwd, onOpenFile: noop },
   },
   { label: "todos — checklist", props: { toolCall: vfx.todosCompleted, cwd } },
@@ -513,8 +513,8 @@ let detailsOpen = $state(false);
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="ask_user · plan_mode · todos · subagent"
-      source="presentation/tools/tool-call/AskUserToolView, PlanModeToolView, TodoToolView, SubagentToolView"
+      title="ask_user · plan_present · todos · subagent"
+      source="presentation/tools/tool-call/AskUserToolView, PlanPresentToolView, TodoToolView, SubagentToolView"
       usage="1 file each · tools"
       layout="stack"
       class="max-w-[720px]"

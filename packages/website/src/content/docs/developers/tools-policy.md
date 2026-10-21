@@ -1,6 +1,6 @@
 ---
 title: Tools and approval policy
-description: Understand the tool manifest, execution lifecycle, risk decisions, and mode restrictions.
+description: Understand the tool manifest, execution lifecycle, risk decisions, and profile and permission restrictions.
 sidebar:
   order: 4
 ---
@@ -21,9 +21,9 @@ The server composes Baseline with one selected permission rule set:
 - **Supervised** allows interaction and local inspection, then prompts for other capabilities;
 - **Autonomous** allows valid requests unless a scoped overlay or guardrail replaces the decision;
 - **Planning** allows research, interaction, sub-agent delegation, and plan-file writes, prompts for local analysis commands, and denies other mutations;
-- custom user rule sets can define another ordered policy for compatible agent modes.
+- custom user rule sets can define another ordered policy; all enabled sets appear in the permission picker.
 
-Sub-agent delegation under Read only and Planning is not tied to the lead's mode: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
+Sub-agent delegation under Read only and Planning is not tied to the lead's profile: a lead may assign any profile, and each sub-agent runs under its own profile's rule set.
 
 The permission engine combines manifest metadata, normalized arguments and targets, the selected rule set, and matching overlays to produce `allow`, `prompt`, or `deny`. A prompt becomes a durable Workbench approval interaction. Multi-target calls are automatically allowed only when the winning allow rule covers every relevant target.
 

@@ -397,6 +397,13 @@ export class ConversationStore {
       patch,
     });
   }
+  /** Switches the active agent profile, applying the profile's Set and Lock policy. */
+  setAgentProfile(profile: string): Promise<ConversationConfig> {
+    return requestConversation("conversation.setAgentProfile", {
+      conversationId: this.conversationId,
+      profile,
+    });
+  }
   update(patch: {
     title?: string;
     pinned?: boolean;

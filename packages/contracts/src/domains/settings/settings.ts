@@ -1,3 +1,4 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
   disabledToolListSchema,
   subagentToolNames,
@@ -12,9 +13,6 @@ import {
 } from "./application-configuration.js";
 import { permissionRuleSetIdSchema } from "../permissions/permission-rule-sets.js";
 import { permissionExceptionSchema } from "../permissions/permissions.js";
-
-export const modeSchema = z.enum(["planning", "coding"]);
-export type Mode = z.infer<typeof modeSchema>;
 
 export const colorThemeSchema = z.enum(["nerve", "rose", "solar", "midnight"]);
 
@@ -36,8 +34,6 @@ export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
 export const agentSelectionSettingsSchema = z.object({
-  mode: modeSchema,
-
   permissionRuleSetId: permissionRuleSetIdSchema,
   model: modelSelectionSchema.optional(),
   thinkingLevel: thinkingLevelSchema,
@@ -368,6 +364,7 @@ export const transcriptionSettingsSchema = z.object({
 export type TranscriptionSettings = z.infer<typeof transcriptionSettingsSchema>;
 
 export const settingsSchema = z.object({
+  defaultAgentProfile: agentProfileNameSchema.optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema,
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema,
@@ -418,8 +415,6 @@ export const defaultSettings: Settings = {
   defaultThinkingLevel: "off",
   rememberLastAgentSelection: false,
   lastAgentSelection: {
-    mode: "coding",
-
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },
@@ -463,6 +458,7 @@ export const defaultSettings: Settings = {
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
     disabled: [
+      "plan_present",
       "explain_image",
       "generate_image",
       "kroki_export",
@@ -492,14 +488,13 @@ export const defaultSettings: Settings = {
 };
 
 export const updateSettingsRequestSchema = z.object({
+  defaultAgentProfile: agentProfileNameSchema.nullable().optional(),
   defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
   rememberLastAgentSelection: z.boolean().optional(),
   lastAgentSelection: z
     .object({
-      mode: modeSchema.optional(),
-
       permissionRuleSetId: permissionRuleSetIdSchema.optional(),
       model: modelSelectionSchema.nullable().optional(),
       thinkingLevel: thinkingLevelSchema.optional(),

@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { ConversationConfig } from "@nervekit/contracts/core";
+import {
+  resolveAgentProfiles,
+  type AgentProfile,
+} from "@nervekit/contracts/agent-profiles";
 import type { Skill } from "@nervekit/harness/resources";
-import { NerveSkillCatalog } from "@nervekit/skills";
+import { builtinSkillFilePath, NerveSkillCatalog } from "@nervekit/skills";
 import { AgentBrowserSkillCatalog } from "./agent-browser-skills.js";
 import { listAvailableSkills } from "./resource-loader.js";
 import {
@@ -14,7 +18,7 @@ import {
 } from "@nervekit/tools/catalog";
 import {
   createTurnResourcesPort,
-  withSubagentProfiles,
+  withAgentProfiles,
 } from "./turn-resources.adapter.js";
 import { buildNerveSystemPrompt } from "./nerve-system-prompt.js";
 
@@ -24,27 +28,37 @@ const coreTools = [
   "subagent_status",
   "subagent_stop",
   "ask_user",
-  "plan_mode_present",
+  "plan_present",
 ].map(tool);
 
 async function prepare(options: {
   parent: string | null;
-  usable: { name: string; description: string }[];
+  usable: { name: string; description: string; permission?: string }[];
+  toolDescription?: string;
+  customPrompt?: string;
   instructions?: string | null;
+  activeProfile?: AgentProfile;
   hasExistingSubagents?: boolean;
   subagentsEnabled?: boolean;
-  mode?: ConversationConfig["mode"];
+  agentProfile?: ConversationConfig["agentProfile"];
   planToolSource?: "host" | "core";
 }) {
   const home = await mkdtemp(join(tmpdir(), "nerve-turn-"));
   try {
+    if (options.customPrompt) {
+      await mkdir(join(home, ".nerve"));
+      await writeFile(join(home, ".nerve", "SYSTEM.md"), options.customPrompt);
+    }
     const port = createTurnResourcesPort({
       home,
       tools: () => [
-        tool("read"),
-        ...(options.planToolSource === "host"
-          ? [tool("plan_mode_present")]
-          : []),
+        {
+          ...tool("read"),
+          ...(options.toolDescription
+            ? { description: options.toolDescription }
+            : {}),
+        },
+        ...(options.planToolSource === "host" ? [tool("plan_present")] : []),
       ],
       skillCatalogs: {
         nerve: { skills: [] },
@@ -66,16 +80,13 @@ async function prepare(options: {
               options.subagentsEnabled === false ? ["subagents"] : [],
             toolProfiles: {},
           },
-          availableTools: [
-            "subagents",
-            "ask_user",
-            "plan_mode_present",
-            "read",
-          ],
+          availableTools: ["subagents", "ask_user", "plan_present", "read"],
           toolProfileOptions: { jira: [], confluence: [], web_search: [] },
         }),
       } as never,
-      subagentProfiles: {
+      agentProfiles: {
+        list: async () =>
+          options.activeProfile ? [options.activeProfile] : [],
         preview: async () => {
           throw new Error("Not a draft");
         },
@@ -85,8 +96,16 @@ async function prepare(options: {
             false,
             "master switch bypasses profile/child checks",
           );
-          assert.deepEqual(context, { projectId: "p", conversationId: "c" });
-          return options.usable as never;
+          assert.equal(context.projectId, "p");
+          assert.equal(context.conversationId, "c");
+          assert.equal(
+            context.parentConfig?.agentProfile,
+            options.agentProfile,
+          );
+          return options.usable.map((profile) => ({
+            permission: "read_only",
+            ...profile,
+          })) as never;
         },
       },
     });
@@ -97,7 +116,7 @@ async function prepare(options: {
         parentConversationId: options.parent,
       },
       config: {
-        mode: options.mode,
+        agentProfile: options.agentProfile,
         workingDirectory: home,
         systemPrompt: null,
         instructions: options.instructions ?? null,
@@ -105,7 +124,7 @@ async function prepare(options: {
       projectDir: home,
       coreTools:
         options.planToolSource === "host"
-          ? coreTools.filter((entry) => entry.name !== "plan_mode_present")
+          ? coreTools.filter((entry) => entry.name !== "plan_present")
           : coreTools,
     });
   } finally {
@@ -116,34 +135,27 @@ async function prepare(options: {
 const names = (tools: ToolDefinition[]) => tools.map((entry) => entry.name);
 
 for (const planToolSource of ["host", "core"] as const) {
-  for (const mode of [undefined, "coding", "planning"] as const) {
-    void test(`${planToolSource} plan tool is gated in ${mode ?? "default"} mode`, async () => {
-      const { tools, systemPrompt } = await prepare({
-        parent: null,
-        usable: [],
-        mode,
-        planToolSource,
-      });
-      assert.equal(
-        names(tools).includes("plan_mode_present"),
-        mode === "planning",
-      );
-      assert.ok(names(tools).includes("read"));
-      assert.ok(names(tools).includes("ask_user"));
-      if (mode !== "planning")
-        assert.doesNotMatch(
-          systemPrompt,
-          /plan_mode_present|<mode_controls>|<plan_mode/,
-        );
+  void test(`${planToolSource} plan tool is controlled by capabilities, not profile name`, async () => {
+    const { tools, systemPrompt } = await prepare({
+      parent: null,
+      usable: [],
+      agentProfile: "coding",
+      planToolSource,
     });
-  }
+    assert.ok(names(tools).includes("plan_present"));
+    assert.match(
+      tools.find((t) => t.name === "plan_present")!.description,
+      / Plan storage: \/.*\/data\/plans\.$/,
+    );
+    assert.doesNotMatch(systemPrompt, /<mode_controls>|<plan_mode/);
+  });
 }
 
 void test("planning mode does not expose blocked tools to sub-agents", async () => {
   const { tools } = await prepare({
     parent: "lead",
     usable: [],
-    mode: "planning",
+    agentProfile: "planning",
   });
   assert.deepEqual(names(tools), ["read"]);
 });
@@ -156,12 +168,16 @@ void test("sub-agent conversations lose blocked tools", async () => {
   assert.deepEqual(names(tools), ["read"]);
 });
 
-void test("leads get a profile enum and description from the usable profiles", async () => {
-  const { tools } = await prepare({
+void test("leads get a profile enum and a prompt listing with permission display names", async () => {
+  const { tools, systemPrompt } = await prepare({
     parent: null,
     usable: [
       { name: "explore", description: "Read-only research" },
-      { name: "developer", description: "Edits code" },
+      {
+        name: "developer",
+        description: "Edits code",
+        permission: "autonomous",
+      },
     ],
   });
   assert.ok(names(tools).includes("subagent_status"));
@@ -177,9 +193,10 @@ void test("leads get a profile enum and description from the usable profiles", a
   };
   const profile = parameters.properties.assignments.items.properties.profile;
   assert.deepEqual(profile.enum, ["explore", "developer"]);
+  assert.equal(profile.description, undefined);
   assert.match(
-    profile.description,
-    /explore — Read-only research\ndeveloper — Edits code/,
+    systemPrompt,
+    /<available_agent_profiles>\n- explore: Read-only research \(permission: Read only\)\n- developer: Edits code \(permission: Autonomous\)\n<\/available_agent_profiles>/,
   );
   // The catalog definition itself is untouched.
   assert.equal(
@@ -189,14 +206,14 @@ void test("leads get a profile enum and description from the usable profiles", a
 });
 
 void test("sub-agent tools are dropped when no profile is usable", () => {
-  assert.deepEqual(names(withSubagentProfiles(coreTools, [])), [
+  assert.deepEqual(names(withAgentProfiles(coreTools, [])), [
     "ask_user",
-    "plan_mode_present",
+    "plan_present",
   ]);
 });
 
 void test("existing agents retain follow-up, status and stop tools without usable profiles", async () => {
-  const { tools } = await prepare({
+  const { tools, systemPrompt } = await prepare({
     parent: null,
     usable: [],
     hasExistingSubagents: true,
@@ -205,6 +222,7 @@ void test("existing agents retain follow-up, status and stop tools without usabl
     names(tools).filter((name) => name.startsWith("subagent_")),
     ["subagent_prompt", "subagent_status", "subagent_stop"],
   );
+  assert.doesNotMatch(systemPrompt, /<available_agent_profiles>/);
   const prompt = tools.find((entry) => entry.name === "subagent_prompt");
   assert.ok(prompt);
   const parameters = prompt.parameters as unknown as {
@@ -296,7 +314,8 @@ void test("preparation reads initialized catalogs and current selections without
           toolProfileOptions: { jira: [], confluence: [], web_search: [] },
         }),
       } as never,
-      subagentProfiles: {
+      agentProfiles: {
+        list: async () => [],
         usable: async () => [],
         preview: async () => {
           throw new Error("No profile preview expected");
@@ -307,7 +326,7 @@ void test("preparation reads initialized catalogs and current selections without
     const input = {
       conversation: { id: "c", projectId: "p", parentConversationId: null },
       config: {
-        mode: "coding",
+        agentProfile: "coding",
         workingDirectory: home,
         systemPrompt: null,
         instructions: null,
@@ -345,7 +364,7 @@ void test("preparation reads initialized catalogs and current selections without
   }
 });
 
-void test("instructions render between context files and skills", () => {
+void test("instructions render before context files and skills", () => {
   const prompt = buildNerveSystemPrompt({
     cwd: "/w",
     contextFiles: [{ path: "AGENTS.md", content: "rules" }],
@@ -354,14 +373,75 @@ void test("instructions render between context files and skills", () => {
     skills: [{ name: "s", description: "d", filePath: "/s/SKILL.md" } as never],
   });
   const at = (text: string) => prompt.indexOf(text);
-  assert.match(
-    prompt,
-    /<agent_instructions>\nReport briefly\.\n<\/agent_instructions>/,
-  );
-  assert.ok(at("project_instructions") < at("<agent_instructions>"));
-  assert.ok(at("<agent_instructions>") < at("<available_skills>"));
+  assert.match(prompt, /<instructions>\nReport briefly\.\n<\/instructions>/);
+  assert.ok(at("<instructions>") < at("project_instructions"));
+  assert.ok(at("<instructions>") < at("<available_skills>"));
   assert.doesNotMatch(
     buildNerveSystemPrompt({ cwd: "/w", instructions: null }),
-    /agent_instructions/,
+    /instructions/,
+  );
+});
+
+void test("turn preparation resolves instruction and tool description skill placeholders", async () => {
+  const { tools, systemPrompt } = await prepare({
+    parent: null,
+    usable: [],
+    instructions: "Read {{skill:team-lead}} and {{skill:unknown}}.",
+    toolDescription: "Guide: {{skill:team-lead}}; again {{skill:team-lead}}.",
+  });
+  const path = builtinSkillFilePath("team-lead");
+  assert.ok(path);
+  assert.ok(systemPrompt.includes(`Read ${path} and {{skill:unknown}}.`));
+  assert.equal(
+    tools.find((entry) => entry.name === "read")?.description,
+    `Guide: ${path}; again ${path}.`,
+  );
+});
+
+void test("SYSTEM.md replaces only the default intro and guidelines during preparation", async () => {
+  const { systemPrompt } = await prepare({
+    parent: null,
+    usable: [{ name: "explore", description: "Research" }],
+    customPrompt: "Custom system intro",
+    instructions: "Keep these instructions",
+  });
+  assert.ok(systemPrompt.startsWith("Custom system intro\n\n"));
+  assert.doesNotMatch(systemPrompt, /<guidelines>|You are Nerve/);
+  assert.match(systemPrompt, /<instructions>\nKeep these instructions/);
+  assert.match(systemPrompt, /<available_agent_profiles>/);
+  assert.match(systemPrompt, /<environment>/);
+});
+
+void test("active lead instructions resolve skill placeholders alongside conversation instructions", async () => {
+  const profile = resolveAgentProfiles({
+    layers: [],
+    scope: "user",
+  }).profiles.find((p) => p.name === "coding")!.effective!;
+  profile.instructions = "Profile: read {{skill:team-lead}}.";
+  const { systemPrompt } = await prepare({
+    parent: null,
+    usable: [],
+    agentProfile: "coding",
+    activeProfile: profile,
+    instructions: "Conversation-specific rules.",
+  });
+  assert.match(systemPrompt, /<instructions>\nProfile: read/);
+  assert.ok(systemPrompt.includes(builtinSkillFilePath("team-lead")!));
+  assert.ok(
+    systemPrompt.indexOf("Profile: read") <
+      systemPrompt.indexOf("Conversation-specific rules."),
+  );
+  assert.doesNotMatch(systemPrompt, /\{\{skill:/);
+  profile.instructions = "Edited profile rules.";
+  assert.match(
+    (
+      await prepare({
+        parent: null,
+        usable: [],
+        agentProfile: "coding",
+        activeProfile: profile,
+      })
+    ).systemPrompt,
+    /Edited profile rules/,
   );
 });

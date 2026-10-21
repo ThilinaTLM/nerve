@@ -1,4 +1,8 @@
 import {
+  projectSettingsPatchSchema,
+  projectSettingsResultSchema,
+} from "./project-settings.js";
+import {
   applicationConfigurationSnapshotSchema,
   updateApplicationConfigurationRequestSchema,
 } from "./application-configuration.js";
@@ -9,6 +13,26 @@ import { defineOperation } from "../../operations/definition.js";
 const emptyParamsSchema = z.object({}).optional();
 
 export const settingsOperationDefinitions = [
+  defineOperation(
+    "projectSettings.get",
+    z.object({ projectId: z.string() }).strict(),
+    projectSettingsResultSchema,
+    "read",
+    "none",
+    ["workbench_server"] as const,
+    "operation.projectSettings.get",
+  ),
+  defineOperation(
+    "projectSettings.update",
+    z
+      .object({ projectId: z.string(), patch: projectSettingsPatchSchema })
+      .strict(),
+    projectSettingsResultSchema,
+    "mutation",
+    "recommended",
+    ["workbench_server"] as const,
+    "operation.projectSettings.update",
+  ),
   defineOperation(
     "settings.get",
     emptyParamsSchema,

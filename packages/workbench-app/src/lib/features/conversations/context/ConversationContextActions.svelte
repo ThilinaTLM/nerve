@@ -24,6 +24,7 @@ let {
   instructions,
   profile,
   disabled = false,
+  compactionLocked = false,
   onEditCompaction,
   onEditInstructions,
 }: {
@@ -32,6 +33,8 @@ let {
   /** Profile badge text; sub-agents only. */
   profile?: string;
   disabled?: boolean;
+  /** The active profile locks compaction; the override can't be edited. */
+  compactionLocked?: boolean;
   onEditCompaction: () => void;
   onEditInstructions: () => void;
 } = $props();
@@ -60,7 +63,7 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
           <Button
             size="icon-sm"
             variant="ghost"
-            disabled={disabled || !compaction}
+            disabled={disabled || compactionLocked || !compaction}
             class="relative text-muted-foreground hover:text-foreground"
             ariaLabel={compaction
               ? `Compaction: ${compactionSummary(compaction.effective)}`
@@ -93,7 +96,9 @@ const trimmedInstructions = $derived(instructions?.trim() ?? "");
       {:else}
         <p class="text-muted-foreground">Loading…</p>
       {/if}
-      <p class="border-t pt-1 text-muted-foreground">Click to change</p>
+      <p class="border-t pt-1 text-muted-foreground">
+        {compactionLocked ? "Locked by the active profile" : "Click to change"}
+      </p>
     </Tooltip.Content>
   </Tooltip.Root>
 </Tooltip.Provider>

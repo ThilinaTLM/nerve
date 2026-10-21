@@ -21,7 +21,7 @@ export type ShortcutCommandId =
   | "composer.stopRun"
   | "composer.toggleMic"
   | "composer.cancelMic"
-  | "composer.toggleMode"
+  | "composer.cycleProfile"
   | "composer.cycleModel"
   | "composer.cyclePermission"
   | "composer.cycleThinking"
@@ -139,8 +139,8 @@ export const DEFAULT_SHORTCUTS: ShortcutCommand[] = [
     allowInEditable: true,
   },
   {
-    id: "composer.toggleMode",
-    label: "Toggle coding/planning mode",
+    id: "composer.cycleProfile",
+    label: "Cycle agent profile",
     category: "Composer",
     defaultBinding: { key: "tab", shift: true },
     allowInEditable: true,

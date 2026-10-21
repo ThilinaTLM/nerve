@@ -212,6 +212,9 @@ importers:
       '@nervekit/native':
         specifier: workspace:*
         version: link:../native
+      '@nervekit/skills':
+        specifier: workspace:*
+        version: link:../skills
       cross-spawn:
         specifier: 7.0.6
         version: 7.0.6

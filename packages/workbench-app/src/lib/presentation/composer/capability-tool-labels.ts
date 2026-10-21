@@ -36,6 +36,7 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
     names: ["kroki_export"],
   },
   { key: "python_exec", label: "Python", names: ["python_exec"] },
+  { key: "plan_present", label: "Plan review", names: ["plan_present"] },
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },
 ];

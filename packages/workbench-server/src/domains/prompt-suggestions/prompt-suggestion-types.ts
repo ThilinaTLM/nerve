@@ -7,7 +7,6 @@ import type {
   GithubStatusResponse,
   GitRepoSummary,
 } from "@nervekit/contracts/git";
-import type { Mode } from "@nervekit/contracts/settings";
 import type {
   PromptSuggestionSourceKind,
   PromptSuggestionWhen,
@@ -54,7 +53,6 @@ export type PromptSuggestionDefinition = {
 export type PromptSuggestionConversationContext = {
   id: string;
   title: string;
-  mode: Mode;
   permissionRuleSetId: string;
   reasoningLevel: ConversationConfig["reasoningLevel"];
   status: Conversation["status"];

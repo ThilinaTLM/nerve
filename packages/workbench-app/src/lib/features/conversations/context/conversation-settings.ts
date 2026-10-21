@@ -5,9 +5,9 @@ import {
 import type { HarnessCompactionSource } from "@nervekit/contracts/core";
 import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
-  SUBAGENT_INSTRUCTIONS_MAX_BYTES,
+  AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES,
   utf8ByteLength,
-} from "@nervekit/contracts/subagents";
+} from "@nervekit/contracts/agent-profiles";
 
 const PROFILE_LABELS: Record<AutoCompactionSettings["profile"], string> = {
   aggressive: "Aggressive",
@@ -65,7 +65,7 @@ export function compactionsEqual(
   );
 }
 
-export const INSTRUCTIONS_MAX_BYTES = SUBAGENT_INSTRUCTIONS_MAX_BYTES;
+export const INSTRUCTIONS_MAX_BYTES = AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES;
 
 export function instructionsBytes(text: string): number {
   return utf8ByteLength(text);

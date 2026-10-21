@@ -17,6 +17,6 @@ export interface CapabilitySubagentSlot {
   setCounts(counts: CapabilitySubagentCounts | undefined): void;
 }
 
-export type CapabilitySubagentProfiles = Snippet<
+export type CapabilityAgentProfiles = Snippet<
   [query: string, slot: CapabilitySubagentSlot]
 >;

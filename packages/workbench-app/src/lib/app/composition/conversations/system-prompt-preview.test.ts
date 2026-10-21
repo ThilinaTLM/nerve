@@ -16,14 +16,14 @@ function draft(): Pending {
       systemPrompt: null,
       instructions: "Unsent instructions",
       permissionRuleSetId: "default",
-      mode: "planning",
+      agentProfile: "planning",
       workingDirectory: "/project",
     },
     capabilityOverrides: {
       ...emptyCapabilityOverrides(),
       tools: { web_search: { enabled: false } },
     },
-    subagentProfileOverrides: {
+    agentProfileOverrides: {
       schemaVersion: 1,
       profiles: { explore: { enabled: false } },
     },
@@ -43,7 +43,7 @@ test("preview before first input uses current draft config and overlays, not a s
     projectId: pending.projectId,
     config: pending.config,
     capabilityOverrides: pending.capabilityOverrides,
-    subagentProfileOverrides: pending.subagentProfileOverrides,
+    agentProfileOverrides: pending.agentProfileOverrides,
   });
 });
 
@@ -51,25 +51,25 @@ test("each opening captures fresh settings without mutating an already captured 
   const pending = draft();
   const first = captureSystemPromptPreview({ pending })!;
   pending.config.instructions = "Next request instructions";
-  pending.config.mode = "coding";
+  pending.config.agentProfile = "coding";
   pending.config.model.modelId = "changed";
   pending.capabilityOverrides!.tools.web_search = { enabled: true };
-  pending.subagentProfileOverrides!.profiles.explore = { enabled: true };
+  pending.agentProfileOverrides!.profiles.explore = { enabled: true };
   const second = captureSystemPromptPreview({ pending })!;
   assert.ok("config" in first.params && "config" in second.params);
   assert.equal(first.params.config.instructions, "Unsent instructions");
-  assert.equal(first.params.config.mode, "planning");
+  assert.equal(first.params.config.agentProfile, "planning");
   assert.equal(first.params.config.model.modelId, "test");
   assert.equal(second.params.config.instructions, "Next request instructions");
-  assert.equal(second.params.config.mode, "coding");
+  assert.equal(second.params.config.agentProfile, "coding");
   assert.equal(second.params.config.model.modelId, "changed");
   assert.deepEqual(
     first.params.capabilityOverrides,
     draft().capabilityOverrides,
   );
   assert.deepEqual(
-    first.params.subagentProfileOverrides,
-    draft().subagentProfileOverrides,
+    first.params.agentProfileOverrides,
+    draft().agentProfileOverrides,
   );
 });
 

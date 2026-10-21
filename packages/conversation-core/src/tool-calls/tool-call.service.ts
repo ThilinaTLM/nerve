@@ -62,10 +62,11 @@ export interface ToolCallServiceOptions {
   onSettled?(conversationId: string): void;
   coreTools: Map<string, CoreToolHandler>;
   asyncBash: AsyncBashAdopter;
-  context(conversationId: string): {
-    projectDir: string;
-    config: ConversationConfig;
-  };
+  context(
+    conversationId: string,
+  ):
+    | { projectDir: string; config: ConversationConfig }
+    | Promise<{ projectDir: string; config: ConversationConfig }>;
 }
 
 export class ToolCallService {
@@ -333,7 +334,7 @@ export class ToolCallService {
         : call.arguments;
     try {
       if (call.state === "supervising") {
-        const { projectDir, config } = this.options.context(
+        const { projectDir, config } = await this.options.context(
           call.conversationId,
         );
         const supervision = await this.options.permissions.evaluate({
@@ -380,7 +381,9 @@ export class ToolCallService {
       this.settlement.recordExecutionStart(call);
       const ctx = this.toolContext(call, controller.signal);
       const handler = this.options.coreTools.get(call.toolName);
-      const { config, projectDir } = this.options.context(call.conversationId);
+      const { config, projectDir } = await this.options.context(
+        call.conversationId,
+      );
       let result;
       if (handler) result = await handler.execute(call, ctx);
       else {

@@ -76,8 +76,9 @@ function shortcutOptions(
     setComposerModel: () => undefined,
     selectedThinkingLevel: () => "off",
     setComposerThinkingLevel: () => undefined,
-    selectedMode: () => "coding",
-    setComposerMode: () => undefined,
+    agentProfileNames: () => ["coding", "planning"],
+    selectedAgentProfile: () => "coding",
+    setComposerAgentProfile: () => undefined,
     togglePanelDock: () => undefined,
   };
 }
@@ -98,7 +99,7 @@ test("cycles through the available permission rule sets", () => {
   assert.equal(selected, "custom");
 });
 
-test("does not cycle the fixed Planning rule set", () => {
+test("does not cycle a single rule set", () => {
   const shortcuts = createAppShortcuts({
     ...shortcutOptions(undefined, () => undefined),
     hasConversationComposer: () => true,
@@ -128,14 +129,14 @@ test("Ctrl+N creates a conversation from an editable target", () => {
   assert.equal(prevented(), true);
 });
 
-test("Shift+Tab toggles mode only from the prompt composer", () => {
-  let mode: "coding" | "planning" = "coding";
+test("Shift+Tab cycles the agent profile only from the prompt composer", () => {
+  let profile = "coding";
   const shortcuts = createAppShortcuts({
     ...shortcutOptions(undefined, () => undefined),
     hasConversationComposer: () => true,
-    selectedMode: () => mode,
-    setComposerMode: (value) => {
-      mode = value;
+    selectedAgentProfile: () => profile,
+    setComposerAgentProfile: (value) => {
+      profile = value;
     },
   });
   const outside = shortcutEvent(
@@ -143,7 +144,7 @@ test("Shift+Tab toggles mode only from the prompt composer", () => {
     { key: "Tab", code: "Tab", ctrlKey: false, shiftKey: true },
   );
   shortcuts.handleWorkbenchShortcut(outside.event);
-  assert.equal(mode, "coding");
+  assert.equal(profile, "coding");
   assert.equal(outside.prevented(), false);
 
   const inside = shortcutEvent(
@@ -151,7 +152,7 @@ test("Shift+Tab toggles mode only from the prompt composer", () => {
     { key: "Tab", code: "Tab", ctrlKey: false, shiftKey: true },
   );
   shortcuts.handleWorkbenchShortcut(inside.event);
-  assert.equal(mode, "planning");
+  assert.equal(profile, "planning");
   assert.equal(inside.prevented(), true);
 });
 

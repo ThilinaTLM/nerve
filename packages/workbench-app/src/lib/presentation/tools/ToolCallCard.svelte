@@ -303,7 +303,7 @@ function hasMeaningfulDurableBody(view: ParsedToolView | undefined): boolean {
     case "confluence":
       return toolCall?.resultPreview !== undefined;
     case "ask_user":
-    case "plan_mode":
+    case "plan_present":
       return true;
   }
 }
@@ -376,7 +376,7 @@ const approvalPresentation = $derived.by(() => {
 });
 const hilInteractive = $derived(
   view?.kind === "ask_user" ||
-    (view?.kind === "plan_mode" && view.action === "present"),
+    (view?.kind === "plan_present" && view.action === "present"),
 );
 const toolQuestion = $derived(
   resolveAskUserQuestion(toolCall, pendingUserQuestion),
@@ -384,7 +384,7 @@ const toolQuestion = $derived(
 // ask_user lives inside the sheet in every state; plan review still owns its
 // body and actions.
 const planInteractive = $derived(
-  view?.kind === "plan_mode" && view.action === "present",
+  view?.kind === "plan_present" && view.action === "present",
 );
 const isAskUser = $derived(
   (toolCall?.toolName ?? draft?.block.toolName) === "ask_user",
@@ -534,7 +534,7 @@ const badge = $derived(
     draft?.block.toolName ??
     "tool",
 );
-// For HIL interactive tools (ask_user, plan_mode present) the durable
+// For HIL interactive tools (ask_user, plan_present) the durable
 // presentation is authoritative and deliberately omits the header arg so the
 // question/plan is not duplicated in the interactive body. Skip the lifecycle
 // fallback in that case; other tools keep the streaming-arg fallback.

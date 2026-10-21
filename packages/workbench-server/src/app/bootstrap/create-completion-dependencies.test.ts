@@ -381,6 +381,19 @@ void test("filesystem cause hints reach files and access-sensitive catalogs; act
       args: [undefined, undefined],
     })),
   );
+  seen.length = 0;
+  for (const listener of ctx.notices)
+    listener({
+      type: "projectSettings.changed",
+      data: { projectId: "proj_A" },
+    } as Notice);
+  assert.deepEqual(
+    seen,
+    ["files", "skills", "tools", "profiles"].map((source) => ({
+      source,
+      args: [{ projectId: "proj_A" }, undefined],
+    })),
+  );
   stops.forEach((stop) => stop());
   assert.equal(ctx.notices.size, 0);
 });

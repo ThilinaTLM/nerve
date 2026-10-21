@@ -6,10 +6,10 @@ import {
 } from "@nervekit/contracts/capabilities";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import {
-  builtInSubagentProfiles,
-  subagentProfileSchema,
-  type SubagentProfilesConfiguration,
-} from "@nervekit/contracts/subagents";
+  builtInAgentProfiles,
+  agentProfileSchema,
+  type AgentProfilesConfiguration,
+} from "@nervekit/contracts/agent-profiles";
 import { userCapabilitySelection } from "../../../src/core-host/user-capability-selection.js";
 import {
   createCompletionProviders,
@@ -38,7 +38,7 @@ function setup() {
     },
   });
   const updates: unknown[] = [];
-  let profiles: SubagentProfilesConfiguration = {
+  let profiles: AgentProfilesConfiguration = {
     scope: "conversation",
     document: null,
     digest: "profile-digest",
@@ -103,7 +103,7 @@ function setup() {
     config,
     updates,
     load,
-    setProfiles(next: SubagentProfilesConfiguration) {
+    setProfiles(next: AgentProfilesConfiguration) {
       profiles = next;
     },
   };
@@ -365,8 +365,8 @@ void test("integration tool toggles owning group/profile; unconfigured resources
 
 void test("disabled valid profiles can be enabled; untrusted/invalid profiles remain blocked", async () => {
   const f = setup();
-  const effective = subagentProfileSchema.parse({
-    ...builtInSubagentProfiles[0],
+  const effective = agentProfileSchema.parse({
+    ...builtInAgentProfiles[0],
     tools: {},
     enabled: false,
     source: "builtin",

@@ -1,3 +1,4 @@
+import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { z } from "zod";
 import { toolRiskSchema } from "../permissions/permissions.js";
 
@@ -39,6 +40,8 @@ export const interactionResolutionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("plan_review"),
     decision: z.enum(["approve", "reject"]),
     feedback: z.string().optional(),
+    implementationModel: modelSelectionSchema.optional(),
+    implementationThinkingLevel: thinkingLevelSchema.optional(),
   }),
 ]);
 export const approvalRequestSchema = z.object({

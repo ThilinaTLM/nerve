@@ -19,8 +19,8 @@ import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
 import { toolDefinitionByName } from "@nervekit/tools/catalog";
 import { CapabilityService } from "./capability.service.js";
 import { createTurnResourcesPort } from "./turn-resources.adapter.js";
-import { SubagentProfileService } from "../domains/subagents/subagent-profile.service.js";
-import { createProfileAvailability } from "./subagent-profile-availability.js";
+import { AgentProfileService } from "../domains/agent-profiles/agent-profile.service.js";
+import { createProfileAvailability } from "./agent-profile-availability.js";
 
 void test("fresh resources/settings and draft overrides use the same production preparation as saved turns", async () => {
   const home = await mkdtemp(join(tmpdir(), "nerve-prompt-fresh-"));
@@ -49,7 +49,7 @@ void test("fresh resources/settings and draft overrides use the same production 
       conversationId: "c",
       model: { provider: "test", modelId: "draft" },
       reasoningLevel: "high",
-      mode: "coding",
+      agentProfile: "coding",
       systemPrompt: null,
       instructions: "Old instructions marker",
       permissionRuleSetId: "baseline",
@@ -80,7 +80,7 @@ void test("fresh resources/settings and draft overrides use the same production 
         return { tools: new Map(), skills: new Map() };
       },
     });
-    const profiles = new SubagentProfileService({
+    const profiles = new AgentProfileService({
       userPath: join(home, "profiles.json"),
       conversationsPath,
       trust: {
@@ -106,14 +106,14 @@ void test("fresh resources/settings and draft overrides use the same production 
         agentBrowser: { skills: [] },
       },
       capabilities,
-      subagentProfiles: profiles,
+      agentProfiles: profiles,
       hasExistingSubagents: () => false,
     });
     const coreTools = [
       "subagent_prompt",
       "subagent_status",
       "subagent_stop",
-      "plan_mode_present",
+      "plan_present",
     ].map((name) => toolDefinitionByName(name)!);
     const savedInput = {
       conversation: {
@@ -133,7 +133,7 @@ void test("fresh resources/settings and draft overrides use the same production 
       join(projectDir, ".nerve", "APPEND_SYSTEM.md"),
       "Fresh append marker",
     );
-    config.mode = "planning";
+    config.agentProfile = "planning";
     config.instructions = "Fresh instructions marker";
     const preview = await port.prepare(savedInput);
     assert.match(preview.systemPrompt, /Fresh context marker 雪/);
@@ -143,7 +143,7 @@ void test("fresh resources/settings and draft overrides use the same production 
       preview.systemPrompt,
       /Old (context|append|instructions) marker/,
     );
-    assert.ok(preview.tools.some((tool) => tool.name === "plan_mode_present"));
+    assert.ok(preview.tools.some((tool) => tool.name === "plan_present"));
     assert.deepEqual(
       await port.prepare(savedInput),
       preview,
@@ -176,7 +176,7 @@ void test("fresh resources/settings and draft overrides use the same production 
       projectDir,
       coreTools,
       capabilityOverrides,
-      subagentProfileOverrides: document,
+      agentProfileOverrides: document,
     });
     assert.ok(leadChecks.length > 0);
     assert.ok(
@@ -206,7 +206,7 @@ void test("fresh resources/settings and draft overrides use the same production 
       JSON.stringify(capabilityOverrides),
     );
     await writeFile(
-      join(configDir, "subagents.json"),
+      join(configDir, "agent-profiles.json"),
       JSON.stringify(document),
     );
     Object.assign(config, draftConfig);

@@ -5,7 +5,6 @@
   "description": "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
   "source": "builtin",
   "enabled": true,
-  "compatibleModes": ["coding"],
   "rules": [
     {
       "id": "allow-interaction",

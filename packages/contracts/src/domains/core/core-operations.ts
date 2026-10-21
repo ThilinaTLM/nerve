@@ -1,3 +1,4 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import { z } from "zod";
 import { conversationAgentUsageSchema } from "./conversation-usage.js";
 import {
@@ -30,6 +31,7 @@ export const createConversationRequestSchema = z.object({
   title: z.string(),
   config: conversationConfigSchema.omit({ conversationId: true }).extend({
     instructions: conversationConfigSchema.shape.instructions.default(null),
+    agentProfile: agentProfileNameSchema.optional(),
   }),
 });
 export const listConversationsRequestSchema = z.object({
@@ -38,8 +40,22 @@ export const listConversationsRequestSchema = z.object({
 });
 export const configureConversationRequestSchema = z.object({
   conversationId: z.string(),
-  patch: conversationConfigSchema.omit({ conversationId: true }).partial(),
+  // Profile switches must apply policy through conversation.setAgentProfile.
+  patch: conversationConfigSchema
+    .omit({ conversationId: true, agentProfile: true })
+    .partial(),
 });
+/** User-only switch; applies profile Set values and capability reconciliation. */
+export const setConversationAgentProfileRequestSchema = z
+  .object({
+    conversationId: z.string(),
+    profile: agentProfileNameSchema,
+  })
+  .strict();
+export type SetConversationAgentProfileRequest = z.infer<
+  typeof setConversationAgentProfileRequestSchema
+>;
+
 export const updateConversationRequestSchema = z.object({
   conversationId: z.string(),
   patch: z.object({
@@ -136,6 +152,10 @@ export const coreOperationSchemas = {
   "conversation.configure": {
     params: configureConversationRequestSchema,
     result: done,
+  },
+  "conversation.setAgentProfile": {
+    params: setConversationAgentProfileRequestSchema,
+    result: conversationConfigSchema,
   },
   "conversation.update": {
     params: updateConversationRequestSchema,

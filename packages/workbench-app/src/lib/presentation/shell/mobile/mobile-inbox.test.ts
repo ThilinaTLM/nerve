@@ -23,7 +23,7 @@ function conversation(
     createdAt: "2026-10-14T00:00:00Z",
     updatedAt: "2026-10-14T00:00:00Z",
     childCount: 0,
-    mode: "coding",
+    agentProfile: "coding",
     model: { provider: "test", modelId: "test" },
     permissionRuleSetId: "default",
     ...patch,

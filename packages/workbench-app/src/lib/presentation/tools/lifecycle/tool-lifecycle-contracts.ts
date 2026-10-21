@@ -119,7 +119,7 @@ export type CompletedViewFamily =
   | "ask_user"
   | "todos"
   | "subagent"
-  | "plan_mode"
+  | "plan_present"
   | "jira"
   | "confluence"
   | "web_search"

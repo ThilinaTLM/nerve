@@ -78,13 +78,47 @@ export function convertSettings(document: Legacy): boolean {
     const selection = document[key];
     rename(selection, "permissionLevel", "permissionRuleSetId");
     if (selection)
-      for (const removed of ["workspaceScope", "budget"])
+      for (const removed of ["workspaceScope", "budget", "mode"])
         if (Object.hasOwn(selection, removed)) {
           delete selection[removed];
           changed = true;
         }
   }
   return convertPermissionRules(document) || changed;
+}
+/** Current-format output from known configuration files only. */
+export function convertProfileSettings(
+  document: Legacy,
+  name: string,
+  ruleSet = false,
+): boolean {
+  let changed = false;
+  const drop = (object: Legacy | undefined, key: string) => {
+    if (object && Object.hasOwn(object, key)) {
+      delete object[key];
+      changed = true;
+    }
+  };
+  if (ruleSet) drop(document, "compatibleModes");
+  if (name === "harness.json" || name === "ui.json")
+    drop(document.lastAgentSelection, "mode");
+  if (name === "harness.json") {
+    drop(document, "mode");
+    drop(document.defaults, "mode");
+    drop(document.lastSelection, "mode");
+    const disabled = document.tools?.disabled;
+    if (Array.isArray(disabled) && disabled.includes("plan_mode_present")) {
+      document.tools.disabled = [
+        ...new Set(
+          disabled.map((tool: string) =>
+            tool === "plan_mode_present" ? "plan_present" : tool,
+          ),
+        ),
+      ];
+      changed = true;
+    }
+  }
+  return changed;
 }
 function renameSuggestionFilter(text: string): string {
   const match = text.match(/^(---\r?\n)([\s\S]*?)(\r?\n---(?:\r?\n|$))/);
@@ -132,7 +166,12 @@ export async function convertConfiguration(
         { kind: "configuration", id: path, title: `User settings: ${name}` },
         () => {
           const document = readJson(path);
-          if (convertSettings(document)) {
+          const profileChanged = convertProfileSettings(
+            document,
+            name,
+            directory !== config,
+          );
+          if (convertSettings(document) || profileChanged) {
             writeJson(path, document);
             settings++;
           }
@@ -403,7 +442,9 @@ export async function convertDocumentPreferences(
         const path = join(config, name);
         const convert = () => {
           const document = readJson(path);
-          if (convertPermissionRules(document)) writeJson(path, document);
+          const profileChanged = convertProfileSettings(document, name);
+          if (convertPermissionRules(document) || profileChanged)
+            writeJson(path, document);
         };
         if (ctx)
           await ctx.unit(

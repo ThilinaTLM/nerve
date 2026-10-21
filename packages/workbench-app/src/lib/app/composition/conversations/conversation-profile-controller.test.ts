@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type {
-  SubagentProfilesConfiguration,
-  SubagentProfilePatch,
-  SubagentProfilesDocument,
-} from "@nervekit/contracts/subagents";
+  AgentProfilesConfiguration,
+  AgentProfilePatch,
+  AgentProfilesDocument,
+} from "@nervekit/contracts/agent-profiles";
 import {
   ConversationProfileController,
   conversationProfileScope,
@@ -12,7 +12,7 @@ import {
   type PendingConversationProfileScope,
 } from "./conversation-profile-controller";
 
-function configuration(digest: string | null): SubagentProfilesConfiguration {
+function configuration(digest: string | null): AgentProfilesConfiguration {
   return {
     scope: "conversation",
     document: { schemaVersion: 1, profiles: {} },
@@ -73,7 +73,7 @@ test("interactive saved leads acquire a profile scope; children stay barred", ()
 });
 
 test("demand loading and stale reads cannot replace a new conversation", async () => {
-  const first = deferred<SubagentProfilesConfiguration>();
+  const first = deferred<AgentProfilesConfiguration>();
   let state: ConversationProfileState = { loading: false, saving: false };
   let reads = 0;
   const controller = new ConversationProfileController({
@@ -96,8 +96,8 @@ test("demand loading and stale reads cannot replace a new conversation", async (
 });
 
 test("mutations serialize and carry the latest digest, preserving sparse explicit/reset patches", async () => {
-  const calls: { patch: SubagentProfilePatch; digest: string | null }[] = [];
-  const first = deferred<SubagentProfilesConfiguration>();
+  const calls: { patch: AgentProfilePatch; digest: string | null }[] = [];
+  const first = deferred<AgentProfilesConfiguration>();
   const controller = new ConversationProfileController({
     preview: async () => configuration("unused"),
     read: async () => configuration(null),
@@ -109,14 +109,14 @@ test("mutations serialize and carry the latest digest, preserving sparse explici
   });
   controller.follow(scope);
   await controller.refresh();
-  const one = controller.mutate("developer", { model: "lead" });
+  const one = controller.mutate("developer", { model: "inherit" });
   const two = controller.mutate("developer", { thinking: null });
   await Promise.resolve();
   assert.equal(calls.length, 1);
   first.resolve(configuration("first"));
   await Promise.all([one, two]);
   assert.deepEqual(calls, [
-    { patch: { model: "lead" }, digest: null },
+    { patch: { model: "inherit" }, digest: null },
     { patch: { thinking: null }, digest: "first" },
   ]);
 });
@@ -155,7 +155,7 @@ test("conflicts refresh without replaying the edit or subsequent queued edits", 
 });
 
 test("closing while a write is in flight discards its result", async () => {
-  const write = deferred<SubagentProfilesConfiguration>();
+  const write = deferred<AgentProfilesConfiguration>();
   let state: ConversationProfileState = { loading: false, saving: false };
   const controller = new ConversationProfileController({
     preview: async () => configuration("unused"),
@@ -193,7 +193,7 @@ test("portable references survive quick edits and malformed documents cannot be 
   ];
   let current = portable;
   let state: ConversationProfileState = { loading: false, saving: false };
-  const patches: SubagentProfilePatch[] = [];
+  const patches: AgentProfilePatch[] = [];
   const controller = new ConversationProfileController({
     preview: async () => configuration("unused"),
     read: async () => current,
@@ -260,7 +260,7 @@ test("closing clears scope and reopening demands a fresh configuration", async (
 
 function pendingScope(
   onDocumentChange: PendingConversationProfileScope["onDocumentChange"],
-  document?: SubagentProfilesDocument,
+  document?: AgentProfilesDocument,
 ): PendingConversationProfileScope {
   return {
     kind: "pending",
@@ -277,12 +277,12 @@ function pendingScope(
 
 function pendingHarness(
   preview?: (input: {
-    document: SubagentProfilesDocument;
+    document: AgentProfilesDocument;
     lead: PendingConversationProfileScope["lead"];
-  }) => Promise<SubagentProfilesConfiguration>,
+  }) => Promise<AgentProfilesConfiguration>,
 ) {
   let state: ConversationProfileState = { loading: false, saving: false };
-  const calls: SubagentProfilesDocument[] = [];
+  const calls: AgentProfilesDocument[] = [];
   const controller = new ConversationProfileController({
     read: async () => {
       throw new Error("draft must not read a saved profile");
@@ -324,19 +324,19 @@ test("pending roots get stable scopes, while saved children and noninteractive d
 });
 
 test("pending patches synchronously persist sparse overrides, reset inherited fields, and survive remount", async () => {
-  let document: SubagentProfilesDocument | undefined;
-  const owner = (next: SubagentProfilesDocument) => {
+  let document: AgentProfilesDocument | undefined;
+  const owner = (next: AgentProfilesDocument) => {
     document = next;
   };
   const { controller, state } = pendingHarness();
   controller.follow(pendingScope(owner));
   await controller.refresh();
   const edit = controller.mutate("developer", {
-    model: "lead",
+    model: "inherit",
     thinking: "high",
   });
   assert.deepEqual(document?.profiles.developer, {
-    model: "lead",
+    model: "inherit",
     thinking: "high",
   });
   await edit;
@@ -352,9 +352,9 @@ test("pending patches synchronously persist sparse overrides, reset inherited fi
 });
 
 test("pending previews coalesce rapid edits and ignore in-flight stale revisions and scopes", async () => {
-  const slow = deferred<SubagentProfilesConfiguration>();
+  const slow = deferred<AgentProfilesConfiguration>();
   let slowNext = false;
-  let document: SubagentProfilesDocument | undefined;
+  let document: AgentProfilesDocument | undefined;
   const harness = pendingHarness(async ({ document }) =>
     slowNext
       ? ((slowNext = false), slow.promise)
@@ -369,11 +369,11 @@ test("pending previews coalesce rapid edits and ignore in-flight stale revisions
   const first = harness.controller.mutate("developer", { enabled: false });
   await Promise.resolve();
   const second = harness.controller.mutate("developer", { thinking: "high" });
-  const third = harness.controller.mutate("developer", { model: "lead" });
+  const third = harness.controller.mutate("developer", { model: "inherit" });
   assert.deepEqual(document?.profiles.developer, {
     enabled: false,
     thinking: "high",
-    model: "lead",
+    model: "inherit",
   });
   slow.resolve(configuration("stale"));
   await Promise.all([first, second, third]);
@@ -393,14 +393,14 @@ test("pending previews coalesce rapid edits and ignore in-flight stale revisions
 
 test("preview failures retain draft edits; refresh and lead changes use current overrides", async () => {
   let fail = false;
-  let document: SubagentProfilesDocument | undefined;
+  let document: AgentProfilesDocument | undefined;
   let lead: PendingConversationProfileScope["lead"] | undefined;
   const harness = pendingHarness(async (input) => {
     lead = input.lead;
     if (fail) throw new Error("preview unavailable");
     return { ...configuration(null), document: input.document };
   });
-  const owner = (next: SubagentProfilesDocument) => {
+  const owner = (next: AgentProfilesDocument) => {
     document = next;
   };
   harness.controller.follow(pendingScope(owner));
@@ -457,7 +457,7 @@ test("sending drafts and blocking documents cannot be edited", async () => {
 });
 
 test("an old draft's in-flight preview cannot populate a new draft or a closed editor", async () => {
-  const slow = deferred<SubagentProfilesConfiguration>();
+  const slow = deferred<AgentProfilesConfiguration>();
   let reads = 0;
   const seen: (string | null | undefined)[] = [];
   let state: ConversationProfileState = { loading: false, saving: false };
@@ -483,7 +483,7 @@ test("an old draft's in-flight preview cannot populate a new draft or a closed e
 });
 
 test("lead context changes invalidate in-flight preview results without discarding local overrides", async () => {
-  const slow = deferred<SubagentProfilesConfiguration>();
+  const slow = deferred<AgentProfilesConfiguration>();
   let slowNext = false;
   const harness = pendingHarness(async ({ document }) => {
     if (slowNext) {
@@ -492,9 +492,9 @@ test("lead context changes invalidate in-flight preview results without discardi
     }
     return { ...configuration("new-lead"), document };
   });
-  const document: SubagentProfilesDocument = {
+  const document: AgentProfilesDocument = {
     schemaVersion: 1,
-    profiles: { developer: { thinking: "lead" } },
+    profiles: { developer: { thinking: "inherit" } },
   };
   const pending = pendingScope(() => {}, document);
   harness.controller.follow(pending);

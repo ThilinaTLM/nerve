@@ -1,19 +1,19 @@
 ---
 title: Control the agent
-description: Choose coding or planning mode, permissions, model, and thinking level.
+description: Choose agent profiles, permissions, model, and thinking level.
 sidebar:
   order: 4
 ---
 
-## Coding and planning
+## Agent profiles
 
-**Coding mode** exposes the normal enabled tool set under the active permission policy.
+Choose a lead/both profile in the composer or use `/profile <name>`. `/plan` selects Planning. Agents cannot switch their own profiles.
 
-**Planning mode** changes instructions, tool availability, and enforcement. Research remains available; edit and write are constrained to Nerve's plan directory; launch and background-process mutations and mutating Jira/Confluence operations are unavailable; shell commands pass a planning guard. A plan must be presented for review before implementation.
+**Coding** uses normal enabled capabilities and sets permission to your settings default. **Planning** loads the planning skill, locks permission to the Planning rule set, and enables `plan_present`. Research stays read-only outside plan storage; planning restrictions are guardrails, not an operating-system sandbox.
 
-Select coding or planning mode in the agent controls; agents cannot change their own mode. In planning mode, the agent uses `plan_mode_present` to submit its plan. **Accept & Implement** approves the plan and transitions to coding mode; rejecting the plan keeps planning mode unchanged and leaves the agent idle until you send a follow-up prompt. You can also change mode directly with the user controls.
+The agent researches, resolves requirement-dependent decisions with `ask_user`, writes a complete plan in plan storage, and submits it with `plan_present`. **Accept & Implement** switches to `defaultAgentProfile` (project → user → built-in Coding). Rejection leaves the profile unchanged and the agent idle until your next prompt.
 
-Planning restrictions reduce accidental mutation but are not an operating-system sandbox.
+Profiles can Inherit, Set, or Lock model, thinking, permission, and compaction. Only Lock disables a picker. Every enabled rule set remains available when permission is unlocked. Set values apply on switching; instructions, capability deltas, and Locks resolve each turn. See [Agent profiles](/reference/agent-profiles/) for switching rules and editing.
 
 ## Permission levels
 
@@ -27,7 +27,7 @@ Policy is evaluated for every dispatch and recorded with the tool lifecycle.
 
 Select an authenticated model and one of its declared thinking levels. Nerve knows seven possible levels from `off` through `max`, but the picker only presents supported choices and runtime resolution can clamp a stale request.
 
-Changing model, thinking, mode, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
+Changing model, thinking, profile, or permission on an active conversation does not recreate it. Changes made during a run apply to subsequent work—especially the next provider request—not the request already streaming.
 
 ## Delegation and authority
 

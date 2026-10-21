@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { builtinSkillFilePath } from "@nervekit/skills";
 import { describe, it } from "node:test";
 import {
   jiraDownload,
@@ -69,6 +70,9 @@ describe("Jira client API roots and downloads", () => {
           assert.equal(structured.details?.method, "POST");
           assert.equal(structured.details?.path, "/search/jql");
           assert.equal(structured.details?.reason, "JQL is invalid");
+          const guide = builtinSkillFilePath("jira");
+          assert.ok(guide);
+          assert.ok(structured.message.endsWith(`See ${guide}.`));
           assert.doesNotMatch(JSON.stringify(structured), /must-not-appear/);
           assert.doesNotMatch(JSON.stringify(structured), /super-secret-token/);
           return true;

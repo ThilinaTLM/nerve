@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
-import { modeSchema } from "../settings/settings.js";
-import { subagentInstructionsSchema } from "../subagents/constants.js";
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
+import { agentProfileInstructionsSchema } from "../agent-profiles/constants.js";
 import { toolCallSchema } from "./tool-call.js";
 import { queuedInputSchema } from "./input.js";
 import { asyncBashSchema } from "./async-bash.js";
@@ -38,9 +38,9 @@ export const conversationConfigSchema = z.object({
   reasoningLevel: thinkingLevelSchema,
   systemPrompt: z.string().nullable(),
   /** Extra instructions (at most 16 KB) appended to the system prompt; sub-agent profiles set it. */
-  instructions: subagentInstructionsSchema.nullable(),
+  instructions: agentProfileInstructionsSchema.nullable(),
   permissionRuleSetId: z.string(),
-  mode: modeSchema,
+  agentProfile: agentProfileNameSchema,
 
   workingDirectory: z.string(),
 });
@@ -54,7 +54,7 @@ export const conversationSummarySchema = conversationSchema
     /** Latest input from the parent, including prompts still queued for delivery. */
     lastParentPromptAt: z.string().datetime().nullable().optional(),
     childCount: z.number().int().nonnegative(),
-    mode: modeSchema,
+    agentProfile: agentProfileNameSchema,
     model: modelSelectionSchema,
     permissionRuleSetId: z.string(),
   });

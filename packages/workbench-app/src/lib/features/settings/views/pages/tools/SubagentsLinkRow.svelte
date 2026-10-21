@@ -24,7 +24,7 @@ const tools = [
   {#snippet actions()}
     <ToolConfigureButton
       label="Configure Sub-agents"
-      onclick={() => void openSettingsPane("subagents")}
+      onclick={() => void openSettingsPane("agent-profiles")}
     />
   {/snippet}
 </ToolGroupItem>

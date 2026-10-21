@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { Buffer } from "node:buffer";
 import { trimTrailingSlashes } from "../atlassian/site-url.js";
 import type { IntegrationExecutionContext } from "../execution-context.js";
@@ -168,7 +169,9 @@ export async function confluenceDownload(
   if (declared > maximum) {
     throw new ToolExecutionError(
       "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-      "Confluence attachment exceeds the 25 MiB download limit.",
+      guideErrorMessage(
+        "Confluence attachment exceeds the 25 MiB download limit.",
+      ),
       { bytes: declared, maximum },
     );
   }
@@ -176,7 +179,9 @@ export async function confluenceDownload(
   if (bytes.byteLength > maximum) {
     throw new ToolExecutionError(
       "CONFLUENCE_ATTACHMENT_TOO_LARGE",
-      "Confluence attachment exceeds the 25 MiB download limit.",
+      guideErrorMessage(
+        "Confluence attachment exceeds the 25 MiB download limit.",
+      ),
       { bytes: bytes.byteLength, maximum },
     );
   }
@@ -239,7 +244,9 @@ async function throwConfluenceError(
     statusText: response.statusText,
     body,
   });
-  throw new ToolExecutionError(code, error.message, error.details, retryable);
+  const message =
+    response.status === 400 ? guideErrorMessage(error.message) : error.message;
+  throw new ToolExecutionError(code, message, error.details, retryable);
 }
 
 function confluenceErrorCode(status: number): string {

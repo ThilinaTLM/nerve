@@ -10,7 +10,7 @@ void test("unscoped retrieval preserves category diversity beyond a file-heavy t
     "issue",
     "skill",
     "tool",
-    "subagent_profile",
+    "agent_profile",
     "subagent",
     "launch",
     "launch_definition",
@@ -44,7 +44,7 @@ void test("unscoped retrieval preserves category diversity beyond a file-heavy t
     assert.equal(scoped.items.length, 12);
     assert.ok(
       scoped.items.every(
-        (item) => item.kind === "subagent" || item.kind === "subagent_profile",
+        (item) => item.kind === "subagent" || item.kind === "agent_profile",
       ),
     );
   } finally {

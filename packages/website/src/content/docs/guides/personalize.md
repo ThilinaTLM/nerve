@@ -21,7 +21,7 @@ Notification sounds are configured independently. A background-work completion n
 
 ## Keyboard shortcuts
 
-Nerve has fixed shortcuts for creating/searching conversations, tab navigation, send/stop, microphone, cycling mode/permission/thinking, pane navigation, and zoom. Settings displays the current bindings, but they are not currently remappable.
+Nerve has fixed shortcuts for creating/searching conversations, tab navigation, send/stop, microphone, cycling profile/permission/thinking, pane navigation, and zoom. Settings displays the current bindings, but they are not currently remappable.
 
 See the [shortcut reference](/reference/shortcuts/) for the exact current list and platform modifier notation.
 

@@ -19,7 +19,7 @@ import type { LaunchRecord } from "@nervekit/contracts/launches";
 import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
 import type { ConversationSummary } from "@nervekit/contracts/core";
 import type { CapabilityService } from "../../core-host/capability.service.js";
-import type { SubagentProfileService } from "../subagents/subagent-profile.service.js";
+import type { AgentProfileService } from "../agent-profiles/agent-profile.service.js";
 import { discoverEntries } from "./file-completion-candidates.js";
 import { completionDocumentId } from "./completion-document-identity.js";
 import { FileCompletionDocument } from "./file-completion-document.js";
@@ -85,10 +85,7 @@ export type CompletionSourcePorts = {
     CapabilityService,
     "configuration" | "update" | "subscribe"
   >;
-  profiles: Pick<
-    SubagentProfileService,
-    "configuration" | "update" | "onChanged"
-  >;
+  profiles: Pick<AgentProfileService, "configuration" | "update" | "onChanged">;
   skills(scope: CompletionScope): Promise<readonly AvailableSkill[]>;
   tools: readonly Pick<ToolDescriptor, "name" | "description">[];
   prs(
@@ -633,7 +630,7 @@ export function createCompletionProviders(
             );
           return document(
             scope,
-            "subagent_profile",
+            "agent_profile",
             profile.name,
             {
               label: `@agent:${profile.name}`,

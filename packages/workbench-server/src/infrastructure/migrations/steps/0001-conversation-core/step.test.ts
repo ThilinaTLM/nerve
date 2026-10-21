@@ -106,21 +106,23 @@ void test("0001 converts a baseline, preserves outputs/configuration and records
     "subagent_stop",
   ]);
   const profiles = JSON.parse(
-    await readFile(join(home, "config/subagents.json"), "utf8"),
+    await readFile(join(home, "config/agent-profiles.json"), "utf8"),
   );
   assert.equal(profiles.schemaVersion, 1);
   assert.equal(profiles.profiles.explore.enabled, false);
   assert.equal(profiles.profiles.explore.model, "fixture/explorer");
   assert.equal(profiles.profiles.explore.thinking, "high");
-  assert.equal(profiles.profiles.developer.model, "lead");
+  assert.equal(profiles.profiles.developer.model, "inherit");
   assert.deepEqual(profiles.profiles.developer.compaction, {
     profile: "custom",
     triggerPercent: 75,
-    keepRecentPercent: 20,
   });
   assert.equal(existsSync(join(home, "agent/subagents/explore.md")), false);
   const projectProfiles = JSON.parse(
-    await readFile(join(home, "project/.nerve/config/subagents.json"), "utf8"),
+    await readFile(
+      join(home, "project/.nerve/config/agent-profiles.json"),
+      "utf8",
+    ),
   );
   assert.equal(
     projectProfiles.profiles.reviewer.instructions,

@@ -15,7 +15,7 @@ The catalog currently includes:
 - **Connect a model provider** — connect a subscription or save an API key.
 - **Enable voice input** — connect OpenAI Codex/ChatGPT OAuth so the composer microphone is available.
 - **Configure scoped models** — choose which authenticated models appear in conversation pickers.
-- **Configure agent defaults** — set the default mode, permission, model, thinking level, and sub-agent profiles.
+- **Configure agent defaults** — set the default agent profile, permission, model, thinking level, and agent profiles.
 - **Set up web search** — configure Tavily under **Settings → Tools → Integrations**.
 - **Work through the Workbench** — a tour of conversations, the composer, reviews, panels, files, Git, launches, providers, Settings, and status.
 

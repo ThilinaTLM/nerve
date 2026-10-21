@@ -22,14 +22,13 @@ function agent(id: string, age = 0): AgentRecord {
     conversationId: id,
     projectId: "p",
     projectDir: "/p",
-    mode: "coding",
     createdAt: at(age + 100),
     updatedAt: at(age),
     lastParentPromptAt: at(age),
     parentAgentId: "lead",
     name: ` ${id} `,
     task: `Full prompt for ${id}\nSecond line`,
-    subagentProfile: "explore",
+    agentProfile: "explore",
   };
 }
 function activity(

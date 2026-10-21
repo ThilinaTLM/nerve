@@ -182,7 +182,6 @@ export function createSettingsPageControllers(deps: {
     return config
       ? {
           ...saved,
-          mode: config.mode,
           model: config.model,
           thinkingLevel: config.reasoningLevel,
           permissionRuleSetId: config.permissionRuleSetId,

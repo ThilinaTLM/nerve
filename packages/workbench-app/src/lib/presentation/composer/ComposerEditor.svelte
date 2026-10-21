@@ -76,7 +76,7 @@ type Props = {
   focusToken?: number;
   slashCompletions?: readonly CompletionItem[];
   completionSource?: ComposerReferenceSource;
-  /** Mode and run state for the slash list (`abort` only while running). */
+  /** Profile and run state for the slash list (`abort` only while running). */
   slashContext?: ComposerSlashContext;
   /** Runs a slash command immediately. Without it slash suggestions are off. */
   onSlashCommand?: (name: string) => void;
@@ -559,9 +559,9 @@ $effect(() => {
   shellMode = isInlineCommandPrompt(value);
 });
 
-// Mode/running changes re-filter an open slash list without closing it.
+// Profile/running changes re-filter an open slash list without closing it.
 $effect(() => {
-  void slashContext?.mode;
+  void slashContext?.profile;
   void slashContext?.running;
   if (view) refreshComposerReferenceCompletions(view);
 });

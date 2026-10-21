@@ -298,7 +298,7 @@ function extractTargets(
         : singletonSearchPath(args.path);
     return stringPathTargets(values, "read", "tree", roots, cwd);
   }
-  if (toolName === "plan_mode_present") {
+  if (toolName === "plan_present") {
     return stringPathTargets(
       args.file_path,
       "read",

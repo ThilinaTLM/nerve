@@ -308,7 +308,7 @@ test("conversation adapter replays durable events from the requested cursor", as
       reasoningLevel: "off",
       systemPrompt: null,
       instructions: null,
-      mode: "coding",
+      agentProfile: "coding",
       permissionRuleSetId: "read_only",
       workingDirectory: project.directory,
     },

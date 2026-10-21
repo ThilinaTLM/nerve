@@ -1,6 +1,16 @@
+import { lstat } from "node:fs/promises";
+import {
+  atomicReplaceFile,
+  withFileMutation,
+} from "../storage-bootstrap/file-mutations.js";
 import { join } from "node:path";
 import {
   harnessConfigSchema,
+  projectHarnessOverridesSchema,
+  projectHarnessValuesSchema,
+  projectSettingsPatchSchema,
+  type ProjectSettingsPatch,
+  type ProjectSettingsResult,
   integrationsConfigSchema,
   providersConfigSchema,
   uiConfigSchema,
@@ -35,11 +45,7 @@ export async function resolveProjectConfiguration(
   assertNoLegacyCapabilitySelection(harnessRaw);
   assertNoProjectIntegrationToolSelection(integrationsRaw);
   const user = storage.configuration;
-  let harness = HOME_CONFIGURATION_CODECS.harness.decode(
-    deepMerge(user.harness, harnessRaw),
-  );
-  harness = applyHarnessEnvironment(harness, input.env ?? process.env);
-  harness = applyHarnessArguments(harness, input.argv ?? process.argv.slice(2));
+  const harness = resolveHarness(storage, harnessRaw, input);
   return userConfigurationSchema.parse({
     daemon: user.daemon,
     harness,
@@ -127,7 +133,15 @@ function deepMerge(base: unknown, override: unknown): unknown {
     ...(base as Record<string, unknown>),
   };
   for (const [key, value] of Object.entries(override)) {
-    output[key] = deepMerge(output[key], value);
+    Object.defineProperty(output, key, {
+      value: deepMerge(
+        Object.hasOwn(output, key) ? output[key] : undefined,
+        value,
+      ),
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
   }
   return output;
 }
@@ -275,4 +289,116 @@ function applyHarnessArguments(
         : {}),
     },
   });
+}
+
+function resolveHarness(
+  storage: InitializedStorage,
+  raw: Record<string, unknown>,
+  input: ConfigurationResolutionInput = {},
+) {
+  assertNoLegacyCapabilitySelection(raw);
+  projectHarnessOverridesSchema.parse(raw);
+  const known = projectHarnessValuesSchema.parse(raw);
+  let harness = HOME_CONFIGURATION_CODECS.harness.decode(
+    deepMerge(storage.configuration.harness, known),
+  );
+  harness = applyHarnessEnvironment(harness, input.env ?? process.env);
+  return applyHarnessArguments(harness, input.argv ?? process.argv.slice(2));
+}
+
+function projectHarnessResult(
+  storage: InitializedStorage,
+  raw: Record<string, unknown>,
+): ProjectSettingsResult {
+  return {
+    overrides: projectHarnessOverridesSchema.parse(raw),
+    inherited: storage.configuration.harness,
+    effective: resolveHarness(storage, raw),
+  };
+}
+
+/** Reject configuration symlinks before either reading or creating directories. */
+async function assertProjectHarnessPath(projectDir: string): Promise<void> {
+  for (const path of [
+    projectDir,
+    join(projectDir, ".nerve"),
+    projectConfigurationRoot(projectDir),
+    join(projectConfigurationRoot(projectDir), "harness.json"),
+  ]) {
+    try {
+      if ((await lstat(path)).isSymbolicLink())
+        throw new Error(
+          "Project harness configuration must not use symbolic links.",
+        );
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+  }
+}
+
+export function readProjectHarnessSettings(
+  storage: InitializedStorage,
+  projectDir: string,
+): Promise<ProjectSettingsResult> {
+  const path = join(projectConfigurationRoot(projectDir), "harness.json");
+  return withFileMutation(path, async () => {
+    await assertProjectHarnessPath(projectDir);
+    return projectHarnessResult(storage, await optionalJson(path));
+  });
+}
+
+/** Null deletes keys recursively, objects merge, and arrays/scalars replace. */
+function patchHarness(
+  raw: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const next = { ...raw };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    if (value === null) delete next[key];
+    else
+      Object.defineProperty(next, key, {
+        value: asOptionalRecord(value)
+          ? patchHarness(
+              asOptionalRecord(next[key]) ?? {},
+              value as Record<string, unknown>,
+            )
+          : value,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+  }
+  return next;
+}
+
+export async function updateProjectHarnessSettings(
+  storage: InitializedStorage,
+  projectDir: string,
+  patch: ProjectSettingsPatch,
+): Promise<ProjectSettingsResult> {
+  const parsed = projectSettingsPatchSchema.parse(patch);
+  const path = join(projectConfigurationRoot(projectDir), "harness.json");
+  let result!: ProjectSettingsResult;
+  let next: Record<string, unknown>;
+  // prepare runs inside the shared per-file mutation queue: read/modify/write is
+  // serialized with other filesystem writers, not just this API's own calls.
+  await atomicReplaceFile(
+    path,
+    async (handle) => {
+      await handle.writeFile(`${JSON.stringify(next, null, 2)}\n`);
+    },
+    {
+      prepare: async () => {
+        await assertProjectHarnessPath(projectDir);
+        const current = await optionalJson(path);
+        projectHarnessResult(storage, current); // Never overwrite an invalid document.
+        next = patchHarness(current, parsed);
+        result = projectHarnessResult(storage, next); // Validate before touching disk.
+        return { mode: 0o600 };
+      },
+    },
+  );
+  return result;
 }

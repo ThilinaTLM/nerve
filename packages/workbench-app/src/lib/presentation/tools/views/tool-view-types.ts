@@ -299,7 +299,7 @@ export type ToolView =
       lines: SubagentStopLine[];
     }
   | {
-      kind: "plan_mode";
+      kind: "plan_present";
       action: "present";
       summary?: string;
       planPreview?: string;

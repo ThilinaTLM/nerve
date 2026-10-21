@@ -4,7 +4,11 @@ const definitions = [
   ["protocol", "@nervekit/protocol", ["@nervekit/contracts"]],
   ["harness", "@nervekit/harness", ["@nervekit/contracts", "@nervekit/native"]],
   ["skills", "@nervekit/skills", ["@nervekit/harness"]],
-  ["tools", "@nervekit/tools", ["@nervekit/contracts", "@nervekit/native"]],
+  [
+    "tools",
+    "@nervekit/tools",
+    ["@nervekit/contracts", "@nervekit/native", "@nervekit/skills"],
+  ],
   [
     "conversation-core",
     "@nervekit/conversation-core",

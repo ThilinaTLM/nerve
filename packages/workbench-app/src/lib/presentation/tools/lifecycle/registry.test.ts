@@ -31,7 +31,7 @@ describe("tool lifecycle registry", () => {
       });
     }
     assert.equal(toolLifecycleRegistry.todos_set.argumentRegion, "persistent");
-    for (const name of ["plan_mode_present"] as const) {
+    for (const name of ["plan_present"] as const) {
       assert.equal(
         toolLifecycleRegistry[name].argumentRegion,
         "until-result",

@@ -29,7 +29,7 @@ void test("grouped row details contain only context and native detail highlights
       },
       {
         query: "agent:review",
-        kind: "subagent_profile",
+        kind: "agent_profile",
         detail: "Invented review profile",
         word: "review",
       },
@@ -65,7 +65,7 @@ void test("grouped row details contain only context and native detail highlights
     const profile = (
       await f.service.search({ ...syntheticScope, q: "profile:cobalt" })
     ).items[0];
-    assert.equal(profile?.kind, "subagent_profile");
+    assert.equal(profile?.kind, "agent_profile");
     assert.equal(profile?.detail, "Invented review profile");
     assert.deepEqual(profile?.detailMatchRanges, []);
   } finally {

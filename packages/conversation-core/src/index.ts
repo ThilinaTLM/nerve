@@ -18,6 +18,10 @@ export { AssetRepository } from "./storage/asset.repository.js";
 export { AsyncBashRepository } from "./storage/async-bash.repository.js";
 export { ScratchNoteRepository } from "./storage/scratch-note.repository.js";
 export type {
+  AgentProfilePort,
+  AgentProfileConfigPatch,
+  AgentProfileLockedScalars,
+  TurnPreparationInput,
   ModelPort,
   TurnResourcesPort,
   PermissionPort,

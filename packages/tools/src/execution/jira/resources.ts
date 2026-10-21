@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import {
   enumSet,
   optionalString,
@@ -289,7 +290,7 @@ export async function executeJiraManageAttachment(
   if (action !== "upload" && action !== "delete")
     throw new ToolExecutionError(
       "JIRA_ATTACHMENT_ACTION_INVALID",
-      "action must be upload or delete.",
+      guideErrorMessage("action must be upload or delete."),
     );
   const connection = await requireJiraConnection(context);
   if (action === "delete") {
@@ -326,7 +327,7 @@ export async function executeJiraManageAttachment(
   if (bytes.byteLength > 25 * 1024 * 1024)
     throw new ToolExecutionError(
       "JIRA_ATTACHMENT_TOO_LARGE",
-      "Jira attachment exceeds the 25 MiB upload limit.",
+      guideErrorMessage("Jira attachment exceeds the 25 MiB upload limit."),
     );
   const filename = safeFilename(
     optionalString(args.filename) ?? basename(filePath),
@@ -379,7 +380,7 @@ export async function executeJiraManageComment(
     if (!body)
       throw new ToolExecutionError(
         "JIRA_COMMENT_REQUIRED",
-        "Provide body or body_adf.",
+        guideErrorMessage("Provide body or body_adf."),
       );
     payload = { body };
     const visibility = rawOptionalRecord(args.visibility, "visibility");
@@ -388,7 +389,7 @@ export async function executeJiraManageComment(
   if (action !== "create" && !commentId)
     throw new ToolExecutionError(
       "JIRA_COMMENT_ID_REQUIRED",
-      "comment_id is required.",
+      guideErrorMessage("comment_id is required."),
     );
   if (args.dry_run === true)
     return dryResult(context, `would ${action} a comment on ${issueKey}.`, {
@@ -430,7 +431,7 @@ export async function executeJiraManageWorklog(
   if (action !== "create" && !worklogId)
     throw new ToolExecutionError(
       "JIRA_WORKLOG_ID_REQUIRED",
-      "worklog_id is required.",
+      guideErrorMessage("worklog_id is required."),
     );
   const payload: Record<string, unknown> = {};
   if (action !== "delete") {
@@ -442,7 +443,9 @@ export async function executeJiraManageWorklog(
     if (action === "create" && Boolean(timeSpent) === Boolean(seconds))
       throw new ToolExecutionError(
         "JIRA_WORKLOG_TIME_REQUIRED",
-        "Provide exactly one of time_spent or time_spent_seconds.",
+        guideErrorMessage(
+          "Provide exactly one of time_spent or time_spent_seconds.",
+        ),
       );
     if (timeSpent) payload.timeSpent = timeSpent;
     if (seconds !== undefined) payload.timeSpentSeconds = seconds;
@@ -461,7 +464,7 @@ export async function executeJiraManageWorklog(
   if (action === "update" && Object.keys(payload).length === 0) {
     throw new ToolExecutionError(
       "JIRA_EMPTY_WORKLOG_UPDATE",
-      "Provide at least one worklog field to update.",
+      guideErrorMessage("Provide at least one worklog field to update."),
     );
   }
   const query = estimateQuery(args);
@@ -507,7 +510,7 @@ export async function executeJiraManageIssueLink(
     if (!linkId)
       throw new ToolExecutionError(
         "JIRA_LINK_ID_REQUIRED",
-        "link_id is required.",
+        guideErrorMessage("link_id is required."),
       );
     if (args.dry_run === true)
       return dryResult(
@@ -545,7 +548,7 @@ export async function executeJiraManageIssueLink(
   )
     throw new ToolExecutionError(
       "JIRA_LINK_TYPE_NOT_FOUND",
-      `Jira issue link type '${linkType}' was not found.`,
+      guideErrorMessage(`Jira issue link type '${linkType}' was not found.`),
       { available: types.issueLinkTypes },
     );
   const payload: Record<string, unknown> = {
@@ -605,7 +608,7 @@ export async function executeJiraManageSprint(
   if (action !== "create" && !sprintId)
     throw new ToolExecutionError(
       "JIRA_SPRINT_ID_REQUIRED",
-      "sprint_id is required.",
+      guideErrorMessage("sprint_id is required."),
     );
   let current: Record<string, unknown> | undefined;
   if (sprintId)
@@ -618,14 +621,14 @@ export async function executeJiraManageSprint(
   if (action === "start" && currentState !== "future") {
     throw new ToolExecutionError(
       "JIRA_SPRINT_INVALID_STATE",
-      "Only a future sprint can be started.",
+      guideErrorMessage("Only a future sprint can be started."),
       { sprintId, currentState },
     );
   }
   if (action === "close" && currentState !== "active") {
     throw new ToolExecutionError(
       "JIRA_SPRINT_INVALID_STATE",
-      "Only an active sprint can be closed.",
+      guideErrorMessage("Only an active sprint can be closed."),
       { sprintId, currentState },
     );
   }
@@ -642,7 +645,7 @@ export async function executeJiraManageSprint(
   if (action === "update" && Object.keys(payload).length === 0) {
     throw new ToolExecutionError(
       "JIRA_EMPTY_SPRINT_UPDATE",
-      "Provide at least one sprint field to update.",
+      guideErrorMessage("Provide at least one sprint field to update."),
     );
   }
   if (action === "create") {
@@ -651,7 +654,7 @@ export async function executeJiraManageSprint(
     if (!Number.isSafeInteger(boardId) || boardId <= 0) {
       throw new ToolExecutionError(
         "JIRA_BOARD_ID_INVALID",
-        "board_id must be a positive numeric Jira board id.",
+        guideErrorMessage("board_id must be a positive numeric Jira board id."),
       );
     }
     payload.originBoardId = boardId;
@@ -719,7 +722,9 @@ export async function executeJiraManageBacklog(
     if (Boolean(before) === Boolean(after))
       throw new ToolExecutionError(
         "JIRA_RANK_ANCHOR_REQUIRED",
-        "Provide exactly one rank_before_issue_key or rank_after_issue_key.",
+        guideErrorMessage(
+          "Provide exactly one rank_before_issue_key or rank_after_issue_key.",
+        ),
       );
     payload = {
       issues: [issueKey],

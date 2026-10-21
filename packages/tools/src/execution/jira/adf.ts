@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 export type AdfDocument = {
   type: "doc";
   version: 1;
@@ -108,11 +109,13 @@ export function adfFromEither({
   adfName: string;
 }): AdfDocument | Record<string, unknown> | undefined {
   if (typeof text === "string" && adf && typeof adf === "object") {
-    throw new Error(`Provide either ${textName} or ${adfName}, not both.`);
+    throw new Error(
+      guideErrorMessage(`Provide either ${textName} or ${adfName}, not both.`),
+    );
   }
   if (adf !== undefined) {
     if (!adf || typeof adf !== "object" || Array.isArray(adf)) {
-      throw new Error(`${adfName} must be an ADF object.`);
+      throw new Error(guideErrorMessage(`${adfName} must be an ADF object.`));
     }
     return adf as Record<string, unknown>;
   }

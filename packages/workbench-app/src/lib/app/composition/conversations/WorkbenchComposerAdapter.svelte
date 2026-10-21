@@ -1,5 +1,7 @@
 <script lang="ts">
+import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { listIntegrationHealth, listTools, uploadAttachment } from "$lib/api";
@@ -57,7 +59,6 @@ let {
   activity,
   text = "",
   editorOverlay,
-  modeHidden = false,
   session,
   contextActions,
   activeProject,
@@ -85,7 +86,10 @@ let {
   composerEscapeToken = 0,
   micShortcutToken = 0,
   thinkingLevel = "off",
-  mode = "coding",
+  agentProfile = DEFAULT_AGENT_PROFILE,
+  agentProfiles = [],
+  lockedFields,
+  profileDisabled = false,
   permissionRuleSetId = "autonomous",
   permissionRuleSets = [],
   permissionRuleSetsLoading = false,
@@ -104,7 +108,7 @@ let {
   onOpenSystemPrompt,
   onModelChange,
   onThinkingLevelChange,
-  onModeChange,
+  onAgentProfileChange,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
@@ -169,14 +173,14 @@ const profileScope = $derived.by(() => {
     pending
       ? {
           pendingId: pending.id,
-          document: pending.subagentProfileOverrides,
+          document: pending.agentProfileOverrides,
           lead: {
             model: pending.config.model,
             reasoningLevel: pending.config.reasoningLevel,
           },
           readonly: () => pending.sending,
           onDocumentChange: (document) => {
-            pending.subagentProfileOverrides = document;
+            pending.agentProfileOverrides = document;
           },
         }
       : undefined,
@@ -262,6 +266,10 @@ $effect(() => {
         void capabilityController.refresh();
       },
     }),
+    onEvent("projectSettings.changed", (event) => {
+      if (event.data.projectId === activeProject?.id)
+        void capabilityController.refresh();
+    }),
     onEvent("settings.updated", () => {
       void capabilityController.refresh();
     }),
@@ -283,8 +291,8 @@ function resetCapabilities(): Promise<void> {
 const micShortcut = getShortcutLabel("composer.toggleMic");
 const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
 const cancelMicShortcut = getShortcutLabel("composer.cancelMic");
-const modeShortcut = getShortcutLabel("composer.toggleMode");
-const modeShortcutAria = getShortcutAriaLabel("composer.toggleMode");
+const profileShortcut = getShortcutLabel("composer.cycleProfile");
+const profileShortcutAria = getShortcutAriaLabel("composer.cycleProfile");
 const modelShortcut = getShortcutLabel("composer.cycleModel");
 const permissionShortcut = getShortcutLabel("composer.cyclePermission");
 const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
@@ -463,12 +471,10 @@ async function submitComposer() {
 }
 
 function runSlashCommand(name: string): void {
-  switch (name) {
+  const command = parseSlashCommand(`/${name}`);
+  switch (command?.name) {
     case "plan":
-      onModeChange?.("planning");
-      break;
-    case "code":
-      onModeChange?.("coding");
+      onAgentProfileChange?.("planning");
       break;
     case "compact":
       onCompact?.();
@@ -477,8 +483,10 @@ function runSlashCommand(name: string): void {
       onAbort?.();
       break;
     case "new":
-      if (activeProject) newConversationInProject(activeProject.dir, mode);
+      if (activeProject) newConversationInProject(activeProject.dir);
       break;
+    case "profile":
+      onAgentProfileChange?.(command.profile);
   }
 }
 
@@ -534,8 +542,10 @@ const controlsDisabled = $derived(
     compacting ||
     blockedForReview,
 );
-const modeDisabled = $derived(
-  !interactive || !(activeConversation || pendingConversationActive),
+const selectorDisabled = $derived(
+  profileDisabled ||
+    !interactive ||
+    !(activeConversation || pendingConversationActive),
 );
 const capabilityDisabled = $derived(!availability.canConfigureRuntime);
 const modelDisabled = $derived(capabilityDisabled || models.length === 0);
@@ -622,7 +632,6 @@ function handleMicContextMenu(event: MouseEvent) {
   model={{
     text,
     editorOverlay,
-    modeHidden,
     session,
     contextActions,
     disabled: editorDisabled,
@@ -638,7 +647,9 @@ function handleMicContextMenu(event: MouseEvent) {
     models,
     selectedModelKey,
     thinkingLevel,
-    mode,
+    agentProfile,
+    agentProfiles,
+    lockedFields,
     permissionRuleSetId,
     permissionRuleSets,
     permissionRuleSetsLoading,
@@ -662,7 +673,7 @@ function handleMicContextMenu(event: MouseEvent) {
               : "Ask the local Nerve agent",
     focusToken: editorFocusToken,
     controlsDisabled,
-    modeDisabled,
+    profileDisabled: selectorDisabled,
     modelDisabled,
     capabilityDisabled,
     runtimeChangeHint: modelRuntimeChangeHint,
@@ -683,8 +694,8 @@ function handleMicContextMenu(event: MouseEvent) {
           : "Stop generation",
     permissionShortcut,
     permissionShortcutAria,
-    modeShortcut,
-    modeShortcutAria,
+    profileShortcut,
+    profileShortcutAria,
     modelShortcut,
     thinkingShortcut,
     todos,
@@ -723,7 +734,7 @@ function handleMicContextMenu(event: MouseEvent) {
     onOpenSystemPrompt,
     onModelChange,
     onThinkingLevelChange,
-    onModeChange,
+    onAgentProfileChange,
     onPermissionRuleSetChange,
     onRefreshPermissionRuleSets,
     onOpenPermissionSettings,

@@ -23,7 +23,7 @@ export const processToolDefinitions = [
     label: "async_bash",
     classifyRisk: classifyProcessRisk,
     description:
-      "Manage your background bash runs. list: running runs (all:true includes finished). logs: output lines from offset (default: last lines). stop: kill the process tree.",
+      "Manage your background bash runs. list: running runs (`all: true` includes finished). logs: output from offset (default: tail). stop: kills the process tree.",
     parameters: Type.Object(
       {
         action: Type.Union([
@@ -48,7 +48,7 @@ export const processToolDefinitions = [
     label: "launch",
     classifyRisk: classifyProcessRisk,
     description:
-      "Run the user's launch definitions (dev servers etc.). status: names, commands, and runs. Select by exact, case-sensitive name (trimmed label, falling back to trimmed command). start/restart/stop/logs require name; optional runId selects an execution for logs/stop/restart only, otherwise the latest run is used. logs: output lines from offset (default: last lines). Definition IDs are internal. You cannot create or edit definitions.",
+      "Use the user's launch definitions (dev servers etc.); you can't create or edit them. Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail).",
     parameters: Type.Object(
       {
         action: Type.Union([
@@ -62,8 +62,6 @@ export const processToolDefinitions = [
         runId: Type.Optional(
           Type.String({
             minLength: 1,
-            description:
-              "Execution selector for logs, stop, or restart only; must belong to the supplied name.",
           }),
         ),
         ...page,

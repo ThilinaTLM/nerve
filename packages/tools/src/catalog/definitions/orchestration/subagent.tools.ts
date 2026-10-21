@@ -13,7 +13,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_prompt",
     description:
-      "Assign work to sub-agents. A new name creates one from `profile`; an existing name queues a follow-up. Sub-agents run asynchronously in your worktree and cannot see your conversation; completion notices wake you.",
+      "Assign work to agents from `<available_agent_profiles>`. A new name creates one; an existing name queues a follow-up. Sub-agents share your worktree, can't see this conversation, and run asynchronously; completion notices wake you, so continue or end your turn. Batch parallel work in one call with non-overlapping scopes, put shared background in `context`, and give each one the paths, constraints, and expected outcome.",
     parameters: Type.Object(
       {
         context: Type.Optional(Type.String()),
@@ -40,7 +40,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_status",
     description:
-      "Check sub-agents. Without a name, one line each; with a name, its final response or recent activity. Not needed after assigning: notices wake you.",
+      "Inspect sub-agents: without a name, one line each; with a name, its final response or recent activity. Use only for long or suspicious work; notices already wake you.",
     parameters: Type.Object(
       { name: Type.Optional(name) },
       { additionalProperties: false },
@@ -54,7 +54,7 @@ export const subagentToolDefinitions = [
     executionKind: "host",
     label: "subagent_stop",
     description:
-      "Stop the current execution of sub-agents. They remain and can be prompted again.",
+      "Stop sub-agents' current execution; they can be prompted again.",
     parameters: Type.Object(
       { names: Type.Array(name, { minItems: 1 }) },
       { additionalProperties: false },

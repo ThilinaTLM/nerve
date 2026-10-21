@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import type {
   IntegrationExecutionContext,
   ToolExecutionResult,
@@ -34,7 +35,9 @@ export async function executeJiraGetProject(
   if (!projectKey) {
     throw new ToolExecutionError(
       "JIRA_PROJECT_REQUIRED",
-      "project_key is required because no default Jira project key is configured.",
+      guideErrorMessage(
+        "project_key is required because no default Jira project key is configured.",
+      ),
     );
   }
   const include = enumSet(args.include, [

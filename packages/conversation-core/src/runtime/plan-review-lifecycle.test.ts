@@ -55,7 +55,7 @@ for (const scenario of [
             calls: [
               {
                 id: "present_plan",
-                name: "plan_mode_present",
+                name: "plan_present",
                 args: { file_path: "/plans/implementation.md" },
               },
               ...(scenario.sibling
@@ -94,6 +94,13 @@ for (const scenario of [
           modelTurns++;
           return { systemPrompt: "Test", tools: [] };
         };
+        config.agentProfiles.switchProfile = async ({ profile }) => ({
+          config: {
+            agentProfile: profile ?? "implementation",
+            reasoningLevel: "low",
+            model: { provider: "profile", modelId: "profile-model" },
+          },
+        });
         config.readPlan = async () =>
           "# Implementation plan\n\nA reviewed snapshot.";
         return config;
@@ -102,7 +109,7 @@ for (const scenario of [
       try {
         await core.start();
         await createConversation(core, "conv_plan");
-        core.configure("conv_plan", { mode: "planning" });
+        await core.setAgentProfile("conv_plan", "planning");
         core.submitInput({
           conversationId: "conv_plan",
           inputId: "input_plan",
@@ -136,6 +143,8 @@ for (const scenario of [
             kind: "plan_review" as const,
             decision: scenario.decision,
             feedback: scenario.feedback,
+            implementationModel: { provider: "user", modelId: "chosen-model" },
+            implementationThinkingLevel: "high" as const,
           },
         };
         await core.resolveInteraction(resolution);
@@ -179,10 +188,18 @@ for (const scenario of [
         assert.equal(storedResolution.decision, scenario.decision);
         assert.equal(storedResolution.feedback, scenario.feedback);
         assert.equal(
-          core.getSnapshot("conv_plan").config.mode,
-          scenario.decision === "approve" ? "coding" : "planning",
+          core.getSnapshot("conv_plan").config.agentProfile,
+          scenario.decision === "approve" ? "implementation" : "planning",
         );
         if (scenario.decision === "approve") {
+          assert.deepEqual(core.getSnapshot("conv_plan").config.model, {
+            provider: "user",
+            modelId: "chosen-model",
+          });
+          assert.equal(
+            core.getSnapshot("conv_plan").config.reasoningLevel,
+            "high",
+          );
           assert.equal(modelTurns, 2);
           assert.equal(
             core.getSnapshot("conv_plan").conversation.paused,
@@ -227,7 +244,10 @@ for (const scenario of [
             core.getSnapshot("conv_plan").conversation.status === "idle",
         );
         assert.equal(core.getSnapshot("conv_plan").conversation.paused, false);
-        assert.equal(core.getSnapshot("conv_plan").config.mode, "planning");
+        assert.equal(
+          core.getSnapshot("conv_plan").config.agentProfile,
+          "planning",
+        );
         assert.ok(
           core
             .getEventsSince("conv_plan", 0)

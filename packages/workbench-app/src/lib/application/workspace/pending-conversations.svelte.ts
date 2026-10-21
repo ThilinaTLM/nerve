@@ -1,6 +1,6 @@
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import type { SubagentProfilesDocument } from "@nervekit/contracts/subagents";
+import type { AgentProfilesDocument } from "@nervekit/contracts/agent-profiles";
 import { SvelteMap } from "svelte/reactivity";
 export type PendingConversationState = {
   id: string;
@@ -9,12 +9,14 @@ export type PendingConversationState = {
   title: "New Conversation";
   selectedModelKey: string;
   thinkingLevel: ConversationConfig["reasoningLevel"];
-  mode: ConversationConfig["mode"];
+  agentProfile: ConversationConfig["agentProfile"];
+  /** Only explicit composer choices are sent at creation; the host owns defaults. */
+  explicitAgentProfile?: string;
   permissionRuleSetId: string;
   capabilityOverrides?: CapabilityOverridesDocument;
-  subagentProfileOverrides?: SubagentProfilesDocument;
+  agentProfileOverrides?: AgentProfilesDocument;
   /** Last successful first-send profile save; retained when submitting input fails. */
-  subagentProfileDigest?: string | null;
+  agentProfileDigest?: string | null;
   sending: boolean;
   error?: string;
   createdConversationId?: string;

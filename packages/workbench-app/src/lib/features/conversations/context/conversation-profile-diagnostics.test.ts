@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type {
-  SubagentProfileConfiguration,
-  SubagentProfileDiagnostic,
-} from "@nervekit/contracts/subagents";
+  AgentProfileConfiguration,
+  AgentProfileDiagnostic,
+} from "@nervekit/contracts/agent-profiles";
 import {
   conversationProfileCounts,
   conversationProfileProblem,
   conversationProfileRowDiagnostics,
 } from "./conversation-profile-diagnostics";
 
-const documentError: SubagentProfileDiagnostic = {
+const documentError: AgentProfileDiagnostic = {
   code: "invalid_document",
   source: "user",
   severity: "blocking",
@@ -28,7 +28,7 @@ test("omits only identical shared document errors from profile rows", () => {
 });
 
 test("retains other-source, distinct-message, and distinct-severity document errors", () => {
-  const diagnostics: SubagentProfileDiagnostic[] = [
+  const diagnostics: AgentProfileDiagnostic[] = [
     { ...documentError, source: "project" },
     { ...documentError, message: "Another document error" },
     { ...documentError, severity: "warning" },
@@ -40,7 +40,7 @@ test("retains other-source, distinct-message, and distinct-severity document err
 });
 
 test("never suppresses row-local diagnostics or non-document warnings", () => {
-  const diagnostics: SubagentProfileDiagnostic[] = [
+  const diagnostics: AgentProfileDiagnostic[] = [
     { ...documentError, field: "model" },
     { ...documentError, reference: "developer" },
     {
@@ -71,8 +71,8 @@ test("keeps document errors when no matching shared error is displayed", () => {
 });
 
 function profile(
-  overrides: Partial<SubagentProfileConfiguration> = {},
-): SubagentProfileConfiguration {
+  overrides: Partial<AgentProfileConfiguration> = {},
+): AgentProfileConfiguration {
   return {
     name: "explore",
     local: null,
@@ -96,12 +96,12 @@ function profile(
     trust: "trusted",
     diagnostics: [],
     ...overrides,
-  } as SubagentProfileConfiguration;
+  } as AgentProfileConfiguration;
 }
 
 test("summarizes row problems in one short line and keeps the full text", () => {
   assert.equal(conversationProfileProblem(profile(), []), undefined);
-  const unavailable: SubagentProfileDiagnostic = {
+  const unavailable: AgentProfileDiagnostic = {
     code: "unavailable_model",
     severity: "blocking",
     field: "model",
@@ -115,7 +115,7 @@ test("summarizes row problems in one short line and keeps the full text", () => 
       detail: unavailable.message,
     },
   );
-  const warning: SubagentProfileDiagnostic = {
+  const warning: AgentProfileDiagnostic = {
     code: "something_new",
     severity: "warning",
     message: "First sentence. Second sentence.",

@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { optionalString } from "../atlassian/arguments.js";
 import { readFile } from "node:fs/promises";
 import type { IntegrationExecutionContext } from "../execution-context.js";
@@ -81,7 +82,7 @@ export async function buildCreatePayload(
   context: IntegrationExecutionContext,
 ): Promise<PagePayload> {
   const title = optionalString(args.title) ?? optionalString(row?.title);
-  if (!title) throw new Error("title is required.");
+  if (!title) throw new Error(guideErrorMessage("title is required."));
   const body = await resolveBody(args, row, context);
   const spaceId = optionalString(args.space_id) ?? optionalString(row?.spaceId);
   const spaceKey =
@@ -107,7 +108,7 @@ export async function buildUpdatePayload(
   context: IntegrationExecutionContext,
 ): Promise<UpdatePayload> {
   const pageId = optionalString(args.page_id) ?? optionalString(row?.id);
-  if (!pageId) throw new Error("page_id is required.");
+  if (!pageId) throw new Error(guideErrorMessage("page_id is required."));
   const current = await fetchPageCurrent(connection, pageId, context.signal);
   const currentSummary = summarizeConfluencePage(current);
   const currentVersion = currentSummary?.versionNumber;
@@ -125,7 +126,9 @@ export async function buildUpdatePayload(
   ) {
     throw new ToolExecutionError(
       "CONFLUENCE_VERSION_CONFLICT",
-      `Page file version ${rowVersion} is older than current Confluence version ${currentVersion}; re-download or set allow_stale=true.`,
+      guideErrorMessage(
+        `Page file version ${rowVersion} is older than current Confluence version ${currentVersion}; re-download or set allow_stale=true.`,
+      ),
       { pageId, rowVersion, currentVersion },
     );
   }
@@ -137,7 +140,7 @@ export async function buildUpdatePayload(
     optionalString(args.title) ??
     optionalString(row?.title) ??
     currentSummary?.title;
-  if (!title) throw new Error("title is required.");
+  if (!title) throw new Error(guideErrorMessage("title is required."));
   return compactRecord({
     id: pageId,
     title,
@@ -171,7 +174,7 @@ async function resolveBody(
   if (inlineBody && bodyFile) {
     throw new ToolExecutionError(
       "CONFLUENCE_BODY_CONFLICT",
-      "Provide either body or body_file, not both.",
+      guideErrorMessage("Provide either body or body_file, not both."),
     );
   }
   const rowBody = row ? pageRowBody(row) : undefined;
@@ -192,5 +195,7 @@ async function resolveBody(
   if (options.fallback !== undefined) {
     return { representation, value: options.fallback };
   }
-  throw new Error("body, body_file, or page_file body is required.");
+  throw new Error(
+    guideErrorMessage("body, body_file, or page_file body is required."),
+  );
 }

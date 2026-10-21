@@ -15,24 +15,24 @@ Principle: tell the agent what it can do and what isn't obvious. Don't restate t
 
 ## Current state
 
-| Concern | Where | Today |
-| --- | --- | --- |
-| Prompt assembly | `workbench-server/src/core-host/nerve-system-prompt.ts` | Intro, `<tool_rules>`, `<working_rules>`, planning-only `<mode_controls>`/`<plan_mode>`, `<project_instructions>`, `<agent_instructions>`, `<available_skills>`, `<environment>` |
-| Tool rules | `tools/src/catalog/prompt-guidelines.ts` | 6 conditional strings: bash vs. file tools, launch, sub-agents, Jira, Confluence, python_exec |
-| Custom prompt | `resource-loader.ts` (`SYSTEM.md`, `APPEND_SYSTEM.md`) | `SYSTEM.md` replaces the entire default prompt |
-| Profile listing | `turn-resources.adapter.ts` `withSubagentProfiles` | Enum plus a `name — description` list injected into the `subagent_prompt` `profile` parameter |
-| Profiles | `contracts/src/domains/subagents/subagent-profile.ts` | Built-ins `explore`, `developer`; user/project/conversation scopes; model/thinking `lead` or explicit; permission explicit; tools/skills changes relative to the lead. Sub-agent only, applied at creation |
-| Mode | `conversation.mode` column (CHECK `planning`/`coding`), `modeSchema` | Forces the `planning` rule set (`conversation-core/.../permission-rule-set.ts`), locks the permission picker (`workbench-app/.../rule-set-options.ts`), gates `plan_mode_present`, adds prompt blocks, composer toggle and `/plan` |
-| Plan review | `conversation-core/src/tool-calls/core-tool-handlers.ts` | `plan_mode_present` → `plan_review` interaction. Approval sets mode to coding; rejection ends the run |
+| Concern         | Where                                                                | Today                                                                                                                                                                                                                              |
+| --------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt assembly | `workbench-server/src/core-host/nerve-system-prompt.ts`              | Intro, `<tool_rules>`, `<working_rules>`, planning-only `<mode_controls>`/`<plan_mode>`, `<project_instructions>`, `<agent_instructions>`, `<available_skills>`, `<environment>`                                                   |
+| Tool rules      | `tools/src/catalog/prompt-guidelines.ts`                             | 6 conditional strings: bash vs. file tools, launch, sub-agents, Jira, Confluence, python_exec                                                                                                                                      |
+| Custom prompt   | `resource-loader.ts` (`SYSTEM.md`, `APPEND_SYSTEM.md`)               | `SYSTEM.md` replaces the entire default prompt                                                                                                                                                                                     |
+| Profile listing | `turn-resources.adapter.ts` `withSubagentProfiles`                   | Enum plus a `name — description` list injected into the `subagent_prompt` `profile` parameter                                                                                                                                      |
+| Profiles        | `contracts/src/domains/subagents/subagent-profile.ts`                | Built-ins `explore`, `developer`; user/project/conversation scopes; model/thinking `lead` or explicit; permission explicit; tools/skills changes relative to the lead. Sub-agent only, applied at creation                         |
+| Mode            | `conversation.mode` column (CHECK `planning`/`coding`), `modeSchema` | Forces the `planning` rule set (`conversation-core/.../permission-rule-set.ts`), locks the permission picker (`workbench-app/.../rule-set-options.ts`), gates `plan_mode_present`, adds prompt blocks, composer toggle and `/plan` |
+| Plan review     | `conversation-core/src/tool-calls/core-tool-handlers.ts`             | `plan_mode_present` → `plan_review` interaction. Approval sets mode to coding; rejection ends the run                                                                                                                              |
 
 Measured tool definition size (description + parameter schema; about 4 characters per token):
 
-| Group | Tools | Description text | Parameter description text | Total schema |
-| --- | --- | --- | --- | --- |
-| Core + orchestration | 22 | 2.8k | 3.0k | 9.3k |
-| Jira | 17 | 1.3k | 2.8k | 12.5k |
-| Confluence | 11 | 0.8k | 1.3k | 7.8k |
-| **All** | 50 | | | **≈ 34.7k characters (≈ 9k tokens)** |
+| Group                | Tools | Description text | Parameter description text | Total schema                         |
+| -------------------- | ----- | ---------------- | -------------------------- | ------------------------------------ |
+| Core + orchestration | 22    | 2.8k             | 3.0k                       | 9.3k                                 |
+| Jira                 | 17    | 1.3k             | 2.8k                       | 12.5k                                |
+| Confluence           | 11    | 0.8k             | 1.3k                       | 7.8k                                 |
+| **All**              | 50    |                  |                            | **≈ 34.7k characters (≈ 9k tokens)** |
 
 For comparison, the system prompt without project instructions and skills is about 1.5k characters. Tool definitions are the main cost.
 
@@ -72,13 +72,14 @@ Current working directory: …
 
 ### Guidelines (final)
 
-| Guideline | Why it stays |
-| --- | --- |
-| Continue until complete or blocked by a user decision | Models stop early. Not obvious to them. |
-| Markdown + Mermaid rendering | States something Nerve can do; models can't know it. |
-| Ask questions with `ask_user`, not in the reply | Models put questions at the end of their messages. Included only when `ask_user` is available. |
+| Guideline                                             | Why it stays                                                                                   |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Continue until complete or blocked by a user decision | Models stop early. Not obvious to them.                                                        |
+| Markdown + Mermaid rendering                          | States something Nerve can do; models can't know it.                                           |
+| Ask questions with `ask_user`, not in the reply       | Models put questions at the end of their messages. Included only when `ask_user` is available. |
 
 Removed:
+
 - **"Summarize changes, validation, and remaining limits"** moves to the Coding profile's instructions.
 - **All tool rules** move to tool descriptions (section 2).
 - **No general safety, quality, or "be careful" lines.** They're obvious and make the model more hesitant.
@@ -107,41 +108,41 @@ The intro gets no capability summary. The tool list already shows what the agent
 
 `prompt-guidelines.ts` and the `promptGuidelines` builder option are deleted:
 
-| Rule | New home |
-| --- | --- |
-| Prefer dedicated file tools over bash | `bash` |
-| Check launch status; prefer launch definitions for servers | `bash`, `launch` |
-| Sub-agent workflow | `subagent_prompt`, `subagent_status` |
-| Jira / Confluence usage and mutation rules | Mutating tools (safety rule), guide skills (the rest) |
-| python_exec artifacts, secrets, long-lived processes | `python_exec` |
+| Rule                                                       | New home                                              |
+| ---------------------------------------------------------- | ----------------------------------------------------- |
+| Prefer dedicated file tools over bash                      | `bash`                                                |
+| Check launch status; prefer launch definitions for servers | `bash`, `launch`                                      |
+| Sub-agent workflow                                         | `subagent_prompt`, `subagent_status`                  |
+| Jira / Confluence usage and mutation rules                 | Mutating tools (safety rule), guide skills (the rest) |
+| python_exec artifacts, secrets, long-lived processes       | `python_exec`                                         |
 
 ### Target text: core and orchestration tools
 
 Parameters that aren't listed lose their description.
 
-| Tool | Description | Parameter descriptions kept |
-| --- | --- | --- |
-| `read` | Read a text file or image. Text output is bounded; page with offset/limit, or byteOffset/byteLimit for long lines. | `path`: relative or absolute. `offset`: 1-indexed line. `byteOffset`: 0-indexed; not with offset/limit. |
-| `bash` | Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after {N}s (`background: true` returns at once); background runs notify you on exit, so don't poll. Large output is saved to files for read/grep. | `cwd`: must resolve inside the project. `projectEnvironment`: false skips project environment activation. |
-| `async_bash` | Manage your background bash runs. list: running runs (`all: true` includes finished). logs: output from offset (default: tail). stop: kills the process tree. | — |
-| `launch` | Use the user's launch definitions (dev servers etc.); you can't create or edit them. Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail). | — |
-| `python_exec` | Run inline Python or a script with bounded output. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes. | `code`/`path`: exactly one. `env`: non-secret only; sensitive keys are rejected. `timeout`: seconds, capped. |
-| `edit` | Replace exact, unique text in an existing file; all edits resolve against the original content. | — |
-| `write` | Create or overwrite a file, creating parent directories. | — |
-| `grep` | Search file contents by regex or literal string; results are bounded. | `paths`: several targets instead of `path`. `glob`: e.g. `**/*.ts`. `context`: lines around each match. Defaults stay in the schema. |
-| `find` | Find files by glob; respects .gitignore; results are bounded. | `pattern`: e.g. `src/**/*.test.ts`. |
-| `ls` | List a directory, including dotfiles. | — |
-| `ask_user` | Ask focused questions when progress depends on the user's decision. Batch related questions (max 5). Offer options for clear choices and mark at most one recommended. Users can also answer in free text and attach images (returned as readable paths). | `context`, `recommendation` (one short line each). |
-| `todos_set` / `todos_get` | Replace / get the task todo list. | — |
-| `web_search` | Search the web. | — |
-| `web_fetch` | Fetch a URL. HTML is converted to Markdown unless `raw`; large or binary responses are saved to files. | — |
-| `explain_image` | Describe an image in detail using the configured vision model; use when you can't view the image directly. | `prompt`: what to focus on. |
-| `generate_image` | Generate an image from a text prompt. | — |
-| `kroki_export` | Render a diagram to SVG/PNG through the configured Kroki server (the source is sent to it). Prefer `source_path` so fixes can be targeted edits. Returns the output path. | Unchanged (formats, size limits). |
-| `subagent_prompt` | Assign work to agents from `<available_agent_profiles>`. A new name creates one; an existing name queues a follow-up. Sub-agents share your worktree, can't see this conversation, and run asynchronously; completion notices wake you, so continue or end your turn. Batch parallel work in one call with non-overlapping scopes, put shared background in `context`, and give each one the paths, constraints, and expected outcome. | — |
-| `subagent_status` | Inspect sub-agents: without a name, one line each; with a name, its final response or recent activity. Use only for long or suspicious work; notices already wake you. | — |
-| `subagent_stop` | Stop sub-agents' current execution; they can be prompted again. | — |
-| `plan_present` | Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the default profile for implementation. | `file_path`: inside plan storage. |
+| Tool                      | Description                                                                                                                                                                                                                                                                                                                                                                                                                            | Parameter descriptions kept                                                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `read`                    | Read a text file or image. Text output is bounded; page with offset/limit, or byteOffset/byteLimit for long lines.                                                                                                                                                                                                                                                                                                                     | `path`: relative or absolute. `offset`: 1-indexed line. `byteOffset`: 0-indexed; not with offset/limit.                              |
+| `bash`                    | Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after {N}s (`background: true` returns at once); background runs notify you on exit, so don't poll. Large output is saved to files for read/grep.                                                                                                                                               | `cwd`: must resolve inside the project. `projectEnvironment`: false skips project environment activation.                            |
+| `async_bash`              | Manage your background bash runs. list: running runs (`all: true` includes finished). logs: output from offset (default: tail). stop: kills the process tree.                                                                                                                                                                                                                                                                          | —                                                                                                                                    |
+| `launch`                  | Use the user's launch definitions (dev servers etc.); you can't create or edit them. Check status before starting. Select by exact name; `runId` targets one run (default: latest). logs: output from offset (default: tail).                                                                                                                                                                                                          | —                                                                                                                                    |
+| `python_exec`             | Run inline Python or a script with bounded output. Save large outputs under `$NERVE_PYTHON_ARTIFACT_DIR`. Not for long-lived or interactive processes.                                                                                                                                                                                                                                                                                 | `code`/`path`: exactly one. `env`: non-secret only; sensitive keys are rejected. `timeout`: seconds, capped.                         |
+| `edit`                    | Replace exact, unique text in an existing file; all edits resolve against the original content.                                                                                                                                                                                                                                                                                                                                        | —                                                                                                                                    |
+| `write`                   | Create or overwrite a file, creating parent directories.                                                                                                                                                                                                                                                                                                                                                                               | —                                                                                                                                    |
+| `grep`                    | Search file contents by regex or literal string; results are bounded.                                                                                                                                                                                                                                                                                                                                                                  | `paths`: several targets instead of `path`. `glob`: e.g. `**/*.ts`. `context`: lines around each match. Defaults stay in the schema. |
+| `find`                    | Find files by glob; respects .gitignore; results are bounded.                                                                                                                                                                                                                                                                                                                                                                          | `pattern`: e.g. `src/**/*.test.ts`.                                                                                                  |
+| `ls`                      | List a directory, including dotfiles.                                                                                                                                                                                                                                                                                                                                                                                                  | —                                                                                                                                    |
+| `ask_user`                | Ask focused questions when progress depends on the user's decision. Batch related questions (max 5). Offer options for clear choices and mark at most one recommended. Users can also answer in free text and attach images (returned as readable paths).                                                                                                                                                                              | `context`, `recommendation` (one short line each).                                                                                   |
+| `todos_set` / `todos_get` | Replace / get the task todo list.                                                                                                                                                                                                                                                                                                                                                                                                      | —                                                                                                                                    |
+| `web_search`              | Search the web.                                                                                                                                                                                                                                                                                                                                                                                                                        | —                                                                                                                                    |
+| `web_fetch`               | Fetch a URL. HTML is converted to Markdown unless `raw`; large or binary responses are saved to files.                                                                                                                                                                                                                                                                                                                                 | —                                                                                                                                    |
+| `explain_image`           | Describe an image in detail using the configured vision model; use when you can't view the image directly.                                                                                                                                                                                                                                                                                                                             | `prompt`: what to focus on.                                                                                                          |
+| `generate_image`          | Generate an image from a text prompt.                                                                                                                                                                                                                                                                                                                                                                                                  | —                                                                                                                                    |
+| `kroki_export`            | Render a diagram to SVG/PNG through the configured Kroki server (the source is sent to it). Prefer `source_path` so fixes can be targeted edits. Returns the output path.                                                                                                                                                                                                                                                              | Unchanged (formats, size limits).                                                                                                    |
+| `subagent_prompt`         | Assign work to agents from `<available_agent_profiles>`. A new name creates one; an existing name queues a follow-up. Sub-agents share your worktree, can't see this conversation, and run asynchronously; completion notices wake you, so continue or end your turn. Batch parallel work in one call with non-overlapping scopes, put shared background in `context`, and give each one the paths, constraints, and expected outcome. | —                                                                                                                                    |
+| `subagent_status`         | Inspect sub-agents: without a name, one line each; with a name, its final response or recent activity. Use only for long or suspicious work; notices already wake you.                                                                                                                                                                                                                                                                 | —                                                                                                                                    |
+| `subagent_stop`           | Stop sub-agents' current execution; they can be prompted again.                                                                                                                                                                                                                                                                                                                                                                        | —                                                                                                                                    |
+| `plan_present`            | Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the default profile for implementation.                                                                                                                                                                                                                                                                                    | `file_path`: inside plan storage.                                                                                                    |
 
 Final wording is checked against the existing tool tests and adjusted only where behavior differs (for example, the bash background timeout is `{N}`, filled from configuration).
 
@@ -167,11 +168,11 @@ New field `usableBy: "lead" | "subagent" | "both"`.
 
 Scalar settings (`model`, `thinking`, `permission`, `compaction`) each have three choices. They differ in what happens when the user switches into the profile, and whether the user can change the value afterwards:
 
-| Choice | Document form | On switch into the profile (lead) | User can change it afterwards | Sub-agent |
-| --- | --- | --- | --- | --- |
-| **Inherit** | `"inherit"` | Not specified: a change the user made carries over; a value set by the previous profile falls back to the settings default | Yes | The lead's current value |
-| **Set** | value or `"default"`, e.g. `"openai/gpt-5"` | Always applied, replacing the current value | Yes | Applied at creation |
-| **Lock** | `{ "lock": <value or "default"> }` | Always applied | No: the picker is disabled | Same as Set |
+| Choice      | Document form                               | On switch into the profile (lead)                                                                                          | User can change it afterwards | Sub-agent                |
+| ----------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------ |
+| **Inherit** | `"inherit"`                                 | Not specified: a change the user made carries over; a value set by the previous profile falls back to the settings default | Yes                           | The lead's current value |
+| **Set**     | value or `"default"`, e.g. `"openai/gpt-5"` | Always applied, replacing the current value                                                                                | Yes                           | Applied at creation      |
+| **Lock**    | `{ "lock": <value or "default"> }`          | Always applied                                                                                                             | No: the picker is disabled    | Same as Set              |
 
 - **`"default"`** resolves to the settings default (project → user → built-in) when the profile is applied.
 - **Inherit vs. Set `default`:** these differ only when the user changed the value in the previous profile. Inherit carries that change over; Set `default` discards it.
@@ -184,12 +185,12 @@ Scalar settings (`model`, `thinking`, `permission`, `compaction`) each have thre
 
 ### Built-in profiles
 
-| Name | usableBy | model / thinking | permission | tools | skills | instructions |
-| --- | --- | --- | --- | --- | --- | --- |
-| `coding` (default) | lead | inherit | `default` (Set) | — | inherit | "In the final response, summarize changes, validation, and remaining limits." |
-| `planning` | lead | inherit | `{ lock: planning }` | `plan_present: true` | inherit | "Before anything else, read {{skill:planning}} and follow it." |
-| `explore` | subagent | inherit | `read_only` | unchanged | `none` | unchanged |
-| `developer` | subagent | inherit | `autonomous` | unchanged | inherit | unchanged |
+| Name               | usableBy | model / thinking | permission           | tools                | skills  | instructions                                                                  |
+| ------------------ | -------- | ---------------- | -------------------- | -------------------- | ------- | ----------------------------------------------------------------------------- |
+| `coding` (default) | lead     | inherit          | `default` (Set)      | —                    | inherit | "In the final response, summarize changes, validation, and remaining limits." |
+| `planning`         | lead     | inherit          | `{ lock: planning }` | `plan_present: true` | inherit | "Before anything else, read {{skill:planning}} and follow it."                |
+| `explore`          | subagent | inherit          | `read_only`          | unchanged            | `none`  | unchanged                                                                     |
+| `developer`        | subagent | inherit          | `autonomous`         | unchanged            | inherit | unchanged                                                                     |
 
 ### Active lead profile
 
@@ -221,7 +222,7 @@ Example: the user picks model M and the `autonomous` rule set in Coding, then sw
 After approval back to Coding:
 
 - **Model:** M is still kept.
-- **Permission:** resets to the settings default, because Coding sets `default`. The earlier `autonomous` choice isn't restored; the user picks it again if they want it. A custom lead profile that *inherits* permission would get `autonomous` back instead, because Planning's Lock never overwrote it.
+- **Permission:** resets to the settings default, because Coding sets `default`. The earlier `autonomous` choice isn't restored; the user picks it again if they want it. A custom lead profile that _inherits_ permission would get `autonomous` back instead, because Planning's Lock never overwrote it.
 
 Known edge case: if the user explicitly picks the same value that P set, it's treated as unchanged. This does no harm.
 

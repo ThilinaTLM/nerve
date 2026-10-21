@@ -340,7 +340,7 @@ describe("executeTool dispatch", () => {
   });
 
   it("rejects plan tools because they are orchestrator-owned", async () => {
-    const planTools = ["plan_mode_present"] as ToolName[];
+    const planTools = ["plan_present"] as ToolName[];
 
     for (const name of planTools) {
       await assert.rejects(

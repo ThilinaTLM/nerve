@@ -10,7 +10,7 @@ void test("preparation owns config, resolution and schemas despite mutations in 
     conversationId: "conv_snapshot",
     model: { provider: "test", modelId: "original" },
     reasoningLevel: "high",
-    mode: "planning",
+    agentProfile: "planning",
     systemPrompt: "Custom prompt",
     instructions: "Original",
     permissionRuleSetId: "baseline",
@@ -28,7 +28,7 @@ void test("preparation owns config, resolution and schemas despite mutations in 
       resolve: async (selection) => {
         selection.modelId = "mutated selection";
         config.reasoningLevel = "off";
-        config.mode = "coding";
+        config.agentProfile = "coding";
         config.systemPrompt = "Changed outside preparation";
         return { model, headers: { revision: "original" } };
       },
@@ -38,7 +38,7 @@ void test("preparation owns config, resolution and schemas despite mutations in 
         assert.equal(input.config.model.modelId, "original");
         assert.equal(input.config.reasoningLevel, "high");
         input.config.reasoningLevel = "low";
-        input.config.mode = "coding";
+        input.config.agentProfile = "coding";
         input.config.systemPrompt = "Changed by adapter";
         model.contextWindow = 10;
         return { systemPrompt: "Generated prompt", tools: [tool] };
@@ -63,7 +63,7 @@ void test("preparation owns config, resolution and schemas despite mutations in 
   tool.parameters = {} as typeof tool.parameters;
   assert.equal(prepared.resolved.model.contextWindow, 100_000);
   assert.equal(prepared.reasoning, "high");
-  assert.equal(prepared.mode, "planning");
+  assert.equal(prepared.agentProfile, "planning");
   assert.equal(prepared.systemPrompt, "Custom prompt");
   assert.notEqual(prepared.tools[0]!.description, tool.description);
   assert.deepEqual(prepared.tools[0]!.parameters, originalSchema);

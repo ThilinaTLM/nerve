@@ -274,6 +274,7 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
               systemPrompt: null,
               instructions: null,
               ...overrides,
+              agentProfile: profile.name,
             },
           });
           await profile.initializeChild(child.conversation.id);

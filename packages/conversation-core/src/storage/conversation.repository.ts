@@ -104,7 +104,7 @@ export class ConversationRepository {
   getSummary(id: string): ConversationSummary | null {
     const row = this.db.sqlite
       .prepare(
-        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?`,
+        `SELECT c.*, config.agent_profile, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.id = ?`,
       )
       .get(id);
     return row ? mapSummary(row) : null;
@@ -116,7 +116,7 @@ export class ConversationRepository {
   }): ConversationSummary[] {
     return this.db.sqlite
       .prepare(
-        `SELECT c.*, config.mode, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
+        `SELECT c.*, config.agent_profile, config.model, config.permission_rule_set_id, ${LAST_PARENT_PROMPT} AS last_parent_prompt_at, (SELECT COUNT(*) FROM conversation child WHERE child.parent_conversation_id = c.id) AS child_count FROM conversation c JOIN conversation_config config ON config.conversation_id = c.id WHERE c.project_id = ? AND c.parent_conversation_id IS ? ORDER BY c.pinned_at DESC, c.updated_at DESC, c.id`,
       )
       .all(input.projectId, input.parentConversationId ?? null)
       .map(mapSummary);
@@ -150,7 +150,7 @@ export class ConversationRepository {
     const row = conversationConfigSchema.parse(input);
     this.db.sqlite
       .prepare(`INSERT INTO conversation_config
-      (conversation_id, model, reasoning_level, system_prompt, instructions, permission_rule_set_id, mode, working_directory)
+      (conversation_id, model, reasoning_level, system_prompt, instructions, permission_rule_set_id, agent_profile, working_directory)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(
         row.conversationId,
@@ -159,7 +159,7 @@ export class ConversationRepository {
         row.systemPrompt,
         row.instructions,
         row.permissionRuleSetId,
-        row.mode,
+        row.agentProfile,
         row.workingDirectory,
       );
     return row;
@@ -175,14 +175,14 @@ export class ConversationRepository {
     const row = conversationConfigSchema.parse({ ...existing, ...patch });
     this.db.sqlite
       .prepare(`UPDATE conversation_config SET model = ?, reasoning_level = ?, system_prompt = ?, instructions = ?, permission_rule_set_id = ?,
-      mode = ?, working_directory = ? WHERE conversation_id = ?`)
+      agent_profile = ?, working_directory = ? WHERE conversation_id = ?`)
       .run(
         JSON.stringify(row.model),
         row.reasoningLevel,
         row.systemPrompt,
         row.instructions,
         row.permissionRuleSetId,
-        row.mode,
+        row.agentProfile,
         row.workingDirectory,
         conversationId,
       );
@@ -199,7 +199,7 @@ function mapSummary(row: Record<string, SQLOutputValue>): ConversationSummary {
     ...mapConversation(row),
     lastParentPromptAt: row.last_parent_prompt_at,
     childCount: row.child_count,
-    mode: row.mode,
+    agentProfile: row.agent_profile,
     model: JSON.parse(String(row.model)),
     permissionRuleSetId: row.permission_rule_set_id,
   });
@@ -234,7 +234,7 @@ function mapConfig(row: Record<string, SQLOutputValue>): ConversationConfig {
     systemPrompt: row.system_prompt,
     instructions: row.instructions,
     permissionRuleSetId: row.permission_rule_set_id,
-    mode: row.mode,
+    agentProfile: row.agent_profile,
     workingDirectory: row.working_directory,
   });
 }

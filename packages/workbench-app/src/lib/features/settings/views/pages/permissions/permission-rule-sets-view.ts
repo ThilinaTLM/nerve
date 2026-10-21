@@ -7,28 +7,12 @@ import {
   type PermissionRuleSetSummary,
 } from "@nervekit/contracts/permissions";
 
-/**
- * Baseline is the foundation applied under every coding agent and Planning is forced
- * while planning mode is active, so neither can be chosen as the coding default.
- */
-export const nonSelectableRuleSetIds = ["baseline", "planning"] as const;
+/** Baseline is the foundation applied under every agent, so it can't be chosen as the default. */
+export const nonSelectableRuleSetIds = ["baseline"] as const;
 
 export function isDefaultEligible(ruleSet: PermissionRuleSetSummary): boolean {
-  if (nonSelectableRuleSetIds.includes(ruleSet.id as "baseline" | "planning")) {
-    return false;
-  }
-  if (!ruleSet.enabled || !ruleSet.available) return false;
-  return (
-    ruleSet.compatibleModes === undefined ||
-    ruleSet.compatibleModes.includes("coding")
-  );
-}
-
-/** Short label describing when a rule set applies. */
-export function ruleSetRole(ruleSet: PermissionRuleSetSummary): string {
-  if (ruleSet.id === "baseline") return "Always applied";
-  if (ruleSet.id === "planning") return "Planning mode";
-  return "Coding";
+  if (nonSelectableRuleSetIds.includes(ruleSet.id as "baseline")) return false;
+  return ruleSet.enabled && ruleSet.available;
 }
 
 export type OverrideScope = "user" | "project";

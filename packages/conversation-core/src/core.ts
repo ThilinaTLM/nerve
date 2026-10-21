@@ -13,7 +13,10 @@ import type {
   SubmitInputRequest,
   UpdateConversationRequest,
 } from "@nervekit/contracts/core";
-import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
+import {
+  defaultSettings,
+  type AutoCompactionSettings,
+} from "@nervekit/contracts/settings";
 import { loadProjectionOptions } from "./context/asset-projection.js";
 import { estimatePathUsage } from "./context/context-usage.js";
 import { AssetStore } from "./assets/asset-store.js";
@@ -27,6 +30,9 @@ import { ProjectService } from "./conversations/project.service.js";
 import { TrustedResourceService } from "./conversations/trusted-resource.service.js";
 import { InputQueueService } from "./inputs/input-queue.service.js";
 import type {
+  AgentProfilePort,
+  AgentProfileConfigPatch,
+  TurnPreparationInput,
   ClockPort,
   ModelPort,
   PermissionPort,
@@ -53,6 +59,12 @@ import { ConversationScheduler } from "./runtime/scheduler.js";
 import { openExecutionId, StatusService } from "./runtime/status.js";
 
 export interface ConversationCoreOptions {
+  agentProfiles: AgentProfilePort;
+  /** Host-owned file overlays; awaited before config notifications. */
+  persistAgentProfileOverrides?(
+    conversationId: string,
+    patch: Pick<AgentProfileConfigPatch, "compaction" | "capabilityOverrides">,
+  ): Promise<void>;
   storage: CoreStorage;
   dataDir: string;
   models: ModelPort;
@@ -189,14 +201,24 @@ export class ConversationCore {
       onSettled: (id) => this.status.refresh(id),
       coreTools: this.coreTools,
       asyncBash: this.asyncBash,
-      context: (id) => {
+      context: async (id) => {
         const conversation = options.storage.conversations.get(id);
         const config = options.storage.conversations.getConfig(id);
         const project =
           conversation && options.storage.projects.get(conversation.projectId);
         if (!project || !config)
           throw new Error("Conversation context not found");
-        return { projectDir: project.directory, config };
+        const locked = await options.agentProfiles.resolveLockedScalars({
+          conversation,
+          config,
+          projectDir: project.directory,
+        });
+        const scalars = { ...locked };
+        delete scalars.compaction;
+        return {
+          projectDir: project.directory,
+          config: { ...config, ...scalars },
+        };
       },
     });
     this.modelTurn = new ModelTurn(
@@ -205,6 +227,7 @@ export class ConversationCore {
       () => [...this.coreTools.values()].map((handler) => handler.definition),
       emit,
       this.assets,
+      options.agentProfiles,
     );
     this.runner = new ConversationRunner({
       assets: this.assets,
@@ -216,7 +239,30 @@ export class ConversationCore {
       status: this.status,
       emit,
       now,
-      compactionSettings: options.compactionSettings,
+      effectiveConfig: async (id) => {
+        const input = this.profileInput(id);
+        const locked = {
+          ...(await options.agentProfiles.resolveLockedScalars(input)),
+        };
+        delete locked.compaction;
+        return { ...input.config, ...locked, conversationId: id };
+      },
+      compactionSettings: async (id) => {
+        const stored =
+          (await options.compactionSettings?.(id)) ??
+          defaultSettings.compaction;
+        const locked = await options.agentProfiles.resolveLockedScalars(
+          this.profileInput(id),
+        );
+        return locked.compaction
+          ? {
+              ...stored,
+              ...locked.compaction,
+              customTriggerPercent:
+                locked.compaction.triggerPercent ?? stored.customTriggerPercent,
+            }
+          : stored;
+      },
       compactions: this.compactions,
     });
     this.scheduler = new ConversationScheduler({
@@ -251,8 +297,10 @@ export class ConversationCore {
     this.trust = new TrustedResourceService(options.storage, now);
     for (const handler of createCoreToolHandlers({
       assets: this.assets,
-      configure: (id, patch) => {
-        this.configure(id, patch);
+      setAgentProfile: async (id, overrides) => {
+        await this.setAgentProfile(id);
+        if (overrides && Object.keys(overrides).length)
+          this.configure(id, overrides);
       },
       readPlan: options.readPlan,
       onPlanRejected: (id) => this.scheduler.pause(id),
@@ -348,7 +396,7 @@ export class ConversationCore {
       ...(!saved
         ? {
             capabilityOverrides: input.capabilityOverrides,
-            subagentProfileOverrides: input.subagentProfileOverrides,
+            agentProfileOverrides: input.agentProfileOverrides,
           }
         : {}),
     });
@@ -375,6 +423,40 @@ export class ConversationCore {
   }
   update(id: string, patch: UpdateConversationRequest["patch"]) {
     this.conversations.update(id, patch);
+  }
+  private profileInput(id: string): TurnPreparationInput {
+    const conversation = this.options.storage.conversations.get(id);
+    const config = this.options.storage.conversations.getConfig(id);
+    const project =
+      conversation && this.options.storage.projects.get(conversation.projectId);
+    if (!conversation || !config || !project)
+      throw new Error("Conversation not found");
+    return { conversation, config, projectDir: project.directory };
+  }
+  async setAgentProfile(
+    conversationId: string,
+    profile?: string,
+  ): Promise<ConversationConfig> {
+    const patch = await this.options.agentProfiles.switchProfile({
+      ...this.profileInput(conversationId),
+      ...(profile === undefined ? {} : { profile }),
+    });
+    if (
+      patch.compaction !== undefined ||
+      patch.capabilityOverrides !== undefined
+    ) {
+      if (!this.options.persistAgentProfileOverrides)
+        throw new Error("Agent profile overlay persistence is not configured");
+      await this.options.persistAgentProfileOverrides(conversationId, {
+        ...(patch.compaction !== undefined
+          ? { compaction: patch.compaction }
+          : {}),
+        ...(patch.capabilityOverrides !== undefined
+          ? { capabilityOverrides: patch.capabilityOverrides }
+          : {}),
+      });
+    }
+    return this.conversations.configure(conversationId, patch.config);
   }
   configure(
     id: string,

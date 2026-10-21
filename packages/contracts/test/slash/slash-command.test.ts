@@ -6,16 +6,20 @@ import {
 } from "../../src/domains/completions/slash-command.js";
 
 describe("slash commands", () => {
-  it("parses every advertised standalone command", () => {
+  it("parses every advertised command with its required arguments", () => {
     assert.deepEqual(
       slashCommandCompletionItems.map((item) => item.label),
-      ["/plan", "/code", "/compact", "/abort", "/new"],
+      ["/plan", "/profile <name>", "/compact", "/abort", "/new"],
     );
 
     for (const item of slashCommandCompletionItems) {
-      assert.deepEqual(parseSlashCommand(item.label), {
-        name: item.label.slice(1),
-      });
+      const text = item.label.replace("<name>", "planning");
+      assert.deepEqual(
+        parseSlashCommand(text),
+        item.label === "/profile <name>"
+          ? { name: "profile", profile: "planning" }
+          : { name: item.label.slice(1) },
+      );
     }
   });
 

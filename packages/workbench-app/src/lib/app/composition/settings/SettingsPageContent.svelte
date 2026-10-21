@@ -29,7 +29,7 @@ import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/Skills
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
 import ProjectToolsSettingsPage from "$lib/features/settings/views/pages/capabilities/ProjectToolsSettingsPage.svelte";
-import SubagentsSettingsPage from "$lib/features/settings/views/pages/subagents/SubagentsSettingsPage.svelte";
+import AgentProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/AgentProfilesSettingsPage.svelte";
 import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import TranscriptionSettingsPage from "$lib/features/settings/views/pages/transcription/TranscriptionSettingsPage.svelte";
 import WorkbenchSettingsPage from "$lib/features/settings/views/pages/workbench/WorkbenchSettingsPage.svelte";
@@ -111,8 +111,8 @@ let {
       onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
       onRetry={() => void controllers.loadProjectCapabilities()}
     />
-  {:else if page.id === "subagents"}
-    <SubagentsSettingsPage
+  {:else if page.id === "agent-profiles"}
+    <AgentProfilesSettingsPage
       {scope}
       {settingsDraft}
       {models}

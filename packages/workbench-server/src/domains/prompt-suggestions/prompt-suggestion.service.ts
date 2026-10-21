@@ -61,7 +61,6 @@ export class PromptSuggestionService {
           id: snapshot.conversation.id,
           title: snapshot.conversation.title,
           status: snapshot.conversation.status,
-          mode: snapshot.config.mode,
           permissionRuleSetId: snapshot.config.permissionRuleSetId,
           reasoningLevel: snapshot.config.reasoningLevel,
         }

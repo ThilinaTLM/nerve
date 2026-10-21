@@ -42,7 +42,7 @@ import {
   capabilityOriginSchema,
 } from "../capabilities/capabilities.js";
 
-import { subagentProfilesDocumentSchema } from "../subagents/subagent-configuration.js";
+import { agentProfilesDocumentSchema } from "../agent-profiles/agent-profile-configuration.js";
 
 export const previewSystemPromptParamsSchema = z.union([
   z.object({ conversationId: z.string() }).strict(),
@@ -51,7 +51,7 @@ export const previewSystemPromptParamsSchema = z.union([
       projectId: z.string(),
       config: conversationConfigSchema.omit({ conversationId: true }),
       capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
-      subagentProfileOverrides: subagentProfilesDocumentSchema.optional(),
+      agentProfileOverrides: agentProfilesDocumentSchema.optional(),
     })
     .strict(),
 ]);
@@ -293,6 +293,15 @@ export const conversationChannelOperations = [
     "none",
     host,
     "operation.conversation.getEventsSince",
+  ),
+  defineOperation(
+    "conversation.setAgentProfile",
+    coreOperationSchemas["conversation.setAgentProfile"].params,
+    coreOperationSchemas["conversation.setAgentProfile"].result,
+    "mutation",
+    "none",
+    host,
+    "operation.conversation.setAgentProfile",
   ),
   defineOperation(
     "conversation.configure",

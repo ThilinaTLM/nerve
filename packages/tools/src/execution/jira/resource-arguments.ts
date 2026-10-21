@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { basename } from "node:path";
 import { optionalString } from "../atlassian/arguments.js";
 import { ToolExecutionError } from "../errors/tool-error.js";
@@ -24,7 +25,7 @@ export function safeFilename(value: string): string {
   if (!name || name === "." || name === "..")
     throw new ToolExecutionError(
       "JIRA_INVALID_FILENAME",
-      "Attachment filename is invalid.",
+      guideErrorMessage("Attachment filename is invalid."),
     );
   return name.slice(0, 240);
 }

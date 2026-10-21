@@ -80,7 +80,7 @@ import ConversationActivityIsland from "$lib/features/conversations/agents/Conve
 import { openAsyncBashTab } from "$lib/features/conversations";
 import {
   pendingWork as derivePendingWork,
-  subagentProfileLabel,
+  agentProfileLabel,
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
 import ConversationContextActions from "$lib/features/conversations/context/ConversationContextActions.svelte";
@@ -94,10 +94,16 @@ import { openLaunchTab } from "$lib/features/launches";
 import { composerReferenceSource } from "$lib/app/composition/conversations/composer-reference-completions";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
+import { selectablePermissionRuleSets } from "$lib/domain/permissions/rule-set-options";
 import {
-  effectivePermissionRuleSetId,
-  selectablePermissionRuleSets,
-} from "$lib/domain/permissions/rule-set-options";
+  agentProfileCatalog,
+  leadAgentProfiles,
+} from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import {
+  compactionLocked,
+  lockedFieldsOf,
+} from "$lib/application/agent-profiles/profile-locks";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -220,17 +226,45 @@ const selectedThinkingLevel = $derived(
     store?.snapshot?.config.reasoningLevel ??
     "off",
 );
-const selectedMode = $derived(
-  activePendingConversation?.mode ?? store?.snapshot?.config.mode ?? "coding",
+const selectedAgentProfile = $derived(
+  activePendingConversation?.agentProfile ??
+    store?.snapshot?.config.agentProfile ??
+    DEFAULT_AGENT_PROFILE,
 );
 const selectedPermissionRuleSetId = $derived(
-  effectivePermissionRuleSetId(
-    activePendingConversation?.permissionRuleSetId ??
-      store?.snapshot?.config.permissionRuleSetId ??
-      "autonomous",
-    selectedMode,
-  ),
+  activePendingConversation?.permissionRuleSetId ??
+    store?.snapshot?.config.permissionRuleSetId ??
+    "autonomous",
 );
+const profileCatalogProjectId = $derived(
+  activePendingConversation?.projectId ??
+    store?.snapshot?.conversation.projectId,
+);
+const resolvedProfiles = $derived(
+  agentProfileCatalog.profiles(profileCatalogProjectId),
+);
+const activeProfile = $derived(
+  resolvedProfiles.find((profile) => profile.name === selectedAgentProfile),
+);
+/** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
+const composerProfiles = $derived(
+  viewedChildId
+    ? [{ name: selectedAgentProfile, label: selectedAgentProfile }]
+    : leadAgentProfiles(resolvedProfiles).map((profile) => ({
+        name: profile.name,
+        label: profile.label,
+        description: profile.description,
+      })),
+);
+const lockedFields = $derived(
+  viewedChildId ? {} : lockedFieldsOf(activeProfile),
+);
+const activeCompactionLocked = $derived(
+  !viewedChildId && compactionLocked(activeProfile),
+);
+$effect(() => {
+  void agentProfileCatalog.ensure(profileCatalogProjectId);
+});
 const usableModels = $derived(
   scopedUsableModelOptions(
     settingsState.models,
@@ -245,7 +279,6 @@ const SUBAGENT_RULE_SETS = new Set(["read_only", "autonomous"]);
 const permissionRuleSets = $derived(
   selectablePermissionRuleSets(
     permissionRuleSetCatalog.summaries(activeProject?.id),
-    selectedMode,
   ).filter((rules) => !viewedChildId || SUBAGENT_RULE_SETS.has(rules.id)),
 );
 const permissionRuleSetsLoading = $derived(
@@ -366,7 +399,7 @@ async function configure(
     Object.assign(p.config, patch);
     p.selectedModelKey = modelKey(p.config.model);
     p.thinkingLevel = p.config.reasoningLevel;
-    p.mode = p.config.mode;
+    p.agentProfile = p.config.agentProfile;
     p.permissionRuleSetId = p.config.permissionRuleSetId;
   } else await store?.configure(patch);
 }
@@ -393,9 +426,14 @@ async function submitPrompt(
             conversationId,
             patch,
           }),
+        setAgentProfile: (conversationId, profile) =>
+          requestConversation("conversation.setAgentProfile", {
+            conversationId,
+            profile,
+          }),
         saveCapabilities: updateCapabilities,
         saveProfiles: (input) =>
-          requestWorkbench("subagentProfiles.replaceConversation", input),
+          requestWorkbench("agentProfiles.replaceConversation", input),
         submit: (conversationId, prompt) =>
           requestConversation("input.submit", {
             conversationId,
@@ -418,7 +456,7 @@ async function submitPrompt(
         {
           ...snapshot.conversation,
           childCount: 0,
-          mode: snapshot.config.mode,
+          agentProfile: snapshot.config.agentProfile,
           model: snapshot.config.model,
           permissionRuleSetId: snapshot.config.permissionRuleSetId,
         },
@@ -534,9 +572,14 @@ function setComposerThinkingLevel(value: ConversationConfig["reasoningLevel"]) {
   rememberLastAgentSelection({ thinkingLevel: reasoningLevel });
   return configure({ reasoningLevel });
 }
-function setComposerMode(value: ConversationConfig["mode"]) {
-  rememberLastAgentSelection({ mode: value });
-  return configure({ mode: value });
+async function setComposerAgentProfile(name: string) {
+  const pending = activePendingConversation;
+  if (pending) {
+    // Applied on creation, which also applies the profile's Set and Lock policy.
+    pending.config.agentProfile = name;
+    pending.agentProfile = name;
+    pending.explicitAgentProfile = name;
+  } else await store?.setAgentProfile(name);
 }
 function setComposerPermissionRuleSet(value: string) {
   rememberLastAgentSelection({ permissionRuleSetId: value });
@@ -590,19 +633,13 @@ async function acceptPendingPlanReview(
     throw new Error(
       "Compacting a pending plan is not supported by the conversation core",
     );
-  await configure({
-    mode: "coding",
-    ...(options?.implementationModel
-      ? { model: options.implementationModel }
-      : {}),
-    ...(options?.implementationThinkingLevel
-      ? { reasoningLevel: options.implementationThinkingLevel }
-      : {}),
-  });
+
   await resolve(toolCallId, {
     kind: "plan_review",
     decision: "approve",
     feedback: options?.feedback,
+    implementationModel: options?.implementationModel,
+    implementationThinkingLevel: options?.implementationThinkingLevel,
   });
 }
 
@@ -699,7 +736,7 @@ const viewedProfile = $derived.by(() => {
   const agent = leadContext?.conversationAgents.find(
     (candidate) => candidate.id === viewedChildId,
   );
-  return agent ? subagentProfileLabel(agent) : undefined;
+  return agent ? agentProfileLabel(agent) : undefined;
 });
 const composerOverlay = $derived(
   viewedChildId
@@ -744,7 +781,6 @@ const teamRunning = $derived(
     open: (id) => viewAgent(id),
   }}
   editorOverlay={composerOverlay}
-  modeHidden={Boolean(viewedChildId)}
   {session}
   {activeProject}
   {activeConversation}
@@ -782,7 +818,10 @@ const teamRunning = $derived(
   planReviewModels={usableModels}
   {planReviewModelKey}
   {planReviewThinkingLevel}
-  mode={selectedMode}
+  agentProfile={selectedAgentProfile}
+  agentProfiles={composerProfiles}
+  {lockedFields}
+  profileDisabled={Boolean(viewedChildId)}
   permissionRuleSetId={selectedPermissionRuleSetId}
   {permissionRuleSets}
   {permissionRuleSetsLoading}
@@ -830,8 +869,8 @@ const teamRunning = $derived(
   onThinkingLevelChange={(value) => {
     void runActivePaneAction(() => setComposerThinkingLevel(value));
   }}
-  onModeChange={(value) => {
-    void runActivePaneAction(() => setComposerMode(value));
+  onAgentProfileChange={(value) => {
+    void runActivePaneAction(() => setComposerAgentProfile(value));
   }}
   onPermissionRuleSetChange={(value) => {
     void runActivePaneAction(() => setComposerPermissionRuleSet(value));
@@ -843,7 +882,8 @@ const teamRunning = $derived(
   }}
   onOpenPermissionSettings={() =>
     void openSettingsPane("permissions", "default-permission")}
-  onOpenCapabilitySettings={(page) => void openSettingsPane(page)}
+  onOpenCapabilitySettings={(page) =>
+    void openSettingsPane(page === "subagents" ? "agent-profiles" : page)}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
   onAcceptPlanReview={acceptPendingPlanReview}
@@ -877,6 +917,7 @@ const teamRunning = $derived(
       {instructions}
       profile={viewedProfile}
       disabled={!store?.snapshot || harness.saving}
+      compactionLocked={activeCompactionLocked}
       onEditCompaction={() => {
         closePopover();
         compactionDialogOpen = true;

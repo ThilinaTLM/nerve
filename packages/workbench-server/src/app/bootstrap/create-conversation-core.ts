@@ -1,3 +1,9 @@
+import { listPermissionRuleSets } from "../../core-host/permission-rule-sets.js";
+import {
+  createAgentProfilePort,
+  applyProfileSets,
+} from "../../core-host/agent-profile-policy.js";
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
@@ -21,12 +27,12 @@ import { explainImageWithModel } from "@nervekit/harness/models";
 import { ConversationHarnessSettings } from "../../core-host/conversation-harness.service.js";
 import { createProfileModelInfo } from "../../core-host/profile-model-availability.js";
 import { profileToolAvailability } from "../../core-host/profile-tool-availability.js";
-import { createProfileAvailability } from "../../core-host/subagent-profile-availability.js";
+import { createProfileAvailability } from "../../core-host/agent-profile-availability.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
 import { userCapabilitySelection } from "../../core-host/user-capability-selection.js";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { createSubagentHost } from "../../core-host/subagent-host.js";
-import type { SubagentProfileService } from "../../domains/subagents/subagent-profile.service.js";
+import type { AgentProfileService } from "../../domains/agent-profiles/agent-profile.service.js";
 import { CapabilityService } from "../../core-host/capability.service.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
@@ -42,7 +48,7 @@ export function createConversationCore(
   deps: RuntimeDeps,
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
   /** Lazy: the profile service needs the core's trust registry. */
-  subagentProfiles: () => SubagentProfileService,
+  agentProfiles: () => AgentProfileService,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
 ) {
   const dataDir = deps.storage.paths.dataPath;
@@ -182,10 +188,44 @@ export function createConversationCore(
       get capabilities(): CapabilityService {
         return capabilities;
       },
-      get subagentProfiles(): SubagentProfileService {
-        return subagentProfiles();
+      defaultProfile: async (projectId) => {
+        const project = core.projects.get(projectId);
+        if (!project) throw new Error(`Project not found: ${projectId}`);
+        return (
+          (await resolveProjectSettings(deps.storage, project.directory))
+            .defaultAgentProfile ?? DEFAULT_AGENT_PROFILE
+        );
+      },
+      get agentProfiles(): AgentProfileService {
+        return agentProfiles();
       },
     }),
+    agentProfiles: {
+      resolveLockedScalars: (input) => profilePort.resolveLockedScalars(input),
+      switchProfile: (input) => profilePort.switchProfile(input),
+    },
+    persistAgentProfileOverrides: async (id, patch) => {
+      const projectId = core.getSnapshot(id).conversation.projectId;
+      if (patch.compaction !== undefined)
+        await harness.update(
+          projectId,
+          id,
+          patch.compaction === null
+            ? null
+            : {
+                auto: patch.compaction.auto ?? true,
+                profile: patch.compaction.profile,
+                customTriggerPercent: patch.compaction.triggerPercent ?? 80,
+              },
+        );
+      if (patch.capabilityOverrides !== undefined)
+        await capabilities.update({
+          projectId,
+          conversationId: id,
+          layer: "conversation",
+          replace: patch.capabilityOverrides,
+        });
+    },
     compactionSettings: (id) => harness.compactionSettings(id),
     defaultConfig: async (projectId) => {
       const project = storage.projects.get(projectId);
@@ -199,15 +239,34 @@ export function createConversationCore(
         throw new Error(
           "Choose a default model before creating a conversation.",
         );
-      return {
-        model,
-        reasoningLevel: settings.defaultThinkingLevel,
-        systemPrompt: null,
-        permissionRuleSetId: settings.defaultPermissionRuleSetId ?? "baseline",
-        mode: settings.lastAgentSelection.mode,
-        instructions: null,
-        workingDirectory: project.directory,
-      };
+      const name = settings.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE;
+      const profile = (await agentProfiles().list(projectId)).find(
+        (p) => p.name === name,
+      );
+      if (
+        !profile ||
+        !profile.enabled ||
+        profile.error ||
+        profile.trust === "untrusted" ||
+        profile.usableBy === "subagent"
+      )
+        throw new Error(
+          `Default agent profile "${name}" is not usable by lead conversations.`,
+        );
+      return applyProfileSets(
+        profile,
+        {
+          model,
+          reasoningLevel: settings.defaultThinkingLevel,
+          systemPrompt: null,
+          permissionRuleSetId:
+            settings.defaultPermissionRuleSetId ?? "baseline",
+          agentProfile: name,
+          instructions: null,
+          workingDirectory: project.directory,
+        },
+        settings,
+      );
     },
     readPlan: ({ path, signal }) =>
       readFile(path, { encoding: "utf8", signal }),
@@ -233,6 +292,41 @@ export function createConversationCore(
     changed: (projectId, conversationId) =>
       capabilities.notifyChanged(projectId, conversationId),
   });
+  const projectSettings = async (projectId: string) => {
+    const project = storage.projects.get(projectId);
+    if (!project) throw new Error(`Project not found: ${projectId}`);
+    return resolveProjectSettings(deps.storage, project.directory);
+  };
+  const profilePort = createAgentProfilePort({
+    profiles: agentProfiles,
+    settings: projectSettings,
+    compaction: async (id) => {
+      const value = await harness.compactionSettings(id);
+      return {
+        auto: value.auto,
+        profile: value.profile,
+        triggerPercent: value.customTriggerPercent,
+      };
+    },
+    capabilities: async (projectId, conversationId) =>
+      (
+        await capabilities.configuration(
+          projectId,
+          conversationId,
+          undefined,
+          null,
+        )
+      ).conversation,
+    notice: (conversationId, text) =>
+      core.inputs.enqueueNotice({
+        conversationId,
+        inputId: createId("input"),
+        subtype: "notification",
+        producer: "agent-profile",
+        text,
+        wakeWhenIdle: false,
+      }),
+  });
   const profileModelInfo = createProfileModelInfo({
     customModels: () => deps.providerCatalog.resolvedModels(),
     providerMetadata: async (provider) =>
@@ -241,6 +335,13 @@ export function createConversationCore(
       ),
   });
   const profileAvailability = createProfileAvailability({
+    defaults: async (projectId) => {
+      const settings = projectId
+        ? await projectSettings(projectId)
+        : deps.storage.settings;
+      const model = settings.defaultModel ?? settings.lastAgentSelection.model;
+      return { model, reasoningLevel: settings.defaultThinkingLevel };
+    },
     parent: (id) => core.getSnapshot(id).config,
     modelInfo: profileModelInfo,
     resources: async (
@@ -256,6 +357,7 @@ export function createConversationCore(
             projectId,
             conversationId,
             capabilityOverrides,
+            null,
           )
         : {
             effective: userCapabilitySelection(settings),
@@ -306,13 +408,85 @@ export function createConversationCore(
       };
     },
   });
+  capabilities.useAgentProfiles(
+    async (projectId, conversationId) => {
+      const { conversation, config } = core.getSnapshot(conversationId);
+      if (conversation.parentConversationId !== null) return undefined;
+      const profiles = await agentProfiles().list(projectId, conversationId);
+      const usable = (p: (typeof profiles)[number]) =>
+        p.enabled &&
+        !p.error &&
+        p.trust !== "untrusted" &&
+        p.usableBy !== "subagent";
+      const fallback =
+        (await projectSettings(projectId)).defaultAgentProfile ??
+        DEFAULT_AGENT_PROFILE;
+      return (
+        profiles.find((p) => p.name === config.agentProfile && usable(p)) ??
+        profiles.find((p) => p.name === fallback && usable(p))
+      );
+    },
+    {
+      nerve: deps.nerveSkills.skills,
+      agentBrowser: deps.agentBrowserSkills.skills,
+    },
+  );
   const subagentHost = createSubagentHost({
     profiles: {
-      usable: (context) => subagentProfiles().usable(context),
-      find: (context, name) => subagentProfiles().find(context, name),
+      usable: (context) => agentProfiles().usable(context),
+      find: (context, name) => agentProfiles().find(context, name),
     },
     models,
     availability: profileAvailability,
+    settings: projectSettings,
+    validatePermission: async (id) => {
+      const ruleSet = (
+        await listPermissionRuleSets(deps.storage.paths.home)
+      ).find((r) => r.id === id && r.enabled);
+      if (
+        !ruleSet ||
+        ruleSet.rules.some((rule) => rule.enabled && rule.decision === "prompt")
+      )
+        throw new Error(
+          `Permission rule set "${id}" is not sub-agent safe; choose an enabled rule set without user prompts.`,
+        );
+    },
+    parentCompaction: async (parentId) => {
+      const snapshot = core.getSnapshot(parentId);
+      const project = storage.projects.get(snapshot.conversation.projectId)!;
+      const { compaction } = await profilePort.resolveLockedScalars({
+        conversation: {
+          id: parentId,
+          projectId: project.id,
+          parentConversationId: snapshot.conversation.parentConversationId,
+        },
+        config: snapshot.config,
+        projectDir: project.directory,
+      });
+      return compaction
+        ? {
+            auto: compaction.auto ?? true,
+            profile: compaction.profile,
+            customTriggerPercent: compaction.triggerPercent ?? 80,
+          }
+        : harness.compactionSettings(parentId);
+    },
+    effectiveParent: async (parentId) => {
+      const snapshot = core.getSnapshot(parentId);
+      const project = storage.projects.get(snapshot.conversation.projectId)!;
+      const locks = await profilePort.resolveLockedScalars({
+        conversation: {
+          id: parentId,
+          projectId: project.id,
+          parentConversationId: snapshot.conversation.parentConversationId,
+        },
+        config: snapshot.config,
+        projectDir: project.directory,
+      });
+      const config = { ...locks };
+      delete config.compaction;
+      return { ...snapshot.config, ...config };
+    },
     harness,
     parent: (parentId) => {
       const snapshot = core.getSnapshot(parentId);

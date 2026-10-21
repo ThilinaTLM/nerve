@@ -14,7 +14,7 @@ export type ConversationRecord = ConversationSummary & {
 export type AgentRecord = {
   id: string;
   conversationId: string;
-  mode: ConversationConfig["mode"];
+  agentProfile: ConversationConfig["agentProfile"];
   model?: ConversationConfig["model"];
   permissionRuleSetId?: string;
 };

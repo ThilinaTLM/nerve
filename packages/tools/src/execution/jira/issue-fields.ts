@@ -1,3 +1,4 @@
+import { guideErrorMessage } from "./guide-errors.js";
 import { optionalString, optionalStringArray } from "../atlassian/arguments.js";
 
 export function rawFields(value: unknown): Record<string, unknown> {
@@ -10,7 +11,7 @@ export function rawOptionalRecord(
 ): Record<string, unknown> {
   if (value === undefined) return {};
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`${name} must be an object.`);
+    throw new Error(guideErrorMessage(`${name} must be an object.`));
   }
   return { ...(value as Record<string, unknown>) };
 }

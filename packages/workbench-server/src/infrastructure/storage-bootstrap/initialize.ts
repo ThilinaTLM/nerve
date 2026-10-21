@@ -326,6 +326,9 @@ async function applySettingsPatch(
     ...storage.settings,
     ...patch,
     ...defaultModelPatch,
+    ...(patch.defaultAgentProfile === null
+      ? { defaultAgentProfile: undefined }
+      : {}),
     application: {
       ...storage.settings.application,
       ...(patch.application ?? {}),

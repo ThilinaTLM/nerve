@@ -1,7 +1,5 @@
 <script lang="ts">
 import type { Snippet } from "svelte";
-import ClipboardList from "@lucide/svelte/icons/clipboard-list";
-import Code2 from "@lucide/svelte/icons/code-2";
 import Lock from "@lucide/svelte/icons/lock";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
@@ -31,6 +29,7 @@ import Popover, {
   PopoverRow,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import ComposerModelPicker from "./ComposerModelPicker.svelte";
+import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationSessionInfo } from "./session-info";
 import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
@@ -38,29 +37,32 @@ import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
-import type { CapabilitySubagentProfiles } from "./capability-subagent-slot";
+import type { CapabilityAgentProfiles } from "./capability-subagent-slot";
+import type {
+  ComposerAgentProfile,
+  ComposerLockedFields,
+} from "../conversations/conversation-view-contracts.js";
 
 type Props = {
   controlsDisabled: boolean;
-  modeDisabled: boolean;
-  /** Conversations without plan mode drop the toggle entirely. */
-  modeHidden?: boolean;
+  profileDisabled: boolean;
+  /** Profiles offered by the selector; an empty list drops it entirely. */
+  agentProfiles: ComposerAgentProfile[];
+  agentProfile: string;
+  /** Fields the active profile locks; their pickers are disabled. */
+  lockedFields?: ComposerLockedFields;
   session?: ConversationSessionInfo;
   contextActions?: Snippet<[closePopover: () => void]>;
   modelDisabled: boolean;
-  /** Display label for the mode tab, e.g. "Coding" / "Planning". */
-  modeLabel: string;
-  /** Selects the planning vs coding icon; mode semantics stay with the caller. */
-  modePlanning: boolean;
-  onToggleMode?: () => void;
+  onAgentProfileChange?: (name: string) => void;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
   permissionRuleSetsError?: string;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
-  modeShortcut?: string;
-  modeShortcutAria?: string;
+  profileShortcut?: string;
+  profileShortcutAria?: string;
   modelShortcut?: string;
   thinkingShortcut?: string;
   contextUsage?: ContextUsage;
@@ -90,7 +92,7 @@ type Props = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilitySubagentProfiles;
+  capabilityProfiles?: CapabilityAgentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
   capabilityDisabled?: boolean;
@@ -107,22 +109,22 @@ type Props = {
 
 let {
   controlsDisabled,
-  modeDisabled,
-  modeHidden = false,
+  profileDisabled,
+  agentProfiles,
+  agentProfile,
+  lockedFields = {},
   session,
   contextActions,
   modelDisabled,
-  modeLabel,
-  modePlanning,
-  onToggleMode,
+  onAgentProfileChange,
   permissionRuleSetId,
   permissionRuleSets,
   permissionRuleSetsLoading = false,
   permissionRuleSetsError,
   permissionShortcut,
   permissionShortcutAria,
-  modeShortcut,
-  modeShortcutAria,
+  profileShortcut,
+  profileShortcutAria,
   modelShortcut,
   thinkingShortcut,
   contextUsage,
@@ -203,7 +205,7 @@ function openPermissionSettings(): void {
   onOpenPermissionSettings?.();
 }
 
-/* The picker chooses between a handful of known modes, so a rule set is one
+/* The picker chooses between a handful of options, so a rule set is one
  * line: its name, plus a marker when it is not one of the built-ins. The prose
  * stays available on hover and in Settings, where rules are actually edited. */
 function permissionTitle(option: PermissionRuleSetSummary): string {
@@ -246,32 +248,23 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   ></span>
 {/if}
 
-{#if !modeHidden}
-  <button
-    type="button"
-    class={`composer-tab mode-tab ${modePlanning ? "text-info" : ""}`}
-    disabled={modeDisabled}
-    title={modeShortcut
-      ? `Mode: ${modeLabel} (${modeShortcut})`
-      : `Mode: ${modeLabel} (click to switch)`}
-    aria-keyshortcuts={modeShortcutAria}
-    data-tour-id="composer-mode"
-    onclick={() => onToggleMode?.()}
-  >
-    {#if modePlanning}
-      <ClipboardList aria-hidden="true" />
-    {:else}
-      <Code2 aria-hidden="true" />
-    {/if}
-    <span class="@max-[500px]/composer-toolbar:hidden">{modeLabel}</span>
-  </button>
-{/if}
+<ComposerProfilePicker
+  {agentProfiles}
+  {agentProfile}
+  disabled={profileDisabled}
+  {controlsDisabled}
+  shortcut={profileShortcut}
+  shortcutAria={profileShortcutAria}
+  onChange={onAgentProfileChange}
+/>
 
 <ComposerModelPicker
   {models}
   {selectedModelKey}
   {thinkingLevel}
   disabled={modelDisabled}
+  modelLocked={lockedFields.model}
+  thinkingLocked={lockedFields.thinking}
   {onModelChange}
   {onThinkingLevelChange}
   {runtimeChangeHint}
@@ -337,6 +330,11 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     {/snippet}
   </PopoverHeader>
   <PopoverBody>
+    {#if lockedFields.permission}
+      <p class="px-1.5 text-muted-foreground">
+        The active profile locks the permission rule set.
+      </p>
+    {/if}
     {#if permissionRuleSetsError}
       <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
     {/if}
@@ -357,7 +355,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
         label={option.name}
         title={permissionTitle(option)}
         selected={option.id === permissionRuleSetId}
-        disabled={controlsDisabled || modePlanning}
+        disabled={controlsDisabled || lockedFields.permission}
         onclick={() => selectPermission(option.id)}
       >
         {#snippet trailing()}
@@ -373,7 +371,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 {#key capabilityScopeKey}
   <ComposerCapabilitiesPopover
     configuration={capabilityConfiguration}
-    subagentProfiles={capabilityProfiles}
+    agentProfiles={capabilityProfiles}
     {subagentControlsEnabled}
     skills={capabilitySkills}
     loading={capabilityLoading}

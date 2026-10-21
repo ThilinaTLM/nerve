@@ -31,24 +31,23 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
       await state.promptSuggestions.updateTrust(params);
       return { ok: true };
     },
-    "subagentProfiles.list": async (state, params) => ({
-      profiles: await state.subagentProfiles.list(
+    "agentProfiles.list": async (state, params) => ({
+      profiles: await state.agentProfiles.list(
         params?.projectId,
         params?.conversationId,
       ),
     }),
-    "subagentProfiles.preview": (state, params) =>
-      state.subagentProfiles.preview(params),
-    "subagentProfiles.replaceConversation": (state, params) =>
-      state.subagentProfiles.replaceConversation(params),
-    "subagentProfiles.configuration": (state, params) =>
-      state.subagentProfiles.configuration(params),
-    "subagentProfiles.update": (state, params) =>
-      state.subagentProfiles.update(params),
-    "subagentProfiles.reset": (state, params) =>
-      state.subagentProfiles.reset(params),
-    "subagentProfiles.trust": (state, params) =>
-      state.subagentProfiles.trust(params.projectId, params.digest),
+    "agentProfiles.preview": (state, params) =>
+      state.agentProfiles.preview(params),
+    "agentProfiles.replaceConversation": (state, params) =>
+      state.agentProfiles.replaceConversation(params),
+    "agentProfiles.configuration": (state, params) =>
+      state.agentProfiles.configuration(params),
+    "agentProfiles.update": (state, params) =>
+      state.agentProfiles.update(params),
+    "agentProfiles.reset": (state, params) => state.agentProfiles.reset(params),
+    "agentProfiles.trust": (state, params) =>
+      state.agentProfiles.trust(params.projectId, params.digest),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

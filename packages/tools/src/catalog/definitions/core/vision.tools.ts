@@ -5,13 +5,11 @@ import type { ToolDefinition } from "../../contracts.js";
 const explainImageParameters = Type.Object(
   {
     path: Type.String({
-      description: "Absolute or project-relative path to an image file",
       minLength: 1,
     }),
     prompt: Type.Optional(
       Type.String({
-        description:
-          "Optional question or specific detail the vision model should focus on",
+        description: "What to focus on.",
         minLength: 1,
       }),
     ),
@@ -29,7 +27,7 @@ export const visionToolDefinitions = [
     executor: executeExplainImage,
     label: "Explain Image",
     description:
-      "Ask the vision model configured in Nerve Settings to explain an image as detailed text.",
+      "Describe an image in detail using the configured vision model; use when you can't view the image directly.",
     parameters: explainImageParameters,
     executionMode: "sequential",
   },

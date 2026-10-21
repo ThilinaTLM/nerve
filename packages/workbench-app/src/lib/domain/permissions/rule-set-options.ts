@@ -1,4 +1,3 @@
-import type { Mode } from "@nervekit/contracts/settings";
 import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
@@ -21,7 +20,6 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
         "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
       source: "builtin",
       enabled: true,
-      compatibleModes: ["coding"],
       available: true,
     },
     {
@@ -31,7 +29,6 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
         "Allow interaction and local inspection; prompt for other capabilities.",
       source: "builtin",
       enabled: true,
-      compatibleModes: ["coding"],
       available: true,
     },
     {
@@ -40,7 +37,6 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
       description: "Allow every valid tool request.",
       source: "builtin",
       enabled: true,
-      compatibleModes: ["coding"],
       available: true,
     },
     {
@@ -50,45 +46,18 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
         "Allow reads, interaction, sub-agent delegation, and writes wholly within the plans directory.",
       source: "builtin",
       enabled: true,
-      compatibleModes: ["planning"],
       available: true,
     },
   ];
 
+/** Every enabled rule set except Baseline, the foundation under all agents. */
 export function selectablePermissionRuleSets(
   summaries: readonly PermissionRuleSetSummary[],
-  mode: Mode,
 ): PermissionRuleSetSummary[] {
-  if (mode === "planning") {
-    const planning = summaries.find(
-      (summary) =>
-        summary.id === "planning" && summary.available && summary.enabled,
-    );
-    return planning
-      ? [planning]
-      : [
-          BUILT_IN_PERMISSION_RULE_SET_SUMMARIES.find(
-            (summary) => summary.id === "planning",
-          )!,
-        ];
-  }
-
   return summaries.filter(
     (summary) =>
-      summary.id !== "baseline" &&
-      summary.id !== "planning" &&
-      summary.available &&
-      summary.enabled &&
-      (summary.compatibleModes === undefined ||
-        summary.compatibleModes.includes("coding")),
+      summary.id !== "baseline" && summary.available && summary.enabled,
   );
-}
-
-export function effectivePermissionRuleSetId(
-  selectedCodingRuleSetId: PermissionRuleSetId,
-  mode: Mode,
-): PermissionRuleSetId {
-  return mode === "planning" ? "planning" : selectedCodingRuleSetId;
 }
 
 export function selectedPermissionRuleSetSummary(

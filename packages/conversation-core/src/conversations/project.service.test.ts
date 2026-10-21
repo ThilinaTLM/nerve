@@ -32,7 +32,7 @@ function seedConversation(storage: CoreStorage) {
       systemPrompt: null,
       instructions: null,
       permissionRuleSetId: "baseline",
-      mode: "coding",
+      agentProfile: "coding",
       workingDirectory: "/tmp",
     },
   );

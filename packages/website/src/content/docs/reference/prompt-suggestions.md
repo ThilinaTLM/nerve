@@ -31,7 +31,7 @@ Review the current git diff. Call out correctness risks and missing tests.
 - `description`: optional Settings description, limited to 1,024 characters.
 - `order`: lower appears first; defaults to `100`.
 - `enabled`: file default, enabled unless explicitly `false`; Settings preference overrides without editing.
-- `when`: declarative `gitDirty`, `hasRepos`, `githubAuthenticated`, `modes`, and `permissionLevels` conditions.
+- `when`: declarative `gitDirty`, `hasRepos`, `githubAuthenticated`, and `permissionLevels` conditions.
 - `enable-js`: optional synchronous JavaScript predicate. The nested form `enable: { js: ... }` is also accepted for compatible definitions.
 
 The trimmed prompt body is required and is limited to 100,000 characters. Invalid files are omitted and reported as diagnostics rather than partially loaded.

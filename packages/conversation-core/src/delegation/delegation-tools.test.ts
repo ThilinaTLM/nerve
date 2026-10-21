@@ -84,6 +84,14 @@ async function fixture() {
     },
   };
   const core = new ConversationCore({
+    agentProfiles: {
+      async resolveLockedScalars() {
+        return {};
+      },
+      async switchProfile({ profile }) {
+        return { config: { agentProfile: profile ?? "coding" } };
+      },
+    },
     storage,
     dataDir,
     models: {
@@ -140,7 +148,7 @@ async function fixture() {
       systemPrompt: "Lead prompt",
       instructions: "Lead instructions",
       permissionRuleSetId: "baseline",
-      mode: "coding",
+      agentProfile: "coding",
       workingDirectory: dataDir,
     }),
   });
@@ -262,7 +270,8 @@ void test("creates a child from the profile, initializes it and assigns context 
     assert.equal(snapshot.config.permissionRuleSetId, "read_only");
     assert.equal(snapshot.config.instructions, "Instructions for explore");
     assert.equal(snapshot.config.systemPrompt, null);
-    assert.equal(snapshot.config.mode, "coding");
+    assert.equal(snapshot.config.agentProfile, "explore");
+    assert.equal(f.core.getSnapshot(LEAD).config.agentProfile, "coding");
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: created.id, profile: "explore" },
     ]);
@@ -577,7 +586,7 @@ void test("status lists children and shows final responses or recent activity", 
   }
 });
 
-void test("sub-agents reject user input and rule sets outside the allowed pair", async () => {
+void test("sub-agents reject user input", async () => {
   const f = await fixture();
   try {
     await f.lead("subagent_prompt", explore());
@@ -591,19 +600,6 @@ void test("sub-agents reject user input and rule sets outside the allowed pair",
           source: "user",
         }),
       /do not accept user input/,
-    );
-    assert.throws(
-      () => f.core.configure(id, { permissionRuleSetId: "baseline" }),
-      /may only use/,
-    );
-    f.core.configure(id, { permissionRuleSetId: "autonomous" });
-    await assert.rejects(
-      f.core.createConversation({
-        projectId: "proj_test",
-        parentConversationId: LEAD,
-        title: "bad",
-      }),
-      /may only use/,
     );
   } finally {
     await f.cleanup();

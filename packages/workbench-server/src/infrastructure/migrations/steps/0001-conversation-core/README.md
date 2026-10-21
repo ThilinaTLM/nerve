@@ -38,7 +38,7 @@ The frozen JSON ownership set derives from v0.34.1:
   `domains/{permissions,capabilities}` services.
 - Project `.nerve/tasks/definitions.json`:
   `domains/task-definitions/task-definition.repository.ts`.
-- Conversion outputs (`subagents.json`, home `prompt-suggestions.json`, project
+- Conversion outputs (`agent-profiles.json`, home `prompt-suggestions.json`, project
   `.nerve/launches/definitions.json`) are also checked to avoid overwriting a
   conflicting existing target. Legacy sub-agent and suggestion Markdown resources
   are owned conversion inputs, not arbitrary project files.
@@ -147,14 +147,26 @@ survive the existing import-reuse-on-discard path for unrelated failed units.
   Historical child tool allowlists become optional-tool overlays.
 - Agent workspace roots and depth budgets are dropped, not invented as new
   columns. Readonly scopes become `read_only`. Working directories, model,
-  reasoning, system prompt and current mode are preserved. Old availability
+  reasoning and system prompt are preserved. Lead mode names become active
+  `agent_profile` names (`coding`/`planning`); the old mode CHECK is removed. Old availability
   fields are not written into SQLite. Core tools cannot be hidden by optional
   capability overlays; permission policy remains authoritative.
+
+## Agent profile output
+
+- User/project `config/subagents.json` becomes `config/agent-profiles.json` only
+  after validating the output; conflicting targets fail without deleting sources.
+- Existing entries gain `usableBy: "subagent"`; model/thinking `lead` becomes
+  `inherit`, removed compaction retention is stripped, and profile tool selections
+  rename `plan_mode_present` to `plan_present`.
+- Capability documents, harness disabled tools and historical plan calls use
+  `plan_present`. Custom rule sets lose `compatibleModes`; stored selections lose
+  `mode`. Rewritten profile trust uses `agent_profile` and requires reapproval.
 
 ## Profile conversion limits
 
 Only user resources and registered projects are converted. Later-opened old
-projects need explicit canonical `.nerve/config/subagents.json` conversion;
+projects need explicit canonical `.nerve/config/agent-profiles.json` conversion;
 there is no runtime legacy Markdown profile loader. Preserve profile names,
 instructions, settings, and explicit toggles. Conflicting legacy/canonical
 profiles or incompatible whole-map versus sparse-map capability shadowing are

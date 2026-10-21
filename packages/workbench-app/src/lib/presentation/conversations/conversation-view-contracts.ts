@@ -12,14 +12,13 @@ import type {
   UserInputAnswer,
 } from "@nervekit/contracts/core";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
-import type { CapabilitySubagentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
+import type { CapabilityAgentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
-import type { Mode } from "@nervekit/contracts/settings";
 import type {
   PermissionRuleSetId,
   PermissionRuleSetSummary,
@@ -73,11 +72,21 @@ export type ComposerEditorOverlay = {
   onAction: () => void;
 };
 
+export type ComposerAgentProfile = {
+  name: string;
+  label: string;
+  description?: string;
+};
+
+export type ComposerLockedFields = {
+  model?: boolean;
+  thinking?: boolean;
+  permission?: boolean;
+};
+
 export type ConversationComposerModel = {
   text: string;
   editorOverlay?: ComposerEditorOverlay;
-  /** Hides the mode toggle for conversations without plan mode. */
-  modeHidden?: boolean;
   session?: ConversationSessionInfo;
   /** Conversation-level icon actions in the context popover header; the
    * callback closes the popover (e.g. before opening a dialog over it). */
@@ -96,7 +105,12 @@ export type ConversationComposerModel = {
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
-  mode: Mode;
+  /** Active agent profile name. */
+  agentProfile: string;
+  /** Profiles offered by the selector; empty hides it. */
+  agentProfiles: ComposerAgentProfile[];
+  /** Fields the active profile locks; their pickers are disabled. */
+  lockedFields?: ComposerLockedFields;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -111,7 +125,7 @@ export type ConversationComposerModel = {
   placeholder?: string;
   focusToken?: number;
   controlsDisabled?: boolean;
-  modeDisabled?: boolean;
+  profileDisabled?: boolean;
   modelDisabled?: boolean;
   capabilityDisabled?: boolean;
   runtimeChangeHint?: string;
@@ -122,8 +136,8 @@ export type ConversationComposerModel = {
   stopTitle?: string;
   permissionShortcut?: string;
   permissionShortcutAria?: string;
-  modeShortcut?: string;
-  modeShortcutAria?: string;
+  profileShortcut?: string;
+  profileShortcutAria?: string;
   modelShortcut?: string;
   thinkingShortcut?: string;
   modelEmptyMessage?: string;
@@ -135,7 +149,7 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilitySubagentProfiles;
+  capabilityProfiles?: CapabilityAgentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
 };
@@ -196,7 +210,7 @@ export type ConversationPaneActions = {
   onUsageRetry?: () => void;
   onModelChange?: (value: string) => void;
   onThinkingLevelChange?: (value: ThinkingLevel) => void;
-  onModeChange?: (value: Mode) => void;
+  onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;

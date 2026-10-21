@@ -45,7 +45,7 @@ void test("image reads require a known conversation, image category and safe ima
         systemPrompt: null,
         instructions: null,
         permissionRuleSetId: "baseline",
-        mode: "coding",
+        agentProfile: "coding",
         workingDirectory: directory,
       },
     );

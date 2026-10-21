@@ -167,9 +167,9 @@ describe("shared tool runtime contract", () => {
         return { content: "review" };
       },
     });
-    await plans.plan_mode_present?.(
+    await plans.plan_present?.(
       { file_path: " plans/reuse.md " },
-      { ...context, toolName: "plan_mode_present" },
+      { ...context, toolName: "plan_present" },
     );
 
     assert.deepEqual(calls, [

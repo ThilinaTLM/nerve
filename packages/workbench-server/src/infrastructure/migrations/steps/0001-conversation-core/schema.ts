@@ -5,7 +5,7 @@ CREATE TABLE project (
 ) STRICT;
 CREATE TABLE trusted_resource (
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL CHECK(kind IN ('prompt_suggestion','skill','project_permissions','project_capabilities','subagent_profile')),
+  kind TEXT NOT NULL CHECK(kind IN ('prompt_suggestion','skill','project_permissions','project_capabilities','agent_profile')),
   project_id TEXT REFERENCES project(id) ON DELETE CASCADE,
   path TEXT NOT NULL, name TEXT, content_digest TEXT NOT NULL,
   status TEXT NOT NULL CHECK(status IN ('trusted','rejected')),
@@ -32,7 +32,7 @@ CREATE TABLE conversation_config (
   conversation_id TEXT PRIMARY KEY REFERENCES conversation(id) ON DELETE CASCADE,
   model TEXT NOT NULL CHECK(json_valid(model)),
   reasoning_level TEXT NOT NULL CHECK(reasoning_level IN ('off','minimal','low','medium','high','xhigh','max')),
-  system_prompt TEXT, instructions TEXT, permission_rule_set_id TEXT NOT NULL, mode TEXT NOT NULL CHECK(mode IN ('planning','coding')),
+  system_prompt TEXT, instructions TEXT, permission_rule_set_id TEXT NOT NULL, agent_profile TEXT NOT NULL,
   working_directory TEXT NOT NULL
 ) STRICT;
 CREATE TABLE conversation_event (

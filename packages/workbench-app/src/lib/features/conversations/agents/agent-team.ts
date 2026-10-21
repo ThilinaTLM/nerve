@@ -18,8 +18,8 @@ export type AgentRowState =
   | "stopped";
 
 /** Profile badge for a sub-agent. */
-export function subagentProfileLabel(agent: AgentRecord): string | undefined {
-  return agent.subagentProfile;
+export function agentProfileLabel(agent: AgentRecord): string | undefined {
+  return agent.agentProfile;
 }
 
 export function agentRowState(

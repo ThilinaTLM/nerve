@@ -139,8 +139,6 @@ function matchesWhen(
   ) {
     return false;
   }
-  const mode = input.conversation?.mode;
-  if (when.modes && (!mode || !when.modes.includes(mode))) return false;
   const permissionRuleSetId = input.conversation?.permissionRuleSetId;
   if (
     when.permissionRuleSets &&

@@ -21,6 +21,14 @@ export function options(
     throw new Error("No process expected");
   };
   return {
+    agentProfiles: {
+      async resolveLockedScalars() {
+        return {};
+      },
+      async switchProfile({ profile }) {
+        return { config: { agentProfile: profile ?? "coding" } };
+      },
+    },
     storage: openCoreStorage(database),
     dataDir,
     models,
@@ -47,7 +55,7 @@ export function options(
       systemPrompt: null,
       instructions: null,
       permissionRuleSetId: "baseline",
-      mode: "coding",
+      agentProfile: "coding",
 
       workingDirectory: dataDir,
     }),

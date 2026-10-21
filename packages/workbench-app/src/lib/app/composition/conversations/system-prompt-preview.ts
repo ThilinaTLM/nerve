@@ -3,7 +3,7 @@ import {
   capabilityOverridesDocumentSchema,
   emptyCapabilityOverrides,
 } from "@nervekit/contracts/capabilities";
-import { subagentProfilesDocumentSchema } from "@nervekit/contracts/subagents";
+import { agentProfilesDocumentSchema } from "@nervekit/contracts/agent-profiles";
 import type { OperationParams } from "@nervekit/contracts/operations";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 
@@ -13,7 +13,7 @@ type Pending = Pick<
   | "projectId"
   | "config"
   | "capabilityOverrides"
-  | "subagentProfileOverrides"
+  | "agentProfileOverrides"
 >;
 
 /** Capture current draft settings before awaiting the server; never use a prior request. */
@@ -40,10 +40,10 @@ export function captureSystemPromptPreview(input: {
         capabilityOverrides: capabilityOverridesDocumentSchema.parse(
           pending.capabilityOverrides ?? emptyCapabilityOverrides(),
         ),
-        ...(pending.subagentProfileOverrides
+        ...(pending.agentProfileOverrides
           ? {
-              subagentProfileOverrides: subagentProfilesDocumentSchema.parse(
-                pending.subagentProfileOverrides,
+              agentProfileOverrides: agentProfilesDocumentSchema.parse(
+                pending.agentProfileOverrides,
               ),
             }
           : {}),

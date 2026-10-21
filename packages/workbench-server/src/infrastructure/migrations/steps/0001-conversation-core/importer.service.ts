@@ -1,4 +1,4 @@
-import { copyExploreReports, countLegacyReports } from "./subagent-profiles.js";
+import { copyExploreReports, countLegacyReports } from "./agent-profiles.js";
 import { openCoreStorage } from "./storage.js";
 import {
   projectSchema,
@@ -92,7 +92,10 @@ async function importTrust(
 ): Promise<void> {
   const insert = (namespace: string, data: Legacy, key: string): void => {
     const projectScoped = namespace.startsWith("project-");
-    if (!projectScoped) {
+    const profileTrust =
+      namespace === "subagent_profile_trust" ||
+      namespace === "subagent-profile-trust";
+    if (!projectScoped && !profileTrust) {
       const converted = convertPromptTrust(data, home, scratchDir);
       if (!converted) {
         mapping.report.skip(
@@ -130,7 +133,9 @@ async function importTrust(
         ? "project_permissions"
         : namespace === "project-capability-trust"
           ? "project_capabilities"
-          : "prompt_suggestion";
+          : profileTrust
+            ? "agent_profile"
+            : "prompt_suggestion";
     const path =
       data.path ??
       (project
@@ -157,12 +162,15 @@ async function importTrust(
         ),
         kind,
         projectId,
-        path,
+        path: profileTrust
+          ? path.replace(/(^|\/)subagents(?=\/|\.json$)/g, "$1agent-profiles")
+          : path,
         name: data.name ?? null,
         contentDigest: data.digest ?? data.contentDigest,
-        status: ["rejected", "denied"].includes(data.status)
-          ? "rejected"
-          : "trusted",
+        status:
+          profileTrust || ["rejected", "denied"].includes(data.status)
+            ? "rejected"
+            : "trusted",
         createdAt,
         updatedAt: iso(data.updatedAt, createdAt),
       }),
@@ -171,6 +179,8 @@ async function importTrust(
   for (const namespace of [
     "project-permission-trust",
     "project-capability-trust",
+    "subagent_profile_trust",
+    "subagent-profile-trust",
     "prompt_suggestion_trust",
     "prompt-suggestion-trust",
   ]) {

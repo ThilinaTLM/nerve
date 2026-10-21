@@ -5,6 +5,7 @@ import { createId } from "@nervekit/contracts";
 import {
   assistantMessagePayloadSchema,
   type ConversationEvent,
+  type ConversationConfig,
   type CompactionOperation,
 } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
@@ -48,6 +49,7 @@ export class ConversationRunner {
       emit: CoreEmitter;
       compactions: CompactionOperations;
       now(): string;
+      effectiveConfig?(id: string): Promise<ConversationConfig>;
       compactionSettings?(
         conversationId: string,
       ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
@@ -82,7 +84,9 @@ export class ConversationRunner {
       signal.throwIfAborted();
       const storedConfig = this.options.storage.conversations.getConfig(id);
       if (!storedConfig) throw new Error("Conversation not found");
-      const config = structuredClone(storedConfig);
+      const config = structuredClone(
+        (await this.options.effectiveConfig?.(id)) ?? storedConfig,
+      );
       const resolved = structuredClone(
         await abortable(
           this.options.models.resolve(structuredClone(config.model)),
@@ -292,8 +296,8 @@ export class ConversationRunner {
             );
             if (
               !(
-                compactedModel?.provider === config.model.provider &&
-                compactedModel.modelId === config.model.modelId
+                compactedModel?.provider === prepared.model.provider &&
+                compactedModel.modelId === prepared.model.modelId
               ) &&
               shouldCompact(
                 estimatePathUsage(input.path),

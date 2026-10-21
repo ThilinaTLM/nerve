@@ -22,6 +22,10 @@ type Props = {
   selectedModelKey?: string;
   thinkingLevel?: ThinkingLevel;
   disabled?: boolean;
+  /** The active profile locks the model; the thinking level may still change. */
+  modelLocked?: boolean;
+  /** The active profile locks the thinking level. */
+  thinkingLocked?: boolean;
   modelShortcut?: string;
   thinkingShortcut?: string;
   runtimeChangeHint?: string;
@@ -35,6 +39,8 @@ let {
   selectedModelKey = "",
   thinkingLevel = "off",
   disabled = false,
+  modelLocked = false,
+  thinkingLocked = false,
   modelShortcut,
   thinkingShortcut,
   runtimeChangeHint,
@@ -136,13 +142,13 @@ function handleOpenChange(next: boolean) {
 }
 
 function selectModel(model: ModelInfo) {
-  if (disabled) return;
+  if (disabled || modelLocked) return;
   const key = modelKey(model);
   if (key !== selectedModelKey) onModelChange?.(key);
 }
 
 function selectThinking(level: ThinkingLevel) {
-  if (disabled) return;
+  if (disabled || thinkingLocked) return;
   if (level !== thinkingLevel) onThinkingLevelChange?.(level);
 }
 
@@ -210,6 +216,15 @@ $effect(() => {
   {/if}
 
   <PopoverBody>
+    {#if modelLocked || thinkingLocked}
+      <p class="px-1.5 text-muted-foreground">
+        The active profile locks {modelLocked && thinkingLocked
+          ? "the model and thinking level"
+          : modelLocked
+            ? "the model"
+            : "the thinking level"}.
+      </p>
+    {/if}
     {#if models.length === 0}
       <p class="px-1.5 text-muted-foreground">{emptyMessage}</p>
     {:else if filteredModels.length === 0}
@@ -227,7 +242,7 @@ $effect(() => {
           <PopoverRow
             label={entry.contextualLabel}
             selected={entry.key === selectedModelKey}
-            {disabled}
+            disabled={disabled || modelLocked}
             onclick={() => selectModel(entry.model)}
           />
         {/snippet}
@@ -253,7 +268,7 @@ $effect(() => {
               value={level}
               class="flex-none"
               title={thinkingLevelDetails[level]}
-              {disabled}
+              disabled={disabled || thinkingLocked}
             >
               {thinkingLevelLabel(level)}
             </ToggleGroup.Item>

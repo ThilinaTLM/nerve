@@ -5,11 +5,11 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import type { Snippet } from "svelte";
 import { thinkingLevels, type ModelInfo } from "@nervekit/contracts/models";
 import type {
-  SubagentProfileConfiguration,
-  SubagentProfilePatch,
-  SubagentProfilesConfiguration,
-  SubagentProfileThinking,
-} from "@nervekit/contracts/subagents";
+  AgentProfileConfiguration,
+  AgentProfilePatch,
+  AgentProfilesConfiguration,
+  AgentProfileThinking,
+} from "@nervekit/contracts/agent-profiles";
 import { filterCapabilityRows } from "$lib/presentation/composer/capability-list";
 import {
   profileDescription,
@@ -18,7 +18,7 @@ import {
   profileLayerDotClasses,
   profileLayerLabels,
   profileSummaryParts,
-} from "$lib/presentation/subagents/profile-layers";
+} from "$lib/presentation/agent-profiles/profile-layers";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import * as Select from "@nervekit/ui-kit/components/ui/select";
@@ -47,7 +47,7 @@ let {
 }: {
   query?: string;
   unavailableReason?: string;
-  configuration?: SubagentProfilesConfiguration;
+  configuration?: AgentProfilesConfiguration;
   loading: boolean;
   saving: boolean;
   readonly?: boolean;
@@ -58,8 +58,8 @@ let {
   delegation?: Snippet;
   /** Delegation is off: rows stay editable but dimmed. */
   delegationOff?: boolean;
-  modelEditor: Snippet<[SubagentProfileConfiguration, boolean]>;
-  onPatch: (name: string, patch: SubagentProfilePatch) => void;
+  modelEditor: Snippet<[AgentProfileConfiguration, boolean]>;
+  onPatch: (name: string, patch: AgentProfilePatch) => void;
   onRefresh: () => void;
 } = $props();
 
@@ -73,16 +73,20 @@ const blocked = $derived(
     !configuration ||
     configuration.diagnostics.some((d) => d.severity === "blocking"),
 );
-const levels: SubagentProfileThinking[] = ["lead", ...thinkingLevels];
+const levels: string[] = ["inherit", "default", ...thinkingLevels];
 const shared = $derived(configuration?.diagnostics ?? []);
 const profiles = $derived(
   filterCapabilityRows(
-    (configuration?.profiles ?? []).map((profile) => ({
-      profile,
-      key: profile.name,
-      label: profileLabel(profile),
-      searchText: `${profile.name} ${profileDescription(profile) ?? ""}`,
-    })),
+    (configuration?.profiles ?? [])
+      .filter(
+        (profile) => (profile.effective?.usableBy ?? "subagent") !== "lead",
+      )
+      .map((profile) => ({
+        profile,
+        key: profile.name,
+        label: profileLabel(profile),
+        searchText: `${profile.name} ${profileDescription(profile) ?? ""}`,
+      })),
     query,
   ),
 );
@@ -97,18 +101,18 @@ $effect(() => {
   if (editing && configuration && !editedProfile) editing = undefined;
 });
 
-function changedHere(profile: SubagentProfileConfiguration): boolean {
+function changedHere(profile: AgentProfileConfiguration): boolean {
   return Object.keys(profile.local ?? {}).length > 0;
 }
 
-function summary(profile: SubagentProfileConfiguration): string {
+function summary(profile: AgentProfileConfiguration): string {
   return profile.effective
     ? profileSummaryParts(profile.effective, models).join(" · ")
     : "";
 }
 
 function revertTitle(
-  profile: SubagentProfileConfiguration,
+  profile: AgentProfileConfiguration,
   field: QuickField,
 ): string {
   const value = profile.inherited?.[field];
@@ -128,7 +132,7 @@ function revertTitle(
 {/snippet}
 
 <!-- Only conversation changes are marked; inherited values need no label here. -->
-{#snippet provenance(profile: SubagentProfileConfiguration, field: QuickField)}
+{#snippet provenance(profile: AgentProfileConfiguration, field: QuickField)}
   {#if profile.local?.[field] !== undefined}
     <span
       class="flex min-w-0 flex-none items-center gap-1 text-muted-foreground"
@@ -150,11 +154,12 @@ function revertTitle(
   {/if}
 {/snippet}
 
-{#snippet quickEdit(profile: SubagentProfileConfiguration)}
+{#snippet quickEdit(profile: AgentProfileConfiguration)}
   {@const label = profileLabel(profile)}
   {@const problem = conversationProfileProblem(profile, shared)}
   {@const thinking =
-    profile.effective?.thinking ?? profile.local?.thinking ?? "lead"}
+    profile.effective?.thinking ?? profile.local?.thinking ?? "inherit"}
+  {@const thinkingLocked = typeof thinking === "object"}
   <div class="grid min-w-0 gap-2">
     <div class="flex min-h-7 min-w-0 items-center gap-1">
       <Button
@@ -202,12 +207,12 @@ function revertTitle(
       </div>
       <Select.Root
         type="single"
-        value={thinking}
-        disabled={blocked}
+        value={typeof thinking === "string" ? thinking : ""}
+        disabled={blocked || thinkingLocked}
         onValueChange={(value) => {
-          if (levels.includes(value as SubagentProfileThinking))
+          if (levels.includes(value))
             onPatch(profile.name, {
-              thinking: value as SubagentProfileThinking,
+              thinking: value as AgentProfileThinking,
             });
         }}
       >
@@ -230,7 +235,7 @@ function revertTitle(
   </div>
 {/snippet}
 
-{#snippet profileRow(profile: SubagentProfileConfiguration, label: string)}
+{#snippet profileRow(profile: AgentProfileConfiguration, label: string)}
   {@const problem = conversationProfileProblem(profile, shared)}
   <div
     class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"

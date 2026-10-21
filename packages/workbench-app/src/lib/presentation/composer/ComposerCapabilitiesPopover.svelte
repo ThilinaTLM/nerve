@@ -37,7 +37,7 @@ import {
 import type { CapabilitySkillRow } from "./capability-skill-row";
 import type {
   CapabilitySubagentCounts,
-  CapabilitySubagentProfiles,
+  CapabilityAgentProfiles,
   CapabilitySubagentSlot,
 } from "./capability-subagent-slot";
 import {
@@ -93,7 +93,7 @@ type Props = {
   onReset?: () => void;
   onRefresh?: () => void;
   onOpenSettings?: (page: "tools" | "skills" | "subagents") => void;
-  subagentProfiles?: CapabilitySubagentProfiles;
+  agentProfiles?: CapabilityAgentProfiles;
   subagentControlsEnabled?: boolean;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureTool?: (group: CapabilityToolGroup) => void;
@@ -109,7 +109,7 @@ let {
   onRefresh,
   onOpenSettings,
   onConfigureTool,
-  subagentProfiles,
+  agentProfiles,
   subagentControlsEnabled = false,
 }: Props = $props();
 
@@ -490,16 +490,16 @@ const subagentSlot: CapabilitySubagentSlot = {
       {@render capabilityList(optionalToolRows, "tools")}
     {:else if tab === "skills"}
       {@render capabilityList(skillRows, "skills")}
-    {:else if !subagentProfiles}
+    {:else if !agentProfiles}
       {#if subagentControlsEnabled}{@render delegationRow()}{/if}
       <p class="px-1.5 text-muted-foreground">
         Sub-agent profiles are available in saved lead conversations.
       </p>
     {/if}
     <!-- Mounted while open so the tab count is known on every tab. -->
-    {#if open && subagentProfiles}
+    {#if open && agentProfiles}
       <div class={tab === "subagents" ? "grid min-w-0 grid-cols-1" : "hidden"}>
-        {@render subagentProfiles(query, subagentSlot)}
+        {@render agentProfiles(query, subagentSlot)}
       </div>
     {/if}
   </PopoverBody>

@@ -109,7 +109,7 @@ const skillSections = $derived(
 /** Pages that hold project-scoped controls; the rest stay user-only. */
 const projectScopedPageIds = new Set([
   "tools",
-  "subagents",
+  "agent-profiles",
   "skills",
   "permissions",
 ]);

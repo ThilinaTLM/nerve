@@ -1,9 +1,9 @@
 import {
-  applySubagentProfilePatch,
-  type SubagentProfilesDocument,
-  type SubagentProfilePatch,
-  type SubagentProfilesConfiguration,
-} from "@nervekit/contracts/subagents";
+  applyAgentProfilePatch,
+  type AgentProfilesDocument,
+  type AgentProfilePatch,
+  type AgentProfilesConfiguration,
+} from "@nervekit/contracts/agent-profiles";
 
 import type { ConversationConfig } from "@nervekit/contracts/core";
 
@@ -16,11 +16,11 @@ export interface PendingConversationProfileScope {
   kind: "pending";
   projectId: string;
   pendingId: string;
-  document?: SubagentProfilesDocument;
+  document?: AgentProfilesDocument;
   lead: Pick<ConversationConfig, "model" | "reasoningLevel">;
   /** Read at mutation time so first-send locking does not wait for an effect. */
   readonly?: () => boolean;
-  onDocumentChange(document: SubagentProfilesDocument): void;
+  onDocumentChange(document: AgentProfilesDocument): void;
 }
 export type ConversationProfileScope =
   | SavedConversationProfileScope
@@ -53,13 +53,13 @@ function pendingInputKey(scope?: ConversationProfileScope): string | undefined {
     ? JSON.stringify([scope.document, scope.lead])
     : undefined;
 }
-const emptyDocument = (): SubagentProfilesDocument => ({
+const emptyDocument = (): AgentProfilesDocument => ({
   schemaVersion: 1,
   profiles: {},
 });
 
 export interface ConversationProfileState {
-  configuration?: SubagentProfilesConfiguration;
+  configuration?: AgentProfilesConfiguration;
   loading: boolean;
   saving: boolean;
   error?: string;
@@ -67,18 +67,18 @@ export interface ConversationProfileState {
 interface Dependencies {
   read(
     scope: SavedConversationProfileScope,
-  ): Promise<SubagentProfilesConfiguration>;
+  ): Promise<AgentProfilesConfiguration>;
   update(
     scope: SavedConversationProfileScope,
     name: string,
-    patch: SubagentProfilePatch,
+    patch: AgentProfilePatch,
     expectedDigest: string | null,
-  ): Promise<SubagentProfilesConfiguration>;
+  ): Promise<AgentProfilesConfiguration>;
   preview(input: {
     projectId: string;
-    document: SubagentProfilesDocument;
+    document: AgentProfilesDocument;
     lead: PendingConversationProfileScope["lead"];
-  }): Promise<SubagentProfilesConfiguration>;
+  }): Promise<AgentProfilesConfiguration>;
   changed(state: ConversationProfileState): void;
 }
 
@@ -165,7 +165,7 @@ export class ConversationProfileController {
     });
   }
 
-  mutate(name: string, patch: SubagentProfilePatch): Promise<void> {
+  mutate(name: string, patch: AgentProfilePatch): Promise<void> {
     const pending = this.scope;
     if (pending?.kind === "pending") {
       if (
@@ -176,7 +176,7 @@ export class ConversationProfileController {
         )
       )
         return Promise.resolve();
-      const document = applySubagentProfilePatch(
+      const document = applyAgentProfilePatch(
         pending.document ?? emptyDocument(),
         name,
         patch,

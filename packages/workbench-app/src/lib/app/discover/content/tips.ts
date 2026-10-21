@@ -4,10 +4,10 @@ import type { DiscoverTipEntry } from "./entries.js";
 export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
   {
     id: "user-controlled-planning",
-    version: 1,
-    title: "You choose when to plan or code",
+    version: 2,
+    title: "You choose which profile runs",
     summary:
-      "Switch Coding or Planning beside the composer, or press Shift+Tab. The agent can present a plan for review but cannot switch modes for you.",
+      "Pick Coding, Planning or a custom profile beside the composer, press Shift+Tab, or type /plan. The agent can present a plan for review but cannot switch profiles for you.",
   },
   {
     id: "html-previews",
@@ -24,14 +24,14 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
       "Voice input trims leading and trailing silence before transcription. Cancel an unwanted recording or transcription instead of waiting for text you do not need.",
   },
   {
-    id: "subagent-profiles",
+    id: "agent-profiles",
     version: 1,
     title: "Give teammates a reusable profile",
     summary:
       "Configure a profile's instructions, model, permissions, tools, and skills in Settings → Sub-agents. Profiles configure new teammates; follow-ups keep the existing teammate's context.",
     action: {
       kind: "settings",
-      pageId: "subagents",
+      pageId: "agent-profiles",
       sectionId: "profiles",
       label: "Configure Sub-agents",
     },

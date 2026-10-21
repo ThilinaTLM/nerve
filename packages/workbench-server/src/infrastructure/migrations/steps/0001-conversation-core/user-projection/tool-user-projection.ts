@@ -672,7 +672,7 @@ export function buildUserProjection(
       break;
     }
 
-    case "plan_mode_present": {
+    case "plan_present": {
       const review = record(resultRecord.review);
       const content = firstLines(stringField(review.content));
       resultPreview = {

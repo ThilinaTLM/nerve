@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ConversationConfig } from "@nervekit/contracts/core";
-import type { SubagentProfile } from "@nervekit/contracts/subagents";
-import { createProfileAvailability } from "./subagent-profile-availability.js";
+import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import { createProfileAvailability } from "./agent-profile-availability.js";
 import { createSubagentHost } from "./subagent-host.js";
 
 const lead = {
@@ -12,15 +12,16 @@ const lead = {
 
 const profile = (
   name: string,
-  patch: Partial<SubagentProfile> = {},
-): SubagentProfile => ({
+  patch: Partial<AgentProfile> = {},
+): AgentProfile => ({
   name,
   label: name,
   description: `${name} work`,
   enabled: true,
+  usableBy: "subagent",
   source: "user",
-  model: "lead",
-  thinking: "lead",
+  model: "inherit",
+  thinking: "inherit",
   permission: "read_only",
   compaction: "inherit",
   tools: {},
@@ -29,10 +30,10 @@ const profile = (
   ...patch,
 });
 
-function setup(profiles: SubagentProfile[], unavailable = false) {
+function setup(profiles: AgentProfile[], unavailable = false) {
   const calls: string[] = [];
   const initialized: unknown[] = [];
-  const capabilitySnapshots: SubagentProfile[] = [];
+  const capabilitySnapshots: AgentProfile[] = [];
   const host = createSubagentHost({
     profiles: {
       usable: async () =>

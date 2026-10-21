@@ -119,3 +119,46 @@ void test("portable unknown tools and skills are retained in the profile, not ch
     await cleanup();
   }
 });
+
+void test("lead profile deltas resolve before conversation overrides and are captured by children", async () => {
+  const { service, file, read, cleanup } = await setup({ nerve: ["alpha"] });
+  try {
+    service.useAgentProfiles(
+      async () =>
+        ({
+          tools: { web_fetch: false, plan_present: true },
+          skills: "none",
+        }) as never,
+      { nerve: [skill("alpha")], agentBrowser: [] },
+    );
+    const profileSelection = await service.configuration("p", "parent");
+    assert.ok(profileSelection.effective.disabledTools.includes("web_fetch"));
+    assert.ok(
+      !profileSelection.effective.disabledTools.includes("plan_present"),
+    );
+    assert.deepEqual(profileSelection.effective.enabledNerveSkills, []);
+    await atomicWriteJson(file("parent"), {
+      schemaVersion: 2,
+      tools: { web_fetch: { enabled: true } },
+      toolSettings: {},
+      skills: { file: {}, nerve: {}, agentBrowser: {} },
+    });
+    assert.ok(
+      !(
+        await service.configuration("p", "parent")
+      ).effective.disabledTools.includes("web_fetch"),
+    );
+    await service.initializeChild(
+      "parent",
+      "child",
+      { tools: {}, skills: "inherit" },
+      [skill("alpha")],
+      [],
+    );
+    const child = await read("child");
+    assert.deepEqual(child.tools.plan_present, { enabled: true });
+    assert.equal(child.skills.nerve.alpha, false);
+  } finally {
+    await cleanup();
+  }
+});

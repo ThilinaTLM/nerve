@@ -9,7 +9,7 @@ export function planReviewDisplayResult(
 ) {
   const interaction = call.interaction;
   if (
-    call.toolName !== "plan_mode_present" ||
+    call.toolName !== "plan_present" ||
     outcome !== "completed" ||
     interaction?.kind !== "plan_review" ||
     !interaction.resolution

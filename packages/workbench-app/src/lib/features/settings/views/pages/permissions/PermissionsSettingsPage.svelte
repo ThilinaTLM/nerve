@@ -113,7 +113,7 @@ async function trustProject(): Promise<void> {
 <SettingsSection
   id="default"
   title="Default"
-  info="New conversations start with this rule set. Existing conversations keep their selection, and planning mode always uses Planning."
+  info="New conversations start with this rule set. Existing conversations keep their selection, and agent profiles can set or lock it."
 >
   {#if !configuration && controller.loading}
     <p class="py-1.5 text-xs text-muted-foreground">Loading permissions…</p>

@@ -226,8 +226,8 @@ describe("recognizeMentions", () => {
     const cases: Array<[string, string, string, string]> = [
       ["@skill:browser-qa", "skill", "browser-qa", "skill:browser-qa"],
       ["@tool:github_search", "tool", "github_search", "tool:github_search"],
-      ["@agent:reviewer", "subagent_profile", "reviewer", "agent:reviewer"],
-      ["@agent:sub_01J9", "subagent_profile", "sub_01J9", "agent:sub_01J9"],
+      ["@agent:reviewer", "agent_profile", "reviewer", "agent:reviewer"],
+      ["@agent:sub_01J9", "agent_profile", "sub_01J9", "agent:sub_01J9"],
       ["@launch:dev", "launch_definition", "dev", "launch:dev"],
       ["@pr:412", "pull_request", "#412", "pr:412"],
       ["@issue:377", "issue", "#377", "issue:377"],

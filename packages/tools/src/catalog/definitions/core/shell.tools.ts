@@ -1,3 +1,4 @@
+import { defaultSettings } from "@nervekit/contracts/settings";
 import type { ToolRisk } from "@nervekit/contracts/permissions";
 import { Type } from "typebox";
 import { executeBash } from "../../../execution/shell/bash.js";
@@ -6,8 +7,7 @@ import type { LocalToolDefinition, ToolDefinition } from "../../contracts.js";
 
 const projectEnvironmentParameter = Type.Optional(
   Type.Boolean({
-    description:
-      "Automatic project environment activation defaults on; false uses the inherited environment.",
+    description: "False skips project environment activation.",
   }),
 );
 
@@ -18,7 +18,6 @@ export type BashToolSettings = {
 export function buildBashToolDefinition(
   settings: BashToolSettings,
 ): LocalToolDefinition {
-  const afterS = settings.autoPromotion.afterMs / 1000;
   const maxS = Math.floor(settings.maxTimeoutMs / 1000);
   return {
     ...shellToolDefinitions[0],
@@ -27,8 +26,7 @@ export function buildBashToolDefinition(
         command: Type.String({ minLength: 1 }),
         cwd: Type.Optional(
           Type.String({
-            description:
-              "Project-relative or absolute; must resolve inside the project.",
+            description: "Must resolve inside the project.",
           }),
         ),
         projectEnvironment: projectEnvironmentParameter,
@@ -40,16 +38,24 @@ export function buildBashToolDefinition(
       },
       { additionalProperties: false },
     ),
-    description: `Run a shell command. ${settings.autoPromotion.enabled ? `Moves to background after ${afterS}s if still running; background:true returns at once.` : `Requires timeout (max ${maxS}s); the process is killed when it expires. background:true returns at once.`} Background runs notify you on exit; don't poll. Large output is summarized with file paths for read/grep. Use launch for the user's dev servers.`,
+    description: bashDescription(settings),
   };
 }
+function bashDescription(settings: BashToolSettings): string {
+  const afterS = settings.autoPromotion.afterMs / 1000;
+  const maxS = Math.floor(settings.maxTimeoutMs / 1000);
+  const background = settings.autoPromotion.enabled
+    ? `Moves to the background after ${afterS}s (\`background: true\` returns at once)`
+    : `Requires timeout (max ${maxS}s); the process is killed when it expires. \`background: true\` returns at once`;
+  return `Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. ${background}; background runs notify you on exit, so don't poll. Large output is saved to files for read/grep.`;
+}
+
 const bashParameters = Type.Object(
   {
     command: Type.String({ minLength: 1 }),
     cwd: Type.Optional(
       Type.String({
-        description:
-          "Project-relative or absolute; must resolve inside the project.",
+        description: "Must resolve inside the project.",
       }),
     ),
     projectEnvironment: projectEnvironmentParameter,
@@ -78,8 +84,7 @@ export const shellToolDefinitions = [
     executor: executeBash,
     classifyRisk: classifyCommandRisk,
     label: "bash",
-    description:
-      "Run a shell command. Moves to background after 120s if still running; background:true returns at once. Background runs notify you on exit; don't poll. Large output is summarized with file paths for read/grep. Use launch for the user's dev servers.",
+    description: bashDescription(defaultSettings.tools.bash),
     parameters: bashParameters,
     executionMode: "sequential",
   },

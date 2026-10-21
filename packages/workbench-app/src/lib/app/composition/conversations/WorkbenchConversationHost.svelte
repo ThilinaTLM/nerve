@@ -1,5 +1,6 @@
 <script lang="ts">
 import { untrack } from "svelte";
+import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import { notify } from "$lib/application/notifications/notify.svelte";
 import type { WorkbenchConversationAdapterProps } from "$lib/features/conversations/views/workbench-conversation-adapter-props";
@@ -30,7 +31,6 @@ let {
   onOpenPendingWork,
   subagents,
   editorOverlay,
-  modeHidden = false,
   session,
   contextActions,
   activeProject,
@@ -74,7 +74,10 @@ let {
   composerEscapeToken = 0,
   micShortcutToken = 0,
   thinkingLevel = "off",
-  mode = "coding",
+  agentProfile = DEFAULT_AGENT_PROFILE,
+  agentProfiles = [],
+  lockedFields,
+  profileDisabled = false,
   permissionRuleSetId = "autonomous",
   permissionRuleSets = [],
   permissionRuleSetsLoading = false,
@@ -98,7 +101,7 @@ let {
   onOpenTask,
   onModelChange,
   onThinkingLevelChange,
-  onModeChange,
+  onAgentProfileChange,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
   onOpenPermissionSettings,
@@ -303,7 +306,10 @@ function menuForTranscript(
       models,
       selectedModelKey,
       thinkingLevel,
-      mode,
+      agentProfile,
+      agentProfiles,
+      lockedFields,
+      profileDisabled,
       permissionRuleSetId,
       permissionRuleSets,
       permissionRuleSetsLoading,
@@ -353,7 +359,6 @@ function menuForTranscript(
       activity={activityContent}
       text={composerText}
       {editorOverlay}
-      {modeHidden}
       {session}
       {contextActions}
       {activeProject}
@@ -381,7 +386,10 @@ function menuForTranscript(
       {composerEscapeToken}
       {micShortcutToken}
       {thinkingLevel}
-      {mode}
+      {agentProfile}
+      {agentProfiles}
+      {lockedFields}
+      {profileDisabled}
       {permissionRuleSetId}
       {permissionRuleSets}
       {permissionRuleSetsLoading}
@@ -400,7 +408,7 @@ function menuForTranscript(
       {onOpenSystemPrompt}
       {onModelChange}
       {onThinkingLevelChange}
-      {onModeChange}
+      {onAgentProfileChange}
       {onPermissionRuleSetChange}
       {onRefreshPermissionRuleSets}
       {onOpenPermissionSettings}
@@ -413,9 +421,9 @@ function menuForTranscript(
         projectSelected={Boolean(activeProject && onNewConversationInProject)}
         projectLabel={activeProjectLabel}
         projectPath={activeProject?.dir}
-        onNewChat={(initialMode) => {
+        onNewChat={(initialProfile) => {
           if (activeProject) {
-            onNewConversationInProject?.(activeProject.dir, initialMode);
+            onNewConversationInProject?.(activeProject.dir, initialProfile);
           }
         }}
       />{/if}

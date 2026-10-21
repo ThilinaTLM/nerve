@@ -6,6 +6,8 @@ export function mapProcessCall(
   args: Legacy,
   linked?: Legacy,
 ): { name: string; args: Legacy; generic: boolean } {
+  if (name === "plan_mode_present")
+    return { name: "plan_present", args, generic: false };
   if (name === "bash") {
     const rest = { ...args };
     delete rest.timeout;

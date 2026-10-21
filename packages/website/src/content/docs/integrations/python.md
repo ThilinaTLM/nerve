@@ -16,7 +16,7 @@ Environment overrides with sensitive-looking keys are rejected so an agent canno
 Do not use Python execution for web servers, watchers, daemons, or scripts waiting for input. Use a saved [launch configuration](/guides/background-tasks/) for a server or watcher, or `bash` with background execution for a conversation-owned command.
 
 :::caution[Not a hard sandbox]
-Planning mode can restrict ordinary writes to the artifact directory and can disable network access, but source comments explicitly exclude protection against malicious Python, native extensions, or filesystem tricks. Treat Python as local code execution.
+The Planning profile can restrict ordinary writes to the artifact directory and can disable network access, but source comments explicitly exclude protection against malicious Python, native extensions, or filesystem tricks. Treat Python as local code execution.
 :::
 
 ## Next steps

@@ -106,6 +106,10 @@
       "types": "./dist/domains/status/index.d.ts",
       "import": "./dist/domains/status/index.js"
     },
+    "./agent-profiles": {
+      "types": "./dist/domains/agent-profiles/index.d.ts",
+      "import": "./dist/domains/agent-profiles/index.js"
+    },
     "./subagents": {
       "types": "./dist/domains/subagents/index.d.ts",
       "import": "./dist/domains/subagents/index.js"

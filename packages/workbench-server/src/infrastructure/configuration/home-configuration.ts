@@ -318,6 +318,7 @@ export function settingsFromConfiguration(
     defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
     defaultModel: harness.defaults.model,
     defaultThinkingLevel: harness.defaults.thinkingLevel,
+    defaultAgentProfile: harness.defaultAgentProfile,
     rememberLastAgentSelection: harness.rememberLastSelection,
     lastAgentSelection: harness.lastSelection,
     application: {
@@ -387,9 +388,8 @@ export function configurationWithSettings(
       },
       harness: {
         version: 3,
+        defaultAgentProfile: parsed.defaultAgentProfile,
         defaults: {
-          // New agents always start in coding mode; planning is a per-agent choice.
-          mode: "coding",
           permissionRuleSetId: parsed.defaultPermissionRuleSetId,
           model: parsed.defaultModel,
           thinkingLevel: parsed.defaultThinkingLevel,

@@ -11,7 +11,7 @@ Settings stores a global default model/thinking level and remembers the last sel
 
 A model scope narrows the picker. Empty scope means every authenticated model; a nonempty list filters it. Stale scope entries remain in Settings as unavailable and are ignored until the model returns or the entry is removed.
 
-Sub-agents use the lead's model and thinking level unless their [profile](/reference/subagent-profiles/) names its own, which can suit work such as parallel codebase research. The choice is made when a sub-agent is created; afterwards you can change its model and thinking level in its own view like any conversation. If an existing child reaches usage limits, edit that child directly: changing its profile or the lead's model will not update it, and follow-ups keep its current configuration. Scoped profile configuration adds conversation-local model/thinking overrides for future children without changing reusable profiles.
+Sub-agents use the lead's model and thinking level unless their [profile](/reference/agent-profiles/) names its own, which can suit work such as parallel codebase research. The choice is made when a sub-agent is created; afterwards you can change its model and thinking level in its own view like any conversation. If an existing child reaches usage limits, edit that child directly: changing its profile or the lead's model will not update it, and follow-ups keep its current configuration. Scoped profile configuration adds conversation-local model/thinking overrides for future children without changing reusable profiles.
 
 ## Catalog limits
 
@@ -25,7 +25,7 @@ The full vocabulary is:
 
 `off` · `minimal` · `low` · `medium` · `high` · `xhigh` · `max`
 
-Concrete support comes from model metadata and provider mappings. `xhigh` and `max` are only meaningful for selected model families. General runtime resolution clamps unsupported requests. Sub-agent profile configuration instead blocks known model/thinking incompatibility at creation, with a diagnostic prompting a supported choice; it must not silently downgrade an explicit profile choice.
+Concrete support comes from model metadata and provider mappings. `xhigh` and `max` are only meaningful for selected model families. General runtime resolution clamps unsupported requests. Agent profile configuration instead blocks known model/thinking incompatibility at creation, with a diagnostic prompting a supported choice; it must not silently downgrade an explicit profile choice.
 
 ## Choosing well
 

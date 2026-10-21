@@ -3,15 +3,15 @@ import { test } from "node:test";
 import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { defaultSettings } from "@nervekit/contracts/settings";
 import {
-  builtInSubagentProfiles,
-  type SubagentProfile,
-} from "@nervekit/contracts/subagents";
+  builtInAgentProfiles,
+  type AgentProfile,
+} from "@nervekit/contracts/agent-profiles";
 import { userCapabilitySelection } from "./user-capability-selection.js";
 import { profileToolAvailability } from "./profile-tool-availability.js";
-import { createProfileAvailability } from "./subagent-profile-availability.js";
+import { createProfileAvailability } from "./agent-profile-availability.js";
 
-const profile: SubagentProfile = {
-  ...builtInSubagentProfiles[0],
+const profile: AgentProfile = {
+  ...builtInAgentProfiles[0],
   source: "builtin",
   tools: { web_search: true },
   skills: "inherit",
@@ -57,7 +57,7 @@ void test("an unavailable image explanation override warns, not primary-model bl
     provider: "provider",
     modelId: "inherited",
   };
-  const customized: SubagentProfile = {
+  const customized: AgentProfile = {
     ...profile,
     tools: {
       explain_image: {

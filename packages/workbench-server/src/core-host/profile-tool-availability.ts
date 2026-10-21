@@ -4,11 +4,11 @@ import {
   type CapabilityConfiguration,
 } from "@nervekit/contracts/capabilities";
 import type { ModelSelection } from "@nervekit/contracts/models";
-import type { SubagentProfile } from "@nervekit/contracts/subagents";
+import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
 
 /** The same integration credential namespaces used by tool execution. */
 export async function profileToolAvailability(options: {
-  profile: SubagentProfile;
+  profile: AgentProfile;
   installed: ReadonlySet<string>;
   configuration: Pick<
     CapabilityConfiguration,

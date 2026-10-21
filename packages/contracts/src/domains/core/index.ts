@@ -194,3 +194,6 @@ export {
   compactionOperationSchema,
   type CompactionOperation,
 } from "./compaction-operation.js";
+
+export { setConversationAgentProfileRequestSchema } from "./core-operations.js";
+export type { SetConversationAgentProfileRequest } from "./core-operations.js";

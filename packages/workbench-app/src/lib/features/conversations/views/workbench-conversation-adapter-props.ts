@@ -34,7 +34,11 @@ import type { ComposerSuggestion } from "./composer-suggestion";
 import type { ConversationUsageSummary } from "$lib/presentation/usage/conversation-usage";
 import type { Snippet } from "svelte";
 import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
-import type { ComposerEditorOverlay } from "$lib/presentation/conversations/conversation-view-contracts";
+import type {
+  ComposerAgentProfile,
+  ComposerEditorOverlay,
+  ComposerLockedFields,
+} from "$lib/presentation/conversations/conversation-view-contracts";
 import type { SubagentsCapability } from "$lib/presentation/context.svelte";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
 
@@ -47,7 +51,6 @@ export type WorkbenchConversationAdapterProps = {
   /** Sub-agents of the viewed conversation, for the sub-agent tool cards. */
   subagents?: SubagentsCapability;
   editorOverlay?: ComposerEditorOverlay;
-  modeHidden?: boolean;
   session?: ConversationSessionInfo;
   contextActions?: Snippet<[closePopover: () => void]>;
   activeProject?: ProjectRecord;
@@ -93,7 +96,10 @@ export type WorkbenchConversationAdapterProps = {
   composerEscapeToken?: number;
   micShortcutToken?: number;
   thinkingLevel?: AgentRecord["thinkingLevel"];
-  mode?: AgentRecord["mode"];
+  agentProfile?: string;
+  agentProfiles?: ComposerAgentProfile[];
+  lockedFields?: ComposerLockedFields;
+  profileDisabled?: boolean;
   permissionRuleSetId?: PermissionRuleSetId;
   permissionRuleSets?: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -117,7 +123,7 @@ export type WorkbenchConversationAdapterProps = {
   onOpenSystemPrompt?: () => void | Promise<void>;
   onNewConversationInProject?: (
     projectDir: string,
-    initialMode?: AgentRecord["mode"],
+    initialProfile?: string,
   ) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
@@ -125,7 +131,7 @@ export type WorkbenchConversationAdapterProps = {
   onThinkingLevelChange?: (
     value: NonNullable<AgentRecord["thinkingLevel"]>,
   ) => void;
-  onModeChange?: (value: AgentRecord["mode"]) => void;
+  onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;

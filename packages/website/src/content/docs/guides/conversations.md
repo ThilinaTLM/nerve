@@ -5,7 +5,7 @@ sidebar:
   order: 6
 ---
 
-Conversations belong to a project and persist under `NERVE_HOME`. The navigator shows recent conversations, open/activity state, and bounded lists with **See more** for larger histories. Activity is a server-derived snapshot: running, waiting for you, waiting for background work, error, stopped, idle, or completed. Coding and planning are modes that change presentation and policy, not lifecycle states.
+Conversations belong to a project and persist under `NERVE_HOME`. The navigator shows recent conversations, open/activity state, and bounded lists with **See more** for larger histories. Activity is a server-derived snapshot: running, waiting for you, waiting for background work, error, stopped, idle, or completed. Coding and Planning are profiles that change presentation and policy, not lifecycle states.
 
 ## Create and find
 

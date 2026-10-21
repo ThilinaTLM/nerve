@@ -69,10 +69,12 @@ import {
 } from "$lib/application/workspace";
 import { refreshCenterTab } from "$lib/app/shell/refresh-center-tab.svelte";
 import { permissionRuleSetCatalog } from "$lib/application/permissions/permission-rule-set-catalog.svelte";
+import { selectablePermissionRuleSets } from "$lib/domain/permissions/rule-set-options";
 import {
-  effectivePermissionRuleSetId,
-  selectablePermissionRuleSets,
-} from "$lib/domain/permissions/rule-set-options";
+  agentProfileCatalog,
+  leadAgentProfiles,
+} from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import { lockedFieldsOf } from "$lib/application/agent-profiles/profile-locks";
 
 type Props = {
   children?: Snippet;
@@ -98,18 +100,30 @@ const activeConversation = $derived(activeStore?.snapshot?.conversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
 const hasDirtyFiles = $derived(hasDirtyFileViews());
-const selectedMode = $derived(config?.mode ?? "coding");
+const selectedAgentProfile = $derived(config?.agentProfile ?? "");
+const agentProfileNames = $derived(
+  leadAgentProfiles(
+    agentProfileCatalog.profiles(activeConversation?.projectId),
+  ).map((profile) => profile.name),
+);
+const lockedFields = $derived(
+  lockedFieldsOf(
+    agentProfileCatalog
+      .profiles(activeConversation?.projectId)
+      .find((profile) => profile.name === selectedAgentProfile),
+  ),
+);
+$effect(() => {
+  if (activeConversation)
+    void agentProfileCatalog.ensure(activeConversation.projectId);
+});
 const selectedModelKey = $derived(config ? modelKey(config.model) : "");
 const selectedPermissionRuleSetId = $derived(
-  effectivePermissionRuleSetId(
-    config?.permissionRuleSetId ?? "supervised",
-    selectedMode,
-  ),
+  config?.permissionRuleSetId ?? "supervised",
 );
 const permissionRuleSetIds = $derived(
   selectablePermissionRuleSets(
     permissionRuleSetCatalog.summaries(activeProject?.id),
-    selectedMode,
   ).map((ruleSet) => ruleSet.id),
 );
 const selectedThinkingLevel = $derived(config?.reasoningLevel ?? "off");
@@ -178,21 +192,25 @@ const appShortcuts = createAppShortcuts({
   selectedPermissionRuleSetId: () => selectedPermissionRuleSetId,
   permissionRuleSetIds: () => permissionRuleSetIds,
   setComposerPermissionRuleSet: async (permissionRuleSetId) => {
+    if (lockedFields.permission) return;
     await activeStore?.configure({ permissionRuleSetId });
   },
   usableModels: () => usableModels,
   selectedModelKey: () => selectedModelKey,
   setComposerModel: async (key) => {
+    if (lockedFields.model) return;
     const model = parseModelKey(key);
     if (model) await activeStore?.configure({ model });
   },
   selectedThinkingLevel: () => selectedThinkingLevel,
   setComposerThinkingLevel: async (reasoningLevel) => {
+    if (lockedFields.thinking) return;
     await activeStore?.configure({ reasoningLevel });
   },
-  selectedMode: () => selectedMode,
-  setComposerMode: async (mode) => {
-    await activeStore?.configure({ mode });
+  agentProfileNames: () => agentProfileNames,
+  selectedAgentProfile: () => selectedAgentProfile,
+  setComposerAgentProfile: async (profile) => {
+    await activeStore?.setAgentProfile(profile);
   },
   togglePanelDock: (dock) => togglePanelDock(dock, responsive.isCompact),
 });

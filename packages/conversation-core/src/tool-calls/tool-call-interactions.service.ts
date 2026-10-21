@@ -111,10 +111,10 @@ export class ToolCallInteractions {
         const rule = call.supervision?.suggestedRules[0];
         if (rule === undefined)
           throw new Error("No suggested permission rule to persist");
-        const { projectDir, config } = this.options.context(
+        const { projectDir, config } = await this.options.context(
           call.conversationId,
         );
-        // A mode change must not move a planning approval into the coding overlay.
+        // A profile change must not move a planning approval into the coding overlay.
         const authority = call.supervision?.authority;
         const ruleSetId =
           authority &&
