@@ -16,11 +16,9 @@ import {
   type AgentProfileDraft,
   type AgentProfilePatch,
   type AgentProfilesConfiguration,
-  type AgentProfileUsableBy,
 } from "@nervekit/contracts/agent-profiles";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import IconAction from "@nervekit/ui-kit/components/composites/icon-action";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button, buttonVariants } from "@nervekit/ui-kit/components/ui/button";
 import * as DropdownMenu from "@nervekit/ui-kit/components/ui/dropdown-menu";
@@ -39,7 +37,6 @@ import {
   EntityCard,
   EntityRow,
   SettingsInlineMessage,
-  SettingsSection,
 } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
@@ -81,8 +78,17 @@ import {
   type ChangeKey,
 } from "./profile-changes";
 import type { ChangeDraft, ProfileEditContext } from "./profile-edit-context";
+import {
+  PROFILE_KIND_PAGES,
+  profileKindText,
+  profilesOfKind,
+  unreadableProfiles,
+  type ProfileKind,
+} from "./profile-kind";
 
 type Props = {
+  /** Which page this is: Agents (`lead`) or Sub-Agents (`subagent`). */
+  kind: ProfileKind;
   scope: "user" | "project";
   settingsDraft: Settings;
   models?: ModelInfo[];
@@ -93,6 +99,7 @@ type Props = {
   onOpenFile?: (path: string) => void;
 };
 let {
+  kind,
   scope,
   settingsDraft,
   models = [],
@@ -134,51 +141,33 @@ const startProfile = $derived(
 
 // ---- display ---------------------------------------------------------------
 
-const usableLabels: Record<AgentProfileUsableBy, string> = {
-  lead: "main agent",
-  subagent: "sub-agent",
-  both: "main agent and sub-agent",
-};
-const usableItems = [
-  { value: "lead", label: "Main agent" },
-  { value: "subagent", label: "Sub-agent" },
-  { value: "both", label: "Main agent and sub-agent" },
-];
-const groupDefs: { usableBy: AgentProfileUsableBy; title: string }[] = [
-  { usableBy: "lead", title: "Main agent" },
-  { usableBy: "subagent", title: "Sub-agents" },
-  { usableBy: "both", title: "Main agent and sub-agents" },
-];
+const text = $derived(profileKindText[kind]);
+const kindProfiles = $derived(profilesOfKind(profiles, kind));
 
 let filter = $state("");
+const needle = $derived(filter.trim().toLowerCase());
 const visible = $derived(
-  profiles.filter((profile) => {
-    const needle = filter.trim().toLowerCase();
-    return (
+  kindProfiles.filter(
+    (profile) =>
       !needle ||
       `${profile.name} ${profile.effective?.label ?? ""} ${profile.effective?.description ?? ""}`
         .toLowerCase()
-        .includes(needle)
-    );
-  }),
-);
-const groups = $derived(
-  groupDefs
-    .map((group) => ({
-      ...group,
-      list: visible.filter(
-        (profile) =>
-          (profile.effective?.usableBy ?? profile.local?.usableBy) ===
-          group.usableBy,
-      ),
-    }))
-    .filter((group) => group.list.length > 0),
+        .includes(needle),
+  ),
 );
 const unreadable = $derived(
-  visible.filter((profile) => !profile.effective && !profile.local),
+  unreadableProfiles(profiles).filter(
+    (profile) => !needle || profile.name.toLowerCase().includes(needle),
+  ),
+);
+/** Local files not yet in effect (e.g. awaiting trust): shown as a stub card. */
+const pending = $derived(
+  visible.filter((profile) => profile.local && !profile.effective),
 );
 const untrusted = $derived(
-  profiles.filter((profile) => profile.local && profile.trust === "untrusted"),
+  kindProfiles.filter(
+    (profile) => profile.local && profile.trust === "untrusted",
+  ),
 );
 
 function modelText(value: unknown): string {
@@ -282,12 +271,9 @@ function rows(profile: AgentProfileConfiguration) {
 
 let busy = $state<string>();
 let errors = $state<Record<string, string>>({});
-let editing = $state<
-  Record<
-    string,
-    { label: string; description: string; usableBy: AgentProfileUsableBy }
-  >
->({});
+let editing = $state<Record<string, { label: string; description: string }>>(
+  {},
+);
 
 async function mutate(
   name: string,
@@ -330,7 +316,6 @@ function startEdit(profile: AgentProfileConfiguration): void {
   editing[profile.name] = {
     label: effective.label,
     description: effective.description,
-    usableBy: effective.usableBy,
   };
 }
 async function finishEdit(profile: AgentProfileConfiguration): Promise<void> {
@@ -339,14 +324,12 @@ async function finishEdit(profile: AgentProfileConfiguration): Promise<void> {
   if (!draft || !effective) return;
   const changed =
     draft.label !== effective.label ||
-    draft.description !== effective.description ||
-    draft.usableBy !== effective.usableBy;
+    draft.description !== effective.description;
   if (
     !changed ||
     (await patch(profile, {
       label: draft.label,
       description: draft.description,
-      usableBy: draft.usableBy,
     }))
   )
     delete editing[profile.name];
@@ -408,7 +391,6 @@ let newError = $state<string>();
 async function createProfile(input: {
   label: string;
   name: string;
-  usableBy: AgentProfileUsableBy;
   copyOf?: string;
 }): Promise<void> {
   const source = profiles.find(
@@ -425,7 +407,7 @@ async function createProfile(input: {
       ...target,
       name: input.name,
       expectedDigest: null,
-      patch: { ...base, label: input.label, usableBy: input.usableBy },
+      patch: { ...base, label: input.label, usableBy: kind },
     }),
   );
   if (ok) newOpen = false;
@@ -457,7 +439,11 @@ function duplicate(profile: AgentProfileConfiguration): void {
       ...target,
       name,
       expectedDigest: null,
-      patch: { ...profilePatchFrom(effective as AgentProfileDraft), label },
+      patch: {
+        ...profilePatchFrom(effective as AgentProfileDraft),
+        label,
+        usableBy: kind,
+      },
     }),
   );
 }
@@ -565,11 +551,6 @@ function isBuiltin(profile: AgentProfileConfiguration): boolean {
 }
 </script>
 
-<SettingsInlineMessage
-  tone="neutral"
-  text="Profiles are templates. Changes apply the next time a profile is applied, not to running conversations."
-/>
-
 {#if agentProfilesState.error && !loadedHere}
   <SettingsInlineMessage tone="destructive" text={agentProfilesState.error}>
     {#snippet actions()}
@@ -611,8 +592,8 @@ function isBuiltin(profile: AgentProfileConfiguration): boolean {
     <div class="w-64 max-w-full">
       <SearchInput
         bind:value={filter}
-        placeholder="Filter profiles"
-        ariaLabel="Filter profiles"
+        placeholder={`Search ${text.plural.toLowerCase()}`}
+        ariaLabel={`Search ${text.plural.toLowerCase()}`}
       />
     </div>
     <Button
@@ -624,233 +605,233 @@ function isBuiltin(profile: AgentProfileConfiguration): boolean {
         newOpen = true;
       }}
     >
-      <Plus class="size-3" aria-hidden="true" />New profile
+      <Plus class="size-3" aria-hidden="true" />New {text.singularLower}
     </Button>
   </div>
 
-  {#each groups as group (group.usableBy)}
-    <SettingsSection
-      id={`profiles-${group.usableBy}`}
-      title={group.title}
-      surface={false}
-    >
-      {#each group.list as profile (profile.name)}
-        {@const effective = profile.effective}
-        {@const edit = editing[profile.name]}
-        {@const own = Boolean(profile.local)}
-        {@const profileRows = rows(profile)}
-        {#if effective}
-          <EntityCard>
-            {#snippet head()}
-              {#if edit}
-                <div class="grid gap-1.5">
-                  {#if errors[profile.name]}
-                    <SettingsInlineMessage
-                      tone="warning"
-                      text={errors[profile.name]}
-                    >
-                      {#snippet actions()}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onclick={() => reload(profile)}>Reload</Button
-                        >
-                      {/snippet}
-                    </SettingsInlineMessage>
-                  {/if}
-                  <Input
-                    bind:value={edit.label}
-                    aria-label="Label"
-                    maxlength={80}
-                  />
-                  <Input
-                    bind:value={edit.description}
-                    aria-label="When to use"
-                    maxlength={200}
-                  />
-                  <div class="flex items-center gap-2">
-                    <span class="text-xs text-muted-foreground">Usable by</span>
-                    <div class="w-56">
-                      <SelectField
-                        items={usableItems}
-                        value={edit.usableBy}
-                        ariaLabel="Usable by"
-                        onValueChange={(next) =>
-                          (edit.usableBy = next as AgentProfileUsableBy)}
-                      />
-                    </div>
-                  </div>
-                  <p class="text-xs text-muted-foreground">
-                    Name <span class="font-mono">{profile.name}</span> is the file
-                    name and can't change.
-                  </p>
-                </div>
-              {:else}
-                <div class="flex min-w-0 flex-wrap items-center gap-2">
-                  <h4 class="text-sm font-medium text-foreground">
-                    {effective.label}
-                  </h4>
-                  {#if !project && profile.name === startProfile && effective.usableBy !== "subagent"}<Badge
-                      variant="accent">Starts new conversations</Badge
-                    >{/if}
-                  {#if effective.source === "builtin" || isBuiltin(profile)}<Badge
-                      variant="neutral">Built-in</Badge
-                    >{/if}
-                  {#if own && profile.inherited}<Badge variant="neutral"
-                      >Customized</Badge
-                    >{/if}
-                  {#if project && effective.source === "project" && !profile.inherited}<Badge
-                      variant="info">Project only</Badge
-                    >{/if}
-                  {#if profile.trust === "untrusted" && own}<Badge
-                      variant="warning">Needs review</Badge
-                    >{/if}
-                  {#if profile.diagnostics.some((item) => item.severity === "blocking")}<Badge
-                      variant="destructive">Can't be used</Badge
-                    >
-                  {:else if profile.diagnostics.length}<Badge variant="warning"
-                      >Reduced capabilities</Badge
-                    >{/if}
-                  {#if !effective.enabled}<Badge variant="neutral"
-                      >Disabled</Badge
-                    >{/if}
-                </div>
-                <p class="text-xs text-muted-foreground">
-                  {effective.description} Usable by {usableLabels[
-                    effective.usableBy
-                  ]}.
-                </p>
-                {#each profile.diagnostics as diagnostic, index (index)}
-                  <ProfileDiagnosticMessage {diagnostic} />
-                {/each}
+  <div class="grid gap-3" id={PROFILE_KIND_PAGES[kind]}>
+    {#each visible as profile (profile.name)}
+      {@const effective = profile.effective}
+      {@const edit = editing[profile.name]}
+      {@const own = Boolean(profile.local)}
+      {@const profileRows = rows(profile)}
+      {#if effective}
+        <EntityCard>
+          {#snippet head()}
+            {#if edit}
+              <div class="grid gap-1.5">
                 {#if errors[profile.name]}
-                  <p class="text-xs text-destructive" role="alert">
-                    {errors[profile.name]}
-                  </p>
-                {/if}
-              {/if}
-            {/snippet}
-            {#snippet actions()}
-              <Switch
-                checked={effective.enabled}
-                disabled={busy === profile.name}
-                aria-label={`${effective.label} available in ${project ? "this project" : "your settings"}`}
-                onCheckedChange={(enabled) => void patch(profile, { enabled })}
-              />
-              <IconAction
-                icon={edit ? Check : Pencil}
-                label={edit ? "Done" : "Edit label, description and usable by"}
-                onclick={() =>
-                  edit ? void finishEdit(profile) : startEdit(profile)}
-              />
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger
-                  class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-                  aria-label={`${effective.label} actions`}
-                >
-                  <Ellipsis class="size-3.5" aria-hidden="true" />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Content align="end" class="w-56">
-                  <DropdownMenu.Item onSelect={() => duplicate(profile)}
-                    >Duplicate as new profile</DropdownMenu.Item
+                  <SettingsInlineMessage
+                    tone="warning"
+                    text={errors[profile.name]}
                   >
-                  {#if !project}
-                    {#if projectId}<DropdownMenu.Item
-                        onSelect={() => void copyTo(profile, "project")}
-                        >Copy to project</DropdownMenu.Item
-                      >{/if}
+                    {#snippet actions()}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onclick={() => reload(profile)}>Reload</Button
+                      >
+                    {/snippet}
+                  </SettingsInlineMessage>
+                {/if}
+                <Input
+                  bind:value={edit.label}
+                  aria-label="Label"
+                  maxlength={80}
+                />
+                <Input
+                  bind:value={edit.description}
+                  aria-label="When to use"
+                  maxlength={200}
+                />
+                <p class="text-xs text-muted-foreground">
+                  Name <span class="font-mono">{profile.name}</span> is the file name
+                  and can't change.
+                </p>
+              </div>
+            {:else}
+              <div class="flex min-w-0 flex-wrap items-center gap-2">
+                <h4 class="text-sm font-medium text-foreground">
+                  {effective.label}
+                </h4>
+                {#if !project && profile.name === startProfile && kind === "lead"}<Badge
+                    variant="accent">Starts new conversations</Badge
+                  >{/if}
+                {#if effective.source === "builtin" || isBuiltin(profile)}<Badge
+                    variant="neutral">Built-in</Badge
+                  >{/if}
+                {#if own && profile.inherited}<Badge variant="neutral"
+                    >Customized</Badge
+                  >{/if}
+                {#if project && effective.source === "project" && !profile.inherited}<Badge
+                    variant="info">Project only</Badge
+                  >{/if}
+                {#if profile.trust === "untrusted" && own}<Badge
+                    variant="warning">Needs review</Badge
+                  >{/if}
+                {#if profile.diagnostics.some((item) => item.severity === "blocking")}<Badge
+                    variant="destructive">Can't be used</Badge
+                  >
+                {:else if profile.diagnostics.length}<Badge variant="warning"
+                    >Reduced capabilities</Badge
+                  >{/if}
+                {#if !effective.enabled}<Badge variant="neutral">Disabled</Badge
+                  >{/if}
+              </div>
+              <p class="text-xs text-muted-foreground">
+                {effective.description}
+                {#if effective.usableBy === "both"}Also listed under {profileKindText[
+                    kind === "lead" ? "subagent" : "lead"
+                  ].plural}.{/if}
+              </p>
+              {#each profile.diagnostics as diagnostic, index (index)}
+                <ProfileDiagnosticMessage {diagnostic} />
+              {/each}
+              {#if errors[profile.name]}
+                <p class="text-xs text-destructive" role="alert">
+                  {errors[profile.name]}
+                </p>
+              {/if}
+            {/if}
+          {/snippet}
+          {#snippet actions()}
+            <Switch
+              checked={effective.enabled}
+              disabled={busy === profile.name}
+              aria-label={`${effective.label} available in ${project ? "this project" : "your settings"}`}
+              onCheckedChange={(enabled) => void patch(profile, { enabled })}
+            />
+            <IconAction
+              icon={edit ? Check : Pencil}
+              label={edit ? "Done" : "Edit label and description"}
+              onclick={() =>
+                edit ? void finishEdit(profile) : startEdit(profile)}
+            />
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger
+                class={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                aria-label={`${effective.label} actions`}
+              >
+                <Ellipsis class="size-3.5" aria-hidden="true" />
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="end" class="w-56">
+                <DropdownMenu.Item onSelect={() => duplicate(profile)}
+                  >Duplicate as new {text.singularLower}</DropdownMenu.Item
+                >
+                {#if !project}
+                  {#if projectId}<DropdownMenu.Item
+                      onSelect={() => void copyTo(profile, "project")}
+                      >Copy to project</DropdownMenu.Item
+                    >{/if}
+                {:else}
+                  <DropdownMenu.Item
+                    onSelect={() => void copyTo(profile, "user")}
+                    >Copy to user</DropdownMenu.Item
+                  >
+                {/if}
+                <DropdownMenu.Item onSelect={() => exportJson(profile)}
+                  >Export as JSON</DropdownMenu.Item
+                >
+                {#if onOpenFile && own}<DropdownMenu.Item
+                    onSelect={() => onOpenFile?.(filePath(profile))}
+                    >Open file</DropdownMenu.Item
+                  >{/if}
+                {#if own}
+                  <DropdownMenu.Separator />
+                  {#if profile.inherited}
+                    <DropdownMenu.Item onSelect={() => ask("reset", profile)}
+                      >Reset customizations</DropdownMenu.Item
+                    >
                   {:else}
                     <DropdownMenu.Item
-                      onSelect={() => void copyTo(profile, "user")}
-                      >Copy to user</DropdownMenu.Item
+                      variant="destructive"
+                      onSelect={() => ask("delete", profile)}
+                      >Delete profile</DropdownMenu.Item
                     >
                   {/if}
-                  <DropdownMenu.Item onSelect={() => exportJson(profile)}
-                    >Export as JSON</DropdownMenu.Item
+                {/if}
+              </DropdownMenu.Content>
+            </DropdownMenu.Root>
+          {/snippet}
+
+          {#each profileRows as row (row.key)}
+            <EntityRow
+              label={row.label}
+              value={row.text}
+              editLabel={`Edit ${row.label.toLowerCase()}`}
+              removeLabel={`Remove. ${row.label} uses the agent settings`}
+              onEdit={() => editChange(profile, row)}
+              onRemove={() => void patch(profile, removeChangePatch(row.key))}
+            >
+              {#snippet trailing()}
+                {#if row.mode === "lock"}<Badge variant="outline"
+                    ><Lock aria-hidden="true" />Locked</Badge
                   >
-                  {#if onOpenFile && own}<DropdownMenu.Item
-                      onSelect={() => onOpenFile?.(filePath(profile))}
-                      >Open file</DropdownMenu.Item
-                    >{/if}
-                  {#if own}
-                    <DropdownMenu.Separator />
-                    {#if profile.inherited}
-                      <DropdownMenu.Item onSelect={() => ask("reset", profile)}
-                        >Reset customizations</DropdownMenu.Item
-                      >
-                    {:else}
-                      <DropdownMenu.Item
-                        variant="destructive"
-                        onSelect={() => ask("delete", profile)}
-                        >Delete profile</DropdownMenu.Item
-                      >
-                    {/if}
-                  {/if}
-                </DropdownMenu.Content>
-              </DropdownMenu.Root>
-            {/snippet}
+                {:else if row.mode === "set"}<Badge variant="outline">Set</Badge
+                  >{/if}
+                {#if row.projectChange}<Badge variant="info">Project</Badge
+                  >{/if}
+              {/snippet}
+            </EntityRow>
+          {:else}
+            <p class="px-3 py-2 text-xs text-muted-foreground">
+              No changes. Uses the agent settings.
+            </p>
+          {/each}
 
-            {#each profileRows as row (row.key)}
-              <EntityRow
-                label={row.label}
-                value={row.text}
-                editLabel={`Edit ${row.label.toLowerCase()}`}
-                removeLabel={`Remove. ${row.label} uses the agent settings`}
-                onEdit={() => editChange(profile, row)}
-                onRemove={() => void patch(profile, removeChangePatch(row.key))}
+          {#snippet footer()}
+            <div class="flex items-center justify-between gap-3">
+              <AddProfileChange
+                profileLabel={effective.label}
+                taken={profileRows.map((row) => row.key)}
+                onPick={(kind) => addChange(profile, kind)}
+              />
+              <span
+                class={own
+                  ? "truncate pr-2 font-mono text-xs text-muted-foreground"
+                  : "truncate pr-2 text-xs text-muted-foreground"}
+                title={own ? filePath(profile) : undefined}
               >
-                {#snippet trailing()}
-                  {#if row.mode === "lock"}<Badge variant="outline"
-                      ><Lock aria-hidden="true" />Locked</Badge
-                    >
-                  {:else if row.mode === "set"}<Badge variant="outline"
-                      >Set</Badge
-                    >{/if}
-                  {#if row.projectChange}<Badge variant="info">Project</Badge
-                    >{/if}
-                {/snippet}
-              </EntityRow>
-            {:else}
-              <p class="px-3 py-2 text-xs text-muted-foreground">
-                No changes. Uses the agent settings.
-              </p>
-            {/each}
+                {own
+                  ? filePath(profile)
+                  : "Built-in · edits are saved as your own file"}
+              </span>
+            </div>
+          {/snippet}
+        </EntityCard>
+      {/if}
+    {:else}
+      {#if unreadable.length === 0 && pending.length === 0}
+        <p class="text-sm text-muted-foreground">
+          {needle
+            ? `No ${text.plural.toLowerCase()} match “${filter.trim()}”.`
+            : `No ${text.plural.toLowerCase()} yet. Create one with New ${text.singularLower}.`}
+        </p>
+      {/if}
+    {/each}
+  </div>
 
-            {#snippet footer()}
-              <div class="flex items-center justify-between gap-3">
-                <AddProfileChange
-                  profileLabel={effective.label}
-                  taken={profileRows.map((row) => row.key)}
-                  onPick={(kind) => addChange(profile, kind)}
-                />
-                <span
-                  class={own
-                    ? "truncate pr-2 font-mono text-xs text-muted-foreground"
-                    : "truncate pr-2 text-xs text-muted-foreground"}
-                  title={own ? filePath(profile) : undefined}
-                >
-                  {own
-                    ? filePath(profile)
-                    : "Built-in · edits are saved as your own file"}
-                </span>
-              </div>
-            {/snippet}
-          </EntityCard>
-        {/if}
-      {/each}
-    </SettingsSection>
-  {:else}
-    <p class="text-sm text-muted-foreground">
-      {filter ? "No profiles match." : "No profiles yet."}
-    </p>
-  {/each}
-
-  {#each unreadable as profile (profile.name)}
+  {#each [...pending, ...unreadable] as profile (profile.name)}
     <EntityCard title={profile.name}>
-      {#snippet badges()}<Badge variant="destructive">Can't be used</Badge
-        >{/snippet}
+      {#snippet badges()}
+        {#if profile.trust === "untrusted" && profile.local}<Badge
+            variant="warning">Needs review</Badge
+          >
+        {:else}<Badge variant="destructive">Can't be used</Badge>{/if}
+      {/snippet}
       {#snippet footer()}
         <div class="grid gap-1 px-1.5 py-1">
+          {#if project && profile.trust === "untrusted" && profile.local}
+            <p class="text-xs text-muted-foreground">
+              This project file isn't in use until you review and trust it.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              class="w-fit"
+              onclick={() => review(profile)}>Review</Button
+            >
+          {/if}
           {#each profile.diagnostics as diagnostic, index (index)}
             <ProfileDiagnosticMessage {diagnostic} />
           {/each}
@@ -883,6 +864,7 @@ function isBuiltin(profile: AgentProfileConfiguration): boolean {
 
 <NewProfileDialog
   bind:open={newOpen}
+  {kind}
   {scope}
   {profiles}
   error={newError}

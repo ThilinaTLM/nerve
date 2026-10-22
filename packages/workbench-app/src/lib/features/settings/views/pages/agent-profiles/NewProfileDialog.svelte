@@ -1,9 +1,6 @@
 <!-- Create a profile: blank, or a copy of an existing one. Saved as one JSON file. -->
 <script lang="ts">
-import type {
-  AgentProfileConfiguration,
-  AgentProfileUsableBy,
-} from "@nervekit/contracts/agent-profiles";
+import type { AgentProfileConfiguration } from "@nervekit/contracts/agent-profiles";
 import { AGENT_PROFILE_LABEL_MAX_LENGTH } from "@nervekit/contracts/agent-profiles";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -12,43 +9,43 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { nameFromLabel } from "./profile-changes";
+import {
+  profileKindText,
+  profilesOfKind,
+  type ProfileKind,
+} from "./profile-kind";
 
 type Props = {
   open?: boolean;
+  kind: ProfileKind;
   scope: "user" | "project";
+  /** Every profile file in this scope; used for name clashes. */
   profiles: AgentProfileConfiguration[];
   error?: string;
-  onCreate: (input: {
-    label: string;
-    name: string;
-    usableBy: AgentProfileUsableBy;
-    copyOf?: string;
-  }) => void;
+  onCreate: (input: { label: string; name: string; copyOf?: string }) => void;
 };
 let {
   open = $bindable(false),
+  kind,
   scope,
   profiles,
   error,
   onCreate,
 }: Props = $props();
 
-const usableItems = [
-  { value: "lead", label: "Main agent" },
-  { value: "subagent", label: "Sub-agent" },
-  { value: "both", label: "Main agent and sub-agent" },
-];
+const text = $derived(profileKindText[kind]);
+const copyable = $derived(
+  profilesOfKind(profiles, kind).filter((profile) => profile.effective),
+);
 let label = $state("");
-let usableBy = $state<AgentProfileUsableBy>("lead");
 let from = $state<"blank" | "copy">("blank");
 let copyOf = $state("");
 let lastOpen = false;
 $effect(() => {
   if (open && !lastOpen) {
     label = "";
-    usableBy = "lead";
     from = "blank";
-    copyOf = profiles.find((profile) => profile.effective)?.name ?? "";
+    copyOf = copyable[0]?.name ?? "";
   }
   lastOpen = open;
 });
@@ -66,7 +63,6 @@ function create(): void {
   onCreate({
     label: label.trim(),
     name,
-    usableBy,
     copyOf: from === "copy" ? copyOf : undefined,
   });
 }
@@ -75,7 +71,9 @@ function create(): void {
 <Dialog
   bind:open
   size="sm"
-  title={scope === "project" ? "New project profile" : "New profile"}
+  title={scope === "project"
+    ? `New project ${text.singularLower}`
+    : `New ${text.singularLower}`}
   description="Saved as one JSON file you can edit or share."
 >
   <div class="grid gap-4">
@@ -90,18 +88,19 @@ function create(): void {
         onValueChange={(next) => next && (from = next as typeof from)}
       >
         <ToggleGroup.Item value="blank">Blank</ToggleGroup.Item>
-        <ToggleGroup.Item value="copy">Copy of a profile</ToggleGroup.Item>
+        <ToggleGroup.Item value="copy" disabled={copyable.length === 0}
+          >Copy of {text.singularLower === "agent" ? "an" : "a"}
+          {text.singularLower}</ToggleGroup.Item
+        >
       </ToggleGroup.Root>
       {#if from === "copy"}
         <SelectField
-          items={profiles
-            .filter((profile) => profile.effective)
-            .map((profile) => ({
-              value: profile.name,
-              label: profile.effective?.label ?? profile.name,
-            }))}
+          items={copyable.map((profile) => ({
+            value: profile.name,
+            label: profile.effective?.label ?? profile.name,
+          }))}
           value={copyOf}
-          ariaLabel="Profile to copy"
+          ariaLabel={`${text.singular} to copy`}
           onValueChange={(next) => (copyOf = next)}
         />
       {/if}
@@ -118,24 +117,17 @@ function create(): void {
           ? "text-xs text-destructive"
           : "text-xs text-muted-foreground"}
       >
-        {#if taken}A profile named {name} already exists.{:else if name}File
+        {#if taken}A profile file named {name} already exists.{:else if name}File
           name: <span class="font-mono">{name}.json</span>{:else}The file name
           comes from the label.{/if}
       </p>
-    </div>
-    <div class="grid gap-1.5">
-      <Label>Usable by</Label>
-      <SelectField
-        items={usableItems}
-        value={usableBy}
-        ariaLabel="Usable by"
-        onValueChange={(next) => (usableBy = next as AgentProfileUsableBy)}
-      />
     </div>
     {#if error}<p class="text-xs text-destructive" role="alert">{error}</p>{/if}
   </div>
   {#snippet footer()}
     <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
-    <Button disabled={!valid} onclick={create}>Create profile</Button>
+    <Button disabled={!valid} onclick={create}
+      >Create {text.singularLower}</Button
+    >
   {/snippet}
 </Dialog>

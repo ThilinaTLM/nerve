@@ -106,18 +106,20 @@ const projectId = $derived(
 
 {#if settingsDraft}
   {#if page.id === "agents" || page.id === "sub-agents"}
-    <ProfilesSettingsPage
-      kind={profileKindForPage(page.id)}
-      {scope}
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {skills}
-      {projectId}
-      onOpenFile={project
-        ? (path) => void openFilePane({ projectId: project.id, path })
-        : undefined}
-    />
+    {#key page.id}
+      <ProfilesSettingsPage
+        kind={profileKindForPage(page.id)}
+        {scope}
+        {settingsDraft}
+        {models}
+        {authProviders}
+        {skills}
+        {projectId}
+        onOpenFile={project
+          ? (path) => void openFilePane({ projectId: project.id, path })
+          : undefined}
+      />
+    {/key}
   {:else if page.id === "permission-rules"}
     <PermissionsSettingsPage
       {scope}
