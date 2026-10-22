@@ -96,13 +96,15 @@ export function skillsResetPatch(
 export function projectPageDiffs(input: {
   harness?: ProjectHarnessOverrides;
   capabilities?: CapabilityOverridesDocument;
-  /** Profile files this project defines or shadows. */
-  profileFiles: number;
+  /** Agent and sub-agent profile files this project defines or shadows. */
+  agentFiles: number;
+  subAgentFiles: number;
 }): ProjectPageDiffs {
   return {
     general: harnessOverrideCount(input.harness),
     tools: toolOverrideCount(input.capabilities),
     skills: skillOverrideCount(input.capabilities),
-    profiles: input.profileFiles,
+    agents: input.agentFiles,
+    "sub-agents": input.subAgentFiles,
   };
 }

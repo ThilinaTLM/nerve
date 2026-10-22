@@ -7,6 +7,7 @@ import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
+import Settings2 from "@lucide/svelte/icons/settings-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
@@ -22,7 +23,6 @@ import Popover, {
   PopoverSearch,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
-import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -43,9 +43,12 @@ import {
 } from "./capability-list";
 import {
   capabilityToolGroupsFor,
-  capabilityToolSummary,
   type CapabilityToolGroup,
 } from "./capability-tool-labels";
+import {
+  capabilitySubagentCounts,
+  type CapabilitySubagentProfile,
+} from "./capability-subagent-profiles";
 import type { ComposerLockedFields } from "../conversations/conversation-view-contracts.js";
 type Row = {
   key: string;
@@ -57,16 +60,8 @@ type Row = {
   detail: string;
   /** Explains why an enabled tool cannot run yet. */
   warning?: string;
-  summary?: string;
-  setupMissing?: boolean;
   /** Opens the tool's settings, for tools with more than an on/off switch. */
   configure?: () => void;
-  /** Always on (bash): only its configuration can change. */
-  alwaysOn?: boolean;
-  /** Account choice for integration tools. */
-  accounts?: { id: string; name: string }[];
-  accountId?: string;
-  setAccount?: (id: string | undefined) => void;
   /** Holds the row: the applied profile locks it. */
   lockedBy?: string;
   /** Marks the row's family when a list mixes more than one. */
@@ -98,7 +93,9 @@ type Props = {
   onPatch?: (patch: CapabilityPatch) => void;
   onReset?: () => void;
   onRefresh?: () => void;
-  onOpenSettings?: (page: "tools" | "skills") => void;
+  onOpenSettings?: (page: "tools" | "skills" | "sub-agents") => void;
+  /** Agent profiles the lead can delegate to; settings own their configuration. */
+  subagentProfiles?: CapabilitySubagentProfile[];
   /** Delegation is a conversation-level switch only in leads. */
   subagentControlsEnabled?: boolean;
   lockedFields?: ComposerLockedFields;
@@ -116,12 +113,13 @@ let {
   onRefresh,
   onOpenSettings,
   onConfigureTool,
+  subagentProfiles,
   subagentControlsEnabled = false,
   lockedFields = {},
 }: Props = $props();
 
 let open = $state(false);
-let tab = $state<"tools" | "skills">("tools");
+let tab = $state<"tools" | "skills" | "subagents">("tools");
 let query = $state("");
 
 function handleOpenChange(next: boolean): void {
@@ -132,7 +130,7 @@ function handleOpenChange(next: boolean): void {
   }
 }
 
-function selectTab(next: "tools" | "skills"): void {
+function selectTab(next: "tools" | "skills" | "subagents"): void {
   tab = next;
   query = "";
 }
@@ -159,11 +157,10 @@ function toolEnabled(name: CapabilityToolName): boolean {
 
 const conversation = $derived(configuration?.conversation);
 const allToolGroups = $derived(capabilityToolGroupsFor(tools));
+/* Shell is always on and delegation has its own tab. */
 const toolGroups = $derived(
   allToolGroups.filter(
-    (group) =>
-      group.key !== "bash" &&
-      (subagentControlsEnabled || !group.names.includes("subagents")),
+    (group) => group.key !== "bash" && !group.names.includes("subagents"),
   ),
 );
 const overrideCount = $derived(
@@ -211,25 +208,17 @@ const lockedToolNames = $derived(new Set(lockedFields.tools ?? []));
 
 const toolRows = $derived<Row[]>(
   allToolGroups
-    .filter(
-      (group) => subagentControlsEnabled || !group.names.includes("subagents"),
-    )
+    .filter((group) => group.key !== "bash")
     .flatMap((group) => {
       const state = toolStates.get(group.key);
       if (!state) return [];
       const lockedBy = group.names.some((name) => lockedToolNames.has(name))
         ? (lockedFields.by ?? "the applied profile")
         : undefined;
-      const alwaysOn = group.names.includes("bash");
       const configurable =
         Boolean(onConfigureTool) &&
-        (alwaysOn ||
-          Boolean(state.settingsTool) ||
-          Boolean(state.profileTool)) &&
+        Boolean(state.settingsTool || state.profileTool) &&
         !lockedBy;
-      const accounts: { id: string; name: string }[] = state.profileTool
-        ? state.profileOptions
-        : [];
       return [
         {
           key: group.key,
@@ -239,42 +228,39 @@ const toolRows = $derived<Row[]>(
           overridden: state.stored && !lockedBy,
           origin: state.stored ? "conversation" : state.inheritedFrom,
           detail: lockedBy ? `Locked by ${lockedBy}` : state.originLabel,
-          summary: state.profileTool
-            ? (accounts.find((account) => account.id === state.profileId)
-                ?.name ?? "No account selected")
-            : configuration
-              ? capabilityToolSummary(configuration.effective, group.names[0]!)
-              : undefined,
-          setupMissing: Boolean(state.profileTool && accounts.length === 0),
           lockedBy,
-          alwaysOn,
-          warning:
-            state.profileTool && accounts.length === 0
-              ? "No accounts. Configure to set up in Integrations."
-              : state.profileMissing
-                ? "Account not found on this machine"
-                : state.needsProfile || (state.profileTool && !state.profileId)
-                  ? "Choose an account"
-                  : undefined,
+          warning: state.profileMissing
+            ? "Account not found on this machine"
+            : state.needsProfile
+              ? "Choose an account"
+              : undefined,
           configure: configurable ? () => configureTool(group) : undefined,
-          accounts: accounts.length > 0 ? accounts : undefined,
-          accountId: state.profileId,
-          setAccount: (id) =>
-            onPatch?.({
-              tools: Object.fromEntries(
-                group.names
-                  .filter((name) => name === state.profileTool)
-                  .map((name) => [name, { profileId: id ?? null }]),
-              ),
-            }),
-          toggle: (enabled: boolean) =>
+          toggle: (enabled: boolean) => {
             onPatch?.({
               tools: capabilityTogglePatch(state, group.names, enabled),
-            }),
+            });
+            // Several accounts and none chosen: ask which one to use.
+            if (
+              enabled &&
+              configurable &&
+              (!state.profileId || state.profileMissing) &&
+              state.profileOptions.length > 1 &&
+              (state.profileTool === "jira" ||
+                state.profileTool === "confluence")
+            )
+              configureTool(group);
+          },
           reset: () => onPatch?.(capabilityResetPatch(group.names)),
         } satisfies Row,
       ];
     }),
+);
+const subagentRow = $derived(toolRows.find((row) => row.key === "subagents"));
+const optionalToolRows = $derived(
+  toolRows.filter((row) => row.key !== "subagents"),
+);
+const subagentCounts = $derived(
+  subagentProfiles ? capabilitySubagentCounts(subagentProfiles) : undefined,
 );
 
 const skillRows = $derived<Row[]>(
@@ -304,114 +290,152 @@ const skillRows = $derived<Row[]>(
 /* Keep the original body geometry without showing another tab's search field. */
 const showSearch = $derived(
   tab === "tools"
-    ? showCapabilitySearch(toolRows.length)
-    : showCapabilitySearch(skillRows.length),
+    ? showCapabilitySearch(optionalToolRows.length)
+    : tab === "skills"
+      ? showCapabilitySearch(skillRows.length)
+      : false,
 );
 const bodyHeight = $derived(
-  capabilityBodyHeight(toolRows.length, skillRows.length),
+  capabilityBodyHeight(optionalToolRows.length, skillRows.length),
 );
 
-function openSettings(): void {
+function openSettings(
+  page: "tools" | "skills" | "sub-agents" = tab === "subagents"
+    ? "sub-agents"
+    : tab,
+): void {
   open = false;
-  onOpenSettings?.(tab);
+  onOpenSettings?.(page);
 }
 </script>
 
 {#snippet capabilityRow(row: Row)}
   {@const Icon = row.icon}
-  <div class="grid min-w-0 gap-1 rounded-md px-1.5 py-1 hover:bg-accent">
-    <div class="flex min-h-7 min-w-0 items-center gap-2">
-      {#if Icon}
-        <Icon
-          class="size-3.5 flex-none text-muted-foreground"
-          aria-hidden="true"
-        />
-      {/if}
-      <div class="min-w-0 flex-1" title={row.detail}>
-        <p class="truncate" title={row.label}>{row.label}</p>
-        {#if row.summary || row.lockedBy || row.warning}
-          <p
-            class="truncate text-xs text-muted-foreground"
-            title={row.warning ?? row.summary}
-          >
-            {row.lockedBy
-              ? `Locked by ${row.lockedBy}`
-              : (row.warning ??
-                `${row.enabled ? "On" : "Off"} · ${row.summary}`)}
-          </p>
-        {/if}
-      </div>
-      {#if row.warning}
-        <span
-          class="inline-flex flex-none text-warning"
-          role="img"
-          aria-label={row.warning}
-          title={row.warning}
-        >
-          <TriangleAlert class="size-3.5" aria-hidden="true" />
-        </span>
-      {/if}
-      {#if row.lockedBy}
-        <span
-          class="inline-flex flex-none items-center gap-1 text-muted-foreground"
-          role="img"
-          aria-label={`${row.label} locked by ${row.lockedBy}`}
-          title={`Locked by ${row.lockedBy}`}
-        >
-          <Lock class="size-3.5" aria-hidden="true" />
-        </span>
-      {:else if row.origin === "conversation"}
-        <span
-          class="inline-flex flex-none text-primary"
-          role="img"
-          aria-label="Conversation override"
-          title={row.detail}
-        >
-          <MessagesSquare class="size-3.5" aria-hidden="true" />
-        </span>
-      {/if}
-      {#if row.overridden}
-        <IconAction
-          icon={RotateCcw}
-          label={`Reset ${row.label} to the inherited setting`}
-          onclick={row.reset}
-        />
-      {/if}
-      <Switch
-        checked={row.enabled}
-        disabled={disabled || loading || row.alwaysOn || Boolean(row.lockedBy)}
-        aria-label={`Enable ${row.label} for this conversation`}
-        onCheckedChange={row.toggle}
+  <div
+    class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+  >
+    {#if Icon}
+      <Icon
+        class="size-3.5 flex-none text-muted-foreground"
+        aria-hidden="true"
       />
-      {#if row.configure}
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disabled || loading}
-          aria-label={`Configure ${row.label}`}
-          onclick={row.configure}
-          >{row.setupMissing ? "Set up" : "Configure"}</Button
-        >
-      {/if}
-    </div>
-    {#if row.accounts && row.setAccount}
-      <div class="flex min-w-0 items-center justify-between gap-2">
-        <span class="text-xs text-muted-foreground">Account</span>
-        <SelectField
-          items={row.accounts.map((account) => ({
-            value: account.id,
-            label: account.name,
-          }))}
-          value={row.accountId ?? ""}
-          placeholder="Choose account"
-          ariaLabel={`${row.label} account`}
-          class="min-w-0 flex-1"
-          disabled={disabled || loading || Boolean(row.lockedBy)}
-          onValueChange={(value) => row.setAccount?.(value || undefined)}
-        />
-      </div>
     {/if}
+    <span class="min-w-0 flex-1 truncate" title={row.detail}>
+      {row.label}
+    </span>
+    {#if row.warning}
+      <span
+        class="inline-flex flex-none text-warning"
+        role="img"
+        aria-label={row.warning}
+        title={row.warning}
+      >
+        <TriangleAlert class="size-3.5" aria-hidden="true" />
+      </span>
+    {/if}
+    {#if row.lockedBy}
+      <span
+        class="inline-flex flex-none text-muted-foreground"
+        role="img"
+        aria-label={`${row.label} locked by ${row.lockedBy}`}
+        title={`Locked by ${row.lockedBy}`}
+      >
+        <Lock class="size-3.5" aria-hidden="true" />
+      </span>
+    {:else if row.origin === "conversation"}
+      <span
+        class="inline-flex flex-none text-primary"
+        role="img"
+        aria-label="Conversation override"
+        title={row.detail}
+      >
+        <MessagesSquare class="size-3.5" aria-hidden="true" />
+      </span>
+    {/if}
+    {#if row.overridden}
+      <IconAction
+        icon={RotateCcw}
+        label={`Reset ${row.label} to the inherited setting`}
+        onclick={row.reset}
+      />
+    {/if}
+    {#if row.configure}
+      <IconAction
+        icon={Settings2}
+        label={`Configure ${row.label}`}
+        onclick={row.configure}
+      />
+    {/if}
+    <Switch
+      checked={row.enabled}
+      disabled={disabled || loading || Boolean(row.lockedBy)}
+      aria-label={`Enable ${row.label} for this conversation`}
+      onCheckedChange={row.toggle}
+    />
   </div>
+{/snippet}
+
+{#snippet delegationRow()}
+  {#if subagentRow}
+    {@render capabilityRow({ ...subagentRow, label: "Delegation" })}
+  {:else}
+    <p class="px-1.5 text-warning">Delegation is unavailable here.</p>
+  {/if}
+{/snippet}
+
+{#snippet subagentList()}
+  {#if error}
+    <p class="px-1.5 text-warning" role="alert">{error}</p>
+  {:else if loading && !configuration}
+    <div class="grid gap-1" aria-hidden="true">
+      <Skeleton class="h-7 w-full" /><Skeleton class="h-7 w-full" />
+    </div>
+  {:else}
+    {#if subagentControlsEnabled}
+      {@render delegationRow()}
+    {:else}
+      <p class="px-1.5 text-muted-foreground">
+        Sub-agents can't delegate. Configure profiles in the lead conversation.
+      </p>
+    {/if}
+    {#if !subagentProfiles || subagentProfiles.length === 0}
+      <p class="px-1.5 text-muted-foreground">
+        No sub-agent profiles are available.
+      </p>
+    {:else}
+      {@const delegationOff = subagentRow?.enabled === false}
+      {#each subagentProfiles as profile (profile.name)}
+        {@const unavailable = Boolean(profile.disabled || profile.error)}
+        <div
+          class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+        >
+          <span
+            class={`min-w-0 flex-1 truncate ${unavailable || delegationOff ? "text-muted-foreground" : ""}`}
+            title={profile.error ?? profile.description}
+          >
+            {profile.label}
+          </span>
+          {#if profile.error}
+            <span
+              class="inline-flex flex-none text-warning"
+              role="img"
+              aria-label={profile.error}
+              title={profile.error}
+            >
+              <TriangleAlert class="size-3.5" aria-hidden="true" />
+            </span>
+          {:else if profile.disabled}
+            <span class="flex-none text-xs text-muted-foreground">Off</span>
+          {/if}
+          <IconAction
+            icon={Settings2}
+            label={`Configure ${profile.label}`}
+            onclick={() => openSettings("sub-agents")}
+          />
+        </div>
+      {/each}
+    {/if}
+  {/if}
 {/snippet}
 
 {#snippet capabilityList(rows: Row[], kind: "tools" | "skills")}
@@ -444,7 +468,7 @@ function openSettings(): void {
   onOpenChange={handleOpenChange}
   size="md"
   triggerClass="composer-tab w-control p-0"
-  ariaLabel="Tools and skills"
+  ariaLabel="Capabilities"
   {triggerTitle}
   side="top"
   align="start"
@@ -463,7 +487,7 @@ function openSettings(): void {
     </span>
   {/snippet}
 
-  <PopoverHeader title="Tools and skills">
+  <PopoverHeader title="Capabilities">
     {#snippet actions()}
       {#if overrideCount > 0}
         <Button
@@ -479,9 +503,9 @@ function openSettings(): void {
       <Button
         size="icon-sm"
         variant="ghost"
-        ariaLabel={`Open ${tab} settings`}
-        title={`Open ${tab} settings`}
-        onclick={openSettings}
+        ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+        title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+        onclick={() => openSettings()}
       >
         <Settings class="size-3.5" aria-hidden="true" />
       </Button>
@@ -498,7 +522,8 @@ function openSettings(): void {
       class="justify-start"
       aria-label="Capability kind"
       onValueChange={(value) => {
-        if (value === "tools" || value === "skills") selectTab(value);
+        if (value === "tools" || value === "skills" || value === "subagents")
+          selectTab(value);
       }}
     >
       <ToggleGroup.Item value="tools" class="flex-none">
@@ -508,6 +533,14 @@ function openSettings(): void {
       <ToggleGroup.Item value="skills" class="flex-none">
         Skills
         <span data-slot="toggle-count">{enabledSkills}/{skills.length}</span>
+      </ToggleGroup.Item>
+      <ToggleGroup.Item value="subagents" class="flex-none">
+        Sub-agents
+        {#if subagentCounts}
+          <span data-slot="toggle-count"
+            >{subagentCounts.available}/{subagentCounts.total}</span
+          >
+        {/if}
       </ToggleGroup.Item>
     </ToggleGroup.Root>
     {#if showSearch}
@@ -519,11 +552,16 @@ function openSettings(): void {
     {/if}
   </PopoverSearch>
 
-  <PopoverBody class="gap-0" stableHeight={bodyHeight}>
+  <PopoverBody
+    class="gap-0"
+    stableHeight={tab === "subagents" ? undefined : bodyHeight}
+  >
     {#if tab === "tools"}
-      {@render capabilityList(toolRows, "tools")}
-    {:else}
+      {@render capabilityList(optionalToolRows, "tools")}
+    {:else if tab === "skills"}
       {@render capabilityList(skillRows, "skills")}
+    {:else}
+      {@render subagentList()}
     {/if}
   </PopoverBody>
 </Popover>

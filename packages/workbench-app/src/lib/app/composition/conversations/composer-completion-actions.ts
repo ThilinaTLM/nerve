@@ -6,7 +6,11 @@ import {
 import { openSettingsPane } from "$lib/application/settings/settings-actions.svelte";
 import type { ComposerCompletionAction } from "$lib/presentation/composer/composer-editor-completions";
 
-export type CapabilitySettingsPage = "tools" | "skills" | "profiles";
+export type CapabilitySettingsPage =
+  | "tools"
+  | "skills"
+  | "agents"
+  | "sub-agents";
 
 /** Shared by the prompt composer and the ask_user reply input. */
 export function handleComposerCompletionAction(
@@ -30,7 +34,10 @@ export function handleComposerCompletionAction(
     case "tool":
       openCapabilitySettings("tools");
       break;
+    case "agent_profile":
+      openCapabilitySettings("agents");
+      break;
     default:
-      openCapabilitySettings("profiles");
+      openCapabilitySettings("sub-agents");
   }
 }

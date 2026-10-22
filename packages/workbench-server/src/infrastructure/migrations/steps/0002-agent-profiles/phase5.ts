@@ -1,3 +1,4 @@
+import { phaseProgress } from "./progress.js";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -38,9 +39,15 @@ function batch(
   sources: readonly string[],
   targets: Record<string, unknown>,
   remove: readonly string[] = [],
+  planned?: {
+    sources: Record<string, string>;
+    targets: Record<string, unknown>;
+  },
 ) {
   const receiptPath = join(ctx.scratchDir, `phase5-${digest(id)}.json`);
-  const existing = optional(receiptPath);
+  // Conversation plans already durably bind the same source hashes and outputs.
+  // Reuse that receipt instead of journaling a second identical output document.
+  const existing = planned ?? optional(receiptPath);
   const receipt = existing ?? {
     sources: Object.fromEntries(
       sources
@@ -105,11 +112,11 @@ function batch(
       ctx.fs.remove(path);
     }
 }
-function sourceCatalogs(
+async function sourceCatalogs(
   ctx: StepContext,
   roots: readonly string[],
   conversations: readonly string[],
-): Data {
+): Promise<Data> {
   const receipt = join(ctx.scratchDir, "phase5-source-catalogs.json");
   if (existsSync(receipt)) return record(json(receipt));
   const paths = [
@@ -125,12 +132,22 @@ function sourceCatalogs(
     ]),
   ];
   const catalogs: Data = {};
-  for (const path of paths)
+  const progress = phaseProgress(
+    ctx,
+    "catalog-inputs",
+    "Reading source profile catalogs",
+    paths.length,
+  );
+  await progress();
+  let done = 0;
+  for (const path of paths) {
     if (existsSync(path))
       catalogs[path] = {
         hash: digest(readFileSync(path, "utf8")),
         document: convertProfilesDocument(json(path)),
       };
+    await progress(++done);
+  }
   writeJson(ctx, receipt, catalogs);
   return catalogs;
 }
@@ -265,7 +282,7 @@ export async function convertPhase5(
   conversations: readonly string[],
 ) {
   const roots = [ctx.paths.home, ...projects];
-  const catalogs = sourceCatalogs(ctx, roots, conversations);
+  const catalogs = await sourceCatalogs(ctx, roots, conversations);
   const trust =
     optional(join(ctx.scratchDir, "phase5-original-trust.json")) ?? {};
   const configReceipt = join(
@@ -295,7 +312,15 @@ export async function convertPhase5(
       }),
     );
   if (!existsSync(configReceipt)) writeJson(ctx, configReceipt, originals);
-  for (const root of roots)
+  const settingsProgress = phaseProgress(
+    ctx,
+    "settings",
+    "Converting agent settings",
+    roots.length,
+  );
+  await settingsProgress();
+  let settingsDone = 0;
+  for (const root of roots) {
     await ctx.unit(
       {
         kind: "configuration",
@@ -382,12 +407,25 @@ export async function convertPhase5(
         batch(ctx, `settings:${root}`, sources, outputs);
       },
     );
+    await settingsProgress(++settingsDone);
+  }
   finishPhase(ctx);
+  const templatesProgress = phaseProgress(
+    ctx,
+    "templates",
+    "Splitting profile templates",
+    roots.length,
+  );
+  await templatesProgress();
+  let templatesDone = 0;
   const userCatalogPath = join(ctx.paths.home, "config/agent-profiles.json");
   for (const root of roots) {
     const source = join(root, "config/agent-profiles.json");
     const entries = catalog(catalogs, source);
-    if (!catalogs[source]) continue;
+    if (!catalogs[source]) {
+      await templatesProgress(++templatesDone);
+      continue;
+    }
     await ctx.unit(
       { kind: "configuration", id: source, title: "Split profile templates" },
       () => {
@@ -437,6 +475,7 @@ export async function convertPhase5(
       },
       { quarantine: { files: [source], root } },
     );
+    await templatesProgress(++templatesDone);
   }
   finishPhase(ctx);
   const db = new DatabaseSync(ctx.paths.sqlitePath);
@@ -454,10 +493,20 @@ export async function convertPhase5(
         `SELECT c.*, cfg.*, cfg.${profileColumn} AS profile_name, p.directory AS project_directory FROM conversation c JOIN conversation_config cfg ON cfg.conversation_id=c.id JOIN project p ON p.id=c.project_id`,
       )
       .all();
-    for (const row of rows) {
+    const selected = new Set(conversations);
+    const selectedRows = rows.filter((row) => selected.has(String(row.id)));
+    const progress = phaseProgress(
+      ctx,
+      "conversations",
+      "Applying conversation profiles",
+      selectedRows.filter((row) => !ctx.discarded.has(String(row.id))).length,
+      true,
+    );
+    await progress();
+    let done = 0;
+    for (const row of selectedRows) {
       const id = String(row.id);
-      if (!conversations.includes(id)) continue;
-      await ctx.unit(
+      const completed = await ctx.unit(
         { kind: "conversation", id, title: `Applied profile: ${row.title}` },
         () => {
           const root = join(ctx.paths.home, "data/conversations", id, "config");
@@ -484,9 +533,10 @@ export async function convertPhase5(
               receipt.sources,
               receipt.outputs,
               receipt.remove,
+              { sources: receipt.sourceHashes, targets: receipt.outputs },
             );
             updates.push({ id, config: receipt.config });
-            return;
+            return true;
           }
           if (existsSync(appliedPath)) {
             const applied = record(json(appliedPath));
@@ -494,7 +544,7 @@ export async function convertPhase5(
               applied.schemaVersion === 1 && applied.name === row.profile_name,
               "Invalid existing applied profile snapshot",
             );
-            return;
+            return true;
           }
           const projectRoot = join(String(row.project_directory), ".nerve");
           const base = applicationBase(
@@ -614,21 +664,32 @@ export async function convertPhase5(
           const remove = [conversationCatalog, oldConversationCatalog].filter(
             (path) => catalogs[path],
           );
+          const sourceHashes = Object.fromEntries(
+            sources.map((path) => [path, digest(readFileSync(path, "utf8"))]),
+          );
           writeJson(ctx, receiptPath, {
             config,
             outputs,
             sources,
             remove,
-            sourceHashes: Object.fromEntries(
-              sources.map((path) => [path, digest(readFileSync(path, "utf8"))]),
-            ),
+            sourceHashes,
           });
-          batch(ctx, `conversation:${id}`, sources, outputs, remove);
+          batch(ctx, `conversation:${id}`, sources, outputs, remove, {
+            sources: sourceHashes,
+            targets: outputs,
+          });
           updates.push({ id, config });
+          return true;
         },
       );
+      if (completed) await progress(++done);
     }
     finishPhase(ctx);
+    await phaseProgress(
+      ctx,
+      "conversation-database",
+      "Saving conversation configuration",
+    )();
     db.exec("BEGIN IMMEDIATE");
     for (const { id, config } of updates)
       db.prepare(
@@ -676,64 +737,4 @@ export async function convertPhase5(
     db.close();
   }
   finishPhase(ctx);
-}
-export function verifyPhase5(
-  ctx: StepContext,
-  projects: readonly string[],
-  conversations: readonly string[],
-) {
-  for (const name of readdirSync(ctx.scratchDir).filter(
-    (name) => name.startsWith("phase5-") && name.endsWith(".json"),
-  )) {
-    const receipt = record(json(join(ctx.scratchDir, name)));
-    if (receipt.targets)
-      for (const [path, expected] of Object.entries(receipt.targets))
-        assert.deepEqual(
-          json(path),
-          expected,
-          `Changed phase-5 output: ${path}`,
-        );
-  }
-  for (const root of [ctx.paths.home, ...projects]) {
-    const aggregate = join(root, "config/agent-profiles.json");
-    if (ctx.discarded.has(aggregate)) continue;
-    assert(
-      !existsSync(aggregate),
-      `Aggregate profile document remains: ${aggregate}`,
-    );
-    const directory =
-      root === ctx.paths.home
-        ? join(root, "data/agent-profiles")
-        : join(root, "agent-profiles");
-    safePath(directory);
-    if (existsSync(directory))
-      for (const name of readdirSync(directory).filter((name) =>
-        name.endsWith(".json"),
-      )) {
-        const profile = frozenProfileFileSchema.parse(
-          json(join(directory, name)),
-        );
-        assert.equal(name, `${profile.name}.json`);
-      }
-    const harness = optional(join(root, "config/harness.json"));
-    if (harness) {
-      assert.equal(harness.version, 4);
-      assert(!harness.execution);
-      if (root !== ctx.paths.home) assert(!harness.tools && !harness.skills);
-      else frozenCapabilitiesSchema.shape.tools.parse(harness.tools);
-    }
-    const capabilities = optional(join(root, "config/capabilities.json"));
-    if (capabilities) frozenCapabilitiesSchema.parse(capabilities);
-  }
-  for (const id of conversations)
-    if (!ctx.discarded.has(id)) {
-      const root = join(ctx.paths.home, "data/conversations", id, "config");
-      assert(
-        !existsSync(join(root, "agent-profiles.json")) &&
-          !existsSync(join(root, "subagents.json")),
-        `Conversation template catalogs remain: ${id}`,
-      );
-      frozenAppliedSchema.parse(json(join(root, "applied-agent-profile.json")));
-      frozenCapabilitiesSchema.parse(json(join(root, "capabilities.json")));
-    }
 }

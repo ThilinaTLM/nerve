@@ -27,6 +27,8 @@ import {
 } from "../0001-conversation-core/step-fixture.js";
 import step from "./step.js";
 import { convertDocument, convertEventPayload } from "./documents.js";
+import { digest } from "./files.js";
+import type { MigrationProgress } from "../../framework/step.js";
 
 const registry = [
   ...legacyRegistry,
@@ -515,4 +517,92 @@ void test("inherited model plus explicit thinking migrates without repair and mi
     lock: { provider: "fixture", modelId: "fixed" },
   });
   assert.equal(explore.thinking, "lead");
+});
+
+void test("0002 reports real conversation progress and reuses its durable plan receipt", async (t) => {
+  const home = await releasedHome(t);
+  const reports: MigrationProgress[] = [];
+  let checkedReceipt = false;
+  await runMigrations(home, {
+    registry,
+    onProgress(progress) {
+      reports.push(progress);
+      if (progress.phase === "conversation-database") {
+        const scratch = join(home, "migrations/work", step.id);
+        const plan = read(
+          join(scratch, `phase5-conversation-${digest("conv_one")}.json`),
+        );
+        assert(plan.sourceHashes);
+        assert(plan.outputs);
+        assert(
+          !existsSync(
+            join(scratch, `phase5-${digest("conversation:conv_one")}.json`),
+          ),
+          "must not write a duplicate batch receipt",
+        );
+        checkedReceipt = true;
+      }
+    },
+  });
+  assert(checkedReceipt);
+  const conversations = reports.filter(
+    (report) => report.phase === "conversations",
+  );
+  assert.equal(conversations[0]?.done, 0);
+  assert.equal(conversations.at(-1)?.done, conversations.at(-1)?.total);
+  assert((conversations.at(-1)?.total ?? 0) > 0);
+  assert(reports.some((report) => report.phase === "backup"));
+  assert(reports.some((report) => report.phase === "verify-receipts"));
+  assert(reports.some((report) => report.phase === "verify-conversations"));
+  const afterConversations = reports.slice(
+    reports.lastIndexOf(conversations.at(-1)!) + 1,
+  );
+  assert(
+    afterConversations.every((report) => report.done === undefined),
+    "verification must not reset the meter",
+  );
+});
+
+void test("conversation plan receipts still detect changed output and allow rollback", async (t) => {
+  const home = await releasedHome(t);
+  const path = join(
+    home,
+    "data/conversations/conv_one/config/applied-agent-profile.json",
+  );
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress(progress) {
+        if (progress.phase === "verify-receipts") {
+          const value = read(path);
+          value.instructions += "changed after conversion";
+          write(path, value);
+        }
+      },
+    }),
+    /Changed phase-5 output/,
+  );
+  await rollbackFailedMigration(home, { registry });
+  assert(!existsSync(path));
+});
+
+void test("failed conversation units are not reported as completed", async (t) => {
+  const home = await releasedHome(t);
+  write(
+    join(home, "data/conversations/conv_one/config/applied-agent-profile.json"),
+    { schemaVersion: 0 },
+  );
+  const reports: MigrationProgress[] = [];
+  await assert.rejects(
+    runMigrations(home, {
+      registry,
+      onProgress: (progress) => reports.push(progress),
+    }),
+    /conversation/,
+  );
+  const conversations = reports.filter(
+    (report) => report.phase === "conversations",
+  );
+  assert(conversations.length > 0);
+  assert(conversations.every((report) => report.done! < report.total!));
 });

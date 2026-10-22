@@ -89,5 +89,7 @@ export type PromptComposerProps = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
 };

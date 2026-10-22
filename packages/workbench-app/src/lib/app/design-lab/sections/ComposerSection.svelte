@@ -632,6 +632,11 @@ function cycleMic() {
       <ComposerCapabilitiesPopover
         configuration={capabilityConfiguration}
         skills={capabilitySkills}
+        subagentControlsEnabled
+        subagentProfiles={[
+          { name: "explorer", label: "Explorer" },
+          { name: "reviewer", label: "Reviewer", disabled: true },
+        ]}
         onPatch={noop}
         onReset={noop}
         onRefresh={noop}

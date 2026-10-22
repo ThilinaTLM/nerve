@@ -3,8 +3,6 @@
 
 export type CapabilityDecisionOrigin = "conversation" | "project" | "user";
 
-/** Above this many rows in the active list, the panel offers a filter field. */
-export const CAPABILITY_SEARCH_THRESHOLD = 8;
 /** Matches the row's `min-h-7`. */
 export const CAPABILITY_ROW_REM = 1.75;
 /** The body's `pb-2`, so the last visible row is not clipped by padding. */
@@ -12,8 +10,9 @@ export const CAPABILITY_BODY_PADDING_REM = 0.5;
 export const CAPABILITY_MIN_ROWS = 4;
 export const CAPABILITY_MAX_ROWS = 9;
 
+/** The panel offers a filter field once a list no longer fits without scrolling. */
 export function showCapabilitySearch(rowCount: number): boolean {
-  return rowCount > CAPABILITY_SEARCH_THRESHOLD;
+  return rowCount > CAPABILITY_MAX_ROWS;
 }
 
 export function capabilityBodyHeight(

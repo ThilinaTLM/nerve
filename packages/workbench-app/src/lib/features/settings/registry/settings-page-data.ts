@@ -51,11 +51,17 @@ const skills: PageData = {
     "Skills apply from the next agent turn. Project definitions take precedence over your skills with the same name.",
   sections: [{ id: "skills", label: "Skills" }],
 };
-const profiles: PageData = {
-  label: "Profiles",
+const agents: PageData = {
+  label: "Agents",
   description:
-    "Templates that apply settings, instructions and locks to a conversation. Later edits don't change conversations that already applied one.",
-  sections: [{ id: "profiles", label: "Profiles" }],
+    "Main agent profiles that apply settings, instructions and locks to a conversation. Later edits don't change conversations that already applied one.",
+  sections: [{ id: "agents", label: "Agents" }],
+};
+const subAgents: PageData = {
+  label: "Sub-Agents",
+  description:
+    "Profiles the lead agent can delegate work to. Later edits don't change sub-agents that already started.",
+  sections: [{ id: "sub-agents", label: "Sub-Agents" }],
 };
 const permissionRules: PageData = {
   label: "Permission rules",
@@ -81,7 +87,8 @@ const userPages: Record<string, PageData> = {
   general,
   tools,
   skills,
-  profiles,
+  agents,
+  "sub-agents": subAgents,
   "permission-rules": permissionRules,
   models,
   workbench: {
@@ -142,10 +149,15 @@ const projectPages: Record<string, PageData> = {
   },
   tools,
   skills,
-  profiles: {
-    ...profiles,
+  agents: {
+    ...agents,
     description:
-      "Profiles stored in this project. They are shared with everyone who opens the repo.",
+      "Agent profiles stored in this project. They are shared with everyone who opens the repo.",
+  },
+  "sub-agents": {
+    ...subAgents,
+    description:
+      "Sub-agent profiles stored in this project. They are shared with everyone who opens the repo.",
   },
   "permission-rules": permissionRules,
   launch: {
@@ -198,7 +210,7 @@ const userLayout: NavLayout = [
   {
     id: "catalog",
     title: "Catalog",
-    pages: ["profiles", "permission-rules", "models"],
+    pages: ["agents", "sub-agents", "permission-rules", "models"],
   },
   {
     id: "app",
@@ -210,7 +222,11 @@ const userLayout: NavLayout = [
 
 const projectLayout: NavLayout = [
   { id: "agent", title: "Agent", pages: ["general", "tools", "skills"] },
-  { id: "catalog", title: "Catalog", pages: ["profiles", "permission-rules"] },
+  {
+    id: "catalog",
+    title: "Catalog",
+    pages: ["agents", "sub-agents", "permission-rules"],
+  },
   {
     id: "this-project",
     title: "This project",

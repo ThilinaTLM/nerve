@@ -330,11 +330,11 @@ export const setupGuideSteps: Record<
       description:
         "Choose the model, permissions and instructions the Coding, Planning, Explore and Developer profiles use.",
       targetId: "setup-agent-profiles",
-      fallback: "Open Settings → Agent profiles and edit a built-in profile.",
+      fallback: "Open Settings → Agents and edit a built-in profile.",
       preparation: {
         kind: "settings",
-        pageId: "profiles",
-        sectionId: "profiles",
+        pageId: "agents",
+        sectionId: "agents",
       },
     },
   ],

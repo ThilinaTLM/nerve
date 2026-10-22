@@ -28,11 +28,11 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
     version: 1,
     title: "Give teammates a reusable profile",
     summary:
-      "Configure a profile's instructions, model, permissions, tools, and skills in Settings → Sub-agents. Profiles configure new teammates; follow-ups keep the existing teammate's context.",
+      "Configure a profile's instructions, model, permissions, tools, and skills in Settings → Sub-Agents. Profiles configure new teammates; follow-ups keep the existing teammate's context.",
     action: {
       kind: "settings",
-      pageId: "profiles",
-      sectionId: "profiles",
+      pageId: "sub-agents",
+      sectionId: "sub-agents",
       label: "Configure Sub-agents",
     },
   },

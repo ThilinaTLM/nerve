@@ -28,7 +28,7 @@ import Popover, {
   PopoverHeader,
   PopoverRow,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import { ModelPicker } from "$lib/presentation/model-picker";
+import ComposerModelPicker from "./ComposerModelPicker.svelte";
 import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
 import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
@@ -38,7 +38,7 @@ import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
-import { modelKey } from "$lib/presentation/utils/model";
+import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
 import type {
   ComposerAgentProfile,
   ComposerLockedFields,
@@ -96,12 +96,15 @@ type Props = {
   capabilityError?: string;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
+  capabilitySubagentProfiles?: CapabilitySubagentProfile[];
   capabilityDisabled?: boolean;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
   /** Picked via the attach button; omit to hide the button. */
   onAttachFiles?: (files: File[]) => void;
   attachDisabled?: boolean;
@@ -156,6 +159,7 @@ let {
   capabilityError,
   capabilityScopeKey,
   subagentControlsEnabled = false,
+  capabilitySubagentProfiles,
   capabilityDisabled = controlsDisabled,
   onCapabilityPatch,
   onConfigureCapabilityTool,
@@ -177,15 +181,6 @@ const activePermission = $derived(
     available: false,
   },
 );
-
-const selectedModel = $derived.by(() => {
-  const model = models.find(
-    (candidate) => modelKey(candidate) === selectedModelKey,
-  );
-  return model
-    ? { provider: model.provider, modelId: model.modelId }
-    : undefined;
-});
 
 const lockReason = $derived(
   lockedFields.model || lockedFields.thinking
@@ -281,26 +276,16 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   onChange={onAgentProfileChange}
 />
 
-<ModelPicker
-  label="Model and reasoning"
-  class="h-control-sm w-auto max-w-56 flex-initial border-transparent bg-transparent px-2 text-xs shadow-none dark:bg-transparent"
-  tourId="composer-model"
+<ComposerModelPicker
   {models}
-  value={selectedModel}
+  {selectedModelKey}
   {thinkingLevel}
   emptyMessage={modelEmptyMessage}
   disabled={modelDisabled}
-  modelDisabled={lockedFields.model}
-  thinkingDisabled={lockedFields.thinking}
+  modelLocked={lockedFields.model}
+  thinkingLocked={lockedFields.thinking}
   {lockReason}
-  onChange={(next) => {
-    // A lock holds only its own part of the combined picker.
-    if (!next.model) return;
-    onModelSelectionChange?.({
-      ...(lockedFields.model ? {} : { model: next.model }),
-      ...(lockedFields.thinking ? {} : { thinkingLevel: next.thinkingLevel }),
-    });
-  }}
+  onChange={onModelSelectionChange}
 />
 <ComposerSettingStatus
   label={modelLockLabel}
@@ -420,6 +405,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
     configuration={capabilityConfiguration}
     {lockedFields}
     {subagentControlsEnabled}
+    subagentProfiles={capabilitySubagentProfiles}
     skills={capabilitySkills}
     loading={capabilityLoading}
     error={capabilityError}

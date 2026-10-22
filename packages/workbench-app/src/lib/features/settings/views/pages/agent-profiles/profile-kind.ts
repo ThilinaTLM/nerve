@@ -1,0 +1,74 @@
+/**
+ * Agents and Sub-Agents are two settings pages over the same profile files.
+ * Each page lists, creates and edits only its own kind; the stored
+ * `usableBy` value is the kind. `both` is a retired value that older files may
+ * still carry, so those files show on both pages until one kind is chosen.
+ */
+import type {
+  AgentProfileConfiguration,
+  AgentProfileUsableBy,
+} from "@nervekit/contracts/agent-profiles";
+
+export type ProfileKind = Exclude<AgentProfileUsableBy, "both">;
+
+export const PROFILE_KIND_PAGES: Record<ProfileKind, string> = {
+  lead: "agents",
+  subagent: "sub-agents",
+};
+
+export const profileKindText: Record<
+  ProfileKind,
+  { plural: string; singular: string; singularLower: string }
+> = {
+  lead: { plural: "Agents", singular: "Agent", singularLower: "agent" },
+  subagent: {
+    plural: "Sub-Agents",
+    singular: "Sub-Agent",
+    singularLower: "sub-agent",
+  },
+};
+
+export function profileKindForPage(pageId: string): ProfileKind {
+  return pageId === PROFILE_KIND_PAGES.subagent ? "subagent" : "lead";
+}
+
+/** The kind a profile file is stored with; unreadable files have none. */
+export function storedUsableBy(
+  profile: AgentProfileConfiguration,
+): AgentProfileUsableBy | undefined {
+  return profile.effective?.usableBy ?? profile.local?.usableBy;
+}
+
+/** Whether a profile belongs on the page for `kind`, including retired `both`. */
+export function profileBelongsTo(
+  profile: AgentProfileConfiguration,
+  kind: ProfileKind,
+): boolean {
+  const usableBy = storedUsableBy(profile);
+  return usableBy === kind || usableBy === "both";
+}
+
+/** Profiles for one page, in server order. */
+export function profilesOfKind(
+  profiles: readonly AgentProfileConfiguration[],
+  kind: ProfileKind,
+): AgentProfileConfiguration[] {
+  return profiles.filter((profile) => profileBelongsTo(profile, kind));
+}
+
+/** Readable-name-only entries (no effective or local definition) show on both pages. */
+export function unreadableProfiles(
+  profiles: readonly AgentProfileConfiguration[],
+): AgentProfileConfiguration[] {
+  return profiles.filter((profile) => !profile.effective && !profile.local);
+}
+
+/** How many profile files a page covers; `both` files count on each page. */
+export function profileFileCount(
+  files: readonly { usableBy?: AgentProfileUsableBy }[],
+  kind: ProfileKind,
+): number {
+  return files.filter(
+    (file) => file.usableBy === kind || file.usableBy === "both",
+  ).length;
+}

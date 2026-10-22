@@ -12,6 +12,7 @@ import type {
   UserInputAnswer,
 } from "@nervekit/contracts/core";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import type { CapabilitySubagentProfile } from "$lib/presentation/composer/capability-subagent-profiles";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
@@ -168,6 +169,8 @@ export type ConversationComposerModel = {
   capabilityError?: string;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
+  /** Agent profiles the lead can delegate to, for the Capabilities popover. */
+  capabilitySubagentProfiles?: CapabilitySubagentProfile[];
 };
 
 export type ConversationTimelineSections = {
@@ -232,7 +235,9 @@ export type ConversationPaneActions = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
+  onOpenCapabilitySettings?: (
+    page: "tools" | "skills" | "agents" | "sub-agents",
+  ) => void;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;

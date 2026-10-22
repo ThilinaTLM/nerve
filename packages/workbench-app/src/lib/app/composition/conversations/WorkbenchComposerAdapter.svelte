@@ -170,6 +170,19 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
+/** Profiles the lead can delegate to; their settings live in Settings → Sub-agents. */
+const capabilitySubagentProfiles = $derived(
+  agentProfileCatalog
+    .profiles(activeProject?.id)
+    .filter((profile) => profile.usableBy !== "lead")
+    .map((profile) => ({
+      name: profile.name,
+      label: profile.label,
+      description: profile.description,
+      disabled: !profile.enabled,
+      error: profile.error,
+    })),
+);
 /** Tool group whose conversation-level settings dialog is open. */
 let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
 const capabilityScopeKey = $derived(
@@ -671,6 +684,7 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilityLoading,
     capabilityError,
     capabilityScopeKey,
+    capabilitySubagentProfiles,
     subagentControlsEnabled: canEditComposerDelegation(
       activeProject?.id,
       activeConversation,

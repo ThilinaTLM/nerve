@@ -47,8 +47,8 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     ],
     action: {
       kind: "settings",
-      pageId: "profiles",
-      sectionId: "profiles",
+      pageId: "sub-agents",
+      sectionId: "sub-agents",
       label: "Configure Sub-agents",
     },
   },
@@ -82,8 +82,8 @@ export const discoverNewsCatalog: readonly DiscoverNewsEntry[] = [
     ],
     action: {
       kind: "settings",
-      pageId: "profiles",
-      sectionId: "profiles",
+      pageId: "sub-agents",
+      sectionId: "sub-agents",
       label: "Configure Sub-agents",
     },
   },

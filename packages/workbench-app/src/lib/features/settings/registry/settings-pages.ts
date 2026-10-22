@@ -1,5 +1,6 @@
 import type { Component } from "svelte";
 import Bell from "@lucide/svelte/icons/bell";
+import Bot from "@lucide/svelte/icons/bot";
 import CloudCog from "@lucide/svelte/icons/cloud-cog";
 import FileText from "@lucide/svelte/icons/file-text";
 import HardDrive from "@lucide/svelte/icons/hard-drive";
@@ -41,7 +42,8 @@ const icons: Record<string, Component> = {
   general: SlidersHorizontal,
   tools: Wrench,
   skills: Library,
-  profiles: Users,
+  agents: Bot,
+  "sub-agents": Users,
   "permission-rules": Shield,
   models: ShieldCheck,
   workbench: Monitor,

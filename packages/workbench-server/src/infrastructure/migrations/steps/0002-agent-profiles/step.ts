@@ -1,4 +1,6 @@
-import { capturePhase5Trust, convertPhase5, verifyPhase5 } from "./phase5.js";
+import { capturePhase5Trust, convertPhase5 } from "./phase5.js";
+import { verifyPhase5 } from "./phase5-verification.js";
+import { phaseProgress } from "./progress.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -40,7 +42,8 @@ function profilePath(path: string): string {
 /** Keep 0001's v1 SQL boundary intact. This step edits data without opening core
  * storage; normal storage startup applies core v2 after all home steps finish.
  */
-function convertDatabase(ctx: StepContext): void {
+async function convertDatabase(ctx: StepContext): Promise<void> {
+  await phaseProgress(ctx, "backup", "Backing up the database for rollback")();
   const journal = new RollbackJournal(ctx.scratchDir);
   // The home lock guarantees exclusive access. Checkpoint before snapshotting
   // the database, then close the last connection so no live WAL is copied.
@@ -52,6 +55,7 @@ function convertDatabase(ctx: StepContext): void {
   }
   for (const suffix of ["", "-wal", "-shm"])
     journal.preserveFile(ctx.paths.sqlitePath + suffix);
+  await phaseProgress(ctx, "database", "Converting stored tool metadata")();
   const db = new DatabaseSync(ctx.paths.sqlitePath);
   try {
     db.exec("PRAGMA foreign_keys=ON; BEGIN IMMEDIATE");
@@ -95,7 +99,16 @@ export default defineStep({
   description: "Convert stored agent profiles and planning capabilities",
   async run(ctx) {
     const { projects, conversations } = locations(ctx);
+    await phaseProgress(ctx, "trust", "Checking original project trust")();
     capturePhase5Trust(ctx, projects);
+    const profileProgress = phaseProgress(
+      ctx,
+      "profile-documents",
+      "Converting profile catalogs",
+      projects.length + 1,
+    );
+    await profileProgress();
+    let profilesDone = 0;
     for (const root of [ctx.paths.home, ...projects]) {
       const source = join(root, "config", "subagents.json");
       const target = join(root, "config", "agent-profiles.json");
@@ -105,8 +118,18 @@ export default defineStep({
         () => convertProfiles(ctx, root),
         { quarantine: { files: [source, target], root } },
       );
+      await profileProgress(++profilesDone);
     }
-    for (const file of documentFiles(ctx.paths.home, projects, conversations)) {
+    const files = documentFiles(ctx.paths.home, projects, conversations);
+    const documentsProgress = phaseProgress(
+      ctx,
+      "documents",
+      "Converting capability settings",
+      files.length,
+    );
+    await documentsProgress();
+    let documentsDone = 0;
+    for (const file of files) {
       ctx.ownPaths([file.path], file.root);
       await ctx.unit(
         {
@@ -117,10 +140,11 @@ export default defineStep({
         () => convertFile(ctx, file),
         { quarantine: { files: [file.path], root: file.root } },
       );
+      await documentsProgress(++documentsDone);
     }
     // Do not update shared DB metadata if any document unit needs repair.
     finishPhase(ctx);
-    convertDatabase(ctx);
+    await convertDatabase(ctx);
     await convertPhase5(ctx, projects, conversations);
   },
   async verify(ctx) {
@@ -143,7 +167,12 @@ export default defineStep({
         `Unconverted document: ${file.path}`,
       );
     }
-    verifyPhase5(ctx, projects, conversations);
+    await verifyPhase5(ctx, projects, conversations);
+    await phaseProgress(
+      ctx,
+      "verify-database",
+      "Verifying stored tool metadata",
+    )();
     const db = new DatabaseSync(ctx.paths.sqlitePath, { readOnly: true });
     try {
       assert.equal(

@@ -49,8 +49,12 @@ describe("project differences", () => {
       },
     });
     assert.deepEqual(
-      projectPageDiffs({ capabilities: document, profileFiles: 1 }),
-      { general: 0, tools: 2, skills: 2, profiles: 1 },
+      projectPageDiffs({
+        capabilities: document,
+        agentFiles: 1,
+        subAgentFiles: 2,
+      }),
+      { general: 0, tools: 2, skills: 2, agents: 1, "sub-agents": 2 },
     );
   });
 });

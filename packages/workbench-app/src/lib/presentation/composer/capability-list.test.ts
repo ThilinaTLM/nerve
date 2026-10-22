@@ -12,14 +12,14 @@ describe("showCapabilitySearch", () => {
   it("stays hidden for a short active list, including the threshold", () => {
     assert.equal(showCapabilitySearch(0), false);
     assert.equal(showCapabilitySearch(7), false);
-    assert.equal(showCapabilitySearch(8), false);
+    assert.equal(showCapabilitySearch(9), false);
   });
 
   it("appears only for a long active list", () => {
     // Switching from 15 skills to 7 tools must hide the skill search field.
     assert.equal(showCapabilitySearch(15), true);
     assert.equal(showCapabilitySearch(7), false);
-    assert.equal(showCapabilitySearch(9), true);
+    assert.equal(showCapabilitySearch(10), true);
   });
 });
 
@@ -40,25 +40,6 @@ describe("capabilityBodyHeight", () => {
   });
 });
 
-describe("capabilityToolGroupsFor", () => {
-  it("presents web search and fetch as one Web access capability", () => {
-    assert.deepEqual(capabilityToolGroupsFor(["web_search", "web_fetch"]), [
-      {
-        key: "web",
-        label: "Web access",
-        names: ["web_search", "web_fetch"],
-        searchText: "Web search Web fetch",
-      },
-    ]);
-  });
-
-  it("keeps the group when only one web tool is available", () => {
-    assert.deepEqual(capabilityToolGroupsFor(["web_fetch"])[0]?.names, [
-      "web_fetch",
-    ]);
-  });
-});
-
 describe("tool groups", () => {
   it("lists delegation and shell as their own groups", () => {
     const groups = capabilityToolGroupsFor([
@@ -69,7 +50,7 @@ describe("tool groups", () => {
     ]);
     assert.deepEqual(
       groups.map((group) => group.key),
-      ["subagents", "web", "bash"],
+      ["subagents", "web_search", "web_fetch", "bash"],
     );
   });
 

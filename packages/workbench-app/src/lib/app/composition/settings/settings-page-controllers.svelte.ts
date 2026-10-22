@@ -4,7 +4,13 @@ import {
   type CapabilityConfiguration,
   type CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
+import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
 import type { Project } from "@nervekit/contracts/core";
+import {
+  profileFileCount,
+  profileKindForPage,
+  storedUsableBy,
+} from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
 import type { ProjectHarnessOverrides } from "@nervekit/contracts/settings";
 import {
   readAgentProfiles,
@@ -89,7 +95,13 @@ export function createSettingsPageControllers(deps: {
 
   /** What the project stores outside capabilities; see `pageDiffs`. */
   let harnessOverrides = $state.raw<ProjectHarnessOverrides>();
-  let profileFiles = $state.raw<{ name: string; digest: string | null }[]>([]);
+  let profileFiles = $state.raw<
+    {
+      name: string;
+      digest: string | null;
+      usableBy?: AgentProfileUsableBy;
+    }[]
+  >([]);
   let diffRequest = 0;
 
   async function loadProjectDiff(): Promise<void> {
@@ -109,7 +121,11 @@ export function createSettingsPageControllers(deps: {
       harnessOverrides = settings.overrides;
       profileFiles = profiles.profiles
         .filter((profile) => profile.local !== null)
-        .map((profile) => ({ name: profile.name, digest: profile.digest }));
+        .map((profile) => ({
+          name: profile.name,
+          digest: profile.digest,
+          usableBy: storedUsableBy(profile),
+        }));
     } catch {
       // Counts are advisory; the pages report their own load errors.
     }
@@ -289,7 +305,8 @@ export function createSettingsPageControllers(deps: {
     return projectPageDiffs({
       harness: harnessOverrides,
       capabilities: capabilityConfiguration?.project,
-      profileFiles: profileFiles.length,
+      agentFiles: profileFileCount(profileFiles, "lead"),
+      subAgentFiles: profileFileCount(profileFiles, "subagent"),
     });
   }
 
@@ -313,8 +330,12 @@ export function createSettingsPageControllers(deps: {
         if (capabilities)
           await patchProjectCapabilities(skillsResetPatch(capabilities));
         break;
-      case "profiles":
-        for (const file of profileFiles)
+      case "agents":
+      case "sub-agents":
+        for (const file of profileFiles.filter(
+          (candidate) =>
+            profileFileCount([candidate], profileKindForPage(pageId)) > 0,
+        ))
           await resetAgentProfile({
             scope: "project",
             projectId,

@@ -16,7 +16,7 @@ describe("settings page registry", () => {
     assert.deepEqual(grouped("user"), [
       ["Connections", ["providers", "integrations"]],
       ["Agent", ["general", "tools", "skills"]],
-      ["Catalog", ["profiles", "permission-rules", "models"]],
+      ["Catalog", ["agents", "sub-agents", "permission-rules", "models"]],
       [
         "App",
         ["workbench", "notifications", "shortcuts", "voice", "suggestions"],
@@ -28,7 +28,7 @@ describe("settings page registry", () => {
   it("groups the project nav as approved", () => {
     assert.deepEqual(grouped("project"), [
       ["Agent", ["general", "tools", "skills"]],
-      ["Catalog", ["profiles", "permission-rules"]],
+      ["Catalog", ["agents", "sub-agents", "permission-rules"]],
       [
         "This project",
         ["launch", "instructions-files", "suggestions", "trust"],
@@ -46,7 +46,12 @@ describe("settings page registry", () => {
   });
 
   it("sends stale or foreign page ids to the scope default", () => {
-    for (const old of ["agent-profiles", "transcription", "permissions"])
+    for (const old of [
+      "agent-profiles",
+      "profiles",
+      "transcription",
+      "permissions",
+    ])
       assert.equal(
         resolveSettingsPageId("user", old),
         defaultSettingsPageId("user"),
