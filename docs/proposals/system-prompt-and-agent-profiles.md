@@ -250,6 +250,86 @@ The active profile is stored by name and resolved again every turn. That needs n
 - **Approval** switches to the default lead profile (`defaultAgentProfile`, `coding` unless changed). **Rejection** keeps the profile and ends the run.
 - **Unchanged:** the plan review interaction, plan asset storage, and the `plans` permission root.
 
+## 5. Settings layers and profile templates (Phase 5)
+
+> **Approved target.** This phase supersedes conflicting earlier rules about prompt files, inheritance, live profile resolution, storage and plan approval. The earlier sections describe phases 1–4; they are not compatibility requirements for phase 5. Profile IDs remain `coding`, `planning`, `explore` and `developer`.
+
+### Goals
+
+- Give agent settings one four-layer model: **built-in → user → project → conversation**.
+- Make profiles pure, explicit templates that write ordinary conversation settings, not an extra live settings layer.
+- Use per-file profile storage, host-owned bundled definitions and the approved settings redesign without DB schema changes.
+
+### Model
+
+**Settings.** LLM providers, integration accounts (Tavily and Atlassian) and app preferences are user-only. Projects and conversations select user models/accounts; they do not define their own accounts or app preferences. Agent settings at user, project and conversation scope are model, thinking, permission rule set, compaction, tools and skills. Each configurable tool has on/off state and typed configuration. `read`, `edit`, `bash` and `ask_user` stay always on and are governed by permissions; only optional tools toggle. Always-on tools can still have configuration, such as bash limits.
+
+**Templates.** There is one agent-profile concept; `usableBy: lead | subagent | both` determines applicability. Every scalar, each tool entry and skills use the same mode vocabulary:
+
+| Mode             | On apply                                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| **Use settings** | Keep the conversation's current value. A new conversation is initialized from application settings before applying a template. |
+| **Same as lead** | Copy the lead's effective value at sub-agent creation; valid only for sub-agent use.                                           |
+| **Set**          | Write the selected value; the user can change it afterwards.                                                                   |
+| **Lock**         | Write the selected value and prevent subsequent user mutation while this applied lock is in force.                             |
+
+A tool entry reuses the capability payload: `enabled`, account `profileId` where supported, and typed settings. Modes apply to that payload, not a second profile-only tool configuration shape. Credentials remain user-owned.
+
+Applying a template materializes its values into existing conversation settings and captures **profile name, instructions and locked fields** in `<NERVE_HOME>/data/conversations/<id>/config/applied-agent-profile.json`. The snapshot is apply-time policy, not a separate baseline settings store. Turns read conversation settings and this snapshot; they do not resolve the source profile again. Later edits, deletion or disabling of a template do not change already applied values, instructions or locks. Reapplication captures a new snapshot. The profile editor states that it is a template and changes affect future applies only.
+
+A switch replaces the previous applied lock policy. **Use settings keeps current values even if the previous template set or locked them**; it does not restore pre-lock values or reset them to application defaults. Remove previous-Set-equality cleanup and the overloaded `default` form. Server mutation paths enforce scalar, tool and skill locks, not just disabled UI controls; applying a new template is the authorized operation that replaces values and locks.
+
+**Built-ins.** Lead profiles remain `coding` and `planning`; sub-agent profiles remain `explore` and `developer`. `coding` uses **Use settings** for every configurable setting, drops its Set-default permission, and keeps its summary instruction. Planning keeps its planning instructions and permission lock, enables `plan_present`, and configures that tool's approval profile as `coding`. Explore and Developer retain their research/implementation purposes and explicit permission/skill choices, with source inheritance expressed using the new modes.
+
+### Changes by area
+
+- **Prompt resources:** load no user-level prompt/context files, including `<NERVE_HOME>/agent/{AGENTS.md,SYSTEM.md,APPEND_SYSTEM.md}`. At project scope load only applicable `AGENTS.md` files (root and nested working-directory ancestry) and the project's `.nerve/APPEND_SYSTEM.md`. Remove project `SYSTEM.md` and implicit user/above-project context loading. Keep user skill discovery; it is not prompt-file loading.
+- **Settings resolution:** stop loading project `providers.json`, `integrations.json` and `ui.json`. Keep user account catalogs separate from scoped model/account selection. Reuse existing conversation scalar storage, harness compaction and capability overrides; complete tool configuration at every layer rather than adding a new settings store.
+- **Tool configuration:** move Python interpreter path into `python_exec` configuration, and shell/background/timeout limits into `bash` configuration. Extend typed capability settings and their runtime consumers for user, project and conversation scopes. Unify duplicate project-harness image/Kroki configuration with the capability tool-config ladder. Profile entries use the same account/config validation, including Jira, Confluence and web-search `profileId`; they cannot disable always-on core tools.
+- **Apply/runtime:** use one apply path for creation, switching and child initialization. Materialize Set and Lock values, capture instructions/lock metadata in the conversation file, and remove live per-turn profile capability, instruction and lock overlays. Enforce locks on configure, compaction and capability mutation APIs. Do not introduce profile-specific baseline/provenance columns or duplicate harness defaults in profiles.
+- **Plan review:** add a typed `plan_present` approval-profile setting, not an agent-call argument. Capture its effective value in the persisted `plan_review` interaction payload when presenting the plan; validate the target on approval and switch to that captured profile. Preserve user-approved model/thinking overrides subject to locks. Approval no longer uses `defaultAgentProfile`; that setting remains the start profile for new main conversations. Rejection behavior is unchanged.
+- **Profile files:** user files are `<NERVE_HOME>/data/agent-profiles/<name>.json`; project files are `.nerve/agent-profiles/<name>.json`. Use one versioned named definition/override per file, with filename/name validation. Trust exact project-file bytes; digest, `expectedDigest` concurrency, diagnostics and deletion are per file. Delete unlinks the local file; removing an override exposes the inherited definition. Reuse existing trust records, path protection and atomic writes. Replace aggregate-document mutation/replacement assumptions; in-memory draft collections need not be persisted as aggregate documents.
+- **Bundled profiles:** move definitions out of contracts into `packages/workbench-server/src/domains/agent-profiles/builtin/{coding,planning,explore,developer}.json`. Load, validate and freeze them like permission rule sets, include JSON in emitted/packaged assets, and inject the catalog into the transport-neutral contracts resolver. Base definitions have `source: builtin`; clients consume the existing profile APIs, not a duplicate TS catalog.
+- **Settings UI:** follow `/dev/wireframes/settings-redesign`, using shared primitives in `$lib/presentation/settings` and updated typography/style contracts.
+  - **User navigation:** Connections → Providers, Integrations; Agent → General, Tools, Skills; Catalog → Profiles, Permission rules, Models; App → Workbench, Notifications, Shortcuts (read-only), Voice, Suggestions; System → Storage, System.
+  - **Project navigation:** Agent → General, Tools, Skills; Catalog → Profiles, Permission rules; This project → Launch, Instructions files, Suggestions, Trust. Open this separate area from the project menu; desktop and mobile route identities carry `projectId`. Each Agent page shows changed-value dots, ↺ and a per-page “N differ · Reset all”.
+  - **General and Models:** General contains start profile, remember-last-selection, model with reasoning, permission rule set and compaction. Model and reasoning form **one picker and one profile setting** wherever a single model is chosen. Models is a separate model-scope multi-select page, not another default-model picker.
+  - **Tools and Skills:** skills enablement exists only on Skills pages, not General or a second skills-library page; profiles may still specify skill changes. Tool rows expose on/off for optional tools, supported account pickers, typed configuration, setup state and resets. Core tools have no off toggle. Integration entries are called **accounts**; support multiple Tavily and Atlassian accounts, with independent Jira and Confluence selections.
+  - **Profiles:** show change lists with modes and the template notice. Lock is available for **all** profiles; Same as lead is available only for profiles usable by sub-agents (`subagent` or `both`).
+  - **Composer:** show the profile picker, “Locked by <profile>” chips, a dot and ↺ for values differing from settings, and a Tools popover with optional-tool toggles, account pickers and configuration. Values and locks come from applied conversation state, not the editable template.
+
+### Migration
+
+Extend unreleased **`0002-agent-profiles`** and its frozen conversions/fixtures; never edit released migrations. **No DB schema changes** are part of phase 5.
+
+- Split existing aggregate user/project/conversation profile documents into per-profile files where scoped definitions remain supported. Preserve source digests, per-target receipts, collision protection, quarantine, rollback and retry safety; delete aggregate sources only after all targets verify. Old whole-document trust must not become blanket approval of transformed files: require per-file project review.
+- Convert legacy modes to explicit Use settings / Same as lead / Set / Lock according to their old scope and meaning. Resolve old `default` references into concrete values where possible; route ambiguous or unresolvable input through repair rather than guessing. No runtime aliases or dual readers.
+- Move detached execution configuration and duplicate project tool configuration into their canonical typed tool settings. Preserve account selections without copying credentials or silently importing project accounts into the user catalog.
+- Materialize existing conversations' effective profile values and instructions, including locks, into their settings and applied snapshots so they do not depend on the template after upgrade. Preserve conversation-specific choices and distinguish lead from child state; do not snapshot a live profile twice over an already materialized child.
+- Keep all existing profile IDs and stored `agent_profile` / `defaultAgentProfile` names unchanged. Rehearse on a fresh/copied slot, never slot 1, and verify restart, exact-byte trust, deletion, idempotence and rollback.
+
+### Out of scope
+
+- Profile renames, new DB tables/columns, released-migration edits, runtime compatibility shims and a separate profile-baseline store.
+- Disabling always-on core tools, project-owned provider/integration accounts or app preferences, and changing an existing sub-agent's profile.
+- Unrelated mock-only features such as new model providers, editable shortcuts, named compaction-strategy CRUD or desktop autostart. Use real supported controls/catalogs in the approved layout.
+
+### Implementation waves and ownership
+
+Use four stable ownership lanes; two developers can combine lanes serially. No parallel developer edits another lane's files. Contracts are agreed before consumers are wired; shared composition/registry files have one owner.
+
+| Owner                               | Exclusive paths / responsibility                                                                                                                                                                                                                         |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A — shared model and core           | `packages/contracts/**`, `packages/conversation-core/**`: mode/tool/snapshot/interaction contracts, apply lifecycle and core mutation/approval mechanics. No DB schema changes.                                                                          |
+| B — host and migration              | `packages/workbench-server/**`: scoped settings/tool resolution, snapshot/profile files, bundled JSON/build inclusion, trust, runtime adapters and all `0002-agent-profiles` conversions. Owns required host build/config files; no released migrations. |
+| C — settings presentation and pages | Workbench app `$lib/presentation/settings/**`, `$lib/features/settings/views/**` and styling guidance: primitives, typography tests, Agent/Profiles/tool rows and restructured pages. No app composition/registry edits.                                 |
+| D — app state, routing and composer | Workbench app settings state/API/registry and app composition, application/workspace/commands, project-menu wiring, mobile routes and composer: explicit scope targets, applied-state UI and integration. Owns shared exports/wiring outside C's paths.  |
+
+1. **Contracts and UI foundation** — A defines mode semantics, typed tool payloads, snapshot and captured approval contracts; B fixes file formats, migration mapping and JSON loader/build plan against them. C ports canonical primitives and updates typography/style rules; D defines bound User/Project route and controller interfaces. Gate: no overloaded inheritance/default, no core-off capability, no duplicated built-in definitions.
+2. **Persistence and apply behavior** — A implements materialization, lock mutation enforcement and approval routing; B implements per-file catalogs/trust/concurrency/delete, layered tool resolution, prompt-source removal, snapshots and 0002. C builds Agent/Profiles pages against settled interfaces; D builds state/API adapters and scoped navigation. Gate: later template edits cannot alter an applied conversation; config/account choices work at all allowed scopes; per-file conflicts and trust are isolated.
+3. **Redesign integration** — C completes page merges/moves, change lists, mode editors and account/config rows; D wires desktop/project menus/mobile/composer and removes old live-template UI assumptions. A/B close owning-layer runtime gaps. Gate: start profile and captured approval target are independent, locks are truthful and server-enforced, project saves cannot drift to another project, and forbidden prompt/project settings sources are gone.
+4. **Validation and cleanup** — each owner tests touched behavior; B rehearses 0002 on a copied slot and checks packaged JSON assets. D coordinates light/dark, narrow/mobile and multi-project review plus the final focused fix/check pass after parallel edits settle. Gate: relevant unit tests and focused checks pass; no aliases, aggregate storage, live profile layer, stale controls or unrelated edits remain. Run integration/browser suites only when explicitly requested.
+
 ## Phases
 
 1. **System prompt + core tool descriptions.** New sections, order, and guidelines. Tool rules move to descriptions. Rename `<instructions>`. Add `<available_agent_profiles>` and the `{{skill:}}` placeholder. Change the `SYSTEM.md` scope. Rewrite core/orchestration descriptions. Mode and its prompt blocks stay for now.
@@ -257,7 +337,9 @@ The active profile is stored by name and resolved again every turn. That needs n
 3. **Agent profiles.** Rename, `usableBy`, Inherit/Set/Lock, lead resolution, switching rules, `defaultAgentProfile`, settings UI, document migration.
 4. **Planning as a profile.** `planning` skill, `plan_present`, `mode` column repurposed (approved), composer selector, `/profile <name>` and the `/plan` shortcut, approval switch, removal of `<mode_controls>`/`<plan_mode>`, `modeSchema`, `compatibleModes`. Update `ui-kit` `status.ts`. The marketing simulation (`website/src/scripts/marketing/run-simulation.ts`) shows the profile selector with Coding/Planning. Test the migration on a copied slot (`pnpm storage:copy --slot N`).
 
-Phases ship independently. Phases 3 and 4 share the single unreleased migration step.
+5. **Settings layers and pure templates.** Implement section 5: four settings layers, explicit modes, apply-time snapshots, typed tool configuration and approval targets, per-file/bundled JSON profiles, and the approved settings redesign.
+
+Phases ship independently. Phase 5 extends the existing unreleased `0002-agent-profiles` migration; released migrations stay unchanged.
 
 ## Follow-up proposals
 
