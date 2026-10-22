@@ -33,7 +33,7 @@ let {
 
 {#if header}
   <div
-    class="grid gap-0.5 border-b px-2 pb-3 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
+    class="grid flex-none gap-0.5 border-b px-2 pb-3 @max-[46rem]/settings-page:border-b-0 @max-[46rem]/settings-page:pb-1"
   >
     <p class="text-sm font-semibold text-foreground">{header.title}</p>
     {#if header.subtitle}
@@ -49,7 +49,7 @@ let {
 
 <nav
   aria-label={ariaLabel}
-  class="grid min-h-0 content-start gap-4 pt-3 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
+  class="grid min-h-0 flex-1 content-start gap-4 overflow-y-auto pt-0 @max-[46rem]/settings-page:flex @max-[46rem]/settings-page:gap-1 @max-[46rem]/settings-page:overflow-x-auto @max-[46rem]/settings-page:pt-0"
 >
   {#each groups as group (group.id)}
     <div class="grid gap-0.5 @max-[46rem]/settings-page:flex">

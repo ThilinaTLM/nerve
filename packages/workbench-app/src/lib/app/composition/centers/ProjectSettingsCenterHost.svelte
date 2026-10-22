@@ -15,6 +15,13 @@ const project = $derived(
   workspaceState.projects.find((candidate) => candidate.id === projectId),
 );
 const target = projectId ? projectSettingsScope(projectId) : undefined;
+// Restored tabs can mount without going through openProjectSettingsPane.
+if (projectId && !settingsState.projectViews[projectId]) {
+  settingsState.projectViews[projectId] = {
+    pageId: resolveSettingsPageId("project", undefined),
+    sectionId: "",
+  };
+}
 const view = $derived(
   projectId ? settingsState.projectViews[projectId] : undefined,
 );
@@ -34,13 +41,13 @@ const view = $derived(
       }
     }
     bind:sectionId={
-      () => view?.sectionId,
+      () => view?.sectionId ?? "",
       (sectionId) => {
         const current = settingsState.projectViews[projectId];
         settingsState.projectViews[projectId] = {
           pageId:
             current?.pageId ?? resolveSettingsPageId("project", undefined),
-          sectionId,
+          sectionId: sectionId ?? "",
         };
       }
     }

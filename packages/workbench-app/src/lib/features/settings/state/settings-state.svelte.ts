@@ -33,5 +33,5 @@ export const settingsState = $state({
   activePageId: "providers",
   activeSectionId: "subscriptions",
   /** Page and section last shown by each project's settings tab. */
-  projectViews: {} as Record<string, { pageId: string; sectionId?: string }>,
+  projectViews: {} as Record<string, { pageId: string; sectionId: string }>,
 });

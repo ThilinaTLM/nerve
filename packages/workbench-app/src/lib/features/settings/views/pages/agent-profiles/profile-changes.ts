@@ -27,6 +27,9 @@ export type ChangeKey =
 export type ModelChangeValue = {
   model?: ModelSelection;
   thinking?: ThinkingLevel;
+  /** Kept independently even though the picker edits both values. */
+  modelMode?: ChangeMode;
+  thinkingMode?: ChangeMode;
 };
 
 export const changeKinds = [
@@ -112,6 +115,9 @@ export function changeRows(profile: AgentProfileDraft): ChangeRow[] {
       value: {
         model: profile.model && valueOf(profile.model),
         thinking: profile.thinking && valueOf(profile.thinking),
+        modelMode: profile.model === undefined ? "set" : modeOf(profile.model),
+        thinkingMode:
+          profile.thinking === undefined ? "set" : modeOf(profile.thinking),
       } satisfies ModelChangeValue,
     });
   }
@@ -149,13 +155,25 @@ export function setChangePatch(
 ): AgentProfilePatch {
   if (key === "instructions") return { instructions: String(value) };
   if (key === "model") {
-    // One mode applies to whichever fields are set; an unset field falls back
-    // to Use settings.
-    if (mode === "lead") return { model: "lead", thinking: "lead" };
-    const { model, thinking } = (value ?? {}) as ModelChangeValue;
+    const {
+      model,
+      thinking,
+      modelMode = mode,
+      thinkingMode = mode,
+    } = (value ?? {}) as ModelChangeValue;
     return {
-      model: model ? withMode(mode, model) : null,
-      thinking: thinking ? withMode(mode, thinking) : null,
+      model:
+        modelMode === "lead"
+          ? "lead"
+          : model
+            ? withMode(modelMode, model)
+            : null,
+      thinking:
+        thinkingMode === "lead"
+          ? "lead"
+          : thinking
+            ? withMode(thinkingMode, thinking)
+            : null,
     } as AgentProfilePatch;
   }
   if (key.startsWith("tool:"))

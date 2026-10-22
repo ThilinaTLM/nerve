@@ -134,18 +134,20 @@ function capabilityTitle(capability: ModelCapability): string {
         type="multiple"
         spacing={1}
         variant="chip"
-        value={capabilities}
+        bind:value={
+          () => capabilities,
+          (value) => {
+            const next = [
+              ...(value as ModelCapability[]),
+              ...requiredCapabilities,
+            ];
+            capabilities = modelCapabilities.filter((item) =>
+              next.includes(item),
+            );
+          }
+        }
         aria-label="Filter by capability"
         class="ml-auto flex-none"
-        onValueChange={(value) => {
-          const next = [
-            ...(value as ModelCapability[]),
-            ...requiredCapabilities,
-          ];
-          capabilities = modelCapabilities.filter((item) =>
-            next.includes(item),
-          );
-        }}
       >
         {#each modelCapabilities as capability (capability)}
           {@const Icon = capabilityIcons[capability]}

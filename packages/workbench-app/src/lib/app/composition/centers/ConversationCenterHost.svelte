@@ -101,6 +101,7 @@ import {
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { lockedFieldsOf } from "$lib/application/agent-profiles/applied-locks";
+import { pendingProfilePreview } from "$lib/application/agent-profiles/pending-profile-preview";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -214,12 +215,38 @@ const activeProject = $derived.by(() => {
 const activeApprovals = $derived(view?.approvals ?? []);
 const pendingUserQuestions = $derived(view?.pendingUserQuestions ?? []);
 const pendingPlanReviews = $derived(view?.pendingPlanReviews ?? []);
+const profileCatalogProjectId = $derived(
+  activePendingConversation?.projectId ??
+    store?.snapshot?.conversation.projectId,
+);
+const resolvedProfiles = $derived(
+  agentProfileCatalog.profiles(profileCatalogProjectId),
+);
+const pendingPreview = $derived(
+  activePendingConversation
+    ? pendingProfilePreview(
+        resolvedProfiles.find(
+          (profile) => profile.name === activePendingConversation.agentProfile,
+        ),
+        activePendingConversation.config,
+        (model, thinking) =>
+          clampThinkingLevelForModel(
+            thinking,
+            settingsState.models.find(
+              (candidate) => modelKey(candidate) === modelKey(model),
+            ),
+          ),
+      )
+    : undefined,
+);
 const selectedModelKey = $derived(
-  activePendingConversation?.selectedModelKey ??
+  (pendingPreview ? modelKey(pendingPreview.settings.model) : undefined) ??
+    activePendingConversation?.selectedModelKey ??
     (store?.snapshot ? modelKey(store.snapshot.config.model) : ""),
 );
 const selectedThinkingLevel = $derived(
-  activePendingConversation?.thinkingLevel ??
+  pendingPreview?.settings.thinking ??
+    activePendingConversation?.thinkingLevel ??
     store?.snapshot?.config.reasoningLevel ??
     "off",
 );
@@ -229,16 +256,10 @@ const selectedAgentProfile = $derived(
     DEFAULT_AGENT_PROFILE,
 );
 const selectedPermissionRuleSetId = $derived(
-  activePendingConversation?.permissionRuleSetId ??
+  pendingPreview?.settings.permission ??
+    activePendingConversation?.permissionRuleSetId ??
     store?.snapshot?.config.permissionRuleSetId ??
     "autonomous",
-);
-const profileCatalogProjectId = $derived(
-  activePendingConversation?.projectId ??
-    store?.snapshot?.conversation.projectId,
-);
-const resolvedProfiles = $derived(
-  agentProfileCatalog.profiles(profileCatalogProjectId),
 );
 /** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
 const composerProfiles = $derived(
@@ -252,7 +273,13 @@ const composerProfiles = $derived(
 );
 // Locks come from the snapshot captured when the profile was applied.
 const lockedFields = $derived(
-  viewedChildId ? {} : lockedFieldsOf(store?.snapshot?.appliedAgentProfile),
+  viewedChildId
+    ? {}
+    : lockedFieldsOf(
+        activePendingConversation
+          ? pendingPreview?.applied
+          : store?.snapshot?.appliedAgentProfile,
+      ),
 );
 const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
 /** Unlocked values that differ from the effective (user) settings. */

@@ -240,7 +240,10 @@ function valueText(key: ChangeKey, value: unknown): string {
           compaction.profile.slice(1);
   }
   if (key === "skills") return skillsSummary(value);
-  if (key === "instructions") return `+ ${String(value).split("\n")[0]}`;
+  if (key === "instructions")
+    return `+ ${String(value)
+      .split("\n")[0]
+      .replace(/\{\{skill:([^}]+)\}\}/g, "$1 skill")}`;
   const id = key.slice(5) as ToolId;
   const payload = (value ?? {}) as ToolPayload;
   const label = toolRow(id).label;
@@ -252,7 +255,7 @@ function valueText(key: ChangeKey, value: unknown): string {
       name,
     modelLabel: (selection) => modelText({ model: selection }),
   });
-  return `${label} · ${summary.toLowerCase()}`;
+  return `${label} · ${summary}`;
 }
 
 /** The rows of one profile, with whether this layer wrote each setting. */

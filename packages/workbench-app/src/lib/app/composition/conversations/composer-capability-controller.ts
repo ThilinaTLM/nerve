@@ -7,6 +7,9 @@ import {
   type CapabilityOverridesDocument,
   type CapabilityPatch,
 } from "@nervekit/contracts/capabilities";
+import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import type { ConversationConfig } from "@nervekit/contracts/core";
+import { pendingProfilePreview } from "$lib/application/agent-profiles/pending-profile-preview";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
 import {
   composerSkillRows,
@@ -37,6 +40,8 @@ export type ComposerCapabilityScope =
       key: string;
       projectId: string;
       pendingId: string;
+      profile?: AgentProfile;
+      config: Omit<ConversationConfig, "conversationId">;
       overrides?: CapabilityOverridesDocument;
       onOverridesChange: (overrides: CapabilityOverridesDocument) => void;
     };
@@ -236,7 +241,11 @@ export class ComposerCapabilityController {
     context.availableSkills = available.skills;
     context.configuration =
       context.scope.kind === "pending"
-        ? configurationWithPendingOverrides(base, context.scope.overrides)
+        ? configurationWithPendingOverrides(
+            base,
+            context.scope,
+            context.availableSkills,
+          )
         : base;
     context.skills = this.#buildSkillRows(context);
   }
@@ -251,7 +260,8 @@ export class ComposerCapabilityController {
     if (context.baseConfiguration) {
       context.configuration = configurationWithPendingOverrides(
         context.baseConfiguration,
-        overrides,
+        context.scope,
+        context.availableSkills,
       );
       context.skills = this.#buildSkillRows(context);
     }
@@ -299,10 +309,44 @@ export class ComposerCapabilityController {
 
 function configurationWithPendingOverrides(
   base: CapabilityConfiguration,
-  overrides: CapabilityOverridesDocument | undefined,
+  scope: Extract<ComposerCapabilityScope, { kind: "pending" }>,
+  availableSkills: AvailableSkill[],
 ): CapabilityConfiguration {
   const pending = { ...base, inherited: base.effective };
-  if (!overrides) return pending;
+  const overrides = capabilityOverridesDocumentSchema.parse(
+    scope.overrides ?? emptyCapabilityOverrides(),
+  );
+  const current = resolveCapabilitySelection({
+    user: base.effective,
+    conversation: overrides,
+  });
+  const preview = pendingProfilePreview(
+    scope.profile,
+    scope.config,
+    (_model, thinking) => thinking,
+    current,
+  );
+  if (preview) {
+    for (const name of Object.keys(scope.profile!.tools)) {
+      Object.assign(overrides.tools, {
+        [name]:
+          preview.settings.tools[name as keyof typeof preview.settings.tools],
+      });
+    }
+  }
+  if (preview && scope.profile?.skills !== undefined) {
+    const chosen = preview.settings.skills;
+    for (const skill of availableSkills) {
+      const kind =
+        skill.source === "nerve"
+          ? "nerve"
+          : skill.source === "agentBrowser"
+            ? "agentBrowser"
+            : "file";
+      overrides.skills[kind][skill.name] =
+        chosen === "none" ? false : (chosen[kind][skill.name] ?? false);
+    }
+  }
   return {
     ...pending,
     conversation: overrides,

@@ -92,7 +92,10 @@ function selectPage(id: string): void {
 
 <section class={cn("settings-page-container", className)}>
   <div class="settings-page">
-    <aside class="settings-sidebar" aria-label={ariaLabel}>
+    <aside
+      class="settings-sidebar flex flex-col gap-3 overflow-hidden"
+      aria-label={ariaLabel}
+    >
       <SettingsNav
         {groups}
         header={scopeHeader}
@@ -101,7 +104,9 @@ function selectPage(id: string): void {
         onSelect={selectPage}
       />
       {#if sidebarFooter}
-        {@render sidebarFooter()}
+        <div class="flex-none">
+          {@render sidebarFooter()}
+        </div>
       {/if}
     </aside>
 
@@ -164,10 +169,7 @@ function selectPage(id: string): void {
 }
 
 .settings-sidebar {
-  display: grid;
-  align-content: start;
   min-height: 0;
-  overflow-y: auto;
   border-right: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
   background: var(--panel);
   color: var(--foreground);
@@ -204,7 +206,6 @@ function selectPage(id: string): void {
   .settings-sidebar {
     border-right: 0;
     border-bottom: 1px solid var(--border);
-    overflow: visible;
   }
 }
 </style>

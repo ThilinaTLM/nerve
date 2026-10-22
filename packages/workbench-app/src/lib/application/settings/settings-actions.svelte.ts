@@ -85,7 +85,7 @@ export async function openProjectSettingsPane(
     pageId: pageId
       ? resolveSettingsPageId("project", pageId)
       : (view?.pageId ?? resolveSettingsPageId("project", undefined)),
-    sectionId: sectionId ?? (pageId ? undefined : view?.sectionId),
+    sectionId: sectionId ?? (pageId ? "" : (view?.sectionId ?? "")),
   };
   const tab = { kind: "project-settings" as const, id: projectId };
   addCenterTab(tab);

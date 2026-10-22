@@ -1,4 +1,5 @@
 <script lang="ts">
+import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
@@ -156,6 +157,13 @@ const capabilityController = new ComposerCapabilityController({
     capabilityState = state;
   },
 });
+const pendingProfile = $derived(
+  agentProfileCatalog
+    .profiles(activePendingConversation?.projectId)
+    .find(
+      (profile) => profile.name === activePendingConversation?.agentProfile,
+    ),
+);
 const capabilityConfiguration = $derived(capabilityState.configuration);
 const capabilitySkills = $derived(capabilityState.skills);
 const capabilityLoading = $derived(
@@ -186,9 +194,11 @@ $effect(() => {
   } else if (pending) {
     capabilityController.setScope({
       kind: "pending",
-      key: `project:${project.id}:pending:${pending.id}`,
+      key: `project:${project.id}:pending:${pending.id}:profile:${JSON.stringify(pendingProfile)}`,
       projectId: project.id,
       pendingId: pending.id,
+      profile: pendingProfile,
+      config: pending.config,
       overrides: pending.capabilityOverrides,
       onOverridesChange: (overrides) => {
         pending.capabilityOverrides = overrides;
@@ -221,6 +231,14 @@ $effect(() => {
       disconnected() {},
       event() {},
       notice(notice) {
+        // Applying a profile writes tool policy as part of conversation.config.
+        if (
+          notice.type === "conversation.config" &&
+          notice.data.conversationId === activeConversation?.id
+        ) {
+          void capabilityController.refresh();
+          return;
+        }
         if (notice.type !== "capabilities.changed") return;
         const data = notice.data;
         if (data.projectId !== activeProject?.id) return;

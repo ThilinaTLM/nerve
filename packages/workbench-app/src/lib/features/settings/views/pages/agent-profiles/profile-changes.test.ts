@@ -66,7 +66,16 @@ describe("profile changes", () => {
     );
     assert.deepEqual(
       [row?.label, row?.mode, row?.value],
-      ["Reasoning", "set", { model: undefined, thinking: "low" }],
+      [
+        "Reasoning",
+        "set",
+        {
+          model: undefined,
+          thinking: "low",
+          modelMode: "set",
+          thinkingMode: "set",
+        },
+      ],
     );
     assert.deepEqual(setChangePatch("model", "lock", { thinking: "low" }), {
       model: null,
@@ -86,6 +95,42 @@ describe("profile changes", () => {
       model: null,
       thinking: null,
     });
+  });
+
+  it("preserves independent model/reasoning modes through unrelated edits", () => {
+    const model = { provider: "p", modelId: "m" };
+    for (const fields of [
+      { model: { lock: model }, thinking: { set: "low" as const } },
+      { model: "lead" as const, thinking: { lock: "high" as const } },
+      { model: { set: model }, thinking: "lead" as const },
+    ]) {
+      const row = changeRows({ ...planning, ...fields }).find(
+        (row) => row.key === "model",
+      )!;
+      assert.deepEqual(setChangePatch("model", row.mode!, row.value), fields);
+    }
+    const reasoningLead = changeRows({ ...planning, thinking: "lead" }).find(
+      (row) => row.key === "model",
+    )!;
+    assert.deepEqual(
+      setChangePatch("model", reasoningLead.mode!, reasoningLead.value),
+      { model: null, thinking: "lead" },
+    );
+    const row = changeRows({
+      ...planning,
+      model: { lock: model },
+      thinking: { set: "low" },
+    })[0]!;
+    assert.deepEqual(
+      setChangePatch("model", row.mode!, {
+        ...(row.value as object),
+        thinking: "high",
+      }),
+      {
+        model: { lock: model },
+        thinking: { set: "high" },
+      },
+    );
   });
 
   it("summarises skills and derives names from labels", () => {

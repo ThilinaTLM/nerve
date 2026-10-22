@@ -1,6 +1,5 @@
 <!-- The value editor of one profile change: the subject first, then its mode. -->
 <script lang="ts">
-import { thinkingLevels, type ThinkingLevel } from "@nervekit/contracts/models";
 import SelectField from "@nervekit/ui-kit/components/composites/select-field";
 import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
@@ -58,13 +57,8 @@ const leadMode = $derived(draft.mode === "lead");
 
 // Model: { model, thinking }.
 const modelValue = $derived(draft.value as ModelChangeValue | undefined);
-const reasoningItems = [
-  { value: "", label: "Use settings" },
-  ...thinkingLevels.map((level) => ({
-    value: level,
-    label: level.charAt(0).toUpperCase() + level.slice(1),
-  })),
-];
+const modelMode = $derived(modelValue?.modelMode ?? draft.mode);
+const thinkingMode = $derived(modelValue?.thinkingMode ?? draft.mode);
 // Compaction.
 const compaction = $derived(
   (draft.value ?? {
@@ -96,10 +90,15 @@ $effect(() => {
   const nextValid =
     kind === "instructions"
       ? text.trim().length > 0 && bytes <= AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES
-      : leadMode
+      : leadMode && kind !== "model"
         ? true
         : kind === "model"
-          ? Boolean(modelValue?.model || modelValue?.thinking)
+          ? Boolean(
+              modelValue?.model ||
+              modelValue?.thinking ||
+              modelMode === "lead" ||
+              thinkingMode === "lead",
+            )
           : kind === "permission"
             ? Boolean(draft.value)
             : kind === "tool"
@@ -143,7 +142,7 @@ const toolChoices = $derived(
 </script>
 
 <div class="grid gap-4">
-  {#if !leadMode}
+  {#if !leadMode || kind === "model"}
     {#if kind === "model"}
       <div class="grid gap-1.5">
         <Label>Model</Label>
@@ -153,33 +152,62 @@ const toolChoices = $derived(
           models={context.models}
           value={modelValue?.model}
           thinkingLevel={modelValue?.thinking}
+          modelDisabled={modelMode === "lead"}
+          thinkingDisabled={thinkingMode === "lead"}
+          lockReason="Follows the lead agent"
           inheritOption={{
-            label: "Use settings",
+            label: modelMode === "lead" ? "Same as lead agent" : "Use settings",
             description: "Leave the model as configured in settings.",
           }}
           inherit={!modelValue?.model}
           onInherit={() =>
-            (draft = { ...draft, value: { thinking: modelValue?.thinking } })}
+            (draft = { ...draft, value: { ...modelValue, model: undefined } })}
           onChange={(next) =>
             (draft = {
               ...draft,
-              value: { model: next.model, thinking: next.thinkingLevel },
+              value: {
+                ...modelValue,
+                model: next.model,
+                thinking:
+                  modelValue?.thinking === undefined || thinkingMode === "lead"
+                    ? modelValue?.thinking
+                    : next.thinkingLevel,
+              },
             })}
+          onThinkingChange={(thinking) =>
+            (draft = { ...draft, value: { ...modelValue, thinking } })}
         />
-        {#if !modelValue?.model}
-          <SelectField
-            items={reasoningItems}
-            value={modelValue?.thinking ?? ""}
-            ariaLabel="Reasoning level"
-            onValueChange={(next) =>
-              (draft = {
-                ...draft,
-                value: {
-                  thinking: (next || undefined) as ThinkingLevel | undefined,
-                },
-              })}
-          />
-        {/if}
+        {#each [{ key: "modelMode", label: "Model", value: modelMode }, { key: "thinkingMode", label: "Reasoning", value: thinkingMode }] as field (field.key)}
+          <div class="grid gap-1.5 pt-2">
+            <span class="text-xs text-muted-foreground">{field.label} mode</span
+            >
+            <ToggleGroup.Root
+              type="single"
+              variant="chip"
+              size="sm"
+              aria-label={`${field.label} mode`}
+              value={field.value}
+              class="flex-wrap justify-start"
+              onValueChange={(next) =>
+                next &&
+                (draft = {
+                  ...draft,
+                  value: { ...modelValue, [field.key]: next },
+                })}
+            >
+              {#each modes as mode (mode)}
+                <ToggleGroup.Item value={mode}
+                  >{mode === "lead"
+                    ? "Same as lead agent"
+                    : mode === "lock"
+                      ? "Lock"
+                      : "Set"}</ToggleGroup.Item
+                >
+              {/each}
+            </ToggleGroup.Root>
+            <p class="text-xs text-muted-foreground">{modeHint(field.value)}</p>
+          </div>
+        {/each}
       </div>
     {:else if kind === "permission"}
       <div class="grid gap-1.5">
@@ -349,7 +377,7 @@ const toolChoices = $derived(
     {/if}
   {/if}
 
-  {#if kind !== "instructions"}
+  {#if kind !== "instructions" && kind !== "model"}
     <div class="grid gap-1.5">
       <ToggleGroup.Root
         type="single"

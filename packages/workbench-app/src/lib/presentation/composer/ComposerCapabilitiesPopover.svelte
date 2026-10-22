@@ -7,7 +7,6 @@ import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
-import Settings2 from "@lucide/svelte/icons/settings-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
@@ -44,6 +43,7 @@ import {
 } from "./capability-list";
 import {
   capabilityToolGroupsFor,
+  capabilityToolSummary,
   type CapabilityToolGroup,
 } from "./capability-tool-labels";
 import type { ComposerLockedFields } from "../conversations/conversation-view-contracts.js";
@@ -57,6 +57,8 @@ type Row = {
   detail: string;
   /** Explains why an enabled tool cannot run yet. */
   warning?: string;
+  summary?: string;
+  setupMissing?: boolean;
   /** Opens the tool's settings, for tools with more than an on/off switch. */
   configure?: () => void;
   /** Always on (bash): only its configuration can change. */
@@ -221,9 +223,13 @@ const toolRows = $derived<Row[]>(
       const alwaysOn = group.names.includes("bash");
       const configurable =
         Boolean(onConfigureTool) &&
-        (alwaysOn || Boolean(state.settingsTool)) &&
+        (alwaysOn ||
+          Boolean(state.settingsTool) ||
+          Boolean(state.profileTool)) &&
         !lockedBy;
-      const accounts = state.profileTool ? state.profileOptions : [];
+      const accounts: { id: string; name: string }[] = state.profileTool
+        ? state.profileOptions
+        : [];
       return [
         {
           key: group.key,
@@ -233,15 +239,25 @@ const toolRows = $derived<Row[]>(
           overridden: state.stored && !lockedBy,
           origin: state.stored ? "conversation" : state.inheritedFrom,
           detail: lockedBy ? `Locked by ${lockedBy}` : state.originLabel,
+          summary: state.profileTool
+            ? (accounts.find((account) => account.id === state.profileId)
+                ?.name ?? "No account selected")
+            : configuration
+              ? capabilityToolSummary(configuration.effective, group.names[0]!)
+              : undefined,
+          setupMissing: Boolean(state.profileTool && accounts.length === 0),
           lockedBy,
           alwaysOn,
-          warning: state.profileMissing
-            ? "Account not found on this machine"
-            : state.needsProfile
-              ? "Choose an account"
-              : undefined,
+          warning:
+            state.profileTool && accounts.length === 0
+              ? "No accounts. Configure to set up in Integrations."
+              : state.profileMissing
+                ? "Account not found on this machine"
+                : state.needsProfile || (state.profileTool && !state.profileId)
+                  ? "Choose an account"
+                  : undefined,
           configure: configurable ? () => configureTool(group) : undefined,
-          accounts: accounts.length > 1 ? accounts : undefined,
+          accounts: accounts.length > 0 ? accounts : undefined,
           accountId: state.profileId,
           setAccount: (id) =>
             onPatch?.({
@@ -303,80 +319,98 @@ function openSettings(): void {
 
 {#snippet capabilityRow(row: Row)}
   {@const Icon = row.icon}
-  <div
-    class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
-  >
-    {#if Icon}
-      <Icon
-        class="size-3.5 flex-none text-muted-foreground"
-        aria-hidden="true"
+  <div class="grid min-w-0 gap-1 rounded-md px-1.5 py-1 hover:bg-accent">
+    <div class="flex min-h-7 min-w-0 items-center gap-2">
+      {#if Icon}
+        <Icon
+          class="size-3.5 flex-none text-muted-foreground"
+          aria-hidden="true"
+        />
+      {/if}
+      <div class="min-w-0 flex-1" title={row.detail}>
+        <p class="truncate" title={row.label}>{row.label}</p>
+        {#if row.summary || row.lockedBy || row.warning}
+          <p
+            class="truncate text-xs text-muted-foreground"
+            title={row.warning ?? row.summary}
+          >
+            {row.lockedBy
+              ? `Locked by ${row.lockedBy}`
+              : (row.warning ??
+                `${row.enabled ? "On" : "Off"} · ${row.summary}`)}
+          </p>
+        {/if}
+      </div>
+      {#if row.warning}
+        <span
+          class="inline-flex flex-none text-warning"
+          role="img"
+          aria-label={row.warning}
+          title={row.warning}
+        >
+          <TriangleAlert class="size-3.5" aria-hidden="true" />
+        </span>
+      {/if}
+      {#if row.lockedBy}
+        <span
+          class="inline-flex flex-none items-center gap-1 text-muted-foreground"
+          role="img"
+          aria-label={`${row.label} locked by ${row.lockedBy}`}
+          title={`Locked by ${row.lockedBy}`}
+        >
+          <Lock class="size-3.5" aria-hidden="true" />
+        </span>
+      {:else if row.origin === "conversation"}
+        <span
+          class="inline-flex flex-none text-primary"
+          role="img"
+          aria-label="Conversation override"
+          title={row.detail}
+        >
+          <MessagesSquare class="size-3.5" aria-hidden="true" />
+        </span>
+      {/if}
+      {#if row.overridden}
+        <IconAction
+          icon={RotateCcw}
+          label={`Reset ${row.label} to the inherited setting`}
+          onclick={row.reset}
+        />
+      {/if}
+      <Switch
+        checked={row.enabled}
+        disabled={disabled || loading || row.alwaysOn || Boolean(row.lockedBy)}
+        aria-label={`Enable ${row.label} for this conversation`}
+        onCheckedChange={row.toggle}
       />
-    {/if}
-    <span class="min-w-0 flex-1 truncate" title={row.detail}>
-      {row.label}
-    </span>
-    {#if row.warning}
-      <span
-        class="inline-flex flex-none text-warning"
-        role="img"
-        aria-label={row.warning}
-        title={row.warning}
-      >
-        <TriangleAlert class="size-3.5" aria-hidden="true" />
-      </span>
-    {/if}
-    {#if row.lockedBy}
-      <span
-        class="inline-flex flex-none items-center gap-1 text-muted-foreground"
-        role="img"
-        aria-label={`${row.label} locked by ${row.lockedBy}`}
-        title={`Locked by ${row.lockedBy}`}
-      >
-        <Lock class="size-3.5" aria-hidden="true" />
-      </span>
-    {:else if row.origin === "conversation"}
-      <span
-        class="inline-flex flex-none text-primary"
-        role="img"
-        aria-label="Conversation override"
-        title={row.detail}
-      >
-        <MessagesSquare class="size-3.5" aria-hidden="true" />
-      </span>
-    {/if}
+      {#if row.configure}
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled || loading}
+          aria-label={`Configure ${row.label}`}
+          onclick={row.configure}
+          >{row.setupMissing ? "Set up" : "Configure"}</Button
+        >
+      {/if}
+    </div>
     {#if row.accounts && row.setAccount}
-      <SelectField
-        items={row.accounts.map((account) => ({
-          value: account.id,
-          label: account.name,
-        }))}
-        value={row.accountId ?? ""}
-        ariaLabel={`${row.label} account`}
-        class="w-28"
-        disabled={disabled || loading || Boolean(row.lockedBy)}
-        onValueChange={(value) => row.setAccount?.(value || undefined)}
-      />
+      <div class="flex min-w-0 items-center justify-between gap-2">
+        <span class="text-xs text-muted-foreground">Account</span>
+        <SelectField
+          items={row.accounts.map((account) => ({
+            value: account.id,
+            label: account.name,
+          }))}
+          value={row.accountId ?? ""}
+          placeholder="Choose account"
+          ariaLabel={`${row.label} account`}
+          class="min-w-0 flex-1"
+          disabled={disabled || loading || Boolean(row.lockedBy)}
+          onValueChange={(value) => row.setAccount?.(value || undefined)}
+        />
+      </div>
     {/if}
-    {#if row.overridden}
-      <IconAction
-        icon={RotateCcw}
-        label={`Reset ${row.label} to the inherited setting`}
-        onclick={row.reset}
-      />
-    {/if}
-    {#if row.configure}
-      <IconAction
-        icon={Settings2}
-        label={`Configure ${row.label}`}
-        onclick={row.configure}
-      />
-    {/if}
-    <Switch
-      checked={row.enabled}
-      disabled={disabled || loading || row.alwaysOn || Boolean(row.lockedBy)}
-      aria-label={`Enable ${row.label} for this conversation`}
-      onCheckedChange={row.toggle}
-    />
   </div>
 {/snippet}
 

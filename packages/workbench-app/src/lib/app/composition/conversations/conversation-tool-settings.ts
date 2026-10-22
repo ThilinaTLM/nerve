@@ -16,7 +16,7 @@ export function conversationProfileId(
   return configuration.conversation?.tools[tool]?.profileId;
 }
 
-/** Label for the choice that returns a profiled tool to its inherited profile. */
+/** Label for the choice that returns an integration tool to its inherited account. */
 export function inheritedProfileLabel(
   configuration: CapabilityConfiguration,
   tool: ProfiledCapabilityToolName,
@@ -24,9 +24,9 @@ export function inheritedProfileLabel(
 ): string {
   const source = inheritedFrom === "project" ? "project" : "your settings";
   const profileId = configuration.inherited.toolProfiles[tool];
-  if (!profileId) return `Use ${source} (no profile)`;
+  if (!profileId) return `Use ${source} (no account)`;
   const option = configuration.toolProfileOptions[tool].find(
     (item) => item.id === profileId,
   );
-  return `Use ${source} (${option?.name ?? "missing profile"})`;
+  return `Use ${source} (${option?.name ?? "missing account"})`;
 }

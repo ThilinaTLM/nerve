@@ -9,6 +9,7 @@ import { untrack } from "svelte";
 import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 import Lock from "@lucide/svelte/icons/lock";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+import { thinkingLevels } from "@nervekit/contracts/models";
 import type {
   ModelInfo,
   ModelSelection,
@@ -77,6 +78,8 @@ type Props = {
   /** The parent's model is in use; `value` keeps the last explicit choice. */
   inherit?: boolean;
   onInherit?: () => void;
+  /** Optional independent reasoning editor, including an unset/inherited level. */
+  onThinkingChange?: (level: ThinkingLevel | undefined) => void;
 };
 
 let {
@@ -97,6 +100,7 @@ let {
   inheritOption,
   inherit = false,
   onInherit,
+  onThinkingChange,
 }: Props = $props();
 
 const uid = $props.id();
@@ -154,15 +158,30 @@ const reasoningModel = $derived(
     ? selectedModel
     : undefined,
 );
+const reasoningLevels = $derived(
+  reasoningModel
+    ? supportedThinkingLevelsForModel(reasoningModel)
+    : inheriting && onThinkingChange
+      ? thinkingLevels
+      : [],
+);
 const reasoningModelLabel = $derived(
   resolved.kind === "available" ? resolved.entry.contextualLabel : "",
 );
+const unsupportedReasoning = $derived(
+  showReasoning &&
+    !inheriting &&
+    selectedModel !== undefined &&
+    thinkingLevel !== undefined &&
+    !supportedThinkingLevelsForModel(selectedModel).includes(thinkingLevel),
+);
 const showLevel = $derived(
   showReasoning &&
-    selectedModel !== undefined &&
-    modelSupportsReasoning(selectedModel) &&
+    (inheriting ||
+      (selectedModel !== undefined && modelSupportsReasoning(selectedModel))) &&
     thinkingLevel !== undefined &&
-    thinkingLevel !== "off",
+    thinkingLevel !== "off" &&
+    !unsupportedReasoning,
 );
 
 const lockTitle = $derived(
@@ -234,7 +253,7 @@ function choose(item: PickerListItem, close = false): void {
   if (modelDisabled) return;
   if (item.kind === "inherit") {
     if (!inheriting) onInherit?.();
-    open = false;
+    if (!onThinkingChange || close) open = false;
     return;
   }
   if (item.kind === "model" && item.key !== selectedKey) {
@@ -243,10 +262,9 @@ function choose(item: PickerListItem, close = false): void {
         provider: item.entry.model.provider,
         modelId: item.entry.model.modelId,
       },
-      thinkingLevel: clampThinkingLevelForModel(
-        thinkingLevel ?? "off",
-        item.entry.model,
-      ),
+      thinkingLevel: thinkingDisabled
+        ? (thinkingLevel ?? "off")
+        : clampThinkingLevelForModel(thinkingLevel ?? "off", item.entry.model),
     });
   }
   if (close) open = false;
@@ -412,7 +430,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     </Tooltip.Provider>
   </PopoverBody>
 
-  {#if reasoningModel}
+  {#if showReasoning && (reasoningLevels.length > 0 || onThinkingChange || unsupportedReasoning)}
     <section
       class="grid flex-none gap-1 border-t border-border px-2 pt-1.5 pb-2"
       aria-label="Reasoning level"
@@ -420,7 +438,9 @@ function handleSearchKeydown(event: KeyboardEvent): void {
       <span
         class="flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
       >
-        Reasoning · {reasoningModelLabel}
+        Reasoning{reasoningModelLabel || inheriting
+          ? ` · ${reasoningModelLabel || inheritOption?.label}`
+          : ""}
         {#if thinkingDisabled}
           <Lock class="size-3" aria-label={lockTitle} />
         {/if}
@@ -430,20 +450,43 @@ function handleSearchKeydown(event: KeyboardEvent): void {
         size="sm"
         spacing={1}
         variant="chip"
-        value={thinkingLevel}
+        value={thinkingLevel ?? "inherit"}
         disabled={thinkingDisabled}
         aria-label={`${label} reasoning level`}
         class="flex-wrap justify-start"
         onValueChange={(next) => {
-          if (next) chooseLevel(reasoningModel, next as ThinkingLevel);
+          if (!next) return;
+          if (onThinkingChange)
+            onThinkingChange(
+              next === "inherit" ? undefined : (next as ThinkingLevel),
+            );
+          else if (reasoningModel)
+            chooseLevel(reasoningModel, next as ThinkingLevel);
         }}
       >
-        {#each supportedThinkingLevelsForModel(reasoningModel) as level (level)}
+        {#if onThinkingChange}
+          <ToggleGroup.Item value="inherit" class="flex-none"
+            >Use settings</ToggleGroup.Item
+          >
+        {/if}
+        {#each reasoningLevels as level (level)}
           <ToggleGroup.Item value={level} class="flex-none capitalize"
             >{level}</ToggleGroup.Item
           >
         {/each}
       </ToggleGroup.Root>
+      {#if unsupportedReasoning}
+        <p class="px-1.5 text-xs text-warning">
+          Saved {thinkingLevel} reasoning is not supported by this model.{thinkingDisabled
+            ? ` ${lockTitle}.`
+            : " Choose a supported level or use settings."}
+        </p>
+      {/if}
+      {#if inheriting && onThinkingChange}
+        <p class="px-1.5 text-xs text-muted-foreground">
+          Available levels depend on the model selected in settings.
+        </p>
+      {/if}
     </section>
   {/if}
 </Popover>
