@@ -1,3 +1,8 @@
+import { listProjectInstructionFiles } from "../../../domains/projects/project-instructions.js";
+import {
+  agentProfilesPreviewParamsSchema,
+  agentProfilesUpdateParamsSchema,
+} from "@nervekit/contracts/agent-profiles";
 import {
   createLaunchDefinitionRequestSchema,
   updateLaunchDefinitionRequestSchema,
@@ -37,17 +42,19 @@ export const projectMethodHandlers: WorkbenchMethodHandlerMapFor<ProjectMethodCo
         params?.conversationId,
       ),
     }),
+    "projectInstructions.list": (state, { projectId }) =>
+      listProjectInstructionFiles(state.getProject(projectId).directory),
     "agentProfiles.preview": (state, params) =>
-      state.agentProfiles.preview(params),
-    "agentProfiles.replaceConversation": (state, params) =>
-      state.agentProfiles.replaceConversation(params),
+      state.agentProfiles.preview(
+        agentProfilesPreviewParamsSchema.parse(params),
+      ),
     "agentProfiles.configuration": (state, params) =>
       state.agentProfiles.configuration(params),
     "agentProfiles.update": (state, params) =>
-      state.agentProfiles.update(params),
+      state.agentProfiles.update(agentProfilesUpdateParamsSchema.parse(params)),
     "agentProfiles.reset": (state, params) => state.agentProfiles.reset(params),
     "agentProfiles.trust": (state, params) =>
-      state.agentProfiles.trust(params.projectId, params.digest),
+      state.agentProfiles.trust(params.projectId, params.name, params.digest),
     "project.openEditor": (state, params) =>
       state.editors.openProject(params.projectId, params),
     "project.openTerminal": (state, params) =>

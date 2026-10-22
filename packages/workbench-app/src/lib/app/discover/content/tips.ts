@@ -31,7 +31,7 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
       "Configure a profile's instructions, model, permissions, tools, and skills in Settings → Sub-agents. Profiles configure new teammates; follow-ups keep the existing teammate's context.",
     action: {
       kind: "settings",
-      pageId: "agent-profiles",
+      pageId: "profiles",
       sectionId: "profiles",
       label: "Configure Sub-agents",
     },
@@ -105,8 +105,8 @@ export const discoverTipsCatalog: readonly DiscoverTipEntry[] = [
       "Choose a default permission rule set, then edit user or project overrides for tools and conditions that need different decisions. Review these rules in Settings → Permissions.",
     action: {
       kind: "settings",
-      pageId: "permissions",
-      sectionId: "default",
+      pageId: "permission-rules",
+      sectionId: "rule-sets",
       label: "Review permissions",
     },
   },

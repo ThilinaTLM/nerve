@@ -80,7 +80,10 @@ type AssignmentsSchema = {
 
 export function createTurnResourcesPort(options: {
   home: string;
-  tools(projectDir: string): ToolDefinition[] | Promise<ToolDefinition[]>;
+  tools(
+    projectDir: string,
+    conversationId?: string,
+  ): ToolDefinition[] | Promise<ToolDefinition[]>;
   skillCatalogs: {
     nerve: { readonly skills: readonly Skill[] };
     agentBrowser: { readonly skills: readonly Skill[] };
@@ -98,58 +101,17 @@ export function createTurnResourcesPort(options: {
       coreTools = [],
       capabilityOverrides,
       agentProfileOverrides,
+      appliedAgentProfile,
     }) {
       const isChild = conversation.parentConversationId !== null;
-      const profiles = conversation.id
-        ? await options.agentProfiles.list(
-            conversation.projectId,
-            conversation.id,
-          )
-        : (
-            await options.agentProfiles.preview({
-              projectId: conversation.projectId,
-              document: agentProfileOverrides ?? {
-                schemaVersion: 1,
-                profiles: {},
-              },
-              lead: {
-                model: config.model,
-                reasoningLevel: config.reasoningLevel,
-              },
-              capabilityOverrides,
-            })
-          ).profiles.flatMap(({ effective }) => (effective ? [effective] : []));
-      const awaitDefault = options.defaultProfile
-        ? await options.defaultProfile(conversation.projectId)
-        : "coding";
-      const active =
-        profiles.find(
-          (p) =>
-            p.name === config.agentProfile &&
-            isUsable(p) &&
-            (isChild || p.usableBy !== "subagent"),
-        ) ??
-        (!isChild
-          ? profiles.find(
-              (p) =>
-                p.name === awaitDefault &&
-                isUsable(p) &&
-                p.usableBy !== "subagent",
-            )
-          : undefined);
       const { effective, availableTools, toolProfileOptions } =
         await options.capabilities.configuration(
           conversation.projectId,
           conversation.id,
           capabilityOverrides,
-          !isChild ? active : undefined,
-          {
-            nerve: options.skillCatalogs.nerve.skills,
-            agentBrowser: options.skillCatalogs.agentBrowser.skills,
-          },
         );
       const selected = [
-        ...(await options.tools(projectDir)),
+        ...(await options.tools(projectDir, conversation.id)),
         ...coreTools,
       ].filter((tool) => !(isChild && blocked.has(tool.name)));
       const filtered = selected.filter((tool) => {
@@ -171,7 +133,8 @@ export function createTurnResourcesPort(options: {
         return (
           !parsed.success ||
           (availableTools.includes(parsed.data) &&
-            !effective.disabledTools.includes(parsed.data))
+            (parsed.data === "bash" ||
+              !effective.disabledTools.includes(parsed.data)))
         );
       });
       const hasSubagentPrompt = filtered.some(
@@ -187,10 +150,7 @@ export function createTurnResourcesPort(options: {
           : (
               await options.agentProfiles.preview({
                 projectId: conversation.projectId,
-                document: agentProfileOverrides ?? {
-                  schemaVersion: 1,
-                  profiles: {},
-                },
+                profiles: agentProfileOverrides ?? [],
                 lead: {
                   model: config.model,
                   reasoningLevel: config.reasoningLevel,
@@ -227,19 +187,20 @@ export function createTurnResourcesPort(options: {
       const agentProfiles = usable.map((profile) => ({
         name: profile.name,
         description: profile.description,
-        permission:
-          ruleSets.find(
-            (ruleSet) =>
-              ruleSet.id ===
-              (typeof profile.permission === "object"
-                ? profile.permission.lock
-                : profile.permission),
-          )?.name ??
-          (typeof profile.permission === "object"
-            ? profile.permission.lock
-            : profile.permission),
+        permission: (() => {
+          const setting = profile.permission;
+          const id = !setting
+            ? "Settings"
+            : setting === "lead"
+              ? "Same as lead"
+              : "lock" in setting
+                ? setting.lock
+                : setting.set;
+          return ruleSets.find((ruleSet) => ruleSet.id === id)?.name ?? id;
+        })(),
       }));
-      const resources = await loadHarnessResources(projectDir, {
+      const resources = await loadHarnessResources(config.workingDirectory, {
+        projectDir,
         storageHome: options.home,
         nerveSkills: options.skillCatalogs.nerve.skills,
         agentBrowserSkills: options.skillCatalogs.agentBrowser.skills,
@@ -259,13 +220,12 @@ export function createTurnResourcesPort(options: {
             contextFiles: resources.contextFiles,
             skills,
             instructions: [
-              !isChild ? active?.instructions : undefined,
+              appliedAgentProfile?.instructions,
               config.instructions,
             ]
               .filter(Boolean)
               .map((text) => resolveSkillPlaceholders(text!))
               .join("\n\n"),
-            customPrompt: resources.systemPrompt,
             appendSystemPrompt: resources.appendSystemPrompt,
           }),
       };

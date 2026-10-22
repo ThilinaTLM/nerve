@@ -1,3 +1,4 @@
+import { capturePhase5Trust, convertPhase5, verifyPhase5 } from "./phase5.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -94,6 +95,7 @@ export default defineStep({
   description: "Convert stored agent profiles and planning capabilities",
   async run(ctx) {
     const { projects, conversations } = locations(ctx);
+    capturePhase5Trust(ctx, projects);
     for (const root of [ctx.paths.home, ...projects]) {
       const source = join(root, "config", "subagents.json");
       const target = join(root, "config", "agent-profiles.json");
@@ -119,6 +121,7 @@ export default defineStep({
     // Do not update shared DB metadata if any document unit needs repair.
     finishPhase(ctx);
     convertDatabase(ctx);
+    await convertPhase5(ctx, projects, conversations);
   },
   async verify(ctx) {
     const { projects, conversations } = locations(ctx);
@@ -140,6 +143,7 @@ export default defineStep({
         `Unconverted document: ${file.path}`,
       );
     }
+    verifyPhase5(ctx, projects, conversations);
     const db = new DatabaseSync(ctx.paths.sqlitePath, { readOnly: true });
     try {
       assert.equal(

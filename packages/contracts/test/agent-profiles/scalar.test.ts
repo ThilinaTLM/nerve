@@ -1,52 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { z } from "zod";
 import {
-  agentProfileModelSchema,
-  agentProfileThinkingSchema,
-  agentProfilePermissionSchema,
-  agentProfileCompactionSchema,
-  agentProfileScalarKind,
+  agentProfileSettingSchema,
+  agentProfileSettingKind,
   lockedValue,
-  type AgentProfileScalar,
-} from "../../src/domains/agent-profiles/index.js";
+} from "../../src/domains/agent-profiles/scalar.js";
 
-test("every scalar supports Inherit, Set, default and Lock without accepting legacy lead", () => {
-  for (const [schema, concrete] of [
-    [agentProfileModelSchema, "provider/model"],
-    [agentProfileThinkingSchema, "high"],
-    [agentProfilePermissionSchema, "custom-rule-set"],
-    [agentProfileCompactionSchema, { profile: "balanced" }],
-  ] as const) {
-    for (const value of [
-      "inherit",
-      "default",
-      concrete,
-      { lock: concrete },
-      { lock: "default" },
-    ])
-      assert.deepEqual(schema.parse(value), value);
-    for (const value of [
-      { lock: "inherit" },
-      { lock: "default", extra: true },
-      { lock: { lock: "default" } },
-    ])
-      assert.equal(schema.safeParse(value).success, false);
-  }
-  assert.equal(agentProfileModelSchema.safeParse("lead").success, false);
-  assert.equal(agentProfileThinkingSchema.safeParse("lead").success, false);
-});
-
-test("scalar helpers distinguish concrete object values from locks and leave default unresolved", () => {
-  const concrete = { profile: "balanced" } as const;
-  const cases: [AgentProfileScalar<typeof concrete>, string, unknown][] = [
-    ["inherit", "inherit", undefined],
-    ["default", "set", undefined],
-    [concrete, "set", undefined],
-    [{ lock: concrete }, "lock", concrete],
-    [{ lock: "default" }, "lock", "default"],
-  ];
-  for (const [setting, kind, locked] of cases) {
-    assert.equal(agentProfileScalarKind(setting), kind);
-    assert.deepEqual(lockedValue(setting), locked);
-  }
+test("settings have explicit lead/set/lock modes and omission alone means use-settings", () => {
+  const schema = agentProfileSettingSchema(z.string());
+  for (const value of ["lead", { set: "x" }, { lock: "x" }])
+    assert.equal(schema.safeParse(value).success, true);
+  for (const value of ["inherit", "default", "x", {}, { set: "x", lock: "x" }])
+    assert.equal(schema.safeParse(value).success, false);
+  assert.equal(agentProfileSettingKind(), "use-settings");
+  assert.equal(agentProfileSettingKind("lead"), "lead");
+  assert.equal(agentProfileSettingKind({ set: "x" }), "set");
+  assert.equal(agentProfileSettingKind({ lock: "x" }), "lock");
+  assert.equal(lockedValue({ set: "x" }), undefined);
+  assert.equal(lockedValue({ lock: "x" }), "x");
 });

@@ -152,7 +152,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   });
   const agentProfiles = new AgentProfileService({
     userPath: storage.paths.agentProfilesConfigPath,
-    conversationsPath: storage.paths.conversationsPath,
     getConversation: (id) => conversationCore.getSnapshot(id).conversation,
     availability: profileAvailability,
     trust: conversationCore.trust,

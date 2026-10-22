@@ -2,69 +2,86 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   agentProfilesPreviewParamsSchema,
-  agentProfilesReplaceConversationParamsSchema,
+  agentProfilesUpdateParamsSchema,
+  agentProfilesResetParamsSchema,
+  agentProfilesTrustParamsSchema,
 } from "../../src/domains/agent-profiles/index.js";
 
-const document = {
-  schemaVersion: 1,
-  profiles: { developer: { enabled: false } },
-};
-const lead = {
-  model: { provider: "provider", modelId: "model" },
-  reasoningLevel: "high",
-};
-
-test("draft preview validates sparse documents and accepts only narrow lead context", () => {
-  const input = { projectId: "proj_one", document, lead };
-  assert.deepEqual(agentProfilesPreviewParamsSchema.parse(input), input);
-  for (const invalid of [
-    { ...input, projectId: "other" },
-    { ...input, conversationId: "conv_one" },
-    { ...input, lead: { ...lead, workingDirectory: "/tmp" } },
-    { ...input, lead: { ...lead, reasoningLevel: "invalid" } },
-    { ...input, lead: { reasoningLevel: "high" } },
-    {
-      ...input,
-      document: {
-        schemaVersion: 1,
-        profiles: { developer: { model: "invalid" } },
-      },
-    },
-  ])
-    assert.equal(
-      agentProfilesPreviewParamsSchema.safeParse(invalid).success,
-      false,
-    );
-});
-
-test("conversation replacement requires ownership IDs and an explicit nullable digest", () => {
+test("draft preview accepts in-memory named templates, not persisted aggregate documents", () => {
   const input = {
     projectId: "proj_one",
-    conversationId: "conv_one",
-    document,
-    expectedDigest: null,
+    profiles: [
+      {
+        name: "reader",
+        description: "Read",
+        usableBy: "subagent",
+        instructions: "Read",
+      },
+    ],
+    lead: {
+      model: { provider: "test", modelId: "test" },
+      reasoningLevel: "off",
+    },
   };
-  assert.deepEqual(
-    agentProfilesReplaceConversationParamsSchema.parse(input),
-    input,
+  assert.equal(agentProfilesPreviewParamsSchema.safeParse(input).success, true);
+  assert.equal(
+    agentProfilesPreviewParamsSchema.safeParse({
+      ...input,
+      document: { schemaVersion: 1, profiles: {} },
+    }).success,
+    false,
+  );
+});
+
+test("per-file mutations/trust require project identity and profile name", () => {
+  assert.equal(
+    agentProfilesUpdateParamsSchema.safeParse({
+      scope: "project",
+      name: "reader",
+      patch: { instructions: "New" },
+    }).success,
+    false,
   );
   assert.equal(
-    agentProfilesReplaceConversationParamsSchema.safeParse({
-      ...input,
-      expectedDigest: "digest",
+    agentProfilesUpdateParamsSchema.safeParse({
+      scope: "project",
+      projectId: "proj_one",
+      name: "reader",
+      expectedDigest: null,
+      patch: { permission: null },
     }).success,
     true,
   );
-  for (const invalid of [
-    { ...input, expectedDigest: undefined },
-    { ...input, expectedDigest: "" },
-    { ...input, projectId: undefined },
-    { ...input, conversationId: undefined },
-    { ...input, scope: "project" },
-    { ...input, document: { schemaVersion: 2, profiles: {} } },
-  ])
-    assert.equal(
-      agentProfilesReplaceConversationParamsSchema.safeParse(invalid).success,
-      false,
-    );
+  assert.equal(
+    agentProfilesResetParamsSchema.safeParse({
+      scope: "user",
+      name: "reader",
+      expectedDigest: "file-digest",
+    }).success,
+    true,
+  );
+  assert.equal(
+    agentProfilesTrustParamsSchema.safeParse({
+      projectId: "proj_one",
+      name: "reader",
+      digest: "file-digest",
+    }).success,
+    true,
+  );
+  assert.equal(
+    agentProfilesTrustParamsSchema.safeParse({
+      projectId: "proj_one",
+      digest: "aggregate-digest",
+    }).success,
+    false,
+  );
+  assert.equal(
+    agentProfilesUpdateParamsSchema.safeParse({
+      scope: "conversation",
+      conversationId: "conv_one",
+      name: "reader",
+      patch: { instructions: "New" },
+    }).success,
+    false,
+  );
 });

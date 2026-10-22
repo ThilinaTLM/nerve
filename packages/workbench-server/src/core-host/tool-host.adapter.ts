@@ -1,3 +1,4 @@
+import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { realpath, readFile } from "node:fs/promises";
 import { projectProcessOutput } from "@nervekit/tools/result-projection";
 import type { ToolHostPort } from "@nervekit/conversation-core";
@@ -5,7 +6,6 @@ import type { ToolCallOrigin } from "@nervekit/contracts/core";
 import {
   toolManifest,
   buildBashToolDefinition,
-  type BashToolSettings,
   toolDefinitionByName,
   type ToolDefinition,
 } from "@nervekit/tools/catalog";
@@ -35,7 +35,10 @@ export function createToolHostPort(
     cwd: string,
     conversationId: string,
   ) => ToolExecutionContext | Promise<ToolExecutionContext>,
-  bashSettings: (cwd: string) => Promise<BashToolSettings>,
+  bashSettings: (
+    cwd: string,
+    conversationId?: string,
+  ) => Promise<BashToolSettings>,
   launchTool?: LaunchTool,
 ) {
   const todos = new Map<unknown, { todo: string; done: boolean }[]>();
@@ -53,8 +56,11 @@ export function createToolHostPort(
   const baseDefinitions = toolManifest.filter(
     (tool) => tool.executionKind === "local" || tool.name in handlers,
   );
-  const definitions = async (cwd: string): Promise<ToolDefinition[]> => {
-    const settings = await bashSettings(cwd);
+  const definitions = async (
+    cwd: string,
+    conversationId?: string,
+  ): Promise<ToolDefinition[]> => {
+    const settings = await bashSettings(cwd, conversationId);
     return baseDefinitions.map((tool) =>
       tool.name === "bash"
         ? {
@@ -76,7 +82,10 @@ export function createToolHostPort(
     },
     async execute(input) {
       const name = toolNameSchema.parse(input.toolName);
-      const turnDefinitions = await definitions(input.projectDir ?? input.cwd);
+      const turnDefinitions = await definitions(
+        input.projectDir ?? input.cwd,
+        input.conversationId,
+      );
       const dispatcher = createToolDispatcher({
         definitions: turnDefinitions,
         advertisedToolNames: new Set(turnDefinitions.map((tool) => tool.name)),
@@ -117,7 +126,10 @@ export function createToolHostPort(
             input.conversationId,
           ),
         };
-      const settings = await bashSettings(input.projectDir ?? input.cwd);
+      const settings = await bashSettings(
+        input.projectDir ?? input.cwd,
+        input.conversationId,
+      );
       const definition = buildBashToolDefinition(settings);
       const args = input.args as Record<string, unknown>;
       if (
@@ -163,7 +175,9 @@ export function createToolHostPort(
         : null;
       if (args.background === true) {
         const started = await processes.start({
+          conversationId: input.conversationId,
           command: String(args.command),
+          shellPath: settings.shellPath,
           projectEnvironment: args.projectEnvironment,
           cwd,
           artifactDir: input.artifactDir,
@@ -201,7 +215,9 @@ export function createToolHostPort(
       }
       let reportProgress = true;
       const process = await processes.spawn({
+        conversationId: input.conversationId,
         command: String(args.command),
+        shellPath: settings.shellPath,
         projectEnvironment: args.projectEnvironment,
         cwd,
         artifactDir: input.artifactDir,

@@ -68,6 +68,11 @@ export function createServerAdapterContexts(
       integrationHealth: services.integrationHealth,
     },
     projects: {
+      getProject: (id: string) => {
+        const project = services.conversationCore.projects.get(id);
+        if (!project) throw new Error(`Project not found: ${id}`);
+        return project;
+      },
       editors: services.editors,
       terminal: services.terminal,
       scratchNotes: services.scratchNotes,

@@ -4,6 +4,9 @@ import {
   imageExplanationToolSettingsSchema,
   imageGenerationToolSettingsSchema,
   krokiToolSettingsSchema,
+  pythonExecToolSettingsSchema,
+  bashToolSettingsSchema,
+  planPresentToolSettingsSchema,
   type Settings,
 } from "../settings/settings.js";
 import {
@@ -11,19 +14,18 @@ import {
   type UserConfigurableToolName,
 } from "../tools/tool-name.js";
 
-/**
- * Tools that can be configured per project or conversation. Integration
- * families are selected as a whole; their credentials stay user-owned.
- */
-export const capabilityToolNameSchema = z.enum([
+/** Optional tools toggle; bash is always on but has scoped configuration. */
+export const capabilityToggleToolNameSchema = z.enum([
   ...userConfigurableToolNameSchema.exclude(subagentToolNames).options,
   "subagents",
   "jira",
   "confluence",
 ]);
+export const capabilityToolNameSchema = z.enum([
+  ...capabilityToggleToolNameSchema.options,
+  "bash",
+]);
 export type CapabilityToolName = z.infer<typeof capabilityToolNameSchema>;
-
-/** Capability tools whose execution depends on a selectable integration profile. */
 export const profiledCapabilityToolNames = [
   "jira",
   "confluence",
@@ -35,20 +37,16 @@ export const profiledCapabilityToolNameSchema = z.enum(
 export type ProfiledCapabilityToolName = z.infer<
   typeof profiledCapabilityToolNameSchema
 >;
-
 export function isProfiledCapabilityTool(
   name: string,
 ): name is ProfiledCapabilityToolName {
   return (profiledCapabilityToolNames as readonly string[]).includes(name);
 }
-
-/**
- * Tool settings a project or conversation can replace. Each value replaces the
- * inherited settings for that tool as a whole, so a level never mixes fields
- * from two sources.
- */
 export const capabilityToolSettingsSchema = z
   .object({
+    python_exec: pythonExecToolSettingsSchema,
+    bash: bashToolSettingsSchema,
+    plan_present: planPresentToolSettingsSchema,
     explain_image: imageExplanationToolSettingsSchema,
     generate_image: imageGenerationToolSettingsSchema,
     kroki_export: krokiToolSettingsSchema,
@@ -61,16 +59,20 @@ export type ConfigurableCapabilityToolName = keyof CapabilityToolSettings;
 export const configurableCapabilityToolNames = Object.keys(
   capabilityToolSettingsSchema.shape,
 ) as ConfigurableCapabilityToolName[];
-
-/** The tool settings a settings document (user or project-resolved) defines. */
+export function isConfigurableCapabilityTool(
+  name: string,
+): name is ConfigurableCapabilityToolName {
+  return (configurableCapabilityToolNames as readonly string[]).includes(name);
+}
 export function capabilityToolSettingsFromSettings(
   settings: Pick<Settings, "tools">,
 ): CapabilityToolSettings {
-  // Optional fields may hold undefined in memory, which protocol results
-  // cannot carry, so the JSON round trip drops them.
   return capabilityToolSettingsSchema.parse(
     JSON.parse(
       JSON.stringify({
+        python_exec: settings.tools.pythonExec,
+        bash: settings.tools.bash,
+        plan_present: settings.tools.planPresent,
         explain_image: settings.tools.imageExplanation,
         generate_image: settings.tools.imageGeneration,
         kroki_export: settings.tools.kroki,
@@ -78,112 +80,151 @@ export function capabilityToolSettingsFromSettings(
     ),
   );
 }
-
-export function isConfigurableCapabilityTool(
-  name: string,
-): name is ConfigurableCapabilityToolName {
-  return (configurableCapabilityToolNames as readonly string[]).includes(name);
-}
-
-const toolSettingsOverridesSchema = capabilityToolSettingsSchema.partial();
-const toolSettingsPatchSchema = z
-  .object({
-    explain_image: imageExplanationToolSettingsSchema.nullable().optional(),
-    generate_image: imageGenerationToolSettingsSchema.nullable().optional(),
-    kroki_export: krokiToolSettingsSchema.nullable().optional(),
-  })
-  .strict();
-
-const skillNameSchema = z.string().trim().min(1).max(256);
 const profileIdSchema = z.string().trim().min(1).max(256);
+const skillNameSchema = z.string().trim().min(1).max(256);
 const skillOverridesSchema = z
   .record(skillNameSchema, z.boolean())
-  .superRefine((value, context) => {
-    if (Object.keys(value).length > 512)
-      context.addIssue({
-        code: "custom",
-        message: "At most 512 skill overrides are allowed.",
-      });
-  });
-
-/** Stored tool entries replace enabled state and complete configuration together. */
-export const capabilityToolOverrideSchema = z
+  .refine(
+    (value) => Object.keys(value).length <= 512,
+    "At most 512 skill overrides are allowed.",
+  );
+export const capabilitySkillsSchema = z
+  .object({
+    file: skillOverridesSchema,
+    nerve: skillOverridesSchema,
+    agentBrowser: skillOverridesSchema,
+  })
+  .strict();
+export type CapabilitySkills = z.infer<typeof capabilitySkillsSchema>;
+function payload<S extends z.ZodType>(settings: S) {
+  return z
+    .object({ enabled: z.boolean().optional(), settings: settings.optional() })
+    .strict();
+}
+const basicPayload = payload(z.never());
+const accountPayload = z
   .object({
     enabled: z.boolean().optional(),
     profileId: profileIdSchema.optional(),
   })
   .strict();
-export type CapabilityToolOverride = z.infer<
-  typeof capabilityToolOverrideSchema
->;
-
-const toolOverridesSchema = z
-  .partialRecord(capabilityToolNameSchema, capabilityToolOverrideSchema)
-  .superRefine((tools, context) => {
-    for (const [name, override] of Object.entries(tools)) {
-      if (!override) continue;
-      if (override.enabled === undefined && override.profileId === undefined)
-        context.addIssue({
+/** Canonical per-tool payloads shared by capability files and profile templates. */
+export const capabilityToolPayloadSchemas = {
+  python_exec: payload(pythonExecToolSettingsSchema),
+  web_search: accountPayload,
+  web_fetch: basicPayload,
+  explain_image: payload(imageExplanationToolSettingsSchema),
+  generate_image: payload(imageGenerationToolSettingsSchema),
+  kroki_export: payload(krokiToolSettingsSchema),
+  plan_present: payload(planPresentToolSettingsSchema),
+  subagents: basicPayload,
+  jira: accountPayload,
+  confluence: accountPayload,
+  bash: z.object({ settings: bashToolSettingsSchema }).strict(),
+};
+export type CapabilityToolPayloads = {
+  [K in keyof typeof capabilityToolPayloadSchemas]: z.infer<
+    (typeof capabilityToolPayloadSchemas)[K]
+  >;
+};
+export type CapabilityToolOverride =
+  CapabilityToolPayloads[keyof CapabilityToolPayloads];
+export const capabilityToolsSchema = z
+  .object(capabilityToolPayloadSchemas)
+  .partial()
+  .strict()
+  .superRefine((tools, ctx) => {
+    for (const [name, value] of Object.entries(tools))
+      if (value && Object.keys(value).length === 0)
+        ctx.addIssue({
           code: "custom",
           path: [name],
-          message: "A tool override must set enabled or profileId.",
+          message: "A tool entry must set enabled, profileId or settings.",
         });
-      if (override.profileId !== undefined && !isProfiledCapabilityTool(name))
-        context.addIssue({
-          code: "custom",
-          path: [name, "profileId"],
-          message: `Tool ${name} does not use an integration profile.`,
-        });
-    }
   });
-
-export const capabilityOverridesDocumentSchema = z.preprocess(
-  migrateCapabilityDocument,
-  z
-    .object({
-      schemaVersion: z.literal(2),
-      tools: toolOverridesSchema.default({}),
-      toolSettings: toolSettingsOverridesSchema.default({}),
-      skills: z
-        .object({
-          file: skillOverridesSchema.default({}),
-          nerve: skillOverridesSchema.default({}),
-          agentBrowser: skillOverridesSchema.default({}),
-        })
-        .strict()
-        .default({ file: {}, nerve: {}, agentBrowser: {} }),
-    })
-    .strict(),
-);
+export const capabilityToolOverrideSchema = z.union([
+  basicPayload,
+  accountPayload,
+  ...Object.values(capabilityToolPayloadSchemas),
+]);
+export const capabilityOverridesDocumentSchema = z
+  .object({
+    schemaVersion: z.literal(3),
+    tools: capabilityToolsSchema.default({}),
+    skills: capabilitySkillsSchema.default({
+      file: {},
+      nerve: {},
+      agentBrowser: {},
+    }),
+  })
+  .strict();
 export type CapabilityOverridesDocument = z.infer<
   typeof capabilityOverridesDocumentSchema
 >;
-
 export const emptyCapabilityOverrides = (): CapabilityOverridesDocument => ({
-  schemaVersion: 2,
+  schemaVersion: 3,
   tools: {},
-  toolSettings: {},
   skills: { file: {}, nerve: {}, agentBrowser: {} },
 });
-
 export const capabilityOriginSchema = z.enum(["project", "conversation"]);
 export type CapabilityOrigin = z.infer<typeof capabilityOriginSchema>;
-
-const capabilityToolPatchSchema = z
-  .object({
-    enabled: z.boolean().nullable().optional(),
-    profileId: profileIdSchema.nullable().optional(),
-  })
-  .strict();
+/** Null resets a whole tool entry or one typed payload field to inherited settings. */
+function payloadPatch<S extends Record<string, z.ZodType>>(
+  schema: z.ZodObject<S>,
+) {
+  const shape = Object.fromEntries(
+    Object.entries(schema.shape).map(([field, value]) => [
+      field,
+      value.nullable().optional(),
+    ]),
+  ) as { [K in keyof S]: z.ZodOptional<z.ZodNullable<S[K]>> };
+  return z.object(shape).strict();
+}
+export const capabilityToolPatchSchemas = {
+  python_exec: payloadPatch(capabilityToolPayloadSchemas.python_exec),
+  web_search: payloadPatch(capabilityToolPayloadSchemas.web_search),
+  web_fetch: payloadPatch(capabilityToolPayloadSchemas.web_fetch),
+  explain_image: payloadPatch(capabilityToolPayloadSchemas.explain_image),
+  generate_image: payloadPatch(capabilityToolPayloadSchemas.generate_image),
+  kroki_export: payloadPatch(capabilityToolPayloadSchemas.kroki_export),
+  plan_present: payloadPatch(capabilityToolPayloadSchemas.plan_present),
+  subagents: payloadPatch(capabilityToolPayloadSchemas.subagents),
+  jira: payloadPatch(capabilityToolPayloadSchemas.jira),
+  confluence: payloadPatch(capabilityToolPayloadSchemas.confluence),
+  bash: payloadPatch(capabilityToolPayloadSchemas.bash),
+};
+export const capabilityToolPatchSchema = z.union(
+  Object.values(capabilityToolPatchSchemas),
+);
 export type CapabilityToolPatch = z.infer<typeof capabilityToolPatchSchema>;
-
 export const capabilityPatchSchema = z
   .object({
     tools: z
-      .partialRecord(capabilityToolNameSchema, capabilityToolPatchSchema)
+      .object({
+        python_exec: capabilityToolPatchSchemas.python_exec
+          .nullable()
+          .optional(),
+        web_search: capabilityToolPatchSchemas.web_search.nullable().optional(),
+        web_fetch: capabilityToolPatchSchemas.web_fetch.nullable().optional(),
+        explain_image: capabilityToolPatchSchemas.explain_image
+          .nullable()
+          .optional(),
+        generate_image: capabilityToolPatchSchemas.generate_image
+          .nullable()
+          .optional(),
+        kroki_export: capabilityToolPatchSchemas.kroki_export
+          .nullable()
+          .optional(),
+        plan_present: capabilityToolPatchSchemas.plan_present
+          .nullable()
+          .optional(),
+        subagents: capabilityToolPatchSchemas.subagents.nullable().optional(),
+        jira: capabilityToolPatchSchemas.jira.nullable().optional(),
+        confluence: capabilityToolPatchSchemas.confluence.nullable().optional(),
+        bash: capabilityToolPatchSchemas.bash.nullable().optional(),
+      })
+      .strict()
       .optional(),
-    /** A null value returns the tool to its inherited settings. */
-    toolSettings: toolSettingsPatchSchema.optional(),
     skills: z
       .object({
         file: z.record(skillNameSchema, z.boolean().nullable()).optional(),
@@ -229,7 +270,7 @@ export type CapabilityToolProfiles = z.infer<
 >;
 
 export const capabilitySelectionSchema = z.object({
-  disabledTools: z.array(capabilityToolNameSchema),
+  disabledTools: z.array(capabilityToggleToolNameSchema),
   toolProfiles: capabilityToolProfilesSchema,
   toolSettings: capabilityToolSettingsSchema,
   disabledFileSkills: z.array(skillNameSchema),
@@ -277,83 +318,67 @@ export type CapabilityConfiguration = z.infer<
   typeof capabilityConfigurationSchema
 >;
 
-/** Whether a tool is enabled by a resolved selection. */
 export function capabilityToolEnabled(
   selection: CapabilitySelection,
   name: CapabilityToolName,
 ): boolean {
-  return !selection.disabledTools.includes(name);
+  return name === "bash" || !selection.disabledTools.includes(name);
 }
-
-/**
- * Apply a sparse patch to one level. Values that match what the level would
- * inherit are removed, so an override only exists while it is a real choice.
- * Parent changes never touch stored overrides; only edits of this level do.
- */
+/** A resolved canonical payload, suitable for a template value or an applied lock. */
+export function capabilityToolPayload(
+  selection: CapabilitySelection,
+  name: CapabilityToolName,
+): CapabilityToolOverride {
+  return capabilityToolPayloadSchemas[name].parse({
+    ...(name !== "bash"
+      ? { enabled: capabilityToolEnabled(selection, name) }
+      : {}),
+    ...(isProfiledCapabilityTool(name) && selection.toolProfiles[name]
+      ? { profileId: selection.toolProfiles[name] }
+      : {}),
+    ...(isConfigurableCapabilityTool(name)
+      ? { settings: selection.toolSettings[name] }
+      : {}),
+  });
+}
 export function applyCapabilityPatch(
   document: CapabilityOverridesDocument,
   patch: CapabilityPatch,
   inherited: CapabilitySelection,
 ): CapabilityOverridesDocument {
+  capabilityPatchSchema.parse(patch);
   const next = structuredClone(document);
   for (const [key, change] of Object.entries(patch.tools ?? {})) {
-    if (!change) continue;
     const name = key as CapabilityToolName;
-    const entry: CapabilityToolOverride = next.tools[name]
-      ? { ...next.tools[name] }
-      : {
-          enabled: capabilityToolEnabled(inherited, name),
-          ...(isProfiledCapabilityTool(name) && inherited.toolProfiles[name]
-            ? { profileId: inherited.toolProfiles[name] }
-            : {}),
-        };
-    if (change.enabled !== undefined)
-      entry.enabled = change.enabled ?? capabilityToolEnabled(inherited, name);
-    if (change.profileId !== undefined) {
-      const profileId =
-        change.profileId ??
-        (isProfiledCapabilityTool(name)
-          ? inherited.toolProfiles[name]
-          : undefined);
-      if (profileId) entry.profileId = profileId;
-      else delete entry.profileId;
+    if (change === null) {
+      delete next.tools[name];
+      continue;
     }
-    next.tools[name] = entry;
-    if (isConfigurableCapabilityTool(name) && !next.toolSettings[name])
-      Object.assign(next.toolSettings, {
-        [name]: inherited.toolSettings[name],
-      });
+    if (!change) continue;
+    const parent = capabilityToolPayload(inherited, name) as Record<
+      string,
+      unknown
+    >;
+    const entry = { ...parent, ...next.tools[name] } as Record<string, unknown>;
+    for (const [field, value] of Object.entries(change)) {
+      if (value === undefined) continue;
+      if (value === null) {
+        if (parent[field] === undefined) delete entry[field];
+        else entry[field] = parent[field];
+      } else entry[field] = value;
+    }
+    Object.assign(next.tools, {
+      [name]: capabilityToolPayloadSchemas[name].parse(entry),
+    });
   }
-  const toolSettings: Partial<Record<ConfigurableCapabilityToolName, unknown>> =
-    next.toolSettings;
-  for (const [key, value] of Object.entries(patch.toolSettings ?? {})) {
-    if (value === undefined) continue;
-    const name = key as ConfigurableCapabilityToolName;
-    const parsed =
-      value === null
-        ? null
-        : capabilityToolSettingsSchema.shape[name].parse(value);
-    if (parsed === null || sameSettings(parsed, inherited.toolSettings[name]))
-      delete toolSettings[name];
-    else toolSettings[name] = parsed;
-  }
-  const inheritedSkill = {
-    file: (name: string) => !inherited.disabledFileSkills.includes(name),
-    nerve: (name: string) => inherited.enabledNerveSkills.includes(name),
-    agentBrowser: (name: string) =>
-      inherited.enabledAgentBrowserSkills.includes(name),
-  };
   for (const kind of ["file", "nerve", "agentBrowser"] as const) {
     for (const [name, value] of Object.entries(patch.skills?.[kind] ?? {})) {
-      if (value === null || value === inheritedSkill[kind](name))
-        delete next.skills[kind][name];
+      if (value === null) delete next.skills[kind][name];
       else next.skills[kind][name] = value;
     }
   }
   return normalizeCapabilityOverrides(next, inherited);
 }
-
-/** Store whole tool entries, and drop entries identical to their parent. */
 export function normalizeCapabilityOverrides(
   document: CapabilityOverridesDocument,
   inherited: CapabilitySelection,
@@ -363,30 +388,11 @@ export function normalizeCapabilityOverrides(
     conversation: document,
   });
   const next = emptyCapabilityOverrides();
-  const names = new Set([
-    ...Object.keys(document.tools),
-    ...Object.keys(document.toolSettings),
-  ]);
-  for (const key of names) {
+  for (const key of Object.keys(document.tools)) {
     const name = key as CapabilityToolName;
-    const enabled = capabilityToolEnabled(effective, name);
-    const profileId = isProfiledCapabilityTool(name)
-      ? effective.toolProfiles[name]
-      : undefined;
-    const settings = isConfigurableCapabilityTool(name)
-      ? effective.toolSettings[name]
-      : undefined;
-    if (
-      enabled === capabilityToolEnabled(inherited, name) &&
-      (!isProfiledCapabilityTool(name) ||
-        profileId === inherited.toolProfiles[name]) &&
-      (!isConfigurableCapabilityTool(name) ||
-        sameSettings(settings, inherited.toolSettings[name]))
-    )
-      continue;
-    next.tools[name] = { enabled, ...(profileId ? { profileId } : {}) };
-    if (isConfigurableCapabilityTool(name))
-      Object.assign(next.toolSettings, { [name]: settings });
+    const payload = capabilityToolPayload(effective, name);
+    if (!sameSettings(payload, capabilityToolPayload(inherited, name)))
+      Object.assign(next.tools, { [name]: payload });
   }
   for (const kind of ["file", "nerve", "agentBrowser"] as const) {
     for (const [name, enabled] of Object.entries(document.skills[kind])) {
@@ -401,59 +407,47 @@ export function normalizeCapabilityOverrides(
   }
   return capabilityOverridesDocumentSchema.parse(next);
 }
-
 export function resolveCapabilitySelection(input: {
   user: CapabilitySelection;
   project?: CapabilityOverridesDocument;
   conversation?: CapabilityOverridesDocument;
 }): CapabilitySelection {
-  const disabledTools = new Set(input.user.disabledTools);
-  const toolProfiles: CapabilityToolProfiles = { ...input.user.toolProfiles };
-  const toolSettings: CapabilityToolSettings = { ...input.user.toolSettings };
-  const disabledFileSkills = new Set(input.user.disabledFileSkills);
-  const enabledNerveSkills = new Set(input.user.enabledNerveSkills);
-  const enabledAgentBrowserSkills = new Set(
-    input.user.enabledAgentBrowserSkills,
-  );
+  const result = structuredClone(input.user);
+  const disabled = new Set(result.disabledTools);
   for (const document of [input.project, input.conversation]) {
     if (!document) continue;
-    for (const [key, override] of Object.entries(document.tools)) {
-      if (!override) continue;
+    capabilityOverridesDocumentSchema.parse(document);
+    for (const [key, value] of Object.entries(document.tools)) {
       const name = key as CapabilityToolName;
-      if (override.enabled === true) disabledTools.delete(name);
-      else if (override.enabled === false) disabledTools.add(name);
-      if (isProfiledCapabilityTool(name)) {
-        if (override.profileId !== undefined)
-          toolProfiles[name] = override.profileId;
-        else delete toolProfiles[name];
+      const override = value as {
+        enabled?: boolean;
+        profileId?: string;
+        settings?: unknown;
+      };
+      if (name !== "bash" && override.enabled === true) disabled.delete(name);
+      if (name !== "bash" && override.enabled === false) disabled.add(name);
+      if (isProfiledCapabilityTool(name) && override.profileId !== undefined)
+        result.toolProfiles[name] = override.profileId;
+      if (isConfigurableCapabilityTool(name) && override.settings !== undefined)
+        Object.assign(result.toolSettings, { [name]: override.settings });
+    }
+    const buckets = {
+      file: new Set(result.disabledFileSkills),
+      nerve: new Set(result.enabledNerveSkills),
+      agentBrowser: new Set(result.enabledAgentBrowserSkills),
+    };
+    for (const kind of ["file", "nerve", "agentBrowser"] as const)
+      for (const [name, enabled] of Object.entries(document.skills[kind])) {
+        if (kind === "file" ? !enabled : enabled) buckets[kind].add(name);
+        else buckets[kind].delete(name);
       }
-    }
-    Object.assign(toolSettings, document.toolSettings);
-    for (const [name, enabled] of Object.entries(document.skills.file)) {
-      if (enabled) disabledFileSkills.delete(name);
-      else disabledFileSkills.add(name);
-    }
-    for (const [name, enabled] of Object.entries(document.skills.nerve)) {
-      if (enabled) enabledNerveSkills.add(name);
-      else enabledNerveSkills.delete(name);
-    }
-    for (const [name, enabled] of Object.entries(
-      document.skills.agentBrowser,
-    )) {
-      if (enabled) enabledAgentBrowserSkills.add(name);
-      else enabledAgentBrowserSkills.delete(name);
-    }
+    result.disabledFileSkills = [...buckets.file];
+    result.enabledNerveSkills = [...buckets.nerve];
+    result.enabledAgentBrowserSkills = [...buckets.agentBrowser];
   }
-  return capabilitySelectionSchema.parse({
-    disabledTools: [...disabledTools],
-    toolProfiles,
-    toolSettings,
-    disabledFileSkills: [...disabledFileSkills],
-    enabledNerveSkills: [...enabledNerveSkills],
-    enabledAgentBrowserSkills: [...enabledAgentBrowserSkills],
-  });
+  result.disabledTools = [...disabled];
+  return capabilitySelectionSchema.parse(result);
 }
-
 /**
  * Whether two tool settings values are equal, independent of key order. Works
  * for a whole resolved `CapabilityToolSettings` or one tool's settings.
@@ -502,71 +496,8 @@ export function disabledToolNamesForCapabilities(
   return names.flatMap((name) =>
     name === "subagents"
       ? [...subagentToolNames]
-      : name === "jira" || name === "confluence"
+      : name === "jira" || name === "confluence" || name === "bash"
         ? []
         : [name],
   );
-}
-
-/** Version 1 stored five sub-agent tool toggles; they collapse into the `subagents` group. */
-const legacyV1SubagentToolNames = [
-  "subagent_new",
-  "subagent_prompt",
-  "subagent_list",
-  "subagent_status",
-  "subagent_stop",
-] as const;
-
-function migrateSubagentOverrides(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const tools = { ...value } as Record<string, unknown>;
-  const previous = legacyV1SubagentToolNames
-    .filter((name) => Object.hasOwn(tools, name))
-    .map((name) => tools[name]);
-  if (!previous.length) return value;
-  if (previous.some((enabled) => typeof enabled !== "boolean")) return value;
-  if (!Object.hasOwn(tools, "subagents"))
-    tools.subagents =
-      previous.length === legacyV1SubagentToolNames.length &&
-      previous.every((enabled) => enabled === true);
-  for (const name of legacyV1SubagentToolNames) delete tools[name];
-  return tools;
-}
-
-/**
- * Sub-agent profiles replaced the Explore and sub-agent tool settings; documents
- * written before them may still carry those keys, which are dropped.
- */
-function stripRemovedKeys(document: Record<string, unknown>) {
-  const next = { ...document };
-  const strip = (key: string, names: readonly string[]) => {
-    const value = next[key];
-    if (!value || typeof value !== "object" || Array.isArray(value)) return;
-    const copy = { ...(value as Record<string, unknown>) };
-    for (const name of names) delete copy[name];
-    next[key] = copy;
-  };
-  strip("toolSettings", ["explore", "subagents"]);
-  strip("tools", ["explore"]);
-  return next;
-}
-
-/** Version 1 stored tool overrides as booleans; version 2 stores sparse objects. */
-function migrateCapabilityDocument(value: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
-  const document = stripRemovedKeys(value as Record<string, unknown>);
-  if (document.schemaVersion !== 1) return document;
-  const tools = migrateSubagentOverrides(document.tools ?? {});
-  if (!tools || typeof tools !== "object" || Array.isArray(tools))
-    return { ...document, schemaVersion: 2, tools };
-  return {
-    ...document,
-    schemaVersion: 2,
-    tools: Object.fromEntries(
-      Object.entries(tools).map(([name, enabled]) => [
-        name,
-        typeof enabled === "boolean" ? { enabled } : enabled,
-      ]),
-    ),
-  };
 }

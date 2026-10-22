@@ -12,11 +12,11 @@ import type {
   UserInputAnswer,
 } from "@nervekit/contracts/core";
 import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
-import type { CapabilityAgentProfiles } from "$lib/presentation/composer/capability-subagent-slot";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
   ContextUsage,
   ModelInfo,
+  ModelSelection,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
 import type {
@@ -79,8 +79,27 @@ export type ComposerAgentProfile = {
 };
 
 export type ComposerLockedFields = {
+  /** Name of the applied profile that holds the locks. */
+  by?: string;
+  /** Model and reasoning are shown in one picker but locked independently. */
   model?: boolean;
   thinking?: boolean;
+  permission?: boolean;
+  compaction?: boolean;
+  skills?: boolean;
+  /** Capability tools the profile locks. */
+  tools?: readonly string[];
+};
+
+/** Unlocked values that differ from the effective settings; shown with ↺. */
+/** Only the unlocked parts of the combined picker are reported. */
+export type ComposerModelChange = {
+  model?: ModelSelection;
+  thinkingLevel?: ThinkingLevel;
+};
+
+export type ComposerSettingsDiffers = {
+  model?: boolean;
   permission?: boolean;
 };
 
@@ -111,6 +130,7 @@ export type ConversationComposerModel = {
   agentProfiles: ComposerAgentProfile[];
   /** Fields the active profile locks; their pickers are disabled. */
   lockedFields?: ComposerLockedFields;
+  settingsDiffers?: ComposerSettingsDiffers;
   permissionRuleSetId: PermissionRuleSetId;
   permissionRuleSets: PermissionRuleSetSummary[];
   permissionRuleSetsLoading?: boolean;
@@ -128,7 +148,6 @@ export type ConversationComposerModel = {
   profileDisabled?: boolean;
   modelDisabled?: boolean;
   capabilityDisabled?: boolean;
-  runtimeChangeHint?: string;
   sendAriaLabel?: string;
   stopAriaLabel?: string;
   sendTitle?: string;
@@ -138,8 +157,6 @@ export type ConversationComposerModel = {
   permissionShortcutAria?: string;
   profileShortcut?: string;
   profileShortcutAria?: string;
-  modelShortcut?: string;
-  thinkingShortcut?: string;
   modelEmptyMessage?: string;
   todos?: TodoItem[];
   slashCompletions?: CompletionItem[];
@@ -149,7 +166,6 @@ export type ConversationComposerModel = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilityAgentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
 };
@@ -208,13 +224,15 @@ export type ConversationPaneActions = {
   onOpenSystemPrompt?: () => void | Promise<void>;
   onUsageOpenChange?: (open: boolean) => void;
   onUsageRetry?: () => void;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onModelSelectionChange?: (next: ComposerModelChange) => void;
+  /** Resets an unlocked model and reasoning to the effective settings. */
+  onResetModel?: () => void;
+  onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
   onCapabilityPatch?: (patch: CapabilityPatch) => void;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;

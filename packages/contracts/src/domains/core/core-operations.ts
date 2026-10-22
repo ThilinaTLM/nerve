@@ -1,3 +1,4 @@
+import { capabilityOverridesDocumentSchema } from "../capabilities/capabilities.js";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import { z } from "zod";
 import { conversationAgentUsageSchema } from "./conversation-usage.js";
@@ -29,6 +30,8 @@ export const createConversationRequestSchema = z.object({
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
   title: z.string(),
+  /** Initial conversation choices are materialized before applying the start template. */
+  capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
   config: conversationConfigSchema.omit({ conversationId: true }).extend({
     instructions: conversationConfigSchema.shape.instructions.default(null),
     agentProfile: agentProfileNameSchema.optional(),

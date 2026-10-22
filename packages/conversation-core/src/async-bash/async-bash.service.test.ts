@@ -9,7 +9,7 @@ import { AsyncBashService } from "./async-bash.service.js";
 import { InputQueueService } from "../inputs/input-queue.service.js";
 import type { BackgroundProcess, ProcessPort } from "../ports.js";
 
-async function fixture() {
+async function fixture(processes: ProcessPort = {} as ProcessPort) {
   const directory = await mkdtemp(join(tmpdir(), "nerve-bash-pages-"));
   const storage = openCoreStorage(":memory:");
   const assets = new AssetStore(directory, storage);
@@ -68,9 +68,7 @@ async function fixture() {
     storage,
     assets,
     emit: () => {},
-    processes: {} as ConstructorParameters<
-      typeof AsyncBashService
-    >[0]["processes"],
+    processes,
     inputs: {} as ConstructorParameters<typeof AsyncBashService>[0]["inputs"],
   });
   return {
@@ -341,3 +339,36 @@ for (const exitCode of [0, 7, null]) {
     }
   });
 }
+
+void test("async bash start supplies conversation identity for effective shell resolution", async () => {
+  const starts: Parameters<ProcessPort["start"]>[0][] = [];
+  const f = await fixture({
+    async start(input) {
+      starts.push(input);
+      throw new Error("Host refused process");
+    },
+    async run() {
+      throw new Error("No run expected");
+    },
+    async reattach() {
+      return null;
+    },
+  });
+  try {
+    await assert.rejects(
+      f.service.start({
+        conversationId: "conv_1",
+        toolCallId: "tool_start",
+        command: "echo hello",
+        cwd: f.bash.workingDirectory,
+        signal: new AbortController().signal,
+      }),
+      /Host refused process/,
+    );
+    assert.equal(starts.length, 1);
+    assert.equal(starts[0]!.conversationId, "conv_1");
+    assert.equal(starts[0]!.cwd, f.bash.workingDirectory);
+  } finally {
+    await f.close();
+  }
+});

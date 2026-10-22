@@ -1,50 +1,11 @@
 <script lang="ts">
+import { userSettingsScope } from "$lib/features/settings/registry/settings-scope";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-
-import SettingsPage from "$lib/app/composition/settings/SettingsView.svelte";
-import { settingsSelectors } from "$lib/features/settings/state/settings-selectors.svelte";
-import { workspaceSelectors } from "$lib/application/workspace/workspace-selectors.svelte";
-import {
-  loadSettingsSkills,
-  queueSettingsSave,
-  restartOwnedDaemon,
-  saveApplicationConfiguration,
-  setColorMode,
-  setColorTheme,
-} from "$lib/application/settings/settings-actions.svelte";
-
-const status = $derived(workspaceSelectors.status);
-const activeProject = $derived(workspaceSelectors.activeProject);
-const settingsSaveStatus = $derived(settingsSelectors.settingsSaveStatus);
-const settingsMessage = $derived(settingsSelectors.settingsMessage);
-
-$effect(() => {
-  const projectId = activeProject?.id;
-  if (settingsState.skillsProjectId === (projectId ?? null)) return;
-  void loadSettingsSkills(projectId);
-});
+import SettingsCenter from "./SettingsCenter.svelte";
 </script>
 
-<SettingsPage
-  {status}
-  bind:settingsDraft={settingsState.settingsDraft}
-  applicationConfiguration={settingsState.applicationConfiguration}
-  daemonCapability={settingsState.daemonCapability}
-  daemonRestarting={settingsState.daemonRestarting}
-  bind:activePageId={settingsState.activePageId}
-  bind:activeSectionId={settingsState.activeSectionId}
-  models={settingsState.models}
-  authProviders={settingsState.authProviders}
-  {activeProject}
-  skills={settingsState.skills}
-  skillsLoading={settingsState.skillsLoading}
-  skillsError={settingsState.skillsError}
-  onSkillsRetry={() => loadSettingsSkills(activeProject?.id)}
-  {settingsSaveStatus}
-  {settingsMessage}
-  onSettingsChange={queueSettingsSave}
-  onApplicationConfigurationChange={saveApplicationConfiguration}
-  onRestartDaemon={restartOwnedDaemon}
-  onColorThemeChange={setColorTheme}
-  onColorModeChange={setColorMode}
+<SettingsCenter
+  target={userSettingsScope}
+  bind:pageId={settingsState.activePageId}
+  bind:sectionId={settingsState.activeSectionId}
 />

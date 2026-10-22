@@ -1,9 +1,8 @@
 import type { ConversationConfig } from "@nervekit/contracts/core";
-import type { AgentProfileLockedScalars } from "../ports.js";
 
+/** Applied profile permissions are ordinary persisted config, not a live overlay. */
 export function effectivePermissionRuleSetId(
   config: Pick<ConversationConfig, "permissionRuleSetId">,
-  locked?: AgentProfileLockedScalars,
 ): string {
-  return locked?.permissionRuleSetId ?? config.permissionRuleSetId;
+  return config.permissionRuleSetId;
 }

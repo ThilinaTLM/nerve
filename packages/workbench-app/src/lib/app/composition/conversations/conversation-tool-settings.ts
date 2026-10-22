@@ -1,9 +1,7 @@
 import type {
   CapabilityConfiguration,
-  CapabilityPatch,
   ProfiledCapabilityToolName,
 } from "@nervekit/contracts/capabilities";
-import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import type { CapabilityToolState } from "$lib/presentation/composer/capability-origin";
 
 /**
@@ -31,19 +29,4 @@ export function inheritedProfileLabel(
     (item) => item.id === profileId,
   );
   return `Use ${source} (${option?.name ?? "missing profile"})`;
-}
-
-/** Conversation patch for a model-only tool; an unset model is omitted. */
-export function modelToolSettingsPatch(
-  tool: "explain_image",
-  selection: { model?: ModelSelection; thinkingLevel: ThinkingLevel },
-): CapabilityPatch {
-  return {
-    toolSettings: {
-      [tool]: {
-        ...(selection.model ? { model: selection.model } : {}),
-        thinkingLevel: selection.thinkingLevel,
-      },
-    },
-  };
 }

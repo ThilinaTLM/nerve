@@ -32,6 +32,8 @@ export type MobileRoute =
   | { kind: "center"; identity: MobileCenterIdentity }
   | { kind: "settings" }
   | { kind: "settings-page"; pageId: string }
+  | { kind: "project-settings"; projectId: string }
+  | { kind: "project-settings-page"; projectId: string; pageId: string }
   | { kind: "logs" };
 
 export type MobileNavState = {
@@ -67,6 +69,10 @@ export function mobileRouteKey(route: MobileRoute): string {
       return `center:${route.identity.kind}:${route.identity.id}`;
     case "settings-page":
       return `settings-page:${route.pageId}`;
+    case "project-settings":
+      return `project-settings:${route.projectId}`;
+    case "project-settings-page":
+      return `project-settings-page:${route.projectId}:${route.pageId}`;
     case "settings":
     case "logs":
       return route.kind;
@@ -183,6 +189,7 @@ export function mobileHistoryDepth(state: MobileNavState): number {
 /**
  * The route a center-tab activation lands on. Settings and logs have native
  * phone screens; everything else renders its registered center host.
+ * `settingsPageId` is the page the settings tab (user or project) is showing.
  */
 export function mobileRouteForCenterTab(
   identity: CenterTabIdentity,
@@ -192,6 +199,15 @@ export function mobileRouteForCenterTab(
     return settingsPageId
       ? { kind: "settings-page", pageId: settingsPageId }
       : { kind: "settings" };
+  }
+  if (identity.kind === "project-settings") {
+    return settingsPageId
+      ? {
+          kind: "project-settings-page",
+          projectId: identity.id,
+          pageId: settingsPageId,
+        }
+      : { kind: "project-settings", projectId: identity.id };
   }
   if (identity.kind === "logs") return { kind: "logs" };
   return { kind: "center", identity: { kind: identity.kind, id: identity.id } };
@@ -205,6 +221,7 @@ export function mobileRouteForCenterTab(
 
 const PROJECT_ROUTE_KINDS = new Set([
   "project",
+  "project-settings",
   "conversations",
   "launches",
   "notes",
@@ -249,6 +266,10 @@ function parseMobileRoute(value: unknown): MobileRoute | undefined {
     }
     case "settings-page":
       return isText(route.pageId) ? { kind, pageId: route.pageId } : undefined;
+    case "project-settings-page":
+      return isText(route.projectId) && isText(route.pageId)
+        ? { kind, projectId: route.projectId, pageId: route.pageId }
+        : undefined;
     case "settings":
     case "logs":
       return { kind };

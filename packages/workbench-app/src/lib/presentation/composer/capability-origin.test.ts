@@ -151,7 +151,7 @@ describe("capabilityToolState", () => {
         availableTools: ["kroki_export"],
         conversation: {
           ...emptyCapabilityOverrides(),
-          toolSettings: { kroki_export: kroki },
+          tools: { kroki_export: { settings: kroki } },
         },
         effective: selection({
           toolSettings: { ...inherited.toolSettings, kroki_export: kroki },
@@ -171,7 +171,14 @@ describe("capabilityToolState", () => {
       configuration: configuration({
         project: {
           ...emptyCapabilityOverrides(),
-          toolSettings: { kroki_export: { url: "http://kroki.internal/" } },
+          tools: {
+            kroki_export: {
+              settings: {
+                ...selection().toolSettings.kroki_export,
+                url: "http://kroki.internal/",
+              },
+            },
+          },
         },
       }),
       level: "conversation",
@@ -181,16 +188,12 @@ describe("capabilityToolState", () => {
     assert.equal(state.inheritedFrom, "project");
   });
 
-  it("resets enablement, profile, and settings of a tool group together", () => {
+  it("resets a tool group by dropping each stored entry", () => {
     assert.deepEqual(capabilityResetPatch(["kroki_export"]), {
-      tools: { kroki_export: { enabled: null } },
-      toolSettings: { kroki_export: null },
+      tools: { kroki_export: null },
     });
     assert.deepEqual(capabilityResetPatch(["web_search", "web_fetch"]), {
-      tools: {
-        web_search: { enabled: null, profileId: null },
-        web_fetch: { enabled: null },
-      },
+      tools: { web_search: null, web_fetch: null },
     });
   });
 });

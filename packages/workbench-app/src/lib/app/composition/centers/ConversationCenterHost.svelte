@@ -17,7 +17,6 @@ import { workbenchStartupState } from "$lib/application/startup/workbench-startu
 import { submitPendingConversation } from "$lib/app/composition/conversations/submit-pending-conversation";
 import { captureSystemPromptPreview } from "$lib/app/composition/conversations/system-prompt-preview";
 import { openSystemPromptPane } from "$lib/features/conversations/state/system-prompt-pane.svelte";
-import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import { createId } from "@nervekit/contracts";
 import type {
   ConversationConfig,
@@ -42,6 +41,7 @@ import {
   replaceOpenCenterTabs,
   selectCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
+import type { ModelSelection } from "@nervekit/contracts/models";
 import type { CenterTabIdentity } from "$lib/application/workspace";
 import { newConversationInProject } from "$lib/application/workspace/workspace-actions.svelte";
 import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
@@ -100,10 +100,7 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import {
-  compactionLocked,
-  lockedFieldsOf,
-} from "$lib/application/agent-profiles/profile-locks";
+import { lockedFieldsOf } from "$lib/application/agent-profiles/applied-locks";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -243,9 +240,6 @@ const profileCatalogProjectId = $derived(
 const resolvedProfiles = $derived(
   agentProfileCatalog.profiles(profileCatalogProjectId),
 );
-const activeProfile = $derived(
-  resolvedProfiles.find((profile) => profile.name === selectedAgentProfile),
-);
 /** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
 const composerProfiles = $derived(
   viewedChildId
@@ -256,12 +250,29 @@ const composerProfiles = $derived(
         description: profile.description,
       })),
 );
+// Locks come from the snapshot captured when the profile was applied.
 const lockedFields = $derived(
-  viewedChildId ? {} : lockedFieldsOf(activeProfile),
+  viewedChildId ? {} : lockedFieldsOf(store?.snapshot?.appliedAgentProfile),
 );
-const activeCompactionLocked = $derived(
-  !viewedChildId && compactionLocked(activeProfile),
-);
+const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
+/** Unlocked values that differ from the effective (user) settings. */
+const settingsDiffers = $derived.by(() => {
+  const defaults = settingsState.settingsDraft;
+  if (!defaults || viewedChildId || activePendingConversation) return {};
+  const defaultModel = defaults.defaultModel;
+  return {
+    // Only the unlocked parts of the combined picker can differ.
+    model:
+      (!lockedFields.model &&
+        defaultModel !== undefined &&
+        modelKey(defaultModel) !== selectedModelKey) ||
+      (!lockedFields.thinking &&
+        defaults.defaultThinkingLevel !== selectedThinkingLevel),
+    permission:
+      !lockedFields.permission &&
+      defaults.defaultPermissionRuleSetId !== selectedPermissionRuleSetId,
+  };
+});
 $effect(() => {
   void agentProfileCatalog.ensure(profileCatalogProjectId);
 });
@@ -432,8 +443,6 @@ async function submitPrompt(
             profile,
           }),
         saveCapabilities: updateCapabilities,
-        saveProfiles: (input) =>
-          requestWorkbench("agentProfiles.replaceConversation", input),
         submit: (conversationId, prompt) =>
           requestConversation("input.submit", {
             conversationId,
@@ -551,26 +560,40 @@ function openTaskFromNotice(id: string) {
   if (command) void openAsyncBashTab(command, activeProject?.id);
   else void openLaunchTab(id);
 }
-function setComposerModel(key: string) {
-  const model = parseModelKey(key);
-  if (model) {
-    const reasoningLevel = clampThinkingLevelForModel(
-      selectedThinkingLevel,
-      settingsState.models.find((candidate) => modelKey(candidate) === key),
-    );
-    rememberLastAgentSelection({ model, thinkingLevel: reasoningLevel });
-    return configure({ model, reasoningLevel });
-  }
-}
-function setComposerThinkingLevel(value: ConversationConfig["reasoningLevel"]) {
+/** The combined picker changes model and reasoning; locks keep either out. */
+function setComposerModelSelection(next: {
+  model?: ModelSelection;
+  thinkingLevel?: ConversationConfig["reasoningLevel"];
+}) {
+  const model = next.model ?? parseModelKey(selectedModelKey);
   const reasoningLevel = clampThinkingLevelForModel(
-    value,
+    next.thinkingLevel ?? selectedThinkingLevel,
     settingsState.models.find(
-      (candidate) => modelKey(candidate) === selectedModelKey,
+      (candidate) => model && modelKey(candidate) === modelKey(model),
     ),
   );
-  rememberLastAgentSelection({ thinkingLevel: reasoningLevel });
-  return configure({ reasoningLevel });
+  rememberLastAgentSelection({
+    ...(next.model ? { model: next.model } : {}),
+    ...(next.thinkingLevel ? { thinkingLevel: reasoningLevel } : {}),
+  });
+  return configure({
+    ...(next.model ? { model: next.model } : {}),
+    ...(next.thinkingLevel ? { reasoningLevel } : {}),
+  });
+}
+function resetComposerModel() {
+  const defaults = settingsState.settingsDraft;
+  if (defaults?.defaultModel)
+    return setComposerModelSelection({
+      ...(lockedFields.model ? {} : { model: defaults.defaultModel }),
+      ...(lockedFields.thinking
+        ? {}
+        : { thinkingLevel: defaults.defaultThinkingLevel }),
+    });
+}
+function resetComposerPermission() {
+  const value = settingsState.settingsDraft?.defaultPermissionRuleSetId;
+  if (value) return setComposerPermissionRuleSet(value);
 }
 async function setComposerAgentProfile(name: string) {
   const pending = activePendingConversation;
@@ -821,6 +844,7 @@ const teamRunning = $derived(
   agentProfile={selectedAgentProfile}
   agentProfiles={composerProfiles}
   {lockedFields}
+  {settingsDiffers}
   profileDisabled={Boolean(viewedChildId)}
   permissionRuleSetId={selectedPermissionRuleSetId}
   {permissionRuleSets}
@@ -863,12 +887,11 @@ const teamRunning = $derived(
   onNewConversationInProject={newConversationInProject}
   onOpenFile={openToolFile}
   onOpenTask={openTaskFromNotice}
-  onModelChange={(value) => {
-    void runActivePaneAction(() => setComposerModel(value));
+  onModelSelectionChange={(next) => {
+    void runActivePaneAction(() => setComposerModelSelection(next));
   }}
-  onThinkingLevelChange={(value) => {
-    void runActivePaneAction(() => setComposerThinkingLevel(value));
-  }}
+  onResetModel={() => void runActivePaneAction(resetComposerModel)}
+  onResetPermission={() => void runActivePaneAction(resetComposerPermission)}
   onAgentProfileChange={(value) => {
     void runActivePaneAction(() => setComposerAgentProfile(value));
   }}
@@ -880,10 +903,8 @@ const teamRunning = $derived(
       void permissionRuleSetCatalog.refresh(activeProject.id);
     }
   }}
-  onOpenPermissionSettings={() =>
-    void openSettingsPane("permissions", "default-permission")}
-  onOpenCapabilitySettings={(page) =>
-    void openSettingsPane(page === "subagents" ? "agent-profiles" : page)}
+  onOpenPermissionSettings={() => void openSettingsPane("general")}
+  onOpenCapabilitySettings={(page) => void openSettingsPane(page)}
   onGrantApproval={grantApproval}
   onDenyApproval={denyApproval}
   onAcceptPlanReview={acceptPendingPlanReview}

@@ -43,9 +43,8 @@ const sets = {
 const overrides = (
   document: Partial<CapabilityOverridesDocument["skills"]>,
 ): CapabilityOverridesDocument => ({
-  schemaVersion: 2,
+  schemaVersion: 3,
   tools: {},
-  toolSettings: {},
   skills: { file: {}, nerve: {}, agentBrowser: {}, ...document },
 });
 

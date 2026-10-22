@@ -23,10 +23,6 @@ function draft(): Pending {
       ...emptyCapabilityOverrides(),
       tools: { web_search: { enabled: false } },
     },
-    agentProfileOverrides: {
-      schemaVersion: 1,
-      profiles: { explore: { enabled: false } },
-    },
   };
 }
 
@@ -43,7 +39,6 @@ test("preview before first input uses current draft config and overlays, not a s
     projectId: pending.projectId,
     config: pending.config,
     capabilityOverrides: pending.capabilityOverrides,
-    agentProfileOverrides: pending.agentProfileOverrides,
   });
 });
 
@@ -54,7 +49,6 @@ test("each opening captures fresh settings without mutating an already captured 
   pending.config.agentProfile = "coding";
   pending.config.model.modelId = "changed";
   pending.capabilityOverrides!.tools.web_search = { enabled: true };
-  pending.agentProfileOverrides!.profiles.explore = { enabled: true };
   const second = captureSystemPromptPreview({ pending })!;
   assert.ok("config" in first.params && "config" in second.params);
   assert.equal(first.params.config.instructions, "Unsent instructions");
@@ -66,10 +60,6 @@ test("each opening captures fresh settings without mutating an already captured 
   assert.deepEqual(
     first.params.capabilityOverrides,
     draft().capabilityOverrides,
-  );
-  assert.deepEqual(
-    first.params.agentProfileOverrides,
-    draft().agentProfileOverrides,
   );
 });
 

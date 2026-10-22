@@ -1,0 +1,92 @@
+{
+  "version": 4,
+  "defaults": {
+    "permissionRuleSetId": "autonomous",
+    "thinkingLevel": "off"
+  },
+  "rememberLastSelection": false,
+  "lastSelection": {
+    "permissionRuleSetId": "autonomous",
+    "thinkingLevel": "off"
+  },
+  "compaction": {
+    "auto": true,
+    "profile": "balanced",
+    "customTriggerPercent": 80
+  },
+  "retry": {
+    "enabled": true,
+    "maxRetries": 3,
+    "baseDelayMs": 2000
+  },
+  "tools": {
+    "python_exec": {
+      "enabled": true,
+      "settings": {}
+    },
+    "bash": {
+      "settings": {
+        "maxTimeoutMs": 900000,
+        "autoPromotion": {
+          "enabled": true,
+          "afterMs": 120000
+        }
+      }
+    },
+    "plan_present": {
+      "enabled": false,
+      "settings": {
+        "approvalProfile": "coding"
+      }
+    },
+    "web_search": {
+      "enabled": true
+    },
+    "web_fetch": {
+      "enabled": true
+    },
+    "jira": {
+      "enabled": false
+    },
+    "confluence": {
+      "enabled": false
+    },
+    "subagents": {
+      "enabled": false
+    },
+    "explain_image": {
+      "enabled": false,
+      "settings": {
+        "thinkingLevel": "off"
+      }
+    },
+    "generate_image": {
+      "enabled": false,
+      "settings": {
+        "provider": "openai-codex",
+        "model": "gpt-image-2.5-flare",
+        "options": {
+          "quality": "auto",
+          "size": "auto",
+          "background": "auto"
+        }
+      }
+    },
+    "kroki_export": {
+      "enabled": false,
+      "settings": {
+        "url": "https://kroki.io/"
+      }
+    }
+  },
+  "skills": {
+    "disabled": [],
+    "nerve": {
+      "enabled": []
+    },
+    "agentBrowser": {
+      "enabled": []
+    }
+  },
+  "scopedModels": []
+}

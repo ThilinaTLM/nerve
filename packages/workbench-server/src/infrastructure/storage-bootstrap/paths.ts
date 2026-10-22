@@ -78,7 +78,7 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     plansPath: join(dataPath, "plans"),
     agentPath,
     suggestionsPath: join(agentPath, "suggestions"),
-    agentProfilesConfigPath: join(configPath, "agent-profiles.json"),
+    agentProfilesConfigPath: join(dataPath, "agent-profiles"),
     tlsPath: join(home, "tls"),
     tmpPath: join(home, "tmp"),
     cachePath,

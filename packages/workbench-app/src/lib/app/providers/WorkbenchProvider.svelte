@@ -74,7 +74,7 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { lockedFieldsOf } from "$lib/application/agent-profiles/profile-locks";
+import { lockedFieldsOf } from "$lib/application/agent-profiles/applied-locks";
 
 type Props = {
   children?: Snippet;
@@ -107,11 +107,7 @@ const agentProfileNames = $derived(
   ).map((profile) => profile.name),
 );
 const lockedFields = $derived(
-  lockedFieldsOf(
-    agentProfileCatalog
-      .profiles(activeConversation?.projectId)
-      .find((profile) => profile.name === selectedAgentProfile),
-  ),
+  lockedFieldsOf(activeStore?.snapshot?.appliedAgentProfile),
 );
 $effect(() => {
   if (activeConversation)
@@ -204,7 +200,7 @@ const appShortcuts = createAppShortcuts({
   },
   selectedThinkingLevel: () => selectedThinkingLevel,
   setComposerThinkingLevel: async (reasoningLevel) => {
-    if (lockedFields.thinking) return;
+    if (lockedFields.model) return;
     await activeStore?.configure({ reasoningLevel });
   },
   agentProfileNames: () => agentProfileNames,

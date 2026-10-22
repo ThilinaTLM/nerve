@@ -249,7 +249,7 @@ export function createWorkbenchLaunchResources(
         const spawned = supervisor.spawn(input.command, {
           cwd: input.cwd,
           env: input.env,
-          shellPath: storage.settings.runtime.shellPath,
+          shellPath: storage.settings.tools.bash.shellPath,
         });
         const { child, runtime, exited, closed } = spawned;
         let resolveTerminal!: (launch: LaunchRecord | undefined) => void;

@@ -1,3 +1,4 @@
+import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { z } from "zod";
 import { toolRiskSchema } from "../permissions/permissions.js";
@@ -126,6 +127,7 @@ export function normalizeUserInputRequest(value: unknown): UserInputRequest {
   return userInputRequestSchema.parse(normalizeUserInputShape(value));
 }
 export const planReviewRequestSchema = z.object({
+  approvalProfile: agentProfileNameSchema,
   assetId: z.string(),
   path: z.string(),
   title: z.string().optional(),

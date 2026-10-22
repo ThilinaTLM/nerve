@@ -2,7 +2,7 @@
 import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import {
   SettingsEmptyState,
-  SettingsGroup,
+  SettingsSection,
   SettingsList,
   SettingsListItem,
   SettingsToolbar,
@@ -62,7 +62,7 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
 </SettingsToolbar>
 
 {#each filteredGroups as group (group.category)}
-  <SettingsGroup title={group.category}>
+  <SettingsSection surface={false} title={group.category}>
     <SettingsList ariaLabel={`${group.category} shortcuts`}>
       {#each group.commands as command (command.id)}
         <SettingsListItem title={command.label}>
@@ -74,7 +74,7 @@ const filteredGroups = $derived.by<ShortcutGroup[]>(() => {
         </SettingsListItem>
       {/each}
     </SettingsList>
-  </SettingsGroup>
+  </SettingsSection>
 {/each}
 
 {#if filteredGroups.length === 0}

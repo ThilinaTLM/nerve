@@ -55,11 +55,11 @@ test("concurrent independent and nested settings patches survive save/reload", a
       skills: { nerve: { enabled: ["skill-creator"] } },
     }),
     writeSettings(storage, { skills: { agentBrowser: { enabled: ["core"] } } }),
-    writeSettings(storage, { runtime: { shellPath: "/test/shell" } }),
+    writeSettings(storage, { tools: { bash: { shellPath: "/test/shell" } } }),
   ]);
   assert.deepEqual(storage.settings.skills.nerve.enabled, ["skill-creator"]);
   assert.deepEqual(storage.settings.skills.agentBrowser.enabled, ["core"]);
-  assert.equal(storage.settings.runtime.shellPath, "/test/shell");
+  assert.equal(storage.settings.tools.bash.shellPath, "/test/shell");
   await assertReload(storage);
 });
 
@@ -121,12 +121,12 @@ test("persistence rejection leaves runtime state unchanged and later saves recov
 test("computed patches read the latest committed settings inside the queue", async () => {
   const storage = await createStorage();
   await Promise.all([
-    writeSettings(storage, { runtime: { shellPath: "/new/shell" } }),
+    writeSettings(storage, { tools: { bash: { shellPath: "/new/shell" } } }),
     writeSettings(storage, (current) => ({
-      runtime: { pythonExecutablePath: current.runtime.shellPath },
+      tools: { pythonExec: { interpreterPath: current.tools.bash.shellPath } },
     })),
   ]);
-  assert.equal(storage.settings.runtime.pythonExecutablePath, "/new/shell");
+  assert.equal(storage.settings.tools.pythonExec.interpreterPath, "/new/shell");
   await assertReload(storage);
 });
 
@@ -145,14 +145,14 @@ test("provider catalog and settings mutations share serialization without lost u
     store.upsertProvider(provider("first")),
     writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } }),
     store.upsertProvider(provider("second")),
-    writeSettings(storage, { runtime: { shellPath: "/new/shell" } }),
+    writeSettings(storage, { tools: { bash: { shellPath: "/new/shell" } } }),
   ]);
   assert.deepEqual(
     store.catalog.providers.map((item) => item.id),
     ["first", "second"],
   );
   assert.deepEqual(storage.settings.skills.nerve.enabled, ["core"]);
-  assert.equal(storage.settings.runtime.shellPath, "/new/shell");
+  assert.equal(storage.settings.tools.bash.shellPath, "/new/shell");
   await assertReload(storage);
 });
 
@@ -163,5 +163,54 @@ test("default agent profile can be cleared and stays absent after reload", async
   await writeSettings(storage, { defaultAgentProfile: null });
   assert.equal(storage.settings.defaultAgentProfile, undefined);
   assert.equal(storage.configuration.harness.defaultAgentProfile, undefined);
+  await assertReload(storage);
+});
+
+test("tool interpreter and shell clears remove canonical settings rather than persisting null", async () => {
+  const storage = await createStorage();
+  await writeSettings(storage, {
+    tools: {
+      bash: { shellPath: "/custom/shell" },
+      pythonExec: { interpreterPath: "/custom/python" },
+    },
+  });
+  assert.equal(
+    storage.configuration.harness.tools.bash?.settings.shellPath,
+    "/custom/shell",
+  );
+  assert.equal(
+    storage.configuration.harness.tools.python_exec?.settings?.interpreterPath,
+    "/custom/python",
+  );
+  await writeSettings(storage, {
+    tools: { bash: { shellPath: null }, pythonExec: { interpreterPath: null } },
+  });
+  assert.equal(storage.settings.tools.bash.shellPath, undefined);
+  assert.equal(storage.settings.tools.pythonExec.interpreterPath, undefined);
+  await assertReload(storage);
+});
+
+test("integration account choices persist in harness tool payloads, not in account catalogs", async () => {
+  const storage = await createStorage();
+  await writeSettings(storage, {
+    tools: {
+      jira: { enabled: true, profileId: "jira-account" },
+      confluence: { enabled: true, profileId: "docs-account" },
+      web: { tavilyProfileId: "web-account" },
+    },
+  });
+  assert.equal(
+    storage.configuration.harness.tools.jira?.profileId,
+    "jira-account",
+  );
+  assert.equal(
+    storage.configuration.harness.tools.confluence?.profileId,
+    "docs-account",
+  );
+  assert.equal(
+    storage.configuration.harness.tools.web_search?.profileId,
+    "web-account",
+  );
+  assert.ok(!("tools" in storage.configuration.integrations));
   await assertReload(storage);
 });

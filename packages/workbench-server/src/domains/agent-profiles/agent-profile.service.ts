@@ -1,44 +1,49 @@
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import { isDeepStrictEqual } from "node:util";
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, realpath } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, relative, sep } from "node:path";
+import {
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+} from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import type { TrustedResourceService } from "@nervekit/conversation-core";
 import type { ConversationConfig } from "@nervekit/contracts/core";
+import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import {
   applyAgentProfilePatch,
-  resolveAgentProfiles,
-  agentProfileEntrySchema,
+  agentProfileDraftSchema,
+  agentProfileFileSchema,
   agentProfileNameSchema,
-  agentProfilesDocumentSchema,
   agentProfilesPreviewParamsSchema,
-  agentProfilesReplaceConversationParamsSchema,
-  type AgentProfilesDocument,
-  type AgentProfilesLeadContext,
+  resolveAgentProfiles,
   type AgentProfile,
   type AgentProfileDiagnostic,
   type AgentProfileLayer,
   type AgentProfilePatch,
-  type AgentProfilesConfiguration,
   type AgentProfileScope,
+  type AgentProfilesConfiguration,
+  type AgentProfilesDraft,
+  type AgentProfilesLeadContext,
 } from "@nervekit/contracts/agent-profiles";
 import type { WorkbenchNoticePublisher } from "../../infrastructure/events/index.js";
-import { atomicWriteFile } from "../../infrastructure/storage-bootstrap/index.js";
-import { ConfigurationScopePaths } from "../../infrastructure/configuration/scope-paths.js";
+import {
+  withFileMutation,
+  atomicReplaceFile,
+} from "../../infrastructure/storage-bootstrap/file-mutations.js";
+import { builtInAgentProfiles } from "./builtin-agent-profiles.js";
 
 export type AgentProfileConversationContext = {
   projectId: string;
   conversationId?: string;
-  /** Creation-only captured parent values; never persisted or accepted by RPC. */
   parentConfig?: ConversationConfig;
 };
-export type AgentProfileAvailabilityContext = {
-  capabilityOverrides?: CapabilityOverridesDocument;
-  projectId?: string;
-  conversationId?: string;
-  parentConfig?: ConversationConfig;
-  lead?: AgentProfilesLeadContext;
-};
+export type AgentProfileAvailabilityContext =
+  Partial<AgentProfileConversationContext> & {
+    lead?: AgentProfilesLeadContext;
+    capabilityOverrides?: CapabilityOverridesDocument;
+  };
 export type AgentProfileScopeInput = {
   scope: AgentProfileScope;
   projectId?: string;
@@ -50,295 +55,58 @@ export type AgentProfilesChange = {
 };
 export type AgentProfileServiceDeps = {
   userPath: string;
-  conversationsPath: string;
   trust: Pick<TrustedResourceService, "decide" | "isTrusted">;
   events: Pick<WorkbenchNoticePublisher, "publish">;
-  getProject: (id: string) => { id: string; directory: string };
-  getConversation: (id: string) => { projectId: string };
-  /** Rechecked on every conversation-aware read and child creation. */
-  availability?: (
+  getProject(id: string): { id: string; directory: string };
+  getConversation(id: string): { projectId: string };
+  availability?(
     profile: AgentProfile,
     context: AgentProfileAvailabilityContext,
-  ) => Promise<readonly AgentProfileDiagnostic[]>;
+  ): Promise<readonly AgentProfileDiagnostic[]>;
 };
 type MutationInput = AgentProfileScopeInput & {
   name: string;
   expectedDigest?: string | null;
 };
-type Target = {
-  path: string;
-  root: string;
-  projectId?: string;
-  conversationId?: string;
-};
-const emptyDocument = () => ({ schemaVersion: 1 as const, profiles: {} });
+type Target = { path: string; root: string; projectId?: string };
 const digestOf = (content: string) =>
   createHash("sha256").update(content).digest("hex");
 
-/** Filesystem/trust adapter for the transport-neutral contracts resolver. */
+/** One complete template per file. Trust and concurrency never span sibling files. */
 export class AgentProfileService {
-  private mutation = Promise.resolve();
   private readonly listeners = new Set<(change: AgentProfilesChange) => void>();
   constructor(private readonly deps: AgentProfileServiceDeps) {}
 
-  async configuration(
-    input: AgentProfileScopeInput,
-    parentConfig?: ConversationConfig,
-  ): Promise<AgentProfilesConfiguration> {
-    const target = this.target(input);
-    const layers: AgentProfileLayer[] = [
-      await this.readLayer({ scope: "user" }),
-    ];
-    if (input.scope !== "user" && target.projectId)
-      layers.push(
-        await this.readLayer({ scope: "project", projectId: target.projectId }),
-      );
-    if (input.scope === "conversation")
-      layers.push(await this.readLayer(input));
-    return this.assemble(layers, input.scope, {
-      projectId: target.projectId,
-      conversationId: target.conversationId,
-      ...(parentConfig ? { parentConfig } : {}),
-    });
-  }
-
-  async preview(input: {
-    projectId: string;
-    document: AgentProfilesDocument;
-    lead: AgentProfilesLeadContext;
-    capabilityOverrides?: CapabilityOverridesDocument;
-  }): Promise<AgentProfilesConfiguration> {
-    const { capabilityOverrides, ...params } = input;
-    const { projectId, document, lead } =
-      agentProfilesPreviewParamsSchema.parse(params);
-    const layers: AgentProfileLayer[] = [
-      await this.readLayer({ scope: "user" }),
-      await this.readLayer({ scope: "project", projectId }),
-      { source: "conversation", document, trust: "trusted" },
-    ];
-    return this.assemble(layers, "conversation", {
-      projectId,
-      lead,
-      ...(capabilityOverrides !== undefined ? { capabilityOverrides } : {}),
-    });
-  }
-
-  private async assemble(
-    layers: AgentProfileLayer[],
-    scope: AgentProfileScope,
-    context: AgentProfileAvailabilityContext,
-  ): Promise<AgentProfilesConfiguration> {
-    const result = resolveAgentProfiles({ layers, scope });
-    if (this.deps.availability) {
-      for (const configuration of result.profiles) {
-        if (!configuration.effective) continue;
-        const diagnostics = await this.deps.availability(
-          configuration.effective,
-          context,
-        );
-        for (const diagnostic of diagnostics) {
-          const duplicate = configuration.diagnostics.some(
-            (existing) =>
-              existing.severity === diagnostic.severity &&
-              ((existing.code === diagnostic.code &&
-                existing.message === diagnostic.message) ||
-                (diagnostic.reference !== undefined &&
-                  existing.reference === diagnostic.reference &&
-                  existing.field === diagnostic.field &&
-                  /^(unknown|unavailable)_(tool|skill)$/.test(existing.code) &&
-                  /^(unknown|unavailable)_(tool|skill)$/.test(
-                    diagnostic.code,
-                  ))),
-          );
-          if (!duplicate) configuration.diagnostics.push(diagnostic);
-        }
-        const blockers = configuration.diagnostics.filter(
-          (item) => item.severity === "blocking",
-        );
-        if (blockers.length)
-          configuration.effective.error = blockers
-            .map((item) => item.message)
-            .join("\n");
-      }
-    }
-    return result;
-  }
-
-  async list(
-    projectId?: string,
-    conversationId?: string,
-    parentConfig?: ConversationConfig,
-  ): Promise<AgentProfile[]> {
-    const configuration = await this.configuration(
-      conversationId
-        ? { scope: "conversation", projectId, conversationId }
-        : projectId
-          ? { scope: "project", projectId }
-          : { scope: "user" },
-      parentConfig,
-    );
-    return configuration.profiles.flatMap((profile) =>
-      profile.effective ? [profile.effective] : [],
+  private directory(input: AgentProfileScopeInput): string {
+    if (input.scope === "user") return this.deps.userPath;
+    if (!input.projectId) throw new Error("Project ID required");
+    return join(
+      this.deps.getProject(input.projectId).directory,
+      ".nerve",
+      "agent-profiles",
     );
   }
-  async usable(
-    context: AgentProfileConversationContext,
-  ): Promise<AgentProfile[]> {
-    return (
-      await this.list(
-        context.projectId,
-        context.conversationId,
-        context.parentConfig,
-      )
-    ).filter((profile) => isUsable(profile) && profile.usableBy !== "lead");
-  }
-  async find(
-    context: AgentProfileConversationContext,
-    name: string,
-  ): Promise<AgentProfile | undefined> {
-    return (
-      await this.list(
-        context.projectId,
-        context.conversationId,
-        context.parentConfig,
-      )
-    ).find((profile) => profile.name === name);
-  }
-  async resolve(
-    context: AgentProfileConversationContext,
-    name: string,
-  ): Promise<AgentProfile | undefined> {
-    const profile = await this.find(context, name);
-    return profile && isUsable(profile) ? profile : undefined;
-  }
-  onChanged(listener: (change: AgentProfilesChange) => void): () => void {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  }
-
-  update(
-    input: MutationInput & { patch: AgentProfilePatch },
-  ): Promise<AgentProfilesConfiguration> {
-    return this.mutate(async () => {
-      await this.writePatch(input, input.patch);
-      return this.configuration(input);
-    });
-  }
-  reset(
-    input: MutationInput & { field?: keyof AgentProfilePatch },
-  ): Promise<AgentProfilesConfiguration> {
-    return this.mutate(async () => {
-      await this.writePatch(
-        input,
-        input.field ? { [input.field]: null } : null,
-      );
-      return this.configuration(input);
-    });
-  }
-  replaceConversation(input: {
-    projectId: string;
-    conversationId: string;
-    document: AgentProfilesDocument;
-    expectedDigest: string | null;
-  }): Promise<AgentProfilesConfiguration> {
-    // Validate and snapshot before joining the mutation queue.
-    const parsed = agentProfilesReplaceConversationParamsSchema.parse(input);
-    return this.mutate(async () => {
-      const scope = {
-        scope: "conversation" as const,
-        projectId: parsed.projectId,
-        conversationId: parsed.conversationId,
-      };
-      const target = this.target(scope);
-      const layer = await this.readLayer(scope);
-      if (layer.error) throw new Error(layer.error);
-      const existing =
-        layer.document === undefined
-          ? undefined
-          : agentProfilesDocumentSchema.safeParse(layer.document);
-      if (existing && !existing.success)
-        throw new Error(
-          "Invalid sub-agent profile document; review it before saving.",
-        );
-      // A lost successful response may be retried with the previous digest.
-      // Only a fully valid, semantically identical document permits that retry.
-      if (
-        existing?.success &&
-        isDeepStrictEqual(existing.data, parsed.document)
-      )
-        return this.configuration(scope);
-      if (parsed.expectedDigest !== (layer.digest ?? null))
-        throw new Error(
-          "Sub-agent profile document changed; reload before saving.",
-        );
-      await assertProtectedPath(target);
-      await mkdir(dirname(target.path), { recursive: true, mode: 0o700 });
-      await assertProtectedPath(target);
-      const latest = await this.readLayer(scope);
-      if (latest.error || latest.digest !== layer.digest)
-        throw new Error(
-          "Sub-agent profile document changed; reload before saving.",
-        );
-      await atomicWriteFile(
-        target.path,
-        `${JSON.stringify(parsed.document, null, 2)}\n`,
-        { mode: 0o600 },
-      );
-      this.notify(target);
-      return this.configuration(scope);
-    });
-  }
-
-  trust(
-    projectId: string,
-    digest: string,
-  ): Promise<AgentProfilesConfiguration> {
-    return this.mutate(async () => {
-      const input = { scope: "project" as const, projectId };
-      const layer = await this.readLayer(input);
-      if (layer.error || layer.digest !== digest)
-        throw new Error(
-          "Project profile document changed or is unreadable; review it again.",
-        );
-      // Trust is for the exact entire document, not just the named entry.
-      const configuration = resolveAgentProfiles({
-        layers: [layer],
-        scope: "project",
-      });
-      if (
-        configuration.diagnostics.some(
-          (item) => item.code === "invalid_document",
-        )
-      )
-        throw new Error("Invalid project profile document cannot be trusted.");
-      this.trustDocument(this.target(input), digest);
-      this.notify(this.target(input));
-      return this.configuration(input);
-    });
-  }
-
-  private target(input: AgentProfileScopeInput): Target {
-    const target = new ConfigurationScopePaths({
-      userConfigPath: dirname(this.deps.userPath),
-      conversationsPath: this.deps.conversationsPath,
-      projectDirectory: (id) => this.deps.getProject(id).directory,
-      projectOf: (id) => this.deps.getConversation(id).projectId,
-    }).resolve(
-      input,
+  private target(input: AgentProfileScopeInput, name: string): Target {
+    agentProfileNameSchema.parse(name);
+    const directory = this.directory(input);
+    const root =
       input.scope === "user"
-        ? basename(this.deps.userPath)
-        : "agent-profiles.json",
-    );
-    // Profiles also require the owning project to still exist for conversation scope.
-    if (input.scope === "conversation") this.deps.getProject(target.projectId!);
-    return target;
+        ? dirname(directory)
+        : this.deps.getProject(input.projectId!).directory;
+    return {
+      root,
+      path: join(directory, `${name}.json`),
+      ...(input.scope === "project" ? { projectId: input.projectId } : {}),
+    };
   }
   private async readLayer(
     input: AgentProfileScopeInput,
-  ): Promise<AgentProfileLayer> {
-    const target = this.target(input);
+    name: string,
+  ): Promise<AgentProfileLayer | undefined> {
+    const target = this.target(input, name);
     const layer: AgentProfileLayer = {
       source: input.scope,
+      name,
       path: target.path,
     };
     try {
@@ -349,155 +117,345 @@ export class AgentProfileService {
         input.scope === "project" &&
         !this.deps.trust.isTrusted(
           "agent_profile",
-          target.projectId!,
+          input.projectId!,
           target.path,
           layer.digest,
         )
           ? "untrusted"
           : "trusted";
       try {
-        layer.document = JSON.parse(content);
-        layer.error = documentReadError(layer.document);
+        layer.file = JSON.parse(content);
       } catch {
-        layer.error =
-          "agent-profiles.json is not valid JSON. Correct its syntax before editing profiles; the file has not been changed.";
+        layer.error = `${name}.json is not valid JSON; review or delete this profile before editing.`;
       }
     } catch (error) {
-      if (!isMissing(error))
-        layer.error = `Cannot read agent-profiles.json: ${error instanceof Error ? error.message : String(error)}`;
+      if (isMissing(error)) return undefined;
+      layer.error = `Cannot read ${name}.json: ${error instanceof Error ? error.message : String(error)}`;
     }
     return layer;
   }
-  private async writePatch(
-    input: MutationInput,
-    patch: AgentProfilePatch | null,
-  ): Promise<void> {
-    agentProfileNameSchema.parse(input.name);
-    const target = this.target(input);
-    const layer = await this.readLayer(input);
-    if (layer.error) throw new Error(layer.error);
-    if (
-      input.expectedDigest !== undefined &&
-      input.expectedDigest !== (layer.digest ?? null)
-    )
-      throw new Error(
-        "Sub-agent profile document changed; reload before saving.",
-      );
-    const raw = layer.document === undefined ? emptyDocument() : layer.document;
-    // Validate the envelope, but preserve unrelated invalid entries verbatim.
-    if (
-      !raw ||
-      typeof raw !== "object" ||
-      Array.isArray(raw) ||
-      (raw as { schemaVersion?: unknown }).schemaVersion !== 1 ||
-      Object.keys(raw).some(
-        (key) => key !== "schemaVersion" && key !== "profiles",
-      )
-    )
-      throw new Error("Invalid sub-agent profile document.");
-    const profiles = (raw as { profiles?: unknown }).profiles;
-    if (!profiles || typeof profiles !== "object" || Array.isArray(profiles))
-      throw new Error("Invalid profiles map.");
-    for (const name of Object.keys(profiles))
-      agentProfileNameSchema.parse(name);
-    const entries = { ...profiles } as Record<string, unknown>;
-    if (patch === null) delete entries[input.name];
-    else {
-      const current = Object.hasOwn(entries, input.name)
-        ? entries[input.name]
-        : undefined;
-      const valid =
-        current === undefined ? {} : agentProfileEntrySchema.parse(current);
-      const updated = applyAgentProfilePatch(
-        { schemaVersion: 1, profiles: { [input.name]: valid } },
-        input.name,
-        patch,
-      );
-      entries[input.name] = updated.profiles[input.name];
+  private async layers(input: AgentProfileScopeInput): Promise<{
+    layers: AgentProfileLayer[];
+    diagnostics: AgentProfileDiagnostic[];
+  }> {
+    const root = this.directory(input);
+    // Protect the directory even when it is empty, or when readdir would follow a symlink.
+    await assertProtectedPath(this.target(input, "catalog-check"));
+    let names: string[];
+    try {
+      names = await readdir(root);
+    } catch (error) {
+      if (isMissing(error)) return { layers: [], diagnostics: [] };
+      throw error;
     }
-    await assertProtectedPath(target);
-    await mkdir(dirname(target.path), { recursive: true, mode: 0o700 });
-    await assertProtectedPath(target);
-    // Recheck immediately before replacement, including external edits during mkdir.
-    const latest = await this.readLayer(input);
-    if (latest.error || latest.digest !== layer.digest)
-      throw new Error(
-        "Sub-agent profile document changed; reload before saving.",
-      );
-    const content = `${JSON.stringify({ schemaVersion: 1, profiles: entries }, null, 2)}\n`;
-    await atomicWriteFile(target.path, content, { mode: 0o600 });
-    // Editing one entry is not consent to untouched imported instructions.
-    // Only a new document or an already exact-content-trusted document can
-    // carry trust forward; imported content requires explicit document trust.
-    if (
-      input.scope === "project" &&
-      (layer.digest === undefined ||
-        (layer.trust === "trusted" && latest.trust === "trusted"))
-    )
-      this.trustDocument(target, digestOf(content));
-    this.notify(target);
+    const diagnostics: AgentProfileDiagnostic[] = [];
+    const valid = names
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .filter((filename) => {
+        if (agentProfileNameSchema.safeParse(filename.slice(0, -5)).success)
+          return true;
+        diagnostics.push({
+          severity: "blocking",
+          code: "invalid_filename",
+          source: input.scope,
+          reference: filename,
+          message: `Invalid agent profile filename ${filename}; rename or remove this file.`,
+        });
+        return false;
+      });
+    const layers = (
+      await Promise.all(
+        valid.map((filename) => this.readLayer(input, filename.slice(0, -5))),
+      )
+    ).filter((layer): layer is AgentProfileLayer => layer !== undefined);
+    return { layers, diagnostics };
   }
-  private trustDocument(target: Target, digest: string): void {
+
+  private async assemble(
+    layers: AgentProfileLayer[],
+    scope: AgentProfileScope,
+    context: AgentProfileAvailabilityContext,
+  ): Promise<AgentProfilesConfiguration> {
+    const result = resolveAgentProfiles({
+      builtins: builtInAgentProfiles,
+      layers,
+      scope,
+    });
+    if (this.deps.availability)
+      for (const configuration of result.profiles) {
+        if (!configuration.effective) continue;
+        const diagnostics = await this.deps.availability(
+          configuration.effective,
+          context,
+        );
+        configuration.diagnostics.push(...diagnostics);
+        const blocking = configuration.diagnostics.filter(
+          (d) => d.severity === "blocking",
+        );
+        if (blocking.length)
+          configuration.effective.error = blocking
+            .map((d) => d.message)
+            .join("\n");
+      }
+    return result;
+  }
+  async configuration(
+    input: AgentProfileScopeInput,
+    parentConfig?: ConversationConfig,
+    lead?: AgentProfilesLeadContext,
+  ): Promise<AgentProfilesConfiguration> {
+    const user = await this.layers({ scope: "user" });
+    const project =
+      input.scope === "project"
+        ? await this.layers(input)
+        : { layers: [], diagnostics: [] };
+    const result = await this.assemble(
+      [...user.layers, ...project.layers],
+      input.scope,
+      {
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        parentConfig,
+        lead,
+      },
+    );
+    result.diagnostics.push(...user.diagnostics, ...project.diagnostics);
+    return result;
+  }
+  async preview(input: {
+    projectId: string;
+    profiles: AgentProfilesDraft;
+    lead: AgentProfilesLeadContext;
+    capabilityOverrides?: CapabilityOverridesDocument;
+  }): Promise<AgentProfilesConfiguration> {
+    const { capabilityOverrides, ...params } = input;
+    const { projectId, profiles, lead } =
+      agentProfilesPreviewParamsSchema.parse(params);
+    const [user, project] = await Promise.all([
+      this.layers({ scope: "user" }),
+      this.layers({ scope: "project", projectId }),
+    ]);
+    const layers = [...user.layers, ...project.layers];
+    for (const profile of profiles)
+      layers.push({
+        source: "project",
+        name: profile.name,
+        file: { schemaVersion: 2, ...profile },
+        trust: "trusted",
+      });
+    const result = await this.assemble(layers, "project", {
+      projectId,
+      lead,
+      capabilityOverrides,
+    });
+    result.diagnostics.push(...user.diagnostics, ...project.diagnostics);
+    return result;
+  }
+
+  async list(
+    projectId?: string,
+    conversationId?: string,
+    parentConfig?: ConversationConfig,
+    lead?: AgentProfilesLeadContext,
+  ): Promise<AgentProfile[]> {
+    if (conversationId) {
+      const owner = this.deps.getConversation(conversationId).projectId;
+      if (projectId && projectId !== owner)
+        throw new Error("Conversation does not belong to project");
+      projectId = owner;
+    }
+    const result = await this.configuration(
+      projectId
+        ? { scope: "project", projectId, conversationId }
+        : { scope: "user" },
+      parentConfig,
+      lead,
+    );
+    return result.profiles.flatMap((p) => (p.effective ? [p.effective] : []));
+  }
+  async usable(context: AgentProfileConversationContext) {
+    return (
+      await this.list(
+        context.projectId,
+        context.conversationId,
+        undefined,
+        context.parentConfig
+          ? {
+              model: context.parentConfig.model,
+              reasoningLevel: context.parentConfig.reasoningLevel,
+            }
+          : undefined,
+      )
+    ).filter((p) => isUsable(p) && p.usableBy !== "lead");
+  }
+  async find(context: AgentProfileConversationContext, name: string) {
+    return (
+      await this.list(
+        context.projectId,
+        context.conversationId,
+        context.parentConfig,
+      )
+    ).find((p) => p.name === name);
+  }
+  async resolve(context: AgentProfileConversationContext, name: string) {
+    const profile = await this.find(context, name);
+    return profile && isUsable(profile) ? profile : undefined;
+  }
+  onChanged(listener: (change: AgentProfilesChange) => void) {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+  private notify(input: AgentProfileScopeInput) {
+    const change =
+      input.scope === "project" ? { projectId: input.projectId } : {};
+    for (const listener of this.listeners) {
+      try {
+        listener(change);
+      } catch {
+        /* observers own errors */
+      }
+    }
+    void this.deps.events.publish("agentProfiles.changed", change);
+  }
+  private trustFile(target: Target, digest: string) {
     this.deps.trust.decide({
       kind: "agent_profile",
       projectId: target.projectId!,
       path: target.path,
-      name: "agent-profiles.json",
+      name: target.path.split(sep).at(-1)!,
       contentDigest: digest,
       status: "trusted",
     });
   }
-  private notify(target: Target): void {
-    const change: AgentProfilesChange = {
-      ...(target.projectId ? { projectId: target.projectId } : {}),
-      ...(target.conversationId
-        ? { conversationId: target.conversationId }
-        : {}),
-    };
-    for (const listener of this.listeners) listener(change);
-    void this.deps.events.publish("agentProfiles.changed", change);
-  }
-  private mutate<T>(operation: () => Promise<T>): Promise<T> {
-    const run = this.mutation.then(operation);
-    this.mutation = run.then(
-      () => undefined,
-      () => undefined,
+  async update(
+    input: MutationInput & { patch: AgentProfilePatch },
+  ): Promise<AgentProfilesConfiguration> {
+    const target = this.target(input, input.name);
+    let content = "";
+    let authored = false;
+    await atomicReplaceFile(
+      target.path,
+      async (handle) => {
+        await handle.writeFile(content);
+      },
+      {
+        mode: 0o600,
+        prepare: async () => {
+          const layer = await this.readLayer(input, input.name);
+          if (
+            input.expectedDigest !== undefined &&
+            input.expectedDigest !== (layer?.digest ?? null)
+          )
+            throw new Error(
+              "Agent profile file changed; reload before saving.",
+            );
+          if (layer?.error) throw new Error(layer.error);
+          const configuration = await this.configuration(input);
+          const entry = configuration.profiles.find(
+            (p) => p.name === input.name,
+          );
+          const base = layer
+            ? agentProfileFileSchema.parse(layer.file)
+            : entry?.inherited;
+          if (base && base.name !== input.name)
+            throw new Error(
+              "Profile name must match filename; delete the invalid file before editing.",
+            );
+          const draft = base
+            ? applyAgentProfilePatch(
+                agentProfileDraftSchema.parse(
+                  Object.fromEntries(
+                    Object.entries(base).filter(
+                      ([key]) => key !== "schemaVersion",
+                    ),
+                  ),
+                ),
+                input.patch,
+              )
+            : agentProfileDraftSchema.parse({
+                name: input.name,
+                ...input.patch,
+              });
+          const file = agentProfileFileSchema.parse({
+            schemaVersion: 2,
+            ...draft,
+          });
+          await assertProtectedPath(target);
+          await mkdir(dirname(target.path), { recursive: true, mode: 0o700 });
+          await assertProtectedPath(target);
+          const latest = await this.readLayer(input, input.name);
+          if (latest?.digest !== layer?.digest)
+            throw new Error(
+              "Agent profile file changed; reload before saving.",
+            );
+          content = `${JSON.stringify(file, null, 2)}\n`;
+          authored = !layer || layer.trust === "trusted";
+          return { mode: 0o600 };
+        },
+      },
     );
-    return run;
+    if (target.projectId && authored) this.trustFile(target, digestOf(content));
+    this.notify(input);
+    return this.configuration(input);
+  }
+  async reset(
+    input: MutationInput & { field?: string },
+  ): Promise<AgentProfilesConfiguration> {
+    if (input.field) {
+      const entry = (await this.configuration(input)).profiles.find(
+        (p) => p.name === input.name,
+      );
+      const field = input.field;
+      if (["name", "schemaVersion"].includes(field))
+        throw new Error("Cannot reset profile identity");
+      const inherited = entry?.inherited as Record<string, unknown> | undefined;
+      return this.update({
+        ...input,
+        patch: { [field]: inherited?.[field] ?? null },
+      });
+    }
+    const target = this.target(input, input.name);
+    await withFileMutation(target.path, async () => {
+      const layer = await this.readLayer(input, input.name);
+      if (
+        input.expectedDigest !== undefined &&
+        input.expectedDigest !== (layer?.digest ?? null)
+      )
+        throw new Error("Agent profile file changed; reload before deleting.");
+      await assertProtectedPath(target);
+      await rm(target.path, { force: true });
+      this.notify(input);
+    });
+    return this.configuration(input);
+  }
+  async trust(
+    projectId: string,
+    name: string,
+    digest: string,
+  ): Promise<AgentProfilesConfiguration> {
+    const input = { scope: "project" as const, projectId };
+    const target = this.target(input, name);
+    await withFileMutation(target.path, async () => {
+      const layer = await this.readLayer(input, name);
+      if (!layer || layer.error || layer.digest !== digest)
+        throw new Error(
+          "Project profile file changed or is unreadable; review it again.",
+        );
+      const file = agentProfileFileSchema.parse(layer.file);
+      if (file.name !== name)
+        throw new Error("Profile name must match filename");
+      this.trustFile(target, digest);
+      this.notify(input);
+    });
+    return this.configuration(input);
   }
 }
 export function isUsable(profile: AgentProfile): boolean {
   return !profile.error && profile.enabled && profile.trust !== "untrusted";
 }
-function isDocumentObject(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
-/** Validate only the envelope: invalid individual entries stay isolated in the resolver. */
-function documentReadError(document: unknown): string | undefined {
-  if (
-    isDocumentObject(document) &&
-    Object.keys(document).length === 1 &&
-    Object.hasOwn(document, "enabled") &&
-    isDocumentObject(document.enabled) &&
-    Object.values(document.enabled).every((value) => typeof value === "boolean")
-  )
-    return "Legacy agent-profiles.json requires storage migration to the current profile format. Back up the storage and review its migration status before editing profiles.";
-  if (
-    !isDocumentObject(document) ||
-    document.schemaVersion !== 1 ||
-    Object.keys(document).some(
-      (key) => key !== "schemaVersion" && key !== "profiles",
-    ) ||
-    !isDocumentObject(document.profiles) ||
-    Object.keys(document.profiles).some(
-      (name) => !agentProfileNameSchema.safeParse(name).success,
-    )
-  )
-    return "Invalid agent-profiles.json format. Expected schemaVersion: 1 and a profiles object with valid profile names. Review the file before editing; it has not been changed.";
-  return undefined;
-}
-
 function isMissing(error: unknown): boolean {
   return (
     !!error &&

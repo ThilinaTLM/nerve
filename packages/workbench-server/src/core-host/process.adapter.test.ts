@@ -44,17 +44,20 @@ void test("async bash cancellation sends SIGTERM then escalates after the launch
   }
 });
 
-void test("shell settings are read lazily for each run and spawn", async () => {
+void test("run and start resolve current shell settings with their conversation identity", async () => {
   let calls = 0;
   let current = "first";
-  const host = new CoreProcessHost(async (cwd) => {
+  let conversationId = "conv-run";
+  const host = new CoreProcessHost(async (cwd, id) => {
     calls++;
+    assert.equal(id, conversationId);
     assert.equal(cwd, "project-directory");
     throw new Error(`shell unavailable: ${current}`);
   });
   assert.equal(calls, 0, "construction must not require an installed shell");
   await assert.rejects(
     host.run({
+      conversationId: "conv-run",
       command: "pwd",
       cwd: "project-directory",
       signal: new AbortController().signal,
@@ -62,13 +65,16 @@ void test("shell settings are read lazily for each run and spawn", async () => {
     /shell unavailable: first/,
   );
   current = "updated";
+  conversationId = "conv-start";
   const dir = await mkdtemp(join(tmpdir(), "nerve-shell-settings-"));
   try {
     await assert.rejects(
-      host.spawn({
+      host.start({
+        conversationId: "conv-start",
         command: "pwd",
         cwd: "project-directory",
         artifactDir: dir,
+        signal: new AbortController().signal,
       }),
       /shell unavailable: updated/,
     );
@@ -117,6 +123,7 @@ void test("project launch diagnostics are drained before completion, bypass is e
     );
 
     const bypass = await host.start({
+      conversationId: "c",
       command: "echo PROBE",
       cwd: dir,
       env,

@@ -72,11 +72,11 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
     );
     try {
       await createConversation(core, "conv_preview");
+      await core.setAgentProfile("conv_preview", "planning");
       core.configure("conv_preview", {
         systemPrompt: override,
         instructions: "Current conversation instructions",
         workingDirectory: join(directory, "working"),
-        agentProfile: "planning",
       });
       const definition = toolDefinitionByName("bash");
       assert.ok(definition);
@@ -141,6 +141,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
       assert.deepEqual(preparations[1], previewInput);
 
       // Each preview is freshly prepared, including when an explicit override wins.
+      await core.setAgentProfile("conv_preview", "planning");
       core.configure("conv_preview", {
         systemPrompt: null,
         instructions: "Changed",
@@ -225,15 +226,11 @@ void test("unsent preview uses draft values without creating a conversation and 
       workingDirectory: join(directory, "draft-cwd"),
     };
     const capabilityOverrides = {
-      schemaVersion: 2 as const,
+      schemaVersion: 3 as const,
       tools: {},
-      toolSettings: {},
       skills: { nerve: {}, agentBrowser: {}, file: {} },
     };
-    const agentProfileOverrides = {
-      schemaVersion: 1 as const,
-      profiles: {},
-    };
+    const agentProfileOverrides: [] = [];
     const draft = {
       projectId: "proj_test",
       config,
@@ -247,7 +244,9 @@ void test("unsent preview uses draft values without creating a conversation and 
       projectId: "proj_test",
       title: "Pending",
     });
-    core.configure("conv_pending", config);
+    const { agentProfile, ...patch } = config;
+    core.configure("conv_pending", patch);
+    await core.setAgentProfile("conv_pending", agentProfile);
     savedCapabilities = capabilityOverrides;
     savedProfiles = agentProfileOverrides;
     assert.equal(

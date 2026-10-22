@@ -1,41 +1,36 @@
+<!--
+  Model scope: which models pickers offer. An empty scope offers every
+  authenticated model. The default model and its reasoning level are set in
+  Agent → General.
+-->
 <script lang="ts">
-import type { ConversationConfig } from "@nervekit/contracts/core";
-import { clampThinkingLevelForModel } from "$lib/application/preferences/thinking-levels";
 import type {
   AuthProviderMetadata,
   ModelInfo,
   ModelSelection,
   Settings,
 } from "$lib/api";
+import ModelMultiSelect from "$lib/presentation/model-picker/ModelMultiSelect.svelte";
 import {
-  SettingsGroup,
   SettingsInlineMessage,
   SettingsSection,
-  SettingsToggleRow,
 } from "$lib/presentation/settings";
 import {
   authenticatedRealModelOptions,
   modelKey,
 } from "$lib/presentation/utils/model";
 import type { SettingsChange } from "../settings-change";
-import ScopedModelCatalog from "./ScopedModelCatalog.svelte";
-
-type ThinkingLevel = ConversationConfig["reasoningLevel"];
 
 type Props = {
   settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  /** Reads the composer's live selection; owned by app composition. */
-  readComposerSelection?: () => Settings["lastAgentSelection"];
   onSettingsChange?: SettingsChange;
 };
-
 let {
   settingsDraft,
   models = [],
   authProviders = [],
-  readComposerSelection,
   onSettingsChange,
 }: Props = $props();
 
@@ -49,88 +44,34 @@ const staleCount = $derived.by(() => {
   ).length;
 });
 
-/** Starring a model makes it the default new agents start with. */
-function makeDefault(
-  selection: ModelSelection,
-  model: ModelInfo,
-  level: ThinkingLevel,
-): void {
-  const thinkingLevel = clampThinkingLevelForModel(level, model);
-  settingsDraft.defaultModel = selection;
-  settingsDraft.defaultThinkingLevel = thinkingLevel;
-  onSettingsChange?.(
-    { defaultModel: selection, defaultThinkingLevel: thinkingLevel },
-    { immediate: true },
-  );
-}
-
-function onRememberLastSelectionChange(checked: boolean): void {
-  settingsDraft.rememberLastAgentSelection = checked;
-  if (!checked) {
-    onSettingsChange?.(
-      { rememberLastAgentSelection: false },
-      { immediate: true },
-    );
-    return;
-  }
-
-  const lastAgentSelection = readComposerSelection?.();
-  if (!lastAgentSelection) {
-    onSettingsChange?.(
-      { rememberLastAgentSelection: true },
-      { immediate: true },
-    );
-    return;
-  }
-
-  settingsDraft.lastAgentSelection = lastAgentSelection;
-  onSettingsChange?.(
-    {
-      rememberLastAgentSelection: true,
-      lastAgentSelection: {
-        ...lastAgentSelection,
-        model: lastAgentSelection.model ?? null,
-      },
-    },
-    { immediate: true },
-  );
-}
-
 function commitScopedModels(next: ModelSelection[]): void {
   settingsDraft.scopedModels = next;
   onSettingsChange?.({ scopedModels: next }, { immediate: true });
 }
 </script>
 
-<SettingsSection id="models" title="Scoped models">
-  <SettingsGroup>
-    {#if availableModels.length === 0}
-      <SettingsInlineMessage
-        tone="info"
-        text="Authenticate a provider before choosing scoped models."
-      />
-    {:else}
-      <ScopedModelCatalog
-        models={availableModels}
-        scopedModels={settingsDraft.scopedModels}
-        defaultModel={settingsDraft.defaultModel}
-        defaultThinkingLevel={settingsDraft.defaultThinkingLevel}
-        onScopedModelsChange={commitScopedModels}
-        onMakeDefault={makeDefault}
-      />
-      {#if staleCount > 0}
-        <SettingsInlineMessage
-          tone="warning"
-          text={`${staleCount} scoped ${staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by the picker. Uncheck to remove.`}
-        />
-      {/if}
-    {/if}
+<SettingsInlineMessage
+  tone="neutral"
+  text="An empty scope offers every authenticated model. The default model and reasoning level are set in Agent → General."
+/>
 
-    <SettingsToggleRow
-      label="Remember last selected model as default"
-      description="New agents reuse the model you last chose in the composer instead of the starred default."
-      checked={settingsDraft.rememberLastAgentSelection}
-      onCheckedChange={onRememberLastSelectionChange}
+<SettingsSection id="models" title="Model scope">
+  {#if availableModels.length === 0}
+    <SettingsInlineMessage
+      tone="info"
+      text="Authenticate a provider before choosing scoped models."
     />
-  </SettingsGroup>
+  {:else}
+    <ModelMultiSelect
+      models={availableModels}
+      scopedModels={settingsDraft.scopedModels}
+      onScopedModelsChange={commitScopedModels}
+    />
+    {#if staleCount > 0}
+      <SettingsInlineMessage
+        tone="warning"
+        text={`${staleCount} scoped ${staleCount === 1 ? "model is" : "models are"} no longer available and will be ignored by pickers. Uncheck to remove.`}
+      />
+    {/if}
+  {/if}
 </SettingsSection>

@@ -4,8 +4,7 @@ import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
-import { listIntegrationHealth, listTools, uploadAttachment } from "$lib/api";
-import type { AtlassianProfileHealth } from "@nervekit/contracts/auth";
+import { listTools, uploadAttachment } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
 import { readClipboardText } from "$lib/platform/clipboard/read-text";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
@@ -48,9 +47,6 @@ import {
 } from "./composer-capability-controller";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
-import ConversationProfilesHost from "./ConversationProfilesHost.svelte";
-import type { CapabilitySubagentSlot } from "$lib/presentation/composer/capability-subagent-slot";
-import { conversationProfileScope } from "./conversation-profile-controller";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
 import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
 import { bindComposerVoiceInput } from "./composer-voice-input";
@@ -89,6 +85,7 @@ let {
   agentProfile = DEFAULT_AGENT_PROFILE,
   agentProfiles = [],
   lockedFields,
+  settingsDiffers,
   profileDisabled = false,
   permissionRuleSetId = "autonomous",
   permissionRuleSets = [],
@@ -106,8 +103,9 @@ let {
   onUsageOpenChange,
   onUsageRetry,
   onOpenSystemPrompt,
-  onModelChange,
-  onThinkingLevelChange,
+  onModelSelectionChange,
+  onResetModel,
+  onResetPermission,
   onAgentProfileChange,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
@@ -164,43 +162,11 @@ const capabilityLoading = $derived(
   capabilityState.loading || capabilityState.mutating,
 );
 const capabilityError = $derived(capabilityState.error);
-const profileScope = $derived.by(() => {
-  const pending = activePendingConversation;
-  return conversationProfileScope(
-    activeProject?.id,
-    activeConversation,
-    interactive,
-    pending
-      ? {
-          pendingId: pending.id,
-          document: pending.agentProfileOverrides,
-          lead: {
-            model: pending.config.model,
-            reasoningLevel: pending.config.reasoningLevel,
-          },
-          readonly: () => pending.sending,
-          onDocumentChange: (document) => {
-            pending.agentProfileOverrides = document;
-          },
-        }
-      : undefined,
-  );
-});
+/** Tool group whose conversation-level settings dialog is open. */
+let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
 const capabilityScopeKey = $derived(
   `${activeProject?.id ?? "none"}:${activeConversation?.id ?? activePendingConversation?.id ?? "none"}:${interactive}`,
 );
-let capabilityProfileHealth = $state<AtlassianProfileHealth[]>([]);
-/** Tool group whose conversation-level settings dialog is open. */
-let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
-
-function refreshProfileHealth(): void {
-  void listIntegrationHealth()
-    .then((profiles) => {
-      capabilityProfileHealth = profiles;
-    })
-    .catch(() => undefined);
-}
-
 $effect(() => {
   const progressive = workbenchStartupState.progressiveActive;
   const project = activeProject;
@@ -273,7 +239,6 @@ $effect(() => {
     onEvent("settings.updated", () => {
       void capabilityController.refresh();
     }),
-    onEvent("auth.integration_health_changed", refreshProfileHealth),
   ];
   return () => {
     for (const unsubscribe of unsubscribes) unsubscribe();
@@ -293,10 +258,8 @@ const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
 const cancelMicShortcut = getShortcutLabel("composer.cancelMic");
 const profileShortcut = getShortcutLabel("composer.cycleProfile");
 const profileShortcutAria = getShortcutAriaLabel("composer.cycleProfile");
-const modelShortcut = getShortcutLabel("composer.cycleModel");
 const permissionShortcut = getShortcutLabel("composer.cyclePermission");
 const permissionShortcutAria = getShortcutAriaLabel("composer.cyclePermission");
-const thinkingShortcut = getShortcutLabel("composer.cycleThinking");
 const stopShortcut = getShortcutLabel("composer.stopRun");
 const stopShortcutAria = getShortcutAriaLabel("composer.stopRun");
 
@@ -549,9 +512,6 @@ const selectorDisabled = $derived(
 );
 const capabilityDisabled = $derived(!availability.canConfigureRuntime);
 const modelDisabled = $derived(capabilityDisabled || models.length === 0);
-const modelRuntimeChangeHint = $derived(
-  sending ? "Changes apply to the next model request" : undefined,
-);
 
 function toggleRecording() {
   if (transcribing && voiceTarget) {
@@ -617,17 +577,6 @@ function handleMicContextMenu(event: MouseEvent) {
 }
 </script>
 
-{#snippet capabilityProfiles(query: string, capability: CapabilitySubagentSlot)}
-  <ConversationProfilesHost
-    {capability}
-    scope={profileScope}
-    {query}
-    unavailableReason={activeConversation
-      ? "Sub-agents can't delegate; configure profiles in the lead conversation."
-      : "Sub-agent profiles are unavailable for this conversation."}
-  />
-{/snippet}
-
 <AgentComposer
   model={{
     text,
@@ -650,6 +599,7 @@ function handleMicContextMenu(event: MouseEvent) {
     agentProfile,
     agentProfiles,
     lockedFields,
+    settingsDiffers,
     permissionRuleSetId,
     permissionRuleSets,
     permissionRuleSetsLoading,
@@ -676,7 +626,6 @@ function handleMicContextMenu(event: MouseEvent) {
     profileDisabled: selectorDisabled,
     modelDisabled,
     capabilityDisabled,
-    runtimeChangeHint: modelRuntimeChangeHint,
     sendAriaLabel,
     sendTitle,
     stopAriaLabel: compacting ? "Stop compaction" : "Stop generation",
@@ -696,8 +645,6 @@ function handleMicContextMenu(event: MouseEvent) {
     permissionShortcutAria,
     profileShortcut,
     profileShortcutAria,
-    modelShortcut,
-    thinkingShortcut,
     todos,
     slashCompletions,
     completionSource,
@@ -705,7 +652,6 @@ function handleMicContextMenu(event: MouseEvent) {
     capabilitySkills,
     capabilityLoading,
     capabilityError,
-    capabilityProfiles,
     capabilityScopeKey,
     subagentControlsEnabled: canEditComposerDelegation(
       activeProject?.id,
@@ -732,8 +678,9 @@ function handleMicContextMenu(event: MouseEvent) {
     onUsageOpenChange,
     onUsageRetry,
     onOpenSystemPrompt,
-    onModelChange,
-    onThinkingLevelChange,
+    onModelSelectionChange,
+    onResetModel,
+    onResetPermission,
     onAgentProfileChange,
     onPermissionRuleSetChange,
     onRefreshPermissionRuleSets,
@@ -742,7 +689,6 @@ function handleMicContextMenu(event: MouseEvent) {
     onCapabilityPatch: (patch) => void patchCapabilities(patch),
     onConfigureCapabilityTool: (group) => {
       configuringToolGroup = group;
-      refreshProfileHealth();
     },
     onResetCapabilities: () => void resetCapabilities(),
     onRefreshCapabilities: () => void capabilityController.refresh(),
@@ -817,7 +763,7 @@ function handleMicContextMenu(event: MouseEvent) {
 <ConversationToolSettingsDialog
   configuration={capabilityConfiguration}
   group={configuringToolGroup}
-  profileHealth={capabilityProfileHealth}
+  projectId={activeProject?.id}
   onPatch={(patch) => void patchCapabilities(patch)}
   onClose={() => (configuringToolGroup = undefined)}
 />

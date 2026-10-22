@@ -1,22 +1,37 @@
-import { isDeepStrictEqual } from "node:util";
+import { existsSync, readFileSync } from "node:fs";
+import { readFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
+  agentProfileDraftSchema,
+  appliedAgentProfileSchema,
+  applyAgentProfileTemplate,
   DEFAULT_AGENT_PROFILE,
-  agentProfileScalarKind,
-  lockedValue,
-  type AgentProfile,
-  type AgentProfileCompactionOverride,
+  type ApplyAgentProfileOptions,
+  type AgentProfileSettings,
+  type AppliedAgentProfile,
 } from "@nervekit/contracts/agent-profiles";
+import {
+  capabilityToolNameSchema,
+  capabilityToolPayload,
+  capabilityToolsSchema,
+  emptyCapabilityOverrides,
+} from "@nervekit/contracts/capabilities";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type {
+  AgentProfileApplication,
   AgentProfilePort,
-  AgentProfileConfigPatch,
   TurnPreparationInput,
 } from "@nervekit/conversation-core";
 import type { Settings } from "@nervekit/contracts/settings";
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
+import {
+  atomicWriteFile,
+  atomicWriteJson,
+} from "../infrastructure/storage-bootstrap/index.js";
 import type { AgentProfileService } from "../domains/agent-profiles/agent-profile.service.js";
-import { switchScalar, resolveProfileScalar } from "./agent-profile-scalars.js";
-import { parseProfileModel } from "./agent-profile-availability.js";
+import type { CapabilityService } from "./capability.service.js";
+import type { ConversationHarnessSettings } from "./conversation-harness.service.js";
+import { listAvailableSkills } from "./resource-loader.js";
+import type { Skill } from "@nervekit/harness/resources";
 
 export function profileDefaults(settings: Settings) {
   const model = settings.defaultModel ?? settings.lastAgentSelection.model;
@@ -25,224 +40,293 @@ export function profileDefaults(settings: Settings) {
   return {
     model,
     reasoningLevel: settings.defaultThinkingLevel,
-    permissionRuleSetId: settings.defaultPermissionRuleSetId ?? "baseline",
-    compaction: {
-      auto: settings.compaction.auto,
-      profile: settings.compaction.profile,
-      triggerPercent: settings.compaction.customTriggerPercent,
-    } satisfies AgentProfileCompactionOverride,
+    permissionRuleSetId: settings.defaultPermissionRuleSetId,
+    compaction: settings.compaction,
   };
-}
-export function applyProfileSets(
-  profile: AgentProfile,
-  config: Omit<ConversationConfig, "conversationId">,
-  settings: Settings,
-) {
-  const defaults = profileDefaults(settings);
-  const result = { ...config, agentProfile: profile.name };
-  if (agentProfileScalarKind(profile.model) === "set")
-    result.model =
-      profile.model === "default"
-        ? defaults.model
-        : parseProfileModel(profile.name, profile.model as string);
-  if (agentProfileScalarKind(profile.thinking) === "set")
-    result.reasoningLevel = resolveProfileScalar(
-      profile.thinking,
-      config.reasoningLevel,
-      defaults.reasoningLevel,
-    );
-  if (agentProfileScalarKind(profile.permission) === "set")
-    result.permissionRuleSetId = resolveProfileScalar(
-      profile.permission,
-      config.permissionRuleSetId,
-      defaults.permissionRuleSetId,
-    );
-  return result;
 }
 export function createAgentProfilePort(options: {
+  clampThinking: ApplyAgentProfileOptions["clampThinking"];
+  dataPath: string;
+  home: string;
   profiles(): AgentProfileService;
   settings(projectId: string): Promise<Settings>;
-  compaction(conversationId: string): Promise<AgentProfileCompactionOverride>;
-  capabilities(
-    projectId: string,
-    conversationId: string,
-  ): Promise<CapabilityOverridesDocument | undefined>;
-  notice?(conversationId: string, text: string): void;
-}): AgentProfilePort {
-  const unavailableNotices = new Map<string, string>();
-  const profiles = async (input: TurnPreparationInput) => {
-    if (input.conversation.id)
-      return options
-        .profiles()
-        .list(input.conversation.projectId, input.conversation.id);
-    const configuration = await options.profiles().preview({
-      projectId: input.conversation.projectId,
-      document: input.agentProfileOverrides ?? {
-        schemaVersion: 1,
-        profiles: {},
-      },
-      lead: {
-        model: input.config.model,
-        reasoningLevel: input.config.reasoningLevel,
-      },
-      capabilityOverrides: input.capabilityOverrides,
-    });
-    return configuration.profiles.flatMap(({ effective }) =>
-      effective ? [effective] : [],
-    );
+  parentInput(id: string): TurnPreparationInput;
+  capabilities(): CapabilityService;
+  harness(): ConversationHarnessSettings;
+  skillCatalogs: { nerve: readonly Skill[]; agentBrowser: readonly Skill[] };
+}): AgentProfilePort & {
+  settingsFor(input: TurnPreparationInput): Promise<AgentProfileSettings>;
+} {
+  const cache = new Map<string, AppliedAgentProfile | null>();
+  const paths = (id: string) => {
+    if (!/^[a-zA-Z0-9_-]+$/.test(id))
+      throw new Error("Invalid conversation ID");
+    const root = join(options.dataPath, "conversations", id, "config");
+    return {
+      applied: join(root, "applied-agent-profile.json"),
+      capabilities: join(root, "capabilities.json"),
+      harness: join(root, "harness.json"),
+    };
   };
-  const defaultName = (settings: Settings) =>
-    settings.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE;
-  const lead = (profile: AgentProfile | undefined): profile is AgentProfile =>
-    Boolean(
-      profile?.enabled &&
-      !profile.error &&
-      profile.trust !== "untrusted" &&
-      profile.usableBy !== "subagent",
-    );
-  const active = async (input: TurnPreparationInput, settings: Settings) => {
-    const list = await profiles(input);
-    const current = list.find((p) => p.name === input.config.agentProfile);
-    if (input.conversation.parentConversationId !== null) return current;
-    if (lead(current)) {
-      if (input.conversation.id)
-        unavailableNotices.delete(input.conversation.id);
-      return current;
-    }
-    const fallback = list.find((p) => p.name === defaultName(settings));
-    if (!lead(fallback))
-      throw new Error(
-        "Default agent profile is not usable by lead conversations.",
-      );
-    if (
-      input.conversation.id &&
-      unavailableNotices.get(input.conversation.id) !==
-        input.config.agentProfile
-    ) {
-      unavailableNotices.set(input.conversation.id, input.config.agentProfile);
-      options.notice?.(
-        input.conversation.id,
-        `Agent profile "${input.config.agentProfile}" is unavailable; using "${fallback.name}".`,
-      );
-    }
-    return fallback;
-  };
-  return {
-    async resolveLockedScalars(input) {
-      if (input.conversation.parentConversationId !== null) return {};
-      const settings = await options.settings(input.conversation.projectId);
-      const profile = await active(input, settings);
-      if (!profile) return {};
-      const defaults = profileDefaults(settings);
-      const result: Awaited<
-        ReturnType<AgentProfilePort["resolveLockedScalars"]>
-      > = {};
-      const model = lockedValue(profile.model);
-      if (model !== undefined)
-        result.model =
-          model === "default"
-            ? defaults.model
-            : parseProfileModel(profile.name, model);
-      const thinking = lockedValue(profile.thinking);
-      if (thinking !== undefined)
-        result.reasoningLevel =
-          thinking === "default" ? defaults.reasoningLevel : thinking;
-      const permission = lockedValue(profile.permission);
-      if (permission !== undefined)
-        result.permissionRuleSetId =
-          permission === "default" ? defaults.permissionRuleSetId : permission;
-      const compaction = lockedValue(profile.compaction);
-      if (compaction !== undefined)
-        result.compaction =
-          compaction === "default" ? defaults.compaction : compaction;
-      return result;
-    },
-    async switchProfile(input) {
-      if (!input.conversation.id)
-        throw new Error("Conversation is required to switch agent profiles.");
-      if (input.conversation.parentConversationId !== null)
-        throw new Error("Sub-agent profiles cannot be switched.");
-      const settings = await options.settings(input.conversation.projectId);
-      const list = await profiles(input);
-      const next = list.find(
-        (p) => p.name === (input.profile ?? defaultName(settings)),
-      );
-      if (!lead(next))
-        throw new Error(
-          `Agent profile "${input.profile ?? defaultName(settings)}" is not usable by lead conversations.`,
-        );
-      const previous = list.find((p) => p.name === input.config.agentProfile);
-      const defaults = profileDefaults(settings);
-      const patch: AgentProfileConfigPatch = {
-        config: { agentProfile: next.name },
-      };
-      const modelString = (value: ConversationConfig["model"]) =>
-        `${value.provider}/${value.modelId}`;
-      const model = switchScalar(
-        previous?.model,
-        next.model,
-        modelString(input.config.model),
-        modelString(defaults.model),
-      );
-      if (model !== undefined)
-        patch.config.model = parseProfileModel(next.name, model);
-      const thinking = switchScalar(
-        previous?.thinking,
-        next.thinking,
-        input.config.reasoningLevel,
-        defaults.reasoningLevel,
-      );
-      if (thinking !== undefined) patch.config.reasoningLevel = thinking;
-      const permission = switchScalar(
-        previous?.permission,
-        next.permission,
-        input.config.permissionRuleSetId,
-        defaults.permissionRuleSetId,
-      );
-      if (permission !== undefined)
-        patch.config.permissionRuleSetId = permission;
-      const normalizeCompaction = (
-        value: AgentProfile["compaction"],
-      ): AgentProfile["compaction"] => {
-        if (typeof value === "string") return value;
-        if ("lock" in value) return value;
-        return {
-          auto: value.auto ?? true,
-          profile: value.profile,
-          triggerPercent: value.triggerPercent ?? 80,
-        };
-      };
-      const compaction = switchScalar(
-        previous ? normalizeCompaction(previous.compaction) : undefined,
-        normalizeCompaction(next.compaction),
-        await options.compaction(input.conversation.id),
-        defaults.compaction,
-      );
-      if (compaction !== undefined)
-        patch.compaction = isDeepStrictEqual(compaction, defaults.compaction)
-          ? null
-          : compaction;
-      const overrides = structuredClone(
-        await options.capabilities(
+  const settingsFor = async (
+    input: TurnPreparationInput,
+  ): Promise<AgentProfileSettings> => {
+    const settings = await options.settings(input.conversation.projectId);
+    const selection = (
+      await options
+        .capabilities()
+        .configuration(
           input.conversation.projectId,
           input.conversation.id,
+          input.capabilityOverrides,
+        )
+    ).effective;
+    const installed = (
+      await listAvailableSkills(input.projectDir, {
+        storageHome: options.home,
+        nerveSkills: options.skillCatalogs.nerve,
+        agentBrowserSkills: options.skillCatalogs.agentBrowser,
+      })
+    ).skills;
+    const skills: Exclude<AgentProfileSettings["skills"], string> = {
+      file: {},
+      nerve: {},
+      agentBrowser: {},
+    };
+    for (const skill of installed) {
+      const kind =
+        skill.source === "nerve"
+          ? "nerve"
+          : skill.source === "agentBrowser"
+            ? "agentBrowser"
+            : "file";
+      skills[kind][skill.name] =
+        kind === "file"
+          ? !selection.disabledFileSkills.includes(skill.name)
+          : kind === "nerve"
+            ? selection.enabledNerveSkills.includes(skill.name)
+            : selection.enabledAgentBrowserSkills.includes(skill.name);
+    }
+    return {
+      model: input.config.model,
+      thinking: input.config.reasoningLevel,
+      permission: input.config.permissionRuleSetId,
+      compaction: input.conversation.id
+        ? await options.harness().compactionSettings(input.conversation.id)
+        : settings.compaction,
+      tools: capabilityToolsSchema.parse(
+        Object.fromEntries(
+          capabilityToolNameSchema.options.map((name) => [
+            name,
+            capabilityToolPayload(selection, name),
+          ]),
         ),
+      ),
+      skills,
+    };
+  };
+  const apply = async (
+    input: TurnPreparationInput & {
+      profile?: string;
+      preserveModel?: boolean;
+      preserveThinking?: boolean;
+    },
+    lead?: AgentProfileSettings,
+  ): Promise<AgentProfileApplication> => {
+    const defaults = await options.settings(input.conversation.projectId);
+    const name =
+      input.profile ?? defaults.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE;
+    const parentConfig = input.conversation.parentConversationId
+      ? options.parentInput(input.conversation.parentConversationId).config
+      : undefined;
+    const profiles = input.agentProfileOverrides
+      ? (
+          await options.profiles().preview({
+            projectId: input.conversation.projectId,
+            profiles: input.agentProfileOverrides,
+            lead: {
+              model: input.config.model,
+              reasoningLevel: input.config.reasoningLevel,
+            },
+            capabilityOverrides: input.capabilityOverrides,
+          })
+        ).profiles.flatMap((p) => (p.effective ? [p.effective] : []))
+      : await options.profiles().list(
+          input.conversation.projectId,
+          undefined,
+          input.config as ConversationConfig,
+          parentConfig
+            ? {
+                model: parentConfig.model,
+                reasoningLevel: parentConfig.reasoningLevel,
+              }
+            : undefined,
+        );
+    const profile = profiles.find((p) => p.name === name);
+    const child = input.conversation.parentConversationId !== null;
+    if (
+      !profile ||
+      !profile.enabled ||
+      profile.error ||
+      profile.trust === "untrusted" ||
+      (child ? profile.usableBy === "lead" : profile.usableBy === "subagent")
+    )
+      throw new Error(
+        `Agent profile "${name}" is not usable by this conversation.`,
       );
-      if (overrides) {
-        for (const name of Object.keys(next.tools)) {
-          delete overrides.tools?.[name as keyof typeof overrides.tools];
-          delete overrides.toolSettings?.[
-            name as keyof typeof overrides.toolSettings
-          ];
-        }
-        if (next.skills !== "inherit")
-          for (const group of Object.values(overrides.skills ?? {}))
-            for (const name of Object.keys(group))
-              if (next.skills === "none" || name in next.skills)
-                delete group[name];
-        patch.capabilityOverrides = overrides;
+    const current = await settingsFor(input);
+    const effectiveLead =
+      lead ??
+      (input.conversation.parentConversationId
+        ? await settingsFor(
+            options.parentInput(input.conversation.parentConversationId),
+          )
+        : undefined);
+    const template = Object.fromEntries(
+      Object.entries(profile).filter(
+        ([key]) =>
+          !["source", "trust", "path", "digest", "error"].includes(key),
+      ),
+    );
+
+    const { settings, applied } = applyAgentProfileTemplate(
+      agentProfileDraftSchema.parse(template),
+      current,
+      {
+        lead: effectiveLead,
+        preserveModel: input.preserveModel,
+        preserveThinking: input.preserveThinking,
+        clampThinking: options.clampThinking,
+      },
+    );
+    const application: AgentProfileApplication = {
+      config: {
+        agentProfile: name,
+        model: settings.model,
+        reasoningLevel: settings.thinking,
+        permissionRuleSetId: settings.permission,
+      },
+      applied,
+    };
+    if (profile.compaction !== undefined)
+      application.compaction = settings.compaction;
+    if (
+      input.capabilityOverrides ||
+      Object.keys(profile.tools).length ||
+      profile.skills !== undefined
+    ) {
+      const document = structuredClone(
+        (
+          await options
+            .capabilities()
+            .configuration(
+              input.conversation.projectId,
+              input.conversation.id,
+              input.capabilityOverrides,
+            )
+        ).conversation ?? emptyCapabilityOverrides(),
+      );
+      for (const name of Object.keys(profile.tools))
+        Object.assign(document.tools, {
+          [name]: settings.tools[name as keyof typeof settings.tools],
+        });
+      if (profile.skills !== undefined) {
+        const prior =
+          current.skills === "none"
+            ? { file: {}, nerve: {}, agentBrowser: {} }
+            : current.skills;
+        const chosen =
+          settings.skills === "none"
+            ? { file: {}, nerve: {}, agentBrowser: {} }
+            : settings.skills;
+        for (const kind of ["file", "nerve", "agentBrowser"] as const)
+          document.skills[kind] = Object.fromEntries(
+            [
+              ...new Set([
+                ...Object.keys(prior[kind]),
+                ...Object.keys(chosen[kind]),
+              ]),
+            ].map((name) => [name, chosen[kind][name] ?? false]),
+          );
       }
-      return patch;
+      application.capabilityOverrides = document;
+    }
+    return application;
+  };
+  return {
+    settingsFor,
+    applyProfile: (input) => apply(input),
+    getAppliedProfile(id) {
+      if (!cache.has(id)) {
+        const path = paths(id).applied;
+        cache.set(
+          id,
+          existsSync(path)
+            ? appliedAgentProfileSchema.parse(
+                JSON.parse(readFileSync(path, "utf8")),
+              )
+            : null,
+        );
+      }
+      const profile = cache.get(id)!;
+      return profile ? structuredClone(profile) : null;
+    },
+    async persistApplication(id, application) {
+      const files = paths(id);
+      const updates: [string, unknown][] = [
+        ...(application.compaction
+          ? [
+              [files.harness, { compaction: application.compaction }] as [
+                string,
+                unknown,
+              ],
+            ]
+          : []),
+        ...(application.capabilityOverrides
+          ? [
+              [files.capabilities, application.capabilityOverrides] as [
+                string,
+                unknown,
+              ],
+            ]
+          : []),
+        [files.applied, appliedAgentProfileSchema.parse(application.applied)],
+      ];
+      const backups = await Promise.all(
+        updates.map(async ([path]) => {
+          try {
+            return await readFile(path, "utf8");
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+            throw error;
+          }
+        }),
+      );
+      const written: number[] = [];
+      try {
+        for (let i = 0; i < updates.length; i++) {
+          await atomicWriteJson(updates[i][0], updates[i][1]);
+          written.push(i);
+        }
+        cache.set(id, structuredClone(application.applied));
+      } catch (error) {
+        const failures: unknown[] = [];
+        for (const i of written.reverse()) {
+          try {
+            if (backups[i] === null) await rm(updates[i][0], { force: true });
+            else await atomicWriteFile(updates[i][0], backups[i]);
+          } catch (rollbackError) {
+            failures.push(rollbackError);
+          }
+        }
+        if (failures.length)
+          throw new AggregateError(
+            [error, ...failures],
+            "Profile application failed and file rollback was incomplete",
+            { cause: error },
+          );
+        throw error;
+      }
     },
   };
 }

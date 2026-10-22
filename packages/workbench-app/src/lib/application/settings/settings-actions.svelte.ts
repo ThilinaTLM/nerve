@@ -34,6 +34,8 @@ import {
   setActiveCenterTab,
 } from "$lib/application/workspace/center-tabs.svelte";
 import { selection } from "$lib/application/workspace/selection.svelte";
+import { selectProject } from "$lib/application/workspace/workspace-actions.svelte";
+import { resolveSettingsPageId } from "$lib/features/settings/registry/settings-pages";
 import { workspaceState } from "$lib/application/workspace/workspace-state.svelte";
 export type SettingsSaveOptions = {
   immediate?: boolean;
@@ -64,8 +66,31 @@ let settingsLoadInFlight: Promise<void> | undefined;
 let settingsReloadRequested = false;
 
 function targetSettingsPage(pageId?: string, sectionId?: string) {
-  if (pageId) settingsState.activePageId = pageId;
+  if (pageId)
+    settingsState.activePageId = resolveSettingsPageId("user", pageId);
   if (sectionId) settingsState.activeSectionId = sectionId;
+}
+
+/** Opens (or focuses) one project's settings tab, in that project's session. */
+export async function openProjectSettingsPane(
+  projectId: string,
+  pageId?: string,
+  sectionId?: string,
+) {
+  if (!workspaceState.projects.some((project) => project.id === projectId))
+    return;
+  await selectProject(projectId, { deferTabActivation: true });
+  const view = settingsState.projectViews[projectId];
+  settingsState.projectViews[projectId] = {
+    pageId: pageId
+      ? resolveSettingsPageId("project", pageId)
+      : (view?.pageId ?? resolveSettingsPageId("project", undefined)),
+    sectionId: sectionId ?? (pageId ? undefined : view?.sectionId),
+  };
+  const tab = { kind: "project-settings" as const, id: projectId };
+  addCenterTab(tab);
+  setActiveCenterTab(tab);
+  await loadSettingsPanel();
 }
 
 export async function openSettingsPane(pageId?: string, sectionId?: string) {
@@ -179,6 +204,26 @@ export function loadSettingsPanel(): Promise<void> {
   return settingsLoadInFlight;
 }
 
+type PlainObject = Record<string, unknown>;
+
+function isPlainObject(value: unknown): value is PlainObject {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/** Merges nested settings objects; arrays and null replace (null clears a path). */
+function mergeSettingsObject<T>(base: T | undefined, patch: unknown): T {
+  if (!isPlainObject(base) || !isPlainObject(patch))
+    return (patch === undefined ? base : patch) as T;
+  const merged: PlainObject = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
+    merged[key] = isPlainObject(value)
+      ? mergeSettingsObject(base[key], value)
+      : value;
+  }
+  return merged as T;
+}
+
 function mergeSettingsPatch(
   base: UpdateSettingsRequest | undefined,
   patch: UpdateSettingsRequest,
@@ -254,12 +299,6 @@ function mergeSettingsPatch(
       ...(patch.compaction ?? {}),
     };
   }
-  if (base?.runtime || patch.runtime) {
-    next.runtime = {
-      ...(base?.runtime ?? {}),
-      ...(patch.runtime ?? {}),
-    };
-  }
   if (base?.providers || patch.providers) {
     next.providers = {
       ...(base?.providers ?? {}),
@@ -281,40 +320,7 @@ function mergeSettingsPatch(
     };
   }
   if (base?.tools || patch.tools) {
-    next.tools = {
-      ...(base?.tools ?? {}),
-      ...(patch.tools ?? {}),
-      ...(base?.tools?.bash || patch.tools?.bash
-        ? {
-            bash: {
-              ...(base?.tools?.bash ?? {}),
-              ...(patch.tools?.bash ?? {}),
-              ...(base?.tools?.bash?.autoPromotion ||
-              patch.tools?.bash?.autoPromotion
-                ? {
-                    autoPromotion: {
-                      ...(base?.tools?.bash?.autoPromotion ?? {}),
-                      ...(patch.tools?.bash?.autoPromotion ?? {}),
-                    },
-                  }
-                : {}),
-            },
-          }
-        : {}),
-      ...(["jira", "confluence", "web", "imageExplanation"] as const).reduce(
-        (branches, key) =>
-          base?.tools?.[key] || patch.tools?.[key]
-            ? {
-                ...branches,
-                [key]: {
-                  ...(base?.tools?.[key] ?? {}),
-                  ...(patch.tools?.[key] ?? {}),
-                },
-              }
-            : branches,
-        {},
-      ),
-    };
+    next.tools = mergeSettingsObject(base?.tools, patch.tools);
   }
   return next;
 }
@@ -325,10 +331,14 @@ function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
   );
 }
 
+/** Interpreter and shell paths change the runtime the status reports. */
 function patchTouchesRuntime(
   patch: UpdateSettingsRequest | undefined,
 ): boolean {
-  return Boolean(patch?.runtime && Object.keys(patch.runtime).length > 0);
+  return Boolean(
+    patch?.tools?.pythonExec !== undefined ||
+    patch?.tools?.bash?.shellPath !== undefined,
+  );
 }
 
 function clearSaveTimer() {

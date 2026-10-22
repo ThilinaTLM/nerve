@@ -2,7 +2,6 @@ export { default as NerveMark } from "./brand/NerveMark.svelte";
 export { default as NerveBadge } from "./brand/NerveBadge.svelte";
 export { default as ConversationPaneLayout } from "./conversations/ConversationPaneLayout.svelte";
 export { default as ComposerEditor } from "./composer/ComposerEditor.svelte";
-export { default as ComposerModelPicker } from "./composer/ComposerModelPicker.svelte";
 export { default as ComposerShell } from "./composer/ComposerShell.svelte";
 export { default as ComposerToolbar } from "./composer/ComposerToolbar.svelte";
 export { default as ContextProgressBadge } from "./composer/ContextProgressBadge.svelte";

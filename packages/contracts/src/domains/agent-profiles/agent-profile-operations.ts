@@ -5,13 +5,13 @@ import { agentProfileNameSchema } from "./constants.js";
 import {
   agentProfileSchema,
   agentProfileScopeSchema,
+  agentProfileFieldsSchema,
 } from "./agent-profile.js";
 
 import {
-  agentProfileEntrySchema,
   agentProfilePatchSchema,
   agentProfilesConfigurationSchema,
-  agentProfilesDocumentSchema,
+  agentProfilesDraftSchema,
 } from "./agent-profile-configuration.js";
 
 const projectIdSchema = z.string().startsWith("proj_");
@@ -62,21 +62,11 @@ export type AgentProfilesLeadContext = z.infer<
 export const agentProfilesPreviewParamsSchema = z
   .object({
     projectId: projectIdSchema,
-    document: agentProfilesDocumentSchema,
+    profiles: agentProfilesDraftSchema,
     lead: agentProfilesLeadContextSchema,
   })
   .strict();
 export const agentProfilesPreviewResultSchema =
-  agentProfilesConfigurationSchema;
-export const agentProfilesReplaceConversationParamsSchema = z
-  .object({
-    projectId: projectIdSchema,
-    conversationId: z.string().min(1),
-    document: agentProfilesDocumentSchema,
-    expectedDigest: z.string().min(1).nullable(),
-  })
-  .strict();
-export const agentProfilesReplaceConversationResultSchema =
   agentProfilesConfigurationSchema;
 const mutationParams = {
   ...scopedParams,
@@ -95,7 +85,9 @@ export const agentProfilesResetParamsSchema = z
   .object({
     ...mutationParams,
     /** Omit to remove the local entry. */
-    field: agentProfileEntrySchema.keyof().optional(),
+    field: z
+      .enum([...agentProfileFieldsSchema.keyof().options, "instructions"])
+      .optional(),
   })
   .superRefine(requireProjectForProjectScope);
 export const agentProfilesResetResultSchema = agentProfilesConfigurationSchema;
@@ -105,6 +97,7 @@ export const agentProfilesListResultSchema = z.object({
 });
 export const agentProfilesTrustParamsSchema = z.object({
   projectId: projectIdSchema,
+  name: agentProfileNameSchema,
   digest: z.string().min(1),
 });
 
@@ -119,15 +112,6 @@ export const agentProfilesOperationDefinitions = [
     "none",
     host,
     "operation.agentProfiles.preview",
-  ),
-  defineOperation(
-    "agentProfiles.replaceConversation",
-    agentProfilesReplaceConversationParamsSchema,
-    agentProfilesReplaceConversationResultSchema,
-    "mutation",
-    "none",
-    host,
-    "operation.agentProfiles.replaceConversation",
   ),
   defineOperation(
     "agentProfiles.list",

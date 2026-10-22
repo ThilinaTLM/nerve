@@ -163,8 +163,8 @@ export const setupGuideSteps: Record<
         "Open Settings → Providers → Tavily Profiles and choose Add profile.",
       preparation: {
         kind: "settings",
-        pageId: "providers",
-        sectionId: "tavily-profiles",
+        pageId: "integrations",
+        sectionId: "tavily-accounts",
       },
       advanceByClickingTarget: true,
     },
@@ -178,8 +178,8 @@ export const setupGuideSteps: Record<
         "Choose Add profile under Tavily Profiles, then paste your API key into the dialog.",
       preparation: {
         kind: "settings",
-        pageId: "providers",
-        sectionId: "tavily-profiles",
+        pageId: "integrations",
+        sectionId: "tavily-accounts",
       },
     },
     {
@@ -191,8 +191,8 @@ export const setupGuideSteps: Record<
       fallback: "In the Tavily profile dialog, choose Save profile.",
       preparation: {
         kind: "settings",
-        pageId: "providers",
-        sectionId: "tavily-profiles",
+        pageId: "integrations",
+        sectionId: "tavily-accounts",
       },
     },
   ],
@@ -207,8 +207,8 @@ export const setupGuideSteps: Record<
         "Open Settings → Providers → Atlassian Profiles and choose Add profile.",
       preparation: {
         kind: "settings",
-        pageId: "providers",
-        sectionId: "atlassian-profiles",
+        pageId: "integrations",
+        sectionId: "atlassian-accounts",
       },
       advanceByClickingTarget: true,
     },
@@ -222,8 +222,8 @@ export const setupGuideSteps: Record<
         "Complete the Add Atlassian profile dialog and choose Save profile.",
       preparation: {
         kind: "settings",
-        pageId: "providers",
-        sectionId: "atlassian-profiles",
+        pageId: "integrations",
+        sectionId: "atlassian-accounts",
       },
     },
     {
@@ -236,7 +236,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
       advanceByClickingTarget: true,
     },
@@ -251,7 +251,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
     },
     {
@@ -264,7 +264,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
     },
     {
@@ -278,7 +278,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
       advanceByClickingTarget: true,
     },
@@ -293,7 +293,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
     },
     {
@@ -307,7 +307,7 @@ export const setupGuideSteps: Record<
       preparation: {
         kind: "settings",
         pageId: "tools",
-        sectionId: "third-party",
+        sectionId: "tools",
       },
     },
   ],
@@ -320,8 +320,8 @@ export const setupGuideSteps: Record<
       fallback: "Open Settings → Permissions to choose a permission rule set.",
       preparation: {
         kind: "settings",
-        pageId: "permissions",
-        sectionId: "default",
+        pageId: "general",
+        sectionId: "new-conversations",
       },
     },
     {
@@ -333,7 +333,7 @@ export const setupGuideSteps: Record<
       fallback: "Open Settings → Agent profiles and edit a built-in profile.",
       preparation: {
         kind: "settings",
-        pageId: "agent-profiles",
+        pageId: "profiles",
         sectionId: "profiles",
       },
     },

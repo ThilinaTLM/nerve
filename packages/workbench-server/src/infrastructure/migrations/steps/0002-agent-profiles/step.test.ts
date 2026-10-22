@@ -9,7 +9,10 @@ import {
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import { agentProfilesDocumentSchema } from "@nervekit/contracts/agent-profiles";
+import {
+  agentProfileFileSchema,
+  appliedAgentProfileSchema,
+} from "@nervekit/contracts/agent-profiles";
 import { permissionRuleSetSchema } from "@nervekit/contracts/permissions";
 import {
   defaultHarnessConfig,
@@ -43,6 +46,8 @@ function profiles(home: string) {
     schemaVersion: 1,
     profiles: {
       review: {
+        description: "Fixture review",
+        skills: "inherit",
         model: "lead",
         thinking: "lead",
         permission: "read_only",
@@ -65,10 +70,15 @@ void test("an already-applied 0001 home runs 0002, then core v2, preserving user
   profiles(home);
   const harness = {
     ...structuredClone(defaultHarnessConfig),
+    version: 3,
+    defaultAgentProfile: "planning",
     mode: "coding",
     lastSelection: { ...defaultHarnessConfig.lastSelection, mode: "planning" },
     tools: {
-      ...structuredClone(defaultHarnessConfig.tools),
+      bash: {
+        maxTimeoutMs: 300000,
+        autoPromotion: { enabled: true, afterMs: 10000 },
+      },
       disabled: ["plan_mode_present"],
     },
   };
@@ -111,37 +121,59 @@ void test("an already-applied 0001 home runs 0002, then core v2, preserving user
     db.exec(
       "UPDATE conversation_config SET mode='planning' WHERE conversation_id='conv_one'",
     );
-    db.exec(`INSERT INTO tool_call (id,conversation_id,turn_id,origin,tool_name,arguments,state,updated_at)
-      VALUES ('plan-call','conv_one','turn','user','plan_mode_present','{}','ready','now')`);
+    db.prepare(`INSERT INTO tool_call (id,conversation_id,turn_id,origin,tool_name,arguments,state,interaction,updated_at)
+      VALUES ('plan-call','conv_one','turn','user','plan_mode_present','{}','awaiting_input',?,'now')`).run(
+      JSON.stringify({
+        kind: "plan_review",
+        request: { assetId: "plan-fixture", path: "plan.md" },
+      }),
+    );
   } finally {
     db.close();
   }
   await runMigrations(home, { registry });
   assert(!existsSync(join(home, "config/subagents.json")));
-  const document = agentProfilesDocumentSchema.parse(
-    read(join(home, "config/agent-profiles.json")),
+  assert(!existsSync(join(home, "config/agent-profiles.json")));
+  const profile = agentProfileFileSchema.parse(
+    read(join(home, "data/agent-profiles/review.json")),
   );
-  assert.deepEqual(document.profiles.review, {
-    model: "inherit",
-    thinking: "inherit",
-    permission: "read_only",
-    usableBy: "subagent",
-    compaction: { profile: "custom", triggerPercent: 75 },
-    tools: { plan_present: true },
-    instructions: "Keep literal plan_mode_present prose.",
+  assert.equal(profile.model, "lead");
+  assert.equal(profile.skills, "lead");
+  assert.deepEqual(profile.permission, { set: "read_only" });
+  assert.deepEqual(profile.compaction, {
+    set: { auto: true, profile: "custom", customTriggerPercent: 75 },
   });
-  agentProfilesDocumentSchema.parse(
-    read(join(home, "project/.nerve/config/agent-profiles.json")),
+  assert.deepEqual(profile.tools?.plan_present, {
+    set: { enabled: true, settings: { approvalProfile: "coding" } },
+  });
+  assert.equal(profile.instructions, "Keep literal plan_mode_present prose.");
+  agentProfileFileSchema.parse(
+    read(join(home, "project/.nerve/agent-profiles/reviewer.json")),
   );
-  assert.deepEqual(
-    harnessConfigSchema.parse(read(join(home, "config/harness.json"))).tools
-      .disabled,
-    ["plan_present"],
+  const migratedHarness = harnessConfigSchema.parse(
+    read(join(home, "config/harness.json")),
   );
+  assert.equal(migratedHarness.version, 4);
+  assert.equal(migratedHarness.tools.plan_present?.enabled, false);
+  assert(!("execution" in migratedHarness));
+  const applied = appliedAgentProfileSchema.parse(
+    read(
+      join(
+        home,
+        "data/conversations/conv_one/config/applied-agent-profile.json",
+      ),
+    ),
+  );
+  assert.equal(applied.name, "planning");
+  assert.equal(applied.locked.permission, "planning");
   permissionRuleSetSchema.parse(
     read(join(home, "config/rule-sets/custom.json")),
   );
-  assert.deepEqual(read(caps).tools, { plan_present: { enabled: true } });
+  assert.equal(read(caps).schemaVersion, 3);
+  assert.deepEqual(read(caps).tools.plan_present, {
+    enabled: true,
+    settings: { approvalProfile: "coding" },
+  });
   // Home steps do not run SQL schema migrations or rewrite the released v1 receipt.
   const beforeCore = new DatabaseSync(join(home, "data/nerve.sqlite"));
   assert.equal(
@@ -181,6 +213,18 @@ void test("an already-applied 0001 home runs 0002, then core v2, preserving user
         .get()?.tool_name,
       "plan_present",
     );
+    const interaction = JSON.parse(
+      String(
+        afterCore
+          .prepare("SELECT interaction FROM tool_call WHERE id='plan-call'")
+          .get()?.interaction,
+      ),
+    );
+    assert.equal(
+      interaction.request.approvalProfile,
+      "coding",
+      "review captures tool config rather than the planning start profile",
+    );
   } finally {
     afterCore.close();
   }
@@ -197,8 +241,8 @@ void test("legacy baseline runs 0001 → 0002 → core v2", async (t) => {
   );
   const storage = openCoreStorage(join(home, "data/nerve.sqlite"));
   storage.close();
-  agentProfilesDocumentSchema.parse(
-    read(join(home, "config/agent-profiles.json")),
+  agentProfileFileSchema.parse(
+    read(join(home, "data/agent-profiles/explore.json")),
   );
 });
 
@@ -218,6 +262,18 @@ void test("colliding JSON targets fail without overwriting either document", asy
 void test("receipts resume an interrupted step and rollback restores documents and SQL metadata", async (t) => {
   const home = await releasedHome(t);
   const original = profiles(home);
+  const setupDb = new DatabaseSync(join(home, "data/nerve.sqlite"));
+  setupDb.exec(
+    "UPDATE conversation_config SET mode='planning' WHERE conversation_id='conv_one'",
+  );
+  const beforeConfig = {
+    ...setupDb
+      .prepare(
+        "SELECT * FROM conversation_config WHERE conversation_id='conv_one'",
+      )
+      .get(),
+  };
+  setupDb.close();
   const failing = [
     ...legacyRegistry,
     {
@@ -238,6 +294,28 @@ void test("receipts resume an interrupted step and rollback restores documents a
   await rollbackFailedMigration(home, { registry: failing });
   assert.deepEqual(read(join(home, "config/subagents.json")), original);
   assert(!existsSync(join(home, "config/agent-profiles.json")));
+  assert(
+    !existsSync(
+      join(
+        home,
+        "data/conversations/conv_one/config/applied-agent-profile.json",
+      ),
+    ),
+  );
+  const restoredDb = new DatabaseSync(join(home, "data/nerve.sqlite"), {
+    readOnly: true,
+  });
+  assert.deepEqual(
+    {
+      ...restoredDb
+        .prepare(
+          "SELECT * FROM conversation_config WHERE conversation_id='conv_one'",
+        )
+        .get(),
+    },
+    beforeConfig,
+  );
+  restoredDb.close();
   await assert.rejects(
     runMigrations(home, { registry: failing }),
     /interrupted/,
@@ -300,4 +378,141 @@ void test("named tool projections and settings migrate without rewriting prose o
       ),
     /Conflicting/,
   );
+});
+
+void test("per-file output collisions after an interrupted split are never overwritten", async (t) => {
+  const home = await releasedHome(t);
+  profiles(home);
+  const failing = [
+    ...legacyRegistry,
+    {
+      ...registry[1],
+      step: {
+        ...step,
+        async verify() {
+          throw Error("interrupted after phase5");
+        },
+      },
+    },
+  ];
+  await assert.rejects(
+    runMigrations(home, { registry: failing }),
+    /interrupted/,
+  );
+  const path = join(home, "data/agent-profiles/review.json");
+  const changed = { ...read(path), instructions: "External target edit" };
+  write(path, changed);
+  await assert.rejects(runMigrations(home, { registry }), /configuration file/);
+  assert.deepEqual(read(path), changed);
+  await rollbackFailedMigration(home, { registry });
+  assert(existsSync(join(home, "config/subagents.json")));
+  assert(!existsSync(path));
+});
+
+void test("genuinely ambiguous both-scope inheritance requires repair and can be rolled back", async (t) => {
+  const home = await fixture(t);
+  await runMigrations(home, { registry: legacyRegistry });
+  const original = read(join(home, "config/subagents.json"));
+  original.profiles.developer.usableBy = "both"; // Inheritance has different lead/child semantics.
+  write(join(home, "config/subagents.json"), original);
+  await assert.rejects(runMigrations(home, { registry }), /configuration file/);
+  assert.match(
+    readFileSync(join(home, "migrations/last-failure.json"), "utf8"),
+    /ambiguous/,
+  );
+  await rollbackFailedMigration(home, { registry });
+  assert.deepEqual(read(join(home, "config/subagents.json")), original);
+});
+
+void test("already-materialized child values are snapshotted without applying the edited template again", async (t) => {
+  const home = await releasedHome(t);
+  const core = openCoreStorage(join(home, "data/nerve.sqlite"));
+  core.close();
+  write(join(home, "config/subagents.json"), {
+    schemaVersion: 1,
+    profiles: {
+      fixed: {
+        description: "Fixed child",
+        usableBy: "subagent",
+        enabled: true,
+        model: { lock: "fixture/edited-template" },
+        thinking: { lock: "high" },
+        permission: { lock: "read_only" },
+        compaction: "inherit",
+        tools: {},
+        skills: "inherit",
+        instructions: "Edited template instructions",
+      },
+    },
+  });
+  const database = new DatabaseSync(join(home, "data/nerve.sqlite"));
+  const childId = String(
+    database
+      .prepare(
+        "SELECT id FROM conversation WHERE parent_conversation_id IS NOT NULL LIMIT 1",
+      )
+      .get()?.id,
+  );
+  database
+    .prepare(
+      "UPDATE conversation_config SET agent_profile='fixed',model=?,reasoning_level='off',permission_rule_set_id='autonomous',instructions=? WHERE conversation_id=?",
+    )
+    .run(
+      JSON.stringify({ provider: "fixture", modelId: "created-child" }),
+      "Captured child instructions",
+      childId,
+    );
+  database.close();
+  await runMigrations(home, { registry });
+  const applied = appliedAgentProfileSchema.parse(
+    read(
+      join(
+        home,
+        "data/conversations",
+        childId,
+        "config/applied-agent-profile.json",
+      ),
+    ),
+  );
+  assert.equal(applied.instructions, "Captured child instructions");
+  assert.deepEqual(applied.locked.model, {
+    provider: "fixture",
+    modelId: "created-child",
+  });
+  assert.equal(applied.locked.thinking, "off");
+  assert.equal(applied.locked.permission, "autonomous");
+  const after = new DatabaseSync(join(home, "data/nerve.sqlite"), {
+    readOnly: true,
+  });
+  assert.equal(
+    after
+      .prepare(
+        "SELECT instructions FROM conversation_config WHERE conversation_id=?",
+      )
+      .get(childId)?.instructions,
+    null,
+  );
+  after.close();
+});
+
+void test("inherited model plus explicit thinking migrates without repair and mixed lock modes stay independent", async (t) => {
+  const home = await releasedHome(t);
+  const source = read(join(home, "config/subagents.json"));
+  source.profiles.developer.thinking = "high";
+  source.profiles.explore.model = { lock: "fixture/fixed" };
+  source.profiles.explore.thinking = "inherit";
+  write(join(home, "config/subagents.json"), source);
+  await runMigrations(home, { registry });
+  const developer = agentProfileFileSchema.parse(
+    read(join(home, "data/agent-profiles/developer.json")),
+  );
+  assert.equal(developer.model, "lead");
+  assert.deepEqual(developer.thinking, { set: "high" });
+  const explore = agentProfileFileSchema.parse(
+    read(join(home, "data/agent-profiles/explore.json")),
+  );
+  assert.deepEqual(explore.model, {
+    lock: { provider: "fixture", modelId: "fixed" },
+  });
+  assert.equal(explore.thinking, "lead");
 });

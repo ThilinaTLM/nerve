@@ -31,7 +31,10 @@ import { openLogsPane } from "$lib/features/logs";
 import { discoverTitlebarBadge, openDiscoverPane } from "$lib/app/discover";
 import { guideState } from "$lib/app/discover/guides";
 import { settingsSelectors } from "$lib/features/settings";
-import { openSettingsPane } from "$lib/application/settings";
+import {
+  openProjectSettingsPane,
+  openSettingsPane,
+} from "$lib/application/settings";
 import {
   deleteProjectAndRefresh,
   newConversationInProject,
@@ -112,6 +115,7 @@ const menuContext = $derived<ProjectTreeMenuContext>({
     void openProjectInEditorAndNotify(projectId, editor),
   onOpenProjectInTerminal: (projectId) =>
     void openProjectInTerminalAndNotify(projectId),
+  onOpenProjectSettings: (projectId) => void openProjectSettingsPane(projectId),
   requestPrune: (project) => {
     pendingPrune = {
       id: project.id,

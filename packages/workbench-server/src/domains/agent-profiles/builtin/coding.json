@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "enabled": true,
+  "name": "coding",
+  "label": "Coding",
+  "description": "Implement and validate changes.",
+  "usableBy": "lead",
+  "instructions": "In the final response, summarize changes, validation, and remaining limits."
+}

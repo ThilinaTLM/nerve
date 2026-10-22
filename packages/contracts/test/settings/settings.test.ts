@@ -101,9 +101,9 @@ describe("settings schema", () => {
     );
     const enabled = harnessConfigSchema.parse({
       ...defaultHarnessConfig,
-      tools: { ...defaultHarnessConfig.tools, disabled: [] },
+      tools: { ...defaultHarnessConfig.tools, web_search: { enabled: false } },
     });
-    assert.deepEqual(enabled.tools.disabled, []);
+    assert.equal(enabled.tools.web_search?.enabled, false);
     assert.deepEqual(harnessConfigSchema.parse(enabled), enabled);
   });
   it("normalizes a partially disabled sub-agent group to fully disabled", () => {
@@ -132,13 +132,6 @@ describe("settings schema", () => {
       new Set([...subagentToolNames, "web_fetch"]),
     );
     assert.deepEqual(parse(["explore", "web_fetch"]), ["web_fetch"]);
-    assert.deepEqual(
-      harnessConfigSchema.parse({
-        ...defaultHarnessConfig,
-        tools: { ...defaultHarnessConfig.tools, disabled: ["subagent_list"] },
-      }).tools.disabled,
-      [...subagentToolNames],
-    );
   });
 
   it("no longer carries Explore or async sub-agent settings", () => {
@@ -261,7 +254,7 @@ describe("settings schema", () => {
     );
   });
 
-  it("accepts runtime and tool update settings", () => {
+  it("accepts canonical typed tool update settings", () => {
     const parsed = updateSettingsRequestSchema.parse({
       notifications: {
         systemEnabled: false,
@@ -277,10 +270,6 @@ describe("settings schema", () => {
         languages: ["en", "zh-tw"],
         vocabulary: ["Nerve", "Codex CLI"],
       },
-      runtime: {
-        pythonExecutablePath: "/usr/bin/python3",
-        shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
-      },
       ui: {
         theme: "solar",
         colorMode: "dark",
@@ -293,7 +282,10 @@ describe("settings schema", () => {
       },
       tools: {
         disabled: ["web_search", "web_fetch", "explain_image", "python_exec"],
+        pythonExec: { interpreterPath: "/usr/bin/python3" },
+        planPresent: { approvalProfile: "coding" },
         bash: {
+          shellPath: "C:\\Program Files\\Git\\bin\\bash.exe",
           autoPromotion: { enabled: false, afterMs: 240_000 },
         },
         jira: { enabled: true, profileId: "work" },
@@ -376,9 +368,9 @@ describe("settings schema", () => {
         false,
       );
     }
-    assert.equal(parsed.runtime?.pythonExecutablePath, "/usr/bin/python3");
+    assert.equal(parsed.tools?.pythonExec?.interpreterPath, "/usr/bin/python3");
     assert.equal(
-      parsed.runtime?.shellPath,
+      parsed.tools?.bash?.shellPath,
       "C:\\Program Files\\Git\\bin\\bash.exe",
     );
     assert.deepEqual(parsed.tools?.disabled, [
@@ -453,15 +445,13 @@ describe("settings schema", () => {
       );
     }
     const cleared = updateSettingsRequestSchema.parse({
-      runtime: { pythonExecutablePath: null, shellPath: null },
       tools: {
         jira: { profileId: null },
         confluence: { profileId: null },
         web: { tavilyProfileId: null },
       },
     });
-    assert.equal(cleared.runtime?.pythonExecutablePath, null);
-    assert.equal(cleared.runtime?.shellPath, null);
+
     assert.equal(cleared.tools?.jira?.profileId, null);
     assert.equal(cleared.tools?.confluence?.profileId, null);
     assert.equal(cleared.tools?.web?.tavilyProfileId, null);

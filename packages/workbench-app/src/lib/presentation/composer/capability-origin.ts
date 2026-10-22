@@ -93,8 +93,7 @@ export function capabilityToolState(input: {
   const settingsTool = names.find(isConfigurableCapabilityTool);
   const enabled = names.every((name) => capabilityToolEnabled(effective, name));
   const storesTool = (document?: CapabilityOverridesDocument) =>
-    names.some((name) => document?.tools[name] !== undefined) ||
-    Boolean(settingsTool && document?.toolSettings[settingsTool]);
+    names.some((name) => document?.tools[name] !== undefined);
   const stored = storesTool(own);
   const matchesInherited =
     names.every(
@@ -164,26 +163,11 @@ export function capabilityTogglePatch(
   );
 }
 
-/** Patch that removes every stored field of a tool group at the edited level. */
+/** Patch that drops the stored entry of every tool in the group at the edited level. */
 export function capabilityResetPatch(
   names: readonly CapabilityToolName[],
 ): CapabilityPatch {
-  const settingsTools = names.filter(isConfigurableCapabilityTool);
   return {
-    tools: Object.fromEntries(
-      names.map((name) => [
-        name,
-        isProfiledCapabilityTool(name)
-          ? { enabled: null, profileId: null }
-          : { enabled: null },
-      ]),
-    ),
-    ...(settingsTools.length > 0
-      ? {
-          toolSettings: Object.fromEntries(
-            settingsTools.map((name) => [name, null]),
-          ),
-        }
-      : {}),
+    tools: Object.fromEntries(names.map((name) => [name, null])),
   };
 }

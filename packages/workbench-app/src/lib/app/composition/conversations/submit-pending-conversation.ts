@@ -7,10 +7,6 @@ import {
   conversationConfigSchema,
   type ConversationConfig,
 } from "@nervekit/contracts/core";
-import {
-  agentProfilesDocumentSchema,
-  type AgentProfilesDocument,
-} from "@nervekit/contracts/agent-profiles";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 
 type PendingSubmission = Pick<
@@ -20,8 +16,6 @@ type PendingSubmission = Pick<
   | "explicitAgentProfile"
   | "config"
   | "capabilityOverrides"
-  | "agentProfileOverrides"
-  | "agentProfileDigest"
   | "createdConversationId"
 >;
 type SnapshotIdentity = {
@@ -35,6 +29,8 @@ type Dependencies<Snapshot extends SnapshotIdentity> = {
     config: Omit<ConversationConfig, "conversationId" | "agentProfile"> & {
       agentProfile?: string;
     };
+    /** Applied with the start profile, so profile Set and Lock win over these. */
+    capabilityOverrides: CapabilityOverridesDocument;
   }): Promise<Snapshot>;
   getSnapshot(conversationId: string): Promise<Snapshot>;
   /** Applies everything except the profile, which only `setAgentProfile` may change. */
@@ -49,12 +45,6 @@ type Dependencies<Snapshot extends SnapshotIdentity> = {
     layer: "conversation";
     replace: CapabilityOverridesDocument;
   }): Promise<unknown>;
-  saveProfiles(input: {
-    projectId: string;
-    conversationId: string;
-    document: AgentProfilesDocument;
-    expectedDigest: string | null;
-  }): Promise<{ digest: string | null }>;
   submit(conversationId: string, text: string): Promise<unknown>;
 };
 
@@ -82,12 +72,9 @@ export async function submitPendingConversation<
   const capabilities = capabilityOverridesDocumentSchema.parse(
     pending.capabilityOverrides ?? emptyCapabilityOverrides(),
   );
-  const profiles = pending.agentProfileOverrides
-    ? agentProfilesDocumentSchema.parse(pending.agentProfileOverrides)
-    : undefined;
   const projectId = pending.projectId;
   const explicitProfile = pending.explicitAgentProfile;
-  const expectedDigest = pending.agentProfileDigest ?? null;
+  const retrying = pending.createdConversationId !== undefined;
   let snapshot: Snapshot;
   if (pending.createdConversationId) {
     // A failed first send can leave a persisted conversation while the user keeps
@@ -105,6 +92,7 @@ export async function submitPendingConversation<
         ...withoutProfile(config),
         ...(explicitProfile ? { agentProfile: explicitProfile } : {}),
       },
+      capabilityOverrides: capabilities,
     });
   }
   const conversationId = snapshot.conversation.id;
@@ -119,21 +107,14 @@ export async function submitPendingConversation<
   }
   // Record each successful stage immediately so a downstream failure is retryable.
   pending.createdConversationId = conversationId;
-  await dependencies.saveCapabilities({
-    projectId,
-    conversationId,
-    layer: "conversation",
-    replace: capabilities,
-  });
-  if (profiles) {
-    const saved = await dependencies.saveProfiles({
+  // Creation already carried the capability choices; a retry may have edited them.
+  if (retrying)
+    await dependencies.saveCapabilities({
       projectId,
       conversationId,
-      document: profiles,
-      expectedDigest,
+      layer: "conversation",
+      replace: capabilities,
     });
-    pending.agentProfileDigest = saved.digest;
-  }
   await dependencies.submit(conversationId, text);
   return snapshot;
 }

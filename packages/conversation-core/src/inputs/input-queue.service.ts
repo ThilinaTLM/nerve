@@ -336,6 +336,7 @@ export class InputQueueService {
     void Promise.resolve()
       .then(() =>
         prepareCommands({
+          conversationId: row.conversationId,
           text: row.content as string,
           preparation: row.commandPreparation!,
           cwd: config.workingDirectory,

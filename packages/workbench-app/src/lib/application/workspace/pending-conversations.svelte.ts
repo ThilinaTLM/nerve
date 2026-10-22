@@ -1,6 +1,5 @@
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import type { AgentProfilesDocument } from "@nervekit/contracts/agent-profiles";
 import { SvelteMap } from "svelte/reactivity";
 export type PendingConversationState = {
   id: string;
@@ -14,9 +13,6 @@ export type PendingConversationState = {
   explicitAgentProfile?: string;
   permissionRuleSetId: string;
   capabilityOverrides?: CapabilityOverridesDocument;
-  agentProfileOverrides?: AgentProfilesDocument;
-  /** Last successful first-send profile save; retained when submitting input fails. */
-  agentProfileDigest?: string | null;
   sending: boolean;
   error?: string;
   createdConversationId?: string;

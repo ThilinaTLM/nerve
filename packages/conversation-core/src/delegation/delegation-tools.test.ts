@@ -1,3 +1,4 @@
+import { profilePort } from "../runtime/lifecycle-test-helpers.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -50,47 +51,55 @@ async function fixture() {
     [];
   const host: SubagentHost = {
     usableProfiles: async () => profiles,
-    resolveProfile: async ({ parentId, profile }) => {
+    resolveProfile: async ({ profile }) => {
       if (!profiles.includes(profile))
         throw new Error(
           `Unknown profile "${profile}". Usable: ${profiles.join(", ")}`,
         );
       return {
         name: profile,
-        config: {
-          model: { provider: `child-${profile}`, modelId: "test" },
-          reasoningLevel: "low",
-          permissionRuleSetId:
-            profile === "developer" ? "autonomous" : "read_only",
-          instructions: `Instructions for ${profile}`,
-        },
-        initializeChild: async (childId) => {
-          initialized.push({ parentId, childId, profile });
-          if (profile === "waiter")
-            storage.asyncBash.insert({
-              id: `bash_${childId}`,
-              conversationId: childId,
-              toolCallId: "tool_background",
-              command: "pnpm test",
-              workingDirectory: dataDir,
-              status: "running",
-              processRef: null,
-              exitCode: null,
-              startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
-              finishedAt: null,
-            });
+        application: {
+          config: {
+            agentProfile: profile,
+            model: { provider: `child-${profile}`, modelId: "test" },
+            reasoningLevel: "low",
+            permissionRuleSetId:
+              profile === "developer" ? "autonomous" : "read_only",
+          },
+          applied: {
+            schemaVersion: 1,
+            name: profile,
+            instructions: `Instructions for ${profile}`,
+            locked: {},
+          },
         },
       };
     },
   };
+  const snapshots = profilePort();
   const core = new ConversationCore({
     agentProfiles: {
-      async resolveLockedScalars() {
-        return {};
+      ...profilePort(),
+      async persistApplication(childId, application) {
+        await snapshots.persistApplication(childId, application);
+        if (childId === LEAD) return;
+        const profile = application.applied.name;
+        initialized.push({ parentId: LEAD, childId, profile });
+        if (profile === "waiter")
+          storage.asyncBash.insert({
+            id: `bash_${childId}`,
+            conversationId: childId,
+            toolCallId: "tool_background",
+            command: "pnpm test",
+            workingDirectory: dataDir,
+            status: "running",
+            processRef: null,
+            exitCode: null,
+            startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
+            finishedAt: null,
+          });
       },
-      async switchProfile({ profile }) {
-        return { config: { agentProfile: profile ?? "coding" } };
-      },
+      getAppliedProfile: (id) => snapshots.getAppliedProfile(id),
     },
     storage,
     dataDir,
@@ -268,7 +277,11 @@ void test("creates a child from the profile, initializes it and assigns context 
     assert.equal(snapshot.config.model.provider, "child-explore");
     assert.equal(snapshot.config.reasoningLevel, "low");
     assert.equal(snapshot.config.permissionRuleSetId, "read_only");
-    assert.equal(snapshot.config.instructions, "Instructions for explore");
+    assert.equal(snapshot.config.instructions, null);
+    assert.equal(
+      snapshot.appliedAgentProfile?.instructions,
+      "Instructions for explore",
+    );
     assert.equal(snapshot.config.systemPrompt, null);
     assert.equal(snapshot.config.agentProfile, "explore");
     assert.equal(f.core.getSnapshot(LEAD).config.agentProfile, "coding");
@@ -298,7 +311,6 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
     const resolve = f.host.resolveProfile;
     let resolutions = 0;
     let currentHarness = "original harness";
-    const applied: { childId: string; harness: string }[] = [];
     f.host.resolveProfile = async (input) => {
       resolutions++;
       const profile = await resolve(input);
@@ -311,9 +323,9 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
       };
       return {
         ...profile,
-        initializeChild: async (childId) => {
-          applied.push({ childId, harness });
-          await profile.initializeChild(childId);
+        application: {
+          ...profile.application,
+          applied: { ...profile.application.applied, instructions: harness },
         },
       };
     };
@@ -323,7 +335,10 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
     await waitUntil(f.idle("a"));
     const id = f.child("a").id;
     const config = f.core.getSnapshot(id).config;
-    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
+    assert.equal(
+      f.core.getSnapshot(id).appliedAgentProfile?.instructions,
+      "original harness",
+    );
     assert.equal(currentHarness, "changed harness");
 
     f.host.usableProfiles = async () => [];
@@ -341,7 +356,10 @@ void test("initialization uses the resolved snapshot and follow-ups do not resol
       assert.deepEqual(f.core.getSnapshot(id).config, config);
     }
     assert.equal(resolutions, 1);
-    assert.deepEqual(applied, [{ childId: id, harness: "original harness" }]);
+    assert.equal(
+      f.core.getSnapshot(id).appliedAgentProfile?.instructions,
+      "original harness",
+    );
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: id, profile: "explore" },
     ]);

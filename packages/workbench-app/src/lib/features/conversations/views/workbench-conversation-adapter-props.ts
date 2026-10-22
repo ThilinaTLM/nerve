@@ -1,3 +1,4 @@
+import type { PromptComposerProps } from "./prompt-composer-props";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import type {
   ApprovalWithToolCall,
@@ -38,6 +39,7 @@ import type {
   ComposerAgentProfile,
   ComposerEditorOverlay,
   ComposerLockedFields,
+  ComposerSettingsDiffers,
 } from "$lib/presentation/conversations/conversation-view-contracts";
 import type { SubagentsCapability } from "$lib/presentation/context.svelte";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
@@ -99,6 +101,7 @@ export type WorkbenchConversationAdapterProps = {
   agentProfile?: string;
   agentProfiles?: ComposerAgentProfile[];
   lockedFields?: ComposerLockedFields;
+  settingsDiffers?: ComposerSettingsDiffers;
   profileDisabled?: boolean;
   permissionRuleSetId?: PermissionRuleSetId;
   permissionRuleSets?: PermissionRuleSetSummary[];
@@ -127,15 +130,14 @@ export type WorkbenchConversationAdapterProps = {
   ) => void;
   onOpenFile?: (path: string, line?: number) => void;
   onOpenTask?: (taskId: string) => void;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (
-    value: NonNullable<AgentRecord["thinkingLevel"]>,
-  ) => void;
+  onModelSelectionChange?: PromptComposerProps["onModelSelectionChange"];
+  onResetModel?: () => void;
+  onResetPermission?: () => void;
   onAgentProfileChange?: (name: string) => void;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
   onGrantApproval?: (
     toolCallId: string,
     scope?:

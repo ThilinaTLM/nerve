@@ -10,10 +10,8 @@ import {
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { after, test } from "node:test";
-import {
-  initializeHomeConfiguration,
-  settingsFromConfiguration,
-} from "./home-configuration.js";
+import { initializeHomeConfiguration } from "./home-configuration.js";
+import { defaultSettings } from "@nervekit/contracts/settings";
 import {
   readProjectHarnessSettings,
   resolveProjectConfiguration,
@@ -37,7 +35,7 @@ async function fixture() {
   const storage = {
     paths,
     configuration,
-    settings: settingsFromConfiguration(configuration),
+    settings: { ...defaultSettings, defaultAgentProfile: "planning" },
   } as InitializedStorage;
   const project = join(root, "project");
   const directory = join(project, ".nerve", "config");
@@ -61,14 +59,13 @@ void test("concurrent partial saves preserve sibling and extension data; null re
   await writeFile(
     file,
     JSON.stringify({
-      version: 3,
+      version: 4,
       vendor: { untouched: true },
       scopedModels: [
         { provider: "openai", modelId: "first" },
         { provider: "openai", modelId: "second" },
       ],
-      execution: { shellPath: "/project/shell", vendor: { nested: true } },
-      tools: { bash: { autoPromotion: { enabled: false } } },
+      defaults: { permissionRuleSetId: "autonomous", vendor: { nested: true } },
     }),
   );
   await Promise.all([
@@ -76,7 +73,7 @@ void test("concurrent partial saves preserve sibling and extension data; null re
       defaultAgentProfile: "coding",
     }),
     updateProjectHarnessSettings(storage, project, {
-      execution: { pythonExecutablePath: "/project/python" },
+      defaults: { thinkingLevel: "high" },
     }),
     updateProjectHarnessSettings(storage, project, {
       compaction: { auto: false },
@@ -90,38 +87,29 @@ void test("concurrent partial saves preserve sibling and extension data; null re
   assert.deepEqual(saved.scopedModels, [
     { provider: "openai", modelId: "replacement" },
   ]);
-  assert.deepEqual(saved.execution, {
-    shellPath: "/project/shell",
-    pythonExecutablePath: "/project/python",
+  assert.deepEqual(saved.defaults, {
+    permissionRuleSetId: "autonomous",
+    thinkingLevel: "high",
     vendor: { nested: true },
   });
   assert.deepEqual(saved.vendor, { untouched: true });
-  assert.deepEqual(saved.tools, {
-    bash: { autoPromotion: { enabled: false } },
-  });
   const result = await updateProjectHarnessSettings(storage, project, {
     defaultAgentProfile: null,
-    execution: { shellPath: null },
+    defaults: { permissionRuleSetId: null },
     compaction: null,
   });
   assert.equal(result.effective.defaultAgentProfile, "planning");
   assert.equal(result.overrides.defaultAgentProfile, undefined);
-  assert.equal(result.overrides.execution?.shellPath, undefined);
-  assert.equal(
-    result.effective.execution.pythonExecutablePath,
-    "/project/python",
-  );
-  assert.deepEqual((await read()).execution.vendor, { nested: true });
+  assert.equal(result.overrides.defaults?.permissionRuleSetId, undefined);
+  assert.equal(result.effective.defaults.thinkingLevel, "high");
+  assert.deepEqual((await read()).defaults.vendor, { nested: true });
   assert.equal((await read()).compaction, undefined);
   const resolved = await resolveProjectConfiguration(storage, project, {
     env: {},
     argv: [],
   });
   assert.equal(resolved.harness.defaultAgentProfile, "planning");
-  assert.equal(
-    resolved.harness.execution.pythonExecutablePath,
-    "/project/python",
-  );
+  assert.equal(resolved.harness.defaults.thinkingLevel, "high");
 });
 
 void test("invalid patches/documents never overwrite the file and later valid saves recover", async () => {
@@ -175,4 +163,34 @@ void test("project harness API rejects symlinked configuration paths without tou
     /symbolic links/,
   );
   assert.equal(await readFile(join(outside, "harness.json"), "utf8"), "{}");
+});
+
+void test("project agent defaults resolve without reading project accounts or app preferences", async () => {
+  const { storage, project, file } = await fixture();
+  await writeFile(
+    file,
+    JSON.stringify({ defaults: { thinkingLevel: "medium" } }),
+  );
+  const configDir = join(project, ".nerve", "config");
+  const ignored = ["providers.json", "integrations.json", "ui.json"];
+  for (const content of [
+    JSON.stringify({
+      version: 1,
+      profiles: { tavily: [{ id: "project-search", name: "Project account" }] },
+      appearance: { colorMode: "light" },
+    }),
+    "{invalid json",
+  ]) {
+    for (const name of ignored) await writeFile(join(configDir, name), content);
+    const resolved = await resolveProjectConfiguration(storage, project, {
+      env: {},
+      argv: [],
+    });
+    assert.equal(resolved.harness.defaults.thinkingLevel, "medium");
+    assert.deepEqual(resolved.providers, storage.configuration.providers);
+    assert.deepEqual(resolved.integrations, storage.configuration.integrations);
+    assert.deepEqual(resolved.ui, storage.configuration.ui);
+    for (const name of ignored)
+      assert.equal(await readFile(join(configDir, name), "utf8"), content);
+  }
 });

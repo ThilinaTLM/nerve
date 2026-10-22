@@ -16,8 +16,10 @@ export interface CoreToolHandlerOptions {
   assets: AssetStore;
   setAgentProfile(
     conversationId: string,
+    profile: string,
     overrides?: Partial<Pick<ConversationConfig, "model" | "reasoningLevel">>,
   ): Promise<unknown>;
+  planApprovalProfile?(conversationId: string): Promise<string>;
   onPlanRejected(conversationId: string): void;
   // The host decides which plan files can be read; the core owns the reviewed copy.
   readPlan?(input: {
@@ -100,6 +102,11 @@ export function createCoreToolHandlers(
       if (typeof path !== "string" || !path)
         throw new Error("A plan file_path is required");
       if (!options.readPlan) throw new Error("Plan loading is not configured");
+      if (!options.planApprovalProfile)
+        throw new Error("Plan approval profile is not configured");
+      const approvalProfile = await options.planApprovalProfile(
+        call.conversationId,
+      );
       const content = await options.readPlan({
         conversationId: call.conversationId,
         path,
@@ -119,6 +126,7 @@ export function createCoreToolHandlers(
         interaction: {
           kind: "plan_review",
           request: planReviewRequestSchema.parse({
+            approvalProfile,
             assetId: asset.id,
             path: options.assets.path(asset.logicalPath),
             title: basename(path),
@@ -136,20 +144,26 @@ export function createCoreToolHandlers(
     async resolve(call, resolution) {
       if (resolution.kind !== "plan_review")
         throw new Error("Expected plan-review decision");
-      if (resolution.decision === "approve")
-        await options.setAgentProfile(call.conversationId, {
-          ...(resolution.implementationModel
-            ? { model: resolution.implementationModel }
-            : {}),
-          ...(resolution.implementationThinkingLevel
-            ? { reasoningLevel: resolution.implementationThinkingLevel }
-            : {}),
-        });
-      else options.onPlanRejected(call.conversationId);
+      if (resolution.decision === "approve") {
+        if (call.interaction?.kind !== "plan_review")
+          throw new Error("Missing captured plan review");
+        await options.setAgentProfile(
+          call.conversationId,
+          call.interaction.request.approvalProfile,
+          {
+            ...(resolution.implementationModel
+              ? { model: resolution.implementationModel }
+              : {}),
+            ...(resolution.implementationThinkingLevel
+              ? { reasoningLevel: resolution.implementationThinkingLevel }
+              : {}),
+          },
+        );
+      } else options.onPlanRejected(call.conversationId);
       return {
         content:
           resolution.decision === "approve"
-            ? "Plan approved. Switched to the default profile."
+            ? "Plan approved. Switched to the implementation profile."
             : `Plan rejected.${resolution.feedback ? ` ${resolution.feedback}` : ""}`,
         details: {
           decision: resolution.decision,

@@ -1,6 +1,9 @@
-import type { AgentProfileCompactionOverride } from "@nervekit/contracts/agent-profiles";
+import type {
+  AppliedAgentProfile,
+  AgentProfilesDraft,
+} from "@nervekit/contracts/agent-profiles";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import type { AgentProfilesDocument } from "@nervekit/contracts/agent-profiles";
+import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
   CommandResult,
@@ -35,7 +38,8 @@ export interface TurnPreparationInput {
   config: Omit<ConversationConfig, "conversationId">;
   projectDir: string;
   capabilityOverrides?: CapabilityOverridesDocument;
-  agentProfileOverrides?: AgentProfilesDocument;
+  agentProfileOverrides?: AgentProfilesDraft;
+  appliedAgentProfile?: AppliedAgentProfile | null;
 }
 
 export interface TurnResourcesPort {
@@ -97,6 +101,8 @@ export interface ProcessPort {
   // Capture output under artifactDir and perform readiness detection in the host.
   // A rejected start must clean up its process. After return, cancel() owns its lifetime.
   start(input: {
+    /** Host resolves conversation-scoped bash configuration, including shellPath. */
+    conversationId: string;
     command: string;
     cwd: string;
     signal: AbortSignal;
@@ -110,6 +116,7 @@ export interface ProcessPort {
     readiness?: { status: "ready" | "timed_out" | "exited"; url?: string };
   }>;
   run(input: {
+    conversationId: string;
     command: string;
     cwd: string;
     signal: AbortSignal;
@@ -133,28 +140,29 @@ export interface ClockPort {
 }
 export type { CommandResult, ToolProgress } from "@nervekit/contracts/core";
 
-/** Locks are effective overrides only: do not persist them into conversation config. */
-export type AgentProfileLockedScalars = Partial<
-  Pick<ConversationConfig, "model" | "reasoningLevel" | "permissionRuleSetId">
-> & { compaction?: AgentProfileCompactionOverride };
-
-/** Host resolves defaults and returns the changes core must persist on a switch. */
-export interface AgentProfileConfigPatch {
-  config: Partial<Omit<ConversationConfig, "conversationId">> & {
-    agentProfile: string;
-  };
-  /** Null removes the stored conversation compaction override. */
-  compaction?: AgentProfileCompactionOverride | null;
+/** Fully materialized template application. Host persists files; core persists scalar config. */
+export interface AgentProfileApplication {
+  config: Partial<
+    Pick<ConversationConfig, "model" | "reasoningLevel" | "permissionRuleSetId">
+  > & { agentProfile: string };
+  compaction?: AutoCompactionSettings;
   capabilityOverrides?: CapabilityOverridesDocument;
+  applied: AppliedAgentProfile;
 }
-
-/** Profile policy belongs to the host; core owns persistence and turn lifecycle. */
+/** No live profile lookups on turns. Applied policy is an independent persisted snapshot. */
 export interface AgentProfilePort {
-  resolveLockedScalars(
-    input: TurnPreparationInput,
-  ): Promise<AgentProfileLockedScalars>;
-  /** Omit profile to select the settings default lead profile (e.g. after plan approval). */
-  switchProfile(
-    input: TurnPreparationInput & { profile?: string },
-  ): Promise<AgentProfileConfigPatch>;
+  applyProfile(
+    input: TurnPreparationInput & {
+      profile?: string;
+      preserveModel?: boolean;
+      preserveThinking?: boolean;
+    },
+  ): Promise<AgentProfileApplication>;
+  /** Persist compaction/capabilities and applied-agent-profile.json before returning. */
+  persistApplication(
+    conversationId: string,
+    application: AgentProfileApplication,
+  ): Promise<void>;
+  /** Synchronous snapshot access lets existing configure and snapshot paths enforce/report locks. */
+  getAppliedProfile(conversationId: string): AppliedAgentProfile | null;
 }

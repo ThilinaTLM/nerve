@@ -52,27 +52,23 @@ export class ModelTurn {
     private readonly agentProfiles?: AgentProfilePort,
   ) {}
   async prepare(input: TurnPreparationInput) {
-    return this.prepareResources(input, true);
+    return this.prepareResources(input);
   }
-  private async prepareResources(
-    input: TurnPreparationInput,
-    resolveLocks: boolean,
-  ) {
+  private async prepareResources(input: TurnPreparationInput) {
     const snapshot: TurnPreparationInput = {
       conversation: structuredClone(input.conversation),
       config: structuredClone(input.config),
       projectDir: input.projectDir,
       capabilityOverrides: structuredClone(input.capabilityOverrides),
       agentProfileOverrides: structuredClone(input.agentProfileOverrides),
+      appliedAgentProfile: structuredClone(
+        input.appliedAgentProfile ??
+          (input.conversation.id
+            ? this.agentProfiles?.getAppliedProfile(input.conversation.id)
+            : null) ??
+          null,
+      ),
     };
-    const locked = resolveLocks
-      ? await this.agentProfiles?.resolveLockedScalars(snapshot)
-      : undefined;
-    if (locked) {
-      const config = { ...locked };
-      delete config.compaction;
-      Object.assign(snapshot.config, config);
-    }
     const customPrompt = snapshot.config.systemPrompt;
     const resources = await this.resources.prepare({
       conversation: snapshot.conversation,
@@ -84,6 +80,7 @@ export class ModelTurn {
       ...(snapshot.agentProfileOverrides
         ? { agentProfileOverrides: snapshot.agentProfileOverrides }
         : {}),
+      appliedAgentProfile: snapshot.appliedAgentProfile,
       coreTools: this.coreDefinitions(),
     });
     return {
@@ -95,19 +92,10 @@ export class ModelTurn {
     // Own the inputs before awaiting host preparation; later saves must not alter
     // an already prepared provider attempt.
     const config = structuredClone(input.config);
-    const locked = await this.agentProfiles?.resolveLockedScalars({
-      ...input,
-      config,
-    });
-    if (locked) {
-      const scalars = { ...locked };
-      delete scalars.compaction;
-      Object.assign(config, scalars);
-    }
     const resolved = structuredClone(
       await this.models.resolve(structuredClone(config.model)),
     );
-    const resources = await this.prepareResources({ ...input, config }, false);
+    const resources = await this.prepareResources({ ...input, config });
     const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
     return {
       resolved,

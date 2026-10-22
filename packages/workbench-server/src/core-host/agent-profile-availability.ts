@@ -1,4 +1,3 @@
-import { scalarValue } from "./agent-profile-scalars.js";
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
@@ -35,7 +34,7 @@ export function parseProfileModel(
   return { provider: value.slice(0, slash), modelId: value.slice(slash + 1) };
 }
 
-/** Availability is advisory for portable references, blocking only model/thinking. */
+/** Availability is advisory for portable references; unavailable models block, thinking clamps on apply. */
 export function createProfileAvailability(options: {
   modelInfo(selection: ModelSelection): Promise<AgentModelInfo>;
   parent(conversationId: string): ConversationConfig;
@@ -55,22 +54,49 @@ export function createProfileAvailability(options: {
     const diagnostics: AgentProfileDiagnostic[] = [];
     const resources = await options.resources(context, profile);
     for (const field of ["tools", "skills"] as const) {
-      const selections = profile[field];
-      if (typeof selections !== "object") continue;
-      for (const [reference, enabled] of Object.entries(selections)) {
-        if (enabled === false) continue;
-        // Contracts already diagnose portable unknown tool names. Avoid duplicate warnings.
+      const setting = profile[field];
+      if (!setting || setting === "lead") continue;
+      const value =
+        "lock" in setting
+          ? setting.lock
+          : "set" in setting
+            ? setting.set
+            : setting;
+      const selections =
+        field === "tools"
+          ? profile.tools
+          : value === "none"
+            ? {}
+            : Object.assign({}, ...Object.values(value));
+      for (const [reference, setting] of Object.entries(selections)) {
+        if (!setting || setting === "lead") continue;
+        const payload =
+          typeof setting === "object"
+            ? "lock" in setting
+              ? setting.lock
+              : "set" in setting
+                ? setting.set
+                : setting
+            : setting;
+        if (
+          payload === false ||
+          (typeof payload === "object" &&
+            payload !== null &&
+            "enabled" in payload &&
+            payload.enabled === false)
+        )
+          continue;
         if (field === "tools" && !resources.tools.has(reference)) continue;
         const reason = resources[field].has(reference)
           ? resources[field].get(reference)
-          : `Unknown or not installed ${field === "tools" ? "tool" : "skill"}`;
+          : `Unknown or not installed skill`;
         if (reason)
           diagnostics.push({
             severity: "warning",
             code: `unavailable_${field === "tools" ? "tool" : "skill"}`,
             field,
             reference,
-            message: `${reference}: ${reason}. It will not be enabled on the sub-agent.`,
+            message: `${reference}: ${reason}. It will not be enabled for this profile.`,
           });
       }
     }
@@ -83,13 +109,21 @@ export function createProfileAvailability(options: {
     const defaults = options.defaults
       ? await options.defaults(context.projectId)
       : undefined;
-    const model = scalarValue(profile.model);
+    const modelSetting = profile.model;
+    const model =
+      modelSetting && modelSetting !== "lead"
+        ? "lock" in modelSetting
+          ? modelSetting.lock
+          : modelSetting.set
+        : undefined;
+    const current =
+      context.parentConfig ??
+      (context.lead || profile.usableBy === "subagent" ? undefined : parent);
     const selection =
-      model === "inherit"
+      model ??
+      (modelSetting === "lead"
         ? parent?.model
-        : model === "default"
-          ? defaults?.model
-          : parseProfileModel(profile.name, model);
+        : (current?.model ?? defaults?.model));
     if (!selection) return diagnostics;
     let resolved;
     try {
@@ -104,40 +138,27 @@ export function createProfileAvailability(options: {
       });
       return diagnostics;
     }
-    const setting = scalarValue(profile.thinking);
+    const thinkingSetting = profile.thinking;
     const thinking =
-      setting === "inherit"
-        ? parent?.reasoningLevel
-        : setting === "default"
-          ? defaults?.reasoningLevel
-          : setting;
+      thinkingSetting && thinkingSetting !== "lead"
+        ? "lock" in thinkingSetting
+          ? thinkingSetting.lock
+          : thinkingSetting.set
+        : thinkingSetting === "lead"
+          ? parent?.reasoningLevel
+          : (current?.reasoningLevel ?? defaults?.reasoningLevel);
+
     if (thinking) {
       const supported = resolved.supportedThinkingLevels;
       if (!supported.includes(thinking))
         diagnostics.push({
-          severity: "blocking",
+          severity: "warning",
           code: "unsupported_thinking",
           field: "thinking",
           reference: thinking,
-          message: `Thinking level "${thinking}" is not supported by ${selection.provider}/${selection.modelId}. Choose a supported level: ${supported.join(", ")}.`,
+          message: `Thinking level "${thinking}" is not supported by ${selection.provider}/${selection.modelId}. It will be clamped to a supported level: ${supported.join(", ")}.`,
         });
     }
     return diagnostics;
   };
-}
-
-/** Preserve the stored profile, but never apply unavailable references to a child. */
-export function availableProfileSnapshot(
-  profile: AgentProfile,
-  diagnostics: readonly AgentProfileDiagnostic[],
-): AgentProfile {
-  const snapshot = structuredClone(profile);
-  for (const diagnostic of diagnostics) {
-    if (diagnostic.severity !== "warning" || !diagnostic.reference) continue;
-    if (diagnostic.field === "tools")
-      snapshot.tools[diagnostic.reference] = false;
-    if (diagnostic.field === "skills" && typeof snapshot.skills === "object")
-      snapshot.skills[diagnostic.reference] = false;
-  }
-  return snapshot;
 }

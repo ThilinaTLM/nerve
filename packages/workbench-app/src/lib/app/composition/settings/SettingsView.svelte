@@ -16,7 +16,13 @@ import {
   SettingsShell,
   SettingsSidebarStatus,
 } from "$lib/presentation/settings";
-import { settingsPages } from "$lib/features/settings/registry/settings-pages";
+import {
+  resolveSettingsPageId,
+  settingsNavFor,
+  settingsPagesFor,
+  settingsScopeHeader,
+} from "$lib/features/settings/registry/settings-pages";
+import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import {
   skillSourceLabels,
   skillSourceSectionIds,
@@ -24,10 +30,7 @@ import {
 } from "$lib/domain/skills/skill-catalog";
 import SettingsPageActions from "./SettingsPageActions.svelte";
 import SettingsPageContent from "./SettingsPageContent.svelte";
-import {
-  createSettingsPageControllers,
-  type SettingsScope,
-} from "./settings-page-controllers.svelte";
+import { createSettingsPageControllers } from "./settings-page-controllers.svelte";
 
 type SettingsSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
 
@@ -37,6 +40,8 @@ type SettingsChange = (
 ) => void;
 
 type Props = {
+  /** What this view edits; fixed for the life of the view. */
+  target: SettingsScopeTarget;
   status?: StatusResponse;
   settingsDraft?: Settings;
   applicationConfiguration?: ApplicationConfigurationSnapshot;
@@ -50,7 +55,8 @@ type Props = {
   activeSectionId?: string;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  activeProject?: Project;
+  /** The project of a project target. */
+  project?: Project;
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -67,16 +73,17 @@ type Props = {
 };
 
 let {
+  target,
   status,
   settingsDraft = $bindable<Settings | undefined>(),
   applicationConfiguration,
   daemonCapability,
   daemonRestarting = false,
-  activePageId = $bindable("workbench"),
-  activeSectionId = $bindable("appearance"),
+  activePageId = $bindable(),
+  activeSectionId = $bindable(),
   models = [],
   authProviders = [],
-  activeProject,
+  project,
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -90,15 +97,14 @@ let {
   onSkillsRetry,
 }: Props = $props();
 
-let settingsScope = $state<SettingsScope>("user");
 const controllers = createSettingsPageControllers({
-  activeProject: () => activeProject,
-  scope: () => settingsScope,
+  target: () => target,
+  project: () => project,
 });
 
-/** Skills sections mirror the sources the current scope actually renders. */
+/** Skills sections mirror the sources the scope actually renders. */
 const skillSections = $derived(
-  sourcesForScope(settingsScope)
+  sourcesForScope(target.kind)
     .filter((source) => skills.some((skill) => skill.source === source))
     .map((source) => ({
       id: skillSourceSectionIds[source],
@@ -106,34 +112,44 @@ const skillSections = $derived(
     })),
 );
 
-/** Pages that hold project-scoped controls; the rest stay user-only. */
-const projectScopedPageIds = new Set([
-  "tools",
-  "agent-profiles",
-  "skills",
-  "permissions",
-]);
-
-/** The Skills page states what the current scope writes, instead of a banner. */
+/** The Skills page states what the scope writes, instead of a banner. */
 const skillsDescription = $derived(
-  settingsScope === "user"
+  target.kind === "user"
     ? "Your defaults for every project. Projects and conversations can override them."
-    : `Overrides for ${activeProject?.name ?? "this project"}. Skills without an override follow your user settings.`,
+    : `Overrides for ${project?.name ?? "this project"}. Skills without an override follow your user settings.`,
 );
 
 const pages = $derived(
-  settingsPages.map((page) => {
-    const sections =
-      page.id === "skills" && skillSections.length > 0
-        ? skillSections
-        : page.sections;
-    if (page.id === "skills")
-      return { ...page, sections, description: skillsDescription };
-    if (settingsScope === "user") return { ...page, sections };
-    if (!projectScopedPageIds.has(page.id)) return { ...page, sections: [] };
-    return { ...page, sections };
-  }),
+  settingsPagesFor(target).map((page) =>
+    page.id === "skills"
+      ? {
+          ...page,
+          sections: skillSections.length > 0 ? skillSections : page.sections,
+          description: skillsDescription,
+        }
+      : page,
+  ),
 );
+
+/** Project pages that differ from the user's settings are marked with their count. */
+const badges = $derived(
+  Object.fromEntries(
+    Object.entries(target.kind === "project" ? controllers.pageDiffs() : {})
+      .filter(([, count]) => count > 0)
+      .map(([id, count]) => [
+        id,
+        { text: String(count), tone: "info" as const },
+      ]),
+  ),
+);
+const groups = $derived(settingsNavFor(target, badges));
+const scopeHeader = $derived(settingsScopeHeader(target, project));
+
+// Stale ids (restored state, old links) land on the scope's default page.
+$effect(() => {
+  const resolved = resolveSettingsPageId(target.kind, activePageId);
+  if (resolved !== activePageId) activePageId = resolved;
+});
 
 function statusText(): string {
   if (settingsMessage) return settingsMessage;
@@ -147,15 +163,12 @@ function statusText(): string {
 
 <SettingsShell
   {pages}
+  {groups}
+  {scopeHeader}
   bind:activePageId
   bind:activeSectionId
-  title="Settings"
   ariaLabel="Settings pages"
   showHeader={!!settingsDraft}
-  scope={settingsScope}
-  projectScopeLabel={activeProject?.name ?? "Project"}
-  projectScopeDisabled={!activeProject}
-  onScopeChange={(scope) => (settingsScope = scope)}
 >
   {#snippet sidebarFooter()}
     <SettingsSidebarStatus status={settingsSaveStatus} text={statusText()} />
@@ -164,6 +177,7 @@ function statusText(): string {
   {#snippet pageActions(page)}
     <SettingsPageActions
       {page}
+      {target}
       {controllers}
       {settingsDraft}
       {onSettingsChange}
@@ -173,8 +187,7 @@ function statusText(): string {
   {#snippet children(page)}
     <SettingsPageContent
       {page}
-      scope={settingsScope}
-      onScopeChange={(scope) => (settingsScope = scope)}
+      {target}
       {controllers}
       {status}
       {settingsDraft}
@@ -183,7 +196,7 @@ function statusText(): string {
       {daemonRestarting}
       {models}
       {authProviders}
-      {activeProject}
+      {project}
       {skills}
       {skillsLoading}
       {skillsError}

@@ -5,10 +5,7 @@ import {
   filterCapabilityRows,
   showCapabilitySearch,
 } from "./capability-list";
-import {
-  capabilityToolGroupsFor,
-  capabilityToolGroupsForTab,
-} from "./capability-tool-labels";
+import { capabilityToolGroupsFor } from "./capability-tool-labels";
 import { capabilityResetPatch } from "./capability-origin";
 
 describe("showCapabilitySearch", () => {
@@ -62,34 +59,24 @@ describe("capabilityToolGroupsFor", () => {
   });
 });
 
-describe("delegation tab ownership", () => {
-  it("excludes the master from tool counts and filters without changing its canonical registry", () => {
-    const tools = [
+describe("tool groups", () => {
+  it("lists delegation and shell as their own groups", () => {
+    const groups = capabilityToolGroupsFor([
       "subagents",
       "web_search",
       "web_fetch",
-      "python_exec",
-    ] as const;
-    const optional = capabilityToolGroupsForTab(tools, "tools");
-    assert.deepEqual(
-      optional.map((group) => group.key),
-      ["web", "python_exec"],
-    );
-    assert.deepEqual(filterCapabilityRows(optional, "sub-agents"), []);
-    assert.deepEqual(capabilityToolGroupsForTab(tools, "subagents"), [
-      { key: "subagents", label: "Sub-agents", names: ["subagents"] },
+      "bash",
     ]);
-    assert.equal(capabilityToolGroupsFor(tools).length, 3);
+    assert.deepEqual(
+      groups.map((group) => group.key),
+      ["subagents", "web", "bash"],
+    );
   });
 
-  it("resets only the master's capability value, not profile fields", () => {
+  it("resets a tool by dropping its whole stored entry", () => {
     assert.deepEqual(capabilityResetPatch(["subagents"]), {
-      tools: { subagents: { enabled: null } },
+      tools: { subagents: null },
     });
-    assert.deepEqual(
-      capabilityToolGroupsForTab(["python_exec"], "subagents"),
-      [],
-    );
   });
 });
 

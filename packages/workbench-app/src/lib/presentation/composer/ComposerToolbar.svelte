@@ -28,7 +28,8 @@ import Popover, {
   PopoverHeader,
   PopoverRow,
 } from "@nervekit/ui-kit/components/composites/popover-panel";
-import ComposerModelPicker from "./ComposerModelPicker.svelte";
+import { ModelPicker } from "$lib/presentation/model-picker";
+import ComposerSettingStatus from "./ComposerSettingStatus.svelte";
 import ComposerProfilePicker from "./ComposerProfilePicker.svelte";
 import ContextProgressBadge from "./ContextProgressBadge.svelte";
 import type { ConversationSessionInfo } from "./session-info";
@@ -37,10 +38,12 @@ import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
 import type { CapabilitySkillRow } from "./capability-skill-row";
-import type { CapabilityAgentProfiles } from "./capability-subagent-slot";
+import { modelKey } from "$lib/presentation/utils/model";
 import type {
   ComposerAgentProfile,
   ComposerLockedFields,
+  ComposerModelChange,
+  ComposerSettingsDiffers,
 } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
@@ -63,8 +66,7 @@ type Props = {
   permissionShortcutAria?: string;
   profileShortcut?: string;
   profileShortcutAria?: string;
-  modelShortcut?: string;
-  thinkingShortcut?: string;
+  settingsDiffers?: ComposerSettingsDiffers;
   contextUsage?: ContextUsage;
   conversationUsage?: ConversationUsageSummary;
   agentUsage?: ConversationAgentUsage;
@@ -79,10 +81,10 @@ type Props = {
   models: ModelInfo[];
   selectedModelKey: string;
   thinkingLevel: ThinkingLevel;
-  runtimeChangeHint?: string;
   modelEmptyMessage?: string;
-  onModelChange?: (value: string) => void;
-  onThinkingLevelChange?: (value: ThinkingLevel) => void;
+  onModelSelectionChange?: (next: ComposerModelChange) => void;
+  onResetModel?: () => void;
+  onResetPermission?: () => void;
   onCompact?: () => void;
   onOpenSystemPrompt?: () => void | Promise<void>;
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
@@ -92,7 +94,6 @@ type Props = {
   capabilitySkills?: CapabilitySkillRow[];
   capabilityLoading?: boolean;
   capabilityError?: string;
-  capabilityProfiles?: CapabilityAgentProfiles;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
   capabilityDisabled?: boolean;
@@ -100,7 +101,7 @@ type Props = {
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
-  onOpenCapabilitySettings?: (page: "tools" | "skills" | "subagents") => void;
+  onOpenCapabilitySettings?: (page: "tools" | "skills" | "profiles") => void;
   /** Picked via the attach button; omit to hide the button. */
   onAttachFiles?: (files: File[]) => void;
   attachDisabled?: boolean;
@@ -125,8 +126,7 @@ let {
   permissionShortcutAria,
   profileShortcut,
   profileShortcutAria,
-  modelShortcut,
-  thinkingShortcut,
+  settingsDiffers = {},
   contextUsage,
   conversationUsage,
   agentUsage,
@@ -141,10 +141,10 @@ let {
   models,
   selectedModelKey,
   thinkingLevel,
-  runtimeChangeHint,
   modelEmptyMessage,
-  onModelChange,
-  onThinkingLevelChange,
+  onModelSelectionChange,
+  onResetModel,
+  onResetPermission,
   onCompact,
   onOpenSystemPrompt,
   onPermissionRuleSetChange,
@@ -154,7 +154,6 @@ let {
   capabilitySkills = [],
   capabilityLoading = false,
   capabilityError,
-  capabilityProfiles,
   capabilityScopeKey,
   subagentControlsEnabled = false,
   capabilityDisabled = controlsDisabled,
@@ -177,6 +176,30 @@ const activePermission = $derived(
     enabled: false,
     available: false,
   },
+);
+
+const selectedModel = $derived.by(() => {
+  const model = models.find(
+    (candidate) => modelKey(candidate) === selectedModelKey,
+  );
+  return model
+    ? { provider: model.provider, modelId: model.modelId }
+    : undefined;
+});
+
+const lockReason = $derived(
+  lockedFields.model || lockedFields.thinking
+    ? `Locked by ${agentProfiles.find((profile) => profile.name === lockedFields.by)?.label ?? lockedFields.by}`
+    : undefined,
+);
+const modelLockLabel = $derived(
+  lockedFields.model && lockedFields.thinking
+    ? "Model and reasoning"
+    : lockedFields.thinking
+      ? "Reasoning"
+      : lockedFields.model
+        ? "Model"
+        : "Model and reasoning",
 );
 
 const showPermissionLabel = $derived(permissionRuleSetId !== "default");
@@ -258,19 +281,35 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   onChange={onAgentProfileChange}
 />
 
-<ComposerModelPicker
+<ModelPicker
+  label="Model and reasoning"
+  class="h-control-sm w-auto max-w-56 flex-initial border-transparent bg-transparent px-2 text-xs shadow-none dark:bg-transparent"
+  tourId="composer-model"
   {models}
-  {selectedModelKey}
+  value={selectedModel}
   {thinkingLevel}
-  disabled={modelDisabled}
-  modelLocked={lockedFields.model}
-  thinkingLocked={lockedFields.thinking}
-  {onModelChange}
-  {onThinkingLevelChange}
-  {runtimeChangeHint}
   emptyMessage={modelEmptyMessage}
-  {modelShortcut}
-  {thinkingShortcut}
+  disabled={modelDisabled}
+  modelDisabled={lockedFields.model}
+  thinkingDisabled={lockedFields.thinking}
+  {lockReason}
+  onChange={(next) => {
+    // A lock holds only its own part of the combined picker.
+    if (!next.model) return;
+    onModelSelectionChange?.({
+      ...(lockedFields.model ? {} : { model: next.model }),
+      ...(lockedFields.thinking ? {} : { thinkingLevel: next.thinkingLevel }),
+    });
+  }}
+/>
+<ComposerSettingStatus
+  label={modelLockLabel}
+  lockedBy={lockedFields.model || lockedFields.thinking
+    ? lockedFields.by
+    : undefined}
+  differs={settingsDiffers.model}
+  disabled={modelDisabled}
+  onReset={onResetModel}
 />
 
 <Popover
@@ -332,7 +371,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   <PopoverBody>
     {#if lockedFields.permission}
       <p class="px-1.5 text-muted-foreground">
-        The active profile locks the permission rule set.
+        Locked by {lockedFields.by ?? "the applied profile"}.
       </p>
     {/if}
     {#if permissionRuleSetsError}
@@ -368,10 +407,18 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   </PopoverBody>
 </Popover>
 
+<ComposerSettingStatus
+  label="Permission"
+  lockedBy={lockedFields.permission ? lockedFields.by : undefined}
+  differs={settingsDiffers.permission}
+  disabled={controlsDisabled}
+  onReset={onResetPermission}
+/>
+
 {#key capabilityScopeKey}
   <ComposerCapabilitiesPopover
     configuration={capabilityConfiguration}
-    agentProfiles={capabilityProfiles}
+    {lockedFields}
     {subagentControlsEnabled}
     skills={capabilitySkills}
     loading={capabilityLoading}

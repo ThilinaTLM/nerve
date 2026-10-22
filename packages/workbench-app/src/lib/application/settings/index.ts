@@ -4,6 +4,7 @@ export {
   loadCoreSettings,
   loadSettingsPanel,
   loadSettingsSkills,
+  openProjectSettingsPane,
   openSettingsPane,
   queueSettingsSave,
   rememberLastAgentSelection,

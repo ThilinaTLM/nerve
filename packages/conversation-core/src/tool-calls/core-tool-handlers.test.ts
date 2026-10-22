@@ -147,6 +147,10 @@ function planReview() {
     conversationId: "conv_1",
     toolName: "plan_present",
     arguments: { file_path: "/plans/implementation.md" },
+    interaction: {
+      kind: "plan_review",
+      request: { approvalProfile: "implementation" },
+    },
   } as unknown as ToolCall;
   const planHandler = createCoreToolHandlers({
     assets: {
@@ -160,14 +164,15 @@ function planReview() {
         return `/storage/${logicalPath}`;
       },
     } as unknown as AssetStore,
+    planApprovalProfile: async () => "implementation",
     async readPlan() {
       return "# Implementation plan\n\nImplement the approved approach.";
     },
     onPlanRejected(conversationId) {
       rejections.push(conversationId);
     },
-    async setAgentProfile(conversationId) {
-      changes.push({ conversationId });
+    async setAgentProfile(conversationId, profile, overrides) {
+      changes.push({ conversationId, profile, overrides });
     },
   }).get("plan_present")!;
   return { changes, rejections, planCall, planHandler };
@@ -179,18 +184,34 @@ test("presenting a plan requests review without changing agentProfile", async ()
   assert.equal(outcome.kind, "awaiting_input");
   if (outcome.kind !== "awaiting_input") assert.fail("Expected plan review");
   assert.equal(outcome.interaction.kind, "plan_review");
+  if (outcome.interaction.kind === "plan_review")
+    assert.equal(outcome.interaction.request.approvalProfile, "implementation");
   assert.deepEqual(rejections, []);
   assert.deepEqual(changes, []);
 });
 
-test("user approval of a plan switches the conversation to the default profile", async () => {
+test("user approval of a plan switches to the captured profile with approved model and thinking", async () => {
   const { changes, rejections, planCall, planHandler } = planReview();
   const result = await planHandler.resolve!(
     planCall,
-    { kind: "plan_review", decision: "approve" },
+    {
+      kind: "plan_review",
+      decision: "approve",
+      implementationModel: { provider: "openai", modelId: "approved" },
+      implementationThinkingLevel: "high",
+    },
     ctx,
   );
-  assert.deepEqual(changes, [{ conversationId: "conv_1" }]);
+  assert.deepEqual(changes, [
+    {
+      conversationId: "conv_1",
+      profile: "implementation",
+      overrides: {
+        model: { provider: "openai", modelId: "approved" },
+        reasoningLevel: "high",
+      },
+    },
+  ]);
   assert.match(result.content ?? "", /Plan approved/);
   assert.deepEqual(rejections, []);
 });

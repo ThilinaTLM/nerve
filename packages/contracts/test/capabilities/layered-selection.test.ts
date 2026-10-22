@@ -1,58 +1,44 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSettings } from "../../src/domains/settings/settings.js";
 import {
   applyCapabilityPatch,
-  capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
   normalizeCapabilityOverrides,
   resolveCapabilitySelection,
+  capabilityToolSettingsFromSettings,
   type CapabilitySelection,
 } from "../../src/domains/capabilities/capabilities.js";
+import { defaultSettings } from "../../src/domains/settings/settings.js";
 
-test("whole tool entries survive parent changes and matching entries normalize away", () => {
+test("whole tool payloads stay pinned across parent changes and normalize away only on editing", () => {
   const user: CapabilitySelection = {
-    disabledTools: ["jira"],
-    toolProfiles: { jira: "A" },
+    disabledTools: [],
+    toolProfiles: { web_search: "user" },
     toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
     disabledFileSkills: [],
     enabledNerveSkills: [],
     enabledAgentBrowserSkills: [],
   };
-  const project = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { tools: { jira: { enabled: true } } },
-    user,
-  );
-  const inherited = resolveCapabilitySelection({ user, project });
-  const conversation = applyCapabilityPatch(
+  const document = applyCapabilityPatch(
     emptyCapabilityOverrides(),
     {
-      tools: { jira: { profileId: "B" } },
-      skills: { file: { research: false } },
+      tools: {
+        web_search: { enabled: false, profileId: "selected" },
+        python_exec: { settings: { interpreterPath: "/chosen/python" } },
+      },
     },
-    inherited,
+    user,
   );
-  assert.deepEqual(conversation.tools.jira, { enabled: true, profileId: "B" });
+  const changed = { ...user, toolProfiles: { web_search: "changed" } };
   assert.equal(
-    resolveCapabilitySelection({
-      user: { ...inherited, disabledTools: ["jira"] },
-      conversation,
-    }).disabledTools.includes("jira"),
-    false,
+    resolveCapabilitySelection({ user: changed, conversation: document })
+      .toolProfiles.web_search,
+    "selected",
   );
+  assert.equal(document.tools.web_search?.profileId, "selected");
+  const matching = resolveCapabilitySelection({ user, conversation: document });
   assert.deepEqual(
-    applyCapabilityPatch(
-      conversation,
-      { tools: { jira: { profileId: "A" } } },
-      inherited,
-    ).tools,
-    {},
-  );
-  assert.deepEqual(normalizeCapabilityOverrides(project, inherited).tools, {});
-  assert.deepEqual(
-    resolveCapabilitySelection({ user: inherited, conversation })
-      .disabledFileSkills,
-    ["research"],
+    normalizeCapabilityOverrides(document, matching),
+    emptyCapabilityOverrides(),
   );
 });

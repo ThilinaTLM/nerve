@@ -1,40 +1,19 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { pagesByScope } from "$lib/features/settings/registry/settings-page-data";
 import { setupGuideSteps } from "./setup-content";
 
 /* Guide steps navigate Settings by page and section id. Those ids are plain
  * strings, so moving a page silently strands a step on a target that no longer
- * exists — which once left a guide step pointing at a section named
- * "explore-agent" that was never registered.
- *
- * The registry itself imports Lucide icon components (`.svelte`), which the node
- * test runner cannot load, so the page shape is read from source the same way
- * the theme drift guards read `theme.css`. */
-const registrySource = readFileSync(
-  fileURLToPath(
-    new URL(
-      "../../../features/settings/registry/settings-pages.ts",
-      import.meta.url,
-    ),
-  ),
-  "utf8",
-);
-
+ * exists. The page contract lives in a component-free data module, so it is
+ * imported directly. Guides open the user settings tab. */
 function parseRegistry(): Map<string, Set<string>> {
-  const pages = new Map<string, Set<string>>();
-  const pageBlocks = registrySource.split(/\n {2}\{\n/).slice(1);
-  for (const block of pageBlocks) {
-    const pageId = /^\s*id: "([^"]+)"/m.exec(block)?.[1];
-    if (!pageId) continue;
-    const sectionsBlock = /sections: \[([\s\S]*?)\],\n/.exec(block)?.[1] ?? "";
-    const sectionIds = [...sectionsBlock.matchAll(/id: "([^"]+)"/g)].map(
-      (match) => match[1],
-    );
-    pages.set(pageId, new Set(sectionIds));
-  }
-  return pages;
+  return new Map(
+    Object.entries(pagesByScope.user).map(([pageId, page]) => [
+      pageId,
+      new Set(page.sections.map((section) => section.id)),
+    ]),
+  );
 }
 
 describe("setup guide settings targets", () => {
@@ -70,15 +49,16 @@ describe("setup guide settings targets", () => {
     }
   });
 
-  it("keeps section ids unique across pages", () => {
-    // Section ids become DOM ids (`settings-section-<id>`) in one namespace.
-    const sectionIds = [...sectionsByPage.values()].flatMap((sections) => [
-      ...sections,
-    ]);
-    assert.equal(
-      new Set(sectionIds).size,
-      sectionIds.length,
-      "duplicate settings section id across pages",
-    );
+  it("keeps section ids unique within each page", () => {
+    // Only one page renders at a time, so ids may repeat across pages.
+    for (const [scope, pages] of Object.entries(pagesByScope))
+      for (const [pageId, page] of Object.entries(pages)) {
+        const ids = page.sections.map((section) => section.id);
+        assert.equal(
+          new Set(ids).size,
+          ids.length,
+          `duplicate section id on ${scope}/${pageId}`,
+        );
+      }
   });
 });

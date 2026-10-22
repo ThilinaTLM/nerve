@@ -30,6 +30,7 @@ function call(decision: "approve" | "reject") {
     interaction: {
       kind: "plan_review",
       request: {
+        approvalProfile: "coding",
         assetId: "asset_1",
         path: "/snapshot/plan.md",
         title: "Plan",
@@ -51,7 +52,7 @@ for (const decision of ["approve", "reject"] as const) {
     const result = {
       content:
         decision === "approve"
-          ? "Plan approved. Switched to the default profile."
+          ? "Plan approved. Switched to the implementation profile."
           : "Plan rejected.",
       details: { decision },
     };
@@ -157,7 +158,7 @@ test("settlement persists display metadata without adding the plan to agent cont
       call("approve"),
       "completed",
       {
-        content: "Plan approved. Switched to the default profile.",
+        content: "Plan approved. Switched to the implementation profile.",
         details: { decision: "approve" },
       },
     );

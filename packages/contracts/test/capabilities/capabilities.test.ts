@@ -1,364 +1,161 @@
-import { subagentToolNames } from "../../src/domains/tools/subagent-tools.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSettings } from "../../src/domains/settings/settings.js";
 import {
   applyCapabilityPatch,
-  capabilityToolSettingsFromSettings,
-  capabilityToolsFromDisabledNames,
-  disabledToolNamesForCapabilities,
-  capabilityPatchSchema,
   capabilityOverridesDocumentSchema,
+  capabilityPatchSchema,
+  capabilityToolSettingsFromSettings,
   emptyCapabilityOverrides,
   resolveCapabilitySelection,
+  capabilityToolsFromDisabledNames,
+  disabledToolNamesForCapabilities,
   type CapabilitySelection,
-  type CapabilityToolSettings,
 } from "../../src/domains/capabilities/capabilities.js";
-
-const toolSettings: CapabilityToolSettings =
-  capabilityToolSettingsFromSettings(defaultSettings);
-
+import { defaultSettings } from "../../src/domains/settings/settings.js";
 const user: CapabilitySelection = {
   disabledTools: ["python_exec"],
-  toolProfiles: {},
-  toolSettings,
-  disabledFileSkills: ["release"],
+  toolProfiles: { web_search: "user-account" },
+  toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
+  disabledFileSkills: [],
   enabledNerveSkills: [],
-  enabledAgentBrowserSkills: ["core"],
+  enabledAgentBrowserSkills: [],
 };
 
-test("capability selection composes user, project, and conversation scopes", () => {
+test("typed tool payloads and skills compose across all scoped settings layers", () => {
   const project = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 1,
-    tools: { python_exec: true, web_search: false },
-    skills: {
-      file: { release: true, deploy: false },
-      nerve: { "skill-creator": true },
-      agentBrowser: { core: false, browser: true },
-    },
-  });
-  const conversation = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 1,
-    tools: { web_search: true },
-    skills: {
-      file: { deploy: true },
-      nerve: { "skill-creator": false },
-      agentBrowser: { browser: false },
-    },
-  });
-
-  assert.deepEqual(
-    resolveCapabilitySelection({ user, project, conversation }),
-    {
-      disabledTools: [],
-      toolProfiles: {},
-      toolSettings,
-      disabledFileSkills: [],
-      enabledNerveSkills: [],
-      enabledAgentBrowserSkills: [],
-    },
-  );
-});
-
-test("missing entries inherit and null patches remove an override", () => {
-  const document = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    {
-      tools: { web_fetch: { enabled: false } },
-      skills: {
-        file: { release: true },
-        nerve: { "skill-creator": true },
-      },
-    },
-    user,
-  );
-  assert.deepEqual(document.tools.web_fetch, { enabled: false });
-  assert.equal(document.skills.file.release, true);
-  assert.equal(document.skills.nerve["skill-creator"], true);
-
-  const reset = applyCapabilityPatch(
-    document,
-    {
-      tools: { web_fetch: { enabled: null } },
-      skills: {
-        file: { release: null },
-        nerve: { "skill-creator": null },
-      },
-    },
-    user,
-  );
-  assert.deepEqual(reset, emptyCapabilityOverrides());
-});
-
-test("unknown tool keys are rejected but dormant skill names are retained", () => {
-  assert.throws(() =>
-    capabilityOverridesDocumentSchema.parse({
-      schemaVersion: 1,
-      tools: { made_up: true },
-    }),
-  );
-  const parsed = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 1,
-    skills: { file: { "not-installed-here": false } },
-  });
-  assert.equal(parsed.skills.file["not-installed-here"], false);
-  assert.deepEqual(parsed.skills.nerve, {});
-});
-
-test("sub-agents are one capability across settings, overrides, and harness tools", () => {
-  const disabledTools = capabilityToolsFromDisabledNames([
-    ...subagentToolNames,
-  ]);
-  assert.deepEqual(disabledTools, ["subagents"]);
-  const project = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { tools: { subagents: { enabled: true } } },
-    { ...user, disabledTools },
-  );
-  assert.deepEqual(
-    resolveCapabilitySelection({ user: { ...user, disabledTools }, project })
-      .disabledTools,
-    [],
-  );
-  const conversation = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { tools: { subagents: { enabled: false } } },
-    { ...user, disabledTools: [] },
-  );
-  const selected = resolveCapabilitySelection({
-    user: { ...user, disabledTools },
-    project,
-    conversation,
-  });
-  assert.deepEqual(disabledToolNamesForCapabilities(selected.disabledTools), [
-    ...subagentToolNames,
-  ]);
-  assert.equal(
-    capabilityPatchSchema.safeParse({
-      tools: { subagent_new: { enabled: true } },
-    }).success,
-    false,
-  );
-});
-
-test("legacy individual subagent overrides migrate without partially enabling the group", () => {
-  const parse = (tools: Record<string, boolean>) =>
-    capabilityOverridesDocumentSchema.parse({ schemaVersion: 1, tools }).tools;
-  assert.deepEqual(parse({ subagent_new: true }), {
-    subagents: { enabled: false },
-  });
-  assert.deepEqual(
-    parse(
-      Object.fromEntries(
-        [
-          "subagent_new",
-          "subagent_prompt",
-          "subagent_list",
-          "subagent_status",
-          "subagent_stop",
-        ].map((name) => [name, true]),
-      ),
-    ),
-    { subagents: { enabled: true } },
-  );
-  assert.deepEqual(parse({ subagent_new: true, subagent_stop: false }), {
-    subagents: { enabled: false },
-  });
-  assert.deepEqual(parse({ subagent_new: false, subagents: true }), {
-    subagents: { enabled: true },
-  });
-});
-
-test("version 1 documents migrate boolean tool overrides to sparse objects", () => {
-  const parsed = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 1,
-    tools: { jira: true, web_search: false },
-  });
-  assert.equal(parsed.schemaVersion, 2);
-  assert.deepEqual(parsed.tools, {
-    jira: { enabled: true },
-    web_search: { enabled: false },
-  });
-});
-
-test("tool fields inherit independently across levels", () => {
-  const project = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 2,
-    tools: { jira: { enabled: true } },
-  });
-  const conversation = capabilityOverridesDocumentSchema.parse({
-    schemaVersion: 2,
-    tools: { jira: { profileId: "pplied" } },
-  });
-  const selection = resolveCapabilitySelection({
-    user: { ...user, disabledTools: ["jira"], toolProfiles: { jira: "ner" } },
-    project,
-    conversation,
-  });
-  assert.equal(selection.disabledTools.includes("jira"), false);
-  assert.deepEqual(selection.toolProfiles, { jira: "pplied" });
-});
-
-test("profile IDs are only accepted for profiled tools and empty entries are rejected", () => {
-  assert.throws(() =>
-    capabilityOverridesDocumentSchema.parse({
-      schemaVersion: 2,
-      tools: { python_exec: { profileId: "x" } },
-    }),
-  );
-  assert.throws(() =>
-    capabilityOverridesDocumentSchema.parse({
-      schemaVersion: 2,
-      tools: { jira: {} },
-    }),
-  );
-});
-
-test("tool overrides keep whole entries until all fields match the parent", () => {
-  const inherited: CapabilitySelection = {
-    ...user,
-    disabledTools: ["jira"],
-    toolProfiles: { jira: "ner" },
-  };
-  const document = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { tools: { jira: { enabled: true, profileId: "ner" } } },
-    inherited,
-  );
-  assert.deepEqual(document.tools, {
-    jira: { enabled: true, profileId: "ner" },
-  });
-
-  const back = applyCapabilityPatch(
-    document,
-    {
-      tools: { jira: { enabled: false } },
-      skills: { file: { release: false }, agentBrowser: { core: true } },
-    },
-    inherited,
-  );
-  assert.deepEqual(back, emptyCapabilityOverrides());
-});
-
-test("a stored override survives when the parent later matches it", () => {
-  const conversation = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { tools: { jira: { enabled: true } } },
-    { ...user, disabledTools: ["jira"] },
-  );
-  const parentNowEnabled = { ...user, disabledTools: [] };
-  assert.deepEqual(
-    resolveCapabilitySelection({ user: parentNowEnabled, conversation })
-      .disabledTools,
-    [],
-  );
-  const parentDisabledAgain = { ...user, disabledTools: ["jira" as const] };
-  assert.deepEqual(
-    resolveCapabilitySelection({ user: parentDisabledAgain, conversation })
-      .disabledTools,
-    [],
-  );
-});
-
-test("tool settings replace inherited settings per tool across levels", () => {
-  const imageModel = {
-    provider: "openai",
-    modelId: "gpt-5.1-mini",
-  };
-  const project = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    { toolSettings: { kroki_export: { url: "http://127.0.0.1:9080/kroki" } } },
-    user,
-  );
-  // URLs are normalized before storage and before comparison.
-  assert.deepEqual(project.toolSettings, {
-    kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
-  });
-  const inherited = resolveCapabilitySelection({ user, project });
-  const conversation = applyCapabilityPatch(
-    emptyCapabilityOverrides(),
-    {
-      toolSettings: {
-        explain_image: { model: imageModel, thinkingLevel: "high" },
-        // Equal to the inherited project value, so nothing is stored.
-        kroki_export: { url: "http://127.0.0.1:9080/kroki/" },
-      },
-    },
-    inherited,
-  );
-  assert.deepEqual(conversation.toolSettings, {
-    explain_image: { model: imageModel, thinkingLevel: "high" },
-  });
-  const effective = resolveCapabilitySelection({
-    user,
-    project,
-    conversation,
-  }).toolSettings;
-  assert.deepEqual(effective.explain_image, {
-    model: imageModel,
-    thinkingLevel: "high",
-  });
-  assert.equal(effective.kroki_export.url, "http://127.0.0.1:9080/kroki/");
-  assert.deepEqual(effective.generate_image, toolSettings.generate_image);
-
-  const reset = applyCapabilityPatch(
-    conversation,
-    { toolSettings: { explain_image: null } },
-    inherited,
-  );
-  assert.deepEqual(reset, emptyCapabilityOverrides());
-});
-
-test("tool settings overrides are validated per tool", () => {
-  assert.equal(
-    capabilityPatchSchema.safeParse({
-      toolSettings: { python_exec: { enabled: true } },
-    }).success,
-    false,
-  );
-  assert.throws(() =>
-    capabilityOverridesDocumentSchema.parse({
-      schemaVersion: 2,
-      toolSettings: { kroki_export: { url: "ftp://kroki.example" } },
-    }),
-  );
-  assert.deepEqual(
-    capabilityOverridesDocumentSchema.parse({ schemaVersion: 2 }).toolSettings,
-    {},
-  );
-});
-
-test("settings project to tool settings without undefined fields", () => {
-  const projected = capabilityToolSettingsFromSettings({
-    ...defaultSettings,
+    schemaVersion: 3,
     tools: {
-      ...defaultSettings.tools,
-      imageExplanation: { model: undefined, thinkingLevel: "low" },
+      python_exec: {
+        enabled: true,
+        settings: { interpreterPath: "/project/python" },
+      },
+      web_search: { profileId: "project-account" },
+      bash: {
+        settings: {
+          maxTimeoutMs: 5000,
+          autoPromotion: { enabled: false, afterMs: 2000 },
+          shellPath: "/bin/sh",
+        },
+      },
+    },
+    skills: {
+      file: { private: false },
+      nerve: { planning: true },
+      agentBrowser: {},
     },
   });
-  assert.deepEqual(projected.explain_image, { thinkingLevel: "low" });
-  assert.equal(Object.hasOwn(projected.explain_image, "model"), false);
+  const conversation = capabilityOverridesDocumentSchema.parse({
+    schemaVersion: 3,
+    tools: {
+      python_exec: { settings: { interpreterPath: "/conversation/python" } },
+      web_search: { enabled: false },
+      plan_present: { enabled: true, settings: { approvalProfile: "coding" } },
+    },
+  });
+  const effective = resolveCapabilitySelection({ user, project, conversation });
+  assert.equal(effective.disabledTools.includes("python_exec"), false);
+  assert.equal(effective.disabledTools.includes("web_search"), true);
+  assert.equal(effective.toolProfiles.web_search, "project-account");
+  assert.equal(
+    effective.toolSettings.python_exec.interpreterPath,
+    "/conversation/python",
+  );
+  assert.equal(effective.toolSettings.bash.shellPath, "/bin/sh");
+  assert.equal(effective.toolSettings.plan_present.approvalProfile, "coding");
+  assert.deepEqual(effective.disabledFileSkills, ["private"]);
+  assert.deepEqual(effective.enabledNerveSkills, ["planning"]);
 });
 
-test("override documents strip removed Explore and sub-agent tool settings", () => {
-  for (const schemaVersion of [1, 2]) {
-    const parsed = capabilityOverridesDocumentSchema.parse({
-      schemaVersion,
-      tools: { explore: schemaVersion === 1 ? false : { enabled: false } },
-      toolSettings: {
-        explore: { thinkingLevel: "low" },
-        subagents: { compactionProfile: "inherit" },
-        explain_image: { thinkingLevel: "high" },
-      },
-    });
-    assert.deepEqual(parsed.tools, {});
-    assert.deepEqual(parsed.toolSettings, {
-      explain_image: { thinkingLevel: "high" },
-    });
-  }
+test("core tools cannot toggle and account/config fields are validated for their owning tool", () => {
+  for (const tools of [
+    { read: { enabled: false } },
+    { edit: { enabled: false } },
+    { ask_user: { enabled: false } },
+    { bash: { enabled: false } },
+    { web_fetch: { profileId: "account" } },
+    { web_search: { settings: { interpreterPath: "x" } } },
+    { python_exec: { settings: { approvalProfile: "coding" } } },
+    { plan_present: { settings: { approvalProfile: "../coding" } } },
+    { future: { enabled: true } },
+    { web_fetch: {} },
+  ])
+    assert.equal(
+      capabilityOverridesDocumentSchema.safeParse({ schemaVersion: 3, tools })
+        .success,
+      false,
+      JSON.stringify(tools),
+    );
   assert.equal(
-    capabilityPatchSchema.safeParse({ toolSettings: { explore: null } })
+    capabilityPatchSchema.safeParse({ tools: { bash: { enabled: null } } })
       .success,
     false,
   );
+  assert.equal(
+    capabilityPatchSchema.safeParse({
+      tools: { web_fetch: { profileId: null } },
+    }).success,
+    false,
+  );
+  assert.equal(
+    capabilityPatchSchema.safeParse({
+      tools: { python_exec: { settings: { interpreterPath: "/python" } } },
+    }).success,
+    true,
+  );
+});
+
+test("legacy documents and detached settings require migration, never a runtime dual reader", () => {
+  for (const input of [
+    { schemaVersion: 1, tools: { web_search: true } },
+    { schemaVersion: 2, tools: { web_search: { enabled: true } } },
+    {
+      schemaVersion: 3,
+      toolSettings: { python_exec: { interpreterPath: "x" } },
+    },
+  ])
+    assert.equal(
+      capabilityOverridesDocumentSchema.safeParse(input).success,
+      false,
+    );
+});
+
+test("payload field and whole entry resets return to inherited values without mutating inputs", () => {
+  const document = emptyCapabilityOverrides();
+  const edited = applyCapabilityPatch(
+    document,
+    {
+      tools: {
+        web_search: { profileId: "conversation-account", enabled: false },
+        python_exec: {
+          enabled: true,
+          settings: { interpreterPath: "/python" },
+        },
+      },
+    },
+    user,
+  );
+  assert.deepEqual(document, emptyCapabilityOverrides());
+  const resetAccount = applyCapabilityPatch(
+    edited,
+    { tools: { web_search: { profileId: null } } },
+    user,
+  );
+  assert.equal(resetAccount.tools.web_search?.profileId, "user-account");
+  assert.equal(resetAccount.tools.web_search?.enabled, false);
+  const reset = applyCapabilityPatch(
+    resetAccount,
+    { tools: { web_search: null, python_exec: null } },
+    user,
+  );
+  assert.deepEqual(reset, emptyCapabilityOverrides());
+});
+
+test("sub-agent runtime tools remain one optional capability", () => {
+  assert.deepEqual(capabilityToolsFromDisabledNames(["subagent_prompt"]), [
+    "subagents",
+  ]);
+  assert.ok(
+    disabledToolNamesForCapabilities(["subagents"]).includes("subagent_prompt"),
+  );
+  assert.deepEqual(disabledToolNamesForCapabilities(["bash"]), []);
 });

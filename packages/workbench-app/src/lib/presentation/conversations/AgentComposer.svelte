@@ -42,10 +42,6 @@ const submitDisabled = $derived(
 const controlsDisabled = $derived(
   model.controlsDisabled ?? (blocked || Boolean(model.sending)),
 );
-const runtimeChangeHint = $derived(
-  model.runtimeChangeHint ??
-    (model.sending ? "Changes apply to the next model request" : undefined),
-);
 const placeholder = $derived(
   model.placeholder ??
     (blocked
@@ -145,8 +141,6 @@ function submit(): void {
       permissionShortcutAria={model.permissionShortcutAria}
       profileShortcut={model.profileShortcut}
       profileShortcutAria={model.profileShortcutAria}
-      modelShortcut={model.modelShortcut}
-      thinkingShortcut={model.thinkingShortcut}
       contextUsage={model.contextUsage}
       conversationUsage={model.conversationUsage}
       agentUsage={model.agentUsage}
@@ -163,11 +157,12 @@ function submit(): void {
       models={model.models}
       selectedModelKey={model.selectedModelKey}
       thinkingLevel={model.thinkingLevel}
-      {runtimeChangeHint}
       modelEmptyMessage={model.modelEmptyMessage ??
         "No models available. Configure a provider in this host."}
-      onModelChange={actions.onModelChange}
-      onThinkingLevelChange={actions.onThinkingLevelChange}
+      onModelSelectionChange={actions.onModelSelectionChange}
+      onResetModel={actions.onResetModel}
+      onResetPermission={actions.onResetPermission}
+      settingsDiffers={model.settingsDiffers}
       onPermissionRuleSetChange={actions.onPermissionRuleSetChange}
       onRefreshPermissionRuleSets={actions.onRefreshPermissionRuleSets}
       onOpenPermissionSettings={actions.onOpenPermissionSettings}
@@ -177,7 +172,6 @@ function submit(): void {
       capabilityLoading={model.capabilityLoading}
       capabilityDisabled={model.capabilityDisabled ?? controlsDisabled}
       capabilityError={model.capabilityError}
-      capabilityProfiles={model.capabilityProfiles}
       capabilityScopeKey={model.capabilityScopeKey}
       subagentControlsEnabled={model.subagentControlsEnabled}
       onCapabilityPatch={actions.onCapabilityPatch}

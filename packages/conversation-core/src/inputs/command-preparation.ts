@@ -24,6 +24,7 @@ export function initialCommandPreparation(
 
 /** The caller fences saves against cancellation/removal of the queued input. */
 export async function prepareCommands(input: {
+  conversationId: string;
   text: string;
   preparation: CommandPreparation;
   cwd: string;
@@ -44,6 +45,7 @@ export async function prepareCommands(input: {
         if (!input.save(preparation)) return;
         try {
           block.result = await input.processes.run({
+            conversationId: input.conversationId,
             command: block.command,
             cwd: input.cwd,
             signal,

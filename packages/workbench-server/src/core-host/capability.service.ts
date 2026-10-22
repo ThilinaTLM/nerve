@@ -21,39 +21,21 @@ import {
 import { resolveProjectSettings } from "../infrastructure/configuration/index.js";
 import { ConfigurationScopePaths } from "../infrastructure/configuration/scope-paths.js";
 import { listAvailableSkills } from "./resource-loader.js";
-import type { Skill } from "@nervekit/harness/resources";
-import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import { assertAppliedProfileSettingsChange } from "@nervekit/contracts/agent-profiles";
+import {
+  capabilityToolPayload,
+  capabilityToolsSchema,
+} from "@nervekit/contracts/capabilities";
 import {
   userCapabilitySelection,
   settingsWithCapabilityToolSettings,
 } from "./user-capability-selection.js";
-
-const sameDocument = (document: CapabilityOverridesDocument) =>
-  JSON.stringify(document) === JSON.stringify(emptyCapabilityOverrides());
 
 const digest = (content: string) =>
   `sha256:${createHash("sha256").update(content).digest("hex")}`;
 
 /** File-owned overrides; the portable core owns only project content trust. */
 export class CapabilityService {
-  private profileResolver?: (
-    projectId: string,
-    conversationId: string,
-  ) => Promise<AgentProfile | undefined>;
-  private skillCatalogs: {
-    nerve: readonly Skill[];
-    agentBrowser: readonly Skill[];
-  } = { nerve: [], agentBrowser: [] };
-  useAgentProfiles(
-    resolve: (
-      projectId: string,
-      conversationId: string,
-    ) => Promise<AgentProfile | undefined>,
-    skills: { nerve: readonly Skill[]; agentBrowser: readonly Skill[] },
-  ) {
-    this.profileResolver = resolve;
-    this.skillCatalogs = skills;
-  }
   private writing: Promise<void> = Promise.resolve();
   private readonly listeners = new Set<
     (change: { projectId: string; conversationId?: string }) => void
@@ -124,8 +106,6 @@ export class CapabilityService {
     projectId: string,
     conversationId?: string,
     replace?: CapabilityOverridesDocument,
-    profile?: Pick<AgentProfile, "tools" | "skills"> | null,
-    knownSkills = this.skillCatalogs,
   ): Promise<CapabilityConfiguration> {
     const settings = this.storage.settings;
     const user = userCapabilitySelection(settings);
@@ -183,52 +163,7 @@ export class CapabilityService {
       name: profile.name,
       ...(profile.siteUrl ? { detail: profile.siteUrl } : {}),
     }));
-    if (profile === undefined && conversationId && this.profileResolver)
-      profile = await this.profileResolver(projectId, conversationId);
-    let base = resolveCapabilitySelection({ user, project: trusted });
-    if (profile) {
-      const patch: CapabilityPatch = {
-        tools: {},
-        toolSettings: {},
-        skills: {},
-      };
-      for (const [name, value] of Object.entries(profile.tools)) {
-        const parsed = capabilityToolNameSchema.safeParse(name);
-        if (!parsed.success) continue;
-        if (typeof value === "boolean")
-          patch.tools![parsed.data] = { enabled: value };
-        else Object.assign(patch.toolSettings!, { [name]: value });
-      }
-      if (profile.skills !== "inherit") {
-        const fileSkills = (
-          await listAvailableSkills(this.project(projectId).directory, {
-            storageHome: this.storage.paths.home,
-            nerveSkills: knownSkills.nerve,
-            agentBrowserSkills: knownSkills.agentBrowser,
-          })
-        ).skills;
-        for (const skill of fileSkills) {
-          const enabled =
-            profile.skills === "none" ? false : profile.skills[skill.name];
-          if (enabled === undefined) continue;
-          const kind =
-            skill.source === "nerve"
-              ? "nerve"
-              : skill.source === "agentBrowser"
-                ? "agentBrowser"
-                : "file";
-          (patch.skills![kind] ??= {})[skill.name] = enabled;
-        }
-      }
-      base = resolveCapabilitySelection({
-        user: base,
-        conversation: applyCapabilityPatch(
-          emptyCapabilityOverrides(),
-          patch,
-          base,
-        ),
-      });
-    }
+    const base = resolveCapabilitySelection({ user, project: trusted });
     return {
       project: project.document,
       ...(conversation
@@ -259,7 +194,7 @@ export class CapabilityService {
     };
   }
 
-  async settings(projectId: string, conversationId: string) {
+  async settings(projectId: string, conversationId?: string) {
     const { effective } = await this.configuration(projectId, conversationId);
     const settings = settingsWithCapabilityToolSettings(
       await resolveProjectSettings(
@@ -320,6 +255,17 @@ export class CapabilityService {
       const next = input.replace
         ? normalizeCapabilityOverrides(input.replace, parent)
         : applyCapabilityPatch(current.document, input.patch!, parent);
+      if (input.layer === "conversation")
+        await this.assertLocks(
+          input.conversationId!,
+          (
+            await this.configuration(
+              input.projectId,
+              input.conversationId,
+              next,
+            )
+          ).effective,
+        );
       await atomicWriteJson(path, next);
       if (input.layer === "project")
         await this.trustProject(
@@ -347,6 +293,17 @@ export class CapabilityService {
         input.layer === "project"
           ? this.projectPath(input.projectId)
           : this.conversationPath(input.projectId, input.conversationId!);
+      if (input.layer === "conversation")
+        await this.assertLocks(
+          input.conversationId!,
+          (
+            await this.configuration(
+              input.projectId,
+              input.conversationId,
+              emptyCapabilityOverrides(),
+            )
+          ).effective,
+        );
       await rm(path, { force: true });
       this.changed(
         input.projectId,
@@ -395,100 +352,77 @@ export class CapabilityService {
     return this.configuration(projectId);
   }
 
-  /**
-   * The child starts from the parent's conversation overrides; the profile's
-   * `tools` and `skills` are applied on top as a sparse patch.
-   */
-  async initializeChild(
-    parentId: string,
-    childId: string,
-    profile: Pick<AgentProfile, "tools" | "skills">,
-    nerveSkills: readonly Skill[],
-    agentBrowserSkills: readonly Skill[],
+  private async assertLocks(
+    conversationId: string,
+    effective: CapabilityConfiguration["effective"],
   ) {
-    const { projectId } = this.core.getSnapshot(parentId).conversation;
-    const { effective: parent } = await this.configuration(projectId, parentId);
-    const { effective: inherited } = await this.configuration(
-      projectId,
-      undefined,
-      undefined,
-      null,
-    );
-    const patch: CapabilityPatch = {
-      tools: {},
-      toolSettings: { ...parent.toolSettings },
-      skills: {},
-    };
-    for (const tool of capabilityToolNameSchema.options) {
-      if (tool === "subagents") continue;
-      patch.tools![tool] = {
-        enabled: !parent.disabledTools.includes(tool),
-        ...(tool in parent.toolProfiles
-          ? {
-              profileId:
-                parent.toolProfiles[tool as keyof typeof parent.toolProfiles] ??
-                null,
-            }
-          : {}),
+    const snapshot = this.core.getSnapshot(conversationId);
+    const applied = snapshot.appliedAgentProfile;
+    let skills: import("@nervekit/contracts/agent-profiles").AgentProfileSettings["skills"] =
+      {
+        file: Object.fromEntries(
+          effective.disabledFileSkills.map((name) => [name, false]),
+        ),
+        nerve: Object.fromEntries(
+          effective.enabledNerveSkills.map((name) => [name, true]),
+        ),
+        agentBrowser: Object.fromEntries(
+          effective.enabledAgentBrowserSkills.map((name) => [name, true]),
+        ),
       };
+    const locked = applied?.locked.skills;
+    if (locked) {
+      const available = (
+        await listAvailableSkills(
+          this.project(snapshot.conversation.projectId).directory,
+          { storageHome: this.storage.paths.home },
+        )
+      ).skills;
+      const expected =
+        locked === "none" ? { file: {}, nerve: {}, agentBrowser: {} } : locked;
+      const fileNames = new Set([
+        ...available.map((skill) => skill.name),
+        ...Object.keys(expected.file),
+        ...effective.disabledFileSkills,
+      ]);
+      const nerveNames = new Set([
+        ...Object.keys(expected.nerve),
+        ...effective.enabledNerveSkills,
+      ]);
+      const browserNames = new Set([
+        ...Object.keys(expected.agentBrowser),
+        ...effective.enabledAgentBrowserSkills,
+      ]);
+      const matches =
+        [...fileNames].every(
+          (name) =>
+            !effective.disabledFileSkills.includes(name) ===
+            (expected.file[name] ?? false),
+        ) &&
+        [...nerveNames].every(
+          (name) =>
+            effective.enabledNerveSkills.includes(name) ===
+            (expected.nerve[name] ?? false),
+        ) &&
+        [...browserNames].every(
+          (name) =>
+            effective.enabledAgentBrowserSkills.includes(name) ===
+            (expected.agentBrowser[name] ?? false),
+        );
+      skills = matches ? locked : locked === "none" ? skills : "none";
     }
-    const { skills: installedSkills } = await listAvailableSkills(
-      this.project(projectId).directory,
-      { storageHome: this.storage.paths.home, nerveSkills, agentBrowserSkills },
-    );
-    for (const skill of installedSkills) {
-      const kind =
-        skill.source === "nerve"
-          ? "nerve"
-          : skill.source === "agentBrowser"
-            ? "agentBrowser"
-            : "file";
-      const enabled =
-        kind === "nerve"
-          ? parent.enabledNerveSkills.includes(skill.name)
-          : kind === "agentBrowser"
-            ? parent.enabledAgentBrowserSkills.includes(skill.name)
-            : !parent.disabledFileSkills.includes(skill.name);
-      (patch.skills![kind] ??= {})[skill.name] = enabled;
-    }
-    for (const [name, value] of Object.entries(profile.tools)) {
-      const parsed = capabilityToolNameSchema.safeParse(name);
-      if (!parsed.success || parsed.data === "subagents") continue;
-      const tool = parsed.data;
-      if (typeof value === "boolean") patch.tools![tool] = { enabled: value };
-      else Object.assign(patch.toolSettings!, { [tool]: value });
-    }
-    if (profile.skills !== "inherit") {
-      const { skills } = await listAvailableSkills(
-        this.project(projectId).directory,
-        {
-          storageHome: this.storage.paths.home,
-          nerveSkills,
-          agentBrowserSkills,
-        },
-      );
-      for (const skill of skills) {
-        const enabled =
-          profile.skills === "none" ? false : profile.skills[skill.name];
-        if (enabled === undefined) continue;
-        const kind =
-          skill.source === "nerve"
-            ? "nerve"
-            : skill.source === "agentBrowser"
-              ? "agentBrowser"
-              : "file";
-        (patch.skills![kind] ??= {})[skill.name] = enabled;
-      }
-    }
-    const document = applyCapabilityPatch(
-      emptyCapabilityOverrides(),
-      patch,
-      inherited,
-    );
-    if (sameDocument(document)) return;
-    await atomicWriteJson(this.conversationPath(projectId, childId), document);
+    assertAppliedProfileSettingsChange(applied, {
+      tools: capabilityToolsSchema.parse(
+        Object.fromEntries(
+          capabilityToolNameSchema.options.map((name) => [
+            name,
+            capabilityToolPayload(effective, name),
+          ]),
+        ),
+      ),
+      skills,
+    });
   }
-
   /** Tell clients to refresh a project's or conversation's capability view. */
   notifyChanged(projectId: string, conversationId?: string) {
     this.changed(projectId, conversationId);

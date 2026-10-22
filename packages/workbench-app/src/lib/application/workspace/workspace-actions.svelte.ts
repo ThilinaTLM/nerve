@@ -72,6 +72,16 @@ export async function openConversation(conversationId: string): Promise<void> {
   addCenterTab({ kind: "conversation", id: conversationId });
   await selectCenterTab({ kind: "conversation", id: conversationId });
 }
+/** A project's settings tab cannot outlive the project. */
+async function closeRemovedProjectSettings(): Promise<void> {
+  const isRemoved = (tab: CenterTabIdentity) =>
+    tab.kind === "project-settings" &&
+    !workspaceState.projects.some((project) => project.id === tab.id);
+  const open = workspaceState.openCenterTabs.filter(isRemoved);
+  if (open.length > 0) await closeCenterTabs(open);
+  removeTabsFromAllSessions(isRemoved);
+}
+
 export async function loadWorkspaceState(): Promise<void> {
   workspaceState.projects = await requestConversation("project.list", {});
   await recoverConversationLists(
@@ -116,6 +126,7 @@ export async function loadWorkspaceState(): Promise<void> {
       );
     }
   }
+  await closeRemovedProjectSettings();
   if (
     !workspaceState.projects.some(
       (project) => project.id === workspaceState.selectedProjectId,

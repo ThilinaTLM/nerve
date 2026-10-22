@@ -1,13 +1,12 @@
+import { builtInAgentProfiles } from "../domains/agent-profiles/builtin-agent-profiles.js";
+import type { AppliedAgentProfile } from "@nervekit/contracts/agent-profiles";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { ConversationConfig } from "@nervekit/contracts/core";
-import {
-  resolveAgentProfiles,
-  type AgentProfile,
-} from "@nervekit/contracts/agent-profiles";
+import { resolveAgentProfiles } from "@nervekit/contracts/agent-profiles";
 import type { Skill } from "@nervekit/harness/resources";
 import { builtinSkillFilePath, NerveSkillCatalog } from "@nervekit/skills";
 import { AgentBrowserSkillCatalog } from "./agent-browser-skills.js";
@@ -36,8 +35,9 @@ async function prepare(options: {
   usable: { name: string; description: string; permission?: string }[];
   toolDescription?: string;
   customPrompt?: string;
+  nestedWorkingDirectory?: boolean;
   instructions?: string | null;
-  activeProfile?: AgentProfile;
+  appliedAgentProfile?: AppliedAgentProfile;
   hasExistingSubagents?: boolean;
   subagentsEnabled?: boolean;
   agentProfile?: ConversationConfig["agentProfile"];
@@ -48,6 +48,22 @@ async function prepare(options: {
     if (options.customPrompt) {
       await mkdir(join(home, ".nerve"));
       await writeFile(join(home, ".nerve", "SYSTEM.md"), options.customPrompt);
+    }
+    const workingDirectory = options.nestedWorkingDirectory
+      ? join(home, "nested")
+      : home;
+    if (options.nestedWorkingDirectory) {
+      await mkdir(workingDirectory);
+      await writeFile(join(home, "AGENTS.md"), "Project root marker");
+      await writeFile(
+        join(workingDirectory, "AGENTS.md"),
+        "Nested working marker",
+      );
+      await mkdir(join(home, ".nerve"), { recursive: true });
+      await writeFile(
+        join(home, ".nerve", "APPEND_SYSTEM.md"),
+        "Project append marker",
+      );
     }
     const port = createTurnResourcesPort({
       home,
@@ -85,8 +101,7 @@ async function prepare(options: {
         }),
       } as never,
       agentProfiles: {
-        list: async () =>
-          options.activeProfile ? [options.activeProfile] : [],
+        list: async () => [],
         preview: async () => {
           throw new Error("Not a draft");
         },
@@ -103,8 +118,8 @@ async function prepare(options: {
             options.agentProfile,
           );
           return options.usable.map((profile) => ({
-            permission: "read_only",
             ...profile,
+            permission: { set: profile.permission ?? "read_only" },
           })) as never;
         },
       },
@@ -117,10 +132,11 @@ async function prepare(options: {
       },
       config: {
         agentProfile: options.agentProfile,
-        workingDirectory: home,
+        workingDirectory,
         systemPrompt: null,
         instructions: options.instructions ?? null,
       } as ConversationConfig,
+      appliedAgentProfile: options.appliedAgentProfile,
       projectDir: home,
       coreTools:
         options.planToolSource === "host"
@@ -398,15 +414,16 @@ void test("turn preparation resolves instruction and tool description skill plac
   );
 });
 
-void test("SYSTEM.md replaces only the default intro and guidelines during preparation", async () => {
+void test("project SYSTEM.md is ignored without dropping conversation instructions or profile listings", async () => {
   const { systemPrompt } = await prepare({
     parent: null,
     usable: [{ name: "explore", description: "Research" }],
     customPrompt: "Custom system intro",
     instructions: "Keep these instructions",
   });
-  assert.ok(systemPrompt.startsWith("Custom system intro\n\n"));
-  assert.doesNotMatch(systemPrompt, /<guidelines>|You are Nerve/);
+  assert.match(systemPrompt, /You are Nerve's coding agent/);
+  assert.match(systemPrompt, /<guidelines>/);
+  assert.doesNotMatch(systemPrompt, /Custom system intro/);
   assert.match(systemPrompt, /<instructions>\nKeep these instructions/);
   assert.match(systemPrompt, /<available_agent_profiles>/);
   assert.match(systemPrompt, /<environment>/);
@@ -414,6 +431,7 @@ void test("SYSTEM.md replaces only the default intro and guidelines during prepa
 
 void test("active lead instructions resolve skill placeholders alongside conversation instructions", async () => {
   const profile = resolveAgentProfiles({
+    builtins: builtInAgentProfiles,
     layers: [],
     scope: "user",
   }).profiles.find((p) => p.name === "coding")!.effective!;
@@ -422,7 +440,12 @@ void test("active lead instructions resolve skill placeholders alongside convers
     parent: null,
     usable: [],
     agentProfile: "coding",
-    activeProfile: profile,
+    appliedAgentProfile: {
+      schemaVersion: 1,
+      name: profile.name,
+      instructions: profile.instructions,
+      locked: {},
+    },
     instructions: "Conversation-specific rules.",
   });
   assert.match(systemPrompt, /<instructions>\nProfile: read/);
@@ -439,9 +462,29 @@ void test("active lead instructions resolve skill placeholders alongside convers
         parent: null,
         usable: [],
         agentProfile: "coding",
-        activeProfile: profile,
+        appliedAgentProfile: {
+          schemaVersion: 1,
+          name: profile.name,
+          instructions: profile.instructions,
+          locked: {},
+        },
       })
     ).systemPrompt,
     /Edited profile rules/,
+  );
+});
+
+void test("turn preparation uses the conversation working directory within the project prompt boundary", async () => {
+  const { systemPrompt } = await prepare({
+    parent: null,
+    usable: [],
+    nestedWorkingDirectory: true,
+  });
+  assert.match(systemPrompt, /Project root marker/);
+  assert.match(systemPrompt, /Nested working marker/);
+  assert.match(systemPrompt, /Project append marker/);
+  assert.ok(
+    systemPrompt.indexOf("Project root marker") <
+      systemPrompt.indexOf("Nested working marker"),
   );
 });

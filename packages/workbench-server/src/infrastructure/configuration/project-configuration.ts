@@ -11,9 +11,6 @@ import {
   projectSettingsPatchSchema,
   type ProjectSettingsPatch,
   type ProjectSettingsResult,
-  integrationsConfigSchema,
-  providersConfigSchema,
-  uiConfigSchema,
   type Settings,
   type UserConfiguration,
   userConfigurationSchema,
@@ -36,27 +33,16 @@ export async function resolveProjectConfiguration(
   input: ConfigurationResolutionInput = {},
 ): Promise<UserConfiguration> {
   const root = projectConfigurationRoot(projectDir);
-  const [harnessRaw, uiRaw, providersRaw, integrationsRaw] = await Promise.all([
-    optionalJson(join(root, "harness.json")),
-    optionalJson(join(root, "ui.json")),
-    optionalJson(join(root, "providers.json")),
-    optionalJson(join(root, "integrations.json")),
-  ]);
-  assertNoLegacyCapabilitySelection(harnessRaw);
-  assertNoProjectIntegrationToolSelection(integrationsRaw);
+  const harnessRaw = await optionalJson(join(root, "harness.json"));
   const user = storage.configuration;
   const harness = resolveHarness(storage, harnessRaw, input);
   return userConfigurationSchema.parse({
     daemon: user.daemon,
     harness,
-    ui: uiConfigSchema.parse(deepMerge(user.ui, uiRaw)),
+    ui: user.ui,
     permissions: user.permissions,
-    providers: providersConfigSchema.parse(
-      mergeProviders(user.providers, providersRaw),
-    ),
-    integrations: integrationsConfigSchema.parse(
-      mergeIntegrations(user.integrations, integrationsRaw),
-    ),
+    providers: user.providers,
+    integrations: user.integrations,
   });
 }
 
@@ -86,17 +72,6 @@ function assertNoLegacyCapabilitySelection(
   ) {
     throw new Error(
       "Project tool and skill selections in .nerve/config/harness.json must be migrated to .nerve/config/capabilities.json.",
-    );
-  }
-}
-
-/** Project tool enablement and profile selection live in capabilities.json. */
-function assertNoProjectIntegrationToolSelection(
-  integrations: Record<string, unknown>,
-): void {
-  if (Object.hasOwn(integrations, "tools")) {
-    throw new Error(
-      "Project Jira, Confluence, and Web profile selections in .nerve/config/integrations.json must move to .nerve/config/capabilities.json.",
     );
   }
 }
@@ -144,94 +119,6 @@ function deepMerge(base: unknown, override: unknown): unknown {
     });
   }
   return output;
-}
-
-function mergeKeyedDocument(
-  base: Record<string, unknown>,
-  override: Record<string, unknown>,
-  field: string,
-  key: (value: unknown) => string,
-): Record<string, unknown> {
-  const merged = deepMerge(base, { ...override, [field]: undefined }) as Record<
-    string,
-    unknown
-  >;
-  const values = new Map<string, unknown>();
-  for (const value of array(base[field])) values.set(key(value), value);
-  for (const value of array(override[field])) {
-    const id = key(value);
-    values.set(id, deepMerge(values.get(id), value));
-  }
-  merged[field] = [...values.values()];
-  return merged;
-}
-
-function mergeProviders(
-  base: UserConfiguration["providers"],
-  override: Record<string, unknown>,
-): Record<string, unknown> {
-  const merged = deepMerge(base, override) as Record<string, unknown>;
-  merged.providers = mergeKeyedDocument(
-    base,
-    override,
-    "providers",
-    (provider) => stringKey(provider, "id"),
-  ).providers;
-  merged.models = mergeKeyedDocument(
-    base,
-    override,
-    "models",
-    (model) =>
-      `${stringKey(model, "provider")}\0${stringKey(model, "modelId")}`,
-  ).models;
-  return merged;
-}
-
-function mergeIntegrations(
-  base: UserConfiguration["integrations"],
-  override: Record<string, unknown>,
-): Record<string, unknown> {
-  // Projects contribute profile definitions only; tool selection is layered
-  // through capabilities.json so advertising and execution share one source.
-  const merged: Record<string, unknown> = { ...base };
-  const baseProfiles = asRecord(base.profiles);
-  const overrideProfiles = override.profiles ? asRecord(override.profiles) : {};
-  merged.profiles = {
-    atlassian: mergeKeyedArray(
-      baseProfiles.atlassian,
-      overrideProfiles.atlassian,
-      "id",
-    ),
-    tavily: mergeKeyedArray(baseProfiles.tavily, overrideProfiles.tavily, "id"),
-  };
-  return merged;
-}
-
-function mergeKeyedArray(
-  base: unknown,
-  override: unknown,
-  field: string,
-): unknown[] {
-  const values = new Map<string, unknown>();
-  for (const value of array(base)) values.set(stringKey(value, field), value);
-  for (const value of array(override)) {
-    const id = stringKey(value, field);
-    values.set(id, deepMerge(values.get(id), value));
-  }
-  return [...values.values()];
-}
-
-function array(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function stringKey(value: unknown, field: string): string {
-  const record = asRecord(value);
-  const key = record[field];
-  if (typeof key !== "string" || key.length === 0) {
-    throw new Error(`Project configuration entry is missing '${field}'.`);
-  }
-  return key;
 }
 
 function applyHarnessEnvironment(

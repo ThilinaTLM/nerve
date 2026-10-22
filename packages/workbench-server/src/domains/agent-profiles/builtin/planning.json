@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "enabled": true,
+  "name": "planning",
+  "label": "Planning",
+  "description": "Research and present an implementation plan.",
+  "usableBy": "lead",
+  "permission": {
+    "lock": "planning"
+  },
+  "tools": {
+    "plan_present": {
+      "set": {
+        "enabled": true,
+        "settings": {
+          "approvalProfile": "coding"
+        }
+      }
+    }
+  },
+  "instructions": "Before anything else, read {{skill:planning}} and follow it."
+}

@@ -1,3 +1,4 @@
+import { appliedAgentProfileSchema } from "../agent-profiles/applied-agent-profile.js";
 import { compactionOperationSchema } from "./compaction-operation.js";
 /**
  * /ws/conversations: coreOperationSchemas plus model.list, permissionRuleSet.list,
@@ -42,7 +43,7 @@ import {
   capabilityOriginSchema,
 } from "../capabilities/capabilities.js";
 
-import { agentProfilesDocumentSchema } from "../agent-profiles/agent-profile-configuration.js";
+import { agentProfilesDraftSchema } from "../agent-profiles/agent-profile-configuration.js";
 
 export const previewSystemPromptParamsSchema = z.union([
   z.object({ conversationId: z.string() }).strict(),
@@ -51,7 +52,7 @@ export const previewSystemPromptParamsSchema = z.union([
       projectId: z.string(),
       config: conversationConfigSchema.omit({ conversationId: true }),
       capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
-      agentProfileOverrides: agentProfilesDocumentSchema.optional(),
+      agentProfileOverrides: agentProfilesDraftSchema.optional(),
     })
     .strict(),
 ]);
@@ -561,6 +562,7 @@ export const conversationChannelEventSchemas = {
   "conversation.config": z.object({
     conversationId: z.string(),
     config: conversationConfigSchema,
+    appliedAgentProfile: appliedAgentProfileSchema.nullable(),
   }),
   "conversation.toolCall": z.object({
     conversationId: z.string(),

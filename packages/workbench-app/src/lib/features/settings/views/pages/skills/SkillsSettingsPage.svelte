@@ -1,6 +1,5 @@
 <script lang="ts">
 import Copy from "@lucide/svelte/icons/copy";
-import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import { SvelteSet } from "svelte/reactivity";
 import type {
   CapabilityConfiguration,
@@ -15,9 +14,10 @@ import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
 import type { Settings } from "$lib/api";
 import {
+  SettingsChangeIndicator,
+  SettingsDiffBanner,
   SettingsDisclosureItem,
   SettingsEmptyState,
-  SettingsGroup,
   SettingsInlineMessage,
   SettingsList,
   SettingsSection,
@@ -50,7 +50,6 @@ type Props = {
   error?: string;
   onSettingsChange?: SettingsChange;
   onPatch?: (patch: CapabilityPatch) => void;
-  onReset?: () => void;
   onTrust?: (trusted: boolean) => void;
   onRetry?: () => void;
 };
@@ -64,7 +63,6 @@ let {
   error,
   onSettingsChange,
   onPatch,
-  onReset,
   onTrust,
   onRetry,
 }: Props = $props();
@@ -224,6 +222,19 @@ function applyBulk(enabled: boolean): void {
   onPatch?.({ skills: { file, nerve, agentBrowser } });
 }
 
+/** Clears only this page's overrides; tools keep theirs. */
+function resetAllSkills(): void {
+  const clear = (record: Record<string, boolean> | undefined) =>
+    Object.fromEntries(Object.keys(record ?? {}).map((name) => [name, null]));
+  onPatch?.({
+    skills: {
+      file: clear(configuration?.project.skills.file),
+      nerve: clear(configuration?.project.skills.nerve),
+      agentBrowser: clear(configuration?.project.skills.agentBrowser),
+    },
+  });
+}
+
 function copyPath(path: string): void {
   void navigator.clipboard?.writeText(path);
 }
@@ -241,6 +252,7 @@ function copyPath(path: string): void {
 
 {#if scope === "project" && configuration}
   <ProjectCapabilityTrustNotice trust={configuration.trust} {onTrust} />
+  <SettingsDiffBanner count={overrideCount} onResetAll={resetAllSkills} />
 {/if}
 
 {#if scope === "project" && !configuration && !loading}
@@ -249,11 +261,11 @@ function copyPath(path: string): void {
     text="Select a project to configure project skill overrides."
   />
 {:else if loading && entries.length === 0}
-  <SettingsGroup>
+  <SettingsSection surface={false}>
     <Skeleton class="h-8 w-full" />
     <Skeleton class="h-8 w-full" />
     <Skeleton class="h-8 w-full" />
-  </SettingsGroup>
+  </SettingsSection>
 {:else}
   <SettingsToolbar>
     {#snippet start()}
@@ -292,16 +304,6 @@ function copyPath(path: string): void {
         {query ? "Disable shown" : "Disable all"}
       </Button>
       {#if scope === "project"}
-        <Button
-          size="sm"
-          variant="ghost"
-          class="text-muted-foreground"
-          disabled={overrideCount === 0}
-          title={`Reset ${overrideCount} project skill overrides`}
-          onclick={() => onReset?.()}
-        >
-          <RotateCcw class="size-3.5" />Reset all
-        </Button>
         {#if configuration}
           <ProjectCapabilityTrustAction trust={configuration.trust} {onTrust} />
         {/if}
@@ -339,11 +341,11 @@ function copyPath(path: string): void {
             {/snippet}
             {#snippet actions()}
               {#if entry.overridden}
-                <Badge variant="neutral">Overridden here</Badge>
-                <IconAction
-                  icon={RotateCcw}
-                  label={`Reset ${entry.skill.name} to your user setting`}
-                  onclick={() => resetEntry(entry)}
+                <SettingsChangeIndicator
+                  from={`User: ${entry.inherited ? "On" : "Off"}`}
+                  to={`This project: ${entry.enabled ? "On" : "Off"}`}
+                  resetLabel={`Reset ${entry.skill.name} to your user setting`}
+                  onReset={() => resetEntry(entry)}
                 />
               {/if}
               <Switch

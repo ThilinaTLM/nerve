@@ -40,11 +40,7 @@ function settingsDocumentsTouched(
     else if (key === "permissions") ids.add("permissions");
     else if (key !== "tools") ids.add("harness");
   }
-  for (const key of Object.keys(patch.tools ?? {})) {
-    ids.add(
-      ["jira", "confluence", "web"].includes(key) ? "integrations" : "harness",
-    );
-  }
+  if (Object.keys(patch.tools ?? {}).length) ids.add("harness");
   return [...ids];
 }
 
@@ -208,18 +204,12 @@ async function applySettingsPatch(
           : {}),
       }
     : undefined;
-  const runtimePatch = patch.runtime
-    ? {
-        ...patch.runtime,
-        ...(patch.runtime.pythonExecutablePath === null
-          ? { pythonExecutablePath: undefined }
-          : {}),
-        ...(patch.runtime.shellPath === null ? { shellPath: undefined } : {}),
-      }
-    : undefined;
   const bashPatch = patch.tools?.bash
     ? {
         ...patch.tools.bash,
+        ...(patch.tools.bash.shellPath === null
+          ? { shellPath: undefined }
+          : {}),
         ...(patch.tools.bash.autoPromotion
           ? {
               autoPromotion: {
@@ -268,6 +258,25 @@ async function applySettingsPatch(
   const toolsPatch = patch.tools
     ? {
         ...patch.tools,
+        ...(patch.tools.pythonExec
+          ? {
+              pythonExec: {
+                ...storage.settings.tools.pythonExec,
+                ...patch.tools.pythonExec,
+                ...(patch.tools.pythonExec.interpreterPath === null
+                  ? { interpreterPath: undefined }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(patch.tools.planPresent
+          ? {
+              planPresent: {
+                ...storage.settings.tools.planPresent,
+                ...patch.tools.planPresent,
+              },
+            }
+          : {}),
         ...(patch.tools.kroki
           ? { kroki: { ...storage.settings.tools.kroki, ...patch.tools.kroki } }
           : {}),
@@ -377,7 +386,6 @@ async function applySettingsPatch(
     },
     logging: { ...storage.settings.logging, ...(patch.logging ?? {}) },
     retry: { ...storage.settings.retry, ...(patch.retry ?? {}) },
-    runtime: { ...storage.settings.runtime, ...(runtimePatch ?? {}) },
     providers: {
       ...storage.settings.providers,
       ...(patch.providers ?? {}),

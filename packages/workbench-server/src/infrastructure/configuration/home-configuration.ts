@@ -1,3 +1,13 @@
+import { defaultSettings } from "@nervekit/contracts/settings";
+import {
+  resolveCapabilitySelection,
+  emptyCapabilityOverrides,
+} from "@nervekit/contracts/capabilities";
+import {
+  canonicalToolsFromSettings,
+  userCapabilitySelection,
+  settingsToolsFromSelection,
+} from "../../core-host/user-capability-selection.js";
 import { chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -232,7 +242,13 @@ export async function writeHomeConfiguration(
     await atomicWriteJson(path, parsed[id], CONFIG_MODE);
     await chmod(path, CONFIG_MODE).catch(() => undefined);
   }
-  return parsed;
+  const written = new Set(changed.map(([id]) => id));
+  return Object.fromEntries(
+    (Object.keys(current) as HomeConfigurationDocumentId[]).map((id) => [
+      id,
+      written.has(id) ? parsed[id] : current[id],
+    ]),
+  ) as unknown as UserConfiguration;
 }
 
 export class HomeConfigurationDocumentError extends Error {
@@ -314,6 +330,10 @@ export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
   const { daemon, harness, ui, integrations } = configuration;
+  const selection = resolveCapabilitySelection({
+    user: userCapabilitySelection(defaultSettings),
+    conversation: { ...emptyCapabilityOverrides(), tools: harness.tools },
+  });
   return settingsSchema.parse({
     defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
     defaultModel: harness.defaults.model,
@@ -334,7 +354,6 @@ export function settingsFromConfiguration(
     compaction: harness.compaction,
     logging: daemon.logging,
     retry: harness.retry,
-    runtime: harness.execution,
     permissions: { exceptions: [] },
     providers: {
       atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
@@ -350,16 +369,7 @@ export function settingsFromConfiguration(
         name: profile.name,
       })),
     },
-    tools: {
-      disabled: harness.tools.disabled,
-      bash: harness.tools.bash,
-      jira: integrations.tools.jira,
-      confluence: integrations.tools.confluence,
-      web: integrations.tools.web,
-      imageExplanation: harness.tools.imageExplanation,
-      imageGeneration: harness.tools.imageGeneration,
-      kroki: harness.tools.kroki,
-    },
+    tools: settingsToolsFromSelection(selection),
     skills: harness.skills,
     scopedModels: harness.scopedModels,
   });
@@ -387,7 +397,7 @@ export function configurationWithSettings(
         electron: parsed.application.electron,
       },
       harness: {
-        version: 3,
+        version: 4,
         defaultAgentProfile: parsed.defaultAgentProfile,
         defaults: {
           permissionRuleSetId: parsed.defaultPermissionRuleSetId,
@@ -398,14 +408,7 @@ export function configurationWithSettings(
         lastSelection: parsed.lastAgentSelection,
         compaction: parsed.compaction,
         retry: parsed.retry,
-        execution: parsed.runtime,
-        tools: {
-          disabled: parsed.tools.disabled,
-          bash: parsed.tools.bash,
-          imageExplanation: parsed.tools.imageExplanation,
-          imageGeneration: parsed.tools.imageGeneration,
-          kroki: parsed.tools.kroki,
-        },
+        tools: canonicalToolsFromSettings(parsed),
         skills: parsed.skills,
         scopedModels: parsed.scopedModels,
       },
@@ -426,12 +429,17 @@ function preserveConfigurationExtensions(
   current: UserConfiguration,
   next: UserConfiguration,
 ): UserConfiguration {
-  return Object.fromEntries(
+  const merged = Object.fromEntries(
     (Object.keys(next) as HomeConfigurationDocumentId[]).map((documentId) => [
       documentId,
       mergePreservingUnknown(current[documentId], next[documentId]),
     ]),
   ) as unknown as UserConfiguration;
+  // Tool payloads are complete typed state, not extension-bearing sparse patches.
+  // Replacing them also removes cleared paths/models/account IDs rather than
+  // resurrecting an omitted optional field from the previous document.
+  merged.harness.tools = structuredClone(next.harness.tools);
+  return merged;
 }
 
 function integrationsFromSettings(
@@ -448,7 +456,7 @@ function integrationsFromSettings(
     current.profiles.tavily.map((profile) => [profile.id, profile.credential]),
   );
   return integrationsConfigSchema.parse({
-    version: 1,
+    version: 2,
     profiles: {
       atlassian: settings.providers.atlassianProfiles.map((profile) => ({
         ...profile,
@@ -459,11 +467,6 @@ function integrationsFromSettings(
         ...profile,
         credential: tavilyCredentials.get(profile.id) ?? `tavily:${profile.id}`,
       })),
-    },
-    tools: {
-      jira: settings.tools.jira,
-      confluence: settings.tools.confluence,
-      web: settings.tools.web,
     },
   });
 }

@@ -1,3 +1,4 @@
+import { capabilityPatchSchema } from "@nervekit/contracts/capabilities";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
@@ -128,9 +129,12 @@ export function createConversationProtocolSession(
       projects.add(projectId);
       return state.capabilities.configuration(projectId, conversationId);
     },
-    "capabilities.update": ({ replace, ...input }) =>
+    "capabilities.update": ({ replace, patch, ...input }) =>
       state.capabilities.update({
         ...input,
+        ...(patch !== undefined
+          ? { patch: capabilityPatchSchema.parse(patch) }
+          : {}),
         ...(replace !== undefined
           ? { replace: capabilityOverridesDocumentSchema.parse(replace) }
           : {}),
@@ -175,20 +179,20 @@ export function createConversationProtocolSession(
       projects.add(input.projectId);
       const snapshot = await core.createConversation({
         ...input,
+        capabilityOverrides: input.capabilityOverrides
+          ? capabilityOverridesDocumentSchema.parse(input.capabilityOverrides)
+          : undefined,
         config: {
           ...input.config,
-          agentProfile: input.config.agentProfile ?? DEFAULT_AGENT_PROFILE,
+          agentProfile:
+            input.config.agentProfile ??
+            (await state.capabilities.settings(input.projectId))
+              .defaultAgentProfile ??
+            DEFAULT_AGENT_PROFILE,
           instructions: input.config.instructions ?? null,
         },
       });
       owners.set(input.id, input.projectId);
-      if (snapshot.conversation.parentConversationId === null) {
-        await core.setAgentProfile(
-          snapshot.conversation.id,
-          input.config.agentProfile,
-        );
-        return core.getSnapshot(snapshot.conversation.id);
-      }
       return snapshot;
     },
     "conversation.list": (input) => {
@@ -504,6 +508,7 @@ export function createConversationProtocolSession(
         void notify("conversation.config", {
           conversationId: change.conversationId,
           config: change.config,
+          appliedAgentProfile: change.appliedAgentProfile,
         });
         break;
       case "tool_call_changed":

@@ -35,21 +35,12 @@ const capabilityToolCatalog: CapabilityToolGroup[] = [
     label: "Diagram export",
     names: ["kroki_export"],
   },
+  { key: "bash", label: "Shell", names: ["bash"] },
   { key: "python_exec", label: "Python", names: ["python_exec"] },
   { key: "plan_present", label: "Plan review", names: ["plan_present"] },
   { key: "jira", label: "Jira", names: ["jira"] },
   { key: "confluence", label: "Confluence", names: ["confluence"] },
 ];
-
-/** Delegation has its own tab, but remains the same canonical capability. */
-export function capabilityToolGroupsForTab(
-  tools: readonly CapabilityToolName[],
-  tab: "tools" | "subagents",
-): CapabilityToolGroup[] {
-  return capabilityToolGroupsFor(tools).filter(
-    (group) => group.names.includes("subagents") === (tab === "subagents"),
-  );
-}
 
 export function capabilityToolGroupsFor(
   tools: readonly CapabilityToolName[],

@@ -538,7 +538,9 @@ export function createCompletionProviders(
           // Missing installation/provider configuration is not an enable toggle.
           if (name && !config.availableTools.includes(name)) return [];
           const enabled =
-            !name || !config.effective.disabledTools.includes(name);
+            !name ||
+            name === "bash" ||
+            !config.effective.disabledTools.includes(name);
           let profileId =
             name && isProfiledCapabilityTool(name)
               ? config.effective.toolProfiles[name]
@@ -566,7 +568,7 @@ export function createCompletionProviders(
                 detail: tool.description,
                 enabled,
                 available,
-                canDisable: !!name && writeAllowed,
+                canDisable: !!name && name !== "bash" && writeAllowed,
                 ...(!available
                   ? {
                       unavailableReason: profileAvailable
@@ -582,7 +584,7 @@ export function createCompletionProviders(
               [digest, config.effective, config.toolProfileOptions],
               {
                 detailFields: [{ index: 1, offset: 0 }],
-                ...(name && writeAllowed
+                ...(name && name !== "bash" && writeAllowed
                   ? {
                       setEnabled: async (value: boolean) => {
                         await ports.capabilities.update({
@@ -616,7 +618,7 @@ export function createCompletionProviders(
       subscribe: (listener) => ports.profiles.onChanged(listener),
       async load(scope) {
         const config = await ports.profiles.configuration({
-          scope: editScope(scope),
+          scope: "project",
           ...scope,
         });
         return config.profiles.map((profile) => {
@@ -659,17 +661,17 @@ export function createCompletionProviders(
               ["identifier", profile.name],
               ["description", effective?.description],
             ]),
-            [config.digest, profile],
+            [profile.digest, profile],
             {
               detailFields: [{ index: 2, offset: 0 }],
               ...(!blocked
                 ? {
                     setEnabled: async (enabled: boolean) => {
                       await ports.profiles.update({
-                        scope: editScope(scope),
+                        scope: "project",
                         ...scope,
                         name: profile.name,
-                        expectedDigest: config.digest,
+                        expectedDigest: profile.digest,
                         patch: { enabled },
                       });
                     },

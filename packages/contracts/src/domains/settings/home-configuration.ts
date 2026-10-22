@@ -1,8 +1,5 @@
+import { capabilityToolsSchema } from "../capabilities/capabilities.js";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
-import {
-  disabledToolListSchema,
-  subagentToolNames,
-} from "../tools/subagent-tools.js";
 import { z } from "zod";
 import { applicationLogLevelSchema } from "../logs/logs.js";
 import {
@@ -25,8 +22,6 @@ import {
   colorThemeSchema,
   autoCompactionSettingsSchema,
   headerTypeSchema,
-  imageGenerationToolSettingsSchema,
-  krokiToolSettingsSchema,
   defaultKrokiToolSettings,
   notificationToneSchema,
   transcriptionModelSchema,
@@ -150,7 +145,7 @@ export const defaultDaemonConfig: DaemonConfig = {
 export const harnessConfigSchema = z
   .object({
     defaultAgentProfile: agentProfileNameSchema.optional(),
-    version: z.literal(3),
+    version: z.literal(4),
     defaults: agentSelectionConfigSchema,
     rememberLastSelection: z.boolean(),
     lastSelection: agentSelectionConfigSchema,
@@ -162,41 +157,7 @@ export const harnessConfigSchema = z
         baseDelayMs: z.number().int().positive(),
       })
       .strict(),
-    execution: z
-      .object({
-        pythonExecutablePath: z.string().trim().min(1).optional(),
-        shellPath: z.string().trim().min(1).optional(),
-      })
-      .strict(),
-    tools: z
-      .object({
-        disabled: disabledToolListSchema,
-        bash: z
-          .object({
-            maxTimeoutMs: z
-              .number()
-              .int()
-              .min(1000)
-              .max(3_600_000)
-              .default(900_000),
-            autoPromotion: z
-              .object({
-                enabled: z.boolean(),
-                afterMs: z.number().int().positive().max(86_400_000),
-              })
-              .strict(),
-          })
-          .strict(),
-        imageExplanation: z
-          .object({
-            model: modelSelectionSchema.optional(),
-            thinkingLevel: thinkingLevelSchema,
-          })
-          .strict(),
-        imageGeneration: imageGenerationToolSettingsSchema,
-        kroki: krokiToolSettingsSchema,
-      })
-      .strict(),
+    tools: capabilityToolsSchema,
     skills: z
       .object({
         disabled: z.array(z.string().trim().min(1)),
@@ -215,7 +176,7 @@ export const harnessConfigSchema = z
 export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 
 export const defaultHarnessConfig: HarnessConfig = {
-  version: 3,
+  version: 4,
   defaults: {
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
@@ -231,26 +192,30 @@ export const defaultHarnessConfig: HarnessConfig = {
     customTriggerPercent: 80,
   },
   retry: { enabled: true, maxRetries: 3, baseDelayMs: 2000 },
-  execution: {},
   tools: {
-    disabled: [
-      "plan_present",
-      "explain_image",
-      "generate_image",
-      "kroki_export",
-      ...subagentToolNames,
-    ],
+    python_exec: { enabled: true, settings: {} },
     bash: {
-      autoPromotion: { enabled: true, afterMs: 120_000 },
-      maxTimeoutMs: 900_000,
+      settings: {
+        maxTimeoutMs: 900_000,
+        autoPromotion: { enabled: true, afterMs: 120_000 },
+      },
     },
-    kroki: defaultKrokiToolSettings,
-    imageExplanation: { thinkingLevel: "off" },
-    imageGeneration: {
-      provider: "openai-codex",
-      model: "gpt-image-2.5-flare",
-      options: { quality: "auto", size: "auto", background: "auto" },
+    plan_present: { enabled: false, settings: { approvalProfile: "coding" } },
+    web_search: { enabled: true },
+    web_fetch: { enabled: true },
+    jira: { enabled: false },
+    confluence: { enabled: false },
+    subagents: { enabled: false },
+    explain_image: { enabled: false, settings: { thinkingLevel: "off" } },
+    generate_image: {
+      enabled: false,
+      settings: {
+        provider: "openai-codex",
+        model: "gpt-image-2.5-flare",
+        options: { quality: "auto", size: "auto", background: "auto" },
+      },
     },
+    kroki_export: { enabled: false, settings: defaultKrokiToolSettings },
   },
   skills: {
     disabled: [],
@@ -441,35 +406,19 @@ const tavilyProfileConfigSchema = z
 
 export const integrationsConfigSchema = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     profiles: z
       .object({
         atlassian: z.array(atlassianProfileConfigSchema),
         tavily: z.array(tavilyProfileConfigSchema),
       })
       .strict(),
-    tools: z
-      .object({
-        jira: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        confluence: z
-          .object({ enabled: z.boolean(), profileId: z.string().optional() })
-          .strict(),
-        web: z.object({ tavilyProfileId: z.string().optional() }).strict(),
-      })
-      .strict(),
   })
   .strict();
 export type IntegrationsConfig = z.infer<typeof integrationsConfigSchema>;
 export const defaultIntegrationsConfig: IntegrationsConfig = {
-  version: 1,
+  version: 2,
   profiles: { atlassian: [], tavily: [] },
-  tools: {
-    jira: { enabled: false },
-    confluence: { enabled: false },
-    web: {},
-  },
 };
 
 export const userConfigurationSchema = z

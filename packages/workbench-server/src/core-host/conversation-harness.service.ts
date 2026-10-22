@@ -1,3 +1,7 @@
+import {
+  assertAppliedProfileSettingsChange,
+  type AppliedAgentProfile,
+} from "@nervekit/contracts/agent-profiles";
 import { readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { sameCapabilityToolSettings } from "@nervekit/contracts/capabilities";
@@ -18,6 +22,7 @@ export interface ConversationHarnessOptions {
   /** Throws when the conversation does not exist. */
   projectOf(conversationId: string): string;
   changed(projectId: string, conversationId: string): void;
+  appliedProfile?(conversationId: string): AppliedAgentProfile | null;
 }
 
 /**
@@ -82,6 +87,10 @@ export class ConversationHarnessSettings {
     compaction: AutoCompactionSettings | null,
   ): Promise<ConversationHarnessSettingsResult> {
     const { compaction: current } = await this.get(projectId, conversationId);
+    assertAppliedProfileSettingsChange(
+      this.options.appliedProfile?.(conversationId),
+      { compaction: compaction ?? current.inherited },
+    );
     if (
       compaction === null ||
       sameCapabilityToolSettings(compaction, current.inherited)

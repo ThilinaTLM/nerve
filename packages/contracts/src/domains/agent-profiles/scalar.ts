@@ -1,36 +1,26 @@
 import { z } from "zod";
 
-/** Inherit from the parent context, set on application, or resolve a lock each turn. */
-export type AgentProfileScalar<T> =
-  | "inherit"
-  | "default"
-  | T
-  | { lock: T | "default" };
-export type AgentProfileScalarKind = "inherit" | "set" | "lock";
-
-export function agentProfileScalarSchema<T extends z.ZodType>(value: T) {
-  const setting = z.union([z.literal("default"), value]);
+/** Omission means use current settings; lead is creation-time copying, never a live layer. */
+export type AgentProfileSetting<T> = "lead" | { set: T } | { lock: T };
+export type AgentProfileSettingKind = "use-settings" | "lead" | "set" | "lock";
+export function agentProfileSettingSchema<T extends z.ZodType>(value: T) {
   return z.union([
-    z.literal("inherit"),
-    setting,
-    z.object({ lock: setting }).strict(),
+    z.literal("lead"),
+    z.object({ set: value }).strict(),
+    z.object({ lock: value }).strict(),
   ]);
 }
-
-export function agentProfileScalarKind<T>(
-  setting: AgentProfileScalar<T>,
-): AgentProfileScalarKind {
-  if (setting === "inherit") return "inherit";
-  return typeof setting === "object" && setting !== null && "lock" in setting
-    ? "lock"
-    : "set";
+export function agentProfileSettingKind<T>(
+  setting?: AgentProfileSetting<T>,
+): AgentProfileSettingKind {
+  if (setting === undefined) return "use-settings";
+  if (setting === "lead") return "lead";
+  return "lock" in setting ? "lock" : "set";
 }
-
-/** Undefined means unlocked; `default` remains unresolved for the caller. */
 export function lockedValue<T>(
-  setting: AgentProfileScalar<T>,
-): T | "default" | undefined {
-  return typeof setting === "object" && setting !== null && "lock" in setting
+  setting?: AgentProfileSetting<T>,
+): T | undefined {
+  return setting && setting !== "lead" && "lock" in setting
     ? setting.lock
     : undefined;
 }

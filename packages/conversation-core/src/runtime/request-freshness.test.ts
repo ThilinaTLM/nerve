@@ -88,7 +88,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       core.configure("conv_fresh", {
         model: { provider: newModel.provider, modelId: newModel.id },
         reasoningLevel: "high",
-        agentProfile: "planning",
+
         instructions: "new",
       });
     // Compaction scheduling is the runner's responsibility; summary generation
@@ -107,7 +107,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         if (compactions === 1)
           core.configure("conv_fresh", {
             reasoningLevel: "low",
-            agentProfile: "coding",
+
             instructions: "after compaction",
             ...(boundary === "overflow"
               ? { model: { provider: newModel.provider, modelId: "smaller" } }
@@ -132,7 +132,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           if (boundary !== "overflow")
             core.configure("conv_fresh", {
               reasoningLevel: "low",
-              agentProfile: "coding",
+
               instructions: "in flight",
             });
           assert.equal(
@@ -145,7 +145,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           // A queued input continues this execution after the in-flight reply.
           core.configure("conv_fresh", {
             reasoningLevel: "off",
-            agentProfile: "coding",
+
             instructions: "continuation",
           });
           core.submitInput({
@@ -200,7 +200,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       assert.equal(
         requests[1]!.prompt,
         boundary === "retry"
-          ? `${newModel.provider}:high:planning:new`
+          ? `${newModel.provider}:high:coding:new`
           : `${newModel.provider}:low:coding:after compaction`,
       );
       assert.deepEqual(requests[1]!.messages, requests[0]!.messages);
@@ -224,7 +224,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       if (boundary !== "retry") {
         core.configure("conv_fresh", {
           reasoningLevel: "off",
-          agentProfile: "coding",
+
           instructions: "continuation",
         });
         core.submitInput({

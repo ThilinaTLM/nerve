@@ -19,7 +19,7 @@ export const planPresentToolDefinitions = [
     executionKind: "host",
     label: "plan_present",
     description:
-      "Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the default profile for implementation.",
+      "Submit a plan file from plan storage for user review. Ends your turn; approval switches the conversation to the configured approval profile for implementation.",
     parameters: planPresentParameters,
     executionMode: "sequential",
   },

@@ -1,3 +1,4 @@
+import type { BashToolSettings } from "@nervekit/contracts/settings";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { CoreStorage, PermissionPort } from "@nervekit/conversation-core";
@@ -16,7 +17,6 @@ import {
 import {
   buildBashToolDefinition,
   classifyToolRisk,
-  type BashToolSettings,
 } from "@nervekit/tools/catalog";
 import {
   emptyOverlayDocument,
@@ -39,7 +39,10 @@ import {
 export function createPermissionPort(
   home: string,
   storage: CoreStorage,
-  bashSettings?: (projectDir: string) => Promise<BashToolSettings>,
+  bashSettings?: (
+    projectDir: string,
+    conversationId: string,
+  ) => Promise<BashToolSettings>,
 ): PermissionPort {
   const paths = (conversationId: string, projectDir: string) => {
     const resolver = new ConfigurationScopePaths({
@@ -117,7 +120,7 @@ export function createPermissionPort(
       });
       const settings =
         input.toolName === "bash" && bashSettings
-          ? await bashSettings(input.projectDir)
+          ? await bashSettings(input.projectDir, input.conversationId)
           : undefined;
       const definition = settings
         ? buildBashToolDefinition({

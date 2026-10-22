@@ -2,15 +2,11 @@ import { z } from "zod";
 import { harnessConfigSchema } from "./home-configuration.js";
 
 // Project capability selections live in capabilities.json, not harness.json.
-const projectHarnessSchema = harnessConfigSchema
-  .omit({ version: true })
-  .extend({
-    tools: harnessConfigSchema.shape.tools.omit({ disabled: true }),
-    skills: harnessConfigSchema.shape.skills.omit({
-      disabled: true,
-      agentBrowser: true,
-    }),
-  });
+const projectHarnessSchema = harnessConfigSchema.omit({
+  version: true,
+  tools: true,
+  skills: true,
+});
 
 type Sparse<T> = T extends readonly unknown[]
   ? T
@@ -23,7 +19,7 @@ type Patch<T> = T extends readonly unknown[]
     ? { [K in keyof T]?: Patch<T[K]> | null }
     : T;
 type ProjectHarness = z.infer<typeof projectHarnessSchema>;
-export type ProjectHarnessOverrides = Sparse<ProjectHarness> & { version?: 3 };
+export type ProjectHarnessOverrides = Sparse<ProjectHarness> & { version?: 4 };
 export type ProjectSettingsPatch = Patch<ProjectHarness>;
 
 /** Objects merge recursively; arrays replace as a whole. Defaults are never saved implicitly. */
@@ -58,7 +54,7 @@ function sparseSchema(
 
 /** Validates own overrides while retaining extension data in responses and on disk. */
 export const projectHarnessOverridesSchema = sparseSchema(
-  projectHarnessSchema.extend({ version: z.literal(3) }),
+  projectHarnessSchema.extend({ version: z.literal(4) }),
   "read",
 ) as z.ZodType<ProjectHarnessOverrides, ProjectHarnessOverrides>;
 /** The validated known-field projection used for effective harness resolution. */

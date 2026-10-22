@@ -42,11 +42,6 @@ export type AgentSelectionSettings = z.infer<
   typeof agentSelectionSettingsSchema
 >;
 
-const runtimeSettingsSchema = z.object({
-  pythonExecutablePath: z.string().trim().min(1).optional(),
-  shellPath: z.string().trim().min(1).optional(),
-});
-
 const permissionExceptionsSchema = z
   .array(permissionExceptionSchema)
   .max(256)
@@ -133,10 +128,30 @@ const bashAutoPromotionSettingsSchema = z.object({
   afterMs: z.number().int().positive().max(86_400_000),
 });
 
-const bashToolSettingsSchema = z.object({
+export const pythonExecToolSettingsSchema = z
+  .object({
+    interpreterPath: z.string().trim().min(1).optional(),
+  })
+  .strict();
+export type PythonExecToolSettings = z.infer<
+  typeof pythonExecToolSettingsSchema
+>;
+export const planPresentToolSettingsSchema = z
+  .object({
+    approvalProfile: agentProfileNameSchema,
+  })
+  .strict();
+export type PlanPresentToolSettings = z.infer<
+  typeof planPresentToolSettingsSchema
+>;
+
+export const bashToolSettingsSchema = z.object({
+  shellPath: z.string().trim().min(1).optional(),
   autoPromotion: bashAutoPromotionSettingsSchema,
   maxTimeoutMs: z.number().int().min(1000).max(3_600_000).default(900_000),
 });
+
+export type BashToolSettings = z.infer<typeof bashToolSettingsSchema>;
 
 export const imageExplanationToolSettingsSchema = z.object({
   model: modelSelectionSchema.optional(),
@@ -263,6 +278,8 @@ const toolSettingsSchema = z.object({
   kroki: krokiToolSettingsSchema,
   disabled: disabledToolListSchema,
   bash: bashToolSettingsSchema,
+  pythonExec: pythonExecToolSettingsSchema,
+  planPresent: planPresentToolSettingsSchema,
   jira: jiraToolSettingsSchema,
   confluence: confluenceToolSettingsSchema,
   web: webToolSettingsSchema,
@@ -397,7 +414,6 @@ export const settingsSchema = z.object({
     maxRetries: z.number().int().nonnegative(),
     baseDelayMs: z.number().int().positive(),
   }),
-  runtime: runtimeSettingsSchema,
   permissions: permissionSettingsSchema,
   providers: providersSettingsSchema,
   tools: toolSettingsSchema,
@@ -453,7 +469,6 @@ export const defaultSettings: Settings = {
     maxRetries: 3,
     baseDelayMs: 2000,
   },
-  runtime: {},
   permissions: { exceptions: [] },
   providers: { atlassianProfiles: [], tavilyProfiles: [] },
   tools: {
@@ -468,6 +483,8 @@ export const defaultSettings: Settings = {
       autoPromotion: { enabled: true, afterMs: 120_000 },
       maxTimeoutMs: 900_000,
     },
+    pythonExec: {},
+    planPresent: { approvalProfile: "coding" },
     jira: { enabled: false },
     confluence: { enabled: false },
     web: {},
@@ -562,12 +579,6 @@ export const updateSettingsRequestSchema = z.object({
       exceptions: permissionExceptionsSchema.optional(),
     })
     .optional(),
-  runtime: z
-    .object({
-      pythonExecutablePath: z.string().trim().min(1).nullable().optional(),
-      shellPath: z.string().trim().min(1).nullable().optional(),
-    })
-    .optional(),
   providers: z
     .object({
       atlassianProfiles: atlassianProfilesSchema.optional(),
@@ -592,8 +603,16 @@ export const updateSettingsRequestSchema = z.object({
   tools: z
     .object({
       disabled: disabledToolListSchema.optional(),
+      pythonExec: z
+        .object({
+          interpreterPath: z.string().trim().min(1).nullable().optional(),
+        })
+        .strict()
+        .optional(),
+      planPresent: planPresentToolSettingsSchema.optional(),
       bash: z
         .object({
+          shellPath: z.string().trim().min(1).nullable().optional(),
           maxTimeoutMs: z.number().int().min(1000).max(3_600_000).optional(),
           autoPromotion: z
             .object({

@@ -77,6 +77,7 @@ let {
   agentProfile = DEFAULT_AGENT_PROFILE,
   agentProfiles = [],
   lockedFields,
+  settingsDiffers,
   profileDisabled = false,
   permissionRuleSetId = "autonomous",
   permissionRuleSets = [],
@@ -99,8 +100,9 @@ let {
   onNewConversationInProject,
   onOpenFile,
   onOpenTask,
-  onModelChange,
-  onThinkingLevelChange,
+  onModelSelectionChange,
+  onResetModel,
+  onResetPermission,
   onAgentProfileChange,
   onPermissionRuleSetChange,
   onRefreshPermissionRuleSets,
@@ -309,6 +311,7 @@ function menuForTranscript(
       agentProfile,
       agentProfiles,
       lockedFields,
+      settingsDiffers,
       profileDisabled,
       permissionRuleSetId,
       permissionRuleSets,
@@ -389,6 +392,7 @@ function menuForTranscript(
       {agentProfile}
       {agentProfiles}
       {lockedFields}
+      {settingsDiffers}
       {profileDisabled}
       {permissionRuleSetId}
       {permissionRuleSets}
@@ -406,8 +410,9 @@ function menuForTranscript(
       {onUsageOpenChange}
       {onUsageRetry}
       {onOpenSystemPrompt}
-      {onModelChange}
-      {onThinkingLevelChange}
+      {onModelSelectionChange}
+      {onResetModel}
+      {onResetPermission}
       {onAgentProfileChange}
       {onPermissionRuleSetChange}
       {onRefreshPermissionRuleSets}

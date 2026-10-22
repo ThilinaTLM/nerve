@@ -4,7 +4,7 @@ import MaintenanceProgressView from "$lib/presentation/maintenance/MaintenancePr
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import {
   SettingsDisclosureItem,
-  SettingsGroup,
+  SettingsSection,
   SettingsInlineMessage,
   SettingsList,
 } from "$lib/presentation/settings";
@@ -75,22 +75,22 @@ onMount(() => {
 {/if}
 
 {#if operation}
-  <SettingsGroup
+  <SettingsSection surface={false}
     ><MaintenanceProgressView
       {operation}
       onCancel={() => void controller.cancelCleanup()}
-    /></SettingsGroup
+    /></SettingsSection
   >
 {/if}
 
 {#if controller.loading && !usage}
-  <SettingsGroup>
+  <SettingsSection surface={false}>
     <Skeleton class="h-16 w-full" />
     <Skeleton class="h-9 w-full" />
     <Skeleton class="h-9 w-full" />
-  </SettingsGroup>
+  </SettingsSection>
 {:else if usage}
-  <SettingsGroup>
+  <SettingsSection surface={false}>
     <div class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
       <div class="grid gap-1">
         <span class="text-xs text-muted-foreground">Total local data</span>
@@ -142,9 +142,10 @@ onMount(() => {
         </div>
       </div>
     </div>
-  </SettingsGroup>
+  </SettingsSection>
 
-  <SettingsGroup
+  <SettingsSection
+    surface={false}
     title="What uses space"
     info="Categories are ordered by current footprint."
   >
@@ -212,7 +213,7 @@ onMount(() => {
         </SettingsDisclosureItem>
       {/each}
     </SettingsList>
-  </SettingsGroup>
+  </SettingsSection>
 {/if}
 
 <StorageCleanupDialog

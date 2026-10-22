@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type {
   AvailableSkill,
   AvailableSkillsResponse,
@@ -11,18 +11,18 @@ import { loadSkills, type Skill } from "@nervekit/harness/resources";
 import { NodeExecutionEnv } from "@nervekit/harness/node";
 import { resolveDataDir } from "../infrastructure/storage-bootstrap/paths.js";
 
-const CONTEXT_FILE_CANDIDATES = ["AGENTS.md", "AGENTS.MD"];
 const NERVE_DIR_NAME = ".nerve";
 const AGENTS_DIR_NAME = ".agents";
 
 export interface LoadedHarnessResources {
   contextFiles: Array<{ path: string; content: string }>;
   skills: Skill[];
-  systemPrompt?: string;
   appendSystemPrompt?: string;
 }
 
 export interface LoadHarnessResourcesOptions {
+  /** Prompt-file boundary; defaults to cwd for standalone callers. */
+  projectDir?: string;
   storageHome?: string;
   disabledSkillNames?: readonly string[];
   enabledNerveSkillNames?: readonly string[];
@@ -44,62 +44,50 @@ export async function loadHarnessResources(
   const agentDir = join(resolveDataDir(options.storageHome), "agent");
   const env = new NodeExecutionEnv({ cwd: resolvedCwd });
 
-  const [contextFiles, skillGroups, systemPrompt, appendSystemPrompt] =
-    await Promise.all([
-      loadProjectContextFiles(resolvedCwd, agentDir),
-      discoverSkillGroups(env, resolvedCwd, agentDir),
-      loadFirstExistingText([
-        join(resolvedCwd, NERVE_DIR_NAME, "SYSTEM.md"),
-        join(agentDir, "SYSTEM.md"),
-      ]),
-      loadAppendSystemPrompt(resolvedCwd, agentDir),
-    ]);
+  const projectDir = resolve(options.projectDir ?? resolvedCwd);
+  const [contextFiles, skillGroups, appendSystemPrompt] = await Promise.all([
+    loadProjectContextFiles(resolvedCwd, projectDir),
+    discoverSkillGroups(env, projectDir, agentDir),
+    loadAppendSystemPrompt(projectDir),
+  ]);
   const skills = effectiveSkills(skillGroups, options);
 
-  return { contextFiles, skills, systemPrompt, appendSystemPrompt };
+  return { contextFiles, skills, appendSystemPrompt };
 }
 
 async function loadProjectContextFiles(
   cwd: string,
-  agentDir: string,
+  projectDir: string,
 ): Promise<Array<{ path: string; content: string }>> {
-  const files: Array<{ path: string; content: string }> = [];
-  const seen = new Set<string>();
-
-  const globalContext = await loadContextFileFromDir(agentDir);
-  if (globalContext) {
-    files.push(globalContext);
-    seen.add(globalContext.path);
+  const directories = [projectDir];
+  const nested = relative(projectDir, cwd);
+  // A conversation may work outside its project. Never load that location's
+  // prompt files or walk above the declared project boundary.
+  if (
+    nested &&
+    nested !== ".." &&
+    !nested.startsWith(`..${sep}`) &&
+    !isAbsolute(nested)
+  ) {
+    let directory = projectDir;
+    for (const segment of nested.split(sep)) {
+      directory = join(directory, segment);
+      directories.push(directory);
+    }
   }
-
-  const ancestors: string[] = [];
-  let current = resolve(cwd);
-  while (true) {
-    ancestors.unshift(current);
-    const parent = resolve(current, "..");
-    if (parent === current) break;
-    current = parent;
-  }
-
-  for (const dir of ancestors) {
-    const context = await loadContextFileFromDir(dir);
-    if (!context || seen.has(context.path)) continue;
-    files.push(context);
-    seen.add(context.path);
-  }
-
-  return files;
+  const contexts = await Promise.all(directories.map(loadContextFileFromDir));
+  return contexts.filter(
+    (context): context is { path: string; content: string } =>
+      context !== undefined,
+  );
 }
 
 async function loadContextFileFromDir(
   dir: string,
 ): Promise<{ path: string; content: string } | undefined> {
-  for (const name of CONTEXT_FILE_CANDIDATES) {
-    const path = join(dir, name);
-    if (!existsSync(path)) continue;
-    return { path, content: await readFile(path, "utf8") };
-  }
-  return undefined;
+  const path = join(dir, "AGENTS.md");
+  const content = await loadOptionalText(path);
+  return content === undefined ? undefined : { path, content };
 }
 
 export async function listAvailableSkills(
@@ -203,27 +191,17 @@ function ancestorAgentsSkillDirs(cwd: string, excludedDir?: string): string[] {
   return dirs;
 }
 
-async function loadFirstExistingText(
-  paths: string[],
+function loadAppendSystemPrompt(
+  projectDir: string,
 ): Promise<string | undefined> {
-  for (const path of paths) {
-    if (!existsSync(path)) continue;
-    return readFile(path, "utf8");
-  }
-  return undefined;
+  return loadOptionalText(join(projectDir, NERVE_DIR_NAME, "APPEND_SYSTEM.md"));
 }
 
-async function loadAppendSystemPrompt(
-  cwd: string,
-  agentDir: string,
-): Promise<string | undefined> {
-  const values = await Promise.all(
-    [
-      join(cwd, NERVE_DIR_NAME, "APPEND_SYSTEM.md"),
-      join(agentDir, "APPEND_SYSTEM.md"),
-    ]
-      .filter((path) => existsSync(path))
-      .map((path) => readFile(path, "utf8")),
-  );
-  return values.length > 0 ? values.join("\n\n") : undefined;
+async function loadOptionalText(path: string): Promise<string | undefined> {
+  try {
+    return await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }

@@ -23,18 +23,21 @@ export class CoreProcessHost implements ProcessPort {
       | string
       | ((
           cwd: string,
+          conversationId?: string,
         ) => string | undefined | Promise<string | undefined>) = () =>
       undefined,
   ) {}
 
-  private resolveShellPath(cwd: string) {
+  private resolveShellPath(cwd: string, conversationId?: string) {
     return typeof this.shellPath === "function"
-      ? this.shellPath(cwd)
+      ? this.shellPath(cwd, conversationId)
       : this.shellPath;
   }
 
   async spawn(input: {
     command: string;
+    conversationId?: string;
+    shellPath?: string;
     cwd: string;
     artifactDir: string;
     timeoutMs?: number;
@@ -49,7 +52,9 @@ export class CoreProcessHost implements ProcessPort {
       combined: join(input.artifactDir, "output.txt"),
     };
     const { managed: process, launch } = spawnShellProcess(input.command, {
-      shellPath: await this.resolveShellPath(input.cwd),
+      shellPath:
+        input.shellPath ??
+        (await this.resolveShellPath(input.cwd, input.conversationId)),
       login: true,
       cwd: input.cwd,
       env: input.env,
@@ -130,7 +135,7 @@ export class CoreProcessHost implements ProcessPort {
   }
 
   async start(
-    input: Parameters<ProcessPort["start"]>[0],
+    input: Parameters<ProcessPort["start"]>[0] & { shellPath?: string },
   ): ReturnType<ProcessPort["start"]> {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const background = await this.spawn(input);
@@ -162,10 +167,12 @@ export class CoreProcessHost implements ProcessPort {
     }
   }
 
-  async run(input: Parameters<ProcessPort["run"]>[0]) {
+  async run(input: Parameters<ProcessPort["run"]>[0] & { shellPath?: string }) {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const { managed: process } = spawnShellProcess(input.command, {
-      shellPath: await this.resolveShellPath(input.cwd),
+      shellPath:
+        input.shellPath ??
+        (await this.resolveShellPath(input.cwd, input.conversationId)),
       login: true,
       cwd: input.cwd,
       policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },

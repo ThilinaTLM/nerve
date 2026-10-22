@@ -254,6 +254,7 @@ function isIdentity(value: unknown): value is CenterTabIdentity {
       (tab.command === undefined || typeof tab.command === "string")
     );
   if (tab.kind === "settings") return tab.id === "settings";
+  if (tab.kind === "project-settings") return tab.id.length > 0;
   if (tab.kind === "logs") return tab.id === "logs";
   if (tab.kind === "discover") return tab.id === "discover";
   return [
@@ -449,6 +450,11 @@ export function hydrateWorkspaceTabSessions(
           workspaceFeaturePorts().git.read.diffViews[diffViewKey(tab.id)],
         );
       if (tab.kind === "conversation") return true;
+      if (tab.kind === "project-settings")
+        return input.projects.some(
+          (candidate) =>
+            candidate.id === tab.id && projectKey(candidate) === key,
+        );
       if (tab.kind === "launch") {
         const project = input.projects.find(
           (candidate) => projectKey(candidate) === key,

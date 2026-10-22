@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES,
-  builtInAgentProfiles,
   agentProfileDraftSchema,
-  agentProfileFieldsSchema,
   agentProfileNameSchema,
 } from "../../src/domains/agent-profiles/index.js";
 import { conversationConfigSchema } from "../../src/domains/core/conversation.js";
@@ -12,100 +10,103 @@ import {
   configureConversationRequestSchema,
   createConversationRequestSchema,
 } from "../../src/domains/core/core-operations.js";
-
 const valid = {
-  usableBy: "subagent",
+  name: "reader",
   description: "Reads things.",
-  model: "inherit",
-  thinking: "inherit",
-  permission: "read_only",
-  compaction: "inherit",
-  skills: "none",
+  usableBy: "subagent",
+  instructions: "Research",
 } as const;
 const parse = (override: Record<string, unknown>) =>
-  agentProfileFieldsSchema.safeParse({ ...valid, ...override });
+  agentProfileDraftSchema.safeParse({ ...valid, ...override });
 
-test("built-in profiles are valid drafts", () => {
-  assert.deepEqual(
-    builtInAgentProfiles.map((profile) => profile.name),
-    ["coding", "planning", "explore", "developer"],
+test("profiles use independent model/thinking and the canonical typed tool payloads", () => {
+  assert.equal(parse({}).success, true);
+  assert.equal(
+    parse({
+      model: { set: { provider: "openai", modelId: "test" } },
+      thinking: { set: "high" },
+      permission: { lock: "read_only" },
+      tools: {
+        web_search: { set: { enabled: true, profileId: "research" } },
+        plan_present: {
+          set: { enabled: true, settings: { approvalProfile: "coding" } },
+        },
+        bash: {
+          lock: {
+            settings: {
+              maxTimeoutMs: 5000,
+              autoPromotion: { enabled: false, afterMs: 1000 },
+              shellPath: "/bin/sh",
+            },
+          },
+        },
+      },
+    }).success,
+    true,
   );
-  for (const profile of builtInAgentProfiles) {
-    const result = agentProfileDraftSchema.safeParse(profile);
-    assert.equal(result.success, true, profile.name);
-    assert.ok(profile.instructions.length > 0);
+  for (const override of [
+    { model: { set: "openai/model" } },
+    {
+      model: {
+        set: {
+          model: { provider: "openai", modelId: "test" },
+          thinking: "high",
+        },
+      },
+    },
+    { model: "inherit" },
+    { permission: "default" },
+    { tools: { bash: { set: { enabled: false } } } },
+    { tools: { read: { set: { enabled: false } } } },
+    { tools: { ask_user: { lock: { enabled: false } } } },
+    { tools: { web_fetch: { set: { profileId: "account" } } } },
+    { tools: { kroki_export: { set: { settings: { url: "ftp://host" } } } } },
+  ])
+    assert.equal(parse(override).success, false, JSON.stringify(override));
+});
+
+test("same-as-lead is valid only for sub-agent-usable profiles, including tools and skills", () => {
+  for (const setting of [
+    { model: "lead" },
+    { thinking: "lead" },
+    { permission: "lead" },
+    { compaction: "lead" },
+    { skills: "lead" },
+    { tools: { web_search: "lead" } },
+  ]) {
+    assert.equal(parse({ ...setting, usableBy: "lead" }).success, false);
+    assert.equal(parse({ ...setting, usableBy: "subagent" }).success, true);
+    assert.equal(parse({ ...setting, usableBy: "both" }).success, true);
   }
 });
 
-test("profile settings accept the documented forms", () => {
-  assert.equal(parse({}).success, true);
-  assert.equal(parse({ model: "anthropic/claude-sonnet-4-5" }).success, true);
-  assert.equal(
-    parse({ thinking: "high", permission: "autonomous" }).success,
-    true,
-  );
+test("compaction uses canonical settings and rejects legacy retention/trigger fields", () => {
   assert.equal(
     parse({
       compaction: {
-        profile: "custom",
-        triggerPercent: 75,
+        set: { auto: true, profile: "custom", customTriggerPercent: 75 },
       },
     }).success,
     true,
   );
-  assert.equal(parse({ skills: { release: false } }).success, true);
-  assert.equal(
-    parse({
-      tools: {
-        web_search: false,
-        kroki_export: { url: "https://kroki.io/" },
-      },
-    }).success,
-    true,
-  );
-});
-
-test("compaction rejects legacy retention and unknown fields", () => {
   for (const extra of [
     { keepRecentPercent: 15 },
-    { unknown: true },
-    { triggerPercent: 59 },
+    { triggerPercent: 75 },
+    { customTriggerPercent: 59 },
   ])
     assert.equal(
-      parse({ compaction: { profile: "custom", ...extra } }).success,
+      parse({
+        compaction: {
+          set: {
+            auto: true,
+            profile: "custom",
+            customTriggerPercent: 80,
+            ...extra,
+          },
+        },
+      }).success,
       false,
     );
-});
-
-test("profile settings reject non-configurable tools and bad fields", () => {
-  for (const name of [
-    "ask_user",
-    "subagent_prompt",
-    "subagent_status",
-    "subagent_stop",
-  ])
-    assert.equal(parse({ tools: { [name]: true } }).success, false, name);
-  assert.equal(parse({ tools: { plan_present: true } }).success, true);
-  assert.equal(parse({ tools: { subagents: false } }).success, false);
-  for (const name of ["edit", "write", "bash", "fileEditing"])
-    assert.equal(parse({ tools: { [name]: false } }).success, false, name);
-  assert.equal(parse({ tools: { made_up: false } }).success, true);
-  assert.equal(
-    parse({ tools: { future_tool: { option: "portable" } } }).success,
-    true,
-  );
-  assert.equal(parse({ tools: { web_fetch: { url: "x" } } }).success, false);
-  assert.equal(
-    parse({ tools: { kroki_export: { url: "ftp://x" } } }).success,
-    false,
-  );
-  assert.equal(parse({ permission: "plan" }).success, true);
-  assert.equal(parse({ permission: "ask" }).success, true);
-  assert.equal(parse({ description: "" }).success, false);
-  assert.equal(parse({ description: "x".repeat(200) }).success, true);
-  assert.equal(parse({ description: "x".repeat(201) }).success, false);
-  assert.equal(parse({ model: "gpt-5" }).success, false);
-  assert.equal(parse({ unknown: 1 }).success, false);
 });
 
 test("profile names use lowercase words with single hyphens", () => {

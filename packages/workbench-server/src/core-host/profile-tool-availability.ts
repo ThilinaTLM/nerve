@@ -1,15 +1,20 @@
 import {
   capabilityToolNameSchema,
-  capabilityToolSettingsSchema,
   type CapabilityConfiguration,
 } from "@nervekit/contracts/capabilities";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import { toolManifest } from "@nervekit/tools/catalog";
+
+// Host/core handlers and local executors share this authoritative runtime catalog.
+// Integration capabilities use their catalog group rather than individual tool names.
+const installedTools = new Set(
+  toolManifest.flatMap((tool) => [tool.name, tool.group]),
+);
 
 /** The same integration credential namespaces used by tool execution. */
 export async function profileToolAvailability(options: {
   profile: AgentProfile;
-  installed: ReadonlySet<string>;
   configuration: Pick<
     CapabilityConfiguration,
     "effective" | "availableTools" | "toolProfileOptions"
@@ -22,9 +27,7 @@ export async function profileToolAvailability(options: {
   const available = new Map<string, string | undefined>();
   for (const name of capabilityToolNameSchema.options) {
     if (name === "subagents") continue;
-    let reason = options.installed.has(name)
-      ? undefined
-      : "Tool is not installed";
+    let reason = installedTools.has(name) ? undefined : "Tool is not installed";
     if (!configuration.availableTools.includes(name))
       reason = "Required integration is not configured";
     if (name === "jira" || name === "confluence" || name === "web_search") {
@@ -39,12 +42,15 @@ export async function profileToolAvailability(options: {
         reason = "Select and configure an integration in Settings → Tools";
     }
     if (name === "explain_image") {
+      const setting = profile.tools.explain_image;
+      const payload =
+        setting && setting !== "lead"
+          ? "lock" in setting
+            ? setting.lock
+            : setting.set
+          : undefined;
       const settings =
-        typeof profile.tools.explain_image === "object"
-          ? capabilityToolSettingsSchema.shape.explain_image.parse(
-              profile.tools.explain_image,
-            )
-          : configuration.effective.toolSettings.explain_image;
+        payload?.settings ?? configuration.effective.toolSettings.explain_image;
       if (!settings.model)
         reason = "Choose an image explanation model in Settings → Tools";
       else {

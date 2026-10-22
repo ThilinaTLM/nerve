@@ -55,26 +55,22 @@ export function syntheticProviders(options: SyntheticProviderOptions) {
     description: "Invented review profile",
     enabled: false,
     usableBy: "subagent",
-    source: "conversation",
+    source: "project",
     trust: "trusted",
-    model: "inherit",
-    thinking: "inherit",
-    permission: "autonomous",
-    compaction: "inherit",
+    model: "lead",
+    permission: { set: "autonomous" },
     tools: {},
-    skills: "inherit",
+    skills: "lead",
     instructions: "Review the invented fixture only.",
   });
   const profiles: AgentProfilesConfiguration = {
-    scope: "conversation",
-    digest: "synthetic-profiles",
-    document: null,
-    trust: "trusted",
+    scope: "project",
     diagnostics: [],
     profiles: options.allSources
       ? [
           {
             name: profile.name,
+            digest: "synthetic-profile-file",
             local: null,
             inherited: null,
             effective: profile,

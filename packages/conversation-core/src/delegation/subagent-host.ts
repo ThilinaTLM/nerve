@@ -1,19 +1,11 @@
-import type { ConversationConfig } from "@nervekit/contracts/core";
+import type { AgentProfileApplication } from "../ports.js";
 
-/** Host port for sub-agent profiles; conversation-core itself knows nothing about profile files. */
+/** Host validates a template and materializes it against application settings plus lead context. */
 export interface SubagentHost {
-  /** Resolves a creation-time snapshot; throws an Error listing usable profiles when invalid. */
   resolveProfile(input: { parentId: string; profile: string }): Promise<{
     name: string;
-    config: Partial<
-      Pick<
-        ConversationConfig,
-        "model" | "reasoningLevel" | "permissionRuleSetId" | "instructions"
-      >
-    >;
-    /** Writes child capabilities and harness from this already-resolved host snapshot. */
-    initializeChild(childId: string): Promise<void>;
+    /** Captured during preflight; creation uses this exact snapshot, never re-resolves the file. */
+    application: AgentProfileApplication;
   }>;
-  /** Names of the enabled, trusted profiles the parent can use. */
   usableProfiles(parentId: string): Promise<string[]>;
 }

@@ -11,6 +11,7 @@ import {
   waitUntil,
   options,
   createConversation,
+  profilePort,
 } from "./lifecycle-test-helpers.js";
 
 for (const scenario of [
@@ -72,6 +73,11 @@ for (const scenario of [
           { type: "assistantText", text: "Follow-up response" },
         ],
       });
+      let approvalProfile = "coding";
+      const profiles = profilePort();
+      const apply = profiles.applyProfile;
+      profiles.applyProfile = (input) =>
+        apply({ ...input, profile: input.profile ?? "planning" });
       const makeOptions = () => {
         const config = options(
           directory,
@@ -94,12 +100,12 @@ for (const scenario of [
           modelTurns++;
           return { systemPrompt: "Test", tools: [] };
         };
-        config.agentProfiles.switchProfile = async ({ profile }) => ({
-          config: {
-            agentProfile: profile ?? "implementation",
-            reasoningLevel: "low",
-            model: { provider: "profile", modelId: "profile-model" },
-          },
+        config.agentProfiles = profiles;
+        config.planApprovalProfile = async () => approvalProfile;
+        const defaults = config.defaultConfig;
+        config.defaultConfig = async (projectId) => ({
+          ...(await defaults(projectId)),
+          agentProfile: "planning",
         });
         config.readPlan = async () =>
           "# Implementation plan\n\nA reviewed snapshot.";
@@ -109,7 +115,10 @@ for (const scenario of [
       try {
         await core.start();
         await createConversation(core, "conv_plan");
-        await core.setAgentProfile("conv_plan", "planning");
+        assert.equal(
+          core.getSnapshot("conv_plan").config.agentProfile,
+          "planning",
+        );
         core.submitInput({
           conversationId: "conv_plan",
           inputId: "input_plan",
@@ -136,6 +145,11 @@ for (const scenario of [
             text: "A request queued before the rejection",
             source: "user",
           });
+        assert.equal(call.interaction?.kind, "plan_review");
+        if (call.interaction?.kind === "plan_review")
+          assert.equal(call.interaction.request.approvalProfile, "coding");
+        // Editing the tool configuration after presentation must not retarget this review.
+        approvalProfile = "planning";
         const resolution = {
           toolCallId: call.id,
           resolutionRequestId: "resolution_plan",
@@ -189,7 +203,7 @@ for (const scenario of [
         assert.equal(storedResolution.feedback, scenario.feedback);
         assert.equal(
           core.getSnapshot("conv_plan").config.agentProfile,
-          scenario.decision === "approve" ? "implementation" : "planning",
+          scenario.decision === "approve" ? "coding" : "planning",
         );
         if (scenario.decision === "approve") {
           assert.deepEqual(core.getSnapshot("conv_plan").config.model, {

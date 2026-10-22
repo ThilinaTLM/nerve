@@ -143,7 +143,8 @@ function toWorkbenchTab(tab: CenterTabModel): WorkbenchTabModel {
   } else if (tab.kind === "mermaid") model.icon = Workflow;
   else if (tab.kind === "pr") model.icon = GitPullRequest;
   else if (tab.kind === "diff") model.icon = FileDiff;
-  else if (tab.kind === "settings") model.icon = Settings;
+  else if (tab.kind === "settings" || tab.kind === "project-settings")
+    model.icon = Settings;
   else if (tab.kind === "logs") model.icon = Logs;
   else if (tab.kind === "discover") model.icon = Compass;
   else if (tab.kind === "system-prompt") model.icon = TextAlignStart;

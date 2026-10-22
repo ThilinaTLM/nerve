@@ -9,28 +9,21 @@ import {
 test("project patches accept sparse nested overrides and removals without injecting defaults", () => {
   const patch = {
     defaultAgentProfile: null,
-    tools: { bash: { autoPromotion: { enabled: false } } },
+    defaults: { thinkingLevel: "high" },
     compaction: { auto: false },
-    execution: { shellPath: null },
   };
   assert.deepEqual(projectSettingsPatchSchema.parse(patch), patch);
-  assert.deepEqual(
-    projectHarnessOverridesSchema.parse({ tools: { bash: {} } }),
-    { tools: { bash: {} } },
-  );
-  assert.deepEqual(
-    projectSettingsPatchSchema.parse({
-      tools: { imageGeneration: { options: { quality: "high" } } },
-    }),
-    { tools: { imageGeneration: { options: { quality: "high" } } } },
-  );
+  assert.deepEqual(projectHarnessOverridesSchema.parse({ defaults: {} }), {
+    defaults: {},
+  });
 });
 
 test("project patch validation excludes daemon/user metadata, capability selections, extension edits and invalid values", () => {
   for (const patch of [
     { daemon: {} },
-    { version: 3 },
+    { version: 4 },
     { tools: { disabled: [] } },
+    { tools: { bash: { shellPath: "/bin/sh" } } },
     { skills: { disabled: [] } },
     { skills: { agentBrowser: { enabled: [] } } },
     { vendor: true },
@@ -48,7 +41,7 @@ test("project patch validation excludes daemon/user metadata, capability selecti
 
 test("own settings preserve extension data but effective resolution only sees validated known fields", () => {
   const raw = {
-    version: 3,
+    version: 4,
     defaultAgentProfile: "planning",
     vendor: true,
     execution: { shellPath: "/bin/sh", vendor: { enabled: true } },
@@ -56,6 +49,5 @@ test("own settings preserve extension data but effective resolution only sees va
   assert.deepEqual(projectHarnessOverridesSchema.parse(raw), raw);
   assert.deepEqual(projectHarnessValuesSchema.parse(raw), {
     defaultAgentProfile: "planning",
-    execution: { shellPath: "/bin/sh" },
   });
 });

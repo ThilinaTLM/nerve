@@ -23,7 +23,6 @@ import type {
   ConversationPaneActions,
 } from "$lib/presentation/conversations/conversation-view-contracts";
 import ComposerCapabilitiesPopover from "$lib/presentation/composer/ComposerCapabilitiesPopover.svelte";
-import ComposerModelPicker from "$lib/presentation/composer/ComposerModelPicker.svelte";
 import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import ComposerShell from "$lib/presentation/composer/ComposerShell.svelte";
 import ComposerToolbar from "$lib/presentation/composer/ComposerToolbar.svelte";
@@ -347,8 +346,10 @@ const composerVariants = $derived<
 
 const actions: ConversationPaneActions = {
   onComposerChange: (text) => (draftText = text),
-  onModelChange: (value) => (selectedModel = value),
-  onThinkingLevelChange: (value) => (thinkingLevel = value),
+  onModelSelectionChange: (next) => {
+    if (next.model) selectedModel = modelKey(next.model);
+    if (next.thinkingLevel) thinkingLevel = next.thinkingLevel;
+  },
   onAgentProfileChange: (value) => (agentProfile = value),
   onSubmit: () => (draftText = ""),
   onAbort: noop,
@@ -532,8 +533,11 @@ function cycleMic() {
                     {models}
                     selectedModelKey={selectedModel}
                     {thinkingLevel}
-                    onModelChange={(value) => (selectedModel = value)}
-                    onThinkingLevelChange={(value) => (thinkingLevel = value)}
+                    onModelSelectionChange={(next) => {
+                      if (next.model) selectedModel = modelKey(next.model);
+                      if (next.thinkingLevel)
+                        thinkingLevel = next.thinkingLevel;
+                    }}
                     onCompact={noop}
                     {capabilityConfiguration}
                     {capabilitySkills}
@@ -619,37 +623,8 @@ function cycleMic() {
     </GallerySpecimen>
 
     <GallerySpecimen
-      title="ComposerModelPicker"
-      description="Model chip with reasoning effort. Default, disabled and no models."
-      source="presentation/composer/ComposerModelPicker"
-      usage="1 file · composer"
-      surface="panel"
-    >
-      <ComposerModelPicker
-        {models}
-        selectedModelKey={selectedModel}
-        {thinkingLevel}
-        onModelChange={(value) => (selectedModel = value)}
-        onThinkingLevelChange={(value) => (thinkingLevel = value)}
-        modelShortcut="Ctrl+M"
-        thinkingShortcut="Ctrl+T"
-      />
-      <ComposerModelPicker
-        {models}
-        selectedModelKey={modelKey(models[0])}
-        thinkingLevel="medium"
-        disabled
-      />
-      <ComposerModelPicker
-        models={[]}
-        selectedModelKey=""
-        emptyMessage="No models available. Configure a provider in this host."
-      />
-    </GallerySpecimen>
-
-    <GallerySpecimen
       title="ComposerCapabilitiesPopover"
-      description="Tools / Skills / Sub-agents tabs: configured, loading, error."
+      description="Tools / Skills tabs: configured, loading, error."
       source="presentation/composer/ComposerCapabilitiesPopover"
       usage="1 file · composer"
       surface="panel"
