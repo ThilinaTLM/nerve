@@ -54,11 +54,11 @@ export type SettingsNavGroup = {
   items: SettingsNavItem[];
 };
 
-/** Identity block above the nav: "User settings", or a project name + path. */
+/** Identity block above the nav: "User settings", or a project name. */
 export type SettingsScopeHeader = {
   title: string;
-  /** Second line, e.g. "All projects" or the project name. */
+  /** Optional second line, e.g. the project name. */
   subtitle?: string;
-  /** Third line, a filesystem path (rendered monospace). */
-  path?: string;
+  /** Optional navigation to a related settings scope. */
+  action?: { label: string; title?: string; onSelect: () => void };
 };

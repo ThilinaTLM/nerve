@@ -57,6 +57,8 @@ type Props = {
   authProviders?: AuthProviderMetadata[];
   /** The project of a project target. */
   project?: Project;
+  /** Shortcut from user settings to the currently active project. */
+  projectSettingsAction?: { name: string; onOpen: () => void };
   skills?: AvailableSkill[];
   skillsLoading?: boolean;
   skillsError?: string;
@@ -84,6 +86,7 @@ let {
   models = [],
   authProviders = [],
   project,
+  projectSettingsAction,
   skills = [],
   skillsLoading = false,
   skillsError,
@@ -143,7 +146,18 @@ const badges = $derived(
   ),
 );
 const groups = $derived(settingsNavFor(target, badges));
-const scopeHeader = $derived(settingsScopeHeader(target, project));
+const scopeHeader = $derived({
+  ...settingsScopeHeader(target, project),
+  ...(target.kind === "user" && projectSettingsAction
+    ? {
+        action: {
+          label: "Project settings",
+          title: `Open settings for ${projectSettingsAction.name}`,
+          onSelect: projectSettingsAction.onOpen,
+        },
+      }
+    : {}),
+});
 
 // Stale ids (restored state, old links) land on the scope's default page.
 $effect(() => {

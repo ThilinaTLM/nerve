@@ -210,12 +210,18 @@ const userLayout: NavLayout = [
   {
     id: "catalog",
     title: "Catalog",
-    pages: ["agents", "sub-agents", "permission-rules", "models"],
+    pages: [
+      "agents",
+      "sub-agents",
+      "permission-rules",
+      "models",
+      "suggestions",
+    ],
   },
   {
     id: "app",
     title: "App",
-    pages: ["workbench", "notifications", "shortcuts", "voice", "suggestions"],
+    pages: ["workbench", "notifications", "shortcuts", "voice"],
   },
   { id: "system", title: "System", pages: ["storage", "system"] },
 ];
@@ -225,12 +231,12 @@ const projectLayout: NavLayout = [
   {
     id: "catalog",
     title: "Catalog",
-    pages: ["agents", "sub-agents", "permission-rules"],
+    pages: ["agents", "sub-agents", "permission-rules", "suggestions"],
   },
   {
     id: "this-project",
     title: "This project",
-    pages: ["launch", "instructions-files", "suggestions", "trust"],
+    pages: ["launch", "instructions-files", "trust"],
   },
 ];
 

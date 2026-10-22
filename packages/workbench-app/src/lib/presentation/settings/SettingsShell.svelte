@@ -19,7 +19,7 @@ type Props = {
   /** Page headers and content; the nav lists them through `groups`. */
   pages: SettingsPageDef[];
   groups: SettingsNavGroup[];
-  /** Identity block above the nav: "User settings", or a project name and path. */
+  /** Identity block above the nav: "User settings", or a project name. */
   scopeHeader?: SettingsScopeHeader;
   activePageId?: string;
   activeSectionId?: string;

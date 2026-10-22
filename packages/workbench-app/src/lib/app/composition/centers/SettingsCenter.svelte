@@ -1,5 +1,6 @@
 <script lang="ts">
 import type { Project } from "@nervekit/contracts/core";
+import { openProjectSettingsPane } from "$lib/application/settings";
 import SettingsView from "$lib/app/composition/settings/SettingsView.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
@@ -31,6 +32,12 @@ let {
 } = $props();
 
 const status = $derived(workspaceSelectors.status);
+const activeProject = $derived(workspaceSelectors.activeProject);
+const projectSettingsAction = $derived.by(() => {
+  if (target.kind !== "user" || !activeProject) return undefined;
+  const { id, name } = activeProject;
+  return { name, onOpen: () => void openProjectSettingsPane(id) };
+});
 const settingsSaveStatus = $derived(settingsSelectors.settingsSaveStatus);
 const settingsMessage = $derived(settingsSelectors.settingsMessage);
 const skillsProjectId = $derived(
@@ -45,6 +52,7 @@ $effect(() => {
 
 <SettingsView
   {target}
+  {projectSettingsAction}
   {status}
   bind:settingsDraft={settingsState.settingsDraft}
   applicationConfiguration={settingsState.applicationConfiguration}

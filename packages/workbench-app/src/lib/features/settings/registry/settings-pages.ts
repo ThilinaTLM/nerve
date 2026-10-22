@@ -99,13 +99,12 @@ export function settingsNavFor(
 
 export function settingsScopeHeader(
   target: SettingsScopeTarget,
-  project?: { name: string; directory: string },
+  project?: { name: string },
 ): SettingsScopeHeader {
   return target.kind === "user"
-    ? { title: "User settings", subtitle: "All projects" }
+    ? { title: "User settings" }
     : {
         title: "Project settings",
         subtitle: project?.name ?? "Project",
-        ...(project ? { path: project.directory } : {}),
       };
 }

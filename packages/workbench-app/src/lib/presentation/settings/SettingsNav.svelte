@@ -6,6 +6,8 @@
   (`settings-page` container) the groups flow into one scrollable row.
 -->
 <script lang="ts">
+import ArrowUpRight from "@lucide/svelte/icons/arrow-up-right";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { cn } from "@nervekit/ui-kit/utils";
 import type {
@@ -17,7 +19,7 @@ type Props = {
   groups: SettingsNavGroup[];
   activeId: string;
   ariaLabel?: string;
-  /** Identity above the nav: "User settings", or a project name and path. */
+  /** Identity above the nav: "User settings", or a project name. */
   header?: SettingsScopeHeader;
   onSelect: (id: string) => void;
 };
@@ -39,10 +41,17 @@ let {
     {#if header.subtitle}
       <p class="truncate text-xs text-muted-foreground">{header.subtitle}</p>
     {/if}
-    {#if header.path}
-      <p class="truncate font-mono text-xs text-muted-foreground">
-        {header.path}
-      </p>
+    {#if header.action}
+      <Button
+        variant="link"
+        size="sm"
+        class="-mx-1.5 justify-start"
+        title={header.action.title}
+        onclick={header.action.onSelect}
+      >
+        {header.action.label}
+        <ArrowUpRight class="size-3.5" aria-hidden="true" />
+      </Button>
     {/if}
   </div>
 {/if}

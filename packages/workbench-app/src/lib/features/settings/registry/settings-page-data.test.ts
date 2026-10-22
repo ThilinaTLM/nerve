@@ -16,11 +16,11 @@ describe("settings page registry", () => {
     assert.deepEqual(grouped("user"), [
       ["Connections", ["providers", "integrations"]],
       ["Agent", ["general", "tools", "skills"]],
-      ["Catalog", ["agents", "sub-agents", "permission-rules", "models"]],
       [
-        "App",
-        ["workbench", "notifications", "shortcuts", "voice", "suggestions"],
+        "Catalog",
+        ["agents", "sub-agents", "permission-rules", "models", "suggestions"],
       ],
+      ["App", ["workbench", "notifications", "shortcuts", "voice"]],
       ["System", ["storage", "system"]],
     ]);
   });
@@ -28,11 +28,8 @@ describe("settings page registry", () => {
   it("groups the project nav as approved", () => {
     assert.deepEqual(grouped("project"), [
       ["Agent", ["general", "tools", "skills"]],
-      ["Catalog", ["agents", "sub-agents", "permission-rules"]],
-      [
-        "This project",
-        ["launch", "instructions-files", "suggestions", "trust"],
-      ],
+      ["Catalog", ["agents", "sub-agents", "permission-rules", "suggestions"]],
+      ["This project", ["launch", "instructions-files", "trust"]],
     ]);
   });
 
