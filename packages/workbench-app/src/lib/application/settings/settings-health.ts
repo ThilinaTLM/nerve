@@ -41,3 +41,16 @@ export async function updateSettingsHealthNotice(
     };
   }
 }
+
+/** Identifies the set of failing files; the toast fires when it changes. */
+export function settingsHealthSignature(health: SettingsHealth): string {
+  return health.invalid
+    .map((item) => item.id)
+    .sort()
+    .join(",");
+}
+
+export function settingsHealthToastTitle(health: SettingsHealth): string {
+  const count = health.invalid.length;
+  return `Settings need attention · ${count} ${count === 1 ? "file" : "files"}`;
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+import type { Snippet } from "svelte";
 import Ban from "@lucide/svelte/icons/ban";
 import Bell from "@lucide/svelte/icons/bell";
 import BellRing from "@lucide/svelte/icons/bell-ring";
@@ -26,6 +27,7 @@ let {
   items = [],
   error,
   unseenFailure = false,
+  attention,
   open = false,
   onOpenChange,
   onOpenItem,
@@ -37,6 +39,8 @@ let {
   items?: NotificationItem[];
   error?: string;
   unseenFailure?: boolean;
+  /** A persistent entry above the list (e.g. settings health); the bell shows a warning badge while it exists. */
+  attention?: Snippet;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   /** Navigate to the conversation behind an item. */
@@ -64,7 +68,7 @@ const unreadIds = $derived(
   items.filter((item) => item.unread).map((item) => item.id),
 );
 const label = $derived(
-  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}`,
+  `Notifications${needsYou ? `, ${needsYou} need you` : running ? ", running" : ""}${unseenFailure ? ", unseen failure" : ""}${attention ? ", settings need attention" : ""}`,
 );
 
 let now = $state(Date.now());
@@ -133,6 +137,12 @@ const childLabel = {
           aria-hidden="true">{needsYou}</span
         >
       {/if}
+      {#if attention && !needsYou}
+        <span
+          class="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-warning"
+          aria-hidden="true"
+        ></span>
+      {/if}
       {#if unseenFailure}
         <span
           class="absolute bottom-1 right-1 size-1.5 rounded-full bg-destructive-solid"
@@ -158,7 +168,8 @@ const childLabel = {
     {#if error}<p role="alert" class="px-2 py-2 text-xs text-destructive">
         {error}
       </p>{/if}
-    {#if !items.length}
+    {#if attention}{@render attention()}{/if}
+    {#if !items.length && !attention}
       <div
         class="flex flex-col items-center gap-2 px-2 py-8 text-muted-foreground"
       >

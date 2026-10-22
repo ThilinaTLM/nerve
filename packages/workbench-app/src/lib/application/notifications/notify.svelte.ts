@@ -22,6 +22,10 @@ export type NotificationSoundEvent =
 export type NotifyOptions = {
   description?: string;
   tag?: string;
+  /** A button on the toast; only toasts support it. */
+  action?: { label: string; onClick: () => void };
+  /** Toast lifetime in milliseconds. */
+  duration?: number;
 };
 
 export type NativeNotifyOptions = NotifyOptions & {
@@ -75,6 +79,13 @@ export const notify = {
   },
   error(title: string, options: NotifyOptions = {}): void {
     showToast("error", title, options.description);
+  },
+  warning(title: string, options: NotifyOptions = {}): void {
+    sonnerToast.warning(title, {
+      description: options.description,
+      action: options.action,
+      duration: options.duration,
+    });
   },
   message(title: string, options: NotifyOptions = {}): void {
     showToast("message", title, options.description);
