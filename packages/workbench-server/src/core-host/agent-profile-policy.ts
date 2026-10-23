@@ -9,12 +9,14 @@ import {
   type ApplyAgentProfileOptions,
   type AgentProfileSettings,
   type AppliedAgentProfile,
+  type AgentProfileDraft,
 } from "@nervekit/contracts/agent-profiles";
 import {
   capabilityToolNameSchema,
   capabilityToolPayload,
   capabilityToolsSchema,
   emptyCapabilityOverrides,
+  type CapabilitySelection,
 } from "@nervekit/contracts/capabilities";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type {
@@ -32,6 +34,17 @@ import type { CapabilityService } from "./capability.service.js";
 import type { ConversationHarnessSettings } from "./conversation-harness.service.js";
 import { listAvailableSkills } from "./resource-loader.js";
 import type { Skill } from "@nervekit/harness/resources";
+
+function usesApplicationSettings(profile: AgentProfileDraft): boolean {
+  return [
+    profile.model,
+    profile.thinking,
+    profile.permission,
+    profile.compaction,
+    profile.skills,
+    ...Object.values(profile.tools ?? {}),
+  ].includes("settings");
+}
 
 export function profileDefaults(settings: Settings) {
   const model = settings.defaultModel ?? settings.lastAgentSelection.model;
@@ -68,19 +81,10 @@ export function createAgentProfilePort(options: {
       harness: join(root, "harness.json"),
     };
   };
-  const settingsFor = async (
+  const selectionSettings = async (
     input: TurnPreparationInput,
-  ): Promise<AgentProfileSettings> => {
-    const settings = await options.settings(input.conversation.projectId);
-    const selection = (
-      await options
-        .capabilities()
-        .configuration(
-          input.conversation.projectId,
-          input.conversation.id,
-          input.capabilityOverrides,
-        )
-    ).effective;
+    selection: CapabilitySelection,
+  ) => {
     const installed = (
       await listAvailableSkills(input.projectDir, {
         storageHome: options.home,
@@ -108,12 +112,6 @@ export function createAgentProfilePort(options: {
             : selection.enabledAgentBrowserSkills.includes(skill.name);
     }
     return {
-      model: input.config.model,
-      thinking: input.config.reasoningLevel,
-      permission: input.config.permissionRuleSetId,
-      compaction: input.conversation.id
-        ? await options.harness().compactionSettings(input.conversation.id)
-        : settings.compaction,
       tools: capabilityToolsSchema.parse(
         Object.fromEntries(
           capabilityToolNameSchema.options.map((name) => [
@@ -123,6 +121,52 @@ export function createAgentProfilePort(options: {
         ),
       ),
       skills,
+    };
+  };
+  const settingsFor = async (
+    input: TurnPreparationInput,
+  ): Promise<AgentProfileSettings> => {
+    const settings = await options.settings(input.conversation.projectId);
+    const selection = (
+      await options
+        .capabilities()
+        .configuration(
+          input.conversation.projectId,
+          input.conversation.id,
+          input.capabilityOverrides,
+        )
+    ).effective;
+    return {
+      model: input.config.model,
+      thinking: input.config.reasoningLevel,
+      permission: input.config.permissionRuleSetId,
+      compaction: input.conversation.id
+        ? await options.harness().compactionSettings(input.conversation.id)
+        : settings.compaction,
+      ...(await selectionSettings(input, selection)),
+    };
+  };
+  /** Application settings (project → user) without the conversation layer. */
+  const applicationSettingsFor = async (
+    input: TurnPreparationInput,
+  ): Promise<AgentProfileSettings> => {
+    const settings = await options.settings(input.conversation.projectId);
+    const defaults = profileDefaults(settings);
+    const selection = (
+      await options
+        .capabilities()
+        .configuration(
+          input.conversation.projectId,
+          undefined,
+          emptyCapabilityOverrides(),
+        )
+    ).inherited;
+    return {
+      model: defaults.model,
+      thinking: defaults.reasoningLevel,
+      permission: defaults.permissionRuleSetId,
+      compaction: defaults.compaction,
+      ...(await selectionSettings(input, selection)),
     };
   };
   const apply = async (
@@ -194,6 +238,9 @@ export function createAgentProfilePort(options: {
       current,
       {
         lead: effectiveLead,
+        settings: usesApplicationSettings(profile)
+          ? await applicationSettingsFor(input)
+          : undefined,
         preserveModel: input.preserveModel,
         preserveThinking: input.preserveThinking,
         clampThinking: options.clampThinking,
@@ -226,11 +273,15 @@ export function createAgentProfilePort(options: {
             )
         ).conversation ?? emptyCapabilityOverrides(),
       );
-      for (const name of Object.keys(profile.tools))
-        Object.assign(document.tools, {
-          [name]: settings.tools[name as keyof typeof settings.tools],
-        });
-      if (profile.skills !== undefined) {
+      for (const [name, setting] of Object.entries(profile.tools)) {
+        const key = name as keyof typeof settings.tools;
+        // Reset to settings drops the conversation override so the tool follows settings.
+        if (setting === "settings") delete document.tools[key];
+        else Object.assign(document.tools, { [name]: settings.tools[key] });
+      }
+      if (profile.skills === "settings")
+        document.skills = { file: {}, nerve: {}, agentBrowser: {} };
+      else if (profile.skills !== undefined) {
         const prior =
           current.skills === "none"
             ? { file: {}, nerve: {}, agentBrowser: {} }

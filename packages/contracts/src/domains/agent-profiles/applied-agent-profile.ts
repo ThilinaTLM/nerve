@@ -51,6 +51,8 @@ export const appliedAgentProfileSchema = z
 export type AppliedAgentProfile = z.infer<typeof appliedAgentProfileSchema>;
 export interface ApplyAgentProfileOptions {
   lead?: AgentProfileSettings;
+  /** Application settings values (project → user, no conversation layer) for "settings" mode. */
+  settings?: AgentProfileSettings;
   /** Preserve each approved value independently unless the target Locks that field. */
   preserveModel?: boolean;
   preserveThinking?: boolean;
@@ -72,7 +74,8 @@ export function applyAgentProfileTemplate(
   function value<T>(
     setting: AgentProfileSetting<T> | undefined,
     field: keyof AgentProfileSettings,
-    parent?: T,
+    parent: T | undefined,
+    fromSettings: T | undefined,
   ): { value: T; lock: boolean } | undefined {
     if (setting === undefined) return;
     if (setting === "lead") {
@@ -80,21 +83,36 @@ export function applyAgentProfileTemplate(
         throw new Error(`Same as lead requires a lead context for ${field}`);
       return { value: structuredClone(parent), lock: false };
     }
-    if ("lock" in setting)
+    if (typeof setting === "object" && "lock" in setting)
       return { value: structuredClone(setting.lock), lock: true };
     if (
       (field === "model" && options.preserveModel) ||
       (field === "thinking" && options.preserveThinking)
     )
       return;
+    if (setting === "settings") {
+      if (!options.settings || fromSettings === undefined)
+        throw new Error(`Reset to settings requires settings for ${field}`);
+      return { value: structuredClone(fromSettings), lock: false };
+    }
     return { value: structuredClone(setting.set), lock: false };
   }
-  const model = value(profile.model, "model", options.lead?.model);
+  const model = value(
+    profile.model,
+    "model",
+    options.lead?.model,
+    options.settings?.model,
+  );
   if (model) {
     settings.model = model.value;
     if (model.lock) locked.model = structuredClone(model.value);
   }
-  const thinking = value(profile.thinking, "thinking", options.lead?.thinking);
+  const thinking = value(
+    profile.thinking,
+    "thinking",
+    options.lead?.thinking,
+    options.settings?.thinking,
+  );
   if (thinking) {
     settings.thinking = thinking.value;
     if (thinking.lock) locked.thinking = thinking.value;
@@ -105,6 +123,7 @@ export function applyAgentProfileTemplate(
     profile.permission,
     "permission",
     options.lead?.permission,
+    options.settings?.permission,
   );
   if (permission) {
     settings.permission = permission.value;
@@ -114,12 +133,18 @@ export function applyAgentProfileTemplate(
     profile.compaction,
     "compaction",
     options.lead?.compaction,
+    options.settings?.compaction,
   );
   if (compaction) {
     settings.compaction = compaction.value;
     if (compaction.lock) locked.compaction = structuredClone(compaction.value);
   }
-  const skills = value(profile.skills, "skills", options.lead?.skills);
+  const skills = value(
+    profile.skills,
+    "skills",
+    options.lead?.skills,
+    options.settings?.skills,
+  );
   if (skills) {
     settings.skills = skills.value;
     if (skills.lock) locked.skills = structuredClone(skills.value);
@@ -128,10 +153,10 @@ export function applyAgentProfileTemplate(
     const key = name as keyof AgentProfileSettings["tools"];
     const change = value<
       NonNullable<AgentProfileSettings["tools"][typeof key]>
-    >(setting, "tools", options.lead?.tools[key]);
+    >(setting, "tools", options.lead?.tools[key], options.settings?.tools[key]);
     if (!change) continue;
     const payload =
-      setting === "lead"
+      setting === "lead" || setting === "settings"
         ? change.value
         : { ...settings.tools[key], ...change.value };
     Object.assign(settings.tools, { [name]: payload });

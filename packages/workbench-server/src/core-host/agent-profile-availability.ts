@@ -1,10 +1,11 @@
 import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import type { ConversationConfig } from "@nervekit/contracts/core";
 import type { ModelSelection } from "@nervekit/contracts/models";
-import type {
-  AgentProfile,
-  AgentProfileDiagnostic,
-  AgentProfilesLeadContext,
+import {
+  explicitValue,
+  type AgentProfile,
+  type AgentProfileDiagnostic,
+  type AgentProfilesLeadContext,
 } from "@nervekit/contracts/agent-profiles";
 import type { AgentModelInfo } from "@nervekit/harness/models";
 
@@ -55,7 +56,7 @@ export function createProfileAvailability(options: {
     const resources = await options.resources(context, profile);
     for (const field of ["tools", "skills"] as const) {
       const setting = profile[field];
-      if (!setting || setting === "lead") continue;
+      if (!setting || typeof setting === "string") continue;
       const value =
         "lock" in setting
           ? setting.lock
@@ -69,7 +70,7 @@ export function createProfileAvailability(options: {
             ? {}
             : Object.assign({}, ...Object.values(value));
       for (const [reference, setting] of Object.entries(selections)) {
-        if (!setting || setting === "lead") continue;
+        if (!setting || setting === "lead" || setting === "settings") continue;
         const payload =
           typeof setting === "object"
             ? "lock" in setting
@@ -111,11 +112,9 @@ export function createProfileAvailability(options: {
       : undefined;
     const modelSetting = profile.model;
     const model =
-      modelSetting && modelSetting !== "lead"
-        ? "lock" in modelSetting
-          ? modelSetting.lock
-          : modelSetting.set
-        : undefined;
+      modelSetting === "settings"
+        ? defaults?.model
+        : explicitValue(modelSetting);
     const current =
       context.parentConfig ??
       (context.lead || profile.usableBy === "subagent" ? undefined : parent);
@@ -140,13 +139,13 @@ export function createProfileAvailability(options: {
     }
     const thinkingSetting = profile.thinking;
     const thinking =
-      thinkingSetting && thinkingSetting !== "lead"
-        ? "lock" in thinkingSetting
-          ? thinkingSetting.lock
-          : thinkingSetting.set
+      thinkingSetting === "settings"
+        ? defaults?.reasoningLevel
         : thinkingSetting === "lead"
           ? parent?.reasoningLevel
-          : (current?.reasoningLevel ?? defaults?.reasoningLevel);
+          : (explicitValue(thinkingSetting) ??
+            current?.reasoningLevel ??
+            defaults?.reasoningLevel);
 
     if (thinking) {
       const supported = resolved.supportedThinkingLevels;

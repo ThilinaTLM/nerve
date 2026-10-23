@@ -193,9 +193,11 @@ export function createTurnResourcesPort(options: {
             ? "Settings"
             : setting === "lead"
               ? "Same as lead"
-              : "lock" in setting
-                ? setting.lock
-                : setting.set;
+              : setting === "settings"
+                ? "Settings default"
+                : "lock" in setting
+                  ? setting.lock
+                  : setting.set;
           return ruleSets.find((ruleSet) => ruleSet.id === id)?.name ?? id;
         })(),
       }));

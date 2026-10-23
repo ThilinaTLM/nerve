@@ -11,6 +11,11 @@ export default tseslint.config(
       "**/.svelte-kit/**",
       "**/.astro/**",
       "**/.vite/**",
+      // Gitignored runtime data and generated captures are not source code.
+      "data/**",
+      "packages/website/.screenshots/**",
+      // Local mock-only prototypes are intentionally outside CI validation.
+      "packages/workbench-app/src/lib/app/design-lab/wireframes/**",
       "packages/desktop-shell/build/**",
       "packages/desktop-shell/release/**",
       "release/**",

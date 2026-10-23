@@ -90,6 +90,39 @@ test("lead mode copies only explicit independent settings and refuses a missing 
   assert.equal(thinking.settings.thinking, "low");
 });
 
+test("settings mode resets fields to application settings, replaces tool payloads, and respects preserved model", () => {
+  const profile: AgentProfileDraft = {
+    ...draft,
+    model: "settings",
+    permission: "settings",
+    tools: { python_exec: "settings" },
+  };
+  assert.throws(
+    () => applyAgentProfileTemplate(profile, current, supported),
+    /requires settings/,
+  );
+  const settings: AgentProfileSettings = {
+    ...current,
+    model: { provider: "test", modelId: "default" },
+    permission: "default",
+    tools: { python_exec: { enabled: false } },
+  };
+  const applied = applyAgentProfileTemplate(profile, current, {
+    ...supported,
+    settings,
+  });
+  assert.deepEqual(applied.settings.model, settings.model);
+  assert.equal(applied.settings.permission, "default");
+  assert.deepEqual(applied.settings.tools.python_exec, { enabled: false });
+  assert.deepEqual(applied.applied.locked, {});
+  const preserved = applyAgentProfileTemplate(profile, current, {
+    ...supported,
+    settings,
+    preserveModel: true,
+  });
+  assert.deepEqual(preserved.settings.model, current.model);
+});
+
 test("snapshots capture independent concrete locks and leave the other model control field editable", () => {
   const profile: AgentProfileDraft = {
     ...draft,

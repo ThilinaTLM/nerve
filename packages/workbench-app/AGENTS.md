@@ -282,7 +282,7 @@ src/styles/
 
 ## Misc
 
-- Create planning wireframes as local, mock-only Svelte components in the gitignored `src/lib/app/design-lab/wireframes/` directory using shared UI components and styles; kebab-case filenames are automatically discoverable at `/dev/wireframes/<name>` during development, so prefer this over standalone HTML files.
+- Create planning wireframes as local, mock-only Svelte components in the gitignored `src/lib/app/design-lab/wireframes/` directory using shared UI components and styles; kebab-case filenames are automatically discoverable at `/dev/wireframes/<name>` during development, so prefer this over standalone HTML files. This temporary directory is excluded from formatting, linting, type checking, test discovery and coverage; tracked design-lab infrastructure remains validated. Do not statically import local wireframes into product code (TypeScript follows imports even from excluded directories).
 
 - Icons: `@lucide/svelte`, sized/colored via `class` on the icon. Loading
   spinners use the shared `Spinner` component

@@ -2,16 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { builtInAgentProfiles } from "./builtin-agent-profiles.js";
 
-void test("Coding uses current settings, while Planning captures the coding approval target", () => {
+void test("Coding resets Planning's permission and plan tool to settings, while Planning captures the coding approval target", () => {
   const coding = builtInAgentProfiles.find(
     (profile) => profile.name === "coding",
   )!;
   assert.equal(coding.model, undefined);
   assert.equal(coding.thinking, undefined);
-  assert.equal(coding.permission, undefined);
+  assert.equal(coding.permission, "settings");
   assert.equal(coding.compaction, undefined);
   assert.equal(coding.skills, undefined);
-  assert.equal(coding.tools, undefined);
+  assert.deepEqual(coding.tools, { plan_present: "settings" });
   const planning = builtInAgentProfiles.find(
     (profile) => profile.name === "planning",
   )!;

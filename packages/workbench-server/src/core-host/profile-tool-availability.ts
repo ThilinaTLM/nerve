@@ -3,7 +3,10 @@ import {
   type CapabilityConfiguration,
 } from "@nervekit/contracts/capabilities";
 import type { ModelSelection } from "@nervekit/contracts/models";
-import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import {
+  explicitValue,
+  type AgentProfile,
+} from "@nervekit/contracts/agent-profiles";
 import { toolManifest } from "@nervekit/tools/catalog";
 
 // Host/core handlers and local executors share this authoritative runtime catalog.
@@ -43,12 +46,7 @@ export async function profileToolAvailability(options: {
     }
     if (name === "explain_image") {
       const setting = profile.tools.explain_image;
-      const payload =
-        setting && setting !== "lead"
-          ? "lock" in setting
-            ? setting.lock
-            : setting.set
-          : undefined;
+      const payload = explicitValue(setting);
       const settings =
         payload?.settings ?? configuration.effective.toolSettings.explain_image;
       if (!settings.model)

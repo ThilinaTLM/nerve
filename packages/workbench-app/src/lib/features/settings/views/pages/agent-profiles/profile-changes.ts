@@ -1,6 +1,6 @@
 /**
  * Pure model of a profile's change list. A profile is a template: each setting
- * it names has a mode (Use settings = absent, Same as lead, Set, Lock). This
+ * it names has a mode (Use settings = absent, Reset to settings, Same as lead, Set, Lock). This
  * module turns a profile draft into display rows and turns an edited change
  * back into an `AgentProfilePatch`.
  */
@@ -11,9 +11,12 @@ import type {
   AgentProfileUsableBy,
 } from "@nervekit/contracts/agent-profiles";
 import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
-import { agentProfileSettingKind } from "@nervekit/contracts/agent-profiles";
+import {
+  agentProfileSettingKind,
+  explicitValue,
+} from "@nervekit/contracts/agent-profiles";
 
-export type ChangeMode = "set" | "lock" | "lead";
+export type ChangeMode = "set" | "lock" | "lead" | "settings";
 /** A change's identity: a setting, or one tool. */
 export type ChangeKey =
   | "model"
@@ -50,11 +53,14 @@ export const modeLabels: Record<ChangeMode, string> = {
   set: "Set",
   lock: "Locked",
   lead: "Same as lead",
+  settings: "Reset to settings",
 };
 
-/** Set and Lock are always available; Same as lead only for sub-agent use. */
+/** Set, Lock and Reset to settings are always available; Same as lead only for sub-agent use. */
 export function modesFor(usableBy: AgentProfileUsableBy): ChangeMode[] {
-  return usableBy === "lead" ? ["set", "lock"] : ["set", "lock", "lead"];
+  return usableBy === "lead"
+    ? ["set", "lock", "settings"]
+    : ["set", "lock", "settings", "lead"];
 }
 
 export function modeHint(mode: ChangeMode): string {
@@ -65,6 +71,8 @@ export function modeHint(mode: ChangeMode): string {
       return "Applied, and it can't be changed in the conversation.";
     case "lead":
       return "Sub-agents follow whatever the lead agent uses.";
+    case "settings":
+      return "Reset to the value in settings when the profile is applied, ignoring conversation changes.";
   }
 }
 
@@ -82,8 +90,7 @@ function modeOf(setting: AgentProfileSetting<unknown>): ChangeMode {
   return kind === "use-settings" ? "set" : kind;
 }
 function valueOf<T>(setting: AgentProfileSetting<T>): T | undefined {
-  if (setting === "lead") return undefined;
-  return "set" in setting ? setting.set : setting.lock;
+  return explicitValue(setting);
 }
 
 /** Rows in a stable order: model, permission, compaction, tools, skills, instructions. */
@@ -104,14 +111,15 @@ export function changeRows(profile: AgentProfileDraft): ChangeRow[] {
   if (profile.model !== undefined || profile.thinking !== undefined) {
     // One combined row: the model and its reasoning level are separate
     // settings in the file but read and edit as one.
-    const concrete: AgentProfileSetting<unknown> | undefined = [
-      profile.model,
-      profile.thinking,
-    ].find((setting) => setting !== undefined && setting !== "lead");
+    const defined = [profile.model, profile.thinking].filter(
+      (setting) => setting !== undefined,
+    ) as AgentProfileSetting<unknown>[];
+    const concrete =
+      defined.find((setting) => typeof setting !== "string") ?? defined[0];
     rows.push({
       key: "model",
       label: profile.model === undefined ? "Reasoning" : "Model",
-      mode: concrete ? modeOf(concrete) : "lead",
+      mode: modeOf(concrete!),
       value: {
         model: profile.model && valueOf(profile.model),
         thinking: profile.thinking && valueOf(profile.thinking),
@@ -135,13 +143,13 @@ export function changeRows(profile: AgentProfileDraft): ChangeRow[] {
   return rows;
 }
 
-/** Wraps a value in its mode; Same as lead has no value. */
+/** Wraps a value in its mode; Same as lead and Reset to settings have no value. */
 export function withMode<T>(
   mode: ChangeMode,
   value: T,
 ): AgentProfileSetting<T> {
-  return mode === "lead"
-    ? "lead"
+  return mode === "lead" || mode === "settings"
+    ? mode
     : mode === "lock"
       ? { lock: value }
       : { set: value };
@@ -163,14 +171,14 @@ export function setChangePatch(
     } = (value ?? {}) as ModelChangeValue;
     return {
       model:
-        modelMode === "lead"
-          ? "lead"
+        modelMode === "lead" || modelMode === "settings"
+          ? modelMode
           : model
             ? withMode(modelMode, model)
             : null,
       thinking:
-        thinkingMode === "lead"
-          ? "lead"
+        thinkingMode === "lead" || thinkingMode === "settings"
+          ? thinkingMode
           : thinking
             ? withMode(thinkingMode, thinking)
             : null,

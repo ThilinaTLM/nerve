@@ -4,7 +4,10 @@ import {
   createAgentProfilePort,
   profileDefaults,
 } from "../../core-host/agent-profile-policy.js";
-import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
+import {
+  DEFAULT_AGENT_PROFILE,
+  explicitValue,
+} from "@nervekit/contracts/agent-profiles";
 import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
@@ -349,12 +352,7 @@ export function createConversationCore(
             },
           };
       const pythonSetting = profile.tools.python_exec;
-      const pythonPayload =
-        pythonSetting && pythonSetting !== "lead"
-          ? "lock" in pythonSetting
-            ? pythonSetting.lock
-            : pythonSetting.set
-          : undefined;
+      const pythonPayload = explicitValue(pythonSetting);
       const python =
         profile.tools.python_exec !== undefined
           ? await resolvePythonRuntime({

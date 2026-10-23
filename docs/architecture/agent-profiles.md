@@ -16,21 +16,19 @@ Fields: label, description (when to use the profile), enabled, `usableBy: "lead"
 
 Project content requires exact-document trust; external edits invalidate it. Editing a single untrusted entry must not activate untouched entries. Conversation overrides cannot bypass trust. Unknown/unavailable tool and skill references remain saved with diagnostics; unavailable explicit models and incompatible thinking block application. Profile trust does not introduce a separate skill trust system.
 
-## Scalars and switching
+## Modes and switching
 
-Model, thinking, permission and compaction use `AgentProfileScalar<T>`:
+Every scalar (model, thinking, permission, compaction), skills, and each tool entry use one mode vocabulary:
 
-- **Inherit**: `"inherit"`.
-- **Set**: a value or `"default"`.
-- **Lock**: `{ "lock": value }` or `{ "lock": "default" }`.
+- **Use settings** (field omitted): keep the conversation's current value.
+- **Reset to settings** (`"settings"`): write the application settings value (project → user, ignoring conversation overrides). For tools and skills it removes the conversation override, so the entry follows settings again.
+- **Same as lead** (`"lead"`): copy the lead's effective value at sub-agent creation; only for sub-agent-usable profiles.
+- **Set** (`{ "set": value }`): write the value; the user can change it afterwards.
+- **Lock** (`{ "lock": value }`): write the value and reject user mutation while this applied profile is active.
 
-Defaults resolve project → user → built-in. Set writes configuration on application; Lock resolves effective values each turn without persisting them. Only Lock disables a picker. Permission pickers show all enabled rule sets; there is no compatible-mode filtering.
+Applying a profile materializes these values into ordinary conversation settings and captures name, instructions and locks in `applied-agent-profile.json`. A switch replaces the previous locks. Use settings keeps whatever the previous profile wrote, so a profile that must undo another profile's values declares them with Reset to settings. Model/thinking chosen during plan approval are preserved over Set and Reset to settings, but not over Lock.
 
-For a switch from P to Q, Set always writes Q's resolved value; Lock writes nothing. If Q inherits, keep the stored value when P inherited or locked. If P set the field, reset to the settings default only when the stored value still equals P's resolved value; otherwise preserve the user's change. Explicitly selecting the same value is indistinguishable from leaving it unchanged.
-
-Drop conversation capability toggles for keys Q changes and keep the rest. No additional profile history is stored.
-
-`conversation.setAgentProfile` calls core's `setAgentProfile`, which delegates policy to `agentProfiles.switchProfile` and persists its config, optional compaction override, and capability overrides. It publishes existing config/changed notifications and applicable harness/capability invalidations. Sub-agent switches are rejected. Core overlays `resolveLockedScalars` during turn preparation without persisting Locks.
+`conversation.setAgentProfile` calls core's `setAgentProfile`, which delegates policy to `AgentProfilePort.applyProfile` and persists its config, optional compaction override, capability overrides and applied snapshot. It publishes existing config/changed notifications and applicable harness/capability invalidations. Sub-agent switches are rejected.
 
 ## Lead lifecycle and planning
 
@@ -40,16 +38,16 @@ The composer lists lead/both profiles; `/profile <name>` switches and `/plan` se
 
 Built-ins:
 
-| Profile     | Usable by | Behavior                                                                                                        |
-| ----------- | --------- | --------------------------------------------------------------------------------------------------------------- |
-| `coding`    | lead      | Model/thinking inherit; permission Set default; final changes/validation/limits summary.                        |
-| `planning`  | lead      | Model/thinking inherit; permission Lock planning; enables `plan_present`; instructions load the planning skill. |
-| `explore`   | subagent  | Inherited model/thinking; read-only research; skills none.                                                      |
-| `developer` | subagent  | Inherited model/thinking; autonomous implementation; inherited skills.                                          |
+| Profile     | Usable by | Behavior                                                                                                          |
+| ----------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
+| `coding`    | lead      | Permission and `plan_present` Reset to settings; everything else Use settings; final summary instruction.         |
+| `planning`  | lead      | Permission Lock planning; Set `plan_present` on (approval target `coding`); instructions load the planning skill. |
+| `explore`   | subagent  | Inherited model/thinking; read-only research; skills none.                                                        |
+| `developer` | subagent  | Inherited model/thinking; autonomous implementation; inherited skills.                                            |
 
-All built-ins inherit compaction. `plan_present` is a normal capability tool, disabled by default. Its turn-time description includes the absolute plan-storage directory. The planning skill directs read-only research, requirement decisions through `ask_user`, a complete plan file, and submission for review. Approval calls the same core switch path with the profile omitted to select the default lead profile. Rejection preserves the current profile and ends the run. Plan storage, review interaction, and the `plans` permission root are unchanged.
+All built-ins inherit compaction. `plan_present` is a normal capability tool, disabled by default. Its turn-time description includes the absolute plan-storage directory. The planning skill directs read-only research, requirement decisions through `ask_user`, a complete plan file, and submission for review. Approval switches through the same core path to the `plan_present` approval profile captured when the plan was presented. Rejection preserves the current profile and ends the run. Plan storage, review interaction, and the `plans` permission root are unchanged.
 
-Lead instructions, tools/skills and Locks resolve each turn. Set edits apply on the next switch into the profile, never automatically over user choices. Deleted/disabled active profiles fall back to the default lead profile with a notice.
+Turns read the applied snapshot, not the template. Template edits apply on the next switch into the profile, never automatically over user choices. Deleted/disabled active profiles fall back to the default lead profile with a notice.
 
 ## Sub-agent snapshots
 

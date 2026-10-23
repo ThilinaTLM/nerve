@@ -260,7 +260,9 @@ function rows(profile: AgentProfileConfiguration) {
       text:
         row.mode === "lead"
           ? "Same as lead agent"
-          : valueText(row.key, row.value),
+          : row.mode === "settings"
+            ? "Reset to settings"
+            : valueText(row.key, row.value),
       projectChange:
         project && origin === "project" && Boolean(profile.inherited),
     };

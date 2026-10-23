@@ -325,16 +325,23 @@ function configurationWithPendingOverrides(
     scope.config,
     (_model, thinking) => thinking,
     current,
+    base.effective,
   );
   if (preview) {
-    for (const name of Object.keys(scope.profile!.tools)) {
+    for (const [name, setting] of Object.entries(scope.profile!.tools)) {
+      if (setting === "settings") {
+        delete (overrides.tools as Record<string, unknown>)[name];
+        continue;
+      }
       Object.assign(overrides.tools, {
         [name]:
           preview.settings.tools[name as keyof typeof preview.settings.tools],
       });
     }
   }
-  if (preview && scope.profile?.skills !== undefined) {
+  if (preview && scope.profile?.skills === "settings") {
+    overrides.skills = emptyCapabilityOverrides().skills;
+  } else if (preview && scope.profile?.skills !== undefined) {
     const chosen = preview.settings.skills;
     for (const skill of availableSkills) {
       const kind =

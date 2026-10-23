@@ -36,9 +36,9 @@ describe("profile changes", () => {
   });
 
   it("offers Same as lead only to profiles usable by sub-agents", () => {
-    assert.deepEqual(modesFor("lead"), ["set", "lock"]);
-    assert.deepEqual(modesFor("subagent"), ["set", "lock", "lead"]);
-    assert.deepEqual(modesFor("both"), ["set", "lock", "lead"]);
+    assert.deepEqual(modesFor("lead"), ["set", "lock", "settings"]);
+    assert.deepEqual(modesFor("subagent"), ["set", "lock", "settings", "lead"]);
+    assert.deepEqual(modesFor("both"), ["set", "lock", "settings", "lead"]);
   });
 
   it("builds patches that set and remove a change", () => {
@@ -54,6 +54,19 @@ describe("profile changes", () => {
     });
     assert.deepEqual(removeChangePatch("tool:jira"), { tools: { jira: null } });
     assert.deepEqual(removeChangePatch("compaction"), { compaction: null });
+  });
+
+  it("writes and reads Reset to settings without a value", () => {
+    assert.deepEqual(setChangePatch("permission", "settings", "x"), {
+      permission: "settings",
+    });
+    assert.deepEqual(setChangePatch("tool:bash", "settings", {}), {
+      tools: { bash: "settings" },
+    });
+    const row = changeRows({ ...planning, permission: "settings" }).find(
+      (candidate) => candidate.key === "permission",
+    );
+    assert.deepEqual([row?.mode, row?.value], ["settings", undefined]);
   });
 
   it("combines model and reasoning into one change", () => {

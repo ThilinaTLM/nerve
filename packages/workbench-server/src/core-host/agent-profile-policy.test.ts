@@ -78,6 +78,7 @@ async function fixture() {
   };
   return {
     root,
+    settings,
     port,
     input,
     profiles,
@@ -88,7 +89,7 @@ async function fixture() {
   };
 }
 
-void test("Planning materializes permission and tool config; Coding retains the value and removes the old Lock", async () => {
+void test("Planning materializes permission and tool config; Coding resets both to application settings", async () => {
   const f = await fixture();
   try {
     const application = await f.apply("planning");
@@ -102,9 +103,18 @@ void test("Planning materializes permission and tool config; Coding retains the 
         .approvalProfile,
       "coding",
     );
+    assert.ok(
+      (await f.capabilities.configuration("p", "c")).conversation?.tools
+        .plan_present?.enabled,
+    );
+    // Resolve at apply time rather than pinning a bundled permission choice.
+    f.settings.defaultPermissionRuleSetId = "read_only";
     const coding = await f.apply("coding");
-    assert.equal(coding.config.permissionRuleSetId, "planning");
+    assert.equal(coding.config.permissionRuleSetId, "read_only");
     assert.deepEqual(coding.applied.locked, {});
+    const configuration = await f.capabilities.configuration("p", "c");
+    assert.equal(configuration.conversation?.tools.plan_present, undefined);
+    assert.ok(configuration.effective.disabledTools.includes("plan_present"));
     const persisted = JSON.parse(
       await readFile(
         join(f.root, "data/conversations/c/config/applied-agent-profile.json"),
@@ -112,6 +122,46 @@ void test("Planning materializes permission and tool config; Coding retains the 
       ),
     );
     assert.equal(persisted.name, "coding");
+  } finally {
+    await f.cleanup();
+  }
+});
+
+void test("Reset to settings clears selected tool and skill overrides without clearing other tools", async () => {
+  const f = await fixture();
+  try {
+    await f.profiles.update({
+      scope: "user",
+      name: "resetter",
+      patch: {
+        description: "Reset selected settings",
+        usableBy: "lead",
+        instructions: "",
+        tools: { web_fetch: "settings" },
+        skills: "settings",
+      },
+    });
+    await f.capabilities.update({
+      projectId: "p",
+      conversationId: "c",
+      layer: "conversation",
+      patch: {
+        tools: {
+          web_fetch: { enabled: false },
+          python_exec: { enabled: false },
+        },
+        skills: { file: { custom: false } },
+      },
+    });
+    await f.apply("resetter");
+    const next = await f.capabilities.configuration("p", "c");
+    assert.equal(next.conversation?.tools.web_fetch, undefined);
+    assert.equal(next.conversation?.tools.python_exec?.enabled, false);
+    assert.deepEqual(next.conversation?.skills, {
+      file: {},
+      nerve: {},
+      agentBrowser: {},
+    });
   } finally {
     await f.cleanup();
   }

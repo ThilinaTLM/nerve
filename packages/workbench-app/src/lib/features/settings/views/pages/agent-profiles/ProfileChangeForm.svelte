@@ -53,7 +53,16 @@ const tool = $derived(
   draft.key.startsWith("tool:") ? (draft.key.slice(5) as ToolId) : undefined,
 );
 const modes = $derived(modesFor(usableBy));
-const leadMode = $derived(draft.mode === "lead");
+const leadMode = $derived(draft.mode === "lead" || draft.mode === "settings");
+const valueless = (mode: string) => mode === "lead" || mode === "settings";
+const modeText = (mode: string) =>
+  mode === "lead"
+    ? "Same as lead agent"
+    : mode === "settings"
+      ? "Reset to settings"
+      : mode === "lock"
+        ? "Lock"
+        : "Set";
 
 // Model: { model, thinking }.
 const modelValue = $derived(draft.value as ModelChangeValue | undefined);
@@ -96,8 +105,8 @@ $effect(() => {
           ? Boolean(
               modelValue?.model ||
               modelValue?.thinking ||
-              modelMode === "lead" ||
-              thinkingMode === "lead",
+              valueless(modelMode) ||
+              valueless(thinkingMode),
             )
           : kind === "permission"
             ? Boolean(draft.value)
@@ -152,11 +161,13 @@ const toolChoices = $derived(
           models={context.models}
           value={modelValue?.model}
           thinkingLevel={modelValue?.thinking}
-          modelDisabled={modelMode === "lead"}
-          thinkingDisabled={thinkingMode === "lead"}
-          lockReason="Follows the lead agent"
+          modelDisabled={valueless(modelMode)}
+          thinkingDisabled={valueless(thinkingMode)}
+          lockReason={modelMode === "settings" || thinkingMode === "settings"
+            ? "Reset to settings"
+            : "Follows the lead agent"}
           inheritOption={{
-            label: modelMode === "lead" ? "Same as lead agent" : "Use settings",
+            label: valueless(modelMode) ? modeText(modelMode) : "Use settings",
             description: "Leave the model as configured in settings.",
           }}
           inherit={!modelValue?.model}
@@ -169,7 +180,7 @@ const toolChoices = $derived(
                 ...modelValue,
                 model: next.model,
                 thinking:
-                  modelValue?.thinking === undefined || thinkingMode === "lead"
+                  modelValue?.thinking === undefined || valueless(thinkingMode)
                     ? modelValue?.thinking
                     : next.thinkingLevel,
               },
@@ -197,11 +208,7 @@ const toolChoices = $derived(
             >
               {#each modes as mode (mode)}
                 <ToggleGroup.Item value={mode}
-                  >{mode === "lead"
-                    ? "Same as lead agent"
-                    : mode === "lock"
-                      ? "Lock"
-                      : "Set"}</ToggleGroup.Item
+                  >{modeText(mode)}</ToggleGroup.Item
                 >
               {/each}
             </ToggleGroup.Root>
@@ -390,13 +397,7 @@ const toolChoices = $derived(
         class="flex-wrap"
       >
         {#each modes as mode (mode)}
-          <ToggleGroup.Item value={mode}
-            >{mode === "lead"
-              ? "Same as lead agent"
-              : mode === "lock"
-                ? "Lock"
-                : "Set"}</ToggleGroup.Item
-          >
+          <ToggleGroup.Item value={mode}>{modeText(mode)}</ToggleGroup.Item>
         {/each}
       </ToggleGroup.Root>
       <p class="text-xs text-muted-foreground">{modeHint(draft.mode)}</p>

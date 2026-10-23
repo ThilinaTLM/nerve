@@ -5,5 +5,9 @@
   "label": "Coding",
   "description": "Implement and validate changes.",
   "usableBy": "lead",
+  "permission": "settings",
+  "tools": {
+    "plan_present": "settings"
+  },
   "instructions": "In the final response, summarize changes, validation, and remaining limits."
 }

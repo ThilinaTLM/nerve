@@ -1,6 +1,8 @@
 # System prompt, tool descriptions, and agent profiles
 
-> **Status:** Proposal. The decisions below were agreed in discussion. Implementation is phased. The `conversation.mode` column change (phase 4) is approved by the project owner.
+> **Status:** Implemented baseline; completion review pending for detailed UI and migration acceptance criteria. Source review confirms the core Phase 5 template model, applied snapshots, bundled profiles, planning approval and migration implementation. This review did not verify every UI requirement or migration-rehearsal gate, so full completion is not yet certified. Phase 5 supersedes conflicting earlier phases. Subsequent redesign is tracked in [Scoped configuration and active agent profiles](scoped-configuration-and-active-profiles/README.md), not as unfinished work in this proposal.
+>
+> **Follow-up already implemented:** Coding now resets permission and plan presentation to application settings through the explicit Reset to settings mode. This extends the original Phase 5 behavior; the historical specification below is preserved.
 
 ## Summary
 
@@ -13,7 +15,7 @@ Make the prompt sent to the model small and regular, and drive its variations fr
 
 Principle: tell the agent what it can do and what isn't obvious. Don't restate things a capable model already knows.
 
-## Current state
+## Original baseline (before implementation)
 
 | Concern         | Where                                                                | Today                                                                                                                                                                                                                              |
 | --------------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
