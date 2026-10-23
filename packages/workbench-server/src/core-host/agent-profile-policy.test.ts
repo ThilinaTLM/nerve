@@ -8,7 +8,20 @@ import type { ConversationConfig } from "@nervekit/contracts/core";
 import { AgentProfileService } from "../domains/agent-profiles/agent-profile.service.js";
 import { CapabilityService } from "./capability.service.js";
 import { ConversationHarnessSettings } from "./conversation-harness.service.js";
-import { createAgentProfilePort } from "./agent-profile-policy.js";
+import {
+  createAgentProfilePort,
+  profileDefaults,
+} from "./agent-profile-policy.js";
+
+void test("profile defaults require a configured model", () => {
+  const settings = structuredClone(defaultSettings);
+  assert.throws(() => profileDefaults(settings), /Choose a default model/);
+  const model = { provider: "test", modelId: "configured" };
+  assert.deepEqual(
+    profileDefaults({ ...settings, defaultModel: model }).model,
+    model,
+  );
+});
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "nerve-applied-profile-"));

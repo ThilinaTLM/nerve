@@ -147,8 +147,6 @@ export const harnessConfigSchema = z
     defaultAgentProfile: agentProfileNameSchema.optional(),
     version: z.literal(4),
     defaults: agentSelectionConfigSchema,
-    rememberLastSelection: z.boolean(),
-    lastSelection: agentSelectionConfigSchema,
     compaction: autoCompactionSettingsSchema,
     retry: z
       .object({
@@ -178,11 +176,6 @@ export type HarnessConfig = z.infer<typeof harnessConfigSchema>;
 export const defaultHarnessConfig: HarnessConfig = {
   version: 4,
   defaults: {
-    permissionRuleSetId: "autonomous",
-    thinkingLevel: "off",
-  },
-  rememberLastSelection: false,
-  lastSelection: {
     permissionRuleSetId: "autonomous",
     thinkingLevel: "off",
   },

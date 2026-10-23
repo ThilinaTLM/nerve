@@ -1,4 +1,4 @@
-import type { ColorMode, ColorTheme, Settings } from "$lib/api";
+import type { ColorMode, ColorTheme } from "$lib/api";
 import {
   getApplicationConfiguration,
   getAuthProviders,
@@ -41,20 +41,6 @@ export type SettingsSaveOptions = {
   immediate?: boolean;
   debounceMs?: number;
 };
-
-type LastAgentSelectionPatch = Partial<Settings["lastAgentSelection"]>;
-
-export function rememberLastAgentSelection(
-  patch: LastAgentSelectionPatch,
-): void {
-  const settings = settingsState.settingsDraft;
-  if (!settings?.rememberLastAgentSelection) return;
-  settings.lastAgentSelection = {
-    ...settings.lastAgentSelection,
-    ...patch,
-  };
-  queueSettingsSave({ lastAgentSelection: patch }, { immediate: true });
-}
 
 let pendingSettingsPatch: UpdateSettingsRequest | undefined;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -285,12 +271,6 @@ function mergeSettingsPatch(
             },
           }
         : {}),
-    };
-  }
-  if (base?.lastAgentSelection || patch.lastAgentSelection) {
-    next.lastAgentSelection = {
-      ...(base?.lastAgentSelection ?? {}),
-      ...(patch.lastAgentSelection ?? {}),
     };
   }
   if (base?.compaction || patch.compaction) {

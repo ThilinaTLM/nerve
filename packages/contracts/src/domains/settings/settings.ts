@@ -33,15 +33,6 @@ export type ColorMode = z.infer<typeof colorModeSchema>;
 export const headerTypeSchema = z.enum(["auto", "linux", "windows", "macos"]);
 export type HeaderType = z.infer<typeof headerTypeSchema>;
 
-export const agentSelectionSettingsSchema = z.object({
-  permissionRuleSetId: permissionRuleSetIdSchema,
-  model: modelSelectionSchema.optional(),
-  thinkingLevel: thinkingLevelSchema,
-});
-export type AgentSelectionSettings = z.infer<
-  typeof agentSelectionSettingsSchema
->;
-
 const permissionExceptionsSchema = z
   .array(permissionExceptionSchema)
   .max(256)
@@ -385,8 +376,6 @@ export const settingsSchema = z.object({
   defaultPermissionRuleSetId: permissionRuleSetIdSchema,
   defaultModel: modelSelectionSchema.optional(),
   defaultThinkingLevel: thinkingLevelSchema,
-  rememberLastAgentSelection: z.boolean(),
-  lastAgentSelection: agentSelectionSettingsSchema,
   application: applicationSettingsSchema,
   ui: z.object({
     theme: colorThemeSchema,
@@ -429,11 +418,6 @@ export type Settings = z.infer<typeof settingsSchema>;
 export const defaultSettings: Settings = {
   defaultPermissionRuleSetId: "autonomous",
   defaultThinkingLevel: "off",
-  rememberLastAgentSelection: false,
-  lastAgentSelection: {
-    permissionRuleSetId: "autonomous",
-    thinkingLevel: "off",
-  },
   application: defaultApplicationSettings,
   ui: {
     theme: "nerve",
@@ -509,14 +493,6 @@ export const updateSettingsRequestSchema = z.object({
   defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
   defaultModel: modelSelectionSchema.nullable().optional(),
   defaultThinkingLevel: thinkingLevelSchema.optional(),
-  rememberLastAgentSelection: z.boolean().optional(),
-  lastAgentSelection: z
-    .object({
-      permissionRuleSetId: permissionRuleSetIdSchema.optional(),
-      model: modelSelectionSchema.nullable().optional(),
-      thinkingLevel: thinkingLevelSchema.optional(),
-    })
-    .optional(),
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({

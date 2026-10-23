@@ -339,8 +339,6 @@ export function settingsFromConfiguration(
     defaultModel: harness.defaults.model,
     defaultThinkingLevel: harness.defaults.thinkingLevel,
     defaultAgentProfile: harness.defaultAgentProfile,
-    rememberLastAgentSelection: harness.rememberLastSelection,
-    lastAgentSelection: harness.lastSelection,
     application: {
       network: daemon.network,
       diagnostics: daemon.diagnostics,
@@ -404,8 +402,6 @@ export function configurationWithSettings(
           model: parsed.defaultModel,
           thinkingLevel: parsed.defaultThinkingLevel,
         },
-        rememberLastSelection: parsed.rememberLastAgentSelection,
-        lastSelection: parsed.lastAgentSelection,
         compaction: parsed.compaction,
         retry: parsed.retry,
         tools: canonicalToolsFromSettings(parsed),

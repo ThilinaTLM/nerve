@@ -147,11 +147,6 @@ void test("successful migration clears pre-bind legacy schema failures, but no-o
       permissionRuleSetId: "read_only",
       permissionLevel: "autonomous",
     },
-    lastSelection: {
-      ...defaultUserConfiguration.harness.lastSelection,
-      permissionRuleSetId: "read_only",
-      permissionLevel: "autonomous",
-    },
   };
   await writeFile(paths.harnessConfigPath, JSON.stringify(legacy));
   // Match main.ts: bind settings are read before the migration worker starts.
@@ -176,7 +171,6 @@ void test("successful migration clears pre-bind legacy schema failures, but no-o
   const convertedBytes = await readFile(paths.harnessConfigPath, "utf8");
   const converted = JSON.parse(convertedBytes);
   assert.equal("permissionLevel" in converted.defaults, false);
-  assert.equal("permissionLevel" in converted.lastSelection, false);
   const port = createPermissionPort(home, {
     conversations: { get: () => ({ projectId: "project" }) },
     trustedResources: { find: () => undefined },

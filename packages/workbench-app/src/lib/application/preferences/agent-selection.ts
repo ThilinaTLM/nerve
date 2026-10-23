@@ -25,13 +25,11 @@ export type NewAgentComposerSelection = {
 };
 
 export function effectiveNewAgentDefaults(settings: Settings) {
-  return settings.rememberLastAgentSelection
-    ? settings.lastAgentSelection
-    : {
-        permissionRuleSetId: settings.defaultPermissionRuleSetId,
-        model: settings.defaultModel,
-        thinkingLevel: settings.defaultThinkingLevel,
-      };
+  return {
+    permissionRuleSetId: settings.defaultPermissionRuleSetId,
+    model: settings.defaultModel,
+    thinkingLevel: settings.defaultThinkingLevel,
+  };
 }
 
 export function resolveNewAgentComposerSelection(

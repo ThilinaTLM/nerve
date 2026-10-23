@@ -14,10 +14,7 @@ import {
   appliedAgentProfileSchema,
 } from "@nervekit/contracts/agent-profiles";
 import { permissionRuleSetSchema } from "@nervekit/contracts/permissions";
-import {
-  defaultHarnessConfig,
-  harnessConfigSchema,
-} from "@nervekit/contracts/settings";
+import { defaultHarnessConfig } from "@nervekit/contracts/settings";
 import { openCoreStorage } from "@nervekit/conversation-core";
 import { runMigrations } from "../../framework/runner.js";
 import { rollbackFailedMigration } from "../../framework/recovery.js";
@@ -75,7 +72,11 @@ void test("an already-applied 0001 home runs 0002, then core v2, preserving user
     version: 3,
     defaultAgentProfile: "planning",
     mode: "coding",
-    lastSelection: { ...defaultHarnessConfig.lastSelection, mode: "planning" },
+    lastSelection: {
+      permissionRuleSetId: "autonomous",
+      thinkingLevel: "off",
+      mode: "planning",
+    },
     tools: {
       bash: {
         maxTimeoutMs: 300000,
@@ -152,9 +153,9 @@ void test("an already-applied 0001 home runs 0002, then core v2, preserving user
   agentProfileFileSchema.parse(
     read(join(home, "project/.nerve/agent-profiles/reviewer.json")),
   );
-  const migratedHarness = harnessConfigSchema.parse(
-    read(join(home, "config/harness.json")),
-  );
+  // This frozen, unreleased step is replaced in Phase 5; its output no longer
+  // represents the evolving runtime harness contract.
+  const migratedHarness = read(join(home, "config/harness.json"));
   assert.equal(migratedHarness.version, 4);
   assert.equal(migratedHarness.tools.plan_present?.enabled, false);
   assert(!("execution" in migratedHarness));

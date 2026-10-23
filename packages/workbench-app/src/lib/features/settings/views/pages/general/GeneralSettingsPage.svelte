@@ -44,8 +44,6 @@ type Props = {
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
   projectId?: string;
-  /** Reads the composer's live selection; owned by app composition. */
-  readComposerSelection?: () => Settings["lastAgentSelection"];
   onSettingsChange?: SettingsChange;
 };
 
@@ -55,7 +53,6 @@ let {
   models = [],
   authProviders = [],
   projectId,
-  readComposerSelection,
   onSettingsChange,
 }: Props = $props();
 
@@ -186,21 +183,6 @@ function userChange(
   );
 }
 
-/** Turning it on seeds the remembered selection from the composer's live one. */
-function setRememberLast(checked: boolean): void {
-  settingsDraft.rememberLastAgentSelection = checked;
-  const last = checked ? readComposerSelection?.() : undefined;
-  if (!last) {
-    userChange({ rememberLastAgentSelection: checked });
-    return;
-  }
-  settingsDraft.lastAgentSelection = last;
-  userChange({
-    rememberLastAgentSelection: true,
-    lastAgentSelection: { ...last, model: last.model ?? null },
-  });
-}
-
 function setStartProfile(name: string): void {
   if (project) void projectState.update({ defaultAgentProfile: name });
   else {
@@ -316,20 +298,6 @@ function resetAll(): void {
         </div>
       {/snippet}
     </SettingsRow>
-    {#if !project}
-      <SettingsRow
-        label="Remember last selection"
-        description="New conversations reuse the last model, reasoning level and permissions you chose."
-      >
-        {#snippet control()}
-          <Switch
-            checked={settingsDraft.rememberLastAgentSelection}
-            aria-label="Remember last selection"
-            onCheckedChange={setRememberLast}
-          />
-        {/snippet}
-      </SettingsRow>
-    {/if}
   </SettingsSection>
 
   <SettingsSection id="model" title="Model and permissions" divided>

@@ -47,13 +47,6 @@ import {
   requestConversation,
 } from "$lib/application/startup/conversation-connection";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
-import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import type { Settings } from "$lib/api";
-import { selection } from "$lib/application/workspace/selection.svelte";
-import {
-  retainConversationStore,
-  type ConversationStore,
-} from "$lib/features/conversations";
 import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
 export function createSettingsPageControllers(deps: {
@@ -402,34 +395,9 @@ export function createSettingsPageControllers(deps: {
       for (const unsubscribe of stopSettings) unsubscribe();
     };
   });
-  let activeStore = $state<ConversationStore>();
-  $effect(() => {
-    const id = selection.conversationId;
-    if (!id) {
-      activeStore = undefined;
-      return;
-    }
-    const retained = retainConversationStore(id);
-    activeStore = retained.store;
-    void retained.ready.catch(() => undefined);
-    return retained.release;
-  });
   const storageController = new StoragePageController();
   const permissionsController = new PermissionsPageController();
   const suggestionsPageState = new SuggestionsPageState();
-  function readComposerSelection(): Settings["lastAgentSelection"] {
-    const saved = settingsState.settingsDraft?.lastAgentSelection;
-    if (!saved) throw new Error("Settings not loaded");
-    const config = activeStore?.snapshot?.config;
-    return config
-      ? {
-          ...saved,
-          model: config.model,
-          thinkingLevel: config.reasoningLevel,
-          permissionRuleSetId: config.permissionRuleSetId,
-        }
-      : { ...saved };
-  }
   return {
     get capabilityConfiguration() {
       return capabilityConfiguration;
@@ -458,7 +426,6 @@ export function createSettingsPageControllers(deps: {
     suggestionsPageState,
     storageController,
     permissionsController,
-    readComposerSelection,
   };
 }
 export type SettingsPageControllers = ReturnType<

@@ -144,7 +144,6 @@ const projectId = $derived(
   {:else if page.id === "general"}
     <GeneralSettingsPage
       {scope}
-      readComposerSelection={controllers.readComposerSelection}
       {settingsDraft}
       {models}
       {authProviders}

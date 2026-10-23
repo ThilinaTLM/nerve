@@ -7,7 +7,6 @@ export {
   openProjectSettingsPane,
   openSettingsPane,
   queueSettingsSave,
-  rememberLastAgentSelection,
   refreshAncillarySettingsData,
   refreshSubscriptionUsage,
   restartOwnedDaemon,

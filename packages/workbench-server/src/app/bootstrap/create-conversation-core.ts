@@ -323,7 +323,7 @@ export function createConversationCore(
       const settings = projectId
         ? await projectSettings(projectId)
         : deps.storage.settings;
-      const model = settings.defaultModel ?? settings.lastAgentSelection.model;
+      const model = settings.defaultModel;
       return { model, reasoningLevel: settings.defaultThinkingLevel };
     },
     parent: (id) => core.getSnapshot(id).config,

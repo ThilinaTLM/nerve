@@ -52,10 +52,7 @@ import {
 } from "$lib/presentation/utils/model";
 import { summarizeConversationUsage } from "$lib/presentation/usage/conversation-usage";
 import { settingsState } from "$lib/features/settings/state/settings-state.svelte";
-import {
-  openSettingsPane,
-  rememberLastAgentSelection,
-} from "$lib/application/settings";
+import { openSettingsPane } from "$lib/application/settings";
 import WorkbenchConversationAdapter from "$lib/app/composition/conversations/WorkbenchConversationHost.svelte";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
 import {
@@ -599,10 +596,6 @@ function setComposerModelSelection(next: {
       (candidate) => model && modelKey(candidate) === modelKey(model),
     ),
   );
-  rememberLastAgentSelection({
-    ...(next.model ? { model: next.model } : {}),
-    ...(next.thinkingLevel ? { thinkingLevel: reasoningLevel } : {}),
-  });
   return configure({
     ...(next.model ? { model: next.model } : {}),
     ...(next.thinkingLevel ? { reasoningLevel } : {}),
@@ -632,7 +625,6 @@ async function setComposerAgentProfile(name: string) {
   } else await store?.setAgentProfile(name);
 }
 function setComposerPermissionRuleSet(value: string) {
-  rememberLastAgentSelection({ permissionRuleSetId: value });
   return configure({ permissionRuleSetId: value });
 }
 async function resolve(toolCallId: string, resolution: InteractionResolution) {

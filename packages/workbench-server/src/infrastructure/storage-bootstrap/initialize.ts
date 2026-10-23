@@ -196,14 +196,6 @@ async function applySettingsPatch(
       : "defaultModel" in patch
         ? { defaultModel: patch.defaultModel }
         : {};
-  const lastAgentSelectionPatch = patch.lastAgentSelection
-    ? {
-        ...patch.lastAgentSelection,
-        ...(patch.lastAgentSelection.model === null
-          ? { model: undefined }
-          : {}),
-      }
-    : undefined;
   const bashPatch = patch.tools?.bash
     ? {
         ...patch.tools.bash,
@@ -375,10 +367,6 @@ async function applySettingsPatch(
     transcription: {
       ...storage.settings.transcription,
       ...(patch.transcription ?? {}),
-    },
-    lastAgentSelection: {
-      ...storage.settings.lastAgentSelection,
-      ...(lastAgentSelectionPatch ?? {}),
     },
     compaction: {
       ...storage.settings.compaction,

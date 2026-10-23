@@ -47,7 +47,7 @@ function usesApplicationSettings(profile: AgentProfileDraft): boolean {
 }
 
 export function profileDefaults(settings: Settings) {
-  const model = settings.defaultModel ?? settings.lastAgentSelection.model;
+  const model = settings.defaultModel;
   if (!model)
     throw new Error("Choose a default model before creating a conversation.");
   return {
