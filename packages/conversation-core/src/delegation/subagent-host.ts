@@ -4,8 +4,8 @@ import type { AgentProfileApplication } from "../ports.js";
 export interface SubagentHost {
   resolveProfile(input: { parentId: string; profile: string }): Promise<{
     name: string;
-    /** Captured during preflight; creation uses this exact snapshot, never re-resolves the file. */
-    application: AgentProfileApplication;
+    /** Trusted preflight selection. The configuration host revalidates it at actual creation. */
+    application: Pick<AgentProfileApplication, "config">;
   }>;
   usableProfiles(parentId: string): Promise<string[]>;
 }

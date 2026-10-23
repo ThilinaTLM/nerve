@@ -1,3 +1,4 @@
+import { configureTest } from "./lifecycle-test-helpers.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -85,7 +86,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
     }[] = [];
     let compactions = 0;
     const configureNext = () =>
-      core.configure("conv_fresh", {
+      configureTest(opts, core, "conv_fresh", {
         model: { provider: newModel.provider, modelId: newModel.id },
         reasoningLevel: "high",
 
@@ -99,13 +100,13 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
       async () => {
         compactions++;
         const compactedSelection =
-          opts.storage.conversations.getConfig("conv_fresh")!.model;
+          opts.configuration.snapshot("conv_fresh").model;
         assert.equal(
-          opts.storage.conversations.getConfig("conv_fresh")!.model.provider,
+          opts.configuration.snapshot("conv_fresh").model.provider,
           newModel.provider,
         );
         if (compactions === 1)
-          core.configure("conv_fresh", {
+          configureTest(opts, core, "conv_fresh", {
             reasoningLevel: "low",
 
             instructions: "after compaction",
@@ -130,7 +131,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           // The request has been prepared, but has not returned from the provider.
           configureNext();
           if (boundary !== "overflow")
-            core.configure("conv_fresh", {
+            configureTest(opts, core, "conv_fresh", {
               reasoningLevel: "low",
 
               instructions: "in flight",
@@ -143,7 +144,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         }
         if (requests.length === 2 && boundary === "retry") {
           // A queued input continues this execution after the in-flight reply.
-          core.configure("conv_fresh", {
+          configureTest(opts, core, "conv_fresh", {
             reasoningLevel: "off",
 
             instructions: "continuation",
@@ -175,7 +176,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
     try {
       await core.start();
       await createConversation(core, "conv_fresh");
-      core.configure("conv_fresh", {
+      configureTest(opts, core, "conv_fresh", {
         model: { provider: oldModel.provider, modelId: oldModel.id },
         instructions: "old",
       });
@@ -222,7 +223,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
 
       // Subsequent requests prepare anew; prior bundles stay intact.
       if (boundary !== "retry") {
-        core.configure("conv_fresh", {
+        configureTest(opts, core, "conv_fresh", {
           reasoningLevel: "off",
 
           instructions: "continuation",
@@ -298,7 +299,7 @@ void test("compaction resolves current model, reasoning and settings without ord
       resolve: async (selection) => {
         resolvedProvider = selection.provider;
         // A save after compaction preparation begins belongs to the next request.
-        core.configure("conv_compaction", {
+        configureTest(opts, core, "conv_compaction", {
           model: { provider: "saved-during-compaction", modelId: "next" },
           reasoningLevel: "off",
         });
@@ -358,7 +359,7 @@ void test("compaction resolves current model, reasoning and settings without ord
         createdAt: new Date().toISOString(),
       });
     }
-    core.configure("conv_compaction", {
+    configureTest(opts, core, "conv_compaction", {
       model: { provider: model.provider, modelId: model.id },
       reasoningLevel: "high",
     });
@@ -382,6 +383,71 @@ void test("compaction resolves current model, reasoning and settings without ord
     );
   } finally {
     stream.mock.restore();
+    await core.close();
+    provider.unregister();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+void test("retry preferences are captured once per sequence, not reread after a retryable failure", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "nerve-retry-capture-"));
+  const provider = registerAgentScriptedProvider({
+    provider: `retry-capture-${randomUUID()}`,
+    steps: [
+      { type: "providerError", message: "RETRYABLE: temporary failure" },
+      { type: "providerError", message: "RETRYABLE: temporary failure" },
+      { type: "assistantText", text: "Must remain unused" },
+    ],
+  });
+  const opts = options(
+    directory,
+    join(directory, "core.sqlite"),
+    {
+      resolve: async () => ({ model: provider.getModel("scripted-fast")! }),
+    },
+    {
+      execute: async () => {
+        throw new Error("No tools expected");
+      },
+      isReplaySafe: () => false,
+    },
+  );
+  const preferences = { enabled: true, maxRetries: 1, baseDelayMs: 1 };
+  let captures = 0;
+  let retries = 0;
+  opts.configuration.captureRetry = async () => {
+    captures++;
+    return preferences;
+  };
+  const core = new ConversationCore(opts);
+  core.subscribe((change) => {
+    if (
+      change.kind === "event_appended" &&
+      change.event.type === "system_event" &&
+      change.event.payload.subtype === "execution_state" &&
+      change.event.payload.transition === "retrying"
+    ) {
+      retries++;
+      preferences.enabled = false;
+      preferences.maxRetries = 0;
+    }
+  });
+  try {
+    await core.start();
+    await createConversation(core, "retry-capture");
+    core.submitInput({
+      conversationId: "retry-capture",
+      inputId: "input-retry",
+      text: "Go",
+      source: "user",
+    });
+    await waitUntil(
+      () => core.getSnapshot("retry-capture").conversation.status === "failed",
+    );
+    assert.equal(captures, 1);
+    assert.equal(retries, 1);
+    assert.equal(provider.getPendingResponseCount(), 1);
+  } finally {
     await core.close();
     provider.unregister();
     await rm(directory, { recursive: true, force: true });

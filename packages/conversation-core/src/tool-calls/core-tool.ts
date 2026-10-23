@@ -1,3 +1,4 @@
+import type { ProfileTransitionResult } from "@nervekit/contracts/agent-configuration";
 import type {
   Interaction,
   InteractionResolution,
@@ -14,13 +15,23 @@ export interface CoreToolHandler {
     call: ToolCall,
     resolution: InteractionResolution,
     ctx: CoreToolContext,
-  ): Promise<ToolExecutionResultPayload>;
+  ): Promise<CoreToolResolution>;
+  recover?(call: ToolCall, ctx: CoreToolContext): Promise<CoreToolResolution>;
 }
+export type CoreToolResolution =
+  | ToolExecutionResultPayload
+  | (ToolExecutionResultPayload & {
+      kind: "profile_transition";
+      transition: ProfileTransitionResult;
+      result: ToolExecutionResultPayload;
+    });
 export type CoreToolOutcome =
   | { kind: "completed"; result: ToolExecutionResultPayload }
   | { kind: "awaiting_input"; interaction: Interaction };
 export interface CoreToolContext {
   conversationId: string;
+  /** Process-local advertised configuration; absent after restart requires recapture. */
+  requestCaptureId?: string;
   signal: AbortSignal;
   onProgress(update: ToolProgress): void;
 }

@@ -1,4 +1,8 @@
 import { createId } from "@nervekit/contracts";
+import {
+  toolApprovalBindingMatches,
+  type ToolApprovalBinding,
+} from "@nervekit/contracts/core";
 import { shutdownReason } from "../runtime/shutdown.js";
 import type {
   AsyncBash,
@@ -16,7 +20,6 @@ import type {
 import type { CoreStorage } from "../storage/core-storage.js";
 import type { CoreToolContext, CoreToolHandler } from "./core-tool.js";
 import { ToolCallSettlement } from "./tool-call-settlement.service.js";
-import { effectivePermissionRuleSetId } from "./permission-rule-set.js";
 import {
   ToolCallInteractions,
   type ResolveInteraction,
@@ -53,6 +56,13 @@ export interface AsyncBashAdopter {
   }): AsyncBash | Promise<AsyncBash>;
 }
 export interface ToolCallServiceOptions {
+  resolvedInteractionResult?(
+    conversationId: string,
+    resolution: import("@nervekit/contracts/core").InteractionResolution,
+    toolCallId: string,
+  ): Promise<
+    import("@nervekit/contracts/agent-configuration").InteractionResolveResult
+  >;
   storage: CoreStorage;
   assets: AssetStore;
   permissions: PermissionPort;
@@ -71,6 +81,8 @@ export interface ToolCallServiceOptions {
 
 export class ToolCallService {
   private closed = false;
+  private readonly requestCaptures = new Map<string, string>();
+  private readonly presentedApprovals = new Map<string, ToolApprovalBinding>();
   private readonly workers = new Map<string, Promise<void>>();
   private readonly stopping = new Set<string>();
   private readonly controllers = new Map<string, AbortController>();
@@ -86,6 +98,7 @@ export class ToolCallService {
       start: (ids) => this.start(ids),
       update: (id, patch) => this.update(id, patch),
       toolContext: (call, signal) => this.toolContext(call, signal),
+      presentedApproval: (id) => this.presentedApprovals.get(id),
     });
   }
 
@@ -93,6 +106,7 @@ export class ToolCallService {
     conversationId: string,
     turnId: string,
     assistantEvent: ConversationEvent,
+    requestCaptureId?: string,
   ): ToolCall[] {
     if (
       assistantEvent.type !== "assistant_message" ||
@@ -138,6 +152,9 @@ export class ToolCallService {
           }),
         );
       });
+      if (requestCaptureId)
+        for (const row of rows)
+          this.requestCaptures.set(row.id, requestCaptureId);
       return rows;
     });
   }
@@ -147,6 +164,8 @@ export class ToolCallService {
     for (const controller of this.controllers.values())
       controller.abort(shutdownReason);
     await this.settlement.close();
+    this.requestCaptures.clear();
+    this.presentedApprovals.clear();
   }
 
   async start(toolCallIds: string[]): Promise<void> {
@@ -230,7 +249,11 @@ export class ToolCallService {
     return call;
   }
 
-  resolveInteraction(input: ResolveInteraction): Promise<void> {
+  resolveInteraction(
+    input: ResolveInteraction,
+  ): Promise<
+    import("@nervekit/contracts/agent-configuration").InteractionResolveResult
+  > {
     return this.interactions.resolveInteraction(input);
   }
 
@@ -271,6 +294,27 @@ export class ToolCallService {
     );
   }
 
+  /** Health publication hook: repair/reload only retries admission, never grants approval. */
+  async retryConfigurationBlocked(conversationId?: string): Promise<void> {
+    const ids: string[] = [];
+    for (const call of this.options.storage.toolCalls.listAll()) {
+      if (
+        call.state !== "awaiting_input" ||
+        call.interaction?.kind !== "configuration_blocked" ||
+        (conversationId && call.conversationId !== conversationId) ||
+        this.stopping.has(call.id)
+      )
+        continue;
+      this.update(call.id, {
+        state: "ready",
+        executionClaim: null,
+        interaction: null,
+      });
+      ids.push(call.id);
+    }
+    await this.start(ids);
+  }
+
   async recover(): Promise<void> {
     const ids: string[] = [];
     for (const call of this.options.storage.toolCalls.listAll()) {
@@ -287,6 +331,12 @@ export class ToolCallService {
             resolutionRequestId: call.interaction.resolutionRequestId,
             resolution: call.interaction.resolution,
           });
+        } else if (
+          call.state === "awaiting_approval" ||
+          call.interaction?.kind === "configuration_blocked"
+        ) {
+          this.update(call.id, { state: "ready", interaction: null });
+          ids.push(call.id);
         }
         continue;
       }
@@ -314,10 +364,16 @@ export class ToolCallService {
     if (this.closed || this.stopping.has(id)) return Promise.resolve();
     const active = this.workers.get(id);
     if (active) return active;
-    const task = this.process(id).finally(() => {
-      this.workers.delete(id);
-      this.controllers.delete(id);
-    });
+    const task = Promise.resolve()
+      .then(() => this.process(id))
+      .finally(() => {
+        this.workers.delete(id);
+        this.controllers.delete(id);
+        if (this.closed || !this.options.storage.toolCalls.get(id)) {
+          this.requestCaptures.delete(id);
+          this.presentedApprovals.delete(id);
+        }
+      });
     this.workers.set(id, task);
     return task;
   }
@@ -333,34 +389,140 @@ export class ToolCallService {
         ? { command: call.arguments.command }
         : call.arguments;
     try {
-      if (call.state === "supervising") {
-        const { projectDir, config } = await this.options.context(
-          call.conversationId,
-        );
-        const supervision = await this.options.permissions.evaluate({
+      if (call.state !== "supervising" && call.state !== "ready") return;
+      const child = this.options.storage.conversations.get(
+        call.conversationId,
+      )?.parentConversationId;
+      if (
+        child &&
+        (call.toolName === "ask_user" ||
+          call.toolName === "plan_present" ||
+          call.toolName.startsWith("subagent_"))
+      ) {
+        const reason =
+          "Child agents cannot ask users, present plans, or delegate/manage sub-agents.";
+        call = this.update(id, {
+          supervision: {
+            decision: "deny",
+            reason,
+            suggestedRules: [],
+            authority: { role: "child" },
+          },
+        });
+        await this.settlement.settle(call, "denied", { content: reason });
+        return;
+      }
+      const ctx = this.toolContext(call, controller.signal);
+      const handler = this.options.coreTools.get(call.toolName);
+      const { config, projectDir } = await this.options.context(
+        call.conversationId,
+      );
+      const artifactDir = handler
+        ? ""
+        : await this.options.assets.directory(
+            `conversations/${call.conversationId}/tool-calls/${call.id}/files`,
+          );
+      if (!this.options.permissions.prepareAdmission)
+        throw new Error("Execution admission is not configured");
+      if (!handler && !this.options.host.prepareExecution)
+        throw new Error("Prepared tool execution is not configured");
+      const prepared = handler
+        ? {
+            args,
+            cwd: config.workingDirectory,
+            target: {
+              kind: "core",
+              toolName: call.toolName,
+              cwd: config.workingDirectory,
+            },
+            dispatch: () => handler.execute(call!, ctx),
+          }
+        : await this.options.host.prepareExecution!({
+            toolCallId: call.id,
+            conversationId: call.conversationId,
+            origin: call.origin,
+            toolName: call.toolName,
+            projectDir,
+            args,
+            cwd: config.workingDirectory,
+            signal: ctx.signal,
+            onProgress: ctx.onProgress,
+            artifactDir,
+            requestCaptureId: this.requestCaptures.get(call.id),
+          });
+      if ("kind" in prepared) {
+        if (!controller.signal.aborted)
+          this.update(id, {
+            state: "awaiting_input",
+            executionClaim: null,
+            interaction: {
+              kind: "configuration_blocked",
+              request: prepared.request,
+            },
+          });
+        return;
+      }
+      let result;
+      for (;;) {
+        const admission = await this.options.permissions.prepareAdmission({
+          toolCallId: call.id,
           conversationId: call.conversationId,
           projectDir,
-          ruleSetId: effectivePermissionRuleSetId(config),
           toolName: call.toolName,
           origin: call.origin,
-          args,
-          cwd: config.workingDirectory,
+          args: prepared.args,
+          cwd: prepared.cwd,
+          target: prepared.target,
+          requestCaptureId: this.requestCaptures.get(call.id),
         });
         if (
           controller.signal.aborted ||
-          this.options.storage.toolCalls.get(id)?.state !== "supervising"
+          this.stopping.has(id) ||
+          !this.options.storage.toolCalls.get(id)
         )
           return;
-        call = this.update(id, { supervision });
-        if (supervision.decision === "deny") {
-          await this.settlement.settle(call, "denied", {
-            content: supervision.reason ?? "Denied by permission policy.",
+        const decision = admission.check();
+        if (decision.kind === "stale") continue;
+        if (decision.kind === "blocked") {
+          this.presentedApprovals.delete(id);
+          this.update(id, {
+            state: "awaiting_input",
+            executionClaim: null,
+            interaction: {
+              kind: "configuration_blocked",
+              request: decision.request,
+            },
           });
           return;
         }
-        if (supervision.decision === "approval") {
+        const { evidence } = decision;
+        const supervision = { ...decision.supervision };
+        delete supervision.approval;
+        const approved = call.supervision?.approval;
+        call = this.update(id, {
+          supervision: {
+            ...supervision,
+            ...(toolApprovalBindingMatches(approved, evidence.binding)
+              ? { approval: approved }
+              : {}),
+          },
+        });
+        if (supervision.decision === "deny") {
+          this.presentedApprovals.delete(id);
+          await this.settlement.settle(call, "denied", {
+            content:
+              supervision.reason ?? "Denied by current permission policy.",
+          });
+          return;
+        }
+        if (
+          supervision.decision === "approval" &&
+          !toolApprovalBindingMatches(approved, evidence.binding)
+        ) {
+          this.presentedApprovals.set(id, evidence.binding);
           this.update(id, {
             state: "awaiting_approval",
+            executionClaim: null,
             interaction: {
               kind: "approval",
               request: {
@@ -371,38 +533,28 @@ export class ToolCallService {
           });
           return;
         }
-        call = this.update(id, { state: "ready" });
-      }
-      if (call.state !== "ready" || controller.signal.aborted) return;
-      call = this.update(id, {
-        state: "running",
-        executionClaim: createId("tool"),
-      });
-      this.settlement.recordExecutionStart(call);
-      const ctx = this.toolContext(call, controller.signal);
-      const handler = this.options.coreTools.get(call.toolName);
-      const { config, projectDir } = await this.options.context(
-        call.conversationId,
-      );
-      let result;
-      if (handler) result = await handler.execute(call, ctx);
-      else {
-        const artifactDir = await this.options.assets.directory(
-          `conversations/${call.conversationId}/tool-calls/${call.id}/files`,
-        );
-        if (controller.signal.aborted) return;
-        result = await this.options.host.execute({
-          toolCallId: call.id,
-          conversationId: call.conversationId,
-          origin: call.origin,
-          toolName: call.toolName,
-          projectDir,
-          args,
-          cwd: config.workingDirectory,
-          signal: ctx.signal,
-          onProgress: ctx.onProgress,
-          artifactDir,
+        // No await between the synchronous current-policy check and dispatch.
+        call = this.update(id, {
+          state: "running",
+          // Keep the durable resolution receipt for settlement and restart readmission.
+          executionClaim: createId("tool"),
         });
+        // Publication callbacks may synchronously mutate policy; recheck after them.
+        const final = admission.check();
+        if (controller.signal.aborted || this.stopping.has(id)) return;
+        if (
+          final.kind !== "policy" ||
+          final.supervision.decision !== supervision.decision ||
+          !toolApprovalBindingMatches(evidence.binding, final.evidence.binding)
+        ) {
+          call = this.update(id, { state: "ready", executionClaim: null });
+          continue;
+        }
+        this.settlement.recordExecutionStart(call);
+        this.presentedApprovals.delete(id);
+        const dispatched = prepared.dispatch();
+        result = await dispatched;
+        break;
       }
       if (controller.signal.aborted || !this.holdsClaim(call)) {
         if (result.kind === "backgrounded") await result.process.cancel();
@@ -507,6 +659,7 @@ export class ToolCallService {
   private toolContext(call: ToolCall, signal: AbortSignal): CoreToolContext {
     return {
       conversationId: call.conversationId,
+      requestCaptureId: this.requestCaptures.get(call.id),
       signal,
       onProgress: (update) => {
         if (

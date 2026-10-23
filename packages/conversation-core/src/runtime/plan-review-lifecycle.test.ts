@@ -11,7 +11,6 @@ import {
   waitUntil,
   options,
   createConversation,
-  profilePort,
 } from "./lifecycle-test-helpers.js";
 
 for (const scenario of [
@@ -74,10 +73,7 @@ for (const scenario of [
         ],
       });
       let approvalProfile = "coding";
-      const profiles = profilePort();
-      const apply = profiles.applyProfile;
-      profiles.applyProfile = (input) =>
-        apply({ ...input, profile: input.profile ?? "planning" });
+      let activeConfig!: ReturnType<typeof options>;
       const makeOptions = () => {
         const config = options(
           directory,
@@ -100,7 +96,6 @@ for (const scenario of [
           modelTurns++;
           return { systemPrompt: "Test", tools: [] };
         };
-        config.agentProfiles = profiles;
         config.planApprovalProfile = async () => approvalProfile;
         const defaults = config.defaultConfig;
         config.defaultConfig = async (projectId) => ({
@@ -109,6 +104,7 @@ for (const scenario of [
         });
         config.readPlan = async () =>
           "# Implementation plan\n\nA reviewed snapshot.";
+        activeConfig = config;
         return config;
       };
       let core = new ConversationCore(makeOptions());
@@ -116,7 +112,7 @@ for (const scenario of [
         await core.start();
         await createConversation(core, "conv_plan");
         assert.equal(
-          core.getSnapshot("conv_plan").config.agentProfile,
+          activeConfig.configuration.snapshot("conv_plan").agentProfile,
           "planning",
         );
         core.submitInput({
@@ -147,19 +143,37 @@ for (const scenario of [
           });
         assert.equal(call.interaction?.kind, "plan_review");
         if (call.interaction?.kind === "plan_review")
-          assert.equal(call.interaction.request.approvalProfile, "coding");
+          assert.equal(call.interaction.request.targetProfile.name, "coding");
         // Editing the tool configuration after presentation must not retarget this review.
         approvalProfile = "planning";
         const resolution = {
           toolCallId: call.id,
           resolutionRequestId: "resolution_plan",
-          resolution: {
-            kind: "plan_review" as const,
-            decision: scenario.decision,
-            feedback: scenario.feedback,
-            implementationModel: { provider: "user", modelId: "chosen-model" },
-            implementationThinkingLevel: "high" as const,
-          },
+          resolution:
+            scenario.decision === "approve"
+              ? {
+                  kind: "plan_review" as const,
+                  decision: "approve" as const,
+                  confirmation: {
+                    targetProfile:
+                      call.interaction!.kind === "plan_review"
+                        ? call.interaction!.request.targetProfile
+                        : { name: "coding", digest: "0".repeat(64) },
+                    expectedRevision: 0,
+                    expectedDigest: "missing",
+                    transitionId: "transition_plan",
+                    choices: {
+                      model: { provider: "user", modelId: "chosen-model" },
+                      reasoningLevel: "high" as const,
+                    },
+                  },
+                  feedback: scenario.feedback,
+                }
+              : {
+                  kind: "plan_review" as const,
+                  decision: "reject" as const,
+                  feedback: scenario.feedback,
+                },
         };
         await core.resolveInteraction(resolution);
         if (scenario.sibling) {
@@ -202,16 +216,19 @@ for (const scenario of [
         assert.equal(storedResolution.decision, scenario.decision);
         assert.equal(storedResolution.feedback, scenario.feedback);
         assert.equal(
-          core.getSnapshot("conv_plan").config.agentProfile,
+          activeConfig.configuration.snapshot("conv_plan").agentProfile,
           scenario.decision === "approve" ? "coding" : "planning",
         );
         if (scenario.decision === "approve") {
-          assert.deepEqual(core.getSnapshot("conv_plan").config.model, {
-            provider: "user",
-            modelId: "chosen-model",
-          });
+          assert.deepEqual(
+            activeConfig.configuration.snapshot("conv_plan").model,
+            {
+              provider: "user",
+              modelId: "chosen-model",
+            },
+          );
           assert.equal(
-            core.getSnapshot("conv_plan").config.reasoningLevel,
+            activeConfig.configuration.snapshot("conv_plan").reasoningLevel,
             "high",
           );
           assert.equal(modelTurns, 2);
@@ -259,7 +276,7 @@ for (const scenario of [
         );
         assert.equal(core.getSnapshot("conv_plan").conversation.paused, false);
         assert.equal(
-          core.getSnapshot("conv_plan").config.agentProfile,
+          activeConfig.configuration.snapshot("conv_plan").agentProfile,
           "planning",
         );
         assert.ok(
@@ -270,6 +287,135 @@ for (const scenario of [
                 event.type === "user_message" &&
                 event.inputId === "input_followup",
             ),
+        );
+      } finally {
+        await core.close();
+        provider.unregister();
+        await rm(directory, { recursive: true, force: true });
+      }
+    },
+  );
+}
+
+for (const failure of ["stale", "persistence"] as const) {
+  void test(
+    `plan ${failure} failure keeps review pending and releases resolution locks`,
+    { timeout: 5000 },
+    async () => {
+      const directory = await mkdtemp(join(tmpdir(), "nerve-plan-retry-"));
+      const provider = registerAgentScriptedProvider({
+        provider: `plan-retry-${randomUUID()}`,
+        model: "test",
+        steps: [
+          {
+            type: "toolCalls",
+            calls: [
+              {
+                id: "plan",
+                name: "plan_present",
+                args: { file_path: "/plan.md" },
+              },
+            ],
+          },
+          { type: "assistantText", text: "Implemented once" },
+        ],
+      });
+      const config = options(
+        directory,
+        join(directory, "core.sqlite"),
+        { resolve: async () => ({ model: provider.getModel("test")! }) },
+        {
+          execute: async () => {
+            throw new Error("Unexpected host tool");
+          },
+          isReplaySafe: () => false,
+        },
+      );
+      config.readPlan = async () => "# Plan";
+      config.planApprovalProfile = async () => "coding";
+      const apply = config.configuration.profiles.apply;
+      const refresh = {
+        status: "refresh_required" as const,
+        reason: "configuration_changed" as const,
+        diagnostics: [],
+      };
+      config.configuration.profiles.apply = async () => {
+        if (failure === "persistence")
+          throw new Error("Injected persistence failure");
+        return refresh;
+      };
+      config.configuration.profiles.reconcile = async () => refresh;
+      const core = new ConversationCore(config);
+      try {
+        await core.start();
+        await createConversation(core, "conv_retry");
+        core.submitInput({
+          conversationId: "conv_retry",
+          inputId: "input_retry",
+          text: "Present a plan",
+          source: "user",
+        });
+        await waitUntil(() =>
+          core
+            .getSnapshot("conv_retry")
+            .toolCalls.some((call) => call.interaction?.kind === "plan_review"),
+        );
+        const call = core
+          .getSnapshot("conv_retry")
+          .toolCalls.find((call) => call.interaction?.kind === "plan_review")!;
+        if (call.interaction?.kind !== "plan_review")
+          throw new Error("Missing review");
+        const request = call.interaction.request;
+        const approve = (id: string) => ({
+          toolCallId: call.id,
+          resolutionRequestId: id,
+          resolution: {
+            kind: "plan_review" as const,
+            decision: "approve" as const,
+            confirmation: {
+              targetProfile: request.targetProfile,
+              expectedRevision: request.expectedRevision,
+              expectedDigest: request.expectedDigest,
+              transitionId: id,
+            },
+          },
+        });
+        const before = config.configuration.snapshot("conv_retry");
+        if (failure === "persistence")
+          await assert.rejects(
+            core.resolveInteraction(approve("failed")),
+            /persistence failure/,
+          );
+        else
+          assert.equal(
+            (await core.resolveInteraction(approve("failed"))).status,
+            "refresh_required",
+          );
+        const pending = core
+          .getSnapshot("conv_retry")
+          .toolCalls.find((entry) => entry.id === call.id)!;
+        assert.equal(pending.state, "awaiting_input");
+        assert.deepEqual(pending.interaction, { kind: "plan_review", request });
+        assert.deepEqual(config.configuration.snapshot("conv_retry"), before);
+        assert.equal(
+          core
+            .getEventsSince("conv_retry", 0)
+            .filter((event) => event.type === "tool_call_response").length,
+          0,
+        );
+        config.configuration.profiles.apply = apply;
+        assert.equal(
+          (await core.resolveInteraction(approve("fresh"))).status,
+          "applied",
+        );
+        await waitUntil(
+          () => core.getSnapshot("conv_retry").conversation.status === "idle",
+        );
+        assert.equal(
+          core
+            .getEventsSince("conv_retry", 0)
+            .filter((event) => event.type === "tool_call_response").length,
+          1,
         );
       } finally {
         await core.close();

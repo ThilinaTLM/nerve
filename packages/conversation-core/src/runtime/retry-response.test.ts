@@ -1,3 +1,4 @@
+import { configureTest } from "./lifecycle-test-helpers.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -123,7 +124,7 @@ for (const stop of [false, true]) {
           ),
         );
         const first = requests[0]!;
-        core.configure("conv", {
+        configureTest(opts, core, "conv", {
           instructions: "Changed while pending",
           systemPrompt: "New prompt",
           reasoningLevel: "high",

@@ -540,6 +540,10 @@ void test("deleted conversation identities cannot fail later preference saves or
   assert.equal(saved.value.revision, 1);
   await f.service.flushSummaries();
   assert.equal(f.service.getSummary("lead"), undefined);
+  await assert.rejects(
+    f.service.createConversation("lead", { ...leadDocument, revision: 1 }),
+    /cannot be reused/,
+  );
 });
 
 void test("cache write failure cannot fail an acknowledged configuration save", async (t) => {
@@ -603,4 +607,23 @@ void test("unsupported explicit UI reasoning is rejected before persistence", as
     JSON.parse(await readFile(state.value.path, "utf8")).revision,
     0,
   );
+});
+
+void test("creation checks launch generations again at durable publication", async (t) => {
+  const { service } = await fixture(t);
+  let checks = 0;
+  await assert.rejects(
+    service.createConversation(
+      "new-lead",
+      {
+        schemaVersion: 1,
+        revision: 1,
+        overrides: {},
+        appliedProfile: null,
+      },
+      () => ++checks === 1,
+    ),
+  );
+  assert.equal(checks, 2);
+  assert.equal((await service.getEffective("new-lead")).status, "unavailable");
 });

@@ -134,8 +134,6 @@ void test("successful migration clears pre-bind legacy schema failures, but no-o
     await import("../../../src/infrastructure/storage-bootstrap/initialize.js");
   const { EncryptedFileSecretProvider } =
     await import("../../../src/infrastructure/secrets/index.js");
-  const { createPermissionPort } =
-    await import("../../../src/core-host/permission.adapter.js");
   const home = await fixture(t);
   const paths = storagePaths(home);
   await initializeHomeConfiguration(paths);
@@ -171,20 +169,6 @@ void test("successful migration clears pre-bind legacy schema failures, but no-o
   const convertedBytes = await readFile(paths.harnessConfigPath, "utf8");
   const converted = JSON.parse(convertedBytes);
   assert.equal("permissionLevel" in converted.defaults, false);
-  const port = createPermissionPort(home, {
-    conversations: { get: () => ({ projectId: "project" }) },
-    trustedResources: { find: () => undefined },
-  } as unknown as import("@nervekit/conversation-core").CoreStorage);
-  const request = {
-    conversationId: "conversation",
-    projectDir: home,
-    cwd: home,
-    ruleSetId: "autonomous",
-    toolName: "bash",
-    args: { command: "pwd" },
-    origin: "user" as const,
-  };
-  assert.equal((await port.evaluate(request)).decision, "allow");
   assert.equal(await readFile(paths.harnessConfigPath, "utf8"), convertedBytes);
   // A later startup with no applied steps is not a trusted conversion boundary.
   await writeFile(paths.harnessConfigPath, "{ manually broken");
@@ -198,6 +182,5 @@ void test("successful migration clears pre-bind legacy schema failures, but no-o
     defaultUserConfiguration.harness,
   );
   assert.equal(isHomeConfigurationInvalid(paths.harnessConfigPath), true);
-  assert.equal((await port.evaluate(request)).decision, "approval");
   assert.equal(await readFile(paths.harnessConfigPath, "utf8"), convertedBytes);
 });

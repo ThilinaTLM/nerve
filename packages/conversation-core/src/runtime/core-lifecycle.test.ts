@@ -264,6 +264,8 @@ void test(
         running.updatedAt,
       );
       assert.equal(running.supervision?.effectiveRisk, "destructive");
+      assert.ok(running.supervision?.approval);
+      assert.equal(running.interaction?.resolutionRequestId, "resolution_test");
       const response = deferred<ConversationEvent>();
       const unsubscribe = core.subscribe((change) => {
         if (
@@ -282,6 +284,7 @@ void test(
       assert.equal(event.payload.startedAt, running.updatedAt);
       assert.deepEqual(event.payload.supervision, {
         decision: "approval",
+        approval: running.supervision.approval,
         effectiveRisk: "destructive",
         reason: "Destructive command needs review",
         matchedRule: { id: "review_commands" },

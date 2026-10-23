@@ -25,6 +25,8 @@ export interface LoadHarnessResourcesOptions {
   projectDir?: string;
   storageHome?: string;
   disabledSkillNames?: readonly string[];
+  /** A scoped capture's allowlist, including frozen child selections. */
+  enabledFileSkillNames?: readonly string[];
   enabledNerveSkillNames?: readonly string[];
   nerveSkills?: readonly Skill[];
   enabledAgentBrowserSkillNames?: readonly string[];
@@ -153,7 +155,12 @@ function effectiveSkills(
   const fileSkills = deduplicateSkills([
     ...groups.projectSkills,
     ...groups.userSkills,
-  ]).filter((skill) => !disabledSkillNames.has(skill.name));
+  ]).filter(
+    (skill) =>
+      !disabledSkillNames.has(skill.name) &&
+      (options.enabledFileSkillNames === undefined ||
+        options.enabledFileSkillNames.includes(skill.name)),
+  );
   const nerveSkills = (options.nerveSkills ?? []).filter((skill) =>
     enabledNerveSkillNames.has(skill.name),
   );

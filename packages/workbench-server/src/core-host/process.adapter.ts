@@ -3,6 +3,9 @@ import { join } from "node:path";
 import { formatProjectShellFailure } from "@nervekit/tools/execution";
 import {
   spawnShellProcess,
+  prepareShellProcess,
+  spawnPreparedShellProcess,
+  type PreparedShellProcess,
   stopProcessTree,
   waitForProcessExit,
 } from "../infrastructure/process-host/shell-process.js";
@@ -38,6 +41,7 @@ export class CoreProcessHost implements ProcessPort {
     command: string;
     conversationId?: string;
     shellPath?: string;
+    preparedShell?: PreparedShellProcess;
     cwd: string;
     artifactDir: string;
     timeoutMs?: number;
@@ -45,27 +49,28 @@ export class CoreProcessHost implements ProcessPort {
     projectEnvironment?: boolean;
     onProgress?(update: { chunk: string; stream: "stdout" | "stderr" }): void;
   }): Promise<BackgroundProcess> {
+    const prepared = input.preparedShell
+      ? structuredClone(input.preparedShell)
+      : prepareShellProcess(input.command, {
+          shellPath: Object.hasOwn(input, "shellPath")
+            ? input.shellPath
+            : await this.resolveShellPath(input.cwd, input.conversationId),
+          login: true,
+          cwd: input.cwd,
+          env: input.env,
+          projectEnvironment: input.projectEnvironment,
+        });
+    if (prepared.command !== input.command || prepared.cwd !== input.cwd)
+      throw new Error("Prepared process target does not match execution");
     await mkdir(input.artifactDir, { recursive: true });
     const outputFiles = {
       stdout: join(input.artifactDir, "stdout.txt"),
       stderr: join(input.artifactDir, "stderr.txt"),
       combined: join(input.artifactDir, "output.txt"),
     };
-    const { managed: process, launch } = spawnShellProcess(input.command, {
-      shellPath:
-        input.shellPath ??
-        (await this.resolveShellPath(input.cwd, input.conversationId)),
-      login: true,
-      cwd: input.cwd,
-      env: input.env,
-      projectEnvironment: input.projectEnvironment,
-      policy: {
-        wallTimeMs: input.timeoutMs,
-        output: {
-          totalBytes: PROCESS_OUTPUT_LIMIT_BYTES,
-          overflow: "truncate",
-        },
-      },
+    const { managed: process, launch } = spawnPreparedShellProcess(prepared, {
+      wallTimeMs: input.timeoutMs,
+      output: { totalBytes: PROCESS_OUTPUT_LIMIT_BYTES, overflow: "truncate" },
     });
     let cancelled = false;
     let exited = false;
@@ -135,7 +140,10 @@ export class CoreProcessHost implements ProcessPort {
   }
 
   async start(
-    input: Parameters<ProcessPort["start"]>[0] & { shellPath?: string },
+    input: Parameters<ProcessPort["start"]>[0] & {
+      shellPath?: string;
+      preparedShell?: PreparedShellProcess;
+    },
   ): ReturnType<ProcessPort["start"]> {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const background = await this.spawn(input);
@@ -170,9 +178,9 @@ export class CoreProcessHost implements ProcessPort {
   async run(input: Parameters<ProcessPort["run"]>[0] & { shellPath?: string }) {
     if (input.signal.aborted) throw new DOMException("Cancelled", "AbortError");
     const { managed: process } = spawnShellProcess(input.command, {
-      shellPath:
-        input.shellPath ??
-        (await this.resolveShellPath(input.cwd, input.conversationId)),
+      shellPath: Object.hasOwn(input, "shellPath")
+        ? input.shellPath
+        : await this.resolveShellPath(input.cwd, input.conversationId),
       login: true,
       cwd: input.cwd,
       policy: { output: { totalBytes: 1024 * 1024, overflow: "truncate" } },

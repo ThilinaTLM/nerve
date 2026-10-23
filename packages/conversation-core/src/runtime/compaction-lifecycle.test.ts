@@ -686,7 +686,15 @@ void test("standalone child compaction emits no execution or assignment-complete
       id: "child",
       projectId: "proj_test",
       parentConversationId: "conversation",
-      config: { ...config, permissionRuleSetId: "autonomous" },
+      application: {
+        config: {
+          agentProfile: "coding",
+          model: config.model,
+          reasoningLevel: config.reasoningLevel,
+          permissionRuleSetId: "autonomous",
+        },
+      },
+      overrides: { permissionRuleSetId: "autonomous" },
     });
     for (const event of f.opts.storage.events.since("conversation", 0)) {
       if (event.type !== "user_message") continue;

@@ -1,7 +1,4 @@
-import { capabilityPatchSchema } from "@nervekit/contracts/capabilities";
-import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
 import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
-import { capabilityOverridesDocumentSchema } from "@nervekit/contracts/capabilities";
 import { createId } from "@nervekit/contracts";
 import {
   previewSystemPromptParamsSchema,
@@ -124,30 +121,35 @@ export function createConversationProtocolSession(
     const latestSeq = snapshot.lastSequence;
     return { stream, latestSeq, earliestAvailableSeq: 0 };
   };
+  const configurationPublished = () => {
+    state.admissionPolicy.invalidate();
+    state.agentConfiguration.invalidateResources();
+    void core.retryConfigurationBlocked().catch((error) => {
+      void state.logger.warn("Configuration health retry failed", { error });
+    });
+  };
+  const permissionMutation = async <T>(
+    operation: () => Promise<T>,
+  ): Promise<T> => {
+    try {
+      return await operation();
+    } finally {
+      configurationPublished();
+    }
+  };
   const handlers = {
-    "capabilities.get": ({ projectId, conversationId }) => {
-      projects.add(projectId);
-      return state.capabilities.configuration(projectId, conversationId);
-    },
-    "capabilities.update": ({ replace, patch, ...input }) =>
-      state.capabilities.update({
-        ...input,
-        ...(patch !== undefined
-          ? { patch: capabilityPatchSchema.parse(patch) }
-          : {}),
-        ...(replace !== undefined
-          ? { replace: capabilityOverridesDocumentSchema.parse(replace) }
-          : {}),
-      }),
-    "capabilities.reset": (input) => state.capabilities.reset(input),
-    "capabilities.trust": ({ projectId, digest }) =>
-      state.capabilities.trust(projectId, digest),
-    "harnessSettings.get": ({ projectId, conversationId }) => {
-      projects.add(projectId);
-      return state.harness.get(projectId, conversationId);
-    },
-    "harnessSettings.update": ({ projectId, conversationId, compaction }) =>
-      state.harness.update(projectId, conversationId, compaction),
+    "agentConfiguration.get": ({ scope }) =>
+      state.configurationOperations.get(scope),
+    "agentConfiguration.save": (input) =>
+      state.configurationOperations.save(input),
+    "agentConfiguration.getEffective": ({ conversationId }) =>
+      state.configurationOperations.effective(conversationId),
+    "conversationDefaults.get": ({ scope }) =>
+      state.configurationOperations.creation(scope),
+    "conversationDefaults.save": (input) =>
+      state.configurationOperations.saveCreation(input),
+    "conversation.previewAgentProfile": ({ conversationId, profile }) =>
+      core.previewAgentProfile(conversationId, profile),
     "project.create": (input) => {
       const project = core.projects.create(input);
       moveProjectLaunchDefinitions(project.directory);
@@ -170,28 +172,19 @@ export function createConversationProtocolSession(
       return null;
     },
     "trust.list": ({ projectId, kind }) => core.trust.list(projectId, kind),
-    "trust.decide": (input) => core.trust.decide(input),
+    "trust.decide": (input) => {
+      const result = core.trust.decide(input);
+      configurationPublished();
+      return result;
+    },
     "trust.delete": ({ trustedResourceId }) => {
-      state.capabilities.deleteTrust(trustedResourceId);
+      core.trust.delete(trustedResourceId);
+      configurationPublished();
       return null;
     },
     "conversation.create": async (input) => {
       projects.add(input.projectId);
-      const snapshot = await core.createConversation({
-        ...input,
-        capabilityOverrides: input.capabilityOverrides
-          ? capabilityOverridesDocumentSchema.parse(input.capabilityOverrides)
-          : undefined,
-        config: {
-          ...input.config,
-          agentProfile:
-            input.config.agentProfile ??
-            (await state.capabilities.settings(input.projectId))
-              .defaultAgentProfile ??
-            DEFAULT_AGENT_PROFILE,
-          instructions: input.config.instructions ?? null,
-        },
-      });
+      const snapshot = await core.createConversation(input);
       owners.set(input.id, input.projectId);
       return snapshot;
     },
@@ -201,11 +194,8 @@ export function createConversationProtocolSession(
     },
     "conversation.getSnapshot": ({ conversationId }) =>
       core.getSnapshot(conversationId),
-    "conversation.previewSystemPrompt": async (params) => ({
-      systemPrompt: await core.previewSystemPrompt(
-        previewSystemPromptParamsSchema.parse(params),
-      ),
-    }),
+    "conversation.previewSystemPrompt": (params) =>
+      core.previewSystemPrompt(previewSystemPromptParamsSchema.parse(params)),
     "conversation.getUsage": ({ conversationId }) =>
       core.getUsage(conversationId),
     "conversation.getHistory": ({ conversationId, ...page }) =>
@@ -216,8 +206,7 @@ export function createConversationProtocolSession(
       core.getTree(conversationId),
     "conversation.getEventsSince": ({ conversationId, sequence }) =>
       core.getEventsSince(conversationId, sequence),
-    "conversation.setAgentProfile": ({ conversationId, profile }) =>
-      core.setAgentProfile(conversationId, profile),
+    "conversation.setAgentProfile": (input) => core.setAgentProfile(input),
     "conversation.configure": ({ conversationId, patch }) => {
       core.configure(conversationId, patch);
       return null;
@@ -275,8 +264,10 @@ export function createConversationProtocolSession(
       return null;
     },
     "interaction.resolve": async (input) => {
-      await core.resolveInteraction(input);
-      return null;
+      const result = await core.resolveInteraction(input);
+      if (input.resolution.kind === "approval" && input.resolution.persistScope)
+        configurationPublished();
+      return result;
     },
     "asyncBash.logs": (input) => core.asyncBash.readLogPage(input),
     "asyncBash.cancel": async ({ bashId }) => {
@@ -307,17 +298,21 @@ export function createConversationProtocolSession(
       previousRuleId,
       rule,
     }) =>
-      state.permissionConfiguration.saveRule({
-        scope,
-        projectId,
-        ruleSetId,
-        previousRuleId,
-        rule,
-      }),
+      permissionMutation(() =>
+        state.permissionConfiguration.saveRule({
+          scope,
+          projectId,
+          ruleSetId,
+          previousRuleId,
+          rule,
+        }),
+      ),
     "permission.rule.delete": (input) =>
-      state.permissionConfiguration.deleteRule(input),
+      permissionMutation(() => state.permissionConfiguration.deleteRule(input)),
     "permission.projectTrust.grant": ({ projectId }) =>
-      state.permissionConfiguration.grantProjectTrust(projectId),
+      permissionMutation(() =>
+        state.permissionConfiguration.grantProjectTrust(projectId),
+      ),
     "skill.list": ({ projectId } = {}) => {
       const project = projectId ? core.projects.get(projectId) : null;
       if (projectId && !project) throw new Error("Project not found");
@@ -447,15 +442,14 @@ export function createConversationProtocolSession(
       () => notifyDirect(type, data),
       JSON.stringify(data).length * 2,
     );
-  const unsubscribeCapabilities = state.capabilities.subscribe((change) => {
-    if (projects.has(change.projectId))
-      void notify("capabilities.changed", change);
+  const unsubscribeAgent = state.agentConfiguration.subscribeHealth((scope) => {
+    void notify("agentConfiguration.changed", { scope });
   });
-  const unsubscribeSettings = state.events.subscribeNotify((event) => {
-    if (event.type === "settings.updated")
-      for (const projectId of projects)
-        void notify("capabilities.changed", { projectId });
-  });
+  const unsubscribeCreation = state.agentConfiguration.subscribeCreation(
+    (scope) => {
+      void notify("conversationDefaults.changed", { scope });
+    },
+  );
   const unsubscribeCore = core.subscribe((change) => {
     switch (change.kind) {
       case "event_appended":
@@ -554,8 +548,8 @@ export function createConversationProtocolSession(
     }
   });
   unsubscribe = () => {
-    unsubscribeCapabilities();
-    unsubscribeSettings();
+    unsubscribeAgent();
+    unsubscribeCreation();
     unsubscribeCore();
   };
   return {

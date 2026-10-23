@@ -94,6 +94,15 @@ void test("removing user prompt files does not remove user or project skills", a
     assert.ok(names.includes("project-resource"));
     assert.deepEqual(resources.contextFiles, []);
     assert.equal(resources.appendSystemPrompt, undefined);
+    const captured = await loadHarnessResources(nested, {
+      projectDir,
+      storageHome: home,
+      enabledFileSkillNames: ["project-resource"],
+    });
+    assert.deepEqual(
+      captured.skills.map((skill) => skill.name),
+      ["project-resource"],
+    );
   } finally {
     await cleanup();
   }

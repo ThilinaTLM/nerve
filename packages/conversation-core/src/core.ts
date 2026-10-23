@@ -1,9 +1,5 @@
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import {
-  appliedAgentProfileSchema,
-  assertAppliedProfileConfigChange,
-} from "@nervekit/contracts/agent-profiles";
-import { conversationConfigSchema } from "@nervekit/contracts/core";
+import type { AgentConfigurationPort } from "./configuration.js";
+import { createId } from "@nervekit/contracts";
 import { storedToolResultSchema } from "@nervekit/contracts/core";
 import type { TransferredConversationEvent } from "@nervekit/contracts/core";
 import { submitInputRequestSchema } from "@nervekit/contracts/core";
@@ -19,7 +15,6 @@ import type {
   SubmitInputRequest,
   UpdateConversationRequest,
 } from "@nervekit/contracts/core";
-import { type AutoCompactionSettings } from "@nervekit/contracts/settings";
 import { loadProjectionOptions } from "./context/asset-projection.js";
 import { estimatePathUsage } from "./context/context-usage.js";
 import { AssetStore } from "./assets/asset-store.js";
@@ -33,15 +28,11 @@ import { ProjectService } from "./conversations/project.service.js";
 import { TrustedResourceService } from "./conversations/trusted-resource.service.js";
 import { InputQueueService } from "./inputs/input-queue.service.js";
 import type {
-  AgentProfilePort,
-  AgentProfileApplication,
-  TurnPreparationInput,
   ClockPort,
   ModelPort,
   PermissionPort,
   ProcessPort,
   ToolHostPort,
-  TurnResourcesPort,
 } from "./ports.js";
 import type { CoreStorage } from "./storage/core-storage.js";
 import { ToolCallService } from "./tool-calls/tool-call.service.js";
@@ -62,11 +53,10 @@ import { ConversationScheduler } from "./runtime/scheduler.js";
 import { openExecutionId, StatusService } from "./runtime/status.js";
 
 export interface ConversationCoreOptions {
-  agentProfiles: AgentProfilePort;
+  configuration: AgentConfigurationPort;
   storage: CoreStorage;
   dataDir: string;
   models: ModelPort;
-  turnResources: TurnResourcesPort;
   permissions: PermissionPort;
   toolHost: ToolHostPort;
   processes: ProcessPort;
@@ -82,10 +72,6 @@ export interface ConversationCoreOptions {
   coreTools?: Iterable<CoreToolHandler>;
   readPlan?: CoreToolHandlerOptions["readPlan"];
   planApprovalProfile?: CoreToolHandlerOptions["planApprovalProfile"];
-  /** Effective auto-compaction settings (user, project, conversation); built-in defaults when absent. */
-  compactionSettings?(
-    conversationId: string,
-  ): AutoCompactionSettings | Promise<AutoCompactionSettings>;
 }
 export interface ContextUsage {
   tokens: number;
@@ -103,6 +89,7 @@ export class ConversationCore {
   readonly asyncBash: AsyncBashService;
   readonly assets: AssetStore;
   readonly dataDir: string;
+  private readonly emit: (change: CoreChange) => void;
   private readonly listeners = new Set<(change: CoreChange) => void>();
   private readonly finishedListeners = new Set<
     (result: ExecutionFinished) => void
@@ -114,10 +101,6 @@ export class ConversationCore {
   private readonly modelTurn: ModelTurn;
   private readonly status: StatusService;
   private readonly creations = new Map<string, Promise<ConversationSnapshot>>();
-  private readonly profileApplications = new Map<
-    string,
-    Promise<ConversationConfig>
-  >();
   private starting?: Promise<void>;
   private closing?: Promise<void>;
   constructor(private readonly options: ConversationCoreOptions) {
@@ -181,6 +164,7 @@ export class ConversationCore {
       if (change.kind === "tool_call_changed" && "removed" in change.toolCall)
         queueMicrotask(() => this.scheduler?.wake(change.conversationId));
     };
+    this.emit = emit;
     this.compactions = new CompactionOperations(emit, now);
     this.assets = new AssetStore(options.dataDir, options.storage);
     this.inputs = new InputQueueService({
@@ -197,6 +181,15 @@ export class ConversationCore {
       emit,
     });
     this.toolCalls = new ToolCallService({
+      resolvedInteractionResult: (id, resolution, toolCallId) =>
+        resolution.kind === "plan_review" && resolution.decision === "approve"
+          ? options.configuration.profiles.reconcile({
+              ...resolution.confirmation,
+              conversationId: id,
+              kind: "plan-approval",
+              toolCallId,
+            })
+          : Promise.resolve({ status: "resolved" }),
       storage: options.storage,
       assets: this.assets,
       permissions: options.permissions,
@@ -217,11 +210,10 @@ export class ConversationCore {
     });
     this.modelTurn = new ModelTurn(
       options.models,
-      options.turnResources,
+      options.configuration,
       () => [...this.coreTools.values()].map((handler) => handler.definition),
       emit,
       this.assets,
-      options.agentProfiles,
     );
     this.runner = new ConversationRunner({
       assets: this.assets,
@@ -233,7 +225,7 @@ export class ConversationCore {
       status: this.status,
       emit,
       now,
-      compactionSettings: options.compactionSettings,
+      configuration: options.configuration,
       compactions: this.compactions,
     });
     this.scheduler = new ConversationScheduler({
@@ -253,12 +245,10 @@ export class ConversationCore {
       inputs: this.inputs,
       emit,
       now,
-      defaultConfig: options.defaultConfig,
       compactions: this.compactions,
       isExecuting: (id) => this.scheduler.isExecuting(id),
       stop: (id) => this.scheduler.stop(id),
       status: this.status,
-      agentProfiles: options.agentProfiles,
     });
     this.projects = new ProjectService(
       options.storage,
@@ -269,12 +259,7 @@ export class ConversationCore {
     this.trust = new TrustedResourceService(options.storage, now);
     for (const handler of createCoreToolHandlers({
       assets: this.assets,
-      setAgentProfile: (id, profile, overrides) =>
-        this.setAgentProfile(id, profile, {
-          preserveModel: true,
-          preserveThinking: true,
-          overrides,
-        }),
+      profiles: options.configuration.profiles,
       readPlan: options.readPlan,
       planApprovalProfile: options.planApprovalProfile,
       onPlanRejected: (id) => this.scheduler.pause(id),
@@ -283,15 +268,27 @@ export class ConversationCore {
     for (const handler of options.coreTools ?? [])
       this.registerCoreTool(handler);
   }
+  publishConfigurationEvent(
+    event: import("@nervekit/contracts/core").ConversationEvent,
+  ): void {
+    this.emit({
+      kind: "event_appended",
+      conversationId: event.conversationId,
+      event,
+    });
+  }
   registerCoreTool(handler: CoreToolHandler): void {
     this.coreTools.set(handler.definition.name, handler);
   }
   createConversation(
     input: CreateConversationInput,
   ): Promise<ConversationSnapshot> {
-    const pending = input.id && this.creations.get(input.id);
+    input = { ...input, id: input.id ?? createId("conv") };
+    const pending = this.creations.get(input.id!);
     if (pending) return pending.then(() => this.conversations.create(input));
-    const creating = this.createAndApplyProfile(input);
+    const creating = Promise.resolve().then(() =>
+      this.createAndApplyProfile(input),
+    );
     if (input.id) {
       const id = input.id;
       this.creations.set(id, creating);
@@ -305,41 +302,18 @@ export class ConversationCore {
   private async createAndApplyProfile(
     input: CreateConversationInput,
   ): Promise<ConversationSnapshot> {
-    if (input.application && input.capabilityOverrides)
-      throw new Error(
-        "Initial capabilities must be resolved before supplying a profile application",
-      );
     const existing =
       input.id && this.options.storage.conversations.get(input.id);
-    if (!existing && input.parentConversationId && !input.application)
-      throw new Error(
-        "Sub-agent creation requires a resolved profile application",
-      );
-    const created = await this.conversations.create(
-      input.parentConversationId && !input.config
-        ? {
-            ...input,
-            config: {
-              ...(await this.options.defaultConfig(input.projectId)),
-              systemPrompt: null,
-              instructions: null,
-            },
-          }
-        : input,
-    );
+    const prepared = existing
+      ? undefined
+      : await this.options.configuration.prepareCreation(input);
+    const created = await this.conversations.create(input, prepared);
     if (existing) return created;
     try {
-      if (input.application)
-        await this.applyProfileApplication(
-          created.conversation.id,
-          input.application,
-        );
-      else
-        await this.setAgentProfile(
-          created.conversation.id,
-          created.config.agentProfile,
-          { capabilityOverrides: input.capabilityOverrides },
-        );
+      await this.options.configuration.initializeConversation({
+        ...input,
+        id: created.conversation.id,
+      });
     } catch (error) {
       await this.delete(created.conversation.id);
       throw error;
@@ -406,39 +380,40 @@ export class ConversationCore {
     );
   }
   /** Snapshot of the next request's current system prompt; does not run a model. */
-  async previewSystemPrompt(input: PreviewSystemPromptParams): Promise<string> {
-    const { storage } = this.options;
+  async previewSystemPrompt(input: PreviewSystemPromptParams) {
     const saved = "conversationId" in input;
     const conversation = saved
-      ? storage.conversations.get(input.conversationId)
+      ? this.options.storage.conversations.get(input.conversationId)
       : { projectId: input.projectId, parentConversationId: null };
-    const config = saved
-      ? storage.conversations.getConfig(input.conversationId)
-      : input.config;
-    if (!conversation || !config) throw new Error("Conversation not found");
-    const project = storage.projects.get(conversation.projectId);
+    if (!conversation) throw new Error("Conversation not found");
+    const project = this.options.storage.projects.get(conversation.projectId);
     if (!project) throw new Error("Project not found");
-    const prepared = await this.modelTurn.prepare({
+    const config = saved
+      ? this.options.storage.conversations.getConfig(input.conversationId)
+      : input.config;
+    return this.options.configuration.capturePreview({
       conversation,
-      config,
       projectDir: project.directory,
+      config: {
+        systemPrompt: config?.systemPrompt ?? null,
+        instructions: config?.instructions ?? null,
+        workingDirectory: config?.workingDirectory ?? project.directory,
+      },
+      coreTools: [...this.coreTools.values()].map(
+        (handler) => handler.definition,
+      ),
       ...(!saved
-        ? {
-            capabilityOverrides: input.capabilityOverrides,
-            agentProfileOverrides: input.agentProfileOverrides,
-          }
+        ? { overrides: input.overrides, agentProfile: input.agentProfile }
         : {}),
     });
-    return prepared.systemPrompt;
   }
   async contextUsage(id: string): Promise<ContextUsage> {
-    const config = this.options.storage.conversations.getConfig(id);
-    if (!config) throw new Error("Conversation not found");
     const path = this.runner.path(id);
     const projection = await loadProjectionOptions(path, this.assets);
     const tokens = Math.round(estimatePathUsage(path, projection).tokens);
-    const window = await this.options.models
-      .resolve(config.model)
+    const window = await this.options.configuration
+      .captureCompaction(id)
+      .then((capture) => this.options.models.resolve(capture.model))
       .then(({ model }) => model.contextWindow)
       .catch(() => 0);
     return {
@@ -453,84 +428,27 @@ export class ConversationCore {
   update(id: string, patch: UpdateConversationRequest["patch"]) {
     this.conversations.update(id, patch);
   }
-  private profileInput(id: string): TurnPreparationInput {
-    const conversation = this.options.storage.conversations.get(id);
-    const config = this.options.storage.conversations.getConfig(id);
-    const project =
-      conversation && this.options.storage.projects.get(conversation.projectId);
-    if (!conversation || !config || !project)
-      throw new Error("Conversation not found");
-    return { conversation, config, projectDir: project.directory };
-  }
   setAgentProfile(
-    conversationId: string,
-    profile?: string,
-    options: {
-      preserveModel?: boolean;
-      preserveThinking?: boolean;
-      capabilityOverrides?: CapabilityOverridesDocument;
-      overrides?: Partial<Pick<ConversationConfig, "model" | "reasoningLevel">>;
-    } = {},
-  ): Promise<ConversationConfig> {
-    const previous = this.profileApplications.get(conversationId);
-    const applying = (previous ?? Promise.resolve())
-      .catch(() => undefined)
-      .then(async () => {
-        const input = this.profileInput(conversationId);
-        if (input.conversation.parentConversationId)
-          throw new Error("Sub-agent profiles cannot be switched");
-        const application = await this.options.agentProfiles.applyProfile({
-          ...input,
-          config: { ...input.config, ...options.overrides },
-          ...(options.capabilityOverrides
-            ? {
-                capabilityOverrides: structuredClone(
-                  options.capabilityOverrides,
-                ),
-              }
-            : {}),
-          ...(profile === undefined ? {} : { profile }),
-          ...(options.preserveModel ? { preserveModel: true } : {}),
-          ...(options.preserveThinking ? { preserveThinking: true } : {}),
-        });
-        return this.applyProfileApplication(conversationId, application);
-      });
-    this.profileApplications.set(conversationId, applying);
-    const finished = () => {
-      if (this.profileApplications.get(conversationId) === applying)
-        this.profileApplications.delete(conversationId);
-    };
-    void applying.then(finished, finished);
-    return applying;
-  }
-  private async applyProfileApplication(
-    conversationId: string,
-    application: AgentProfileApplication,
-  ): Promise<ConversationConfig> {
-    if (application.config.agentProfile !== application.applied.name)
-      throw new Error("Applied profile name does not match config");
-    const current =
-      this.options.storage.conversations.getConfig(conversationId);
-    if (!current) throw new Error("Conversation not found");
-    const config = conversationConfigSchema.parse({
-      ...current,
-      ...application.config,
-      conversationId,
+    input: import("@nervekit/contracts/agent-configuration").SetConversationAgentProfileRequest,
+  ) {
+    if (this.creations.has(input.conversationId))
+      throw new Error("Conversation configuration is still being initialized");
+    return this.options.configuration.profiles.apply({
+      ...input,
+      kind: "profile",
     });
-    appliedAgentProfileSchema.parse(application.applied);
-    assertAppliedProfileConfigChange(application.applied, config);
-    await this.options.agentProfiles.persistApplication(
-      conversationId,
-      application,
-    );
-    return this.conversations.applyAgentProfile(
-      conversationId,
-      application.config,
-    );
+  }
+  previewAgentProfile(id: string, profile: string) {
+    return this.options.configuration.profiles.preview(id, profile);
   }
   configure(
     id: string,
-    patch: Partial<Omit<ConversationConfig, "conversationId" | "agentProfile">>,
+    patch: Partial<
+      Pick<
+        ConversationConfig,
+        "systemPrompt" | "instructions" | "workingDirectory"
+      >
+    >,
   ) {
     return this.conversations.configure(id, patch);
   }
@@ -557,6 +475,25 @@ export class ConversationCore {
   stop(id: string) {
     return this.scheduler.stop(id);
   }
+  async reconcilePlanReviews(conversationId?: string): Promise<void> {
+    for (const call of this.options.storage.toolCalls.listAll()) {
+      if (
+        (conversationId && call.conversationId !== conversationId) ||
+        call.interaction?.kind !== "plan_review" ||
+        call.interaction.resolution?.decision !== "approve" ||
+        !call.interaction.resolutionRequestId
+      )
+        continue;
+      await this.resolveInteraction({
+        toolCallId: call.id,
+        resolutionRequestId: call.interaction.resolutionRequestId,
+        resolution: call.interaction.resolution,
+      });
+    }
+  }
+  retryConfigurationBlocked(conversationId?: string): Promise<void> {
+    return this.toolCalls.retryConfigurationBlocked(conversationId);
+  }
   retryResponse(id: string): void {
     this.modelTurn.retryResponse(id);
   }
@@ -570,6 +507,8 @@ export class ConversationCore {
     request: SubmitInputRequest,
   ): QueuedInput | "delivered" | Promise<ToolCall | "delivered"> {
     const input = submitInputRequestSchema.parse(request);
+    if (this.creations.has(input.conversationId))
+      throw new Error("Conversation configuration is still being initialized");
     this.inputs.assertAcceptsSource(input.conversationId, input.source);
     const inline =
       input.source === "user"
@@ -598,12 +537,21 @@ export class ConversationCore {
   cancelInput(inputId: string) {
     this.inputs.cancel(inputId);
   }
-  async resolveInteraction(input: ResolveInteractionRequest): Promise<void> {
+  async resolveInteraction(
+    input: ResolveInteractionRequest,
+  ): Promise<
+    import("@nervekit/contracts/agent-configuration").InteractionResolveResult
+  > {
     const conversationId = this.options.storage.toolCalls.get(
       input.toolCallId,
     )?.conversationId;
-    await this.toolCalls.resolveInteraction(input);
-    if (conversationId) this.scheduler.wake(conversationId);
+    const result = await this.toolCalls.resolveInteraction(input);
+    if (
+      conversationId &&
+      (result.status === "applied" || result.status === "resolved")
+    )
+      this.scheduler.wake(conversationId);
+    return result;
   }
   cancelAsyncBash(bashId: string) {
     return this.asyncBash.cancel(bashId);

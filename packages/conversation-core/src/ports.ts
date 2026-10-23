@@ -12,6 +12,8 @@ import type {
   Supervision,
   ToolCallOrigin,
   ToolProgress,
+  ToolAdmissionEvidence,
+  ConfigurationBlockedRequest,
 } from "@nervekit/contracts/core";
 import type {
   ProjectShellLaunchContext,
@@ -50,16 +52,32 @@ export interface TurnResourcesPort {
   ): Promise<{ systemPrompt: string; tools: ToolDefinition[] }>;
 }
 
+export interface ExecutionAdmissionInput {
+  toolCallId: string;
+  conversationId: string;
+  projectDir: string;
+  toolName: string;
+  origin: ToolCallOrigin;
+  args: unknown;
+  cwd: string;
+  /** Actual prepared, non-secret target, never credentials. */
+  target: unknown;
+  requestCaptureId?: string;
+}
+export type ExecutionAdmission =
+  | { kind: "stale" }
+  | { kind: "blocked"; request: ConfigurationBlockedRequest }
+  | {
+      kind: "policy";
+      supervision: Supervision;
+      evidence: ToolAdmissionEvidence;
+    };
+
 export interface PermissionPort {
-  evaluate(input: {
-    conversationId: string;
-    projectDir: string;
-    ruleSetId: string;
-    toolName: string;
-    origin: ToolCallOrigin;
-    args: unknown;
-    cwd: string;
-  }): Promise<Supervision>;
+  /** Async loading only. check must read current memory and never perform IO. */
+  prepareAdmission?(input: ExecutionAdmissionInput): Promise<{
+    check(): ExecutionAdmission;
+  }>;
   addRule(input: {
     scope: "conversation" | "project" | "user";
     conversationId: string;
@@ -70,6 +88,16 @@ export interface PermissionPort {
 }
 
 export interface ToolHostPort {
+  /** Prepare all execution context asynchronously; dispatch must not reselect a target. */
+  prepareExecution?(input: Parameters<ToolHostPort["execute"]>[0]): Promise<
+    | {
+        args: unknown;
+        cwd: string;
+        target: unknown;
+        dispatch(): ReturnType<ToolHostPort["execute"]>;
+      }
+    | { kind: "configuration_blocked"; request: ConfigurationBlockedRequest }
+  >;
   execute(input: {
     toolCallId: string;
     conversationId: string;
@@ -81,6 +109,7 @@ export interface ToolHostPort {
     signal: AbortSignal;
     onProgress(update: ToolProgress): void;
     artifactDir: string;
+    requestCaptureId?: string;
   }): Promise<
     | { kind: "completed"; result: ToolExecutionResultPayload }
     | {

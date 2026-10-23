@@ -13,8 +13,6 @@ import {
   writeSettings,
   type InitializedStorage,
 } from "../../../src/infrastructure/storage-bootstrap/initialize.js";
-import type { CoreStorage } from "@nervekit/conversation-core";
-import { createPermissionPort } from "../../../src/core-host/permission.adapter.js";
 import { ProviderCatalogStore } from "../../../src/domains/providers/provider-catalog.store.js";
 import { WorkbenchNoticePublisher } from "../../../src/infrastructure/events/index.js";
 import { storagePaths } from "../../../src/infrastructure/storage-bootstrap/paths.js";
@@ -134,22 +132,8 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
     "auth.providers_changed",
     "settings.updated",
   ]);
-  const permissionPort = createPermissionPort(home, {
-    conversations: { get: () => ({ projectId: "project" }) },
-    trustedResources: { find: () => undefined },
-  } as unknown as CoreStorage);
-  const input = {
-    conversationId: "conversation",
-    projectDir: home,
-    cwd: home,
-    ruleSetId: "autonomous",
-    toolName: "bash",
-    args: { command: "pwd" },
-    origin: "user" as const,
-  };
   await writeFile(paths.permissionsConfigPath, "broken permissions");
   await app.request("/settings/health");
-  assert.equal((await permissionPort.evaluate(input)).decision, "approval");
   await writeFile(
     paths.permissionsConfigPath,
     JSON.stringify({
@@ -173,9 +157,7 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
     }),
   );
   assert.equal((await resolve("permissions", "reload")).status, 200);
-  assert.equal((await permissionPort.evaluate(input)).decision, "deny");
   await writeFile(paths.permissionsConfigPath, "broken permissions again");
   await app.request("/settings/health");
   assert.equal((await resolve("permissions", "reset")).status, 200);
-  assert.equal((await permissionPort.evaluate(input)).decision, "allow");
 });

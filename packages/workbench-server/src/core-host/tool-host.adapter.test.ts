@@ -57,13 +57,11 @@ void test("bash host validates turn settings, project cwd and untimed background
       autoPromotion: { enabled: false, afterMs: 120000 },
       maxTimeoutMs: 2000,
     };
-    const tools = createToolHostPort(
-      host,
-      () => {
-        throw new Error("unused");
-      },
-      async () => settings,
-    );
+    const tools = createToolHostPort(host, async () => ({
+      context: { cwd: project },
+      bash: structuredClone(settings),
+      target: {},
+    }));
     const execute = (
       args: Record<string, unknown>,
       origin: "model" | "user" = "model",
@@ -194,30 +192,34 @@ void test("bash host validates turn settings, project cwd and untimed background
 void test("launch is advertised only with a handler and receives conversation, origin and signal", async () => {
   const calls: unknown[][] = [];
   const launchTool = {
-    execute: async (...args: unknown[]) => {
-      calls.push(args);
-      return { content: "launchdef_dev Dev idle" };
-    },
+    prepare: async (...args: unknown[]) => ({
+      cwd: tmpdir(),
+      target: {},
+      dispatch: async () => {
+        calls.push(args);
+        return { content: "launchdef_dev Dev idle" };
+      },
+    }),
   } as unknown as import("./launch-tool.js").LaunchTool;
+  const bash = {
+    autoPromotion: { enabled: true, afterMs: 120000 },
+    maxTimeoutMs: 900000,
+  };
   const create = (handler?: typeof launchTool) =>
     createToolHostPort(
       {} as CoreProcessHost,
-      () => ({ cwd: "/project" }),
-      async () => ({
-        autoPromotion: { enabled: true, afterMs: 120000 },
-        maxTimeoutMs: 900000,
-      }),
+      async () => ({ context: { cwd: tmpdir() }, bash, target: {} }),
       handler,
     );
   assert.equal(
-    (await create().definitions("/project")).some(
+    (await create().definitions(tmpdir(), undefined, bash)).some(
       (tool) => tool.name === "launch",
     ),
     false,
   );
   const tools = create(launchTool);
   assert.equal(
-    (await tools.definitions("/project")).some(
+    (await tools.definitions(tmpdir(), undefined, bash)).some(
       (tool) => tool.name === "launch",
     ),
     true,
@@ -230,12 +232,103 @@ void test("launch is advertised only with a handler and receives conversation, o
     origin: "user",
     toolName: "launch",
     args,
-    cwd: "/project",
-    projectDir: "/project",
+    cwd: tmpdir(),
+    projectDir: tmpdir(),
     artifactDir: "/output",
     signal,
     onProgress: () => {},
   });
   assert.equal(result.kind, "completed");
-  assert.deepEqual(calls, [[args, "conv_one", "user", signal]]);
+  assert.deepEqual(calls, [[args, "conv_one", "user", signal, undefined]]);
+  for (const action of ["start", "restart"] as const) {
+    await tools.port.execute({
+      toolCallId: "tool",
+      conversationId: "conv_one",
+      origin: "model",
+      toolName: "launch",
+      args: { action, name: "Dev" },
+      cwd: tmpdir(),
+      projectDir: tmpdir(),
+      artifactDir: "/output",
+      signal,
+      onProgress: () => {},
+    });
+  }
+  assert.equal(
+    calls.length,
+    3,
+    "launch process creation uses prepared dispatch",
+  );
+});
+
+void test("advertising captured bash settings never reloads scoped configuration", async () => {
+  const tools = createToolHostPort({} as CoreProcessHost, async () => {
+    throw new Error("Must not reload captured settings");
+  });
+  const definitions = await tools.definitions("/project", "conversation", {
+    autoPromotion: { enabled: false, afterMs: 1000 },
+    maxTimeoutMs: 5000,
+  });
+  const bash = definitions.find((tool) => tool.name === "bash");
+  assert.ok(bash);
+  assert.ok(
+    (bash.parameters as unknown as { required: string[] }).required.includes(
+      "timeout",
+    ),
+  );
+});
+
+void test("prepared dispatch owns normalized arguments and the non-secret execution target", async () => {
+  const cwd = await mkdtemp(join(tmpdir(), "nerve-prepared-host-"));
+  await writeFile(join(cwd, "file.txt"), "captured file");
+  let preparations = 0;
+  const account = { id: "selected-account", endpoint: "original" };
+  const tools = createToolHostPort({} as CoreProcessHost, async () => {
+    preparations++;
+    return {
+      context: { cwd },
+      bash: {
+        autoPromotion: { enabled: true, afterMs: 1000 },
+        maxTimeoutMs: 5000,
+      },
+      target: { account },
+    };
+  });
+  const input = {
+    toolCallId: "call",
+    conversationId: "c",
+    origin: "model" as const,
+    toolName: "read",
+    cwd,
+    projectDir: cwd,
+    args: { path: "file.txt" },
+    artifactDir: cwd,
+    signal: new AbortController().signal,
+    onProgress: () => {},
+  };
+  try {
+    const prepared = await tools.port.prepareExecution!(input);
+    if ("kind" in prepared) return assert.fail("Expected prepared dispatch");
+    input.args.path = "different.txt";
+    account.endpoint = "changed";
+    const result = await prepared.dispatch();
+    assert.equal(result.kind, "completed");
+    assert.match(result.result.content ?? "", /captured file/);
+    assert.deepEqual((prepared.target as { account: unknown }).account, {
+      id: "selected-account",
+      endpoint: "original",
+    });
+    assert.equal(preparations, 1);
+    const recovered = await tools.port.prepareExecution!({
+      ...input,
+      args: { path: "file.txt" },
+    });
+    if ("kind" in recovered) return assert.fail("Expected recovered dispatch");
+    assert.deepEqual(
+      (recovered.target as { account: unknown }).account,
+      account,
+    );
+  } finally {
+    await rm(cwd, { recursive: true, force: true });
+  }
 });

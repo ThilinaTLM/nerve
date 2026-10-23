@@ -1,8 +1,9 @@
-import { basename } from "node:path";
 import type {
-  ConversationConfig,
-  UserInputAnswer,
-} from "@nervekit/contracts/core";
+  ProfileLifecyclePort,
+  ProfileTransitionInput,
+} from "../configuration.js";
+import { basename } from "node:path";
+import type { UserInputAnswer } from "@nervekit/contracts/core";
 import {
   planReviewRequestSchema,
   normalizeUserInputRequest,
@@ -14,12 +15,11 @@ import type { CoreToolHandler } from "./core-tool.js";
 
 export interface CoreToolHandlerOptions {
   assets: AssetStore;
-  setAgentProfile(
+  profiles: ProfileLifecyclePort;
+  planApprovalProfile?(
     conversationId: string,
-    profile: string,
-    overrides?: Partial<Pick<ConversationConfig, "model" | "reasoningLevel">>,
-  ): Promise<unknown>;
-  planApprovalProfile?(conversationId: string): Promise<string>;
+    requestCaptureId?: string,
+  ): Promise<string>;
   onPlanRejected(conversationId: string): void;
   // The host decides which plan files can be read; the core owns the reviewed copy.
   readPlan?(input: {
@@ -106,7 +106,35 @@ export function createCoreToolHandlers(
         throw new Error("Plan approval profile is not configured");
       const approvalProfile = await options.planApprovalProfile(
         call.conversationId,
+        ctx.requestCaptureId,
       );
+      const preview = await options.profiles.preview(
+        call.conversationId,
+        approvalProfile,
+      );
+      if (preview.status !== "ready")
+        return {
+          kind: "awaiting_input",
+          interaction: {
+            kind: "configuration_blocked",
+            request: {
+              diagnostics: preview.diagnostics.length
+                ? preview.diagnostics
+                : [
+                    {
+                      scope: "conversation",
+                      scopeId: call.conversationId,
+                      document: "agent",
+                      path: "config/agent.json",
+                      code: "profile-unavailable",
+                      pointer: "/appliedProfile",
+                      affectedCapability: "plan-review",
+                      recoveryChoices: ["retry", "reload"],
+                    },
+                  ],
+            },
+          },
+        };
       const content = await options.readPlan({
         conversationId: call.conversationId,
         path,
@@ -126,7 +154,9 @@ export function createCoreToolHandlers(
         interaction: {
           kind: "plan_review",
           request: planReviewRequestSchema.parse({
-            approvalProfile,
+            targetProfile: preview.preview.targetProfile,
+            expectedRevision: preview.preview.expectedRevision,
+            expectedDigest: preview.preview.expectedDigest,
             assetId: asset.id,
             path: options.assets.path(asset.logicalPath),
             title: basename(path),
@@ -147,27 +177,69 @@ export function createCoreToolHandlers(
       if (resolution.decision === "approve") {
         if (call.interaction?.kind !== "plan_review")
           throw new Error("Missing captured plan review");
-        await options.setAgentProfile(
-          call.conversationId,
-          call.interaction.request.approvalProfile,
-          {
-            ...(resolution.implementationModel
-              ? { model: resolution.implementationModel }
-              : {}),
-            ...(resolution.implementationThinkingLevel
-              ? { reasoningLevel: resolution.implementationThinkingLevel }
-              : {}),
+        const confirmation = resolution.confirmation;
+        const request = call.interaction.request;
+        const input: ProfileTransitionInput = {
+          ...confirmation,
+          conversationId: call.conversationId,
+          kind: "plan-approval",
+          toolCallId: call.id,
+        };
+        const mismatch =
+          confirmation.targetProfile.name !== request.targetProfile.name ||
+          confirmation.targetProfile.digest !== request.targetProfile.digest
+            ? "target_changed"
+            : confirmation.expectedRevision !== request.expectedRevision ||
+                confirmation.expectedDigest !== request.expectedDigest
+              ? "configuration_changed"
+              : undefined;
+        const transition = mismatch
+          ? await options.profiles.reject(input, mismatch)
+          : await options.profiles.apply(input);
+        return {
+          kind: "profile_transition",
+          transition,
+          result: {
+            content: "Plan approved. Switched to the implementation profile.",
+            details: {
+              decision: "approve",
+              feedback: resolution.feedback,
+              transitionId: confirmation.transitionId,
+            },
           },
-        );
+        };
       } else options.onPlanRejected(call.conversationId);
       return {
-        content:
-          resolution.decision === "approve"
-            ? "Plan approved. Switched to the implementation profile."
-            : `Plan rejected.${resolution.feedback ? ` ${resolution.feedback}` : ""}`,
+        content: `Plan rejected.${resolution.feedback ? ` ${resolution.feedback}` : ""}`,
         details: {
           decision: resolution.decision,
           feedback: resolution.feedback,
+        },
+      };
+    },
+    async recover(call) {
+      const resolution =
+        call.interaction?.kind === "plan_review"
+          ? call.interaction.resolution
+          : undefined;
+      if (resolution?.decision !== "approve")
+        throw new Error("No accepted plan transition to reconcile");
+      const transition = await options.profiles.reconcile({
+        ...resolution.confirmation,
+        conversationId: call.conversationId,
+        kind: "plan-approval",
+        toolCallId: call.id,
+      });
+      return {
+        kind: "profile_transition",
+        transition,
+        result: {
+          content: "Plan approved. Switched to the implementation profile.",
+          details: {
+            decision: "approve",
+            feedback: resolution.feedback,
+            transitionId: resolution.confirmation.transitionId,
+          },
         },
       };
     },

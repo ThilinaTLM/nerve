@@ -1,3 +1,4 @@
+import type { AgentConfigurationPort } from "../configuration.js";
 import type { AssetStore } from "../assets/asset-store.js";
 import { loadProjectionOptions } from "../context/asset-projection.js";
 import { streamSimpleWithModel } from "@nervekit/harness/models";
@@ -8,12 +9,7 @@ import type {
 } from "@nervekit/contracts/core";
 import type { ToolDefinition } from "@nervekit/tools/catalog";
 import { buildModelMessages } from "../context/index.js";
-import type {
-  AgentProfilePort,
-  ModelPort,
-  TurnResourcesPort,
-  TurnPreparationInput,
-} from "../ports.js";
+import type { ModelPort } from "../ports.js";
 import { abortable } from "./abortable.js";
 import type { CoreEmitter } from "./core-change.js";
 
@@ -24,6 +20,11 @@ export interface ModelTurnInput {
   path: ConversationEvent[];
   turnId: string;
   signal: AbortSignal;
+}
+export class StaleRequestCaptureError extends Error {
+  constructor() {
+    super("Request configuration changed during preparation");
+  }
 }
 interface ActiveRequest {
   controller: AbortController;
@@ -45,74 +46,68 @@ export class ModelTurn {
 
   constructor(
     private readonly models: ModelPort,
-    private readonly resources: TurnResourcesPort,
+    private readonly configuration: AgentConfigurationPort,
     private readonly coreDefinitions: () => ToolDefinition[],
     private readonly emit: CoreEmitter,
     private readonly assets?: AssetStore,
-    private readonly agentProfiles?: AgentProfilePort,
   ) {}
-  async prepare(input: TurnPreparationInput) {
-    return this.prepareResources(input);
-  }
-  private async prepareResources(input: TurnPreparationInput) {
-    const snapshot: TurnPreparationInput = {
-      conversation: structuredClone(input.conversation),
-      config: structuredClone(input.config),
-      projectDir: input.projectDir,
-      capabilityOverrides: structuredClone(input.capabilityOverrides),
-      agentProfileOverrides: structuredClone(input.agentProfileOverrides),
-      appliedAgentProfile: structuredClone(
-        input.appliedAgentProfile ??
-          (input.conversation.id
-            ? this.agentProfiles?.getAppliedProfile(input.conversation.id)
-            : null) ??
-          null,
-      ),
-    };
-    const customPrompt = snapshot.config.systemPrompt;
-    const resources = await this.resources.prepare({
-      conversation: snapshot.conversation,
-      config: snapshot.config,
-      projectDir: snapshot.projectDir,
-      ...(snapshot.capabilityOverrides
-        ? { capabilityOverrides: snapshot.capabilityOverrides }
-        : {}),
-      ...(snapshot.agentProfileOverrides
-        ? { agentProfileOverrides: snapshot.agentProfileOverrides }
-        : {}),
-      appliedAgentProfile: snapshot.appliedAgentProfile,
-      coreTools: this.coreDefinitions(),
-    });
-    return {
-      ...resources,
-      systemPrompt: customPrompt ?? resources.systemPrompt,
-    };
-  }
   async prepareRequest(input: ModelTurnInput) {
-    // Own the inputs before awaiting host preparation; later saves must not alter
-    // an already prepared provider attempt.
-    const config = structuredClone(input.config);
-    const resolved = structuredClone(
-      await this.models.resolve(structuredClone(config.model)),
-    );
-    const resources = await this.prepareResources({ ...input, config });
-    const tools = new Map(resources.tools.map((tool) => [tool.name, tool]));
-    return {
-      resolved,
-      model: structuredClone(config.model),
-      reasoning:
-        config.reasoningLevel === "off" ? undefined : config.reasoningLevel,
-      agentProfile: config.agentProfile,
-      systemPrompt: resources.systemPrompt,
-      tools: structuredClone(
-        [...tools.values()].map(({ name, description, parameters }) => ({
-          name,
-          description,
-          parameters,
-        })),
-      ),
-    } as const;
+    // The host owns scoped settings. SQL config is context-only, never model authority.
+    while (true) {
+      input.signal.throwIfAborted();
+      const capture = await this.configuration.captureRequest({
+        conversation: structuredClone(input.conversation),
+        config: structuredClone(input.config),
+        projectDir: input.projectDir,
+        coreTools: this.coreDefinitions(),
+        signal: input.signal,
+      });
+      let published = false;
+      try {
+        const snapshot = structuredClone({
+          id: capture.id,
+          model: capture.model,
+          reasoningLevel: capture.reasoningLevel,
+          agentProfile: capture.agentProfile,
+          systemPrompt: capture.systemPrompt,
+          tools: capture.tools.map(({ name, description, parameters }) => ({
+            name,
+            description,
+            parameters,
+          })),
+        });
+        const resolved = structuredClone(
+          await this.models.resolve(structuredClone(snapshot.model)),
+        );
+        input.signal.throwIfAborted();
+        if (!capture.isCurrent()) continue;
+        const tools = new Map(snapshot.tools.map((tool) => [tool.name, tool]));
+        published = true;
+        return {
+          requestCaptureId: snapshot.id,
+          isCurrent: capture.isCurrent,
+          resolved,
+          model: snapshot.model,
+          reasoning:
+            snapshot.reasoningLevel === "off"
+              ? undefined
+              : snapshot.reasoningLevel,
+          agentProfile: snapshot.agentProfile,
+          systemPrompt: snapshot.systemPrompt,
+          tools: structuredClone(
+            [...tools.values()].map(({ name, description, parameters }) => ({
+              name,
+              description,
+              parameters,
+            })),
+          ),
+        } as const;
+      } finally {
+        if (!published) this.configuration.releaseRequest?.(capture.id);
+      }
+    }
   }
+
   async run(input: ModelTurnInput) {
     return this.runPrepared(input, await this.prepareRequest(input));
   }
@@ -131,6 +126,8 @@ export class ModelTurn {
       ),
       tools: prepared.tools,
     };
+    // Projection can await assets. Fence once here; manual response retries below reuse this request.
+    if (!prepared.isCurrent()) throw new StaleRequestCaptureError();
     const id = input.conversation.id;
     while (true) {
       input.signal.throwIfAborted();

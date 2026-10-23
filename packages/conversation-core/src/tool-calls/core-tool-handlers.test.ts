@@ -1,13 +1,20 @@
+import { testConfiguration } from "../runtime/configuration-test-helper.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ToolCall } from "@nervekit/contracts/core";
 import { askUserResultSchema } from "@nervekit/contracts/tools";
 import type { AssetStore } from "../assets/asset-store.js";
-import { createCoreToolHandlers } from "./core-tool-handlers.js";
+import {
+  createCoreToolHandlers,
+  type CoreToolHandlerOptions,
+} from "./core-tool-handlers.js";
 
+const fakeProfiles = () =>
+  testConfiguration({ prepare: async () => ({ systemPrompt: "", tools: [] }) })
+    .profiles;
 const handler = createCoreToolHandlers({
   assets: {} as AssetStore,
-  async setAgentProfile() {},
+  profiles: fakeProfiles(),
   onPlanRejected() {},
 }).get("ask_user");
 const call = {
@@ -131,7 +138,7 @@ test("ask_user resolves all answers, trims option and text, and skips missing or
 test("agents have no profile entry or force-exit handlers", () => {
   const handlers = createCoreToolHandlers({
     assets: {} as AssetStore,
-    async setAgentProfile() {},
+    profiles: fakeProfiles(),
     onPlanRejected() {},
   });
   assert.equal(handlers.has("plan_mode_enter"), false);
@@ -139,7 +146,11 @@ test("agents have no profile entry or force-exit handlers", () => {
   assert.ok(handlers.has("plan_present"));
 });
 
-function planReview() {
+function planReview(
+  planApprovalProfile: NonNullable<
+    CoreToolHandlerOptions["planApprovalProfile"]
+  > = async () => "implementation",
+) {
   const changes: unknown[] = [];
   const rejections: string[] = [];
   const planCall = {
@@ -149,10 +160,27 @@ function planReview() {
     arguments: { file_path: "/plans/implementation.md" },
     interaction: {
       kind: "plan_review",
-      request: { approvalProfile: "implementation" },
+      request: {
+        targetProfile: { name: "implementation", digest: "0".repeat(64) },
+        expectedRevision: 0,
+        expectedDigest: "missing",
+        assetId: "asset_plan",
+        path: "/plan.md",
+      },
     },
   } as unknown as ToolCall;
+  const profiles = fakeProfiles();
+  const apply = profiles.apply;
+  profiles.apply = async (input) => {
+    changes.push({
+      conversationId: input.conversationId,
+      profile: input.targetProfile.name,
+      overrides: input.choices,
+    });
+    return apply(input);
+  };
   const planHandler = createCoreToolHandlers({
+    profiles,
     assets: {
       async write() {
         return {
@@ -164,15 +192,12 @@ function planReview() {
         return `/storage/${logicalPath}`;
       },
     } as unknown as AssetStore,
-    planApprovalProfile: async () => "implementation",
+    planApprovalProfile,
     async readPlan() {
       return "# Implementation plan\n\nImplement the approved approach.";
     },
     onPlanRejected(conversationId) {
       rejections.push(conversationId);
-    },
-    async setAgentProfile(conversationId, profile, overrides) {
-      changes.push({ conversationId, profile, overrides });
     },
   }).get("plan_present")!;
   return { changes, rejections, planCall, planHandler };
@@ -185,7 +210,10 @@ test("presenting a plan requests review without changing agentProfile", async ()
   if (outcome.kind !== "awaiting_input") assert.fail("Expected plan review");
   assert.equal(outcome.interaction.kind, "plan_review");
   if (outcome.interaction.kind === "plan_review")
-    assert.equal(outcome.interaction.request.approvalProfile, "implementation");
+    assert.equal(
+      outcome.interaction.request.targetProfile.name,
+      "implementation",
+    );
   assert.deepEqual(rejections, []);
   assert.deepEqual(changes, []);
 });
@@ -197,8 +225,16 @@ test("user approval of a plan switches to the captured profile with approved mod
     {
       kind: "plan_review",
       decision: "approve",
-      implementationModel: { provider: "openai", modelId: "approved" },
-      implementationThinkingLevel: "high",
+      confirmation: {
+        targetProfile: { name: "implementation", digest: "0".repeat(64) },
+        expectedRevision: 0,
+        expectedDigest: "missing",
+        transitionId: "approve-plan",
+        choices: {
+          model: { provider: "openai", modelId: "approved" },
+          reasoningLevel: "high",
+        },
+      },
     },
     ctx,
   );
@@ -212,7 +248,8 @@ test("user approval of a plan switches to the captured profile with approved mod
       },
     },
   ]);
-  assert.match(result.content ?? "", /Plan approved/);
+  assert.ok("kind" in result && result.kind === "profile_transition");
+  assert.match(result.result.content ?? "", /Plan approved/);
   assert.deepEqual(rejections, []);
 });
 
@@ -230,4 +267,36 @@ test("user rejection gates automatic work, leaves agentProfile unchanged and ret
   assert.deepEqual(changes, []);
   assert.equal(result.content, "Plan rejected. Use a smaller scope.");
   assert.deepEqual(rejections, ["conv_1"]);
+});
+
+test("plan review uses its request-captured approval profile rather than the latest selection", async () => {
+  let currentProfile = "initial";
+  const capturedProfiles = new Map([["request-plan", currentProfile]]);
+  const { planHandler, planCall } = planReview(
+    async (conversationId, requestCaptureId) => {
+      assert.equal(conversationId, planCall.conversationId);
+      return requestCaptureId
+        ? capturedProfiles.get(requestCaptureId)!
+        : currentProfile;
+    },
+  );
+  currentProfile = "changed";
+  const captured = await planHandler.execute(planCall, {
+    ...ctx,
+    requestCaptureId: "request-plan",
+  });
+  if (
+    captured.kind !== "awaiting_input" ||
+    captured.interaction.kind !== "plan_review"
+  )
+    assert.fail("Expected captured plan review");
+  assert.equal(captured.interaction.request.targetProfile.name, "initial");
+  // Recovered calls have no process-local identity, so their callback recaptures current settings.
+  const recovered = await planHandler.execute(planCall, ctx);
+  if (
+    recovered.kind !== "awaiting_input" ||
+    recovered.interaction.kind !== "plan_review"
+  )
+    assert.fail("Expected recaptured plan review");
+  assert.equal(recovered.interaction.request.targetProfile.name, "changed");
 });

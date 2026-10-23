@@ -1,260 +1,115 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test, { mock } from "node:test";
-import {
-  getModelRegistry,
-  registerManagedFauxProvider,
-} from "@nervekit/harness/models";
-import { toolDefinitionByName } from "@nervekit/tools/catalog";
+import test from "node:test";
 import { ConversationCore } from "../core.js";
-import type { TurnResourcesPort } from "../ports.js";
+import type { PiModel } from "../ports.js";
 import { createConversation, options } from "./lifecycle-test-helpers.js";
 import { ModelTurn } from "./model-turn.js";
 
-for (const override of [null, "", " \tOverride 雪\r\n\n"]) {
-  void test(`preview and request share preparation with override ${JSON.stringify(override)}`, async () => {
+for (const override of [null, "", " \tOverride 雪\r\n\n"])
+  void test(`preview and request preserve exact context override ${JSON.stringify(override)}`, async () => {
     const directory = await mkdtemp(join(tmpdir(), "nerve-prompt-preview-"));
-    const provider = registerManagedFauxProvider({
-      provider: `prompt-preview-${randomUUID()}`,
-      models: [{ id: "test", name: "Test" }],
-    });
-    const resourcePrompt = "\ufeff  Resource café 雪\r\n\n\t";
-    const expected = override ?? resourcePrompt;
-    const preparations: Parameters<TurnResourcesPort["prepare"]>[0][] = [];
     let resolutions = 0;
-    let streams = 0;
-    let requestPrompt: string | undefined;
-    let requestSessionId: string | undefined;
-    provider.setResponses([
-      async () => {
-        streams++;
-        throw new Error("Captured stream boundary");
-      },
-    ]);
     const opts = options(
       directory,
       join(directory, "core.sqlite"),
       {
         resolve: async () => {
           resolutions++;
-          const model = provider.getModel("test");
-          assert.ok(model);
-          return { model };
+          return { model: { id: "test" } as PiModel };
         },
       },
       {
         execute: async () => {
-          throw new Error("No tool execution expected");
+          throw new Error("No tools expected");
         },
         isReplaySafe: () => false,
       },
     );
-    opts.turnResources = {
-      prepare: async (input) => {
-        preparations.push(input);
-        return { systemPrompt: resourcePrompt, tools: [] };
-      },
-    };
+    const resourcePrompt = "\ufeff Resource café 雪\r\n\t";
+    opts.turnResources.prepare = async () => ({
+      systemPrompt: resourcePrompt,
+      tools: [],
+    });
     const core = new ConversationCore(opts);
-    const registry = getModelRegistry();
-    const originalStream = registry.streamSimple;
-    const streamMock = mock.method(
-      registry,
-      "streamSimple",
-      (...args: Parameters<typeof originalStream>) => {
-        requestPrompt = args[1].systemPrompt;
-        requestSessionId = args[2]?.sessionId;
-        return originalStream.apply(registry, args);
-      },
-    );
     try {
-      await createConversation(core, "conv_preview");
-      await core.setAgentProfile("conv_preview", "planning");
-      core.configure("conv_preview", {
+      await createConversation(core, "c");
+      core.configure("c", {
         systemPrompt: override,
-        instructions: "Current conversation instructions",
-        workingDirectory: join(directory, "working"),
+        instructions: "Context instructions",
       });
-      const definition = toolDefinitionByName("bash");
-      assert.ok(definition);
-      core.registerCoreTool({
-        definition,
-        execute: async () => {
-          throw new Error("No core tool execution expected");
-        },
-      });
-      const before = core.getSnapshot("conv_preview");
-      assert.equal(
-        await core.previewSystemPrompt({ conversationId: "conv_preview" }),
-        expected,
-      );
+      const before = core.getSnapshot("c");
+      const preview = await core.previewSystemPrompt({ conversationId: "c" });
+      assert.equal(preview.status, "available");
+      if (preview.status !== "available") return;
+      assert.equal(preview.systemPrompt, override ?? resourcePrompt);
       assert.equal(resolutions, 0);
-      assert.equal(streams, 0);
-      assert.deepEqual(core.getSnapshot("conv_preview"), before);
-      const previewInput = preparations[0]!;
-      assert.deepEqual(
-        previewInput.conversation,
-        opts.storage.conversations.get("conv_preview"),
-      );
-      assert.deepEqual(
-        previewInput.config,
-        opts.storage.conversations.getConfig("conv_preview"),
-      );
-      assert.equal(
-        previewInput.projectDir,
-        opts.storage.projects.get("proj_test")!.directory,
-      );
-      assert.notEqual(
-        previewInput.projectDir,
-        previewInput.config.workingDirectory,
-      );
-      assert.ok(
-        previewInput.coreTools!.some((tool) => tool.name === "ask_user"),
-      );
-      assert.ok(previewInput.coreTools!.includes(definition));
-
-      // Run the real model-turn boundary with the identical stored preparation inputs.
+      assert.deepEqual(core.getSnapshot("c"), before);
       const turn = new ModelTurn(
         opts.models,
-        opts.turnResources,
-        () => previewInput.coreTools!,
+        opts.configuration,
+        () => [],
         () => {},
       );
-      const result = await turn.run({
-        ...previewInput,
-        conversation: opts.storage.conversations.get("conv_preview")!,
-        config: opts.storage.conversations.getConfig("conv_preview")!,
+      const prepared = await turn.prepareRequest({
+        conversation: before.conversation,
+        config: before.config,
+        projectDir: opts.storage.projects.get("proj_test")!.directory,
         path: [],
-        turnId: "turn_preview",
+        turnId: "turn",
         signal: new AbortController().signal,
       });
-      assert.match(result.errorMessage ?? "", /Captured stream boundary/);
-      assert.equal(requestPrompt, expected);
-      // Provider prompt caching (e.g. Codex prompt_cache_key) keys on the conversation.
-      assert.equal(requestSessionId, "conv_preview");
-      assert.deepEqual(Buffer.from(requestPrompt!), Buffer.from(expected));
-      assert.equal(resolutions, 1);
-      assert.equal(streams, 1);
-      assert.deepEqual(preparations[1], previewInput);
-
-      // Each preview is freshly prepared, including when an explicit override wins.
-      await core.setAgentProfile("conv_preview", "planning");
-      core.configure("conv_preview", {
-        systemPrompt: null,
-        instructions: "Changed",
-      });
-      opts.turnResources.prepare = async (input) => {
-        assert.equal(input.config.instructions, "Changed");
-        return { systemPrompt: "Fresh\n", tools: [] };
-      };
-      assert.equal(
-        await core.previewSystemPrompt({ conversationId: "conv_preview" }),
-        "Fresh\n",
+      assert.deepEqual(
+        Buffer.from(prepared.systemPrompt),
+        Buffer.from(preview.systemPrompt),
       );
       assert.equal(resolutions, 1);
-      assert.equal(streams, 1);
-
-      await assert.rejects(
-        core.previewSystemPrompt({ conversationId: "missing" }),
-        /Conversation not found/,
-      );
-      const getProject = opts.storage.projects.get;
-      opts.storage.projects.get = () => null;
-      try {
-        await assert.rejects(
-          core.previewSystemPrompt({ conversationId: "conv_preview" }),
-          /Project not found/,
-        );
-      } finally {
-        opts.storage.projects.get = getProject;
-      }
     } finally {
-      streamMock.mock.restore();
       await core.close();
-      provider.unregister();
       await rm(directory, { recursive: true, force: true });
     }
   });
-}
 
-void test("unsent preview uses draft values without creating a conversation and matches saved preparation", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "nerve-pending-preview-"));
+void test("prospective scoped preview uses overrides and context without creating a conversation", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "nerve-draft-preview-"));
   const opts = options(
     directory,
     join(directory, "core.sqlite"),
     {
       resolve: async () => {
-        throw new Error("Preview must not resolve a model");
+        throw new Error("Preview never resolves credentials");
       },
     },
     {
       execute: async () => {
-        throw new Error("Preview must not execute tools");
+        throw new Error("No execution");
       },
       isReplaySafe: () => false,
     },
   );
-  let savedCapabilities: unknown;
-  let savedProfiles: unknown;
-  opts.turnResources = {
-    prepare: async (input) => ({
-      systemPrompt: JSON.stringify({
-        config: Object.fromEntries(
-          Object.entries(input.config)
-            .filter(([key]) => key !== "conversationId")
-            .sort(([a], [b]) => a.localeCompare(b)),
-        ),
-        capabilities: input.capabilityOverrides ?? savedCapabilities,
-        profiles: input.agentProfileOverrides ?? savedProfiles,
-      }),
-      tools: [],
-    }),
+  opts.turnResources.prepare = async ({ config, projectDir }) => {
+    assert.equal(projectDir, directory);
+    return { systemPrompt: config.instructions ?? "", tools: [] };
   };
   const core = new ConversationCore(opts);
   try {
-    core.projects.create({ id: "proj_test", directory, name: "Test" });
-    const config = {
-      model: { provider: "draft", modelId: "selected" },
-      reasoningLevel: "high" as const,
-      agentProfile: "planning" as const,
-      systemPrompt: null,
-      instructions: "Unsent instructions",
-      permissionRuleSetId: "baseline",
-      workingDirectory: join(directory, "draft-cwd"),
-    };
-    const capabilityOverrides = {
-      schemaVersion: 3 as const,
-      tools: {},
-      skills: { nerve: {}, agentBrowser: {}, file: {} },
-    };
-    const agentProfileOverrides: [] = [];
-    const draft = {
-      projectId: "proj_test",
-      config,
-      capabilityOverrides,
-      agentProfileOverrides,
-    };
-    const preview = await core.previewSystemPrompt(draft);
-    assert.equal(opts.storage.conversations.get("conv_pending"), null);
-    await core.createConversation({
-      id: "conv_pending",
-      projectId: "proj_test",
-      title: "Pending",
+    core.projects.create({ id: "p", name: "Project", directory });
+    const preview = await core.previewSystemPrompt({
+      projectId: "p",
+      overrides: {
+        model: { provider: "chosen", modelId: "chosen" },
+        reasoningLevel: "high",
+      },
+      config: { instructions: "Draft instructions" },
     });
-    const { agentProfile, ...patch } = config;
-    core.configure("conv_pending", patch);
-    await core.setAgentProfile("conv_pending", agentProfile);
-    savedCapabilities = capabilityOverrides;
-    savedProfiles = agentProfileOverrides;
-    assert.equal(
-      await core.previewSystemPrompt({ conversationId: "conv_pending" }),
-      preview,
-    );
-    core.configure("conv_pending", { instructions: "Old saved instructions" });
-    assert.equal(await core.previewSystemPrompt(draft), preview);
+    assert.equal(preview.status, "available");
+    if (preview.status === "available") {
+      assert.equal(preview.systemPrompt, "Draft instructions");
+      assert.equal(preview.resolution.settings.model?.modelId, "chosen");
+    }
+    assert.equal(core.listConversations({ projectId: "p" }).length, 0);
   } finally {
     await core.close();
     await rm(directory, { recursive: true, force: true });

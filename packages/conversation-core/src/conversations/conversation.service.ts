@@ -1,6 +1,10 @@
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import { assertAppliedProfileConfigChange } from "@nervekit/contracts/agent-profiles";
-import type { AgentProfilePort, AgentProfileApplication } from "../ports.js";
+import type {
+  LeadSettingsOverrides,
+  ProfileTarget,
+} from "@nervekit/contracts/agent-configuration";
+import type { ConversationContext } from "../configuration.js";
+import { configureConversationRequestSchema } from "@nervekit/contracts/core";
+import type { AgentProfileApplication } from "../ports.js";
 import { rm } from "node:fs/promises";
 import { createId } from "@nervekit/contracts";
 import {
@@ -28,10 +32,12 @@ export interface CreateConversationInput {
   parentConversationId?: string | null;
   parentToolCallId?: string | null;
   title?: string;
-  config?: DefaultConversationConfig;
-  application?: AgentProfileApplication;
-  /** Initial choices, passed to profile application before template Set/Lock values. */
-  capabilityOverrides?: CapabilityOverridesDocument;
+  config?: Partial<ConversationContext>;
+  overrides?: LeadSettingsOverrides;
+  agentProfile?: ProfileTarget;
+  application?:
+    | AgentProfileApplication
+    | Pick<AgentProfileApplication, "config">;
 }
 export class ConversationService {
   constructor(
@@ -42,17 +48,16 @@ export class ConversationService {
       inputs: InputQueueService;
       emit: CoreEmitter;
       now(): string;
-      defaultConfig(
-        projectId: string,
-      ): DefaultConversationConfig | Promise<DefaultConversationConfig>;
       isExecuting(id: string): boolean;
       stop(id: string): Promise<void>;
       status: StatusService;
       compactions: CompactionOperations;
-      agentProfiles?: AgentProfilePort;
     },
   ) {}
-  async create(input: CreateConversationInput): Promise<ConversationSnapshot> {
+  async create(
+    input: CreateConversationInput,
+    initialConfig?: DefaultConversationConfig,
+  ): Promise<ConversationSnapshot> {
     const { storage } = this.options;
     const id = input.id ?? createId("conv");
     const existing = storage.conversations.get(id);
@@ -69,11 +74,12 @@ export class ConversationService {
     if (!storage.projects.get(input.projectId))
       throw new Error("Project not found");
     const config = conversationConfigSchema.parse({
-      ...(input.config ?? (await this.options.defaultConfig(input.projectId))),
+      ...initialConfig,
+      ...input.config,
       conversationId: id,
     });
     // The callback may await host settings; another caller can create the same ID meanwhile.
-    if (storage.conversations.get(id)) return this.create(input);
+    if (storage.conversations.get(id)) return this.create(input, initialConfig);
     const now = this.options.now();
     storage.conversations.insert(
       {
@@ -104,9 +110,7 @@ export class ConversationService {
       kind: "config_changed",
       conversationId: id,
       config,
-      appliedAgentProfile: structuredClone(
-        this.options.agentProfiles?.getAppliedProfile(id) ?? null,
-      ),
+      appliedAgentProfile: null,
     });
     if (input.parentConversationId)
       this.emitParentSummary(input.parentConversationId);
@@ -123,9 +127,7 @@ export class ConversationService {
       compaction: this.options.compactions.get(id),
       lastSequence: storage.events.lastSequence(id),
       config,
-      appliedAgentProfile: structuredClone(
-        this.options.agentProfiles?.getAppliedProfile(id) ?? null,
-      ),
+      appliedAgentProfile: null,
       toolCalls: storage.toolCalls.list(id),
       queue: storage.inputs.list(id),
       asyncBash: storage.asyncBash.list(id),
@@ -156,22 +158,12 @@ export class ConversationService {
   }
   configure(
     id: string,
-    patch: Partial<Omit<DefaultConversationConfig, "agentProfile">>,
+    patch: Partial<ConversationContext>,
   ): ConversationConfig {
-    if ("agentProfile" in patch)
-      throw new Error("Use setAgentProfile to apply a profile");
-    assertAppliedProfileConfigChange(
-      this.options.agentProfiles?.getAppliedProfile(id),
-      patch,
+    return this.saveConfig(
+      id,
+      configureConversationRequestSchema.shape.patch.parse(patch),
     );
-    return this.saveConfig(id, patch);
-  }
-  /** Authorized template application replaces the previous lock policy. */
-  applyAgentProfile(
-    id: string,
-    patch: AgentProfileApplication["config"],
-  ): ConversationConfig {
-    return this.saveConfig(id, patch);
   }
   private saveConfig(
     id: string,
@@ -192,9 +184,7 @@ export class ConversationService {
       kind: "config_changed",
       conversationId: id,
       config: updated,
-      appliedAgentProfile: structuredClone(
-        this.options.agentProfiles?.getAppliedProfile(id) ?? null,
-      ),
+      appliedAgentProfile: null,
     });
     this.options.emit({
       kind: "conversation_changed",

@@ -1,3 +1,5 @@
+import { canonicalDigest } from "./execution-admission/admission.js";
+import { prepareShellProcess } from "../infrastructure/process-host/shell-process.js";
 import {
   projectProcessOutput,
   projectProcessOutputPage,
@@ -5,7 +7,11 @@ import {
 import type { Project, ToolCallOrigin } from "@nervekit/contracts/core";
 import type { LaunchDefinition } from "@nervekit/contracts/launch-definitions";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
-import type { LaunchService } from "../domains/launches/application/launch.service.js";
+import type {
+  LaunchService,
+  LaunchStartInput,
+  PreparedLaunchStartInput,
+} from "../domains/launches/application/launch.service.js";
 import type { LaunchDefinitionService } from "../domains/launch-definitions/launch-definition.service.js";
 import { isTerminalLaunchStatus } from "../domains/launches/model/launch-status.js";
 import { resolveLaunchWorkingDirectory } from "../domains/launches/model/launch-working-directory.js";
@@ -14,7 +20,12 @@ import { inspectConfiguredPort } from "../infrastructure/process-host/port-inspe
 export interface LaunchToolOptions {
   launches: Pick<
     LaunchService,
-    "list" | "get" | "launchDefinition" | "restart" | "cancel"
+    | "list"
+    | "get"
+    | "launchDefinition"
+    | "prepareRestart"
+    | "restartPrepared"
+    | "cancel"
   >;
   definitions: Pick<LaunchDefinitionService, "list" | "get">;
   project(conversationId: string): Project;
@@ -57,6 +68,55 @@ export function formatLaunchStatus(
     ...(port !== undefined ? [`:${port}`] : []),
     ...(launch?.exitCode != null ? [`exit ${launch.exitCode}`] : []),
   ].join(" ");
+}
+
+type LaunchSelection = { definition?: LaunchDefinition; launch?: LaunchRecord };
+interface LaunchSnapshot {
+  project: Project;
+  definitions: LaunchDefinition[];
+  launches: LaunchRecord[];
+  selection?: LaunchSelection;
+  start?: PreparedLaunchStartInput;
+}
+function selectLaunch(
+  args: Record<string, unknown>,
+  definitions: LaunchDefinition[],
+  launches: LaunchRecord[],
+): LaunchSelection {
+  const definitionIds = new Set(definitions.map((item) => item.id));
+  const isStandalone = (launch: LaunchRecord) =>
+    !launch.definitionId || !definitionIds.has(launch.definitionId);
+  const name = String(args.name).trim();
+  const matchingDefinitions = definitions.filter(
+    (item) => definitionName(item) === name,
+  );
+  if (matchingDefinitions.length > 1)
+    throw new Error(
+      `Ambiguous launch name ${JSON.stringify(name)}. Rename the duplicate definitions: ${matchingDefinitions.map((item) => JSON.stringify(item.command)).join(", ")}`,
+    );
+  const definition = matchingDefinitions[0];
+  const matchingLaunches = definition
+    ? launches.filter((item) => item.definitionId === definition.id)
+    : launches.filter(
+        (item) => isStandalone(item) && launchName(item) === name,
+      );
+  const runId =
+    args.runId === undefined ? undefined : String(args.runId).trim();
+  const lineages = new Set(
+    matchingLaunches.map((item) => item.restartRootLaunchId ?? item.id),
+  );
+  if (!definition && !runId && lineages.size > 1)
+    throw new Error(
+      `Ambiguous launch name ${JSON.stringify(name)}. Supply runId for a specific execution: ${matchingLaunches.map((item) => `${item.id} (${JSON.stringify(item.command)})`).join(", ")}`,
+    );
+  const launch = runId
+    ? matchingLaunches.find((item) => item.id === runId)
+    : matchingLaunches[0];
+  if (runId && !launch)
+    throw new Error("Launch run not found for this name in this project.");
+  if (!definition && !launch)
+    throw new Error("Launch name not found in this project.");
+  return { definition, launch };
 }
 
 export class LaunchTool {
@@ -105,6 +165,18 @@ export class LaunchTool {
     origin: ToolCallOrigin = "model",
     signal?: AbortSignal,
   ) {
+    return (
+      await this.prepare(args, conversationId, origin, signal)
+    ).dispatch();
+  }
+  async prepare(
+    args: Record<string, unknown>,
+    conversationId: string,
+    origin: ToolCallOrigin = "model",
+    signal?: AbortSignal,
+    shellPath?: string,
+  ) {
+    args = structuredClone(args);
     const action = args?.action;
     if (
       !args ||
@@ -142,6 +214,107 @@ export class LaunchTool {
     const launches = await this.options.launches.list({
       projectId: project.id,
     });
+    const snapshot: LaunchSnapshot = structuredClone({
+      project,
+      definitions,
+      launches,
+    });
+    if (action !== "status")
+      snapshot.selection = selectLaunch(
+        args,
+        snapshot.definitions,
+        snapshot.launches,
+      );
+    if (action === "start" || action === "restart") {
+      const { definition, launch } = snapshot.selection!;
+      let request: LaunchStartInput | undefined;
+      if (definition)
+        request = {
+          definitionId: definition.id,
+          projectId: project.id,
+          cwd: resolveLaunchWorkingDirectory(
+            definition.cwd ?? project.directory,
+            project.directory,
+          ),
+          command: definition.command,
+          displayName: definitionName(definition),
+        };
+      else if (action === "restart" || isTerminalLaunchStatus(launch!.status))
+        request = await this.options.launches.prepareRestart(launch!.id);
+      if (request) {
+        request = { ...request, env: request.env && { ...request.env } };
+        snapshot.start = {
+          ...request,
+          preparedShell: prepareShellProcess(request.command, {
+            cwd: request.cwd,
+            env: request.env,
+            shellPath,
+          }),
+        };
+      }
+    }
+    const request = snapshot.start;
+    const digest = canonicalDigest(
+      JSON.parse(
+        JSON.stringify({
+          definitions: snapshot.definitions,
+          launches: snapshot.launches.map(
+            ({ id, command, cwd, definitionId, restartRootLaunchId }) => ({
+              id,
+              command,
+              cwd,
+              definitionId,
+              restartRootLaunchId,
+            }),
+          ),
+          // Bind actual restart inputs too; env values may contain credentials and are transient only.
+          request: request
+            ? {
+                command: request.command,
+                cwd: request.cwd,
+                definitionId: request.definitionId ?? null,
+                projectId: request.projectId ?? null,
+                restartedFromLaunchId: request.restartedFromLaunchId ?? null,
+                restartRootLaunchId: request.restartRootLaunchId ?? null,
+                restartGeneration: request.restartGeneration ?? 0,
+                timeoutMs: request.timeoutMs ?? null,
+                readiness: {
+                  url: request.readyUrl ?? null,
+                  onUrl: request.readyOnUrl ?? null,
+                  pattern: request.readyPattern ?? null,
+                  timeoutMs: request.readyTimeoutMs ?? null,
+                },
+                environmentSource: request.restartedFromLaunchId ?? null,
+                environmentKeys: Object.keys(request.env ?? {}).sort(),
+              }
+            : null,
+        }),
+      ),
+    );
+    return {
+      cwd: request?.cwd ?? project.directory,
+      target: {
+        launchConfigurationDigest: digest,
+        ...(request
+          ? {
+              processLaunch: request.preparedShell.invocation.launch,
+              projectEnvironment: true,
+            }
+          : {}),
+      },
+      dispatch: () =>
+        this.executePrepared(args, conversationId, origin, signal, snapshot),
+    };
+  }
+  private async executePrepared(
+    args: Record<string, unknown>,
+    conversationId: string,
+    origin: ToolCallOrigin,
+    signal: AbortSignal | undefined,
+    snapshot: LaunchSnapshot,
+  ) {
+    const action = args.action;
+    const { definitions, launches } = snapshot;
     const definitionIds = new Set(definitions.map((item) => item.id));
     const isStandalone = (launch: LaunchRecord) =>
       !launch.definitionId || !definitionIds.has(launch.definitionId);
@@ -162,36 +335,7 @@ export class LaunchTool {
               .map((launch) => formatLaunchStatus(undefined, launch)),
           ].join("\n") || "No launches.",
       };
-    const name = String(args.name).trim();
-    const matchingDefinitions = definitions.filter(
-      (item) => definitionName(item) === name,
-    );
-    if (matchingDefinitions.length > 1)
-      throw new Error(
-        `Ambiguous launch name ${JSON.stringify(name)}. Rename the duplicate definitions: ${matchingDefinitions.map((item) => JSON.stringify(item.command)).join(", ")}`,
-      );
-    const definition = matchingDefinitions[0];
-    const matchingLaunches = definition
-      ? launches.filter((item) => item.definitionId === definition.id)
-      : launches.filter(
-          (item) => isStandalone(item) && launchName(item) === name,
-        );
-    const runId =
-      args.runId === undefined ? undefined : String(args.runId).trim();
-    const lineages = new Set(
-      matchingLaunches.map((item) => item.restartRootLaunchId ?? item.id),
-    );
-    if (!definition && !runId && lineages.size > 1)
-      throw new Error(
-        `Ambiguous launch name ${JSON.stringify(name)}. Supply runId for a specific execution: ${matchingLaunches.map((item) => `${item.id} (${JSON.stringify(item.command)})`).join(", ")}`,
-      );
-    const launch = runId
-      ? matchingLaunches.find((item) => item.id === runId)
-      : matchingLaunches[0];
-    if (runId && !launch)
-      throw new Error("Launch run not found for this name in this project.");
-    if (!definition && !launch)
-      throw new Error("Launch name not found in this project.");
+    const { definition, launch } = snapshot.selection!;
     if (action === "logs") {
       if (!launch) throw new Error("Definition has no launches.");
       return {
@@ -244,24 +388,15 @@ export class LaunchTool {
       let port: number | undefined;
       let startedDefinition: LaunchDefinition | undefined;
       if (definitionId) {
-        // Re-read after stop: definition edits must take effect on restart.
-        const current = await this.options.definitions.get(
-          project.id,
-          definitionId,
-        );
+        const current = definition;
         startedDefinition = current;
         port = current.port;
         const outcome = await this.options.launches.launchDefinition({
+          ...snapshot.start!,
           definitionId: current.id,
+          projectId: snapshot.project.id,
           definitionRunPolicy: current.runPolicy,
           definitionPort: port,
-          projectId: project.id,
-          cwd: resolveLaunchWorkingDirectory(
-            current.cwd ?? project.directory,
-            project.directory,
-          ),
-          command: current.command,
-          displayName: definitionName(current),
         });
         if (outcome.disposition === "focused_existing")
           return {
@@ -273,7 +408,10 @@ export class LaunchTool {
           };
         started = outcome.launch;
       } else {
-        started = await this.options.launches.restart(launch!.id);
+        started = await this.options.launches.restartPrepared(
+          launch!.id,
+          snapshot.start!,
+        );
       }
       if (origin !== "user" && !this.stopped.has(started.id)) {
         this.owners.set(started.id, conversationId);
