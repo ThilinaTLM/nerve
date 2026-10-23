@@ -1,3 +1,4 @@
+import { phaseProgress } from "./progress.js";
 import { verifyConvertedConversationData } from "./released-verification.js";
 import { verifyConvertedTableSql } from "./released-schema-verification.js";
 import assert from "node:assert/strict";
@@ -42,7 +43,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
   constructor(
     private readonly ctx: StepContext,
     private readonly plan: Plan,
-    private readonly checkReleased: (db: DatabaseSync) => void,
+    private readonly checkReleased: (db: DatabaseSync) => Promise<void>,
     archiveDirectory: string,
   ) {
     for (const patch of plan.metadata)
@@ -160,8 +161,8 @@ export class ReleasedSqliteBackend implements MigrationBackend {
       sha256(jsonBytes(this.plan)),
     );
   }
-  verifyReleased(): void {
-    this.checkReleased(this.db);
+  async verifyReleased(): Promise<void> {
+    await this.checkReleased(this.db);
   }
   begin(): void {
     this.db.exec("PRAGMA foreign_keys=OFF; BEGIN IMMEDIATE");
@@ -250,7 +251,12 @@ export class ReleasedSqliteBackend implements MigrationBackend {
       "Migration foreign-key check failed",
     );
   }
-  verifyConverted(): void {
+  async verifyConverted(): Promise<void> {
+    await phaseProgress(
+      this.ctx,
+      "verify-database",
+      "Checking updated database",
+    )();
     assert.equal(this.state(), "converted");
     const version = this.db
       .prepare(
@@ -268,13 +274,19 @@ export class ReleasedSqliteBackend implements MigrationBackend {
         "SELECT id AS conversation_id,working_directory FROM conversation ORDER BY id",
       )
       .all();
-    verifyConvertedConversationData(
+    await verifyConvertedConversationData(
       rows,
       this.plan.sourceRows,
       this.plan.receipts.map((item) => item.receipt),
       {
         read: (path) => (existsSync(path) ? readText(path) : undefined),
       },
+      phaseProgress(
+        this.ctx,
+        "verify-conversations",
+        "Verifying conversation settings",
+        this.plan.sourceRows.length,
+      ),
     );
     for (const patch of this.plan.metadata)
       assert.equal(
@@ -338,10 +350,15 @@ export class ReleasedSqliteBackend implements MigrationBackend {
       expected,
       "Converted trust verification failed",
     );
-    this.verifyUnchangedHistory();
+    await this.verifyUnchangedHistory();
     this.foreignKeys();
   }
-  private verifyUnchangedHistory(): void {
+  private async verifyUnchangedHistory(): Promise<void> {
+    await phaseProgress(
+      this.ctx,
+      "verify-history",
+      "Checking conversation history",
+    )();
     const original = new DatabaseSync(this.backupPath, { readOnly: true });
     try {
       const originalRows = original
@@ -397,7 +414,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
           ].includes(table)
         )
           continue;
-        this.assertTableMatches(original, table, true);
+        await this.assertTableMatches(original, table, true);
       }
       const originalConversations = original
         .prepare(
@@ -455,11 +472,11 @@ export class ReleasedSqliteBackend implements MigrationBackend {
     if (this.db.isTransaction) this.db.exec("ROLLBACK");
     this.db.exec("PRAGMA foreign_keys=ON");
   }
-  private assertTableMatches(
+  private async assertTableMatches(
     original: DatabaseSync,
     table: string,
     applyPatches: boolean,
-  ): void {
+  ): Promise<void> {
     const keys = original
       .prepare("PRAGMA table_info(" + quote(table) + ")")
       .all()
@@ -471,6 +488,17 @@ export class ReleasedSqliteBackend implements MigrationBackend {
       quote(table) +
       " ORDER BY " +
       (keys.length ? keys.join(",") : "rowid");
+    const total = Number(
+      original.prepare("SELECT count(*) AS n FROM " + quote(table)).get()?.n,
+    );
+    const progress = phaseProgress(
+      this.ctx,
+      "verify-history-" + table,
+      "Checking conversation history",
+      total,
+    );
+    await progress();
+    let done = 0;
     const actual = this.db.prepare(sql).iterate();
     const patches = new Map<string, Plan["metadata"]>();
     if (applyPatches)
@@ -498,16 +526,17 @@ export class ReleasedSqliteBackend implements MigrationBackend {
           row,
           "Unrelated lifecycle/history changed: " + table,
         );
+        await progress(++done);
       }
       assert(actual.next().done, "Unexpected history rows: " + table);
     } finally {
       actual.return?.();
     }
   }
-  assertRollbackSafe(): void {
+  async assertRollbackSafe(): Promise<void> {
     this.verifyBackup();
     if (this.state() === "converted") {
-      this.verifyConverted();
+      await this.verifyConverted();
       return;
     }
     const original = new DatabaseSync(this.backupPath, { readOnly: true });
@@ -528,7 +557,7 @@ export class ReleasedSqliteBackend implements MigrationBackend {
           "SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%'",
         )
         .all())
-        this.assertTableMatches(original, String(table.name), false);
+        await this.assertTableMatches(original, String(table.name), false);
     } finally {
       original.close();
     }
@@ -538,11 +567,11 @@ export class ReleasedSqliteBackend implements MigrationBackend {
   }
 }
 /** Storage lock held; all SQLite handles must be closed before file replacement. */
-export function restoreReleasedDatabase(
+export async function restoreReleasedDatabase(
   ctx: StepContext,
   plan: Plan,
   archiveDirectory: string,
-): void {
+): Promise<void> {
   const directory = join(archiveDirectory, "database");
   const path = join(directory, "original.sqlite"),
     receiptPath = join(directory, "receipt.json");
@@ -558,14 +587,14 @@ export function restoreReleasedDatabase(
   const checker = new ReleasedSqliteBackend(
     ctx,
     plan,
-    () => {},
+    async () => {},
     archiveDirectory,
   );
   try {
     // No committed schema change means there is no DB replacement to undo.
     // Keep later legacy history/choices intact rather than copying an older DB.
     if (checker.state() === "released") return;
-    checker.assertRollbackSafe();
+    await checker.assertRollbackSafe();
     const checkpoint = checker.db
       .prepare("PRAGMA wal_checkpoint(TRUNCATE)")
       .get();

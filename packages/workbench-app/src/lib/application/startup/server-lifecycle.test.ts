@@ -31,6 +31,33 @@ test("known totals give a determinate meter and detail", () => {
   assert.equal(view.meter?.fraction, 0.25);
 });
 
+test("migration phases replace the step description and format large counts", () => {
+  const view = describeLifecycle({
+    ...base,
+    progress: {
+      step: "0002-agent-profiles",
+      label: "Converting conversation settings",
+      done: 312,
+      total: 1012,
+    },
+  });
+  assert.equal(
+    view.detail,
+    `Converting conversation settings · ${Number(312).toLocaleString()} of ${Number(1012).toLocaleString()}`,
+  );
+  assert.deepEqual(view.meter, {
+    done: 312,
+    total: 1012,
+    fraction: 312 / 1012,
+  });
+  const backup = describeLifecycle({
+    ...base,
+    progress: { step: "0002-agent-profiles", label: "Backing up database" },
+  });
+  assert.equal(backup.detail, "Backing up database");
+  assert.equal(backup.meter, undefined);
+});
+
 test("unknown totals stay indeterminate", () => {
   const view = describeLifecycle({
     ...base,

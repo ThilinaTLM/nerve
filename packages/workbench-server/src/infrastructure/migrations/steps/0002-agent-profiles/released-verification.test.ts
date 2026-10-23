@@ -14,7 +14,7 @@ import {
   verifyConvertedConversationData,
 } from "./released-verification.js";
 
-await test("the pre-DDL verification gate requires every unchanged released row exactly once", () => {
+await test("the pre-DDL verification gate requires every unchanged released row exactly once", async () => {
   const files = new Map<string, string>();
   const io: ExportIO = {
     read: (path) => files.get(path),
@@ -39,17 +39,20 @@ await test("the pre-DDL verification gate requires every unchanged released row 
     rowDigest: releasedRowDigest(row),
   });
   applyExport(io, "/receipt", receipt);
-  verifyConversationExports(io, [row], [receipt]);
-  assert.throws(() => verifyConversationExports(io, [row], []), /Unverified/);
-  assert.throws(
+  await verifyConversationExports(io, [row], [receipt]);
+  await assert.rejects(
+    () => verifyConversationExports(io, [row], []),
+    /Unverified/,
+  );
+  await assert.rejects(
     () => verifyConversationExports(io, [row], [receipt, receipt]),
     /Duplicate/,
   );
-  assert.throws(
+  await assert.rejects(
     () => verifyConversationExports(io, [row, row], [receipt]),
     /Duplicate/,
   );
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyConversationExports(
         io,
@@ -58,7 +61,7 @@ await test("the pre-DDL verification gate requires every unchanged released row 
       ),
     /row changed/,
   );
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyConversationExports(
         io,
@@ -71,7 +74,7 @@ await test("the pre-DDL verification gate requires every unchanged released row 
   delete missingContext.context;
   const corruptTarget = exportedTarget("lead", missingContext);
   files.set("/agent", corruptTarget.bytes);
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyConversationExports(
         io,
@@ -81,7 +84,7 @@ await test("the pre-DDL verification gate requires every unchanged released row 
     /prompt context/,
   );
   files.delete("/agent");
-  assert.throws(
+  await assert.rejects(
     () => verifyConversationExports(io, [row], [receipt]),
     /Missing or changed export/,
   );
@@ -142,13 +145,13 @@ function convertedFixture() {
   return { files, io, rows, receipts, actual };
 }
 
-await test("converted verification compares SQL directory pairs, not legacy prompt quadruples, including postcommit resume", () => {
+await test("converted verification compares SQL directory pairs, not legacy prompt quadruples, including postcommit resume", async () => {
   const f = convertedFixture();
-  verifyConvertedConversationData(f.actual, f.rows, f.receipts, f.io);
+  await verifyConvertedConversationData(f.actual, f.rows, f.receipts, f.io);
   for (const receipt of f.receipts)
     for (const path of receipt.retire) f.files.delete(path);
-  verifyConvertedConversationData(f.actual, f.rows, f.receipts, f.io);
-  assert.throws(
+  await verifyConvertedConversationData(f.actual, f.rows, f.receipts, f.io);
+  await assert.rejects(
     () =>
       verifyConvertedConversationData(
         [{ ...f.actual[0], working_directory: "/changed" }, f.actual[1]],
@@ -158,7 +161,7 @@ await test("converted verification compares SQL directory pairs, not legacy prom
       ),
     /Working directory changed/,
   );
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyConvertedConversationData(
         f.actual.slice(1),
@@ -168,7 +171,7 @@ await test("converted verification compares SQL directory pairs, not legacy prom
       ),
     /Working directory changed/,
   );
-  assert.throws(
+  await assert.rejects(
     () =>
       verifyConvertedConversationData(
         [{ ...f.actual[0], conversation_id: "wrong" }, f.actual[1]],
@@ -180,7 +183,7 @@ await test("converted verification compares SQL directory pairs, not legacy prom
   );
 });
 
-await test("converted verification requires exact prompt context in verified JSON, independently of correct SQL directories", () => {
+await test("converted verification requires exact prompt context in verified JSON, independently of correct SQL directories", async () => {
   const f = convertedFixture();
   const path = "/a/agent.json";
   const original = f.receipts[0].targets[path];
@@ -198,14 +201,44 @@ await test("converted verification requires exact prompt context in verified JSO
       { ...f.receipts[0], targets: { [path]: target } },
       f.receipts[1],
     ];
-    assert.throws(
+    await assert.rejects(
       () => verifyConvertedConversationData(f.actual, f.rows, receipts, f.io),
       /prompt context/,
     );
   }
   f.files.delete(path);
-  assert.throws(
+  await assert.rejects(
     () => verifyConvertedConversationData(f.actual, f.rows, f.receipts, f.io),
     /Missing or changed export/,
   );
+});
+
+await test("verification awaits progress and counts only conversation receipts", async () => {
+  const f = convertedFixture();
+  const counts: number[] = [];
+  await verifyConversationExports(
+    f.io,
+    f.rows,
+    [
+      { ...f.receipts[0], identity: "scope:user", rowDigest: undefined },
+      ...f.receipts,
+    ],
+    false,
+    async (done) => {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      counts.push(done);
+    },
+  );
+  assert.deepEqual(counts, [0, 1, 2]);
+  counts.length = 0;
+  await verifyConvertedConversationData(
+    f.actual,
+    f.rows,
+    f.receipts,
+    f.io,
+    async (done) => {
+      counts.push(done);
+    },
+  );
+  assert.deepEqual(counts, [0, 1, 2]);
 });

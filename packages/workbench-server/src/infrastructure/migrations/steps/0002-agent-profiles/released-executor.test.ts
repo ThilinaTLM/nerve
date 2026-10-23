@@ -121,7 +121,7 @@ await test("backup and final source/file verification precede rebuild, trust/ver
     "receipt",
   ]);
   assert.equal(f.retired.size, 0);
-  retireReleasedSources(f.files);
+  await retireReleasedSources(f.files);
   assert.equal(f.retired.size, 2);
 });
 await test("interruption at every precommit stage cannot complete destructive migration", async () => {
@@ -166,8 +166,8 @@ await test("crash after DB commit resumes from converted state without exports, 
     "receipt",
   ]);
   f.setFailure("retire-one");
-  assert.throws(() => retireReleasedSources(f.files), /retire-one/);
-  retireReleasedSources(f.files);
+  await assert.rejects(() => retireReleasedSources(f.files), /retire-one/);
+  await retireReleasedSources(f.files);
   assert.equal(f.retired.size, 2);
 });
 await test("changed candidates block both initial execution and postcommit resume", async () => {
@@ -187,4 +187,57 @@ await test("changed candidates block both initial execution and postcommit resum
     /changed candidate/,
   );
   assert.deepEqual(resumed.calls.slice(before), ["files"]);
+});
+
+await test("phase labels precede long database operations and asynchronous verification finishes before commit", async () => {
+  const f = fixture();
+  const verifyReleased = f.db.verifyReleased.bind(f.db);
+  const verifyConverted = f.db.verifyConverted.bind(f.db);
+  const verifyFiles = f.files.verifyFiles.bind(f.files);
+  const retire = f.files.retire.bind(f.files);
+  f.db.verifyReleased = async () => {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await verifyReleased();
+  };
+  f.db.verifyConverted = async () => {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    await verifyConverted();
+  };
+  const files = {
+    ...f.files,
+    async verifyFiles() {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      verifyFiles();
+    },
+    async retire(receipt: ExportReceipt) {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      retire(receipt);
+    },
+  };
+  await executeReleasedMigration(f.db, files, async (phase, label) => {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    f.calls.push(`${phase}: ${label}`);
+  });
+  assert.deepEqual(f.calls, [
+    "files",
+    "released",
+    "backup: Backing up database",
+    "backup",
+    "verify-backup: Checking database backup",
+    "verify-backup",
+    "begin",
+    "released",
+    "files",
+    "update-database: Updating database",
+    "metadata",
+    "rebuild",
+    "trust",
+    "version",
+    "foreign-keys",
+    "converted",
+    "commit",
+    "receipt",
+  ]);
+  await retireReleasedSources(files);
+  assert.deepEqual(f.calls.slice(-3), ["files", "retire-one", "retire-two"]);
 });

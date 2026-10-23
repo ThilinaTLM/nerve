@@ -16,7 +16,6 @@ void test("progress is bounded, reports exact endpoints, and lets polling run", 
     "conversations",
     "Applying conversation profiles",
     1000,
-    true,
   );
   let polled = false;
   void setImmediate().then(() => {
@@ -38,7 +37,7 @@ void test("progress is bounded, reports exact endpoints, and lets polling run", 
   assert(reports.every((report) => report[2] === 1000));
 });
 
-void test("safety phases carry real counts without resetting the conversation meter", async () => {
+void test("each phase carries determinate counts with an unadorned label", async () => {
   const reports: unknown[][] = [];
   const ctx = {
     progress: (...args: unknown[]) => reports.push(args),
@@ -52,17 +51,24 @@ void test("safety phases carry real counts without resetting the conversation me
   await progress();
   await progress(2);
   assert.deepEqual(reports, [
-    [
-      "verify-conversations",
-      undefined,
-      undefined,
-      "Verifying conversation profiles · 0 of 2",
-    ],
-    [
-      "verify-conversations",
-      undefined,
-      undefined,
-      "Verifying conversation profiles · 2 of 2",
-    ],
+    ["verify-conversations", 0, 2, "Verifying conversation profiles"],
+    ["verify-conversations", 2, 2, "Verifying conversation profiles"],
+  ]);
+});
+
+void test("unknown totals publish only a phase label and empty phases do not repeat endpoints", async () => {
+  const reports: unknown[][] = [];
+  const ctx = {
+    progress: (...args: unknown[]) => reports.push(args),
+  } as unknown as StepContext;
+  const unknown = phaseProgress(ctx, "backup", "Backing up database");
+  await unknown();
+  await unknown();
+  const empty = phaseProgress(ctx, "projects", "Checking projects", 0);
+  await empty();
+  await empty(0);
+  assert.deepEqual(reports, [
+    ["backup", undefined, undefined, "Backing up database"],
+    ["projects", 0, 0, "Checking projects"],
   ]);
 });

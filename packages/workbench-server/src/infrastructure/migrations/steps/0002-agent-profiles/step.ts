@@ -1,3 +1,4 @@
+import { inventory } from "./released-inventory.js";
 import {
   releasedBuiltins as builtins,
   readReleasedScope,
@@ -14,12 +15,12 @@ import {
   currentMigrationArchive,
   finishMigrationArchive,
 } from "./released-archive.js";
+import { phaseProgress } from "./progress.js";
 import { replaceLosses } from "../../framework/toolkit.js";
-import { coreMigrations } from "@nervekit/conversation-core";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join, sep } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync } from "node:sqlite";
 import { defineStep, type StepContext } from "../../framework/step.js";
 import { RollbackJournal } from "../../framework/rollback-journal.js";
 import {
@@ -36,7 +37,7 @@ import {
   parsePolicySource,
 } from "./documents.js";
 import { verifyConversationExports } from "./released-verification.js";
-import { planMetadata, type MetadataPatch } from "./released-metadata.js";
+import type { MetadataPatch } from "./released-metadata.js";
 import { discoverReleasedSkillSources } from "./released-resources.js";
 import {
   executeReleasedMigration,
@@ -107,178 +108,6 @@ function inputs(root: string, snapshots: Map<string, string>): Data {
   }
   return value;
 }
-function inventory(ctx: StepContext, connection?: DatabaseSync) {
-  safePath(ctx.paths.sqlitePath);
-  const db =
-    connection ?? new DatabaseSync(ctx.paths.sqlitePath, { readOnly: true });
-  try {
-    const columns = db
-      .prepare("PRAGMA table_info(conversation_config)")
-      .all()
-      .map((row) => row.name);
-    assert.deepEqual(
-      columns,
-      [
-        "conversation_id",
-        "model",
-        "reasoning_level",
-        "system_prompt",
-        "instructions",
-        "permission_rule_set_id",
-        "mode",
-        "working_directory",
-      ],
-      "Migration requires released v0.37.0 SQL, not intermediate/custom state",
-    );
-    const dependencies = db
-      .prepare(
-        "SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND type IN ('index','trigger','view')",
-      )
-      .all();
-    for (const dependency of dependencies) {
-      const touchesRebuilt =
-        dependency.tbl_name === "conversation" ||
-        dependency.tbl_name === "conversation_config" ||
-        dependency.tbl_name === "trusted_resource" ||
-        /\b(conversation|conversation_config|trusted_resource)\b/i.test(
-          String(dependency.sql),
-        );
-      assert(
-        !touchesRebuilt ||
-          (dependency.type === "index" &&
-            [
-              "trusted_resource_project_path",
-              "trusted_resource_user_path",
-              "conversation_project_parent_updated",
-              "conversation_parent",
-              "conversation_pinned",
-            ].includes(String(dependency.name))),
-        `Unsupported SQL dependency on rebuilt tables: ${dependency.name}`,
-      );
-    }
-    const normalizeSql = (sql: string) =>
-      sql.replaceAll('"', "").replace(/\s+/g, " ").replace(/;$/, "").trim();
-    const v1 = coreMigrations.find((migration) => migration.version === 1)!;
-    assert.equal(
-      db.prepare("SELECT checksum FROM schema_migrations WHERE version=1").get()
-        ?.checksum,
-      sha256(v1.sql),
-      "Released SQL checksum mismatch",
-    );
-    assert.equal(
-      db.prepare("SELECT count(*) AS n FROM schema_migrations").get()?.n,
-      1,
-      "Not released SQL v1",
-    );
-    for (const table of [
-      "conversation",
-      "conversation_config",
-      "trusted_resource",
-    ]) {
-      const start = v1.sql.indexOf("CREATE TABLE " + table + " (");
-      const end = v1.sql.indexOf(") STRICT;", start) + ") STRICT;".length;
-      assert(start >= 0 && end > start);
-      const actual = db
-        .prepare("SELECT sql FROM sqlite_schema WHERE type='table' AND name=?")
-        .get(table)?.sql;
-      assert.equal(
-        normalizeSql(String(actual)),
-        normalizeSql(v1.sql.slice(start, end)),
-        "Custom SQL definition requires review before rebuild",
-      );
-    }
-    for (const index of [
-      "trusted_resource_project_path",
-      "trusted_resource_user_path",
-      "conversation_project_parent_updated",
-      "conversation_parent",
-      "conversation_pinned",
-    ]) {
-      const start = v1.sql.indexOf(
-          (index.startsWith("trusted_resource_")
-            ? "CREATE UNIQUE INDEX "
-            : "CREATE INDEX ") +
-            index +
-            " ",
-        ),
-        end = v1.sql.indexOf(";", start);
-      assert.equal(
-        normalizeSql(
-          String(
-            db
-              .prepare(
-                "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
-              )
-              .get(index)?.sql,
-          ),
-        ),
-        normalizeSql(v1.sql.slice(start, end)),
-        "Custom trust index requires review",
-      );
-    }
-    const projects = db
-      .prepare("SELECT id, directory FROM project ORDER BY id")
-      .all();
-    const rows = db
-      .prepare(
-        `SELECT cfg.*, c.parent_conversation_id, c.project_id FROM conversation_config cfg JOIN conversation c ON c.id=cfg.conversation_id ORDER BY cfg.conversation_id`,
-      )
-      .all();
-    assert.equal(
-      rows.length,
-      db.prepare("SELECT count(*) AS n FROM conversation").get()?.n,
-      "Missing conversation configuration row",
-    );
-    assert.equal(
-      rows.length,
-      db.prepare("SELECT count(*) AS n FROM conversation_config").get()?.n,
-      "Unexported/orphan conversation config row",
-    );
-    assert.deepEqual(
-      db.prepare("PRAGMA foreign_key_check").all(),
-      [],
-      "Released database has broken foreign keys",
-    );
-    const trust: OriginalTrust[] = db
-      .prepare(
-        "SELECT id,name,created_at,updated_at,project_id,kind,path,content_digest,status FROM trusted_resource ORDER BY id",
-      )
-      .all()
-      .map((row) => ({
-        id: String(row.id),
-        name: row.name === null ? null : String(row.name),
-        createdAt: String(row.created_at),
-        updatedAt: String(row.updated_at),
-        projectId: row.project_id === null ? null : String(row.project_id),
-        kind: String(row.kind),
-        path: String(row.path),
-        contentDigest: String(row.content_digest),
-        status: row.status === "trusted" ? "trusted" : "rejected",
-      }));
-    const metadata = planMetadata({
-      events: db
-        .prepare(
-          "SELECT id,payload FROM conversation_event WHERE instr(payload, 'plan_mode_present') > 0",
-        )
-        .all()
-        .map((row) => ({ id: String(row.id), payload: String(row.payload) })),
-      calls: db
-        .prepare(
-          "SELECT id,tool_name,interaction FROM tool_call WHERE tool_name='plan_mode_present' OR interaction IS NOT NULL",
-        )
-        .all()
-        .map((row) => ({
-          id: String(row.id),
-          toolName: String(row.tool_name),
-          interaction:
-            row.interaction === null ? null : String(row.interaction),
-        })),
-    });
-    return { projects, rows, trust, metadata };
-  } finally {
-    if (!connection) db.close();
-  }
-}
 export interface Plan {
   schemaVersion: 1;
   createdAt: string;
@@ -292,6 +121,7 @@ export interface Plan {
 }
 const planPath = (ctx: StepContext) => join(archiveRoot(ctx), "plan.json");
 async function planExports(ctx: StepContext): Promise<Plan> {
+  await phaseProgress(ctx, "inventory", "Checking migration inputs")();
   const files = io(ctx),
     original = inventory(ctx);
   const snapshots = new Map<string, string>();
@@ -346,7 +176,15 @@ async function planExports(ctx: StepContext): Promise<Plan> {
     ReturnType<typeof convertPreferencesV037>
   >();
   const projectInputs = new Map<string, ReleasedScopeInput>();
-  for (const project of original.projects)
+  const checkProjects = phaseProgress(
+    ctx,
+    "projects",
+    "Checking projects",
+    original.projects.length,
+  );
+  await checkProjects();
+  let checkedProjects = 0;
+  for (const project of original.projects) {
     projectInputs.set(
       String(project.id),
       readReleasedScope(
@@ -356,6 +194,16 @@ async function planExports(ctx: StepContext): Promise<Plan> {
         { ...baseContext, inheritedSettings: lower },
       ),
     );
+    await checkProjects(++checkedProjects);
+  }
+  const convertScopes = phaseProgress(
+    ctx,
+    "scope-settings",
+    "Converting user and project settings",
+    original.projects.length + 1,
+  );
+  await convertScopes();
+  let convertedScopes = 0;
   for (const { root, input, project } of [
     { root: ctx.paths.home, input: userInput, project: undefined },
     ...original.projects.map((project) => ({
@@ -476,7 +324,16 @@ async function planExports(ctx: StepContext): Promise<Plan> {
         trust.push(decision);
         if (decision.report) receipt.report.push(decision.report);
       }
+    await convertScopes(++convertedScopes);
   }
+  const convertConversations = phaseProgress(
+    ctx,
+    "conversation-settings",
+    "Converting conversation settings",
+    original.rows.length,
+  );
+  await convertConversations();
+  let convertedConversations = 0;
   for (const raw of original.rows) {
     const row = raw as unknown as ReleasedConversation;
     const id = row.conversation_id,
@@ -620,6 +477,7 @@ async function planExports(ctx: StepContext): Promise<Plan> {
       report,
       rowDigest,
     );
+    await convertConversations(++convertedConversations);
   }
   return {
     schemaVersion: 1,
@@ -644,7 +502,12 @@ function loadPlan(ctx: StepContext): Plan {
   for (const item of value.receipts) exportReceiptSchema.parse(item.receipt);
   return value;
 }
-function verify(ctx: StepContext, plan: Plan, connection?: DatabaseSync): void {
+async function verify(
+  ctx: StepContext,
+  plan: Plan,
+  connection?: DatabaseSync,
+): Promise<void> {
+  await phaseProgress(ctx, "verify-inputs", "Checking original settings")();
   const current = inventory(ctx, connection);
   assert.deepEqual(
     plan.sourceRows.map(releasedRowDigest),
@@ -683,30 +546,72 @@ function verify(ctx: StepContext, plan: Plan, connection?: DatabaseSync): void {
     plan.rows,
     "Conversation row set/values changed since export",
   );
-  verifyConversationExports(
+  await verifyConversationExports(
     io(ctx),
     current.rows as unknown as ReleasedConversation[],
     plan.receipts.map((item) => item.receipt),
+    false,
+    phaseProgress(
+      ctx,
+      "verify-conversations",
+      "Verifying conversation settings",
+      current.rows.length,
+    ),
   );
-  for (const item of plan.receipts)
+  const progress = phaseProgress(
+    ctx,
+    "verify-exports",
+    "Verifying exported settings",
+    plan.receipts.length,
+  );
+  await progress();
+  let done = 0;
+  for (const item of plan.receipts) {
     verifyExport(io(ctx), item.receipt, item.receipt.rowDigest);
+    await progress(++done);
+  }
 }
 
 function completion(ctx: StepContext, plan: Plan) {
+  const retireProgress = phaseProgress(
+    ctx,
+    "retire-sources",
+    "Finishing settings upgrade",
+    plan.receipts.length,
+  );
+  let retired = 0;
   return {
     receipts: plan.receipts.map((item) => item.receipt),
-    verifyFiles() {
-      verifyConversationExports(
+    async verifyFiles() {
+      await verifyConversationExports(
         io(ctx),
         plan.sourceRows,
         plan.receipts.map((item) => item.receipt),
         true,
+        phaseProgress(
+          ctx,
+          "verify-conversations",
+          "Verifying conversation settings",
+          plan.sourceRows.length,
+        ),
       );
-      for (const item of plan.receipts)
+      const progress = phaseProgress(
+        ctx,
+        "verify-exports",
+        "Verifying exported settings",
+        plan.receipts.length,
+      );
+      await progress();
+      let done = 0;
+      for (const item of plan.receipts) {
         verifyExport(io(ctx), item.receipt, item.receipt.rowDigest, true);
+        await progress(++done);
+      }
     },
-    retire(receipt: ExportReceipt) {
+    async retire(receipt: ExportReceipt) {
+      if (retired === 0) await retireProgress();
       retireExportSources(io(ctx), receipt);
+      await retireProgress(++retired);
     },
     committed() {
       io(ctx).write(
@@ -741,10 +646,25 @@ export default defineStep({
       archiveRoot(ctx),
     );
     try {
-      if (backend.state() === "released")
-        for (const item of plan.receipts)
+      if (backend.state() === "released") {
+        const progress = phaseProgress(
+          ctx,
+          "export-settings",
+          "Saving configuration files",
+          plan.receipts.length,
+        );
+        await progress();
+        let done = 0;
+        for (const item of plan.receipts) {
           applyExport(io(ctx), item.path, item.receipt);
-      await executeReleasedMigration(backend, completion(ctx, plan));
+          await progress(++done);
+        }
+      }
+      await executeReleasedMigration(
+        backend,
+        completion(ctx, plan),
+        (phase, label) => phaseProgress(ctx, phase, label)(),
+      );
     } finally {
       backend.close();
     }
@@ -765,15 +685,16 @@ export default defineStep({
         archiveRoot(ctx),
       );
     try {
+      await phaseProgress(ctx, "verify-backup", "Checking database backup")();
       backend.verifyBackup();
-      backend.verifyConverted();
-      completion(ctx, plan).verifyFiles();
+      await backend.verifyConverted();
+      await completion(ctx, plan).verifyFiles();
     } finally {
       backend.close();
     }
   },
   async commit(ctx) {
-    retireReleasedSources(completion(ctx, loadPlan(ctx)));
+    await retireReleasedSources(completion(ctx, loadPlan(ctx)));
     finishMigrationArchive(ctx.paths.home, archiveRoot(ctx), "committed");
   },
   async rollback(ctx) {
@@ -790,7 +711,7 @@ export default defineStep({
     const plan = loadPlan(ctx);
     for (const item of plan.receipts)
       if (existsSync(item.path)) preflightRollbackExport(io(ctx), item.receipt);
-    restoreReleasedDatabase(ctx, plan, archiveRoot(ctx));
+    await restoreReleasedDatabase(ctx, plan, archiveRoot(ctx));
     for (const item of plan.receipts) {
       if (existsSync(item.path)) rollbackExport(io(ctx), item.receipt);
     }
