@@ -21,8 +21,8 @@ export function scopedTurnResources(options: {
     id?: string,
     bash?: BashToolSettings,
   ): Promise<ToolDefinition[]>;
-  nerveSkills: readonly Skill[];
-  agentBrowserSkills: readonly Skill[];
+  nerveSkills(): readonly Skill[];
+  agentBrowserSkills(): readonly Skill[];
   hasChildren(id: string): boolean;
 }) {
   return async (
@@ -100,8 +100,8 @@ export function scopedTurnResources(options: {
       {
         projectDir: input.projectDir,
         storageHome: options.home,
-        nerveSkills: options.nerveSkills,
-        agentBrowserSkills: options.agentBrowserSkills,
+        nerveSkills: options.nerveSkills(),
+        agentBrowserSkills: options.agentBrowserSkills(),
         enabledFileSkillNames: enabled("file"),
         enabledNerveSkillNames: enabled("nerve"),
         enabledAgentBrowserSkillNames: enabled("agentBrowser"),

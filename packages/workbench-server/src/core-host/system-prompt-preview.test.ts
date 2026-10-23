@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { scopedTurnResources } from "./scoped-turn-resources.js";
 import { requireToolDefinition } from "@nervekit/tools/catalog";
+import type { Skill } from "@nervekit/harness/resources";
 
 void test("turns use captured instructions without consulting their source template, while project context stays fresh", async () => {
   const project = await mkdtemp(join(tmpdir(), "nerve-template-prompt-"));
@@ -14,8 +15,8 @@ void test("turns use captured instructions without consulting their source templ
     const prepare = scopedTurnResources({
       home: project,
       tools: async () => [requireToolDefinition("read")],
-      nerveSkills: [],
-      agentBrowserSkills: [],
+      nerveSkills: () => [],
+      agentBrowserSkills: () => [],
       hasChildren: () => false,
       service: {
         profiles: {
@@ -50,6 +51,89 @@ void test("turns use captured instructions without consulting their source templ
     assert.match(next.systemPrompt, /Captured profile rules/);
     assert.match(next.systemPrompt, /Fresh project context/);
     assert.doesNotMatch(next.systemPrompt, /Initial project context/);
+  } finally {
+    await rm(project, { recursive: true, force: true });
+  }
+});
+
+void test("prompt preparation reads initialized and subsequently replaced skill catalogs", async () => {
+  const project = await mkdtemp(join(tmpdir(), "nerve-catalog-prompt-"));
+  try {
+    let nerveSkills: Skill[] = [];
+    let browserSkills: Skill[] = [];
+    const prepare = scopedTurnResources({
+      home: project,
+      tools: async () => [requireToolDefinition("read")],
+      nerveSkills: () => nerveSkills,
+      agentBrowserSkills: () => browserSkills,
+      hasChildren: () => false,
+      service: {} as never,
+    });
+    const skill = (name: string, filePath: string): Skill => ({
+      name,
+      description: `${name} guidance`,
+      filePath,
+      content: "Instructions",
+      disableModelInvocation: false,
+    });
+    const input = {
+      conversation: { id: "c", projectId: "p", parentConversationId: null },
+      projectDir: project,
+      coreTools: [],
+      config: {
+        model: { provider: "test", modelId: "model" },
+        reasoningLevel: "off" as const,
+        permissionRuleSetId: "baseline",
+        agentProfile: "coding",
+        systemPrompt: null,
+        instructions: null,
+        workingDirectory: project,
+      },
+    };
+    const settings = resolveAgentConfiguration({
+      role: "lead",
+      conversation: {
+        skills: {
+          nerve: { "enabled-nerve": true, "disabled-nerve": false },
+          agentBrowser: { "enabled-browser": true, "disabled-browser": false },
+        },
+      },
+    }).settings;
+    // Composition precedes asynchronous catalog initialization at startup.
+    nerveSkills = [
+      skill("enabled-nerve", "/nerve/initial/SKILL.md"),
+      skill("disabled-nerve", "/nerve/disabled/SKILL.md"),
+    ];
+    browserSkills = [
+      skill("enabled-browser", "/browser/initial/SKILL.md"),
+      skill("disabled-browser", "/browser/disabled/SKILL.md"),
+    ];
+    const first = await prepare(input, settings, "");
+    assert.match(first.systemPrompt, /<available_skills>/);
+    assert.match(first.systemPrompt, /<name>enabled-nerve<\/name>/);
+    assert.match(first.systemPrompt, /<name>enabled-browser<\/name>/);
+    assert.match(
+      first.systemPrompt,
+      /<location>\/nerve\/initial\/SKILL.md<\/location>/,
+    );
+    assert.match(
+      first.systemPrompt,
+      /<location>\/browser\/initial\/SKILL.md<\/location>/,
+    );
+    assert.doesNotMatch(first.systemPrompt, /disabled-nerve|disabled-browser/);
+
+    nerveSkills = [skill("enabled-nerve", "/nerve/refreshed/SKILL.md")];
+    browserSkills = [skill("enabled-browser", "/browser/refreshed/SKILL.md")];
+    const next = await prepare(input, settings, "");
+    assert.match(
+      next.systemPrompt,
+      /<location>\/nerve\/refreshed\/SKILL.md<\/location>/,
+    );
+    assert.match(
+      next.systemPrompt,
+      /<location>\/browser\/refreshed\/SKILL.md<\/location>/,
+    );
+    assert.doesNotMatch(next.systemPrompt, /initial\/SKILL.md/);
   } finally {
     await rm(project, { recursive: true, force: true });
   }

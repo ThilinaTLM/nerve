@@ -546,8 +546,8 @@ export function createConversationCore(
       home: deps.storage.paths.home,
       service: agentConfiguration,
       tools: tools.definitions,
-      nerveSkills: deps.nerveSkills.skills,
-      agentBrowserSkills: deps.agentBrowserSkills.skills,
+      nerveSkills: () => deps.nerveSkills.skills,
+      agentBrowserSkills: () => deps.agentBrowserSkills.skills,
       hasChildren: (id) =>
         (storage.conversations.getSummary(id)?.childCount ?? 0) > 0,
     }),
