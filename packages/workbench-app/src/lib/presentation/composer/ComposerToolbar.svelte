@@ -1,6 +1,4 @@
 <script lang="ts">
-import { sameConfigurationSource } from "$lib/presentation/settings/configuration-source";
-import ConfigurationSource from "../settings/ConfigurationSource.svelte";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
 import Lock from "@lucide/svelte/icons/lock";
@@ -188,15 +186,6 @@ const lockReason = $derived(
     ? `Locked by ${agentProfiles.find((profile) => profile.name === lockedFields.by)?.label ?? lockedFields.by}`
     : undefined,
 );
-const modelLockLabel = $derived(
-  lockedFields.model && lockedFields.thinking
-    ? "Model and reasoning"
-    : lockedFields.thinking
-      ? "Reasoning"
-      : lockedFields.model
-        ? "Model"
-        : "Model and reasoning",
-);
 
 const showPermissionLabel = $derived(permissionRuleSetId !== "default");
 let fileInput = $state<HTMLInputElement | null>(null);
@@ -288,21 +277,6 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   {lockReason}
   onChange={onModelSelectionChange}
 />
-<ConfigurationSource
-  frozen={capabilityConfiguration?.role === "child"}
-  provenance={capabilityConfiguration?.resolution.provenance["/model"]}
-/>
-{#if !sameConfigurationSource(capabilityConfiguration?.resolution.provenance["/model"], capabilityConfiguration?.resolution.provenance["/reasoningLevel"])}
-  <ConfigurationSource
-    frozen={capabilityConfiguration?.role === "child"}
-    provenance={capabilityConfiguration?.resolution.provenance[
-      "/reasoningLevel"
-    ]}
-    modelLabel={models.find(
-      (m) => `${m.provider}:${m.modelId}` === selectedModelKey,
-    )?.name ?? "model"}
-  />
-{/if}
 {#if capabilityConfiguration?.resolution.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-reasoning")}
   <Badge
     variant="outline"
@@ -316,11 +290,10 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   </Badge>
 {/if}
 <ComposerSettingStatus
-  label={modelLockLabel}
-  lockedBy={lockedFields.model || lockedFields.thinking
-    ? lockedFields.by
-    : undefined}
-  differs={settingsDiffers.model}
+  label="Model and reasoning"
+  differs={settingsDiffers.model &&
+    !lockedFields.model &&
+    !lockedFields.thinking}
   disabled={modelDisabled}
   onReset={onResetModel}
 />
@@ -330,9 +303,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   size="sm"
   triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
   ariaLabel="Permission rule set"
-  triggerTitle={permissionShortcut
-    ? `Permission rule set: ${activePermission.name} (${permissionShortcut})`
-    : `Permission rule set: ${activePermission.name}`}
+  triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
   triggerAriaKeyShortcuts={permissionShortcutAria}
   side="top"
   align="start"
@@ -422,23 +393,14 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 
 <ComposerSettingStatus
   label="Permission"
-  lockedBy={lockedFields.permission ? lockedFields.by : undefined}
-  differs={settingsDiffers.permission}
+  differs={settingsDiffers.permission && !lockedFields.permission}
   disabled={controlsDisabled}
   onReset={onResetPermission}
 />
 
 {#key capabilityScopeKey}
-  <ConfigurationSource
-    frozen={capabilityConfiguration?.role === "child"}
-    provenance={capabilityConfiguration?.resolution.provenance[
-      "/permissionRuleSetId"
-    ]}
-  />
-
   <ComposerCapabilitiesPopover
     configuration={capabilityConfiguration}
-    {models}
     {lockedFields}
     {subagentControlsEnabled}
     subagentProfiles={capabilitySubagentProfiles}

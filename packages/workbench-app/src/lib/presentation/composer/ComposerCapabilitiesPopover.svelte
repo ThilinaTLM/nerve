@@ -1,10 +1,8 @@
 <script lang="ts">
-import { sameConfigurationSource } from "$lib/presentation/settings/configuration-source";
 import Blocks from "@lucide/svelte/icons/blocks";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
 import Lock from "@lucide/svelte/icons/lock";
-import MessagesSquare from "@lucide/svelte/icons/messages-square";
 import RotateCcw from "@lucide/svelte/icons/rotate-ccw";
 import User from "@lucide/svelte/icons/user";
 import Settings from "@lucide/svelte/icons/settings";
@@ -13,15 +11,8 @@ import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
 import Sparkles from "@lucide/svelte/icons/sparkles";
 import type { Component } from "svelte";
 import type { CapabilityToolName } from "@nervekit/contracts/capabilities";
-import type {
-  LeadSettingsOverrides,
-  FieldProvenance,
-} from "@nervekit/contracts/agent-configuration";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "./agent-editor-view";
-import { sourceLabel } from "../settings/configuration-source";
-import ConfigurationSource from "../settings/ConfigurationSource.svelte";
-import ModelPicker from "../model-picker/ModelPicker.svelte";
-import type { ModelInfo } from "@nervekit/contracts/models";
 import { IconAction } from "@nervekit/ui-kit/components/composites/icon-action";
 import Popover, {
   PopoverBody,
@@ -58,9 +49,6 @@ type Row = {
   searchText?: string;
   enabled: boolean;
   overridden: boolean;
-  origin: string;
-  detail: string;
-  provenance?: FieldProvenance;
   warning?: string;
   configure?: () => void;
   lockedBy?: string;
@@ -77,7 +65,6 @@ const skillSourceIcons = {
 let {
   configuration,
   skills = [],
-  models = [],
   loading = false,
   error,
   disabled = false,
@@ -91,7 +78,6 @@ let {
 }: {
   configuration?: AgentEditorView;
   skills?: AvailableSkill[];
-  models?: ModelInfo[];
   loading?: boolean;
   error?: string;
   disabled?: boolean;
@@ -179,9 +165,6 @@ const toolRows = $derived<Row[]>(
           group.names.some(
             (name) => configuration?.overrides.tools?.[name] !== undefined,
           ),
-        origin: provenance?.source ?? "builtin",
-        detail: sourceLabel(provenance),
-        provenance,
         lockedBy,
         configure:
           configurable && !lockedBy ? () => configureTool(group) : undefined,
@@ -225,9 +208,6 @@ const skillRows = $derived<Row[]>(
       overridden:
         configuration?.overrides.skills?.[kind]?.[skill.name] !== undefined &&
         provenance?.source !== "requirement",
-      origin: provenance?.source ?? "builtin",
-      detail: sourceLabel(provenance),
-      provenance,
       icon: skillSourceIcons[skill.source],
       lockedBy:
         provenance?.source === "requirement" ? provenance.profile : undefined,
@@ -274,10 +254,9 @@ function openSettings(
         aria-hidden="true"
       />
     {/if}
-    <span class="min-w-0 flex-1 truncate" title={row.detail}>
+    <span class="min-w-0 flex-1 truncate">
       {row.label}
     </span>
-    <ConfigurationSource provenance={row.provenance} />
     {#if row.warning}
       <span
         class="inline-flex flex-none text-warning"
@@ -296,15 +275,6 @@ function openSettings(
         title={`Locked by ${row.lockedBy}`}
       >
         <Lock class="size-3.5" aria-hidden="true" />
-      </span>
-    {:else if row.origin === "conversation"}
-      <span
-        class="inline-flex flex-none text-primary"
-        role="img"
-        aria-label="Conversation override"
-        title={row.detail}
-      >
-        <MessagesSquare class="size-3.5" aria-hidden="true" />
       </span>
     {/if}
     {#if row.overridden}
@@ -361,23 +331,15 @@ function openSettings(
       {@const delegationOff = subagentRow?.enabled === false}
       {#each subagentProfiles as profile (profile.name)}
         {@const unavailable = Boolean(profile.disabled || profile.error)}
-        {@const modelSource =
-          configuration?.resolution.provenance[
-            `/subagents/${escape(profile.name)}/model`
-          ]}
-        {@const reasoningSource =
-          configuration?.resolution.provenance[
-            `/subagents/${escape(profile.name)}/reasoningLevel`
-          ]}
         {@const enabledSource =
           configuration?.resolution.provenance[
             `/subagents/${escape(profile.name)}/enabled`
           ]}
         <div
-          class="flex min-h-7 min-w-0 flex-wrap items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
+          class="flex min-h-7 min-w-0 items-center gap-2 rounded-md px-1.5 py-1 hover:bg-accent"
         >
           <span
-            class={`min-w-0 flex-1 basis-full truncate ${unavailable || delegationOff ? "text-muted-foreground" : ""}`}
+            class={`min-w-0 flex-1 truncate ${unavailable || delegationOff ? "text-muted-foreground" : ""}`}
             title={profile.error ?? profile.description}
           >
             {profile.label}
@@ -394,46 +356,10 @@ function openSettings(
           {:else if profile.disabled}
             <span class="flex-none text-xs text-muted-foreground">Off</span>
           {/if}
-          <ConfigurationSource
-            frozen={configuration?.role === "child"}
-            emptyLabel="Inherited"
-            provenance={modelSource}
-          />
-          {#if !sameConfigurationSource(modelSource, reasoningSource)}<ConfigurationSource
-              frozen={configuration?.role === "child"}
-              emptyLabel="Inherited"
-              provenance={reasoningSource}
-              modelLabel={configuration?.resolution.settings.subagents?.[
-                profile.name
-              ]?.model?.modelId}
-            />{/if}
-          <ModelPicker
-            modelDisabled={modelSource?.source === "requirement"}
-            thinkingDisabled={reasoningSource?.source === "requirement"}
-            lockReason="Required by the active profile"
-            label={`${profile.label} launch model`}
-            class="min-w-0 flex-1"
-            {models}
-            value={configuration?.resolution.settings.subagents?.[profile.name]
-              ?.model}
-            thinkingLevel={configuration?.resolution.settings.subagents?.[
-              profile.name
-            ]?.reasoningLevel}
-            disabled={disabled ||
-              loading ||
-              unavailable ||
-              !subagentControlsEnabled}
-            onChange={(next) => {
-              if (next.model)
-                onPatch?.({
-                  subagents: {
-                    [profile.name]: {
-                      model: next.model,
-                      reasoningLevel: next.thinkingLevel,
-                    },
-                  },
-                });
-            }}
+          <IconAction
+            icon={Settings2}
+            label={`Configure ${profile.label}`}
+            onclick={() => openSettings("sub-agents")}
           />
           <Switch
             aria-label={`Enable ${profile.label} launches`}
@@ -456,11 +382,6 @@ function openSettings(
                 onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
             />
           {/if}
-          <IconAction
-            icon={Settings2}
-            label={`Configure ${profile.label}`}
-            onclick={() => openSettings("sub-agents")}
-          />
         </div>
       {/each}
     {/if}
