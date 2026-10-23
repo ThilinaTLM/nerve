@@ -1,10 +1,8 @@
-import type { AgentProfilePort } from "../ports.js";
 import {
   withTestAdmission,
   withTestPreparation,
 } from "../runtime/test-admission.js";
 import { testConfiguration } from "../runtime/configuration-test-helper.js";
-import { profilePort } from "../runtime/lifecycle-test-helpers.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
@@ -82,13 +80,33 @@ async function fixture() {
       };
     },
   };
-  const snapshots = profilePort();
-  const hostProfiles: AgentProfilePort = {
-    ...profilePort(),
-    async persistApplication(childId, application) {
-      await snapshots.persistApplication(childId, application);
-      if (childId === LEAD) return;
-      const profile = application.applied.name;
+  const configuration = testConfiguration(
+    { prepare: async () => ({ systemPrompt: "Test", tools: [] }) },
+    (id) => storage.conversations.getContext(id)!,
+  );
+  const prepareCreation = configuration.prepareCreation;
+  configuration.prepareCreation = async (input) => ({
+    ...(await prepareCreation(input)),
+    ...(input.application?.config ?? {
+      model: { provider: "lead", modelId: "test" },
+    }),
+    workingDirectory: dataDir,
+  });
+  configuration.initializeConversation = async (input) => {
+    const config = input.application?.config ?? {
+      agentProfile: "coding",
+      model: { provider: "lead", modelId: "test" },
+      reasoningLevel: "off" as const,
+      permissionRuleSetId: "baseline",
+    };
+    configuration.update(input.id, {
+      ...config,
+      instructions: null,
+      systemPrompt: null,
+    });
+    if (input.id !== LEAD) {
+      const childId = input.id;
+      const profile = config.agentProfile;
       initialized.push({ parentId: LEAD, childId, profile });
       if (profile === "waiter")
         storage.asyncBash.insert({
@@ -103,56 +121,7 @@ async function fixture() {
           startedAt: new Date(Date.now() - 3 * 60_000).toISOString(),
           finishedAt: null,
         });
-    },
-    getAppliedProfile: (id) => snapshots.getAppliedProfile(id),
-  };
-  const configuration = testConfiguration(
-    { prepare: async () => ({ systemPrompt: "Test", tools: [] }) },
-    (id) => storage.conversations.getContext(id)!,
-  );
-  const prepareCreation = configuration.prepareCreation;
-  configuration.prepareCreation = async (input) => ({
-    ...(await prepareCreation(input)),
-    ...(input.application?.config ?? {
-      model: { provider: "lead", modelId: "test" },
-    }),
-    workingDirectory: dataDir,
-  });
-  configuration.initializeConversation = async (input) => {
-    const config =
-      input.application?.config ??
-      (
-        await hostProfiles.applyProfile({
-          conversation: {
-            projectId: input.projectId,
-            parentConversationId: null,
-          },
-          config: {
-            model: { provider: "lead", modelId: "test" },
-            reasoningLevel: "off",
-            permissionRuleSetId: "baseline",
-            agentProfile: "coding",
-            instructions: null,
-            systemPrompt: null,
-            workingDirectory: dataDir,
-          },
-          projectDir: dataDir,
-        })
-      ).config;
-    configuration.update(input.id, {
-      ...config,
-      instructions: null,
-      systemPrompt: null,
-    });
-    await hostProfiles.persistApplication(input.id, {
-      config,
-      applied: {
-        schemaVersion: 1,
-        name: config.agentProfile,
-        instructions: `Instructions for ${config.agentProfile}`,
-        locked: {},
-      },
-    });
+    }
   };
   const core = new ConversationCore({
     configuration,
@@ -336,7 +305,6 @@ void test("creates a child from the profile, initializes it and assigns context 
     assert.equal(config.permissionRuleSetId, "read_only");
     assert.equal(snapshot.config.instructions, null);
     // Legacy SQL/profile snapshots are not configuration authority.
-    assert.equal(snapshot.appliedAgentProfile, null);
     assert.equal(snapshot.config.systemPrompt, null);
     assert.equal(config.agentProfile, "explore");
     assert.equal(

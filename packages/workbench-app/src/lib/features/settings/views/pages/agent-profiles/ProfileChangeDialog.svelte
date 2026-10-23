@@ -1,6 +1,6 @@
 <!-- Add or edit one change of a profile: subject first, then its mode. -->
 <script lang="ts">
-import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import ProfileChangeForm from "./ProfileChangeForm.svelte";
@@ -10,7 +10,7 @@ import type { ChangeDraft, ProfileEditContext } from "./profile-edit-context";
 type Props = {
   open?: boolean;
   profileLabel: string;
-  usableBy: AgentProfileUsableBy;
+  usableBy: ProfileUsableBy;
   /** The change being added or edited. */
   change: ChangeDraft;
   /** Editing keeps a tool fixed. */

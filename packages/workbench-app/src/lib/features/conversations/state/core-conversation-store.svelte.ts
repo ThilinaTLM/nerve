@@ -276,7 +276,6 @@ export class ConversationStore {
         // Config and the applied profile change together, so locks never lag the values.
         if (snapshot) {
           snapshot.config = notice.data.config;
-          snapshot.appliedAgentProfile = notice.data.appliedAgentProfile;
         }
         break;
       case "conversation.queue":

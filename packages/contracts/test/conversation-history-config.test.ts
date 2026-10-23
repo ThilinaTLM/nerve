@@ -42,7 +42,6 @@ await test("history context remains valid without agent fields; execution config
     },
     config: context,
     lastSequence: 0,
-    appliedAgentProfile: null,
     toolCalls: [],
     queue: [],
     asyncBash: [],

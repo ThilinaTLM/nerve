@@ -4,7 +4,7 @@ import {
   profileCatalogEntrySchema,
   type ProfileCatalogEntry,
 } from "@nervekit/contracts/agent-configuration";
-import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import {
   profileBelongsTo,
   profileFileCount,
@@ -17,8 +17,8 @@ import {
 function profile(
   name: string,
   shape: {
-    effective?: AgentProfileUsableBy;
-    local?: AgentProfileUsableBy;
+    effective?: ProfileUsableBy;
+    local?: ProfileUsableBy;
   } = {},
 ): ProfileCatalogEntry {
   const usableBy = shape.effective ?? shape.local;

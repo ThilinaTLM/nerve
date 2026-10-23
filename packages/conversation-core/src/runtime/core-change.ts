@@ -1,4 +1,3 @@
-import type { AppliedAgentProfile } from "@nervekit/contracts/agent-profiles";
 import type {
   AsyncBash,
   CompactionOperation,
@@ -23,7 +22,6 @@ export type CoreChange =
       kind: "config_changed";
       conversationId: string;
       config: ConversationHistoryConfig;
-      appliedAgentProfile: AppliedAgentProfile | null;
     }
   | {
       kind: "tool_call_changed";

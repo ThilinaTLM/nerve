@@ -88,7 +88,7 @@ import {
 } from "$lib/features/conversations/agents/agent-team";
 import ConversationSettingsDialogs from "$lib/features/conversations/context/ConversationSettingsDialogs.svelte";
 import ConversationContextActions from "$lib/features/conversations/context/ConversationContextActions.svelte";
-import { ConversationHarnessState } from "$lib/features/conversations/context/conversation-harness-state.svelte";
+import { ConversationCompactionState } from "$lib/features/conversations/context/conversation-compaction-state.svelte";
 import { sessionFields } from "$lib/features/conversations/views/context-session-fields";
 import { writeClipboardText } from "$lib/platform/clipboard/write-text";
 import type { PendingWorkItem } from "$lib/presentation/transcript/activity/run-activity";
@@ -896,11 +896,14 @@ function openPendingWork(item: PendingWorkItem) {
 function openCommand(command: AsyncBash) {
   void openAsyncBashTab(command, activeProject?.id);
 }
-const harness = new ConversationHarnessState();
+const compactionSettings = new ConversationCompactionState();
 $effect(() =>
-  harness.follow(activeProject?.id, store?.snapshot?.conversation.id),
+  compactionSettings.follow(
+    activeProject?.id,
+    store?.snapshot?.conversation.id,
+  ),
 );
-$effect(() => harness.observe());
+$effect(() => compactionSettings.observe());
 let compactionDialogOpen = $state(false);
 let instructionsDialogOpen = $state(false);
 const instructions = $derived(store?.snapshot?.config.instructions ?? null);
@@ -1084,11 +1087,11 @@ const teamRunning = $derived(
 >
   {#snippet contextActions(closePopover)}
     <ConversationContextActions
-      compaction={harness.compaction}
-      compactionOverridden={harness.overridden}
+      compaction={compactionSettings.compaction}
+      compactionOverridden={compactionSettings.overridden}
       {instructions}
       profile={viewedProfile}
-      disabled={!store?.snapshot || harness.saving}
+      disabled={!store?.snapshot || compactionSettings.saving}
       compactionLocked={activeCompactionLocked}
       onEditCompaction={() => {
         closePopover();
@@ -1128,11 +1131,11 @@ const teamRunning = $derived(
 <ConversationSettingsDialogs
   bind:compactionOpen={compactionDialogOpen}
   bind:instructionsOpen={instructionsDialogOpen}
-  compaction={harness.compaction}
-  compactionOverridden={harness.overridden}
+  compaction={compactionSettings.compaction}
+  compactionOverridden={compactionSettings.overridden}
   {instructions}
-  onSaveCompaction={(value) => harness.saveCompaction(value)}
-  onResetCompaction={() => harness.saveCompaction(null)}
+  onSaveCompaction={(value) => compactionSettings.saveCompaction(value)}
+  onResetCompaction={() => compactionSettings.saveCompaction(null)}
   onSaveInstructions={async (value) => {
     await store?.configure({ instructions: value });
   }}

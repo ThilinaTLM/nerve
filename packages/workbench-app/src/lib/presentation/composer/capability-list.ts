@@ -1,8 +1,6 @@
 /** Layout and filtering rules for the composer's capabilities popover.
  * Tools and skills share a body height; search depends on the active list. */
 
-export type CapabilityDecisionOrigin = "conversation" | "project" | "user";
-
 /** Matches the row's `min-h-7`. */
 export const CAPABILITY_ROW_REM = 1.75;
 /** The body's `pb-2`, so the last visible row is not clipped by padding. */

@@ -8,7 +8,6 @@ import {
 } from "@nervekit/contracts/agent-configuration";
 import type {
   AgentConfigurationPort,
-  AgentProfileApplication,
   SubagentHost,
 } from "@nervekit/conversation-core";
 import type { AgentConfigurationService } from "../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
@@ -20,7 +19,7 @@ export function scopedConversationCreation(
   validateChildPermission: (id: string) => Promise<void>,
 ) {
   const launches = new WeakMap<
-    Pick<AgentProfileApplication, "config">,
+    Awaited<ReturnType<SubagentHost["resolveProfile"]>>["application"],
     { parentId: string; profile: string }
   >();
   async function resolve(
@@ -129,7 +128,9 @@ export function scopedConversationCreation(
         throw new Error("Project configuration unavailable");
       const resolved = await resolve(scope.projectId, profile, parentId);
       const settings = resolved.resolution.settings;
-      const application: Pick<AgentProfileApplication, "config"> = {
+      const application: Awaited<
+        ReturnType<SubagentHost["resolveProfile"]>
+      >["application"] = {
         config: {
           agentProfile: profile,
           model: settings.model!,

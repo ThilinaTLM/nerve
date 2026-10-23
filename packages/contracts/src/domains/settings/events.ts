@@ -7,11 +7,6 @@ const workbenchRoles = ["workbench_server"] as const;
 
 export const settingsEventDefinitions = [
   definePublicEvent(
-    "projectSettings.changed",
-    z.object({ projectId: z.string() }),
-    { allowedSourceRoles: workbenchRoles, scope: ["projectId"] },
-  ),
-  definePublicEvent(
     "settings.updated",
     z.object({ settings: settingsSchema }),
     { allowedSourceRoles: workbenchRoles },

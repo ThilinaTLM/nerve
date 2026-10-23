@@ -6,7 +6,6 @@ import {
   showCapabilitySearch,
 } from "./capability-list";
 import { capabilityToolGroupsFor } from "./capability-tool-labels";
-import { capabilityResetPatch } from "./capability-origin";
 
 describe("showCapabilitySearch", () => {
   it("stays hidden for a short active list, including the threshold", () => {
@@ -52,12 +51,6 @@ describe("tool groups", () => {
       groups.map((group) => group.key),
       ["subagents", "web_search", "web_fetch", "bash"],
     );
-  });
-
-  it("resets a tool by dropping its whole stored entry", () => {
-    assert.deepEqual(capabilityResetPatch(["subagents"]), {
-      tools: { subagents: null },
-    });
   });
 });
 

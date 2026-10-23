@@ -7,7 +7,7 @@ import type {
   AgentConfigurationPort,
 } from "../configuration.js";
 import { configureConversationRequestSchema } from "@nervekit/contracts/core";
-import type { AgentProfileApplication } from "../ports.js";
+import type { SubagentHost } from "../delegation/subagent-host.js";
 import { rm } from "node:fs/promises";
 import { createId } from "@nervekit/contracts";
 import {
@@ -39,9 +39,9 @@ export interface CreateConversationInput {
   config?: Partial<ConversationContext>;
   overrides?: LeadSettingsOverrides;
   agentProfile?: ProfileTarget;
-  application?:
-    | AgentProfileApplication
-    | Pick<AgentProfileApplication, "config">;
+  application?: Awaited<
+    ReturnType<SubagentHost["resolveProfile"]>
+  >["application"];
 }
 export class ConversationService {
   constructor(
@@ -124,7 +124,6 @@ export class ConversationService {
       kind: "config_changed",
       conversationId: id,
       config: { ...config, ...this.options.summary?.(id) },
-      appliedAgentProfile: null,
     });
     if (input.parentConversationId)
       this.emitParentSummary(input.parentConversationId);
@@ -141,7 +140,6 @@ export class ConversationService {
       compaction: this.options.compactions.get(id),
       lastSequence: storage.events.lastSequence(id),
       config: { ...config, ...this.options.historyContext?.(id) },
-      appliedAgentProfile: null,
       toolCalls: storage.toolCalls.list(id),
       queue: storage.inputs.list(id),
       asyncBash: storage.asyncBash.list(id),
@@ -199,7 +197,6 @@ export class ConversationService {
       kind: "config_changed",
       conversationId: id,
       config,
-      appliedAgentProfile: null,
     });
     this.options.emit({
       kind: "conversation_changed",

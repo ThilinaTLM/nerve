@@ -1,5 +1,5 @@
 import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import type { Project } from "@nervekit/contracts/core";
 import {
   profileFileCount,
@@ -10,7 +10,6 @@ import {
   readAgentProfiles,
   resetAgentProfile,
 } from "$lib/features/settings/api/agent-profiles.api";
-import { projectPageDiffs } from "./project-diff";
 import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
 import {
   deleteLaunchDefinition,
@@ -40,7 +39,7 @@ export function createSettingsPageControllers(deps: {
     {
       name: string;
       digest: string;
-      usableBy?: AgentProfileUsableBy;
+      usableBy?: ProfileUsableBy;
     }[]
   >([]);
   let diffRequest = 0;
@@ -173,11 +172,11 @@ export function createSettingsPageControllers(deps: {
   });
 
   /** Pages where this project differs from the user's settings, with counts. */
-  function pageDiffs() {
-    return projectPageDiffs({
-      agentFiles: profileFileCount(profileFiles, "lead"),
-      subAgentFiles: profileFileCount(profileFiles, "subagent"),
-    });
+  function pageDiffs(): Readonly<Record<string, number>> {
+    return {
+      agents: profileFileCount(profileFiles, "lead"),
+      "sub-agents": profileFileCount(profileFiles, "subagent"),
+    };
   }
 
   /** Removes every project override on one page, so it follows user settings again. */
@@ -226,7 +225,6 @@ export function createSettingsPageControllers(deps: {
     });
     const stopSettings = [
       onEvent("settings.updated", () => void refresh()),
-      onEvent("projectSettings.changed", () => void refresh()),
       onEvent("agentProfiles.changed", () => void refresh()),
     ];
     return () => {

@@ -1,16 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  capabilityConfigurationSchema,
-  emptyCapabilityOverrides,
-} from "@nervekit/contracts/capabilities";
-import { defaultSettings } from "@nervekit/contracts/settings";
-import {
-  builtInAgentProfiles,
-  agentProfileSchema,
-  type AgentProfilesConfiguration,
-} from "@nervekit/contracts/agent-profiles";
-import { userCapabilitySelection } from "../../../src/core-host/user-capability-selection.js";
+  resolveAgentConfiguration,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
 import {
   createCompletionProviders,
   mergeCompletionRemoteSnapshots,
@@ -19,50 +12,50 @@ import {
 import { candidateFromPath } from "../../../src/domains/completions/file-completion-candidates.js";
 
 function setup() {
-  const effective = userCapabilitySelection(defaultSettings);
-  effective.disabledTools = ["jira"];
-  effective.disabledFileSkills = ["hidden"];
-  const config = capabilityConfigurationSchema.parse({
-    project: emptyCapabilityOverrides(),
-    projectDigest: "project-digest",
-    conversation: emptyCapabilityOverrides(),
-    conversationDigest: "conversation-digest",
-    trust: { status: "missing" },
-    inherited: effective,
-    effective,
-    availableTools: ["jira", "web_search"],
-    toolProfileOptions: {
-      jira: [{ id: "profile-1", name: "Only site" }],
-      confluence: [],
-      web_search: [],
-    },
-  });
-  const updates: unknown[] = [];
-  let profiles: AgentProfilesConfiguration = {
-    scope: "conversation",
-    document: null,
-    digest: "profile-digest",
-    trust: "trusted",
-    diagnostics: [],
-    profiles: [],
+  const settings: LeadSettingsOverrides = {
+    tools: { jira: { enabled: false } },
+    skills: { file: { hidden: false } },
   };
+  const updates: unknown[] = [];
+  const profiles: Awaited<
+    ReturnType<CompletionSourcePorts["configuration"]["profiles"]["list"]>
+  > = { profiles: {}, diagnostics: [] };
   const ports: CompletionSourcePorts = {
     project: (id) => ({ id, directory: "/synthetic" }),
-    capabilities: {
-      configuration: async () => config,
-      subscribe: () => () => {},
-      update: async (input) => {
-        updates.push(input);
-        return config;
+    isProjectAgentTrusted: () => true,
+    configuration: {
+      ensureLoaded: async (scope) => ({
+        status: "ready",
+        value: {
+          scope,
+          path: "/synthetic/agent.json",
+          generation: 1,
+          revision: 3,
+          digest: "sha256:test",
+          document: { schemaVersion: 1, revision: 3, overrides: {} },
+        },
+      }),
+      getEffective: async (conversationId) => ({
+        status: "available",
+        conversationId,
+        role: "lead",
+        resolution: resolveAgentConfiguration({
+          role: "lead",
+          conversation: settings,
+        }),
+        sources: [],
+        diagnostics: [],
+      }),
+      captureDefaults: async () => ({
+        options: { project: settings },
+        isCurrent: () => true,
+      }),
+      subscribeHealth: () => () => {},
+      save: async (scope, input) => {
+        updates.push({ scope, input });
+        return undefined as never;
       },
-    },
-    profiles: {
-      configuration: async () => profiles,
-      onChanged: () => () => {},
-      update: async (input) => {
-        updates.push(input);
-        return profiles;
-      },
+      profiles: { list: async () => profiles },
     },
     tools: [{ name: "jira_get_issue", description: "Read a synthetic issue" }],
     skills: async () => [
@@ -100,12 +93,9 @@ function setup() {
   };
   return {
     ports,
-    config,
+    settings,
     updates,
     load,
-    setProfiles(next: AgentProfilesConfiguration) {
-      profiles = next;
-    },
   };
 }
 
@@ -241,32 +231,6 @@ void test("launch provider awaits asynchronous catalogs and indexes only current
   assert.equal(launches[0]?.setEnabled, undefined);
 });
 
-void test("completion cannot implicitly trust an imported project capability file", async () => {
-  const f = setup();
-  f.config.trust = {
-    status: "untrusted",
-    digest: "imported",
-    reason: "Explicit trust required",
-  };
-  for (const source of createCompletionProviders(f.ports).filter(
-    (provider) => provider.id === "skills" || provider.id === "tools",
-  )) {
-    const snapshot = await source.load({ projectId: "p" });
-    const documents = "documents" in snapshot ? snapshot.documents : snapshot;
-    assert.equal(documents[0]?.item.available, false);
-    assert.equal(documents[0]?.item.canDisable, false);
-    assert.equal(documents[0]?.setEnabled, undefined);
-  }
-  const conversationSkill = (await f.load("skills"))[0]!;
-  assert.equal(
-    conversationSkill.item.available,
-    true,
-    "a conversation override does not trust the imported project file",
-  );
-  await conversationSkill.setEnabled?.(true);
-  assert.equal((f.updates[0] as { layer: string }).layer, "conversation");
-});
-
 void test("remote cache freshness is not fabricated when cached arrays are empty or stale", async () => {
   const f = setup();
   f.ports.issues = async () => ({
@@ -292,153 +256,55 @@ void test("remote cache freshness is not fabricated when cached arrays are empty
   assert.equal(stale.refreshing, false);
 });
 
-void test("same-name skill buckets remain distinct and report enabled-source shadowing", async () => {
-  const f = setup();
-  f.config.effective.enabledNerveSkills = ["hidden"];
-  f.ports.skills = async () => [
-    {
-      name: "hidden",
-      description: "File",
-      source: "project",
-      filePath: "/synthetic/file",
-    },
-    {
-      name: "hidden",
-      description: "Builtin",
-      source: "nerve",
-      filePath: "/synthetic/builtin",
-    },
-  ];
-  const initial = await f.load("skills");
-  assert.equal(initial.length, 2);
-  assert.notEqual(initial[0]?.id, initial[1]?.id);
-  assert.equal(initial[0]?.item.detail, "File");
-  assert.equal(initial[0]?.item.info, "project");
-  assert.equal(initial[1]?.item.detail, "Builtin");
-  assert.equal(initial[1]?.item.info, "nerve");
-  assert.equal(initial[0]?.item.enabled, false);
-  assert.equal(initial[1]?.item.enabled, true);
-  assert.equal(initial[1]?.item.available, true);
-  f.config.effective.disabledFileSkills = [];
-  const shadowed = (await f.load("skills"))[1]!;
-  assert.equal(shadowed.item.enabled, true);
-  assert.equal(shadowed.item.available, false);
-  assert.equal(shadowed.item.canDisable, true);
-});
-
-void test("disabled authorized skill is discoverable; selection uses scoped digest and source bucket", async () => {
+void test("completion enablement writes scoped agent settings with the captured revision and digest", async () => {
   const f = setup();
   const skills = await f.load("skills");
-  assert.equal(
-    skills.length,
-    1,
-    "shadowed copies cannot be separately enabled by name",
-  );
-  assert.equal(skills[0]?.item.enabled, false);
-  assert.equal(skills[0]?.item.available, true);
-  await skills[0]?.setEnabled?.(true);
-  assert.deepEqual(f.updates[0], {
-    projectId: "p",
-    conversationId: "c",
-    layer: "conversation",
-    expectedDigest: "conversation-digest",
-    patch: { skills: { file: { hidden: true } } },
-  });
+  assert.equal(skills.length, 1);
+  assert.equal(skills[0].item.enabled, false);
+  await skills[0].setEnabled!(true);
+  assert.deepEqual(f.updates, [
+    {
+      scope: { scope: "conversation", conversationId: "c" },
+      input: {
+        expectedRevision: 3,
+        expectedDigest: "sha256:test",
+        changes: { skills: { file: { hidden: true } } },
+        resets: [],
+      },
+    },
+  ]);
 });
 
-void test("integration tool toggles owning group/profile; unconfigured resources are not fabricated", async () => {
+void test("tool completion disables missing-reference tools rather than selecting integration accounts", async () => {
   const f = setup();
-  const tools = await f.load("tools");
-  assert.equal(tools[0]?.item.enabled, false);
-  assert.equal(tools[0]?.item.available, true);
-  await tools[0]?.setEnabled?.(true);
-  assert.deepEqual(f.updates[0], {
-    projectId: "p",
-    conversationId: "c",
-    layer: "conversation",
-    expectedDigest: "conversation-digest",
-    patch: { tools: { jira: { enabled: true, profileId: "profile-1" } } },
-  });
-  f.config.availableTools = [];
-  assert.deepEqual(await f.load("tools"), []);
-});
-
-void test("disabled valid profiles can be enabled; untrusted/invalid profiles remain blocked", async () => {
-  const f = setup();
-  const effective = agentProfileSchema.parse({
-    ...builtInAgentProfiles[0],
-    tools: {},
-    enabled: false,
-    source: "builtin",
-    trust: "trusted",
-  });
-  const base = {
-    scope: "conversation" as const,
-    document: null,
-    digest: "profile-digest",
-    trust: "trusted" as const,
+  f.ports.configuration.getEffective = async (conversationId) => ({
+    status: "available",
+    conversationId,
+    role: "lead",
+    resolution: resolveAgentConfiguration({
+      role: "lead",
+      conversation: {
+        tools: { jira: { enabled: true, profileId: "missing" } },
+      },
+      referenceAvailable: () => false,
+    }),
+    sources: [],
     diagnostics: [],
-  };
-  f.setProfiles({
-    ...base,
-    profiles: [
-      {
-        name: effective.name,
-        effective,
-        local: null,
-        inherited: null,
-        trust: "trusted",
-        diagnostics: [],
-        origins: { fields: {}, tools: {}, skills: {} },
-      },
-    ],
   });
-  const profiles = await f.load("profiles");
-  assert.equal(profiles[0]?.item.enabled, false);
-  assert.equal(profiles[0]?.item.available, true);
-  await profiles[0]?.setEnabled?.(true);
-  assert.deepEqual(f.updates[0], {
-    scope: "conversation",
-    projectId: "p",
-    conversationId: "c",
-    name: effective.name,
-    expectedDigest: "profile-digest",
-    patch: { enabled: true },
-  });
-  f.setProfiles({
-    ...base,
-    profiles: [
-      {
-        name: effective.name,
-        effective: { ...effective, enabled: true },
-        local: null,
-        inherited: null,
-        trust: "untrusted",
-        diagnostics: [],
-        origins: { fields: {}, tools: {}, skills: {} },
-      },
-      {
-        name: "invalid",
-        effective: null,
-        local: null,
-        inherited: null,
-        trust: "trusted",
-        diagnostics: [],
-        origins: { fields: {}, tools: {}, skills: {} },
-      },
-    ],
-  });
-  const blocked = await f.load("profiles");
-  assert.equal(
-    blocked[0]?.item.enabled,
-    true,
-    "enabled reports configuration, not trust or eligibility",
-  );
-  for (const profile of blocked) {
-    assert.equal(profile.item.available, false);
-    assert.equal(profile.item.canDisable, false);
-    assert.equal(profile.setEnabled, undefined);
-  }
+  const tools = await f.load("tools");
+  assert.equal(tools[0].item.available, false);
+});
+
+void test("child completion never offers preference editing", async () => {
+  const f = setup();
+  const original = f.ports.configuration.getEffective;
+  f.ports.configuration.getEffective = async (id) =>
+    ({ ...(await original(id)), role: "child" }) as Awaited<
+      ReturnType<typeof original>
+    >;
+  const skills = await f.load("skills");
+  assert.equal(skills[0].setEnabled, undefined);
+  assert.equal(skills[0].item.available, false);
 });
 
 void test("running subagents are current conversation/project only; files preserve path-field highlighting", async () => {
@@ -621,4 +487,78 @@ void test("remote failures survive repository merging and appear on stale as wel
     );
     assert.equal(stale.action, undefined);
   }
+});
+
+void test("untrusted project agent files cannot be implicitly trusted by completion toggles", async () => {
+  const f = setup();
+  f.ports.isProjectAgentTrusted = () => false;
+  const snapshot = await createCompletionProviders(f.ports)
+    .find((provider) => provider.id === "skills")!
+    .load({ projectId: "p" });
+  const docs = "documents" in snapshot ? snapshot.documents : snapshot;
+  assert.equal(docs[0].item.available, false);
+  assert.equal(docs[0].setEnabled, undefined);
+  assert.deepEqual(f.updates, []);
+});
+
+void test("profile requirements do not offer ineffective completion toggles", async () => {
+  const f = setup();
+  f.ports.configuration.getEffective = async (conversationId) => ({
+    status: "available",
+    conversationId,
+    role: "lead",
+    sources: [],
+    diagnostics: [],
+    resolution: resolveAgentConfiguration({
+      role: "lead",
+      appliedProfile: {
+        name: "restricted",
+        source: "user",
+        sourceDigest: "a".repeat(64),
+        instructions: "",
+        recommendations: {},
+        requirements: { skills: { file: { hidden: false } } },
+      },
+    }),
+  });
+  const docs = await f.load("skills");
+  assert.equal(docs[0].item.enabled, false);
+  assert.equal(docs[0].setEnabled, undefined);
+});
+
+void test("catalog profiles without a scoped child selection start disabled and toggle the selection, not the definition", async () => {
+  const f = setup();
+  f.ports.configuration.profiles.list = async () => ({
+    diagnostics: [],
+    profiles: {
+      research: {
+        status: "available",
+        source: "user",
+        digest: "a".repeat(64),
+        diagnostics: [],
+        definition: {
+          schemaVersion: 1,
+          name: "research",
+          label: "Research",
+          description: "Research",
+          instructions: "Research only",
+          usableBy: "subagent",
+        },
+      },
+    },
+  });
+  const docs = await f.load("profiles");
+  assert.equal(docs[0].item.enabled, false);
+  await docs[0].setEnabled!(true);
+  assert.deepEqual(f.updates, [
+    {
+      scope: { scope: "conversation", conversationId: "c" },
+      input: {
+        expectedRevision: 3,
+        expectedDigest: "sha256:test",
+        resets: [],
+        changes: { subagents: { research: { enabled: true } } },
+      },
+    },
+  ]);
 });

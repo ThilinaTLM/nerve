@@ -44,7 +44,7 @@ const resetId = $derived(settingsHealth.resetId);
 <ConfirmDialog
   open={resetId !== undefined}
   title={`Reset ${resetId ?? "settings"} to defaults?`}
-  description={`This changes the active settings. The original file will be kept in quarantine.${resetId === "harness" || resetId === "permissions" ? " Resetting authorization settings ends the recovery approval safeguard once both documents are valid; the configured permission policy will apply." : ""}`}
+  description={`This changes the active settings. The original file will be kept in quarantine.${resetId === "permissions" ? " Resetting permission settings changes the policy for the next execution." : ""}`}
   confirmLabel="Reset to defaults"
   onOpenChange={(open) => {
     if (!open) settingsHealth.resetId = undefined;

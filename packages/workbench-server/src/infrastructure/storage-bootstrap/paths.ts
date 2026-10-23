@@ -10,7 +10,6 @@ export interface StoragePaths {
   daemonPath: string;
   configPath: string;
   daemonConfigPath: string;
-  harnessConfigPath: string;
   uiConfigPath: string;
   permissionsConfigPath: string;
   providersConfigPath: string;
@@ -62,7 +61,6 @@ export function storagePaths(home = resolveDataDir()): StoragePaths {
     daemonPath: join(home, "daemon.json"),
     configPath,
     daemonConfigPath: join(configPath, "daemon.json"),
-    harnessConfigPath: join(configPath, "harness.json"),
     uiConfigPath: join(configPath, "ui.json"),
     permissionsConfigPath: join(configPath, "permissions.json"),
     providersConfigPath: join(configPath, "providers.json"),

@@ -536,7 +536,6 @@ export function createConversationProtocolSession(
               change.conversationId,
             ),
           },
-          appliedAgentProfile: change.appliedAgentProfile,
         });
         break;
       case "tool_call_changed":

@@ -6,7 +6,6 @@ import type {
 } from "@nervekit/contracts/completions";
 import {
   capabilityToolNameSchema,
-  isProfiledCapabilityTool,
   type CapabilityToolName,
 } from "@nervekit/contracts/capabilities";
 import { isSubagentTool, type ToolDescriptor } from "@nervekit/contracts/tools";
@@ -18,8 +17,11 @@ import type { GithubPr, GithubIssueSummary } from "@nervekit/contracts/git";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
 import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
 import type { ConversationSummary } from "@nervekit/contracts/core";
-import type { CapabilityService } from "../../core-host/capability.service.js";
-import type { AgentProfileService } from "../agent-profiles/agent-profile.service.js";
+import {
+  resolveAgentConfiguration,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import type { AgentConfigurationService } from "../../infrastructure/configuration/agent-configuration/agent-configuration-service.js";
 import { discoverEntries } from "./file-completion-candidates.js";
 import { completionDocumentId } from "./completion-document-identity.js";
 import { FileCompletionDocument } from "./file-completion-document.js";
@@ -81,11 +83,19 @@ type CompletionLaunchRecord = Pick<
 >;
 export type CompletionSourcePorts = {
   project(projectId: string): { id: string; directory: string };
-  capabilities: Pick<
-    CapabilityService,
-    "configuration" | "update" | "subscribe"
-  >;
-  profiles: Pick<AgentProfileService, "configuration" | "update" | "onChanged">;
+  configuration: Pick<
+    AgentConfigurationService,
+    | "ensureLoaded"
+    | "getEffective"
+    | "captureDefaults"
+    | "save"
+    | "subscribeHealth"
+  > & { profiles: Pick<AgentConfigurationService["profiles"], "list"> };
+  isProjectAgentTrusted(
+    projectId: string,
+    path: string,
+    digest: string,
+  ): boolean;
   skills(scope: CompletionScope): Promise<readonly AvailableSkill[]>;
   tools: readonly Pick<ToolDescriptor, "name" | "description">[];
   prs(
@@ -172,8 +182,69 @@ function capabilityName(name: string): CapabilityToolName | undefined {
   const parsed = capabilityToolNameSchema.safeParse(grouped);
   return parsed.success ? parsed.data : undefined;
 }
+const pointerSegment = (value: string) =>
+  value.replaceAll("~", "~0").replaceAll("/", "~1");
 const editScope = (scope: CompletionScope) =>
-  scope.conversationId ? ("conversation" as const) : ("project" as const);
+  scope.conversationId
+    ? { scope: "conversation" as const, conversationId: scope.conversationId }
+    : { scope: "project" as const, projectId: scope.projectId };
+
+async function completionSettings(
+  ports: CompletionSourcePorts,
+  scope: CompletionScope,
+) {
+  const target = editScope(scope);
+  const health = await ports.configuration.ensureLoaded(target);
+  if (health.status === "unavailable")
+    throw new Error("Agent configuration unavailable");
+  const view = scope.conversationId
+    ? await ports.configuration.getEffective(scope.conversationId)
+    : undefined;
+  if (view?.status === "unavailable")
+    throw new Error("Agent configuration unavailable");
+  const resolution =
+    view?.resolution ??
+    resolveAgentConfiguration({
+      ...(await ports.configuration.captureDefaults(scope.projectId)).options,
+      role: "lead",
+    });
+  const writable =
+    view?.role !== "child" &&
+    (target.scope === "conversation" ||
+      health.status === "missing-optional" ||
+      ports.isProjectAgentTrusted(
+        scope.projectId,
+        health.value.path,
+        health.value.digest,
+      ));
+  return {
+    settings: resolution.settings,
+    missing: resolution.diagnostics
+      .filter((issue) => issue.code === "missing-reference")
+      .map((issue) => issue.pointer),
+    writable,
+    canChange: (pointer: string) =>
+      writable &&
+      !Object.entries(resolution.provenance).some(
+        ([path, value]) =>
+          value.source === "requirement" &&
+          (path === pointer ||
+            pointer.startsWith(`${path}/`) ||
+            path.startsWith(`${pointer}/`)),
+      ),
+    version: health.value.digest,
+    save: (changes: LeadSettingsOverrides) => {
+      if (!writable)
+        throw new Error("Preference editing is unavailable for this scope");
+      return ports.configuration.save(target, {
+        expectedRevision: health.value.document.revision,
+        expectedDigest: health.value.digest,
+        changes,
+        resets: [],
+      });
+    },
+  };
+}
 
 function remoteSnapshot<T>(
   documents: CompletionDocument[],
@@ -211,7 +282,9 @@ export function createCompletionProviders(
   ports: CompletionSourcePorts,
 ): CompletionProvider[] {
   const capabilitiesChanged: CompletionProvider["subscribe"] = (listener) =>
-    ports.capabilities.subscribe(listener);
+    ports.configuration.subscribeHealth((change) =>
+      listener(change.scope === "user" ? {} : change),
+    );
   return [
     {
       id: "files",
@@ -423,19 +496,8 @@ export function createCompletionProviders(
       async load(scope) {
         const [catalog, config] = await Promise.all([
           ports.skills(scope),
-          ports.capabilities.configuration(
-            scope.projectId,
-            scope.conversationId,
-          ),
+          completionSettings(ports, scope),
         ]);
-        const digest =
-          editScope(scope) === "conversation"
-            ? config.conversationDigest
-            : config.projectDigest;
-        const writeAllowed =
-          !!scope.conversationId ||
-          config.trust.status === "trusted" ||
-          config.trust.status === "missing";
         // File copies share one owning toggle; builtin buckets remain distinct.
         const byIdentity = new Map<string, AvailableSkill>();
         for (const skill of catalog) {
@@ -445,11 +507,11 @@ export function createCompletionProviders(
         const priority = { file: 0, nerve: 1, agentBrowser: 2 };
         const enabledSkill = (skill: AvailableSkill) => {
           const bucket = skillOverrideKind(skill.source);
-          return bucket === "file"
-            ? !config.effective.disabledFileSkills.includes(skill.name)
-            : bucket === "nerve"
-              ? config.effective.enabledNerveSkills.includes(skill.name)
-              : config.effective.enabledAgentBrowserSkills.includes(skill.name);
+          return (
+            config.settings.skills?.[bucket]?.[skill.name] ??
+            config.settings.skills?.defaults?.[bucket] ??
+            bucket === "file"
+          );
         };
         const skills = [...byIdentity.values()];
         const enabledPriority = new Map<string, number>();
@@ -464,6 +526,9 @@ export function createCompletionProviders(
             );
         return skills.map((skill) => {
           const bucket = skillOverrideKind(skill.source);
+          const writeAllowed = config.canChange(
+            `/skills/${bucket}/${pointerSegment(skill.name)}`,
+          );
           const enabled = enabledSkill(skill);
           const shadowed =
             (enabledPriority.get(skill.name) ?? Infinity) < priority[bucket];
@@ -487,7 +552,7 @@ export function createCompletionProviders(
                 : !enabled && !writeAllowed
                   ? {
                       unavailableReason:
-                        "Review project capability trust in settings before enabling",
+                        "Review agent settings, requirements and project trust before enabling",
                     }
                   : {}),
             },
@@ -495,17 +560,13 @@ export function createCompletionProviders(
               ["name", skill.name],
               ["description", skill.description],
             ]),
-            [digest, config.effective],
+            [config.version, config.settings],
             {
               detailFields: [{ index: 1, offset: 0 }],
               setEnabled: writeAllowed
                 ? async (value) => {
-                    await ports.capabilities.update({
-                      projectId: scope.projectId,
-                      conversationId: scope.conversationId,
-                      layer: editScope(scope),
-                      expectedDigest: digest,
-                      patch: { skills: { [bucket]: { [skill.name]: value } } },
+                    await config.save({
+                      skills: { [bucket]: { [skill.name]: value } },
                     });
                   }
                 : undefined,
@@ -521,42 +582,22 @@ export function createCompletionProviders(
       ttlMs: 30_000,
       subscribe: capabilitiesChanged,
       async load(scope) {
-        const config = await ports.capabilities.configuration(
-          scope.projectId,
-          scope.conversationId,
-        );
-        const digest =
-          editScope(scope) === "conversation"
-            ? config.conversationDigest
-            : config.projectDigest;
-        const writeAllowed =
-          !!scope.conversationId ||
-          config.trust.status === "trusted" ||
-          config.trust.status === "missing";
+        const config = await completionSettings(ports, scope);
         return ports.tools.flatMap((tool) => {
           const name = capabilityName(tool.name);
-          // Missing installation/provider configuration is not an enable toggle.
-          if (name && !config.availableTools.includes(name)) return [];
+          const writeAllowed =
+            !!name && config.canChange(`/tools/${name}/enabled`);
+          const entry = name ? config.settings.tools?.[name] : undefined;
           const enabled =
             !name ||
             name === "bash" ||
-            !config.effective.disabledTools.includes(name);
-          let profileId =
-            name && isProfiledCapabilityTool(name)
-              ? config.effective.toolProfiles[name]
-              : undefined;
-          const choices =
-            name && isProfiledCapabilityTool(name)
-              ? config.toolProfileOptions[name]
-              : [];
-          const requiresProfile = name === "jira" || name === "confluence";
-          if (
-            requiresProfile &&
-            !choices.some((profile) => profile.id === profileId)
-          )
-            profileId = choices.length === 1 ? choices[0].id : undefined;
-          const profileAvailable = !requiresProfile || !!profileId;
-          const available = profileAvailable && (enabled || writeAllowed);
+            !!(entry && "enabled" in entry && entry.enabled);
+          const missing =
+            name &&
+            config.missing.some((pointer) =>
+              pointer.startsWith(`/tools/${name}/`),
+            );
+          const available = !missing && (enabled || writeAllowed);
           return [
             document(
               scope,
@@ -571,9 +612,9 @@ export function createCompletionProviders(
                 canDisable: !!name && name !== "bash" && writeAllowed,
                 ...(!available
                   ? {
-                      unavailableReason: profileAvailable
-                        ? "Review project capability trust in settings before enabling"
-                        : "Choose an integration profile in capability settings",
+                      unavailableReason: !missing
+                        ? "Review agent settings, requirements and project trust before enabling"
+                        : "Choose an integration account in agent tool settings",
                     }
                   : {}),
               },
@@ -581,25 +622,14 @@ export function createCompletionProviders(
                 ["name", tool.name],
                 ["description", tool.description],
               ]),
-              [digest, config.effective, config.toolProfileOptions],
+              [config.version, config.settings],
               {
                 detailFields: [{ index: 1, offset: 0 }],
                 ...(name && name !== "bash" && writeAllowed
                   ? {
                       setEnabled: async (value: boolean) => {
-                        await ports.capabilities.update({
-                          projectId: scope.projectId,
-                          conversationId: scope.conversationId,
-                          layer: editScope(scope),
-                          expectedDigest: digest,
-                          patch: {
-                            tools: {
-                              [name]: {
-                                enabled: value,
-                                ...(value && profileId ? { profileId } : {}),
-                              },
-                            },
-                          },
+                        await config.save({
+                          tools: { [name]: { enabled: value } },
                         });
                       },
                     }
@@ -615,65 +645,51 @@ export function createCompletionProviders(
       scope: "conversation",
       accessSensitive: true,
       ttlMs: 30_000,
-      subscribe: (listener) => ports.profiles.onChanged(listener),
+      subscribe: capabilitiesChanged,
       async load(scope) {
-        const config = await ports.profiles.configuration({
-          scope: "project",
-          ...scope,
-        });
-        return config.profiles.map((profile) => {
-          const effective = profile.effective;
-          const blocked =
-            profile.trust !== "trusted" ||
-            !effective ||
-            !!effective.error ||
-            profile.diagnostics.some(
-              (diagnostic) => diagnostic.severity === "blocking",
-            );
+        const [config, catalog] = await Promise.all([
+          completionSettings(ports, scope),
+          ports.configuration.profiles.list(scope.projectId, "child"),
+        ]);
+        return Object.entries(catalog.profiles).map(([name, profile]) => {
+          const definition =
+            profile.status === "available" ? profile.definition : undefined;
+          const selection = config.settings.subagents?.[name];
+          const enabled = !!selection && selection.enabled !== false;
+          const blocked = !definition;
+          const writeAllowed = config.canChange(
+            `/subagents/${pointerSegment(name)}/enabled`,
+          );
           return document(
             scope,
             "agent_profile",
-            profile.name,
+            name,
             {
-              label: `@agent:${profile.name}`,
-              displayLabel: effective?.label ?? profile.name,
-              detail: effective?.description,
-              enabled: effective?.enabled ?? false,
-              available: !blocked,
-              canDisable: !blocked,
+              label: `@agent:${name}`,
+              displayLabel: definition?.label ?? name,
+              detail: definition?.description,
+              enabled,
+              available: !blocked && (enabled || writeAllowed),
+              canDisable: !blocked && writeAllowed,
               ...(blocked
                 ? {
                     unavailableReason:
-                      profile.diagnostics
-                        .filter(
-                          (diagnostic) => diagnostic.severity === "blocking",
-                        )
-                        .map((diagnostic) => diagnostic.message)
-                        .join("; ") ||
-                      (profile.trust !== "trusted"
-                        ? "Review project profile trust in agent settings before using this profile."
-                        : "This agent profile has an invalid configuration. Review agent settings."),
+                      "Review profile configuration and trust in agent settings.",
                   }
                 : {}),
             },
             fields([
-              ["name", effective?.label ?? profile.name],
-              ["identifier", profile.name],
-              ["description", effective?.description],
+              ["name", definition?.label ?? name],
+              ["identifier", name],
+              ["description", definition?.description],
             ]),
-            [profile.digest, profile],
+            [config.version, profile],
             {
               detailFields: [{ index: 2, offset: 0 }],
-              ...(!blocked
+              ...(!blocked && writeAllowed
                 ? {
                     setEnabled: async (enabled: boolean) => {
-                      await ports.profiles.update({
-                        scope: "project",
-                        ...scope,
-                        name: profile.name,
-                        expectedDigest: profile.digest,
-                        patch: { enabled },
-                      });
+                      await config.save({ subagents: { [name]: { enabled } } });
                     },
                   }
                 : {}),

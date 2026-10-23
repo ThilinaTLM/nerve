@@ -2,7 +2,6 @@ import {
   autoCompactionSettingsSchema,
   type AutoCompactionSettings,
 } from "@nervekit/contracts/settings";
-import type { HarnessCompactionSource } from "@nervekit/contracts/core";
 import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
 import {
   AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES,
@@ -34,12 +33,6 @@ export function compactionDetail(settings: AutoCompactionSettings): string {
     compactionProfileItems.find((item) => item.value === settings.profile)
       ?.detail ?? ""
   );
-}
-
-export function compactionSourceLabel(source: HarnessCompactionSource): string {
-  return source === "conversation"
-    ? "override for this conversation"
-    : `inherited from ${source}`;
 }
 
 /** First problem with a compaction draft, using the contract's own bounds. */

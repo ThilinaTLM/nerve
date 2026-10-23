@@ -43,7 +43,7 @@ describe("provider profile helpers", () => {
     assert.equal(atlassianProfileReady(profile, []), false);
   });
 
-  it("clears selected references and disables affected tools", () => {
+  it("removes only account metadata, leaving scoped agent selections to report missing references", () => {
     const settings = {
       ...defaultSettings,
       providers: {
@@ -59,16 +59,8 @@ describe("provider profile helpers", () => {
       },
     };
     const atlassian = removeAtlassianProfilePatch(settings, "work");
-    assert.deepEqual(atlassian.tools?.jira, {
-      enabled: false,
-      profileId: null,
-    });
-    assert.deepEqual(atlassian.tools?.confluence, {
-      enabled: false,
-      profileId: null,
-    });
+    assert.deepEqual(atlassian, { providers: { atlassianProfiles: [] } });
     const tavily = removeTavilyProfilePatch(settings, "search");
-    assert.deepEqual(tavily.tools?.web, { tavilyProfileId: null });
-    assert.deepEqual(tavily.tools?.disabled, ["web_search"]);
+    assert.deepEqual(tavily, { providers: { tavilyProfiles: [] } });
   });
 });

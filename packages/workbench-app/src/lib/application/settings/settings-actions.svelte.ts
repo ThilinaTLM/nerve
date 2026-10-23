@@ -2,7 +2,6 @@ import type { ColorMode, ColorTheme } from "$lib/api";
 import {
   getApplicationConfiguration,
   getAuthProviders,
-  getClientConfig,
   getModels,
   getSettings,
   listAvailableSkills,
@@ -190,26 +189,7 @@ export function loadSettingsPanel(): Promise<void> {
   return settingsLoadInFlight;
 }
 
-type PlainObject = Record<string, unknown>;
-
-function isPlainObject(value: unknown): value is PlainObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/** Merges nested settings objects; arrays and null replace (null clears a path). */
-function mergeSettingsObject<T>(base: T | undefined, patch: unknown): T {
-  if (!isPlainObject(base) || !isPlainObject(patch))
-    return (patch === undefined ? base : patch) as T;
-  const merged: PlainObject = { ...base };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    merged[key] = isPlainObject(value)
-      ? mergeSettingsObject(base[key], value)
-      : value;
-  }
-  return merged as T;
-}
-
+/** Merges preserved settings patches without losing concurrent nested changes. */
 function mergeSettingsPatch(
   base: UpdateSettingsRequest | undefined,
   patch: UpdateSettingsRequest,
@@ -273,51 +253,19 @@ function mergeSettingsPatch(
         : {}),
     };
   }
-  if (base?.compaction || patch.compaction) {
-    next.compaction = {
-      ...(base?.compaction ?? {}),
-      ...(patch.compaction ?? {}),
-    };
-  }
   if (base?.providers || patch.providers) {
     next.providers = {
       ...(base?.providers ?? {}),
       ...(patch.providers ?? {}),
     };
   }
-  if (base?.skills || patch.skills) {
-    next.skills = {
-      ...(base?.skills ?? {}),
-      ...(patch.skills ?? {}),
-      ...(base?.skills?.agentBrowser || patch.skills?.agentBrowser
-        ? {
-            agentBrowser: {
-              ...(base?.skills?.agentBrowser ?? {}),
-              ...(patch.skills?.agentBrowser ?? {}),
-            },
-          }
-        : {}),
-    };
-  }
-  if (base?.tools || patch.tools) {
-    next.tools = mergeSettingsObject(base?.tools, patch.tools);
-  }
+
   return next;
 }
 
 function patchTouchesServer(patch: UpdateSettingsRequest | undefined): boolean {
   return Boolean(
     patch?.application && Object.keys(patch.application).length > 0,
-  );
-}
-
-/** Interpreter and shell paths change the runtime the status reports. */
-function patchTouchesRuntime(
-  patch: UpdateSettingsRequest | undefined,
-): boolean {
-  return Boolean(
-    patch?.tools?.pythonExec !== undefined ||
-    patch?.tools?.bash?.shellPath !== undefined,
   );
 }
 
@@ -364,13 +312,6 @@ export async function flushSettingsSave() {
   try {
     const saved = await updateSettings(patch);
     savedServerSettingsSinceLoad ||= patchTouchesServer(patch);
-    if (patchTouchesRuntime(patch)) {
-      const config = await getClientConfig().catch(() => undefined);
-      if (config) {
-        workspaceState.config = config;
-        workspaceState.status = config.status;
-      }
-    }
     if (!pendingSettingsPatch) {
       settingsState.settingsDraft = saved;
       settingsState.settingsSaveStatus = "saved";

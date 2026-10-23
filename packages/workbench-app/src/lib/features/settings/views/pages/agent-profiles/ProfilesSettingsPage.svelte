@@ -1,4 +1,5 @@
 <script lang="ts">
+import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
 import { requestWorkbench } from "$lib/application/startup/workbench-connection";
 import Pencil from "@lucide/svelte/icons/pencil";
 import Plus from "@lucide/svelte/icons/plus";
@@ -50,7 +51,6 @@ import {
 } from "../../../api/agent-profiles.api";
 import {
   accountKind,
-  userToolPayload,
   toolRow,
   toolSummary,
   type ToolPayload,
@@ -161,7 +161,8 @@ const context = $derived<ProfileEditContext>({
     .map((r) => ({ value: r.id, label: r.name })),
   skills,
   accountsFor,
-  seedTool: (tool) => userToolPayload(settingsDraft, tool),
+  seedTool: (tool) =>
+    resolveAgentConfiguration({ role: "lead" }).settings.tools?.[tool] ?? {},
   leadProfiles: all
     .filter((p) => p.definition && p.definition.usableBy !== "subagent")
     .map((p) => ({ name: p.name, label: p.definition?.label ?? p.name })),

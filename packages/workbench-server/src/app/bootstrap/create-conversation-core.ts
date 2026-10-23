@@ -1,3 +1,4 @@
+import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { ReleasedProjectMigration } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-project.js";
@@ -24,7 +25,6 @@ import { bundledAgentProfiles } from "../../infrastructure/configuration/agent-c
 import { createScopedAgentConfiguration } from "../../core-host/scoped-agent-configuration.js";
 import { scopedTurnResources } from "../../core-host/scoped-turn-resources.js";
 import { clampAgentThinkingLevel } from "@nervekit/harness/models";
-import { explicitValue } from "@nervekit/contracts/agent-profiles";
 import { mkdirSync } from "node:fs";
 import { createId } from "@nervekit/contracts";
 import type { LaunchRecord } from "@nervekit/contracts/launches";
@@ -46,28 +46,18 @@ import {
   type ToolExecutionContext,
 } from "@nervekit/tools/execution";
 import { explainImageWithModel } from "@nervekit/harness/models";
-import { createProfileModelInfo } from "../../core-host/profile-model-availability.js";
-import { profileToolAvailability } from "../../core-host/profile-tool-availability.js";
-import { createProfileAvailability } from "../../core-host/agent-profile-availability.js";
 import { listAvailableSkills } from "../../core-host/resource-loader.js";
-import { userCapabilitySelection } from "../../core-host/user-capability-selection.js";
-import { capabilityToolNameSchema } from "@nervekit/contracts/capabilities";
-import type { AgentProfileService } from "../../domains/agent-profiles/agent-profile.service.js";
-import { CapabilityService } from "../../core-host/capability.service.js";
 import { createModelPort } from "../../core-host/model.adapter.js";
 import { createPermissionPort } from "../../core-host/permission.adapter.js";
 import { CoreProcessHost } from "../../core-host/process.adapter.js";
 import { createToolHostPort } from "../../core-host/tool-host.adapter.js";
 import type { RuntimeDeps } from "./create-runtime-services.js";
-import { resolveProjectSettings } from "../../infrastructure/configuration/index.js";
 import { ImageGenerationService } from "../../domains/image-generation/image-generation.service.js";
 import { OpenAiCodexImageGenerationProvider } from "../../domains/image-generation/providers/openai-codex-image-generation.provider.js";
 
 export function createConversationCore(
   deps: RuntimeDeps,
   launchServices: Pick<LaunchToolOptions, "launches" | "definitions">,
-  /** Lazy: the profile service needs the core's trust registry. */
-  agentProfiles: () => AgentProfileService,
   onProjectDeleted?: ConversationCoreOptions["onProjectDeleted"],
   processHost?: CoreProcessHost,
 ) {
@@ -454,7 +444,21 @@ export function createConversationCore(
     },
     transitionReconciled: (id, receipt) =>
       profileTransitions.reconciled(id, receipt),
-    publish: () => admissionPolicy.invalidate(),
+    publish: (domain, scope) => {
+      admissionPolicy.invalidate();
+      if (domain === "profile")
+        void deps.events
+          .publish("agentProfiles.changed", {
+            ...(scope.scope === "project"
+              ? { projectId: scope.projectId }
+              : {}),
+          })
+          .catch((error) => {
+            void deps.logger.warn("Profile catalog notification failed", {
+              error,
+            });
+          });
+    },
     isProfileTrusted: (projectId, path, digest) =>
       core.trust.isTrusted("agent_profile", projectId, path, digest),
     prepareResources: (projectId) => {
@@ -645,15 +649,6 @@ export function createConversationCore(
     if (summary) core.publishAgentSummary(id);
   });
 
-  const capabilities: CapabilityService = new CapabilityService(
-    deps.storage,
-    core,
-  );
-  const projectSettings = async (projectId: string) => {
-    const project = storage.projects.get(projectId);
-    if (!project) throw new Error(`Project not found: ${projectId}`);
-    return resolveProjectSettings(deps.storage, project.directory);
-  };
   const applicationDefaults = async (projectId: string) => {
     const project = storage.projects.get(projectId);
     if (!project) throw new Error(`Project not found: ${projectId}`);
@@ -668,80 +663,6 @@ export function createConversationCore(
       workingDirectory: project.directory,
     };
   };
-  const profileModelInfo = createProfileModelInfo({
-    customModels: () => deps.providerCatalog.resolvedModels(),
-    providerMetadata: async (provider) =>
-      (await deps.auth.listProviderMetadata()).find(
-        (metadata) => metadata.provider === provider,
-      ),
-  });
-  const profileAvailability = createProfileAvailability({
-    defaults: async (projectId) => {
-      const settings = projectId
-        ? await projectSettings(projectId)
-        : deps.storage.settings;
-      const model = settings.defaultModel;
-      return { model, reasoningLevel: settings.defaultThinkingLevel };
-    },
-    parent: (id) =>
-      scopedConfiguration.port.resolveConfig(id, core.getSnapshot(id).config),
-    modelInfo: profileModelInfo,
-    resources: async (
-      { projectId, conversationId, capabilityOverrides },
-      profile,
-    ) => {
-      const project = projectId ? core.projects.get(projectId) : undefined;
-      if (projectId && !project)
-        throw new Error(`Project not found: ${projectId}`);
-      const settings = deps.storage.settings;
-      const configuration = projectId
-        ? await capabilities.configuration(
-            projectId,
-            conversationId,
-            capabilityOverrides,
-          )
-        : {
-            effective: userCapabilitySelection(settings),
-            availableTools: capabilityToolNameSchema.options,
-            toolProfileOptions: {
-              jira: settings.providers.atlassianProfiles,
-              confluence: settings.providers.atlassianProfiles,
-              web_search: settings.providers.tavilyProfiles,
-            },
-          };
-      const pythonSetting = profile.tools.python_exec;
-      const pythonPayload = explicitValue(pythonSetting);
-      const python =
-        profile.tools.python_exec !== undefined
-          ? await resolvePythonRuntime({
-              cwd: project?.directory ?? deps.storage.paths.home,
-              manualPath:
-                pythonPayload?.settings?.interpreterPath ??
-                configuration.effective.toolSettings.python_exec
-                  .interpreterPath,
-            })
-          : undefined;
-      const available = await profileToolAvailability({
-        profile,
-        configuration,
-        credentialConfigured: async (key) =>
-          Boolean(await deps.auth.credentialType(key)),
-        modelAvailable: async (selection) => {
-          await profileModelInfo(selection);
-        },
-        pythonAvailable: python?.available,
-      });
-      const { skills } = await listAvailableSkills(project?.directory, {
-        storageHome: deps.storage.paths.home,
-        nerveSkills: deps.nerveSkills.skills,
-        agentBrowserSkills: deps.agentBrowserSkills.skills,
-      });
-      return {
-        tools: available,
-        skills: new Map(skills.map((skill) => [skill.name, undefined])),
-      };
-    },
-  });
   const subagentHost = scopedCreation.childHost;
   for (const handler of [
     ...createDelegationTools(core, subagentHost),
@@ -751,8 +672,6 @@ export function createConversationCore(
   return {
     core,
     storage,
-    capabilities,
-    profileAvailability,
     agentConfiguration,
     configurationOperations,
     scopedConfiguration,

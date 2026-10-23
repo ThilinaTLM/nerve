@@ -9,9 +9,7 @@ import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { ConversationCore, type ConversationCoreOptions } from "../core.js";
 import { openCoreStorage } from "../storage/core-storage.js";
-import type { AppliedAgentProfile } from "@nervekit/contracts/agent-profiles";
 import type {
-  AgentProfilePort,
   ModelPort,
   ToolHostPort,
   TurnResourcesPort,
@@ -117,27 +115,4 @@ export async function createConversation(core: ConversationCore, id: string) {
       directory: tmpdir(),
     });
   await core.createConversation({ id, projectId: "proj_test" });
-}
-/** Legacy fixture for unrelated adapter tests, never used by core execution. */
-export function profilePort(): AgentProfilePort {
-  const snapshots = new Map<string, AppliedAgentProfile>();
-  return {
-    async applyProfile({ profile, config }) {
-      const name = profile ?? "coding";
-      return {
-        config: {
-          agentProfile: name,
-          model: config.model,
-          reasoningLevel: config.reasoningLevel,
-        },
-        applied: { schemaVersion: 1, name, instructions: "", locked: {} },
-      };
-    },
-    async persistApplication(id, application) {
-      snapshots.set(id, structuredClone(application.applied));
-    },
-    getAppliedProfile(id) {
-      return snapshots.get(id) ?? null;
-    },
-  };
 }

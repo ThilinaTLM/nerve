@@ -9,7 +9,6 @@ import {
   PromptSuggestionTrustRepository,
 } from "../../domains/prompt-suggestions/index.js";
 import { PromptSuggestionEnablementService } from "../../domains/prompt-suggestions/prompt-suggestion-enablement.service.js";
-import { AgentProfileService } from "../../domains/agent-profiles/index.js";
 import type { AuthManager } from "../../domains/auth/index.js";
 import { IntegrationHealthService } from "../../domains/auth/integration-health.service.js";
 import type { ProviderCatalogStore } from "../../domains/providers/provider-catalog.store.js";
@@ -77,8 +76,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   const {
     core: conversationCore,
     storage: coreStorage,
-    capabilities,
-    profileAvailability,
     agentConfiguration,
     configurationOperations,
     scopedConfiguration,
@@ -86,7 +83,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   } = createConversationCore(
     deps,
     { launches, definitions: launchDefinitions },
-    () => agentProfiles,
     // Lazy: completion project lookup depends on the constructed core.
     async (projectId) => {
       await completions.dispose(projectId);
@@ -161,17 +157,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         : undefined;
     },
   });
-  const agentProfiles = new AgentProfileService({
-    userPath: storage.paths.agentProfilesConfigPath,
-    getConversation: (id) => conversationCore.getSnapshot(id).conversation,
-    availability: profileAvailability,
-    trust: conversationCore.trust,
-    events,
-    getProject: (id) => {
-      const project = getProject(id);
-      return { id: project.id, directory: project.directory };
-    },
-  });
   const completionMetadata = (id: string) => {
     const conversation = coreStorage.conversations.get(id);
     if (!conversation) throw new Error("Conversation not found");
@@ -196,8 +181,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
       },
       sources: {
         project: getProject,
-        capabilities,
-        profiles: agentProfiles,
+        configuration: agentConfiguration,
+        isProjectAgentTrusted: (projectId, path, digest) =>
+          conversationCore.trust.isTrusted(
+            "project_capabilities",
+            projectId,
+            path,
+            digest,
+          ),
         tools: allToolDescriptors,
         skills: async (scope) =>
           (
@@ -222,7 +213,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
   return {
     completions,
     activities,
-    agentProfiles,
     promptSuggestionEnablement,
     promptSuggestions,
     conversationCore,
@@ -230,7 +220,6 @@ export function createRuntimeServices(deps: RuntimeDeps) {
     configurationOperations,
     scopedConfiguration,
     admissionPolicy,
-    capabilities,
     coreStorage,
     launches,
     launchDefinitions,

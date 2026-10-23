@@ -1,9 +1,3 @@
-import type {
-  AppliedAgentProfile,
-  AgentProfilesDraft,
-} from "@nervekit/contracts/agent-profiles";
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
-import type { AutoCompactionSettings } from "@nervekit/contracts/settings";
 import type { ModelSelection } from "@nervekit/contracts/models";
 import type {
   CommandResult,
@@ -39,9 +33,6 @@ export interface TurnPreparationInput {
   };
   config: Omit<ConversationConfig, "conversationId">;
   projectDir: string;
-  capabilityOverrides?: CapabilityOverridesDocument;
-  agentProfileOverrides?: AgentProfilesDraft;
-  appliedAgentProfile?: AppliedAgentProfile | null;
 }
 
 export interface TurnResourcesPort {
@@ -168,30 +159,3 @@ export interface ClockPort {
   now(): string;
 }
 export type { CommandResult, ToolProgress } from "@nervekit/contracts/core";
-
-/** Fully materialized template application. Host persists files; core persists scalar config. */
-export interface AgentProfileApplication {
-  config: Partial<
-    Pick<ConversationConfig, "model" | "reasoningLevel" | "permissionRuleSetId">
-  > & { agentProfile: string };
-  compaction?: AutoCompactionSettings;
-  capabilityOverrides?: CapabilityOverridesDocument;
-  applied: AppliedAgentProfile;
-}
-/** No live profile lookups on turns. Applied policy is an independent persisted snapshot. */
-export interface AgentProfilePort {
-  applyProfile(
-    input: TurnPreparationInput & {
-      profile?: string;
-      preserveModel?: boolean;
-      preserveThinking?: boolean;
-    },
-  ): Promise<AgentProfileApplication>;
-  /** Persist compaction/capabilities and applied-agent-profile.json before returning. */
-  persistApplication(
-    conversationId: string,
-    application: AgentProfileApplication,
-  ): Promise<void>;
-  /** Synchronous snapshot access lets existing configure and snapshot paths enforce/report locks. */
-  getAppliedProfile(conversationId: string): AppliedAgentProfile | null;
-}

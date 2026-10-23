@@ -31,15 +31,14 @@ function fixture() {
     home: "/synthetic/home",
     sources: {
       project,
-      capabilities: {
-        configuration: unused,
-        update: unused,
-        subscribe: () => () => undefined,
-      },
-      profiles: {
-        configuration: unused,
-        update: unused,
-        onChanged: () => () => undefined,
+      isProjectAgentTrusted: () => true,
+      configuration: {
+        ensureLoaded: unused,
+        getEffective: unused,
+        captureDefaults: unused,
+        save: unused,
+        subscribeHealth: () => () => undefined,
+        profiles: { list: unused },
       },
       skills: async () => [],
       tools: [],
@@ -379,19 +378,6 @@ void test("filesystem cause hints reach files and access-sensitive catalogs; act
     ["skills", "tools", "profiles"].map((source) => ({
       source,
       args: [undefined, undefined],
-    })),
-  );
-  seen.length = 0;
-  for (const listener of ctx.notices)
-    listener({
-      type: "projectSettings.changed",
-      data: { projectId: "proj_A" },
-    } as Notice);
-  assert.deepEqual(
-    seen,
-    ["files", "skills", "tools", "profiles"].map((source) => ({
-      source,
-      args: [{ projectId: "proj_A" }, undefined],
     })),
   );
   stops.forEach((stop) => stop());

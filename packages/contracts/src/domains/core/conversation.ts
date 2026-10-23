@@ -1,4 +1,3 @@
-import { appliedAgentProfileSchema } from "../agent-profiles/applied-agent-profile.js";
 import { z } from "zod";
 import { modelSelectionSchema, thinkingLevelSchema } from "../models/models.js";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
@@ -90,7 +89,6 @@ export const conversationSnapshotSchema = z.object({
   conversation: conversationSchema,
   lastSequence: z.number().int().nonnegative(),
   config: conversationHistoryConfigSchema,
-  appliedAgentProfile: appliedAgentProfileSchema.nullable(),
   toolCalls: z.array(toolCallSchema),
   queue: z.array(queuedInputSchema),
   asyncBash: z.array(asyncBashSchema),

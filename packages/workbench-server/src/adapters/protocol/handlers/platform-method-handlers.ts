@@ -1,7 +1,3 @@
-import {
-  readProjectHarnessSettings,
-  updateProjectHarnessSettings,
-} from "../../../infrastructure/configuration/project-configuration.js";
 import { type UpdateApplicationConfigurationRequest } from "@nervekit/contracts/settings";
 import {
   providerApiKeySecretName,
@@ -35,21 +31,6 @@ export const platformMethodHandlers: WorkbenchMethodHandlerMapFor<PlatformMethod
   definePlatformMethodHandlers({
     "status.latestRelease.get": (state) =>
       state.latestRelease.getLatestRelease(),
-    "projectSettings.get": (state, { projectId }) =>
-      readProjectHarnessSettings(
-        state.storage,
-        requireProject(state, projectId).directory,
-      ),
-    "projectSettings.update": async (state, { projectId, patch }) => {
-      const result = await updateProjectHarnessSettings(
-        state.storage,
-        requireProject(state, projectId).directory,
-        patch,
-      );
-      state.git.invalidateProjectReads(projectId);
-      await state.events.publish("projectSettings.changed", { projectId });
-      return result;
-    },
     "settings.get": (state) => state.storage.settings,
     "settings.update": (state, params) =>
       updateSettings(state, params as Record<string, unknown>),

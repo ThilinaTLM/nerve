@@ -1,4 +1,3 @@
-import { appliedAgentProfileSchema } from "../agent-profiles/applied-agent-profile.js";
 import { compactionOperationSchema } from "./compaction-operation.js";
 /**
  * /ws/conversations: coreOperationSchemas plus model.list, permissionRuleSet.list,
@@ -563,7 +562,6 @@ export const conversationChannelEventSchemas = {
   "conversation.config": z.object({
     conversationId: z.string(),
     config: conversationHistoryConfigSchema,
-    appliedAgentProfile: appliedAgentProfileSchema.nullable(),
   }),
   // Includes configuration-blocked waiting interactions and their retry/cancel
   // receipts; no separate event or database state is needed.

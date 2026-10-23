@@ -7,16 +7,12 @@ import {
   observeConversationChannel,
   requestConversation,
 } from "$lib/application/startup/conversation-connection";
-import {
-  getHarnessSettings,
-  updateHarnessCompaction,
-} from "../adapters/core-harness-settings.adapter";
 
 /**
- * Harness settings (today: compaction) of the conversation being viewed.
+ * Effective compaction settings of the conversation being viewed.
  * Follows the viewed conversation and refreshes on scoped configuration changes.
  */
-export class ConversationHarnessState {
+export class ConversationCompactionState {
   result = $state<EffectiveAgentView>();
   private configuration: GetAgentConfigurationResult | undefined;
   error = $state<string>();
@@ -69,7 +65,9 @@ export class ConversationHarnessState {
     if (!scope) return;
     try {
       const [result, configuration] = await Promise.all([
-        getHarnessSettings(scope.projectId, scope.conversationId),
+        requestConversation("agentConfiguration.getEffective", {
+          conversationId: scope.conversationId,
+        }),
         requestConversation("agentConfiguration.get", {
           scope: {
             scope: "conversation",
@@ -97,16 +95,18 @@ export class ConversationHarnessState {
       throw new Error("Configuration unavailable. Refresh and try again.");
     this.saving = true;
     try {
-      const result = await updateHarnessCompaction(
-        scope.projectId,
-        scope.conversationId,
-        compaction,
-        configuration.source,
-      );
-      if (this.scope === scope) {
-        this.result = result;
-        await this.refresh();
-      }
+      const result = await requestConversation("agentConfiguration.save", {
+        scope: { scope: "conversation", conversationId: scope.conversationId },
+        expectedRevision: configuration.source.revision,
+        expectedDigest: configuration.source.digest,
+        changes: compaction === null ? {} : { compaction },
+        resets: compaction === null ? ["/overrides/compaction"] : [],
+      });
+      if (result.status !== "saved")
+        throw new Error(
+          `Configuration ${result.status}. Refresh and try again.`,
+        );
+      if (this.scope === scope) await this.refresh();
     } catch (error) {
       await this.refresh();
       throw error;

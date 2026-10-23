@@ -74,8 +74,8 @@ test("toasts only when the set of failing files changes", () => {
     invalid: [
       ...health.invalid,
       {
-        id: "harness" as const,
-        path: "/home/config/harness.json",
+        id: "providers" as const,
+        path: "/home/config/providers.json",
         reason: "x",
       },
     ],

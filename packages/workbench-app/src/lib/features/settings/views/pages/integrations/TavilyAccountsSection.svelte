@@ -54,9 +54,6 @@ async function remove(): Promise<void> {
     const patch = removeTavilyProfilePatch(settingsDraft, profile.id);
     settingsDraft.providers.tavilyProfiles =
       patch.providers?.tavilyProfiles ?? [];
-    if (patch.tools?.web) settingsDraft.tools.web.tavilyProfileId = undefined;
-    if (patch.tools?.disabled)
-      settingsDraft.tools.disabled = patch.tools.disabled;
     onSettingsChange?.(patch, { immediate: true });
     settingsState.authProviders = await getAuthProviders();
   } finally {

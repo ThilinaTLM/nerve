@@ -52,14 +52,14 @@ test("concurrent independent and nested settings patches survive save/reload", a
   const storage = await createStorage();
   await Promise.all([
     writeSettings(storage, {
-      skills: { nerve: { enabled: ["skill-creator"] } },
+      ui: { zoomLevel: 2 },
     }),
-    writeSettings(storage, { skills: { agentBrowser: { enabled: ["core"] } } }),
-    writeSettings(storage, { tools: { bash: { shellPath: "/test/shell" } } }),
+    writeSettings(storage, { notifications: { soundsEnabled: false } }),
+    writeSettings(storage, { desktop: { closeToTray: true } }),
   ]);
-  assert.deepEqual(storage.settings.skills.nerve.enabled, ["skill-creator"]);
-  assert.deepEqual(storage.settings.skills.agentBrowser.enabled, ["core"]);
-  assert.equal(storage.settings.tools.bash.shellPath, "/test/shell");
+  assert.equal(storage.settings.ui.zoomLevel, 2);
+  assert.equal(storage.settings.notifications.soundsEnabled, false);
+  assert.equal(storage.settings.desktop.closeToTray, true);
   await assertReload(storage);
 });
 
@@ -76,11 +76,11 @@ test("validation rejection leaves authoritative state unchanged and queue usable
     application: { network: { port: -1 } },
   });
   const saved = writeSettings(storage, {
-    skills: { nerve: { enabled: ["core"] } },
+    ui: { zoomLevel: 2 },
   });
   await assert.rejects(rejected);
   await saved;
-  assert.deepEqual(storage.settings.skills.nerve.enabled, ["core"]);
+  assert.equal(storage.settings.ui.zoomLevel, 2);
   await assertReload(storage);
 });
 
@@ -95,16 +95,15 @@ test("persistence rejection leaves runtime state unchanged and later saves recov
     },
   );
   const rename = fs.rename;
-  // Fail the actual harness replacement, after validation and health preflight.
-  // A skills patch does not write daemon.json; breaking that path cannot test this.
+  // Fail the UI replacement after validation and health preflight.
   const mockedRename = t.mock.method(fs, "rename", async (source, target) => {
-    if (target === storage.paths.harnessConfigPath) throw failure;
+    if (target === storage.paths.uiConfigPath) throw failure;
     return rename(source, target);
   });
   syncBuiltinESMExports();
   try {
     await assert.rejects(
-      writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } }),
+      writeSettings(storage, { ui: { zoomLevel: 2 } }),
       (error) => error === failure,
     );
     assert.equal(storage.configuration, before);
@@ -114,19 +113,19 @@ test("persistence rejection leaves runtime state unchanged and later saves recov
     mockedRename.mock.restore();
     syncBuiltinESMExports();
   }
-  await writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } });
+  await writeSettings(storage, { ui: { zoomLevel: 2 } });
   await assertReload(storage);
 });
 
 test("computed patches read the latest committed settings inside the queue", async () => {
   const storage = await createStorage();
   await Promise.all([
-    writeSettings(storage, { tools: { bash: { shellPath: "/new/shell" } } }),
+    writeSettings(storage, { desktop: { closeToTray: true } }),
     writeSettings(storage, (current) => ({
-      tools: { pythonExec: { interpreterPath: current.tools.bash.shellPath } },
+      notifications: { soundsEnabled: !current.desktop.closeToTray },
     })),
   ]);
-  assert.equal(storage.settings.tools.pythonExec.interpreterPath, "/new/shell");
+  assert.equal(storage.settings.notifications.soundsEnabled, false);
   await assertReload(storage);
 });
 
@@ -143,74 +142,15 @@ test("provider catalog and settings mutations share serialization without lost u
   });
   await Promise.all([
     store.upsertProvider(provider("first")),
-    writeSettings(storage, { skills: { nerve: { enabled: ["core"] } } }),
+    writeSettings(storage, { ui: { zoomLevel: 2 } }),
     store.upsertProvider(provider("second")),
-    writeSettings(storage, { tools: { bash: { shellPath: "/new/shell" } } }),
+    writeSettings(storage, { desktop: { closeToTray: true } }),
   ]);
   assert.deepEqual(
     store.catalog.providers.map((item) => item.id),
     ["first", "second"],
   );
-  assert.deepEqual(storage.settings.skills.nerve.enabled, ["core"]);
-  assert.equal(storage.settings.tools.bash.shellPath, "/new/shell");
-  await assertReload(storage);
-});
-
-test("default agent profile can be cleared and stays absent after reload", async () => {
-  const storage = await createStorage();
-  await writeSettings(storage, { defaultAgentProfile: "planning" });
-  assert.equal(storage.configuration.harness.defaultAgentProfile, "planning");
-  await writeSettings(storage, { defaultAgentProfile: null });
-  assert.equal(storage.settings.defaultAgentProfile, undefined);
-  assert.equal(storage.configuration.harness.defaultAgentProfile, undefined);
-  await assertReload(storage);
-});
-
-test("tool interpreter and shell clears remove canonical settings rather than persisting null", async () => {
-  const storage = await createStorage();
-  await writeSettings(storage, {
-    tools: {
-      bash: { shellPath: "/custom/shell" },
-      pythonExec: { interpreterPath: "/custom/python" },
-    },
-  });
-  assert.equal(
-    storage.configuration.harness.tools.bash?.settings.shellPath,
-    "/custom/shell",
-  );
-  assert.equal(
-    storage.configuration.harness.tools.python_exec?.settings?.interpreterPath,
-    "/custom/python",
-  );
-  await writeSettings(storage, {
-    tools: { bash: { shellPath: null }, pythonExec: { interpreterPath: null } },
-  });
-  assert.equal(storage.settings.tools.bash.shellPath, undefined);
-  assert.equal(storage.settings.tools.pythonExec.interpreterPath, undefined);
-  await assertReload(storage);
-});
-
-test("integration account choices persist in harness tool payloads, not in account catalogs", async () => {
-  const storage = await createStorage();
-  await writeSettings(storage, {
-    tools: {
-      jira: { enabled: true, profileId: "jira-account" },
-      confluence: { enabled: true, profileId: "docs-account" },
-      web: { tavilyProfileId: "web-account" },
-    },
-  });
-  assert.equal(
-    storage.configuration.harness.tools.jira?.profileId,
-    "jira-account",
-  );
-  assert.equal(
-    storage.configuration.harness.tools.confluence?.profileId,
-    "docs-account",
-  );
-  assert.equal(
-    storage.configuration.harness.tools.web_search?.profileId,
-    "web-account",
-  );
-  assert.ok(!("tools" in storage.configuration.integrations));
+  assert.equal(storage.settings.ui.zoomLevel, 2);
+  assert.equal(storage.settings.desktop.closeToTray, true);
   await assertReload(storage);
 });

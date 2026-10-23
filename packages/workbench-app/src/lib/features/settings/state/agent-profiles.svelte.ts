@@ -68,9 +68,6 @@ export function registerAgentProfileEventHandlers(): () => void {
         event.type === "agentProfiles.changed" ||
         event.type === "applicationConfiguration.updated" ||
         event.type === "settings.updated" ||
-        (event.type === "projectSettings.changed" &&
-          event.data.projectId === agentProfilesState.projectId) ||
-        event.type === "project.capabilities.changed" ||
         /^(providers|auth|secrets|skills)\./.test(event.type)
       )
         refresh();

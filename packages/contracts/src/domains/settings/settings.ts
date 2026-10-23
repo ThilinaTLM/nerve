@@ -323,7 +323,7 @@ const notificationEventSoundSettingsSchema = z.object({
   failed: notificationToneSchema,
 });
 
-const autoCompactionSettingsObjectSchema = z
+export const autoCompactionSettingsSchema = z
   .object({
     auto: z.boolean(),
     profile: compactionProfileSchema,
@@ -331,17 +331,6 @@ const autoCompactionSettingsObjectSchema = z
   })
   .strict();
 
-export const autoCompactionSettingsSchema = z.preprocess(
-  (value: z.input<typeof autoCompactionSettingsObjectSchema>) => {
-    if (typeof value !== "object" || value === null || Array.isArray(value))
-      return value;
-    // Older harness files carried configurable retention. Discard only that key.
-    const settings: Record<string, unknown> = { ...value };
-    delete settings.customKeepRecentPercent;
-    return settings;
-  },
-  autoCompactionSettingsObjectSchema,
-);
 export type AutoCompactionSettings = z.infer<
   typeof autoCompactionSettingsSchema
 >;
@@ -488,11 +477,7 @@ export const defaultSettings: Settings = {
   scopedModels: [],
 };
 
-export const updateSettingsRequestSchema = z.object({
-  defaultAgentProfile: agentProfileNameSchema.nullable().optional(),
-  defaultPermissionRuleSetId: permissionRuleSetIdSchema.optional(),
-  defaultModel: modelSelectionSchema.nullable().optional(),
-  defaultThinkingLevel: thinkingLevelSchema.optional(),
+export const updateSettingsRequestSchema = z.strictObject({
   application: applicationSettingsPatchSchema.optional(),
   ui: z
     .object({
@@ -529,25 +514,11 @@ export const updateSettingsRequestSchema = z.object({
       vocabulary: z.array(transcriptionVocabularyTermSchema).max(50).optional(),
     })
     .optional(),
-  compaction: z
-    .object({
-      auto: z.boolean().optional(),
-      profile: compactionProfileSchema.optional(),
-      customTriggerPercent: z.number().int().min(60).max(90).optional(),
-    })
-    .optional(),
   logging: z
     .object({
       level: applicationLogLevelSchema.optional(),
       retentionDays: z.number().int().positive().optional(),
       maxBufferedLogs: z.number().int().positive().optional(),
-    })
-    .optional(),
-  retry: z
-    .object({
-      enabled: z.boolean().optional(),
-      maxRetries: z.number().int().nonnegative().optional(),
-      baseDelayMs: z.number().int().positive().optional(),
     })
     .optional(),
   permissions: z
@@ -561,70 +532,5 @@ export const updateSettingsRequestSchema = z.object({
       tavilyProfiles: tavilyProfilesSchema.optional(),
     })
     .optional(),
-  skills: z
-    .object({
-      disabled: z.array(z.string().min(1)).optional(),
-      nerve: z
-        .object({
-          enabled: z.array(z.string().min(1)).optional(),
-        })
-        .optional(),
-      agentBrowser: z
-        .object({
-          enabled: z.array(z.string().min(1)).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-  tools: z
-    .object({
-      disabled: disabledToolListSchema.optional(),
-      pythonExec: z
-        .object({
-          interpreterPath: z.string().trim().min(1).nullable().optional(),
-        })
-        .strict()
-        .optional(),
-      planPresent: planPresentToolSettingsSchema.optional(),
-      bash: z
-        .object({
-          shellPath: z.string().trim().min(1).nullable().optional(),
-          maxTimeoutMs: z.number().int().min(1000).max(3_600_000).optional(),
-          autoPromotion: z
-            .object({
-              enabled: z.boolean().optional(),
-              afterMs: z.number().int().positive().max(86_400_000).optional(),
-            })
-            .optional(),
-        })
-        .optional(),
-      jira: z
-        .object({
-          enabled: z.boolean().optional(),
-          profileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      confluence: z
-        .object({
-          enabled: z.boolean().optional(),
-          profileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      web: z
-        .object({
-          tavilyProfileId: z.string().trim().min(1).nullable().optional(),
-        })
-        .optional(),
-      imageExplanation: z
-        .object({
-          model: modelSelectionSchema.nullable().optional(),
-          thinkingLevel: thinkingLevelSchema.optional(),
-        })
-        .optional(),
-      imageGeneration: imageGenerationToolSettingsSchema.optional(),
-      kroki: krokiToolSettingsSchema.optional(),
-    })
-    .optional(),
-  scopedModels: z.array(modelSelectionSchema).optional(),
 });
 export type UpdateSettingsRequest = z.infer<typeof updateSettingsRequestSchema>;

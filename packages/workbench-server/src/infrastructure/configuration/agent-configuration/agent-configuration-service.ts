@@ -109,7 +109,7 @@ export type EffectiveAgentView =
 type Summary = z.infer<
   typeof conversationAgentSummariesSchema
 >["entries"][string];
-/** Unwired domain service. Does not perform execution admission or load mutable profile definitions for applied snapshots. */
+/** Scoped configuration authority. Does not perform execution admission or load mutable profile definitions for applied snapshots. */
 export class AgentConfigurationService {
   readonly paths: AgentConfigurationPaths;
   readonly profiles: AgentProfileCatalog;

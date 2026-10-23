@@ -1,13 +1,4 @@
 import { defaultSettings } from "@nervekit/contracts/settings";
-import {
-  resolveCapabilitySelection,
-  emptyCapabilityOverrides,
-} from "@nervekit/contracts/capabilities";
-import {
-  canonicalToolsFromSettings,
-  userCapabilitySelection,
-  settingsToolsFromSelection,
-} from "../../core-host/user-capability-selection.js";
 import { chmod, copyFile, mkdir, open, rename, rm } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
@@ -208,7 +199,6 @@ function documentPaths(
 ): Array<[HomeConfigurationDocumentId, string]> {
   return [
     ["daemon", paths.daemonConfigPath],
-    ["harness", paths.harnessConfigPath],
     ["ui", paths.uiConfigPath],
     ["permissions", paths.permissionsConfigPath],
     ["providers", paths.providersConfigPath],
@@ -221,7 +211,6 @@ export async function writeHomeConfiguration(
   configuration: UserConfiguration,
   touched: readonly HomeConfigurationDocumentId[] = [
     "daemon",
-    "harness",
     "ui",
     "providers",
     "integrations",
@@ -297,7 +286,6 @@ function decodeConfiguration(
 ): UserConfiguration {
   return {
     daemon: HOME_CONFIGURATION_CODECS.daemon.decode(configuration.daemon),
-    harness: HOME_CONFIGURATION_CODECS.harness.decode(configuration.harness),
     ui: HOME_CONFIGURATION_CODECS.ui.decode(configuration.ui),
     permissions: HOME_CONFIGURATION_CODECS.permissions.decode(
       configuration.permissions,
@@ -317,7 +305,6 @@ function configDocuments(
 ): Array<{ path: string; value: unknown }> {
   return [
     { path: paths.daemonConfigPath, value: configuration.daemon },
-    { path: paths.harnessConfigPath, value: configuration.harness },
     { path: paths.uiConfigPath, value: configuration.ui },
     { path: paths.permissionsConfigPath, value: configuration.permissions },
     { path: paths.providersConfigPath, value: configuration.providers },
@@ -325,20 +312,13 @@ function configDocuments(
   ];
 }
 
-/** Runtime/UI projection assembled from the six authoritative documents. */
+/** Runtime/UI projection assembled from the preserved non-agent documents. */
 export function settingsFromConfiguration(
   configuration: UserConfiguration,
 ): Settings {
-  const { daemon, harness, ui, integrations } = configuration;
-  const selection = resolveCapabilitySelection({
-    user: userCapabilitySelection(defaultSettings),
-    conversation: { ...emptyCapabilityOverrides(), tools: harness.tools },
-  });
+  const { daemon, ui, integrations } = configuration;
   return settingsSchema.parse({
-    defaultPermissionRuleSetId: harness.defaults.permissionRuleSetId,
-    defaultModel: harness.defaults.model,
-    defaultThinkingLevel: harness.defaults.thinkingLevel,
-    defaultAgentProfile: harness.defaultAgentProfile,
+    ...defaultSettings,
     application: {
       network: daemon.network,
       diagnostics: daemon.diagnostics,
@@ -349,9 +329,7 @@ export function settingsFromConfiguration(
     desktop: ui.desktop,
     notifications: ui.notifications,
     transcription: ui.transcription,
-    compaction: harness.compaction,
     logging: daemon.logging,
-    retry: harness.retry,
     permissions: { exceptions: [] },
     providers: {
       atlassianProfiles: integrations.profiles.atlassian.map((profile) => ({
@@ -367,9 +345,6 @@ export function settingsFromConfiguration(
         name: profile.name,
       })),
     },
-    tools: settingsToolsFromSelection(selection),
-    skills: harness.skills,
-    scopedModels: harness.scopedModels,
   });
 }
 
@@ -394,20 +369,6 @@ export function configurationWithSettings(
         logging: parsed.logging,
         electron: parsed.application.electron,
       },
-      harness: {
-        version: 4,
-        defaultAgentProfile: parsed.defaultAgentProfile,
-        defaults: {
-          permissionRuleSetId: parsed.defaultPermissionRuleSetId,
-          model: parsed.defaultModel,
-          thinkingLevel: parsed.defaultThinkingLevel,
-        },
-        compaction: parsed.compaction,
-        retry: parsed.retry,
-        tools: canonicalToolsFromSettings(parsed),
-        skills: parsed.skills,
-        scopedModels: parsed.scopedModels,
-      },
       ui: {
         version: 1,
         appearance: parsed.ui,
@@ -431,10 +392,6 @@ function preserveConfigurationExtensions(
       mergePreservingUnknown(current[documentId], next[documentId]),
     ]),
   ) as unknown as UserConfiguration;
-  // Tool payloads are complete typed state, not extension-bearing sparse patches.
-  // Replacing them also removes cleared paths/models/account IDs rather than
-  // resurrecting an omitted optional field from the previous document.
-  merged.harness.tools = structuredClone(next.harness.tools);
   return merged;
 }
 

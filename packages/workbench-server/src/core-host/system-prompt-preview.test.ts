@@ -41,12 +41,6 @@ void test("turns use captured instructions without consulting their source templ
         instructions: null,
         workingDirectory: project,
       },
-      appliedAgentProfile: {
-        schemaVersion: 1 as const,
-        name: "deleted-profile",
-        instructions: "Captured profile rules",
-        locked: {},
-      },
     };
     const first = await prepare(input, settings, "Captured profile rules");
     assert.match(first.systemPrompt, /Captured profile rules/);

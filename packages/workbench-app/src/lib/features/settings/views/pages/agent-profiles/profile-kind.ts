@@ -4,9 +4,9 @@
  * `usableBy` value is the kind. `both` files show on both pages.
  */
 import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
-import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 
-export type ProfileKind = Exclude<AgentProfileUsableBy, "both">;
+export type ProfileKind = Exclude<ProfileUsableBy, "both">;
 
 export const PROFILE_KIND_PAGES: Record<ProfileKind, string> = {
   lead: "agents",
@@ -32,7 +32,7 @@ export function profileKindForPage(pageId: string): ProfileKind {
 /** The kind a profile file is stored with; unreadable files have none. */
 export function storedUsableBy(
   profile: ProfileCatalogEntry,
-): AgentProfileUsableBy | undefined {
+): ProfileUsableBy | undefined {
   return profile.definition?.usableBy;
 }
 
@@ -62,7 +62,7 @@ export function unreadableProfiles(
 
 /** How many profile files a page covers; `both` files count on each page. */
 export function profileFileCount(
-  files: readonly { usableBy?: AgentProfileUsableBy }[],
+  files: readonly { usableBy?: ProfileUsableBy }[],
   kind: ProfileKind,
 ): number {
   return files.filter(

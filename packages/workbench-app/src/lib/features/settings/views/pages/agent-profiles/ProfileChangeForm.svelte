@@ -10,7 +10,7 @@ import {
   utf8ByteLength,
   AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES,
 } from "@nervekit/contracts/agent-profiles";
-import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
+import type { ProfileUsableBy } from "@nervekit/contracts/agent-configuration";
 import { skillOverrideKind } from "$lib/domain/skills/skill-catalog";
 import ModelPicker from "$lib/presentation/model-picker/ModelPicker.svelte";
 import { compactionProfileItems } from "$lib/presentation/settings/compaction-options";
@@ -31,7 +31,7 @@ import type { ChangeDraft, ProfileEditContext } from "./profile-edit-context";
 
 type Props = {
   draft: ChangeDraft;
-  usableBy: AgentProfileUsableBy;
+  usableBy: ProfileUsableBy;
   context: ProfileEditContext;
   /** Tools already changed in this profile; hidden from a new-tool picker. */
   takenTools?: string[];

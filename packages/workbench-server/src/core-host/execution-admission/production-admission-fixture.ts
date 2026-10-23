@@ -67,7 +67,7 @@ export async function productionAdmissionFixture(
   const settings = settingsFromConfiguration(configuration);
   // This runtime fixture starts in the current scoped format, not the unshipped
   // harness-v4 format still emitted by the legacy settings projection helper.
-  await rm(paths.harnessConfigPath, { force: true });
+  await rm(join(paths.configPath, "harness.json"), { force: true });
   await writeFile(
     join(paths.configPath, "conversation-defaults.json"),
     JSON.stringify({
@@ -228,9 +228,6 @@ export async function productionAdmissionFixture(
         agentBrowserSkills: { skills: [] },
       } as unknown as RuntimeDeps,
       { launches, definitions },
-      () => {
-        throw new Error("Legacy profile service must not be consulted");
-      },
       undefined,
       processHost,
     );

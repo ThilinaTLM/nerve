@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile, writeFile, rm } from "node:fs/promises";
@@ -53,13 +54,17 @@ void test(
   { skip: process.platform === "win32" },
   async (t) => {
     const f = await productionAdmissionFixture(t);
-    const original = await readFile(f.paths.harnessConfigPath, "utf8").catch(
-      (error: NodeJS.ErrnoException) => {
-        if (error.code === "ENOENT") return null;
-        throw error;
-      },
+    const original = await readFile(
+      join(f.paths.configPath, "harness.json"),
+      "utf8",
+    ).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    await writeFile(
+      join(f.paths.configPath, "harness.json"),
+      "broken obsolete harness",
     );
-    await writeFile(f.paths.harnessConfigPath, "broken obsolete harness");
     await readHomeConfiguration(f.paths);
     f.runtime.admissionPolicy.invalidate();
     await f.command();
@@ -75,7 +80,7 @@ void test(
       1,
       "invalid harness cannot weaken a scoped denial either",
     );
-    if (original === null) await rm(f.paths.harnessConfigPath);
-    else await writeFile(f.paths.harnessConfigPath, original);
+    if (original === null) await rm(join(f.paths.configPath, "harness.json"));
+    else await writeFile(join(f.paths.configPath, "harness.json"), original);
   },
 );

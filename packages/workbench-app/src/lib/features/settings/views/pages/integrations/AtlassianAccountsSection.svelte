@@ -147,14 +147,6 @@ async function remove(): Promise<void> {
     const patch = removeAtlassianProfilePatch(settingsDraft, profile.id);
     settingsDraft.providers.atlassianProfiles =
       patch.providers?.atlassianProfiles ?? [];
-    if (patch.tools?.jira) {
-      settingsDraft.tools.jira.enabled = false;
-      settingsDraft.tools.jira.profileId = undefined;
-    }
-    if (patch.tools?.confluence) {
-      settingsDraft.tools.confluence.enabled = false;
-      settingsDraft.tools.confluence.profileId = undefined;
-    }
     onSettingsChange?.(patch, { immediate: true });
     settingsState.authProviders = await getAuthProviders();
   } finally {

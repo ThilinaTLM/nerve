@@ -148,12 +148,6 @@ async function fixture(
             agentProfile: "coding",
             model: { provider: "test", modelId: "test" },
           },
-          applied: {
-            schemaVersion: 1,
-            name: "coding",
-            instructions: "",
-            locked: {},
-          },
         },
       }),
     setPolicy: (value: typeof policy) => {

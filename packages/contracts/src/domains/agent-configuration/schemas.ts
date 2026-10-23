@@ -253,6 +253,9 @@ export const profileDefinitionSchema = z
             message: "Profile must be child-compatible",
           });
   });
+export type ProfileUsableBy = z.infer<
+  typeof profileDefinitionSchema
+>["usableBy"];
 export const conversationDefaultsSchema = z.strictObject({
   schemaVersion: z.literal(1),
   revision,

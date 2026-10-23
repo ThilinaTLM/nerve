@@ -24,9 +24,7 @@ let {
 } = $props();
 
 const authorization = $derived(
-  health.invalid.some(
-    (item) => item.id === "harness" || item.id === "permissions",
-  ),
+  health.invalid.some((item) => item.id === "permissions"),
 );
 </script>
 
@@ -44,8 +42,8 @@ const authorization = $derived(
         Fix a file and Reload, or reset it; the original will be kept in
         quarantine.
         {#if authorization}
-          Tool execution requires explicit approval until authorization settings
-          are resolved.
+          Tool execution is blocked until permission settings are repaired and
+          reloaded.
         {/if}
       </p>
     {/if}
