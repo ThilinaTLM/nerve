@@ -1,4 +1,3 @@
-import { createId } from "@nervekit/contracts";
 import { requestConversation } from "$lib/application/startup/conversation-connection";
 
 /** Capture the catalog target and CAS version together before switching. */
@@ -15,7 +14,6 @@ export async function switchAgentProfile(conversationId: string, name: string) {
     targetProfile: preview.preview.targetProfile,
     expectedRevision: preview.preview.expectedRevision,
     expectedDigest: preview.preview.expectedDigest,
-    transitionId: createId("input"),
   });
   if (result.status !== "applied")
     throw new Error(`Profile ${result.status}. Refresh and try again.`);

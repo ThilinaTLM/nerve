@@ -442,8 +442,6 @@ export function createConversationCore(
       );
       return row?.status === "trusted" && row.contentDigest === digest;
     },
-    transitionReconciled: (id, receipt) =>
-      profileTransitions.reconciled(id, receipt),
     publish: (domain, scope) => {
       admissionPolicy.invalidate();
       if (domain === "profile")
@@ -531,11 +529,7 @@ export function createConversationCore(
   const scopedCreation = scopedConversationCreation(agentConfiguration, (id) =>
     admissionPolicy.validateChildPermission(id),
   );
-  const profileTransitions = createProfileTransitions(
-    agentConfiguration,
-    storage,
-    (event) => core.publishConfigurationEvent(event),
-  );
+  const profileTransitions = createProfileTransitions(agentConfiguration);
   const configurationOperations =
     agentConfigurationOperations(agentConfiguration);
   const scopedConfiguration = createScopedAgentConfiguration({

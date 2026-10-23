@@ -174,6 +174,7 @@ export const agentPreferencesSchema = z.strictObject({
   revision,
   overrides: leadSettingsOverridesSchema,
 });
+/** Historical lastTransition metadata only: no runtime authority; omit on rewrites. */
 const receipt = z.strictObject({
   id: z.string().min(1),
   kind: z.enum(["profile", "plan-approval"]),

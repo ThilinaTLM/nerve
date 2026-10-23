@@ -1,3 +1,4 @@
+import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   readCreationPreferences,
   saveCreationPreferences,
@@ -14,7 +15,6 @@ import {
   saveAgentDocument,
   isUntrustedAgentDocument,
   prepareConversationDocument,
-  assertRepairReceipt,
   resolveRepairCandidate,
   resolveStoredAgent,
 } from "./agent-document-transactions.js";
@@ -76,13 +76,6 @@ export interface AgentConfigurationServiceOptions extends ConfigurationLocations
   isProfileTrusted(projectId: string, path: string, digest: string): boolean;
   prepareResources?(projectId: string): Promise<void>;
   captureResources(projectId?: string): ResourceSnapshot;
-  /** Receipt-bearing documents may only mutate after the lifecycle owner verifies reconciliation. */
-  transitionReconciled?(
-    conversationId: string,
-    receipt: NonNullable<
-      Extract<AgentDocument, { appliedProfile: unknown }>["lastTransition"]
-    >,
-  ): boolean;
   publish?(
     domain: "agent" | "conversation-defaults" | "profile",
     scope: AgentScope,
@@ -516,7 +509,7 @@ export class AgentConfigurationService {
   async configureContext(id: string, input: unknown): Promise<void> {
     const scope = { scope: "conversation" as const, conversationId: id };
     this.track(scope);
-    await saveConversationContext(this.agents, id, input, this.options);
+    await saveConversationContext(this.agents, id, input);
     this.notifyHealth(scope);
   }
 
@@ -559,13 +552,12 @@ export class AgentConfigurationService {
     return result;
   }
 
-  /** Trusted profile lifecycle commit; the caller journals its decision before invoking this. */
+  /** Trusted profile CAS commit, with snapshot and choices in one file generation. */
   async commitProfile(
     id: string,
     expected: ConfigurationVersion,
     appliedProfile: AppliedProfile,
     choices: ImplementationChoices,
-    receipt: { id: string; kind: "profile" | "plan-approval" },
     isCurrent: () => boolean,
   ) {
     if (this.options.conversationOwner(id).role !== "lead")
@@ -575,20 +567,12 @@ export class AgentConfigurationService {
     try {
       const result = await this.agents.save(scope, expected, (document) => {
         if (!("appliedProfile" in document)) throw new ScopeUnavailableError();
-        if (
-          document.lastTransition &&
-          !this.options.transitionReconciled?.(id, document.lastTransition)
-        )
-          throw new Error(
-            "Committed transition must be reconciled before mutation",
-          );
         if (!isCurrent()) throw new Error("Transition dependencies changed");
         this.publicationGuards.set(id, isCurrent);
         return {
-          ...document,
+          ...withoutLegacyTransition(document),
           overrides: { ...document.overrides, ...choices },
           appliedProfile,
-          lastTransition: receipt,
         };
       });
       this.notifyHealth(scope);
@@ -598,10 +582,6 @@ export class AgentConfigurationService {
       if (this.publicationGuards.get(id) === isCurrent)
         this.publicationGuards.delete(id);
     }
-  }
-
-  assertRepairAllowed(scope: AgentScope, original: unknown): void {
-    assertRepairReceipt(scope, original, this.options);
   }
 
   repairResolution(
@@ -657,7 +637,10 @@ export class AgentConfigurationService {
         throw new Error("Creation dependencies changed; retry launch");
       this.publicationGuards.set(conversationId, isCurrent);
       try {
-        const result = await this.agents.create(scope, document);
+        const result = await this.agents.create(
+          scope,
+          withoutLegacyTransition(document),
+        );
         this.notifyHealth(scope);
         this.project(() => this.refreshSummary(conversationId));
         return result;

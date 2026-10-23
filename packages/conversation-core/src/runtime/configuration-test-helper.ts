@@ -33,7 +33,6 @@ export function testConfiguration(
     structuredClone(testDefaults),
 ) {
   const agents = new Map<string, Partial<TurnPreparationInput["config"]>>();
-  const applied = new Map<string, ProfileTransitionResult>();
   const snapshot = (id: string) => ({
     ...testDefaults,
     ...base?.(id),
@@ -98,7 +97,6 @@ export function testConfiguration(
         });
         const result: ProfileTransitionResult = {
           status: "applied",
-          transitionId: input.transitionId,
           source: {
             scope: {
               scope: "conversation",
@@ -119,20 +117,7 @@ export function testConfiguration(
             sources: [],
           },
         };
-        applied.set(input.transitionId, result);
         return result;
-      },
-      async reconcile(input) {
-        return (
-          applied.get(input.transitionId) ?? {
-            status: "refresh_required",
-            reason: "configuration_changed",
-            diagnostics: [],
-          }
-        );
-      },
-      async reject(_input, reason) {
-        return { status: "refresh_required", reason, diagnostics: [] };
       },
     },
     async prepareCreation(input) {

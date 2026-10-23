@@ -101,7 +101,6 @@ async function fixture(
       options: { referenceAvailable: () => true, clampThinking },
       isCurrent: () => true,
     }),
-    transitionReconciled: (id, receipt) => lifecycle.reconciled(id, receipt),
     io: {
       write: async (...args) => {
         if (failWrite) throw new Error("Injected persistence failure");
@@ -113,7 +112,7 @@ async function fixture(
       },
     },
   });
-  let lifecycle = createProfileTransitions(service, storage);
+  let lifecycle = createProfileTransitions(service);
   await service.createConversation("c", {
     schemaVersion: 1,
     revision: 1,
@@ -158,7 +157,7 @@ async function fixture(
       return lifecycle;
     },
     restartLifecycle: () => {
-      lifecycle = createProfileTransitions(service, storage);
+      lifecycle = createProfileTransitions(service);
     },
     failWrite: (value: boolean) => {
       failWrite = value;
@@ -250,11 +249,6 @@ void test("plan choices and profile snapshot commit in ONE CAS revision; conflic
       }),
     );
     assert.deepEqual(await f.document(), bytes);
-    const rejectedReplay = await f.lifecycle.port.apply({
-      ...input,
-      choices: { model: { provider: "test", modelId: "required" } },
-    });
-    assert.equal(rejectedReplay.status, "refresh_required");
     const accepted = await f.confirmation(
       "locked",
       "new-plan",
@@ -294,25 +288,21 @@ void test("plan choices and profile snapshot commit in ONE CAS revision; conflic
       effective.resolution.settings.permissionRuleSetId,
       "read_only",
     );
-    assert.deepEqual(after.lastTransition, {
-      id: "new-plan",
-      kind: "plan-approval",
-    });
+    assert.equal(after.lastTransition, undefined);
+    assert.deepEqual(f.storage.events.since("c", 0), []);
+    assert.equal(f.storage.conversations.get("c")?.headEventId, null);
     const source = await f.service.ensureLoaded({
       scope: "conversation",
       conversationId: "c",
     });
     if (source.status === "unavailable")
       throw new Error("Expected committed document");
-    await assert.rejects(
-      f.service.save(source.value.scope, {
-        expectedRevision: source.value.revision,
-        expectedDigest: source.value.digest,
-        changes: {},
-        resets: [],
-      }),
-      /reconciled/,
-    );
+    await f.service.save(source.value.scope, {
+      expectedRevision: source.value.revision,
+      expectedDigest: source.value.digest,
+      changes: {},
+      resets: [],
+    });
   } finally {
     await f.close();
   }
@@ -373,7 +363,7 @@ void test("stale target bytes, current configuration changes, and untrusted shad
   }
 });
 
-void test("failed uncommitted persistence releases mutation locks and rejected transition IDs cannot execute", async () => {
+void test("failed persistence leaves the file unchanged and stale retries require refresh", async () => {
   const f = await fixture();
   try {
     const input = await f.confirmation("coding", "failed-write");
@@ -408,75 +398,24 @@ void test("failed uncommitted persistence releases mutation locks and rejected t
   }
 });
 
-void test("recovery finishes a committed receipt exactly once without rewriting or consulting mutable target definitions", async () => {
-  const f = await fixture();
-  try {
-    const input = await f.confirmation("planning", "crash-after-file");
-    const append = f.storage.events.append.bind(f.storage.events);
-    f.storage.events.append = (event) => {
-      if (
-        event.type === "system_event" &&
-        event.payload.subtype === "notification" &&
-        event.payload.producer.endsWith(":applied")
-      )
-        throw new Error("Crash before lifecycle settlement");
-      return append(event);
-    };
-    await assert.rejects(f.lifecycle.port.apply(input), /Crash before/);
-    const committed = await f.document();
-    f.storage.events.append = append;
-    await f.service.profiles.save({ scope: "user" }, "planning", "missing", {
-      schemaVersion: 1,
-      name: "planning",
-      description: "Unavailable now",
-      usableBy: "lead",
-      enabled: false,
-      instructions: "",
-    });
-    f.restartLifecycle();
-    assert.equal((await f.lifecycle.port.reconcile(input)).status, "applied");
-    assert.equal((await f.lifecycle.port.apply(input)).status, "applied");
-    assert.deepEqual(await f.document(), committed);
-  } finally {
-    await f.close();
-  }
-});
-
-void test("recovery never reapplies an uncommitted accepted decision; publication failure remains blocked until authoritative reload", async () => {
+void test("publication failure remains blocked until reload; lost-response retries need refresh", async () => {
   const f = await fixture();
   try {
     const input = await f.confirmation("coding", "publication");
     f.failPublication(true);
     assert.equal((await f.lifecycle.port.apply(input)).status, "unavailable");
     const committed = await f.document();
+    assert.equal((await f.lifecycle.port.apply(input)).status, "unavailable");
     f.failPublication(false);
     await f.service.reload({ scope: "conversation", conversationId: "c" });
     f.restartLifecycle();
-    assert.equal((await f.lifecycle.port.reconcile(input)).status, "applied");
-    assert.deepEqual(await f.document(), committed);
-    const rejected = await f.confirmation("planning", "accepted-only");
-    const append = f.storage.events.append.bind(f.storage.events);
-    f.storage.events.append = (event) => {
-      const result = append(event);
-      if (
-        event.type === "system_event" &&
-        event.payload.subtype === "notification" &&
-        event.payload.producer.endsWith(":accepted")
-      )
-        throw new Error("Crash after accepting");
-      return result;
-    };
-    await assert.rejects(
-      f.lifecycle.port.apply(rejected),
-      /Crash after accepting/,
-    );
-    f.storage.events.append = append;
-    f.restartLifecycle();
     assert.equal(
-      (await f.lifecycle.port.reconcile(rejected)).status,
+      (await f.lifecycle.port.apply(input)).status,
       "refresh_required",
     );
     assert.deepEqual(await f.document(), committed);
+    assert.deepEqual(f.storage.events.since("c", 0), []);
+    assert.equal(f.storage.conversations.get("c")?.headEventId, null);
   } finally {
     await f.close();
   }

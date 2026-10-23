@@ -166,6 +166,8 @@ function planReview(
         expectedDigest: "missing",
         assetId: "asset_plan",
         path: "/plan.md",
+        title: "Implementation plan",
+        content: "# Reviewed plan",
       },
     },
   } as unknown as ToolCall;
@@ -200,7 +202,7 @@ function planReview(
       rejections.push(conversationId);
     },
   }).get("plan_present")!;
-  return { changes, rejections, planCall, planHandler };
+  return { changes, rejections, planCall, planHandler, profiles };
 }
 
 test("presenting a plan requests review without changing agentProfile", async () => {
@@ -299,4 +301,66 @@ test("plan review uses its request-captured approval profile rather than the lat
   )
     assert.fail("Expected recaptured plan review");
   assert.equal(recovered.interaction.request.targetProfile.name, "changed");
+});
+
+test("interrupted approval always refreshes, or remains unavailable, without applying", async () => {
+  const { planCall, planHandler, profiles, changes } = planReview();
+  assert.ok(planCall.interaction?.kind === "plan_review");
+  planCall.interaction.resolution = {
+    kind: "plan_review",
+    decision: "approve",
+    confirmation: {
+      targetProfile: planCall.interaction.request.targetProfile,
+      expectedRevision: 0,
+      expectedDigest: "missing",
+      transitionId: "accepted",
+    },
+  };
+  const recovered = await planHandler.recover!(planCall, ctx);
+  assert.ok("kind" in recovered && recovered.kind === "profile_transition");
+  assert.equal(recovered.transition.status, "refresh_required");
+  const unavailable = {
+    status: "unavailable" as const,
+    diagnostics: [
+      {
+        scope: "conversation" as const,
+        scopeId: "conv_1",
+        document: "agent" as const,
+        path: "/agent.json",
+        code: "unavailable",
+        pointer: "",
+        affectedCapability: "plan-review",
+        recoveryChoices: ["reload" as const],
+      },
+    ],
+  };
+  profiles.preview = async () => unavailable;
+  const blocked = await planHandler.recover!(planCall, ctx);
+  assert.ok("kind" in blocked && blocked.kind === "profile_transition");
+  assert.deepEqual(blocked.transition, unavailable);
+  assert.deepEqual(changes, []);
+});
+
+test("approval without a captured reviewed copy fails before saving configuration", async () => {
+  const { planCall, planHandler, changes } = planReview();
+  assert.ok(planCall.interaction?.kind === "plan_review");
+  delete planCall.interaction.request.content;
+  await assert.rejects(
+    planHandler.resolve!(
+      planCall,
+      {
+        kind: "plan_review",
+        decision: "approve",
+        confirmation: {
+          targetProfile: planCall.interaction.request.targetProfile,
+          expectedRevision: 0,
+          expectedDigest: "missing",
+          transitionId: "accepted",
+        },
+      },
+      ctx,
+    ),
+    /Captured plan content is unavailable/,
+  );
+  assert.deepEqual(changes, []);
 });

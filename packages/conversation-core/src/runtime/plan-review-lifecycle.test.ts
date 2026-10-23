@@ -34,9 +34,15 @@ for (const scenario of [
   },
   {
     decision: "approve",
-    feedback: undefined,
+    feedback: "Keep the reviewed scope.",
     recoverPending: false,
     sibling: false,
+  },
+  {
+    decision: "approve",
+    feedback: "Keep the reviewed scope.",
+    recoverPending: false,
+    sibling: true,
   },
 ] as const) {
   void test(
@@ -92,8 +98,52 @@ for (const scenario of [
             isReplaySafe: () => false,
           },
         );
-        config.turnResources.prepare = async () => {
+        const capture = config.configuration.captureRequest;
+        config.configuration.captureRequest = async (input) => {
+          if (modelTurns === 1 && scenario.decision === "approve") {
+            assert.equal(
+              config.storage.events
+                .since("conv_plan", 0)
+                .filter(
+                  (event) =>
+                    event.type === "user_message" &&
+                    event.payload.text.startsWith(
+                      "Implement the approved plan.",
+                    ),
+                ).length,
+              1,
+              "implementation must be delivered before configuration capture",
+            );
+          }
+          return capture(input);
+        };
+        config.turnResources.prepare = async (input) => {
           modelTurns++;
+          if (modelTurns === 2 && scenario.decision === "approve") {
+            const messages = activeConfig.storage.events
+              .since("conv_plan", 0)
+              .filter(
+                (event) =>
+                  event.type === "user_message" &&
+                  event.payload.text.startsWith("Implement the approved plan."),
+              );
+            assert.equal(
+              messages.length,
+              1,
+              "implementation is delivered before fresh capture/preparation",
+            );
+            assert.equal(
+              input.config.agentProfile,
+              "coding",
+              "request uses a fresh implementation profile capture",
+            );
+            const message = messages[0];
+            assert.ok(message?.type === "user_message");
+            assert.equal(
+              message.payload.text,
+              "Implement the approved plan.\n\nimplementation.md\n\n# Implementation plan\n\nA reviewed snapshot.\n\nApproval feedback:\nKeep the reviewed scope.",
+            );
+          }
           return { systemPrompt: "Test", tools: [] };
         };
         config.planApprovalProfile = async () => approvalProfile;
@@ -104,6 +154,7 @@ for (const scenario of [
         });
         config.readPlan = async () =>
           "# Implementation plan\n\nA reviewed snapshot.";
+        config.configuration.update("conv_plan", { agentProfile: "planning" });
         activeConfig = config;
         return config;
       };
@@ -195,6 +246,12 @@ for (const scenario of [
           () => core.getSnapshot("conv_plan").conversation.status === "idle",
         );
         // Repeated acknowledgements must not restart work or duplicate the result.
+        activeConfig.configuration.profiles.preview = async () => {
+          throw new Error("Settled approvals must not read current state");
+        };
+        activeConfig.configuration.profiles.apply = async () => {
+          throw new Error("Settled approvals must not reapply");
+        };
         await core.resolveInteraction(resolution);
         const responses = core
           .getEventsSince("conv_plan", 0)
@@ -235,6 +292,27 @@ for (const scenario of [
           assert.equal(
             core.getSnapshot("conv_plan").conversation.paused,
             false,
+          );
+          activeConfig.configuration.update("conv_plan", {
+            agentProfile: "planning",
+          });
+          assert.equal(
+            (await core.resolveInteraction(resolution)).status,
+            "resolved",
+          );
+          assert.equal(
+            activeConfig.configuration.snapshot("conv_plan").agentProfile,
+            "planning",
+          );
+          assert.equal(
+            core
+              .getEventsSince("conv_plan", 0)
+              .filter(
+                (event) =>
+                  event.type === "user_message" &&
+                  event.payload.text.startsWith("Implement the approved plan."),
+              ).length,
+            1,
           );
           return;
         }
@@ -297,7 +375,13 @@ for (const scenario of [
   );
 }
 
-for (const failure of ["stale", "persistence"] as const) {
+for (const failure of [
+  "stale",
+  "persistence",
+  "queue",
+  "settlement",
+  "unrelated-edit",
+] as const) {
   void test(
     `plan ${failure} failure keeps review pending and releases resolution locks`,
     { timeout: 5000 },
@@ -320,32 +404,35 @@ for (const failure of ["stale", "persistence"] as const) {
           { type: "assistantText", text: "Implemented once" },
         ],
       });
-      const config = options(
-        directory,
-        join(directory, "core.sqlite"),
-        { resolve: async () => ({ model: provider.getModel("test")! }) },
-        {
-          execute: async () => {
-            throw new Error("Unexpected host tool");
+      const makeOptions = () =>
+        options(
+          directory,
+          join(directory, "core.sqlite"),
+          { resolve: async () => ({ model: provider.getModel("test")! }) },
+          {
+            execute: async () => {
+              throw new Error("Unexpected host tool");
+            },
+            isReplaySafe: () => false,
           },
-          isReplaySafe: () => false,
-        },
-      );
+        );
+      let config = makeOptions();
       config.readPlan = async () => "# Plan";
       config.planApprovalProfile = async () => "coding";
-      const apply = config.configuration.profiles.apply;
+      let apply = config.configuration.profiles.apply;
       const refresh = {
         status: "refresh_required" as const,
         reason: "configuration_changed" as const,
         diagnostics: [],
       };
-      config.configuration.profiles.apply = async () => {
-        if (failure === "persistence")
+      config.configuration.profiles.apply = async (input) => {
+        if (failure === "persistence" || failure === "unrelated-edit")
           throw new Error("Injected persistence failure");
+        if (failure === "queue" || failure === "settlement")
+          return apply(input);
         return refresh;
       };
-      config.configuration.profiles.reconcile = async () => refresh;
-      const core = new ConversationCore(config);
+      let core = new ConversationCore(config);
       try {
         await core.start();
         await createConversation(core, "conv_retry");
@@ -365,7 +452,7 @@ for (const failure of ["stale", "persistence"] as const) {
           .toolCalls.find((call) => call.interaction?.kind === "plan_review")!;
         if (call.interaction?.kind !== "plan_review")
           throw new Error("Missing review");
-        const request = call.interaction.request;
+        let request = call.interaction.request;
         const approve = (id: string) => ({
           toolCallId: call.id,
           resolutionRequestId: id,
@@ -377,14 +464,51 @@ for (const failure of ["stale", "persistence"] as const) {
               expectedRevision: request.expectedRevision,
               expectedDigest: request.expectedDigest,
               transitionId: id,
+              choices: { reasoningLevel: "high" as const },
             },
           },
         });
+        if (failure === "unrelated-edit") {
+          // Target and choices were already active; an unrelated edit advances CAS.
+          config.configuration.update("conv_retry", {
+            agentProfile: "coding",
+            reasoningLevel: "high",
+            instructions: "Unrelated edit",
+          });
+          const preview = config.configuration.profiles.preview;
+          config.configuration.profiles.preview = async (...args) => {
+            const result = await preview(...args);
+            return result.status === "ready"
+              ? {
+                  ...result,
+                  preview: {
+                    ...result.preview,
+                    expectedRevision: 1,
+                    expectedDigest: "1".repeat(64),
+                  },
+                }
+              : result;
+          };
+        }
         const before = config.configuration.snapshot("conv_retry");
-        if (failure === "persistence")
+        const insert = config.storage.inputs.insert.bind(config.storage.inputs);
+        const append = config.storage.events.append.bind(config.storage.events);
+        const changes: unknown[] = [];
+        const unsubscribe = core.subscribe((change) => changes.push(change));
+        if (failure === "queue")
+          config.storage.inputs.insert = () => {
+            throw new Error("Injected queue failure");
+          };
+        if (failure === "settlement")
+          config.storage.events.append = (event) => {
+            if (event.type === "tool_call_response")
+              throw new Error("Injected settlement failure");
+            return append(event);
+          };
+        if (failure !== "stale")
           await assert.rejects(
             core.resolveInteraction(approve("failed")),
-            /persistence failure/,
+            /Injected .* failure/,
           );
         else
           assert.equal(
@@ -395,14 +519,107 @@ for (const failure of ["stale", "persistence"] as const) {
           .getSnapshot("conv_retry")
           .toolCalls.find((entry) => entry.id === call.id)!;
         assert.equal(pending.state, "awaiting_input");
-        assert.deepEqual(pending.interaction, { kind: "plan_review", request });
-        assert.deepEqual(config.configuration.snapshot("conv_retry"), before);
+        assert.ok(pending.interaction?.kind === "plan_review");
+        assert.equal(
+          pending.interaction.resolution,
+          undefined,
+          "failed approval remains actionable without restart",
+        );
+        if (failure !== "unrelated-edit")
+          assert.deepEqual(pending.interaction, {
+            kind: "plan_review",
+            request,
+          });
+        if (failure === "queue" || failure === "settlement") {
+          assert.equal(
+            config.configuration.snapshot("conv_retry").agentProfile,
+            "coding",
+          );
+          assert.equal(config.storage.inputs.list("conv_retry").length, 0);
+          assert.equal(
+            changes.some(
+              (change) => (change as { kind: string }).kind === "queue_changed",
+            ),
+            false,
+          );
+          assert.equal(
+            changes.some((change) => {
+              const value = change as {
+                kind: string;
+                event?: { type: string };
+              };
+              return (
+                value.kind === "event_appended" &&
+                value.event?.type === "tool_call_response"
+              );
+            }),
+            false,
+          );
+        } else
+          assert.deepEqual(config.configuration.snapshot("conv_retry"), before);
+        unsubscribe();
+        config.storage.inputs.insert = insert;
+        config.storage.events.append = append;
         assert.equal(
           core
             .getEventsSince("conv_retry", 0)
             .filter((event) => event.type === "tool_call_response").length,
           0,
         );
+        if (failure !== "stale") {
+          // Restore the durable snapshot at the crash boundary, before the
+          // best-effort in-process reopen could run. Startup must only reopen.
+          config.storage.toolCalls.update(call.id, {
+            interaction: {
+              kind: "plan_review",
+              request,
+              resolution: approve("failed").resolution,
+              resolutionRequestId: "failed",
+            },
+          });
+        }
+        if (failure === "unrelated-edit") {
+          config.configuration.profiles.apply = async () => {
+            throw new Error("Pending retry must never apply");
+          };
+          assert.equal(
+            (await core.resolveInteraction(approve("failed"))).status,
+            "refresh_required",
+          );
+          const reopened = core
+            .getSnapshot("conv_retry")
+            .toolCalls.find((entry) => entry.id === call.id)!;
+          assert.ok(reopened.interaction?.kind === "plan_review");
+          assert.equal(reopened.interaction.resolution, undefined);
+          request = reopened.interaction.request;
+          assert.equal(request.expectedRevision, 1);
+          assert.equal(config.storage.inputs.list("conv_retry").length, 0);
+        } else if (failure !== "stale") {
+          const saved = config.configuration.snapshot("conv_retry");
+          await core.close();
+          config = makeOptions();
+          config.configuration.update("conv_retry", saved);
+          config.readPlan = async () =>
+            "# Changed file must not replace reviewed copy";
+          config.planApprovalProfile = async () => "coding";
+          apply = config.configuration.profiles.apply;
+          config.configuration.profiles.apply = async () => {
+            throw new Error("Recovery must never apply");
+          };
+          core = new ConversationCore(config);
+          await core.start();
+          const reopened = core
+            .getSnapshot("conv_retry")
+            .toolCalls.find((entry) => entry.id === call.id)!;
+          assert.equal(reopened.interaction?.resolution, undefined);
+          assert.equal(config.storage.inputs.list("conv_retry").length, 0);
+          assert.equal(
+            config.storage.events
+              .since("conv_retry", 0)
+              .filter((event) => event.type === "tool_call_response").length,
+            0,
+          );
+        }
         config.configuration.profiles.apply = apply;
         assert.equal(
           (await core.resolveInteraction(approve("fresh"))).status,

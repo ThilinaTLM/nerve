@@ -3,6 +3,10 @@ import type {
   ProfileTransitionInput,
 } from "../configuration.js";
 import { basename } from "node:path";
+import type {
+  ProfileRefreshRequired,
+  ProfileTransitionResult,
+} from "@nervekit/contracts/agent-configuration";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import {
   planReviewRequestSchema,
@@ -54,6 +58,21 @@ export function createCoreToolHandlers(
   options: CoreToolHandlerOptions,
 ): Map<string, CoreToolHandler> {
   const handlers = new Map<string, CoreToolHandler>();
+  const refreshConfirmation = async (
+    conversationId: string,
+    profile: string,
+    reason: ProfileRefreshRequired["reason"],
+  ): Promise<ProfileTransitionResult> => {
+    const preview = await options.profiles.preview(conversationId, profile);
+    return preview.status === "ready"
+      ? {
+          status: "refresh_required",
+          reason,
+          diagnostics: [],
+          preview: preview.preview,
+        }
+      : preview;
+  };
   const register = (
     name: string,
     handler: Omit<CoreToolHandler, "definition">,
@@ -179,6 +198,10 @@ export function createCoreToolHandlers(
           throw new Error("Missing captured plan review");
         const confirmation = resolution.confirmation;
         const request = call.interaction.request;
+        if (request.content === undefined)
+          throw new Error(
+            "Captured plan content is unavailable; present the plan again.",
+          );
         const input: ProfileTransitionInput = {
           ...confirmation,
           conversationId: call.conversationId,
@@ -194,17 +217,20 @@ export function createCoreToolHandlers(
               ? "configuration_changed"
               : undefined;
         const transition = mismatch
-          ? await options.profiles.reject(input, mismatch)
+          ? await refreshConfirmation(
+              call.conversationId,
+              request.targetProfile.name,
+              mismatch,
+            )
           : await options.profiles.apply(input);
         return {
           kind: "profile_transition",
           transition,
           result: {
-            content: "Plan approved. Switched to the implementation profile.",
+            content: "Plan approved.",
             details: {
               decision: "approve",
               feedback: resolution.feedback,
-              transitionId: confirmation.transitionId,
             },
           },
         };
@@ -223,22 +249,20 @@ export function createCoreToolHandlers(
           ? call.interaction.resolution
           : undefined;
       if (resolution?.decision !== "approve")
-        throw new Error("No accepted plan transition to reconcile");
-      const transition = await options.profiles.reconcile({
-        ...resolution.confirmation,
-        conversationId: call.conversationId,
-        kind: "plan-approval",
-        toolCallId: call.id,
-      });
+        throw new Error("No accepted plan approval to refresh");
+      const transition = await refreshConfirmation(
+        call.conversationId,
+        resolution.confirmation.targetProfile.name,
+        "configuration_changed",
+      );
       return {
         kind: "profile_transition",
         transition,
         result: {
-          content: "Plan approved. Switched to the implementation profile.",
+          content: "Plan approved.",
           details: {
             decision: "approve",
             feedback: resolution.feedback,
-            transitionId: resolution.confirmation.transitionId,
           },
         },
       };

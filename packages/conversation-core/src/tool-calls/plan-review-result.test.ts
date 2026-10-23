@@ -30,7 +30,9 @@ function call(decision: "approve" | "reject") {
     interaction: {
       kind: "plan_review",
       request: {
-        approvalProfile: "coding",
+        targetProfile: { name: "coding", digest: "0".repeat(64) },
+        expectedRevision: 0,
+        expectedDigest: "missing",
         assetId: "asset_1",
         path: "/snapshot/plan.md",
         title: "Plan",
@@ -40,6 +42,16 @@ function call(decision: "approve" | "reject") {
       resolution: {
         kind: "plan_review",
         decision,
+        ...(decision === "approve"
+          ? {
+              confirmation: {
+                targetProfile: { name: "coding", digest: "0".repeat(64) },
+                expectedRevision: 0,
+                expectedDigest: "missing",
+                transitionId: "approve",
+              },
+            }
+          : {}),
         feedback: "Review feedback",
       },
     },

@@ -437,6 +437,39 @@ void test("repair cannot forge an applied snapshot; missing conversation recover
     "saved",
   );
   assert.equal((await f.service.getEffective("c")).status, "available");
+  const file = f.service.paths.agent({
+    scope: "conversation",
+    conversationId: "c",
+  });
+  const document = {
+    ...JSON.parse(await readFile(file, "utf8")),
+    lastTransition: { id: "old-approval", kind: "plan-approval" },
+  };
+  await writeFile(file, JSON.stringify(document));
+  await f.service.reload({ scope: "conversation", conversationId: "c" });
+  const repair = success(
+    await f.invoke("agentConfiguration.repairPreview", {
+      target: input.target,
+      replacement: document,
+    }),
+  );
+  assert.equal(
+    leadConversationAgentSchema.parse(repair.preview.candidate).lastTransition,
+    undefined,
+  );
+  assert.equal(
+    (
+      await f.invoke(
+        "agentConfiguration.repairApply",
+        confirmationFor(repair.preview),
+      )
+    ).status,
+    "saved",
+  );
+  assert.equal(
+    JSON.parse(await readFile(file, "utf8")).lastTransition,
+    undefined,
+  );
 });
 
 void test("CAS conflict authoritatively reloads agent/profile scopes and explicit Reload activates manual fixes", async (t) => {

@@ -3,7 +3,6 @@ import type {
   AppliedProfile,
   ProfileTransitionPreview,
 } from "@nervekit/contracts/agent-configuration";
-import { createId } from "@nervekit/contracts";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
@@ -112,7 +111,6 @@ async function apply() {
       targetProfile: preview.targetProfile,
       expectedRevision: preview.expectedRevision,
       expectedDigest: preview.expectedDigest,
-      transitionId: createId("input"),
     });
     if (result.status === "applied") {
       await onApplied();

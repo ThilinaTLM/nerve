@@ -62,7 +62,6 @@ async function fixture(
     },
     builtins: { coding: JSON.stringify(definition) },
     isProfileTrusted: () => false,
-    transitionReconciled: () => true,
     captureResources: () => ({
       options: { referenceAvailable: () => true },
       isCurrent: () => true,
@@ -347,7 +346,7 @@ void test("conversation ownership selects strict child schema; snapshots work wi
   );
 });
 
-void test("UI mutations preserve choices beneath requirements and receipts, reject metadata, and reset by deletion", async (t) => {
+void test("UI mutations preserve choices beneath requirements, omit legacy receipts, reject metadata, and reset by deletion", async (t) => {
   const f = await fixture(t);
   const receipt = { id: "transition", kind: "plan-approval" };
   await f.agent(lead, {
@@ -378,7 +377,7 @@ void test("UI mutations preserve choices beneath requirements and receipts, reje
   assert.deepEqual(
     (saved.value.document as typeof leadDocument & { lastTransition: unknown })
       .lastTransition,
-    receipt,
+    undefined,
   );
   assert.deepEqual(saved.value.document.overrides.model, B);
   const effective = await f.service.getEffective("lead");
@@ -501,30 +500,29 @@ void test("explicit host creation validates trusted role and cannot replace an e
   assert.equal(await f.service.getEffective("child-new"), reloaded);
 });
 
-void test("unsettled transition receipts block mutation without manufacturing lifecycle settlement", async (t) => {
-  let settled = false;
-  const f = await fixture(t, { transitionReconciled: () => settled });
+void test("legacy receipts are inert on read and disappear on ordinary saves", async (t) => {
+  const f = await fixture(t);
   const receipt = { id: "accepted-plan", kind: "plan-approval" };
   await f.agent(lead, { ...leadDocument, lastTransition: receipt });
   const state = await f.service.ensureLoaded(lead);
   if (state.status === "unavailable")
     throw new Error("Expected valid conversation");
-  await assert.rejects(
-    f.service.save(lead, mutation(0, state.value.digest, { model: B })),
-    /must be reconciled/,
-  );
   assert.equal(
-    JSON.parse(await readFile(state.value.path, "utf8")).revision,
-    0,
+    JSON.parse(await readFile(state.value.path, "utf8")).lastTransition.id,
+    receipt.id,
   );
-  settled = true;
+  await f.service.getEffective("lead");
+  assert.equal(
+    JSON.parse(await readFile(state.value.path, "utf8")).lastTransition.id,
+    receipt.id,
+  );
   const saved = await f.service.save(
     lead,
     mutation(0, state.value.digest, { model: B }),
   );
   assert.deepEqual(
     JSON.parse(await readFile(saved.value.path, "utf8")).lastTransition,
-    receipt,
+    undefined,
   );
 });
 
@@ -656,6 +654,10 @@ void test("creation checks launch generations again at durable publication", asy
 void test("D10 context edits are conversation-local, clearable and survive profile replacement", async (t) => {
   const f = await fixture(t);
   assert.equal(f.service.getConversationContext("lead"), undefined);
+  await f.agent(lead, {
+    ...leadDocument,
+    lastTransition: { id: "old", kind: "plan-approval" },
+  });
   await f.service.configureContext("lead", {
     instructions: "Local instructions",
     systemPrompt: "Custom base",
@@ -667,6 +669,10 @@ void test("D10 context edits are conversation-local, clearable and survive profi
   const state = await f.service.ensureLoaded(lead);
   assert.notEqual(state.status, "unavailable");
   if (state.status === "unavailable") throw new Error("fixture unavailable");
+  assert.equal(
+    JSON.parse(await readFile(state.value.path, "utf8")).lastTransition,
+    undefined,
+  );
   await f.service.commitProfile(
     "lead",
     state.value,
@@ -679,7 +685,6 @@ void test("D10 context edits are conversation-local, clearable and survive profi
       requirements: {},
     },
     {},
-    { id: "transition", kind: "profile" },
     () => true,
   );
   assert.deepEqual(f.service.getConversationContext("lead"), {

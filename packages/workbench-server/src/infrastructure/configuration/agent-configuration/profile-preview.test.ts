@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { profileTransitionPreviewSchema } from "@nervekit/contracts/agent-configuration";
-import type { CoreStorage } from "@nervekit/conversation-core";
 import { AgentConfigurationService } from "./agent-configuration-service.js";
 import { createProfileTransitions } from "./profile-transitions.js";
 
@@ -77,7 +76,7 @@ void test("transition previews include target metadata/instructions, changed val
     },
     overrides: {},
   });
-  const lifecycle = createProfileTransitions(service, {} as CoreStorage);
+  const lifecycle = createProfileTransitions(service);
   const unchanged = await lifecycle.port.preview("c", "planning");
   assert.equal(unchanged.status, "ready");
   if (unchanged.status !== "ready") throw new Error("Expected preview");
@@ -176,22 +175,7 @@ void test("declared model levels diagnose unsupported requirements and block tra
     appliedProfile: null,
     overrides: {},
   });
-  const events: import("@nervekit/contracts/core").ConversationEvent[] = [];
-  const storage = {
-    events: {
-      get: (id: string) => events.find((event) => event.id === id) ?? null,
-      append: (input: Parameters<CoreStorage["events"]["append"]>[0]) => {
-        const event = {
-          ...input,
-          sequence: events.length + 1,
-        } as import("@nervekit/contracts/core").ConversationEvent;
-        events.push(event);
-        return event;
-      },
-      since: () => events,
-    },
-  } as unknown as CoreStorage;
-  const lifecycle = createProfileTransitions(service, storage);
+  const lifecycle = createProfileTransitions(service);
   const preview = await lifecycle.port.preview("c", "unsupported");
   assert.equal(preview.status, "ready");
   if (preview.status !== "ready") throw new Error("Expected preview");

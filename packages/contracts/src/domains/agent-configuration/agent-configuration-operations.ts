@@ -232,14 +232,13 @@ export const previewProfileTransitionResultSchema = z.union([
   configurationUnavailableSchema,
 ]);
 export const setConversationAgentProfileRequestSchema =
-  profileConfirmationSchema.omit({ choices: true }).extend({
+  profileConfirmationSchema.omit({ choices: true, transitionId: true }).extend({
     conversationId: z.string().min(1),
     action: z.enum(["switch", "reapply"]),
   });
 export const profileTransitionResultSchema = z.union([
   z.strictObject({
     status: z.literal("applied"),
-    transitionId: z.string().min(1),
     source: configurationDocumentSourceSchema.extend({
       scope: agentScopeSchema.options[2],
     }),

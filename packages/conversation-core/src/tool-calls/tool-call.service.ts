@@ -56,19 +56,13 @@ export interface AsyncBashAdopter {
   }): AsyncBash | Promise<AsyncBash>;
 }
 export interface ToolCallServiceOptions {
-  resolvedInteractionResult?(
-    conversationId: string,
-    resolution: import("@nervekit/contracts/core").InteractionResolution,
-    toolCallId: string,
-  ): Promise<
-    import("@nervekit/contracts/agent-configuration").InteractionResolveResult
-  >;
+  inputs?: import("../inputs/input-queue.service.js").InputQueueService;
   storage: CoreStorage;
   assets: AssetStore;
   permissions: PermissionPort;
   host: ToolHostPort;
   emit(change: ToolCallChange): void;
-  // Runs after the response append and row deletion, inside their transaction.
+  // Runs after the response append and row deletion have committed.
   onSettled?(conversationId: string): void;
   coreTools: Map<string, CoreToolHandler>;
   asyncBash: AsyncBashAdopter;

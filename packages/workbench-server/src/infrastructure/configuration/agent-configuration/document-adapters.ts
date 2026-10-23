@@ -161,3 +161,10 @@ export function healthDiagnostics<S extends AgentScope, D>(
       }))
     : [];
 }
+
+/** Legacy profile receipts are readable metadata, never part of a new document generation. */
+export function withoutLegacyTransition<T extends object>(document: T): T {
+  const candidate = { ...document };
+  delete (candidate as { lastTransition?: unknown }).lastTransition;
+  return candidate;
+}

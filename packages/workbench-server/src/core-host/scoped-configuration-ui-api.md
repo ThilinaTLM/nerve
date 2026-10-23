@@ -19,7 +19,7 @@ Read returns `localDigest`; use it as `expectedDigest` when saving/deleting that
 
 `agentConfiguration.repairPreview` uses `RepairPreviewRequest/Result`: target plus complete `replacement`, optionally a current `targetProfile` for conversation recovery. Preview returns candidate/source digests, version, changed JSON pointers and proposed effective resolution; it does not repair or dismiss health.
 
-After explicit confirmation, send `RepairApplyRequest` (preview fields **excluding** `changedPaths` and `resolution`). `RepairApplyResult` includes protected original-byte backup/receipt paths and directory durability. Retry the same confirmation to reconcile an already committed receipt. Changed source/candidate bytes conflict. Repairs preserve lifecycle receipts and valid applied snapshots unless an explicit validated profile target is selected; repair never grants trust.
+After explicit confirmation, send `RepairApplyRequest` (preview fields **excluding** `changedPaths` and `resolution`). `RepairApplyResult` includes protected original-byte backup/receipt paths and directory durability. Retry the same confirmation to reconcile an already committed receipt. Changed source/candidate bytes conflict. Repairs omit legacy `lastTransition` metadata and preserve valid applied snapshots unless an explicit validated profile target is selected; repair never grants trust.
 
 ## Previews and requirements
 
@@ -34,3 +34,5 @@ Ordinary reads, background retries and agent/trust invalidations do not poll pol
 User Reload should call workbench `agentConfiguration.reload` with `{target:{document:"agent",scope}}` (also supports profile/name and conversation-defaults targets), then fetch the ordinary view. DTOs: `ReloadConfigurationRequest/Result`. It returns current scoped health, including failures; dismissal is not reload. A CAS conflict also authoritatively reloads the conflicting document before returning.
 
 Explicit configuration-blocked Retry reloads its reported agent/policy dependencies before retrying admission. It never grants approval. Legacy user-permissions health Reload/Reset also refreshes that published permission document. No watchers were introduced.
+
+Profile preview/apply uses target digest and configuration revision/digest CAS, without a profile transition journal. Manual requests need no transition ID; plan confirmations retain it only as approval correlation. Interrupted pending approvals require explicit reconfirmation, while completed approvals return their settled tool outcome. Profile save precedes atomic tool settlement and acceptance of one visible implementation user input.

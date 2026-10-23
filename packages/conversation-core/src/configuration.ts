@@ -8,7 +8,6 @@ import type {
 } from "@nervekit/contracts/agent-configuration";
 import type {
   ProfileConfirmation,
-  ProfileRefreshRequired,
   ProfileTransitionResult,
   PreviewProfileTransitionResult,
   SetConversationAgentProfileRequest,
@@ -55,7 +54,11 @@ export interface CompactionConfigurationCapture {
   isCurrent(): boolean;
 }
 
-export interface ProfileTransitionInput extends ProfileConfirmation {
+export interface ProfileTransitionInput extends Omit<
+  ProfileConfirmation,
+  "transitionId"
+> {
+  transitionId?: string;
   conversationId: string;
   kind: "profile" | "plan-approval";
   action?: SetConversationAgentProfileRequest["action"];
@@ -67,12 +70,6 @@ export interface ProfileLifecyclePort {
     profile: string,
   ): Promise<PreviewProfileTransitionResult>;
   apply(input: ProfileTransitionInput): Promise<ProfileTransitionResult>;
-  /** Reconcile receipts only; never apply an uncommitted accepted decision on recovery. */
-  reconcile(input: ProfileTransitionInput): Promise<ProfileTransitionResult>;
-  reject(
-    input: ProfileTransitionInput,
-    reason: ProfileRefreshRequired["reason"],
-  ): Promise<ProfileTransitionResult>;
 }
 
 /** JSON configuration authority supplied by the host; core never resolves agent settings from SQL. */

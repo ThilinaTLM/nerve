@@ -59,12 +59,6 @@ void test("request captures retry changed generations and retain advertised exec
       apply: async () => {
         throw new Error("Unused");
       },
-      reconcile: async () => {
-        throw new Error("Unused");
-      },
-      reject: async () => {
-        throw new Error("Unused");
-      },
     },
     prepareCreation: async () => {
       throw new Error("Unused");
@@ -184,8 +178,6 @@ void test("execution resolves service authority and never falls back to a popula
     profiles: {
       preview: unused,
       apply: unused,
-      reconcile: unused,
-      reject: unused,
     },
     prepareCreation: unused,
     initializeConversation: async () => {},

@@ -181,15 +181,7 @@ export class ConversationCore {
       emit,
     });
     this.toolCalls = new ToolCallService({
-      resolvedInteractionResult: (id, resolution, toolCallId) =>
-        resolution.kind === "plan_review" && resolution.decision === "approve"
-          ? options.configuration.profiles.reconcile({
-              ...resolution.confirmation,
-              conversationId: id,
-              kind: "plan-approval",
-              toolCallId,
-            })
-          : Promise.resolve({ status: "resolved" }),
+      inputs: this.inputs,
       storage: options.storage,
       assets: this.assets,
       permissions: options.permissions,

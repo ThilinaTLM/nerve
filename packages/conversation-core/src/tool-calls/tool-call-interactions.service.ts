@@ -75,13 +75,7 @@ export class ToolCallInteractions {
             JSON.stringify(event.payload.interactionResolution) ===
               JSON.stringify(input.resolution)
           )
-            return (
-              this.options.resolvedInteractionResult?.(
-                event.conversationId,
-                input.resolution,
-                input.toolCallId,
-              ) ?? { status: "resolved" }
-            );
+            return { status: "resolved" };
           throw new Error("Tool call already settled with another resolution");
         }
       }
@@ -232,13 +226,13 @@ export class ToolCallInteractions {
       return { status: "resolved" };
     } catch (error) {
       if (input.resolution.kind === "plan_review") {
-        // A failure may happen on either side of the file commit. Reconcile the
-        // durable receipt before clearing a decision or allowing a fresh one.
+        // Reopen promptly so the review remains actionable after a failed save or
+        // SQLite commit. Recovery only previews; it cannot apply or enqueue.
         if (input.resolution.decision === "approve") {
-          const handler = this.options.coreTools.get(call.toolName);
           try {
-            if (handler?.recover) {
-              const recovered = await this.profileResult(
+            const handler = this.options.coreTools.get(call.toolName);
+            if (handler?.recover)
+              await this.profileResult(
                 call,
                 await handler.recover(
                   call,
@@ -246,10 +240,9 @@ export class ToolCallInteractions {
                 ),
                 controller.signal,
               );
-              if (recovered.status === "applied") return recovered;
-            }
           } catch {
-            // Keep the accepted decision durable for explicit retry/recovery.
+            // Keep accepted state when configuration cannot be refreshed. Reload
+            // or explicit retry can reopen it once authority is available.
           }
         }
         throw error;

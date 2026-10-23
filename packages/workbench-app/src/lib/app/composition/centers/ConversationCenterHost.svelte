@@ -732,8 +732,8 @@ async function resolve(toolCallId: string, resolution: InteractionResolution) {
   if (result?.status === "refresh_required") {
     const message =
       result.reason === "requirement_conflict"
-        ? "Profile requirements conflict with the chosen model or reasoning. The plan remains open; repair the conflict and confirm again. Nothing was applied."
-        : "Profile or configuration changed. The plan remains open; review the refreshed requirements and confirm again. Nothing was applied.";
+        ? "Profile requirements conflict with the chosen model or reasoning. The plan remains open; repair the conflict and confirm again. No implementation request was submitted."
+        : "Profile or configuration changed, or a previous approval was interrupted. The plan remains open; review the current configuration and refreshed requirements, then confirm again. No implementation request was submitted.";
     notify.warning("Plan review needs new confirmation", {
       description: message,
       duration: 10000,
@@ -741,7 +741,9 @@ async function resolve(toolCallId: string, resolution: InteractionResolution) {
     throw new Error(message);
   }
   if (result?.status === "unavailable")
-    throw new Error("Configuration unavailable; the review remains open.");
+    throw new Error(
+      "Configuration unavailable; reload it before confirming again. The review remains open and no implementation request was submitted.",
+    );
 }
 function answerUserQuestion(
   toolCallId: string,

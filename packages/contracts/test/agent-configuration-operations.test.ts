@@ -222,10 +222,17 @@ test("effective composer views retain missing models, source labels and requirem
 
 test("profile switch/reapply uses captured target bytes and cannot overwrite conversation choices", () => {
   for (const action of ["switch", "reapply"]) {
-    const request = { ...confirmation, conversationId: "c", action };
+    const request = { ...expected, targetProfile, conversationId: "c", action };
     assert.deepEqual(
       setConversationAgentProfileRequestSchema.parse(request),
       request,
+    );
+    assert.equal(
+      setConversationAgentProfileRequestSchema.safeParse({
+        ...request,
+        transitionId: "obsolete",
+      }).success,
+      false,
     );
     assert.equal(
       setConversationAgentProfileRequestSchema.safeParse({
@@ -310,11 +317,22 @@ test("stale/untrusted/unavailable targets and requirement conflicts refresh conf
   }
   const applied = {
     status: "applied",
-    transitionId: "transition-1",
     source,
     effective,
   };
   assert.deepEqual(profileTransitionResultSchema.parse(applied), applied);
+  assert.equal(
+    profileTransitionResultSchema.safeParse({
+      ...applied,
+      transitionId: "obsolete",
+    }).success,
+    false,
+  );
+  const missingCorrelation = { ...expected, targetProfile };
+  assert.equal(
+    profileConfirmationSchema.safeParse(missingCorrelation).success,
+    false,
+  );
   assert.equal(
     profileTransitionResultSchema.safeParse({
       status: "failed",

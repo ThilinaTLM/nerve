@@ -1,4 +1,4 @@
-import type { AgentConfigurationServiceOptions } from "./agent-configuration-service.js";
+import { withoutLegacyTransition } from "./document-adapters.js";
 import type { ConversationAgentContext } from "@nervekit/contracts/agent-configuration";
 import { conversationConfigSchema } from "@nervekit/contracts/core";
 import {
@@ -37,7 +37,6 @@ export async function saveConversationContext(
   store: Store,
   id: string,
   input: unknown,
-  options: Pick<AgentConfigurationServiceOptions, "transitionReconciled">,
 ): Promise<void> {
   const patch = conversationConfigSchema
     .pick({ instructions: true, systemPrompt: true })
@@ -49,19 +48,12 @@ export async function saveConversationContext(
   if (state.status === "unavailable") throw new ScopeUnavailableError();
   await store.save(scope, state.value, (document) => {
     if (!("appliedProfile" in document)) throw new ScopeUnavailableError();
-    if (
-      document.lastTransition &&
-      !options.transitionReconciled?.(id, document.lastTransition)
-    )
-      throw new Error(
-        "Committed transition must be reconciled before mutation",
-      );
     const context: ConversationAgentContext = { ...document.context };
     for (const key of ["instructions", "systemPrompt"] as const) {
       if (patch[key] === null) delete context[key];
       else if (patch[key] !== undefined) context[key] = patch[key];
     }
-    const candidate = { ...document };
+    const candidate = { ...withoutLegacyTransition(document) };
     if (Object.keys(context).length) candidate.context = context;
     else delete candidate.context;
     return candidate;

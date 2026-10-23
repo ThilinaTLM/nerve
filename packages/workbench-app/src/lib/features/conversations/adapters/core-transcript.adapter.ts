@@ -319,6 +319,11 @@ export function conversationTranscript(input: {
     (event) =>
       !(
         event.type === "system_event" &&
+        event.payload.subtype === "notification" &&
+        event.payload.producer.startsWith("agent-profile:")
+      ) &&
+      !(
+        event.type === "system_event" &&
         event.payload.subtype === "execution_state" &&
         ["started", "waiting", "completed", "cancelled"].includes(
           event.payload.transition,

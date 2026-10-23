@@ -1,3 +1,4 @@
+import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   createLegacyRepair,
   legacyTargetPath,
@@ -102,7 +103,6 @@ export function createScopedRepair(service: AgentConfigurationService) {
     const file = configurationTargetPath(service, input.target);
     const bytes = await original(file);
     const old = parseOriginal(bytes);
-    service.assertRepairAllowed(input.target.scope, old);
     let candidate: unknown = input.replacement;
     if (input.target.document === "profile") {
       candidate = profileDefinitionSchema.parse(candidate);
@@ -173,18 +173,7 @@ export function createScopedRepair(service: AgentConfigurationService) {
             ? childConversationAgentSchema
             : leadConversationAgentSchema
         ).parse(candidate);
-        // Repair cannot erase or manufacture lifecycle receipts.
-        const receipt =
-          old && typeof old === "object" && "lastTransition" in old
-            ? old.lastTransition
-            : undefined;
-        if (
-          !same(
-            (candidate as { lastTransition?: unknown }).lastTransition,
-            receipt,
-          )
-        )
-          throw new Error("Repair must preserve the transition receipt");
+        candidate = withoutLegacyTransition(candidate as object);
       }
     }
     const resolution =

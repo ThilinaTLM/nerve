@@ -37,3 +37,25 @@ export function planReviewDisplayResult(
     },
   };
 }
+
+/** Stable identity and immutable reviewed copy; never reread the source plan file. */
+export function planImplementationInput(call: ToolCall) {
+  const interaction = call.interaction;
+  if (
+    call.toolName !== "plan_present" ||
+    interaction?.kind !== "plan_review" ||
+    interaction.resolution?.decision !== "approve"
+  )
+    return undefined;
+  const { request, resolution } = interaction;
+  if (request.content === undefined)
+    throw new Error(
+      "Captured plan content is unavailable; present the plan again.",
+    );
+  return {
+    conversationId: call.conversationId,
+    inputId: `plan-implementation:${JSON.stringify([call.conversationId, call.id])}`,
+    source: "user" as const,
+    text: `Implement the approved plan.\n\n${request.title ?? "Approved plan"}\n\n${request.content}${resolution.feedback ? `\n\nApproval feedback:\n${resolution.feedback}` : ""}`,
+  };
+}

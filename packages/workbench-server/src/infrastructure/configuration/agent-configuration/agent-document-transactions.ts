@@ -1,9 +1,10 @@
+import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   agentMutationSchema,
   conversationDefaultsSchema,
   childConversationAgentSchema,
-  applySettingsMutation,
   leadConversationAgentSchema,
+  applySettingsMutation,
   resolveAgentConfiguration,
   type ResolutionResult,
 } from "@nervekit/contracts/agent-configuration";
@@ -58,20 +59,8 @@ export async function saveAgentDocument(
     scope,
     { revision: mutation.expectedRevision, digest: mutation.expectedDigest },
     (document) => {
-      if (
-        scope.scope === "conversation" &&
-        "lastTransition" in document &&
-        document.lastTransition &&
-        !port.options.transitionReconciled?.(
-          scope.conversationId,
-          document.lastTransition,
-        )
-      )
-        throw new Error(
-          "Committed transition must be reconciled before mutation",
-        );
       const candidate = {
-        ...document,
+        ...withoutLegacyTransition(document),
         overrides: applySettingsMutation(document.overrides, mutation),
       };
       const resources = port.options.captureResources(
@@ -123,25 +112,6 @@ export function validateAgentResolution(
     throw new Error("Unsupported explicit model/reasoning combination");
   if (!resources.isCurrent())
     throw new Error("Configuration dependencies changed; retry save");
-}
-
-export function assertRepairReceipt(
-  scope: AgentScope,
-  original: unknown,
-  options: AgentConfigurationServiceOptions,
-): void {
-  if (
-    scope.scope !== "conversation" ||
-    !original ||
-    typeof original !== "object" ||
-    !("lastTransition" in original)
-  )
-    return;
-  const receipt = leadConversationAgentSchema.shape.lastTransition.parse(
-    original.lastTransition,
-  );
-  if (receipt && !options.transitionReconciled?.(scope.conversationId, receipt))
-    throw new Error("Committed transition must be reconciled before repair");
 }
 
 export async function resolveRepairCandidate(
