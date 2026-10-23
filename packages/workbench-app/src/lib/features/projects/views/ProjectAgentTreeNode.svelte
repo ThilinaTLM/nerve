@@ -68,7 +68,7 @@ const tooltip = $derived(
   [
     row.conversation.title,
     `status: ${dotActivity.label ?? "idle"}`,
-    `profile: ${profile} · rule set: ${permissionRuleSetDisplayName(permission)}`,
+    `profile: ${profile ?? "unknown"} · rule set: ${permission ? permissionRuleSetDisplayName(permission) : "unknown"}`,
     `model: ${shortAgentModel(row.agent)}`,
     row.conversation.id,
   ].join("\n"),

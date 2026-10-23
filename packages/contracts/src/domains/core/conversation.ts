@@ -55,9 +55,11 @@ export const conversationSummarySchema = conversationSchema
     /** Latest input from the parent, including prompts still queued for delivery. */
     lastParentPromptAt: z.string().datetime().nullable().optional(),
     childCount: z.number().int().nonnegative(),
-    agentProfile: agentProfileNameSchema,
-    model: modelSelectionSchema,
-    permissionRuleSetId: z.string(),
+    /** Disposable cache values; unknown until configuration is lazily resolved. */
+    agentProfile: agentProfileNameSchema.optional(),
+    model: modelSelectionSchema.optional(),
+    reasoningLevel: thinkingLevelSchema.optional(),
+    permissionRuleSetId: z.string().optional(),
   });
 export const conversationSnapshotSchema = z.object({
   conversation: conversationSchema,

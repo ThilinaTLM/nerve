@@ -82,7 +82,7 @@ export function conversationMeta(row: ConversationRow): string {
   const profile = row.agent?.agentProfile ?? row.conversation.agentProfile;
   const permission =
     row.agent?.permissionRuleSetId ?? row.conversation.permissionRuleSetId;
-  return `${profile} · ${permissionRuleSetDisplayName(permission)} · ${shortAgentModel(row.agent)}`;
+  return `${profile ?? "unknown"} · ${permission ? permissionRuleSetDisplayName(permission) : "unknown"} · ${shortAgentModel(row.agent)}`;
 }
 
 export function groupIsActive(
