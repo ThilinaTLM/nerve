@@ -721,7 +721,7 @@ function completion(ctx: StepContext, plan: Plan) {
 }
 export default defineStep({
   id: "0002-agent-profiles",
-  description: "Export released scoped agent configuration (SQL review draft)",
+  description: "Move agent settings to configuration files",
   async run(ctx) {
     beginMigrationArchive(ctx.paths.home);
     if (process.platform === "win32")
