@@ -2,16 +2,16 @@
 
 ## Boundaries
 
-| Configuration | Capture/activation boundary |
-| --- | --- |
-| Model, reasoning, instructions, available tools/skills/sub-agent profiles | Before each newly prepared LLM request |
-| Non-security tool configuration (account ID, interpreter, limits) | Captured with the request that advertises the tool |
-| Permission selection, applicable policies and hard role restrictions | Immediately before each tool execution admission, including approved/recovered calls |
-| New child invocation model/reasoning and selected profile | Latest validated configuration at launch; capture once for that child |
-| Compaction preferences | Start of each compaction operation |
-| Automatic retry preferences | Start of a retry sequence |
-| Manual response retry | Reuse the already prepared request, as today |
-| Runner-managed retry/post-compaction request | New preparation using current configuration |
+| Configuration                                                             | Capture/activation boundary                                                          |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Model, reasoning, instructions, available tools/skills/sub-agent profiles | Before each newly prepared LLM request                                               |
+| Non-security tool configuration (account ID, interpreter, limits)         | Captured with the request that advertises the tool                                   |
+| Permission selection, applicable policies and hard role restrictions      | Immediately before each tool execution admission, including approved/recovered calls |
+| New child invocation model/reasoning and selected profile                 | Latest validated configuration at launch; capture once for that child                |
+| Compaction preferences                                                    | Start of each compaction operation                                                   |
+| Automatic retry preferences                                               | Start of a retry sequence                                                            |
+| Manual response retry                                                     | Reuse the already prepared request, as today                                         |
+| Runner-managed retry/post-compaction request                              | New preparation using current configuration                                          |
 
 Changing a model during streaming does not rewrite that request. Turning a tool off affects the next advertised toolset, not an already-issued call's captured executor configuration. To stop a pending call immediately, change its applicable permissions or cancel the work. Calls admitted before a policy change are not retroactively cancelled by that change.
 

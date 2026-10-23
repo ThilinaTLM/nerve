@@ -68,16 +68,16 @@ Migration snapshots the definition produced by the same migration, so every snap
 
 Every field below is optional in overrides. Types and bounds reuse the named contracts unless a difference is explicitly stated. Model selection can remain unresolved until the user configures a model; this produces a model-required readiness state, not a fabricated default.
 
-| Field | Value contract | Merge/reset unit |
-| --- | --- | --- |
-| `model` | `models.modelSelectionSchema` | Atomic provider/model pair |
-| `reasoningLevel` | `models.thinkingLevelSchema` | Scalar, independent of model |
-| `permissionRuleSetId` | `permissions.permissionRuleSetIdSchema` | Scalar reference |
-| `compaction` | Fields of `settings.autoCompactionSettingsSchema` | `auto`, `profile`, `customTriggerPercent` independently; validate complete resolved result |
-| `retry` | Existing harness retry fields | `enabled: boolean`, `maxRetries: integer >= 0`, `baseDelayMs: positive integer`, independently |
-| `tools` | Typed entries below | By tool name and declared settings fields |
-| `skills` | Boolean enablement contract below | Sparse source maps plus per-source default enablement |
-| `subagents` | Lead-only map below | By profile name and entry field |
+| Field                 | Value contract                                    | Merge/reset unit                                                                               |
+| --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `model`               | `models.modelSelectionSchema`                     | Atomic provider/model pair                                                                     |
+| `reasoningLevel`      | `models.thinkingLevelSchema`                      | Scalar, independent of model                                                                   |
+| `permissionRuleSetId` | `permissions.permissionRuleSetIdSchema`           | Scalar reference                                                                               |
+| `compaction`          | Fields of `settings.autoCompactionSettingsSchema` | `auto`, `profile`, `customTriggerPercent` independently; validate complete resolved result     |
+| `retry`               | Existing harness retry fields                     | `enabled: boolean`, `maxRetries: integer >= 0`, `baseDelayMs: positive integer`, independently |
+| `tools`               | Typed entries below                               | By tool name and declared settings fields                                                      |
+| `skills`              | Boolean enablement contract below                 | Sparse source maps plus per-source default enablement                                          |
+| `subagents`           | Lead-only map below                               | By profile name and entry field                                                                |
 
 Do not copy profile locks into `overrides`. Reject changes to currently required effective fields rather than accepting invisible edits underneath. Resetting an editable field removes its choice. The requirement itself can only change through profile switch/reapplication.
 
@@ -89,17 +89,17 @@ Reasoning compatibility: clamp inherited/recommended reasoning to the resulting 
 
 Preserve tool names and value bounds from `capabilityToolPayloadSchemas` and `settings/settings.ts`. All listed payload fields are optional in sparse documents; resolved settings must meet their owning validators.
 
-| Tool | Payload fields |
-| --- | --- |
-| `python_exec` | `enabled`; `settings.interpreterPath` |
-| `web_search`, `jira`, `confluence` | `enabled`; `profileId` referencing a user-owned account |
-| `web_fetch` | `enabled` |
-| `plan_present` | `enabled`; `settings.approvalProfile` |
-| `explain_image` | `enabled`; `settings.model` (atomic), `settings.thinkingLevel` |
-| `generate_image` | `enabled`; `settings` is atomic `imageGenerationToolSettingsSchema`, including its discriminator and options |
-| `kroki_export` | `enabled`; `settings.url` using `krokiToolSettingsSchema` validation |
-| `bash` | `settings.shellPath`; `settings.autoPromotion` atomic; `settings.maxTimeoutMs`; no `enabled` field |
-| `subagents` | Lead-only `enabled` master capability; availability additionally requires an enabled usable profile entry |
+| Tool                               | Payload fields                                                                                               |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `python_exec`                      | `enabled`; `settings.interpreterPath`                                                                        |
+| `web_search`, `jira`, `confluence` | `enabled`; `profileId` referencing a user-owned account                                                      |
+| `web_fetch`                        | `enabled`                                                                                                    |
+| `plan_present`                     | `enabled`; `settings.approvalProfile`                                                                        |
+| `explain_image`                    | `enabled`; `settings.model` (atomic), `settings.thinkingLevel`                                               |
+| `generate_image`                   | `enabled`; `settings` is atomic `imageGenerationToolSettingsSchema`, including its discriminator and options |
+| `kroki_export`                     | `enabled`; `settings.url` using `krokiToolSettingsSchema` validation                                         |
+| `bash`                             | `settings.shellPath`; `settings.autoPromotion` atomic; `settings.maxTimeoutMs`; no `enabled` field           |
+| `subagents`                        | Lead-only `enabled` master capability; availability additionally requires an enabled usable profile entry    |
 
 Core tools that have no optional capability entry cannot be disabled. An empty tool entry is invalid; remove it to inherit. A supplied atomic value must be complete. Array-valued settings replace as a whole. References are preserved if unavailable, with dependent execution/feature readiness diagnostics rather than an automatic replacement account/model. Missing catalog profiles block new selections/reapplications/launches, not execution using a valid already-applied snapshot.
 
@@ -125,11 +125,14 @@ A source default covers every name in that source: overlap validation rejects a 
 ### Sub-agent availability
 
 ```ts
-subagents: Record<AgentProfileName, {
-  enabled?: boolean;
-  model?: ModelSelection;
-  reasoningLevel?: ThinkingLevel;
-}>;
+subagents: Record<
+  AgentProfileName,
+  {
+    enabled?: boolean;
+    model?: ModelSelection;
+    reasoningLevel?: ThinkingLevel;
+  }
+>;
 ```
 
 Names reference the same catalog namespace as profile selection; no nested definition/reference object is needed. Entries without explicit enablement inherit the catalog's existing enabled/usable behavior; the master capability can disable all delegation. Unknown/disabled/untrusted profiles are unavailable with diagnostics, not silently replaced. An entry must contain at least one field. Reject this map and `tools.subagents` in child settings/profile contributions.
@@ -174,13 +177,19 @@ The released remember-last-selection option is removed with no replacement state
 `<NERVE_HOME>/cache/conversation-agent-summaries.json`:
 
 ```ts
-{ schemaVersion: 1; entries: Record<ConversationId, {
-  model?: ModelSelection;
-  reasoningLevel?: ThinkingLevel;
-  permissionRuleSetId?: PermissionRuleSetId;
-  agentProfile?: AgentProfileName;
-  observedDigest: string;
-}> }
+{
+  schemaVersion: 1;
+  entries: Record<
+    ConversationId,
+    {
+      model?: ModelSelection;
+      reasoningLevel?: ThinkingLevel;
+      permissionRuleSetId?: PermissionRuleSetId;
+      agentProfile?: AgentProfileName;
+      observedDigest: string;
+    }
+  >;
+}
 ```
 
 This file contains last-known display values, not choices or executable configuration. Invalid/missing cache is treated as empty, never a startup/agent failure. List API agent summary fields are optional/unknown when the cache has no entry; update the current required-field contracts instead of fabricating defaults. Lists show unknown values until lazily resolved; they do not load every configuration to fill gaps. Merge with conversation identity/list data in the service, not SQL joins. Coalesce atomic cache writes; cache failure does not fail a successful configuration save. Update on activation and acknowledged changes; remove entries on deletion. SQLite must never fallback as authority or store an alternate summary index.

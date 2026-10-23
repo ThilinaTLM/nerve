@@ -27,16 +27,16 @@ This supersedes the materialized-template behavior in [System prompt, tool descr
 
 ## Specification
 
-| Document | Responsibility |
-| --- | --- |
-| [Configuration model](configuration-model.md) | Precedence, profile/child lifecycle and planning workflow |
-| [Domain registry](domain-inventory.md) | Complete target paths, changed/preserved domains and SQLite boundary |
-| [Schemas](schemas.md) | Envelopes, exact fields, merge units, mutation restrictions and referenced validators |
-| [Examples](examples/README.md) | Concrete partial documents and expected resolution |
-| [Activation and cache](activation-and-cache.md) | Save/publication, request captures, execution admission and restart behavior |
-| [Migration and recovery](migration-and-recovery.md) | Conversion map, health/readiness, trust, repair and crash consistency |
-| [Implementation plan](implementation-readiness.md) | Delivery sequence, acceptance gates and validation |
-| [Audit findings](review-findings.md) | Evidence, corrected assumptions and deliberately excluded work |
+| Document                                            | Responsibility                                                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [Configuration model](configuration-model.md)       | Precedence, profile/child lifecycle and planning workflow                             |
+| [Domain registry](domain-inventory.md)              | Complete target paths, changed/preserved domains and SQLite boundary                  |
+| [Schemas](schemas.md)                               | Envelopes, exact fields, merge units, mutation restrictions and referenced validators |
+| [Examples](examples/README.md)                      | Concrete partial documents and expected resolution                                    |
+| [Activation and cache](activation-and-cache.md)     | Save/publication, request captures, execution admission and restart behavior          |
+| [Migration and recovery](migration-and-recovery.md) | Conversion map, health/readiness, trust, repair and crash consistency                 |
+| [Implementation plan](implementation-readiness.md)  | Delivery sequence, acceptance gates and validation                                    |
+| [Audit findings](review-findings.md)                | Evidence, corrected assumptions and deliberately excluded work                        |
 
 The schema document is normative for changed fields; existing referenced contracts remain normative for unchanged values/domains. Export JSON Schema from implemented contracts rather than maintaining a second independent validator here. Example model/account identities are illustrative, not installed resources.
 

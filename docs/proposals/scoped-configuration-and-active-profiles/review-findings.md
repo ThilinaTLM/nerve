@@ -4,25 +4,25 @@ Six read-only developer reviews covered storage/resolution, profiles/delegation,
 
 ## Corrections incorporated
 
-| Finding | Evidence / consequence |
-| --- | --- |
-| Current templates materialize values; proposal overlays are a real redesign | `contracts/src/domains/agent-profiles/applied-agent-profile.ts`, server `core-host/agent-profile-policy.ts`; do not call current snapshots full profile definitions |
-| Catalog definitions replace lower names wholesale | Profile configuration/service; preserve copy-and-shadow rather than invent sparse profile-definition inheritance |
-| Scalar queries depend on SQLite agent columns | Conversation-core `storage/conversation.repository.ts` joins `conversation_config`; replace reads/list contracts before dropping columns, no SQLite projection cache |
-| Parent copying is explicit today | Bundled Developer uses `lead`; removal is deliberate and reported, never inferred as current behavior |
-| Child resource filtering is not proof of an execution guard | Turn resources filter blocked tools; require role check at dispatch/delegation too |
-| Approval/recovery can bypass fresh supervision today | Core `tool-call.service.ts`, `tool-call-interactions.service.ts`; introduce final admission for all executable paths |
-| Request schemas and executable configuration are captured separately today | `runtime/model-turn.ts`, server tool-host/bootstrap adapters; capture non-security executor settings with the request |
-| Manual and runner retries differ | Model-turn reuses prepared manual retry; runner prepares automatic retry again; specify both |
-| Exact recovery UI already exists | `SettingsHealthWatcher.svelte`, `SettingsHealthItem.svelte`, settings-health routes, `UpgradeReportNotice.svelte`; reuse rather than create another notification system |
-| Current invalid-policy fallback permits approval | Permission adapter and health UI; replace that fallback with blocked execution, not just new wording |
-| Skill none/closed-world locks cannot become empty maps | Profile contracts/capability service; source default booleans preserve future-name restrictions |
-| Atomic file replacement is not a file/SQLite transaction | Existing file mutation primitives; add source-bound transition/repair receipts and explicit crash behavior |
-| Project trust is not uniform across domains | Permission/profile exact bytes versus suggestion predicate identity; preserve each domain's rules |
-| Agent profiles, applied snapshots, capabilities v3, harness v4 and the `agent_profile` column are unreleased | `git show v0.37.0`: released state is harness v3, capabilities v2, sparse `subagents.json` and SQLite `mode`; migrate from that baseline only |
-| Restart recovery resumes queued calls and reloads executor settings at execution today | `tool-call.service.ts` recovery, `tool-host.adapter.ts`; re-capture plus target-bound approval keeps behaviour without new storage |
-| Invalid-policy recovery uses the waiting lifecycle with an Approve bypass | `permission.adapter.ts`, `tool-call-interactions.service.ts`; reuse waiting with Retry/Cancel only |
-| Some runtime host resource settings do not round-trip through daemon schema | Record as separate follow-up, do not broaden this agent-storage migration |
+| Finding                                                                                                      | Evidence / consequence                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current templates materialize values; proposal overlays are a real redesign                                  | `contracts/src/domains/agent-profiles/applied-agent-profile.ts`, server `core-host/agent-profile-policy.ts`; do not call current snapshots full profile definitions     |
+| Catalog definitions replace lower names wholesale                                                            | Profile configuration/service; preserve copy-and-shadow rather than invent sparse profile-definition inheritance                                                        |
+| Scalar queries depend on SQLite agent columns                                                                | Conversation-core `storage/conversation.repository.ts` joins `conversation_config`; replace reads/list contracts before dropping columns, no SQLite projection cache    |
+| Parent copying is explicit today                                                                             | Bundled Developer uses `lead`; removal is deliberate and reported, never inferred as current behavior                                                                   |
+| Child resource filtering is not proof of an execution guard                                                  | Turn resources filter blocked tools; require role check at dispatch/delegation too                                                                                      |
+| Approval/recovery can bypass fresh supervision today                                                         | Core `tool-call.service.ts`, `tool-call-interactions.service.ts`; introduce final admission for all executable paths                                                    |
+| Request schemas and executable configuration are captured separately today                                   | `runtime/model-turn.ts`, server tool-host/bootstrap adapters; capture non-security executor settings with the request                                                   |
+| Manual and runner retries differ                                                                             | Model-turn reuses prepared manual retry; runner prepares automatic retry again; specify both                                                                            |
+| Exact recovery UI already exists                                                                             | `SettingsHealthWatcher.svelte`, `SettingsHealthItem.svelte`, settings-health routes, `UpgradeReportNotice.svelte`; reuse rather than create another notification system |
+| Current invalid-policy fallback permits approval                                                             | Permission adapter and health UI; replace that fallback with blocked execution, not just new wording                                                                    |
+| Skill none/closed-world locks cannot become empty maps                                                       | Profile contracts/capability service; source default booleans preserve future-name restrictions                                                                         |
+| Atomic file replacement is not a file/SQLite transaction                                                     | Existing file mutation primitives; add source-bound transition/repair receipts and explicit crash behavior                                                              |
+| Project trust is not uniform across domains                                                                  | Permission/profile exact bytes versus suggestion predicate identity; preserve each domain's rules                                                                       |
+| Agent profiles, applied snapshots, capabilities v3, harness v4 and the `agent_profile` column are unreleased | `git show v0.37.0`: released state is harness v3, capabilities v2, sparse `subagents.json` and SQLite `mode`; migrate from that baseline only                           |
+| Restart recovery resumes queued calls and reloads executor settings at execution today                       | `tool-call.service.ts` recovery, `tool-host.adapter.ts`; re-capture plus target-bound approval keeps behaviour without new storage                                      |
+| Invalid-policy recovery uses the waiting lifecycle with an Approve bypass                                    | `permission.adapter.ts`, `tool-call-interactions.service.ts`; reuse waiting with Retry/Cancel only                                                                      |
+| Some runtime host resource settings do not round-trip through daemon schema                                  | Record as separate follow-up, do not broaden this agent-storage migration                                                                                               |
 
 Source paths above are relative to the corresponding `packages/*/src/` trees. The audit is design evidence, not a certification of implementation that does not yet exist.
 

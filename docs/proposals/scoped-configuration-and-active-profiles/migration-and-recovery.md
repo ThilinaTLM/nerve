@@ -12,18 +12,18 @@ Permission failures never use an approval bypass: invalid selected ruleset, appl
 
 ## Readiness matrix
 
-| Condition | Activation | Recovery |
-| --- | --- | --- |
-| Missing optional preference/overlay file | Inherit/no overlay; do not write defaults | None required |
-| Missing existing conversation agent document | Block dependent execution; preserve history | Explicit recovery or complete interrupted migration; no silent new defaults |
-| Supported old document version | Convert before activation | Automatic registered migration with backup/verification |
-| Unknown property on supported version | Reject affected document, retain valid in-memory non-security version if available | Preview removal; explicit confirmation |
-| Invalid known value or malformed JSON | Same unavailable/retained-memory behavior; policy always blocks | Edit/reload or previewed reset; retain original bytes |
-| Unsupported future version | Do not activate, downgrade or rewrite | Upgrade application or explicitly restore/reset with backup |
-| Missing selected model/account | Retain reference; block only dependent action | Choose available resource, restore it or reset selection |
-| Missing catalog profile definition | Block selection/reapplication/new launch; valid applied snapshots keep working | Restore/select a definition when needed |
-| I/O error | Not absence; affected scope unavailable unless valid non-security memory remains | Repair storage/access; retry |
-| Corrupt disposable summary cache | Treat as empty; no agent execution blockage | Rebuild incrementally |
+| Condition                                    | Activation                                                                         | Recovery                                                                    |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Missing optional preference/overlay file     | Inherit/no overlay; do not write defaults                                          | None required                                                               |
+| Missing existing conversation agent document | Block dependent execution; preserve history                                        | Explicit recovery or complete interrupted migration; no silent new defaults |
+| Supported old document version               | Convert before activation                                                          | Automatic registered migration with backup/verification                     |
+| Unknown property on supported version        | Reject affected document, retain valid in-memory non-security version if available | Preview removal; explicit confirmation                                      |
+| Invalid known value or malformed JSON        | Same unavailable/retained-memory behavior; policy always blocks                    | Edit/reload or previewed reset; retain original bytes                       |
+| Unsupported future version                   | Do not activate, downgrade or rewrite                                              | Upgrade application or explicitly restore/reset with backup                 |
+| Missing selected model/account               | Retain reference; block only dependent action                                      | Choose available resource, restore it or reset selection                    |
+| Missing catalog profile definition           | Block selection/reapplication/new launch; valid applied snapshots keep working     | Restore/select a definition when needed                                     |
+| I/O error                                    | Not absence; affected scope unavailable unless valid non-security memory remains   | Repair storage/access; retry                                                |
+| Corrupt disposable summary cache             | Treat as empty; no agent execution blockage                                        | Rebuild incrementally                                                       |
 
 An invalid atomic field cannot be salvaged by combining fragments with defaults. An unknown field is not silently stripped; repair preview must show what will be removed. Domain classification determines whether the failure affects security, execution or only presentation.
 
@@ -61,32 +61,32 @@ Replace the unreleased `0002-agent-profiles` step and unreleased core SQL v2 wit
 
 ### Released v0.37.0 inputs
 
-| Location | Released format |
-| --- | --- |
-| User `config/harness.json`, project `.nerve/config/harness.json` | `version: 3`: `defaults` and `lastSelection` (`mode`, `permissionRuleSetId`, `model?`, `thinkingLevel`), `rememberLastSelection`, `compaction`, `retry`, `execution`, `tools`, `skills`, `scopedModels` |
-| User/project/conversation `config/capabilities.json` | `schemaVersion: 2`: `tools`, detached `toolSettings`, `skills.{file,nerve,agentBrowser}` |
-| User/project/conversation `config/subagents.json` | `schemaVersion: 1` sparse entries layered builtin → user → project → conversation: label, description, enabled, model (`"lead"` copies the parent), thinking, permission, compaction, tools, skills (inherit/disable/patch), instructions |
-| Conversation `config/harness.json` | Optional `compaction` only |
-| SQLite `conversation_config` | `model`, `reasoning_level`, `permission_rule_set_id`, `mode` (`planning`/`coding`), plus retained context `system_prompt`, `instructions`, `working_directory` |
+| Location                                                         | Released format                                                                                                                                                                                                                           |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User `config/harness.json`, project `.nerve/config/harness.json` | `version: 3`: `defaults` and `lastSelection` (`mode`, `permissionRuleSetId`, `model?`, `thinkingLevel`), `rememberLastSelection`, `compaction`, `retry`, `execution`, `tools`, `skills`, `scopedModels`                                   |
+| User/project/conversation `config/capabilities.json`             | `schemaVersion: 2`: `tools`, detached `toolSettings`, `skills.{file,nerve,agentBrowser}`                                                                                                                                                  |
+| User/project/conversation `config/subagents.json`                | `schemaVersion: 1` sparse entries layered builtin → user → project → conversation: label, description, enabled, model (`"lead"` copies the parent), thinking, permission, compaction, tools, skills (inherit/disable/patch), instructions |
+| Conversation `config/harness.json`                               | Optional `compaction` only                                                                                                                                                                                                                |
+| SQLite `conversation_config`                                     | `model`, `reasoning_level`, `permission_rule_set_id`, `mode` (`planning`/`coding`), plus retained context `system_prompt`, `instructions`, `working_directory`                                                                            |
 
 ### Conversion map
 
-| Released source | Target |
-| --- | --- |
-| Harness `defaults` permission/model/thinking, `compaction`, `retry` | Same-scope `agent.json.overrides`; `thinkingLevel` → `reasoningLevel` |
-| Harness `rememberLastSelection: true` with `lastSelection` | Its permission/model/thinking replace the corresponding same-scope defaults in `agent.json`; option and state are discarded. When disabled, `lastSelection` is discarded |
-| Harness `defaults.mode` (or `lastSelection.mode` when remembering was enabled) | `conversation-defaults.json` `defaultAgentProfile` (`planning`/`coding`) |
-| Harness `scopedModels` | `conversation-defaults.json` |
-| Harness `execution`/`tools`/`skills`, capabilities `tools` + `toolSettings` + `skills` | Same-scope `agent.json` tools/skills, joining detached settings into typed tool entries; preserve stored choices and skill source identities |
-| Conversation harness `compaction` | Conversation `agent.json.overrides.compaction` |
-| SQLite `model`/`reasoning_level`/`permission_rule_set_id` | Conversation `agent.json.overrides` as ordinary explicit choices |
-| SQLite `mode` | Conversation `appliedProfile` snapshot of the bundled Planning/Coding definition (`source: "builtin"`, its digest) |
-| User/project `subagents.json` entry `enabled`/`model`/`thinking` | Same-scope `agent.json.overrides.subagents.<name>` launch overrides |
-| User/project `subagents.json` entry with other edited fields | Complete same-scope profile file: the bundled definition (or the entry itself for a custom name) merged with the edits. Settings become **recommendations**; `usableBy: "subagent"` |
-| Conversation `subagents.json` | `enabled`/`model`/`thinking` → conversation `overrides.subagents`; other fields are dropped and listed in the upgrade report |
-| Sub-agent model `"lead"` | Omitted (Use settings); reported as a removed parent-copy behaviour |
-| Sub-agent skills `disable` / `patch` | All three source defaults false / named entries; never empty maps |
-| Existing child conversations | `frozenDefaults` from the child's released effective settings (columns, capabilities, compaction); no requirements; behaviour unchanged |
+| Released source                                                                        | Target                                                                                                                                                                              |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Harness `defaults` permission/model/thinking, `compaction`, `retry`                    | Same-scope `agent.json.overrides`; `thinkingLevel` → `reasoningLevel`                                                                                                               |
+| Harness `rememberLastSelection: true` with `lastSelection`                             | Its permission/model/thinking replace the corresponding same-scope defaults in `agent.json`; option and state are discarded. When disabled, `lastSelection` is discarded            |
+| Harness `defaults.mode` (or `lastSelection.mode` when remembering was enabled)         | `conversation-defaults.json` `defaultAgentProfile` (`planning`/`coding`)                                                                                                            |
+| Harness `scopedModels`                                                                 | `conversation-defaults.json`                                                                                                                                                        |
+| Harness `execution`/`tools`/`skills`, capabilities `tools` + `toolSettings` + `skills` | Same-scope `agent.json` tools/skills, joining detached settings into typed tool entries; preserve stored choices and skill source identities                                        |
+| Conversation harness `compaction`                                                      | Conversation `agent.json.overrides.compaction`                                                                                                                                      |
+| SQLite `model`/`reasoning_level`/`permission_rule_set_id`                              | Conversation `agent.json.overrides` as ordinary explicit choices                                                                                                                    |
+| SQLite `mode`                                                                          | Conversation `appliedProfile` snapshot of the bundled Planning/Coding definition (`source: "builtin"`, its digest)                                                                  |
+| User/project `subagents.json` entry `enabled`/`model`/`thinking`                       | Same-scope `agent.json.overrides.subagents.<name>` launch overrides                                                                                                                 |
+| User/project `subagents.json` entry with other edited fields                           | Complete same-scope profile file: the bundled definition (or the entry itself for a custom name) merged with the edits. Settings become **recommendations**; `usableBy: "subagent"` |
+| Conversation `subagents.json`                                                          | `enabled`/`model`/`thinking` → conversation `overrides.subagents`; other fields are dropped and listed in the upgrade report                                                        |
+| Sub-agent model `"lead"`                                                               | Omitted (Use settings); reported as a removed parent-copy behaviour                                                                                                                 |
+| Sub-agent skills `disable` / `patch`                                                   | All three source defaults false / named entries; never empty maps                                                                                                                   |
+| Existing child conversations                                                           | `frozenDefaults` from the child's released effective settings (columns, capabilities, compaction); no requirements; behaviour unchanged                                             |
 
 Existing per-conversation values are not compared with defaults to infer intent; they stay as explicit choices that the user can reset. The upgrade report lists dropped conversation sub-agent fields, removed parent-copy behaviour, folded remembered selections and re-granted project trust.
 

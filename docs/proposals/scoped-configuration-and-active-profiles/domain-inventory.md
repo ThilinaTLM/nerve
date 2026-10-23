@@ -43,18 +43,18 @@ Released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` at use
 
 Paths are relative to their stated root. Schemas are defined under `packages/contracts/src/domains/` unless otherwise noted.
 
-| Domain | Scope and schema | Behavior |
-| --- | --- | --- |
-| Daemon | User `config/daemon.json`; `settings/home-configuration.ts:daemonConfigSchema` v1 | Network, diagnostics, process, logging, Electron settings. Preserve environment/CLI precedence and restart metadata. |
-| UI | User `config/ui.json`; `uiConfigSchema` v1 | Appearance, desktop, notifications, transcription preferences. Not agent inheritance. |
-| Providers | User `config/providers.json`; `providersConfigSchema` v1 | Provider/model/authentication catalogs; literal header values and credential references retain their distinction. |
-| Integrations | User `config/integrations.json`; `integrationsConfigSchema` v2 | Atlassian/Tavily account metadata and credential references. Scoped agent tools select account IDs only. |
-| Permissions | All three `config/permissions.json`; `permissions/permission-rule-sets.ts:permissionOverlayDocumentSchema` v2 | Ruleset-keyed overlays; not generic JSON preference merging. |
-| Ruleset definitions | User `config/rule-sets/*.json`, bundled built-ins; `permissionRuleSetSchema` v1 | Preserve baseline/selected ruleset and enforcement/scope/priority semantics and authored-guardrail restrictions. |
-| Suggestion enablement | User `config/prompt-suggestions.json` v1 | `enabled` map keyed by current definition keys; no new project/conversation preference scope. |
-| Suggestion definitions | Existing Markdown locations above | Preserve frontmatter/body, project shadowing, and predicate-based trust. No conversation definitions. |
-| Launch definitions | Project `.nerve/launches/definitions.json` v2 | Preserve folders/definitions, IDs, command/cwd/port, run policy, ordering, revision checks and locks. Execution records/logs remain runtime state. |
-| Secrets | User `secrets/` | Existing encrypted credentials, master key and daemon token; never included in agent snapshots or profile JSON. |
+| Domain                 | Scope and schema                                                                                              | Behavior                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daemon                 | User `config/daemon.json`; `settings/home-configuration.ts:daemonConfigSchema` v1                             | Network, diagnostics, process, logging, Electron settings. Preserve environment/CLI precedence and restart metadata.                               |
+| UI                     | User `config/ui.json`; `uiConfigSchema` v1                                                                    | Appearance, desktop, notifications, transcription preferences. Not agent inheritance.                                                              |
+| Providers              | User `config/providers.json`; `providersConfigSchema` v1                                                      | Provider/model/authentication catalogs; literal header values and credential references retain their distinction.                                  |
+| Integrations           | User `config/integrations.json`; `integrationsConfigSchema` v2                                                | Atlassian/Tavily account metadata and credential references. Scoped agent tools select account IDs only.                                           |
+| Permissions            | All three `config/permissions.json`; `permissions/permission-rule-sets.ts:permissionOverlayDocumentSchema` v2 | Ruleset-keyed overlays; not generic JSON preference merging.                                                                                       |
+| Ruleset definitions    | User `config/rule-sets/*.json`, bundled built-ins; `permissionRuleSetSchema` v1                               | Preserve baseline/selected ruleset and enforcement/scope/priority semantics and authored-guardrail restrictions.                                   |
+| Suggestion enablement  | User `config/prompt-suggestions.json` v1                                                                      | `enabled` map keyed by current definition keys; no new project/conversation preference scope.                                                      |
+| Suggestion definitions | Existing Markdown locations above                                                                             | Preserve frontmatter/body, project shadowing, and predicate-based trust. No conversation definitions.                                              |
+| Launch definitions     | Project `.nerve/launches/definitions.json` v2                                                                 | Preserve folders/definitions, IDs, command/cwd/port, run policy, ordering, revision checks and locks. Execution records/logs remain runtime state. |
+| Secrets                | User `secrets/`                                                                                               | Existing encrypted credentials, master key and daemon token; never included in agent snapshots or profile JSON.                                    |
 
 Trust identity is domain-specific: permission/project profile content uses exact-byte identity; suggestion trust uses executable predicate identity. Repairs and migrations do not grant trust implicitly. Explicit UI authoring may retain existing separately consented trust behavior.
 

@@ -42,16 +42,16 @@ Retire migrated harness/capability/applied-policy readers and SQLite agent-colum
 
 ## Acceptance matrix
 
-| Area | Required scenarios |
-| --- | --- |
-| Resolution | Empty/sparse overrides, field resets, false, atomic model/union, source defaults, requirement overlap, effective provenance |
-| Profiles | Switch/reapply, unchanged old snapshot after catalog edit/delete, exact trust on new apply, Planning requirements, explicit custom shadowing |
-| Children | No parent inheritance, project→conversation launch overrides, frozen full preferences, live independent security policy, role-projected resources, execution-level delegation rejection |
-| Activation | Request capture vs current policy, retries/compaction, parallel admission, approval recheck, current launch enablement |
-| Persistence | Stale revision/digest, missing optional file, missing required conversation file, publication failure, disposable cache loss |
-| Recovery | Unknown field, malformed JSON, future version, invalid/missing references, unreadable storage, invalid required policy, first-load blocked feature, runtime retained memory |
-| Migration | Every v0.37.0 input, sub-agent split, skill disable/patch, renamed fields, parent-copy removal, re-granted trust, export/drop ordering, interrupted receipts and target collisions |
-| UI | Source labels, locked controls, repair preview vs dismissal, activity/toast reuse, update-profile notice, unknown list summaries |
+| Area        | Required scenarios                                                                                                                                                                      |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resolution  | Empty/sparse overrides, field resets, false, atomic model/union, source defaults, requirement overlap, effective provenance                                                             |
+| Profiles    | Switch/reapply, unchanged old snapshot after catalog edit/delete, exact trust on new apply, Planning requirements, explicit custom shadowing                                            |
+| Children    | No parent inheritance, project→conversation launch overrides, frozen full preferences, live independent security policy, role-projected resources, execution-level delegation rejection |
+| Activation  | Request capture vs current policy, retries/compaction, parallel admission, approval recheck, current launch enablement                                                                  |
+| Persistence | Stale revision/digest, missing optional file, missing required conversation file, publication failure, disposable cache loss                                                            |
+| Recovery    | Unknown field, malformed JSON, future version, invalid/missing references, unreadable storage, invalid required policy, first-load blocked feature, runtime retained memory             |
+| Migration   | Every v0.37.0 input, sub-agent split, skill disable/patch, renamed fields, parent-copy removal, re-granted trust, export/drop ordering, interrupted receipts and target collisions      |
+| UI          | Source labels, locked controls, repair preview vs dismissal, activity/toast reuse, update-profile notice, unknown list summaries                                                        |
 
 ## Validation
 

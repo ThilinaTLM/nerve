@@ -6,10 +6,10 @@ JSON owns persisted agent settings. SQLite owns conversation identity, relations
 
 Configuration roots are:
 
-| Scope | Root |
-| --- | --- |
-| User | `<NERVE_HOME>/config/` |
-| Project | `<project>/.nerve/config/` |
+| Scope        | Root                                           |
+| ------------ | ---------------------------------------------- |
+| User         | `<NERVE_HOME>/config/`                         |
+| Project      | `<project>/.nerve/config/`                     |
 | Conversation | `<NERVE_HOME>/data/conversations/<id>/config/` |
 
 Use domain files. `agent.json` contains agent choices; a conversation's file also contains its applied profile contribution, allowing one atomic profile/model change. Other domains retain the ownership and paths in [the registry](domain-inventory.md).
@@ -32,10 +32,10 @@ Missing preference fields inherit. Explicit false disables. Reset removes an ove
 
 The profile editor has exactly three behaviors:
 
-| Behavior | Meaning |
-| --- | --- |
-| Use settings | No profile contribution. Includes explicit conversation choices, then project/user/built-in defaults. |
-| Recommend | Supplies a value unless the conversation explicitly chooses another. |
+| Behavior       | Meaning                                                                                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Use settings   | No profile contribution. Includes explicit conversation choices, then project/user/built-in defaults.                                                                                                                                                            |
+| Recommend      | Supplies a value unless the conversation explicitly chooses another.                                                                                                                                                                                             |
 | Require (lock) | Temporarily controls the effective value; the underlying conversation choice is unchanged and its effective control is disabled. Switching to a profile that does not require the field lifts the lock and reveals the conversation choice or inherited default. |
 
 There is no Set operation that writes profile values into conversation overrides, no Reset-to-settings profile operation, and no Same-as-parent mode. Application authorization restrictions remain authoritative regardless of preference precedence.
@@ -53,6 +53,8 @@ Profile instructions contribute to the built system prompt; they do not overwrit
 ## Planning and approval
 
 Planning requires the planning permission selection and `plan_present.enabled = true`. Coding contributes its own instructions and otherwise uses settings unless explicitly configured. Removing Planning reveals underlying permissions and tool selections; Coding does not silently grant write permission or force Plan Present off.
+
+Planning enforcement is the planning permission ruleset plus Plan Present; there is no separate planning-mode branch. The v0.37.0 Python workspace-write guard tied to planning mode is intentionally not carried over. Planning guidance stays in the bundled profile's short instructions, which point to the planning skill; keep the token-efficient system prompt and tool descriptions from [System prompt, tool descriptions, and agent profiles](../system-prompt-and-agent-profiles.md) rather than restoring v0.37.0's hardcoded planning prompt text.
 
 A plan review captures the target profile name and content digest. Approval previews the target's requirements and disables incompatible implementation model/reasoning choices. If the target changes, becomes unavailable/untrusted, or submitted choices conflict with requirements, reject the approval transition and request refreshed confirmation. Do not silently substitute another model.
 
