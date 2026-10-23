@@ -4,12 +4,8 @@
   Agent → General.
 -->
 <script lang="ts">
-import type {
-  AuthProviderMetadata,
-  ModelInfo,
-  ModelSelection,
-  Settings,
-} from "$lib/api";
+import { Button } from "@nervekit/ui-kit/components/ui/button";
+import type { AuthProviderMetadata, ModelInfo, ModelSelection } from "$lib/api";
 import ModelMultiSelect from "$lib/presentation/model-picker/ModelMultiSelect.svelte";
 import {
   SettingsInlineMessage,
@@ -19,40 +15,40 @@ import {
   authenticatedRealModelOptions,
   modelKey,
 } from "$lib/presentation/utils/model";
-import type { SettingsChange } from "../settings-change";
+import { CreationPreferencesState } from "../../../state/creation-preferences.svelte";
 
 type Props = {
-  settingsDraft: Settings;
   models?: ModelInfo[];
   authProviders?: AuthProviderMetadata[];
-  onSettingsChange?: SettingsChange;
 };
-let {
-  settingsDraft,
-  models = [],
-  authProviders = [],
-  onSettingsChange,
-}: Props = $props();
+let { models = [], authProviders = [] }: Props = $props();
 
+const preferences = new CreationPreferencesState();
+$effect(() => {
+  void preferences.load({ scope: "user" });
+});
+$effect(() => preferences.observe());
+const available = $derived(
+  preferences.result?.status === "available" ? preferences.result : undefined,
+);
+const scopedModels = $derived(available?.effective.scopedModels ?? []);
 const availableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
 const staleCount = $derived.by(() => {
   const available = new Set(availableModels.map(modelKey));
-  return settingsDraft.scopedModels.filter(
-    (selection) => !available.has(modelKey(selection)),
-  ).length;
+  return scopedModels.filter((selection) => !available.has(modelKey(selection)))
+    .length;
 });
 
 function commitScopedModels(next: ModelSelection[]): void {
-  settingsDraft.scopedModels = next;
-  onSettingsChange?.({ scopedModels: next }, { immediate: true });
+  void preferences.save({ scopedModels: next });
 }
 </script>
 
 <SettingsInlineMessage
   tone="neutral"
-  text="An empty scope offers every authenticated model. The default model and reasoning level are set in Agent → General."
+  text="An empty scope offers every authenticated model. Choose a model and reasoning level in the conversation."
 />
 
 <SettingsSection id="models" title="Model scope">
@@ -61,12 +57,20 @@ function commitScopedModels(next: ModelSelection[]): void {
       tone="info"
       text="Authenticate a provider before choosing scoped models."
     />
-  {:else}
+  {:else if available && !preferences.saving}
     <ModelMultiSelect
       models={availableModels}
-      scopedModels={settingsDraft.scopedModels}
+      {scopedModels}
       onScopedModelsChange={commitScopedModels}
     />
+    {#if available.overrides.scopedModels !== undefined}
+      <Button
+        variant="ghost"
+        disabled={preferences.saving}
+        onclick={() => preferences.save({}, ["/overrides/scopedModels"])}
+        >Reset model scope</Button
+      >
+    {/if}
     {#if staleCount > 0}
       <SettingsInlineMessage
         tone="warning"
@@ -75,3 +79,8 @@ function commitScopedModels(next: ModelSelection[]): void {
     {/if}
   {/if}
 </SettingsSection>
+
+{#if preferences.error}<SettingsInlineMessage
+    tone="destructive"
+    text={preferences.error}
+  />{/if}

@@ -1,9 +1,4 @@
 import { SuggestionsPageState } from "./suggestions/suggestions-page-state.svelte";
-import {
-  emptyCapabilityOverrides,
-  type CapabilityConfiguration,
-  type CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
 import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
 import type { Project } from "@nervekit/contracts/core";
 import {
@@ -11,21 +6,11 @@ import {
   profileKindForPage,
   storedUsableBy,
 } from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
-import type { ProjectHarnessOverrides } from "@nervekit/contracts/settings";
 import {
   readAgentProfiles,
   resetAgentProfile,
 } from "$lib/features/settings/api/agent-profiles.api";
-import {
-  readProjectSettings,
-  updateProjectSettings,
-} from "$lib/features/settings/api/project-settings.api";
-import {
-  harnessResetPatch,
-  projectPageDiffs,
-  skillsResetPatch,
-  toolsResetPatch,
-} from "./project-diff";
+import { projectPageDiffs } from "./project-diff";
 import type { LaunchDefinitionCatalog } from "@nervekit/contracts/launch-definitions";
 import {
   deleteLaunchDefinition,
@@ -36,16 +21,7 @@ import type { InstructionsFile } from "$lib/features/settings/views/pages/projec
 import type { LaunchDefinitionRow } from "$lib/features/settings/views/pages/project/LaunchSettingsPage.svelte";
 import type { TrustEntry } from "$lib/features/settings/views/pages/project/TrustSettingsPage.svelte";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
-import { createCapabilityMutationQueue } from "$lib/domain/capabilities/capability-mutation-queue";
-import {
-  getCapabilityConfiguration,
-  updateCapabilities,
-  trustCapabilities,
-} from "$lib/features/conversations/adapters/core-capabilities.adapter";
-import {
-  observeConversationChannel,
-  requestConversation,
-} from "$lib/application/startup/conversation-connection";
+import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 import { onEvent } from "$lib/application/events/workbench-event-bus";
 import { PermissionsPageController } from "$lib/features/settings/views/pages/permissions/permissions-page-state.svelte";
 import { StoragePageController } from "$lib/features/settings/views/pages/storage/storage-page-state.svelte";
@@ -59,35 +35,7 @@ export function createSettingsPageControllers(deps: {
     const target = deps.target();
     return target.kind === "project" ? target.projectId : undefined;
   };
-  let capabilityConfiguration = $state<CapabilityConfiguration>();
-  let capabilityLoading = $state(false);
-  let capabilityError = $state<string>();
-  let capabilityRequest = 0;
-
-  async function loadProjectCapabilities(): Promise<void> {
-    const projectId = targetProjectId();
-    const request = ++capabilityRequest;
-    capabilityError = undefined;
-    if (!projectId) {
-      capabilityConfiguration = undefined;
-      return;
-    }
-    capabilityLoading = true;
-    try {
-      const configuration = await getCapabilityConfiguration(projectId);
-      if (request === capabilityRequest)
-        capabilityConfiguration = configuration;
-    } catch (error) {
-      if (request === capabilityRequest)
-        capabilityError =
-          error instanceof Error ? error.message : String(error);
-    } finally {
-      if (request === capabilityRequest) capabilityLoading = false;
-    }
-  }
-
   /** What the project stores outside capabilities; see `pageDiffs`. */
-  let harnessOverrides = $state.raw<ProjectHarnessOverrides>();
   let profileFiles = $state.raw<
     {
       name: string;
@@ -101,17 +49,12 @@ export function createSettingsPageControllers(deps: {
     const projectId = targetProjectId();
     const request = ++diffRequest;
     if (!projectId) {
-      harnessOverrides = undefined;
       profileFiles = [];
       return;
     }
     try {
-      const [settings, profiles] = await Promise.all([
-        readProjectSettings(projectId),
-        readAgentProfiles({ scope: "project", projectId }),
-      ]);
+      const profiles = await readAgentProfiles({ scope: "project", projectId });
       if (request !== diffRequest) return;
-      harnessOverrides = settings.overrides;
       profileFiles = profiles.profiles
         .filter((profile) => profile.local !== null)
         .map((profile) => ({
@@ -202,23 +145,8 @@ export function createSettingsPageControllers(deps: {
   /** Capabilities and permissions files; profile files list themselves. */
   function trustEntries(): TrustEntry[] {
     const projectId = targetProjectId();
-    const capabilities = capabilityConfiguration?.trust;
     const permissions = permissionsController.configuration?.projectTrust;
     return [
-      ...(capabilities
-        ? [
-            {
-              id: "capabilities",
-              path: ".nerve/config/capabilities.json",
-              description: "Tool and skill selections for this project.",
-              status: capabilities.status,
-              detail:
-                "reason" in capabilities ? capabilities.reason : undefined,
-              onTrust: () => void setProjectCapabilityTrust(true),
-              onRevoke: () => void setProjectCapabilityTrust(false),
-            } satisfies TrustEntry,
-          ]
-        : []),
       ...(permissions && projectId
         ? [
             {
@@ -237,7 +165,6 @@ export function createSettingsPageControllers(deps: {
   $effect(() => {
     const projectId = targetProjectId();
     if (projectId) {
-      void loadProjectCapabilities();
       void loadProjectDiff();
       void loadInstructionsFiles();
       void loadLaunchCatalog();
@@ -245,59 +172,9 @@ export function createSettingsPageControllers(deps: {
     }
   });
 
-  /** Mutations are serialized so each one sends the digest the server just echoed. */
-  const capabilityMutations = createCapabilityMutationQueue();
-
-  async function runCapabilityMutation(
-    mutation: () => Promise<CapabilityConfiguration | void>,
-  ): Promise<void> {
-    await capabilityMutations.run(async () => {
-      try {
-        const configuration = await mutation();
-        if (configuration) capabilityConfiguration = configuration;
-        else await loadProjectCapabilities();
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        await loadProjectCapabilities();
-        capabilityError = message;
-      }
-    });
-  }
-
-  async function patchProjectCapabilities(
-    patch: CapabilityPatch,
-  ): Promise<void> {
-    const project = deps.project();
-    if (!project || !capabilityConfiguration) return;
-    // The digest is read when the mutation runs, after any queued write applied.
-    await runCapabilityMutation(() =>
-      updateCapabilities({
-        projectId: project.id,
-        layer: "project",
-        patch,
-        expectedDigest: capabilityConfiguration?.projectDigest,
-      }),
-    );
-  }
-
-  async function resetProjectCapabilities(): Promise<void> {
-    const project = deps.project();
-    if (!project || !capabilityConfiguration) return;
-    await runCapabilityMutation(() =>
-      updateCapabilities({
-        projectId: project.id,
-        layer: "project",
-        replace: emptyCapabilityOverrides(),
-        expectedDigest: capabilityConfiguration?.projectDigest,
-      }),
-    );
-  }
-
   /** Pages where this project differs from the user's settings, with counts. */
   function pageDiffs() {
     return projectPageDiffs({
-      harness: harnessOverrides,
-      capabilities: capabilityConfiguration?.project,
       agentFiles: profileFileCount(profileFiles, "lead"),
       subAgentFiles: profileFileCount(profileFiles, "subagent"),
     });
@@ -307,22 +184,7 @@ export function createSettingsPageControllers(deps: {
   async function resetProjectPage(pageId: string): Promise<void> {
     const projectId = targetProjectId();
     if (!projectId) return;
-    const capabilities = capabilityConfiguration?.project;
     switch (pageId) {
-      case "general":
-        await updateProjectSettings(
-          projectId,
-          harnessResetPatch(harnessOverrides),
-        );
-        break;
-      case "tools":
-        if (capabilities)
-          await patchProjectCapabilities(toolsResetPatch(capabilities));
-        break;
-      case "skills":
-        if (capabilities)
-          await patchProjectCapabilities(skillsResetPatch(capabilities));
-        break;
       case "agents":
       case "sub-agents":
         for (const file of profileFiles.filter(
@@ -340,37 +202,10 @@ export function createSettingsPageControllers(deps: {
     await loadProjectDiff();
   }
 
-  async function setProjectCapabilityTrust(trusted: boolean): Promise<void> {
-    const project = deps.project();
-    if (!project || !capabilityConfiguration) return;
-    await runCapabilityMutation(async () => {
-      const digest = capabilityConfiguration?.projectDigest;
-      if (!digest)
-        throw new Error("Project capability configuration is not loaded.");
-      if (trusted) return trustCapabilities(project.id, digest);
-      const resources = await requestConversation("trust.list", {
-        projectId: project.id,
-        kind: "project_capabilities",
-      });
-      const path =
-        project.directory.replaceAll("\\", "/").replace(/\/$/, "") +
-        "/.nerve/config/capabilities.json";
-      for (const resource of resources) {
-        if (resource.path.replaceAll("\\", "/") === path)
-          await requestConversation("trust.delete", {
-            trustedResourceId: resource.id,
-          });
-      }
-      return getCapabilityConfiguration(project.id);
-    });
-  }
-
   $effect(() => {
     const refresh = () =>
       targetProjectId()
-        ? Promise.all([loadProjectCapabilities(), loadProjectDiff()]).then(
-            () => undefined,
-          )
+        ? Promise.all([loadProjectDiff()]).then(() => undefined)
         : Promise.resolve();
     const stop = observeConversationChannel({
       recover: refresh,
@@ -378,9 +213,9 @@ export function createSettingsPageControllers(deps: {
       event() {},
       notice(notice) {
         if (
-          notice.type === "capabilities.changed" &&
-          notice.data.projectId === targetProjectId() &&
-          !notice.data.conversationId
+          notice.type === "agentConfiguration.changed" &&
+          notice.data.scope.scope === "project" &&
+          notice.data.scope.projectId === targetProjectId()
         )
           void refresh();
       },
@@ -399,16 +234,6 @@ export function createSettingsPageControllers(deps: {
   const permissionsController = new PermissionsPageController();
   const suggestionsPageState = new SuggestionsPageState();
   return {
-    get capabilityConfiguration() {
-      return capabilityConfiguration;
-    },
-    get capabilityLoading() {
-      return capabilityLoading;
-    },
-    get capabilityError() {
-      return capabilityError;
-    },
-    loadProjectCapabilities,
     get instructionsFiles() {
       return instructionsFiles;
     },
@@ -420,9 +245,6 @@ export function createSettingsPageControllers(deps: {
     trustEntries,
     pageDiffs,
     resetProjectPage,
-    patchProjectCapabilities,
-    resetProjectCapabilities,
-    setProjectCapabilityTrust,
     suggestionsPageState,
     storageController,
     permissionsController,

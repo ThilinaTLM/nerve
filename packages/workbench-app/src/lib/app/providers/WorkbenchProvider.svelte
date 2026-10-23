@@ -74,7 +74,7 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { lockedFieldsOf } from "$lib/application/agent-profiles/applied-locks";
+import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 
 type Props = {
   children?: Snippet;
@@ -95,25 +95,45 @@ $effect(() => {
   void retained.ready.catch(() => undefined);
   return retained.release;
 });
-const config = $derived(activeStore?.snapshot?.config);
+const effective = $derived(
+  activeStore?.effective?.status === "available"
+    ? activeStore.effective
+    : undefined,
+);
+const config = $derived(effective?.resolution.settings);
+const creationPreferences = new CreationPreferencesState();
+$effect(() => {
+  if (activeProject?.id)
+    void creationPreferences.load({
+      scope: "project",
+      projectId: activeProject.id,
+    });
+});
+$effect(() => creationPreferences.observe());
 const activeConversation = $derived(activeStore?.snapshot?.conversation);
 const activeCenterTab = $derived(workspaceSelectors.activeCenterTab);
 const centerTabs = $derived(workspaceSelectors.centerTabs);
 const hasDirtyFiles = $derived(hasDirtyFileViews());
-const selectedAgentProfile = $derived(config?.agentProfile ?? "");
+const selectedAgentProfile = $derived(effective?.appliedProfile?.name ?? "");
 const agentProfileNames = $derived(
   leadAgentProfiles(
     agentProfileCatalog.profiles(activeConversation?.projectId),
   ).map((profile) => profile.name),
 );
-const lockedFields = $derived(
-  lockedFieldsOf(activeStore?.snapshot?.appliedAgentProfile),
-);
+const lockedFields = $derived({
+  permission:
+    effective?.resolution.provenance["/permissionRuleSetId"]?.source ===
+    "requirement",
+  model: effective?.resolution.provenance["/model"]?.source === "requirement",
+  thinking:
+    effective?.resolution.provenance["/reasoningLevel"]?.source ===
+    "requirement",
+});
 $effect(() => {
   if (activeConversation)
     void agentProfileCatalog.ensure(activeConversation.projectId);
 });
-const selectedModelKey = $derived(config ? modelKey(config.model) : "");
+const selectedModelKey = $derived(config?.model ? modelKey(config.model) : "");
 const selectedPermissionRuleSetId = $derived(
   config?.permissionRuleSetId ?? "supervised",
 );
@@ -129,7 +149,9 @@ const usableModels = $derived(
   scopedUsableModelOptions(
     settingsState.models,
     settingsState.authProviders,
-    settingsDraft?.scopedModels,
+    creationPreferences.result?.status === "available"
+      ? creationPreferences.result.effective.scopedModels
+      : undefined,
   ),
 );
 const currentZoomLevel = $derived(
@@ -200,7 +222,7 @@ const appShortcuts = createAppShortcuts({
   },
   selectedThinkingLevel: () => selectedThinkingLevel,
   setComposerThinkingLevel: async (reasoningLevel) => {
-    if (lockedFields.model) return;
+    if (lockedFields.thinking) return;
     await activeStore?.configure({ reasoningLevel });
   },
   agentProfileNames: () => agentProfileNames,

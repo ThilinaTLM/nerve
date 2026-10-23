@@ -1,9 +1,7 @@
 <script lang="ts">
-import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
-import type { CapabilityPatch } from "@nervekit/contracts/capabilities";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { listTools, uploadAttachment } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
@@ -33,21 +31,7 @@ import type { PromptComposerProps } from "$lib/features/conversations/views/prom
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
 import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
-import {
-  getCapabilityConfiguration,
-  updateCapabilities,
-} from "$lib/features/conversations/adapters/core-capabilities.adapter";
-import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
-import { observeConversationChannel } from "$lib/application/startup/conversation-connection";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
-import { onEvent } from "$lib/application/events/workbench-event-bus";
-import {
-  ComposerCapabilityController,
-  canEditComposerDelegation,
-  type ComposerCapabilityState,
-} from "./composer-capability-controller";
-import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
-import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
 import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
 import { bindComposerVoiceInput } from "./composer-voice-input";
@@ -144,84 +128,6 @@ let lastFocusToken: number | undefined;
 let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
-let capabilityState = $state<ComposerCapabilityState>({
-  skills: [],
-  loading: false,
-  mutating: false,
-});
-const capabilityController = new ComposerCapabilityController({
-  getConfiguration: getCapabilityConfiguration,
-  listSkills: listAvailableSkills,
-  updateConfiguration: updateCapabilities,
-  onStateChange: (state) => {
-    capabilityState = state;
-  },
-});
-const pendingProfile = $derived(
-  agentProfileCatalog
-    .profiles(activePendingConversation?.projectId)
-    .find(
-      (profile) => profile.name === activePendingConversation?.agentProfile,
-    ),
-);
-const capabilityConfiguration = $derived(capabilityState.configuration);
-const capabilitySkills = $derived(capabilityState.skills);
-const capabilityLoading = $derived(
-  capabilityState.loading || capabilityState.mutating,
-);
-const capabilityError = $derived(capabilityState.error);
-/** Profiles the lead can delegate to; their settings live in Settings → Sub-agents. */
-const capabilitySubagentProfiles = $derived(
-  agentProfileCatalog
-    .profiles(activeProject?.id)
-    .filter((profile) => profile.usableBy !== "lead")
-    .map((profile) => ({
-      name: profile.name,
-      label: profile.label,
-      description: profile.description,
-      disabled: !profile.enabled,
-      error: profile.error,
-    })),
-);
-/** Tool group whose conversation-level settings dialog is open. */
-let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
-const capabilityScopeKey = $derived(
-  `${activeProject?.id ?? "none"}:${activeConversation?.id ?? activePendingConversation?.id ?? "none"}:${interactive}`,
-);
-$effect(() => {
-  const progressive = workbenchStartupState.progressiveActive;
-  const project = activeProject;
-  const conversation = activeConversation;
-  const pending = activePendingConversation;
-  // A settings dialog belongs to the conversation it was opened for.
-  configuringToolGroup = undefined;
-  if (!progressive || !project) {
-    capabilityController.setScope(undefined);
-  } else if (conversation) {
-    capabilityController.setScope({
-      kind: "conversation",
-      key: `project:${project.id}:conversation:${conversation.id}`,
-      projectId: project.id,
-      conversationId: conversation.id,
-    });
-  } else if (pending) {
-    capabilityController.setScope({
-      kind: "pending",
-      key: `project:${project.id}:pending:${pending.id}:profile:${JSON.stringify(pendingProfile)}`,
-      projectId: project.id,
-      pendingId: pending.id,
-      profile: pendingProfile,
-      config: pending.config,
-      overrides: pending.capabilityOverrides,
-      onOverridesChange: (overrides) => {
-        pending.capabilityOverrides = overrides;
-      },
-    });
-  } else {
-    capabilityController.setScope(undefined);
-  }
-});
-
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !activeProject) return;
   void listTools()
@@ -232,57 +138,6 @@ $effect(() => {
     })
     .catch(() => undefined);
 });
-
-onDestroy(() => capabilityController.setScope(undefined));
-
-/* Project and user level changes made elsewhere must not leave the composer
- * showing a stale effective state. */
-$effect(() => {
-  const unsubscribes = [
-    observeConversationChannel({
-      recover: () => capabilityController.refresh(),
-      disconnected() {},
-      event() {},
-      notice(notice) {
-        // Applying a profile writes tool policy as part of conversation.config.
-        if (
-          notice.type === "conversation.config" &&
-          notice.data.conversationId === activeConversation?.id
-        ) {
-          void capabilityController.refresh();
-          return;
-        }
-        if (notice.type !== "capabilities.changed") return;
-        const data = notice.data;
-        if (data.projectId !== activeProject?.id) return;
-        if (
-          data.conversationId !== undefined &&
-          data.conversationId !== activeConversation?.id
-        )
-          return;
-        void capabilityController.refresh();
-      },
-    }),
-    onEvent("projectSettings.changed", (event) => {
-      if (event.data.projectId === activeProject?.id)
-        void capabilityController.refresh();
-    }),
-    onEvent("settings.updated", () => {
-      void capabilityController.refresh();
-    }),
-  ];
-  return () => {
-    for (const unsubscribe of unsubscribes) unsubscribe();
-  };
-});
-
-function patchCapabilities(patch: CapabilityPatch): Promise<void> {
-  return capabilityController.patch(patch);
-}
-
-function resetCapabilities(): Promise<void> {
-  return capabilityController.reset();
-}
 
 const micShortcut = getShortcutLabel("composer.toggleMic");
 const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
@@ -679,18 +534,6 @@ function handleMicContextMenu(event: MouseEvent) {
     todos,
     slashCompletions,
     completionSource,
-    capabilityConfiguration,
-    capabilitySkills,
-    capabilityLoading,
-    capabilityError,
-    capabilityScopeKey,
-    capabilitySubagentProfiles,
-    subagentControlsEnabled: canEditComposerDelegation(
-      activeProject?.id,
-      activeConversation,
-      activePendingConversation,
-      interactive,
-    ),
     capabilities: {
       voice: true,
       imagePaste: true,
@@ -718,12 +561,6 @@ function handleMicContextMenu(event: MouseEvent) {
     onRefreshPermissionRuleSets,
     onOpenPermissionSettings,
     onOpenCapabilitySettings,
-    onCapabilityPatch: (patch) => void patchCapabilities(patch),
-    onConfigureCapabilityTool: (group) => {
-      configuringToolGroup = group;
-    },
-    onResetCapabilities: () => void resetCapabilities(),
-    onRefreshCapabilities: () => void capabilityController.refresh(),
     onPasteImage: pasteImage,
     onDropFiles: dropFiles,
     onAttachFile: attachFile,
@@ -791,11 +628,3 @@ function handleMicContextMenu(event: MouseEvent) {
 </AgentComposer>
 
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
-
-<ConversationToolSettingsDialog
-  configuration={capabilityConfiguration}
-  group={configuringToolGroup}
-  projectId={activeProject?.id}
-  onPatch={(patch) => void patchCapabilities(patch)}
-  onClose={() => (configuringToolGroup = undefined)}
-/>

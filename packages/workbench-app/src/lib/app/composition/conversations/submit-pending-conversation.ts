@@ -1,12 +1,9 @@
-import {
-  capabilityOverridesDocumentSchema,
-  emptyCapabilityOverrides,
-  type CapabilityOverridesDocument,
-} from "@nervekit/contracts/capabilities";
-import {
-  conversationConfigSchema,
-  type ConversationConfig,
-} from "@nervekit/contracts/core";
+import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
+import type { OperationParams } from "@nervekit/contracts/operations";
+import type {
+  LeadSettingsOverrides,
+  ProfileTarget,
+} from "@nervekit/contracts/agent-configuration";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 
 type PendingSubmission = Pick<
@@ -15,7 +12,7 @@ type PendingSubmission = Pick<
   | "title"
   | "explicitAgentProfile"
   | "config"
-  | "capabilityOverrides"
+  | "overrides"
   | "createdConversationId"
 >;
 type SnapshotIdentity = {
@@ -23,40 +20,24 @@ type SnapshotIdentity = {
   config: { agentProfile: string };
 };
 type Dependencies<Snapshot extends SnapshotIdentity> = {
-  create(input: {
-    projectId: string;
-    title: string;
-    config: Omit<ConversationConfig, "conversationId" | "agentProfile"> & {
-      agentProfile?: string;
-    };
-    /** Applied with the start profile, so profile Set and Lock win over these. */
-    capabilityOverrides: CapabilityOverridesDocument;
-  }): Promise<Snapshot>;
+  create(
+    input: Omit<OperationParams<"conversation.create">, "id">,
+  ): Promise<Snapshot>;
   getSnapshot(conversationId: string): Promise<Snapshot>;
-  /** Applies everything except the profile, which only `setAgentProfile` may change. */
   configure(
     conversationId: string,
-    config: Omit<ConversationConfig, "conversationId" | "agentProfile">,
+    config: NonNullable<OperationParams<"conversation.create">["config"]>,
   ): Promise<unknown>;
+  resolveProfile(projectId: string, name: string): Promise<ProfileTarget>;
   setAgentProfile(conversationId: string, profile: string): Promise<unknown>;
-  saveCapabilities(input: {
-    projectId: string;
-    conversationId: string;
-    layer: "conversation";
-    replace: CapabilityOverridesDocument;
-  }): Promise<unknown>;
+  saveOverrides(
+    conversationId: string,
+    overrides: LeadSettingsOverrides,
+  ): Promise<unknown>;
   submit(conversationId: string, text: string): Promise<unknown>;
 };
 
-function withoutProfile(
-  config: Omit<ConversationConfig, "conversationId">,
-): Omit<ConversationConfig, "conversationId" | "agentProfile"> {
-  const patch: Partial<typeof config> = { ...config };
-  delete patch.agentProfile;
-  return patch as Omit<ConversationConfig, "conversationId" | "agentProfile">;
-}
-
-/** Caller owns the sending guard and promotion/navigation after success. */
+/** Record creation before sending so a failed first input never duplicates a conversation. */
 export async function submitPendingConversation<
   Snapshot extends SnapshotIdentity,
 >(
@@ -64,57 +45,37 @@ export async function submitPendingConversation<
   text: string,
   dependencies: Dependencies<Snapshot>,
 ): Promise<Snapshot> {
-  // Parse to snapshot nested reactive state before the first await. Never submit
-  // input against a partially saved draft, even if navigation changes meanwhile.
-  const config = conversationConfigSchema
-    .omit({ conversationId: true })
-    .parse(pending.config);
-  const capabilities = capabilityOverridesDocumentSchema.parse(
-    pending.capabilityOverrides ?? emptyCapabilityOverrides(),
-  );
-  const projectId = pending.projectId;
+  const { systemPrompt, instructions, workingDirectory } = pending.config;
+  const config = { systemPrompt, instructions, workingDirectory };
+  const overrides = leadSettingsOverridesSchema.parse(pending.overrides ?? {});
   const explicitProfile = pending.explicitAgentProfile;
   const retrying = pending.createdConversationId !== undefined;
   let snapshot: Snapshot;
   if (pending.createdConversationId) {
-    // A failed first send can leave a persisted conversation while the user keeps
-    // editing the draft. Apply current settings before retrying the input.
-    await dependencies.configure(
-      pending.createdConversationId,
-      withoutProfile(config),
-    );
+    await dependencies.configure(pending.createdConversationId, config);
     snapshot = await dependencies.getSnapshot(pending.createdConversationId);
+    if (explicitProfile && snapshot.config.agentProfile !== explicitProfile) {
+      await dependencies.setAgentProfile(
+        pending.createdConversationId,
+        explicitProfile,
+      );
+      snapshot = await dependencies.getSnapshot(pending.createdConversationId);
+    }
   } else {
+    const agentProfile = explicitProfile
+      ? await dependencies.resolveProfile(pending.projectId, explicitProfile)
+      : undefined;
     snapshot = await dependencies.create({
-      projectId,
+      projectId: pending.projectId,
       title: pending.title,
-      config: {
-        ...withoutProfile(config),
-        ...(explicitProfile ? { agentProfile: explicitProfile } : {}),
-      },
-      capabilityOverrides: capabilities,
+      config,
+      overrides,
+      ...(agentProfile ? { agentProfile } : {}),
     });
   }
   const conversationId = snapshot.conversation.id;
-  if (
-    pending.createdConversationId &&
-    explicitProfile &&
-    snapshot.config.agentProfile !== explicitProfile
-  ) {
-    // Retry drafts may explicitly change profiles after the conversation was created.
-    await dependencies.setAgentProfile(conversationId, explicitProfile);
-    snapshot = await dependencies.getSnapshot(conversationId);
-  }
-  // Record each successful stage immediately so a downstream failure is retryable.
   pending.createdConversationId = conversationId;
-  // Creation already carried the capability choices; a retry may have edited them.
-  if (retrying)
-    await dependencies.saveCapabilities({
-      projectId,
-      conversationId,
-      layer: "conversation",
-      replace: capabilities,
-    });
+  if (retrying) await dependencies.saveOverrides(conversationId, overrides);
   await dependencies.submit(conversationId, text);
   return snapshot;
 }

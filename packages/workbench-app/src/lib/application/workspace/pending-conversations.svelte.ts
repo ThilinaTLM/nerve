@@ -1,5 +1,5 @@
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { ConversationConfig } from "@nervekit/contracts/core";
-import type { CapabilityOverridesDocument } from "@nervekit/contracts/capabilities";
 import { SvelteMap } from "svelte/reactivity";
 export type PendingConversationState = {
   id: string;
@@ -12,7 +12,7 @@ export type PendingConversationState = {
   /** Only explicit composer choices are sent at creation; the host owns defaults. */
   explicitAgentProfile?: string;
   permissionRuleSetId: string;
-  capabilityOverrides?: CapabilityOverridesDocument;
+  overrides?: LeadSettingsOverrides;
   sending: boolean;
   error?: string;
   createdConversationId?: string;

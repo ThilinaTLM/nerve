@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ConversationSummary } from "@nervekit/contracts/core";
+import type { ConversationSummary, ToolCall } from "@nervekit/contracts/core";
 import { summaryActivity } from "../../conversations/conversation-activity.js";
 import { buildMobileInbox } from "./mobile-inbox.js";
 
@@ -81,4 +81,46 @@ test("cleared failures and neutral terminal states belong in recent, not needs-y
       ["completed", "neutral", "Completed"],
     ],
   );
+});
+
+test("configuration-blocked requests show the failing document without a plan or approval action", () => {
+  const call: ToolCall = {
+    id: "blocked-call",
+    conversationId: "blocked",
+    turnId: "turn",
+    origin: "user",
+    providerCallId: null,
+    assistantEventId: null,
+    contentIndex: null,
+    toolName: "bash",
+    arguments: {},
+    state: "awaiting_input",
+    supervision: null,
+    executionClaim: null,
+    updatedAt: "2026-10-23T00:00:00Z",
+    interaction: {
+      kind: "configuration_blocked",
+      request: {
+        diagnostics: [
+          {
+            scope: "user",
+            document: "permissions",
+            path: "/config/permissions.json",
+            code: "invalid-document",
+            pointer: "",
+            affectedCapability: "tool-execution",
+            recoveryChoices: ["reload"],
+          },
+        ],
+      },
+    },
+  };
+  const model = buildMobileInbox({
+    conversations: [conversation("blocked", { status: "waiting" })],
+    toolCalls: [call],
+  });
+  assert.equal(model.needsYou.length, 1);
+  assert.equal(model.needsYou[0].kindLabel, "Configuration blocked");
+  assert.equal(model.needsYou[0].detail, "/config/permissions.json");
+  assert.equal(model.needsYou[0].interaction, undefined);
 });

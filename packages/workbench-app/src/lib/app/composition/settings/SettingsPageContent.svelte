@@ -23,12 +23,8 @@ import NotificationsSettingsPage from "$lib/features/settings/views/pages/notifi
 import PermissionsSettingsPage from "$lib/features/settings/views/pages/permissions/PermissionsSettingsPage.svelte";
 import ProvidersSettingsPage from "$lib/features/settings/views/pages/providers/ProvidersSettingsPage.svelte";
 import ShortcutsSettingsPage from "$lib/features/settings/views/pages/shortcuts/ShortcutsSettingsPage.svelte";
-import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
 import StorageSettingsPage from "$lib/features/settings/views/pages/storage/StorageSettingsPage.svelte";
 import SystemSettingsPage from "$lib/features/settings/views/pages/system/SystemSettingsPage.svelte";
-import { profileKindForPage } from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
-import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
-import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
 import VoiceSettingsPage from "$lib/features/settings/views/pages/voice/VoiceSettingsPage.svelte";
 import IntegrationsSettingsPage from "$lib/features/settings/views/pages/integrations/IntegrationsSettingsPage.svelte";
 import InstructionsFilesPage from "$lib/features/settings/views/pages/project/InstructionsFilesPage.svelte";
@@ -59,15 +55,11 @@ let {
   models = [],
   authProviders = [],
   project,
-  skills = [],
-  skillsLoading = false,
-  skillsError,
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
   onColorThemeChange,
   onColorModeChange,
-  onSkillsRetry,
 }: {
   page: SettingsPageDef;
   /** Fixed for the lifetime of the view; every save goes to this target. */
@@ -106,20 +98,10 @@ const projectId = $derived(
 
 {#if settingsDraft}
   {#if page.id === "agents" || page.id === "sub-agents"}
-    {#key page.id}
-      <ProfilesSettingsPage
-        kind={profileKindForPage(page.id)}
-        {scope}
-        {settingsDraft}
-        {models}
-        {authProviders}
-        {skills}
-        {projectId}
-        onOpenFile={project
-          ? (path) => void openFilePane({ projectId: project.id, path })
-          : undefined}
-      />
-    {/key}
+    <SettingsEmptyState
+      title="Profile editing is being updated"
+      description="Scoped profile editors will return in Phase 4."
+    />
   {:else if page.id === "permission-rules"}
     <PermissionsSettingsPage
       {scope}
@@ -142,26 +124,14 @@ const projectId = $derived(
   {:else if page.id === "shortcuts"}
     <ShortcutsSettingsPage />
   {:else if page.id === "general"}
-    <GeneralSettingsPage
-      {scope}
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {projectId}
-      {onSettingsChange}
-    />
+    <GeneralSettingsPage {scope} {projectId} />
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
       activeProject={project ? projectView(project) : undefined}
     />
   {:else if page.id === "models"}
-    <ModelsSettingsPage
-      {settingsDraft}
-      {models}
-      {authProviders}
-      {onSettingsChange}
-    />
+    <ModelsSettingsPage {models} {authProviders} />
   {:else if page.id === "integrations"}
     <IntegrationsSettingsPage
       {settingsDraft}
@@ -186,36 +156,14 @@ const projectId = $derived(
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <ToolsSettingsPage
-      {scope}
-      {settingsDraft}
-      {status}
-      {authProviders}
-      {models}
-      {onSettingsChange}
-      configuration={controllers.capabilityConfiguration}
-      {projectId}
-      loading={controllers.capabilityLoading}
-      error={controllers.capabilityError}
-      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
-      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
-      onRetry={() => void controllers.loadProjectCapabilities()}
+    <SettingsEmptyState
+      title="Scoped configuration editor is being updated"
+      description="This editor will return in Phase 4."
     />
   {:else if page.id === "skills"}
-    <SkillsSettingsPage
-      {scope}
-      {settingsDraft}
-      {skills}
-      configuration={controllers.capabilityConfiguration}
-      loading={controllers.capabilityLoading || skillsLoading}
-      error={controllers.capabilityError ?? skillsError}
-      {onSettingsChange}
-      onPatch={(patch) => void controllers.patchProjectCapabilities(patch)}
-      onTrust={(trusted) => void controllers.setProjectCapabilityTrust(trusted)}
-      onRetry={() => {
-        onSkillsRetry?.();
-        void controllers.loadProjectCapabilities();
-      }}
+    <SettingsEmptyState
+      title="Scoped configuration editor is being updated"
+      description="This editor will return in Phase 4."
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />

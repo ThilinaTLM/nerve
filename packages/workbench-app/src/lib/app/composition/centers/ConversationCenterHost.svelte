@@ -1,4 +1,8 @@
 <script lang="ts">
+import type { EffectiveAgentView } from "@nervekit/contracts/agent-configuration";
+import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
+import ConfigurationBlockedReview from "$lib/features/conversations/views/ConfigurationBlockedReview.svelte";
+import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import { untrack } from "svelte";
 import GitBranchPlus from "@lucide/svelte/icons/git-branch-plus";
@@ -67,12 +71,15 @@ import {
   type AgentUsageState,
 } from "$lib/features/conversations/state/conversation-agent-usage";
 import { conversationTranscript } from "$lib/features/conversations/adapters/core-transcript.adapter";
-import { updateCapabilities } from "$lib/features/conversations/adapters/core-capabilities.adapter";
+
 import {
   conversationContext,
   projectView,
 } from "$lib/features/conversations/adapters/core-context.adapter";
-import { requestConversation } from "$lib/application/startup/conversation-connection";
+import {
+  requestConversation,
+  observeConversationChannel,
+} from "$lib/application/startup/conversation-connection";
 import ConversationActivityIsland from "$lib/features/conversations/agents/ConversationActivityIsland.svelte";
 import { openAsyncBashTab } from "$lib/features/conversations";
 import {
@@ -97,8 +104,6 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
-import { lockedFieldsOf } from "$lib/application/agent-profiles/applied-locks";
-import { pendingProfilePreview } from "$lib/application/agent-profiles/pending-profile-preview";
 let { tab, active = true }: { tab?: CenterTabIdentity; active?: boolean } =
   $props();
 const paneTab = $derived(tab ?? workspaceState.activeCenterTab);
@@ -219,44 +224,106 @@ const profileCatalogProjectId = $derived(
 const resolvedProfiles = $derived(
   agentProfileCatalog.profiles(profileCatalogProjectId),
 );
-const pendingPreview = $derived(
-  activePendingConversation
-    ? pendingProfilePreview(
-        resolvedProfiles.find(
-          (profile) => profile.name === activePendingConversation.agentProfile,
-        ),
-        activePendingConversation.config,
-        (model, thinking) =>
-          clampThinkingLevelForModel(
-            thinking,
-            settingsState.models.find(
-              (candidate) => modelKey(candidate) === modelKey(model),
-            ),
-          ),
-      )
+const effective = $derived(
+  store?.effective?.status === "available" ? store.effective : undefined,
+);
+const creationPreferences = new CreationPreferencesState();
+$effect(() => {
+  if (activeProject?.id)
+    void creationPreferences.load({
+      scope: "project",
+      projectId: activeProject.id,
+    });
+});
+$effect(() => creationPreferences.observe());
+const creationDefaults = $derived(
+  creationPreferences.result?.status === "available"
+    ? creationPreferences.result.effective
     : undefined,
 );
+let pendingResolution =
+  $state<Extract<EffectiveAgentView, { status: "available" }>["resolution"]>();
+let pendingConfigurationRevision = $state(0);
+$effect(() =>
+  observeConversationChannel({
+    recover: () => {
+      pendingConfigurationRevision += 1;
+      return Promise.resolve();
+    },
+    disconnected() {},
+    event() {},
+    notice: (notice) => {
+      if (
+        notice.type !== "agentConfiguration.changed" ||
+        !activePendingConversation
+      )
+        return;
+      const scope = notice.data.scope;
+      if (
+        scope.scope === "user" ||
+        (scope.scope === "project" &&
+          scope.projectId === activePendingConversation.projectId)
+      )
+        pendingConfigurationRevision += 1;
+    },
+  }),
+);
+$effect(() => {
+  void pendingConfigurationRevision;
+  void creationDefaults;
+  const pending = activePendingConversation;
+  if (!pending) {
+    pendingResolution = undefined;
+    return;
+  }
+  const name = pending.explicitAgentProfile;
+  const profile = resolvedProfiles.find((candidate) => candidate.name === name);
+  if (name && !profile?.digest) {
+    pendingResolution = undefined;
+    return;
+  }
+  const target = captureSystemPromptPreview({
+    pending,
+    targetProfile: profile?.digest
+      ? { name: profile.name, digest: profile.digest }
+      : undefined,
+  });
+  if (!target) return;
+  let current = true;
+  pendingResolution = undefined;
+  void requestConversation("conversation.previewSystemPrompt", target.params)
+    .then((result) => {
+      if (current)
+        pendingResolution =
+          result.status === "available" ? result.resolution : undefined;
+    })
+    .catch(() => {
+      if (current) pendingResolution = undefined;
+    });
+  return () => {
+    current = false;
+  };
+});
+const composerResolution = $derived(
+  activePendingConversation ? pendingResolution : effective?.resolution,
+);
 const selectedModelKey = $derived(
-  (pendingPreview ? modelKey(pendingPreview.settings.model) : undefined) ??
-    activePendingConversation?.selectedModelKey ??
-    (store?.snapshot ? modelKey(store.snapshot.config.model) : ""),
+  composerResolution?.settings.model
+    ? modelKey(composerResolution.settings.model)
+    : "",
 );
 const selectedThinkingLevel = $derived(
-  pendingPreview?.settings.thinking ??
-    activePendingConversation?.thinkingLevel ??
-    store?.snapshot?.config.reasoningLevel ??
-    "off",
+  composerResolution?.settings.reasoningLevel ?? "off",
 );
 const selectedAgentProfile = $derived(
-  activePendingConversation?.agentProfile ??
-    store?.snapshot?.config.agentProfile ??
-    DEFAULT_AGENT_PROFILE,
+  activePendingConversation
+    ? (activePendingConversation.explicitAgentProfile ??
+        creationDefaults?.defaultAgentProfile ??
+        DEFAULT_AGENT_PROFILE)
+    : (effective?.appliedProfile?.name ?? DEFAULT_AGENT_PROFILE),
 );
 const selectedPermissionRuleSetId = $derived(
-  pendingPreview?.settings.permission ??
-    activePendingConversation?.permissionRuleSetId ??
-    store?.snapshot?.config.permissionRuleSetId ??
-    "autonomous",
+  composerResolution?.settings.permissionRuleSetId ?? "autonomous",
 );
 /** Profiles the selector offers; a viewed sub-agent shows only its own, read-only. */
 const composerProfiles = $derived(
@@ -268,34 +335,31 @@ const composerProfiles = $derived(
         description: profile.description,
       })),
 );
-// Locks come from the snapshot captured when the profile was applied.
-const lockedFields = $derived(
-  viewedChildId
-    ? {}
-    : lockedFieldsOf(
-        activePendingConversation
-          ? pendingPreview?.applied
-          : store?.snapshot?.appliedAgentProfile,
-      ),
-);
+const lockedFields = $derived({
+  model: composerResolution?.provenance["/model"]?.source === "requirement",
+  thinking:
+    composerResolution?.provenance["/reasoningLevel"]?.source === "requirement",
+  permission:
+    composerResolution?.provenance["/permissionRuleSetId"]?.source ===
+    "requirement",
+  compaction: Object.entries(composerResolution?.provenance ?? {}).some(
+    ([pointer, value]) =>
+      pointer.startsWith("/compaction/") && value.source === "requirement",
+  ),
+});
 const activeCompactionLocked = $derived(Boolean(lockedFields.compaction));
-/** Unlocked values that differ from the effective (user) settings. */
-const settingsDiffers = $derived.by(() => {
-  const defaults = settingsState.settingsDraft;
-  if (!defaults || viewedChildId || activePendingConversation) return {};
-  const defaultModel = defaults.defaultModel;
-  return {
-    // Only the unlocked parts of the combined picker can differ.
-    model:
-      (!lockedFields.model &&
-        defaultModel !== undefined &&
-        modelKey(defaultModel) !== selectedModelKey) ||
-      (!lockedFields.thinking &&
-        defaults.defaultThinkingLevel !== selectedThinkingLevel),
-    permission:
-      !lockedFields.permission &&
-      defaults.defaultPermissionRuleSetId !== selectedPermissionRuleSetId,
-  };
+const settingsDiffers = $derived({
+  model:
+    !viewedChildId &&
+    !activePendingConversation &&
+    store?.configuration?.status === "available" &&
+    (store.configuration.overrides.model !== undefined ||
+      store.configuration.overrides.reasoningLevel !== undefined),
+  permission:
+    !viewedChildId &&
+    !activePendingConversation &&
+    store?.configuration?.status === "available" &&
+    store.configuration.overrides.permissionRuleSetId !== undefined,
 });
 $effect(() => {
   void agentProfileCatalog.ensure(profileCatalogProjectId);
@@ -304,7 +368,7 @@ const usableModels = $derived(
   scopedUsableModelOptions(
     settingsState.models,
     settingsState.authProviders,
-    settingsState.settingsDraft?.scopedModels,
+    creationDefaults?.scopedModels,
   ),
 );
 const planReviewModelKey = $derived(selectedModelKey);
@@ -432,6 +496,13 @@ async function configure(
   const p = activePendingConversation;
   if (p) {
     Object.assign(p.config, patch);
+    const { model, reasoningLevel, permissionRuleSetId } = patch;
+    p.overrides = {
+      ...p.overrides,
+      ...(model ? { model } : {}),
+      ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
+      ...(permissionRuleSetId ? { permissionRuleSetId } : {}),
+    };
     p.selectedModelKey = modelKey(p.config.model);
     p.thinkingLevel = p.config.reasoningLevel;
     p.agentProfile = p.config.agentProfile;
@@ -461,12 +532,34 @@ async function submitPrompt(
             conversationId,
             patch,
           }),
-        setAgentProfile: (conversationId, profile) =>
-          requestConversation("conversation.setAgentProfile", {
-            conversationId,
-            profile,
-          }),
-        saveCapabilities: updateCapabilities,
+        resolveProfile: async (projectId, name) => {
+          const profile = (await agentProfileCatalog.ensure(projectId)).find(
+            (p) => p.name === name,
+          );
+          if (!profile?.digest)
+            throw new Error("Profile unavailable. Refresh and try again.");
+          return { name, digest: profile.digest };
+        },
+        setAgentProfile: switchAgentProfile,
+        saveOverrides: async (conversationId, changes) => {
+          const scope = { scope: "conversation" as const, conversationId };
+          const current = await requestConversation("agentConfiguration.get", {
+            scope,
+          });
+          if (current.status !== "available")
+            throw new Error("Configuration unavailable.");
+          const result = await requestConversation("agentConfiguration.save", {
+            scope,
+            expectedRevision: current.source.revision,
+            expectedDigest: current.source.digest,
+            changes,
+            resets: [],
+          });
+          if (result.status !== "saved")
+            throw new Error(
+              `Configuration ${result.status}. Refresh and try again.`,
+            );
+        },
         submit: (conversationId, prompt) =>
           requestConversation("input.submit", {
             conversationId,
@@ -554,19 +647,29 @@ async function openSystemPrompt() {
   if (openingSystemPrompt) return;
   const target = captureSystemPromptPreview({
     pending: activePendingConversation,
+    targetProfile: (() => {
+      const name = activePendingConversation?.explicitAgentProfile;
+      const profile = resolvedProfiles.find((p) => p.name === name);
+      return profile?.digest
+        ? { name: profile.name, digest: profile.digest }
+        : undefined;
+    })(),
     conversation: store?.snapshot?.conversation,
   });
   if (!target) return;
   openingSystemPrompt = true;
   try {
-    const { systemPrompt } = await requestConversation(
+    const preview = await requestConversation(
       "conversation.previewSystemPrompt",
       target.params,
     );
     await openSystemPromptPane({
       projectId: target.projectId,
       sourceId: target.sourceId,
-      text: systemPrompt,
+      text:
+        preview.status === "available"
+          ? preview.systemPrompt
+          : "Configuration unavailable. Check scoped configuration diagnostics.",
     });
   } finally {
     openingSystemPrompt = false;
@@ -602,23 +705,18 @@ function setComposerModelSelection(next: {
   });
 }
 function resetComposerModel() {
-  const defaults = settingsState.settingsDraft;
-  if (defaults?.defaultModel)
-    return setComposerModelSelection({
-      ...(lockedFields.model ? {} : { model: defaults.defaultModel }),
-      ...(lockedFields.thinking
-        ? {}
-        : { thinkingLevel: defaults.defaultThinkingLevel }),
-    });
+  return store?.configure({}, [
+    ...(lockedFields.model ? [] : ["/overrides/model"]),
+    ...(lockedFields.thinking ? [] : ["/overrides/reasoningLevel"]),
+  ]);
 }
 function resetComposerPermission() {
-  const value = settingsState.settingsDraft?.defaultPermissionRuleSetId;
-  if (value) return setComposerPermissionRuleSet(value);
+  return store?.configure({}, ["/overrides/permissionRuleSetId"]);
 }
 async function setComposerAgentProfile(name: string) {
   const pending = activePendingConversation;
   if (pending) {
-    // Applied on creation, which also applies the profile's Set and Lock policy.
+    // The exact catalog target is captured when creation is submitted.
     pending.config.agentProfile = name;
     pending.agentProfile = name;
     pending.explicitAgentProfile = name;
@@ -628,7 +726,12 @@ function setComposerPermissionRuleSet(value: string) {
   return configure({ permissionRuleSetId: value });
 }
 async function resolve(toolCallId: string, resolution: InteractionResolution) {
-  await store?.resolve(toolCallId, resolution);
+  const result = await store?.resolve(toolCallId, resolution);
+  if (result?.status === "refresh_required") {
+    throw new Error("Plan review requires refresh; the review remains open.");
+  }
+  if (result?.status === "unavailable")
+    throw new Error("Configuration unavailable; the review remains open.");
 }
 function answerUserQuestion(
   toolCallId: string,
@@ -676,12 +779,30 @@ async function acceptPendingPlanReview(
       "Compacting a pending plan is not supported by the conversation core",
     );
 
+  const interaction = store?.snapshot?.toolCalls.find(
+    (item) => item.id === toolCallId,
+  )?.interaction;
+  if (interaction?.kind !== "plan_review")
+    throw new Error("Plan review unavailable. Refresh and try again.");
+  const request = interaction.request;
   await resolve(toolCallId, {
     kind: "plan_review",
     decision: "approve",
     feedback: options?.feedback,
-    implementationModel: options?.implementationModel,
-    implementationThinkingLevel: options?.implementationThinkingLevel,
+    confirmation: {
+      targetProfile: request.targetProfile,
+      expectedRevision: request.expectedRevision,
+      expectedDigest: request.expectedDigest,
+      transitionId: createId("input"),
+      choices: {
+        ...(options?.implementationModel
+          ? { model: options.implementationModel }
+          : {}),
+        ...(options?.implementationThinkingLevel !== undefined
+          ? { reasoningLevel: options.implementationThinkingLevel }
+          : {}),
+      },
+    },
   });
 }
 
@@ -953,7 +1074,8 @@ const teamRunning = $derived(
 >
   {#snippet contextActions(closePopover)}
     <ConversationContextActions
-      harness={harness.result}
+      compaction={harness.compaction}
+      compactionOverridden={harness.overridden}
       {instructions}
       profile={viewedProfile}
       disabled={!store?.snapshot || harness.saving}
@@ -969,6 +1091,15 @@ const teamRunning = $derived(
     />
   {/snippet}
   {#snippet activity(showLatest, onJumpToBottom)}
+    {#each store?.snapshot?.toolCalls ?? [] as call (call.id)}
+      {#if call.interaction?.kind === "configuration_blocked" && !call.interaction.resolution}
+        <ConfigurationBlockedReview
+          request={call.interaction.request}
+          onResolve={(decision) =>
+            resolve(call.id, { kind: "configuration_blocked", decision })}
+        />
+      {/if}
+    {/each}
     {#if viewedConversationId}
       <ConversationActivityIsland
         bind:open={activityOpen}
@@ -989,8 +1120,8 @@ const teamRunning = $derived(
 <ConversationSettingsDialogs
   bind:compactionOpen={compactionDialogOpen}
   bind:instructionsOpen={instructionsDialogOpen}
-  compaction={harness.result?.compaction.effective}
-  compactionOverridden={harness.result?.compaction.source === "conversation"}
+  compaction={harness.compaction}
+  compactionOverridden={harness.overridden}
   {instructions}
   onSaveCompaction={(value) => harness.saveCompaction(value)}
   onResetCompaction={() => harness.saveCompaction(null)}

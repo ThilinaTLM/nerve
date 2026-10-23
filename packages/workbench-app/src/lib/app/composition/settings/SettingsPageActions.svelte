@@ -4,7 +4,6 @@ import type { SettingsPageDef } from "$lib/presentation/settings";
 import type { SettingsScopeTarget } from "$lib/features/settings/registry/settings-scope";
 import ConfirmDialog from "@nervekit/ui-kit/components/composites/confirm-dialog";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
-import ModelsPageActions from "$lib/features/settings/views/pages/models/ModelsPageActions.svelte";
 import StoragePageActions from "$lib/features/settings/views/pages/storage/StoragePageActions.svelte";
 import SuggestionsPageActions from "./suggestions/SuggestionsPageActions.svelte";
 import type { SettingsPageControllers } from "./settings-page-controllers.svelte";
@@ -15,7 +14,6 @@ let {
   target,
   controllers,
   settingsDraft,
-  onSettingsChange,
 }: {
   page: SettingsPageDef;
   target: SettingsScopeTarget;
@@ -44,9 +42,7 @@ async function resetAll(): Promise<void> {
 </script>
 
 {#if settingsDraft}
-  {#if page.id === "models"}
-    <ModelsPageActions {settingsDraft} {onSettingsChange} />
-  {:else if page.id === "suggestions"}
+  {#if page.id === "suggestions"}
     <SuggestionsPageActions pageState={controllers.suggestionsPageState} />
   {:else if page.id === "storage"}
     <StoragePageActions controller={controllers.storageController} />

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { emptyCapabilityOverrides } from "@nervekit/contracts/capabilities";
 import type { PendingConversationState } from "$lib/application/workspace/pending-conversations.svelte";
 import { submitPendingConversation } from "./submit-pending-conversation";
 
@@ -20,10 +19,9 @@ function draft(): Pending {
     },
   } satisfies Pick<PendingConversationState, keyof Pending>;
 }
-function withoutProfile(config: Pending["config"]) {
-  const patch: Partial<Pending["config"]> = { ...config };
-  delete patch.agentProfile;
-  return patch;
+function context(config: Pending["config"]) {
+  const { systemPrompt, instructions, workingDirectory } = config;
+  return { systemPrompt, instructions, workingDirectory };
 }
 function setup(pending = draft()) {
   const calls: string[] = [];
@@ -37,7 +35,7 @@ function setup(pending = draft()) {
     typeof submitPendingConversation<typeof snapshot>
   >[2]["create"] = async (input) => {
     calls.push("create");
-    created.push(input.capabilityOverrides);
+    created.push(input.overrides);
     return snapshot;
   };
   const dependencies = {
@@ -48,17 +46,26 @@ function setup(pending = draft()) {
     },
     configure: async (
       id: string,
-      config: Omit<Pending["config"], "agentProfile">,
+      config: Partial<
+        Pick<
+          Pending["config"],
+          "systemPrompt" | "instructions" | "workingDirectory"
+        >
+      >,
     ) => {
       assert.equal(id, "conv_one");
-      assert.deepEqual(config, withoutProfile(pending.config));
+      assert.deepEqual(config, context(pending.config));
       calls.push("configure");
     },
     setAgentProfile: async (id: string, profile: string) => {
       calls.push(`profile:${id}:${profile}`);
     },
-    saveCapabilities: async () => {
-      calls.push("capabilities");
+    resolveProfile: async (_projectId: string, name: string) => ({
+      name,
+      digest: "a".repeat(64),
+    }),
+    saveOverrides: async () => {
+      calls.push("overrides");
     },
     submit: async (id: string, text: string) => {
       calls.push(`input:${id}:${text}`);
@@ -67,10 +74,9 @@ function setup(pending = draft()) {
   return { pending, calls, created, snapshot, dependencies };
 }
 
-test("creation carries the capability choices and no post-create save follows", async () => {
+test("creation carries the sparse choices and no post-create save follows", async () => {
   const { pending, calls, created, snapshot, dependencies } = setup();
-  pending.capabilityOverrides = {
-    ...emptyCapabilityOverrides(),
+  pending.overrides = {
     tools: { web_search: { enabled: false } },
   };
   const result = await submitPendingConversation(
@@ -79,9 +85,9 @@ test("creation carries the capability choices and no post-create save follows", 
     dependencies,
   );
   assert.equal(result, snapshot);
-  // Creation carries the capability choices; there is no post-create save.
+  // Creation carries the sparse choices; there is no post-create save.
   assert.deepEqual(calls, ["create", "input:conv_one:hello"]);
-  assert.deepEqual(created, [pending.capabilityOverrides]);
+  assert.deepEqual(created, [pending.overrides]);
   assert.equal(pending.createdConversationId, "conv_one");
 });
 
@@ -102,7 +108,7 @@ test("input failure retries on the created conversation with the edited draft", 
   assert.deepEqual(calls.slice(2), [
     "configure",
     "get:conv_one",
-    "capabilities",
+    "overrides",
     "input:conv_one:hello",
   ]);
 });
@@ -117,7 +123,26 @@ test("an explicit profile change on retry switches through setAgentProfile", asy
     "get:conv_one",
     "profile:conv_one:planning",
     "get:conv_one",
-    "capabilities",
+    "overrides",
     "input:conv_one:hello",
   ]);
+});
+
+test("creation omits inherited agent values and binds explicit profiles to catalog bytes", async () => {
+  const { pending, dependencies } = setup();
+  pending.explicitAgentProfile = "planning";
+  dependencies.create = async (input) => {
+    assert.deepEqual(input.config, context(pending.config));
+    assert.deepEqual(input.overrides, {});
+    assert.deepEqual(input.agentProfile, {
+      name: "planning",
+      digest: "a".repeat(64),
+    });
+    return {
+      conversation: { id: "conv_one" },
+      config: { agentProfile: "planning" },
+      marker: "snapshot",
+    };
+  };
+  await submitPendingConversation(pending, "hello", dependencies);
 });

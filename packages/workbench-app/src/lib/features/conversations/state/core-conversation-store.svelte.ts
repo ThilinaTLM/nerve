@@ -1,4 +1,10 @@
 import type {
+  EffectiveAgentView,
+  GetAgentConfigurationResult,
+  InteractionResolveResult,
+} from "@nervekit/contracts/agent-configuration";
+import { switchAgentProfile } from "../adapters/core-agent-configuration.adapter";
+import type {
   ConversationConfig,
   TransferredConversationEvent,
   ConversationSnapshot,
@@ -36,6 +42,8 @@ const HISTORY_PAGE_SIZE = 100;
 
 /** One store serves a full pane or a read-only child peek. */
 export class ConversationStore {
+  effective = $state<EffectiveAgentView>();
+  configuration = $state<GetAgentConfigurationResult>();
   snapshot: ConversationSnapshot | undefined = $state();
   events: TransferredConversationEvent[] = $state([]);
   historyEvents: TransferredConversationEvent[] | undefined = $state();
@@ -50,6 +58,7 @@ export class ConversationStore {
   error = $state<string>();
   deleted = $state(false);
   private disposed = false;
+  private configurationGeneration = 0;
   private readonly liveTurns = new LiveTurnGuard();
   private refreshing: Promise<void> | undefined;
   private historyRefresh: Promise<void> | undefined;
@@ -72,6 +81,20 @@ export class ConversationStore {
         else this.append(event);
       },
       notice: (notice) => {
+        if (notice.type === "agentConfiguration.changed") {
+          const scope = notice.data.scope;
+          if (
+            scope.scope === "user" ||
+            (scope.scope === "project" &&
+              scope.projectId === this.snapshot?.conversation.projectId) ||
+            (scope.scope === "conversation" &&
+              scope.conversationId === this.conversationId)
+          )
+            void this.refreshConfiguration().catch((error) => {
+              this.error = errorMessage(error);
+            });
+          return;
+        }
         const id =
           notice.type === "conversation.changed"
             ? notice.data.summary.id
@@ -139,6 +162,7 @@ export class ConversationStore {
     const snapshot = await requestConversation("conversation.getSnapshot", {
       conversationId: this.conversationId,
     });
+    await this.refreshConfiguration();
     const history = await this.fetchHistory();
     if (this.disposed) return;
     snapshot.conversation.headEventId = history.headEventId;
@@ -393,20 +417,76 @@ export class ConversationStore {
       source: "user",
     });
   }
-  configure(
-    patch: Partial<Omit<ConversationConfig, "conversationId">>,
-  ): Promise<null> {
-    return requestConversation("conversation.configure", {
-      conversationId: this.conversationId,
-      patch,
-    });
+  async refreshConfiguration(): Promise<void> {
+    const generation = ++this.configurationGeneration;
+    const [effective, configuration] = await Promise.all([
+      requestConversation("agentConfiguration.getEffective", {
+        conversationId: this.conversationId,
+      }),
+      requestConversation("agentConfiguration.get", {
+        scope: { scope: "conversation", conversationId: this.conversationId },
+      }),
+    ]);
+    if (this.disposed) return;
+    if (generation !== this.configurationGeneration) return;
+    this.effective = effective;
+    this.configuration = configuration;
   }
-  /** Switches the active agent profile, applying the profile's Set and Lock policy. */
-  setAgentProfile(profile: string): Promise<ConversationConfig> {
-    return requestConversation("conversation.setAgentProfile", {
-      conversationId: this.conversationId,
-      profile,
-    });
+  async configure(
+    patch: Partial<Omit<ConversationConfig, "conversationId">>,
+    resets: string[] = [],
+  ): Promise<void> {
+    const {
+      model,
+      reasoningLevel,
+      permissionRuleSetId,
+      systemPrompt,
+      instructions,
+      workingDirectory,
+    } = patch;
+    const context = {
+      ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+      ...(instructions !== undefined ? { instructions } : {}),
+      ...(workingDirectory !== undefined ? { workingDirectory } : {}),
+    };
+    if (
+      model !== undefined ||
+      reasoningLevel !== undefined ||
+      permissionRuleSetId !== undefined ||
+      resets.length
+    ) {
+      const current = this.configuration;
+      if (current?.status !== "available")
+        throw new Error("Configuration unavailable. Refresh and try again.");
+      const result = await requestConversation("agentConfiguration.save", {
+        scope: { scope: "conversation", conversationId: this.conversationId },
+        expectedRevision: current.source.revision,
+        expectedDigest: current.source.digest,
+        changes: {
+          ...(model !== undefined ? { model } : {}),
+          ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
+          ...(permissionRuleSetId !== undefined ? { permissionRuleSetId } : {}),
+        },
+        resets,
+      });
+      await this.refreshConfiguration();
+      if (result.status !== "saved")
+        throw new Error(
+          `Configuration ${result.status}. Refresh and try again.`,
+        );
+    }
+    if (Object.keys(context).length)
+      await requestConversation("conversation.configure", {
+        conversationId: this.conversationId,
+        patch: context,
+      });
+  }
+  async setAgentProfile(profile: string): Promise<void> {
+    try {
+      await switchAgentProfile(this.conversationId, profile);
+    } finally {
+      await this.refreshConfiguration();
+    }
   }
   update(patch: {
     title?: string;
@@ -448,16 +528,19 @@ export class ConversationStore {
     await this.cancelInput(inputId);
     return input.content;
   }
-  resolve(
+  async resolve(
     toolCallId: string,
     resolution: InteractionResolution,
     resolutionRequestId = createId("input"),
-  ): Promise<null> {
-    return requestConversation("interaction.resolve", {
+  ): Promise<InteractionResolveResult> {
+    const result = await requestConversation("interaction.resolve", {
       toolCallId,
       resolutionRequestId,
       resolution,
     });
+    if (result.status === "applied") await this.refreshConfiguration();
+    if (result.status === "refresh_required") await this.recover();
+    return result;
   }
   selectHead(eventId: string | null): Promise<null> {
     return requestConversation("conversation.selectHead", {
