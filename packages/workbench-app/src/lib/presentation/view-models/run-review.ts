@@ -235,7 +235,8 @@ export interface ConversationCompactionFailedData {
 }
 
 export type PlanReviewRecord = {
-  id: string;
+  targetProfile?: import("@nervekit/contracts/agent-configuration").ProfileTarget;
+  id?: string;
   toolCallId: string;
   agentId: string;
   conversationId: string;

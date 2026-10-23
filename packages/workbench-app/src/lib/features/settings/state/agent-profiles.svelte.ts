@@ -9,7 +9,7 @@ import {
 
 export const agentProfilesState = $state({
   configuration: undefined as
-    | import("@nervekit/contracts/agent-profiles").AgentProfilesConfiguration
+    | import("@nervekit/contracts/agent-configuration").ListScopedProfilesResult
     | undefined,
   scope: "user" as ProfileSettingsScope["scope"],
   loaded: false,
@@ -40,7 +40,11 @@ export async function refreshAgentProfiles(
   agentProfilesState.scope = scope;
   agentProfilesState.loading = true;
   try {
-    const configuration = await readAgentProfiles({ scope, projectId });
+    const configuration = await readAgentProfiles(
+      scope === "project" && projectId
+        ? { scope, projectId }
+        : { scope: "user" },
+    );
     if (current !== request) return;
     agentProfilesState.configuration = configuration;
     agentProfilesState.loaded = true;

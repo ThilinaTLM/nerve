@@ -167,6 +167,14 @@ export function scopedConversationCreation(
           : undefined,
         !child ? input.agentProfile?.digest : undefined,
       );
+      const context = {
+        ...(input.config?.instructions != null
+          ? { instructions: input.config.instructions }
+          : {}),
+        ...(input.config?.systemPrompt != null
+          ? { systemPrompt: input.config.systemPrompt }
+          : {}),
+      };
       await service.createConversation(
         input.id,
         {
@@ -176,6 +184,7 @@ export function scopedConversationCreation(
             ? {}
             : leadSettingsOverridesSchema.parse(input.overrides ?? {}),
           appliedProfile: resolved.applied,
+          ...(Object.keys(context).length ? { context } : {}),
           ...(child ? { frozenDefaults: resolved.frozenDefaults } : {}),
         },
         resolved.isCurrent,

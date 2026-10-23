@@ -126,9 +126,12 @@ export function registerWorkspaceReadModels(): () => void {
           : undefined;
       }
       if (tab?.kind === "conversation") {
-        return retainedConversationStores().find(
+        const effective = retainedConversationStores().find(
           (store) => store.snapshot?.conversation.id === tab.id,
-        )?.snapshot?.config.model.provider;
+        )?.effective;
+        return effective?.status === "available"
+          ? effective.resolution.settings.model?.provider
+          : undefined;
       }
       return undefined;
     },

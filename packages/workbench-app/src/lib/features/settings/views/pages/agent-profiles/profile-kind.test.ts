@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type {
-  AgentProfileConfiguration,
-  AgentProfileUsableBy,
-} from "@nervekit/contracts/agent-profiles";
+import {
+  profileCatalogEntrySchema,
+  type ProfileCatalogEntry,
+} from "@nervekit/contracts/agent-configuration";
+import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
 import {
   profileBelongsTo,
   profileFileCount,
@@ -19,12 +20,28 @@ function profile(
     effective?: AgentProfileUsableBy;
     local?: AgentProfileUsableBy;
   } = {},
-): AgentProfileConfiguration {
-  return {
+): ProfileCatalogEntry {
+  const usableBy = shape.effective ?? shape.local;
+  return profileCatalogEntrySchema.parse({
     name,
-    ...(shape.effective ? { effective: { usableBy: shape.effective } } : {}),
-    ...(shape.local ? { local: { usableBy: shape.local } } : {}),
-  } as unknown as AgentProfileConfiguration;
+    source: "user",
+    path: `${name}.json`,
+    digest: "a".repeat(64),
+    local: true,
+    enabled: true,
+    trusted: true,
+    applicable: !!usableBy,
+    diagnostics: [],
+    definition: usableBy
+      ? {
+          schemaVersion: 1,
+          name,
+          description: "Example profile",
+          instructions: "",
+          usableBy,
+        }
+      : null,
+  });
 }
 
 const lead = profile("lead", { effective: "lead" });
@@ -34,8 +51,7 @@ const localOnly = profile("local-only", { local: "subagent" });
 const unreadable = profile("broken");
 const all = [lead, sub, both, localOnly, unreadable];
 
-const names = (list: AgentProfileConfiguration[]) =>
-  list.map((item) => item.name);
+const names = (list: ProfileCatalogEntry[]) => list.map((item) => item.name);
 
 describe("profile kind pages", () => {
   it("maps page ids to kinds, defaulting to lead", () => {
@@ -43,7 +59,7 @@ describe("profile kind pages", () => {
     assert.equal(profileKindForPage("agents"), "lead");
   });
 
-  it("keeps each kind on its own page and legacy both on each", () => {
+  it("keeps each kind on its own page and both on each", () => {
     assert.deepEqual(names(profilesOfKind(all, "lead")), ["lead", "both"]);
     assert.deepEqual(names(profilesOfKind(all, "subagent")), [
       "sub",
@@ -52,7 +68,7 @@ describe("profile kind pages", () => {
     ]);
   });
 
-  it("falls back to the local definition when there is no effective one", () => {
+  it("uses the catalog definition, including definitions not yet applicable", () => {
     assert.equal(storedUsableBy(localOnly), "subagent");
     assert.equal(profileBelongsTo(localOnly, "subagent"), true);
     assert.equal(profileBelongsTo(localOnly, "lead"), false);

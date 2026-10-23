@@ -105,6 +105,7 @@ export function createServerAdapterContexts(
     protocolAdapter,
     websocket: {
       ...protocolAdapter,
+      coreStorage: services.coreStorage,
       conversationCore: services.conversationCore,
       capabilities: services.capabilities,
       agentConfiguration: services.agentConfiguration,
@@ -113,6 +114,7 @@ export function createServerAdapterContexts(
       permissionConfiguration: createPermissionConfigurationService({
         home: infrastructure.storage.paths.home,
         storage: services.coreStorage,
+        published: (path) => services.admissionPolicy.reload([path]),
         projectDirectory: (id) =>
           services.conversationCore.projects.get(id)?.directory,
       }),
@@ -128,6 +130,7 @@ export function createServerAdapterContexts(
         statusResponse: infrastructure.statusResponse,
       },
       settings: {
+        admissionPolicy: services.admissionPolicy,
         storage: infrastructure.storage,
         events: infrastructure.events,
         providerCatalog: infrastructure.providerCatalog,

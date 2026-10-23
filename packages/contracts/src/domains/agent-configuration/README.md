@@ -20,7 +20,7 @@ Run `pnpm --dir packages/contracts schema:agent-configuration [output-directory]
 
 Persisted conversation loaders must select `childConversationAgentSchema` or `leadConversationAgentSchema` using trusted conversation ownership, never infer the role from editable JSON or fall back from child validation to the lead schema. The child schema and its generated editor schema require `frozenDefaults`.
 
-Sparse parsers never insert defaults. Complete frozen settings require all non-model baseline fields, including captured skill maps/defaults. Profile label/enabled fallbacks are presentation/catalog resolution concerns, not parser defaults. A valid applied snapshot needs no catalog lookup. Consumers must treat `unsupported-reasoning` as blocking rather than execute unchanged invalid explicit/required choices; `reasoning-adjusted` is explanatory, not an input rewrite.
+Sparse parsers never insert defaults. Complete frozen settings require all non-model baseline fields, including captured skill maps/defaults. Profile label/enabled fallbacks are presentation/catalog resolution concerns, not parser defaults. A valid applied snapshot needs no catalog lookup. Consumers must treat `unsupported-reasoning` as blocking for unsupported same-layer model/reasoning pairs or incompatible required reasoning. Any non-required reasoning from a different source layer (including conversation, launch and frozen choices) is fitted to the effective model, retaining its source with `adjusted: true` and an explanatory `reasoning-adjusted` diagnostic, not an input rewrite.
 
 ## Protocol API (Phase 3)
 

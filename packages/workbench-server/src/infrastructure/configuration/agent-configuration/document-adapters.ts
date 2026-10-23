@@ -49,6 +49,15 @@ export class AgentConfigurationPaths {
       projectOf: (id) => locations.conversationOwner(id).projectId,
     });
   }
+  preferenceScope(scope: AgentScope): PreferenceScope {
+    return scope.scope === "conversation"
+      ? {
+          scope: "project",
+          projectId: this.locations.conversationOwner(scope.conversationId)
+            .projectId,
+        }
+      : scope;
+  }
   agent(scope: AgentScope): string {
     return this.paths.resolve(scope, "agent.json").path;
   }
@@ -139,8 +148,8 @@ export function healthDiagnostics<S extends AgentScope, D>(
   document: string,
 ): ConfigurationDiagnostic[] {
   return health.status === "unavailable"
-    ? health.issues.map((issue) =>
-        diagnostic(
+    ? health.issues.map((issue) => ({
+        ...diagnostic(
           health.scope,
           document,
           health.path,
@@ -148,6 +157,7 @@ export function healthDiagnostics<S extends AgentScope, D>(
           issue.pointer,
           health.schemaVersion,
         ),
-      )
+        ...(issue.message ? { message: issue.message } : {}),
+      }))
     : [];
 }

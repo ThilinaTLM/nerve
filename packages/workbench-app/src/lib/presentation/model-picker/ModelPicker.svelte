@@ -9,7 +9,6 @@ import { untrack } from "svelte";
 import ChevronsUpDown from "@lucide/svelte/icons/chevrons-up-down";
 import Lock from "@lucide/svelte/icons/lock";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import { thinkingLevels } from "@nervekit/contracts/models";
 import type {
   ModelInfo,
   ModelSelection,
@@ -80,6 +79,7 @@ type Props = {
   onInherit?: () => void;
   /** Optional independent reasoning editor, including an unset/inherited level. */
   onThinkingChange?: (level: ThinkingLevel | undefined) => void;
+  isModelCompatible?: (model: ModelInfo) => boolean;
 };
 
 let {
@@ -101,6 +101,7 @@ let {
   inherit = false,
   onInherit,
   onThinkingChange,
+  isModelCompatible = () => true,
 }: Props = $props();
 
 const uid = $props.id();
@@ -159,11 +160,7 @@ const reasoningModel = $derived(
     : undefined,
 );
 const reasoningLevels = $derived(
-  reasoningModel
-    ? supportedThinkingLevelsForModel(reasoningModel)
-    : inheriting && onThinkingChange
-      ? thinkingLevels
-      : [],
+  reasoningModel ? supportedThinkingLevelsForModel(reasoningModel) : [],
 );
 const reasoningModelLabel = $derived(
   resolved.kind === "available" ? resolved.entry.contextualLabel : "",
@@ -256,6 +253,16 @@ function choose(item: PickerListItem, close = false): void {
     if (!onThinkingChange || close) open = false;
     return;
   }
+  if (
+    item.kind === "model" &&
+    (!isModelCompatible(item.entry.model) ||
+      (thinkingDisabled &&
+        thinkingLevel !== undefined &&
+        !supportedThinkingLevelsForModel(item.entry.model).includes(
+          thinkingLevel,
+        )))
+  )
+    return;
   if (item.kind === "model" && item.key !== selectedKey) {
     onChange({
       model: {
@@ -415,7 +422,13 @@ function handleSearchKeydown(event: KeyboardEvent): void {
                   title={`${entry.model.provider}/${entry.model.modelId}`}
                   model={entry.model}
                   {selected}
-                  disabled={modelDisabled}
+                  disabled={modelDisabled ||
+                    !isModelCompatible(entry.model) ||
+                    (thinkingDisabled &&
+                      thinkingLevel !== undefined &&
+                      !supportedThinkingLevelsForModel(entry.model).includes(
+                        thinkingLevel,
+                      ))}
                   active={navigation.isActive(index)}
                   onclick={() => choose(item)}
                 ></ModelCatalogRow>
@@ -456,10 +469,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
         class="flex-wrap justify-start"
         onValueChange={(next) => {
           if (!next) return;
-          if (onThinkingChange)
-            onThinkingChange(
-              next === "inherit" ? undefined : (next as ThinkingLevel),
-            );
+          if (next === "inherit") onThinkingChange?.(undefined);
           else if (reasoningModel)
             chooseLevel(reasoningModel, next as ThinkingLevel);
         }}

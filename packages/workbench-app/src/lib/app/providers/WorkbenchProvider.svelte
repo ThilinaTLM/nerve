@@ -1,4 +1,5 @@
 <script lang="ts">
+import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
 import { onDestroy, onMount, type Snippet } from "svelte";
 import {
   desktopRuntime,
@@ -216,14 +217,22 @@ const appShortcuts = createAppShortcuts({
   usableModels: () => usableModels,
   selectedModelKey: () => selectedModelKey,
   setComposerModel: async (key) => {
-    if (lockedFields.model) return;
+    if (lockedFields.model || lockedFields.thinking) return;
     const model = parseModelKey(key);
-    if (model) await activeStore?.configure({ model });
+    if (model)
+      await activeStore?.configure({
+        model,
+        reasoningLevel: clampThinkingLevelForModel(
+          selectedThinkingLevel,
+          settingsState.models.find((m) => modelKey(m) === modelKey(model)),
+        ),
+      });
   },
   selectedThinkingLevel: () => selectedThinkingLevel,
   setComposerThinkingLevel: async (reasoningLevel) => {
-    if (lockedFields.thinking) return;
-    await activeStore?.configure({ reasoningLevel });
+    if (lockedFields.model || lockedFields.thinking) return;
+    if (config?.model)
+      await activeStore?.configure({ model: config.model, reasoningLevel });
   },
   agentProfileNames: () => agentProfileNames,
   selectedAgentProfile: () => selectedAgentProfile,

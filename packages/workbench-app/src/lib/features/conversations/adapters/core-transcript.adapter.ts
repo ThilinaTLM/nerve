@@ -193,6 +193,12 @@ function toolRecord(
       requestedAt: source.updatedAt,
       updatedAt: source.updatedAt,
     };
+    if (i.kind === "configuration_blocked")
+      interaction = {
+        ...base,
+        kind: "configuration_blocked",
+        request: i.request,
+      };
     if (i.kind === "approval")
       interaction = {
         ...base,
@@ -551,6 +557,7 @@ export function conversationTranscript(input: {
       pendingPlanReviews.push({
         ...base,
         slug: call.id,
+        targetProfile: i.request.targetProfile,
         planPath: i.request.path,
         title: i.request.title,
         summary: i.request.summary,

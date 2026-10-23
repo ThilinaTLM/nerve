@@ -39,7 +39,7 @@ export function createSettingsPageControllers(deps: {
   let profileFiles = $state.raw<
     {
       name: string;
-      digest: string | null;
+      digest: string;
       usableBy?: AgentProfileUsableBy;
     }[]
   >([]);
@@ -56,7 +56,7 @@ export function createSettingsPageControllers(deps: {
       const profiles = await readAgentProfiles({ scope: "project", projectId });
       if (request !== diffRequest) return;
       profileFiles = profiles.profiles
-        .filter((profile) => profile.local !== null)
+        .filter((profile) => profile.local)
         .map((profile) => ({
           name: profile.name,
           digest: profile.digest,
@@ -190,13 +190,17 @@ export function createSettingsPageControllers(deps: {
         for (const file of profileFiles.filter(
           (candidate) =>
             profileFileCount([candidate], profileKindForPage(pageId)) > 0,
-        ))
-          await resetAgentProfile({
-            scope: "project",
-            projectId,
+        )) {
+          const result = await resetAgentProfile({
+            scope: { scope: "project", projectId },
             name: file.name,
             expectedDigest: file.digest,
           });
+          if (result.status !== "saved")
+            throw new Error(
+              `Profile reset ${result.status}; reload before retrying.`,
+            );
+        }
         break;
     }
     await loadProjectDiff();

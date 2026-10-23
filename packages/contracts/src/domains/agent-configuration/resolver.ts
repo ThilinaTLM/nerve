@@ -227,11 +227,9 @@ export function resolveAgentConfiguration(
     const adjusted = options.clampThinking(model, reasoningLevel);
     if (adjusted !== reasoningLevel) {
       const reasoningSource = result.provenance["/reasoningLevel"].source;
-      if (
-        ["conversation", "launch", "requirement", "frozen"].includes(
-          reasoningSource,
-        )
-      )
+      const modelSource = result.provenance["/model"].source;
+      // Fit mixed-layer choices, never a required level or an invalid authored pair.
+      if (reasoningSource === "requirement" || reasoningSource === modelSource)
         result.diagnostics.push({
           code: "unsupported-reasoning",
           pointer: "/reasoningLevel",

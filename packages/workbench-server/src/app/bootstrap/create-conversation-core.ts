@@ -1,3 +1,17 @@
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { ReleasedProjectMigration } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-project.js";
+import { commitProjectTrust } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-project-trust.js";
+import { discoverReleasedSkillSources } from "../../infrastructure/migrations/steps/0002-agent-profiles/released-resources.js";
+import {
+  readText,
+  safePath,
+  writeProtected,
+} from "../../infrastructure/migrations/steps/0002-agent-profiles/files.js";
+import {
+  sha256,
+  jsonBytes,
+} from "../../infrastructure/migrations/steps/0002-agent-profiles/released-format.js";
 import { createProfileTransitions } from "../../infrastructure/configuration/agent-configuration/profile-transitions.js";
 import { agentConfigurationOperations } from "../../infrastructure/configuration/agent-configuration/scoped-configuration-operations.js";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
@@ -347,11 +361,54 @@ export function createConversationCore(
     },
     launchTool,
   );
+  let migrationTrustEpoch = 0;
+  const projectMigration = new ReleasedProjectMigration({
+    home: deps.storage.paths.home,
+    directory: (id) => {
+      const project = storage.projects.get(id);
+      if (!project) throw new Error("Project not found");
+      return project.directory;
+    },
+    io: {
+      read(path) {
+        safePath(path);
+        return existsSync(path) ? readText(path) : undefined;
+      },
+      write: writeProtected,
+      remove(path) {
+        safePath(path);
+        rmSync(path, { force: true });
+      },
+    },
+    discover: (directory, inputs) =>
+      discoverReleasedSkillSources(deps.storage.paths.home, directory, inputs),
+    originalTrust: (id) => storage.trustedResources.list(id),
+    commitTrust: (id, original, targets, createdAt) => {
+      commitProjectTrust(storage, id, original, targets, createdAt);
+      migrationTrustEpoch++;
+    },
+    report: (id, messages) =>
+      writeProtected(
+        join(
+          deps.storage.paths.home,
+          "migrations/reports",
+          "0002-project-" + sha256(id) + ".json",
+        ),
+        jsonBytes({
+          step: "0002-project-" + sha256(id),
+          description: "Released project configuration conversion",
+          completedAt: new Date().toISOString(),
+          setAside: [],
+          losses: messages.map((reason) => ({ reason, count: 1 })),
+        }),
+      ),
+  });
   const discoveredSkills = new Map<string, string[]>();
   const discoveries = new Map<string, Promise<void>>();
   const resourceFingerprint = () =>
     JSON.stringify({
       discoveredSkills: [...discoveredSkills],
+      migrationTrustEpoch,
       credentialEpoch,
       providers: deps.storage.settings.providers,
       modelConfiguration: deps.storage.configuration.providers,
@@ -383,6 +440,18 @@ export function createConversationCore(
       };
     },
     builtins: bundledAgentProfiles,
+    prepareUser: () => projectMigration.ensureUser(),
+    retryUserMigration: () => projectMigration.retryUser(),
+    prepareProject: (id) => projectMigration.ensure(id),
+    retryProjectMigration: (id) => projectMigration.retry(id),
+    isProjectAgentTrusted: (id, path, digest) => {
+      const row = storage.trustedResources.find(
+        "project_capabilities",
+        id,
+        path,
+      );
+      return row?.status === "trusted" && row.contentDigest === digest;
+    },
     transitionReconciled: (id, receipt) =>
       profileTransitions.reconciled(id, receipt),
     publish: () => admissionPolicy.invalidate(),
@@ -466,6 +535,8 @@ export function createConversationCore(
   const configurationOperations =
     agentConfigurationOperations(agentConfiguration);
   const scopedConfiguration = createScopedAgentConfiguration({
+    workingDirectory: (id) =>
+      storage.conversations.getContext(id)?.workingDirectory,
     initializeConversation: scopedCreation.initializeConversation,
     prepareCreation: scopedCreation.prepareCreation,
     profiles: profileTransitions.port,
@@ -487,7 +558,8 @@ export function createConversationCore(
     home: deps.storage.paths.home,
     storage,
     agents: agentConfiguration,
-    trustGeneration: () => core.trust.generation + core.projects.generation,
+    trustGeneration: () =>
+      core.trust.generation + core.projects.generation + migrationTrustEpoch,
     requestGenerations: (id) => scopedConfiguration.getCapture(id)?.generations,
   });
   const core: ConversationCore = new ConversationCore({
@@ -568,6 +640,11 @@ export function createConversationCore(
     if (change.kind === "conversation_deleted")
       agentConfiguration.forgetConversation(change.conversationId);
   });
+  agentConfiguration.subscribeSummary((id) => {
+    const summary = storage.conversations.getSummary(id);
+    if (summary) core.publishAgentSummary(id);
+  });
+
   const capabilities: CapabilityService = new CapabilityService(
     deps.storage,
     core,
@@ -606,7 +683,8 @@ export function createConversationCore(
       const model = settings.defaultModel;
       return { model, reasoningLevel: settings.defaultThinkingLevel };
     },
-    parent: (id) => core.getSnapshot(id).config,
+    parent: (id) =>
+      scopedConfiguration.port.resolveConfig(id, core.getSnapshot(id).config),
     modelInfo: profileModelInfo,
     resources: async (
       { projectId, conversationId, capabilityOverrides },

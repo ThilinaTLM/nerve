@@ -4,6 +4,13 @@ import type { JsonValue } from "./records";
 
 export type ToolCallInteraction =
   | {
+      kind: "configuration_blocked";
+      status: "pending" | "resolved" | "cancelled";
+      requestedAt: string;
+      updatedAt: string;
+      request: import("@nervekit/contracts/core").ConfigurationBlockedRequest;
+    }
+  | {
       status: "cancelled" | "pending" | "resolved";
       requestedAt: string;
       updatedAt: string;

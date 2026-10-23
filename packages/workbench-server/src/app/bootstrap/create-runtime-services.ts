@@ -152,6 +152,14 @@ export function createRuntimeServices(deps: RuntimeDeps) {
         dir: project.directory,
       })),
     getConversation: (id) => conversationCore.getSnapshot(id),
+    getAgentContext: async (id) => {
+      const view = await agentConfiguration.getEffective(id);
+      if (view.status !== "available") return undefined;
+      const { permissionRuleSetId, reasoningLevel } = view.resolution.settings;
+      return permissionRuleSetId && reasoningLevel
+        ? { permissionRuleSetId, reasoningLevel }
+        : undefined;
+    },
   });
   const agentProfiles = new AgentProfileService({
     userPath: storage.paths.agentProfilesConfigPath,

@@ -8,8 +8,15 @@ import Popover, {
 } from "@nervekit/ui-kit/components/composites/popover-panel";
 import { VirtualScroller } from "@nervekit/ui-kit/components/composites/virtual-list";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
-import { supportedThinkingLevelsForModel } from "$lib/presentation/state/thinking-levels";
-import { contextualModelLabel, modelKey } from "$lib/presentation/utils/model";
+import {
+  clampThinkingLevelForModel,
+  supportedThinkingLevelsForModel,
+} from "$lib/presentation/state/thinking-levels";
+import {
+  contextualModelLabel,
+  modelKey,
+  parseModelKey,
+} from "$lib/presentation/utils/model";
 import type { ComposerModelChange } from "../conversations/conversation-view-contracts.js";
 
 type Props = {
@@ -81,7 +88,11 @@ function thinkingLevelShortLabel(level: ThinkingLevel): string {
 }
 
 const triggerLabel = $derived(
-  selectedModel ? contextualModelLabel(selectedModel, models) : "Select model",
+  selectedModel
+    ? contextualModelLabel(selectedModel, models)
+    : parseModelKey(selectedModelKey)
+      ? `${selectedModelKey} (unavailable)`
+      : "Select model",
 );
 const showSuffix = $derived(hasThinking && thinkingLevel !== "off");
 const triggerTitle = $derived(
@@ -89,19 +100,31 @@ const triggerTitle = $derived(
 );
 
 function selectModel(model: ModelInfo) {
-  if (disabled || modelLocked) return;
+  if (
+    disabled ||
+    modelLocked ||
+    (thinkingLocked &&
+      !supportedThinkingLevelsForModel(model).includes(thinkingLevel))
+  )
+    return;
   const key = modelKey(model);
   if (key === selectedModelKey) return;
   onChange?.({
     model: { provider: model.provider, modelId: model.modelId },
     // The host clamps the level to what the new model supports.
-    ...(thinkingLocked ? {} : { thinkingLevel }),
+    thinkingLevel: thinkingLocked
+      ? thinkingLevel
+      : clampThinkingLevelForModel(thinkingLevel, model),
   });
 }
 
 function selectThinking(level: ThinkingLevel) {
   if (disabled || thinkingLocked || level === thinkingLevel) return;
-  onChange?.({ thinkingLevel: level });
+  if (!selectedModel) return;
+  onChange?.({
+    model: { provider: selectedModel.provider, modelId: selectedModel.modelId },
+    thinkingLevel: level,
+  });
 }
 
 $effect(() => {
@@ -154,7 +177,12 @@ $effect(() => {
           <PopoverRow
             label={contextualModelLabel(model, models)}
             selected={modelKey(model) === selectedModelKey}
-            disabled={disabled || modelLocked}
+            disabled={disabled ||
+              modelLocked ||
+              (thinkingLocked &&
+                !supportedThinkingLevelsForModel(model).includes(
+                  thinkingLevel,
+                ))}
             onclick={() => selectModel(model)}
           />
         {/snippet}

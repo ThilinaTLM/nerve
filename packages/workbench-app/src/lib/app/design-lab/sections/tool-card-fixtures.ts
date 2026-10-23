@@ -12,7 +12,7 @@ import type {
 } from "$lib/presentation/state/tool-types";
 import type { ToolDraftViewModel } from "$lib/presentation/state/active-run";
 import type { ConversationLiveToolOutputSnapshot } from "$lib/presentation/view-models/conversation";
-import type { PlanReviewRecord } from "@nervekit/contracts/plans";
+import type { PlanReviewRecord } from "$lib/presentation/state/tool-types";
 
 export const SAMPLE_CWD = "/home/dev/nerve";
 
@@ -648,6 +648,7 @@ export const planPending = sampleCall({
 });
 export const planReview: PlanReviewRecord = {
   id: "plan_review_gallery",
+  targetProfile: { name: "coding", digest: "a".repeat(64) },
   toolCallId: "tool_plan_wait",
   agentId: AGENT_ID,
   conversationId: CONVERSATION_ID,
@@ -670,6 +671,7 @@ export const planAccepted = sampleCall({
     outcome: "accepted",
     review: {
       id: "plan_review_gallery",
+      targetProfile: { name: "coding", digest: "a".repeat(64) },
       status: "accepted",
       planPath: ".nerve/plans/ui-gallery.md",
       content: PLAN_CONTENT,

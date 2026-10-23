@@ -1,13 +1,10 @@
 /**
  * Agents and Sub-Agents are two settings pages over the same profile files.
  * Each page lists, creates and edits only its own kind; the stored
- * `usableBy` value is the kind. `both` is a retired value that older files may
- * still carry, so those files show on both pages until one kind is chosen.
+ * `usableBy` value is the kind. `both` files show on both pages.
  */
-import type {
-  AgentProfileConfiguration,
-  AgentProfileUsableBy,
-} from "@nervekit/contracts/agent-profiles";
+import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+import type { AgentProfileUsableBy } from "@nervekit/contracts/agent-profiles";
 
 export type ProfileKind = Exclude<AgentProfileUsableBy, "both">;
 
@@ -34,14 +31,14 @@ export function profileKindForPage(pageId: string): ProfileKind {
 
 /** The kind a profile file is stored with; unreadable files have none. */
 export function storedUsableBy(
-  profile: AgentProfileConfiguration,
+  profile: ProfileCatalogEntry,
 ): AgentProfileUsableBy | undefined {
-  return profile.effective?.usableBy ?? profile.local?.usableBy;
+  return profile.definition?.usableBy;
 }
 
-/** Whether a profile belongs on the page for `kind`, including retired `both`. */
+/** Whether a profile belongs on the page for `kind`, including `both`. */
 export function profileBelongsTo(
-  profile: AgentProfileConfiguration,
+  profile: ProfileCatalogEntry,
   kind: ProfileKind,
 ): boolean {
   const usableBy = storedUsableBy(profile);
@@ -50,17 +47,17 @@ export function profileBelongsTo(
 
 /** Profiles for one page, in server order. */
 export function profilesOfKind(
-  profiles: readonly AgentProfileConfiguration[],
+  profiles: readonly ProfileCatalogEntry[],
   kind: ProfileKind,
-): AgentProfileConfiguration[] {
+): ProfileCatalogEntry[] {
   return profiles.filter((profile) => profileBelongsTo(profile, kind));
 }
 
 /** Readable-name-only entries (no effective or local definition) show on both pages. */
 export function unreadableProfiles(
-  profiles: readonly AgentProfileConfiguration[],
-): AgentProfileConfiguration[] {
-  return profiles.filter((profile) => !profile.effective && !profile.local);
+  profiles: readonly ProfileCatalogEntry[],
+): ProfileCatalogEntry[] {
+  return profiles.filter((profile) => !profile.definition);
 }
 
 /** How many profile files a page covers; `both` files count on each page. */

@@ -1,3 +1,13 @@
+import {
+  createConfigurationReload,
+  resolveWithConfigurationRetry,
+} from "../../core-host/configuration-reload.js";
+import { subscribeConfigurationNotifications } from "./configuration-notifications.js";
+import {
+  cachedConversationSummary,
+  cachedConversationSnapshot,
+  cachedAgentFields,
+} from "../../core-host/cached-agent-summary.js";
 import { moveProjectLaunchDefinitions } from "../../infrastructure/migrations/steps/0001-conversation-core/configuration.js";
 import { createId } from "@nervekit/contracts";
 import {
@@ -39,6 +49,7 @@ import { orchestratorSource } from "./messages.js";
 import { PROTOCOL_HEARTBEAT, PROTOCOL_SESSION_LIMITS } from "./constants.js";
 import type { LocalProtocolSession } from "./protocol-websocket.js";
 import { ToolArgumentDelivery } from "./tool-argument-delivery.js";
+import { publicSystemPromptPreview } from "./system-prompt-preview.js";
 
 type ChannelContext = ServerAdapterContexts["websocket"];
 const capabilities = [
@@ -186,16 +197,27 @@ export function createConversationProtocolSession(
       projects.add(input.projectId);
       const snapshot = await core.createConversation(input);
       owners.set(input.id, input.projectId);
-      return snapshot;
+      return cachedConversationSnapshot(state.agentConfiguration, snapshot);
     },
     "conversation.list": (input) => {
       projects.add(input.projectId);
-      return core.listConversations(input);
+      return core
+        .listConversations(input)
+        .map((row) => cachedConversationSummary(state.agentConfiguration, row));
     },
-    "conversation.getSnapshot": ({ conversationId }) =>
-      core.getSnapshot(conversationId),
-    "conversation.previewSystemPrompt": (params) =>
-      core.previewSystemPrompt(previewSystemPromptParamsSchema.parse(params)),
+    "conversation.getSnapshot": async ({ conversationId }) => {
+      await state.agentConfiguration.loadConversationContext(conversationId);
+      return cachedConversationSnapshot(
+        state.agentConfiguration,
+        core.getSnapshot(conversationId),
+      );
+    },
+    "conversation.previewSystemPrompt": async (params) => {
+      const result = await core.previewSystemPrompt(
+        previewSystemPromptParamsSchema.parse(params),
+      );
+      return publicSystemPromptPreview(result);
+    },
     "conversation.getUsage": ({ conversationId }) =>
       core.getUsage(conversationId),
     "conversation.getHistory": ({ conversationId, ...page }) =>
@@ -207,8 +229,8 @@ export function createConversationProtocolSession(
     "conversation.getEventsSince": ({ conversationId, sequence }) =>
       core.getEventsSince(conversationId, sequence),
     "conversation.setAgentProfile": (input) => core.setAgentProfile(input),
-    "conversation.configure": ({ conversationId, patch }) => {
-      core.configure(conversationId, patch);
+    "conversation.configure": async ({ conversationId, patch }) => {
+      await core.configure(conversationId, patch);
       return null;
     },
     "conversation.update": ({ conversationId, patch }) => {
@@ -264,7 +286,14 @@ export function createConversationProtocolSession(
       return null;
     },
     "interaction.resolve": async (input) => {
-      const result = await core.resolveInteraction(input);
+      const result = await resolveWithConfigurationRetry(input, {
+        lookup: (id) => state.coreStorage.toolCalls.get(id) ?? undefined,
+        reload: createConfigurationReload(
+          state.agentConfiguration,
+          state.admissionPolicy,
+        ).retry,
+        resolve: (resolution) => core.resolveInteraction(resolution),
+      });
       if (input.resolution.kind === "approval" && input.resolution.persistScope)
         configurationPublished();
       return result;
@@ -442,13 +471,9 @@ export function createConversationProtocolSession(
       () => notifyDirect(type, data),
       JSON.stringify(data).length * 2,
     );
-  const unsubscribeAgent = state.agentConfiguration.subscribeHealth((scope) => {
-    void notify("agentConfiguration.changed", { scope });
-  });
-  const unsubscribeCreation = state.agentConfiguration.subscribeCreation(
-    (scope) => {
-      void notify("conversationDefaults.changed", { scope });
-    },
+  const unsubscribeConfiguration = subscribeConfigurationNotifications(
+    state.agentConfiguration,
+    notify,
   );
   const unsubscribeCore = core.subscribe((change) => {
     switch (change.kind) {
@@ -468,7 +493,10 @@ export function createConversationProtocolSession(
         if (projects.has(projectId))
           void notify("conversation.changed", {
             projectId,
-            summary: change.summary,
+            summary: cachedConversationSummary(
+              state.agentConfiguration,
+              change.summary,
+            ),
           });
         break;
       }
@@ -501,7 +529,13 @@ export function createConversationProtocolSession(
       case "config_changed":
         void notify("conversation.config", {
           conversationId: change.conversationId,
-          config: change.config,
+          config: {
+            ...change.config,
+            ...cachedAgentFields(
+              state.agentConfiguration,
+              change.conversationId,
+            ),
+          },
           appliedAgentProfile: change.appliedAgentProfile,
         });
         break;
@@ -548,8 +582,7 @@ export function createConversationProtocolSession(
     }
   });
   unsubscribe = () => {
-    unsubscribeAgent();
-    unsubscribeCreation();
+    unsubscribeConfiguration();
     unsubscribeCore();
   };
   return {

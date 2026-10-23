@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   resolveAgentConfiguration,
+  canonicalSettingsEntries,
   profileConfirmationSchema,
   configurationDocumentSourceSchema,
   type AppliedProfile,
@@ -140,7 +141,51 @@ export function createProfileTransitions(
       conversation: document.overrides,
       appliedProfile: applied,
     });
+    const priorResolution = current.view.resolution;
+    const previous = new Map(
+      canonicalSettingsEntries(priorResolution.settings),
+    );
+    const next = new Map(canonicalSettingsEntries(resolution.settings));
+    const changedFields: ProfileTransitionPreview["changedFields"] = [
+      ...new Set([...previous.keys(), ...next.keys()]),
+    ]
+      .filter(
+        (pointer) =>
+          !same(previous.get(pointer), next.get(pointer)) ||
+          !same(
+            priorResolution.provenance[pointer],
+            resolution.provenance[pointer],
+          ),
+      )
+      .map((pointer) => ({
+        pointer,
+        before: previous.get(pointer) ?? null,
+        after: next.get(pointer) ?? null,
+        beforeSource: priorResolution.provenance[pointer],
+        afterSource: resolution.provenance[pointer],
+      }));
+    if (!same(document.appliedProfile?.instructions, applied.instructions))
+      changedFields.push({
+        pointer: "/appliedProfile/instructions",
+        before: document.appliedProfile?.instructions ?? null,
+        after: applied.instructions,
+        beforeSource: undefined,
+        afterSource: undefined,
+      });
+    const unchangedRequirements = canonicalSettingsEntries(applied.requirements)
+      .filter(
+        ([pointer, value]) =>
+          same(previous.get(pointer), value) &&
+          same(
+            priorResolution.provenance[pointer],
+            resolution.provenance[pointer],
+          ),
+      )
+      .map(([pointer, value]) => ({ pointer, value }));
     const preview: ProfileTransitionPreview = {
+      targetDefinition: structuredClone(lookup.definition),
+      changedFields,
+      unchangedRequirements,
       targetProfile: { name, digest: lookup.digest },
       source: lookup.source,
       expectedRevision: source.revision,

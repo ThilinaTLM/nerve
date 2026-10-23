@@ -24,7 +24,7 @@ export function conversationView(
   const c = snapshot.conversation;
   return {
     ...c,
-    agentProfile: snapshot.config.agentProfile,
+    agentProfile: snapshot.config.agentProfile ?? "Unknown profile",
     activeAgentId: c.id,
     activeEntryId: c.headEventId ?? undefined,
     pinned: !!c.pinnedAt,
@@ -69,7 +69,8 @@ export function agentView(
             })),
         ])
       : undefined,
-    agentProfile: child?.agentProfile ?? config.agentProfile,
+    agentProfile:
+      child?.agentProfile ?? config.agentProfile ?? "Unknown profile",
     permissionRuleSetId:
       child?.permissionRuleSetId ?? config.permissionRuleSetId,
     model: child?.model ?? config.model,
@@ -91,8 +92,8 @@ export function conversationContext(
     boundary?.type === "assistant_message" ? boundary.payload : undefined;
   const model = models.find(
     (m) =>
-      m.provider === (response?.provider ?? snapshot.config.model.provider) &&
-      m.modelId === (response?.model ?? snapshot.config.model.modelId),
+      m.provider === (response?.provider ?? snapshot.config.model?.provider) &&
+      m.modelId === (response?.model ?? snapshot.config.model?.modelId),
   );
   const contextWindow = model?.contextWindow ?? 0;
   const tokens = response

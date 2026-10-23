@@ -1,6 +1,7 @@
 <!-- Create a profile: blank, or a copy of an existing one. Saved as one JSON file. -->
 <script lang="ts">
-import type { AgentProfileConfiguration } from "@nervekit/contracts/agent-profiles";
+import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { AGENT_PROFILE_LABEL_MAX_LENGTH } from "@nervekit/contracts/agent-profiles";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -9,20 +10,21 @@ import { Input } from "@nervekit/ui-kit/components/ui/input";
 import { Label } from "@nervekit/ui-kit/components/ui/label";
 import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 import { nameFromLabel } from "./profile-changes";
-import {
-  profileKindText,
-  profilesOfKind,
-  type ProfileKind,
-} from "./profile-kind";
+import { profileKindText, type ProfileKind } from "./profile-kind";
 
 type Props = {
   open?: boolean;
   kind: ProfileKind;
   scope: "user" | "project";
   /** Every profile file in this scope; used for name clashes. */
-  profiles: AgentProfileConfiguration[];
+  profiles: ProfileCatalogEntry[];
   error?: string;
-  onCreate: (input: { label: string; name: string; copyOf?: string }) => void;
+  onCreate: (input: {
+    label: string;
+    name: string;
+    copyOf?: string;
+    description: string;
+  }) => void;
 };
 let {
   open = $bindable(false),
@@ -35,15 +37,23 @@ let {
 
 const text = $derived(profileKindText[kind]);
 const copyable = $derived(
-  profilesOfKind(profiles, kind).filter((profile) => profile.effective),
+  profiles.filter(
+    (profile) =>
+      profile.definition &&
+      (kind === "lead"
+        ? profile.definition.usableBy !== "subagent"
+        : profile.definition.usableBy !== "lead"),
+  ),
 );
 let label = $state("");
+let description = $state("");
 let from = $state<"blank" | "copy">("blank");
 let copyOf = $state("");
 let lastOpen = false;
 $effect(() => {
   if (open && !lastOpen) {
     label = "";
+    description = "";
     from = "blank";
     copyOf = copyable[0]?.name ?? "";
   }
@@ -55,6 +65,7 @@ const valid = $derived(
   label.trim().length > 0 &&
     name.length > 0 &&
     !taken &&
+    (from === "copy" || description.trim().length > 0) &&
     (from === "blank" || copyOf),
 );
 
@@ -62,6 +73,7 @@ function create(): void {
   if (!valid) return;
   onCreate({
     label: label.trim(),
+    description: description.trim(),
     name,
     copyOf: from === "copy" ? copyOf : undefined,
   });
@@ -97,13 +109,20 @@ function create(): void {
         <SelectField
           items={copyable.map((profile) => ({
             value: profile.name,
-            label: profile.effective?.label ?? profile.name,
+            label: profile.definition?.label ?? profile.name,
           }))}
           value={copyOf}
           ariaLabel={`${text.singular} to copy`}
           onValueChange={(next) => (copyOf = next)}
         />
       {/if}
+    </div>
+    <div class="grid gap-1.5">
+      <Label for="new-profile-description">Description</Label><Textarea
+        id="new-profile-description"
+        bind:value={description}
+        placeholder="What this profile is for"
+      />
     </div>
     <div class="grid gap-1.5">
       <Label for="new-profile-label">Label</Label>

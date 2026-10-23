@@ -1,3 +1,5 @@
+import { createId } from "@nervekit/contracts";
+import { requestConversation } from "$lib/application/startup/conversation-connection";
 import { conversationDraftStore } from "$lib/application/workspace/conversation-draft-store";
 import type { ConversationUiCapabilities } from "$lib/presentation/context.svelte";
 import { voiceInputSession } from "$lib/features/conversations/audio/voice-input-session.svelte";
@@ -72,6 +74,22 @@ export function workbenchConversationUiCapabilities(
 ): ConversationUiCapabilities {
   return {
     canCompactPlanBeforeImplementation: false,
+    previewAgentProfile: (conversationId, profile) =>
+      requestConversation("conversation.previewAgentProfile", {
+        conversationId,
+        profile,
+      }),
+    resolveConfigurationBlocked: async (toolCallId, decision) => {
+      const result = await requestConversation("interaction.resolve", {
+        toolCallId,
+        resolutionRequestId: createId("input"),
+        resolution: { kind: "configuration_blocked", decision },
+      });
+      if (result.status !== "resolved")
+        throw new Error(
+          "Configuration is still blocked. Repair the document and retry.",
+        );
+    },
     askUserDrafts: conversationDraftStore(),
     fetchToolCall: (toolCallId) => getToolCallDetails(toolCallId),
     readToolCallResult: (toolCallId, byteOffset, byteLimit) =>

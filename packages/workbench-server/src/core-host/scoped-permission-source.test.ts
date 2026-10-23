@@ -15,7 +15,7 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
   let selection = "autonomous";
   const storage = {
     conversations: {
-      get: () => ({ id: "c", projectId: "p", parentConversationId: null }),
+      get: (id: string) => ({ id, projectId: "p", parentConversationId: null }),
     },
     projects: { get: () => ({ id: "p", directory: home }) },
     trustedResources: { find: () => undefined },
@@ -90,6 +90,13 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
       "external files are not polled",
     );
     source.invalidate();
+    assert.equal(
+      (await prepare({ ...input, conversationId: "fresh" })).check().kind,
+      "policy",
+      "a new policy derivation must reuse the published user document",
+    );
+    assert.equal((await prepare(input)).check().kind, "policy");
+    await source.reload([path]);
     assert.equal(next.check().kind, "stale");
     const blocked = (await prepare(input)).check();
     assert.equal(blocked.kind, "blocked");
@@ -97,7 +104,7 @@ void test("admission reads live selection, blocks invalid policy, and reloads on
       assert.equal(blocked.request.diagnostics[0].path, path);
     await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
     assert.equal((await prepare(input)).check().kind, "blocked");
-    source.invalidate();
+    await source.reload([path]);
     assert.equal((await prepare(input)).check().kind, "policy");
   } finally {
     await rm(home, { recursive: true, force: true });

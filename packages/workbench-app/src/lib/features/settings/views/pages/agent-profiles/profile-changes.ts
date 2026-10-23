@@ -1,23 +1,10 @@
-/**
- * Pure model of a profile's change list. A profile is a template: each setting
- * it names has a mode (Use settings = absent, Reset to settings, Same as lead, Set, Lock). This
- * module turns a profile draft into display rows and turns an edited change
- * back into an `AgentProfilePatch`.
- */
-import type {
-  AgentProfileDraft,
-  AgentProfilePatch,
-  AgentProfileSetting,
-  AgentProfileUsableBy,
-} from "@nervekit/contracts/agent-profiles";
-import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import {
-  agentProfileSettingKind,
-  explicitValue,
-} from "@nervekit/contracts/agent-profiles";
-
-export type ChangeMode = "set" | "lock" | "lead" | "settings";
-/** A change's identity: a setting, or one tool. */
+  profileDefinitionSchema,
+  type ProfileDefinition,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
+export type ChangeMode = "settings" | "recommend" | "require";
 export type ChangeKey =
   | "model"
   | "permission"
@@ -25,16 +12,18 @@ export type ChangeKey =
   | "skills"
   | "instructions"
   | `tool:${string}`;
-
-/** The combined Model change: either field may be left as Use settings. */
 export type ModelChangeValue = {
   model?: ModelSelection;
   thinking?: ThinkingLevel;
-  /** Kept independently even though the picker edits both values. */
   modelMode?: ChangeMode;
   thinkingMode?: ChangeMode;
 };
-
+export type SkillBuckets = {
+  file: Record<string, boolean>;
+  nerve: Record<string, boolean>;
+  agentBrowser: Record<string, boolean>;
+  defaults?: Partial<Record<"file" | "nerve" | "agentBrowser", boolean>>;
+};
 export const changeKinds = [
   { key: "model", label: "Model" },
   { key: "permission", label: "Permissions" },
@@ -43,98 +32,112 @@ export const changeKinds = [
   { key: "skills", label: "Skills" },
   { key: "instructions", label: "Instructions" },
 ] as const;
-
-export function changeLabel(key: ChangeKey): string {
-  if (key.startsWith("tool:")) return "Tool";
-  return changeKinds.find((kind) => kind.key === key)?.label ?? key;
-}
-
 export const modeLabels: Record<ChangeMode, string> = {
-  set: "Set",
-  lock: "Locked",
-  lead: "Same as lead",
-  settings: "Reset to settings",
+  settings: "Use settings",
+  recommend: "Recommend",
+  require: "Require",
 };
-
-/** Set, Lock and Reset to settings are always available; Same as lead only for sub-agent use. */
-export function modesFor(usableBy: AgentProfileUsableBy): ChangeMode[] {
-  return usableBy === "lead"
-    ? ["set", "lock", "settings"]
-    : ["set", "lock", "settings", "lead"];
+export function changeLabel(key: ChangeKey): string {
+  return key.startsWith("tool:")
+    ? "Tool"
+    : (changeKinds.find((k) => k.key === key)?.label ?? key);
 }
-
+export function modesFor(): ChangeMode[] {
+  return ["settings", "recommend", "require"];
+}
 export function modeHint(mode: ChangeMode): string {
-  switch (mode) {
-    case "set":
-      return "Applied when the profile is used. It can still be changed in the conversation.";
-    case "lock":
-      return "Applied, and it can't be changed in the conversation.";
-    case "lead":
-      return "Sub-agents follow whatever the lead agent uses.";
-    case "settings":
-      return "Reset to the value in settings when the profile is applied, ignoring conversation changes.";
-  }
+  return mode === "settings"
+    ? "No profile contribution. Existing conversation choices and scoped preferences remain intact."
+    : mode === "recommend"
+      ? "Used unless the conversation explicitly chooses another value."
+      : "Controls the effective value while this profile applies. Underlying choices are preserved.";
 }
-
 export type ChangeRow = {
   key: ChangeKey;
   label: string;
-  /** Instructions are plain text; everything else carries a mode. */
   mode?: ChangeMode;
-  /** The setting's value, for the row's display text and the editor. */
+  mixed?: boolean;
   value: unknown;
 };
-
-function modeOf(setting: AgentProfileSetting<unknown>): ChangeMode {
-  const kind = agentProfileSettingKind(setting);
-  return kind === "use-settings" ? "set" : kind;
+const section = (mode: ChangeMode) =>
+  mode === "require" ? "requirements" : "recommendations";
+function mergeValues(lower: unknown, upper: unknown): unknown {
+  if (upper === undefined) return lower;
+  if (
+    !lower ||
+    !upper ||
+    typeof lower !== "object" ||
+    typeof upper !== "object" ||
+    Array.isArray(lower) ||
+    Array.isArray(upper)
+  )
+    return upper;
+  const result: Record<string, unknown> = { ...lower };
+  for (const [key, value] of Object.entries(upper))
+    result[key] = mergeValues(result[key], value);
+  return result;
 }
-function valueOf<T>(setting: AgentProfileSetting<T>): T | undefined {
-  return explicitValue(setting);
-}
-
-/** Rows in a stable order: model, permission, compaction, tools, skills, instructions. */
-export function changeRows(profile: AgentProfileDraft): ChangeRow[] {
-  const rows: ChangeRow[] = [];
-  const add = (
-    key: ChangeKey,
-    setting: AgentProfileSetting<unknown> | undefined,
-  ) => {
-    if (setting === undefined) return;
-    rows.push({
-      key,
-      label: changeLabel(key),
-      mode: modeOf(setting),
-      value: valueOf(setting),
-    });
+function field(profile: ProfileDefinition, key: keyof LeadSettingsOverrides) {
+  const required = profile.requirements?.[key],
+    recommended = profile.recommendations?.[key];
+  return {
+    mode:
+      required !== undefined
+        ? ("require" as const)
+        : recommended !== undefined
+          ? ("recommend" as const)
+          : ("settings" as const),
+    value: mergeValues(recommended, required),
+    mixed: required !== undefined && recommended !== undefined,
   };
-  if (profile.model !== undefined || profile.thinking !== undefined) {
-    // One combined row: the model and its reasoning level are separate
-    // settings in the file but read and edit as one.
-    const defined = [profile.model, profile.thinking].filter(
-      (setting) => setting !== undefined,
-    ) as AgentProfileSetting<unknown>[];
-    const concrete =
-      defined.find((setting) => typeof setting !== "string") ?? defined[0];
+}
+export function changeRows(profile: ProfileDefinition): ChangeRow[] {
+  const rows: ChangeRow[] = [];
+  const model = field(profile, "model"),
+    reasoning = field(profile, "reasoningLevel");
+  if (model.value !== undefined || reasoning.value !== undefined)
     rows.push({
       key: "model",
-      label: profile.model === undefined ? "Reasoning" : "Model",
-      mode: modeOf(concrete!),
+      label: "Model and reasoning",
+      mode: model.value !== undefined ? model.mode : reasoning.mode,
+      mixed: model.mode !== reasoning.mode,
       value: {
-        model: profile.model && valueOf(profile.model),
-        thinking: profile.thinking && valueOf(profile.thinking),
-        modelMode: profile.model === undefined ? "set" : modeOf(profile.model),
-        thinkingMode:
-          profile.thinking === undefined ? "set" : modeOf(profile.thinking),
-      } satisfies ModelChangeValue,
+        model: model.value,
+        thinking: reasoning.value,
+        modelMode: model.mode,
+        thinkingMode: reasoning.mode,
+      },
+    });
+  for (const [key, pointer] of [
+    ["permission", "permissionRuleSetId"],
+    ["compaction", "compaction"],
+    ["skills", "skills"],
+  ] as const) {
+    const value = field(profile, pointer);
+    if (value.value !== undefined)
+      rows.push({ key, label: changeLabel(key), ...value });
+  }
+  for (const name of new Set([
+    ...Object.keys(profile.recommendations?.tools ?? {}),
+    ...Object.keys(profile.requirements?.tools ?? {}),
+  ])) {
+    const recommended =
+        profile.recommendations?.tools?.[
+          name as keyof NonNullable<LeadSettingsOverrides["tools"]>
+        ],
+      required =
+        profile.requirements?.tools?.[
+          name as keyof NonNullable<LeadSettingsOverrides["tools"]>
+        ];
+    rows.push({
+      key: `tool:${name}`,
+      label: name,
+      mode: required !== undefined ? "require" : "recommend",
+      mixed: required !== undefined && recommended !== undefined,
+      value: mergeValues(recommended, required),
     });
   }
-  add("permission", profile.permission);
-  add("compaction", profile.compaction);
-  for (const [name, setting] of Object.entries(profile.tools ?? {}))
-    add(`tool:${name}`, setting as AgentProfileSetting<unknown>);
-  add("skills", profile.skills);
-  if (profile.instructions.trim())
+  if (profile.instructions)
     rows.push({
       key: "instructions",
       label: "Instructions",
@@ -142,84 +145,80 @@ export function changeRows(profile: AgentProfileDraft): ChangeRow[] {
     });
   return rows;
 }
-
-/** Wraps a value in its mode; Same as lead and Reset to settings have no value. */
-export function withMode<T>(
-  mode: ChangeMode,
-  value: T,
-): AgentProfileSetting<T> {
-  return mode === "lead" || mode === "settings"
-    ? mode
-    : mode === "lock"
-      ? { lock: value }
-      : { set: value };
-}
-
-/** The patch that sets one change; the server writes the whole file. */
-export function setChangePatch(
-  key: ChangeKey,
-  mode: ChangeMode,
-  value: unknown,
-): AgentProfilePatch {
-  if (key === "instructions") return { instructions: String(value) };
-  if (key === "model") {
-    const {
-      model,
-      thinking,
-      modelMode = mode,
-      thinkingMode = mode,
-    } = (value ?? {}) as ModelChangeValue;
-    return {
-      model:
-        modelMode === "lead" || modelMode === "settings"
-          ? modelMode
-          : model
-            ? withMode(modelMode, model)
-            : null,
-      thinking:
-        thinkingMode === "lead" || thinkingMode === "settings"
-          ? thinkingMode
-          : thinking
-            ? withMode(thinkingMode, thinking)
-            : null,
-    } as AgentProfilePatch;
+/** Move a field between contributions; Use settings removes it from both, never writes inherited values. */
+export function applyProfileChange(
+  profile: ProfileDefinition,
+  change: { key: ChangeKey | "tool:"; mode: ChangeMode; value: unknown },
+): ProfileDefinition {
+  const next = structuredClone(profile);
+  if (change.key === "instructions") {
+    next.instructions = String(change.value ?? "");
+    return profileDefinitionSchema.parse(next);
   }
-  if (key.startsWith("tool:"))
-    return {
-      tools: { [key.slice(5)]: withMode(mode, value) },
-    } as AgentProfilePatch;
-  return { [key]: withMode(mode, value) } as AgentProfilePatch;
+  const write = (
+    key: keyof LeadSettingsOverrides,
+    value: unknown,
+    mode: ChangeMode,
+  ) => {
+    for (const contribution of ["recommendations", "requirements"] as const) {
+      if (next[contribution]) delete next[contribution][key];
+    }
+    if (mode !== "settings" && value === undefined)
+      throw new Error(`Choose a value for ${key}, or use settings.`);
+    if (mode !== "settings") {
+      const target = section(mode);
+      next[target] = { ...next[target], [key]: value };
+    }
+  };
+  if (change.key === "model") {
+    const value = change.value as ModelChangeValue | undefined;
+    write("model", value?.model, value?.modelMode ?? change.mode);
+    write(
+      "reasoningLevel",
+      value?.thinking,
+      value?.thinkingMode ?? change.mode,
+    );
+  } else if (change.key.startsWith("tool:")) {
+    const name = change.key.slice(5);
+    for (const contribution of ["recommendations", "requirements"] as const)
+      if (next[contribution]?.tools) {
+        const tools = { ...next[contribution].tools };
+        delete tools[name as keyof typeof tools];
+        next[contribution] = { ...next[contribution], tools };
+      }
+    if (change.mode !== "settings") {
+      const target = section(change.mode);
+      next[target] = {
+        ...next[target],
+        tools: { ...next[target]?.tools, [name]: change.value },
+      };
+    }
+  } else
+    write(
+      change.key === "permission"
+        ? "permissionRuleSetId"
+        : (change.key as "compaction" | "skills"),
+      change.value === "none"
+        ? { defaults: { file: false, nerve: false, agentBrowser: false } }
+        : change.value,
+      change.mode,
+    );
+  return profileDefinitionSchema.parse(next);
 }
-
-/** The patch that removes a change, so the setting falls back to Use settings. */
-export function removeChangePatch(key: ChangeKey): AgentProfilePatch {
-  if (key === "instructions") return { instructions: "" };
-  if (key === "model") return { model: null, thinking: null };
-  if (key.startsWith("tool:"))
-    return { tools: { [key.slice(5)]: null } } as AgentProfilePatch;
-  return { [key]: null } as AgentProfilePatch;
-}
-
-/** Skills value: tri-state per skill, or none. */
-export type SkillBuckets = {
-  file: Record<string, boolean>;
-  nerve: Record<string, boolean>;
-  agentBrowser: Record<string, boolean>;
-};
-
-/** "-docs, +review" style summary of a skills setting. */
 export function skillsSummary(value: unknown): string {
+  const skills = value as Partial<SkillBuckets> | undefined;
+  if (!skills) return "";
   if (value === "none") return "None";
-  const buckets = value as SkillBuckets | undefined;
-  if (!buckets) return "";
-  const names = [buckets.file, buckets.nerve, buckets.agentBrowser].flatMap(
-    (bucket) =>
-      Object.entries(bucket).map(([name, on]) => `${on ? "+" : "−"} ${name}`),
+  return (
+    ["file", "nerve", "agentBrowser"]
+      .flatMap((kind) =>
+        Object.entries(skills[kind as keyof SkillBuckets] ?? {}).map(
+          ([name, enabled]) => `${enabled ? "+" : "−"} ${name}`,
+        ),
+      )
+      .join(", ") || "Source defaults"
   );
-  return names.join(", ");
 }
-
-/** A profile name from a label: lowercase words joined by single hyphens, at most 32 characters. */
 export function nameFromLabel(label: string): string {
   return label
     .toLowerCase()

@@ -1,3 +1,4 @@
+import { scopedConfigurationMethodHandlers } from "./handlers/scoped-configuration-method-handlers.js";
 import { completionMethodHandlers } from "./handlers/completion-method-handlers.js";
 import { activityMethodHandlers } from "./handlers/activity-method-handlers.js";
 import { isWorkbenchOperation } from "@nervekit/contracts/events";
@@ -28,6 +29,12 @@ export function bindWorkbenchOperationHandlers(
   invocation: WorkbenchInvocationContext = {},
 ): Partial<OperationHandlerRegistry> {
   return combineWorkbenchMethodHandlerGroups([
+    bindWorkbenchMethodHandlerGroup(
+      scopedConfigurationMethodHandlers,
+      contexts.platform,
+      diagnostics,
+      invocation,
+    ),
     bindWorkbenchMethodHandlerGroup(
       completionMethodHandlers,
       contexts.completions,

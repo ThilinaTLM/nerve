@@ -1,14 +1,24 @@
-import { readdir } from "node:fs/promises";
+import { readConfigurationDigest } from "./configuration-bytes.js";
+import { readFile, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
-import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
+import {
+  profileDefinitionSchema,
+  type ProfileCatalogEntry,
+} from "@nervekit/contracts/agent-configuration";
 import {
   ScopedDocumentStore,
   digestBytes,
   freezeJson,
   type ScopedDocumentOptions,
   type ScopeHealth,
+  ScopeConflictError,
+  ScopeUnavailableError,
 } from "../scoped-store/scoped-document-store.js";
-import { errorCode } from "../scoped-store/durable-write.js";
+import { withFileMutation } from "../../storage-bootstrap/file-mutations.js";
+import {
+  errorCode,
+  synchronizeDirectory,
+} from "../scoped-store/durable-write.js";
 import {
   AgentConfigurationPaths,
   diagnostic,
@@ -32,6 +42,7 @@ export type ProfileLookup =
   | { status: "unavailable"; diagnostics: readonly ConfigurationDiagnostic[] };
 export interface ProfileCatalogOptions {
   paths: AgentConfigurationPaths;
+  prepareProject?(projectId: string): Promise<void>;
   /** Authored bundled bytes, not legacy profile formats. */
   builtins: Readonly<Record<string, string>>;
   isTrusted(projectId: string, path: string, exactDigest: string): boolean;
@@ -95,6 +106,7 @@ export class AgentProfileCatalog {
     projectId?: string,
     role: "lead" | "child" = "lead",
   ): Promise<ProfileLookup> {
+    if (projectId) await this.options.prepareProject?.(projectId);
     profileDefinitionSchema.shape.name.parse(name);
     const scopes: PreferenceScope[] = projectId
       ? [{ scope: "project", projectId }, { scope: "user" }]
@@ -302,6 +314,7 @@ export class AgentProfileCatalog {
     profiles: Record<string, ProfileLookup>;
     diagnostics: ConfigurationDiagnostic[];
   }> {
+    if (projectId) await this.options.prepareProject?.(projectId);
     const user = await this.names({ scope: "user" });
     const project = projectId
       ? await this.names({ scope: "project", projectId })
@@ -324,6 +337,141 @@ export class AgentProfileCatalog {
       ),
       diagnostics: [...user.diagnostics, ...project.diagnostics],
     };
+  }
+
+  /** Editing can inspect disabled/untrusted definitions, but never bypass application checks. */
+  async readForEditing(
+    scope: PreferenceScope,
+    name: string,
+    role: "lead" | "child" = "lead",
+  ): Promise<{ profile: ProfileCatalogEntry; localDigest: string }> {
+    profileDefinitionSchema.shape.name.parse(name);
+    if (scope.scope === "project")
+      await this.options.prepareProject?.(scope.projectId);
+    const scopes: PreferenceScope[] =
+      scope.scope === "project" ? [scope, { scope: "user" }] : [scope];
+    let localDigest = "missing";
+    for (const [index, current] of scopes.entries()) {
+      const state = await this.read({ ...current, name });
+      const digest =
+        state.status === "unavailable"
+          ? (state.sourceDigest ?? "missing")
+          : state.value.digest;
+      if (index === 0) localDigest = digest;
+      if (
+        state.status === "unavailable" &&
+        state.issues.every((issue) => issue.code === "missing-required")
+      )
+        continue;
+      const definition =
+        state.status === "unavailable" ? null : state.value.document;
+      const file = this.options.paths.profile(current, name);
+      const trusted =
+        current.scope !== "project" ||
+        this.options.isTrusted(current.projectId, file, digest);
+      return {
+        localDigest,
+        profile: {
+          name,
+          source: current.scope,
+          path: file,
+          digest,
+          definition,
+          trusted,
+          applicable:
+            !!definition &&
+            (definition.usableBy === "both" ||
+              definition.usableBy === (role === "lead" ? "lead" : "subagent")),
+          enabled: definition?.enabled !== false,
+          local: index === 0,
+          diagnostics: [
+            ...healthDiagnostics(state, `profile:${name}`),
+            ...(!trusted
+              ? [diagnostic(current, `profile:${name}`, file, "untrusted")]
+              : []),
+          ],
+        },
+      };
+    }
+    const bytes = this.options.builtins[name];
+    if (bytes === undefined) throw new Error("Profile not found");
+    const definition = profileDefinitionSchema.parse(JSON.parse(bytes));
+    return {
+      localDigest,
+      profile: {
+        name,
+        source: "builtin",
+        path: `builtin:${name}`,
+        digest: digestBytes(bytes),
+        definition,
+        trusted: true,
+        applicable:
+          definition.usableBy === "both" ||
+          definition.usableBy === (role === "lead" ? "lead" : "subagent"),
+        enabled: definition.enabled !== false,
+        local: false,
+        diagnostics: [],
+      },
+    };
+  }
+
+  async listForEditing(
+    scope: PreferenceScope,
+    role: "lead" | "child" = "lead",
+  ) {
+    if (scope.scope === "project")
+      await this.options.prepareProject?.(scope.projectId);
+    const user = await this.names({ scope: "user" });
+    const project =
+      scope.scope === "project"
+        ? await this.names(scope)
+        : { names: [], diagnostics: [] };
+    const names = [
+      ...new Set([
+        ...Object.keys(this.options.builtins),
+        ...user.names,
+        ...project.names,
+      ]),
+    ].sort();
+    return {
+      profiles: await Promise.all(
+        names.map(
+          async (name) =>
+            (await this.readForEditing(scope, name, role)).profile,
+        ),
+      ),
+      diagnostics: [...user.diagnostics, ...project.diagnostics],
+    };
+  }
+
+  async deleteLocal(
+    scope: PreferenceScope,
+    name: string,
+    expectedDigest: string,
+  ) {
+    const target = { ...scope, name };
+    const file = this.options.paths.profile(scope, name);
+    this.track(target);
+    await withFileMutation(file, async () => {
+      if ((await readConfigurationDigest(file)) !== expectedDigest)
+        throw new ScopeConflictError();
+      if (expectedDigest !== "missing") {
+        // Invalid content must go through confirmed repair with backup/receipt,
+        // not an ordinary catalog delete that would discard its original bytes.
+        try {
+          profileDefinitionSchema.parse(
+            JSON.parse(await readFile(file, "utf8")),
+          );
+        } catch {
+          throw new ScopeUnavailableError();
+        }
+        await unlink(file);
+      }
+      if (expectedDigest !== "missing")
+        await (this.options.io?.syncDirectory ?? synchronizeDirectory)(file);
+    });
+    await this.reload(scope, name);
+    return { status: "saved" as const, digest: "missing" };
   }
 
   async save(

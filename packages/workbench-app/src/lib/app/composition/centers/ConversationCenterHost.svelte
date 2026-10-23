@@ -1,7 +1,7 @@
 <script lang="ts">
+import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
 import type { EffectiveAgentView } from "@nervekit/contracts/agent-configuration";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
-import ConfigurationBlockedReview from "$lib/features/conversations/views/ConfigurationBlockedReview.svelte";
 import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
 import { compareSubagents } from "$lib/presentation/conversations/subagent-order";
 import { untrack } from "svelte";
@@ -336,6 +336,9 @@ const composerProfiles = $derived(
       })),
 );
 const lockedFields = $derived({
+  by: activePendingConversation
+    ? selectedAgentProfile
+    : effective?.appliedProfile?.name,
   model: composerResolution?.provenance["/model"]?.source === "requirement",
   thinking:
     composerResolution?.provenance["/reasoningLevel"]?.source === "requirement",
@@ -700,8 +703,7 @@ function setComposerModelSelection(next: {
     ),
   );
   return configure({
-    ...(next.model ? { model: next.model } : {}),
-    ...(next.thinkingLevel ? { reasoningLevel } : {}),
+    ...(model ? { model, reasoningLevel } : {}),
   });
 }
 function resetComposerModel() {
@@ -728,7 +730,15 @@ function setComposerPermissionRuleSet(value: string) {
 async function resolve(toolCallId: string, resolution: InteractionResolution) {
   const result = await store?.resolve(toolCallId, resolution);
   if (result?.status === "refresh_required") {
-    throw new Error("Plan review requires refresh; the review remains open.");
+    const message =
+      result.reason === "requirement_conflict"
+        ? "Profile requirements conflict with the chosen model or reasoning. The plan remains open; repair the conflict and confirm again. Nothing was applied."
+        : "Profile or configuration changed. The plan remains open; review the refreshed requirements and confirm again. Nothing was applied.";
+    notify.warning("Plan review needs new confirmation", {
+      description: message,
+      duration: 10000,
+    });
+    throw new Error(message);
   }
   if (result?.status === "unavailable")
     throw new Error("Configuration unavailable; the review remains open.");
@@ -1091,15 +1101,13 @@ const teamRunning = $derived(
     />
   {/snippet}
   {#snippet activity(showLatest, onJumpToBottom)}
-    {#each store?.snapshot?.toolCalls ?? [] as call (call.id)}
-      {#if call.interaction?.kind === "configuration_blocked" && !call.interaction.resolution}
-        <ConfigurationBlockedReview
-          request={call.interaction.request}
-          onResolve={(decision) =>
-            resolve(call.id, { kind: "configuration_blocked", decision })}
-        />
-      {/if}
-    {/each}
+    {#if effective?.appliedProfile && store && !viewedChildId}
+      <ProfileUpdateNotice
+        conversationId={store.conversationId}
+        applied={effective.appliedProfile}
+        onApplied={() => store!.refreshConfiguration()}
+      />
+    {/if}
     {#if viewedConversationId}
       <ConversationActivityIsland
         bind:open={activityOpen}

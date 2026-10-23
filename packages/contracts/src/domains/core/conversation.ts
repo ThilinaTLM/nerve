@@ -38,13 +38,38 @@ export const conversationConfigSchema = z.object({
   model: modelSelectionSchema,
   reasoningLevel: thinkingLevelSchema,
   systemPrompt: z.string().nullable(),
-  /** Extra instructions (at most 16 KB) appended to the system prompt; sub-agent profiles set it. */
+  /** Conversation-only instructions (at most 16 KB); profile instructions contribute separately. */
   instructions: agentProfileInstructionsSchema.nullable(),
   permissionRuleSetId: z.string(),
   agentProfile: agentProfileNameSchema,
 
   workingDirectory: z.string(),
 });
+/** Working directory is SQL-owned. JSON prompt context may be unavailable in history. */
+export const conversationContextSchema = conversationConfigSchema
+  .pick({
+    conversationId: true,
+    systemPrompt: true,
+    instructions: true,
+    workingDirectory: true,
+  })
+  .partial({ systemPrompt: true, instructions: true });
+export const conversationHistoryConfigSchema = conversationConfigSchema.partial(
+  {
+    model: true,
+    reasoningLevel: true,
+    permissionRuleSetId: true,
+    agentProfile: true,
+    systemPrompt: true,
+    instructions: true,
+  },
+);
+export type ConversationContextConfig = z.infer<
+  typeof conversationContextSchema
+>;
+export type ConversationHistoryConfig = z.infer<
+  typeof conversationHistoryConfigSchema
+>;
 export const conversationSummarySchema = conversationSchema
   .omit({
     headEventId: true,
@@ -64,7 +89,7 @@ export const conversationSummarySchema = conversationSchema
 export const conversationSnapshotSchema = z.object({
   conversation: conversationSchema,
   lastSequence: z.number().int().nonnegative(),
-  config: conversationConfigSchema,
+  config: conversationHistoryConfigSchema,
   appliedAgentProfile: appliedAgentProfileSchema.nullable(),
   toolCalls: z.array(toolCallSchema),
   queue: z.array(queuedInputSchema),

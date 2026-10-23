@@ -36,6 +36,29 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
   const api = model.api ?? template?.api;
   const baseUrl = model.baseUrl ?? template?.baseUrl;
   if (!api || !baseUrl) return undefined;
+  const thinkingLevelMap: NonNullable<Model<string>["thinkingLevelMap"]> = {
+    ...(model.thinkingLevelMap ?? template?.thinkingLevelMap),
+  };
+  if (model.supportedThinkingLevels) {
+    const supported = new Set(model.supportedThinkingLevels);
+    for (const level of [
+      "off",
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ] as const) {
+      if (!supported.has(level)) thinkingLevelMap[level] = null;
+      else if (
+        thinkingLevelMap[level] === null ||
+        ((level === "xhigh" || level === "max") &&
+          thinkingLevelMap[level] === undefined)
+      )
+        thinkingLevelMap[level] = level;
+    }
+  }
   const resolved = {
     id: model.modelId,
     name: model.name,
@@ -43,7 +66,7 @@ function toPiModel(model: AgentCustomModel): Model<string> | undefined {
     provider: model.provider,
     baseUrl,
     reasoning: model.reasoning,
-    thinkingLevelMap: model.thinkingLevelMap ?? template?.thinkingLevelMap,
+    thinkingLevelMap,
     input: model.input ?? template?.input ?? ["text"],
     cost: model.cost ??
       template?.cost ?? {
@@ -77,10 +100,7 @@ function findCustomModel(
 function customModelInfo(model: AgentCustomModel): AgentModelInfo | undefined {
   const resolved = toPiModel(model);
   if (!resolved) return undefined;
-  const info = getAgentModelInfo(resolved);
-  return model.supportedThinkingLevels
-    ? { ...info, supportedThinkingLevels: model.supportedThinkingLevels }
-    : info;
+  return getAgentModelInfo(resolved);
 }
 
 const fauxResponseFactory: Parameters<
@@ -190,5 +210,12 @@ export function listAvailableModels(
   const custom = (customModels ?? [])
     .map((model) => customModelInfo(model))
     .filter((model): model is AgentModelInfo => Boolean(model));
-  return [...faux, ...configured, ...custom];
+  return [
+    ...new Map(
+      [...faux, ...configured, ...custom].map((model) => [
+        JSON.stringify([model.provider, model.modelId]),
+        model,
+      ]),
+    ).values(),
+  ];
 }

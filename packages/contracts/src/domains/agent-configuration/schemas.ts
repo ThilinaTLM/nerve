@@ -178,7 +178,16 @@ const receipt = z.strictObject({
   id: z.string().min(1),
   kind: z.enum(["profile", "plan-approval"]),
 });
+/** Conversation-local prompt context, never a merge layer or profile contribution. */
+export const conversationAgentContextSchema = z.strictObject({
+  instructions: agentProfileInstructionsSchema.optional(),
+  systemPrompt: z.string().optional(),
+});
+export type ConversationAgentContext = z.infer<
+  typeof conversationAgentContextSchema
+>;
 export const leadConversationAgentSchema = agentPreferencesSchema.extend({
+  context: conversationAgentContextSchema.optional(),
   appliedProfile: appliedProfileSchema.nullable(),
   lastTransition: receipt.optional(),
 });
@@ -192,6 +201,7 @@ export const childConversationAgentSchema = z
     overrides: childSettingsOverridesSchema,
     appliedProfile: appliedProfileSchema.nullable(),
     frozenDefaults: completeChildSettingsSchema,
+    context: conversationAgentContextSchema.optional(),
     lastTransition: receipt.optional(),
   })
   .superRefine((v, ctx) => {
@@ -272,6 +282,7 @@ export const configurationDiagnosticSchema = z.strictObject({
   schemaVersion: z.number().int().optional(),
   code: z.string().min(1),
   pointer: z.string(),
+  message: z.string().optional(),
   affectedCapability: z.string().min(1),
   recoveryChoices: z.array(
     z.enum(["retry", "reload", "repair", "reset", "upgrade"]),

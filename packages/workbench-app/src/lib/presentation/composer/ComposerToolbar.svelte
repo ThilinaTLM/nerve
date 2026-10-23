@@ -1,4 +1,7 @@
 <script lang="ts">
+import { sameConfigurationSource } from "$lib/presentation/settings/configuration-source";
+import ConfigurationSource from "../settings/ConfigurationSource.svelte";
+import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
 import Lock from "@lucide/svelte/icons/lock";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
@@ -6,10 +9,8 @@ import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
 import Shield from "@lucide/svelte/icons/shield";
 import Zap from "@lucide/svelte/icons/zap";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type {
   ContextUsage,
   ModelInfo,
@@ -37,7 +38,7 @@ import type { ConversationUsageSummary } from "../usage/conversation-usage.js";
 import TodoProgressChip from "./TodoProgressChip.svelte";
 import ComposerCapabilitiesPopover from "./ComposerCapabilitiesPopover.svelte";
 import type { CapabilityToolGroup } from "./capability-tool-labels";
-import type { CapabilitySkillRow } from "./capability-skill-row";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { CapabilitySubagentProfile } from "./capability-subagent-profiles";
 import type {
   ComposerAgentProfile,
@@ -90,15 +91,15 @@ type Props = {
   onPermissionRuleSetChange?: (value: PermissionRuleSetId) => void;
   onRefreshPermissionRuleSets?: () => void;
   onOpenPermissionSettings?: () => void;
-  capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: CapabilitySkillRow[];
+  capabilityConfiguration?: AgentEditorView;
+  capabilitySkills?: AvailableSkill[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityScopeKey?: string;
   subagentControlsEnabled?: boolean;
   capabilitySubagentProfiles?: CapabilitySubagentProfile[];
   capabilityDisabled?: boolean;
-  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;
   onRefreshCapabilities?: () => void;
@@ -287,6 +288,33 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   {lockReason}
   onChange={onModelSelectionChange}
 />
+<ConfigurationSource
+  frozen={capabilityConfiguration?.role === "child"}
+  provenance={capabilityConfiguration?.resolution.provenance["/model"]}
+/>
+{#if !sameConfigurationSource(capabilityConfiguration?.resolution.provenance["/model"], capabilityConfiguration?.resolution.provenance["/reasoningLevel"])}
+  <ConfigurationSource
+    frozen={capabilityConfiguration?.role === "child"}
+    provenance={capabilityConfiguration?.resolution.provenance[
+      "/reasoningLevel"
+    ]}
+    modelLabel={models.find(
+      (m) => `${m.provider}:${m.modelId}` === selectedModelKey,
+    )?.name ?? "model"}
+  />
+{/if}
+{#if capabilityConfiguration?.resolution.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-reasoning")}
+  <Badge
+    variant="outline"
+    class="text-destructive"
+    title="The model does not support the configured reasoning level. Review the controlling profile or choose a compatible pair."
+  >
+    {capabilityConfiguration.resolution.provenance["/reasoningLevel"]
+      ?.source === "requirement"
+      ? "Requirement conflict"
+      : "Reasoning conflict"}
+  </Badge>
+{/if}
 <ComposerSettingStatus
   label={modelLockLabel}
   lockedBy={lockedFields.model || lockedFields.thinking
@@ -401,8 +429,16 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 />
 
 {#key capabilityScopeKey}
+  <ConfigurationSource
+    frozen={capabilityConfiguration?.role === "child"}
+    provenance={capabilityConfiguration?.resolution.provenance[
+      "/permissionRuleSetId"
+    ]}
+  />
+
   <ComposerCapabilitiesPopover
     configuration={capabilityConfiguration}
+    {models}
     {lockedFields}
     {subagentControlsEnabled}
     subagentProfiles={capabilitySubagentProfiles}

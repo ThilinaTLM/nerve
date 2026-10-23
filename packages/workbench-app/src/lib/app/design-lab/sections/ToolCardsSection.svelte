@@ -1,4 +1,44 @@
 <script lang="ts">
+import {
+  getConversationUiCapabilities,
+  setConversationUiCapabilities,
+} from "$lib/presentation/context.svelte";
+// Gallery-only protocol fixtures; product cards still receive real capability callbacks.
+setConversationUiCapabilities({
+  ...getConversationUiCapabilities(),
+  resolveConfigurationBlocked: async () => {},
+  previewAgentProfile: async () => ({
+    status: "ready",
+    preview: {
+      targetDefinition: {
+        schemaVersion: 1,
+        name: "coding",
+        description: "Implementation profile",
+        usableBy: "lead",
+        instructions: "",
+      },
+      changedFields: [],
+      unchangedRequirements: [],
+      targetProfile: { name: "coding", digest: "a".repeat(64) },
+      source: "builtin",
+      expectedRevision: 1,
+      expectedDigest: "b".repeat(64),
+      recommendations: {},
+      requirements: {
+        permissionRuleSetId: "read_only",
+        reasoningLevel: "high",
+      },
+      resolution: {
+        settings: { permissionRuleSetId: "read_only", reasoningLevel: "high" },
+        provenance: {
+          "/permissionRuleSetId": { source: "requirement", profile: "coding" },
+          "/reasoningLevel": { source: "requirement", profile: "coding" },
+        },
+        diagnostics: [],
+      },
+    },
+  }),
+});
 import type { ComponentProps } from "svelte";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import CardFooter from "$lib/presentation/cards/CardFooter.svelte";
@@ -24,6 +64,35 @@ const noop = () => {};
 const cwd = fx.SAMPLE_CWD;
 
 const bashCases: LabeledCard[] = [
+  {
+    label: "Configuration blocked — Retry / Cancel",
+    props: {
+      toolCall: {
+        ...fx.bashWaiting,
+        id: "tool_configuration_blocked",
+        interaction: {
+          kind: "configuration_blocked",
+          status: "pending",
+          requestedAt: new Date(0).toISOString(),
+          updatedAt: new Date(0).toISOString(),
+          request: {
+            diagnostics: [
+              {
+                scope: "project",
+                document: "agent",
+                path: "/project/.nerve/agent.json",
+                code: "invalid-document",
+                pointer: "/overrides/tools/bash",
+                affectedCapability: "bash",
+                recoveryChoices: ["repair", "retry"],
+              },
+            ],
+          },
+        },
+      },
+      cwd,
+    },
+  },
   { label: "Drafting", props: { draft: fx.bashDraftStreaming, cwd } },
   {
     label: "ask_user — drafting",

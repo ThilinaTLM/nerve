@@ -211,25 +211,25 @@ export function createTurnResourcesPort(options: {
         disabledSkillNames: effective.disabledFileSkills,
       });
       const skills = resources.skills;
+      const promptInstructions = [
+        appliedAgentProfile?.instructions,
+        config.instructions,
+      ]
+        .filter(Boolean)
+        .map((text) => resolveSkillPlaceholders(text!))
+        .join("\n\n");
       return {
         tools,
-        systemPrompt:
-          config.systemPrompt ??
-          buildNerveSystemPrompt({
-            cwd: config.workingDirectory,
-            selectedTools: tools.map((tool) => tool.name),
-            agentProfiles,
-            contextFiles: resources.contextFiles,
-            skills,
-            instructions: [
-              appliedAgentProfile?.instructions,
-              config.instructions,
-            ]
-              .filter(Boolean)
-              .map((text) => resolveSkillPlaceholders(text!))
-              .join("\n\n"),
-            appendSystemPrompt: resources.appendSystemPrompt,
-          }),
+        systemPrompt: buildNerveSystemPrompt({
+          systemPrompt: config.systemPrompt,
+          cwd: config.workingDirectory,
+          selectedTools: tools.map((tool) => tool.name),
+          agentProfiles,
+          contextFiles: resources.contextFiles,
+          skills,
+          instructions: promptInstructions,
+          appendSystemPrompt: resources.appendSystemPrompt,
+        }),
       };
     },
   };

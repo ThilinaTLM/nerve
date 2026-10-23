@@ -5,6 +5,8 @@ import {
 
 export interface BuildNerveSystemPromptOptions {
   customPrompt?: string;
+  /** Conversation-local full base override; captured instructions still contribute. */
+  systemPrompt?: string | null;
   selectedTools?: string[];
   appendSystemPrompt?: string;
   cwd: string;
@@ -22,6 +24,10 @@ export interface BuildNerveSystemPromptOptions {
 export function buildNerveSystemPrompt(
   options: BuildNerveSystemPromptOptions,
 ): string {
+  if (options.systemPrompt != null)
+    return [options.systemPrompt, options.instructions]
+      .filter(Boolean)
+      .join("\n\n");
   const cwd = options.cwd.replace(/\\/g, "/");
   const date = currentDate();
   const tools = options.selectedTools ?? ["read", "bash", "edit", "write"];

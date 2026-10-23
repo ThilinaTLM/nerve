@@ -1,3 +1,7 @@
+import {
+  createConfigurationReload,
+  resolveWithConfigurationRetry,
+} from "../configuration-reload.js";
 import assert from "node:assert/strict";
 import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -75,6 +79,18 @@ for (const invalid of ["malformed", "unreadable"] as const) {
     { skip: process.platform === "win32" },
     async (t) => {
       const f = await productionAdmissionFixture(t);
+      const resolve = (
+        input: Parameters<typeof f.runtime.core.resolveInteraction>[0],
+      ) =>
+        resolveWithConfigurationRetry(input, {
+          lookup: (id) => f.runtime.storage.toolCalls.get(id) ?? undefined,
+          reload: createConfigurationReload(
+            f.runtime.agentConfiguration,
+            f.runtime.admissionPolicy,
+          ).retry,
+          resolve: (resolution) =>
+            f.runtime.core.resolveInteraction(resolution),
+        });
       await f.save({ permissionRuleSetId: "supervised" });
       const path = join(f.paths.configPath, "permissions.json");
       // A directory is unreadable as a policy document even when tests run as root.
@@ -82,7 +98,7 @@ for (const invalid of ["malformed", "unreadable"] as const) {
       await rm(path, { force: true });
       if (invalid === "unreadable") await mkdir(path);
       else await writeFile(path, "{broken");
-      f.runtime.admissionPolicy.invalidate();
+      await f.runtime.admissionPolicy.reload([path]);
       const id = callId(await f.command());
       const blocked = f.runtime.storage.toolCalls.get(id)!;
       assert.equal(blocked.state, "awaiting_input");
@@ -90,13 +106,13 @@ for (const invalid of ["malformed", "unreadable"] as const) {
       if (blocked.interaction?.kind === "configuration_blocked")
         assert.equal(blocked.interaction.request.diagnostics[0].path, path);
       await assert.rejects(
-        f.runtime.core.resolveInteraction({
+        resolve({
           toolCallId: id,
           resolutionRequestId: "not-approval",
           resolution: { kind: "approval", decision: "approve" },
         }),
       );
-      await f.runtime.core.resolveInteraction({
+      await resolve({
         toolCallId: id,
         resolutionRequestId: "retry-invalid",
         resolution: { kind: "configuration_blocked", decision: "retry" },
@@ -111,7 +127,7 @@ for (const invalid of ["malformed", "unreadable"] as const) {
         "configuration_blocked",
       );
       assert.equal(f.spawns.length, 0);
-      await f.runtime.core.resolveInteraction({
+      await resolve({
         toolCallId: id,
         resolutionRequestId: "cancel-invalid",
         resolution: { kind: "configuration_blocked", decision: "cancel" },
@@ -135,8 +151,7 @@ for (const invalid of ["malformed", "unreadable"] as const) {
       const repairId = callId(await f.command());
       await rm(path, { recursive: true, force: true });
       await writeFile(path, JSON.stringify({ schemaVersion: 2, overlays: [] }));
-      f.runtime.admissionPolicy.invalidate();
-      await f.runtime.core.resolveInteraction({
+      await resolve({
         toolCallId: repairId,
         resolutionRequestId: "retry-repaired",
         resolution: { kind: "configuration_blocked", decision: "retry" },

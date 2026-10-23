@@ -27,6 +27,7 @@ import { coreOperationSchemas } from "./core-operations.js";
 import { transferredConversationEventSchema } from "./event.js";
 import {
   conversationConfigSchema,
+  conversationHistoryConfigSchema,
   conversationSummarySchema,
 } from "./conversation.js";
 import { toolCallSchema } from "./tool-call.js";
@@ -561,7 +562,7 @@ export const conversationChannelEventSchemas = {
   }),
   "conversation.config": z.object({
     conversationId: z.string(),
-    config: conversationConfigSchema,
+    config: conversationHistoryConfigSchema,
     appliedAgentProfile: appliedAgentProfileSchema.nullable(),
   }),
   // Includes configuration-blocked waiting interactions and their retry/cancel

@@ -1,8 +1,6 @@
 import type { Snippet } from "svelte";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { CompletionItem } from "@nervekit/contracts/completions";
 import type { ComposerReferenceSource } from "../composer/composer-editor-completions.js";
 import type { ComposerCompletionAction } from "../composer/composer-editor-completions.js";
@@ -11,7 +9,7 @@ import type {
   ConversationAgentUsage,
   UserInputAnswer,
 } from "@nervekit/contracts/core";
-import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { CapabilitySubagentProfile } from "$lib/presentation/composer/capability-subagent-profiles";
 import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
 import type {
@@ -163,8 +161,8 @@ export type ConversationComposerModel = {
   slashCompletions?: CompletionItem[];
   completionSource?: ComposerReferenceSource;
   capabilities?: ConversationComposerCapabilities;
-  capabilityConfiguration?: CapabilityConfiguration;
-  capabilitySkills?: CapabilitySkillRow[];
+  capabilityConfiguration?: AgentEditorView;
+  capabilitySkills?: AvailableSkill[];
   capabilityLoading?: boolean;
   capabilityError?: string;
   capabilityScopeKey?: string;
@@ -238,7 +236,7 @@ export type ConversationPaneActions = {
   onOpenCapabilitySettings?: (
     page: "tools" | "skills" | "agents" | "sub-agents",
   ) => void;
-  onCapabilityPatch?: (patch: CapabilityPatch) => void;
+  onCapabilityPatch?: (patch: LeadSettingsOverrides, resets?: string[]) => void;
   /** Opens the conversation-level settings dialog for one tool group. */
   onConfigureCapabilityTool?: (group: CapabilityToolGroup) => void;
   onResetCapabilities?: () => void;

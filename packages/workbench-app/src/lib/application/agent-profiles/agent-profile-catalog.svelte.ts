@@ -1,4 +1,15 @@
-import type { AgentProfile } from "@nervekit/contracts/agent-profiles";
+import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+export type ProfileOption = {
+  name: string;
+  label: string;
+  description: string;
+  usableBy: "lead" | "subagent" | "both";
+  enabled: boolean;
+  applicable?: boolean;
+  error?: string;
+  digest?: string;
+  source?: "builtin" | "user" | "project";
+};
 import {
   onAnyEvent,
   onWorkbenchReconnect,
@@ -7,11 +18,14 @@ import { requestWorkbench } from "$lib/application/startup/workbench-connection"
 
 /** Profiles a lead conversation can switch to: enabled, unblocked and not sub-agent only. */
 export function leadAgentProfiles(
-  profiles: readonly AgentProfile[],
-): AgentProfile[] {
+  profiles: readonly ProfileOption[],
+): ProfileOption[] {
   return profiles.filter(
     (profile) =>
-      profile.enabled && !profile.error && profile.usableBy !== "subagent",
+      profile.enabled &&
+      profile.applicable !== false &&
+      !profile.error &&
+      profile.usableBy !== "subagent",
   );
 }
 
@@ -19,11 +33,11 @@ const noProject = "";
 
 /** Resolved agent profiles per project, refreshed when profile documents change. */
 class AgentProfileCatalog {
-  private entries = $state<Record<string, AgentProfile[]>>({});
-  private readonly inFlight = new Map<string, Promise<AgentProfile[]>>();
+  private entries = $state<Record<string, ProfileOption[]>>({});
+  private readonly inFlight = new Map<string, Promise<ProfileOption[]>>();
   private listening = false;
 
-  profiles(projectId: string | undefined): AgentProfile[] {
+  profiles(projectId: string | undefined): ProfileOption[] {
     return this.entries[projectId ?? noProject] ?? [];
   }
 
@@ -31,24 +45,24 @@ class AgentProfileCatalog {
     return (projectId ?? noProject) in this.entries;
   }
 
-  ensure(projectId: string | undefined): Promise<AgentProfile[]> {
+  ensure(projectId: string | undefined): Promise<ProfileOption[]> {
     this.listen();
     return this.loaded(projectId)
       ? Promise.resolve(this.profiles(projectId))
       : this.refresh(projectId);
   }
 
-  refresh(projectId: string | undefined): Promise<AgentProfile[]> {
+  refresh(projectId: string | undefined): Promise<ProfileOption[]> {
     const key = projectId ?? noProject;
     const existing = this.inFlight.get(key);
     if (existing) return existing;
-    const request = requestWorkbench(
-      "agentProfiles.list",
-      projectId ? { projectId } : undefined,
-    )
+    const request = requestWorkbench("agentProfiles.list", {
+      scope: projectId ? { scope: "project", projectId } : { scope: "user" },
+    })
       .then(({ profiles }) => {
-        this.entries[key] = profiles;
-        return profiles;
+        const options = profiles.map(profileOption);
+        this.entries[key] = options;
+        return options;
       })
       .catch(() => this.profiles(projectId))
       .finally(() => this.inFlight.delete(key));
@@ -71,3 +85,21 @@ class AgentProfileCatalog {
 }
 
 export const agentProfileCatalog = new AgentProfileCatalog();
+
+function profileOption(entry: ProfileCatalogEntry): ProfileOption {
+  return {
+    name: entry.name,
+    label: entry.definition?.label ?? entry.name,
+    description: entry.definition?.description ?? "Definition unavailable",
+    usableBy: entry.definition?.usableBy ?? "both",
+    enabled: entry.enabled,
+    applicable: entry.applicable,
+    digest: entry.digest,
+    source: entry.source,
+    error:
+      entry.definition && entry.trusted
+        ? undefined
+        : entry.diagnostics.map((d) => d.code).join(", ") ||
+          "Profile unavailable or untrusted",
+  };
+}

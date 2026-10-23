@@ -1,4 +1,5 @@
 <script lang="ts">
+import ConfigurationBlockedActions from "./tool-call/ConfigurationBlockedActions.svelte";
 import { untrack } from "svelte";
 import type { UserInputAnswer } from "@nervekit/contracts/core";
 import { prefersReducedMotion } from "svelte/motion";
@@ -160,6 +161,12 @@ let bodyHydrated = $state(false);
 const shouldHydrateBody = $derived(hydrateBody || bodyHydrated);
 
 const capabilities = getConversationUiCapabilities();
+const configurationBlocked = $derived(
+  toolCall?.interaction?.kind === "configuration_blocked" &&
+    toolCall.interaction.status === "pending"
+    ? toolCall.interaction.request
+    : undefined,
+);
 const initialLiveOutput = untrack(() => liveOutput);
 let displayedLiveOutput = $state(initialLiveOutput);
 let lastEnqueuedOutputText = initialLiveOutput?.text ?? "";
@@ -716,6 +723,15 @@ async function openDetails() {
   <AskUserActions controller={askUserController} />
 {/snippet}
 
+{#snippet blockedActions()}
+  {#if toolCall && capabilities.resolveConfigurationBlocked}
+    <ConfigurationBlockedActions
+      onResolve={(decision) =>
+        capabilities.resolveConfigurationBlocked!(toolCall!.id, decision)}
+    />
+  {/if}
+{/snippet}
+
 {#snippet approvalActions()}
   {#if toolApproval && approvalPresentation && toolCall}
     <ApprovalPrompt
@@ -744,19 +760,36 @@ async function openDetails() {
   arg={primaryArg}
   argPending={!planInteractive}
   {meta}
-  footer={activitySections.footerVisible || isAskUser}
-  bodyVisible={sheetVisible || hilBodyVisible}
+  footer={activitySections.footerVisible || isAskUser || !!configurationBlocked}
+  bodyVisible={sheetVisible || hilBodyVisible || !!configurationBlocked}
   {layoutRevision}
   bind:motionProfile
   {cardActions}
-  actions={activitySections.interactionMode === "approval" && toolApproval
-    ? approvalActions
-    : askUserView && toolCall && askUserController.pending
-      ? askUserActions
-      : undefined}
+  actions={configurationBlocked
+    ? blockedActions
+    : activitySections.interactionMode === "approval" && toolApproval
+      ? approvalActions
+      : askUserView && toolCall && askUserController.pending
+        ? askUserActions
+        : undefined}
   {onOpenFile}
 >
-  {#if hilBodyVisible}
+  {#if configurationBlocked}
+    <CardSheet>
+      <p class="px-3 py-2 text-xs text-warning">
+        Configuration blocked · Repair the configuration, then retry or cancel
+        this request.
+      </p>
+      {#each configurationBlocked.diagnostics as diagnostic, index (index)}
+        <p class="px-3 py-1 text-xs">
+          {diagnostic.code}:
+          <span class="font-mono"
+            >{diagnostic.path || diagnostic.document}{diagnostic.pointer}</span
+          >
+        </p>
+      {/each}
+    </CardSheet>
+  {:else if hilBodyVisible}
     <!-- Interactive tools (ask_user, plan review) own their body and actions. -->
     {@render toolViewBody()}
   {:else if sheetVisible}

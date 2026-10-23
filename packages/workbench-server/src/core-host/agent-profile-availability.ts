@@ -38,7 +38,9 @@ export function parseProfileModel(
 /** Availability is advisory for portable references; unavailable models block, thinking clamps on apply. */
 export function createProfileAvailability(options: {
   modelInfo(selection: ModelSelection): Promise<AgentModelInfo>;
-  parent(conversationId: string): ConversationConfig;
+  parent(
+    conversationId: string,
+  ): ConversationConfig | Promise<ConversationConfig>;
   defaults?(
     projectId?: string,
   ): Promise<Partial<Pick<ConversationConfig, "model" | "reasoningLevel">>>;
@@ -105,7 +107,7 @@ export function createProfileAvailability(options: {
       context.lead ??
       context.parentConfig ??
       (context.conversationId
-        ? options.parent(context.conversationId)
+        ? await options.parent(context.conversationId)
         : undefined);
     const defaults = options.defaults
       ? await options.defaults(context.projectId)

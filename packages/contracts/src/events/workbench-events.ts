@@ -27,6 +27,15 @@ export function isWorkbenchEvent(type: string): boolean {
 
 /** Operations owned by the IDE surface rather than conversation execution. */
 export function isWorkbenchOperation(method: string): boolean {
+  if (
+    [
+      "agentConfiguration.reload",
+      "agentConfiguration.trust",
+      "agentConfiguration.repairPreview",
+      "agentConfiguration.repairApply",
+    ].includes(method)
+  )
+    return true;
   if (method === "completion.search" || method === "completion.select")
     return true;
   if (method === "project.openEditor" || method === "project.openTerminal")

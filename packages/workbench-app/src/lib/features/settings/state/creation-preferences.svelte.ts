@@ -8,6 +8,8 @@ import {
   observeConversationChannel,
 } from "$lib/application/startup/conversation-connection";
 
+import { requestWorkbench } from "$lib/application/startup/workbench-connection";
+
 /** Each settings view holds the version it displayed, never a speculative CAS token. */
 export class CreationPreferencesState {
   result = $state<GetCreationPreferencesResult>();
@@ -44,6 +46,19 @@ export class CreationPreferencesState {
     }
   }
 
+  async reload(): Promise<void> {
+    const scope = this.scope;
+    if (!scope) return;
+    try {
+      await requestWorkbench("agentConfiguration.reload", {
+        target: { document: "conversation-defaults", scope },
+      });
+      if (this.scope === scope) await this.load(scope);
+    } catch (error) {
+      if (this.scope === scope)
+        this.error = error instanceof Error ? error.message : String(error);
+    }
+  }
   async save(
     changes: CreationPreferencesMutation["changes"],
     resets: CreationPreferencesMutation["resets"] = [],

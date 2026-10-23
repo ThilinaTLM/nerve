@@ -105,3 +105,27 @@ void test("profile listing requires creation tool and usable profiles", () => {
     /<available_agent_profiles>/,
   );
 });
+
+void test("conversation custom base never drops separately captured profile/local instructions", () => {
+  const options = {
+    cwd: "/project",
+    systemPrompt: "Exact custom base",
+    instructions: "Profile instructions\n\nConversation instructions",
+  };
+  assert.equal(
+    buildNerveSystemPrompt(options),
+    "Exact custom base\n\nProfile instructions\n\nConversation instructions",
+  );
+  assert.equal(
+    buildNerveSystemPrompt({
+      ...options,
+      systemPrompt: "Next turn base",
+      instructions: "Next turn context",
+    }),
+    "Next turn base\n\nNext turn context",
+  );
+  assert.equal(
+    buildNerveSystemPrompt({ cwd: "/project", systemPrompt: "" }),
+    "",
+  );
+});

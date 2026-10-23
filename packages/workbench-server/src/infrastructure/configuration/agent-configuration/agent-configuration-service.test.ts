@@ -347,7 +347,7 @@ void test("conversation ownership selects strict child schema; snapshots work wi
   );
 });
 
-void test("UI mutations preserve receipts, reject requirements and metadata, and reset by deletion", async (t) => {
+void test("UI mutations preserve choices beneath requirements and receipts, reject metadata, and reset by deletion", async (t) => {
   const f = await fixture(t);
   const receipt = { id: "transition", kind: "plan-approval" };
   await f.agent(lead, {
@@ -366,15 +366,12 @@ void test("UI mutations preserve receipts, reject requirements and metadata, and
   if (state.status === "unavailable")
     throw new Error("Expected valid conversation");
   await assert.rejects(
-    f.service.save(lead, mutation(0, state.value.digest, { model: B })),
-    /required|lock/i,
-  );
-  await assert.rejects(
     f.service.save(lead, mutation(0, state.value.digest, { revision: 900 })),
   );
   const saved = await f.service.save(
     lead,
     mutation(0, state.value.digest, {
+      model: B,
       tools: { web_fetch: { enabled: false } },
     }),
   );
@@ -383,9 +380,17 @@ void test("UI mutations preserve receipts, reject requirements and metadata, and
       .lastTransition,
     receipt,
   );
+  assert.deepEqual(saved.value.document.overrides.model, B);
+  const effective = await f.service.getEffective("lead");
+  assert.equal(effective.status, "available");
+  if (effective.status === "available")
+    assert.deepEqual(effective.resolution.settings.model, A);
   const reset = await f.service.save(
     lead,
-    mutation(1, saved.value.digest, {}, ["/overrides/tools/web_fetch"]),
+    mutation(1, saved.value.digest, {}, [
+      "/overrides/tools/web_fetch",
+      "/overrides/model",
+    ]),
   );
   assert.deepEqual(reset.value.document.overrides, {});
 });
@@ -488,8 +493,12 @@ void test("explicit host creation validates trusted role and cannot replace an e
     f.service.createConversation("child-new", created.value.document),
     ScopeConflictError,
   );
+  const reloaded = await f.service.getEffective("child-new");
+  assert.equal(reloaded.status, "available");
+  if (reloaded.status === "available" && child.status === "available")
+    assert.deepEqual(reloaded.resolution, child.resolution);
   await f.service.profiles.save(user, "coding", "missing", definition);
-  assert.equal(await f.service.getEffective("child-new"), child);
+  assert.equal(await f.service.getEffective("child-new"), reloaded);
 });
 
 void test("unsettled transition receipts block mutation without manufacturing lifecycle settlement", async (t) => {
@@ -586,7 +595,7 @@ void test("startup reports invalid user files but not ordinary subagent-only cat
   );
 });
 
-void test("unsupported explicit UI reasoning is rejected before persistence", async (t) => {
+void test("same-layer pairs block saves, while cross-layer reasoning fits without rewriting the choice", async (t) => {
   const f = await fixture(t, {
     captureResources: () => ({
       options: { clampThinking: () => "low", referenceAvailable: () => true },
@@ -599,7 +608,7 @@ void test("unsupported explicit UI reasoning is rejected before persistence", as
   await assert.rejects(
     f.service.save(
       lead,
-      mutation(0, state.value.digest, { reasoningLevel: "high" }),
+      mutation(0, state.value.digest, { model: A, reasoningLevel: "high" }),
     ),
     /Unsupported explicit/,
   );
@@ -607,6 +616,22 @@ void test("unsupported explicit UI reasoning is rejected before persistence", as
     JSON.parse(await readFile(state.value.path, "utf8")).revision,
     0,
   );
+  const saved = await f.service.save(
+    lead,
+    mutation(0, state.value.digest, { reasoningLevel: "high" }),
+  );
+  assert.equal(saved.value.document.overrides.reasoningLevel, "high");
+  const view = await f.service.getEffective("lead");
+  assert.equal(view.status, "available");
+  if (view.status !== "available") throw new Error("Expected fitted view");
+  assert.equal(view.resolution.settings.reasoningLevel, "low");
+  assert.deepEqual(view.resolution.provenance["/reasoningLevel"], {
+    source: "conversation",
+    adjusted: true,
+  });
+  assert.deepEqual(view.resolution.diagnostics, [
+    { code: "reasoning-adjusted", pointer: "/reasoningLevel" },
+  ]);
 });
 
 void test("creation checks launch generations again at durable publication", async (t) => {
@@ -626,4 +651,72 @@ void test("creation checks launch generations again at durable publication", asy
   );
   assert.equal(checks, 2);
   assert.equal((await service.getEffective("new-lead")).status, "unavailable");
+});
+
+void test("D10 context edits are conversation-local, clearable and survive profile replacement", async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.service.getConversationContext("lead"), undefined);
+  await f.service.configureContext("lead", {
+    instructions: "Local instructions",
+    systemPrompt: "Custom base",
+  });
+  assert.deepEqual(f.service.getConversationContext("lead"), {
+    instructions: "Local instructions",
+    systemPrompt: "Custom base",
+  });
+  const state = await f.service.ensureLoaded(lead);
+  assert.notEqual(state.status, "unavailable");
+  if (state.status === "unavailable") throw new Error("fixture unavailable");
+  await f.service.commitProfile(
+    "lead",
+    state.value,
+    {
+      name: "coding",
+      source: "builtin",
+      sourceDigest: "0".repeat(64),
+      instructions: "Separate profile instructions",
+      recommendations: {},
+      requirements: {},
+    },
+    {},
+    { id: "transition", kind: "profile" },
+    () => true,
+  );
+  assert.deepEqual(f.service.getConversationContext("lead"), {
+    instructions: "Local instructions",
+    systemPrompt: "Custom base",
+  });
+  await assert.rejects(f.service.configureContext("lead", { model: A }));
+  await f.service.configureContext("lead", {
+    instructions: null,
+    systemPrompt: null,
+  });
+  assert.deepEqual(f.service.getConversationContext("lead"), {
+    instructions: null,
+    systemPrompt: null,
+  });
+  const bytes = await readFile(f.service.paths.agent(lead), "utf8");
+  assert(!Object.hasOwn(JSON.parse(bytes), "context"));
+});
+void test("D10 history context has no project readiness dependency and invalid JSON stays unknown", async (t) => {
+  const f = await fixture(t, {
+    prepareProject: async () => {
+      throw new Error("Unrelated project unavailable");
+    },
+  });
+  await f.agent(lead, {
+    ...leadDocument,
+    context: { instructions: "Readable history" },
+  });
+  assert.deepEqual(await f.service.loadConversationContext("lead"), {
+    instructions: "Readable history",
+    systemPrompt: null,
+  });
+  await f.agent({ scope: "conversation", conversationId: "broken" }, "{");
+  assert.equal(await f.service.loadConversationContext("broken"), undefined);
+  await assert.rejects(
+    f.service.configureContext("broken", {
+      instructions: "Do not repair implicitly",
+    }),
+  );
 });

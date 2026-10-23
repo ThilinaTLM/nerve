@@ -2,6 +2,8 @@ import { z } from "zod";
 import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import {
   agentPreferencesSchema,
+  profileDefinitionSchema,
+  fieldProvenanceSchema,
   appliedProfileSchema,
   agentResolutionSchema,
   configurationDiagnosticSchema,
@@ -184,6 +186,19 @@ export const profileConfirmationSchema = z.strictObject({
   choices: implementationChoicesSchema.optional(),
 });
 export const profileTransitionPreviewSchema = z.strictObject({
+  targetDefinition: profileDefinitionSchema,
+  changedFields: z.array(
+    z.strictObject({
+      pointer: z.string(),
+      before: z.unknown(),
+      after: z.unknown(),
+      beforeSource: fieldProvenanceSchema.optional(),
+      afterSource: fieldProvenanceSchema.optional(),
+    }),
+  ),
+  unchangedRequirements: z.array(
+    z.strictObject({ pointer: z.string(), value: z.unknown() }),
+  ),
   targetProfile: profileTargetSchema,
   source: z.enum(["builtin", "user", "project"]),
   expectedRevision: agentMutationSchema.shape.expectedRevision,

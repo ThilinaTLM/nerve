@@ -54,6 +54,10 @@ async function fixture(requiredModel = false) {
     schemaVersion: 1,
     revision: 1,
     appliedProfile: null,
+    context: {
+      instructions: "Parent-local context",
+      systemPrompt: "Parent-only base",
+    },
     overrides: {
       model: { provider: "test", modelId: "parent-only" },
       permissionRuleSetId: "planning",
@@ -101,6 +105,10 @@ void test("child launch uses only model/reasoning invocation choices, freezes pr
     assert.equal(before.resolution.settings.reasoningLevel, "low");
     assert.equal(before.resolution.settings.permissionRuleSetId, "baseline");
     assert.equal(before.resolution.settings.tools?.jira?.enabled, false);
+    assert.deepEqual(f.service.getConversationContext("child"), {
+      instructions: null,
+      systemPrompt: null,
+    });
     assert.equal(before.resolution.settings.subagents, undefined);
     assert.equal(before.resolution.settings.tools?.subagents, undefined);
     const state = await f.service.ensureLoaded({ scope: "user" });
@@ -188,6 +196,43 @@ void test("launch revalidates enablement after preflight instead of trusting adv
       }),
       /disabled/,
     );
+  } finally {
+    await f.close();
+  }
+});
+void test("D10 child creation stores only explicit local context, separate from profile instructions", async () => {
+  const f = await fixture();
+  try {
+    const launch = await f.creation.childHost.resolveProfile({
+      parentId: "parent",
+      profile: "worker",
+    });
+    await f.creation.initializeConversation({
+      id: "child",
+      projectId: "p",
+      parentConversationId: "parent",
+      application: launch.application,
+      config: {
+        instructions: "Child-local context",
+        systemPrompt: "Child custom base",
+      },
+    });
+    assert.deepEqual(f.service.getConversationContext("child"), {
+      instructions: "Child-local context",
+      systemPrompt: "Child custom base",
+    });
+    const view = await f.service.getEffective("child");
+    assert.equal(view.status, "available");
+    if (view.status === "available") {
+      const document = view.sources.find(
+        (source) => source.scope.scope === "conversation",
+      )?.document;
+      assert(document && "appliedProfile" in document);
+      assert.equal(
+        document.appliedProfile?.instructions,
+        "Worker instructions",
+      );
+    }
   } finally {
     await f.close();
   }

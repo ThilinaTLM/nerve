@@ -7,12 +7,18 @@ import {
   openCoreStorage,
   type ProfileTransitionInput,
 } from "@nervekit/conversation-core";
+import type { ModelSelection, ThinkingLevel } from "@nervekit/contracts/models";
 import { atomicReplaceFile } from "../../storage-bootstrap/file-mutations.js";
 import { AgentConfigurationService } from "./agent-configuration-service.js";
 import { bundledAgentProfiles } from "./builtins.js";
 import { createProfileTransitions } from "./profile-transitions.js";
 
-async function fixture() {
+async function fixture(
+  clampThinking?: (
+    model: ModelSelection,
+    level: ThinkingLevel,
+  ) => ThinkingLevel,
+) {
   const home = await mkdtemp(join(tmpdir(), "nerve-profile-transitions-"));
   const project = join(home, "project");
   await mkdir(project);
@@ -92,7 +98,7 @@ async function fixture() {
     },
     isProfileTrusted: (_id, _path, digest) => trusted.has(digest),
     captureResources: () => ({
-      options: { referenceAvailable: () => true },
+      options: { referenceAvailable: () => true, clampThinking },
       isCurrent: () => true,
     }),
     transitionReconciled: (id, receipt) => lifecycle.reconciled(id, receipt),
@@ -515,6 +521,81 @@ void test("explicit reapply is digest-bound and replaces only the currently appl
     assert.equal(after.revision, before.revision + 1);
     assert.equal(after.appliedProfile.instructions, "New frozen instructions");
     assert.deepEqual(after.overrides, before.overrides);
+  } finally {
+    await f.close();
+  }
+});
+
+void test("D7 transitions accept cross-layer fitting but refresh same-layer invalid pairs and unsupported requirements", async () => {
+  const f = await fixture((model, level) =>
+    model.modelId === "no-reasoning" ? "off" : level,
+  );
+  try {
+    const initial = await f.confirmation("coding", "before-reasoning");
+    await f.service.save(
+      { scope: "conversation", conversationId: "c" },
+      {
+        expectedRevision: initial.expectedRevision,
+        expectedDigest: initial.expectedDigest,
+        changes: { reasoningLevel: "high" },
+        resets: [],
+      },
+    );
+    const requiredModel = { provider: "test", modelId: "no-reasoning" };
+    for (const name of ["fitted", "unsupported"])
+      await f.service.profiles.save({ scope: "user" }, name, "missing", {
+        schemaVersion: 1,
+        name,
+        description: name,
+        usableBy: "lead",
+        instructions: "",
+        requirements: {
+          model: requiredModel,
+          ...(name === "unsupported" ? { reasoningLevel: "high" } : {}),
+        },
+      });
+    const result = await f.lifecycle.port.apply({
+      ...(await f.confirmation("fitted", "fitted-transition", "plan-approval")),
+      choices: { reasoningLevel: "high" },
+    });
+    assert.equal(result.status, "applied");
+    if (result.status !== "applied" || result.effective.status !== "available")
+      throw new Error("Expected available fitted transition");
+    assert.equal(result.effective.resolution.settings.reasoningLevel, "off");
+    assert.deepEqual(
+      result.effective.resolution.provenance["/reasoningLevel"],
+      { source: "conversation", adjusted: true },
+    );
+    assert.deepEqual(result.effective.resolution.diagnostics, [
+      { code: "reasoning-adjusted", pointer: "/reasoningLevel" },
+    ]);
+    const committed = await f.document();
+    assert.equal(
+      committed.overrides.reasoningLevel,
+      "high",
+      "Do not rewrite the authored choice to its fitted value",
+    );
+    for (const name of ["coding", "unsupported"]) {
+      const blocked = await f.lifecycle.port.apply({
+        ...(await f.confirmation(name, `blocked-${name}`, "plan-approval")),
+        ...(name === "coding"
+          ? {
+              choices: {
+                model: requiredModel,
+                reasoningLevel: "high" as const,
+              },
+            }
+          : {}),
+      });
+      assert.equal(blocked.status, "refresh_required");
+      if (blocked.status === "refresh_required")
+        assert.equal(blocked.reason, "requirement_conflict");
+      assert.deepEqual(
+        await f.document(),
+        committed,
+        "Blocked reasoning must not commit the profile or submitted choices",
+      );
+    }
   } finally {
     await f.close();
   }

@@ -4,12 +4,20 @@
   Prompt-suggestion JavaScript is allowed or denied by you in Suggestions.
 -->
 <script lang="ts">
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
 import ShieldCheck from "@lucide/svelte/icons/shield-check";
 import ShieldOff from "@lucide/svelte/icons/shield-off";
 import { Badge, type BadgeVariant } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { SettingsRow, SettingsSection } from "$lib/presentation/settings";
-import { agentProfilesState } from "../../../state/agent-profiles.svelte";
+import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+import ProfileTrustReviewDialog from "../agent-profiles/ProfileTrustReviewDialog.svelte";
+import ConfigurationRepairDialog from "../capabilities/ConfigurationRepairDialog.svelte";
+import {
+  agentProfilesState,
+  refreshAgentProfiles,
+} from "../../../state/agent-profiles.svelte";
 import { trustAgentProfile } from "../../../api/agent-profiles.api";
 import { ensureProfilesFor } from "../../shared/profile-options.svelte";
 
@@ -31,6 +39,11 @@ type Props = {
   entries: TrustEntry[];
 };
 let { projectId, entries }: Props = $props();
+const agentDocument = new ScopedAgentState();
+$effect(() => {
+  if (projectId) void agentDocument.load({ scope: "project", projectId });
+});
+$effect(() => agentDocument.observe());
 
 $effect(() => {
   ensureProfilesFor("project", projectId);
@@ -58,15 +71,34 @@ const labels: Record<TrustEntry["status"], string> = {
 };
 
 let busy = $state<string>();
-async function trustProfile(name: string, digest: string): Promise<void> {
-  if (!projectId) return;
-  busy = name;
+let reviewOpen = $state(false);
+let reviewProfile = $state<ProfileCatalogEntry>();
+let repairOpen = $state(false);
+let repairProfile = $state<ProfileCatalogEntry>();
+let error = $state<string>();
+async function trustProfile(): Promise<void> {
+  const profile = reviewProfile;
+  if (!projectId || !profile || busy) return;
+  busy = profile.name;
+  error = undefined;
   try {
-    agentProfilesState.configuration = await trustAgentProfile({
-      projectId,
-      name,
-      digest,
+    const result = await trustAgentProfile({
+      target: {
+        document: "profile",
+        scope: { scope: "project", projectId },
+        name: profile.name,
+      },
+      expectedDigest: profile.digest,
+      trusted: !profile.trusted,
     });
+    if (result.status !== "saved")
+      throw new Error(
+        `Trust ${result.status}; reload and review the current bytes.`,
+      );
+    await refreshAgentProfiles(projectId, "project");
+    reviewOpen = false;
+  } catch (cause) {
+    error = cause instanceof Error ? cause.message : String(cause);
   } finally {
     busy = undefined;
   }
@@ -74,6 +106,19 @@ async function trustProfile(name: string, digest: string): Promise<void> {
 </script>
 
 <SettingsSection id="trust" title="Configuration files" divided>
+  {#if projectId}<SettingsRow
+      label={agentDocument.document?.status === "available"
+        ? agentDocument.document.source.path
+        : ".nerve/agent.json"}
+      mono
+      description={agentDocument.error ??
+        "Scoped models, tools, skills and delegation. Trust applies only to the exact reviewed bytes."}
+      >{#snippet control()}<ProjectCapabilityTrustAction
+          document={agentDocument.document}
+          scope={{ scope: "project", projectId }}
+          onReload={() => agentDocument.reload()}
+        />{/snippet}</SettingsRow
+    >{/if}
   {#each entries as entry (entry.id)}
     <SettingsRow
       label={entry.path}
@@ -112,23 +157,37 @@ async function trustProfile(name: string, digest: string): Promise<void> {
     <SettingsRow
       label={profile.path ?? `.nerve/agent-profiles/${profile.name}.json`}
       mono
-      description={profile.effective?.label ?? profile.name}
+      description={profile.definition?.label ?? profile.name}
     >
       {#snippet badges()}
-        <Badge variant={profile.trust === "trusted" ? "success" : "warning"}
-          >{profile.trust === "trusted" ? "Trusted" : "Needs review"}</Badge
+        <Badge variant={profile.trusted ? "success" : "warning"}
+          >{profile.trusted ? "Trusted" : "Needs review"}</Badge
         >
       {/snippet}
       {#snippet control()}
-        {#if profile.trust !== "trusted" && profile.digest}
+        {#if profile.definition}
           <Button
             size="sm"
             variant="outline"
             disabled={busy === profile.name}
-            onclick={() => void trustProfile(profile.name, profile.digest!)}
-            >Trust file</Button
+            onclick={() => {
+              reviewProfile = profile;
+              error = undefined;
+              reviewOpen = true;
+            }}
+            >{profile.trusted
+              ? "Review / revoke trust"
+              : "Review and trust"}</Button
           >
         {/if}
+        <Button
+          size="sm"
+          variant="ghost"
+          onclick={() => {
+            repairProfile = profile;
+            repairOpen = true;
+          }}>Preview repair</Button
+        >
       {/snippet}
     </SettingsRow>
   {:else}
@@ -149,3 +208,28 @@ async function trustProfile(name: string, digest: string): Promise<void> {
     description="Not covered by the files above."
   />
 </SettingsSection>
+
+<ProfileTrustReviewDialog
+  bind:open={reviewOpen}
+  profile={reviewProfile}
+  lines={[]}
+  busy={!!busy}
+  {error}
+  onTrust={trustProfile}
+/>
+{#if projectId && repairProfile}<ConfigurationRepairDialog
+    bind:open={repairOpen}
+    target={{
+      document: "profile",
+      scope: { scope: "project", projectId },
+      name: repairProfile.name,
+    }}
+    replacement={repairProfile.definition ?? {
+      schemaVersion: 1,
+      name: repairProfile.name,
+      description: "Recovered profile",
+      usableBy: "lead",
+      instructions: "",
+    }}
+    onRepaired={() => refreshAgentProfiles(projectId, "project")}
+  />{/if}

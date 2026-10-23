@@ -24,6 +24,8 @@ export {
   conversationStatusSchema,
   conversationSchema,
   conversationConfigSchema,
+  conversationContextSchema,
+  conversationHistoryConfigSchema,
   conversationSummarySchema,
   conversationSnapshotSchema,
 } from "./conversation.js";
@@ -31,6 +33,8 @@ export type {
   ConversationStatus,
   Conversation,
   ConversationConfig,
+  ConversationContextConfig,
+  ConversationHistoryConfig,
   ConversationSummary,
   ConversationSnapshot,
 } from "./conversation.js";

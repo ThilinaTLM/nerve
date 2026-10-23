@@ -1,6 +1,7 @@
 <!-- Per-file review of a project profile. Trust applies to this exact version of the file. -->
 <script lang="ts">
-import type { AgentProfileConfiguration } from "@nervekit/contracts/agent-profiles";
+import type { ProfileCatalogEntry } from "@nervekit/contracts/agent-configuration";
+import { Textarea } from "@nervekit/ui-kit/components/ui/textarea";
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import Dialog from "@nervekit/ui-kit/components/composites/dialog-shell";
@@ -8,12 +9,12 @@ import { SettingsInlineMessage } from "$lib/presentation/settings";
 
 type Props = {
   open?: boolean;
-  profile?: AgentProfileConfiguration;
+  profile?: ProfileCatalogEntry;
   /** One readable line per setting, built by the page. */
   lines: { label: string; value: string }[];
   busy?: boolean;
   error?: string;
-  onTrust: () => void;
+  onTrust: () => void | Promise<void>;
 };
 let {
   open = $bindable(false),
@@ -23,7 +24,7 @@ let {
   error,
   onTrust,
 }: Props = $props();
-const file = $derived(profile?.local);
+const file = $derived(profile?.definition);
 </script>
 
 <Dialog
@@ -63,12 +64,24 @@ const file = $derived(profile?.local);
         {/each}
       </div>
     {/if}
+    {#if profile}<Textarea
+        readonly
+        rows={8}
+        class="font-mono"
+        aria-label="Reviewed profile definition"
+        value={JSON.stringify(profile.definition, null, 2)}
+      />
+      <p class="text-xs text-muted-foreground font-mono">
+        {profile.digest}
+      </p>{/if}
     {#if error}<p class="text-xs text-destructive" role="alert">{error}</p>{/if}
   </div>
   {#snippet footer()}
-    <Button variant="ghost" onclick={() => (open = false)}>Not now</Button>
+    <Button variant="ghost" disabled={busy} onclick={() => (open = false)}
+      >Not now</Button
+    >
     <Button disabled={busy || !profile?.digest} onclick={onTrust}
-      >Trust this version</Button
+      >{profile?.trusted ? "Revoke trust" : "Trust this version"}</Button
     >
   {/snippet}
 </Dialog>

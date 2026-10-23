@@ -25,12 +25,12 @@ export function ensureProfilesFor(
 export function leadProfileOptions(): ProfileOption[] {
   return (agentProfilesState.configuration?.profiles ?? []).flatMap(
     (profile) => {
-      const effective = profile.effective;
+      const effective = profile.definition;
       return effective &&
-        effective.enabled &&
-        effective.usableBy !== "subagent" &&
-        !profile.diagnostics.some((item) => item.severity === "blocking")
-        ? [{ name: profile.name, label: effective.label }]
+        profile.enabled &&
+        profile.applicable &&
+        effective.usableBy !== "subagent"
+        ? [{ name: profile.name, label: effective.label ?? profile.name }]
         : [];
     },
   );
@@ -40,6 +40,6 @@ export function profileLabelFor(name: string): string {
   return (
     agentProfilesState.configuration?.profiles.find(
       (profile) => profile.name === name,
-    )?.effective?.label ?? name
+    )?.definition?.label ?? name
   );
 }

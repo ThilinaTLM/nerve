@@ -39,7 +39,17 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
   events.subscribeNotify((event) => notices.push(event.type));
   const providerCatalog = new ProviderCatalogStore(storage);
   await providerCatalog.load();
-  const app = createSettingsHealthRoutes({ storage, events, providerCatalog });
+  const reloads: (readonly string[] | undefined)[] = [];
+  const app = createSettingsHealthRoutes({
+    storage,
+    events,
+    providerCatalog,
+    admissionPolicy: {
+      reload: async (paths) => {
+        reloads.push(paths);
+      },
+    },
+  });
   const resolve = (id: string, action: string) =>
     app.request("/settings/health/resolve", {
       method: "POST",
@@ -134,6 +144,9 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
   ]);
   await writeFile(paths.permissionsConfigPath, "broken permissions");
   await app.request("/settings/health");
+  assert.equal((await resolve("permissions", "reload")).status, 200);
+  assert.deepEqual(reloads, [[paths.permissionsConfigPath]]);
+
   await writeFile(
     paths.permissionsConfigPath,
     JSON.stringify({
@@ -160,4 +173,5 @@ void test("settings health is nonblocking and reset/reload refresh the runtime p
   await writeFile(paths.permissionsConfigPath, "broken permissions again");
   await app.request("/settings/health");
   assert.equal((await resolve("permissions", "reset")).status, 200);
+  assert.equal(reloads.length, 3);
 });

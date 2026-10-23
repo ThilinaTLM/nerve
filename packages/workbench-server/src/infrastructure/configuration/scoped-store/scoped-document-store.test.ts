@@ -320,3 +320,34 @@ void test("a failing dependent does not skip others and makes publication unavai
   assert.equal(called, true);
   assert.equal(f.store.peek(user)?.status, "unavailable");
 });
+
+await test("an unavailable prerequisite revokes generations and saves, reports its real source, and clears only on reload", async (t) => {
+  const f = await fixture(t);
+  await f.store.ensureLoaded(user);
+  const current = f.store.captureGenerations([user]);
+  const source = {
+    path: path.join(f.root, "legacy.json"),
+    digest: "legacy-digest",
+    issues: [
+      {
+        code: "legacy-conversion-required" as const,
+        pointer: "",
+        message: "Unsupported legacy version",
+      },
+    ],
+  };
+  const blocked = await f.store.block(user, source);
+  assert.equal(blocked.status, "unavailable");
+  assert.equal(current(), false);
+  assert.deepEqual(await f.store.ensureLoaded(user), blocked);
+  assert.deepEqual(await f.store.block(user, source), blocked);
+  await assert.rejects(
+    f.store.save(user, { revision: 0, digest: "missing" }, (doc) => doc),
+    ScopeUnavailableError,
+  );
+  if (blocked.status === "unavailable") {
+    assert.equal(blocked.path, source.path);
+    assert.equal(blocked.sourceDigest, source.digest);
+  }
+  assert.equal((await f.store.reload(user)).status, "missing-optional");
+});

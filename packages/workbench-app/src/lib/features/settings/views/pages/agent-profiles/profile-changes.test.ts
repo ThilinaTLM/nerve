@@ -1,161 +1,118 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
-import type { AgentProfileDraft } from "@nervekit/contracts/agent-profiles";
-import {
-  changeRows,
-  modesFor,
-  nameFromLabel,
-  removeChangePatch,
-  setChangePatch,
-  skillsSummary,
-} from "./profile-changes.js";
-
-const planning: AgentProfileDraft = {
+import { test } from "node:test";
+import { profileDefinitionSchema } from "@nervekit/contracts/agent-configuration";
+import { applyProfileChange, changeRows } from "./profile-changes";
+const model = { provider: "test", modelId: "one" };
+const base = profileDefinitionSchema.parse({
+  schemaVersion: 1,
   name: "planning",
   description: "Plan first",
   usableBy: "lead",
-  instructions: "Read the planning skill.",
-  permission: { lock: "planning" },
-  tools: {
-    plan_present: {
-      set: { enabled: true, settings: { approvalProfile: "coding" } },
-    },
+  instructions: "Plan carefully.",
+  recommendations: {
+    model,
+    reasoningLevel: "low",
+    tools: { web_search: { enabled: true } },
   },
-};
-
-describe("profile changes", () => {
-  it("lists a template's settings with their modes", () => {
-    assert.deepEqual(
-      changeRows(planning).map((row) => [row.key, row.mode]),
-      [
-        ["permission", "lock"],
-        ["tool:plan_present", "set"],
-        ["instructions", undefined],
-      ],
-    );
+  requirements: { permissionRuleSetId: "read_only" },
+});
+test("Use settings removes both contributions, preserving unrelated settings and instructions", () => {
+  const result = applyProfileChange(base, {
+    key: "permission",
+    mode: "settings",
+    value: "read_only",
   });
-
-  it("offers Same as lead only to profiles usable by sub-agents", () => {
-    assert.deepEqual(modesFor("lead"), ["set", "lock", "settings"]);
-    assert.deepEqual(modesFor("subagent"), ["set", "lock", "settings", "lead"]);
-    assert.deepEqual(modesFor("both"), ["set", "lock", "settings", "lead"]);
+  assert.equal(result.requirements?.permissionRuleSetId, undefined);
+  assert.deepEqual(result.recommendations, base.recommendations);
+  assert.equal(result.instructions, base.instructions);
+  assert.equal(base.requirements?.permissionRuleSetId, "read_only");
+});
+test("model picker payload writes both settings while retaining independent policy modes", () => {
+  const result = applyProfileChange(base, {
+    key: "model",
+    mode: "recommend",
+    value: {
+      model,
+      thinking: "high",
+      modelMode: "settings",
+      thinkingMode: "require",
+    },
   });
-
-  it("builds patches that set and remove a change", () => {
-    assert.deepEqual(setChangePatch("permission", "lock", "read_only"), {
-      permission: { lock: "read_only" },
-    });
-    assert.deepEqual(setChangePatch("model", "lead", undefined), {
-      model: "lead",
-      thinking: "lead",
-    });
-    assert.deepEqual(setChangePatch("tool:jira", "set", { enabled: true }), {
-      tools: { jira: { set: { enabled: true } } },
-    });
-    assert.deepEqual(removeChangePatch("tool:jira"), { tools: { jira: null } });
-    assert.deepEqual(removeChangePatch("compaction"), { compaction: null });
+  assert.equal(result.recommendations?.model, undefined);
+  assert.equal(result.requirements?.model, undefined);
+  assert.equal(result.recommendations?.reasoningLevel, undefined);
+  assert.equal(result.requirements?.reasoningLevel, "high");
+  const row = changeRows(result).find((r) => r.key === "model")!;
+  assert.deepEqual(row.value, {
+    model: undefined,
+    thinking: "high",
+    modelMode: "settings",
+    thinkingMode: "require",
   });
-
-  it("writes and reads Reset to settings without a value", () => {
-    assert.deepEqual(setChangePatch("permission", "settings", "x"), {
-      permission: "settings",
-    });
-    assert.deepEqual(setChangePatch("tool:bash", "settings", {}), {
-      tools: { bash: "settings" },
-    });
-    const row = changeRows({ ...planning, permission: "settings" }).find(
-      (candidate) => candidate.key === "permission",
-    );
-    assert.deepEqual([row?.mode, row?.value], ["settings", undefined]);
-  });
-
-  it("combines model and reasoning into one change", () => {
-    const reasoningOnly: AgentProfileDraft = {
-      ...planning,
-      thinking: { set: "low" },
-    };
-    const row = changeRows(reasoningOnly).find(
-      (candidate) => candidate.key === "model",
-    );
-    assert.deepEqual(
-      [row?.label, row?.mode, row?.value],
-      [
-        "Reasoning",
-        "set",
-        {
-          model: undefined,
-          thinking: "low",
-          modelMode: "set",
-          thinkingMode: "set",
-        },
-      ],
-    );
-    assert.deepEqual(setChangePatch("model", "lock", { thinking: "low" }), {
-      model: null,
-      thinking: { lock: "low" },
-    });
-    assert.deepEqual(
-      setChangePatch("model", "set", {
-        model: { provider: "p", modelId: "m" },
-        thinking: "high",
+});
+test("a policy mode without its value cannot silently become Use settings", () => {
+  assert.throws(
+    () =>
+      applyProfileChange(base, {
+        key: "model",
+        mode: "require",
+        value: { model, thinkingMode: "require" },
       }),
-      {
-        model: { set: { provider: "p", modelId: "m" } },
-        thinking: { set: "high" },
-      },
-    );
-    assert.deepEqual(removeChangePatch("model"), {
-      model: null,
-      thinking: null,
-    });
+    /Choose a value for reasoningLevel/,
+  );
+  assert.equal(base.recommendations?.reasoningLevel, "low");
+});
+test("moving a tool policy removes the other contribution without touching other fields", () => {
+  const result = applyProfileChange(base, {
+    key: "tool:web_search",
+    mode: "require",
+    value: { enabled: false },
   });
-
-  it("preserves independent model/reasoning modes through unrelated edits", () => {
-    const model = { provider: "p", modelId: "m" };
-    for (const fields of [
-      { model: { lock: model }, thinking: { set: "low" as const } },
-      { model: "lead" as const, thinking: { lock: "high" as const } },
-      { model: { set: model }, thinking: "lead" as const },
-    ]) {
-      const row = changeRows({ ...planning, ...fields }).find(
-        (row) => row.key === "model",
-      )!;
-      assert.deepEqual(setChangePatch("model", row.mode!, row.value), fields);
-    }
-    const reasoningLead = changeRows({ ...planning, thinking: "lead" }).find(
-      (row) => row.key === "model",
-    )!;
-    assert.deepEqual(
-      setChangePatch("model", reasoningLead.mode!, reasoningLead.value),
-      { model: null, thinking: "lead" },
-    );
-    const row = changeRows({
-      ...planning,
-      model: { lock: model },
-      thinking: { set: "low" },
-    })[0]!;
-    assert.deepEqual(
-      setChangePatch("model", row.mode!, {
-        ...(row.value as object),
-        thinking: "high",
-      }),
-      {
-        model: { lock: model },
-        thinking: { set: "high" },
-      },
-    );
+  assert.equal(result.recommendations?.tools?.web_search, undefined);
+  assert.deepEqual(result.requirements?.tools?.web_search, { enabled: false });
+  assert.equal(result.requirements?.permissionRuleSetId, "read_only");
+});
+test("mixed tool policies display once with all values, avoiding dropped recommendations on edit", () => {
+  const profile = profileDefinitionSchema.parse({
+    ...base,
+    recommendations: { tools: { web_search: { enabled: true } } },
+    requirements: { tools: { web_search: { profileId: "account" } } },
   });
-
-  it("summarises skills and derives names from labels", () => {
-    assert.equal(
-      skillsSummary({
-        file: { docs: false },
-        nerve: { planning: true },
-        agentBrowser: {},
-      }),
-      "− docs, + planning",
-    );
-    assert.equal(skillsSummary("none"), "None");
-    assert.equal(nameFromLabel("  Release Notes! "), "release-notes");
+  const rows = changeRows(profile).filter((r) => r.key === "tool:web_search");
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0]!.mixed, true);
+  assert.deepEqual(rows[0]!.value, { enabled: true, profileId: "account" });
+  const next = applyProfileChange(profile, {
+    key: rows[0]!.key,
+    mode: "recommend",
+    value: rows[0]!.value,
   });
+  assert.deepEqual(next.recommendations?.tools?.web_search, {
+    enabled: true,
+    profileId: "account",
+  });
+});
+test("child definitions use the same real recommendations/requirements schema and editable instructions", () => {
+  const child = profileDefinitionSchema.parse({
+    schemaVersion: 1,
+    name: "research",
+    description: "Research",
+    usableBy: "subagent",
+    instructions: "Read.",
+  });
+  const next = applyProfileChange(child, {
+    key: "tool:web_fetch",
+    mode: "require",
+    value: { enabled: false },
+  });
+  assert.equal(next.requirements?.tools?.web_fetch?.enabled, false);
+  assert.equal(
+    applyProfileChange(next, {
+      key: "instructions",
+      mode: "recommend",
+      value: "",
+    }).instructions,
+    "",
+  );
+  assert.equal(next.usableBy, "subagent");
 });

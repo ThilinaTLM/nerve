@@ -1,12 +1,29 @@
 import {
+  readCreationPreferences,
+  saveCreationPreferences,
+  type CreationMutation,
+} from "./creation-preferences.js";
+import { upgradeBlock, legacyRepairFile } from "./scoped-upgrade-health.js";
+import { conversationSummary } from "./conversation-summary.js";
+import {
+  loadConversationContext,
+  readConversationContext,
+  saveConversationContext,
+} from "./conversation-context.js";
+import {
+  saveAgentDocument,
+  isUntrustedAgentDocument,
+  prepareConversationDocument,
+  assertRepairReceipt,
+  resolveRepairCandidate,
+  resolveStoredAgent,
+} from "./agent-document-transactions.js";
+import {
   agentPreferencesSchema,
-  agentMutationSchema,
-  applySettingsMutation,
   leadConversationAgentSchema,
   childConversationAgentSchema,
   conversationDefaultsSchema,
   conversationAgentSummariesSchema,
-  resolveAgentConfiguration,
   type ResolutionOptions,
   type ResolutionResult,
   type AppliedProfile,
@@ -20,6 +37,7 @@ import {
   freezeJson,
   type ScopedDocumentOptions,
   type ScopeGeneration,
+  type ScopeHealth,
 } from "../scoped-store/scoped-document-store.js";
 import { ConversationSummaryCache } from "../scoped-store/conversation-summary-cache.js";
 import {
@@ -46,6 +64,15 @@ export interface ResourceSnapshot {
 }
 export interface AgentConfigurationServiceOptions extends ConfigurationLocations {
   builtins: Readonly<Record<string, string>>;
+  prepareUser?(): Promise<void>;
+  retryUserMigration?(): void;
+  prepareProject?(projectId: string): Promise<void>;
+  retryProjectMigration?(projectId: string): void;
+  isProjectAgentTrusted?(
+    projectId: string,
+    path: string,
+    digest: string,
+  ): boolean;
   isProfileTrusted(projectId: string, path: string, digest: string): boolean;
   prepareResources?(projectId: string): Promise<void>;
   captureResources(projectId?: string): ResourceSnapshot;
@@ -82,13 +109,6 @@ export type EffectiveAgentView =
 type Summary = z.infer<
   typeof conversationAgentSummariesSchema
 >["entries"][string];
-type CreationMutation = {
-  expectedRevision: number;
-  expectedDigest: string;
-  changes: CreationPreferences["overrides"];
-  resets: string[];
-};
-
 /** Unwired domain service. Does not perform execution admission or load mutable profile definitions for applied snapshots. */
 export class AgentConfigurationService {
   readonly paths: AgentConfigurationPaths;
@@ -98,6 +118,20 @@ export class AgentConfigurationService {
     PreferenceScope,
     CreationPreferences
   >;
+  private readonly summaryListeners = new Set<(id: string) => void>();
+  subscribeSummary(listener: (id: string) => void): () => void {
+    this.summaryListeners.add(listener);
+    return () => this.summaryListeners.delete(listener);
+  }
+  private notifySummary(id: string): void {
+    for (const listener of this.summaryListeners) {
+      try {
+        listener(id);
+      } catch {
+        /* Disposable display observers. */
+      }
+    }
+  }
   private readonly summaries: ConversationSummaryCache<Summary>;
   private readonly agentScopes = new Map<string, AgentScope>();
   private readonly creationScopes = new Map<string, PreferenceScope>();
@@ -182,6 +216,7 @@ export class AgentConfigurationService {
     });
     this.profiles = new AgentProfileCatalog({
       paths: this.paths,
+      prepareProject: (id) => this.prepareProject(id),
       builtins: options.builtins,
       isTrusted: options.isProfileTrusted,
       io: options.io,
@@ -207,11 +242,25 @@ export class AgentConfigurationService {
     return { diagnostics: this.health() };
   }
 
-  ensureLoaded(scope: AgentScope) {
+  private retryScope(scope: AgentScope): void {
+    const preference = this.paths.preferenceScope(scope);
+    if (preference.scope === "user") this.options.retryUserMigration?.();
+    else this.options.retryProjectMigration?.(preference.projectId);
+    this.invalidateResources();
+  }
+  legacyRepairFile(scope: AgentScope) {
+    return legacyRepairFile(this.agents.peek(scope));
+  }
+  async ensureLoaded(scope: AgentScope) {
+    const blocked = await this.prepareScope(this.paths.preferenceScope(scope));
+    if (blocked) return blocked;
     this.track(scope);
     return this.agents.ensureLoaded(scope);
   }
   async reload(scope: AgentScope) {
+    this.retryScope(scope);
+    const blocked = await this.prepareScope(this.paths.preferenceScope(scope));
+    if (blocked) return blocked;
     this.track(scope);
     const result = await this.agents.reload(scope);
     this.notifyHealth(scope);
@@ -222,6 +271,7 @@ export class AgentConfigurationService {
     if (this.agentScopes.has(key)) return;
     this.agentScopes.set(key, structuredClone(scope));
     this.agents.onInvalidate(scope, () => {
+      this.notifyHealth(scope);
       for (const [id] of this.effective) {
         const owner = this.options.conversationOwner(id);
         if (
@@ -263,6 +313,23 @@ export class AgentConfigurationService {
   }
 
   async getEffective(conversationId: string): Promise<EffectiveAgentView> {
+    const projectIdForMigration =
+      this.options.conversationOwner(conversationId).projectId;
+    try {
+      await this.prepareProject(projectIdForMigration);
+    } catch {
+      return {
+        status: "unavailable",
+        conversationId,
+        diagnostics: healthDiagnostics(
+          this.agents.peek({
+            scope: "project",
+            projectId: projectIdForMigration,
+          })!,
+          "agent",
+        ),
+      };
+    }
     const owner = this.options.conversationOwner(conversationId);
     const projectId = owner.projectId;
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -277,15 +344,52 @@ export class AgentConfigurationService {
       const diagnostics = states.flatMap((state) =>
         healthDiagnostics(state, "agent"),
       );
-      if (states.some((state) => state.status === "unavailable"))
+      if (
+        states.some(
+          (state) =>
+            state.status === "unavailable" && !this.untrustedProject(state),
+        )
+      )
         return freezeJson({
           status: "unavailable",
           conversationId,
           diagnostics,
         });
-      const values = states.flatMap((state) =>
-        state.status === "unavailable" ? [] : [state.value],
-      );
+      const values = states.flatMap((state) => {
+        if (this.untrustedProject(state)) {
+          const scope =
+            state.status === "unavailable" ? state.scope : state.value.scope;
+          diagnostics.push(
+            diagnostic(
+              scope,
+              "agent",
+              this.paths.agent(scope),
+              "untrusted-project",
+            ),
+          );
+          return [
+            {
+              scope,
+              path: this.paths.agent(scope),
+              generation:
+                state.status === "unavailable"
+                  ? state.generation
+                  : state.value.generation,
+              revision: 0,
+              digest:
+                state.status === "unavailable"
+                  ? state.sourceDigest!
+                  : state.value.digest,
+              document: {
+                schemaVersion: 1 as const,
+                revision: 0,
+                overrides: {},
+              },
+            },
+          ];
+        }
+        return state.status === "unavailable" ? [] : [state.value];
+      });
       const checkDocuments = this.agents.captureGenerations(scopes);
       const resourceEpoch = this.resourceEpoch;
       const catalogEpoch = this.catalogEpoch;
@@ -353,6 +457,7 @@ export class AgentConfigurationService {
       if (!initialResources.isCurrent()) continue;
       const values = scopes.map((scope) => {
         const state = this.agents.peek(scope)!;
+        if (this.untrustedProject(state)) return {};
         if (state.status === "unavailable") throw new ScopeUnavailableError();
         return state.value.document.overrides;
       });
@@ -387,113 +492,46 @@ export class AgentConfigurationService {
     };
   }
 
+  private untrustedProject(
+    state: ScopeHealth<AgentScope, AgentDocument>,
+  ): boolean {
+    return isUntrustedAgentDocument(this.options, this.paths, state);
+  }
   private resolve(
     id: string,
     values: readonly ScopeGeneration<AgentScope, AgentDocument>[],
     resources: ResourceSnapshot,
     candidate?: AgentDocument,
   ): ResolutionResult {
-    const role = this.options.conversationOwner(id).role;
-    const conversation =
-      candidate ??
-      values.find((value) => value.scope.scope === "conversation")?.document;
-    if (!conversation || !("appliedProfile" in conversation))
-      throw new ScopeUnavailableError();
-    return resolveAgentConfiguration({
-      ...resources.options,
-      role,
-      ...(role === "lead"
-        ? {
-            user: values.find((value) => value.scope.scope === "user")?.document
-              .overrides,
-            project: values.find((value) => value.scope.scope === "project")
-              ?.document.overrides,
-          }
-        : {}),
-      conversation: conversation.overrides,
-      appliedProfile: conversation.appliedProfile,
-      ...("frozenDefaults" in conversation
-        ? { frozenDefaults: conversation.frozenDefaults }
-        : {}),
-    });
+    return resolveStoredAgent(this.options, id, values, resources, candidate);
+  }
+
+  async loadConversationContext(id: string) {
+    this.track({ scope: "conversation", conversationId: id });
+    return loadConversationContext(this.agents, id);
+  }
+  getConversationContext(id: string) {
+    return readConversationContext(this.agents, id);
+  }
+  async configureContext(id: string, input: unknown): Promise<void> {
+    const scope = { scope: "conversation" as const, conversationId: id };
+    this.track(scope);
+    await saveConversationContext(this.agents, id, input, this.options);
+    this.notifyHealth(scope);
   }
 
   async save(scope: AgentScope, input: unknown) {
-    const mutation = agentMutationSchema.parse(input);
-    if (
-      scope.scope === "conversation" &&
-      this.options.conversationOwner(scope.conversationId).role === "child"
-    )
-      throw new Error("Child preference editing is not supported");
-    const dependencies: AgentScope[] =
-      scope.scope === "conversation"
-        ? this.dependencies(scope.conversationId)
-        : scope.scope === "project"
-          ? [{ scope: "user" }, scope]
-          : [scope];
-    await Promise.all(
-      dependencies.map((dependency) => this.ensureLoaded(dependency)),
-    );
-    const result = await this.agents.save(
-      scope,
-      { revision: mutation.expectedRevision, digest: mutation.expectedDigest },
-      (document) => {
-        if (
-          scope.scope === "conversation" &&
-          "lastTransition" in document &&
-          document.lastTransition &&
-          !this.options.transitionReconciled?.(
-            scope.conversationId,
-            document.lastTransition,
-          )
-        )
-          throw new Error(
-            "Committed transition must be reconciled before mutation",
-          );
-        const requirements =
-          "appliedProfile" in document
-            ? document.appliedProfile?.requirements
-            : undefined;
-        const candidate = {
-          ...document,
-          overrides: applySettingsMutation(
-            document.overrides,
-            mutation,
-            requirements,
-          ),
-        };
-        const resources = this.options.captureResources(
-          scope.scope === "project"
-            ? scope.projectId
-            : scope.scope === "conversation"
-              ? this.options.conversationOwner(scope.conversationId).projectId
-              : undefined,
-        );
-        const values = dependencies
-          .map((dependency) => this.agents.peek(dependency))
-          .flatMap((state) => {
-            if (!state || state.status === "unavailable")
-              throw new ScopeUnavailableError();
-            return [state.value];
-          });
-        const resolution =
-          scope.scope === "conversation"
-            ? this.resolve(scope.conversationId, values, resources, candidate)
-            : resolveAgentConfiguration({
-                ...resources.options,
-                role: "lead",
-                user:
-                  scope.scope === "user"
-                    ? candidate.overrides
-                    : values.find((value) => value.scope.scope === "user")
-                        ?.document.overrides,
-                ...(scope.scope === "project"
-                  ? { project: candidate.overrides }
-                  : {}),
-              });
-        this.validateSave(candidate, resolution, resources);
-        return candidate;
+    const result = await saveAgentDocument(
+      {
+        store: this.agents,
+        options: this.options,
+        load: (dependency) => this.ensureLoaded(dependency),
+        dependencies: (id) => this.dependencies(id),
+        resolve: (id, values, resources, candidate) =>
+          this.resolve(id, values, resources, candidate),
       },
+      scope,
+      input,
     );
     if (scope.scope === "conversation")
       this.project(() => this.refreshSummary(scope.conversationId));
@@ -562,30 +600,27 @@ export class AgentConfigurationService {
     }
   }
 
-  private validateSave(
-    candidate: AgentDocument,
-    resolution: ResolutionResult,
-    resources: ResourceSnapshot,
-  ): void {
-    const reasoning =
-      resolution.provenance["/reasoningLevel"]?.source === "requirement"
-        ? undefined
-        : candidate.overrides.reasoningLevel;
-    if (
-      resolution.diagnostics.some(
-        (issue) => issue.code === "unsupported-reasoning",
-      ) ||
-      (resolution.settings.model &&
-        reasoning &&
-        resources.options.clampThinking &&
-        resources.options.clampThinking(
-          resolution.settings.model,
-          reasoning,
-        ) !== reasoning)
-    )
-      throw new Error("Unsupported explicit model/reasoning combination");
-    if (!resources.isCurrent())
-      throw new Error("Configuration dependencies changed; retry save");
+  assertRepairAllowed(scope: AgentScope, original: unknown): void {
+    assertRepairReceipt(scope, original, this.options);
+  }
+
+  repairResolution(
+    scope: AgentScope,
+    input: unknown,
+  ): Promise<ResolutionResult> {
+    return resolveRepairCandidate(
+      {
+        store: this.agents,
+        options: this.options,
+        paths: this.paths,
+        load: (dependency) => this.ensureLoaded(dependency),
+        dependencies: (id) => this.dependencies(id),
+        resolve: (id, values, resources, candidate) =>
+          this.resolve(id, values, resources, candidate),
+      },
+      scope,
+      input,
+    );
   }
 
   /** Trusted host-only initial creation; not a repair or arbitrary UI document editor. */
@@ -604,31 +639,17 @@ export class AgentConfigurationService {
       );
     this.creatingConversations.add(conversationId);
     try {
-      const owner = this.options.conversationOwner(conversationId);
-      await this.options.prepareResources?.(owner.projectId);
-      const document = (
-        owner.role === "child"
-          ? childConversationAgentSchema
-          : leadConversationAgentSchema
-      ).parse(input);
-      if (owner.role === "child" && Object.keys(document.overrides).length)
-        throw new Error("New child overrides must be empty");
-      const scopes = this.dependencies(conversationId).filter(
-        (scope) => scope.scope !== "conversation",
-      );
-      await Promise.all(scopes.map((scope) => this.ensureLoaded(scope)));
-      const values = scopes
-        .map((scope) => this.agents.peek(scope))
-        .flatMap((state) => {
-          if (!state || state.status === "unavailable")
-            throw new ScopeUnavailableError();
-          return [state.value];
-        });
-      const resources = this.options.captureResources(owner.projectId);
-      this.validateSave(
-        document,
-        this.resolve(conversationId, values, resources, document),
-        resources,
+      const document = await prepareConversationDocument(
+        {
+          store: this.agents,
+          options: this.options,
+          load: (scope) => this.ensureLoaded(scope),
+          dependencies: (id) => this.dependencies(id),
+          resolve: (id, values, resources, candidate) =>
+            this.resolve(id, values, resources, candidate),
+        },
+        conversationId,
+        input,
       );
       const scope = { scope: "conversation" as const, conversationId };
       this.track(scope);
@@ -648,80 +669,69 @@ export class AgentConfigurationService {
     }
   }
 
-  loadCreation(scope: PreferenceScope) {
+  async loadCreation(scope: PreferenceScope) {
+    const blocked = await this.prepareScope(scope);
+    if (blocked?.status === "unavailable")
+      return this.creation.block(scope, {
+        path: blocked.path,
+        digest: blocked.sourceDigest,
+        issues: blocked.issues,
+      });
     this.creationScopes.set(this.paths.creation(scope), structuredClone(scope));
-    return this.creation.ensureLoaded(scope);
+    const previous = this.creation.peek(scope);
+    return previous?.status === "unavailable" &&
+      previous.issues.some(
+        (issue) => issue.code === "legacy-conversion-required",
+      )
+      ? this.creation.reload(scope)
+      : this.creation.ensureLoaded(scope);
   }
-  reloadCreation(scope: PreferenceScope) {
+  async reloadCreation(scope: PreferenceScope) {
+    this.retryScope(scope);
+    const blocked = await this.prepareScope(scope);
+    if (blocked?.status === "unavailable")
+      return this.creation.block(scope, {
+        path: blocked.path,
+        digest: blocked.sourceDigest,
+        issues: blocked.issues,
+      });
     this.creationScopes.set(this.paths.creation(scope), structuredClone(scope));
     return this.creation.reload(scope);
   }
   async getCreationPreferences(projectId?: string) {
-    const scopes: PreferenceScope[] = projectId
-      ? [{ scope: "user" }, { scope: "project", projectId }]
-      : [{ scope: "user" }];
-    await Promise.all(scopes.map((scope) => this.loadCreation(scope)));
-    const user = this.creation.peek(scopes[0])!;
-    const project = scopes[1] ? this.creation.peek(scopes[1]) : undefined;
-    const diagnostics = [user, ...(project ? [project] : [])].flatMap((state) =>
-      healthDiagnostics(state, "conversation-defaults"),
+    return readCreationPreferences(
+      (scope) => this.loadCreation(scope),
+      projectId,
     );
-    if (user.status === "unavailable" || project?.status === "unavailable")
-      return { status: "unavailable" as const, diagnostics };
-    return freezeJson({
-      status: "available" as const,
-      overrides: {
-        defaultAgentProfile: "coding",
-        ...user.value.document.overrides,
-        ...project?.value.document.overrides,
-      },
-      diagnostics,
-    });
   }
   async saveCreation(scope: PreferenceScope, mutation: CreationMutation) {
-    if (
-      Object.keys(mutation).some(
-        (key) =>
-          !["expectedRevision", "expectedDigest", "changes", "resets"].includes(
-            key,
-          ),
-      )
-    )
-      throw new Error("Unknown creation mutation property");
-    const expected = agentMutationSchema.parse({
-      expectedRevision: mutation.expectedRevision,
-      expectedDigest: mutation.expectedDigest,
-      changes: {},
-      resets: [],
-    });
-    const changes = conversationDefaultsSchema.shape.overrides.parse(
-      mutation.changes,
-    );
-    const keys = mutation.resets.map((pointer) => {
-      if (
-        pointer !== "/overrides/defaultAgentProfile" &&
-        pointer !== "/overrides/scopedModels"
-      )
-        throw new Error("Unsupported creation preference reset");
-      return pointer.slice(11) as keyof CreationPreferences["overrides"];
-    });
-    if (
-      new Set(keys).size !== keys.length ||
-      keys.some((key) => Object.hasOwn(changes, key))
-    )
-      throw new Error("Overlapping creation mutations");
-    await this.loadCreation(scope);
-    return this.creation.save(
+    return saveCreationPreferences(
+      this.creation,
+      (scope) => this.loadCreation(scope),
       scope,
-      { revision: expected.expectedRevision, digest: expected.expectedDigest },
-      (document) => {
-        const overrides = { ...document.overrides, ...changes };
-        for (const key of keys) delete overrides[key];
-        return { ...document, overrides };
-      },
+      mutation,
     );
   }
 
+  private async prepareScope(scope: PreferenceScope) {
+    try {
+      if (scope.scope === "user") await this.options.prepareUser?.();
+      else await this.options.prepareProject?.(scope.projectId);
+      return undefined;
+    } catch (error) {
+      this.track(scope);
+      // track() publishes health on a new store generation. block() reuses a
+      // cached failure, so notice-driven reads neither republish nor reload it.
+      return this.agents.block(
+        scope,
+        upgradeBlock(error, this.paths.agent(scope)),
+      );
+    }
+  }
+  private async prepareProject(projectId: string): Promise<void> {
+    if (await this.prepareScope({ scope: "project", projectId }))
+      throw new ScopeUnavailableError();
+  }
   health(): ConfigurationDiagnostic[] {
     return [
       ...[...this.agentScopes.values()].flatMap((scope) => {
@@ -769,28 +779,15 @@ export class AgentConfigurationService {
       )
     ) {
       this.summaries.remove(id);
+      this.notifySummary(id);
       this.project(() => this.summaries.flush());
       return;
     }
-    const settings = view.resolution.settings;
-    const conversation = view.sources.find(
-      (source) => source.scope.scope === "conversation",
-    );
-    if (!conversation || !("appliedProfile" in conversation.document)) return;
+    const summary = conversationSummary(view);
+    if (!summary) return;
     try {
-      this.summaries.set(id, {
-        observedDigest: conversation.digest,
-        ...(settings.model ? { model: settings.model } : {}),
-        ...(settings.reasoningLevel
-          ? { reasoningLevel: settings.reasoningLevel }
-          : {}),
-        ...(settings.permissionRuleSetId
-          ? { permissionRuleSetId: settings.permissionRuleSetId }
-          : {}),
-        ...(conversation.document.appliedProfile
-          ? { agentProfile: conversation.document.appliedProfile.name }
-          : {}),
-      });
+      this.summaries.set(id, summary);
+      this.notifySummary(id);
       this.project(() => this.summaries.flush());
     } catch {
       /* Disposable cache failure is not configuration publication failure. */

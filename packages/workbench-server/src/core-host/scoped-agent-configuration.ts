@@ -1,3 +1,4 @@
+import type { AgentDocument } from "../infrastructure/configuration/agent-configuration/document-adapters.js";
 import { randomUUID } from "node:crypto";
 import type {
   AgentConfigurationPort,
@@ -31,6 +32,7 @@ export function requireReady(
 /** Captures are retained only in process memory; admission owns their association with calls. */
 export function createScopedAgentConfiguration(options: {
   service: AgentConfigurationService;
+  workingDirectory(conversationId: string): string | undefined;
   initializeConversation: AgentConfigurationPort["initializeConversation"];
   prepareCreation: AgentConfigurationPort["prepareCreation"];
   profiles: ProfileLifecyclePort;
@@ -56,7 +58,44 @@ export function createScopedAgentConfiguration(options: {
       generations: Record<string, number>;
     }
   >();
+  const directory = (id: string) => {
+    const path = options.workingDirectory(id);
+    if (path === undefined) throw new Error("Conversation not found");
+    return path;
+  };
   const port: AgentConfigurationPort = {
+    historyContext: (id) => options.service.getConversationContext(id) ?? {},
+    configureContext: (id, patch) =>
+      options.service.configureContext(id, patch),
+    summary(id) {
+      const cached = options.service.getSummary(id);
+      if (!cached) return {};
+      const { observedDigest, ...fields } = cached;
+      void observedDigest;
+      return fields;
+    },
+    async resolveConfig(id, context) {
+      const view = await options.service.getEffective(id);
+      if (view.status !== "available")
+        throw new Error("Agent configuration unavailable");
+      const model = requireReady(view.resolution);
+      const document = view.sources.find(
+        (source) => source.scope.scope === "conversation",
+      )?.document;
+      return {
+        ...context,
+        ...documentContext(document),
+        workingDirectory: directory(id),
+        conversationId: id,
+        model,
+        reasoningLevel: view.resolution.settings.reasoningLevel!,
+        permissionRuleSetId: view.resolution.settings.permissionRuleSetId!,
+        agentProfile:
+          document && "appliedProfile" in document
+            ? (document.appliedProfile?.name ?? "coding")
+            : "coding",
+      };
+    },
     releaseRequest: (id) => {
       captures.delete(id);
     },
@@ -81,15 +120,26 @@ export function createScopedAgentConfiguration(options: {
             document && "appliedProfile" in document
               ? document.appliedProfile
               : null;
+          const workingDirectory = directory(input.conversation.id);
           const result = await options.prepare(
-            input,
+            {
+              ...input,
+              config: {
+                ...input.config,
+                ...documentContext(document),
+                workingDirectory,
+              },
+            },
             capture.view.resolution.settings,
             applied?.instructions ?? "",
             capture.view.resolution.diagnostics
               .filter((issue) => issue.code === "missing-reference")
               .map((issue) => issue.pointer),
           );
-          if (capture.isCurrent())
+          if (
+            capture.isCurrent() &&
+            options.workingDirectory(input.conversation.id) === workingDirectory
+          )
             return {
               status: "available",
               ...result,
@@ -189,12 +239,21 @@ export function createScopedAgentConfiguration(options: {
           document && "appliedProfile" in document
             ? document.appliedProfile
             : null;
+        const workingDirectory = directory(id);
+        const currentInput = {
+          ...input,
+          config: {
+            ...input.config,
+            ...documentContext(document),
+            workingDirectory,
+          },
+        };
         const executorResources = await options.captureExecutorResources(
-          input,
+          currentInput,
           resolution.settings,
         );
         const resources = await options.prepare(
-          input,
+          currentInput,
           resolution.settings,
           applied?.instructions ?? "",
           resolution.diagnostics
@@ -202,7 +261,10 @@ export function createScopedAgentConfiguration(options: {
             .map((issue) => issue.pointer),
         );
         input.signal?.throwIfAborted();
-        if (!capture.isCurrent()) continue;
+        const isCurrent = () =>
+          capture.isCurrent() &&
+          options.workingDirectory(id) === workingDirectory;
+        if (!isCurrent()) continue;
         const captureId = randomUUID();
         captures.set(captureId, {
           conversationId: id,
@@ -224,7 +286,7 @@ export function createScopedAgentConfiguration(options: {
           reasoningLevel: resolution.settings.reasoningLevel!,
           agentProfile: applied?.name ?? "coding",
           ...resources,
-          isCurrent: capture.isCurrent,
+          isCurrent,
         };
       }
     },
@@ -263,5 +325,14 @@ export function createScopedAgentConfiguration(options: {
       return capture && structuredClone(capture);
     },
     releaseCapture: (id: string) => captures.delete(id),
+  };
+}
+
+function documentContext(document: AgentDocument | undefined) {
+  if (!document || !("appliedProfile" in document))
+    throw new Error("Conversation JSON context unavailable");
+  return {
+    instructions: document.context?.instructions ?? null,
+    systemPrompt: document.context?.systemPrompt ?? null,
   };
 }

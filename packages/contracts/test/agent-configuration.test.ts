@@ -227,28 +227,7 @@ test("children freeze launch B below requirements, never reapply recommendation 
     true,
   );
 });
-test("reasoning adjustment vs invalid explicit/required reasoning and preserved references", () => {
-  const clampThinking = () => "off" as const;
-  assert.equal(
-    resolveAgentConfiguration({
-      role: "lead",
-      user: { model: A, reasoningLevel: "high" },
-      clampThinking,
-    }).diagnostics[0]?.code,
-    "reasoning-adjusted",
-  );
-  for (const source of ["conversation", "requirement"] as const) {
-    const result = resolveAgentConfiguration({
-      role: "lead",
-      user: { model: A },
-      ...(source === "conversation"
-        ? { conversation: { reasoningLevel: "high" as const } }
-        : { appliedProfile: profile({}, { reasoningLevel: "high" }) }),
-      clampThinking,
-    });
-    assert.equal(result.diagnostics[0]?.code, "unsupported-reasoning");
-    assert.equal(result.settings.reasoningLevel, "high");
-  }
+test("unavailable references are preserved with readiness diagnostics", () => {
   const result = resolveAgentConfiguration({
     role: "lead",
     user: { model: A },

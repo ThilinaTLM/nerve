@@ -1,7 +1,17 @@
 <script lang="ts">
+import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
+import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
 import { onDestroy, untrack, type Snippet } from "svelte";
 import { DEFAULT_AGENT_PROFILE } from "@nervekit/contracts/agent-profiles";
+import {
+  applySettingsMutation,
+  type LeadSettingsOverrides,
+} from "@nervekit/contracts/agent-configuration";
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
+import { captureSystemPromptPreview } from "./system-prompt-preview";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { listTools, uploadAttachment } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
@@ -31,7 +41,15 @@ import type { PromptComposerProps } from "$lib/features/conversations/views/prom
 import { deriveComposerAvailability } from "$lib/features/conversations/adapters/composer-availability";
 import { resolveDroppedFiles } from "./dropped-files";
 import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
+import { listAvailableSkills } from "$lib/features/skills/api/skills.api";
+import {
+  observeConversationChannel,
+  requestConversation,
+} from "$lib/application/startup/conversation-connection";
 import { conversationCatalog } from "$lib/features/conversations/state/conversation-catalog.svelte";
+import { onEvent } from "$lib/application/events/workbench-event-bus";
+import type { CapabilityToolGroup } from "$lib/presentation/composer/capability-tool-labels";
+import ConversationToolSettingsDialog from "./ConversationToolSettingsDialog.svelte";
 import type { ComposerEditorApi } from "$lib/presentation/composer/composer-editor-api";
 import { ComposerDictationBridge } from "$lib/presentation/composer/composer-dictation-bridge";
 import { bindComposerVoiceInput } from "./composer-voice-input";
@@ -128,6 +146,133 @@ let lastFocusToken: number | undefined;
 let lastComposerEscapeToken: number | undefined;
 let lastMicShortcutToken: number | undefined;
 let audioAuthDialogOpen = $state(false);
+const capabilityEditor = new ScopedAgentState();
+let capabilitySkills = $state<AvailableSkill[]>([]);
+let pendingCapabilityResolution = $state<AgentEditorView["resolution"]>();
+let capabilityError = $state<string>();
+let capabilityLoading = $state(false);
+let capabilityRefreshGeneration = 0;
+let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
+const capabilityScopeKey = $derived(
+  activeConversation?.id ?? activePendingConversation?.id ?? "none",
+);
+const capabilityConfiguration = $derived<AgentEditorView | undefined>(
+  activePendingConversation
+    ? pendingCapabilityResolution
+      ? {
+          resolution: pendingCapabilityResolution,
+          overrides: activePendingConversation.overrides ?? {},
+        }
+      : undefined
+    : activeConversation && capabilityEditor.resolution
+      ? {
+          resolution: capabilityEditor.resolution,
+          role: capabilityEditor.role,
+          overrides: capabilityEditor.overrides,
+        }
+      : undefined,
+);
+const capabilitySubagentProfiles = $derived(
+  agentProfileCatalog
+    .profiles(activeProject?.id)
+    .filter((p) => p.usableBy !== "lead")
+    .map((p) => ({
+      name: p.name,
+      label: p.label,
+      description: p.description,
+      disabled: !p.enabled,
+      error: p.error,
+    })),
+);
+async function refreshCapabilities() {
+  const conversation = activeConversation;
+  const pending = activePendingConversation;
+  if (
+    !workbenchStartupState.progressiveActive ||
+    !activeProject ||
+    (!conversation && !pending)
+  )
+    return;
+  const generation = ++capabilityRefreshGeneration;
+  const projectId = activeProject.id;
+  capabilityLoading = true;
+  try {
+    if (conversation) {
+      await capabilityEditor.load({
+        scope: "conversation",
+        conversationId: conversation.id,
+      });
+      if (generation !== capabilityRefreshGeneration) return;
+      capabilityError = capabilityEditor.error;
+    } else if (pending) {
+      const profile = agentProfileCatalog
+        .profiles(pending.projectId)
+        .find((p) => p.name === pending.explicitAgentProfile);
+      const target = captureSystemPromptPreview({
+        pending,
+        targetProfile: profile?.digest
+          ? { name: profile.name, digest: profile.digest }
+          : undefined,
+      });
+      if (target) {
+        const result = await requestConversation(
+          "conversation.previewSystemPrompt",
+          target.params,
+        );
+        if (
+          generation === capabilityRefreshGeneration &&
+          activePendingConversation === pending
+        ) {
+          pendingCapabilityResolution =
+            result.status === "available" ? result.resolution : undefined;
+          capabilityError =
+            result.status === "available"
+              ? undefined
+              : "Configuration unavailable.";
+        }
+      }
+    }
+    const result = await listAvailableSkills(projectId);
+    if (generation === capabilityRefreshGeneration)
+      capabilitySkills = result.skills;
+  } catch (error) {
+    if (generation !== capabilityRefreshGeneration) return;
+    capabilityError = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (generation === capabilityRefreshGeneration) capabilityLoading = false;
+  }
+}
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive) return;
+  void capabilityScopeKey;
+  capabilityRefreshGeneration += 1;
+  capabilitySkills = [];
+  pendingCapabilityResolution = undefined;
+  capabilityError = undefined;
+  if (activePendingConversation) capabilityEditor.scope = undefined;
+  configuringToolGroup = undefined;
+  void refreshCapabilities();
+});
+$effect(() => capabilityEditor.observe());
+$effect(() =>
+  observeConversationChannel({
+    recover: () => refreshCapabilities(),
+    disconnected() {},
+    event() {},
+    notice: (notice) => {
+      if (notice.type === "agentConfiguration.changed")
+        void refreshCapabilities();
+    },
+  }),
+);
+$effect(() => {
+  const stop = onEvent("agentProfiles.changed", () => {
+    void agentProfileCatalog
+      .refresh(activeProject?.id)
+      .then(refreshCapabilities);
+  });
+  return stop;
+});
 $effect(() => {
   if (!workbenchStartupState.progressiveActive || !activeProject) return;
   void listTools()
@@ -138,6 +283,29 @@ $effect(() => {
     })
     .catch(() => undefined);
 });
+async function patchCapabilities(
+  changes: LeadSettingsOverrides,
+  resets: string[] = [],
+) {
+  if (activePendingConversation) {
+    activePendingConversation.overrides = applySettingsMutation(
+      activePendingConversation.overrides ?? {},
+      { expectedRevision: 0, expectedDigest: "missing", changes, resets },
+    );
+    await refreshCapabilities();
+  } else {
+    await capabilityEditor.save(changes, resets);
+    capabilityError = capabilityEditor.error;
+  }
+}
+function resetCapabilities() {
+  if (!capabilityConfiguration) return;
+  const resets = editableCapabilityResets(
+    capabilityConfiguration.overrides,
+    capabilityConfiguration.resolution,
+  );
+  if (resets.length) return patchCapabilities({}, resets);
+}
 
 const micShortcut = getShortcutLabel("composer.toggleMic");
 const micShortcutAria = getShortcutAriaLabel("composer.toggleMic");
@@ -534,6 +702,14 @@ function handleMicContextMenu(event: MouseEvent) {
     todos,
     slashCompletions,
     completionSource,
+    capabilityConfiguration,
+    capabilitySkills,
+    capabilityLoading: capabilityLoading || capabilityEditor.saving,
+    capabilityError,
+    capabilityScopeKey,
+    capabilitySubagentProfiles,
+    subagentControlsEnabled:
+      interactive && !activeConversation?.parentConversationId,
     capabilities: {
       voice: true,
       imagePaste: true,
@@ -561,6 +737,12 @@ function handleMicContextMenu(event: MouseEvent) {
     onRefreshPermissionRuleSets,
     onOpenPermissionSettings,
     onOpenCapabilitySettings,
+    onCapabilityPatch: (patch, resets) => void patchCapabilities(patch, resets),
+    onConfigureCapabilityTool: (group) => {
+      configuringToolGroup = group;
+    },
+    onResetCapabilities: () => void resetCapabilities(),
+    onRefreshCapabilities: () => void refreshCapabilities(),
     onPasteImage: pasteImage,
     onDropFiles: dropFiles,
     onAttachFile: attachFile,
@@ -628,3 +810,11 @@ function handleMicContextMenu(event: MouseEvent) {
 </AgentComposer>
 
 <AudioInputAuthRequiredDialog bind:open={audioAuthDialogOpen} />
+
+<ConversationToolSettingsDialog
+  configuration={capabilityConfiguration}
+  group={configuringToolGroup}
+  projectId={activeProject?.id}
+  onPatch={(patch, resets) => void patchCapabilities(patch, resets)}
+  onClose={() => (configuringToolGroup = undefined)}
+/>

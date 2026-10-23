@@ -52,17 +52,15 @@ const kind = $derived(draft.key.startsWith("tool:") ? "tool" : draft.key);
 const tool = $derived(
   draft.key.startsWith("tool:") ? (draft.key.slice(5) as ToolId) : undefined,
 );
-const modes = $derived(modesFor(usableBy));
-const leadMode = $derived(draft.mode === "lead" || draft.mode === "settings");
-const valueless = (mode: string) => mode === "lead" || mode === "settings";
+const modes = $derived(modesFor());
+const leadMode = $derived(draft.mode === "settings");
+const valueless = (mode: string) => mode === "settings";
 const modeText = (mode: string) =>
-  mode === "lead"
-    ? "Same as lead agent"
-    : mode === "settings"
-      ? "Reset to settings"
-      : mode === "lock"
-        ? "Lock"
-        : "Set";
+  mode === "settings"
+    ? "Use settings"
+    : mode === "require"
+      ? "Require"
+      : "Recommend";
 
 // Model: { model, thinking }.
 const modelValue = $derived(draft.value as ModelChangeValue | undefined);
@@ -85,11 +83,12 @@ const skillsNone = $derived(skillsValue === "none");
 const buckets = $derived(
   (skillsNone
     ? { file: {}, nerve: {}, agentBrowser: {} }
-    : (skillsValue ?? {
+    : {
         file: {},
         nerve: {},
         agentBrowser: {},
-      })) as SkillBuckets,
+        ...((skillsValue ?? {}) as Partial<SkillBuckets>),
+      }) as SkillBuckets,
 );
 // Instructions.
 const text = $derived(String(draft.value ?? ""));
@@ -98,16 +97,12 @@ const bytes = $derived(utf8ByteLength(text));
 $effect(() => {
   const nextValid =
     kind === "instructions"
-      ? text.trim().length > 0 && bytes <= AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES
+      ? bytes <= AGENT_PROFILE_INSTRUCTIONS_MAX_BYTES
       : leadMode && kind !== "model"
         ? true
         : kind === "model"
-          ? Boolean(
-              modelValue?.model ||
-              modelValue?.thinking ||
-              valueless(modelMode) ||
-              valueless(thinkingMode),
-            )
+          ? (valueless(modelMode) || Boolean(modelValue?.model)) &&
+            (valueless(thinkingMode) || modelValue?.thinking !== undefined)
           : kind === "permission"
             ? Boolean(draft.value)
             : kind === "tool"
@@ -126,12 +121,15 @@ function chooseTool(name: string): void {
   };
 }
 
-function skillState(kindName: keyof SkillBuckets, name: string): string {
+function skillState(
+  kindName: "file" | "nerve" | "agentBrowser",
+  name: string,
+): string {
   const value = buckets[kindName][name];
   return value === undefined ? "inherit" : value ? "on" : "off";
 }
 function setSkill(
-  source: keyof SkillBuckets,
+  source: "file" | "nerve" | "agentBrowser",
   name: string,
   state: string,
 ): void {
@@ -145,7 +143,12 @@ function setSkill(
 
 const toolChoices = $derived(
   toolRows
-    .filter((row) => !takenTools.includes(`tool:${row.id}`))
+    .filter(
+      (row) =>
+        !takenTools.includes(`tool:${row.id}`) &&
+        (usableBy === "lead" ||
+          (row.id !== "subagents" && row.id !== "plan_present")),
+    )
     .map((row) => ({ value: row.id, label: row.label })),
 );
 </script>
@@ -161,32 +164,28 @@ const toolChoices = $derived(
           models={context.models}
           value={modelValue?.model}
           thinkingLevel={modelValue?.thinking}
-          modelDisabled={valueless(modelMode)}
-          thinkingDisabled={valueless(thinkingMode)}
-          lockReason={modelMode === "settings" || thinkingMode === "settings"
-            ? "Reset to settings"
-            : "Follows the lead agent"}
           inheritOption={{
-            label: valueless(modelMode) ? modeText(modelMode) : "Use settings",
-            description: "Leave the model as configured in settings.",
+            label: "Use settings",
+            description: "No model or reasoning contribution.",
           }}
           inherit={!modelValue?.model}
           onInherit={() =>
-            (draft = { ...draft, value: { ...modelValue, model: undefined } })}
+            (draft = {
+              ...draft,
+              value: { modelMode: "settings", thinkingMode: "settings" },
+            })}
           onChange={(next) =>
             (draft = {
               ...draft,
               value: {
                 ...modelValue,
                 model: next.model,
-                thinking:
-                  modelValue?.thinking === undefined || valueless(thinkingMode)
-                    ? modelValue?.thinking
-                    : next.thinkingLevel,
+                thinking: next.thinkingLevel,
+                modelMode: modelMode === "settings" ? "recommend" : modelMode,
+                thinkingMode:
+                  thinkingMode === "settings" ? "recommend" : thinkingMode,
               },
             })}
-          onThinkingChange={(thinking) =>
-            (draft = { ...draft, value: { ...modelValue, thinking } })}
         />
         {#each [{ key: "modelMode", label: "Model", value: modelMode }, { key: "thinkingMode", label: "Reasoning", value: thinkingMode }] as field (field.key)}
           <div class="grid gap-1.5 pt-2">
@@ -310,7 +309,9 @@ const toolChoices = $derived(
         {#if toolRow(tool).configurable && (payload.enabled || toolRow(tool).always)}
           <ToolConfigForm
             name={tool}
-            {payload}
+            bind:payload={
+              () => payload, (value) => (draft = { ...draft, value })
+            }
             bind:valid={toolValid}
             models={context.models}
             accounts={context.accountsFor(tool)}
@@ -320,6 +321,37 @@ const toolChoices = $derived(
         {/if}
       {/if}
     {:else if kind === "skills"}
+      {#each ["file", "nerve", "agentBrowser"] as source (source)}
+        {@const kind = source as "file" | "nerve" | "agentBrowser"}
+        <div class="grid gap-1.5">
+          <Label
+            >New {source === "file"
+              ? "file"
+              : source === "nerve"
+                ? "Nerve"
+                : "Agent Browser"} skills</Label
+          >
+          <SelectField
+            ariaLabel={`Default for ${source} skills`}
+            items={[
+              { value: "inherit", label: "Use settings" },
+              { value: "on", label: "On" },
+              { value: "off", label: "Off" },
+            ]}
+            value={buckets.defaults?.[kind] === undefined
+              ? "inherit"
+              : buckets.defaults[kind]
+                ? "on"
+                : "off"}
+            onValueChange={(value) => {
+              const defaults = { ...buckets.defaults };
+              if (value === "inherit") delete defaults[kind];
+              else defaults[kind] = value === "on";
+              draft = { ...draft, value: { ...buckets, defaults } };
+            }}
+          />
+        </div>
+      {/each}
       <ToggleGroup.Root
         type="single"
         variant="chip"

@@ -110,22 +110,22 @@ export function scopedTurnResources(options: {
           .map(([name]) => name),
       },
     );
+    const promptInstructions = [instructions, input.config.instructions]
+      .filter(Boolean)
+      .map((value) => resolveSkillPlaceholders(value!))
+      .join("\n\n");
     return {
       tools,
-      systemPrompt:
-        input.config.systemPrompt ??
-        buildNerveSystemPrompt({
-          cwd: input.config.workingDirectory,
-          selectedTools: tools.map((tool) => tool.name),
-          agentProfiles: profiles,
-          contextFiles: resources.contextFiles,
-          skills: resources.skills,
-          instructions: [instructions, input.config.instructions]
-            .filter(Boolean)
-            .map((value) => resolveSkillPlaceholders(value!))
-            .join("\n\n"),
-          appendSystemPrompt: resources.appendSystemPrompt,
-        }),
+      systemPrompt: buildNerveSystemPrompt({
+        systemPrompt: input.config.systemPrompt,
+        cwd: input.config.workingDirectory,
+        selectedTools: tools.map((tool) => tool.name),
+        agentProfiles: profiles,
+        contextFiles: resources.contextFiles,
+        skills: resources.skills,
+        instructions: promptInstructions,
+        appendSystemPrompt: resources.appendSystemPrompt,
+      }),
     };
   };
 }

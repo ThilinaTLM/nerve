@@ -1,18 +1,15 @@
 <script lang="ts">
+import { resolveAgentConfiguration } from "@nervekit/contracts/agent-configuration";
+import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
+import type { AvailableSkill } from "@nervekit/contracts/skills";
 import type { ConversationAgentUsage } from "@nervekit/contracts/core";
-import {
-  capabilityToolSettingsFromSettings,
-  emptyCapabilityOverrides,
-  type CapabilityConfiguration,
-  type CapabilitySelection,
-} from "@nervekit/contracts/capabilities";
+
 import type {
   ContextUsage,
   ModelInfo,
   ThinkingLevel,
 } from "@nervekit/contracts/models";
 import type { PermissionRuleSetSummary } from "@nervekit/contracts/permissions";
-import { defaultSettings } from "@nervekit/contracts/settings";
 import type { TodoItem } from "@nervekit/contracts/tools";
 import GitCommitIcon from "@lucide/svelte/icons/git-commit-horizontal";
 import GitPullRequestIcon from "@lucide/svelte/icons/git-pull-request";
@@ -27,7 +24,7 @@ import VoiceMicButton from "$lib/presentation/composer/VoiceMicButton.svelte";
 import ComposerShell from "$lib/presentation/composer/ComposerShell.svelte";
 import ComposerToolbar from "$lib/presentation/composer/ComposerToolbar.svelte";
 import ContextProgressBadge from "$lib/presentation/composer/ContextProgressBadge.svelte";
-import type { CapabilitySkillRow } from "$lib/presentation/composer/capability-skill-row";
+
 import type { ConversationSessionInfo } from "$lib/presentation/composer/session-info";
 import TodoProgressChip from "$lib/presentation/composer/TodoProgressChip.svelte";
 import { modelKey } from "$lib/presentation/utils/model";
@@ -35,7 +32,6 @@ import GalleryGroup from "../GalleryGroup.svelte";
 import GallerySpecimen from "../GallerySpecimen.svelte";
 
 const noop = () => {};
-const stamp = "2026-10-14T09:30:00.000Z";
 
 /* ------------------------------ Fixtures ------------------------------ */
 
@@ -204,62 +200,35 @@ const contextLevels: { title: string; usage: ContextUsage }[] = [
   },
 ];
 
-const selection = (): CapabilitySelection => ({
-  disabledTools: ["web_search"],
-  toolProfiles: {},
-  toolSettings: capabilityToolSettingsFromSettings(defaultSettings),
-  disabledFileSkills: [],
-  enabledNerveSkills: [],
-  enabledAgentBrowserSkills: [],
-});
-const capabilityConfiguration: CapabilityConfiguration = {
-  project: emptyCapabilityOverrides(),
-  conversation: emptyCapabilityOverrides(),
-  inherited: selection(),
-  effective: selection(),
-  availableTools: ["jira", "web_search", "web_fetch"],
-  toolProfileOptions: {
-    jira: [{ id: "ner", name: "NER" }],
-    confluence: [],
-    web_search: [],
-  },
-  trust: {
-    status: "trusted",
-    digest: "d",
-    trustedDigest: "d",
-    trustedAt: stamp,
-  },
+const capabilityConfiguration: AgentEditorView = {
+  overrides: { skills: { file: { deploy: false } } },
+  resolution: resolveAgentConfiguration({
+    role: "lead",
+    project: {
+      tools: { web_search: { enabled: false }, jira: { enabled: true } },
+      skills: { file: { review: true }, nerve: { plan: true } },
+    },
+    conversation: { skills: { file: { deploy: false } } },
+  }),
 };
-const capabilitySkills: CapabilitySkillRow[] = [
+const capabilitySkills: AvailableSkill[] = [
   {
-    key: "file:review",
     name: "review",
     source: "project",
-    kind: "file",
-    enabled: true,
-    overridden: false,
-    matchesInherited: true,
-    inheritedFrom: "project",
+    description: "Review changes",
+    filePath: "/project/review/SKILL.md",
   },
   {
-    key: "file:deploy",
     name: "deploy",
     source: "user",
-    kind: "file",
-    enabled: false,
-    overridden: true,
-    matchesInherited: false,
-    inheritedFrom: "user",
+    description: "Deploy a release",
+    filePath: "/skills/deploy/SKILL.md",
   },
   {
-    key: "nerve:plan",
     name: "plan",
     source: "nerve",
-    kind: "nerve",
-    enabled: true,
-    overridden: false,
-    matchesInherited: true,
-    inheritedFrom: "user",
+    description: "Plan work",
+    filePath: "/skills/plan/SKILL.md",
   },
 ];
 

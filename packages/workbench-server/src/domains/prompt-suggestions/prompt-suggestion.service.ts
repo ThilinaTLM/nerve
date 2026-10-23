@@ -1,7 +1,11 @@
 import { mkdir, open, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative, sep } from "node:path";
 import type { GitService } from "@nervekit/tools/git";
-import type { ConversationSnapshot, Project } from "@nervekit/contracts/core";
+import type {
+  ConversationConfig,
+  ConversationSnapshot,
+  Project,
+} from "@nervekit/contracts/core";
 import type {
   CreatePromptSuggestionRequest,
   PromptSuggestionListResponse,
@@ -35,6 +39,13 @@ export type PromptSuggestionServiceDeps = {
   getProject: (projectId: string) => SuggestionProject;
   listProjects: () => SuggestionProject[];
   getConversation: (conversationId: string) => ConversationSnapshot;
+  getAgentContext?: (conversationId: string) => Promise<
+    | {
+        permissionRuleSetId: string;
+        reasoningLevel: ConversationConfig["reasoningLevel"];
+      }
+    | undefined
+  >;
 };
 
 export class PromptSuggestionService {
@@ -56,13 +67,18 @@ export class PromptSuggestionService {
     if (snapshot && snapshot.conversation.projectId !== projectId) {
       throw new Error("Conversation does not belong to this project.");
     }
+    const agent = snapshot
+      ? await this.deps.getAgentContext?.(snapshot.conversation.id)
+      : undefined;
+    if (snapshot && !agent)
+      throw new Error("Agent configuration unavailable for prompt suggestions");
     const conversation = snapshot
       ? {
           id: snapshot.conversation.id,
           title: snapshot.conversation.title,
           status: snapshot.conversation.status,
-          permissionRuleSetId: snapshot.config.permissionRuleSetId,
-          reasoningLevel: snapshot.config.reasoningLevel,
+          permissionRuleSetId: agent!.permissionRuleSetId,
+          reasoningLevel: agent!.reasoningLevel,
         }
       : undefined;
     const evaluated = evaluatePromptSuggestions(

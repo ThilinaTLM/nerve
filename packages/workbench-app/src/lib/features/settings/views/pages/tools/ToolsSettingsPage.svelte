@@ -1,15 +1,11 @@
-<!--
-  Tools at user and project level. One row per optional tool with on/off and a
-  Configure dialog; bash is always on but configurable. Project rows show a dot
-  and ↺ where the project differs from the user's setting.
--->
 <script lang="ts">
+import { toolSettingsMutation } from "./tool-settings-mutation";
+import { clampThinkingLevelForModel } from "$lib/presentation/state/thinking-levels";
+import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
+import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
 import Settings2 from "@lucide/svelte/icons/settings-2";
 import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
-import type {
-  CapabilityConfiguration,
-  CapabilityPatch,
-} from "@nervekit/contracts/capabilities";
+import { leadSettingsOverridesSchema } from "@nervekit/contracts/agent-configuration";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
@@ -20,6 +16,8 @@ import type {
   StatusResponse,
 } from "$lib/api";
 import { openSettingsPane } from "$lib/application/settings";
+import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
+import { workbenchStartupState } from "$lib/application/startup/workbench-startup-state.svelte";
 import {
   SettingsChangeIndicator,
   SettingsDiffBanner,
@@ -27,6 +25,7 @@ import {
   SettingsRow,
   SettingsSection,
 } from "$lib/presentation/settings";
+import ConfigurationSource from "$lib/presentation/settings/ConfigurationSource.svelte";
 import {
   authenticatedRealModelOptions,
   modelDisplayName,
@@ -37,178 +36,120 @@ import {
   leadProfileOptions,
   profileLabelFor,
 } from "../../shared/profile-options.svelte";
-import ProjectCapabilityTrustAction from "../capabilities/ProjectCapabilityTrustAction.svelte";
-import ProjectCapabilityTrustNotice from "../capabilities/ProjectCapabilityTrustNotice.svelte";
-import type { SettingsChange } from "../settings-change";
 import ToolConfigDialog from "./ToolConfigDialog.svelte";
 import {
   accountKind,
-  applyUserToolDraft,
-  projectToolChanged,
-  projectToolPatch,
-  projectToolPayload,
-  projectToolResetPatch,
   toolRows,
   toolSummary,
-  userToolPatch,
-  userToolPayload,
   type AccountOption,
   type ToolId,
   type ToolPayload,
   type ToolRowDef,
 } from "./tool-settings";
-
-type Props = {
-  scope: "user" | "project";
-  settingsDraft: Settings;
-  status?: StatusResponse;
-  models?: ModelInfo[];
-  authProviders?: AuthProviderMetadata[];
-  onSettingsChange?: SettingsChange;
-  /** Project scope: the capability layers. */
-  configuration?: CapabilityConfiguration;
-  projectId?: string;
-  loading?: boolean;
-  error?: string;
-  onPatch?: (patch: CapabilityPatch) => void;
-  onTrust?: (trusted: boolean) => void;
-  onRetry?: () => void;
-};
-
+import DelegationSettings from "../agent-profiles/DelegationSettings.svelte";
 let {
   scope,
+  projectId,
   settingsDraft,
   status,
   models = [],
   authProviders = [],
-  onSettingsChange,
-  configuration,
-  projectId,
-  loading = false,
-  error,
-  onPatch,
-  onTrust,
-  onRetry,
-}: Props = $props();
-
+}: {
+  scope: "user" | "project";
+  projectId?: string;
+  settingsDraft: Settings;
+  status?: StatusResponse;
+  models?: ModelInfo[];
+  authProviders?: AuthProviderMetadata[];
+} = $props();
 const project = $derived(scope === "project");
-const locked = $derived(
-  configuration?.trust.status === "untrusted" ||
-    configuration?.trust.status === "invalid",
-);
+const editor = new ScopedAgentState((model, level) => {
+  const known = models.find((m) => modelKey(m) === modelKey(model));
+  return known ? clampThinkingLevelForModel(level, known) : level;
+});
+$effect(() => {
+  if (!workbenchStartupState.progressiveActive || (project && !projectId))
+    return;
+  void models;
+  void editor.load(
+    project ? { scope: "project", projectId: projectId! } : { scope: "user" },
+  );
+  ensureProfilesFor(scope, projectId);
+});
+$effect(() => editor.observe());
+const error = $derived(editor.error);
+const loading = $derived(!editor.resolution && !error);
+const locked = $derived(editor.saving || !editor.resolution);
 const usableModels = $derived(
   authenticatedRealModelOptions(models, authProviders),
 );
-
-$effect(() => {
-  ensureProfilesFor(scope, projectId);
-});
-
 function payload(id: ToolId): ToolPayload {
-  return project
-    ? configuration
-      ? projectToolPayload(configuration.effective, id)
-      : {}
-    : userToolPayload(settingsDraft, id);
+  return editor.resolution?.settings.tools?.[id] ?? {};
 }
 function inheritedPayload(id: ToolId): ToolPayload {
-  return configuration ? projectToolPayload(configuration.inherited, id) : {};
+  return editor.inherited?.settings.tools?.[id] ?? {};
 }
-function changed(id: ToolId): boolean {
-  return project && !!configuration && projectToolChanged(configuration, id);
+function changed(id: ToolId) {
+  return editor.overrides.tools?.[id] !== undefined;
 }
-
 function accounts(id: ToolId): AccountOption[] {
   const kind = accountKind(id);
-  if (!kind) return [];
-  if (project) {
-    const options = configuration?.toolProfileOptions;
-    return (
-      (id === "web_search"
-        ? options?.web_search
-        : id === "jira"
-          ? options?.jira
-          : options?.confluence) ?? []
-    );
-  }
-  return kind === "tavily"
-    ? settingsDraft.providers.tavilyProfiles
-    : settingsDraft.providers.atlassianProfiles.map((profile) => ({
-        id: profile.id,
-        name: profile.name,
-        detail: profile.siteUrl,
-      }));
+  return !kind
+    ? []
+    : kind === "tavily"
+      ? settingsDraft.providers.tavilyProfiles
+      : settingsDraft.providers.atlassianProfiles.map((p) => ({
+          id: p.id,
+          name: p.name,
+          detail: p.siteUrl,
+        }));
 }
 function accountName(id: ToolId, accountId: string | undefined) {
-  return accounts(id).find((account) => account.id === accountId)?.name;
+  return accounts(id).find((a) => a.id === accountId)?.name;
 }
-function modelLabel(selection: unknown): string | undefined {
-  const value = selection as { provider: string; modelId: string } | undefined;
-  if (!value) return undefined;
-  const found = models.find((model) => modelKey(model) === modelKey(value));
-  return found ? modelDisplayName(found) : value.modelId;
+function modelLabel(selection: unknown) {
+  const v = selection as { provider: string; modelId: string } | undefined;
+  if (!v) return undefined;
+  const m = models.find((m) => modelKey(m) === modelKey(v));
+  return m ? modelDisplayName(m) : v.modelId;
 }
-function summary(id: ToolId, value: ToolPayload): string {
+function summary(id: ToolId, value: ToolPayload) {
   return toolSummary(id, value, {
     accountName: (_kind, accountId) => accountName(id, accountId),
     profileLabel: profileLabelFor,
     modelLabel,
   });
 }
-
-/** Why an enabled tool can't work yet; also blocks turning it on. */
 function problem(id: ToolId, value: ToolPayload): string | undefined {
-  if (id === "web_search" || id === "jira" || id === "confluence") {
-    if (!accountName(id, value.profileId)) return "Choose an account";
-    return undefined;
-  }
-  if (id === "explain_image") {
-    const model = (
-      value.settings as { model?: { provider: string; modelId: string } }
-    )?.model;
-    return model &&
-      usableModels.some((candidate) => modelKey(candidate) === modelKey(model))
-      ? undefined
-      : "Choose a vision model";
-  }
-  if (id === "generate_image") {
-    const connected = authProviders.some(
-      (provider) =>
-        provider.provider === "openai-codex" &&
-        provider.configured &&
-        provider.credentialType === "oauth",
-    );
-    return connected ? undefined : "Connect an OpenAI Codex subscription";
-  }
+  if (accountKind(id) && !accountName(id, value.profileId))
+    return "Choose an account";
   return undefined;
 }
-
-function save(id: ToolId, next: ToolPayload): void {
-  if (project) {
-    onPatch?.(projectToolPatch(id, next));
-    return;
+function save(id: ToolId, next: ToolPayload) {
+  try {
+    const mutation = toolSettingsMutation(id, next, editor.overrides);
+    void editor.save(mutation.changes, mutation.resets);
+  } catch {
+    editor.error = "Invalid tool settings. Review the fields and try again.";
   }
-  applyUserToolDraft(settingsDraft, id, next);
-  onSettingsChange?.(userToolPatch(settingsDraft, id, next), {
-    immediate: true,
-  });
 }
-function toggle(id: ToolId, enabled: boolean): void {
-  save(id, { ...payload(id), enabled });
-}
-function reset(id: ToolId): void {
-  onPatch?.(projectToolResetPatch(id));
-}
-function resetAll(): void {
-  const tools = Object.fromEntries(
-    Object.keys(configuration?.project.tools ?? {}).map((name) => [name, null]),
+function toggle(id: ToolId, enabled: boolean) {
+  void editor.save(
+    leadSettingsOverridesSchema.parse({ tools: { [id]: { enabled } } }),
   );
-  onPatch?.({ tools } as CapabilityPatch);
 }
-
+function reset(id: ToolId) {
+  void editor.save({}, [`/overrides/tools/${id}`]);
+}
+function resetAll() {
+  void editor.save({}, ["/overrides/tools"]);
+}
+function onRetry() {
+  return editor.reload();
+}
 let dialogOpen = $state(false);
 let dialogTool = $state<ToolRowDef>(toolRows[0]);
-function configure(row: ToolRowDef): void {
+function configure(row: ToolRowDef) {
   dialogTool = row;
   dialogOpen = true;
 }
@@ -216,49 +157,50 @@ const dialogValue = $derived(payload(dialogTool.id));
 const python = $derived(status?.runtime.python);
 </script>
 
+{#if scope === "project"}<ProjectCapabilityTrustNotice
+    document={editor.document}
+    scope={editor.scope}
+    onReload={onRetry}
+  />{/if}
 {#if error}
   <SettingsInlineMessage tone="destructive" text={error}>
-    {#snippet actions()}
-      <Button size="sm" variant="outline" onclick={() => onRetry?.()}
-        >Retry</Button
-      >
-    {/snippet}
+    {#snippet actions()}<Button size="sm" variant="outline" onclick={onRetry}
+        >Reload</Button
+      >{/snippet}
   </SettingsInlineMessage>
 {/if}
-
-{#if project && !configuration && loading}
-  <Skeleton class="h-10 w-full" />
-  <Skeleton class="h-10 w-full" />
-{:else if !project || configuration}
-  {#if project && configuration}
-    <ProjectCapabilityTrustNotice trust={configuration.trust} {onTrust} />
-    <SettingsDiffBanner
-      count={Object.keys(configuration.project.tools).length}
-      onResetAll={resetAll}
-    />
-  {/if}
-
+{#if loading}<Skeleton class="h-10 w-full" />
+{:else if editor.resolution}
+  <SettingsDiffBanner
+    count={Object.keys(editor.overrides.tools ?? {}).length}
+    onResetAll={resetAll}
+  />
   <SettingsSection
     id="tools"
     description="Read, edit, ask_user, process and todo tools are always on. Permissions govern them."
     divided
   >
-    {#snippet actions()}
-      {#if project && configuration}
-        <ProjectCapabilityTrustAction trust={configuration.trust} {onTrust} />
-      {/if}
-    {/snippet}
+    {#snippet actions()}{#if project}<ProjectCapabilityTrustAction
+          document={editor.document}
+          scope={editor.scope}
+          onReload={onRetry}
+        />{/if}{/snippet}
     {#each toolRows as row (row.id)}
       {@const value = payload(row.id)}
       {@const issue =
         !row.always && value.enabled ? problem(row.id, value) : undefined}
-      {@const unavailable =
-        project &&
-        !row.always &&
-        configuration &&
-        !configuration.availableTools.includes(row.id)}
+      {@const unavailable = false}
       <SettingsRow label={row.label} description={summary(row.id, value)}>
         {#snippet badges()}
+          <ConfigurationSource
+            provenance={editor.resolution?.provenance[
+              `/tools/${row.id}/enabled`
+            ] ??
+              editor.resolution?.provenance[`/tools/${row.id}/settings`] ??
+              Object.entries(editor.resolution?.provenance ?? {}).find(
+                ([pointer]) => pointer.startsWith(`/tools/${row.id}/settings/`),
+              )?.[1]}
+          />
           {#if changed(row.id)}
             <SettingsChangeIndicator
               compact
@@ -304,6 +246,13 @@ const python = $derived(status?.runtime.python);
       </SettingsRow>
     {/each}
   </SettingsSection>
+
+  {#if project}<DelegationSettings
+      {editor}
+      {models}
+      {authProviders}
+      {projectId}
+    />{/if}
 
   <ToolConfigDialog
     bind:open={dialogOpen}

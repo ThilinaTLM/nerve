@@ -17,7 +17,7 @@ type PendingSubmission = Pick<
 >;
 type SnapshotIdentity = {
   conversation: { id: string };
-  config: { agentProfile: string };
+  config: { agentProfile?: string };
 };
 type Dependencies<Snapshot extends SnapshotIdentity> = {
   create(

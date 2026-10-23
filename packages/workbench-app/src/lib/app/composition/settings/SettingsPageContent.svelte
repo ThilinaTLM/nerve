@@ -1,4 +1,8 @@
 <script lang="ts">
+import ToolsSettingsPage from "$lib/features/settings/views/pages/tools/ToolsSettingsPage.svelte";
+import SkillsSettingsPage from "$lib/features/settings/views/pages/skills/SkillsSettingsPage.svelte";
+import ProfilesSettingsPage from "$lib/features/settings/views/pages/agent-profiles/ProfilesSettingsPage.svelte";
+import { profileKindForPage } from "$lib/features/settings/views/pages/agent-profiles/profile-kind";
 import type {
   ApplicationConfigurationSnapshot,
   AuthProviderMetadata,
@@ -55,6 +59,9 @@ let {
   models = [],
   authProviders = [],
   project,
+  skills = [],
+  skillsLoading = false,
+  skillsError,
   onSettingsChange,
   onApplicationConfigurationChange,
   onRestartDaemon,
@@ -98,9 +105,17 @@ const projectId = $derived(
 
 {#if settingsDraft}
   {#if page.id === "agents" || page.id === "sub-agents"}
-    <SettingsEmptyState
-      title="Profile editing is being updated"
-      description="Scoped profile editors will return in Phase 4."
+    <ProfilesSettingsPage
+      kind={profileKindForPage(page.id)}
+      onOpenFile={project
+        ? (path) => void openFilePane({ projectId: project.id, path })
+        : undefined}
+      {settingsDraft}
+      {models}
+      {authProviders}
+      {skills}
+      {scope}
+      {projectId}
     />
   {:else if page.id === "permission-rules"}
     <PermissionsSettingsPage
@@ -124,7 +139,7 @@ const projectId = $derived(
   {:else if page.id === "shortcuts"}
     <ShortcutsSettingsPage />
   {:else if page.id === "general"}
-    <GeneralSettingsPage {scope} {projectId} />
+    <GeneralSettingsPage {scope} {projectId} {models} {authProviders} />
   {:else if page.id === "suggestions"}
     <SuggestionsSettingsPage
       pageState={controllers.suggestionsPageState}
@@ -156,14 +171,21 @@ const projectId = $derived(
   {:else if page.id === "providers"}
     <ProvidersSettingsPage {models} {authProviders} />
   {:else if page.id === "tools"}
-    <SettingsEmptyState
-      title="Scoped configuration editor is being updated"
-      description="This editor will return in Phase 4."
+    <ToolsSettingsPage
+      {scope}
+      {projectId}
+      {settingsDraft}
+      {models}
+      {authProviders}
+      {status}
     />
   {:else if page.id === "skills"}
-    <SettingsEmptyState
-      title="Scoped configuration editor is being updated"
-      description="This editor will return in Phase 4."
+    <SkillsSettingsPage
+      {scope}
+      {projectId}
+      {skills}
+      loading={skillsLoading}
+      error={skillsError}
     />
   {:else if page.id === "storage"}
     <StorageSettingsPage controller={controllers.storageController} />

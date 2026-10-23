@@ -65,29 +65,23 @@ export async function productionAdmissionFixture(
   await initializeHomeConfiguration(paths);
   const configuration = await readHomeConfiguration(paths);
   const settings = settingsFromConfiguration(configuration);
+  // This runtime fixture starts in the current scoped format, not the unshipped
+  // harness-v4 format still emitted by the legacy settings projection helper.
+  await rm(paths.harnessConfigPath, { force: true });
+  await writeFile(
+    join(paths.configPath, "conversation-defaults.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      revision: 1,
+      overrides: { defaultAgentProfile: "coding" },
+    }),
+  );
   const providerId = `admission-${randomUUID()}`;
   const provider = registerAgentScriptedProvider({
     provider: providerId,
     model: "test",
     steps: steps ?? [{ type: "waitForAbort" }],
   });
-  await writeFile(
-    join(paths.configPath, "agent.json"),
-    JSON.stringify({
-      schemaVersion: 1,
-      revision: 1,
-      overrides: {
-        model: { provider: providerId, modelId: "test" },
-        permissionRuleSetId: "autonomous",
-        reasoningLevel: "off",
-        tools: {
-          bash: { settings: { shellPath: "/bin/sh" } },
-          subagents: { enabled: true },
-        },
-        subagents: { worker: { enabled: true } },
-      },
-    }),
-  );
   await mkdir(join(paths.dataPath, "agent-profiles"), { recursive: true });
   await writeFile(
     join(paths.dataPath, "agent-profiles", "worker.json"),
@@ -242,6 +236,38 @@ export async function productionAdmissionFixture(
     );
   runtime = create();
   await runtime.agentConfiguration.initialize();
+  await writeFile(
+    join(paths.configPath, "agent.json"),
+    JSON.stringify({
+      schemaVersion: 1,
+      revision: 1,
+      overrides: {
+        model: { provider: providerId, modelId: "test" },
+        permissionRuleSetId: "autonomous",
+        reasoningLevel: "off",
+        tools: {
+          bash: { settings: { shellPath: "/bin/sh" } },
+          subagents: { enabled: true },
+        },
+        subagents: { worker: { enabled: true } },
+      },
+    }),
+  );
+  await runtime.agentConfiguration.reload({ scope: "user" });
+  const defaults = await runtime.agentConfiguration.loadCreation({
+    scope: "user",
+  });
+  if (defaults.status === "unavailable")
+    throw new Error("Fixture creation preferences unavailable");
+  await runtime.agentConfiguration.saveCreation(
+    { scope: "user" },
+    {
+      expectedRevision: defaults.value.revision,
+      expectedDigest: defaults.value.digest,
+      changes: { defaultAgentProfile: "coding" },
+      resets: [],
+    },
+  );
   runtime.core.projects.create({
     id: "proj_admission",
     name: "Project",

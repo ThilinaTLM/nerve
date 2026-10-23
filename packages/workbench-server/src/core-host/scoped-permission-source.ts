@@ -37,6 +37,8 @@ class PolicyDocumentError extends Error {
 
 export interface ScopedPermissionPolicySource extends AdmissionPolicySource {
   validateChildPermission(id: string): Promise<void>;
+  /** Explicit disk publication, separate from in-memory policy re-evaluation. */
+  reload(paths?: readonly string[]): Promise<void>;
 }
 
 /** Lazy policy authority. Files are cached until an application save or explicit health reload. */
@@ -158,9 +160,24 @@ export function createScopedPermissionSource(options: {
     },
     invalidate() {
       epoch++;
-      files.clear();
-      catalog = undefined;
       policies.clear();
+    },
+    async reload(paths) {
+      source.invalidate();
+      if (!paths) {
+        files.clear();
+        catalog = undefined;
+      } else {
+        for (const path of paths) files.delete(path);
+        if (
+          paths.some((path) =>
+            path.startsWith(join(options.home, "config", "rule-sets")),
+          )
+        )
+          catalog = undefined;
+      }
+      // Shared per-path promises publish exactly one generation for all conversations.
+      if (paths) await Promise.all(paths.map(read));
     },
     async ensureLoaded(input) {
       while (true) {
