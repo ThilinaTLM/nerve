@@ -15,7 +15,7 @@ stateDiagram-v2
     supervising --> settled: denied
     awaiting_approval --> ready: approved
     awaiting_approval --> settled: denied or cancelled
-    ready --> running: execution claimed
+    ready --> running: current authorization checked and execution claimed
     running --> awaiting_input: tool requests user input
     awaiting_input --> settled: answered or cancelled
     running --> settled: completed, failed, cancelled or indeterminate
@@ -29,7 +29,7 @@ stateDiagram-v2
 | Awaiting approval | Yes          | Suspension point. `interaction` stores the request; the resolution is written once, deduplicated by its resolution request ID.                                                                              |
 | Ready             | Yes          | Allowed, not yet started.                                                                                                                                                                                   |
 | Running           | Yes          | Claimed before external effects. Only the worker holding `execution_claim` may settle the call.                                                                                                             |
-| Awaiting input    | Yes          | Suspension point for `ask_user` and plan review. The user's answer is the tool result.                                                                                                                      |
+| Awaiting input    | Yes          | Suspension point for `ask_user`, plan review and configuration-blocked Retry/Cancel. The user's answer is the tool result.                                                                                  |
 | Settled           | Event        | `completed`, `failed`, `denied`, `cancelled` or `indeterminate`. The response payload preserves final `arguments`, provider-call identity, supervision and interaction resolution after the row is deleted. |
 
 ## Approval grants
@@ -37,6 +37,8 @@ stateDiagram-v2
 Permission decisions use the conversation's baseline rule set plus overlays at user, project (`.nerve/`) and conversation (conversation data directory) level. Overlays are readable JSON rule files.
 
 Approving with "always allow" writes a rule into the overlay for the chosen scope: conversation, project or user. A one-time approval writes nothing beyond the call's own resolution. There is no grant table.
+
+Before external effects, final admission checks current authorization even after approval waits. Approval cannot defeat a later denial. Invalid security configuration waits **configuration-blocked** with **Retry/Cancel**, never an approval bypass or Baseline fallback. Retry re-reads authoritative configuration.
 
 ## Multiple calls in one assistant message
 
@@ -48,12 +50,12 @@ Approving with "always allow" writes a rule into the overlay for the chosen scop
 
 ## Recovery
 
-| Row state at restart                  | Action                                                                          |
-| ------------------------------------- | ------------------------------------------------------------------------------- |
-| `supervising`                         | Re-evaluate permission.                                                         |
-| `awaiting_approval`, `awaiting_input` | Keep; the prompt reappears.                                                     |
-| `ready`                               | Execute; no effects have occurred.                                              |
-| `running`                             | Re-run only tools declared safe to replay; otherwise settle as `indeterminate`. |
+| Row state at restart                  | Action                                                                                 |
+| ------------------------------------- | -------------------------------------------------------------------------------------- |
+| `supervising`                         | Re-evaluate permission.                                                                |
+| `awaiting_approval`, `awaiting_input` | Keep interactions; re-capture/re-admit not-yet-started calls before execution.         |
+| `ready`                               | Re-capture current configuration and re-admit; changed targets require fresh approval. |
+| `running`                             | Re-run only tools declared safe to replay; otherwise settle as `indeterminate`.        |
 
 Recovery never invokes a provider merely to repair status. Uncertain outcomes stay visible as `indeterminate`.
 

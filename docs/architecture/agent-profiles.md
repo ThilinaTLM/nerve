@@ -1,58 +1,44 @@
 # Agent profiles
 
-Agent profiles unify lead instructions/capabilities and sub-agent creation templates. Contracts in `@nervekit/contracts/agent-profiles` own schemas, built-ins, and pure layering. The host owns document IO, trust, availability, default resolution, and switch policy; conversation core owns persistence and turn lifecycle through `AgentProfilePort`.
+Agent profiles contribute instructions, recommendations and requirements to scoped agent preferences. Contracts in `@nervekit/contracts/agent-profiles` own schemas and pure resolution; host services own files, trust and publication; conversation core owns execution lifecycle. See the [normative specification](../proposals/scoped-configuration-and-active-profiles/README.md) and [user reference](../../packages/website/src/content/docs/reference/agent-profiles.md).
 
-## Documents and resolution
+## Definitions and applied snapshots
 
-One `schemaVersion: 1` document with a `profiles` map exists at each writable scope:
+Complete `schemaVersion: 1` definitions live at:
 
-- User: `<NERVE_HOME>/config/agent-profiles.json`
-- Project: `<project>/.nerve/config/agent-profiles.json`
-- Conversation: `<NERVE_HOME>/data/conversations/<id>/config/agent-profiles.json`
+- User: `<NERVE_HOME>/data/agent-profiles/<name>.json`
+- Project: `<project>/.nerve/agent-profiles/<name>.json`
 
-Resolve built-in → user → trusted project → conversation. Entries are sparse: scalars replace individually, tool/per-skill maps merge by name, and instructions replace as a whole. Explicit values remain pinned; resetting removes local fields (`null` in mutation patches). New names must resolve to complete profiles. Missing documents mean no overrides; malformed/unreadable documents are errors, not empty configuration.
+A same-name project definition shadows the whole user/built-in definition; fields do not merge between catalog definitions. Editing an inherited definition creates a complete local copy. Deleting that copy exposes the lower definition for future applications. Project profiles require exact-byte trust; edits invalidate it. Profile trust does not grant independent trust to skill content.
 
-Fields: label, description (when to use the profile), enabled, `usableBy: "lead" | "subagent" | "both"`, model, thinking, permission, compaction, tools, skills, instructions. Instructions render in `<instructions>` with `{{skill:name}}` expansion. Capability deltas do not grant permission or bypass runtime restrictions.
+Applying a profile captures its name, source, digest, instructions, recommendations and requirements in conversation `config/agent.json.appliedProfile`. Catalog edits, disablement or deletion do not rewrite valid applied snapshots. **Apply updated profile** explicitly replaces the contribution while preserving conversation overrides and prompt context. New applications require current validity, applicability, enablement and trust.
 
-Project content requires exact-document trust; external edits invalidate it. Editing a single untrusted entry must not activate untouched entries. Conversation overrides cannot bypass trust. Unknown/unavailable tool and skill references remain saved with diagnostics; unavailable explicit models and incompatible thinking block application. Profile trust does not introduce a separate skill trust system.
+## Preferences and switching
 
-## Modes and switching
+The editor has three behaviors:
 
-Every scalar (model, thinking, permission, compaction), skills, and each tool entry use one mode vocabulary:
+- **Use settings:** no profile contribution.
+- **Recommend:** provide a value unless the conversation explicitly chooses another.
+- **Require:** temporarily control a value and disable its effective control without changing the underlying choice.
 
-- **Use settings** (field omitted): keep the conversation's current value.
-- **Reset to settings** (`"settings"`): write the application settings value (project → user, ignoring conversation overrides). For tools and skills it removes the conversation override, so the entry follows settings again.
-- **Same as lead** (`"lead"`): copy the lead's effective value at sub-agent creation; only for sub-agent-usable profiles.
-- **Set** (`{ "set": value }`): write the value; the user can change it afterwards.
-- **Lock** (`{ "lock": value }`): write the value and reject user mutation while this applied profile is active.
-
-Applying a profile materializes these values into ordinary conversation settings and captures name, instructions and locks in `applied-agent-profile.json`. A switch replaces the previous locks. Use settings keeps whatever the previous profile wrote, so a profile that must undo another profile's values declares them with Reset to settings. Model/thinking chosen during plan approval are preserved over Set and Reset to settings, but not over Lock.
-
-`conversation.setAgentProfile` calls core's `setAgentProfile`, which delegates policy to `AgentProfilePort.applyProfile` and persists its config, optional compaction override, capability overrides and applied snapshot. It publishes existing config/changed notifications and applicable harness/capability invalidations. Sub-agent switches are rejected.
+Resolution is requirement → conversation choice → recommendation → process default → project → user → built-in. Switching profiles preserves explicit choices; removing a requirement reveals the underlying choice/default. Reset removes an editable override and inherits; it does not write a default or remove a requirement. Effective source labels distinguish defaults, conversation choices, recommendations, requirements and frozen child choices; requirements identify their profile.
 
 ## Lead lifecycle and planning
 
-Store the active name in `conversations.agent_profile TEXT NOT NULL`, without a CHECK. This repurposes the old mode column, not a new column. New conversations select `defaultAgentProfile` (project → user → `coding`) and apply Set values to settings defaults.
+The composer selects lead/both profiles; `/profile <name>` switches and `/plan` selects Planning. Agents cannot switch profiles. Creation defaults (`defaultAgentProfile`, `scopedModels`) live in user/project `config/conversation-defaults.json`, not the effective-agent ladder. There is no remember-last-selection option.
 
-The composer lists lead/both profiles; `/profile <name>` switches and `/plan` selects `planning`. There is no agent-facing switch tool. Sub-agent views show their creation profile read-only.
+Coding contributes instructions and otherwise uses settings. Planning requires the planning permission ruleset and `plan_present` enablement. Leaving Planning reveals underlying choices; Coding does not grant write permission or force Plan Present off. There is no planning/coding mode flag.
 
-Built-ins:
+Plan review captures the target profile name/digest, previews requirements and rejects incompatible implementation model/reasoning choices. Changed or unavailable targets require refreshed confirmation. Accepted choices and the applied profile commit in one conversation document revision before implementation begins; failed validation/persistence preserves the previous state and pending review.
 
-| Profile     | Usable by | Behavior                                                                                                          |
-| ----------- | --------- | ----------------------------------------------------------------------------------------------------------------- |
-| `coding`    | lead      | Permission and `plan_present` Reset to settings; everything else Use settings; final summary instruction.         |
-| `planning`  | lead      | Permission Lock planning; Set `plan_present` on (approval target `coding`); instructions load the planning skill. |
-| `explore`   | subagent  | Inherited model/thinking; read-only research; skills none.                                                        |
-| `developer` | subagent  | Inherited model/thinking; autonomous implementation; inherited skills.                                            |
+## Child agents
 
-All built-ins inherit compaction. `plan_present` is a normal capability tool, disabled by default. Its turn-time description includes the absolute plan-storage directory. The planning skill directs read-only research, requirement decisions through `ask_user`, a complete plan file, and submission for review. Approval switches through the same core path to the `plan_present` approval profile captured when the plan was presented. Rejection preserves the current profile and ends the run. Plan storage, review interaction, and the `plans` permission root are unchanged.
+Explore and Developer are built-in child profiles. Child preferences resolve independently from built-in/user/project/process defaults and their own profile, never by copying the lead's effective configuration. Available-sub-agent settings support enablement and model/reasoning launch overrides only. Launch choices beat recommendations but not requirements.
 
-Turns read the applied snapshot, not the template. Template edits apply on the next switch into the profile, never automatically over user choices. Deleted/disabled active profiles fall back to the default lead profile with a notice.
+Creation captures complete underlying preferences in `frozenDefaults` plus the applied profile in the child's `agent.json`. Follow-ups retain them despite later default, catalog or launch-selection edits. Child profile switching/reapplication is unsupported. Current authorization and credentials remain live; frozen preferences do not freeze security policy. Role projection and execution guards prohibit child delegation, user questions and plan presentation.
 
-## Sub-agent snapshots
+## Activation, health and migration
 
-Resolve against the lead's current effective values at creation. Inherit copies those values; Set and Lock both apply at creation. Materialize config, instructions, capability deltas, and compaction from the same snapshot. The stored profile name is provenance, not a live binding: edits affect future children only; follow-ups keep the existing child's configuration. Runtime sub-agent restrictions remain authoritative.
+Validated UI saves publish directly; no filesystem watchers exist. Manual edits need restart for guaranteed activation or an explicit Reload/Retry re-read. New requests capture settings; tool execution rechecks current authorization, including after approval waits. Invalid required/security configuration waits **configuration-blocked** with Retry/Cancel, never an approval bypass. Health diagnostics and confirmed, previewed repairs preserve damaged sources; dismissal is not repair.
 
-## Migration
-
-Extend the single unreleased migration step: rename `subagents.json` to `agent-profiles.json`, convert scalar `lead` to `inherit`, add `usableBy: "subagent"` to custom entries, rewrite trusted-resource kinds to `agent_profile`, remove obsolete fields and compatible-mode metadata, rename stored `plan_mode_present` references, and repurpose the conversation column. Do not retain runtime aliases or legacy loaders. See [storage migrations](migrations.md).
+Released v0.37.0 readers remain frozen only in migration step `0002-agent-profiles`. Runtime has no legacy file/SQLite fallback. See [configuration](configuration.md), [storage](storage.md) and [migrations](migrations.md).

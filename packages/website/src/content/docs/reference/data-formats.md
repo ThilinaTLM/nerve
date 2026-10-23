@@ -7,28 +7,31 @@ sidebar:
 
 All Nerve-home paths move with `NERVE_HOME`; default is `~/.nerve`.
 
-| Data                          | Default location / format                                                                                                        |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Nerve-home marker             | `<NERVE_HOME>/manifest.json`; `nerve-home` v1                                                                                    |
-| Canonical domain records      | `<NERVE_HOME>/data/nerve.sqlite` plus SQLite WAL/SHM                                                                             |
-| Conversation/tool payloads    | `<NERVE_HOME>/data/conversations`                                                                                                |
-| Durable images and plans      | `<NERVE_HOME>/data/images` and `<NERVE_HOME>/data/plans`                                                                         |
-| Agent profiles                | Versioned `config/agent-profiles.json` at user, project and conversation scope; see [profile format](/reference/agent-profiles/) |
-| Long sub-agent reports        | `<NERVE_HOME>/data/conversations/<id>/reports`                                                                                   |
-| Resource trust state          | Tables in `<NERVE_HOME>/data/nerve.sqlite`                                                                                       |
-| Other disposable caches       | Other content under `<NERVE_HOME>/cache`                                                                                         |
-| Launch configurations         | `<project>/.nerve/launches/definitions.json`                                                                                     |
-| Launch log bundles            | `<NERVE_HOME>/data/launches`; live launch instances are memory-only                                                              |
-| Async Bash output             | Returned asset paths beneath `<NERVE_HOME>/data/conversations/<id>/`; physical layout depends on the asset owner                 |
-| Agent resources               | `<NERVE_HOME>/agent`                                                                                                             |
-| Desktop/daemon/event logs     | `<NERVE_HOME>/logs`, JSONL                                                                                                       |
-| Crash/Node reports            | `<NERVE_HOME>/crashes`; age-retained diagnostics                                                                                 |
-| Configuration and credentials | `<NERVE_HOME>/config` and encrypted `<NERVE_HOME>/secrets`                                                                       |
-| TLS CA/leaf material          | `<NERVE_HOME>/tls` when mobile HTTPS is enabled                                                                                  |
-| Active daemon discovery/lease | `<NERVE_HOME>/daemon.json`; absent after clean shutdown                                                                          |
-| Migration history and backups | `<NERVE_HOME>/migrations` and `<NERVE_HOME>/backups`                                                                             |
-| Python/large tool artifacts   | Nerve artifact paths returned by the tool                                                                                        |
-| Pasted clipboard images       | OS temp directory under `nerve/`; not durable attachments                                                                        |
+| Data                          | Default location / format                                                                                                                 |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Nerve-home marker             | `<NERVE_HOME>/manifest.json`; `nerve-home` v1                                                                                             |
+| Canonical domain records      | `<NERVE_HOME>/data/nerve.sqlite` plus SQLite WAL/SHM                                                                                      |
+| Conversation/tool payloads    | `<NERVE_HOME>/data/conversations`                                                                                                         |
+| Durable images and plans      | `<NERVE_HOME>/data/images` and `<NERVE_HOME>/data/plans`                                                                                  |
+| Agent profiles                | User `data/agent-profiles/<name>.json`, project `.nerve/agent-profiles/<name>.json`; see [profile format](/reference/agent-profiles/)     |
+| Agent preferences             | User/project `config/agent.json`; conversation `data/conversations/<id>/config/agent.json` (includes applied snapshot and prompt context) |
+| Creation preferences          | User/project `config/conversation-defaults.json`; no conversation scope                                                                   |
+| Agent list summaries          | `<NERVE_HOME>/cache/conversation-agent-summaries.json`; disposable display values only                                                    |
+| Long sub-agent reports        | `<NERVE_HOME>/data/conversations/<id>/reports`                                                                                            |
+| Resource trust state          | Tables in `<NERVE_HOME>/data/nerve.sqlite`                                                                                                |
+| Other disposable caches       | Other content under `<NERVE_HOME>/cache`                                                                                                  |
+| Launch configurations         | `<project>/.nerve/launches/definitions.json`                                                                                              |
+| Launch log bundles            | `<NERVE_HOME>/data/launches`; live launch instances are memory-only                                                                       |
+| Async Bash output             | Returned asset paths beneath `<NERVE_HOME>/data/conversations/<id>/`; physical layout depends on the asset owner                          |
+| Agent resources               | `<NERVE_HOME>/agent`                                                                                                                      |
+| Desktop/daemon/event logs     | `<NERVE_HOME>/logs`, JSONL                                                                                                                |
+| Crash/Node reports            | `<NERVE_HOME>/crashes`; age-retained diagnostics                                                                                          |
+| Configuration and credentials | `<NERVE_HOME>/config` and encrypted `<NERVE_HOME>/secrets`                                                                                |
+| TLS CA/leaf material          | `<NERVE_HOME>/tls` when mobile HTTPS is enabled                                                                                           |
+| Active daemon discovery/lease | `<NERVE_HOME>/daemon.json`; absent after clean shutdown                                                                                   |
+| Migration history and backups | `<NERVE_HOME>/migrations` and `<NERVE_HOME>/backups`                                                                                      |
+| Python/large tool artifacts   | Nerve artifact paths returned by the tool                                                                                                 |
+| Pasted clipboard images       | OS temp directory under `nerve/`; not durable attachments                                                                                 |
 
 ## Conversation backups
 

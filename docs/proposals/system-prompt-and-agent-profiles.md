@@ -1,12 +1,10 @@
 # System prompt, tool descriptions, and agent profiles
 
-> **Status:** Implemented baseline; completion review pending for detailed UI and migration acceptance criteria. Source review confirms the core Phase 5 template model, applied snapshots, bundled profiles, planning approval and migration implementation. This review did not verify every UI requirement or migration-rehearsal gate, so full completion is not yet certified. Phase 5 supersedes conflicting earlier phases. Subsequent redesign is tracked in [Scoped configuration and active agent profiles](scoped-configuration-and-active-profiles/README.md), not as unfinished work in this proposal.
->
-> **Follow-up already implemented:** Coding now resets permission and plan presentation to application settings through the explicit Reset to settings mode. This extends the original Phase 5 behavior; the historical specification below is preserved.
+> **Superseded:** Profile, configuration, storage and planning lifecycle behavior is defined by [Scoped configuration and active agent profiles](scoped-configuration-and-active-profiles/README.md), implemented in phases 1–6. The token-efficient system-prompt and tool-description guidance in this proposal remains current (decision D1). The historical profile design below is retained for context, not as a runtime contract.
 
 ## Reading this historical proposal
 
-Sections 1–4 and the original baseline describe earlier phases, not the current normative design. Phase 5 superseded their conflicting inheritance, storage and approval rules. The implemented model/thinking controls share a picker but are independent settings; the Phase 5 phrase “one profile setting” should not be read as an atomic model-and-reasoning value. The scoped-configuration successor defines the next redesign; do not combine its overlay behavior with this document's materialized-template behavior.
+Do not combine the materialized-template behavior below with the successor's recommendations, requirements and applied snapshots. Earlier mode flags, Set/Lock/Reset/Same-as-lead controls and storage paths are historical. Keep the short system prompt and tool-specific guidance in descriptions; the successor does not restore hardcoded planning prompt text.
 
 ## Summary
 

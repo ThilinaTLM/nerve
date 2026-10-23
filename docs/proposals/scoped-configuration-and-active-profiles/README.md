@@ -1,6 +1,6 @@
 # Scoped configuration and active agent profiles
 
-> **Status:** Implementation includes D10: remove `conversation_config`, relocate working directory onto `conversation`, and keep conversation prompt context in unreleased agent.json v1. D13 approves production execution of the reviewed database migration after copied/fresh-slot validation. The temporary DDL approval mechanism is removed; mandatory export and recovery verification remain. No settings/cache tables are authorized; only the D10 working-directory column relocation is in scope.
+> **Status:** Implemented (phases 1–6). Migration has been executed only in rehearsals, not on production data. D10 removes `conversation_config`, relocates working directory onto `conversation`, and keeps conversation prompt context in agent.json v1. D13 approves production execution of the reviewed migration after copied/fresh-slot validation; mandatory export and recovery verification remain. No settings/cache tables are authorized.
 
 ## Goal
 
@@ -44,4 +44,4 @@ The schema document is normative for changed fields; existing referenced contrac
 
 No redesign of permission composition/parent authority, suggestion scopes, launch catalogs, credentials, browser state or daemon resource-limit persistence. No global eager scan on routine startup. A one-time verified export before destructive SQLite migration is distinct from ongoing lazy validation. Storage-wide corruption/migration failure may still require startup recovery.
 
-Documentation was reviewed against implementation; this is not a claim that future runtime code or migrations have been validated. Database migration execution requires exact-DDL review and copied-slot rehearsal under repository rules.
+Documentation was reviewed against implementation. Migration execution so far is rehearsal-only; production execution remains subject to exact-DDL review and copied-slot validation under repository rules.

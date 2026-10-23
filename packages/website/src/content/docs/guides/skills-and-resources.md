@@ -27,40 +27,42 @@ First definition by skill name wins. Effective discovery favors project Nerve sk
 
 Use **Settings → Skills** to inspect discovered scope and toggle a skill without deleting its file. The **Built-in Nerve skills** group contains official guidance shipped with Nerve. Built-in skills are disabled by default and add nothing to the system prompt until enabled. The initial `skill-creator` skill helps create valid project or user skills.
 
-The **User** scope supplies defaults for every project. The **Project** scope writes sparse, shareable overrides to `.nerve/config/capabilities.json`; settings without an override continue to follow the user default.
+The **User** scope supplies defaults. The **Project** scope writes sparse, shareable overrides to `.nerve/config/agent.json`; conversation choices live in that conversation's `config/agent.json`. Applied profile recommendations yield to conversation choices; requirements control the effective value without overwriting those choices. Source labels explain the result. **Reset removes an editable override and inherits**, even if its value currently equals a default.
 
-Project capability files are locally trusted by exact content digest. A new or externally changed file remains visible for review but inactive until trusted. Conversation overrides are local to the conversation and take precedence over trusted project values. Capability changes apply when the next agent run is prepared.
+Skills support per-source defaults (`file`, `nerve`, `agentBrowser`) and named boolean exceptions. Within a layer, a named choice wins over its source default; otherwise resolution continues to lower layers. File skills default on; Built-in Nerve and Agent Browser guidance default off, unless scoped settings or an applied profile contribute otherwise.
 
-Values resolve field by field in the order user → project → conversation. Tool settings (models, image output defaults, and the Kroki server) resolve per tool instead: the nearest level that sets a tool's settings supplies all of them. A level stores only values set on that level; setting a value back to what the level would inherit removes the override. Later changes to user or project settings never rewrite a conversation's own values: they stay until you reset them, and the tools menu marks them as set in the conversation even when they currently match the project.
+There are no configuration file watchers. UI saves publish directly for the next prepared request; manual edits need restart for guaranteed activation or an explicit Reload/Retry re-read. Changes do not rewrite an already-prepared provider request. Child agents retain their captured creation preferences rather than inheriting subsequent lead/default edits.
 
-## Capability file format
+## Agent preference file format
 
-A project capability file contains only values the project pins:
+A project `config/agent.json` stores only its choices:
 
 ```json
 {
-  "schemaVersion": 2,
-  "tools": {
-    "web_search": { "enabled": true, "profileId": "team-search" },
-    "python_exec": { "enabled": false },
-    "jira": { "enabled": true, "profileId": "team-atlassian" },
-    "confluence": { "profileId": "team-atlassian" }
-  },
-  "skills": {
-    "file": { "release": false },
-    "nerve": { "skill-creator": true },
-    "agentBrowser": { "core": true }
+  "schemaVersion": 1,
+  "revision": 0,
+  "overrides": {
+    "tools": {
+      "web_search": { "enabled": true, "profileId": "team-search" },
+      "python_exec": { "enabled": false }
+    },
+    "skills": {
+      "defaults": { "file": true, "nerve": false },
+      "file": { "release": false },
+      "nerve": { "skill-creator": true },
+      "agentBrowser": { "core": true }
+    }
   }
 }
 ```
 
-Missing entries and missing fields inherit. `profileId` is accepted only for `jira`, `confluence` (Atlassian profiles), and `web_search` (Tavily profiles). Profiles and their credentials stay in user settings; a profile ID that does not exist on a machine is reported as not found and the tool is not offered there. Version 1 files with boolean tool values are still read and are rewritten as version 2 on the next edit. Unknown tool names are rejected; skill names unavailable on one machine remain dormant so a shared project remains portable. Tool and skill selection fields formerly placed in project `.nerve/config/harness.json` must be moved to `capabilities.json`; unrelated harness settings remain in `harness.json`. Likewise, Jira, Confluence, and Web profile selections (`tools`) in project `.nerve/config/integrations.json` must move to `capabilities.json`; that file keeps only profile definitions.
+Missing fields inherit. Tool configuration merges by declared fields, except atomic values such as image generation settings. `profileId` selects a user-owned account only for Jira, Confluence and Web Search; credentials are never copied into project or conversation files. Missing references remain visible with readiness diagnostics, not silently replaced. Retired capability/harness formats are converted during migration, not read as runtime alternatives. See [Agent profiles](/reference/agent-profiles/) for requirements, health/repair and full scope paths.
 
 ## Trust
 
 Skills and context files are instructions supplied to the model. A repository can contain instructions that ask for tools, credentials, network calls, or destructive actions. Review unfamiliar resources before increasing permission beyond supervised.
 
-Built-in Nerve and Agent Browser skills are appended only when explicitly enabled. File skills override both, and Built-in Nerve skills override same-named Agent Browser guidance. Agent Browser skills are prompt guidance from an external CLI, not a native browser automation tool.
+Built-in Nerve and Agent Browser skills are appended only when enabled by effective settings or an applied profile. File skills override both, and Built-in Nerve skills override same-named Agent Browser guidance. Agent Browser skills are prompt guidance from an external CLI, not a native browser automation tool.
 
 ## Next steps
 

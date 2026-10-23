@@ -23,7 +23,7 @@ The daemon reaches external services only when required by your selected model, 
 - **Execution:** a period of model-driven work in a conversation. It can stream output, pause for review, retry, or be interrupted; stored messages and tool results remain available afterward.
 - **Launch configuration:** a saved command, working directory, optional port, and run policy for a server or watcher. Each start creates a separately inspectable launch run.
 - **Async Bash:** a conversation-owned command that returns immediately or moves to the background after a configured wait. It reports completion without polling.
-- **Profile:** instructions and settings for a lead or a creation-time template for a sub-agent. Sub-agent profile edits do not reconfigure existing children.
+- **Profile:** instructions, recommendations and requirements captured when applied. Catalog edits do not silently change applied snapshots; children also freeze their own creation preferences.
 
 ## Why the controls matter
 

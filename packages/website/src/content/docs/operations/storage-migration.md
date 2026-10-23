@@ -5,7 +5,7 @@ sidebar:
   order: 5
 ---
 
-`NERVE_HOME` defaults to `~/.nerve`. A current home is identified by `manifest.json` with format `nerve-home`, version `1`. Portable configuration lives under `config/`, credentials are encrypted under `secrets/`, and canonical conversation state lives in `data/nerve.sqlite`.
+`NERVE_HOME` defaults to `~/.nerve`. A current home is identified by `manifest.json` with format `nerve-home`, version `1`. Portable configuration lives under `config/`, credentials are encrypted under `secrets/`, and conversation identity, history and lifecycle live in `data/nerve.sqlite`. Agent settings and conversation prompt context are authoritative JSON, not SQLite configuration.
 
 Electron's active Chromium profile remains outside `NERVE_HOME`. A whole-home backup therefore excludes browser session and device-local profile state. Project configuration, including `.nerve/launches/definitions.json`, also lives outside the home: back up the project separately.
 
@@ -14,6 +14,8 @@ Electron's active Chromium profile remains outside `NERVE_HOME`. A whole-home ba
 The conversation core stores projects, lead and child conversations, ordered history events, pending tool calls, queued inputs, resource trust, and async Bash metadata in SQLite. History follows a selected head through predecessor links, so branching does not require copying the complete transcript. History and reconnect reads are paged and byte-bounded; large tool output remains in managed files rather than being repeated in every response.
 
 Streaming updates and workbench notices are not a durable event archive. Stored conversation events and referenced assets are the recovery source. There is no separate query-cache database to rebuild in the current runtime. These are implementation boundaries, not promises about benchmark speed or storage savings for a particular project.
+
+Conversation `data/conversations/<id>/config/agent.json` holds explicit choices, an applied profile snapshot and local prompt context. Working directory stays on the SQLite conversation record. List summaries in `cache/conversation-agent-summaries.json` are disposable and may be unknown; they are not executable settings.
 
 ## Back up before upgrades
 
@@ -32,6 +34,8 @@ Startup checks the home manifest and migration ledger before opening runtime sto
 The upgrade also moves historical project process definitions to `.nerve/launches/definitions.json`. Existing launch configuration wins on a collision; inspect migration diagnostics and retained sources rather than overwriting them. Project files may be affected, so a home-only copy is not a fully isolated migration rehearsal unless its project paths also point at copies.
 
 Migration work is resumable, but the current conversion does **not** retain an automatic whole-home backup after successful verification. Make your own stopped-home backup first. Do not delete migration work files or edit checksums to force an upgrade through.
+
+The scoped-configuration upgrade converts released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` into agent preferences, creation preferences and per-name profile definitions. It verifies exports before removing SQLite conversation configuration; frozen legacy readers are migration-only. Remembered selections are folded once where enabled; remember-last-selection and parent-copy behavior are removed. Review the upgrade report for dropped conversation sub-agent fields, child snapshots and trust that must be granted again. Later-encountered projects upgrade before activation.
 
 ## Unsupported layouts
 
