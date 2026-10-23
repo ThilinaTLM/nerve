@@ -9,26 +9,16 @@ import {
   canonicalSettingsEntries,
   requirementOverlaps,
   sha256HexSchema,
+  configurationSourceSchema,
+  fieldProvenanceSchema,
+  agentResolutionSchema,
   type AppliedProfile,
   type LeadSettingsOverrides,
   type CompleteChildSettings,
 } from "./schemas.js";
 
-export type ConfigurationSource =
-  | "builtin"
-  | "user"
-  | "project"
-  | "process"
-  | "recommendation"
-  | "conversation"
-  | "requirement"
-  | "frozen"
-  | "launch";
-export interface FieldProvenance {
-  source: ConfigurationSource;
-  profile?: string;
-  adjusted?: boolean;
-}
+export type ConfigurationSource = z.infer<typeof configurationSourceSchema>;
+export type FieldProvenance = z.infer<typeof fieldProvenanceSchema>;
 export interface ResolutionOptions {
   role: "lead" | "child";
   user?: LeadSettingsOverrides;
@@ -46,18 +36,7 @@ export interface ResolutionOptions {
   ) => ThinkingLevel;
   referenceAvailable?: (pointer: string, value: unknown) => boolean;
 }
-export interface ResolutionResult {
-  settings: LeadSettingsOverrides;
-  provenance: Record<string, FieldProvenance>;
-  diagnostics: {
-    code:
-      | "model-required"
-      | "reasoning-adjusted"
-      | "unsupported-reasoning"
-      | "missing-reference";
-    pointer: string;
-  }[];
-}
+export type ResolutionResult = z.infer<typeof agentResolutionSchema>;
 const builtin: LeadSettingsOverrides = {
   reasoningLevel: defaultSettings.defaultThinkingLevel,
   permissionRuleSetId: defaultSettings.defaultPermissionRuleSetId,

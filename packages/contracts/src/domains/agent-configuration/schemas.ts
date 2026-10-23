@@ -278,6 +278,52 @@ export const configurationDiagnosticSchema = z.strictObject({
   ),
 });
 
+export const configurationSourceSchema = z.enum([
+  "builtin",
+  "user",
+  "project",
+  "process",
+  "recommendation",
+  "conversation",
+  "requirement",
+  "frozen",
+  "launch",
+]);
+export const fieldProvenanceSchema = z
+  .strictObject({
+    source: configurationSourceSchema,
+    profile: agentProfileNameSchema.optional(),
+    adjusted: z.boolean().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      (value.source === "requirement" || value.source === "recommendation") &&
+      !value.profile
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["profile"],
+        message: "Profile contributions must identify the controlling profile",
+      });
+  });
+export const resolutionDiagnosticSchema = z.strictObject({
+  code: z.enum([
+    "model-required",
+    "reasoning-adjusted",
+    "unsupported-reasoning",
+    "missing-reference",
+  ]),
+  pointer: z.string(),
+});
+export const agentResolutionSchema = z.strictObject({
+  settings: leadSettingsOverridesSchema,
+  provenance: z.record(
+    z.string().regex(/^\/(?:[^~]|~[01])*$/),
+    fieldProvenanceSchema,
+  ),
+  diagnostics: z.array(resolutionDiagnosticSchema),
+});
+
 function escapePointer(value: string): string {
   return value.replaceAll("~", "~0").replaceAll("/", "~1");
 }

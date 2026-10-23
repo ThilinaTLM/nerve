@@ -1,5 +1,3 @@
-import { capabilityOverridesDocumentSchema } from "../capabilities/capabilities.js";
-import { agentProfileNameSchema } from "../agent-profiles/constants.js";
 import { z } from "zod";
 import { conversationAgentUsageSchema } from "./conversation-usage.js";
 import {
@@ -24,40 +22,54 @@ import {
 } from "./event.js";
 import { submitInputRequestSchema } from "./input.js";
 import { interactionResolutionSchema } from "./tool-call.js";
+import { leadSettingsOverridesSchema } from "../agent-configuration/schemas.js";
+import {
+  getAgentConfigurationRequestSchema,
+  getAgentConfigurationResultSchema,
+  saveAgentConfigurationRequestSchema,
+  saveAgentConfigurationResultSchema,
+  getEffectiveAgentRequestSchema,
+  effectiveAgentViewResultSchema,
+  getCreationPreferencesRequestSchema,
+  getCreationPreferencesResultSchema,
+  saveCreationPreferencesRequestSchema,
+  saveCreationPreferencesResultSchema,
+  setConversationAgentProfileRequestSchema,
+  profileTransitionResultSchema,
+  previewProfileTransitionRequestSchema,
+  previewProfileTransitionResultSchema,
+  interactionResolveResultSchema,
+  profileTargetSchema,
+} from "../agent-configuration/agent-configuration-operations.js";
+export { setConversationAgentProfileRequestSchema } from "../agent-configuration/agent-configuration-operations.js";
+export type { SetConversationAgentProfileRequest } from "../agent-configuration/agent-configuration-operations.js";
 
-export const createConversationRequestSchema = z.object({
+export const createConversationRequestSchema = z.strictObject({
   id: z.string(),
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
   title: z.string(),
-  /** Initial conversation choices are materialized before applying the start template. */
-  capabilityOverrides: capabilityOverridesDocumentSchema.optional(),
-  config: conversationConfigSchema.omit({ conversationId: true }).extend({
-    instructions: conversationConfigSchema.shape.instructions.default(null),
-    agentProfile: agentProfileNameSchema.optional(),
-  }),
+  config: conversationConfigSchema
+    .pick({ systemPrompt: true, instructions: true, workingDirectory: true })
+    .partial()
+    .strict(),
+  overrides: leadSettingsOverridesSchema.optional(),
+  agentProfile: profileTargetSchema.optional(),
 });
 export const listConversationsRequestSchema = z.object({
   projectId: z.string(),
   parentConversationId: z.string().nullable().optional(),
 });
-export const configureConversationRequestSchema = z.object({
-  conversationId: z.string(),
-  // Profile switches must apply policy through conversation.setAgentProfile.
-  patch: conversationConfigSchema
-    .omit({ conversationId: true, agentProfile: true })
-    .partial(),
-});
-/** User-only switch; applies profile Set values and capability reconciliation. */
-export const setConversationAgentProfileRequestSchema = z
+export const configureConversationRequestSchema = z
   .object({
     conversationId: z.string(),
-    profile: agentProfileNameSchema,
+    // Only SQL-owned context is editable here; agent choices use agentConfiguration.save.
+    patch: conversationConfigSchema
+      .pick({ systemPrompt: true, instructions: true, workingDirectory: true })
+      .partial()
+      .strict(),
   })
   .strict();
-export type SetConversationAgentProfileRequest = z.infer<
-  typeof setConversationAgentProfileRequestSchema
->;
 
 export const updateConversationRequestSchema = z.object({
   conversationId: z.string(),
@@ -68,7 +80,9 @@ export const updateConversationRequestSchema = z.object({
     clearStatus: z.boolean().optional(),
   }),
 });
-export const resolveInteractionRequestSchema = z.object({
+/** Configuration-blocked retry/cancel uses this same idempotent command. A
+ * retry is admission re-evaluation, never an approval or permission override. */
+export const resolveInteractionRequestSchema = z.strictObject({
   toolCallId: z.string(),
   resolutionRequestId: z.string(),
   resolution: interactionResolutionSchema,
@@ -158,7 +172,31 @@ export const coreOperationSchemas = {
   },
   "conversation.setAgentProfile": {
     params: setConversationAgentProfileRequestSchema,
-    result: conversationConfigSchema,
+    result: profileTransitionResultSchema,
+  },
+  "conversation.previewAgentProfile": {
+    params: previewProfileTransitionRequestSchema,
+    result: previewProfileTransitionResultSchema,
+  },
+  "agentConfiguration.get": {
+    params: getAgentConfigurationRequestSchema,
+    result: getAgentConfigurationResultSchema,
+  },
+  "agentConfiguration.save": {
+    params: saveAgentConfigurationRequestSchema,
+    result: saveAgentConfigurationResultSchema,
+  },
+  "agentConfiguration.getEffective": {
+    params: getEffectiveAgentRequestSchema,
+    result: effectiveAgentViewResultSchema,
+  },
+  "conversationDefaults.get": {
+    params: getCreationPreferencesRequestSchema,
+    result: getCreationPreferencesResultSchema,
+  },
+  "conversationDefaults.save": {
+    params: saveCreationPreferencesRequestSchema,
+    result: saveCreationPreferencesResultSchema,
   },
   "conversation.update": {
     params: updateConversationRequestSchema,
@@ -183,7 +221,7 @@ export const coreOperationSchemas = {
   "input.cancel": { params: z.object({ inputId: z.string() }), result: done },
   "interaction.resolve": {
     params: resolveInteractionRequestSchema,
-    result: done,
+    result: interactionResolveResultSchema,
   },
   "asyncBash.logs": {
     params: asyncBashLogsRequestSchema,

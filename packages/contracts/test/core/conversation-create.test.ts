@@ -7,41 +7,36 @@ const request = {
   projectId: "proj_one",
   title: "Pending",
   config: {
-    model: { provider: "test", modelId: "selected" },
-    reasoningLevel: "high",
     systemPrompt: null,
     instructions: null,
-    permissionRuleSetId: "autonomous",
     workingDirectory: "/project",
   },
 };
-test("conversation.create preserves typed v3 initial capabilities and rejects unmigrated documents", () => {
-  const capabilityOverrides = {
-    schemaVersion: 3,
+test("conversation.create preserves sparse choices and never materializes a model or tool defaults", () => {
+  const overrides = {
+    reasoningLevel: "high",
     tools: {
       python_exec: {
-        enabled: true,
+        enabled: false,
         settings: { interpreterPath: "/pending/python" },
       },
-      web_search: { enabled: true, profileId: "selected-account" },
+      web_search: { profileId: "selected-account" },
     },
-    skills: { file: {}, nerve: { planning: true }, agentBrowser: {} },
+    skills: { nerve: { planning: true } },
   };
   assert.deepEqual(
-    parseOperationParams("conversation.create", {
-      ...request,
-      capabilityOverrides,
-    }).capabilityOverrides,
-    capabilityOverrides,
+    parseOperationParams("conversation.create", { ...request, overrides })
+      .overrides,
+    overrides,
+  );
+  assert.deepEqual(
+    parseOperationParams("conversation.create", request),
+    request,
   );
   assert.throws(() =>
     parseOperationParams("conversation.create", {
       ...request,
-      capabilityOverrides: { schemaVersion: 2, tools: {} },
+      overrides: { model: { provider: "test" } },
     }),
-  );
-  assert.equal(
-    parseOperationParams("conversation.create", request).capabilityOverrides,
-    undefined,
   );
 });

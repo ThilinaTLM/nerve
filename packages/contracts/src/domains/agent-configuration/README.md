@@ -1,6 +1,6 @@
 # Scoped agent configuration contracts
 
-Import from `@nervekit/contracts/agent-configuration`. These contracts are additive; legacy profile/capability/remember-selection contracts remain untouched.
+Import from `@nervekit/contracts/agent-configuration`. Persisted schemas and pure resolution are shared with the scope service. Protocol saves/composer DTOs use these contracts directly; there is no legacy template/capability translation API.
 
 ## Pure API
 
@@ -21,3 +21,38 @@ Run `pnpm --dir packages/contracts schema:agent-configuration [output-directory]
 Persisted conversation loaders must select `childConversationAgentSchema` or `leadConversationAgentSchema` using trusted conversation ownership, never infer the role from editable JSON or fall back from child validation to the lead schema. The child schema and its generated editor schema require `frozenDefaults`.
 
 Sparse parsers never insert defaults. Complete frozen settings require all non-model baseline fields, including captured skill maps/defaults. Profile label/enabled fallbacks are presentation/catalog resolution concerns, not parser defaults. A valid applied snapshot needs no catalog lookup. Consumers must treat `unsupported-reasoning` as blocking rather than execute unchanged invalid explicit/required choices; `reasoning-adjusted` is explanatory, not an input rewrite.
+
+## Protocol API (Phase 3)
+
+Wire request/result schemas live in `agent-configuration-operations.ts`.
+
+All schema names below are exported alongside the PascalCase inferred DTO types (for example `saveAgentConfigurationRequestSchema` / `SaveAgentConfigurationRequest`). The conversation channel registers:
+
+| Operation                          | Request / result schemas                                                                                        |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `agentConfiguration.get`           | `getAgentConfigurationRequestSchema` / `getAgentConfigurationResultSchema`                                      |
+| `agentConfiguration.save`          | `saveAgentConfigurationRequestSchema` / `saveAgentConfigurationResultSchema`                                    |
+| `agentConfiguration.getEffective`  | `getEffectiveAgentRequestSchema` / `effectiveAgentViewResultSchema` (`EffectiveAgentView`)                      |
+| `conversationDefaults.get`         | `getCreationPreferencesRequestSchema` / `getCreationPreferencesResultSchema`                                    |
+| `conversationDefaults.save`        | `saveCreationPreferencesRequestSchema` / `saveCreationPreferencesResultSchema`                                  |
+| `conversation.previewAgentProfile` | `previewProfileTransitionRequestSchema` / `previewProfileTransitionResultSchema`                                |
+| `conversation.setAgentProfile`     | `setConversationAgentProfileRequestSchema` / `profileTransitionResultSchema`                                    |
+| `interaction.resolve`              | existing envelope, new `PlanReviewResolution` and `interactionResolveResultSchema` (`InteractionResolveResult`) |
+
+Agent save requests are flat `{scope, expectedRevision, expectedDigest, changes, resets}`. `AgentScope` is `{scope:"user"}`, `{scope:"project",projectId}`, or `{scope:"conversation",conversationId}`. `PreferenceScope` excludes conversations. Changes are sparse; resets are canonical `/overrides/...` pointers. Validation rejects atomic descent, unsupported paths, metadata edits and overlapping operations. Required-field and trusted child-role checks still belong to the service. No parser inserts defaults or writes inherited settings. Creation saves use the same CAS fields, but changes contain only `defaultAgentProfile` and atomic `scopedModels`; their two whole-field reset paths are the only allowed resets. The existing `capabilities.*` / `harnessSettings.*` channel operations are removed, not forwarded. `conversation.configure` edits only system prompt, instructions and working directory; it cannot write agent choices.
+
+Get/save results use `available`/`saved`, or `conflict`/`unavailable`/`invalid` as applicable. `ConfigurationMutationFailure` carries redacted scoped diagnostics. Conflict's optional `current: ConfigurationVersion` is omitted when a trustworthy current revision/digest is unavailable; never invent it. A missing optional source uses revision 0 and digest `"missing"`. `ConfigurationDocumentSource` contains scope/path/generation/revision/digest only: project internal generation documents to metadata rather than sending executable source documents as another client authority. Health errors do not silently become empty overrides.
+
+`EffectiveAgentView` is `available` (conversationId, trusted role, appliedProfile snapshot or null, resolution, scoped diagnostics, source metadata) or `unavailable` (conversationId, diagnostics). `agentResolutionSchema`, `fieldProvenanceSchema`, `configurationSourceSchema`, and `resolutionDiagnosticSchema` validate the pure resolver's existing values, not a separately maintained DTO. Recommendation/requirement provenance names its controlling profile. Model absence remains absence plus `model-required`; no fabricated model/reasoning/permission is supplied by an unavailable response. Creation gets expose that scope's sparse overrides and resolved creation preferences, where Coding is the built-in start profile. The composer uses `getEffective`, not old materialized config agent fields. `conversation.create` accepts context-only `config`, optional sparse `overrides`, and optional digest-bound `agentProfile: ProfileTarget`; omitted selections use normal resolution. Prospective `conversation.previewSystemPrompt` uses projectId/overrides/optional target profile/context and returns available prompt plus resolution, or unavailable diagnostics.
+
+`agentConfiguration.changed` and `conversationDefaults.changed` are global ephemeral invalidation hints carrying only the affected typed scope. They replace capability-change notices; consumers refresh loaded views only. Correctness still relies on acknowledged service publication and generation guards, not event delivery or scans of unopened conversations.
+
+### Profile and plan confirmation
+
+`ProfileTarget` is `{name,digest}`: stable current-project catalog name and exact definition-byte digest, never a caller-selected source namespace. `ProfileTransitionPreview` includes that target, display source, expected revision/digest, recommendations/requirements and hypothetical resolution. Preview never applies anything. Normal explicit switch uses `action:"switch"`; Apply updated profile uses `action:"reapply"` and the same applied name (validated by the runtime). Both require target bytes, CAS tokens and a unique transitionId. They replace only the captured profile contribution, preserving conversation choices; arbitrary overrides/choices are not accepted by this command.
+
+`PlanReviewRequest` captures `targetProfile`, expectedRevision/expectedDigest and the existing plan asset/path/content metadata. Approval is `{kind:"plan_review",decision:"approve",confirmation:ProfileConfirmation,feedback?}`; existing optional review feedback is preserved. Confirmation carries the captured target, expectedRevision/expectedDigest, transitionId and optional sparse `choices: ImplementationChoices` (`model` and `reasoningLevel` only). Omitted choice fields remain untouched; a supplied model is atomic. Rejection is `{kind:"plan_review",decision:"reject",feedback?}`. The old implementationModel/implementationThinkingLevel fields are not accepted.
+
+`ProfileTransitionResult` is `applied` (transitionId, committed source, effective view), `refresh_required`, or configuration `unavailable`. `ProfileRefreshRequired` has reason `target_changed`, `target_unavailable`, `target_untrusted`, `requirement_conflict`, or `configuration_changed`, diagnostics and an optional refreshed preview. A missing/untrusted target must not be replaced automatically; omit the preview when no valid target can be offered. Map stale/invalid confirmation to this result, not an irreversible failed review. Only newly submitted choices conflicting with requirements are rejected; existing choices may remain underneath temporary requirements. Persistence/publication failure leaves the pending review intact. Runtime owns serialization, trust/applicability/requirement validation, durable accepted decision before config write, and the matching lastTransition receipt/reconciliation. No schema performs those side effects.
+
+Ordinary interaction resolutions return `{status:"resolved"}`. Profile/plan approval returns the transition result (including refresh_required); the channel no longer flattens it to null. No compatibility translation or legacy Set/Lock DTO is added.
