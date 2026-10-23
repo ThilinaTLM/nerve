@@ -338,7 +338,9 @@ ${errors.map((line) => `- ${line}`).join("\n")}`;
     return {
       name: child.title,
       profile: profileOf(parentId, child),
-      model: `${snapshot.config.model.provider}/${snapshot.config.model.modelId}`,
+      model: snapshot.config.model
+        ? `${snapshot.config.model.provider}/${snapshot.config.model.modelId}`
+        : "unknown",
       state,
       background,
       context: usage,

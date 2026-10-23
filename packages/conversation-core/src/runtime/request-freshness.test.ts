@@ -106,7 +106,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
           newModel.provider,
         );
         if (compactions === 1)
-          configureTest(opts, core, "conv_fresh", {
+          await configureTest(opts, core, "conv_fresh", {
             reasoningLevel: "low",
 
             instructions: "after compaction",
@@ -129,9 +129,9 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         });
         if (requests.length === 1) {
           // The request has been prepared, but has not returned from the provider.
-          configureNext();
+          void configureNext();
           if (boundary !== "overflow")
-            configureTest(opts, core, "conv_fresh", {
+            void configureTest(opts, core, "conv_fresh", {
               reasoningLevel: "low",
 
               instructions: "in flight",
@@ -144,7 +144,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         }
         if (requests.length === 2 && boundary === "retry") {
           // A queued input continues this execution after the in-flight reply.
-          configureTest(opts, core, "conv_fresh", {
+          void configureTest(opts, core, "conv_fresh", {
             reasoningLevel: "off",
 
             instructions: "continuation",
@@ -170,13 +170,13 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
         // This notification occurs after the failed attempt, at the start of
         // the retry delay. No timing guesses or sleeps are needed for the save.
         retryChanges++;
-        configureNext();
+        void configureNext();
       }
     });
     try {
       await core.start();
       await createConversation(core, "conv_fresh");
-      configureTest(opts, core, "conv_fresh", {
+      await configureTest(opts, core, "conv_fresh", {
         model: { provider: oldModel.provider, modelId: oldModel.id },
         instructions: "old",
       });
@@ -223,7 +223,7 @@ for (const boundary of ["retry", "overflow", "capacity"] as const) {
 
       // Subsequent requests prepare anew; prior bundles stay intact.
       if (boundary !== "retry") {
-        configureTest(opts, core, "conv_fresh", {
+        await configureTest(opts, core, "conv_fresh", {
           reasoningLevel: "off",
 
           instructions: "continuation",
@@ -299,7 +299,7 @@ void test("compaction resolves current model, reasoning and settings without ord
       resolve: async (selection) => {
         resolvedProvider = selection.provider;
         // A save after compaction preparation begins belongs to the next request.
-        configureTest(opts, core, "conv_compaction", {
+        await configureTest(opts, core, "conv_compaction", {
           model: { provider: "saved-during-compaction", modelId: "next" },
           reasoningLevel: "off",
         });
@@ -359,7 +359,7 @@ void test("compaction resolves current model, reasoning and settings without ord
         createdAt: new Date().toISOString(),
       });
     }
-    configureTest(opts, core, "conv_compaction", {
+    await configureTest(opts, core, "conv_compaction", {
       model: { provider: model.provider, modelId: model.id },
       reasoningLevel: "high",
     });
@@ -372,7 +372,12 @@ void test("compaction resolves current model, reasoning and settings without ord
     assert.equal(reasoning, "high");
     assert.equal(settingsReads, 1);
     assert.equal(
-      opts.storage.conversations.getConfig("conv_compaction")!.reasoningLevel,
+      (
+        await opts.configuration.resolveConfig!(
+          "conv_compaction",
+          opts.storage.conversations.getContext("conv_compaction")!,
+        )
+      ).reasoningLevel,
       "off",
     );
     assert.equal(

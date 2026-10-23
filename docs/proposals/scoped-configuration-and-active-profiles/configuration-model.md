@@ -2,7 +2,7 @@
 
 ## Authority and scope
 
-JSON owns persisted agent settings. SQLite owns conversation identity, relationships, execution history and lifecycle—not agent settings or a settings index. In-memory resolved settings are disposable. Conversation-list summaries may use a disposable JSON cache, never a second authority.
+JSON owns persisted agent settings and conversation-only prompt context. Under D10, SQLite owns conversation identity, relationships, execution history, lifecycle and NOT NULL `conversation.working_directory`; `conversation_config` is removed entirely, with no agent settings or settings index retained. In-memory resolved settings are disposable. Conversation-list summaries may use a disposable JSON cache, never a second authority.
 
 Configuration roots are:
 
@@ -26,6 +26,8 @@ Resolve each setting independently, highest priority first:
 6. User default.
 7. Built-in default.
 
+Model and reasoning remain separate merge units in the schema, but every UI model picker writes both together at the same scope, and its reasoning choices come only from that model's supported levels. When layers mix (for example a project reasoning choice beneath a recommended model), resolution fits the reasoning to the effective model's supported levels, and the source label shows the adjustment. Fitting applies to any non-required reasoning whose source differs from the effective model's source (including explicit conversation and launch choices). A required reasoning level that the effective model does not support is a requirement conflict, not adjusted. An unsupported pair set at the same scope is invalid. Frozen child preferences store the already-fitted value.
+
 Command-line/environment agent-default overrides are not persisted and cannot defeat recommendations, conversation choices or requirements. Preserve their existing source attribution. Daemon startup precedence is a separate domain.
 
 Missing preference fields inherit. Explicit false disables. Reset removes an override. Reading/resolving never writes inherited values back. Field-specific merge rules are normative in [schemas](schemas.md).
@@ -48,7 +50,7 @@ Catalog edits/deletion do not change existing conversations. Offer **Apply updat
 
 User/project catalog files remain complete definitions, not another sparse inheritance ladder. Same-name project definitions replace user/built-in definitions; editing an inherited definition creates a complete local copy. Deleting a local copy exposes the lower definition for future application only. Display provenance and this copy-and-shadow behavior explicitly.
 
-Profile instructions contribute to the built system prompt; they do not overwrite separately authored conversation instructions. Existing custom system-prompt behavior is preserved and clearly presented as an explicit conversation context override.
+Profile instructions contribute separately to the system prompt constructed each LLM turn; they never overwrite conversation `agent.json.context.instructions` or `.systemPrompt`. D10 context is conversation-only, not a merge-layer setting, and profile switches/parent defaults cannot change it. A custom system prompt supplies the explicit base override; captured profile and local instructions still contribute. `conversation.configure` edits JSON context plus SQL working directory. History/snapshots remain viewable with the SQL directory and unknown prompt fields if JSON is unavailable; execution requires validated JSON.
 
 ## Planning and approval
 

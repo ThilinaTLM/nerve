@@ -146,9 +146,11 @@ export async function rollbackFailedMigration(
     );
     if (existsSync(join(context.scratchDir, "verified.json")))
       throw new Error("The failed upgrade cannot be rolled back.");
+    // Custom rollback must validate its committed SQL/file candidate before the
+    // generic journal removes exports that are part of that validation.
+    await entry.step.rollback?.(context);
     if (existsSync(join(context.scratchDir, "rollback")))
       new RollbackJournal(context.scratchDir).restore();
-    await entry.step.rollback?.(context);
     const baselineBackup = manifestBackupPath(paths);
     const restoredMarker = join(context.scratchDir, "manifest-restored.json");
     if (!(await pathExists(restoredMarker))) {

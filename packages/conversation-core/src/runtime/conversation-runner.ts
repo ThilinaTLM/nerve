@@ -291,7 +291,12 @@ export class ConversationRunner {
               // Configuration belongs to an attempt, not to the logical turn.
               // Input delivery stays outside this loop so retries never replay it.
               const conversation = storage.conversations.get(id);
-              const config = storage.conversations.getConfig(id);
+              const context = storage.conversations.getContext(id);
+              if (!this.options.configuration.resolveConfig)
+                throw new Error("Agent configuration resolver is unavailable");
+              const config =
+                context &&
+                (await this.options.configuration.resolveConfig(id, context));
               if (!conversation || !config)
                 throw new Error("Conversation not found");
               const project = storage.projects.get(conversation.projectId);

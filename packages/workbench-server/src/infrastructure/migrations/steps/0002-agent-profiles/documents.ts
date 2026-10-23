@@ -1,4 +1,9 @@
 import assert from "node:assert/strict";
+import {
+  permissionRuleSetSchema,
+  permissionOverlayDocumentSchema,
+  permissionRuleSetIdSchema,
+} from "@nervekit/contracts/permissions";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { StepContext } from "../../framework/step.js";
@@ -28,9 +33,11 @@ function renameToolKeys(value: unknown): void {
 /** Named storage slots only: never rewrite instruction text or arbitrary arguments. */
 export function convertDocument(
   value: unknown,
-  kind: "harness" | "ui" | "capabilities" | "rule-set",
+  kind: "harness" | "ui" | "capabilities" | "rule-set" | "permissions",
 ): unknown {
   const document = record(structuredClone(value));
+  if (!document && (kind === "permissions" || kind === "rule-set"))
+    return structuredClone(value);
   assert(document, "Expected a configuration object");
   if (kind === "harness" || kind === "ui") {
     for (const selection of [
@@ -52,7 +59,56 @@ export function convertDocument(
         ...new Set([...tools.disabled.map(toolName), "plan_present"]),
       ];
   }
-  if (kind === "rule-set") delete document.compatibleModes;
+  if (kind === "rule-set" || kind === "permissions") {
+    // Preserved policy domains may already contain newer documents. Never
+    // downgrade/rewrite them; their owning loader reports scoped readiness.
+    if (document.schemaVersion !== (kind === "rule-set" ? 1 : 2))
+      return document;
+    const policySchema =
+      kind === "rule-set"
+        ? permissionRuleSetSchema
+        : permissionOverlayDocumentSchema;
+    if (kind === "rule-set" && Object.hasOwn(document, "compatibleModes")) {
+      const modes = document.compatibleModes;
+      if (
+        !Array.isArray(modes) ||
+        modes.length > 64 ||
+        modes.some((mode) => !permissionRuleSetIdSchema.safeParse(mode).success)
+      )
+        return structuredClone(value);
+    }
+    const baseline = structuredClone(document);
+    if (kind === "rule-set") delete baseline.compatibleModes;
+    // This converter is not a repair operation. Leave invalid policy bytes for
+    // the owning health loader; selected/applicable policy remains fail-closed.
+    if (!policySchema.safeParse(baseline).success)
+      return structuredClone(value);
+    const groups =
+      kind === "rule-set"
+        ? [document]
+        : Array.isArray(document.overlays)
+          ? document.overlays
+          : [];
+    let changed =
+      kind === "rule-set" && Object.hasOwn(document, "compatibleModes");
+    if (kind === "rule-set") delete document.compatibleModes;
+    for (const group of groups) {
+      const rules = record(group)?.rules;
+      if (!Array.isArray(rules)) continue;
+      for (const rule of rules) {
+        const when = record(record(rule)?.when);
+        if (
+          when &&
+          Array.isArray(when.toolNames) &&
+          when.toolNames.includes("plan_mode_present")
+        ) {
+          when.toolNames = when.toolNames.map(toolName);
+          changed = true;
+        }
+      }
+    }
+    if (changed) return policySchema.parse(document);
+  }
   if (kind === "rule-set" || kind === "capabilities") {
     renameToolKeys(document.tools);
     renameToolKeys(document.toolSettings);
@@ -62,7 +118,7 @@ export function convertDocument(
 
 export type DocumentFile = {
   path: string;
-  kind: "harness" | "ui" | "capabilities" | "rule-set";
+  kind: "harness" | "ui" | "capabilities" | "rule-set" | "permissions";
   root: string;
 };
 export function documentFiles(
@@ -72,7 +128,12 @@ export function documentFiles(
 ): DocumentFile[] {
   const result: DocumentFile[] = [];
   for (const root of [home, ...projects]) {
-    for (const kind of ["harness", "ui", "capabilities"] as const)
+    for (const kind of [
+      "harness",
+      "ui",
+      "capabilities",
+      "permissions",
+    ] as const)
       result.push({ path: join(root, "config", `${kind}.json`), kind, root });
     const rules = join(root, "config", "rule-sets");
     safePath(rules);
@@ -120,4 +181,21 @@ export function convertEventPayload(value: unknown): unknown {
   if (projection && Object.hasOwn(projection, "toolName"))
     projection.toolName = toolName(projection.toolName);
   return payload;
+}
+
+export function parsePolicySource(
+  bytes: string,
+  path: string,
+  report: string[],
+): unknown {
+  try {
+    return JSON.parse(bytes);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    report.push(
+      path +
+        ": invalid policy preserved for scoped repair; never applied as a weakened policy",
+    );
+    return undefined;
+  }
 }

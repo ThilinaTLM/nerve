@@ -200,12 +200,17 @@ export class ConversationCore {
       asyncBash: this.asyncBash,
       context: async (id) => {
         const conversation = options.storage.conversations.get(id);
-        const config = options.storage.conversations.getConfig(id);
+        const config = options.storage.conversations.getContext(id);
         const project =
           conversation && options.storage.projects.get(conversation.projectId);
         if (!project || !config)
           throw new Error("Conversation context not found");
-        return { projectDir: project.directory, config };
+        if (!options.configuration.resolveConfig)
+          throw new Error("Agent configuration resolver is unavailable");
+        return {
+          projectDir: project.directory,
+          config: await options.configuration.resolveConfig(id, config),
+        };
       },
     });
     this.modelTurn = new ModelTurn(
@@ -240,6 +245,10 @@ export class ConversationCore {
     });
     this.conversations = new ConversationService({
       storage: options.storage,
+      summary: (id) => options.configuration.summary?.(id) ?? {},
+      historyContext: (id) => options.configuration.historyContext?.(id) ?? {},
+      configureContext: (id, patch) =>
+        options.configuration.configureContext(id, patch),
       assets: this.assets,
       asyncBash: this.asyncBash,
       inputs: this.inputs,
@@ -267,6 +276,10 @@ export class ConversationCore {
       this.registerCoreTool(handler);
     for (const handler of options.coreTools ?? [])
       this.registerCoreTool(handler);
+  }
+  publishAgentSummary(id: string): void {
+    const summary = this.options.storage.conversations.getSummary(id);
+    if (summary) this.emit({ kind: "conversation_changed", summary });
   }
   publishConfigurationEvent(
     event: import("@nervekit/contracts/core").ConversationEvent,
@@ -389,14 +402,18 @@ export class ConversationCore {
     const project = this.options.storage.projects.get(conversation.projectId);
     if (!project) throw new Error("Project not found");
     const config = saved
-      ? this.options.storage.conversations.getConfig(input.conversationId)
+      ? this.options.storage.conversations.getContext(input.conversationId)
       : input.config;
     return this.options.configuration.capturePreview({
       conversation,
       projectDir: project.directory,
       config: {
-        systemPrompt: config?.systemPrompt ?? null,
-        instructions: config?.instructions ?? null,
+        ...(!saved
+          ? {
+              systemPrompt: input.config?.systemPrompt ?? null,
+              instructions: input.config?.instructions ?? null,
+            }
+          : {}),
         workingDirectory: config?.workingDirectory ?? project.directory,
       },
       coreTools: [...this.coreTools.values()].map(

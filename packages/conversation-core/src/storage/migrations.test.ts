@@ -7,7 +7,7 @@ import { coreMigrations, migrate } from "./migrations.js";
 
 const checksum = (sql: string) =>
   createHash("sha256").update(sql).digest("hex");
-function seedV1(db: CoreDatabase): void {
+function seedV1(db: CoreDatabase, populated = false): void {
   db.sqlite.exec(`CREATE TABLE schema_migrations (
       version INTEGER PRIMARY KEY, name TEXT NOT NULL, checksum TEXT NOT NULL, applied_at TEXT NOT NULL
     ) STRICT;`);
@@ -17,10 +17,12 @@ function seedV1(db: CoreDatabase): void {
     .run(coreMigrations[0].name, checksum(coreSchemaV1));
   db.sqlite
     .exec(`INSERT INTO project VALUES ('p','Project','/project','now','now');
-    INSERT INTO conversation (id,project_id,title,status,status_event_sequence,paused,next_input_sequence,created_at,updated_at)
-      VALUES ('c','p','Conversation','idle',0,0,1,'now','now');
-    INSERT INTO conversation_config VALUES ('c','{"provider":"test","modelId":"model"}','high','system','instructions','planning','planning','/project');
     INSERT INTO trusted_resource VALUES ('trust','subagent_profile','p','/profiles.json','Review','digest','trusted','now','now');`);
+  if (populated)
+    db.sqlite
+      .exec(`INSERT INTO conversation (id,project_id,title,status,status_event_sequence,paused,next_input_sequence,created_at,updated_at)
+    VALUES ('c','p','Conversation','idle',0,0,1,'now','now');
+    INSERT INTO conversation_config VALUES ('c','{"provider":"test","modelId":"model"}','high','system','instructions','planning','planning','/project');`);
 }
 function schema(db: CoreDatabase) {
   return db.sqlite
@@ -30,13 +32,13 @@ function schema(db: CoreDatabase) {
     .all();
 }
 
-test("released v1 upgrades intact to v2; fresh and upgraded schemas are identical", () => {
+test("empty released core upgrades to the identical fresh D10 schema, preserving trust and the v1 ledger", () => {
   assert.equal(
     checksum(coreSchemaV1),
     "2342e3fd7f060d11b8ab99fea3d6f1cf608ce4c2b608ca9763b3a7028946d03c",
   );
-  const upgraded = openCoreDatabase(":memory:");
-  const fresh = openCoreDatabase(":memory:");
+  const upgraded = openCoreDatabase(":memory:"),
+    fresh = openCoreDatabase(":memory:");
   try {
     seedV1(upgraded);
     const original = upgraded.sqlite
@@ -54,52 +56,38 @@ test("released v1 upgrades intact to v2; fresh and upgraded schemas are identica
     assert.deepEqual(
       upgraded.sqlite
         .prepare(
-          "SELECT version, checksum FROM schema_migrations ORDER BY version",
+          "SELECT version,checksum FROM schema_migrations ORDER BY version",
         )
         .all()
-        .map((r) => ({ ...r })),
-      coreMigrations.map((m) => ({
-        version: m.version,
-        checksum: checksum(m.sql),
+        .map((row) => ({ ...row })),
+      coreMigrations.map((migration) => ({
+        version: migration.version,
+        checksum: checksum(migration.sql),
       })),
     );
     assert.equal(
       upgraded.sqlite
-        .prepare("SELECT agent_profile FROM conversation_config")
-        .get()?.agent_profile,
-      "planning",
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE name='conversation_config'",
+        )
+        .get(),
+      undefined,
     );
     assert.equal(
       upgraded.sqlite
-        .prepare("SELECT instructions FROM conversation_config")
-        .get()?.instructions,
-      "instructions",
+        .prepare("PRAGMA table_info(conversation)")
+        .all()
+        .find((column) => column.name === "working_directory")?.notnull,
+      1,
     );
     assert.equal(
       upgraded.sqlite.prepare("SELECT kind FROM trusted_resource").get()?.kind,
       "agent_profile",
     );
-    upgraded.sqlite.exec(
-      "UPDATE conversation_config SET agent_profile = 'custom-lead'",
-    );
     assert.throws(
       () =>
         upgraded.sqlite.exec(
           "UPDATE trusted_resource SET kind='subagent_profile'",
-        ),
-      /CHECK/,
-    );
-    assert.throws(
-      () =>
-        upgraded.sqlite.exec(
-          "UPDATE conversation_config SET conversation_id='missing'",
-        ),
-      /FOREIGN KEY/,
-    );
-    assert.throws(
-      () =>
-        upgraded.sqlite.exec(
-          "UPDATE conversation_config SET model='invalid-json'",
         ),
       /CHECK/,
     );
@@ -114,15 +102,8 @@ test("released v1 upgrades intact to v2; fresh and upgraded schemas are identica
     migrate(upgraded);
     upgraded.sqlite.exec("DELETE FROM project WHERE id='p'");
     assert.equal(
-      upgraded.sqlite
-        .prepare("SELECT count(*) AS n FROM conversation_config")
-        .get()?.n,
-      0,
-    );
-    assert.equal(
-      upgraded.sqlite
-        .prepare("SELECT count(*) AS n FROM trusted_resource")
-        .get()?.n,
+      upgraded.sqlite.prepare("SELECT count(*) n FROM trusted_resource").get()
+        ?.n,
       0,
     );
   } finally {
@@ -131,49 +112,40 @@ test("released v1 upgrades intact to v2; fresh and upgraded schemas are identica
   }
 });
 
-test("v2 preserves additional indexes, triggers and views through column rename", () => {
+test("populated released core cannot bypass home export, even with custom affected schema", () => {
   const db = openCoreDatabase(":memory:");
   try {
-    seedV1(db);
+    seedV1(db, true);
     db.sqlite
       .exec(`CREATE INDEX custom_config_mode ON conversation_config(mode);
-      CREATE INDEX custom_trust_status ON trusted_resource(status);
       CREATE TABLE audit (value TEXT) STRICT;
       CREATE TRIGGER config_audit AFTER UPDATE OF mode ON conversation_config BEGIN INSERT INTO audit VALUES (NEW.mode); END;
-      CREATE TRIGGER trust_audit AFTER UPDATE OF status ON trusted_resource BEGIN INSERT INTO audit VALUES (NEW.status); END;
       CREATE VIEW profile_view AS SELECT mode FROM conversation_config;`);
-    migrate(db);
-    assert.match(
-      String(
-        db.sqlite
-          .prepare(
-            "SELECT sql FROM sqlite_schema WHERE name='custom_config_mode'",
-          )
-          .get()?.sql,
-      ),
-      /agent_profile/,
+    const before = schema(db);
+    assert.throws(
+      () => migrate(db),
+      /Home migration 0002 must verify agent exports/,
     );
-    db.sqlite.exec(
-      "UPDATE conversation_config SET agent_profile='custom'; UPDATE trusted_resource SET status='rejected'",
-    );
-    assert.deepEqual(
-      db.sqlite
-        .prepare("SELECT value FROM audit")
-        .all()
-        .map((r) => r.value),
-      ["custom", "rejected"],
+    assert.deepEqual(schema(db), before);
+    assert.equal(
+      db.sqlite.prepare("SELECT instructions FROM conversation_config").get()
+        ?.instructions,
+      "instructions",
     );
     assert.equal(
-      db.sqlite.prepare("SELECT agent_profile FROM profile_view").get()
-        ?.agent_profile,
-      "custom",
+      db.sqlite.prepare("SELECT count(*) n FROM schema_migrations").get()?.n,
+      1,
+    );
+    assert.equal(
+      db.sqlite.prepare("PRAGMA foreign_keys").get()?.foreign_keys,
+      1,
     );
   } finally {
     db.close();
   }
 });
 
-test("failed checksums and FK checks roll back and restore enforcement", () => {
+test("failed checksums and FK checks roll back the approved rebuild and restore enforcement", () => {
   const db = openCoreDatabase(":memory:");
   try {
     seedV1(db);
@@ -189,13 +161,15 @@ test("failed checksums and FK checks roll back and restore enforcement", () => {
     db.sqlite.exec(
       "PRAGMA foreign_keys=OFF; UPDATE trusted_resource SET project_id='missing'; PRAGMA foreign_keys=ON",
     );
+    const before = schema(db);
     assert.throws(() => migrate(db), /foreign key check failed/);
+    assert.deepEqual(schema(db), before);
     assert.equal(
-      db.sqlite.prepare("SELECT mode FROM conversation_config").get()?.mode,
-      "planning",
+      db.sqlite.prepare("SELECT kind FROM trusted_resource").get()?.kind,
+      "subagent_profile",
     );
     assert.equal(
-      db.sqlite.prepare("SELECT count(*) AS n FROM schema_migrations").get()?.n,
+      db.sqlite.prepare("SELECT count(*) n FROM schema_migrations").get()?.n,
       1,
     );
     assert.equal(

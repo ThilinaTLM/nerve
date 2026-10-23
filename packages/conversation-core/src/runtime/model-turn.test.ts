@@ -36,7 +36,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"])
     const core = new ConversationCore(opts);
     try {
       await createConversation(core, "c");
-      core.configure("c", {
+      await core.configure("c", {
         systemPrompt: override,
         instructions: "Context instructions",
       });
@@ -55,7 +55,7 @@ for (const override of [null, "", " \tOverride 雪\r\n\n"])
       );
       const prepared = await turn.prepareRequest({
         conversation: before.conversation,
-        config: before.config,
+        config: await opts.configuration.resolveConfig!("c", before.config),
         projectDir: opts.storage.projects.get("proj_test")!.directory,
         path: [],
         turnId: "turn",

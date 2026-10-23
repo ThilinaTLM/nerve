@@ -2,7 +2,7 @@ import type { AppliedAgentProfile } from "@nervekit/contracts/agent-profiles";
 import type {
   AsyncBash,
   CompactionOperation,
-  ConversationConfig,
+  ConversationHistoryConfig,
   ConversationEvent,
   ConversationSummary,
   LiveDelta,
@@ -22,7 +22,7 @@ export type CoreChange =
   | {
       kind: "config_changed";
       conversationId: string;
-      config: ConversationConfig;
+      config: ConversationHistoryConfig;
       appliedAgentProfile: AppliedAgentProfile | null;
     }
   | {

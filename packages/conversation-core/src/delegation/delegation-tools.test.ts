@@ -108,7 +108,7 @@ async function fixture() {
   };
   const configuration = testConfiguration(
     { prepare: async () => ({ systemPrompt: "Test", tools: [] }) },
-    (id) => storage.conversations.getConfig(id)!,
+    (id) => storage.conversations.getContext(id)!,
   );
   const prepareCreation = configuration.prepareCreation;
   configuration.prepareCreation = async (input) => ({
@@ -139,6 +139,11 @@ async function fixture() {
           projectDir: dataDir,
         })
       ).config;
+    configuration.update(input.id, {
+      ...config,
+      instructions: null,
+      systemPrompt: null,
+    });
     await hostProfiles.persistApplication(input.id, {
       config,
       applied: {
@@ -285,6 +290,7 @@ async function fixture() {
     core.getSnapshot(child(name).id).conversation.status === "idle";
   return {
     core,
+    configuration,
     dataDir,
     initialized,
     host,
@@ -321,15 +327,27 @@ void test("creates a child from the profile, initializes it and assigns context 
     );
     const created = f.child("a");
     const snapshot = f.core.getSnapshot(created.id);
-    assert.equal(snapshot.config.model.provider, "child-explore");
-    assert.equal(snapshot.config.reasoningLevel, "low");
-    assert.equal(snapshot.config.permissionRuleSetId, "read_only");
+    const config = await f.configuration.resolveConfig(
+      created.id,
+      snapshot.config,
+    );
+    assert.equal(config.model.provider, "child-explore");
+    assert.equal(config.reasoningLevel, "low");
+    assert.equal(config.permissionRuleSetId, "read_only");
     assert.equal(snapshot.config.instructions, null);
     // Legacy SQL/profile snapshots are not configuration authority.
     assert.equal(snapshot.appliedAgentProfile, null);
     assert.equal(snapshot.config.systemPrompt, null);
-    assert.equal(snapshot.config.agentProfile, "explore");
-    assert.equal(f.core.getSnapshot(LEAD).config.agentProfile, "coding");
+    assert.equal(config.agentProfile, "explore");
+    assert.equal(
+      (
+        await f.configuration.resolveConfig(
+          LEAD,
+          f.core.getSnapshot(LEAD).config,
+        )
+      ).agentProfile,
+      "coding",
+    );
     assert.deepEqual(f.initialized, [
       { parentId: LEAD, childId: created.id, profile: "explore" },
     ]);

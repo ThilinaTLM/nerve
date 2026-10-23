@@ -1,0 +1,4 @@
+{
+  "planning": "{\"schemaVersion\":1,\"name\":\"planning\",\"label\":\"Planning\",\"description\":\"Research and present an implementation plan.\",\"enabled\":true,\"usableBy\":\"lead\",\"instructions\":\"Before anything else, read {{skill:planning}} and follow it.\",\"requirements\":{\"permissionRuleSetId\":\"planning\",\"tools\":{\"plan_present\":{\"enabled\":true}}}}",
+  "coding": "{\"schemaVersion\":1,\"name\":\"coding\",\"label\":\"Coding\",\"description\":\"Implement and validate changes.\",\"enabled\":true,\"usableBy\":\"lead\",\"instructions\":\"In the final response, summarize changes, validation, and remaining limits.\"}"
+}

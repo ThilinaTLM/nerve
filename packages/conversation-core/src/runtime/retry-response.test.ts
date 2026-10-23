@@ -124,7 +124,7 @@ for (const stop of [false, true]) {
           ),
         );
         const first = requests[0]!;
-        configureTest(opts, core, "conv", {
+        await configureTest(opts, core, "conv", {
           instructions: "Changed while pending",
           systemPrompt: "New prompt",
           reasoningLevel: "high",

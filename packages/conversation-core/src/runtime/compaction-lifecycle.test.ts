@@ -175,7 +175,7 @@ void test("manual compaction snapshots real streaming and repair replacement, co
     assert.throws(() => f.core.selectHead("conversation", null), /compacting/);
     f.core.compact("conversation");
     assert.equal(f.core.getSnapshot("conversation").compaction?.id, started.id);
-    f.core.configure("conversation", { instructions: "Next request" });
+    await f.core.configure("conversation", { instructions: "Next request" });
     f.core.inputs.enqueueNotice({
       conversationId: "conversation",
       inputId: "system",
@@ -681,7 +681,7 @@ for (const fail of [false, true]) {
 void test("standalone child compaction emits no execution or assignment-completed events", async () => {
   const f = await fixture([{ type: "assistantText", text: summary }]);
   try {
-    const config = f.core.getSnapshot("conversation").config;
+    const config = f.opts.configuration.snapshot("conversation");
     await f.core.createConversation({
       id: "child",
       projectId: "proj_test",

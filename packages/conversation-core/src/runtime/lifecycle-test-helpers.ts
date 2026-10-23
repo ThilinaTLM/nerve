@@ -47,7 +47,7 @@ export function options(
   const result: TestOptions = {
     configuration: testConfiguration(
       { prepare: (input) => result.turnResources.prepare(input) },
-      (id) => result.storage.conversations.getConfig(id)!,
+      (id) => result.storage.conversations.getContext(id)!,
       (id) => result.compactionSettings?.(id) ?? defaultSettings.compaction,
       () => result.defaultConfig("proj_test"),
     ),
@@ -86,7 +86,7 @@ export function options(
   };
   return result;
 }
-export function configureTest(
+export async function configureTest(
   opts: TestOptions,
   core: ConversationCore,
   id: string,
@@ -107,7 +107,7 @@ export function configureTest(
   const context = Object.fromEntries(
     Object.entries(patch).filter(([key]) => !agentKeys.includes(key)),
   );
-  if (Object.keys(context).length) core.configure(id, context);
+  if (Object.keys(context).length) await core.configure(id, context);
 }
 export async function createConversation(core: ConversationCore, id: string) {
   if (!core.projects.get("proj_test"))

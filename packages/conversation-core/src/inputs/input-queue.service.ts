@@ -323,7 +323,7 @@ export class InputQueueService {
       this.preparations.has(row.inputId)
     )
       return;
-    const config = this.options.storage.conversations.getConfig(
+    const config = this.options.storage.conversations.getContext(
       row.conversationId,
     );
     if (!config)

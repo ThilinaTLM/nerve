@@ -19,7 +19,7 @@ This registry distinguishes changed storage from preserved domains. Existing sch
   data/
     agent-profiles/<name>.json          # same location, new profile schema
     conversations/<id>/config/
-      agent.json                       # NEW authoritative agent configuration
+      agent.json                       # NEW agent configuration + conversation-only prompt context
       permissions.json                 # preserved overlay document
   cache/
     conversation-agent-summaries.json   # NEW disposable display cache
@@ -63,8 +63,9 @@ Untrusted project content stays unapplied with a diagnostic; it is not equivalen
 ## Ownership outside agent preferences
 
 - Conversation IDs, parent relationships, messages, runs, approvals, events and usage stay in SQLite.
-- `working_directory`, separate conversation `instructions` and `system_prompt` remain conversation execution context in SQLite, not scoped agent preferences. Preserve their existing API behavior and migrate none away accidentally.
-- Remove released SQLite `conversation_config` agent columns `model`, `reasoning_level`, `permission_rule_set_id` and `mode` once their JSON conversion is durably verified. Do not keep them as summary projections. No new SQLite settings/index tables or columns are proposed.
+- **D10:** Drop `conversation_config` entirely after verified export. Move `working_directory` to `conversation` as NOT NULL; rebuild that table preserving every released column, constraint, self/event FK (including deferrability), STRICT and all three indexes. Preserve inbound FK targets and require `foreign_key_check` to pass.
+- Conversation `instructions` and custom `system_prompt` move to conversation `agent.json.context` (`instructions?`, `systemPrompt?`). These are non-inheritable context, not settings/profile merge units; profile switches preserve them and profile instructions contribute separately each turn. Extend unreleased v1 without a version bump. Keep `conversation.configure` behavior, backed by JSON plus SQL working directory. History/snapshots remain available with SQL working directory and unknown JSON fields when that document is unavailable.
+- SQL agent columns have no retained summary projection. No settings/index tables are introduced; the only added SQL column is the D10 working-directory relocation.
 - The remember-last-selection option is removed. Default start profile and model-picker list are creation settings, not another effective-agent layer. See [schemas](schemas.md).
 - Browser-local tabs, drafts, shell layout, viewer/list/Git preferences and onboarding progress retain their existing local/session-storage ownership. They are not conversation configuration.
 - Host resource controls exposed by runtime contracts but missing from persisted daemon conversion are a separately identified issue. Do not add them to agent settings or silently expand this migration; preserve existing behavior and track persistence correction separately.

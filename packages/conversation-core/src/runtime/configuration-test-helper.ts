@@ -20,7 +20,7 @@ export const testDefaults: TurnPreparationInput["config"] = {
 /** Independent in-memory agent authority for core unit fixtures. Production uses scoped JSON. */
 export function testConfiguration(
   resources: TurnResourcesPort,
-  base?: (id: string) => TurnPreparationInput["config"],
+  base?: (id: string) => Partial<TurnPreparationInput["config"]>,
   compaction: (
     id: string,
   ) =>
@@ -35,7 +35,8 @@ export function testConfiguration(
   const agents = new Map<string, Partial<TurnPreparationInput["config"]>>();
   const applied = new Map<string, ProfileTransitionResult>();
   const snapshot = (id: string) => ({
-    ...(base?.(id) ?? testDefaults),
+    ...testDefaults,
+    ...base?.(id),
     ...agents.get(id),
   });
   const resolution = (id: string) => {
@@ -50,11 +51,35 @@ export function testConfiguration(
     });
   };
   const port: AgentConfigurationPort = {
+    historyContext(id) {
+      const { instructions, systemPrompt } = snapshot(id);
+      return { instructions, systemPrompt };
+    },
+    async configureContext(id, patch) {
+      agents.set(id, { ...agents.get(id), ...patch });
+    },
+    async resolveConfig(id, context) {
+      return { ...snapshot(id), ...context, conversationId: id };
+    },
+    summary(id) {
+      const { model, reasoningLevel, permissionRuleSetId, agentProfile } =
+        snapshot(id);
+      return { model, reasoningLevel, permissionRuleSetId, agentProfile };
+    },
     profiles: {
       async preview(id, profile) {
         return {
           status: "ready",
           preview: {
+            targetDefinition: {
+              schemaVersion: 1,
+              name: profile,
+              description: "Fixture profile",
+              usableBy: "lead",
+              instructions: "",
+            },
+            changedFields: [],
+            unchangedRequirements: [],
             targetProfile: { name: profile, digest },
             source: "builtin",
             expectedRevision: 0,
@@ -130,6 +155,8 @@ export function testConfiguration(
         reasoningLevel: value.reasoningLevel,
         permissionRuleSetId: value.permissionRuleSetId,
         agentProfile: value.agentProfile,
+        instructions: value.instructions,
+        systemPrompt: value.systemPrompt,
       });
     },
     async capturePreview(input) {
@@ -140,13 +167,11 @@ export function testConfiguration(
             ...input.overrides,
             agentProfile: input.agentProfile?.name ?? "coding",
           };
-      const prepared = await resources.prepare({
-        ...input,
-        config: { ...value, ...input.config },
-      });
+      const config = { ...value, ...input.config };
+      const prepared = await resources.prepare({ ...input, config });
       return {
         status: "available",
-        systemPrompt: input.config.systemPrompt ?? prepared.systemPrompt,
+        systemPrompt: config.systemPrompt ?? prepared.systemPrompt,
         resolution: resolveAgentConfiguration({
           role: "lead",
           conversation: {

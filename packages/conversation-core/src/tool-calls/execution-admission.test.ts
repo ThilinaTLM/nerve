@@ -119,7 +119,10 @@ async function fixture(
     },
     context: async () => ({
       projectDir: directory,
-      config: config.storage.conversations.getConfig("conv_admission")!,
+      config: await config.configuration.resolveConfig!(
+        "conv_admission",
+        config.storage.conversations.getContext("conv_admission")!,
+      ),
     }),
   };
   let service = new ToolCallService(serviceOptions);
@@ -139,7 +142,7 @@ async function fixture(
         id: "conv_child",
         projectId: "proj_test",
         parentConversationId: "conv_admission",
-        config: config.storage.conversations.getConfig("conv_admission")!,
+        config: config.storage.conversations.getContext("conv_admission")!,
         application: {
           config: {
             agentProfile: "coding",

@@ -1,6 +1,6 @@
 # Scoped configuration and active agent profiles
 
-> **Status:** Design finalized for implementation planning after user decisions, six read-only implementation reviews with four second passes, and a release-baseline review against v0.37.0. Runtime implementation has not started under this proposal. The exact destructive database migration must be reviewed before execution; no new SQLite settings/cache tables or columns are authorized.
+> **Status:** Implementation includes D10: remove `conversation_config`, relocate working directory onto `conversation`, and keep conversation prompt context in unreleased agent.json v1. D13 approves production execution of the reviewed database migration after copied/fresh-slot validation. The temporary DDL approval mechanism is removed; mandatory export and recovery verification remain. No settings/cache tables are authorized; only the D10 working-directory column relocation is in scope.
 
 ## Goal
 
@@ -15,7 +15,7 @@ This supersedes the materialized-template behavior in [System prompt, tool descr
 - Applied profile snapshot remains until explicit switch/reapplication; catalog edits never silently rewrite an existing conversation.
 - Lead/child shared value schemas, no child delegation, model/reasoning-only scoped child invocation overrides. Child preferences are captured once for future follow-ups.
 - Tools have typed configuration; skills have boolean source defaults and individual toggles; credentials remain user-owned references.
-- JSON is persisted authority. Remove conversation agent settings from SQLite. Optional conversation-list summaries use a disposable JSON cache, never SQLite.
+- JSON owns agent settings and conversation-only prompt context. D10 removes `conversation_config` entirely; SQL retains working directory on `conversation` plus identity/lifecycle/history. Optional list summaries use a disposable JSON cache, never SQLite.
 - Preserve unrelated domain scopes/paths/semantics. Remove remember-last-selection; keep only creation/picker preferences.
 - UI saves update validated in-memory generations. No file watchers/polling; manual edits require restart for guaranteed activation.
 - Request resources apply at the next LLM preparation; permission changes apply at the next tool execution admission, including after approval waits.

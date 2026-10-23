@@ -19,10 +19,8 @@ import type { ToolDefinition } from "@nervekit/tools/catalog";
 import type { TurnPreparationInput } from "./ports.js";
 import type { CreateConversationInput } from "./conversations/conversation.service.js";
 
-export type ConversationContext = Pick<
-  ConversationConfig,
-  "systemPrompt" | "instructions" | "workingDirectory"
->;
+export type ConversationContext = Pick<ConversationConfig, "workingDirectory"> &
+  Partial<Pick<ConversationConfig, "systemPrompt" | "instructions">>;
 export interface ConfigurationPreviewInput {
   conversation: TurnPreparationInput["conversation"];
   config: ConversationContext;
@@ -79,7 +77,29 @@ export interface ProfileLifecyclePort {
 
 /** JSON configuration authority supplied by the host; core never resolves agent settings from SQL. */
 export interface AgentConfigurationPort {
+  /** Best-effort validated JSON projection for history, never an execution fallback. */
+  historyContext?(
+    conversationId: string,
+  ): Partial<Pick<ConversationConfig, "systemPrompt" | "instructions">>;
+  /** Context-only edit of the conversation JSON document; null clears a field. */
+  configureContext(
+    conversationId: string,
+    patch: Partial<Pick<ConversationConfig, "systemPrompt" | "instructions">>,
+  ): Promise<void>;
   profiles: ProfileLifecyclePort;
+  /** Disposable display projection. Never used for execution. */
+  summary?(
+    conversationId: string,
+  ): Partial<
+    Pick<
+      ConversationConfig,
+      "model" | "reasoningLevel" | "permissionRuleSetId" | "agentProfile"
+    >
+  >;
+  resolveConfig(
+    conversationId: string,
+    context: ConversationContext,
+  ): Promise<ConversationConfig>;
   prepareCreation(
     input: CreateConversationInput,
   ): Promise<Omit<ConversationConfig, "conversationId">>;

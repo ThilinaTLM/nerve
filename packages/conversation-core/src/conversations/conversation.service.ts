@@ -2,13 +2,17 @@ import type {
   LeadSettingsOverrides,
   ProfileTarget,
 } from "@nervekit/contracts/agent-configuration";
-import type { ConversationContext } from "../configuration.js";
+import type {
+  ConversationContext,
+  AgentConfigurationPort,
+} from "../configuration.js";
 import { configureConversationRequestSchema } from "@nervekit/contracts/core";
 import type { AgentProfileApplication } from "../ports.js";
 import { rm } from "node:fs/promises";
 import { createId } from "@nervekit/contracts";
 import {
   conversationConfigSchema,
+  type ConversationHistoryConfig,
   type ConversationConfig,
   type ConversationSnapshot,
   type UpdateConversationRequest,
@@ -43,6 +47,16 @@ export class ConversationService {
   constructor(
     private readonly options: {
       storage: CoreStorage;
+      summary?(
+        id: string,
+      ): Partial<
+        Pick<
+          ConversationConfig,
+          "model" | "reasoningLevel" | "permissionRuleSetId" | "agentProfile"
+        >
+      >;
+      historyContext?: AgentConfigurationPort["historyContext"];
+      configureContext: AgentConfigurationPort["configureContext"];
       assets: AssetStore;
       asyncBash: AsyncBashService;
       inputs: InputQueueService;
@@ -109,7 +123,7 @@ export class ConversationService {
     this.options.emit({
       kind: "config_changed",
       conversationId: id,
-      config,
+      config: { ...config, ...this.options.summary?.(id) },
       appliedAgentProfile: null,
     });
     if (input.parentConversationId)
@@ -119,14 +133,14 @@ export class ConversationService {
   snapshot(id: string): ConversationSnapshot {
     const storage = this.options.storage;
     const conversation = storage.conversations.get(id);
-    const config = storage.conversations.getConfig(id);
+    const config = storage.conversations.getContext(id);
     if (!conversation || !config)
       throw new Error(`Conversation not found: ${id}`);
     return {
       conversation,
       compaction: this.options.compactions.get(id),
       lastSequence: storage.events.lastSequence(id),
-      config,
+      config: { ...config, ...this.options.historyContext?.(id) },
       appliedAgentProfile: null,
       toolCalls: storage.toolCalls.list(id),
       queue: storage.inputs.list(id),
@@ -156,41 +170,42 @@ export class ConversationService {
     });
     this.options.status.refresh(id);
   }
-  configure(
+  async configure(
     id: string,
     patch: Partial<ConversationContext>,
-  ): ConversationConfig {
-    return this.saveConfig(
-      id,
-      configureConversationRequestSchema.shape.patch.parse(patch),
-    );
-  }
-  private saveConfig(
-    id: string,
-    patch: Partial<DefaultConversationConfig>,
-  ): ConversationConfig {
-    const config = this.options.storage.conversations.getConfig(id);
-    if (!config) throw new Error("Conversation not found");
-    const validated = conversationConfigSchema.parse({
-      ...config,
-      ...patch,
-      conversationId: id,
-    });
+  ): Promise<ConversationHistoryConfig> {
+    const validated =
+      configureConversationRequestSchema.shape.patch.parse(patch);
+    if (!this.options.storage.conversations.getContext(id))
+      throw new Error("Conversation not found");
+    const context = {
+      ...(validated.instructions !== undefined
+        ? { instructions: validated.instructions }
+        : {}),
+      ...(validated.systemPrompt !== undefined
+        ? { systemPrompt: validated.systemPrompt }
+        : {}),
+    };
+    if (Object.keys(context).length)
+      await this.options.configureContext(id, context);
     const updated = this.options.storage.conversations.updateConfig(
       id,
-      validated,
+      validated.workingDirectory !== undefined
+        ? { workingDirectory: validated.workingDirectory }
+        : {},
     );
+    const config = { ...updated, ...this.options.historyContext?.(id) };
     this.options.emit({
       kind: "config_changed",
       conversationId: id,
-      config: updated,
+      config,
       appliedAgentProfile: null,
     });
     this.options.emit({
       kind: "conversation_changed",
       summary: this.options.storage.conversations.getSummary(id)!,
     });
-    return updated;
+    return config;
   }
   assertQuiescent(id: string): void {
     this.snapshot(id);
