@@ -12,8 +12,11 @@ import {
 } from "./durable-write.js";
 
 export type SourceDigest = string | "missing";
-export interface RevisionedDocument {
+export interface SchemaDocument {
   schemaVersion: number;
+  revision?: number;
+}
+export interface RevisionedDocument extends SchemaDocument {
   revision: number;
 }
 export interface DocumentIssue {
@@ -50,11 +53,13 @@ export type ScopeHealth<S, D> =
       readonly retained?: ScopeGeneration<S, D>;
     };
 
-export interface ScopedDocumentOptions<S, D extends RevisionedDocument> {
+export interface ScopedDocumentOptions<S, D extends SchemaDocument> {
   /** Must return a stable identity/path for each document, including its domain. */
   resolvePath(scope: S): string;
   required(scope: S): boolean;
   supportedVersion: number;
+  /** False for profile definitions, which use exact-byte identity without persisted revisions. */
+  revisioned?: boolean;
   /** Strict domain parser; must not strip unknown properties or insert sparse defaults. */
   parse(input: unknown, scope: S): D;
   /** Only used for an absent optional document; must have revision zero. Never persisted on read. */
@@ -82,7 +87,7 @@ export class ScopeUnavailableError extends Error {
 }
 
 /** No constructor IO, directory enumeration, watchers, or polling. One instance per domain. */
-export class ScopedDocumentStore<S, D extends RevisionedDocument> {
+export class ScopedDocumentStore<S, D extends SchemaDocument> {
   private readonly states = new Map<string, ScopeHealth<S, D>>();
   private readonly epochs = new Map<string, number>();
   private readonly dependents = new Map<string, Set<() => void>>();
@@ -173,12 +178,15 @@ export class ScopedDocumentStore<S, D extends RevisionedDocument> {
             if (typeof input !== "object" || input === null)
               throw new Error("Expected document object");
             candidate = this.parse(
-              { ...input, revision: current.revision + 1 },
+              this.options.revisioned === false
+                ? input
+                : { ...input, revision: current.revision + 1 },
               scope,
             );
             if (
-              candidate.revision !== current.revision + 1 ||
-              !Number.isSafeInteger(candidate.revision)
+              this.options.revisioned !== false &&
+              (candidate.revision !== current.revision + 1 ||
+                !Number.isSafeInteger(candidate.revision))
             )
               throw new Error("Invalid document revision");
             bytes = `${JSON.stringify(candidate, null, 2)}\n`;
@@ -188,24 +196,72 @@ export class ScopedDocumentStore<S, D extends RevisionedDocument> {
       );
       if (!candidate || bytes === undefined)
         throw new Error("Writer did not prepare document");
-      // No stale execution while directory durability/publication is pending.
-      this.unavailable(scope, [{ code: "publication-failed", pointer: "" }]);
-      try {
-        const durability = await (
-          this.options.syncDirectory ?? synchronizeDirectory
-        )(current.path);
-        const value = this.activate(
-          scope,
-          candidate,
-          digestBytes(bytes),
-          "ready",
-        );
-        return { value, durability };
-      } catch (error) {
-        this.unavailable(scope, [{ code: "publication-failed", pointer: "" }]);
-        throw error;
-      }
+      return this.commit(scope, candidate, bytes);
     });
+  }
+
+  /** Explicit creation only: never an automatic fallback for a missing required document. */
+  create(
+    scope: S,
+    input: unknown,
+  ): Promise<{
+    value: ScopeGeneration<S, D>;
+    durability: DirectoryDurability;
+  }> {
+    return this.serialize(scope, async () => {
+      let candidate: D | undefined;
+      let bytes: string | undefined;
+      await (this.options.write ?? atomicReplaceFile)(
+        this.key(scope),
+        async (handle) => {
+          if (bytes === undefined)
+            throw new Error("Writer did not prepare document");
+          await handle.writeFile(bytes);
+        },
+        {
+          mode: 0o600,
+          prepare: async () => {
+            if ((await sourceDigest(this.key(scope))) !== "missing")
+              throw new ScopeConflictError();
+            candidate = this.parse(input, scope);
+            if (this.options.revisioned !== false && candidate.revision !== 1)
+              throw new Error("Created document must have revision one");
+            bytes = `${JSON.stringify(candidate, null, 2)}\n`;
+            return undefined;
+          },
+        },
+      );
+      if (!candidate || bytes === undefined)
+        throw new Error("Writer did not prepare document");
+      return this.commit(scope, candidate, bytes);
+    });
+  }
+
+  private async commit(
+    scope: S,
+    candidate: D,
+    bytes: string,
+  ): Promise<{
+    value: ScopeGeneration<S, D>;
+    durability: DirectoryDurability;
+  }> {
+    // No stale execution while directory durability/publication is pending.
+    this.unavailable(scope, [{ code: "publication-failed", pointer: "" }]);
+    try {
+      const durability = await (
+        this.options.syncDirectory ?? synchronizeDirectory
+      )(this.key(scope));
+      const value = this.activate(
+        scope,
+        candidate,
+        digestBytes(bytes),
+        "ready",
+      );
+      return { value, durability };
+    } catch (error) {
+      this.unavailable(scope, [{ code: "publication-failed", pointer: "" }]);
+      throw error;
+    }
   }
 
   private key(scope: S): string {
@@ -227,6 +283,7 @@ export class ScopedDocumentStore<S, D extends RevisionedDocument> {
       input !== null &&
       "schemaVersion" in input &&
       typeof input.schemaVersion === "number" &&
+      Number.isInteger(input.schemaVersion) &&
       input.schemaVersion > this.options.supportedVersion
     ) {
       throw new FutureVersionError();
@@ -311,7 +368,7 @@ export class ScopedDocumentStore<S, D extends RevisionedDocument> {
       scope: structuredClone(scope),
       path: this.key(scope),
       generation: this.next(scope),
-      revision: document.revision,
+      revision: document.revision ?? 0,
       digest,
       document: structuredClone(document),
     });
