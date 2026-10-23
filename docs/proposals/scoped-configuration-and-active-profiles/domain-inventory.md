@@ -1,31 +1,74 @@
-# Domain inventory and storage boundaries
+# Domain and storage registry
 
-## Current implementation baseline
+This registry distinguishes changed storage from preserved domains. Existing schemas cited below remain normative for preserved documents; do not redesign them merely to make every file sparse or to move every catalog into `config/`.
 
-- User configuration has `daemon.json`, `harness.json`, `ui.json`, `permissions.json`, `providers.json` and `integrations.json`, plus separately owned documents such as `prompt-suggestions.json`.
-- Project harness preferences live in `.nerve/config/harness.json`. Project/conversation capabilities use `capabilities.json`; user tools and skills are in the harness document.
-- Conversation scalar configuration is in SQLite `conversation_config`; tools/skills, compaction and applied profile policy are split across JSON files.
-- Permission ruleset selection is separate from ruleset definitions and scoped permission overlays. Policy composition is not ordinary settings merging.
-- Suggestions have separate definitions, enablement preferences and trust state.
-- User/project profile catalogs and applied conversation snapshots have different lifecycles.
-- Browser-local workspace state and remembered selections are not the same as durable defaults.
-- Application startup options may be overridden by environment or command-line arguments and may require restart.
+## Resulting layout
 
-Relevant implementation owners: `packages/contracts/src/domains/settings/`, `packages/workbench-server/src/infrastructure/configuration/`, `packages/workbench-server/src/core-host/`, and the agent-profile, prompt-suggestion, launch-definition and authentication domains.
+```text
+<NERVE_HOME>/
+  config/
+    agent.json                         # NEW: sparse agent preferences
+    conversation-defaults.json         # NEW: creation/picker preferences
+    daemon.json                        # preserved
+    ui.json                            # preserved
+    permissions.json                   # preserved policy composition
+    providers.json                     # preserved user-owned catalog
+    integrations.json                  # preserved user-owned catalog
+    prompt-suggestions.json            # preserved user-only enablement
+    rule-sets/<id>.json                 # preserved user-only definitions
+  data/
+    agent-profiles/<name>.json          # same location, new profile schema
+    conversations/<id>/config/
+      agent.json                       # NEW authoritative agent configuration
+      permissions.json                 # preserved overlay document
+  cache/
+    conversation-agent-summaries.json   # NEW disposable display cache
+  agent/suggestions/*.md                # preserved definitions
+  secrets/                             # preserved protected credentials
+  quarantine/settings/                 # preserved recovery location
 
-## Domain decision matrix — to complete
+<project>/.nerve/
+  config/
+    agent.json                         # NEW: sparse agent preferences
+    conversation-defaults.json         # NEW: sparse creation/picker preferences
+    permissions.json                   # preserved overlay document
+  agent-profiles/<name>.json            # same location, new profile schema
+  suggestions/*.md                      # preserved definitions
+  launches/definitions.json             # preserved project-only catalog
+```
 
-For every domain specify: allowed scopes; exact relative path; schema/version; sparse and resolved shapes; merge and reset rules; source attribution; trust requirements; activation timing; write concurrency; consumers; migration.
+Released v0.37.0 `harness.json`, `capabilities.json` and `subagents.json` at user, project and conversation scope are migrated, verified and retired (see [migration](migration-and-recovery.md)). Unreleased intermediate files such as `applied-agent-profile.json` are never migration inputs. Runtime readers do not retain dual authoritative representations. Projects encountered later are upgraded before first activation.
 
-| Domain | Decisions still required |
-| --- | --- |
-| Agent settings | Model/reasoning/permission selection, tools and configuration, skills, allowed sub-agent profiles; atomic conversation envelope |
-| Profiles | Catalog paths and ownership, references, recommendations/requirements, snapshot lifecycle, editing and reapplication |
-| Harness | Compaction, retry and execution behavior; which settings belong in agent settings versus a separate domain |
-| Permissions | Ruleset catalogs, overlay schema and scopes, precedence, remembered approvals and sub-agent restrictions |
-| Suggestions | Definition locations, enablement scopes, merge rules, trust and execution behavior |
-| Providers/integrations | User-owned catalogs, scoped selection references and credential boundaries |
-| Application/UI | User-only preferences, device-specific state, startup overrides and restart requirements |
-| Launch definitions | Project ownership, locations, trust and separation from launch runtime state |
-| Runtime state | Remembered selections, browser state, trust records, approvals, execution history; explicitly separate from preferences |
+## Domain behavior retained
 
+Paths are relative to their stated root. Schemas are defined under `packages/contracts/src/domains/` unless otherwise noted.
+
+| Domain | Scope and schema | Behavior |
+| --- | --- | --- |
+| Daemon | User `config/daemon.json`; `settings/home-configuration.ts:daemonConfigSchema` v1 | Network, diagnostics, process, logging, Electron settings. Preserve environment/CLI precedence and restart metadata. |
+| UI | User `config/ui.json`; `uiConfigSchema` v1 | Appearance, desktop, notifications, transcription preferences. Not agent inheritance. |
+| Providers | User `config/providers.json`; `providersConfigSchema` v1 | Provider/model/authentication catalogs; literal header values and credential references retain their distinction. |
+| Integrations | User `config/integrations.json`; `integrationsConfigSchema` v2 | Atlassian/Tavily account metadata and credential references. Scoped agent tools select account IDs only. |
+| Permissions | All three `config/permissions.json`; `permissions/permission-rule-sets.ts:permissionOverlayDocumentSchema` v2 | Ruleset-keyed overlays; not generic JSON preference merging. |
+| Ruleset definitions | User `config/rule-sets/*.json`, bundled built-ins; `permissionRuleSetSchema` v1 | Preserve baseline/selected ruleset and enforcement/scope/priority semantics and authored-guardrail restrictions. |
+| Suggestion enablement | User `config/prompt-suggestions.json` v1 | `enabled` map keyed by current definition keys; no new project/conversation preference scope. |
+| Suggestion definitions | Existing Markdown locations above | Preserve frontmatter/body, project shadowing, and predicate-based trust. No conversation definitions. |
+| Launch definitions | Project `.nerve/launches/definitions.json` v2 | Preserve folders/definitions, IDs, command/cwd/port, run policy, ordering, revision checks and locks. Execution records/logs remain runtime state. |
+| Secrets | User `secrets/` | Existing encrypted credentials, master key and daemon token; never included in agent snapshots or profile JSON. |
+
+Trust identity is domain-specific: permission/project profile content uses exact-byte identity; suggestion trust uses executable predicate identity. Repairs and migrations do not grant trust implicitly. Explicit UI authoring may retain existing separately consented trust behavior.
+
+Untrusted project content stays unapplied with a diagnostic; it is not equivalent to an applicable trusted policy becoming invalid. Isolate malformed unused catalog entries rather than making every agent unusable. Invalid selected policy or required applied contribution blocks affected execution.
+
+## Ownership outside agent preferences
+
+- Conversation IDs, parent relationships, messages, runs, approvals, events and usage stay in SQLite.
+- `working_directory`, separate conversation `instructions` and `system_prompt` remain conversation execution context in SQLite, not scoped agent preferences. Preserve their existing API behavior and migrate none away accidentally.
+- Remove released SQLite `conversation_config` agent columns `model`, `reasoning_level`, `permission_rule_set_id` and `mode` once their JSON conversion is durably verified. Do not keep them as summary projections. No new SQLite settings/index tables or columns are proposed.
+- The remember-last-selection option is removed. Default start profile and model-picker list are creation settings, not another effective-agent layer. See [schemas](schemas.md).
+- Browser-local tabs, drafts, shell layout, viewer/list/Git preferences and onboarding progress retain their existing local/session-storage ownership. They are not conversation configuration.
+- Host resource controls exposed by runtime contracts but missing from persisted daemon conversion are a separately identified issue. Do not add them to agent settings or silently expand this migration; preserve existing behavior and track persistence correction separately.
+
+## Implementation evidence
+
+Review covered: `infrastructure/configuration/{scope-paths,home-configuration,project-configuration}.ts`, storage-bootstrap paths/file mutations, profile service/policy, capability service, permission adapters and `packages/tools/src/policy/permission-policy.ts`, suggestion services/trust repository, launch repository, and SQLite conversation repositories. The shared runtime `Settings` object is a projection, not itself an authoritative file schema.

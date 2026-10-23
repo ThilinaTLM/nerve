@@ -1,8 +1,10 @@
-# Configuration model and resolution
+# Configuration model
 
-## Approved decisions
+## Authority and scope
 
-### Configuration roots
+JSON owns persisted agent settings. SQLite owns conversation identity, relationships, execution history and lifecycle—not agent settings or a settings index. In-memory resolved settings are disposable. Conversation-list summaries may use a disposable JSON cache, never a second authority.
+
+Configuration roots are:
 
 | Scope | Root |
 | --- | --- |
@@ -10,63 +12,68 @@
 | Project | `<project>/.nerve/config/` |
 | Conversation | `<NERVE_HOME>/data/conversations/<id>/config/` |
 
-These roots are agreed. The exact files, subdirectories, allowed scopes and schemas within them must be specified below before implementation. Catalog locations, credentials and runtime artifacts are not implicitly approved by agreement on these roots.
+Use domain files. `agent.json` contains agent choices; a conversation's file also contains its applied profile contribution, allowing one atomic profile/model change. Other domains retain the ownership and paths in [the registry](domain-inventory.md).
 
-### Document boundaries
+## Preferences and profile priority
 
-Use domain-specific configuration files, not one global `settings.json`. Keep conversation agent choices and the applied profile snapshot together in one atomic agent document. Exact filenames and document envelopes remain to be finalized.
+Resolve each setting independently, highest priority first:
 
-### Sparse overrides
+1. Applied profile **requirement**.
+2. Explicit conversation choice.
+3. Applied profile **recommendation**.
+4. Process-local command-line/environment agent-default override.
+5. Project default.
+6. User default.
+7. Built-in default.
 
-Saved preference documents contain only explicit choices. Missing fields inherit from the preceding applicable layer. Reset removes the override. Explicit false is distinct from omission. Schemas must accept partial documents while validating every supplied value; resolved configurations require a separate complete-value validation step.
+Command-line/environment agent-default overrides are not persisted and cannot defeat recommendations, conversation choices or requirements. Preserve their existing source attribution. Daemon startup precedence is a separate domain.
 
-Built-in defaults provide the bottom layer. Do not write resolved inherited values back into sparse documents. Define field-level merge rules before implementation rather than assuming arbitrary deep merging works for all data.
+Missing preference fields inherit. Explicit false disables. Reset removes an override. Reading/resolving never writes inherited values back. Field-specific merge rules are normative in [schemas](schemas.md).
 
-### Non-destructive active profiles
+The profile editor has exactly three behaviors:
 
-Profiles contribute to effective configuration without overwriting stored conversation choices. Required profile settings have highest priority within agent-setting resolution while that profile is active. Application safety restrictions and trust checks remain authoritative.
+| Behavior | Meaning |
+| --- | --- |
+| Use settings | No profile contribution. Includes explicit conversation choices, then project/user/built-in defaults. |
+| Recommend | Supplies a value unless the conversation explicitly chooses another. |
+| Require (lock) | Temporarily controls the effective value; the underlying conversation choice is unchanged and its effective control is disabled. Switching to a profile that does not require the field lifts the lock and reveals the conversation choice or inherited default. |
 
-For example, Planning can require the planning permission ruleset and enable plan presentation. Existing conversation choices remain stored underneath. Switching to Coding removes Planning's enforcement; it does not require a restoration write or cleanup of Planning's values in conversation overrides.
+There is no Set operation that writes profile values into conversation overrides, no Reset-to-settings profile operation, and no Same-as-parent mode. Application authorization restrictions remain authoritative regardless of preference precedence.
 
-Approved precedence, highest first: profile requirements → explicit conversation choices → profile recommendations → project defaults → user defaults → built-in defaults. Requirements cannot be overridden by conversation choices. They enforce effective values without modifying the stored choices underneath.
+## Applied profile lifecycle
 
-Approved profile behaviors replace the existing template modes:
+When selected, copy the validated profile's instructions, recommendations and requirements into conversation `agent.json`, with its name, source and digest. This is the **applied profile snapshot**: the role configuration that the conversation actually uses, not a backup or last-known-good recovery store.
 
-- **Use settings:** the profile contributes nothing for this field. Use the explicit conversation choice if present; otherwise project → user → built-in defaults. It does not mean bypassing conversation choices.
-- **Recommend:** use the profile value unless the conversation has an explicit choice. Recommendations override project/user/built-in defaults but never write into those defaults or conversation choices.
-- **Require (lock):** use the profile value even when a conversation choice exists. Keep that choice unchanged underneath; disable editing of the effective field while the requirement applies. Switching away removes the enforcement.
+Catalog edits/deletion do not change existing conversations. Offer **Apply updated profile** when a different valid definition is available. Explicit switch/reapply replaces the entire applied contribution, preserving conversation choices. New applications require current applicability, enablement and trust checks. A missing source does not invalidate a valid existing snapshot; an invalid stored snapshot blocks dependent execution.
 
-Profile JSON uses separate sparse `recommendations` and `requirements` sections. Reject the same setting leaf in both sections; atomic settings such as model selection count as one field. Omission from both sections means Use settings. Legacy Set and Reset-to-settings mutation behavior is not carried forward. Sub-agent inheritance remains open.
+User/project catalog files remain complete definitions, not another sparse inheritance ladder. Same-name project definitions replace user/built-in definitions; editing an inherited definition creates a complete local copy. Deleting a local copy exposes the lower definition for future application only. Display provenance and this copy-and-shadow behavior explicitly.
 
-**Profile update lifecycle remains open:** the user provisionally favors snapshots but explicitly requests practical trade-offs before finalizing. Do not treat snapshot retention as an unconditional final decision. If snapshots are retained, the proposed storage is an applied-profile section of conversation `config/agent.json`, together with conversation choices, not an additional independently written file. Requirement values in that section are policy contributions, not copies written into conversation overrides. Compare explicit reapplication against automatically resolving changed definitions, including deleted/untrusted profiles, active plan reviews and mid-run changes.
+Profile instructions contribute to the built system prompt; they do not overwrite separately authored conversation instructions. Existing custom system-prompt behavior is preserved and clearly presented as an explicit conversation context override.
 
-### Agent document and merge boundaries
+## Planning and approval
 
-Use `config/agent.json` at user, project and conversation scopes, with shared settings fields and scope-specific envelopes. Conversation choices and the applied profile snapshot are separate sections in the same atomic file. Include agent compaction and retry preferences in this document. Host/network/process configuration remains separate. Exact schema property names and versions are not yet finalized.
+Planning requires the planning permission selection and `plan_present.enabled = true`. Coding contributes its own instructions and otherwise uses settings unless explicitly configured. Removing Planning reveals underlying permissions and tool selections; Coding does not silently grant write permission or force Plan Present off.
 
-Use field-specific merge rules, not generic recursive merging:
+A plan review captures the target profile name and content digest. Approval previews the target's requirements and disables incompatible implementation model/reasoning choices. If the target changes, becomes unavailable/untrusted, or submitted choices conflict with requirements, reject the approval transition and request refreshed confirmation. Do not silently substitute another model.
 
-- Model provider and model ID are an atomic selection.
-- Tools merge by tool identity and documented configuration fields.
-- Skills merge by stable identity.
-- Arrays replace unless the owning schema explicitly specifies otherwise.
-- Omission inherits; Reset removes a stored field. Null is not a universal stored reset marker; each schema defines whether it is a legitimate value.
+Accepted implementation choices become explicit conversation overrides only for submitted fields. Omitted fields remain untouched. Commit those choices and the new applied profile in one document revision before implementation starts. Failed validation/persistence leaves the previous configuration and pending review intact. Event/transition crash recovery is specified in [migration and recovery](migration-and-recovery.md).
 
-## Skills, tools and sub-agent configuration
+## Child agents
 
-Clarified requirements:
+Lead and child settings share non-delegation field schemas. Only leads have available-sub-agent entries. Child schemas and execution guards reject delegation independently of tool advertisement; preserve existing child bans on `ask_user`, `plan_present` and sub-agent management tools.
 
-- Skill selections are enablement booleans; they do not need arbitrary per-skill configuration.
-- Tools have enablement and typed, tool-specific configuration, including references to user-owned integration accounts (for example, Jira's Atlassian account).
-- Available sub-agent profiles need enablement plus scoped invocation overrides. A project can select a model/reasoning level for Developer, and a lead conversation can override that selection for its own future Developer launches without editing the reusable definition.
-- Sub-agents cannot delegate further agents. Child configuration must not recursively contain an available-sub-agent configuration map; this is also a runtime restriction, not merely a hidden editor field.
+An available-sub-agent entry selects a reusable profile by name and supports enablement plus **model/reasoning overrides only**. User → project → lead-conversation selection overrides merge independently of the child's own preferences. These invocation choices beat child recommendations but never requirements.
 
-Approved design:
+At creation, child preferences resolve from built-in/user/project/process defaults, its profile recommendations, explicit launch model/reasoning choices, and profile requirements. Never implicitly copy the parent's model, reasoning, permissions, tools or skills. There is no Same-as-parent option.
 
-- Share non-delegation agent-setting schemas, with distinct constrained lead and child schemas. Only lead settings include the available-sub-agent map. Child schemas reject delegation configuration, and runtime independently prohibits it.
-- Each available-sub-agent entry references a reusable profile and contains enablement plus optional **model and reasoning overrides only**. Do not add per-invocation instructions, permissions, tools, skills, compaction, retry or nested delegation overrides in this initial design.
-- These scoped invocation choices take precedence over the child profile's recommendations, but not its requirements. Project choices can be overridden by the lead conversation without editing the profile definition. Model selection is atomic; reasoning inherits independently when omitted.
-- Changes configure **future child launches only**. Existing children retain their captured configuration, including on follow-up. Any future support for editing an existing child must be an explicit separate operation, not implicit propagation from the lead.
+Use the latest validated launch selection when executing a new-child call, then capture the child's complete resolved underlying preferences and applied profile once. Preserve underlying values below requirements so requirements remain a separate contribution. Existing children resolve requirements over their frozen underlying preferences; recommendations are not reapplied above launch choices. An absent underlying model is allowed when requirements supply it. Filter role-prohibited resources before freezing. Later user/project preference changes and lead invocation changes do not affect existing children, including follow-ups. Profile switching/reapplication for children remains unsupported initially.
 
-Exact JSON property names, profile reference identity, child defaults and the role of Same as parent remain open. Profile catalog applicability (lead/subagent/both) must be reconciled with these constrained schemas before implementation.
+Child permission policy retains its existing independent ruleset and hard restrictions; do not introduce a new parent-permission ceiling or scoped overlay chain. Current authoritative ruleset definitions are still checked at execution. Frozen child preferences do not freeze revocable credentials or runtime authorization.
 
+`usableBy: both` profiles must validate against the intersection of lead/child fields; they cannot contain delegation selections or child-banned tool entries. This preserves one profile catalog without recursive schemas.
+
+## Source visibility
+
+Show effective values with provenance: defaults, explicit conversation choice, recommendation, requirement or frozen child creation choice. Requirements must name the controlling profile. Reset removes only the editable choice; it cannot remove profile requirements.
+
+Migrated per-conversation model, reasoning and permission values become ordinary explicit conversation choices. The composer shows them before every send, and Reset returns a field to inherited defaults. No separate legacy-origin label is kept.

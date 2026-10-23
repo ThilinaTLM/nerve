@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "revision": 2,
+  "overrides": {
+    "reasoningLevel": "high",
+    "tools": {
+      "jira": { "enabled": true, "profileId": "work-atlassian" }
+    },
+    "skills": { "file": { "project-guide": true } },
+    "subagents": {
+      "developer": {
+        "enabled": true,
+        "model": { "provider": "example", "modelId": "project-model" },
+        "reasoningLevel": "high"
+      }
+    }
+  }
+}

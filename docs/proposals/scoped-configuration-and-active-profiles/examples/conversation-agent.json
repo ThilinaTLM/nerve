@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "revision": 7,
+  "overrides": {
+    "permissionRuleSetId": "autonomous",
+    "tools": {
+      "plan_present": {
+        "enabled": false
+      }
+    },
+    "subagents": {
+      "developer": {
+        "model": {
+          "provider": "example",
+          "modelId": "conversation-model"
+        }
+      }
+    }
+  },
+  "appliedProfile": {
+    "name": "planning",
+    "instructions": "Read the planning skill and present a plan before implementation.",
+    "recommendations": {
+      "tools": {
+        "plan_present": {
+          "settings": {
+            "approvalProfile": "coding"
+          }
+        }
+      }
+    },
+    "requirements": {
+      "permissionRuleSetId": "planning",
+      "tools": {
+        "plan_present": {
+          "enabled": true
+        }
+      }
+    },
+    "source": "project",
+    "sourceDigest": "1eb5b70d2a801174a7663b200c2575443f502843363d4a37b300428db3b21029"
+  }
+}

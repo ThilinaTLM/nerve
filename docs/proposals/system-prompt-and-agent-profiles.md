@@ -4,6 +4,10 @@
 >
 > **Follow-up already implemented:** Coding now resets permission and plan presentation to application settings through the explicit Reset to settings mode. This extends the original Phase 5 behavior; the historical specification below is preserved.
 
+## Reading this historical proposal
+
+Sections 1–4 and the original baseline describe earlier phases, not the current normative design. Phase 5 superseded their conflicting inheritance, storage and approval rules. The implemented model/thinking controls share a picker but are independent settings; the Phase 5 phrase “one profile setting” should not be read as an atomic model-and-reasoning value. The scoped-configuration successor defines the next redesign; do not combine its overlay behavior with this document's materialized-template behavior.
+
 ## Summary
 
 Make the prompt sent to the model small and regular, and drive its variations from data instead of from a mode flag:
