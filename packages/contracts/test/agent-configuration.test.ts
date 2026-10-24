@@ -48,6 +48,29 @@ const mutation = (
   resets,
 });
 
+test("resetting reactive overrides uses a detached validated copy", () => {
+  const original: LeadSettingsOverrides = {
+    subagents: {
+      "ui-developer": { enabled: false },
+      explore: { enabled: true },
+    },
+  };
+  const current = new Proxy(original, {
+    get(target, key, receiver) {
+      const value = Reflect.get(target, key, receiver);
+      return value && typeof value === "object" ? new Proxy(value, {}) : value;
+    },
+  });
+  const result = applySettingsMutation(
+    current,
+    mutation({}, ["/overrides/subagents/ui-developer"]),
+  );
+  assert.deepEqual(result, { subagents: { explore: { enabled: true } } });
+  assert.equal(original.subagents?.["ui-developer"]?.enabled, false);
+  result.subagents!.explore!.enabled = false;
+  assert.equal(original.subagents?.explore?.enabled, true);
+});
+
 test("normative examples parse without materializing fields", () => {
   for (const name of [
     "user-agent",

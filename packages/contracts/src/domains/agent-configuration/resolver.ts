@@ -310,7 +310,7 @@ export function applySettingsMutation(
     role === "child"
       ? childSettingsOverridesSchema
       : leadSettingsOverridesSchema;
-  schema.parse(current);
+  const validatedCurrent = schema.parse(current);
   schema.parse(parsed.changes);
   schema.parse(requirements);
   const operations = [
@@ -336,7 +336,8 @@ export function applySettingsMutation(
     )
       throw new Error("Required field is not editable");
   }
-  const result = structuredClone(current) as Record<string, unknown>;
+  // Parsing already produces a detached value, including for reactive proxies.
+  const result = validatedCurrent as Record<string, unknown>;
   for (const pointer of parsed.resets) {
     const keys = parts(pointer).slice(1);
     // Validate structural paths; never allow descent into atomic values.

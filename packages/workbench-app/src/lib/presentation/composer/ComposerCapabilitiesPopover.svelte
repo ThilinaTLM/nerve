@@ -116,13 +116,20 @@ const allToolGroups = $derived(
     ) as CapabilityToolName[],
   ),
 );
+const overrideCounts = $derived({
+  tools: Object.keys(configuration?.overrides.tools ?? {}).filter(
+    (name) => name !== "subagents",
+  ).length,
+  skills: Object.values(configuration?.overrides.skills ?? {}).reduce(
+    (n, group) => n + Object.keys(group).length,
+    0,
+  ),
+  subagents:
+    Object.keys(configuration?.overrides.subagents ?? {}).length +
+    Number(configuration?.overrides.tools?.subagents !== undefined),
+});
 const overrideCount = $derived(
-  Object.keys(configuration?.overrides.tools ?? {}).length +
-    Object.values(configuration?.overrides.skills ?? {}).reduce(
-      (n, group) => n + Object.keys(group).length,
-      0,
-    ) +
-    Object.keys(configuration?.overrides.subagents ?? {}).length,
+  overrideCounts.tools + overrideCounts.skills + overrideCounts.subagents,
 );
 const toolRows = $derived<Row[]>(
   allToolGroups
@@ -370,6 +377,14 @@ function openSettings(
           {:else if profile.disabled}
             <span class="flex-none text-xs text-muted-foreground">Off</span>
           {/if}
+          {#if configuration?.overrides.subagents?.[profile.name]}
+            <IconAction
+              icon={RotateCcw}
+              label={`Reset ${profile.label} launch choices; requirements remain effective`}
+              onclick={() =>
+                onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
+            />
+          {/if}
           <IconAction
             icon={Settings2}
             label={`Configure ${profile.label}`}
@@ -388,14 +403,6 @@ function openSettings(
             onCheckedChange={(enabled) =>
               onPatch?.({ subagents: { [profile.name]: { enabled } } })}
           />
-          {#if configuration?.overrides.subagents?.[profile.name]}
-            <IconAction
-              icon={RotateCcw}
-              label={`Reset ${profile.label} launch choices; requirements remain effective`}
-              onclick={() =>
-                onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
-            />
-          {/if}
         </div>
       {/each}
     {/if}
@@ -453,7 +460,7 @@ function openSettings(
         data-tour-id={`composer-${section.kind}`}
       >
         <section.icon aria-hidden="true" />
-        {#if overrideCount > 0}
+        {#if overrideCounts[section.kind] > 0}
           <span
             class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
           ></span>
