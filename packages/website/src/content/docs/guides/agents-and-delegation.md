@@ -24,7 +24,7 @@ A sub-agent keeps its own context between assignments and does **not** see the l
 
 ## Use the Team Lead skill
 
-Optionally enable the built-in **team-lead** skill in **Settings → Skills** for orchestration guidance. Enable **Sub-agents** separately: a skill supplies instructions, not delegation access or extra authority. Team Lead guides the lead to assign scoped, non-overlapping work, review handoffs and changes, and coordinate validation and corrections before reporting completion. Keep the orchestration skill on the lead rather than passing it to implementation children.
+Select the built-in **Apex** lead profile for orchestration. Its instructions cover requirements ownership, scoped delegation, evidence-based review, and validation; no separate skill read is needed. Apex requires **Sub-agents** but inherits which subagent profiles are available. Delegation does not grant extra authority or bypass permissions.
 
 ## Follow progress
 

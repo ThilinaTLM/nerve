@@ -10,8 +10,8 @@ Agent profiles contribute instructions and settings for model, thinking, permiss
 ## Selection and built-ins
 
 - **Coding** (`coding`, lead): general-purpose work; no additional instructions or settings requirements.
-- **Planning** (`planning`, lead): requires planning permissions and Plan Present with Coding as the approval profile; instructions point to the planning skill.
-- **Apex** (`apex`, lead): requires delegation; instructions point to the Team Lead skill for requirements ownership, coordination, and evidence-based review. Available subagent profiles inherit settings.
+- **Planning** (`planning`, lead): requires planning permissions and Plan Present with Coding as the approval profile; instructions include clarification, research, and implementation planning.
+- **Apex** (`apex`, lead): requires delegation; instructions include requirements ownership, coordination, and evidence-based review. Available subagent profiles inherit settings.
 - **Explore** (`explore`, subagent): read-only research.
 - **Developer** (`developer`, subagent): autonomous implementation.
 

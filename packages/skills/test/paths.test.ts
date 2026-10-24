@@ -9,14 +9,22 @@ import {
 } from "../src/index.js";
 
 test("resolves bundled skills and guides but rejects unknown names and traversal", () => {
-  for (const name of ["team-lead", "skill-creator", "jira", "confluence"]) {
+  for (const name of ["skill-creator", "jira", "confluence"]) {
     const path = builtinSkillFilePath(name);
     assert.ok(path);
     assert.ok(isAbsolute(path));
     assert.ok(existsSync(path));
     assert.ok(path.endsWith(`/${name}/SKILL.md`));
   }
-  for (const name of ["unknown", "../jira", "", "/tmp/jira", "guides/jira"]) {
+  for (const name of [
+    "unknown",
+    "planning",
+    "team-lead",
+    "../jira",
+    "",
+    "/tmp/jira",
+    "guides/jira",
+  ]) {
     assert.equal(builtinSkillFilePath(name), undefined);
   }
 });
@@ -24,9 +32,9 @@ test("resolves bundled skills and guides but rejects unknown names and traversal
 test("replaces every known placeholder without adding quotes and preserves unknown ones", () => {
   assert.equal(
     resolveSkillPlaceholders(
-      "Read {{skill:jira}}, {{skill:team-lead}}, {{skill:jira}}; {{skill:unknown}}.",
+      "Read {{skill:jira}}, {{skill:skill-creator}}, {{skill:jira}}; {{skill:unknown}}.",
     ),
-    `Read ${builtinSkillFilePath("jira")}, ${builtinSkillFilePath("team-lead")}, ${builtinSkillFilePath("jira")}; {{skill:unknown}}.`,
+    `Read ${builtinSkillFilePath("jira")}, ${builtinSkillFilePath("skill-creator")}, ${builtinSkillFilePath("jira")}; {{skill:unknown}}.`,
   );
 });
 
