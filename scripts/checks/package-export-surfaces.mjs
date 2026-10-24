@@ -76,6 +76,7 @@ export const packageExportSurfaces = Object.freeze({
     "./styles/animation.css",
     "./styles/components.css",
     "./utils",
+    "./icons/*",
     "./browser/*",
     "./collections/*",
     "./display/*",

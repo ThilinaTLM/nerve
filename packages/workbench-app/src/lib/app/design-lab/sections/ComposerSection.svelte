@@ -74,7 +74,7 @@ const models: ModelInfo[] = [
 const permissionRuleSets: PermissionRuleSetSummary[] = [
   {
     id: "read_only",
-    name: "Read only",
+    name: "Read-only",
     description: "Cannot modify files or run commands.",
     source: "builtin",
     enabled: true,
@@ -90,7 +90,7 @@ const permissionRuleSets: PermissionRuleSetSummary[] = [
   },
   {
     id: "autonomous",
-    name: "Autonomous",
+    name: "Auto",
     description: "Runs without prompting.",
     source: "builtin",
     enabled: true,

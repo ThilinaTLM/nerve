@@ -24,7 +24,7 @@ A sub-agent keeps its own context between assignments and does **not** see the l
 
 ## Use the Team Lead skill
 
-Select the built-in **Apex** lead profile for orchestration. Its instructions cover requirements ownership, scoped delegation, evidence-based review, and validation; no separate skill read is needed. Apex requires **Sub-agents** but inherits which subagent profiles are available. Delegation does not grant extra authority or bypass permissions.
+Select the built-in **Lead** lead profile for orchestration. Its instructions cover requirements ownership, scoped delegation, evidence-based review, and validation; no separate skill read is needed. Lead requires **Sub-agents** but inherits which subagent profiles are available. Delegation does not grant extra authority or bypass permissions.
 
 ## Follow progress
 

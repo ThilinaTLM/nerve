@@ -52,10 +52,10 @@ REVIEW / PRESENT
     usableBy: "lead",
     instructions: "",
   }),
-  apex: JSON.stringify({
+  lead: JSON.stringify({
     schemaVersion: 1,
-    name: "apex",
-    label: "Apex",
+    name: "lead",
+    label: "Lead",
     description:
       "Lead specialists. Solve complex problems. Deliver verified results.",
     enabled: true,

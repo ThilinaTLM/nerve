@@ -1,12 +1,14 @@
 <script lang="ts">
 import { Badge } from "@nervekit/ui-kit/components/ui/badge";
 import type { Snippet } from "svelte";
-import Lock from "@lucide/svelte/icons/lock";
+import ShieldCheck from "@lucide/svelte/icons/shield-check";
+import ShieldCog from "@lucide/svelte/icons/shield-cog";
+import ShieldEllipsis from "@lucide/svelte/icons/shield-ellipsis";
+import ShieldMinus from "@lucide/svelte/icons/shield-minus";
+import ShieldZap from "@nervekit/ui-kit/icons/ShieldZap";
 import RefreshCw from "@lucide/svelte/icons/refresh-cw";
 import Paperclip from "@lucide/svelte/icons/paperclip";
 import Settings from "@lucide/svelte/icons/settings";
-import Shield from "@lucide/svelte/icons/shield";
-import Zap from "@lucide/svelte/icons/zap";
 import type { LeadSettingsOverrides } from "@nervekit/contracts/agent-configuration";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type {
@@ -301,7 +303,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 <Popover
   bind:open={permissionOpen}
   size="sm"
-  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"} ${activePermission.id === "autonomous" ? "text-warning" : ""}`}
+  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
   ariaLabel="Permission rule set"
   triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
   triggerAriaKeyShortcuts={permissionShortcutAria}
@@ -314,11 +316,15 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
       data-tour-id="composer-permission"
     >
       {#if activePermission.id === "read_only"}
-        <Lock />
+        <ShieldMinus aria-hidden="true" />
       {:else if activePermission.id === "autonomous"}
-        <Zap />
+        <ShieldZap aria-hidden="true" />
+      {:else if activePermission.id === "supervised"}
+        <ShieldCheck aria-hidden="true" />
+      {:else if activePermission.id === "planning"}
+        <ShieldEllipsis aria-hidden="true" />
       {:else}
-        <Shield />
+        <ShieldCog aria-hidden="true" />
       {/if}
       {#if showPermissionLabel}<span
           class="@max-[440px]/composer-toolbar:hidden"

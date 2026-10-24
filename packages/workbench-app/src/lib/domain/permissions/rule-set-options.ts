@@ -15,7 +15,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
     },
     {
       id: "read_only",
-      name: "Read only",
+      name: "Read-only",
       description:
         "Allow interaction, local inspection and sub-agent delegation; deny all other capabilities.",
       source: "builtin",
@@ -24,7 +24,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
     },
     {
       id: "supervised",
-      name: "Supervised",
+      name: "Supervise",
       description:
         "Allow interaction and local inspection; prompt for other capabilities.",
       source: "builtin",
@@ -33,7 +33,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
     },
     {
       id: "autonomous",
-      name: "Autonomous",
+      name: "Auto",
       description: "Allow every valid tool request.",
       source: "builtin",
       enabled: true,
@@ -41,7 +41,7 @@ export const BUILT_IN_PERMISSION_RULE_SET_SUMMARIES: readonly PermissionRuleSetS
     },
     {
       id: "planning",
-      name: "Planning",
+      name: "Draft",
       description:
         "Allow reads, interaction, sub-agent delegation, and writes wholly within the plans directory.",
       source: "builtin",

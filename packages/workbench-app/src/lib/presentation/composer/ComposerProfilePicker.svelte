@@ -1,5 +1,7 @@
 <script lang="ts">
+import Bot from "@lucide/svelte/icons/bot";
 import ClipboardList from "@lucide/svelte/icons/clipboard-list";
+import Network from "@lucide/svelte/icons/network";
 import Code2 from "@lucide/svelte/icons/code-2";
 import Popover, {
   PopoverBody,
@@ -49,7 +51,7 @@ function select(name: string) {
   <Popover
     bind:open
     size="sm"
-    triggerClass={`composer-tab ${planning ? "text-info" : ""}`}
+    triggerClass="composer-tab"
     ariaLabel="Agent profile"
     triggerTitle={shortcut && !disabled
       ? `Agent profile: ${active.label} (${shortcut})`
@@ -65,8 +67,12 @@ function select(name: string) {
       >
         {#if planning}
           <ClipboardList aria-hidden="true" />
-        {:else}
+        {:else if agentProfile === "coding"}
           <Code2 aria-hidden="true" />
+        {:else if agentProfile === "lead"}
+          <Network aria-hidden="true" />
+        {:else}
+          <Bot aria-hidden="true" />
         {/if}
         <span class="@max-[500px]/composer-toolbar:hidden">{active.label}</span>
       </span>

@@ -1,5 +1,7 @@
 <script lang="ts">
-import Blocks from "@lucide/svelte/icons/blocks";
+import Wrench from "@lucide/svelte/icons/wrench";
+import BookOpen from "@lucide/svelte/icons/book-open";
+import Users from "@lucide/svelte/icons/users";
 import Folder from "@lucide/svelte/icons/folder";
 import Globe from "@lucide/svelte/icons/globe";
 import Lock from "@lucide/svelte/icons/lock";
@@ -23,7 +25,6 @@ import SearchInput from "@nervekit/ui-kit/components/composites/search-input";
 import { Button } from "@nervekit/ui-kit/components/ui/button";
 import { Skeleton } from "@nervekit/ui-kit/components/ui/skeleton";
 import { Switch } from "@nervekit/ui-kit/components/ui/switch";
-import * as ToggleGroup from "@nervekit/ui-kit/components/ui/toggle-group";
 
 import {
   skillOverrideKind,
@@ -100,10 +101,6 @@ function handleOpenChange(next: boolean) {
     query = "";
     onRefresh?.();
   }
-}
-function selectTab(next: typeof tab) {
-  tab = next;
-  query = "";
 }
 function configureTool(group: CapabilityToolGroup) {
   open = false;
@@ -218,11 +215,28 @@ const skillRows = $derived<Row[]>(
   }),
 );
 const enabledSkills = $derived(skillRows.filter((r) => r.enabled).length);
-const triggerTitle = $derived(
-  error
-    ? `Capabilities unavailable: ${error}`
-    : "Tools, skills and sub-agent launches",
-);
+const sections = $derived([
+  {
+    kind: "tools" as const,
+    title: "Tools",
+    icon: Wrench,
+    count: `${enabledTools}/${toolGroups.length}`,
+  },
+  {
+    kind: "skills" as const,
+    title: "Skills",
+    icon: BookOpen,
+    count: `${enabledSkills}/${skills.length}`,
+  },
+  {
+    kind: "subagents" as const,
+    title: "Sub-agents",
+    icon: Users,
+    count: subagentCounts
+      ? `${subagentCounts.available}/${subagentCounts.total}`
+      : undefined,
+  },
+]);
 const showSearch = $derived(
   tab === "tools"
     ? showCapabilitySearch(optionalToolRows.length)
@@ -413,105 +427,86 @@ function openSettings(
   {/if}
 {/snippet}
 
-<Popover
-  {open}
-  onOpenChange={handleOpenChange}
-  size="md"
-  triggerClass="composer-tab w-control p-0"
-  ariaLabel="Capabilities"
-  {triggerTitle}
-  side="top"
-  align="start"
->
-  {#snippet trigger()}
-    <span
-      class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
-      data-tour-id="composer-capabilities"
-    >
-      <Blocks aria-hidden="true" />
-      {#if overrideCount > 0}
-        <span
-          class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
-        ></span>
-      {/if}
-    </span>
-  {/snippet}
+{#each sections as section (section.kind)}
+  <Popover
+    open={open && tab === section.kind}
+    onOpenChange={(next) => {
+      if (next) {
+        tab = section.kind;
+        handleOpenChange(true);
+      } else if (tab === section.kind) {
+        handleOpenChange(false);
+      }
+    }}
+    size="md"
+    triggerClass="composer-tab w-control p-0"
+    ariaLabel={section.title}
+    triggerTitle={error
+      ? `${section.title} unavailable: ${error}`
+      : `${section.title}${section.count ? ` (${section.count})` : ""}`}
+    side="top"
+    align="start"
+  >
+    {#snippet trigger()}
+      <span
+        class={`relative inline-flex items-center ${disabled ? "opacity-60" : ""}`}
+        data-tour-id={`composer-${section.kind}`}
+      >
+        <section.icon aria-hidden="true" />
+        {#if overrideCount > 0}
+          <span
+            class="absolute -top-1 -right-1.5 size-1.5 rounded-full bg-primary"
+          ></span>
+        {/if}
+      </span>
+    {/snippet}
 
-  <PopoverHeader title="Capabilities">
-    {#snippet actions()}
-      {#if overrideCount > 0}
+    <PopoverHeader title={section.title}>
+      {#snippet actions()}
+        {#if overrideCount > 0}
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            ariaLabel="Reset all conversation capability overrides"
+            title={`Reset all ${overrideCount} conversation capability override${overrideCount === 1 ? "" : "s"}`}
+            onclick={() => onReset?.()}
+          >
+            <RotateCcw class="size-3.5" aria-hidden="true" />
+          </Button>
+        {/if}
         <Button
           size="icon-sm"
           variant="ghost"
-          ariaLabel="Reset conversation capability overrides"
-          title={`Reset ${overrideCount} conversation override${overrideCount === 1 ? "" : "s"}`}
-          onclick={() => onReset?.()}
+          ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+          title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
+          onclick={() => openSettings()}
         >
-          <RotateCcw class="size-3.5" aria-hidden="true" />
+          <Settings class="size-3.5" aria-hidden="true" />
         </Button>
-      {/if}
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        ariaLabel={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
-        title={`Open ${tab === "subagents" ? "sub-agent" : tab} settings`}
-        onclick={() => openSettings()}
-      >
-        <Settings class="size-3.5" aria-hidden="true" />
-      </Button>
-    {/snippet}
-  </PopoverHeader>
+      {/snippet}
+    </PopoverHeader>
 
-  <PopoverSearch class={showSearch ? "grid gap-2" : undefined}>
-    <ToggleGroup.Root
-      type="single"
-      size="sm"
-      spacing={1}
-      variant="chip"
-      value={tab}
-      class="justify-start"
-      aria-label="Capability kind"
-      onValueChange={(value) => {
-        if (value === "tools" || value === "skills" || value === "subagents")
-          selectTab(value);
-      }}
-    >
-      <ToggleGroup.Item value="tools" class="flex-none">
-        Tools
-        <span data-slot="toggle-count">{enabledTools}/{toolGroups.length}</span>
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value="skills" class="flex-none">
-        Skills
-        <span data-slot="toggle-count">{enabledSkills}/{skills.length}</span>
-      </ToggleGroup.Item>
-      <ToggleGroup.Item value="subagents" class="flex-none">
-        Sub-agents
-        {#if subagentCounts}
-          <span data-slot="toggle-count"
-            >{subagentCounts.available}/{subagentCounts.total}</span
-          >
-        {/if}
-      </ToggleGroup.Item>
-    </ToggleGroup.Root>
     {#if showSearch}
-      <SearchInput
-        bind:value={query}
-        placeholder="Filter capabilities"
-        ariaLabel={tab === "skills" ? "Filter skills" : "Filter tools"}
-      />
+      <PopoverSearch>
+        <SearchInput
+          bind:value={query}
+          placeholder={tab === "skills" ? "Filter skills" : "Filter tools"}
+          ariaLabel={tab === "skills" ? "Filter skills" : "Filter tools"}
+        />
+      </PopoverSearch>
     {/if}
-  </PopoverSearch>
 
-  <PopoverBody
-    class="gap-0"
-    stableHeight={tab === "subagents" ? undefined : bodyHeight}
-  >
-    {#if tab === "tools"}
-      {@render capabilityList(optionalToolRows, "tools")}
-    {:else if tab === "skills"}
-      {@render capabilityList(skillRows, "skills")}
-    {:else}
-      {@render subagentList()}
-    {/if}
-  </PopoverBody>
-</Popover>
+    <PopoverBody
+      class="gap-0"
+      stableHeight={tab === "subagents" ? undefined : bodyHeight}
+    >
+      {#if tab === "tools"}
+        {@render capabilityList(optionalToolRows, "tools")}
+      {:else if tab === "skills"}
+        {@render capabilityList(skillRows, "skills")}
+      {:else}
+        {@render subagentList()}
+      {/if}
+    </PopoverBody>
+  </Popover>
+{/each}
