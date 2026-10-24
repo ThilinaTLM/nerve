@@ -12,26 +12,17 @@ export function formatSkillInvocation(
     : skillBlock;
 }
 
-/** Format model-visible skill availability instructions for the system prompt. */
+/** Format the model-visible skill catalog for the system prompt. */
 export function formatSkillsForSystemPrompt(skills: Skill[]): string {
   const visibleSkills = skills.filter((skill) => !skill.disableModelInvocation);
   if (visibleSkills.length === 0) return "";
 
-  const lines = [
-    "Skills are optional task-specific instructions.",
-    "Read a skill file when its description matches the task; resolve relative references from that skill file's directory.",
-    "",
-    "<available_skills>",
-  ];
+  const lines = ["<available_skills>"];
 
   for (const skill of visibleSkills) {
-    lines.push("  <skill>");
-    lines.push(`    <name>${escapeXml(skill.name)}</name>`);
     lines.push(
-      `    <description>${escapeXml(skill.description)}</description>`,
+      `- ${escapeXml(skill.name)}: ${escapeXml(skill.description)} (path: ${escapeXml(skill.filePath)})`,
     );
-    lines.push(`    <location>${escapeXml(skill.filePath)}</location>`);
-    lines.push("  </skill>");
   }
 
   lines.push("</available_skills>");
