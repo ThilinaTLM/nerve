@@ -4,25 +4,43 @@ export const bundledAgentProfiles: Readonly<Record<string, string>> = {
     schemaVersion: 1,
     name: "planning",
     label: "Planning",
-    description: "Research and present an implementation plan.",
+    description: "Explore possibilities and turn ideas into actionable plans.",
     enabled: true,
     usableBy: "lead",
     instructions:
       "Before anything else, read {{skill:planning}} and follow it.",
     requirements: {
       permissionRuleSetId: "planning",
-      tools: { plan_present: { enabled: true } },
+      tools: {
+        plan_present: {
+          enabled: true,
+          settings: { approvalProfile: "coding" },
+        },
+      },
     },
   }),
   coding: JSON.stringify({
     schemaVersion: 1,
     name: "coding",
     label: "Coding",
-    description: "Implement and validate changes.",
+    description: "Build, investigate, and solve problems.",
+    enabled: true,
+    usableBy: "lead",
+    instructions: "",
+  }),
+  apex: JSON.stringify({
+    schemaVersion: 1,
+    name: "apex",
+    label: "Apex",
+    description:
+      "Lead specialists. Solve complex problems. Deliver verified results.",
     enabled: true,
     usableBy: "lead",
     instructions:
-      "In the final response, summarize changes, validation, and remaining limits.",
+      "Before anything else, read {{skill:team-lead}} and follow it.",
+    requirements: {
+      tools: { subagents: { enabled: true } },
+    },
   }),
   explore: JSON.stringify({
     schemaVersion: 1,

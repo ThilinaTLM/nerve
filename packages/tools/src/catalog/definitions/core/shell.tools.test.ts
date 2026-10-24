@@ -29,7 +29,7 @@ void test("promotion settings define bash schema and exact description per turn"
   assert.ok(!Value.Check(enabled.parameters, { command: "echo", timeout: 1 }));
   assert.equal(
     enabled.description,
-    "Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after 2.5s (`background: true` returns at once); background runs notify you on exit, so don't poll. Large output is saved to files for read/grep.",
+    "Run a shell command in the project. Prefer read/grep/find/ls for inspection and launch for the user's servers. Moves to the background after 2.5s (`background: true` returns at once); background runs notify you on exit. Large output is saved to files for read/grep.",
   );
   assert.equal(
     shellToolDefinitions[0].description,
