@@ -258,27 +258,31 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   ></span>
 {/if}
 
-<ComposerProfilePicker
-  {agentProfiles}
-  {agentProfile}
-  disabled={profileDisabled}
-  {controlsDisabled}
-  shortcut={profileShortcut}
-  shortcutAria={profileShortcutAria}
-  onChange={onAgentProfileChange}
-/>
+{#key capabilityScopeKey}
+  <ComposerProfilePicker
+    {agentProfiles}
+    {agentProfile}
+    disabled={profileDisabled}
+    {controlsDisabled}
+    shortcut={profileShortcut}
+    shortcutAria={profileShortcutAria}
+    onChange={onAgentProfileChange}
+  />
+{/key}
 
-<ComposerModelPicker
-  {models}
-  {selectedModelKey}
-  {thinkingLevel}
-  emptyMessage={modelEmptyMessage}
-  disabled={modelDisabled}
-  modelLocked={lockedFields.model}
-  thinkingLocked={lockedFields.thinking}
-  {lockReason}
-  onChange={onModelSelectionChange}
-/>
+{#key capabilityScopeKey}
+  <ComposerModelPicker
+    {models}
+    {selectedModelKey}
+    {thinkingLevel}
+    emptyMessage={modelEmptyMessage}
+    disabled={modelDisabled}
+    modelLocked={lockedFields.model}
+    thinkingLocked={lockedFields.thinking}
+    {lockReason}
+    onChange={onModelSelectionChange}
+  />
+{/key}
 {#if capabilityConfiguration?.resolution.diagnostics.some((diagnostic) => diagnostic.code === "unsupported-reasoning")}
   <Badge
     variant="outline"
@@ -300,103 +304,105 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
   onReset={onResetModel}
 />
 
-<Popover
-  animateTriggerWidth
-  bind:open={permissionOpen}
-  size="sm"
-  triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
-  ariaLabel="Permission rule set"
-  triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
-  triggerAriaKeyShortcuts={permissionShortcutAria}
-  side="top"
-  align="start"
->
-  {#snippet trigger()}
-    <span
-      class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
-      data-tour-id="composer-permission"
-    >
-      {#if activePermission.id === "read_only"}
-        <ShieldMinus aria-hidden="true" />
-      {:else if activePermission.id === "autonomous"}
-        <ShieldZap aria-hidden="true" />
-      {:else if activePermission.id === "supervised"}
-        <ShieldCheck aria-hidden="true" />
-      {:else if activePermission.id === "planning"}
-        <ShieldEllipsis aria-hidden="true" />
-      {:else}
-        <ShieldCog aria-hidden="true" />
-      {/if}
-      {#if showPermissionLabel}<span
-          class="@max-[440px]/composer-toolbar:hidden"
-          >{activePermission.name}</span
-        >{/if}
-    </span>
-  {/snippet}
-  <PopoverHeader title="Permissions">
-    {#snippet actions()}
-      <Button
-        size="icon"
-        variant="ghost"
-        disabled={permissionRuleSetsLoading}
-        ariaLabel="Refresh permission rule sets"
-        title="Refresh permission rule sets"
-        onclick={() => onRefreshPermissionRuleSets?.()}
+{#key capabilityScopeKey}
+  <Popover
+    triggerWidthKey={`${activePermission.id}:${showPermissionLabel ? activePermission.name : ""}`}
+    bind:open={permissionOpen}
+    size="sm"
+    triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}
+    ariaLabel="Permission rule set"
+    triggerTitle={`Permission rule set: ${activePermission.name}${permissionShortcut ? ` (${permissionShortcut})` : ""}${lockedFields.permission ? ` · Locked by ${lockedFields.by ?? "the applied profile"}` : ""}`}
+    triggerAriaKeyShortcuts={permissionShortcutAria}
+    side="top"
+    align="start"
+  >
+    {#snippet trigger()}
+      <span
+        class={`inline-flex items-center justify-center gap-1 ${controlsDisabled ? "opacity-60" : ""}`}
+        data-tour-id="composer-permission"
       >
-        <RefreshCw
-          class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
-          aria-hidden="true"
-        />
-      </Button>
-      <Button
-        size="icon"
-        variant="ghost"
-        ariaLabel="Open permission settings"
-        title="Open permission settings"
-        onclick={openPermissionSettings}
-      >
-        <Settings class="size-3.5" aria-hidden="true" />
-      </Button>
+        {#if activePermission.id === "read_only"}
+          <ShieldMinus aria-hidden="true" />
+        {:else if activePermission.id === "autonomous"}
+          <ShieldZap aria-hidden="true" />
+        {:else if activePermission.id === "supervised"}
+          <ShieldCheck aria-hidden="true" />
+        {:else if activePermission.id === "planning"}
+          <ShieldEllipsis aria-hidden="true" />
+        {:else}
+          <ShieldCog aria-hidden="true" />
+        {/if}
+        {#if showPermissionLabel}<span
+            class="@max-[440px]/composer-toolbar:hidden"
+            >{activePermission.name}</span
+          >{/if}
+      </span>
     {/snippet}
-  </PopoverHeader>
-  <PopoverBody>
-    {#if lockedFields.permission}
-      <p class="px-1.5 text-muted-foreground">
-        Locked by {lockedFields.by ?? "the applied profile"}.
-      </p>
-    {/if}
-    {#if permissionRuleSetsError}
-      <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
-    {/if}
-    {#if !activePermission.available}
-      <PopoverRow
-        label={activePermission.name}
-        title={activePermission.description}
-        selected
-        disabled
-      >
-        {#snippet trailing()}
-          <span class="flex-none text-muted-foreground">Unavailable</span>
-        {/snippet}
-      </PopoverRow>
-    {/if}
-    {#each permissionRuleSets as option (option.id)}
-      <PopoverRow
-        label={option.name}
-        title={permissionTitle(option)}
-        selected={option.id === permissionRuleSetId}
-        disabled={controlsDisabled || lockedFields.permission}
-        onclick={() => selectPermission(option.id)}
-      >
-        {#snippet trailing()}
-          {#if option.source !== "builtin"}
-            <span class="flex-none text-muted-foreground">Custom</span>
-          {/if}
-        {/snippet}
-      </PopoverRow>
-    {/each}
-  </PopoverBody>
-</Popover>
+    <PopoverHeader title="Permissions">
+      {#snippet actions()}
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={permissionRuleSetsLoading}
+          ariaLabel="Refresh permission rule sets"
+          title="Refresh permission rule sets"
+          onclick={() => onRefreshPermissionRuleSets?.()}
+        >
+          <RefreshCw
+            class={`size-3.5 ${permissionRuleSetsLoading ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          ariaLabel="Open permission settings"
+          title="Open permission settings"
+          onclick={openPermissionSettings}
+        >
+          <Settings class="size-3.5" aria-hidden="true" />
+        </Button>
+      {/snippet}
+    </PopoverHeader>
+    <PopoverBody>
+      {#if lockedFields.permission}
+        <p class="px-1.5 text-muted-foreground">
+          Locked by {lockedFields.by ?? "the applied profile"}.
+        </p>
+      {/if}
+      {#if permissionRuleSetsError}
+        <p class="px-1.5 text-warning">{permissionRuleSetsError}</p>
+      {/if}
+      {#if !activePermission.available}
+        <PopoverRow
+          label={activePermission.name}
+          title={activePermission.description}
+          selected
+          disabled
+        >
+          {#snippet trailing()}
+            <span class="flex-none text-muted-foreground">Unavailable</span>
+          {/snippet}
+        </PopoverRow>
+      {/if}
+      {#each permissionRuleSets as option (option.id)}
+        <PopoverRow
+          label={option.name}
+          title={permissionTitle(option)}
+          selected={option.id === permissionRuleSetId}
+          disabled={controlsDisabled || lockedFields.permission}
+          onclick={() => selectPermission(option.id)}
+        >
+          {#snippet trailing()}
+            {#if option.source !== "builtin"}
+              <span class="flex-none text-muted-foreground">Custom</span>
+            {/if}
+          {/snippet}
+        </PopoverRow>
+      {/each}
+    </PopoverBody>
+  </Popover>
+{/key}
 
 <ComposerSettingStatus
   label="Permission"

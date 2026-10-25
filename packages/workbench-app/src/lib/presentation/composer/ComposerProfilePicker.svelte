@@ -49,7 +49,11 @@ function select(name: string) {
 
 {#if agentProfiles.length > 0}
   <Popover
-    animateTriggerWidth
+    triggerWidthKey={agentProfiles.some(
+      (profile) => profile.name === agentProfile,
+    )
+      ? `${agentProfile}:${active.label}`
+      : null}
     bind:open
     size="sm"
     triggerClass="composer-tab"

@@ -133,7 +133,9 @@ $effect(() => {
 </script>
 
 <Popover
-  animateTriggerWidth
+  triggerWidthKey={selectedModel
+    ? `${triggerLabel}:${showSuffix ? thinkingLevelShortLabel(thinkingLevel) : ""}`
+    : null}
   bind:open
   size="md"
   triggerClass="composer-tab flex-initial overflow-hidden"
