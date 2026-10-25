@@ -243,6 +243,9 @@ const creationDefaults = $derived(
 );
 let pendingResolution =
   $state<Extract<EffectiveAgentView, { status: "available" }>["resolution"]>();
+// Non-reactive identity of the preview currently displayed. Preference edits
+// refresh that target in place; a different draft/profile must not reuse it.
+let pendingResolutionTarget: string | undefined;
 let pendingConfigurationRevision = $state(0);
 $effect(() =>
   observeConversationChannel({
@@ -274,12 +277,14 @@ $effect(() => {
   const pending = activePendingConversation;
   if (!pending) {
     pendingResolution = undefined;
+    pendingResolutionTarget = undefined;
     return;
   }
   const name = pending.explicitAgentProfile;
   const profile = resolvedProfiles.find((candidate) => candidate.name === name);
   if (name && !profile?.digest) {
     pendingResolution = undefined;
+    pendingResolutionTarget = undefined;
     return;
   }
   const target = captureSystemPromptPreview({
@@ -288,9 +293,23 @@ $effect(() => {
       ? { name: profile.name, digest: profile.digest }
       : undefined,
   });
-  if (!target) return;
+  if (!target) {
+    pendingResolution = undefined;
+    pendingResolutionTarget = undefined;
+    return;
+  }
+  const profileName =
+    name ?? creationDefaults?.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE;
+  const targetKey = JSON.stringify([
+    pending.projectId,
+    pending.id,
+    profileName,
+    resolvedProfiles.find((candidate) => candidate.name === profileName)
+      ?.digest,
+  ]);
+  if (pendingResolutionTarget !== targetKey) pendingResolution = undefined;
+  pendingResolutionTarget = targetKey;
   let current = true;
-  pendingResolution = undefined;
   void requestConversation("conversation.previewSystemPrompt", target.params)
     .then((result) => {
       if (current)

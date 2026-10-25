@@ -49,6 +49,7 @@ function select(name: string) {
 
 {#if agentProfiles.length > 0}
   <Popover
+    animateTriggerWidth
     bind:open
     size="sm"
     triggerClass="composer-tab"

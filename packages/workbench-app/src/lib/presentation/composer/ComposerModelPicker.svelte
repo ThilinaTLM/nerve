@@ -133,6 +133,7 @@ $effect(() => {
 </script>
 
 <Popover
+  animateTriggerWidth
   bind:open
   size="md"
   triggerClass="composer-tab flex-initial overflow-hidden"

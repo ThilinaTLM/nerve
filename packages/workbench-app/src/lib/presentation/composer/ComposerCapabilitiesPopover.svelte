@@ -302,6 +302,7 @@ function openSettings(
       <IconAction
         icon={RotateCcw}
         label={`Reset ${row.label} to the inherited setting`}
+        disabled={disabled || loading}
         onclick={row.reset}
       />
     {/if}
@@ -314,7 +315,8 @@ function openSettings(
     {/if}
     <Switch
       checked={row.enabled}
-      disabled={disabled || loading || Boolean(row.lockedBy)}
+      disabled={disabled || Boolean(row.lockedBy)}
+      busy={loading}
       aria-label={`Enable ${row.label} for this conversation`}
       onCheckedChange={row.toggle}
     />
@@ -381,6 +383,7 @@ function openSettings(
             <IconAction
               icon={RotateCcw}
               label={`Reset ${profile.label} launch choices; requirements remain effective`}
+              disabled={disabled || loading}
               onclick={() =>
                 onPatch?.({}, [`/overrides/subagents/${escape(profile.name)}`])}
             />
@@ -395,8 +398,8 @@ function openSettings(
             checked={configuration?.resolution.settings.subagents?.[
               profile.name
             ]?.enabled ?? !profile.disabled}
+            busy={loading}
             disabled={disabled ||
-              loading ||
               unavailable ||
               !subagentControlsEnabled ||
               enabledSource?.source === "requirement"}
@@ -476,6 +479,7 @@ function openSettings(
             variant="ghost"
             ariaLabel="Reset all conversation capability overrides"
             title={`Reset all ${overrideCount} conversation capability override${overrideCount === 1 ? "" : "s"}`}
+            disabled={disabled || loading}
             onclick={() => onReset?.()}
           >
             <RotateCcw class="size-3.5" aria-hidden="true" />

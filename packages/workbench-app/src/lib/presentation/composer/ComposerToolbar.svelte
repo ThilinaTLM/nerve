@@ -301,6 +301,7 @@ function permissionTitle(option: PermissionRuleSetSummary): string {
 />
 
 <Popover
+  animateTriggerWidth
   bind:open={permissionOpen}
   size="sm"
   triggerClass={`composer-tab ${showPermissionLabel ? "" : "w-control p-0"}`}

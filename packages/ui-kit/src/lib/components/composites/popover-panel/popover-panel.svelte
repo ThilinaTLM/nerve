@@ -2,6 +2,7 @@
 import type { Snippet } from "svelte";
 import { Popover as PopoverPrimitive } from "bits-ui";
 import { cn } from "@nervekit/ui-kit/utils";
+import { animateTriggerWidth as attachTriggerWidthAnimation } from "./animate-trigger-width.js";
 
 type Props = {
   trigger?: Snippet;
@@ -14,6 +15,8 @@ type Props = {
   triggerAriaKeyShortcuts?: string;
   class?: string;
   triggerClass?: string;
+  /** Animate intrinsic trigger width changes, without fixing its resting width. */
+  animateTriggerWidth?: boolean;
   /** Panel width preset: sm 16rem, md 20rem, lg 24rem, anchor matches the
    * trigger (at least 20rem). */
   size?: "sm" | "md" | "lg" | "anchor";
@@ -35,6 +38,7 @@ let {
   triggerAriaKeyShortcuts,
   class: className = "",
   triggerClass = "",
+  animateTriggerWidth = false,
   size = "md",
   side = "bottom",
   align = "end",
@@ -44,6 +48,13 @@ let {
   onOpenChange,
 }: Props = $props();
 
+let triggerElement = $state<HTMLButtonElement | null>(null);
+
+$effect(() => {
+  if (!animateTriggerWidth || !triggerElement) return;
+  return attachTriggerWidthAnimation(triggerElement);
+});
+
 function handleOpenChange(next: boolean) {
   open = next;
   onOpenChange?.(next);
@@ -52,7 +63,12 @@ function handleOpenChange(next: boolean) {
 
 <PopoverPrimitive.Root bind:open onOpenChange={handleOpenChange}>
   <PopoverPrimitive.Trigger
-    class={triggerChild ? triggerClass : cn("popover-trigger", triggerClass)}
+    bind:ref={triggerElement}
+    class={cn(
+      !triggerChild && "popover-trigger",
+      triggerClass,
+      animateTriggerWidth && "overflow-hidden",
+    )}
     aria-label={ariaLabel}
     title={triggerTitle}
     aria-keyshortcuts={triggerAriaKeyShortcuts}

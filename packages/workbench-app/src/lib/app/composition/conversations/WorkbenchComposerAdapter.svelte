@@ -154,7 +154,10 @@ let capabilityLoading = $state(false);
 let capabilityRefreshGeneration = 0;
 let configuringToolGroup = $state<CapabilityToolGroup | undefined>();
 const capabilityScopeKey = $derived(
-  activeConversation?.id ?? activePendingConversation?.id ?? "none",
+  JSON.stringify([
+    activeProject?.id,
+    activeConversation?.id ?? activePendingConversation?.id,
+  ]),
 );
 const capabilityConfiguration = $derived<AgentEditorView | undefined>(
   activePendingConversation
@@ -245,13 +248,17 @@ async function refreshCapabilities() {
 $effect(() => {
   if (!workbenchStartupState.progressiveActive) return;
   void capabilityScopeKey;
-  capabilityRefreshGeneration += 1;
-  capabilitySkills = [];
-  pendingCapabilityResolution = undefined;
-  capabilityError = undefined;
-  if (activePendingConversation) capabilityEditor.scope = undefined;
-  configuringToolGroup = undefined;
-  void refreshCapabilities();
+  // Only a scope change resets the view. Refresh reads pending preferences
+  // synchronously; tracking those reads would clear the view on every toggle.
+  untrack(() => {
+    capabilityRefreshGeneration += 1;
+    capabilitySkills = [];
+    pendingCapabilityResolution = undefined;
+    capabilityError = undefined;
+    if (activePendingConversation) capabilityEditor.scope = undefined;
+    configuringToolGroup = undefined;
+    void refreshCapabilities();
+  });
 });
 $effect(() => capabilityEditor.observe());
 $effect(() =>
