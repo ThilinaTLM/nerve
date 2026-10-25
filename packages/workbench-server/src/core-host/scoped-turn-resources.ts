@@ -88,7 +88,7 @@ export function scopedTurnResources(options: {
       description:
         resolveSkillPlaceholders(tool.description) +
         (tool.name === "plan_present"
-          ? ` Plan storage: ${join(options.home, "data", "plans")}.`
+          ? `\n\nWrite the plan under: ${join(options.home, "data", "plans")}`
           : ""),
     }));
     const enabled = (source: "file" | "nerve" | "agentBrowser") =>
