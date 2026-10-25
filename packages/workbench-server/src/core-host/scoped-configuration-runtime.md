@@ -25,3 +25,26 @@ Paths below are relative to `packages/`:
 Core/server targeted unit tests and package checks pass. No integration/browser suites, DDL, production-data operations or commits.
 
 Focused validation remains blocked outside this scope: contracts' new `agent-configuration/operations.ts` violates the generic-filename policy. Separately, workbench-app checking reports 51 DTO-migration errors in nine files. Neither contracts nor UI was modified to bypass those boundaries. Focused validation is not fully green.
+
+### Project defaults before conversation creation
+
+`AgentConfigurationService` remains the process-wide authority for loaded source
+files, revision-checked writes and configuration resolution. Its
+`projectDefaults` projection caches effective lead settings and the selected
+profile per project, without constructing a prompt or creating a conversation.
+`agentConfiguration.resolveProject` exposes this projection; explicit profile
+and draft overrides resolve separately and never replace the cached defaults.
+
+Cached captures depend on agent documents, creation-preference generations,
+profile-catalog generations and execution-resource generations. Saves/reloads
+invalidate these dependencies; concurrent default readers share resolution work.
+System-prompt previews reuse the same resolver, but still recheck their capture
+after prompt preparation. Actual creation/execution retains its authoritative
+publication/admission checks rather than trusting a UI projection.
+
+The app warms project defaults on project activation and retains a synchronized
+read model across composer mounts. It refreshes on configuration notifications
+and reconnect. This client mirror does not merge settings or persist files;
+settings pages continue to write through the backend's existing CAS operations.
+A cold project still needs a server response; subsequent blank drafts can render
+already-resolved settings immediately.

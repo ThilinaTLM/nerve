@@ -176,6 +176,28 @@ export const profileTargetSchema = z.strictObject({
   name: agentProfileNameSchema,
   digest: sha256HexSchema,
 });
+/** Lightweight defaults/draft resolution; never constructs a system prompt. */
+export const resolveProjectAgentRequestSchema = z.strictObject({
+  projectId: z.string().min(1),
+  agentProfile: profileTargetSchema.optional(),
+  overrides: leadSettingsOverridesSchema.optional(),
+});
+export const projectAgentDefaultsResultSchema = z.discriminatedUnion("status", [
+  z.strictObject({
+    status: z.literal("available"),
+    appliedProfile: appliedProfileSchema,
+    resolution: agentResolutionSchema,
+    diagnostics,
+  }),
+  configurationUnavailableSchema,
+]);
+export type ResolveProjectAgentRequest = z.infer<
+  typeof resolveProjectAgentRequestSchema
+>;
+export type ProjectAgentDefaultsResult = z.infer<
+  typeof projectAgentDefaultsResultSchema
+>;
+
 /** No defaults: only submitted choices become explicit overrides. */
 export const implementationChoicesSchema = childLaunchOverridesSchema;
 export const profileConfirmationSchema = z.strictObject({

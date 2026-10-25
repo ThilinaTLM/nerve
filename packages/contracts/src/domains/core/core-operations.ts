@@ -30,6 +30,8 @@ import {
   saveAgentConfigurationResultSchema,
   getEffectiveAgentRequestSchema,
   effectiveAgentViewResultSchema,
+  resolveProjectAgentRequestSchema,
+  projectAgentDefaultsResultSchema,
   getCreationPreferencesRequestSchema,
   getCreationPreferencesResultSchema,
   saveCreationPreferencesRequestSchema,
@@ -189,6 +191,10 @@ export const coreOperationSchemas = {
   "agentConfiguration.getEffective": {
     params: getEffectiveAgentRequestSchema,
     result: effectiveAgentViewResultSchema,
+  },
+  "agentConfiguration.resolveProject": {
+    params: resolveProjectAgentRequestSchema,
+    result: projectAgentDefaultsResultSchema,
   },
   "conversationDefaults.get": {
     params: getCreationPreferencesRequestSchema,

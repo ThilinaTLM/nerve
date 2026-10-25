@@ -1,4 +1,5 @@
 <script lang="ts">
+import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { editableCapabilityResets } from "$lib/domain/capabilities/editable-resets";
 import { agentProfileCatalog } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
 import { parseSlashCommand } from "@nervekit/contracts/completions";
@@ -11,7 +12,6 @@ import {
 import { ScopedAgentState } from "$lib/application/agent-configuration/scoped-agent-state.svelte";
 import type { AgentEditorView } from "$lib/presentation/composer/agent-editor-view";
 import type { AvailableSkill } from "@nervekit/contracts/skills";
-import { captureSystemPromptPreview } from "./system-prompt-preview";
 import { isInlineCommandPrompt } from "@nervekit/contracts/completions";
 import { listTools, uploadAttachment } from "$lib/api";
 import { getDesktopBridge } from "$lib/platform/desktop/desktop-bridge.svelte";
@@ -159,11 +159,23 @@ const capabilityScopeKey = $derived(
     activeConversation?.id ?? activePendingConversation?.id,
   ]),
 );
+const defaultProjectView = $derived(
+  projectAgentDefaults.get(activePendingConversation?.projectId),
+);
+const effectivePendingResolution = $derived(
+  activePendingConversation &&
+    !activePendingConversation.explicitAgentProfile &&
+    !Object.keys(activePendingConversation.overrides ?? {}).length
+    ? defaultProjectView?.status === "available"
+      ? defaultProjectView.resolution
+      : undefined
+    : pendingCapabilityResolution,
+);
 const capabilityConfiguration = $derived<AgentEditorView | undefined>(
   activePendingConversation
-    ? pendingCapabilityResolution
+    ? effectivePendingResolution
       ? {
-          resolution: pendingCapabilityResolution,
+          resolution: effectivePendingResolution,
           overrides: activePendingConversation.overrides ?? {},
         }
       : undefined
@@ -211,30 +223,31 @@ async function refreshCapabilities() {
       const profile = agentProfileCatalog
         .profiles(pending.projectId)
         .find((p) => p.name === pending.explicitAgentProfile);
-      const target = captureSystemPromptPreview({
-        pending,
-        targetProfile: profile?.digest
-          ? { name: profile.name, digest: profile.digest }
-          : undefined,
-      });
-      if (target) {
-        const result = await requestConversation(
-          "conversation.previewSystemPrompt",
-          target.params,
-        );
-        if (
-          generation === capabilityRefreshGeneration &&
-          activePendingConversation === pending
-        ) {
-          pendingCapabilityResolution =
-            result.status === "available" ? result.resolution : undefined;
-          capabilityError =
-            result.status === "available"
-              ? undefined
-              : "Configuration unavailable.";
-        }
+      if (pending.explicitAgentProfile && !profile?.digest)
+        throw new Error("Profile unavailable. Refresh and try again.");
+      const result = await requestConversation(
+        "agentConfiguration.resolveProject",
+        {
+          projectId: pending.projectId,
+          agentProfile: profile?.digest
+            ? { name: profile.name, digest: profile.digest }
+            : undefined,
+          overrides: pending.overrides,
+        },
+      );
+      if (
+        generation === capabilityRefreshGeneration &&
+        activePendingConversation === pending
+      ) {
+        pendingCapabilityResolution =
+          result.status === "available" ? result.resolution : undefined;
+        capabilityError =
+          result.status === "available"
+            ? undefined
+            : "Configuration unavailable.";
       }
     }
+
     const result = await listAvailableSkills(projectId);
     if (generation === capabilityRefreshGeneration)
       capabilitySkills = result.skills;

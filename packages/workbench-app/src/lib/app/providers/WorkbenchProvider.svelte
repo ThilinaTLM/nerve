@@ -75,6 +75,10 @@ import {
   agentProfileCatalog,
   leadAgentProfiles,
 } from "$lib/application/agent-profiles/agent-profile-catalog.svelte";
+import {
+  projectAgentDefaults,
+  observeProjectAgentDefaults,
+} from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 
 type Props = {
@@ -86,6 +90,10 @@ const unregisterWorkspaceReadModels = registerWorkspaceReadModels();
 onDestroy(unregisterWorkspaceReadModels);
 
 const activeProject = $derived(workspaceSelectors.activeProject);
+$effect(() => {
+  if (activeProject?.id) void projectAgentDefaults.load(activeProject.id);
+});
+$effect(() => observeProjectAgentDefaults());
 let activeStore = $state<ConversationStore>();
 $effect(() => {
   const id = selection.conversationId;

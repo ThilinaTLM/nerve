@@ -146,62 +146,22 @@ export function createScopedAgentConfiguration(options: {
               resolution: capture.view.resolution,
             };
         } else {
-          const defaults = await options.service.captureDefaults(
-            input.conversation.projectId,
-          );
-          const creation = await options.service.getCreationPreferences(
-            input.conversation.projectId,
-          );
-          if (creation.status === "unavailable") return creation;
-          const profile = await options.service.profiles.get(
-            input.agentProfile?.name ?? creation.overrides.defaultAgentProfile,
-            input.conversation.projectId,
-          );
-          if (
-            profile.status !== "available" ||
-            (input.agentProfile && profile.digest !== input.agentProfile.digest)
-          )
-            return {
-              status: "unavailable",
-              diagnostics:
-                profile.status === "unavailable"
-                  ? [...profile.diagnostics]
-                  : [
-                      {
-                        scope: "project",
-                        scopeId: input.conversation.projectId,
-                        document: "profile",
-                        path: "agent-profiles",
-                        code: "target-changed",
-                        pointer: "",
-                        affectedCapability: "preview",
-                        recoveryChoices: ["retry"],
-                      },
-                    ],
-            };
-          const definition = profile.definition;
-          const resolution = resolveAgentConfiguration({
-            ...defaults.options,
-            role: "lead",
-            conversation: input.overrides ?? {},
-            appliedProfile: {
-              name: definition.name,
-              source: profile.source,
-              sourceDigest: profile.digest,
-              instructions: definition.instructions,
-              recommendations: definition.recommendations ?? {},
-              requirements: definition.requirements ?? {},
-            },
+          const capture = await options.service.projectDefaults.capture({
+            projectId: input.conversation.projectId,
+            agentProfile: input.agentProfile,
+            overrides: input.overrides,
           });
+          if (capture.view.status === "unavailable") return capture.view;
+          const { resolution, appliedProfile } = capture.view;
           const result = await options.prepare(
             input,
             resolution.settings,
-            definition.instructions,
+            appliedProfile.instructions,
             resolution.diagnostics
               .filter((issue) => issue.code === "missing-reference")
               .map((issue) => issue.pointer),
           );
-          if (defaults.isCurrent())
+          if (capture.isCurrent())
             return { status: "available", ...result, resolution };
         }
       }

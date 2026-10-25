@@ -155,6 +155,8 @@ export function createConversationProtocolSession(
       state.configurationOperations.save(input),
     "agentConfiguration.getEffective": ({ conversationId }) =>
       state.configurationOperations.effective(conversationId),
+    "agentConfiguration.resolveProject": (input) =>
+      state.agentConfiguration.projectDefaults.get(input),
     "conversationDefaults.get": ({ scope }) =>
       state.configurationOperations.creation(scope),
     "conversationDefaults.save": (input) =>

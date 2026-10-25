@@ -35,7 +35,7 @@ void test("pending composer retains settings during refresh without leaking targ
       node.expression.getText(source) === "$effect" &&
       node
         .getText(source)
-        .includes('requestConversation("conversation.previewSystemPrompt"')
+        .includes('requestConversation("agentConfiguration.resolveProject"')
     )
       effect = node.getText(source);
     if (
@@ -59,6 +59,8 @@ let activePendingConversation = $state({ id: 'draft', projectId: 'p', explicitAg
 let resolvedProfiles = $state([{ name: 'coding', digest: 'a' }, { name: 'lead', digest: 'b' }]);
 let pendingResolution = $state();
 let pendingResolutionTarget;
+let projectDefaultView = $state();
+const activeProject = {id: "p"};
 const effective = undefined;
 const selectedAgentProfile = 'coding';
 const modelKey = (model) => model.provider + ':' + model.modelId;
@@ -72,12 +74,20 @@ function requestConversation() {
 }
 ${derived.join("\n")}
 export const stop = $effect.root(() => { ${effect}; });
+export function idleWithDefaults() {
+  activePendingConversation = undefined;
+  projectDefaultView = {status:'available', appliedProfile:{name:'coding'}, resolution:{
+    settings:{model:{provider:'test',modelId:'warm'}, reasoningLevel:'high', permissionRuleSetId:'supervised'},
+    provenance:{'/model':{source:'requirement'}}
+  }};
+}
+export function blankDraft() { activePendingConversation = {id:'blank', projectId:'p', overrides:{}}; }
 export function edit() { activePendingConversation.overrides.count++; }
 export function scope() { activePendingConversation.id += '-next'; }
 export function project() { activePendingConversation.projectId += '-next'; }
 export function profile(name) { activePendingConversation.explicitAgentProfile = name; }
 export function settle(index, modelId) {
-  requests[index].resolve(modelId ? { status: 'available', resolution: {
+  requests[index].resolve(modelId ? { status: 'available', appliedProfile: {name:'coding'}, resolution: {
     settings: { model: {provider:'test', modelId}, reasoningLevel:'high', permissionRuleSetId:'supervised' },
     provenance: { '/model': {source:'requirement'} }
   }} : {status:'unavailable'});
@@ -95,6 +105,8 @@ export function view() { return { model: selectedModelKey, thinking: selectedThi
     `data:text/javascript;base64,${Buffer.from(code).toString("base64")}`
   )) as {
     stop(): void;
+    idleWithDefaults(): void;
+    blankDraft(): void;
     edit(): void;
     scope(): void;
     project(): void;
@@ -179,6 +191,18 @@ export function view() { return { model: selectedModelKey, thinking: selectedThi
       harness.view().requests,
       8,
       "unavailable profiles cannot reuse another profile's preview",
+    );
+    harness.idleWithDefaults();
+    flushSync();
+    harness.blankDraft();
+    // Warm project settings are available even before the draft's effects run.
+    assertModel("warm");
+    flushSync();
+    assertModel("warm");
+    assert.equal(
+      harness.view().requests,
+      8,
+      "blank drafts reuse warmed defaults without another resolution",
     );
   } finally {
     harness.stop();

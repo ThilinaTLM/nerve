@@ -1,3 +1,4 @@
+import { ProjectAgentDefaults } from "./project-agent-defaults.js";
 import { withoutLegacyTransition } from "./document-adapters.js";
 import {
   readCreationPreferences,
@@ -106,6 +107,7 @@ type Summary = z.infer<
 export class AgentConfigurationService {
   readonly paths: AgentConfigurationPaths;
   readonly profiles: AgentProfileCatalog;
+  readonly projectDefaults = new ProjectAgentDefaults(this);
   private readonly agents: ScopedDocumentStore<AgentScope, AgentDocument>;
   private readonly creation: ScopedDocumentStore<
     PreferenceScope,
@@ -686,6 +688,16 @@ export class AgentConfigurationService {
       (scope) => this.loadCreation(scope),
       projectId,
     );
+  }
+  async captureCreationPreferences(projectId: string) {
+    const scopes: PreferenceScope[] = [
+      { scope: "user" },
+      { scope: "project", projectId },
+    ];
+    await Promise.all(scopes.map((scope) => this.loadCreation(scope)));
+    const current = this.creation.captureGenerations(scopes);
+    const view = await this.getCreationPreferences(projectId);
+    return { view, isCurrent: current };
   }
   async saveCreation(scope: PreferenceScope, mutation: CreationMutation) {
     return saveCreationPreferences(

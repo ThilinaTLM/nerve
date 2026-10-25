@@ -1,5 +1,6 @@
 <script lang="ts">
 import ProfileUpdateNotice from "$lib/features/conversations/views/ProfileUpdateNotice.svelte";
+import { projectAgentDefaults } from "$lib/application/agent-configuration/project-agent-defaults.svelte";
 import type { EffectiveAgentView } from "@nervekit/contracts/agent-configuration";
 import { CreationPreferencesState } from "$lib/features/settings/state/creation-preferences.svelte";
 import { switchAgentProfile } from "$lib/features/conversations/adapters/core-agent-configuration.adapter";
@@ -246,6 +247,11 @@ let pendingResolution =
 // Non-reactive identity of the preview currently displayed. Preference edits
 // refresh that target in place; a different draft/profile must not reuse it.
 let pendingResolutionTarget: string | undefined;
+const projectDefaultView = $derived(
+  projectAgentDefaults.get(
+    activePendingConversation?.projectId ?? activeProject?.id,
+  ),
+);
 let pendingConfigurationRevision = $state(0);
 $effect(() =>
   observeConversationChannel({
@@ -257,15 +263,16 @@ $effect(() =>
     event() {},
     notice: (notice) => {
       if (
-        notice.type !== "agentConfiguration.changed" ||
-        !activePendingConversation
+        notice.type !== "agentConfiguration.changed" &&
+        notice.type !== "conversationDefaults.changed"
       )
         return;
       const scope = notice.data.scope;
       if (
         scope.scope === "user" ||
         (scope.scope === "project" &&
-          scope.projectId === activePendingConversation.projectId)
+          scope.projectId ===
+            (activePendingConversation?.projectId ?? activeProject?.id))
       )
         pendingConfigurationRevision += 1;
     },
@@ -275,46 +282,51 @@ $effect(() => {
   void pendingConfigurationRevision;
   void creationDefaults;
   const pending = activePendingConversation;
-  if (!pending) {
+  // Warm the backend's project projection before any draft exists. A blank
+  // draft has the same target as these defaults, so opening it retains them.
+  const projectId = pending?.projectId ?? activeProject?.id;
+  if (!projectId) {
     pendingResolution = undefined;
     pendingResolutionTarget = undefined;
     return;
   }
-  const name = pending.explicitAgentProfile;
+  const name = pending?.explicitAgentProfile;
   const profile = resolvedProfiles.find((candidate) => candidate.name === name);
   if (name && !profile?.digest) {
     pendingResolution = undefined;
     pendingResolutionTarget = undefined;
     return;
   }
-  const target = captureSystemPromptPreview({
-    pending,
-    targetProfile: profile?.digest
-      ? { name: profile.name, digest: profile.digest }
-      : undefined,
-  });
-  if (!target) {
-    pendingResolution = undefined;
+  const agentProfile = profile?.digest
+    ? { name: profile.name, digest: profile.digest }
+    : undefined;
+  const overrides = $state.snapshot(pending?.overrides ?? {});
+  if (!name && Object.keys(overrides).length === 0) {
+    pendingResolution =
+      projectDefaultView?.status === "available"
+        ? projectDefaultView.resolution
+        : undefined;
     pendingResolutionTarget = undefined;
     return;
   }
-  const profileName =
-    name ?? creationDefaults?.defaultAgentProfile ?? DEFAULT_AGENT_PROFILE;
   const targetKey = JSON.stringify([
-    pending.projectId,
-    pending.id,
-    profileName,
-    resolvedProfiles.find((candidate) => candidate.name === profileName)
-      ?.digest,
+    projectId,
+    agentProfile,
+    creationDefaults?.defaultAgentProfile,
+    name || Object.keys(overrides).length ? pending?.id : undefined,
   ]);
   if (pendingResolutionTarget !== targetKey) pendingResolution = undefined;
   pendingResolutionTarget = targetKey;
   let current = true;
-  void requestConversation("conversation.previewSystemPrompt", target.params)
+  void requestConversation("agentConfiguration.resolveProject", {
+    projectId,
+    agentProfile,
+    overrides,
+  })
     .then((result) => {
-      if (current)
-        pendingResolution =
-          result.status === "available" ? result.resolution : undefined;
+      if (!current) return;
+      pendingResolution =
+        result.status === "available" ? result.resolution : undefined;
     })
     .catch(() => {
       if (current) pendingResolution = undefined;
@@ -324,7 +336,14 @@ $effect(() => {
   };
 });
 const composerResolution = $derived(
-  activePendingConversation ? pendingResolution : effective?.resolution,
+  activePendingConversation
+    ? !activePendingConversation.explicitAgentProfile &&
+      !Object.keys(activePendingConversation.overrides ?? {}).length
+      ? projectDefaultView?.status === "available"
+        ? projectDefaultView.resolution
+        : undefined
+      : pendingResolution
+    : effective?.resolution,
 );
 const selectedModelKey = $derived(
   composerResolution?.settings.model
@@ -337,6 +356,9 @@ const selectedThinkingLevel = $derived(
 const selectedAgentProfile = $derived(
   activePendingConversation
     ? (activePendingConversation.explicitAgentProfile ??
+        (projectDefaultView?.status === "available"
+          ? projectDefaultView.appliedProfile.name
+          : undefined) ??
         creationDefaults?.defaultAgentProfile ??
         DEFAULT_AGENT_PROFILE)
     : (effective?.appliedProfile?.name ?? DEFAULT_AGENT_PROFILE),

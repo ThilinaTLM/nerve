@@ -113,6 +113,15 @@ export const conversationChannelOperations = [
     "operation.agentConfiguration.getEffective",
   ),
   defineOperation(
+    "agentConfiguration.resolveProject",
+    coreOperationSchemas["agentConfiguration.resolveProject"].params,
+    coreOperationSchemas["agentConfiguration.resolveProject"].result,
+    "read",
+    "none",
+    host,
+    "operation.agentConfiguration.resolveProject",
+  ),
+  defineOperation(
     "conversationDefaults.get",
     coreOperationSchemas["conversationDefaults.get"].params,
     coreOperationSchemas["conversationDefaults.get"].result,

@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { test } from "node:test";
 import {
@@ -9,98 +8,20 @@ import {
 } from "@nervekit/contracts/agent-configuration";
 import { atomicReplaceFile } from "../../storage-bootstrap/file-mutations.js";
 import { ScopeConflictError } from "../scoped-store/scoped-document-store.js";
-import {
-  AgentConfigurationService,
-  type AgentConfigurationServiceOptions,
-} from "./agent-configuration-service.js";
-import type { AgentScope } from "./document-adapters.js";
+import { AgentConfigurationService } from "./agent-configuration-service.js";
 
-const A = { provider: "p", modelId: "a" };
-const B = { provider: "q", modelId: "b" };
-const user = { scope: "user" } as const;
-const project = { scope: "project", projectId: "p" } as const;
-const lead = { scope: "conversation", conversationId: "lead" } as const;
-const definition = {
-  schemaVersion: 1,
-  name: "coding",
-  description: "Coding",
-  usableBy: "both",
-  instructions: "",
-};
-const leadDocument = {
-  schemaVersion: 1,
-  revision: 0,
-  overrides: {},
-  appliedProfile: null,
-};
-async function put(file: string, value: unknown): Promise<void> {
-  await mkdir(path.dirname(file), { recursive: true });
-  await writeFile(
-    file,
-    typeof value === "string" ? value : JSON.stringify(value, null, 2),
-  );
-}
-async function fixture(
-  t: { after(fn: () => Promise<void>): void },
-  overrides: Partial<AgentConfigurationServiceOptions> = {},
-) {
-  const root = await mkdtemp(path.join(os.tmpdir(), "agent-config-service-"));
-  t.after(async () => {
-    await service.flushSummaries();
-    await rm(root, { recursive: true, force: true });
-  });
-  let ownerReads = 0;
-  const options: AgentConfigurationServiceOptions = {
-    home: path.join(root, "home"),
-    projectDirectory: () => path.join(root, "project"),
-    conversationOwner: (id) => {
-      ownerReads += 1;
-      return {
-        projectId: "p",
-        role: id.startsWith("child") ? "child" : "lead",
-      };
-    },
-    builtins: { coding: JSON.stringify(definition) },
-    isProfileTrusted: () => false,
-    captureResources: () => ({
-      options: { referenceAvailable: () => true },
-      isCurrent: () => true,
-    }),
-    ...overrides,
-  };
-  const service = new AgentConfigurationService(options);
-  await put(path.join(options.home, "config", "agent.json"), {
-    schemaVersion: 1,
-    revision: 0,
-    overrides: { model: A },
-  });
-  await put(
-    path.join(
-      options.home,
-      "data",
-      "conversations",
-      "lead",
-      "config",
-      "agent.json",
-    ),
-    leadDocument,
-  );
-  return {
-    service,
-    options,
-    ownerReads: () => ownerReads,
-    agent: (scope: AgentScope, value: unknown) =>
-      put(service.paths.agent(scope), value),
-  };
-}
-function mutation(
-  expectedRevision: number,
-  expectedDigest: string,
-  changes: object = {},
-  resets: string[] = [],
-) {
-  return { expectedRevision, expectedDigest, changes, resets };
-}
+import {
+  A,
+  B,
+  user,
+  project,
+  lead,
+  definition,
+  leadDocument,
+  put,
+  fixture,
+  mutation,
+} from "./agent-configuration-test-fixture.js";
 
 void test("initialization validates user documents, not project/conversation documents or ownership", async (t) => {
   const f = await fixture(t);
